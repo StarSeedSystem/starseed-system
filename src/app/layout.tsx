@@ -41,6 +41,7 @@ import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
 import { EntornoMontaje } from "@/components/entorno/entorno-montaje";
+import { BloqueoMontaje } from "@/components/bloqueo/bloqueo-montaje";
 import { SoloFueraDeConsola, SoloFueraDeMinima } from "@/components/layout/solo-fuera-de-consola";
 // Línea de carga global (2 px arriba): rutas y peticiones en vuelo, con umbral y
 // animación solo en el compositor; adaptativa a reduced-motion / saveData / poca RAM.
@@ -305,6 +306,8 @@ export default function RootLayout({
                         {/* Detección automática de entorno: medios + cuentas de este
                             dispositivo, en cualquier ventana/medio donde se abra el OS. */}
                         <SoloFueraDeConsola><EntornoMontaje /></SoloFueraDeConsola>
+                        {/* Pantalla de bloqueo de esta neurona (Ola 382): ligera; la pantalla se carga a demanda. */}
+                        <BloqueoMontaje />
                         <SoloFueraDeConsola><PinnedWidgetOverlay /></SoloFueraDeConsola>
                         {/* Mini-reproductor global del media center (aparece al reproducir). */}
                         <SoloFueraDeConsola><MediaMiniDock /></SoloFueraDeConsola>
