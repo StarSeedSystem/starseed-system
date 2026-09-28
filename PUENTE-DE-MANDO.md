@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 17:32:22 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-27 20:01:11 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -11,20 +11,22 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 El Mando está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`
 y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.
-| HEAD | `43854bd2 chore(memoria): aprendizaje de la ola auto-0927-161954` |
-| Sin publicar | 3 commits |
+| HEAD | `0384c4d7 chore(memoria): aprendizaje de la ola auto-0927-173453` |
+| Sin publicar | 32 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-0927-161954.json`, hace 36s)
+## Quién escribe ahora (latido de `cola-auto-0927-173453.json`, hace 13s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RDV6` | hecho | nvidia/z-ai/glm-5.3 | 19 min | 1118 s | 27686 |
-| `JF2b` | hecho | nvidia/z-ai/glm-5.3 | 51 min | 3053 s | 29049 |
-| `RDV19` | hecho | nvidia/z-ai/glm-5.3 | 57 min | 3443 s | 867 |
-| `RDV8` | hecho | nvidia/z-ai/glm-5.3 | 63 min | 3774 s | 840 |
-| `DR0927-2` | hecho | nvidia/z-ai/glm-5.3 | 68 min | 4065 s | 2696 |
-| `DR0927-1` | hecho | nvidia/z-ai/glm-5.3 | 68 min | 4068 s | 214 |
+| `RDV19r` | hecho | - | 13 min | 770 s | 109 |
+| `RDV8r` | hecho | - | 14 min | 836 s | 109 |
+| `INI7` | hecho | google/gemini-3.6-flash | 50 min | 2974 s | 109 |
+| `FL7` | hecho | google/gemini-3.6-flash | 55 min | 3308 s | 109 |
+| `BLQ2` | hecho | google/gemini-3.6-flash | 61 min | 3643 s | 8006 |
+| `BLQ1` | hecho | codex/gpt-5.6-sol | 63 min | 3792 s | 772706 |
+| `INI1` | hecho | codex/gpt-5.6-sol | 64 min | 3845 s | 720071 |
+| `JF2b` | hecho | nvidia/z-ai/glm-5.3 | 66 min | 3977 s | 58231 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
