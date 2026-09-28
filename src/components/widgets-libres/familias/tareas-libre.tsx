@@ -77,17 +77,17 @@ export function TareasLibre() {
                                 {pending.slice(0, b === "xl" ? 7 : 4).map((t) => (
                                     <li key={t.id}>
                                         <button type="button" onClick={() => toggle(t.id)} className="flex w-full cursor-pointer items-center gap-2 text-left text-xs text-white/85 hover:text-white">
-                                            <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ boxShadow: `0 0 0 1.5px ${VERDE}` }} />
+                                            <span aria-hidden className="size-2.5 shrink-0 rounded-full ss-redondo" style={{ boxShadow: `0 0 0 1.5px ${VERDE}` }} />
                                             <span className="truncate">{t.text}</span>
                                         </button>
                                     </li>
                                 ))}
                             </ul>
                             {conCampo && (
-                                <form onSubmit={enviar} className="flex items-center gap-1 rounded-full pl-3 pr-1" style={{ background: `radial-gradient(120% 200% at 10% 50%, ${VERDE}22, transparent)` }}>
+                                <form onSubmit={enviar} className="flex items-center gap-1 rounded-full ss-redondo pl-3 pr-1" style={{ background: `radial-gradient(120% 200% at 10% 50%, ${VERDE}22, transparent)` }}>
                                     <input value={borrador} onChange={(e) => setBorrador(e.target.value)} placeholder="Nueva tarea…" aria-label="Nueva tarea"
                                         className="min-w-0 flex-1 bg-transparent py-1.5 text-xs text-white placeholder:text-white/40 focus:outline-none" />
-                                    <button type="submit" aria-label="Añadir tarea" className="grid size-6 cursor-pointer place-items-center rounded-full text-white hover:bg-white/10"><Plus className="size-3.5" /></button>
+                                    <button type="submit" aria-label="Añadir tarea" className="grid size-6 cursor-pointer place-items-center rounded-full ss-redondo text-white hover:bg-white/10"><Plus className="size-3.5" /></button>
                                 </form>
                             )}
                         </div>

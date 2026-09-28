@@ -64,7 +64,7 @@ function Liquido({ met, color, tam, forma }: { met: Metrica; color: string; tam:
     const clip = forma ? `path("${trazoForma("gota", tam, tam)}")` : undefined;
     return (
         <div className="flex flex-col items-center gap-1" role="meter" aria-label={`${met.nombre}: ${met.detalle}`} aria-valuenow={met.nivel === null ? undefined : Math.round(nivel * 100)} aria-valuemin={0} aria-valuemax={100}>
-            <div className={`relative overflow-hidden ${forma ? "" : "rounded-full"}`} style={{ width: tam, height: tam, clipPath: clip, background: `radial-gradient(closest-side, ${color}14, transparent)` }}>
+            <div className={`relative overflow-hidden ${forma ? "" : "rounded-full ss-redondo"}`} style={{ width: tam, height: tam, clipPath: clip, background: `radial-gradient(closest-side, ${color}14, transparent)` }}>
                 <div className="absolute left-0 w-[200%] transition-[top] duration-700" style={{ top: `${(1 - nivel) * 100}%`, height: "110%" }}>
                     <svg viewBox="0 0 200 20" preserveAspectRatio="none" className="ss-ola h-3 w-full" style={{ ["--ss-dur" as string]: "6s" }}>
                         <path d="M0 10 Q25 0 50 10 T100 10 T150 10 T200 10 V20 H0Z" fill={color} fillOpacity={0.55} />

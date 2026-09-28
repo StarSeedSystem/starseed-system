@@ -63,7 +63,7 @@ export function SelectorPantallaInicial({ ambito, id, onGuardado }: { ambito: "p
             </div>
             {abierto && (
                 <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5">
+                    <label className="flex items-center gap-2 rounded-full ss-redondo bg-white/10 px-3 py-1.5">
                         <Search className="size-3.5 text-white/60" />
                         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar una página…" aria-label="Buscar una página"
                             className="min-w-0 flex-1 bg-transparent text-xs text-white placeholder:text-white/40 focus:outline-none" />
@@ -74,7 +74,7 @@ export function SelectorPantallaInicial({ ambito, id, onGuardado }: { ambito: "p
                             return (
                                 <li key={p.ruta}>
                                     <button type="button" onClick={() => elegir({ tipo: "ruta", ruta: p.ruta })} aria-pressed={activa}
-                                        className="cursor-pointer rounded-full px-3 py-1 text-xs text-white/85 hover:text-white"
+                                        className="cursor-pointer rounded-full ss-redondo px-3 py-1 text-xs text-white/85 hover:text-white"
                                         style={{ background: activa ? "radial-gradient(closest-side,#FFBF0066,#FFBF0018)" : "rgba(255,255,255,.07)" }}>
                                         {p.nombre}
                                     </button>

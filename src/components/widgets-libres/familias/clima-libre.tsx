@@ -41,10 +41,10 @@ function Particulas({ cielo }: { cielo: Cielo }) {
     const n = cielo === "lluvia" ? 7 : cielo === "nieve" ? 6 : 0;
     return (
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-            {cielo === "sol" && <div className="ss-girar absolute inset-[12%] rounded-full opacity-40" style={{ ["--ss-dur" as string]: "40s", background: "repeating-conic-gradient(#FFBF0055 0 6deg, transparent 6deg 30deg)", maskImage: "radial-gradient(closest-side, transparent 55%, #000 60%, transparent)" }} />}
-            {cielo === "nubes" && [0, 1].map((i) => <div key={i} className="ss-derivar absolute rounded-full" style={{ ["--ss-dur" as string]: `${9 + i * 4}s`, left: `${15 + i * 30}%`, top: `${22 + i * 18}%`, width: "45%", height: "30%", background: "radial-gradient(closest-side, #e2e8f055, transparent)" }} />)}
-            {cielo === "tormenta" && <div className="ss-destello absolute inset-0 rounded-full" style={{ background: "radial-gradient(closest-side, #ffffffaa, transparent)" }} />}
-            {cielo === "niebla" && [0, 1, 2].map((i) => <div key={i} className="ss-derivar absolute left-[10%] h-[8%] w-[80%] rounded-full bg-white/15" style={{ ["--ss-dur" as string]: `${7 + i * 3}s`, top: `${30 + i * 18}%` }} />)}
+            {cielo === "sol" && <div className="ss-girar absolute inset-[12%] rounded-full ss-redondo opacity-40" style={{ ["--ss-dur" as string]: "40s", background: "repeating-conic-gradient(#FFBF0055 0 6deg, transparent 6deg 30deg)", maskImage: "radial-gradient(closest-side, transparent 55%, #000 60%, transparent)" }} />}
+            {cielo === "nubes" && [0, 1].map((i) => <div key={i} className="ss-derivar absolute rounded-full ss-redondo" style={{ ["--ss-dur" as string]: `${9 + i * 4}s`, left: `${15 + i * 30}%`, top: `${22 + i * 18}%`, width: "45%", height: "30%", background: "radial-gradient(closest-side, #e2e8f055, transparent)" }} />)}
+            {cielo === "tormenta" && <div className="ss-destello absolute inset-0 rounded-full ss-redondo" style={{ background: "radial-gradient(closest-side, #ffffffaa, transparent)" }} />}
+            {cielo === "niebla" && [0, 1, 2].map((i) => <div key={i} className="ss-derivar absolute left-[10%] h-[8%] w-[80%] rounded-full ss-redondo bg-white/15" style={{ ["--ss-dur" as string]: `${7 + i * 3}s`, top: `${30 + i * 18}%` }} />)}
             {n > 0 && (
                 // Las gotas caen DENTRO de la forma: una columna por gota que cruza la altura entera
                 // (el % de translate es de la propia columna, no de la gota).

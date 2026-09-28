@@ -19,7 +19,7 @@ const METODOS: { id: MetodoBloqueo; titulo: string; forma: TipoForma; acento: st
     { id: "biometria", titulo: "Huella o rostro", forma: "gota", acento: "#10B981", Icono: Fingerprint },
 ];
 const MINUTOS = [0, 1, 5, 15, 30];
-const campo = "w-full rounded-full bg-white/10 px-4 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300";
+const campo = "w-full rounded-full ss-redondo bg-white/10 px-4 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300";
 
 export function ConfigurarBloqueo({ neuronaId, nombreNeurona, onGuardado }: { neuronaId: string; nombreNeurona: string; onGuardado?: (c: ConfigBloqueo) => void }) {
     const [cfg, setCfg] = React.useState<ConfigBloqueo>(SIN_BLOQUEO);
@@ -96,7 +96,7 @@ export function ConfigurarBloqueo({ neuronaId, nombreNeurona, onGuardado }: { ne
 
             {metodo === "biometria" && (
                 <button type="button" onClick={registrar} disabled={ocupado}
-                    className="flex cursor-pointer items-center justify-center gap-2 self-center rounded-full px-4 py-2 text-sm font-semibold"
+                    className="flex cursor-pointer items-center justify-center gap-2 self-center rounded-full ss-redondo px-4 py-2 text-sm font-semibold"
                     style={{ background: "radial-gradient(closest-side,#10B98166,#10B98118)" }}>
                     <Fingerprint className="size-4" />{passkey ? "Volver a registrar la huella o el rostro" : "Registrar huella o rostro"}
                 </button>
@@ -113,7 +113,7 @@ export function ConfigurarBloqueo({ neuronaId, nombreNeurona, onGuardado }: { ne
                 <div className="flex flex-wrap items-center gap-4 text-xs text-white/80">
                     <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" checked={alAbrir} onChange={(e) => setAlAbrir(e.target.checked)} />Pedir al abrir</label>
                     <label className="flex items-center gap-2">Bloquear tras
-                        <select value={minutos} onChange={(e) => setMinutos(Number(e.target.value))} className="rounded-full bg-white/10 px-2 py-1 text-white" aria-label="Minutos sin uso">
+                        <select value={minutos} onChange={(e) => setMinutos(Number(e.target.value))} className="rounded-full ss-redondo bg-white/10 px-2 py-1 text-white" aria-label="Minutos sin uso">
                             {MINUTOS.map((m) => <option key={m} value={m} className="bg-slate-900">{m === 0 ? "nunca" : `${m} min`}</option>)}
                         </select>
                         sin uso
@@ -122,7 +122,7 @@ export function ConfigurarBloqueo({ neuronaId, nombreNeurona, onGuardado }: { ne
             )}
             <div className="flex items-center gap-3">
                 <button type="button" onClick={guardar} disabled={ocupado || (metodo === "biometria" && !passkey)}
-                    className="cursor-pointer rounded-full bg-teal-500/40 px-5 py-2 text-sm font-semibold hover:bg-teal-500/60 disabled:cursor-not-allowed disabled:opacity-50">Guardar</button>
+                    className="cursor-pointer rounded-full ss-redondo bg-teal-500/40 px-5 py-2 text-sm font-semibold hover:bg-teal-500/60 disabled:cursor-not-allowed disabled:opacity-50">Guardar</button>
                 {cfg.metodo !== "ninguno" && (
                     <button type="button" onClick={() => window.dispatchEvent(new Event("starseed:bloquear"))} className="cursor-pointer text-xs text-white/70 underline-offset-4 hover:underline">Bloquear ahora</button>
                 )}

@@ -34,7 +34,7 @@ function Teclado({ onDigito, onBorrar, onOk, deshabilitado }: { onDigito: (d: st
                 <button key={t} type="button" disabled={deshabilitado}
                     onClick={() => (t === "borrar" ? onBorrar() : t === "ok" ? onOk() : onDigito(t))}
                     aria-label={t === "borrar" ? "Borrar" : t === "ok" ? "Desbloquear" : t}
-                    className="grid size-16 cursor-pointer place-items-center rounded-full text-2xl font-light text-white transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="grid size-16 cursor-pointer place-items-center rounded-full ss-redondo text-2xl font-light text-white transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
                     style={{ background: t === "ok" ? "radial-gradient(closest-side,#23d5ab66,#23d5ab14)" : "radial-gradient(closest-side,#ffffff22,#ffffff06)" }}>
                     {t === "borrar" ? <Delete className="size-5" /> : t === "ok" ? <KeyRound className="size-5" /> : t}
                 </button>
@@ -98,9 +98,9 @@ export function PantallaBloqueo({ cfg, avisos, onDesbloqueado }: { cfg: ConfigBl
             className="fixed inset-0 z-[2147483000] flex flex-col items-center justify-between overflow-hidden px-6 py-12 text-white backdrop-blur-2xl"
             style={{ background: "radial-gradient(120% 90% at 50% 20%, #2a1a6ecc, #06121acc 60%, #020409f2)" }}>
             <div className="relative flex flex-col items-center gap-2 pt-6">
-                <div aria-hidden className="ss-respirar absolute -top-10 size-64 rounded-full" style={{ ["--ss-dur" as string]: "7s", background: "radial-gradient(closest-side,#7c5cff55,#23d5ab22 60%,transparent)" }} />
+                <div aria-hidden className="ss-respirar absolute -top-10 size-64 rounded-full ss-redondo" style={{ ["--ss-dur" as string]: "7s", background: "radial-gradient(closest-side,#7c5cff55,#23d5ab22 60%,transparent)" }} />
                 <span className="relative text-7xl font-extralight tabular-nums tracking-tight sm:text-8xl">{hora}</span>
-                <span className="relative text-sm capitalize text-white/75">{fecha}</span>
+                <span className="relative text-sm text-white/75 first-letter:uppercase">{fecha}</span>
                 {typeof avisos === "number" && avisos > 0 && <span className="relative mt-2 text-xs text-white/60">{avisos} {avisos === 1 ? "aviso" : "avisos"}</span>}
             </div>
 
@@ -108,7 +108,7 @@ export function PantallaBloqueo({ cfg, avisos, onDesbloqueado }: { cfg: ConfigBl
                 {modo === "biometria" ? (
                     <>
                         <button ref={(n) => { principal.current = n; }} type="button" onClick={probarBiometria} disabled={ocupado}
-                            className="grid size-24 cursor-pointer place-items-center rounded-full transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-300 disabled:opacity-60"
+                            className="grid size-24 cursor-pointer place-items-center rounded-full ss-redondo transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-300 disabled:opacity-60"
                             style={{ background: "radial-gradient(closest-side,#23d5ab66,#7c5cff22 70%,transparent)" }}
                             aria-label="Desbloquear con huella o rostro">
                             <Fingerprint className="size-10" />
@@ -122,17 +122,17 @@ export function PantallaBloqueo({ cfg, avisos, onDesbloqueado }: { cfg: ConfigBl
                     <>
                         <div className="flex h-4 items-center gap-2" aria-live="polite" aria-label={`${entrada.length} dígitos`}>
                             {Array.from({ length: Math.max(4, entrada.length) }, (_, i) => (
-                                <span key={i} className="size-3 rounded-full transition-colors" style={{ background: i < entrada.length ? "#23d5ab" : "#ffffff33" }} />
+                                <span key={i} className="size-3 rounded-full ss-redondo transition-colors" style={{ background: i < entrada.length ? "#23d5ab" : "#ffffff33" }} />
                             ))}
                         </div>
                         <Teclado deshabilitado={espera > 0 || ocupado} onDigito={(d) => setEntrada((v) => (v.length < 12 ? v + d : v))} onBorrar={() => setEntrada((v) => v.slice(0, -1))} onOk={probarSecreto} />
                     </>
                 ) : (
-                    <form onSubmit={(e) => { e.preventDefault(); void probarSecreto(); }} className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-4 pr-1">
+                    <form onSubmit={(e) => { e.preventDefault(); void probarSecreto(); }} className="flex items-center gap-2 rounded-full ss-redondo bg-white/10 py-1 pl-4 pr-1">
                         <Lock className="size-4 text-white/60" />
                         <input ref={(n) => { principal.current = n; }} type="password" autoComplete="current-password" value={entrada} onChange={(e) => setEntrada(e.target.value)}
                             disabled={espera > 0 || ocupado} aria-label="Contraseña" placeholder="Contraseña" className="w-56 bg-transparent py-2 text-sm text-white placeholder:text-white/40 focus:outline-none" />
-                        <button type="submit" aria-label="Desbloquear" disabled={espera > 0 || ocupado} className="grid size-9 cursor-pointer place-items-center rounded-full bg-teal-500/40 hover:bg-teal-500/60 disabled:opacity-50"><KeyRound className="size-4" /></button>
+                        <button type="submit" aria-label="Desbloquear" disabled={espera > 0 || ocupado} className="grid size-9 cursor-pointer place-items-center rounded-full ss-redondo bg-teal-500/40 hover:bg-teal-500/60 disabled:opacity-50"><KeyRound className="size-4" /></button>
                     </form>
                 )}
                 <p role="alert" className="min-h-[1.25rem] text-center text-xs text-rose-200">

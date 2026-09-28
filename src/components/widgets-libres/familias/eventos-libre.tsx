@@ -27,7 +27,7 @@ export function cuentaAtras(ms: number): string {
 function Capsula({ ev, grande, ahora }: { ev: OsEventRow; grande?: boolean; ahora: number }) {
     const t = tsOf(ev.starts_at);
     return (
-        <Link href={`/evento/${ev.slug}`} className="group flex min-w-0 cursor-pointer flex-col items-center rounded-full px-4 py-2 text-center transition-transform duration-200 hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
+        <Link href={`/evento/${ev.slug}`} className="group flex min-w-0 cursor-pointer flex-col items-center rounded-full ss-redondo px-4 py-2 text-center transition-transform duration-200 hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
             style={{ background: `radial-gradient(120% 160% at 30% 20%, ${ACENTO}${grande ? "40" : "26"}, ${ACENTO}08 70%, transparent)` }}>
             <span className={`${grande ? "text-sm" : "text-[11px]"} max-w-[14rem] truncate font-semibold text-white`}>{ev.title}</span>
             <span className={`${grande ? "text-lg" : "text-[10px]"} font-light tabular-nums text-amber-200`}>{cuentaAtras(t - ahora)}</span>
@@ -59,7 +59,7 @@ export function EventosLibre() {
                             <div className="flex items-end gap-3" aria-hidden>
                                 {dias.map((d, i) => (
                                     <div key={i} className="flex flex-col items-center gap-1" style={{ transform: `translateY(${Math.sin(i * 0.9) * -6}px)` }}>
-                                        <span className={`${i === 0 ? "ss-respirar" : ""} block rounded-full`} style={{ width: i === 0 ? 14 : 9, height: i === 0 ? 14 : 9, background: i === 0 ? ACENTO : "#ffffff22", boxShadow: i === 0 ? `0 0 14px ${ACENTO}` : `inset 0 0 0 1px ${ACENTO}55` }} />
+                                        <span className={`${i === 0 ? "ss-respirar" : ""} block rounded-full ss-redondo`} style={{ width: i === 0 ? 14 : 9, height: i === 0 ? 14 : 9, background: i === 0 ? ACENTO : "#ffffff22", boxShadow: i === 0 ? `0 0 14px ${ACENTO}` : `inset 0 0 0 1px ${ACENTO}55` }} />
                                         <span className="text-[9px] uppercase text-white/50">{d.toLocaleDateString("es-ES", { weekday: "narrow" })}</span>
                                     </div>
                                 ))}

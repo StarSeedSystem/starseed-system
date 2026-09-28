@@ -28,7 +28,7 @@ function Gota({ n, onLeer, i, compacta }: { n: NotificationRow; onLeer: (id: str
             className="list-none"
         >
           <div
-            className="ss-flotar relative flex items-center gap-2 rounded-full py-1.5 pl-3 pr-1.5"
+            className="ss-flotar relative flex items-center gap-2 rounded-full ss-redondo py-1.5 pl-3 pr-1.5"
             style={{ ["--ss-dur" as string]: `${5 + (i % 3)}s`, animationDelay: `${i * 0.4}s`, background: `radial-gradient(120% 140% at 20% 30%, ${NUEVA}44, ${NUEVA}10 70%, transparent)` }}
           >
             <Link href={n.link || "/notifications"} className="min-w-0 flex-1 cursor-pointer">
@@ -36,7 +36,7 @@ function Gota({ n, onLeer, i, compacta }: { n: NotificationRow; onLeer: (id: str
                 {!compacta && <span className="block truncate text-[10px] text-white/60">{timeAgo(tsOf(n.created_at))}{n.body ? ` · ${n.body}` : ""}</span>}
             </Link>
             <button type="button" onClick={() => onLeer(n.id)} aria-label="Marcar como leída" title="Marcar como leída"
-                className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-full text-white/60 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400">
+                className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-full ss-redondo text-white/60 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400">
                 <Check className="size-3.5" />
             </button>
           </div>

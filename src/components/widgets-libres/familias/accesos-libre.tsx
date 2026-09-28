@@ -20,7 +20,7 @@ function Icono({ a, tam, conNombre }: { a: Access; tam: number; conNombre?: bool
     return (
         <Link href={a.href} aria-label={a.label} title={a.label}
             className="group flex cursor-pointer flex-col items-center gap-0.5 focus-visible:outline-none">
-            <span className="grid place-items-center rounded-full transition-transform duration-200 group-hover:scale-110 group-focus-visible:scale-110 group-focus-visible:ring-2"
+            <span className="grid place-items-center rounded-full ss-redondo transition-transform duration-200 group-hover:scale-110 group-focus-visible:scale-110 group-focus-visible:ring-2"
                 style={{ width: tam, height: tam, background: `radial-gradient(closest-side, ${a.color}66, ${a.color}14 80%, transparent)`, boxShadow: `0 0 ${tam / 2}px ${a.color}33`, ["--tw-ring-color" as string]: a.color }}>
                 <Icon style={{ width: tam * 0.48, height: tam * 0.48, color: "#fff" }} />
             </span>
@@ -89,14 +89,14 @@ export function AccesosLibre() {
                         {doble && (
                             <div className="absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-2">
                                 {!signedIn && ready && (
-                                    <Link href="/login" className="flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-[10px] font-semibold text-violet-200" style={{ background: "radial-gradient(closest-side,#7c5cff55,#7c5cff10)" }}>
+                                    <Link href="/login" className="flex cursor-pointer items-center gap-1 rounded-full ss-redondo px-3 py-1 text-[10px] font-semibold text-violet-200" style={{ background: "radial-gradient(closest-side,#7c5cff55,#7c5cff10)" }}>
                                         <LogIn className="size-3" /> Entra para tus accesos
                                     </Link>
                                 )}
                                 {acciones.map((a) => {
                                     const Icon = a.icon;
                                     return (
-                                        <Link key={a.label} href={a.href} className="flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-[10px] font-semibold text-white" style={{ background: `radial-gradient(closest-side, ${a.color}55, ${a.color}10)` }}>
+                                        <Link key={a.label} href={a.href} className="flex cursor-pointer items-center gap-1 rounded-full ss-redondo px-3 py-1 text-[10px] font-semibold text-white" style={{ background: `radial-gradient(closest-side, ${a.color}55, ${a.color}10)` }}>
                                             <Icon className="size-3" /> {a.label}
                                         </Link>
                                     );

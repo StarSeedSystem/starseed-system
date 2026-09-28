@@ -3894,3 +3894,7 @@ html.ss-gesto [data-ventana-escritorio] {
 @media (prefers-reduced-motion: reduce) {
   .ss-girar, .ss-contragirar, .ss-flotar, .ss-respirar, .ss-latir, .ss-derivar, .ss-caer, .ss-destello, .ss-ola { animation: none !important; }
 }
+/* (Ola 381-383) El sistema redondea TODOS los botones a --radius con !important; los botones
+   circulares de los widgets libres, el inicio y el bloqueo (orbes, teclado del PIN, pastillas)
+   lo recuperan con esta clase. */
+.ss-redondo { border-radius: 9999px !important; }

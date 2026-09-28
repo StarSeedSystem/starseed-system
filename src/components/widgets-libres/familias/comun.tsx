@@ -49,7 +49,7 @@ export function Pildora({ children, color = "#7c5cff", ...resto }: React.ButtonH
         <button
             type="button"
             {...resto}
-            className={`cursor-pointer rounded-full px-3 py-1 text-[11px] font-semibold text-white transition-transform duration-200 hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${resto.className ?? ""}`}
+            className={`cursor-pointer rounded-full ss-redondo px-3 py-1 text-[11px] font-semibold text-white transition-transform duration-200 hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${resto.className ?? ""}`}
             style={{ background: `radial-gradient(closest-side, ${color}55, ${color}18)`, outlineColor: color, ...resto.style }}
         >
             {children}

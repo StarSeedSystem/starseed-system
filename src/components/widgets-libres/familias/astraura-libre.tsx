@@ -22,11 +22,11 @@ function abrirAstraura() {
 function Orbe({ tam, hablando }: { tam: number; hablando: boolean }) {
     return (
         <button type="button" onClick={abrirAstraura} aria-label="Abrir el chat de Astraura"
-            className={`${hablando ? "ss-latir" : "ss-respirar"} relative shrink-0 cursor-pointer rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300`}
+            className={`${hablando ? "ss-latir" : "ss-respirar"} relative shrink-0 cursor-pointer rounded-full ss-redondo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300`}
             style={{ width: tam, height: tam }}>
             <span aria-hidden className="ss-girar absolute inset-0" style={{ ["--ss-dur" as string]: "14s", borderRadius: "42% 58% 55% 45% / 48% 42% 58% 52%", background: "conic-gradient(from 0deg, #7c5cff, #23d5ab, #007FFF, #b388ff, #7c5cff)", filter: "blur(2px)" }} />
             <span aria-hidden className="ss-contragirar absolute inset-[10%]" style={{ ["--ss-dur" as string]: "9s", borderRadius: "55% 45% 40% 60% / 45% 55% 45% 55%", background: "radial-gradient(circle at 35% 30%, #ffffffcc, #b9a5ff55 35%, transparent 70%)" }} />
-            <span aria-hidden className="absolute inset-[-18%] rounded-full" style={{ background: "radial-gradient(closest-side, #7c5cff44, transparent)" }} />
+            <span aria-hidden className="absolute inset-[-18%] rounded-full ss-redondo" style={{ background: "radial-gradient(closest-side, #7c5cff44, transparent)" }} />
         </button>
     );
 }

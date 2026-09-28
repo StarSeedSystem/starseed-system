@@ -48,11 +48,11 @@ function Pieza({ item, ancho, editando, onCambio }: { item: ItemInicio; ancho: n
         <div className="relative" style={{ width: w * escala, height: h * escala }} data-testid={`pieza-${item.tipo}`}>
             {LIBRES.has(item.tipo) ? host : <WidgetLibre forma={per.forma} acento={per.acento} etiqueta={nombre} intensidad={0.25}>{host}</WidgetLibre>}
             {editando && (
-                <div className="absolute -top-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/55 px-1.5 py-1 backdrop-blur-md">
-                    <button type="button" aria-label={`Mover ${nombre} antes`} onClick={() => onCambio("izq")} className="grid size-6 cursor-pointer place-items-center rounded-full text-white hover:bg-white/15"><ChevronLeft className="size-3.5" /></button>
-                    <button type="button" aria-label={`Tamaño de ${nombre}: ${item.tamano}`} onClick={() => onCambio("tam")} className="h-6 cursor-pointer rounded-full px-2 text-[10px] font-bold uppercase text-white hover:bg-white/15">{item.tamano}</button>
-                    <button type="button" aria-label={`Mover ${nombre} después`} onClick={() => onCambio("der")} className="grid size-6 cursor-pointer place-items-center rounded-full text-white hover:bg-white/15"><ChevronRight className="size-3.5" /></button>
-                    <button type="button" aria-label={`Quitar ${nombre}`} onClick={() => onCambio("quitar")} className="grid size-6 cursor-pointer place-items-center rounded-full text-rose-300 hover:bg-rose-500/20"><X className="size-3.5" /></button>
+                <div className="absolute -top-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full ss-redondo bg-black/55 px-1.5 py-1 backdrop-blur-md">
+                    <button type="button" aria-label={`Mover ${nombre} antes`} onClick={() => onCambio("izq")} className="grid size-6 cursor-pointer place-items-center rounded-full ss-redondo text-white hover:bg-white/15"><ChevronLeft className="size-3.5" /></button>
+                    <button type="button" aria-label={`Tamaño de ${nombre}: ${item.tamano}`} onClick={() => onCambio("tam")} className="h-6 cursor-pointer rounded-full ss-redondo px-2 text-[10px] font-bold uppercase text-white hover:bg-white/15">{item.tamano}</button>
+                    <button type="button" aria-label={`Mover ${nombre} después`} onClick={() => onCambio("der")} className="grid size-6 cursor-pointer place-items-center rounded-full ss-redondo text-white hover:bg-white/15"><ChevronRight className="size-3.5" /></button>
+                    <button type="button" aria-label={`Quitar ${nombre}`} onClick={() => onCambio("quitar")} className="grid size-6 cursor-pointer place-items-center rounded-full ss-redondo text-rose-300 hover:bg-rose-500/20"><X className="size-3.5" /></button>
                 </div>
             )}
         </div>
@@ -126,13 +126,13 @@ export function PantallaInicio() {
             <div className="fixed bottom-24 right-5 z-30 flex items-center gap-2">
                 {editando && (
                     <>
-                        <button type="button" onClick={() => cambiar(porDefecto(disp))} className="flex cursor-pointer items-center gap-1 rounded-full bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-md hover:bg-black/60"><RotateCcw className="size-3.5" />Restablecer</button>
-                        <button type="button" onClick={() => setArranque(true)} className="flex cursor-pointer items-center gap-1 rounded-full bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-md hover:bg-black/60"><KeyRound className="size-3.5" />Al abrir y bloqueo</button>
-                        <button type="button" onClick={() => setCatalogo(true)} className="flex cursor-pointer items-center gap-1 rounded-full bg-violet-600/70 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-violet-600"><Plus className="size-3.5" />Añadir widget</button>
+                        <button type="button" onClick={() => cambiar(porDefecto(disp))} className="flex cursor-pointer items-center gap-1 rounded-full ss-redondo bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-md hover:bg-black/60"><RotateCcw className="size-3.5" />Restablecer</button>
+                        <button type="button" onClick={() => setArranque(true)} className="flex cursor-pointer items-center gap-1 rounded-full ss-redondo bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-md hover:bg-black/60"><KeyRound className="size-3.5" />Al abrir y bloqueo</button>
+                        <button type="button" onClick={() => setCatalogo(true)} className="flex cursor-pointer items-center gap-1 rounded-full ss-redondo bg-violet-600/70 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-violet-600"><Plus className="size-3.5" />Añadir widget</button>
                     </>
                 )}
                 <button type="button" onClick={() => { setEditando((e) => !e); setCatalogo(false); }} aria-pressed={editando}
-                    className="flex cursor-pointer items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white/85 backdrop-blur-md hover:bg-black/60 hover:text-white">
+                    className="flex cursor-pointer items-center gap-1 rounded-full ss-redondo bg-black/40 px-3 py-1.5 text-xs text-white/85 backdrop-blur-md hover:bg-black/60 hover:text-white">
                     <Settings2 className="size-3.5" />{editando ? "Listo" : "Personalizar"}
                 </button>
             </div>
@@ -156,7 +156,7 @@ export function PantallaInicio() {
                 {catalogo && (
                     <motion.div role="dialog" aria-label="Añadir widget" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
                         className="fixed bottom-36 right-5 z-40 flex max-h-[60vh] w-[min(92vw,340px)] flex-col gap-2 rounded-3xl bg-black/70 p-3 backdrop-blur-xl">
-                        <label className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5">
+                        <label className="flex items-center gap-2 rounded-full ss-redondo bg-white/10 px-3 py-1.5">
                             <Search className="size-3.5 text-white/60" />
                             <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar widget…" aria-label="Buscar widget" className="min-w-0 flex-1 bg-transparent text-xs text-white placeholder:text-white/40 focus:outline-none" />
                             <button type="button" aria-label="Cerrar" onClick={() => setCatalogo(false)} className="cursor-pointer text-white/60 hover:text-white"><X className="size-3.5" /></button>
