@@ -164,7 +164,7 @@ describe("Eventos libres", () => {
     it("sin eventos lo dice y ofrece crear; con uno, s es su cápsula", () => {
         eventos.rows = [];
         const { unmount } = render(<EventosLibre />);
-        expect(screen.getByText("Sin eventos próximos")).toBeTruthy();
+        expect(screen.getByText(/sin eventos próximos/i)).toBeTruthy();
         expect(screen.getByRole("link", { name: /Crear evento/ })).toBeTruthy();
         unmount();
         eventos.rows = [{ id: "1", slug: "luna", title: "Círculo de luna", starts_at: new Date(Date.now() + 7_200_000).toISOString() }];

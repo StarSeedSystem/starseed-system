@@ -23,3 +23,12 @@ describe("nivelRender", () => {
         expect(leerSenalesDispositivo().movimientoReducido).toBe(false);
     });
 });
+
+import { conModoDelSistema } from "../nivel-dispositivo";
+describe("modo de rendimiento del sistema", () => {
+    it("en «eco» el widget pasa a ligero; en el resto conserva su nivel", () => {
+        expect(conModoDelSistema("pleno", "eco")).toBe("ligero");
+        expect(conModoDelSistema("pleno", "high")).toBe("pleno");
+        expect(conModoDelSistema("normal", undefined)).toBe("normal");
+    });
+});

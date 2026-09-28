@@ -50,7 +50,25 @@ export function EventosLibre() {
             {({ clase }) => {
                 const { base: b, horizontal } = disenoDe(clase);
                 if (!ahoraD || (loading && rows.length === 0)) return <SinDato texto="buscando eventos…" />;
-                if (!sig) return <SinDato texto="Sin eventos próximos" accion={b !== "micro" ? crear : undefined} />;
+                if (!sig) {
+                    if (b === "micro" || b === "s") return <SinDato texto="Sin eventos próximos" accion={b === "s" ? crear : undefined} />;
+                    // Vacío con forma: la semana que viene como siete cuentas de luz sobre una ola, hoy encendido.
+                    const dias = Array.from({ length: 7 }, (_, i) => new Date(ahora + i * 86_400_000));
+                    return (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-3">
+                            <div className="flex items-end gap-3" aria-hidden>
+                                {dias.map((d, i) => (
+                                    <div key={i} className="flex flex-col items-center gap-1" style={{ transform: `translateY(${Math.sin(i * 0.9) * -6}px)` }}>
+                                        <span className={`${i === 0 ? "ss-respirar" : ""} block rounded-full`} style={{ width: i === 0 ? 14 : 9, height: i === 0 ? 14 : 9, background: i === 0 ? ACENTO : "#ffffff22", boxShadow: i === 0 ? `0 0 14px ${ACENTO}` : `inset 0 0 0 1px ${ACENTO}55` }} />
+                                        <span className="text-[9px] uppercase text-white/50">{d.toLocaleDateString("es-ES", { weekday: "narrow" })}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <span className="text-xs text-white/75">Semana libre: sin eventos próximos</span>
+                            {crear}
+                        </div>
+                    );
+                }
                 if (b === "micro") return <div className="ss-flotar flex h-full items-center justify-center text-center text-sm font-semibold tabular-nums text-amber-100">{cuentaAtras(tsOf(sig.starts_at) - ahora)}</div>;
                 if (b === "s") return <div className="flex h-full items-center justify-center"><Capsula ev={sig} grande ahora={ahora} /></div>;
                 if (b === "xl") {

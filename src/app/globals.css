@@ -3888,6 +3888,9 @@ html.ss-gesto [data-ventana-escritorio] {
 [data-nivel-render="ligero"] .ss-caer,
 [data-nivel-render="ligero"] .ss-destello,
 [data-nivel-render="ligero"] .ss-ola { animation: none !important; }
+/* Sin movimiento, una gota quieta no es lluvia: las partículas que solo existen cayendo se ocultan. */
+[data-nivel-render="ligero"] .ss-caer, html[data-perf="eco"] .ss-caer { display: none; }
+@media (prefers-reduced-motion: reduce) { .ss-caer { display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .ss-girar, .ss-contragirar, .ss-flotar, .ss-respirar, .ss-latir, .ss-derivar, .ss-caer, .ss-destello, .ss-ola { animation: none !important; }
 }

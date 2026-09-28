@@ -61,10 +61,19 @@ export function leerSenalesDispositivo(): SenalesDispositivo {
 }
 
 /** Nivel del dispositivo, calculado una vez al montar («normal» mientras tanto: sin saltos). */
+/** El modo de rendimiento del OS (`<html data-perf>`, src/lib/perf/device-tier.ts) manda: en
+ *  «eco» el sistema entero ya congela sus bucles, así que los widgets pasan a «ligero». */
+export function conModoDelSistema(nivel: NivelRender, perf: string | undefined): NivelRender {
+    return perf === "eco" ? "ligero" : nivel;
+}
+
 export function useNivelRender(): NivelRender {
     const [nivel, setNivel] = useState<NivelRender>("normal");
     useEffect(() => {
-        setNivel(nivelRender(leerSenalesDispositivo()));
+        const calcular = () => setNivel(conModoDelSistema(nivelRender(leerSenalesDispositivo()), document.documentElement.dataset.perf));
+        calcular();
+        window.addEventListener("starseed:perf-changed", calcular);
+        return () => window.removeEventListener("starseed:perf-changed", calcular);
     }, []);
     return nivel;
 }
