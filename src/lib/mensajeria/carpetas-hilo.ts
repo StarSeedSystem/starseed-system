@@ -323,8 +323,12 @@ const listenersChat = new Map<string, Set<() => void>>();
 const cargandoChat = new Set<string>();
 const unsubRealtimeChat = new Map<string, () => void>();
 
+/** Estado de un hilo aún sin cargar. SIEMPRE el mismo objeto: `useSyncExternalStore` exige una
+ *  instantánea estable; un `{…}` nuevo en cada lectura provocaba el bucle «Maximum update depth
+ *  exceeded» (React #185) al abrir cualquier chat. */
+const ESTADO_CHAT_VACIO: EstadoChat = Object.freeze({ listo: false, carpetas: [], error: null }) as EstadoChat;
 function obtenerEstadoChat(hiloId: string): EstadoChat {
-    return estadoChat.get(hiloId) ?? { listo: false, carpetas: [], error: null };
+    return estadoChat.get(hiloId) ?? ESTADO_CHAT_VACIO;
 }
 function actualizarEstadoChat(hiloId: string, patch: Partial<EstadoChat>): void {
     estadoChat.set(hiloId, { ...obtenerEstadoChat(hiloId), ...patch });

@@ -553,8 +553,18 @@ const notasListeners = new Map<string, Set<() => void>>();
 const notasTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const notasCargando = new Set<string>();
 
+/** Estado vacío por contacto, cacheado: `useSyncExternalStore` exige una instantánea ESTABLE —
+ *  un objeto nuevo en cada lectura provoca el bucle «Maximum update depth exceeded» (React #185). */
+const notasVacias = new Map<string, EstadoNotas>();
 function obtenerEstadoNotas(contactoId: string): EstadoNotas {
-    return notasEstado.get(contactoId) ?? { listo: false, doc: docNotasVacio(contactoId), error: null };
+    const vivo = notasEstado.get(contactoId);
+    if (vivo) return vivo;
+    let vacio = notasVacias.get(contactoId);
+    if (!vacio) {
+        vacio = { listo: false, doc: docNotasVacio(contactoId), error: null };
+        notasVacias.set(contactoId, vacio);
+    }
+    return vacio;
 }
 function actualizarEstadoNotas(contactoId: string, patch: Partial<EstadoNotas>): void {
     notasEstado.set(contactoId, { ...obtenerEstadoNotas(contactoId), ...patch });
