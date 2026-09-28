@@ -58,6 +58,8 @@ export function useElementSize<T extends HTMLElement = HTMLDivElement>() {
         };
 
         update(el.clientWidth, el.clientHeight);
+        // Sin ResizeObserver (navegadores muy viejos, pruebas en jsdom): la medida inicial basta.
+        if (typeof ResizeObserver === "undefined") return;
 
         const ro = new ResizeObserver((entries) => {
             for (const entry of entries) {

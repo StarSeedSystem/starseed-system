@@ -36,6 +36,8 @@ import {
   type NeuronPermissions,
 } from "@/lib/neurons/neurons";
 import { saveOnboarding } from "@/lib/onboarding/onboarding";
+import { PreferenciasArranque } from "@/components/inicio/preferencias-arranque";
+import { deviceId } from "@/lib/sync/entity-state";
 import { detectar, recomendar, type HW } from "@/lib/onboarding/neuron-recommend";
 import {
   CLAVE_NEURONA_CONFIGURADA, ponerMarca, resumenSincronizado, type ConteoSincronizado,
@@ -60,7 +62,7 @@ const PERMISOS: { clave: keyof NeuronPermissions; titulo: string; texto: string 
   { clave: "senses", titulo: "Sentidos", texto: "Comparte micrófono, cámara o pantalla con Aurora solo cuando se lo pidas." },
 ];
 
-const PASOS = ["neurona", "permisos", "fondo"] as const;
+const PASOS = ["neurona", "permisos", "fondo", "arranque"] as const;
 type Paso = (typeof PASOS)[number];
 
 const TITULOS: Record<Paso, { titulo: string; texto: string }> = {
@@ -75,6 +77,11 @@ const TITULOS: Record<Paso, { titulo: string; texto: string }> = {
   fondo: {
     titulo: "Calidad del fondo en esta pantalla",
     texto: "El fondo animado se adapta solo; si prefieres, fija aquí su calidad para este dispositivo.",
+  },
+  // (Ola 381 · INI6) Pantalla inicial y bloqueo de ESTA neurona (la neurona manda sobre el perfil).
+  arranque: {
+    titulo: "Al abrir StarSeed aquí",
+    texto: "Qué ves primero en este dispositivo y si lo proteges con un PIN, una contraseña o tu huella o rostro. Todo opcional.",
   },
 };
 
@@ -326,6 +333,10 @@ export function NeuronSetup({ onClose, onPosponer, nombreInicial }: NeuronSetupP
                 <Settings2 className="h-3.5 w-3.5" aria-hidden /> Todos los ajustes de esta neurona
               </Button>
             </>
+          )}
+          {actual === "arranque" && (
+            // Mismo id de neurona que leen el arranque (/) y el montaje del bloqueo: deviceId().
+            <PreferenciasArranque ambito="neurona" id={deviceId()} neuronaId={deviceId()} nombreNeurona={nombre.trim() || "Mi neurona"} />
           )}
         </PasoAnimado>
 

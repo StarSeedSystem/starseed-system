@@ -7,7 +7,9 @@
  */
 import * as React from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus, RotateCcw, Search, Settings2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, KeyRound, Plus, RotateCcw, Search, Settings2, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { deviceId } from "@/lib/sync/entity-state";
 import { DesktopWidgetHost } from "@/components/desktop/desktop-widget-host";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { TIPOS_CON_DISENO_LIBRE } from "@/components/widgets-libres/registro-libre";
@@ -24,6 +26,8 @@ import {
 const PX: Record<TamanoInicio, [number, number]> = { micro: [100, 100], s: [170, 170], m: [280, 220], l: [400, 300], xl: [560, 440] };
 const TAMANOS: TamanoInicio[] = ["micro", "s", "m", "l", "xl"];
 const LIBRES = new Set<string>(TIPOS_CON_DISENO_LIBRE);
+// Solo se carga si se abre: pantalla inicial y bloqueo de este dispositivo (INI5 + BLQ6).
+const PreferenciasArranque = dynamic(() => import("./preferencias-arranque").then((m) => m.PreferenciasArranque), { ssr: false });
 
 /** El perfil activo: la misma fuente que usa el arranque para elegir la pantalla inicial. */
 export function perfilActivo(): string {
@@ -64,6 +68,7 @@ export function PantallaInicio() {
     const [editando, setEditando] = React.useState(false);
     const [catalogo, setCatalogo] = React.useState(false);
     const [busca, setBusca] = React.useState("");
+    const [arranque, setArranque] = React.useState(false);
     const [hora, setHora] = React.useState<number | null>(null);
 
     React.useEffect(() => {
@@ -122,6 +127,7 @@ export function PantallaInicio() {
                 {editando && (
                     <>
                         <button type="button" onClick={() => cambiar(porDefecto(disp))} className="flex cursor-pointer items-center gap-1 rounded-full bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-md hover:bg-black/60"><RotateCcw className="size-3.5" />Restablecer</button>
+                        <button type="button" onClick={() => setArranque(true)} className="flex cursor-pointer items-center gap-1 rounded-full bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-md hover:bg-black/60"><KeyRound className="size-3.5" />Al abrir y bloqueo</button>
                         <button type="button" onClick={() => setCatalogo(true)} className="flex cursor-pointer items-center gap-1 rounded-full bg-violet-600/70 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-violet-600"><Plus className="size-3.5" />Añadir widget</button>
                     </>
                 )}
@@ -130,6 +136,21 @@ export function PantallaInicio() {
                     <Settings2 className="size-3.5" />{editando ? "Listo" : "Personalizar"}
                 </button>
             </div>
+
+            <AnimatePresence>
+                {arranque && (
+                    <motion.div role="dialog" aria-label="Al abrir StarSeed y bloqueo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4 backdrop-blur-md" onClick={(e) => { if (e.target === e.currentTarget) setArranque(false); }}>
+                        <div className="max-h-[88vh] w-[min(96vw,720px)] overflow-auto rounded-[2rem] bg-slate-950/85 p-6">
+                            <div className="mb-4 flex items-center justify-between">
+                                <h2 className="text-lg font-semibold text-white">Al abrir StarSeed</h2>
+                                <button type="button" aria-label="Cerrar" onClick={() => setArranque(false)} className="cursor-pointer text-white/60 hover:text-white"><X className="size-4" /></button>
+                            </div>
+                            <PreferenciasArranque ambito="perfil" id={perfil} neuronaId={deviceId()} nombreNeurona="Este dispositivo" onListo={() => setArranque(false)} />
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {catalogo && (

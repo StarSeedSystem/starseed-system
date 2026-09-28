@@ -216,10 +216,14 @@ describe("PrimerArranque · con cuenta", () => {
         fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
         await screen.findByRole("heading", { name: "Calidad del fondo en esta pantalla" });
         expect(await screen.findByRole("radio", { name: /Automática/ })).toBeTruthy();
+        // (Ola 381 · INI6) Último paso: pantalla inicial y bloqueo de esta neurona.
+        fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
+        await screen.findByRole("heading", { name: "Al abrir StarSeed aquí" });
+        expect(await screen.findByRole("radiogroup", { name: "Pantalla al abrir StarSeed" })).toBeTruthy();
         await act(async () => {
             fireEvent.click(screen.getByRole("button", { name: "Listo" }));
         });
-        await waitFor(() => expect(screen.queryByRole("heading", { name: /Calidad del fondo/ })).toBeNull());
+        await waitFor(() => expect(screen.queryByRole("heading", { name: /Al abrir StarSeed aquí/ })).toBeNull());
         expect(window.localStorage.getItem("starseed.neuron.setup.v1")).toBe("1");
         expect(neuronas.nombres).toEqual(["Neurona macOS"]);
     });

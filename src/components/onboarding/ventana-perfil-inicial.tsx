@@ -38,6 +38,9 @@ import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
+import { PreferenciasArranque } from "@/components/inicio/preferencias-arranque";
+import { activeProfileId } from "@/lib/profiles/profiles";
+import { deviceId } from "@/lib/sync/entity-state";
 
 /** Marca de sesión: el rito pide abrir esta ventana tras los sistemas (legada). */
 export const PERFIL_LAUNCH_KEY = "starseed.perfil.launch";
@@ -66,6 +69,8 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   const [editando, setEditando] = useState<null | "marco" | "3d">(null);
   const [subiendo, setSubiendo] = useState<"avatar" | "cover" | null>(null);
   const [guardando, setGuardando] = useState(false);
+  // (Ola 381 · INI6) Tras guardar el perfil, un último paso: pantalla inicial y bloqueo.
+  const [paso, setPaso] = useState<"perfil" | "arranque">("perfil");
   const avatarRef = useRef<HTMLInputElement>(null);
   const portadaRef = useRef<HTMLInputElement>(null);
   // (Ola 247 · 2026-09-05) Etapa del rito ya atendida por esta ventana: abre
@@ -190,22 +195,27 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
         return true;
       })());
 
-      setAbierta(false);
-      onCerrar?.();
-      // (Ola 247 · 2026-09-05) Cerrar «perfil» pasa el turno a «guía» en el
-      // director del rito. Sin recargas: navegación SUAVE al Escritorio solo si
-      // estamos en una ruta del rito (y no ya ahí); la guía observa el cambio.
-      // (Ola 250) Fuera de las rutas del rito NO se navega: la etapa avanza
-      // igual y el escritorio no secuestra la sesión actual del usuario.
-      terminarEtapa("perfil");
-      if (enRutaDelRito) navegarSuave(router, "/escritorios");
+      // (Ola 381 · INI6) Antes de cerrar, el paso de arranque (pantalla inicial y bloqueo).
+      setPaso("arranque");
     } finally {
       setGuardando(false);
     }
     // (Adenda 219) `marco` y `avatar3d` en las dependencias: sin ellas el
     // callback guardaba el marco POR DEFECTO y ningún avatar 3D (clausura
     // vieja) — visto en vivo: la estrella elegida llegaba a la base como círculo.
-  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, onCerrar, conTope, router, enRutaDelRito]);
+  }, [handle, nombre, avatar, portada, bio, marco, avatar3d, conTope]);
+
+  const cerrarRito = useCallback(() => {
+    setAbierta(false);
+    onCerrar?.();
+    // (Ola 247 · 2026-09-05) Cerrar «perfil» pasa el turno a «guía» en el
+    // director del rito. Sin recargas: navegación SUAVE al Escritorio solo si
+    // estamos en una ruta del rito (y no ya ahí); la guía observa el cambio.
+    // (Ola 250) Fuera de las rutas del rito NO se navega: la etapa avanza
+    // igual y el escritorio no secuestra la sesión actual del usuario.
+    terminarEtapa("perfil");
+    if (enRutaDelRito) navegarSuave(router, "/escritorios");
+  }, [onCerrar, router, enRutaDelRito]);
 
   const saltar = useCallback(() => {
     setAbierta(false);
@@ -240,6 +250,14 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
           <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Cargando tu perfil…
           </p>
+        ) : paso === "arranque" ? (
+          <PreferenciasArranque
+            ambito="perfil"
+            id={activeProfileId() ?? "local"}
+            neuronaId={deviceId()}
+            nombreNeurona="Este dispositivo"
+            onListo={cerrarRito}
+          />
         ) : (
           <div className="space-y-4">
             {/* Portada + avatar, como se verán */}
