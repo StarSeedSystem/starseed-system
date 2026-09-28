@@ -2874,3 +2874,10 @@
 - `BLQ6` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba reasignada)
 - `INI6` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba reasignada)
 - `INI7` — no escribió nada: huérfana: ninguna cola fuente la define ya (estaba sin_cambios)
+
+## 2026-09-27 20:23 · auto-0927-200505
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `JF2b` — no escribió nada
