@@ -2846,3 +2846,31 @@
 - `JF2b` — no escribió nada
 - `DR0927-1` — otra cosa: movida a ninguna parte: ya publicada por el supervisor (8803200a) desde el Mando
 - `DR0927-2` — otra cosa: movida a ninguna parte: el remoto de astraura ya no lleva token desde el Mando
+
+## 2026-09-27 20:01 · auto-0927-173453
+
+**Lo que se pidió.** sin dato
+
+**Resultado.** 2 de 18 integradas. 16 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 11 tareas se fueron por lo mismo — otra cosa (INI4, BLQ3, BLQ4, RDV8r, RDV13r, RDV14r). Es 61 % de la ola.
+- 4 tareas se fueron por lo mismo — no escribió nada (JF2b, BLQ2, FL7, INI7). Es 22 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `JF2b` — no escribió nada
+- `INI1` — conflicto al integrar: huérfana: ninguna cola fuente la define ya (estaba conflicto)
+- `INI4` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `BLQ2` — no escribió nada: huérfana: ninguna cola fuente la define ya (estaba sin_cambios)
+- `BLQ3` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `BLQ4` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `RDV8r` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba fallo)
+- `RDV13r` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `RDV14r` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `RDV15r` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `RDV19r` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba fallo)
+- `FL7` — no escribió nada: huérfana: ninguna cola fuente la define ya (estaba sin_cambios)
+- `INI5` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba bloqueada)
+- `BLQ6` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba reasignada)
+- `INI6` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba reasignada)
+- `INI7` — no escribió nada: huérfana: ninguna cola fuente la define ya (estaba sin_cambios)
