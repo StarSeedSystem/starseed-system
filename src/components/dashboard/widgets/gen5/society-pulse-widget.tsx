@@ -1,348 +1,224 @@
 'use client';
 
-import { useMemo, useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import { Activity, ChevronRight, TrendingUp, TrendingDown, Minus, Sparkles, Heart, Users, AlertTriangle } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { WidgetShell, ProgressRing, ProgressBar, Sparkline } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { Trend, SocietyState, SocietyRegion, SeriesPoint } from "@/lib/widget-data";
-
 // ════════════════════════════════════════════════════════════════
-// SocietyPulseWidget — Monitor de Cohesión Macro-Social.
-// El pulso del organismo colectivo: armonía global, abundancia,
-// bienestar, participación ontocrática, salud por región y
-// alerta de fractura con invitación a enviar apoyo.
+// SocietyPulseWidget — Pulso de la Sociedad (rediseño Ola 0929-C)
 // ----------------------------------------------------------------
-// Datos REALES (cuando hay): deriva el pulso de conteos reales de
-// `cafe_posts` (actividad → armonía/abundancia/participación), con
-// `locations`/`cafe_locals` como regiones (cohesión por reparto de
-// actividad) y la serie histórica por día. Realtime: suscripción a
-// `cafe_posts` (postgres_changes). Sin red/datos → degrada a
-// "society.cohesion" simulado. Invariante: democracia directa,
-// soberanía directa, cohesión sin coerción.
+// El latido REAL de la red, con los hooks en vivo que ya usa el OS
+// (os-live: publicaciones, grupos y eventos; sin sondeos nuevos ni
+// suscripciones propias): cuántas voces se han oído estos siete días,
+// qué comunidades reúnen a más gente y qué encuentros vienen. La curva
+// es un electrocardiograma de publicaciones por día; si la muestra
+// que carga el hook se llena, las cifras se dicen como «al menos».
+// Fuera la «armonía», la «abundancia» y las regiones simuladas.
+// Estados honestos: cargando y vacío (la red en calma o sin conexión:
+// os-live convierte cualquier error de lectura en una lista vacía).
 // ════════════════════════════════════════════════════════════════
 
-const REGION_ACCENTS = ["#10b981", "#38bdf8", "#a855f7", "#f59e0b", "#ec4899", "#22c55e"];
+import * as React from "react";
+import Link from "next/link";
+import { Activity, CalendarDays, Megaphone, Users } from "lucide-react";
+import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
+import { rowAccent, useLiveEvents, useLiveGroups, useLivePosts } from "@/lib/widget-data/os-live";
+import { Lienzo, useIdSvg, useLienzo, type EstadoLienzo } from "./_catalogo/lienzo";
+import { Accion, CargandoSilueta, VacioHonesto, tinta } from "./_catalogo/piezas";
+import { comunidades, latidos, latiendo, muestraLlena, proximos, voces, type Latido } from "./society-pulse-partes";
 
-function TrendIcon({ trend }: { trend: Trend }) {
-    if (trend === "up") return <TrendingUp className="size-3 text-emerald-400 shrink-0" />;
-    if (trend === "down") return <TrendingDown className="size-3 text-rose-400 shrink-0" />;
-    return <Minus className="size-3 text-muted-foreground/50 shrink-0" />;
-}
+const LIMITE_POSTS = 24;
 
-function trendColor(trend: Trend) {
-    if (trend === "up") return "#34d399";
-    if (trend === "down") return "#fb7185";
-    return undefined;
-}
-
-// Filas públicas (sólo lo necesario).
-interface CafePostRow { id: string; branch: string | null; created_at: string | null }
-interface LocationRow { id: string; name: string | null; city: string | null }
-interface CafeLocalRow { zone: string; name: string | null }
-
-// Saturación suave 0..1 (escala logarítmica con n posts).
-function saturate(n: number, soft = 12): number {
-    if (n <= 0) return 0;
-    return Math.min(1, Math.log1p(n) / Math.log1p(soft));
-}
-
-// Construye un SocietyState real a partir de conteos.
-function buildSociety(posts: CafePostRow[], regionsSrc: { id: string; label: string }[]): SocietyState {
-    const now = Date.now();
-    const total = posts.length;
-
-    // ── Serie histórica por día (últimos 14 días con actividad) ──
-    const byDay = new Map<string, number>();
-    for (const p of posts) {
-        const t = p.created_at ? new Date(p.created_at) : new Date();
-        const key = t.toISOString().slice(0, 10);
-        byDay.set(key, (byDay.get(key) ?? 0) + 1);
-    }
-    const days: SeriesPoint[] = [];
-    for (let i = 13; i >= 0; i--) {
-        const d = new Date(now - i * 86400000);
-        const key = d.toISOString().slice(0, 10);
-        days.push({ t: d.getTime(), v: byDay.get(key) ?? 0 });
-    }
-    // Normaliza la serie a 0..1 para el sparkline de cohesión.
-    const maxDay = Math.max(...days.map(p => p.v), 1);
-    const history: SeriesPoint[] = days.map(p => ({ t: p.t, v: 0.35 + (p.v / maxDay) * 0.6 }));
-
-    // ── Actividad reciente (últimas 72 h) → participación/armonía ──
-    const recent = posts.filter(p => {
-        const ts = p.created_at ? new Date(p.created_at).getTime() : now;
-        return now - ts < 1000 * 60 * 60 * 72;
-    }).length;
-
-    const harmonyIndex = 0.45 + saturate(total, 30) * 0.5;
-    const participation = saturate(recent, 10);
-    const abundance = 0.4 + saturate(total, 24) * 0.55;
-    const wellbeing = 0.5 + saturate(recent, 14) * 0.45;
-
-    // ── Reparto de actividad por región (por branch o reparto estable) ──
-    const branchCounts = new Map<string, number>();
-    for (const p of posts) {
-        const b = (p.branch?.trim() || "").toLowerCase();
-        if (b) branchCounts.set(b, (branchCounts.get(b) ?? 0) + 1);
-    }
-    const regions: SocietyRegion[] = regionsSrc.map((r, i) => {
-        // intenta casar la región con un branch por inclusión de nombre
-        let count = 0;
-        const lname = r.label.toLowerCase();
-        for (const [b, c] of branchCounts) {
-            if (lname.includes(b) || b.includes(lname.split(" ")[0])) count += c;
-        }
-        // si no casa nada, reparte el total de forma estable
-        if (count === 0 && regionsSrc.length > 0) {
-            count = Math.round((total / regionsSrc.length) * (0.7 + ((i * 37) % 11) / 18));
-        }
-        const cohesion = 0.4 + saturate(count, 12) * 0.55;
-        const trend: Trend = cohesion > 0.72 ? "up" : cohesion < 0.5 ? "down" : "flat";
-        return {
-            id: r.id,
-            label: r.label,
-            cohesion,
-            trend,
-            accent: REGION_ACCENTS[i % REGION_ACCENTS.length],
-        };
-    });
-
-    // ── Detección de fractura: región notablemente más baja ──
-    let fracture: SocietyState["fracture"] | undefined;
-    if (regions.length > 1) {
-        const weakest = [...regions].sort((a, b) => a.cohesion - b.cohesion)[0];
-        if (weakest.cohesion < 0.5) {
-            fracture = { region: weakest.label, reason: "baja actividad cívica reciente" };
-        }
-    }
-
-    return { harmonyIndex, regions, abundance, wellbeing, participation, fracture, history };
+function Electro({ W, H, dias, vivo, l }: { W: number; H: number; dias: Latido[]; vivo: boolean; l: EstadoLienzo }) {
+    const id = useIdSvg("ecg");
+    const max = Math.max(1, ...dias.map((d) => d.n));
+    const base = H * 0.62, paso = W / dias.length;
+    // Cada día, un latido: subida proporcional a sus publicaciones; sin publicaciones, línea plana.
+    const d = dias.map((x, i) => {
+        const x0 = i * paso, a = x.n ? (x.n / max) * (H * 0.55) : 0;
+        if (!a) return `L${(x0 + paso).toFixed(1)} ${base}`;
+        return `L${(x0 + paso * 0.35).toFixed(1)} ${base}L${(x0 + paso * 0.45).toFixed(1)} ${(base + a * 0.25).toFixed(1)}L${(x0 + paso * 0.55).toFixed(1)} ${(base - a).toFixed(1)}L${(x0 + paso * 0.65).toFixed(1)} ${(base + a * 0.35).toFixed(1)}L${(x0 + paso * 0.75).toFixed(1)} ${base}L${(x0 + paso).toFixed(1)} ${base}`;
+    }).join("");
+    return (
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden className="block overflow-visible">
+            <defs>
+                <linearGradient id={`${id}-l`} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor={l.acento} stopOpacity={0.25} />
+                    <stop offset="100%" stopColor={l.acento} stopOpacity={1} />
+                </linearGradient>
+            </defs>
+            {dias.map((x, i) => i > 0 && <line key={i} x1={i * paso} x2={i * paso} y1={H * 0.1} y2={H * 0.95} stroke="#fff" strokeOpacity={0.05} />)}
+            <path d={`M0 ${base}${d}`} fill="none" stroke={`url(#${id}-l)`} strokeWidth={2} strokeLinejoin="round" />
+            <circle cx={W - 3} cy={base} r={4} fill={vivo ? tinta(l.acento, 0.3) : conAlfa("#ffffff", 0.3)}
+                className={vivo && l.animar ? "ss-latir" : undefined} style={{ transformBox: "fill-box", transformOrigin: "center" }} />
+            {dias.map((x, i) => H >= 60 && (
+                <text key={x.dia} x={i * paso + paso / 2} y={H - 1} textAnchor="middle" fill="#fff" opacity={0.35} style={{ fontSize: 9 }}>
+                    {new Date(x.dia).toLocaleDateString("es-ES", { weekday: "narrow" })}
+                </text>
+            ))}
+        </svg>
+    );
 }
 
 export function SocietyPulseWidget() {
-    const supabase = useMemo(() => createClient(), []);
-    const { data: sim, loading: simLoading } = useWidgetData("society.cohesion", { refreshMs: 12000 });
+    const l = useLienzo("#10b981", "#a855f7");
+    const posts = useLivePosts(LIMITE_POSTS);
+    const grupos = useLiveGroups();
+    const eventos = useLiveEvents();
+    const [ahora, setAhora] = React.useState(() => Date.now());
+    React.useEffect(() => {
+        if (!l.visible) return;
+        setAhora(Date.now());
+        const t = window.setInterval(() => setAhora(Date.now()), 5 * 60_000);
+        return () => window.clearInterval(t);
+    }, [l.visible]);
 
-    const [real, setReal] = useState<SocietyState | null>(null);
+    const dias = React.useMemo(() => latidos(posts.rows, ahora), [posts.rows, ahora]);
+    const semana = dias.reduce((s, d) => s + d.n, 0);
+    const llena = muestraLlena(posts.rows, LIMITE_POSTS, dias[0].dia);
+    const nVoces = React.useMemo(() => voces(posts.rows, ahora), [posts.rows, ahora]);
+    const vienen = React.useMemo(() => proximos(eventos.rows, ahora), [eventos.rows, ahora]);
+    const com = React.useMemo(() => comunidades(grupos.rows), [grupos.rows]);
+    const vivo = latiendo(posts.rows, ahora);
+    const hoy = dias[dias.length - 1].n;
+    const cargando = (posts.loading || grupos.loading || eventos.loading) && !posts.rows.length && !grupos.rows.length && !eventos.rows.length;
+    const calma = !cargando && !posts.rows.length && !grupos.rows.length && !eventos.rows.length;
+    const al = llena ? "al menos " : "";
 
-    const reload = useCallback(async () => {
-        try {
-            const [postsRes, locsRes, localsRes] = await Promise.all([
-                supabase.from("cafe_posts").select("id, branch, created_at")
-                    .order("created_at", { ascending: false }).limit(300),
-                supabase.from("locations").select("id, name, city").limit(8),
-                supabase.from("cafe_locals").select("zone, name").limit(8),
-            ]);
-            if (postsRes.error || !postsRes.data || postsRes.data.length === 0) {
-                setReal(null);
-                return;
-            }
-            // Regiones: prioriza locations (ciudades), si no cafe_locals (zonas).
-            let regionsSrc: { id: string; label: string }[] = [];
-            if (!locsRes.error && locsRes.data && locsRes.data.length > 0) {
-                regionsSrc = (locsRes.data as LocationRow[]).map(l => ({
-                    id: l.id, label: (l.city || l.name || l.id).trim(),
-                }));
-            } else if (!localsRes.error && localsRes.data && localsRes.data.length > 0) {
-                regionsSrc = (localsRes.data as CafeLocalRow[]).map(l => ({
-                    id: l.zone, label: (l.name || l.zone).trim(),
-                }));
-            }
-            setReal(buildSociety(postsRes.data as CafePostRow[], regionsSrc));
-        } catch {
-            setReal(null); // fallback silencioso a modo simulado
-        }
-    }, [supabase]);
+    const etiqueta = cargando ? "Pulso de la sociedad: cargando la actividad de la red"
+        : calma ? "Pulso de la sociedad: vacío, la red está en calma o sin conexión"
+        : `Pulso de la sociedad: ${al}${semana} publicaciones en 7 días (${al}${hoy} hoy) de ${nVoces} voces distintas; ${com.total} comunidades con ${com.miembros} miembros; ${vienen.length} encuentro${vienen.length === 1 ? "" : "s"} en los próximos 7 días${vienen[0] ? `, el primero «${vienen[0].title}»` : ""}${vivo ? ". Hubo actividad en la última hora" : ""}`;
 
-    useEffect(() => {
-        let alive = true;
-        void (async () => { if (alive) await reload(); })();
-        // Realtime: nuevos posts/cambios refrescan el pulso en vivo.
-        const ch = supabase
-            .channel("w-society-pulse")
-            .on("postgres_changes", { event: "*", schema: "public", table: "cafe_posts" }, () => { void reload(); })
-            .subscribe();
-        return () => { alive = false; supabase.removeChannel(ch); };
-    }, [supabase, reload]);
+    if (l.base === "micro") {
+        return (
+            <Lienzo l={l} titulo="Pulso de la Sociedad" etiqueta={etiqueta} sinCabecera>
+                <div className="flex h-full flex-col items-center justify-center gap-0.5">
+                    <Activity className={`size-6 ${vivo && l.animar ? "ss-latir" : ""}`} style={{ color: tinta(l.acento, 0.3) }} aria-hidden />
+                    {!cargando && <span className="text-[14px] tabular-nums text-white">{llena ? `${semana}+` : semana}</span>}
+                </div>
+            </Lienzo>
+        );
+    }
 
-    const data: SocietyState | null = real ?? sim ?? null;
-    const loading = real ? false : (simLoading && !sim);
-    const liveReal = !!real;
+    const especial = (compacto: boolean) => {
+        if (cargando) return <CargandoSilueta color={l.acento} etiqueta="Cargando la actividad de la red…" />;
+        if (calma) return <VacioHonesto icono={Activity} color={l.acento} compacto={compacto} titulo="La red está en calma" ayuda="Aún no hay actividad visible (o no hay conexión)." accion={compacto ? undefined : <Accion color={l.acento} alto={l.toque} icono={Megaphone} href="/red-feed" etiqueta="Publicar en la red">Publicar</Accion>} />;
+        return null;
+    };
 
-    return (
-        <WidgetShell
-            title="Pulso de la Sociedad"
-            subtitle={liveReal ? "Cohesión · datos en vivo" : "Cohesión Macro-Social"}
-            icon={Activity}
-            accent="#10b981"
-            live
-            actions={
-                <Link
-                    href="/network/politics"
-                    className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer"
-                >
-                    Red <ChevronRight className="size-3" />
-                </Link>
-            }
-            footer={
-                <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
-                    {liveReal ? "Pulso del Café · datos en vivo" : "Cohesión macro-social · modo simulado"}
-                </p>
-            }
-        >
-            {(size) => {
-                if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const d = data;
-                const micro = size.tier === "micro" || size.vTier === "micro";
+    if (l.base === "s") {
+        return (
+            <Lienzo l={l} titulo="Pulso de la Sociedad" etiqueta={etiqueta} sinCabecera>
+                {especial(true) ?? (
+                    <Link href="/red-feed" className="flex h-full cursor-pointer flex-col justify-center gap-1.5" aria-label={`Abrir la red: ${semana} publicaciones en 7 días`}>
+                        <Electro W={l.ancho - 24} H={40} dias={dias} vivo={vivo} l={l} />
+                        <span className="text-[12px] text-white/80"><span className="text-[18px] tabular-nums text-white">{llena ? `${semana}+` : semana}</span> en 7 días</span>
+                        <span className="truncate text-[11px] text-white/55">{nVoces} voces · {vienen.length} encuentros</span>
+                    </Link>
+                )}
+            </Lienzo>
+        );
+    }
 
-                // ── Micro: anillo de armonía + sparkline ──────────────────────
-                if (micro) {
-                    return (
-                        <div className="h-full flex items-center justify-center gap-3">
-                            <ProgressRing
-                                value={d.harmonyIndex}
-                                size={64}
-                                stroke={6}
-                                color="#10b981"
-                                label={`${Math.round(d.harmonyIndex * 100)}`}
-                                sublabel="armonía"
-                            />
-                            <div className="flex-1 min-w-0">
-                                <Sparkline data={d.history} color="#10b981" height={36} />
-                            </div>
-                        </div>
-                    );
-                }
+    const hb = Math.max(80, l.alto - 64);
+    const esp = especial(false);
+    if (esp) {
+        return (
+            <Lienzo l={l} titulo={l.ancho < 230 ? "Pulso" : "Pulso de la Sociedad"} subtitulo={l.ancho >= 300 ? "La red, estos siete días" : undefined} icono={Activity} etiqueta={etiqueta}>
+                <div className="flex h-full flex-col justify-center">{esp}</div>
+            </Lienzo>
+        );
+    }
 
-                const isExpanded = size.vTier === "expanded";
-                const isCompact = size.vTier === "compact";
+    const cifras = (compactas: boolean) => (
+        <dl className="grid grid-cols-3 gap-x-4 gap-y-1.5">
+            {[
+                { t: "Publicaciones", v: `${llena ? `${semana}+` : semana}`, s: `${al}${hoy} hoy` },
+                { t: "Voces", v: `${nVoces}`, s: "distintas" },
+                { t: "Encuentros", v: `${vienen.length}`, s: "en 7 días" },
+            ].map((c) => (
+                <div key={c.t} className="min-w-0">
+                    <dt className="truncate text-[10px] uppercase tracking-[0.06em] text-white/45" title={c.t}>{c.t}</dt>
+                    <dd className="text-[20px] font-light leading-tight tabular-nums text-white">{c.v}</dd>
+                    {!compactas && <dd className="truncate text-[11px] text-white/50">{c.s}</dd>}
+                </div>
+            ))}
+        </dl>
+    );
 
-                return (
-                    <div className="flex flex-col gap-2 pt-1 h-full">
+    const listaEventos = (n: number) => vienen.length ? (
+        <ul className="flex flex-col gap-0.5" aria-label="Próximos encuentros">
+            {vienen.slice(0, n).map((e) => (
+                <li key={e.id}>
+                    <Link href={`/evento/${encodeURIComponent(e.slug)}`} title={`${e.title}${e.location ? ` · ${e.location}` : ""}`}
+                        className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg px-1.5 transition-colors duration-200 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40" style={{ minHeight: l.toque }}>
+                        <CalendarDays className="size-3.5 shrink-0 text-white/45" aria-hidden />
+                        <span className="min-w-0 flex-1 truncate text-[12.5px] text-white/85">{e.title}</span>
+                        <span className="shrink-0 text-[11px] text-white/50">{new Date(e.starts_at!).toLocaleDateString("es-ES", { weekday: "short", day: "numeric" })}</span>
+                    </Link>
+                </li>
+            ))}
+        </ul>
+    ) : <p className="text-[11.5px] text-white/50">Sin encuentros en los próximos 7 días.</p>;
 
-                        {/* ── Alerta de fractura ────────────────────────────────── */}
-                        {d.fracture && (
-                            <div className="shrink-0 flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/[0.07] px-2.5 py-2">
-                                <AlertTriangle className="size-3.5 text-amber-400 shrink-0 mt-0.5" />
-                                <div className="min-w-0 flex-1">
-                                    <span className="block text-[10px] font-black uppercase tracking-wide text-amber-300">
-                                        Fractura detectada
-                                    </span>
-                                    <span className="block text-[9px] text-muted-foreground/80 leading-snug truncate">
-                                        <strong className="text-amber-200/90">{d.fracture.region}</strong> — {d.fracture.reason}
-                                    </span>
-                                </div>
-                                <Link
-                                    href="/network/politics"
-                                    className="shrink-0 inline-flex items-center gap-1 rounded-full border border-amber-400/40 text-amber-300 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide hover:bg-amber-400/15 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                    <Sparkles className="size-2.5" /> Apoyar
-                                </Link>
-                            </div>
-                        )}
+    const listaComunidades = (n: number) => com.top.length ? (
+        <ul className="flex flex-col gap-0.5" aria-label="Comunidades con más gente">
+            {com.top.slice(0, n).map((g) => (
+                <li key={g.id}>
+                    <Link href={`/grupo/${encodeURIComponent(g.slug)}`} title={g.name}
+                        className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg px-1.5 transition-colors duration-200 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40" style={{ minHeight: l.toque }}>
+                        <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: rowAccent(g.accent) }} />
+                        <span className="min-w-0 flex-1 truncate text-[12.5px] text-white/85">{g.name}</span>
+                        <span className="inline-flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-white/55"><Users className="size-3" aria-hidden />{g.member_count ?? 0}</span>
+                    </Link>
+                </li>
+            ))}
+        </ul>
+    ) : <p className="text-[11.5px] text-white/50">Aún no hay comunidades.</p>;
 
-                        {/* ── Armonía global + métricas ─────────────────────────── */}
-                        <div className="flex items-center gap-3 shrink-0">
-                            <ProgressRing
-                                value={d.harmonyIndex}
-                                size={isExpanded ? 80 : 64}
-                                stroke={7}
-                                color="#10b981"
-                                label={`${Math.round(d.harmonyIndex * 100)}`}
-                                sublabel="armonía global"
-                            />
-                            <div className="flex-1 min-w-0 space-y-1.5">
-                                {/* Abundancia */}
-                                <div className="flex items-center gap-1.5">
-                                    <Sparkles className="size-3 shrink-0 text-amber-400/80" />
-                                    <div className="flex-1 min-w-0">
-                                        <ProgressBar value={d.abundance} color="#f59e0b" height={4} showPct={false} />
-                                    </div>
-                                    <span className="text-[9px] tabular-nums text-muted-foreground/60 w-7 text-right shrink-0">
-                                        {Math.round(d.abundance * 100)}%
-                                    </span>
-                                </div>
-                                {/* Bienestar */}
-                                <div className="flex items-center gap-1.5">
-                                    <Heart className="size-3 shrink-0 text-rose-400/80" />
-                                    <div className="flex-1 min-w-0">
-                                        <ProgressBar value={d.wellbeing} color="#fb7185" height={4} showPct={false} />
-                                    </div>
-                                    <span className="text-[9px] tabular-nums text-muted-foreground/60 w-7 text-right shrink-0">
-                                        {Math.round(d.wellbeing * 100)}%
-                                    </span>
-                                </div>
-                                {/* Participación */}
-                                <div className="flex items-center gap-1.5">
-                                    <Users className="size-3 shrink-0 text-sky-400/80" />
-                                    <div className="flex-1 min-w-0">
-                                        <ProgressBar value={d.participation} color="#38bdf8" height={4} showPct={false} />
-                                    </div>
-                                    <span className="text-[9px] tabular-nums text-muted-foreground/60 w-7 text-right shrink-0">
-                                        {Math.round(d.participation * 100)}%
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
+    const nota = llena && <p className="text-[10.5px] text-white/40">Sobre las {LIMITE_POSTS} publicaciones más recientes: hay al menos estas.</p>;
 
-                        {/* ── Leyenda de las barras ─────────────────────────────── */}
-                        {!isCompact && (
-                            <div className="shrink-0 flex items-center gap-3 text-[9px] font-bold uppercase tracking-wide text-muted-foreground/50">
-                                <span className="inline-flex items-center gap-1"><Sparkles className="size-2.5 text-amber-400/70" /> Abundancia</span>
-                                <span className="inline-flex items-center gap-1"><Heart className="size-2.5 text-rose-400/70" /> Bienestar</span>
-                                <span className="inline-flex items-center gap-1"><Users className="size-2.5 text-sky-400/70" /> Participación</span>
-                            </div>
-                        )}
-
-                        {/* ── Regiones ──────────────────────────────────────────── */}
-                        <div className="flex-1 min-h-0 overflow-hidden space-y-1">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 block">
-                                Regiones
-                            </span>
-                            {d.regions.slice(0, isExpanded ? 5 : isCompact ? 2 : 4).map((rg) => (
-                                <div key={rg.id} className="flex items-center gap-2 rounded-lg border border-border/40 bg-white/[0.02] px-2 py-1">
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                                            <span
-                                                className="text-[10px] font-bold truncate"
-                                                style={{ color: rg.accent }}
-                                            >
-                                                {rg.label}
-                                            </span>
-                                            <div className="flex items-center gap-1 shrink-0">
-                                                <TrendIcon trend={rg.trend} />
-                                                <span
-                                                    className="text-[9px] tabular-nums font-black"
-                                                    style={{ color: trendColor(rg.trend) ?? "var(--muted-foreground)" }}
-                                                >
-                                                    {Math.round(rg.cohesion * 100)}%
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <ProgressBar
-                                            value={rg.cohesion}
-                                            color={rg.accent}
-                                            height={3}
-                                            showPct={false}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* ── Sparkline histórico ───────────────────────────────── */}
-                        <div className="shrink-0">
-                            <Sparkline
-                                data={d.history}
-                                color="#10b981"
-                                height={isExpanded ? 44 : 28}
-                            />
-                        </div>
+    if (l.horizontal) {
+        return (
+            <Lienzo l={l} titulo="Pulso de la Sociedad" subtitulo="La red, estos siete días" icono={Activity} etiqueta={etiqueta}>
+                <div className="flex h-full min-h-0 items-center gap-5">
+                    <div className="flex shrink-0 flex-col gap-2" style={{ width: l.ancho * 0.46 }}>
+                        <Electro W={l.ancho * 0.46} H={Math.min(90, hb * 0.5)} dias={dias} vivo={vivo} l={l} />
+                        {cifras(true)}
                     </div>
-                );
-            }}
-        </WidgetShell>
+                    <div className="min-w-0 flex-1">{listaEventos(Math.max(1, Math.floor(hb / 34)))}</div>
+                </div>
+            </Lienzo>
+        );
+    }
+
+    if (l.torre) {
+        return (
+            <Lienzo l={l} titulo="Pulso" subtitulo="Estos siete días" icono={Activity} etiqueta={etiqueta}>
+                <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
+                    <Electro W={l.ancho - 40} H={56} dias={dias} vivo={vivo} l={l} />
+                    <p className="text-[12px] leading-relaxed text-white/65">
+                        <span className="text-[17px] tabular-nums text-white">{llena ? `${semana}+` : semana}</span> publicaciones<br />
+                        <span className="text-[17px] tabular-nums text-white">{nVoces}</span> voces distintas
+                    </p>
+                    {listaEventos(2)}
+                    {listaComunidades(2)}
+                </div>
+            </Lienzo>
+        );
+    }
+
+    const grande = l.base === "xl";
+    return (
+        <Lienzo l={l} titulo="Pulso de la Sociedad" subtitulo={l.ancho >= 300 ? "La red, estos siete días" : undefined} icono={Activity} etiqueta={etiqueta}
+            acciones={l.base !== "m" ? <Accion color={l.acento} alto={28} soloIcono icono={Megaphone} href="/red-feed" etiqueta="Abrir la red y publicar">Red</Accion> : undefined}>
+            <div className="flex h-full min-h-0 flex-col gap-3">
+                <Electro W={l.ancho - 40} H={grande ? 90 : l.base === "l" ? 70 : 56} dias={dias} vivo={vivo} l={l} />
+                {cifras(l.base === "m")}
+                {grande ? (
+                    <div className="grid min-h-0 flex-1 grid-cols-2 gap-4 overflow-y-auto">
+                        <div className="min-w-0"><p className="mb-1 text-[11px] uppercase tracking-[0.12em] text-white/45">Encuentros</p>{listaEventos(4)}</div>
+                        <div className="min-w-0"><p className="mb-1 text-[11px] uppercase tracking-[0.12em] text-white/45">Comunidades</p>{listaComunidades(4)}</div>
+                    </div>
+                ) : <div className="min-h-0 flex-1 overflow-y-auto">{listaEventos(l.base === "l" ? 2 : Math.max(1, Math.floor((hb - 130) / 34)))}</div>}
+                {(grande || l.base === "l") && nota}
+            </div>
+        </Lienzo>
     );
 }
