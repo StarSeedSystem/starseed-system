@@ -29,7 +29,7 @@ export const TIPOS_CON_DISENO_LIBRE = [
 export function widgetLibre(widget: DashboardWidget, onUpdateSettings?: (patch: Record<string, any>) => void): React.ReactElement | null {
     switch (widget.widget_type) {
         case "CLOCK_DATE": return <RelojLibre widget={widget} onUpdateSettings={onUpdateSettings} />;
-        case "WEATHER_BASIC": return <ClimaLibre />;
+        case "WEATHER_BASIC": return <ClimaLibre widgetId={widget.id} />;
         case "NOTIFICATIONS": return <NotificacionesLibre />;
         case "QUICK_ACCESS": return <AccesosLibre />;
         case "SYSTEM_STATUS": return <EstadoSistemaLibre />;

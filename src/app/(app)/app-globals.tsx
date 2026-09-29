@@ -43,6 +43,7 @@ import { Astraura158WindowHost } from "@/components/astraura/window/astraura-158
 import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
+import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
 
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
@@ -58,6 +59,8 @@ export default function AppGlobals() {
   return (
     <SoloFueraDeConsola>
       <AuroraIntro />
+      {/* Ola 0929 · F: cada ruta visitada alimenta «recientes» del widget de Accesos (local, sin red). */}
+      <RegistroRecientesAccesos />
       {/* (Adenda 193) StartupUpdatesModal se monta en el layout RAÍZ: aquí
           sería un SEGUNDO montaje (dos ventanas y dos helpers globales). */}
       {/* Drawer global de configuración de Astraura + OmniVoice (Adenda 132):
