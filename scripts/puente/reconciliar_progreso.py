@@ -24,7 +24,9 @@ INTEGRADA = {"commit", "hecho"}
 # Lo que no se toca nunca: cierres irreversibles del orquestador y la puerta de aprobación,
 # que es de una persona o del director, no de un reconciliador.
 CERRADAS = {"commit", "bloqueante", "sustituida", "rechazada", "hecho",
-            "esperando_aprobacion", "pendiente_aprobacion"}
+            "esperando_aprobacion", "pendiente_aprobacion",
+            # (2026-09-29) cierre de un sueño profundo: informe escrito, nada que integrar.
+            "informe"}
 
 
 def en_main(tid, asuntos):

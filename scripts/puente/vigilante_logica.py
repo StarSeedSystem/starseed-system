@@ -47,7 +47,17 @@ ESTADOS_NO_AUTOMATICOS = {
     # es de Alex). Se reabre poniéndola en `pendiente`.
     "descartada",
     "integrada",
+    # (2026-09-29) Cierre de un sueño profundo (tarea de análisis): informe escrito, nada
+    # que integrar. No es «sin cambios» ni se relanza.
+    "informe",
 }
+
+# (2026-09-29) Las colas de los sueños profundos (`cola-suenos-<fecha>.json`) y su propuesta
+# (`cola-suenos-propuesta-<fecha>.json`) NO son demanda del vigilante: los sueños los lanza
+# `scripts/puente/suenos.py` (o el Mando) y los relanza el supervisor Claude; la propuesta
+# espera a que una persona la abra en el Diseñador. Si el vigilante las cogiera, metería
+# análisis en un orquestador viejo que no sabe soñar y lanzaría una propuesta sin mirar.
+PREFIJO_SUENOS = "cola-suenos-"
 
 
 def es_cola_fuente(nombre):
@@ -115,7 +125,7 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
         return integradas[dep]
 
     for nombre, tareas in colas:
-        if not es_cola_fuente(nombre):
+        if not es_cola_fuente(nombre) or nombre.startswith(PREFIJO_SUENOS):
             continue
         for tarea in tareas:
             if not isinstance(tarea, dict) or not tarea.get("id"):

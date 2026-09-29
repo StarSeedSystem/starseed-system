@@ -54,6 +54,15 @@ from puerta_degenerados import archivos_degenerados
 from proveedor_anthropic import cabeceras_api as cabeceras_anthropic
 from proveedor_anthropic import escalon as escalon_anthropic, ordenar_por_precio
 
+# (2026-09-29) Sueños profundos: las tareas `tipo: "analisis"` LEEN código y escriben un
+# informe (analista.py: map → reduce → contraste con la flota gratuita). Sin worktree, sin
+# tsc, sin integrar. Si el módulo faltara, el orquestador arranca igual y esas tareas fallan
+# con un motivo claro en vez de caer en el camino de escritura.
+try:
+    import analista as _analista
+except Exception:  # pragma: no cover — instalación sin el módulo
+    _analista = None
+
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
 # entorno, adivina el repositorio por dónde exista (Mac: ~/Documents/starseed-os-main;
@@ -2499,7 +2508,7 @@ def set_estado(tid, **kw):
 
 
 # ── revisión cruzada por otro proveedor ─────────────────────────────────────
-def llamar_llm(proveedor, modelo, prompt, timeout=120):
+def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500):
     """Una llamada de chat con ROTACIÓN DE CLAVE integrada (2026-09-07, Ola 271, P9B):
 
     la clave sale de la capa por medio (`clave_activa`); ante HTTP 402, contenido que sea
@@ -2507,7 +2516,15 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
     (`agotar_clave`) y se reintenta UNA sola vez con la siguiente; solo cuando no queda
     ninguna, `agotar_clave` marca el proveedor entero como sin cupo. Los proveedores sin
     capa de claves (pasarelas, llm7 sin token) siguen el camino heredado de `ENV.get`.
-    Los valores de clave jamás se escriben: solo nombres de variable y medios."""
+    Los valores de clave jamás se escriben: solo nombres de variable y medios.
+
+    `max_tokens` (2026-09-29): la síntesis de un sueño profundo devuelve un JSON de hasta
+    diez hallazgos con propuesta y no cabe en 2500; los revisores siguen con 2500."""
+    max_tokens = max(256, min(8000, int(max_tokens or 2500)))
+    if proveedor not in CUPOS:
+        # Un proveedor sin cupo declarado (p. ej. una pasarela que no está en esta máquina)
+        # no se llama: sin esto era un KeyError que se contaba como fallo del modelo.
+        raise RuntimeError("sin clave %s (sin cupo declarado en esta máquina)" % proveedor)
     CUPOS[proveedor].esperar()
 
     def _peticion(kay):
@@ -2532,7 +2549,7 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
             )
             cuerpo = {
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200},
+                "generationConfig": {"temperature": 0.2, "maxOutputTokens": min(max_tokens, 8000) if max_tokens != 2500 else 1200},
             }
             req = urllib.request.Request(
                 url,
@@ -2610,7 +2627,7 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120):
             "model": modelo_real,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
-            "max_tokens": 2500,
+            "max_tokens": max_tokens,
         }
         # Sin User-Agent propio, el Cloudflare de xKiro devuelve 403 al urllib de Python.
         cabeceras = {
@@ -5293,11 +5310,12 @@ def foto_enjambre(vivas_txt):
             bytes_log = os.path.getsize(os.path.join(LOGS, tid + ".log"))
         except Exception:
             bytes_log = 0
-        tk = tokens.get(tid, {})
+        tk = tokens.get(tid) or (d.get("tokens") if isinstance(d.get("tokens"), dict) else {})
         tareas.append(
             {
                 "id": tid,
                 "fase": d.get("fase"),
+                **({"tipo": "analisis", "subfase": str(d.get("subfase") or "")[:80]} if d.get("tipo") == "analisis" else {}),
                 "modelo": modelo,
                 "proveedor": proveedor_de(modelo) if modelo else "",
                 "ventana": CONTEXTO_DE.get(
@@ -5344,8 +5362,9 @@ def foto_enjambre(vivas_txt):
         "medio": MEDIO,
         "tareas": tareas,
         # «completando» pinta como «escribiendo» en el Mando: es una escritura de alcance.
+        # «analizando» (2026-09-29): un sueño profundo también es un agente trabajando.
         "agentesActivos": len(
-            [t for t in tareas if t["fase"] in ("escribiendo", "completando")]
+            [t for t in tareas if t["fase"] in ("escribiendo", "completando", "analizando")]
         ),
         "proveedores": {
             p: {
@@ -5597,7 +5616,65 @@ def debe_pedir_visto_bueno(bloqueante, faltan, aprobacion_pedida, argv):
     return False, ""
 
 
+def _paso_local(tid, nombre, **datos):
+    """Como `paso`, pero SOLO al archivo local `olas/pasos/<id>.jsonl` (la ficha de la tarea
+    en el Mando lo lee): los pasos de un sueño no viajan al bus, que debe llevar pocos
+    eventos y gruesos (contrato de consumo, memory/orquestacion-economica.md §15)."""
+    try:
+        os.makedirs(PASOS_DIR, exist_ok=True)
+        with open(os.path.join(PASOS_DIR, tid + ".jsonl"), "a", encoding="utf-8") as f:
+            f.write(json.dumps({"t": ahora(), "tarea": tid, "paso": nombre, **datos}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def _proveedor_disponible(prov):
+    """Lo mismo que mira el revisor: vivo, con cupo y sin 429 reciente."""
+    return proveedor_vivo(prov) and not sin_cupo(prov) and not enfriandose(prov)
+
+
+def _ejecutar_analisis(t):
+    """(2026-09-29) Rama de los sueños profundos: todo lo hace `analista.ejecutar`, con las
+    herramientas de ESTE orquestador (llamar_llm con cupos y rotación de claves, salud de
+    proveedores, latidos, progreso). Sin worktree, sin tsc, sin vitest, sin integración."""
+    tid = t["id"]
+    os.makedirs(LOGS, exist_ok=True)
+    ruta_log = os.path.join(LOGS, tid + ".log")
+
+    def registrar(texto):
+        # El registro crece con cada llamada: el vigilante lo ve y el Mando también.
+        try:
+            with open(ruta_log, "a", encoding="utf-8") as f:
+                f.write("[%s] %s\n" % (ahora()[11:], texto))
+        except Exception:
+            pass
+
+    if _analista is None:
+        set_estado(tid, estado="fallo", nota="falta analista.py junto al orquestador (instalar.sh)")
+        evento("fallo", tid, "tarea de análisis sin analista.py instalado: bash scripts/enjambre/instalar.sh")
+        return None
+    return _analista.ejecutar(
+        t,
+        llamar_llm,
+        evento=evento,
+        set_estado=set_estado,
+        latir=latir,
+        disponible=_proveedor_disponible,
+        raiz=ROOT,
+        dir_profundo=os.path.join(MEM, "dream", "profundo"),
+        log=registrar,
+        paso_local=_paso_local,
+        es_aviso_de_cuota=es_aviso_de_cuota,
+        marcar_sin_cupo=marcar_sin_cupo,
+        espera_429_s=ESPERA_429_S,
+        espera_proveedor_s=ESPERA_PROVEEDOR_S,
+    )
+
+
 def ejecutar(t, intento=1):
+    # Sueños profundos: leer y escribir un informe, nunca tocar el repositorio.
+    if str(t.get("tipo") or "").strip().lower() == "analisis":
+        return _ejecutar_analisis(t)
     tid = t["id"]
     t0 = time.time()
     os.makedirs(LOGS, exist_ok=True)
@@ -6864,7 +6941,7 @@ def ejecutar_seguro(t):
         estado_final = PROG.get(t["id"], {}).get("estado")
         if not perdido:
             try:
-                cerrar_arriendo(t["id"], estado_final == "commit", time.time() - inicio)
+                cerrar_arriendo(t["id"], estado_final in ("commit", "informe"), time.time() - inicio)
             except Exception:
                 pass
         else:
@@ -7086,6 +7163,47 @@ def _recoger_lo_nuestro(rutas):
     return False
 
 
+# Estados con los que una tarea ya no vuelve a la tanda. `informe` (2026-09-29) es el cierre
+# de un sueño profundo (tarea de análisis): terminó bien SIN código que integrar, y nunca debe
+# contarse como «sin_cambios» ni como fallo.
+ESTADOS_TERMINADOS = (
+    "commit",
+    "sin_cambios",
+    "fallo",
+    "fallo_tsc",
+    "fallo_tests",
+    "conflicto",
+    "reasignada",
+    "rechazada",
+    "pendiente_aprobacion",
+    "bloqueada",
+    "informe",
+)
+
+
+def _es_analisis(t):
+    return isinstance(t, dict) and str(t.get("tipo") or "").strip().lower() == "analisis"
+
+
+_TOPE_AN = {"leido": 0.0, "tope": None}
+
+
+def tope_de_analisis(tareas):
+    """Cuántos sueños (tareas de análisis) a la vez. Solo HTTP: no comparten el tope de los
+    agentes de código ni el del gobernador, pero la RAM libre sí los recorta (< 400 MB → la
+    mitad). Se recalcula como mucho cada 20 s (memoria_libre_mb lanza vm_stat en la Mac)."""
+    ahora_s = time.time()
+    if _TOPE_AN["tope"] is not None and ahora_s - _TOPE_AN["leido"] < 20:
+        return _TOPE_AN["tope"]
+    env = os.environ.get("STARSEED_TOPE_ANALISIS")
+    if _analista is not None:
+        tope = _analista.tope_analisis(tareas, env, memoria_libre_mb())
+    else:
+        tope = 1
+    _TOPE_AN.update(leido=ahora_s, tope=tope)
+    return tope
+
+
 # ── director ────────────────────────────────────────────────────────────────
 def main():
     if len(sys.argv) < 2:
@@ -7112,8 +7230,13 @@ def main():
         tareas = _aplicar_cambios(tareas, PROG)
     except ImportError:
         pass
+    solo_analisis = bool(tareas) and all(_es_analisis(t) for t in tareas)
     _, sucio = sh(["git", "status", "--porcelain"], timeout=30)
-    if sucio.strip():
+    if sucio.strip() and solo_analisis:
+        # Los sueños solo LEEN el repositorio: un árbol con cambios de Alex no les estorba y
+        # no hay nada que recoger ni que integrar.
+        print("árbol de main con cambios, pero la cola es solo de análisis: sigo sin tocarlo")
+    elif sucio.strip():
         mias, ajenas = _reparto_del_arbol(sucio)
         if ajenas:
             print(
@@ -7185,11 +7308,17 @@ def main():
                     "ola": t.get("ola", ""),
                     "titulo": t.get("titulo", "")[:200],
                     "depende": list(t.get("depende") or t.get("dependencias") or []),
-                    "archivos": list(t.get("archivos") or [])[:12],
+                    "archivos": [] if _es_analisis(t) else list(t.get("archivos") or [])[:12],
                     # El prompt también viaja: así la OTRA máquina puede relanzar o corregir la
-                    # cola desde su Diseñador de olas sin tener el archivo.
-                    "prompt": (t.get("prompt") or "")[:6000],
+                    # cola desde su Diseñador de olas sin tener el archivo. Los sueños no: su
+                    # plan se rehace con `suenos.py` y 84 prompts serían tráfico sin uso (§15).
+                    "prompt": "" if _es_analisis(t) else (t.get("prompt") or "")[:6000],
                     **({"modelo": t["modelo"]} if t.get("modelo") else {}),
+                    **(
+                        {"tipo": "analisis", "area": t.get("area", ""), "lente": t.get("lente", "")}
+                        if _es_analisis(t)
+                        else {}
+                    ),
                 }
                 for t in cola
             ],
@@ -7217,18 +7346,7 @@ def main():
         releer_cola_si_cambio(sys.argv[1], estado_cola)
 
     def terminado(tid):
-        return PROG.get(tid, {}).get("estado") in (
-            "commit",
-            "sin_cambios",
-            "fallo",
-            "fallo_tsc",
-            "fallo_tests",
-            "conflicto",
-            "reasignada",
-            "rechazada",
-            "pendiente_aprobacion",
-            "bloqueada",
-        )
+        return PROG.get(tid, {}).get("estado") in ESTADOS_TERMINADOS
 
     while pendientes or activos:
         for tid in list(activos):
@@ -7238,9 +7356,18 @@ def main():
         # Tope vivo del gobernador de recursos (Alex 2026-09-20): con la Mac en
         # uso interactivo o ahogada de RAM, solo baja cuántos se LANZAN.
         tope = tope_gobernador(workers)
+        # (2026-09-29) Los sueños (tipo analisis) llevan su PROPIO tope: solo HTTP, sin
+        # worktree ni puertas, así que no ocupan los huecos de los agentes de código.
+        n_analisis = sum(1 for x in activos if _es_analisis(TAREAS_POR_ID.get(x)))
+        n_codigo = len(activos) - n_analisis
+        tope_an = (
+            tope_de_analisis(list(TAREAS_POR_ID.values()))
+            if any(_es_analisis(x) for x in pendientes.values())
+            else 0
+        )
         # Solo se consulta la cola cuando hay un trabajador libre y toca elegir.
         # Si cambió, se fusiona sin tocar lo que ya corre; si no, ni se abre.
-        if estado_cola is not None and len(activos) < tope:
+        if estado_cola is not None and (n_codigo < tope or n_analisis < max(1, tope_an)):
             estado_cola, releida = releer_cola_si_cambio(sys.argv[1], estado_cola)
             if releida:
                 ocupadas = set(activos) | hechas
@@ -7283,8 +7410,20 @@ def main():
                 pendientes.pop(tid)
                 hechas.add(tid)
                 continue
-            if len(activos) >= tope:
-                break
+            if _es_analisis(t):
+                # Un sueño: sin dependencias, sin arriendo (el analista se reclama él mismo
+                # la tarea en dream/profundo/<fecha>/.reclamos, así dos orquestadores no la
+                # repiten) y con su tope aparte.
+                if n_analisis >= tope_an:
+                    continue
+                th = threading.Thread(target=ejecutar_seguro, args=(t,), daemon=True)
+                th.start()
+                activos[tid] = th
+                pendientes.pop(tid)
+                n_analisis += 1
+                continue
+            if n_codigo >= tope:
+                continue
             deps = list(t.get("depende") or []) + list(t.get("depende_opcional") or [])
             if not all(
                 d in hechas or (d not in pendientes and d not in activos) for d in deps
@@ -7366,13 +7505,19 @@ def main():
             th.start()
             activos[tid] = th
             pendientes.pop(tid)
+            n_codigo += 1
         time.sleep(3)
     FIN.set()
-    # verificación final en main
-    evento("verificando", "", "tsc + vitest sobre main")
-    log = os.path.join(LOGS, "verificacion-final.log")
-    rc, errs = tsc(ROOT, log)
-    rcv, vout = vitest(ROOT, log)
+    # verificación final en main — salvo que la tanda solo haya LEÍDO (sueños profundos):
+    # tsc + vitest en la Mac de 8 GB por nada es el tipo de verde que no hizo nada (§12.1).
+    solo_analisis = bool(TAREAS_POR_ID) and all(_es_analisis(x) for x in TAREAS_POR_ID.values())
+    if solo_analisis:
+        errs, rcv = [], 0
+    else:
+        evento("verificando", "", "tsc + vitest sobre main")
+        log = os.path.join(LOGS, "verificacion-final.log")
+        rc, errs = tsc(ROOT, log)
+        rcv, vout = vitest(ROOT, log)
     est = {tid: PROG.get(tid, {}).get("estado") for tid in [t["id"] for t in tareas]}
     resumen = " · ".join("%s=%s" % (k, v) for k, v in est.items())
     bloqueadas = {
@@ -7384,7 +7529,15 @@ def main():
         resumen += " · BLOQUEADAS(no ejecutadas): " + " | ".join(
             "%s (%s)" % (k, v)[:150] for k, v in bloqueadas.items()
         )
-    if not errs and rcv == 0:
+    if solo_analisis:
+        informes = sum(1 for v in est.values() if v == "informe")
+        evento(
+            "informe",
+            "",
+            "sueños profundos: %d de %d informes escritos (sin código que verificar) · %s"
+            % (informes, len(est), resumen[:600]),
+        )
+    elif not errs and rcv == 0:
         evento(
             "verificado", "", "main en verde: tsc 0 errores · vitest ok · " + resumen
         )
