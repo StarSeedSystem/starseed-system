@@ -1,7 +1,6 @@
 import { WidgetType } from "./dashboard-types";
-import { WidgetCategory, WIDGET_CATEGORIES, type WidgetCategoryDef } from "./widget-categories";
-import type { LucideIcon } from "lucide-react";
-import { dimsForSize, type WidgetSize } from "./dashboard-size";
+import type { WidgetCategory } from "./widget-categories";
+import { dimsForSize, sizeFromWH, type WidgetSize } from "./dashboard-size";
 
 // ── Widget-to-Category Mapping ───────────────────────────────────
 export interface WidgetCategoryMapping {
@@ -163,434 +162,437 @@ export function searchWidgets(query: string): WidgetCategoryMapping[] {
 }
 
 // ── Default Dashboard Templates ──────────────────────────────────
+/**
+ * Papel de un widget dentro de la composición de su pestaña (gen12, 2026-09-29):
+ *  · heroe  — el protagonista: lo que abres esa pestaña para ver (uno por pestaña, arriba).
+ *  · apoyo  — las piezas que acompañan al héroe.
+ *  · dato   — cifras de un vistazo (se vuelven teselas micro/pequeñas en el teléfono).
+ *  · franja — bandas a lo ancho (el dock de apps, un panorama).
+ * El acomodo por pantalla (`src/lib/dashboard/acomodo-pantalla.ts`) deduce el papel de la huella
+ * de cada widget, así que también funciona con los tableros que la persona reorganizó; aquí se
+ * declara para las variantes de plantilla (Completo · Esencial · Enfoque) y para las pruebas.
+ */
+export type RolPlantilla = "heroe" | "apoyo" | "dato" | "franja";
+
+export interface WidgetPlantilla {
+    type: WidgetType;
+    w: number;
+    h: number;
+    x: number;
+    y: number;
+    settings?: Record<string, any>;
+    size?: WidgetSize;
+    rol?: RolPlantilla;
+}
+
 export interface DefaultDashboardTemplate {
     categoryId: WidgetCategory;
     name: string;
     isDefault?: boolean;  // Only one should be true (the first dashboard for new users)
-    widgets: { type: WidgetType; w: number; h: number; x: number; y: number; settings?: Record<string, any>; size?: WidgetSize }[];
+    /** Para qué es la pestaña, en una línea (gen12). */
+    lema?: string;
+    widgets: WidgetPlantilla[];
 }
 
 /** Atajo: construye una entrada de widget a partir de su talla S/M/L/XL
  *  (ver dashboard-size.ts), recortada a los mínimos del widget-manifest. El
  *  `size` viaja con la entrada para que el widget sembrado ya lo declare. */
-function sz(type: WidgetType, size: WidgetSize, x: number, y: number, settings?: Record<string, any>) {
+function sz(type: WidgetType, size: WidgetSize, x: number, y: number, settings?: Record<string, any>): WidgetPlantilla {
     const { w, h } = dimsForSize(type, size);
     return { type, w, h, x, y, size, ...(settings ? { settings } : {}) };
 }
 
+/** Atajo gen12: una pieza con su huella exacta y su papel en la composición. */
+function p(type: WidgetType, x: number, y: number, w: number, h: number, rol: RolPlantilla = "apoyo", settings?: Record<string, any>): WidgetPlantilla {
+    return { type, x, y, w, h, rol, size: sizeFromWH(w, h), ...(settings ? { settings } : {}) };
+}
+void sz; // se conserva para plantillas que prefieran declarar la talla S/M/L/XL
+
+/*
+ * gen12 (2026-09-29) — «dale otra pasada de diseño a cada pestaña». Cada pestaña temática es un
+ * espacio con propósito: un HÉROE arriba (lo que se viene a ver, 6–8 columnas y 6–7 filas), piezas
+ * de APOYO que cuentan el resto de la historia, DATOS de un vistazo donde el tema los tiene (clima,
+ * cosmos) y el dock de apps como franja final. Todas las filas quedan llenas (sin huecos) y cada
+ * pestaña prefiere widgets con datos reales (eventos, grupos, tareas, notas, galería, clima de
+ * Open-Meteo, cosmos de NOAA, mapa de OpenStreetMap…).
+ */
 const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
-    // ─── 1. Dashboards / Inicio (DEFAULT) ─────────────────────
-    // Rediseño (gen11 · migración de cabecera+plantillas+tamaños): composición
-    // curada con jerarquía clara en 3 franjas — 1) orientación (reloj + agenda,
-    // ambos L, lado a lado); 2) utilidades de un vistazo (clima/tareas/accesos,
-    // M+M+S); 3) el feed de la Red como ancla de contenido al final (XL, ancho
-    // completo). El dock de apps StarSeed se añade solo (withSeededExtras) —
-    // no hace falta declararlo aquí.
+    // ─── 1. Inicio (principal) ───────────────────────────────
     {
         categoryId: 'social',
         name: 'Inicio',
         isDefault: true,
+        lema: 'Tu día de un vistazo',
         widgets: [
-            // Orientación: hora/fecha + próximos eventos (12 = 6+6, fila completa).
-            sz('CLOCK_DATE', 'L', 0, 0),
-            sz('MY_EVENTS', 'L', 6, 0),
-
-            // Utilidades de un vistazo: clima, tareas rápidas, accesos directos.
-            sz('WEATHER_BASIC', 'M', 0, 5),
-            sz('TASKS_QUICK', 'M', 4, 5),
-            sz('QUICK_ACCESS', 'S', 8, 5),
-
-            // Red sináptica (Adenda 99): radar de internet — neuronas cercanas en
-            // línea, bandas/antenas en uso con configs rápidas e indicadores de
-            // transmisión. Predeterminado, banda propia bajo las utilidades.
-            { type: 'INTERNET_RADAR', w: 12, h: 5, x: 0, y: 9 },
-
-            // Feed de la Red: ancla de contenido, ancho completo, al final.
-            sz('NETWORK_FEED_MINI', 'XL', 0, 14),
+            p('CLOCK_DATE', 0, 0, 6, 5, 'heroe'),      // hora, Sol, Luna y signos
+            p('WEATHER_BASIC', 6, 0, 3, 5),
+            p('MY_EVENTS', 9, 0, 3, 5),
+            p('TASKS_QUICK', 0, 5, 4, 4),
+            p('AURORA_LAST', 4, 5, 4, 4),
+            p('QUICK_ACCESS', 8, 5, 4, 4),
+            p('NETWORK_FEED_MINI', 0, 9, 7, 5),
+            // Red sináptica (Adenda 99): sigue en Inicio, ahora como pieza junto al feed.
+            p('INTERNET_RADAR', 7, 9, 5, 5),
         ],
     },
     // ─── 2. Política ─────────────────────────────────────────
     {
         categoryId: 'politica',
         name: 'Política',
+        lema: 'Deliberar y decidir en común',
         widgets: [
-            { type: 'AGORA_CAUSAL', w: 5, h: 5, x: 0, y: 0 },
-            { type: 'POLITICAL_SUMMARY', w: 4, h: 5, x: 5, y: 0 },
-            { type: 'LIQUID_DELEGATION', w: 3, h: 5, x: 9, y: 0 },
-            { type: 'ELDER_COUNCIL', w: 4, h: 4, x: 0, y: 5 },
-            { type: 'RESTORATIVE_COURT', w: 4, h: 5, x: 4, y: 5 },
-            { type: 'RELEVANT_POSTS', w: 4, h: 5, x: 8, y: 5 },
+            p('AGORA_CAUSAL', 0, 0, 7, 6, 'heroe'),
+            p('POLITICAL_SUMMARY', 7, 0, 5, 3),
+            p('LIQUID_DELEGATION', 7, 3, 5, 3),
+            p('CIVIC_ALCHEMY', 0, 6, 4, 5),
+            p('SOCIAL_RESONANCE', 4, 6, 4, 5),
+            p('VITAL_FLOW_AUDIT', 8, 6, 4, 5),
         ],
     },
     // ─── 3. Educación ────────────────────────────────────────
     {
         categoryId: 'educacion',
         name: 'Educación',
+        lema: 'Aprender con propósito',
         widgets: [
-            { type: 'SKILL_TREE', w: 5, h: 5, x: 0, y: 0 },
-            { type: 'LEARNING_PATH', w: 4, h: 5, x: 5, y: 0 },
-            { type: 'ACTIVE_PROJECTS', w: 3, h: 5, x: 9, y: 0 },
-            { type: 'UNIVERSAL_LIBRARY', w: 5, h: 5, x: 0, y: 5 },
-            { type: 'MENTOR_MATCH', w: 4, h: 4, x: 5, y: 5 },
+            p('SKILL_TREE', 0, 0, 7, 6, 'heroe'),
+            p('LEARNING_PATH', 7, 0, 5, 3),
+            p('MENTOR_MATCH', 7, 3, 5, 3),
+            p('UNIVERSAL_LIBRARY', 0, 6, 6, 5),
+            p('QUICK_NOTES', 6, 6, 3, 5),
+            p('BADGES', 9, 6, 3, 5),
         ],
     },
     // ─── 4. Cultura ──────────────────────────────────────────
     {
         categoryId: 'cultura',
         name: 'Cultura',
+        lema: 'Expresión, música y encuentros',
         widgets: [
-            { type: 'CULTURAL_FEED', w: 8, h: 5, x: 0, y: 0 },
-            { type: 'IMMERSION_PORTAL', w: 4, h: 5, x: 8, y: 0 },
-            { type: 'MULTIVERSE_HUB', w: 4, h: 5, x: 0, y: 5 },
-            { type: 'CREATIVE_STUDIO', w: 4, h: 4, x: 4, y: 5 },
-            { type: 'RELEVANT_POSTS', w: 4, h: 5, x: 8, y: 5 },
+            p('CULTURAL_FEED', 0, 0, 7, 6, 'heroe'),
+            p('MY_EVENTS', 7, 0, 5, 3),
+            p('MUSIC_PLAYER', 7, 3, 5, 3),
+            p('MULTIVERSE_HUB', 0, 6, 4, 5),
+            p('CREATIVE_STUDIO', 4, 6, 4, 5),
+            p('RADIO_LIVE', 8, 6, 4, 5),
         ],
     },
     // ─── 5. Economía ─────────────────────────────────────────
     {
         categoryId: 'economia',
         name: 'Economía',
+        lema: 'El flujo del procomún',
         widgets: [
-            { type: 'CARTERA_STARSEED', w: 5, h: 7, x: 0, y: 0 },
-            { type: 'ECONOMIC_OVERVIEW', w: 4, h: 5, x: 5, y: 0 },
-            { type: 'CALCULATOR', w: 3, h: 5, x: 9, y: 0 },
-            { type: 'OIKOS_METABOLISM', w: 5, h: 5, x: 5, y: 5 },
-            { type: 'ENERGY_GRID', w: 3, h: 4, x: 0, y: 7 },
-            { type: 'BARTER_MARKET', w: 4, h: 4, x: 3, y: 7 },
-            { type: 'ACTIVE_PROJECTS', w: 4, h: 4, x: 7, y: 9 },
+            p('CARTERA_STARSEED', 0, 0, 6, 6, 'heroe'),
+            p('ECONOMIC_OVERVIEW', 6, 0, 3, 6),
+            p('OIKOS_METABOLISM', 9, 0, 3, 6),
+            p('GIFT_AGORA', 0, 6, 4, 5),
+            p('BARTER_MARKET', 4, 6, 4, 5),
+            p('ENERGY_GRID', 8, 6, 4, 5),
         ],
     },
     // ─── 6. Clima ────────────────────────────────────────────
     {
         categoryId: 'clima',
         name: 'Clima',
+        lema: 'El cielo de tu lugar, en vivo',
         widgets: [
-            { type: 'WEATHER_SPACE_SOLAR', w: 4, h: 4, x: 0, y: 0 },
-            { type: 'WEATHER_HOLISTIC', w: 4, h: 8, x: 4, y: 0 },
-            { type: 'WEATHER_SPACE_SCHUMANN', w: 4, h: 4, x: 8, y: 0 },
-            { type: 'WEATHER_ASTRONOMY', w: 4, h: 2, x: 0, y: 4 },
-            { type: 'WEATHER_WIND', w: 4, h: 2, x: 8, y: 4 },
-            { type: 'WEATHER_TEMPERATURE', w: 2, h: 2, x: 0, y: 6 },
-            { type: 'WEATHER_HUMIDITY', w: 2, h: 2, x: 2, y: 6 },
-            { type: 'WEATHER_UV', w: 4, h: 2, x: 8, y: 6 },
-            { type: 'WEATHER_AIR_QUALITY', w: 12, h: 2, x: 0, y: 8 },
+            p('WEATHER_BASIC', 0, 0, 6, 6, 'heroe'),
+            p('WEATHER_TEMPERATURE', 6, 0, 3, 3, 'dato'),
+            p('WEATHER_HUMIDITY', 9, 0, 3, 3, 'dato'),
+            p('WEATHER_WIND', 6, 3, 3, 3, 'dato'),
+            p('WEATHER_UV', 9, 3, 3, 3, 'dato'),
+            p('WEATHER_AIR_QUALITY', 0, 6, 6, 4),
+            p('WEATHER_ASTRONOMY', 6, 6, 6, 4),
+            p('OFFICIAL_DATA', 0, 10, 12, 4, 'franja'),
         ],
     },
     // ─── 7. Productividad ────────────────────────────────────
     {
         categoryId: 'productividad',
         name: 'Productividad',
+        lema: 'Enfoque y avance del día',
         widgets: [
-            { type: 'FLOW_DIRECTOR', w: 4, h: 5, x: 0, y: 0 },
-            { type: 'PROJECT_SWARM', w: 4, h: 5, x: 4, y: 0 },
-            { type: 'COLLAB_PROJECTS', w: 4, h: 5, x: 8, y: 0 },
-            { type: 'ACTIVE_PROJECTS', w: 4, h: 4, x: 0, y: 5 },
-            { type: 'RECENT_ACTIVITY', w: 4, h: 4, x: 4, y: 5 },
-            { type: 'ACTIVITY_SUMMARY', w: 4, h: 4, x: 0, y: 9 },
-            { type: 'CALCULATOR', w: 4, h: 4, x: 8, y: 5 },
+            p('TASKS_QUICK', 0, 0, 6, 6, 'heroe'),
+            p('QUICK_NOTES', 6, 0, 3, 6),
+            p('FLOW_DIRECTOR', 9, 0, 3, 6),
+            p('ACTIVE_PROJECTS', 0, 6, 4, 5),
+            p('PROJECT_SWARM', 4, 6, 4, 5),
+            p('ACTIVITY_SUMMARY', 8, 6, 4, 5),
         ],
     },
     // ─── 8. Ubicación ────────────────────────────────────────
     {
         categoryId: 'ubicacion',
         name: 'Ubicación',
+        lema: 'Tu lugar en el mapa',
         widgets: [
-            { type: 'MAP_LOCATION', w: 7, h: 6, x: 0, y: 0 },
-            { type: 'ABUNDANCE_RADAR', w: 5, h: 6, x: 7, y: 0 },
-            { type: 'TRANSIT_FLOW', w: 6, h: 4, x: 0, y: 6 },
-            { type: 'WEATHER_BASIC', w: 6, h: 4, x: 6, y: 6 },
+            p('MAP_LOCATION', 0, 0, 8, 7, 'heroe'),
+            p('WEATHER_BASIC', 8, 0, 4, 4),
+            p('ABUNDANCE_RADAR', 8, 4, 4, 3),
+            p('TRANSIT_FLOW', 0, 7, 6, 4),
+            p('MY_EVENTS', 6, 7, 6, 4),
         ],
     },
     // ─── 9. Utilidades ───────────────────────────────────────
     {
         categoryId: 'utilidades',
         name: 'Utilidades',
+        lema: 'Herramientas a mano',
         widgets: [
-            { type: 'QUICK_ACCESS', w: 12, h: 4, x: 0, y: 0 },
-            { type: 'CALCULATOR', w: 4, h: 4, x: 0, y: 4 },
-            { type: 'NOTIFICATIONS', w: 4, h: 4, x: 4, y: 4 },
-            { type: 'SYSTEM_STATUS', w: 4, h: 4, x: 8, y: 4 },
+            p('QUICK_ACCESS', 0, 0, 8, 5, 'heroe'),
+            p('CLOCK_DATE', 8, 0, 4, 5),
+            p('CALCULATOR', 0, 5, 3, 5),
+            p('QUICK_NOTES', 3, 5, 3, 5),
+            p('UNIVERSAL_OPENER', 6, 5, 3, 5),
+            p('NOTIFICATIONS', 9, 5, 3, 5),
         ],
     },
     // ─── 10. Arte ────────────────────────────────────────────
     {
         categoryId: 'arte',
         name: 'Arte',
+        lema: 'Tu galería viva',
         widgets: [
-            { type: 'CULTURAL_FEED', w: 12, h: 5, x: 0, y: 0 },
+            p('RECENT_GALLERY', 0, 0, 7, 6, 'heroe'),
+            p('CREATIVE_STUDIO', 7, 0, 5, 3),
+            p('CAMERA_QUICK', 7, 3, 5, 3),
+            p('CULTURAL_FEED', 0, 6, 6, 5),
+            p('IDEA_FORGE', 6, 6, 6, 5),
         ],
     },
     // ─── 11. Astronomía ──────────────────────────────────────
     {
         categoryId: 'astronomia',
         name: 'Astronomía',
+        lema: 'El cosmos en tiempo real',
         widgets: [
-            { type: 'WEATHER_HOLISTIC', w: 4, h: 6, x: 4, y: 0 },
-            { type: 'WEATHER_ASTRONOMY', w: 4, h: 3, x: 0, y: 0 },
-            { type: 'WEATHER_SPACE_SOLAR', w: 4, h: 3, x: 8, y: 0 },
-            { type: 'WEATHER_SPACE_KP', w: 4, h: 3, x: 0, y: 3 },
-            { type: 'WEATHER_SPACE_FLARE', w: 4, h: 3, x: 8, y: 3 },
-            { type: 'WEATHER_SPACE_MAGNETOMETER', w: 6, h: 3, x: 0, y: 6 },
-            { type: 'WEATHER_SPACE_SCHUMANN', w: 6, h: 3, x: 6, y: 6 },
+            p('WEATHER_ASTRONOMY', 0, 0, 6, 6, 'heroe'), // Sol, Luna y su fase
+            p('SPACE_WEATHER', 6, 0, 6, 3, 'franja'),    // NOAA SWPC en vivo
+            p('WEATHER_SPACE_KP', 6, 3, 3, 3, 'dato'),
+            p('WEATHER_SPACE_FLARE', 9, 3, 3, 3, 'dato'),
+            p('WEATHER_SPACE_SOLAR', 0, 6, 4, 4),
+            p('WEATHER_SPACE_MAGNETOMETER', 4, 6, 4, 4),
+            p('WEATHER_SPACE_SCHUMANN', 8, 6, 4, 4),
+            p('WEATHER_HOLISTIC', 0, 10, 6, 5),
+            p('OFFICIAL_DATA', 6, 10, 6, 5),
         ],
     },
     // ─── 12. Sistema ─────────────────────────────────────────
-    // Rediseño (gen11): sincronización en vivo como hero, cerebros + neuronas
-    // (nodos soberanos) como par de estado, acceso a la Biblioteca. Nota: no
-    // existe aún un widget "Sync" ni "Neuronas" dedicados en el catálogo —
-    // LIVE_DATA (telemetría de nodos en tiempo real) y SOVEREIGN_NODE (nodo/
-    // hardware soberano) son los sustitutos más fieles hoy; swap directo
-    // cuando el kit de widgets los incorpore.
     {
         categoryId: 'sistema',
         name: 'Sistema',
+        lema: 'Tu nodo, sano y sincronizado',
         widgets: [
-            sz('LIVE_DATA', 'L', 0, 0),           // Sync (sustituto: telemetría/nodos en vivo)
-            sz('BRAINS', 'M', 6, 0),               // Cerebros
-            sz('SOVEREIGN_NODE', 'M', 0, 5),       // Neuronas (sustituto: nodo soberano)
-            sz('UNIVERSAL_LIBRARY', 'S', 4, 5),    // Biblioteca (acceso)
+            p('SYSTEM_STATUS', 0, 0, 6, 5, 'heroe'),
+            p('BRAINS', 6, 0, 3, 5),
+            p('VAULTS', 9, 0, 3, 5),
+            p('SOVEREIGN_NODE', 0, 5, 4, 4),
+            p('IDENTITY_VAULT', 4, 5, 4, 4),
+            p('LIVE_DATA', 8, 5, 4, 4),
         ],
     },
     // ─── 13. Personalización ─────────────────────────────────
     {
         categoryId: 'personalizacion',
         name: 'Personalización',
+        lema: 'Tu sistema, a tu medida',
         widgets: [
-            { type: 'THEME_SELECTOR', w: 6, h: 4, x: 0, y: 0 },
-            { type: 'THEME_MANAGER', w: 6, h: 4, x: 6, y: 0 },
+            p('THEME_MANAGER', 0, 0, 7, 6, 'heroe'),
+            p('THEME_SELECTOR', 7, 0, 5, 2, 'franja'),
+            p('AUDIOMORPHIC_BG', 7, 2, 5, 4),
         ],
     },
     // ─── 14. IA ──────────────────────────────────────────────
     {
         categoryId: 'ia',
         name: 'IA',
+        lema: 'Tu exocórtex',
         widgets: [
-            { type: 'ASTRAURA_CORTEX', w: 5, h: 5, x: 0, y: 0 },
-            { type: 'NEXUS_QUICK_ACCESS', w: 4, h: 5, x: 5, y: 0 },
-            { type: 'MESSAGES', w: 3, h: 5, x: 9, y: 0 },
-            { type: 'ORACLE_PREDICT', w: 5, h: 4, x: 0, y: 5 },
+            p('ASTRAURA_CORTEX', 0, 0, 6, 6, 'heroe'),
+            p('AURORA_LAST', 6, 0, 3, 6),
+            p('BRAINS', 9, 0, 3, 6),
+            p('MEMORIES', 0, 6, 4, 5),
+            p('NEXUS_QUICK_ACCESS', 4, 6, 4, 5),
+            p('ORACLE_PREDICT', 8, 6, 4, 5),
         ],
     },
     // ─── 15. Parlamento ──────────────────────────────────────
     {
         categoryId: 'parlamento',
         name: 'Parlamento',
+        lema: 'Asambleas, consejo y justicia restaurativa',
         widgets: [
-            { type: 'AGORA_CAUSAL', w: 5, h: 5, x: 0, y: 0 },
-            { type: 'LIQUID_DELEGATION', w: 3, h: 5, x: 5, y: 0 },
-            { type: 'POLITICAL_SUMMARY', w: 4, h: 5, x: 8, y: 0 },
-            { type: 'RELEVANT_POSTS', w: 12, h: 3, x: 0, y: 5 },
+            p('ELDER_COUNCIL', 0, 0, 7, 6, 'heroe'),
+            p('LIQUID_DELEGATION', 7, 0, 5, 3),
+            p('POLITICAL_SUMMARY', 7, 3, 5, 3),
+            p('RESTORATIVE_COURT', 0, 6, 6, 5),
+            p('MY_GROUPS', 6, 6, 6, 5),
         ],
     },
     // ─── 16. Red ─────────────────────────────────────────────
-    // Rediseño (gen11): feed de exploración como hero (ancho completo),
-    // franja de contexto social (notificaciones/mensajes/insignias) debajo.
     {
         categoryId: 'red',
         name: 'Red',
+        lema: 'Tu constelación de personas y nodos',
         widgets: [
-            sz('EXPLORE_NETWORK', 'XL', 0, 0),
-            sz('NOTIFICATIONS', 'M', 0, 6),
-            sz('MESSAGES', 'M', 4, 6),
-            sz('BADGES', 'S', 8, 6),
+            p('NETWORK_FEED_MINI', 0, 0, 7, 7, 'heroe'),
+            p('MESSAGES', 7, 0, 5, 4),
+            p('NOTIFICATIONS', 7, 4, 5, 3),
+            p('COMMUNITIES', 0, 7, 4, 5),
+            p('MESH_RADAR', 4, 7, 4, 5),
+            p('FEDERATED_ENTITIES', 8, 7, 4, 5),
         ],
     },
     // ─── 17. Explorador ──────────────────────────────────────
     {
         categoryId: 'explorador',
         name: 'Explorador',
+        lema: 'Descubrir lo inesperado',
         widgets: [
-            { type: 'EXPLORE_NETWORK', w: 7, h: 5, x: 0, y: 0 },
-            { type: 'MY_PAGES', w: 5, h: 5, x: 7, y: 0 },
-            { type: 'SOCIAL_RADAR', w: 12, h: 3, x: 0, y: 5 },
+            p('EXPLORE_NETWORK', 0, 0, 7, 6, 'heroe'),
+            p('SERENDIPITY_LENS', 7, 0, 5, 6),
+            p('SOCIAL_RADAR', 0, 6, 4, 4),
+            p('MY_PAGES', 4, 6, 4, 4),
+            p('RECENT_ACTIVITY', 8, 6, 4, 4),
         ],
     },
     // ─── 18. Creativo ────────────────────────────────────────
-    // Nuevo predeterminado (gen11): hub personal de creación rápida — galería
-    // + cámara + estudio en la fila superior (6+3+3=12), notas debajo.
-    // Promovido desde BASE_FUTURE_DASHBOARD_TEMPLATES ('Creatividad') a
-    // predeterminado: pasa a sembrarse para cuentas nuevas y existentes.
     {
         categoryId: 'creatividad',
         name: 'Creativo',
+        lema: 'Crear ya, sin esperar',
         widgets: [
-            sz('RECENT_GALLERY', 'L', 0, 0),
-            sz('CAMERA_QUICK', 'S', 6, 0),
-            sz('CREATIVE_STUDIO', 'S', 9, 0),
-            sz('QUICK_NOTES', 'M', 0, 5),
+            p('IDEA_FORGE', 0, 0, 6, 6, 'heroe'),
+            p('QUICK_NOTES', 6, 0, 3, 6),
+            p('CAMERA_QUICK', 9, 0, 3, 3, 'dato'),
+            p('CREATIVE_STUDIO', 9, 3, 3, 3, 'dato'),
+            p('RECENT_GALLERY', 0, 6, 6, 5),
+            p('DOCUMENTS', 6, 6, 6, 5),
         ],
     },
 ];
 
-// Categorías recién habilitadas por la 2.ª generación de widgets.
+// Temas de «crear desde plantilla» (no se siembran solos). Misma gramática: héroe + apoyo.
 const BASE_FUTURE_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
-    // ─── Astrología ──────────────────────────────────────────
     {
-        categoryId: 'astrologia',
-        name: 'Astrología',
+        categoryId: 'astrologia', name: 'Astrología', lema: 'Ciclos, tránsitos y sincronías',
         widgets: [
-            { type: 'NATAL_CHART', w: 5, h: 5, x: 0, y: 0 },
-            { type: 'WEATHER_ASTRONOMY', w: 4, h: 5, x: 5, y: 0 },
-            { type: 'WEATHER_HOLISTIC', w: 3, h: 5, x: 9, y: 0 },
-            { type: 'ENERGY_MAP', w: 5, h: 4, x: 0, y: 5 },
+            p('NATAL_CHART', 0, 0, 6, 6, 'heroe'),
+            p('WEATHER_ASTRONOMY', 6, 0, 6, 3),
+            p('ENERGY_MAP', 6, 3, 6, 3),
+            p('OMNIFRECUENCIAS', 0, 6, 6, 5),
+            p('WEATHER_HOLISTIC', 6, 6, 6, 5),
         ],
     },
-    // ─── Archivos ────────────────────────────────────────────
     {
-        categoryId: 'archivos',
-        name: 'Archivos',
+        categoryId: 'archivos', name: 'Archivos', lema: 'Tus documentos y memorias',
         widgets: [
-            { type: 'AKASHIC_CODEX', w: 8, h: 6, x: 0, y: 0 },
-            { type: 'SYSTEM_STATUS', w: 4, h: 6, x: 8, y: 0 },
+            p('DOCUMENTS', 0, 0, 6, 6, 'heroe'),
+            p('MEMORIES', 6, 0, 3, 6),
+            p('VAULTS', 9, 0, 3, 6),
+            p('AKASHIC_CODEX', 0, 6, 6, 5),
+            p('UNIVERSAL_OPENER', 6, 6, 6, 5),
         ],
     },
-    // ─── Entretenimiento ─────────────────────────────────────
     {
-        categoryId: 'entretenimiento',
-        name: 'Entretenimiento',
+        categoryId: 'entretenimiento', name: 'Entretenimiento', lema: 'Música, radio y mundos',
         widgets: [
-            { type: 'IMMERSION_PORTAL', w: 8, h: 5, x: 0, y: 0 },
-            { type: 'CULTURAL_FEED', w: 4, h: 5, x: 8, y: 0 },
+            p('MEDIA_CONTROL', 0, 0, 6, 6, 'heroe'),
+            p('MUSIC_PLAYER', 6, 0, 6, 3),
+            p('RADIO_LIVE', 6, 3, 6, 3),
+            p('OMNIFRECUENCIAS', 0, 6, 4, 5),
+            p('AUDIOMORPHIC_BG', 4, 6, 4, 5),
+            p('IMMERSION_PORTAL', 8, 6, 4, 5),
         ],
     },
-    // ─── Ayudantía ───────────────────────────────────────────
     {
-        categoryId: 'ayudantia',
-        name: 'Ayudantía',
+        categoryId: 'ayudantia', name: 'Ayudantía', lema: 'Cuidarte y pedir ayuda',
         widgets: [
-            { type: 'WELLNESS', w: 5, h: 4, x: 0, y: 0 },
-            { type: 'CALCULATOR', w: 3, h: 4, x: 5, y: 0 },
-            { type: 'NOTIFICATIONS', w: 4, h: 4, x: 8, y: 0 },
+            p('WELLNESS', 0, 0, 6, 5, 'heroe'),
+            p('TASKS_QUICK', 6, 0, 3, 5),
+            p('CALCULATOR', 9, 0, 3, 5),
+            p('OMNIFRECUENCIAS', 0, 5, 6, 5),
+            p('NOTIFICATIONS', 6, 5, 6, 5),
         ],
     },
-    // ─── Ciberdelia ──────────────────────────────────────────
     {
-        categoryId: 'ciberdelia',
-        name: 'Ciberdelia',
+        categoryId: 'ciberdelia', name: 'Ciberdelia', lema: 'Experiencias que expanden',
         widgets: [
-            { type: 'IMMERSION_PORTAL', w: 5, h: 4, x: 0, y: 0 },
-            { type: 'THEME_MANAGER', w: 4, h: 4, x: 5, y: 0 },
-            { type: 'THEME_SELECTOR', w: 3, h: 4, x: 9, y: 0 },
+            p('IMMERSIVE', 0, 0, 7, 6, 'heroe'),
+            p('IMMERSION_PORTAL', 7, 0, 5, 6),
+            p('AUDIOMORPHIC_BG', 0, 6, 4, 5),
+            p('OMNIFRECUENCIAS', 4, 6, 4, 5),
+            p('THEME_MANAGER', 8, 6, 4, 5),
         ],
     },
-    // ─── Descubrimientos ─────────────────────────────────────
     {
-        categoryId: 'descubrimientos',
-        name: 'Descubrimientos',
+        categoryId: 'descubrimientos', name: 'Descubrimientos', lema: 'Datos vivos del mundo',
         widgets: [
-            { type: 'SERENDIPITY_LENS', w: 5, h: 4, x: 0, y: 0 },
-            { type: 'EXPLORE_NETWORK', w: 4, h: 4, x: 5, y: 0 },
-            { type: 'RECENT_ACTIVITY', w: 3, h: 4, x: 9, y: 0 },
-            { type: 'SOCIAL_RADAR', w: 12, h: 3, x: 0, y: 4 },
+            p('OFFICIAL_DATA', 0, 0, 7, 6, 'heroe'),
+            p('SERENDIPITY_LENS', 7, 0, 5, 6),
+            p('EXPLORE_NETWORK', 0, 6, 6, 5),
+            p('RECENT_ACTIVITY', 6, 6, 6, 5),
         ],
     },
-    // ─── Privacidad ──────────────────────────────────────────
     {
-        categoryId: 'privacidad',
-        name: 'Privacidad',
+        categoryId: 'privacidad', name: 'Privacidad', lema: 'Tu membrana y tu soberanía',
         widgets: [
-            { type: 'CRYPTO_SHIELD', w: 5, h: 4, x: 0, y: 0 },
-            { type: 'IDENTITY_VAULT', w: 4, h: 4, x: 5, y: 0 },
-            { type: 'SYSTEM_STATUS', w: 3, h: 4, x: 9, y: 0 },
+            p('CRYPTO_SHIELD', 0, 0, 7, 6, 'heroe'),
+            p('IDENTITY_VAULT', 7, 0, 5, 6),
+            p('VAULTS', 0, 6, 6, 5),
+            p('SYSTEM_STATUS', 6, 6, 6, 5),
         ],
     },
-    // ─── Dispositivos ────────────────────────────────────────
     {
-        categoryId: 'dispositivos',
-        name: 'Dispositivos',
+        categoryId: 'dispositivos', name: 'Dispositivos', lema: 'Tu hábitat conectado',
         widgets: [
-            { type: 'HABITAT_CORE', w: 5, h: 5, x: 0, y: 0 },
-            { type: 'ENERGY_GRID', w: 4, h: 5, x: 5, y: 0 },
-            { type: 'SYSTEM_STATUS', w: 3, h: 5, x: 9, y: 0 },
+            p('HABITAT_CORE', 0, 0, 7, 6, 'heroe'),
+            p('ENERGY_GRID', 7, 0, 5, 6),
+            p('SYSTEM_STATUS', 0, 6, 6, 5),
+            p('SOVEREIGN_NODE', 6, 6, 6, 5),
         ],
     },
-    // Nota: 'creatividad' (antes "Creatividad" aquí) se promovió a
-    // predeterminado — ver BASE_DEFAULT_DASHBOARD_TEMPLATES #18 "Creativo".
-    // ─── Perfil ──────────────────────────────────────────────
     {
-        categoryId: 'perfil',
-        name: 'Perfil',
+        categoryId: 'perfil', name: 'Perfil', lema: 'Mérito, identidad y legado',
         widgets: [
-            { type: 'MERIT_GALLERY', w: 5, h: 5, x: 0, y: 0 },
-            { type: 'IDENTITY_VAULT', w: 4, h: 5, x: 5, y: 0 },
-            { type: 'LEARNING_PATH', w: 3, h: 5, x: 9, y: 0 },
+            p('MERIT_GALLERY', 0, 0, 6, 6, 'heroe'),
+            p('BADGES', 6, 0, 3, 6),
+            p('ACTIVITY_SUMMARY', 9, 0, 3, 6),
+            p('MY_PAGES', 0, 6, 6, 5),
+            p('IDENTITY_VAULT', 6, 6, 6, 5),
         ],
     },
-    // ─── Sociedad ────────────────────────────────────────────
     {
-        categoryId: 'sociedad',
-        name: 'Sociedad',
+        categoryId: 'sociedad', name: 'Sociedad', lema: 'El pulso del organismo común',
         widgets: [
-            { type: 'SOCIETY_PULSE', w: 5, h: 4, x: 0, y: 0 },
-            { type: 'ELDER_COUNCIL', w: 4, h: 4, x: 5, y: 0 },
-            { type: 'RESTORATIVE_COURT', w: 3, h: 5, x: 9, y: 0 },
+            p('SOCIETY_PULSE', 0, 0, 7, 6, 'heroe'),
+            p('ELDER_COUNCIL', 7, 0, 5, 6),
+            p('RESTORATIVE_COURT', 0, 6, 6, 5),
+            p('COMMUNITIES', 6, 6, 6, 5),
         ],
     },
 ];
 
-// ── Siembra automática de variaciones por tema ───────────────────
-// Cada dashboard predeterminado recibe el folder de apps StarSeed (dock)
-// y los elementos funcionales correspondientes a su tema; la posición Y se
-// calcula tras el contenido existente (sin solapes) y no se duplica lo ya
-// presente. Así "cada tema con sus variaciones de elementos correspondientes".
-type SeedWidget = { type: WidgetType; w: number; h: number; settings?: Record<string, any> };
-
+// ── El dock de apps como franja final ────────────────────────────
+// Cada pestaña temática termina con el folder de apps StarSeed (la colección que le toca a su
+// tema), a lo ancho y tras el contenido, sin duplicarlo si la plantilla ya lo trae.
 const APPS_DOCK_COLLECTION: Partial<Record<WidgetCategory, 'starseed' | 'sistema' | 'media'>> = {
     sistema: 'sistema',
     entretenimiento: 'media',
     archivos: 'sistema',
 };
 
-const THEME_EXTRA_WIDGETS: Partial<Record<WidgetCategory, SeedWidget[]>> = {
-    cultura: [{ type: 'MUSIC_PLAYER', w: 4, h: 4 }, { type: 'RADIO_LIVE', w: 4, h: 4 }],
-    clima: [{ type: 'SPACE_WEATHER', w: 4, h: 4 }, { type: 'OFFICIAL_DATA', w: 4, h: 4 }],
-    sistema: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
-    personalizacion: [{ type: 'AUDIOMORPHIC_BG', w: 3, h: 4 }],
-    astronomia: [{ type: 'SPACE_WEATHER', w: 5, h: 5 }, { type: 'OFFICIAL_DATA', w: 4, h: 4 }],
-    entretenimiento: [
-        { type: 'MEDIA_CONTROL', w: 4, h: 6 },
-        { type: 'MUSIC_PLAYER', w: 4, h: 4 },
-        { type: 'RADIO_LIVE', w: 4, h: 4 },
-        { type: 'OMNIFRECUENCIAS', w: 4, h: 5 },
-        { type: 'AUDIOMORPHIC_BG', w: 4, h: 4 },
-        { type: 'UNIVERSAL_OPENER', w: 4, h: 5 },
-    ],
-    astrologia: [{ type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
-    ciberdelia: [{ type: 'IMMERSIVE', w: 5, h: 5 }, { type: 'AUDIOMORPHIC_BG', w: 4, h: 4 }, { type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
-    descubrimientos: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
-    archivos: [{ type: 'UNIVERSAL_OPENER', w: 4, h: 5 }],
-    ayudantia: [{ type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
-    ia: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
-};
-
 const SEED_GRID_COLS = 12;
 
 function withSeededExtras(t: DefaultDashboardTemplate): DefaultDashboardTemplate {
     const widgets = t.widgets.map((w) => ({ ...w }));
-    let cursorY = widgets.reduce((m, w) => Math.max(m, w.y + w.h), 0);
-
-    // Dock de apps StarSeed (si el tablero aún no tiene un launcher).
+    const cursorY = widgets.reduce((m, w) => Math.max(m, w.y + w.h), 0);
     if (!widgets.some((w) => w.type === 'APP_LAUNCHER')) {
         widgets.push({
-            type: 'APP_LAUNCHER', w: SEED_GRID_COLS, h: 2, x: 0, y: cursorY,
+            type: 'APP_LAUNCHER', w: SEED_GRID_COLS, h: 2, x: 0, y: cursorY, rol: 'franja', size: sizeFromWH(SEED_GRID_COLS, 2),
             settings: { variant: 'folder', collection: APPS_DOCK_COLLECTION[t.categoryId] ?? 'starseed', label: 'Apps StarSeed', density: 'compact' },
         });
-        cursorY += 2;
-    }
-
-    // Elementos funcionales del tema (empaquetado simple por estantes).
-    const extras = THEME_EXTRA_WIDGETS[t.categoryId];
-    if (extras) {
-        let x = 0;
-        let rowH = 0;
-        for (const e of extras) {
-            if (widgets.some((w) => w.type === e.type)) continue; // no duplicar lo ya presente
-            const w = Math.min(e.w, SEED_GRID_COLS);
-            if (x + w > SEED_GRID_COLS) { x = 0; cursorY += rowH; rowH = 0; }
-            widgets.push({ type: e.type, w, h: e.h, x, y: cursorY, settings: e.settings });
-            x += w;
-            rowH = Math.max(rowH, e.h);
-        }
     }
     return { ...t, widgets };
 }

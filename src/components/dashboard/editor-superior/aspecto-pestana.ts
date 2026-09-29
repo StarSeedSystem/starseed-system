@@ -7,6 +7,7 @@
 import {
     Home, Star, Sparkles, Vote, GraduationCap, Palette, Users, Coins, CloudSun, Telescope,
     BrainCircuit, Cpu, Music, Heart, Briefcase, Compass, Leaf, Globe, Rocket, BookOpen,
+    MapPin, Wrench, Brush, SlidersHorizontal, Landmark, Network, ListChecks, Wand2, Moon, Sun,
     type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,17 @@ export const ICONOS_PESTANA: Record<string, { icono: LucideIcon; nombre: string 
     red: { icono: Globe, nombre: "Red" },
     proyectos: { icono: Rocket, nombre: "Proyectos" },
     lectura: { icono: BookOpen, nombre: "Lectura" },
+    // (2026-09-29) Los iconos propios de cada pestaña temática (temas-pestana.ts).
+    lugar: { icono: MapPin, nombre: "Lugar" },
+    herramientas: { icono: Wrench, nombre: "Herramientas" },
+    pincel: { icono: Brush, nombre: "Pincel" },
+    ajustes: { icono: SlidersHorizontal, nombre: "Ajustes" },
+    parlamento: { icono: Landmark, nombre: "Parlamento" },
+    nodos: { icono: Network, nombre: "Nodos" },
+    tareas: { icono: ListChecks, nombre: "Tareas" },
+    varita: { icono: Wand2, nombre: "Varita" },
+    luna: { icono: Moon, nombre: "Luna" },
+    sol: { icono: Sun, nombre: "Sol" },
 };
 
 /** Acentos de la identidad del OS (Trinity + áreas). */
