@@ -64,6 +64,8 @@ import {
     mergeLocalSecrets,
     isAuroraKey,
     isIntegrationConfigKey,
+    esClaveFusionable,
+    fusionarConLocal,
 } from "@/lib/settings-sync";
 // Config de sync por perfiles (Adenda 65 · SOP §10): gating de claves de
 // ámbito perfil (p. ej. escritorios anclados a perfil) antes de push/aplicar.
@@ -82,6 +84,10 @@ import { mergeUserPrefs, recordarPrefsServidor, olvidarHuellasPrefs } from "@/li
 // Contrato «consumo» (2026-09-29): id de cuenta sin red y pestaña líder.
 import { uidActual } from "@/lib/consumo/usuario";
 import { esLider } from "@/lib/consumo/lider-pestana";
+// (2026-09-29 · persistencia entre medios) La lectura única de las preferencias al arrancar es
+// ESENCIAL para el guardián (no cae por el presupuesto local) y su fallo se hace visible.
+import { leerAvisoConsumo, senalEsencial, suscribirConsumo } from "@/lib/consumo/guardian";
+import { frenoActivo } from "@/lib/consumo/freno";
 
 // ── Configuración ────────────────────────────────────────────────────────────
 /** Toggle persistido (ON por defecto con sesión). */
@@ -225,6 +231,10 @@ const EVENT_BY_KEY: Record<string, string[]> = {
 
     // Hub de conectores (modo, NO credenciales)
     "starseed.connectors.mode.v1": ["starseed:connectors"],
+
+    // Avisos vistos/hechos/pospuestos (avisos-cuenta.ts): refresco en vivo de las ventanas
+    // de arranque (`useAviso`) cuando otro medio de la cuenta marca algo.
+    "starseed.avisos.vistos.v1": ["starseed:avisos"],
 };
 
 /** Prefijo → evento(s); se usa cuando la clave concreta no está en EVENT_BY_KEY. */
@@ -310,20 +320,30 @@ async function readCloudMeta(userId: string): Promise<MetaMap> {
     return {};
 }
 
-async function readCloudPrefs(userId: string): Promise<Record<string, unknown>> {
+/**
+ * (2026-09-29) Antes devolvía `{}` tanto si la cuenta no tenía nada como si la lectura FALLABA
+ * (guardián, 402, sin red): el OS no distinguía «no hay preferencias» de «no he podido leerlas»
+ * y asumía «nunca visto», reabriendo ventanas ya vistas. Ahora `ok` lo dice.
+ *
+ * La lectura va marcada ESENCIAL para el guardián (`senalEsencial`): no cae por el presupuesto
+ * diario ni por el freno local de la pestaña; sí respeta el corte 402 y el freno remoto.
+ */
+async function readCloudPrefs(userId: string): Promise<{ prefs: Record<string, unknown>; ok: boolean }> {
     try {
         const supabase = createClient();
-        const { data, error } = await supabase
-            .from("user_settings")
-            .select("prefs")
-            .eq("user_id", userId)
-            .maybeSingle();
-        if (error) return {};
+        const consulta = supabase.from("user_settings").select("prefs").eq("user_id", userId);
+        // `abortSignal` existe en el cliente real; un cliente de prueba o ajeno puede no traerlo.
+        const marcada = typeof (consulta as { abortSignal?: unknown }).abortSignal === "function"
+            ? consulta.abortSignal(senalEsencial())
+            : consulta;
+        const { data, error } = await marcada.maybeSingle();
+        if (error) return { prefs: {}, ok: false };
         if (data?.prefs && typeof data.prefs === "object") {
-            return data.prefs as Record<string, unknown>;
+            return { prefs: data.prefs as Record<string, unknown>, ok: true };
         }
+        return { prefs: {}, ok: true }; // la cuenta existe pero aún no tiene preferencias
     } catch { /* sin red: local-first */ }
-    return {};
+    return { prefs: {}, ok: false };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -534,6 +554,176 @@ export function onRealtimeSyncStatus(cb: StatusListener): () => void {
     return () => statusListeners.delete(cb);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ¿SABE ESTE MEDIO LO QUE LA CUENTA YA TENÍA?  (2026-09-29 · persistencia entre medios)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Cada medio (localhost, Vercel, PWA, Tauri) arranca con su localStorage vacío y baja la
+ * cuenta en segundo plano. Las ventanas que se abren solas decidían a los 400–1.200 ms, ANTES
+ * de que esa bajada terminara, y concluían «nunca visto» en cada medio nuevo. Además, si la
+ * lectura fallaba (guardián, 402, sin red), `readCloudPrefs` devolvía `{}` en silencio y pasaba
+ * lo mismo. Ahora hay un estado explícito y una espera acotada:
+ *
+ *   · `pendiente`     — hay sesión y el primer pull aún no terminó.
+ *   · `sincronizado`  — el primer pull terminó bien: lo local YA incluye lo de la cuenta.
+ *   · `sin-conexion`  — hay sesión pero la cuenta no se pudo leer (corte 402, freno remoto,
+ *                       red caída). NO se sabe qué había visto: nadie debe asumir «nunca visto».
+ *   · `sin-sesion`    — sin cuenta (o motor apagado): lo local es la verdad.
+ *
+ * `esperarPullInicial()` resuelve cuando el estado deja de ser `pendiente` (o de inmediato sin
+ * sesión / con el corte o el freno remoto abiertos, o al agotarse el plazo). Es solo una espera:
+ * no lanza peticiones, no sondea, no reintenta en bucle.
+ */
+export type EstadoCuentaPrefs = "pendiente" | "sin-sesion" | "sincronizado" | "sin-conexion";
+
+export interface ResultadoPullInicial {
+    estado: EstadoCuentaPrefs;
+    /** true = lo local es la verdad (con la cuenta ya bajada, o sin cuenta): se puede decidir. */
+    fiable: boolean;
+}
+
+/** Se despacha (en `window`) cuando cambia el estado de la cuenta: `detail = { estado }`. */
+export const SYNC_CUENTA_EVENT = "starseed:sync:cuenta";
+
+let estadoCuenta: EstadoCuentaPrefs = "pendiente";
+const esperasPullInicial = new Set<() => void>();
+
+function esFiable(e: EstadoCuentaPrefs): boolean {
+    return e === "sincronizado" || e === "sin-sesion";
+}
+
+function fijarEstadoCuenta(nuevo: EstadoCuentaPrefs): void {
+    const cambio = nuevo !== estadoCuenta;
+    estadoCuenta = nuevo;
+    if (nuevo !== "pendiente" && esperasPullInicial.size > 0) {
+        const pendientes = Array.from(esperasPullInicial);
+        esperasPullInicial.clear();
+        for (const alTerminar of pendientes) {
+            try { alTerminar(); } catch { /* una espera rota no debe tirar a las demás */ }
+        }
+    }
+    if (cambio && isClient()) {
+        try { window.dispatchEvent(new CustomEvent(SYNC_CUENTA_EVENT, { detail: { estado: nuevo } })); } catch { /* noop */ }
+    }
+}
+
+/** Estado actual de lo que este medio sabe de la cuenta (snapshot; no lanza). */
+export function getEstadoCuentaPrefs(): EstadoCuentaPrefs {
+    return estadoCuenta;
+}
+
+/** ¿El cortacircuitos 402 o el freno remoto impiden hablar con la cuenta ahora mismo? */
+function nubeBloqueada(): boolean {
+    try { if (leerAvisoConsumo().corte) return true; } catch { /* sin guardián */ }
+    try { if (frenoActivo()) return true; } catch { /* sin freno */ }
+    return false;
+}
+
+/**
+ * Espera a que termine el PRIMER pull de la cuenta (ver el bloque de arriba) y dice si ya se
+ * puede decidir con lo que hay en este medio. Nunca lanza.
+ */
+export async function esperarPullInicial(timeoutMs = 4000): Promise<ResultadoPullInicial> {
+    const listo = (estado: EstadoCuentaPrefs): ResultadoPullInicial => ({ estado, fiable: esFiable(estado) });
+    if (!isClient()) return listo("pendiente");
+    if (estadoCuenta !== "pendiente") return listo(estadoCuenta);
+    try {
+        // Motor apagado por el usuario: no hay pull que esperar; lo local manda.
+        if (!isRealtimeSyncEnabled()) return listo("sin-sesion");
+        const userId = await getUserId(); // sin red: sesión guardada
+        if (!userId) return listo("sin-sesion");
+        if (estadoCuenta !== "pendiente") return listo(estadoCuenta); // cambió mientras miraba la sesión
+        if (nubeBloqueada()) return listo("sin-conexion"); // el pull no saldrá a la red: no esperar en balde
+    } catch {
+        return listo("pendiente");
+    }
+    return new Promise<ResultadoPullInicial>((resolve) => {
+        let temporizador: ReturnType<typeof setTimeout> | null = null;
+        const alTerminar = () => {
+            if (temporizador) clearTimeout(temporizador);
+            resolve(listo(estadoCuenta));
+        };
+        esperasPullInicial.add(alTerminar);
+        temporizador = setTimeout(() => {
+            esperasPullInicial.delete(alTerminar);
+            resolve(listo(estadoCuenta));
+        }, Math.max(0, timeoutMs));
+    });
+}
+
+/**
+ * Llama a `cb` UNA vez cuando ya se pueda decidir con fiabilidad: ahora mismo si el pull ya
+ * terminó (o no hay cuenta), o cuando termine si aún no. Si la cuenta no se pudo leer, `cb` no
+ * se llama hasta que una lectura posterior tenga éxito (evento `SYNC_CUENTA_EVENT`). Devuelve
+ * el cancelador. Sin sondeo: solo espera el pull que ya ocurre y los eventos del estado.
+ */
+export function cuandoCuentaFiable(cb: () => void, timeoutMs = 4000): () => void {
+    let vivo = true;
+    let quitarEvento: (() => void) | null = null;
+    const llamar = () => {
+        if (!vivo) return;
+        vivo = false;
+        quitarEvento?.();
+        quitarEvento = null;
+        try { cb(); } catch { /* el llamador se protege solo */ }
+    };
+    void esperarPullInicial(timeoutMs).then((r) => {
+        if (!vivo) return;
+        if (r.fiable) { llamar(); return; }
+        if (!isClient()) return;
+        const alCambiar = () => { if (esFiable(estadoCuenta)) llamar(); };
+        window.addEventListener(SYNC_CUENTA_EVENT, alCambiar);
+        quitarEvento = () => window.removeEventListener(SYNC_CUENTA_EVENT, alCambiar);
+    });
+    return () => {
+        vivo = false;
+        quitarEvento?.();
+        quitarEvento = null;
+    };
+}
+
+/**
+ * Sin conexión con la cuenta: UNA relectura cuando algo cambie de verdad (el corte 402 se cierra,
+ * el navegador vuelve a tener red). Se dispara por evento —no hay temporizador ni sondeo— y con
+ * una separación mínima entre intentos; si vuelve a fallar se rearma sola, sin bucle.
+ */
+const REPULL_SEPARACION_MS = 30_000;
+let soltarRepull: (() => void) | null = null;
+let ultimoIntentoRepull = 0;
+
+function armarRepullSinConexion(): void {
+    if (soltarRepull || !isClient()) return;
+    const desarmar = () => {
+        try { quitarGuardian?.(); } catch { /* noop */ }
+        try { window.removeEventListener("online", alEvento); } catch { /* noop */ }
+        soltarRepull = null;
+    };
+    const alEvento = () => {
+        if (estadoCuenta !== "sin-conexion" || !currentUserId) { desarmar(); return; }
+        if (nubeBloqueada()) return; // sigue el corte o el freno remoto: seguir esperando el evento
+        if (Date.now() - ultimoIntentoRepull < REPULL_SEPARACION_MS) return;
+        ultimoIntentoRepull = Date.now();
+        desarmar();
+        void pullAndApplyNow(); // si falla, pullAndApplyNow vuelve a armar esto
+    };
+    let quitarGuardian: (() => void) | null = null;
+    try { quitarGuardian = suscribirConsumo(alEvento); } catch { quitarGuardian = null; }
+    window.addEventListener("online", alEvento);
+    soltarRepull = desarmar;
+}
+
+function desarmarRepullSinConexion(): void {
+    soltarRepull?.();
+    soltarRepull = null;
+}
+
+/** Solo pruebas: vuelve al estado de arranque. */
+export function _reiniciarEstadoCuentaParaPruebas(): void {
+    estadoCuenta = "pendiente";
+    esperasPullInicial.clear();
+    desarmarRepullSinConexion();
+    ultimoIntentoRepull = 0;
+}
+
 // ── Núcleo: push (merge no destructivo sobre user_settings.prefs) ──────────
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingKeys = new Set<string>();
@@ -557,6 +747,12 @@ function wasJustAppliedRemote(key: string): boolean {
 async function pushChanges(userId: string, keys: string[]): Promise<void> {
     if (keys.length === 0) return;
     try {
+        // Almacenes fusionables (avisos vistos): la subida REEMPLAZA la clave entera en la cuenta,
+        // así que antes hay que haber fusionado con lo que la cuenta ya tenía. Si el primer pull no
+        // terminó bien, no se sube ahora (se reconcilia cuando la cuenta vuelva a leerse): subir un
+        // subconjunto borraría lo que otro medio marcó.
+        let fusionablesSeguras = true;
+        if (keys.some(esClaveFusionable)) fusionablesSeguras = (await esperarPullInicial(3000)).fiable;
         // Lee SOLO las marcas LWW para comparar (no la columna: ni para reescribirla —eso es
         // justo lo que causaba el borrado, Adenda 69— ni para bajarla entera en cada subida).
         const cloudMeta = await readCloudMeta(userId);
@@ -573,6 +769,8 @@ async function pushChanges(userId: string, keys: string[]): Promise<void> {
             // sync por perfiles a las de ámbito perfil (p. ej. starseed.desktops.v1)
             // y respeta el override por dispositivo de la sección 'aurora'.
             if (!shouldSyncKey(key, activeProfileId())) continue;
+            const fusionable = esClaveFusionable(key);
+            if (fusionable && !fusionablesSeguras) continue;
             const v = readLocal(key);
             if (v === undefined) continue;
 
@@ -582,7 +780,9 @@ async function pushChanges(userId: string, keys: string[]): Promise<void> {
             // LWW también en la SUBIDA: si la nube ya tiene algo MÁS NUEVO que lo
             // nuestro, no lo pisamos (lo aplicaremos nosotros al recibirlo). Con la MISMA marca,
             // la nube ya tiene ESTA escritura (la subió la pestaña donde ocurrió): no se repite.
-            if ((cloudMeta[key] ?? 0) >= ts) continue;
+            // Las claves fusionables no se saltan por la marca: lo local ya incluye lo de la cuenta
+            // (se fusionó al bajar) y `mergeUserPrefs` omite la subida si la cuenta ya lo tiene.
+            if (!fusionable && (cloudMeta[key] ?? 0) >= ts) continue;
 
             const safe = sanitizeForCloud(key, v); // ← el secreto (apiKey…) NO sube
             changes[key] = safe;
@@ -687,12 +887,24 @@ function applyRemoteChanges(
 
         const remoteTs = remoteMeta[key] ?? 0;
         // ── LWW: no pisar nunca un cambio local más nuevo ──
-        if (!shouldApplyRemote(key, remoteTs, localMeta)) continue;
+        // (Las claves fusionables —avisos vistos— no dependen de la marca: la fusión por id es
+        //  conmutativa, así que se aplican siempre y lo local que aporten se vuelve a subir.)
+        const fusionable = esClaveFusionable(key);
+        if (!fusionable && !shouldApplyRemote(key, remoteTs, localMeta)) continue;
 
         try {
             // La clave API vive solo en este dispositivo: al aplicar la config
             // remota (que viaja SIN secreto) la reinyectamos para no borrarla.
             let merged = mergeLocalSecrets(key, value, localStorage.getItem(key));
+
+            // Almacén fusionable: se mezcla con lo local. Si lo local aportaba algo que la cuenta
+            // no tiene, se marca como «reparado» (más abajo) para que se vuelva a subir.
+            let repaired = false;
+            if (fusionable) {
+                const f = fusionarConLocal(key, merged, localStorage.getItem(key));
+                merged = f.valor;
+                if (f.difiereDeRemoto) repaired = true;
+            }
 
             /* ── DOCK: normalizar ANTES de escribir (Adenda 149 · tanda 3) ────
              * CAUSA RAÍZ del fallo que se arrastraba desde hace tres intentos:
@@ -704,7 +916,6 @@ function applyRemoteChanges(
              * volvía a repararlo. Ahora el payload entrante pasa por la MISMA
              * función pura que la carga local (`normalizeDockState`) y lo que se
              * guarda ya lleva los botones garantizados + `defaultsVersion`. */
-            let repaired = false;
             if (key === DOCK_STORAGE_KEY) {
                 const norm = normalizeDockSyncValue(merged);
                 if (norm.changed) { merged = norm.value; repaired = true; }
@@ -978,6 +1189,8 @@ export async function startRealtimeSync(): Promise<void> {
 
     if (!isRealtimeSyncEnabled()) {
         setStatus({ state: "disabled" });
+        // Motor apagado: no habrá pull de la cuenta; lo local es la verdad (las ventanas no esperan).
+        fijarEstadoCuenta("sin-sesion");
         return;
     }
 
@@ -1003,6 +1216,7 @@ export async function startRealtimeSync(): Promise<void> {
     const userId = await getUserId();
     if (!userId) {
         setStatus({ state: "no-session" });
+        fijarEstadoCuenta("sin-sesion");
         return; // el listener de auth de arriba lo reintentará al hidratar la sesión
     }
     await connectForUser(userId);
@@ -1026,6 +1240,8 @@ function ensureAuthSubscription(): void {
                 olvidarHuellasPrefs();
                 teardownChannels();
                 currentUserId = null;
+                desarmarRepullSinConexion();
+                fijarEstadoCuenta("sin-sesion");
                 setStatus({ state: "no-session" });
             }
         });
@@ -1039,7 +1255,12 @@ async function connectForUser(userId: string): Promise<void> {
         setStatus({ state: "connected" });
         return; // ya conectado a este usuario
     }
-    if (currentUserId !== userId) teardownChannels();
+    if (currentUserId !== userId) {
+        teardownChannels();
+        // Otra cuenta (o primera sesión tras «sin sesión»): lo local aún no incluye lo de esta.
+        desarmarRepullSinConexion();
+        fijarEstadoCuenta("pendiente");
+    }
     currentUserId = userId;
     subscribePostgresChanges(userId);
     getOrCreateBroadcastChannel(userId);
@@ -1068,6 +1289,7 @@ export function stopRealtimeSync(): void {
     teardownChannels();
     if (authSub) { try { authSub.unsubscribe(); } catch { /* noop */ } authSub = null; }
     currentUserId = null;
+    desarmarRepullSinConexion();
     if (isClient()) { try { window.removeEventListener("storage", onStorageEvent); } catch { /* noop */ } }
     started = false;
     setStatus({ state: "disabled" });
@@ -1106,7 +1328,18 @@ export async function pullAndApplyNow(): Promise<{ applied: number; pushedBack: 
     const userId = await getUserId();
     if (!userId) return result;
 
-    const prefs = await readCloudPrefs(userId);
+    const leido = await readCloudPrefs(userId);
+    if (!leido.ok) {
+        // La cuenta NO se pudo leer (corte 402, freno remoto, red). Tres cosas, todas honestas:
+        //  1. se hace visible (`sin-conexion`): las ventanas no asumen «nunca visto»;
+        //  2. NO se sube nada «porque la nube no lo tiene» (antes, con `{}`, todo lo local parecía
+        //     ausente de la cuenta y se reenviaba encima de lo que ella ya tenía);
+        //  3. nunca se degrada un `sincronizado` previo: ya tenemos su contenido.
+        if (estadoCuenta === "pendiente") fijarEstadoCuenta("sin-conexion");
+        if (estadoCuenta === "sin-conexion") armarRepullSinConexion();
+        return result;
+    }
+    const prefs = leido.prefs;
     recordarPrefsServidor(prefs); // lo leído ES el estado de la cuenta
 
     const remoteMeta = cloudMetaOf(prefs);
@@ -1126,6 +1359,9 @@ export async function pullAndApplyNow(): Promise<{ applied: number; pushedBack: 
     }));
     applyRemoteChanges(changes, null, remoteMeta);
     result.applied = before.size;
+    // Lo de la cuenta ya está en localStorage: desde aquí las ventanas pueden decidir.
+    desarmarRepullSinConexion();
+    fijarEstadoCuenta("sincronizado");
 
     // 2) Reconciliar hacia arriba: lo que este dispositivo tiene y la nube no
     //    (o tiene más viejo). Sin esto, un dispositivo con config nueva que

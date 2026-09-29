@@ -30,6 +30,9 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+// (2026-09-29 · persistencia entre medios) El «visto/hecho/luego» de las ventanas de arranque
+// viaja con la cuenta como un almacén FUSIONABLE (ver `esClaveFusionable` más abajo).
+import { AVISOS_KEY, fusionarAvisosCrudo } from "@/lib/sync/avisos-cuenta";
 // Adenda 149 · tanda 3: el pull MANUAL («Recuperar mis ajustes») es otro camino
 // de entrada del estado del dock y también debe normalizarlo — si no, bajar los
 // ajustes de una cuenta antigua volvía a borrar «Señales» y «Feed de red».
@@ -178,6 +181,12 @@ export const SYNCED_KEYS = [
     //    respaldo para que un dispositivo nuevo no dispare una re-siembra
     //    local espuria si la cuenta ya migró desde otro dispositivo.
     "starseed_defaults_version",
+    // ── Avisos vistos/hechos/pospuestos por la cuenta (2026-09-29 · persistencia entre medios) ──
+    //    UN solo almacén para las ventanas que se abren solas (sistemas de Astraura, centro de
+    //    configuración, neurona nueva, guía de bienvenida, novedad de bloqueo…): antes cada una
+    //    guardaba su «visto» en una clave local suelta y cada medio (localhost, Vercel, PWA,
+    //    Tauri) la volvía a abrir. Se FUSIONA por id al bajar (no se pisa): ver AVISOS_KEY.
+    "starseed.avisos.vistos.v1", // src/lib/sync/avisos-cuenta.ts
 ] as const;
 
 /**
@@ -194,6 +203,28 @@ export const SYNCED_KEYS = [
 export const SYNCED_PREFIXES = [
     "starseed.brain.", // starseed.brain.<id>.{moa,channels,memoryRoots,library}
 ] as const;
+
+/**
+ * Claves cuyo valor NO se sustituye por el que llega de la cuenta: se FUSIONA con el local.
+ * El motor resuelve cada clave entera por última escritura; para un almacén de marcas
+ * compartido por varios medios (`avisos-cuenta`), eso perdería lo que otro medio marcó a la
+ * vez. Con la fusión por id todos convergen. El gating por marca LWW no se aplica a estas
+ * claves (la fusión es conmutativa: el orden de llegada no importa).
+ */
+export const CLAVES_FUSIONABLES: readonly string[] = [AVISOS_KEY];
+
+export function esClaveFusionable(key: string): boolean {
+    return CLAVES_FUSIONABLES.includes(key);
+}
+
+/**
+ * Mezcla el valor remoto de una clave fusionable con lo que este medio ya tiene.
+ * `difiereDeRemoto`: lo local aportaba algo que la cuenta no tiene ⇒ hay que subirlo.
+ */
+export function fusionarConLocal(key: string, remoto: unknown, localRaw: string | null): { valor: unknown; difiereDeRemoto: boolean } {
+    if (key === AVISOS_KEY) return fusionarAvisosCrudo(remoto, localRaw);
+    return { valor: remoto, difiereDeRemoto: false };
+}
 
 /** Prefijos EXCLUIDOS aunque coincidan con un prefijo sincronizado (defensa en profundidad). */
 export const SYNCED_PREFIX_EXCLUDE = [
@@ -563,6 +594,8 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
                 // La clave API local se conserva: la nube nunca la trae, y aplicar
                 // la config remota no debe borrar la que este dispositivo ya tiene.
                 let merged = mergeLocalSecrets(key, value, window.localStorage.getItem(key));
+                // Almacenes fusionables (avisos vistos): se mezclan con lo local, no lo pisan.
+                if (esClaveFusionable(key)) merged = fusionarConLocal(key, merged, window.localStorage.getItem(key)).valor;
                 // Dock: misma garantía que en la carga local y en el sync en vivo.
                 // La escritura de abajo NO está en ventana anti-eco, así que el
                 // parche de setItem de realtime-sync ya la empujará a la cuenta.
