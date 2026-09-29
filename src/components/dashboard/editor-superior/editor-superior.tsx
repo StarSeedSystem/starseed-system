@@ -223,7 +223,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                                 aria-controls={activo ? idPanel : undefined}
                                 onClick={() => onGrupo(activo ? null : g)}
                                 className={cn(
-                                    "ss-redondo inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
+                                    "ss-redondo inline-flex h-9 [@media(pointer:coarse)]:h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
                                     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
                                     activo ? "text-white" : "text-white/70 hover:bg-white/[0.07] hover:text-white",
                                 )}
@@ -240,7 +240,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                     <button
                         type="button" onClick={acciones.onDeshacer} disabled={!puedeDeshacer}
                         aria-label="Deshacer" title="Deshacer (Ctrl/Cmd+Z)"
-                        className="ss-redondo inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-white/75 cursor-pointer transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        className="ss-redondo inline-flex h-9 [@media(pointer:coarse)]:h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-white/75 cursor-pointer transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
                     >
                         <Undo2 className="size-4" aria-hidden /> <span className="max-sm:sr-only">Deshacer</span>
@@ -248,7 +248,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                     <button
                         type="button" onClick={acciones.onRehacer} disabled={!puedeRehacer}
                         aria-label="Rehacer" title="Rehacer (Ctrl/Cmd+Mayús+Z)"
-                        className="ss-redondo inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-white/75 cursor-pointer transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        className="ss-redondo inline-flex h-9 [@media(pointer:coarse)]:h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-white/75 cursor-pointer transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
                     >
                         <Redo2 className="size-4" aria-hidden /> <span className="max-sm:sr-only">Rehacer</span>
@@ -256,7 +256,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                     <button
                         type="button" onClick={acciones.onListo}
                         aria-label="Listo: terminar la edición"
-                        className="ss-redondo inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-bold text-white cursor-pointer transition-[transform,box-shadow] duration-200 hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:scale-100"
+                        className="ss-redondo inline-flex h-9 [@media(pointer:coarse)]:h-11 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-bold text-white cursor-pointer transition-[transform,box-shadow] duration-200 hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:scale-100"
                         style={{ background: "linear-gradient(135deg, #10B981, #0EA5A4)", boxShadow: "0 0 22px -6px #10B981, inset 0 1px 0 rgba(255,255,255,.25)", outlineColor: "#10B981" }}
                     >
                         <Check className="size-4" aria-hidden /> Listo

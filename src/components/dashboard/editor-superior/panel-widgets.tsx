@@ -166,7 +166,7 @@ function ChipFiltro({ activo, onClick, children, n }: { activo: boolean; onClick
             aria-pressed={activo}
             onClick={onClick}
             className={cn(
-                "ss-redondo inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
+                "ss-redondo inline-flex min-h-8 [@media(pointer:coarse)]:min-h-11 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
                 activo ? "text-white" : "text-white/60 hover:bg-white/[0.06] hover:text-white",
             )}
             style={activo ? pildoraFantasma(VIOLETA) : { boxShadow: "inset 0 0 0 1px rgba(255,255,255,.07)" }}
@@ -263,7 +263,7 @@ export function PanelWidgets({ widgets, nombrePestana, categoriaPestana, talla, 
                         title="El tamaño que el diseño del tema da a cada widget"
                         onClick={() => onTalla("sugerido")}
                         className={cn(
-                            "ss-redondo inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
+                            "ss-redondo inline-flex min-h-9 [@media(pointer:coarse)]:min-h-11 items-center gap-2 rounded-full px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
                             talla === "sugerido" ? "text-white" : "text-white/60 hover:bg-white/[0.06] hover:text-white",
                         )}
                         style={talla === "sugerido" ? pildoraFantasma(VIOLETA) : { boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
@@ -281,7 +281,7 @@ export function PanelWidgets({ widgets, nombrePestana, categoriaPestana, talla, 
                                 title={t.ayuda}
                                 onClick={() => onTalla(t.id)}
                                 className={cn(
-                                    "ss-redondo inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
+                                    "ss-redondo inline-flex min-h-9 [@media(pointer:coarse)]:min-h-11 items-center gap-2 rounded-full px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
                                     activo ? "text-white" : "text-white/60 hover:bg-white/[0.06] hover:text-white",
                                 )}
                                 style={activo ? pildoraFantasma(VIOLETA) : { boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}

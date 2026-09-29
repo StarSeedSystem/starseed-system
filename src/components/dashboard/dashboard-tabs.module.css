@@ -58,3 +58,13 @@
 :global(html[data-perf="eco"]) .luz {
     animation: none;
 }
+
+/* Barra de pestañas en una TV (pantalla muy ancha con puntero grueso: mando o táctil): letra y
+   objetivos más grandes, legibles desde el sofá. El foco ya se ve (anillo del acento). */
+.barra {}
+
+@media (min-width: 1920px) and (pointer: coarse) {
+    .barra [data-pestana] { font-size: 17px; }
+    .barra [role="tab"] { padding-top: 14px; padding-bottom: 14px; max-width: 17rem; }
+    .barra [role="tab"] svg { width: 20px; height: 20px; }
+}

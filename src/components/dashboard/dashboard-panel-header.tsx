@@ -47,6 +47,7 @@ import { EtiquetaDeslizante } from "@/components/layout/etiqueta-deslizante";
 import type { DashboardConAspecto } from "./editor-superior/tipos";
 import { aspectoDe, conAlfa } from "./pestanas/temas";
 import { accionDeAtajo, anchoEstimado, repartirPestanas } from "./pestanas/navegacion";
+import estilos from "./dashboard-tabs.module.css";
 
 interface HeaderProps {
     panelId: string;
@@ -191,11 +192,11 @@ function ContenidoMenuPestana({ d, indice, total, novedad, predeterminada, accio
                 <>
                     <DropdownMenuItem className={ITEM} disabled={indice <= 0} onSelect={() => acciones.onMover?.(d.id, "izquierda")}>
                         <MoveLeft className="size-4 text-white/60" aria-hidden /> Mover a la izquierda
-                        <DropdownMenuShortcut>Alt⇧[</DropdownMenuShortcut>
+                        <DropdownMenuShortcut>Alt+⇧+[</DropdownMenuShortcut>
                     </DropdownMenuItem>
                     <DropdownMenuItem className={ITEM} disabled={indice >= total - 1} onSelect={() => acciones.onMover?.(d.id, "derecha")}>
                         <MoveRight className="size-4 text-white/60" aria-hidden /> Mover a la derecha
-                        <DropdownMenuShortcut>Alt⇧]</DropdownMenuShortcut>
+                        <DropdownMenuShortcut>Alt+⇧+]</DropdownMenuShortcut>
                     </DropdownMenuItem>
                 </>
             )}
@@ -315,7 +316,7 @@ function SortableTab({
                     // dnd-kit también escucha teclas en el botón; aquí solo navegamos.
                 }}
                 title={dashboard.name}
-                className="box-border cursor-pointer flex min-w-0 max-w-[13.5rem] items-center gap-2 py-2 pl-3 pr-2.5 outline-none focus-visible:ring-2 focus-visible:ring-inset rounded-t-xl"
+                className="box-border cursor-pointer flex min-w-0 max-w-[13.5rem] items-center gap-2 py-2 [@media(pointer:coarse)]:py-3 pl-3 pr-2.5 outline-none focus-visible:ring-2 focus-visible:ring-inset rounded-t-xl"
                 style={{ ["--tw-ring-color" as string]: conAlfa(acento, 0.8) }}
             >
                 {Icono ? (
@@ -363,8 +364,8 @@ function DisparadorMenu({ nombre, visible, abierto, acento }: { nombre: string; 
                 aria-label={`Opciones de la pestaña ${nombre}`}
                 title={`Opciones de «${nombre}»`}
                 className={cn(
-                    "ss-redondo my-1 mr-1 grid size-7 shrink-0 cursor-pointer place-items-center rounded-full text-white/55 transition-[opacity,background,color] duration-200 hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2",
-                    visible || abierto ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                    "ss-redondo my-1 mr-1 grid size-7 [@media(pointer:coarse)]:size-10 shrink-0 cursor-pointer place-items-center rounded-full text-white/55 transition-[opacity,background,color] duration-200 hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2",
+                    visible || abierto ? "opacity-100" : "opacity-70 hover:opacity-100",
                 )}
                 style={{ outlineColor: acento }}
             >
@@ -534,7 +535,7 @@ export function DashboardPanelHeader({
         // box-border + w-full + overflow-hidden en el contenedor externo: la barra NUNCA excede el
         // ancho del panel ni empuja el lienzo. El cristal lleva la luz de la pestaña activa.
         <div
-            className="box-border w-full flex items-stretch gap-1 px-1.5 pt-1.5 pb-1.5 sm:pb-0 shrink-0 overflow-hidden backdrop-blur-xl"
+            className={cn("box-border w-full flex items-stretch gap-1 px-1.5 pt-1.5 pb-1.5 sm:pb-0 shrink-0 overflow-hidden backdrop-blur-xl", estilos.barra)}
             style={{
                 background: "linear-gradient(180deg, rgba(8,10,24,.82), rgba(8,10,24,.6))",
                 boxShadow: aspectoActivo ? `inset 0 -1px 0 ${conAlfa(aspectoActivo.acento, 0.28)}` : "inset 0 -1px 0 rgba(255,255,255,.05)",
@@ -595,7 +596,9 @@ export function DashboardPanelHeader({
                                         onClick={() => irA(d.id)}
                                         onTecla={alTeclaPestana(d.id)}
                                         refBoton={(el) => { if (el) botonesRef.current.set(d.id, el); else botonesRef.current.delete(d.id); }}
-                                        menu={menuDe(d, activa)}
+                                        // Solo la activa lleva su botón de opciones (así las demás no reservan un
+                                        // hueco vacío); en otra, el clic derecho o la tecla de menú lo abren.
+                                        menu={activa || menuAbierto === d.id ? menuDe(d, true) : undefined}
                                         abrirMenu={hayMenu ? () => setMenuAbierto(d.id) : undefined}
                                     />
                                 );
@@ -633,7 +636,7 @@ export function DashboardPanelHeader({
                                             <span className="block text-[11px] leading-snug text-white/45">{a.tema.lema}{typeof n === "number" ? ` · ${n} widget${n === 1 ? "" : "s"}` : ""}</span>
                                         </span>
                                         {novedades?.has(d.id) && <span aria-label="Diseño nuevo" className="size-1.5 shrink-0 rounded-full" style={{ background: a.acento }} />}
-                                        {i < 9 && <DropdownMenuShortcut>Alt{i === dashboards.length - 1 ? 9 : i + 1}</DropdownMenuShortcut>}
+                                        {(i < 8 || i === dashboards.length - 1) && <DropdownMenuShortcut>{`Alt+${i === dashboards.length - 1 && i >= 8 ? 9 : i + 1}`}</DropdownMenuShortcut>}
                                     </DropdownMenuItem>
                                 );
                             })}
