@@ -1,0 +1,168 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Paquete E (Ola 0929) — movimiento ligero de los widgets de medios,
+   apps y utilidades. Solo transform/opacity; todo se congela con
+   movimiento reducido, en «ligero»/«eco» y cuando el widget no se ve
+   (data-pausa="si" lo pone la raíz). Nada sale de aquí: globals.css
+   no se toca.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.raiz {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+/* Fuera del marco unificado (marco clásico, Puente de Mando): una tarjeta de vidrio propia. */
+.tarjeta {
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 40%),
+    radial-gradient(80% 80% at 20% 10%, color-mix(in srgb, var(--e-acento, #d946ef) 22%, transparent), transparent 70%),
+    rgba(12, 14, 34, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 16px 36px -22px rgba(0, 0, 0, 0.65);
+  overflow: hidden;
+  color: #eef2ff;
+}
+
+.raiz[data-pausa="si"] *,
+.raiz[data-pausa="si"] *::before,
+.raiz[data-pausa="si"] *::after {
+  animation-play-state: paused !important;
+}
+
+:global([data-nivel-render="ligero"]) .raiz *,
+:global(html[data-perf="eco"]) .raiz * {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .raiz * {
+    animation: none !important;
+    transition-duration: 0ms !important;
+  }
+}
+
+/* ── Barras de ecualizador (radio en vivo, «sonando») ── */
+.eq {
+  transform-origin: 50% 100%;
+  animation: eqBarra var(--e-dur, 900ms) ease-in-out infinite alternate;
+  animation-delay: var(--e-retardo, 0ms);
+}
+
+@keyframes eqBarra {
+  0% { transform: scaleY(0.25); }
+  50% { transform: scaleY(0.9); }
+  100% { transform: scaleY(0.45); }
+}
+
+/* ── Disco girando (portada viva mientras suena) ── */
+.disco {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: discoGiro var(--e-dur, 14s) linear infinite;
+}
+
+.disco[data-quieto="si"] {
+  animation-play-state: paused;
+}
+
+@keyframes discoGiro {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Onda que se expande (latido de una frecuencia, pulso en vivo) ── */
+.onda {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ondaExpande var(--e-dur, 2.4s) ease-out infinite;
+  animation-delay: var(--e-retardo, 0ms);
+}
+
+@keyframes ondaExpande {
+  0% { transform: scale(0.6); opacity: 0.7; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+/* ── Respiración guiada (coherencia): 5 s dentro, 5 s fuera ── */
+.respira {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: respiraCiclo var(--e-dur, 10s) ease-in-out infinite;
+}
+
+@keyframes respiraCiclo {
+  0%, 100% { transform: scale(0.62); }
+  50% { transform: scale(1); }
+}
+
+/* ── Brillo de carga (esqueleto honesto) ── */
+.brillo {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.04) 100%);
+  background-size: 200% 100%;
+  animation: brilloPasa 1.6s linear infinite;
+}
+
+@keyframes brilloPasa {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* ── Entrada suave de listas ── */
+.entra {
+  animation: entraSuave 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes entraSuave {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Rango (slider) con la voz del acento ── */
+.rango {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 9999px;
+  cursor: pointer;
+  background: linear-gradient(90deg, var(--e-acento, #d946ef) var(--e-valor, 50%), rgba(255, 255, 255, 0.16) var(--e-valor, 50%));
+  outline-offset: 4px;
+}
+
+.rango::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--e-acento, #d946ef) 45%, transparent), 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform 150ms ease;
+}
+
+.rango::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--e-acento, #d946ef) 45%, transparent);
+}
+
+.rango:hover::-webkit-slider-thumb { transform: scale(1.15); }
+
+.rango[data-grueso="si"] { height: 6px; }
+.rango[data-grueso="si"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+.rango[data-grueso="si"]::-moz-range-thumb { width: 22px; height: 22px; }
+
+/* Barra de desplazamiento fina dentro de los widgets. */
+.desliza {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  overscroll-behavior: contain;
+}
