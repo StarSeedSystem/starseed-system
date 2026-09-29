@@ -65,8 +65,10 @@ export interface RamaTarea {
     cola: string;
     titulo: string;
     dependencias: string[];
-    /** pendiente · en_curso · commit · sin_cambios · fallo · fallo_tsc · fallo_tests · conflicto · bloqueante · bloqueada */
+    /** pendiente · en_curso · commit · sin_cambios · fallo · fallo_tsc · fallo_tests · conflicto · bloqueante · bloqueada · informe (sueño profundo) */
     estado: string;
+    /** (2026-09-29) `analisis` si es un sueño profundo: lee y escribe un informe, no integra código. */
+    tipo?: "analisis";
     /** Profundidad por dependencias (0 = sin dependencias). */
     nivel: number;
     /** Dónde corrió o corre: mac · nube · null si nunca empezó. */
@@ -152,6 +154,8 @@ export interface RamaOla {
     esperandoAprobacion: number;
     /** Cuántas quedaron bloqueadas por una dependencia no integrada (evento `bloqueada`, Ola 269). */
     bloqueadas: number;
+    /** (2026-09-29) Sueños profundos con su informe escrito: terminados sin código que integrar. */
+    informes?: number;
     /** true si algún agente está latiendo en esta ola. */
     viva: boolean;
 }
@@ -171,10 +175,11 @@ const TIPOS_BUS = [
     "inicio", "paso", "commit", "bloqueante", "fallo", "sin_cambios", "conflicto",
     "reintento", "reenrutado", "proveedor", "aviso", "estancado", "cola_terminada", "arranque",
     "reasignado", "reasignada", "esperando_aprobacion", "aprobacion", "rechazada", "pendiente_aprobacion",
-    "bloqueada",
+    "bloqueada", "informe",
 ];
 // `bloqueada` es terminal: la tarea se queda parada por una dependencia que no se integró.
-const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion", "bloqueada"]);
+// `informe` (2026-09-29) cierra un sueño profundo: terminó bien sin código que integrar.
+const TERMINALES = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "fallo", "conflicto", "reasignada", "rechazada", "pendiente_aprobacion", "bloqueada", "informe"]);
 const PREFIJO_PROVEEDOR: Record<string, string> = { nvidia: "nim" };
 
 /** `impacto` tal como lo publica el orquestador (paso `impacto` o datos de `esperando_aprobacion`). */
@@ -660,6 +665,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
                 ola: etiqueta,
                 cola: t.cola ?? "",
                 titulo: t.titulo,
+                ...(t.tipo === "analisis" ? { tipo: "analisis" as const } : {}),
                 dependencias: t.dependencias,
                 estado,
                 nivel: nivelDe.get(t.id) ?? 0,
@@ -714,6 +720,7 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
             pendientes: cuenta((r) => r.estado === "pendiente" || r.estado === "interrumpida"),
             esperandoAprobacion: cuenta((r) => r.estado === "esperando_aprobacion" || r.estado === "pendiente_aprobacion"),
             bloqueadas: cuenta((r) => r.estado === "bloqueada"),
+            informes: cuenta((r) => r.estado === "informe"),
             viva: ramas.some((r) => r.vivo !== null),
         });
     }

@@ -207,7 +207,7 @@ export async function revivir(cola: string, trabajadores?: number): Promise<Resu
 
 /** Ids de las tareas de una cola que siguen pendientes (no cerradas), leyendo disco. */
 async function leerTareasPendientes(cola: string): Promise<string[]> {
-    const TERMINADAS = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "rechazada"]);
+    const TERMINADAS = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "rechazada", "informe"]);
     const tareas = await leerColas();
     const progreso = await leerProgreso();
     return tareas

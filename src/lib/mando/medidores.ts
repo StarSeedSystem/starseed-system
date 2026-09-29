@@ -372,7 +372,9 @@ const IR_A = (texto: string, destino: string): AccionMedidor => ({
  * panel. Un clic de más no puede deshacer trabajo integrado.
  */
 export function accionesDeTarea(estado: string | undefined): AccionMedidor[] {
-    if (!estado || TERMINALES.has(estado)) return [];
+    // (2026-09-29) Un sueño con su informe tampoco se descarta ni se reintenta desde aquí: se
+    // verifica o se rehace con `suenos.py` (panel «Sueños profundos»).
+    if (!estado || TERMINALES.has(estado) || estado === "informe") return [];
     return [
         { clase: "descartar", texto: "Descartar", destructiva: true },
         {
@@ -1011,6 +1013,8 @@ export interface DatosMedidores {
         medio?: string;
         /** Título legible (solo lo traen los latidos externos de `latido_externo.py`). */
         titulo?: string;
+        /** (2026-09-29) Qué hace un sueño profundo dentro de «analizando». */
+        subfase?: string;
     }[];
     /**
      * Inventario de contenedores en la nube, tal como lo escribe
@@ -1132,6 +1136,7 @@ const FASE_VERIFICANDO: Record<string, string> = {
     integrando: "puertas en verde: integrando en main",
     "esperando-memoria": "aún sin verificar: esperando memoria para compilar",
     escribiendo: "aún sin verificar: está escribiendo",
+    analizando: "sueño profundo: leyendo y analizando (no escribe código)",
 };
 
 /**
@@ -1147,6 +1152,7 @@ export function verificacionDe(
     const sha = entrada?.sha ? ` (${entrada.sha.slice(0, 8)})` : "";
     const motivo = entrada?.motivo_vb ? `: ${entrada.motivo_vb}` : "";
     if (TERMINALES.has(estado)) return { texto: `puertas en verde e integrada en main${sha}`, aviso: false };
+    if (estado === "informe") return { texto: "sueño profundo: informe escrito, sin código que integrar (lo verifica un supervisor Claude)", aviso: false };
     if (estado === "rechazada") return { texto: `rechazada${motivo || " por la revisión"}`, aviso: true };
     if (estado === "bloqueante") return { texto: `la revisión puso una pega bloqueante${motivo}`, aviso: true };
     if (estado.startsWith("fallo")) {
@@ -1177,6 +1183,7 @@ export function filasDeOlasActivas(d: DatosMedidores, repo?: string): FilaMedido
     for (const ola of d.olasActivas ?? []) {
         const hijas: FilaMedidor[] = [];
         let integradas = 0;
+        let informes = 0;
         let enCurso = 0;
         let paradas = 0;
         for (const t of ola.tareas) {
@@ -1185,6 +1192,7 @@ export function filasDeOlasActivas(d: DatosMedidores, repo?: string): FilaMedido
             const latido = d.latidos.find((l) => l.tarea === t.id);
             const verif = verificacionDe(e, latido?.fase);
             if (TERMINALES.has(estado)) integradas += 1;
+            else if (estado === "informe") informes += 1;
             else if (verif.aviso) paradas += 1;
             else if (latido) enCurso += 1;
 
@@ -1194,6 +1202,11 @@ export function filasDeOlasActivas(d: DatosMedidores, repo?: string): FilaMedido
             if (TERMINALES.has(estado)) {
                 estadoFila = "integrada";
                 etapa = "integrada";
+                porcentaje = 100;
+            } else if (estado === "informe") {
+                // Sueño profundo terminado: su «entrega» es un informe, no un commit.
+                estadoFila = "informe escrito";
+                etapa = "informe";
                 porcentaje = 100;
             } else if (latido) {
                 const a = avanceDe(latido.fase, estado);
@@ -1269,15 +1282,15 @@ export function filasDeOlasActivas(d: DatosMedidores, repo?: string): FilaMedido
             });
         }
         const n = ola.tareas.length;
-        const resto = n - integradas - enCurso - paradas;
+        const resto = n - integradas - informes - enCurso - paradas;
         filas.push({
             id: `ola:${ola.cola}`,
             titulo: ola.titulo,
             estado: "en marcha",
             etapa: ola.medio === "mac" ? "en la Mac" : `en ${ola.medio}`,
-            porcentaje: n ? Math.round((integradas / n) * 100) : 0,
+            porcentaje: n ? Math.round(((integradas + informes) / n) * 100) : 0,
             porque:
-                `${n} tarea(s): ${integradas} integrada(s) · ${enCurso} en curso · ${paradas} parada(s) · ` +
+                `${n} tarea(s): ${integradas} integrada(s)${informes ? ` · ${informes} informe(s) de sueños` : ""} · ${enCurso} en curso · ${paradas} parada(s) · ` +
                 `${resto} ${ola.asignacionConocida ? "por empezar" : "en el run, sin dato en vivo"}`,
             quien: `${ola.agentes} agente(s) · ${ola.medio}`,
             desde: ola.minutos !== undefined ? `${ola.minutos} min` : undefined,
@@ -1573,7 +1586,12 @@ export function detalleDeMedidor(
                 // noche tres de ellos estuvieron 28, 31 y 35 minutos así, sin modelo y sin
                 // escribir un byte, y el Puente los contaba como «agentes escribiendo
                 // ahora». Alex lo llamó mentira y lo era. Ahora se dicen por su nombre.
-                const esperandoProveedor = /esperando proveedor/i.test(String(l.fase ?? ""));
+                // (2026-09-29) Un sueño profundo lee y analiza: no se dice «escribiendo». Su
+                // espera de proveedor viaja en la subfase, no en la fase.
+                const sonando = l.fase === "analizando";
+                const esperandoProveedor =
+                    /esperando proveedor/i.test(String(l.fase ?? "")) ||
+                    (sonando && /esperando proveedor/i.test(String(l.subfase ?? "")));
                 // (2026-09-25) Los agentes de FUERA (Claude en Cowork, sus subagentes, Hermes)
                 // laten con `latido_externo.py` al cambiar de fase: no escriben un log aquí, así
                 // que «callado» mentiría. Se dicen por su nombre: trabajando fuera, y en qué fase.
@@ -1590,7 +1608,9 @@ export function detalleDeMedidor(
                           ? "esperando pasarela"
                           : callado
                             ? "callado"
-                            : "escribiendo",
+                            : sonando
+                              ? "soñando"
+                              : "escribiendo",
                     // El avance del agente es el de su tarea: es lo unico que ha avanzado.
                     porcentaje: avanceDe(l.fase, estadoDe(l.tarea)).porcentaje,
                     etapa: `trabaja en ${externo && l.titulo ? l.titulo : l.tarea}`,
@@ -1602,7 +1622,9 @@ export function detalleDeMedidor(
                         ? `NO está escribiendo: todas las pasarelas útiles están caídas o sin cupo (lleva ${l.minutos} min esperando)`
                         : callado
                           ? `sin escribir desde hace ${Math.round((quieto ?? 0) / 60)} min`
-                          : bytesLegibles(l.bytesLog),
+                          : sonando
+                            ? `sueño profundo · ${l.subfase || "analizando"} (lee, no escribe código)`
+                            : bytesLegibles(l.bytesLog),
                     ficha: fichaDeAgente(l, d.progreso[l.tarea], obra, d.repoGitHub),
                     historial: d.historiales?.[l.tarea]?.slice(0, 6),
                     acciones: [
@@ -1613,6 +1635,7 @@ export function detalleDeMedidor(
             const callados = filas.filter((f) => f.estado === "callado").length;
             const esperando = filas.filter((f) => f.estado === "esperando pasarela").length;
             const escribiendo = filas.filter((f) => f.estado === "escribiendo").length;
+            const sonandoN = filas.filter((f) => f.estado === "soñando").length;
             const fuera = filas.filter((f) => f.estado === "trabajando fuera").length;
             const medioAg = mediaDeAvance(filas);
             return {
@@ -1623,7 +1646,7 @@ export function detalleDeMedidor(
                 resumen:
                     filas.length === 0
                         ? "ningún agente escribiendo"
-                        : `${escribiendo} escribiendo${fuera ? ` · ${fuera} trabajando fuera` : ""}${
+                        : `${escribiendo} escribiendo${sonandoN ? ` · ${sonandoN} soñando` : ""}${fuera ? ` · ${fuera} trabajando fuera` : ""}${
                               esperando ? ` · ${esperando} sin pasarela libre` : ""
                           }${
                               callados ? ` · ${callados} callado(s)` : ""

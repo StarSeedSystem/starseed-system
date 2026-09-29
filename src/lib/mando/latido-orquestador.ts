@@ -35,7 +35,7 @@ export interface SaludCola {
 type Progreso = Record<string, { estado?: string }>;
 
 /** Estados que cuentan como «tarea integrada / cerrada con éxito». */
-const TERMINADAS = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "rechazada"]);
+const TERMINADAS = new Set(["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "rechazada", "informe"]);
 
 /** Interpreta la salud de UNA cola a partir de sus tareas, progreso y latido. */
 export function interpretarSalud(

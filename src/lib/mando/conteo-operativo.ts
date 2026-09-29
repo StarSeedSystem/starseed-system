@@ -20,7 +20,7 @@ export interface ConteoOperativo {
 
 const CERRADAS = new Set([
     "commit", "bloqueante", "sin_cambios", "sustituida", "reasignada",
-    "rechazada", "pendiente_aprobacion", "esperando_aprobacion",
+    "rechazada", "pendiente_aprobacion", "esperando_aprobacion", "informe",
 ]);
 
 export function obtenerIdsBloqueados(

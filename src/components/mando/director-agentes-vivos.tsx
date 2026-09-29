@@ -24,6 +24,7 @@ export interface ResumenAgentesVivos {
 const ETIQUETA_ESTADO: Record<EstadoAgente, string> = {
     escribiendo: "escribiendo", verificando: "verificando", revisando: "revisando",
     esperando_aprobacion: "esperando aprobación", colgado: "colgado", hecho: "hecho",
+    analizando: "soñando (análisis)",
 };
 
 const BOTON = "inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-50";

@@ -11,7 +11,9 @@ export interface TareaLatido {
 export interface LatidoEntrada { tareas?: Record<string, TareaLatido> }
 export type EstadoAgente =
   | "escribiendo" | "verificando" | "revisando"
-  | "esperando_aprobacion" | "colgado" | "hecho";
+  | "esperando_aprobacion" | "colgado" | "hecho"
+  // (2026-09-29) Sueño profundo: lee código y escribe un informe, no escribe código.
+  | "analizando";
 export interface ResumenAgentes {
   vivos: number; colgados: number; esperandoAprobacion: number;
   porFase: Record<string, number>;
@@ -48,6 +50,7 @@ export function clasificarAgente(t: TareaLatido, ahora: number): EstadoAgente {
   if (activa && ahora - t.avance > UMBRAL_COLGADO_S) return "colgado";
   if (t.fase === "tsc") return "verificando";
   if (t.fase === "revision") return "revisando";
+  if (t.fase === "analizando") return "analizando";
   return "escribiendo";
 }
 

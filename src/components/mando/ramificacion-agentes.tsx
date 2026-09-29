@@ -52,6 +52,9 @@ function tonoEstado(estado: string): { borde: string; punto: string; texto: stri
     switch (estado) {
         case "commit":
             return { borde: "border-emerald-400/40", punto: "bg-emerald-400", texto: "text-emerald-300", etiqueta: "integrada" };
+        // (2026-09-29) Sueño profundo terminado: informe escrito, nada que integrar (no es «sin cambios»).
+        case "informe":
+            return { borde: "border-indigo-400/40", punto: "bg-indigo-400", texto: "text-indigo-200", etiqueta: "informe escrito" };
         case "bloqueante":
             return { borde: "border-amber-400/50", punto: "bg-amber-400", texto: "text-amber-300", etiqueta: "integrada · revisión bloqueante" };
         case "en_curso":
@@ -87,6 +90,7 @@ function tonoEstado(estado: string): { borde: string; punto: string; texto: stri
 /** Color por fase del agente vivo. */
 function tonoFase(fase: string): string {
     if (fase === "escribiendo") return "text-emerald-300";
+    if (fase === "analizando") return "text-indigo-300";
     if (fase === "tsc" || fase === "tests") return "text-sky-300";
     if (fase === "revision" || fase === "integrando") return "text-amber-300";
     if (fase.startsWith("esperando")) return "text-white/50";
@@ -385,7 +389,7 @@ function ReasignarTarea({ tarea, estadosOla, onHecho }: { tarea: RamaTarea; esta
     const deLaApi = useMemo(() => (modelos ?? []).filter((m) => m.proveedor === api), [modelos, api]);
     const cambiaServidor = donde !== dondeActual;
     const listo = cambiaServidor || modelo !== "";
-    const terminada = ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(tarea.estado);
+    const terminada = ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(tarea.estado);
 
     const aplicar = useCallback(async () => {
         setEnviando(true);
@@ -1286,7 +1290,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
     enjambres: FotoEnjambre[];
     onVer: (id: string) => void;
 }) {
-    const hechas = new Set<string>(olaSel.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+    const hechas = new Set<string>(olaSel.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).map((t) => t.id));
     const filaOla = [...olaSel.tareas].sort((a, b) => pesoFila(a) - pesoFila(b) || a.nivel - b.nivel || a.id.localeCompare(b.id, undefined, { numeric: true }));
 
     // Agentes: cada orquestador vivo (donde · cola · medio) con su fila; y las colas con tareas
@@ -1353,7 +1357,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                     <p className="mt-2 text-xs text-white/40">Ningún orquestador vivo y ninguna cola con tareas pendientes.</p>
                 ) : null}
                 {agentes.map((a) => {
-                    const hechasCola = new Set<string>(a.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+                    const hechasCola = new Set<string>(a.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).map((t) => t.id));
                     const fila = [...a.tareas]
                         .filter((t) => t.vivo || t.estado === "en_curso" || t.estado === "pendiente" || t.estado === "interrumpida")
                         .sort((x, y) => pesoFila(x) - pesoFila(y) || x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
@@ -1370,7 +1374,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                     );
                 })}
                 {sinAgente.map((c) => {
-                    const hechasCola = new Set<string>(c.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada"].includes(t.estado)).map((t) => t.id));
+                    const hechasCola = new Set<string>(c.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).map((t) => t.id));
                     const fila = c.tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso" || t.estado === "interrumpida").sort((x, y) => x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
                     return (
                         <div key={`sin-${c.cola}`} className="mt-2 rounded-lg border border-dashed border-white/10 p-2">

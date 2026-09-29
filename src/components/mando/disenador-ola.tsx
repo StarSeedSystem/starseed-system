@@ -97,7 +97,12 @@ function tareaVacia(n: number, ola: string): TareaCola {
     return { id: `T${n}`, ola, titulo: "", archivos: [], prompt: "", depende: [] };
 }
 
-export function DisenadorOla({ onCerrar }: { onCerrar: () => void }) {
+/**
+ * `colaInicial` (2026-09-29): abre el Diseñador con esa cola ya importada — lo usa «Abrir en
+ * Diseñador» de los sueños profundos con la cola propuesta, que NUNCA se lanza sola: se revisa
+ * aquí, se guarda con otro nombre y se lanza a mano (cada tarea pide visto bueno al integrar).
+ */
+export function DisenadorOla({ onCerrar, colaInicial }: { onCerrar: () => void; colaInicial?: string }) {
     const [colas, setColas] = useState<ColaCompleta[]>([]);
     const [modelos, setModelos] = useState<string[]>([]);
     const [lanzadorNube, setLanzadorNube] = useState(false);
@@ -148,12 +153,26 @@ export function DisenadorOla({ onCerrar }: { onCerrar: () => void }) {
                 setLanzadorNube(Boolean(d.lanzadorNube));
                 // Nombre sugerido: el siguiente número de ola.
                 const mayor = (d.colas ?? []).reduce((m, c) => Math.max(m, Number.parseInt(c.nombre, 10) || 0), 0);
+                const inicial = colaInicial ? (d.colas ?? []).find((c) => c.nombre === colaInicial) : undefined;
+                if (inicial) {
+                    // Nunca el mismo nombre: `cola-suenos-*` no la coge el vigilante, pero una cola
+                    // guardada con nombre propio sí; así la propuesta queda intacta como referencia.
+                    const fecha = /(\d{4}-\d{2}-\d{2})$/.exec(inicial.nombre)?.[1] ?? "propuesta";
+                    setTareas(inicial.tareas.map((t) => ({ ...t })));
+                    setSel(0);
+                    setNombre(`${mayor + 1}-suenos-${fecha}`);
+                    setAviso({
+                        tipo: "info",
+                        texto: `Importadas ${inicial.tareas.length} tareas de la propuesta de los sueños (cola-${inicial.nombre}). Revísalas, guárdalas con este nombre u otro y lánzalas: cada una espera tu visto bueno antes de integrarse.`,
+                    });
+                    return;
+                }
                 setNombre((prev) => prev || `${mayor + 1}-nueva`);
             } catch {
                 // sin colas: el diseñador arranca vacío
             }
         })();
-    }, []);
+    }, [colaInicial]);
 
     const etiquetaOla = useMemo(() => {
         const [num, ...resto] = nombre.split("-");

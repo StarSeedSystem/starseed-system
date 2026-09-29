@@ -106,6 +106,41 @@ export interface TareaCola {
     depende: string[];
     /** Modelo preferido para empezar (opcional; si no, la rotación). */
     modelo?: string;
+    /**
+     * (2026-09-29) `analisis` = un SUEÑO PROFUNDO: lee los archivos y escribe un informe
+     * (scripts/enjambre/analista.py), sin worktree, sin puertas y sin integrar. Sin `tipo`,
+     * una tarea de código de siempre.
+     */
+    tipo?: "analisis";
+    /** Área del OS que sueña (ids de `areas.ts` + mando, dashboards, gobernanza). */
+    area?: string;
+    /** Lente del sueño (arquitectura-deuda, ux-accesibilidad-diseno, …). */
+    lente?: string;
+    /** Nodo de aprobación humana por tarea: se queda en su rama hasta tu visto bueno. */
+    aprobacion?: boolean;
+    /** Solo en la Mac (lente de seguridad): nunca viaja a la nube ni al bus. */
+    privado?: boolean;
+}
+
+/** Patrón de área y lente de un sueño: palabras en minúscula con guiones. */
+const PATRON_ETIQUETA = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+/** Techos de una cola: los sueños llegan a 14 áreas × 6 lentes y leen más archivos. */
+export const TOPE_TAREAS_COLA = 40;
+export const TOPE_TAREAS_COLA_ANALISIS = 120;
+export const TOPE_ARCHIVOS_TAREA = 20;
+export const TOPE_ARCHIVOS_ANALISIS = 60;
+/** La regla de la casa para las tareas de código (un sueño la tiene exenta: solo lee). */
+export const ARCHIVOS_RECOMENDADOS = 3;
+
+/** Los campos opcionales de una tarea, leídos de un objeto crudo (colas de disco o del bus). */
+export function extrasDeTarea(d: Record<string, unknown>): Pick<TareaCola, "tipo" | "area" | "lente" | "aprobacion" | "privado"> {
+    const fuera: Pick<TareaCola, "tipo" | "area" | "lente" | "aprobacion" | "privado"> = {};
+    if (d.tipo === "analisis") fuera.tipo = "analisis";
+    if (typeof d.area === "string" && PATRON_ETIQUETA.test(d.area)) fuera.area = d.area;
+    if (typeof d.lente === "string" && PATRON_ETIQUETA.test(d.lente)) fuera.lente = d.lente;
+    if (d.aprobacion === true) fuera.aprobacion = true;
+    if (d.privado === true) fuera.privado = true;
+    return fuera;
 }
 
 /** Una cola completa en disco (o reconstruida del bus si la lanzó la otra máquina). */
@@ -166,6 +201,7 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
                         prompt: texto(d.prompt),
                         depende: lista(d.depende ?? d.dependencias),
                         ...(texto(d.modelo) ? { modelo: texto(d.modelo) } : {}),
+                        ...extrasDeTarea(d),
                     };
                 }).filter((t) => t.id),
             });
@@ -203,9 +239,11 @@ async function colasDelBus(): Promise<ColaCompleta[]> {
                     prompt: texto(t.prompt),
                     depende: lista(t.depende),
                     ...(texto(t.modelo) ? { modelo: texto(t.modelo) } : {}),
+                    ...extrasDeTarea(t),
                 };
             }).filter((t) => t.id);
-            // Sin prompt (arranques anteriores al 2026-09-05) no sirve para relanzar.
+            // Sin prompt (arranques anteriores al 2026-09-05) no sirve para relanzar. Los sueños
+            // viajan sin prompt a propósito (se rehacen con suenos.py): tampoco se relanzan de aquí.
             if (tareas.some((t) => !t.prompt)) continue;
             vistas.set(nombre, { nombre, archivo: `cola-${nombre}.json`, tareas, modificada: f.t, origen: "bus" });
         }
@@ -215,17 +253,32 @@ async function colasDelBus(): Promise<ColaCompleta[]> {
     }
 }
 
-/** Valida una cola diseñada. Devuelve los errores (vacío = válida) y la cola normalizada. */
-export function validarCola(nombre: string, bruto: unknown): { errores: string[]; tareas: TareaCola[] } {
+/**
+ * Valida una cola diseñada. Devuelve los errores (vacío = válida), la cola normalizada y
+ * avisos que no impiden guardarla.
+ *
+ * (2026-09-29) Acepta los campos opcionales `tipo` («analisis»), `area`, `lente`, `aprobacion`
+ * y `privado`. Un sueño (tipo analisis) solo LEE: queda exento de la regla de ≤3 archivos
+ * (lee hasta 60) y una cola de sueños puede llevar hasta 120 tareas (14 áreas × 6 lentes);
+ * a cambio necesita área y lente. A las tareas de código con más de 3 archivos se les avisa:
+ * las de 6 o 9 archivos son las que fallan tarde (memory/orquestacion-economica.md §12.2).
+ */
+export function validarCola(nombre: string, bruto: unknown): { errores: string[]; tareas: TareaCola[]; avisos: string[] } {
     const errores: string[] = [];
+    const avisos: string[] = [];
     if (!PATRON_NOMBRE.test(nombre)) errores.push("Nombre de cola no válido: usa «241-lo-que-sea» (número y palabras en minúscula).");
     const entradas = Array.isArray(bruto) ? (bruto as unknown[]) : [];
+    const todasAnalisis = entradas.length > 0 && entradas.every((e) => objeto(e).tipo === "analisis");
+    const topeTareas = todasAnalisis ? TOPE_TAREAS_COLA_ANALISIS : TOPE_TAREAS_COLA;
     if (entradas.length === 0) errores.push("La cola no tiene tareas.");
-    if (entradas.length > 40) errores.push("Demasiadas tareas (máximo 40 por cola).");
+    if (entradas.length > topeTareas) errores.push(`Demasiadas tareas (máximo ${topeTareas} por cola${todasAnalisis ? " de sueños" : ""}).`);
     const tareas: TareaCola[] = [];
     const ids = new Set<string>();
     for (const e of entradas) {
         const d = objeto(e);
+        const extras = extrasDeTarea(d);
+        const esAnalisis = extras.tipo === "analisis";
+        if (d.tipo !== undefined && d.tipo !== null && d.tipo !== "" && !esAnalisis) errores.push(`${texto(d.id) || "(sin id)"}: tipo «${String(d.tipo)}» desconocido (solo «analisis»).`);
         const id = texto(d.id).trim();
         if (!PATRON_ID.test(id)) errores.push(`Id «${id || "(vacío)"}» no válido: mayúsculas y dígitos, hasta 9 caracteres (VZ1, MD12).`);
         if (ids.has(id)) errores.push(`Id repetido: ${id}.`);
@@ -237,7 +290,15 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
         if (prompt.length > 12000) errores.push(`${id}: el prompt es demasiado largo (máximo 12000).`);
         const archivos = lista(d.archivos).map((a) => a.trim()).filter(Boolean);
         for (const a of archivos) {
-            if (a.includes("..") || a.startsWith("/") || /\s/.test(a)) errores.push(`${id}: ruta de archivo no permitida «${a}».`);
+            // Un sueño no puede leer nada ahí donde podría haber un secreto.
+            if (a.includes("..") || a.startsWith("/") || /\s/.test(a) || (esAnalisis && /(^|\/)\.env/.test(a))) errores.push(`${id}: ruta de archivo no permitida «${a}».`);
+        }
+        const topeArchivos = esAnalisis ? TOPE_ARCHIVOS_ANALISIS : TOPE_ARCHIVOS_TAREA;
+        if (esAnalisis) {
+            if (!extras.area || !extras.lente) errores.push(`${id}: un sueño (tipo analisis) necesita área y lente.`);
+            if (archivos.length === 0) errores.push(`${id}: un sueño sin archivos que leer no puede soñar nada.`);
+        } else if (archivos.length > ARCHIVOS_RECOMENDADOS) {
+            avisos.push(`${id}: declara ${archivos.length} archivos; la regla es ≤${ARCHIVOS_RECOMENDADOS} por tarea (las grandes fallan tarde: pártela).`);
         }
         const modelo = modeloParaOrquestador(texto(d.modelo).trim());
         if (modelo && !modeloEscritorValido(modelo)) errores.push(`${id}: modelo «${modelo}» no es de una API con la que el orquestador pueda escribir (${APIS_ESCRITORAS.join(", ")}).`);
@@ -245,10 +306,11 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
             id,
             ola: texto(d.ola).trim() || `Ola ${nombre.split("-")[0]} · ${nombre.split("-").slice(1).join(" ")}`.trim(),
             titulo: titulo.slice(0, 200),
-            archivos: archivos.slice(0, 20),
+            archivos: archivos.slice(0, topeArchivos),
             prompt,
             depende: lista(d.depende).map((x) => x.trim()),
             ...(modelo ? { modelo } : {}),
+            ...extras,
         });
     }
     for (const t of tareas) {
@@ -270,7 +332,17 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
         return false;
     };
     for (const t of tareas) if (visita(t.id)) { errores.push(`Ciclo de dependencias que pasa por ${t.id}.`); break; }
-    return { errores, tareas };
+    return { errores, tareas, avisos };
+}
+
+/**
+ * ¿Puede esta cola ir a la NUBE? Los sueños no (corren en la Mac, donde están las claves de la
+ * flota gratuita) y lo privado tampoco (la lente de seguridad no sale de la Mac). PURA.
+ */
+export function motivoNoNube(tareas: TareaCola[]): string | null {
+    if (tareas.some((t) => t.privado)) return "La cola lleva tareas privadas (lente de seguridad): solo pueden correr en esta Mac.";
+    if (tareas.some((t) => t.tipo === "analisis")) return "Los sueños profundos corren en la Mac (python3 scripts/puente/suenos.py lanzar), no en la nube.";
+    return null;
 }
 
 export interface InfoLatidoTarea {

@@ -64,7 +64,7 @@ DEP_CUMPLIDA = {"commit", "hecho", "integrada"}
 CERRADOS = {
     "commit", "hecho", "integrada", "sin_cambios", "fallo", "fallo_tsc", "fallo_tests",
     "conflicto", "reasignada", "rechazada", "pendiente_aprobacion", "esperando_aprobacion",
-    "bloqueada", "bloqueante", "sustituida", "descartada",
+    "bloqueada", "bloqueante", "sustituida", "descartada", "informe",
 }
 
 
