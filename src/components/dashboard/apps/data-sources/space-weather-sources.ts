@@ -331,10 +331,18 @@ async function fetchKp(): Promise<{ kp: SpaceMetric; gScale: SpaceMetric; series
 
 /** Viento solar: plasma (densidad/velocidad/temp) + campo (Bz/Bt). */
 async function fetchSolarWind(): Promise<SpaceWeatherSnapshot["solarWind"]> {
-    const [plasma, mag] = await Promise.all([
-        fetchJson("https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json"),
-        fetchJson("https://services.swpc.noaa.gov/products/solar-wind/mag-2-hour.json"),
+    // (2026-09-29) NOAA retiró `products/solar-wind/*` (404, y el navegador lo ve como CORS).
+    // Los resúmenes `products/summary/*` pesan ~60 bytes y abren CORS; se adaptan aquí al
+    // formato de filas de siempre. Densidad y temperatura no vienen en el resumen: quedan
+    // «sin dato» en vez de inventarse.
+    const [vel, campo] = await Promise.all([
+        fetchJson("https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json"),
+        fetchJson("https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json"),
     ]);
+    const v0 = (Array.isArray(vel) ? vel[0] : vel) as Record<string, unknown> | undefined;
+    const c0 = (Array.isArray(campo) ? campo[0] : campo) as Record<string, unknown> | undefined;
+    const plasma: unknown[][] | null = v0 ? [["time_tag", "density", "speed", "temperature"], [v0.time_tag ?? null, null, v0.proton_speed ?? null, null]] : null;
+    const mag: unknown[][] | null = c0 ? [["time_tag", "bz_gsm", "bt"], [c0.time_tag ?? null, c0.bz_gsm ?? null, c0.bt ?? null]] : null;
 
     // Formato: primera fila cabecera, resto filas de datos.
     const plasmaRows = Array.isArray(plasma) ? (plasma as unknown[][]) : [];

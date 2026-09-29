@@ -216,8 +216,8 @@ export async function fetchWeatherData(lat: number, lon: number): Promise<any> {
         jget(fUrl),
         jget(aUrl),
         jget("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"),
-        jget("https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json"),
-        jget("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"),
+        jget("https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json"),
+        jget("https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json"),
         jget("https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json"),
     ]);
 
@@ -316,17 +316,19 @@ export async function fetchWeatherData(lat: number, lon: number): Promise<any> {
 
     // ── NOAA: viento solar (mag + plasma) ──
     try {
-        if (Array.isArray(mag) && mag.length > 1) {
-            const r = mag[mag.length - 1]; // [time_tag, bx, by, bz, lon, lat, bt]
-            const bt = parseFloat(r[6]); const bz = parseFloat(r[3]);
+        // (2026-09-29) `products/solar-wind/*` ya no existe: resumen de NOAA → [{bt, bz_gsm, time_tag}].
+        if (Array.isArray(mag) && mag.length > 0 && mag[0] && typeof mag[0] === "object") {
+            const r = mag[0];
+            const bt = parseFloat(r.bt); const bz = parseFloat(r.bz_gsm);
             if (!isNaN(bt)) {
                 data.energetic.solar_wind = { ...data.energetic.solar_wind, Bt: bt.toFixed(1) };
                 data.interplanetary.imf = { ...data.interplanetary.imf, total: bt, bz: isNaN(bz) ? data.interplanetary.imf.bz : bz };
             }
         }
-        if (Array.isArray(plasma) && plasma.length > 1) {
-            const r = plasma[plasma.length - 1]; // [time_tag, density, speed, temperature]
-            const density = parseFloat(r[1]); const speed = parseFloat(r[2]); const temp = parseFloat(r[3]);
+        // Resumen de velocidad → [{proton_speed, time_tag}] (sin densidad ni temperatura).
+        if (Array.isArray(plasma) && plasma.length > 0 && plasma[0] && typeof plasma[0] === "object") {
+            const r = plasma[0];
+            const density = NaN; const speed = parseFloat(r.proton_speed); const temp = NaN;
             if (!isNaN(speed)) {
                 data.energetic.solar_wind = { ...data.energetic.solar_wind, speed: Math.round(speed).toString() };
                 data.interplanetary.solar_wind_speed = Math.round(speed);

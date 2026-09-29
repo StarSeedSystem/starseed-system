@@ -298,6 +298,20 @@ export interface FetchFeedOptions {
  */
 type ModoFeed = "preciso" | "tolerante" | "parado";
 let modoFeed: ModoFeed = "preciso";
+
+// (2026-09-29) Si esta base ya dijo una vez que su `posts` no es el del Lienzo (400 · 22P02),
+// se recuerda 24 h en este navegador para no repetir la consulta fallida en cada carga.
+const CLAVE_MODO_FEED = "starseed.feed.modo.v1";
+const DIA_MS = 24 * 60 * 60 * 1000;
+function modoRecordado(): boolean {
+    try {
+        const v = JSON.parse(localStorage.getItem(CLAVE_MODO_FEED) || "null") as { modo?: string; ts?: number } | null;
+        return !!v && v.modo === "tolerante" && typeof v.ts === "number" && Date.now() - v.ts < DIA_MS;
+    } catch { return false; }
+}
+function recordarTolerante(): void {
+    try { localStorage.setItem(CLAVE_MODO_FEED, JSON.stringify({ modo: "tolerante", ts: Date.now() })); } catch { /* sin almacenamiento */ }
+}
 const avisosFeed = new Set<string>();
 
 function avisarFeed(clave: string, consulta: string, f: FalloConsulta | null, despues: string): void {
@@ -324,6 +338,7 @@ export function feedNoDisponible(): boolean {
 export function _reiniciarFeedParaPruebas(): void {
     modoFeed = "preciso";
     avisosFeed.clear();
+    try { localStorage.removeItem(CLAVE_MODO_FEED); } catch { /* sin almacenamiento */ }
 }
 
 /**
@@ -337,6 +352,7 @@ export async function fetchNetworkFeedConEstado(
     if (modoFeed === "parado") return { posts: [], fallo: null };
     try {
         const supabase = createClient();
+        if (modoFeed === "preciso" && modoRecordado()) modoFeed = "tolerante";
         if (modoFeed === "preciso") {
             const res = await supabase
                 .from("posts")
@@ -357,6 +373,7 @@ export async function fetchNetworkFeedConEstado(
                 return { posts: [], fallo };
             }
             modoFeed = "tolerante";
+            recordarTolerante();
             avisarFeed(
                 "preciso",
                 "posts?select=id,author_id,content,post_references,interactions,created_at&type=neq.comment",
