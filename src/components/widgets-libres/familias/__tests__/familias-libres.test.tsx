@@ -121,7 +121,7 @@ describe("Notificaciones libres", () => {
         tam("m");
         render(<NotificacionesLibre />);
         expect(screen.getByText("Voto abierto")).toBeTruthy();
-        fireEvent.click(screen.getAllByRole("button", { name: "Marcar como leída" })[0]);
+        fireEvent.click(screen.getAllByRole("button", { name: /^Marcar como leída/ })[0]);
         expect(actualizar).toHaveBeenCalledWith("id", "a");
     });
     it("sin nuevas: «Todo al día»; sin sesión lo dice", () => {
