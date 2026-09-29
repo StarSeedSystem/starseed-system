@@ -25,6 +25,7 @@ import { visorBloqueaPermisos } from "@/lib/senses/senses";
 import { PermisosDispositivoPanel } from "@/components/senses/permisos-dispositivo";
 import { thisDeviceId, setNeuronName } from "@/lib/neurons/neurons";
 import { saveOnboarding } from "@/lib/onboarding/onboarding";
+import { marcarNeuronaConfigurada } from "@/lib/onboarding/primer-arranque";
 import { hayDireccionPublica, AVISO_SIN_DOMINIO } from "@/lib/mail/direccion-publica";
 import { estadoCorreo, type EstadoCorreo } from "@/lib/mail/estado-correo";
 import { detectar, recomendar, MODELOS, CONCIENCIAS, type HW } from "@/lib/onboarding/neuron-recommend";
@@ -275,10 +276,10 @@ export function StepNeurona() {
       await saveOnboarding({
         steps: { neurona: { motor, modelo, conciencia, so: hw?.so ?? null, arch: hw?.arch ?? null, ram: hw?.ramGB ?? null } },
       });
-      try { window.localStorage.setItem("starseed.neuron.setup.v1", "1"); } catch { /* */ }
+      try { marcarNeuronaConfigurada(); } catch { /* */ }
       setAplicado(true);
     } catch {
-      try { window.localStorage.setItem("starseed.neuron.setup.v1", "1"); } catch { /* */ }
+      try { marcarNeuronaConfigurada(); } catch { /* */ }
       setAplicado(true);
     } finally {
       setCargando(false);

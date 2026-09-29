@@ -19,9 +19,17 @@
  * /bienvenida…), el rito de una cuenta recién creada (director-rito) ni la guía. La
  * coordinación de «una ventana cada vez» la hace el componente con el registro de modales.
  *
+ * Persistencia entre medios (2026-09-29): «Neurona nueva» decidía con el medio vacío y su
+ * «Más tarde» solo duraba la visita. Ahora «esta neurona ya está configurada» y «más tarde» (por
+ * neurona) viajan con la cuenta (`avisos-cuenta`), y la ventana solo se decide con la cuenta ya
+ * bajada (lo espera el componente). La marca local antigua se respeta y se copia a la cuenta.
+ *
  * Sin React ni navegador: se prueba en Node. Las marcas (localStorage/sessionStorage) van
  * en helpers aparte, todos defensivos.
  */
+
+import { LUEGO_POR_DEFECTO_MS, avisoPospuesto, avisoResuelto, estadoAviso, marcarAviso } from "@/lib/sync/avisos-cuenta";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 
 export type ModoApp = "nativa" | "pwa" | "web";
 
@@ -191,5 +199,65 @@ export function abrirPrimerArranque(paso?: PasoInicial): void {
         window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_PRIMER_ARRANQUE, { detail: { paso } }));
     } catch {
         /* sin window: nada que abrir */
+    }
+}
+
+/* ─────────────────── «Neurona nueva» con la cuenta (por neurona) ─────────────────── */
+
+/** `hecho` por neurona: sus ajustes de neurona nueva ya se completaron (o se omitieron a sabiendas). */
+export const AVISO_NEURONA_CONFIGURADA = "neurona.configurada";
+/** `luego` por neurona: «Más tarde» en los ajustes de la neurona nueva (no reabrir antes de `hasta`). */
+export const AVISO_NEURONA_NUEVA_LUEGO = "neurona.nueva.luego";
+
+/**
+ * ¿Esta neurona ya está configurada? Sí si lo dice la marca local (la de siempre, también la de
+ * medios antiguos) o la cuenta (`hecho` para el id de esta neurona). Nunca lanza.
+ */
+export function neuronaConfiguradaAqui(id: string = neuronDeviceIdActual()): boolean {
+    try {
+        if (leerMarca(CLAVE_NEURONA_CONFIGURADA)) return true;
+        return Boolean(id) && avisoResuelto(estadoAviso(AVISO_NEURONA_CONFIGURADA, { neurona: id }));
+    } catch {
+        return false;
+    }
+}
+
+/** Deja la neurona configurada: marca local + cuenta. Es el ÚNICO camino para marcarla. */
+export function marcarNeuronaConfigurada(id: string = neuronDeviceIdActual()): void {
+    ponerMarca(CLAVE_NEURONA_CONFIGURADA);
+    try {
+        if (id) marcarAviso(AVISO_NEURONA_CONFIGURADA, "hecho", { neurona: id });
+    } catch {
+        /* la marca local basta en este medio */
+    }
+}
+
+/** Compatibilidad: una marca local antigua se copia a la cuenta para los demás medios. Idempotente. */
+export function copiarNeuronaConfiguradaACuenta(id: string = neuronDeviceIdActual()): void {
+    try {
+        if (!id || !leerMarca(CLAVE_NEURONA_CONFIGURADA)) return;
+        if (!avisoResuelto(estadoAviso(AVISO_NEURONA_CONFIGURADA, { neurona: id }))) {
+            marcarAviso(AVISO_NEURONA_CONFIGURADA, "hecho", { neurona: id });
+        }
+    } catch {
+        /* la copia es un extra */
+    }
+}
+
+/** «Más tarde» de la neurona nueva, con la cuenta y por neurona (24 h por defecto). */
+export function posponerNeuronaEnCuenta(id: string = neuronDeviceIdActual(), ms: number = LUEGO_POR_DEFECTO_MS, ahora = Date.now()): void {
+    try {
+        if (id) marcarAviso(AVISO_NEURONA_NUEVA_LUEGO, "luego", { neurona: id, hastaMs: ahora + ms });
+    } catch {
+        /* queda la marca de la visita */
+    }
+}
+
+/** ¿El «Más tarde» de esta neurona sigue vigente en la cuenta? */
+export function neuronaPospuestaEnCuenta(id: string = neuronDeviceIdActual(), ahora = Date.now()): boolean {
+    try {
+        return Boolean(id) && avisoPospuesto(estadoAviso(AVISO_NEURONA_NUEVA_LUEGO, { neurona: id }), ahora);
+    } catch {
+        return false;
     }
 }

@@ -74,6 +74,7 @@ import {
   type RecoveryMethod,
   type ChannelStatus,
 } from "@/lib/onboarding/onboarding";
+import { marcarNeuronaConfigurada } from "@/lib/onboarding/primer-arranque";
 import {
   Sparkles,
   Mic,
@@ -590,7 +591,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     // queda marcada como configurada aunque el usuario haya pasado el paso sin
     // pulsar «Aceptar» — si no, la alta corta de neurona (NeuronSetup) volvía a
     // preguntar lo mismo nada más terminar la bienvenida.
-    try { window.localStorage.setItem("starseed.neuron.setup.v1", "1"); } catch { /* */ }
+    try { marcarNeuronaConfigurada(); } catch { /* */ }
     toast.success("¡Bienvenida completada!");
     closeAll();
     // (Ola 247 · 2026-09-05) ORDEN pedido: bienvenida → sistemas → perfil →

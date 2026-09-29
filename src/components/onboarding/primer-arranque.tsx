@@ -22,6 +22,12 @@
  *   · Sin sesión, en una web normal → un aviso discreto que abre esa misma ventana.
  *   · Con cuenta y neurona nueva → los ajustes de la nueva neurona (NeuronSetup).
  *
+ * Persistencia entre medios (2026-09-29): con cuenta, NO decide «neurona nueva» hasta que la
+ * cuenta esté bajada (`esperarPullInicial`): un medio recién abierto tiene el localStorage vacío y
+ * antes concluía «nunca configurada». «Configurada» y «Más tarde» (por neurona) viajan con la
+ * cuenta (`avisos-cuenta`); la marca local antigua se respeta y se copia. Si la cuenta ya tiene
+ * otras neuronas, «Neurona nueva» pregunta primero si ESTA es una de ellas (`NeuronSetup`).
+ *
  * «Una ventana cada vez»: antes de abrir espera a que el primer plano quede libre (ningún
  * diálogo, ni la guía, ni una ventana del rito, ni el Configurar Neurona). Siempre se puede
  * abrir a mano con `abrirPrimerArranque()` (Ajustes → Personalización).
@@ -45,18 +51,22 @@ import { esAppNativa } from "@/lib/apps-oficiales/dispositivo-actual";
 import { isRunningStandalone } from "@/lib/install/device-install";
 import { etapaActual, suscribirRito } from "@/lib/onboarding/director-rito";
 import { primerPlanoOcupado } from "@/lib/ui/fullscreen-modal";
+import { cuandoCuentaFiable, esperarPullInicial } from "@/lib/sync/realtime-sync";
 import { ritoActivo } from "@/lib/ui/rito-activo";
 import { useDeslizarPasos } from "@/hooks/use-deslizar-pasos";
 import {
     CLAVE_AVISO_WEB,
     CLAVE_INTRO_SALTADA,
-    CLAVE_NEURONA_CONFIGURADA,
     CLAVE_NEURONA_POSPUESTA,
     EVENTO_ABRIR_PRIMER_ARRANQUE,
+    copiarNeuronaConfiguradaACuenta,
     creadaDesde,
     decidirPrimerArranque,
     leerMarca,
+    neuronaConfiguradaAqui,
+    neuronaPospuestaEnCuenta,
     ponerMarca,
+    posponerNeuronaEnCuenta,
     type EstadoNeurona,
     type EstadoSesion,
     type ModoApp,
@@ -140,12 +150,16 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
     const [abierta, setAbierta] = useState<Abierta>(null);
     /** Lo que ya se abrió solo en esta visita: no se repite al navegar. */
     const atendidaRef = useRef<Set<string>>(new Set());
+    /** Espera viva a que la cuenta sea fiable (una sola a la vez). */
+    const esperaCuentaRef = useRef<(() => void) | null>(null);
+    useEffect(() => () => { esperaCuentaRef.current?.(); }, []);
 
     const leerMarcas = useCallback(() => {
         setMarcas({
             introSaltada: leerMarca(CLAVE_INTRO_SALTADA),
             avisoWebCerrado: leerMarca(CLAVE_AVISO_WEB, "sesion"),
-            neuronaPospuesta: leerMarca(CLAVE_NEURONA_POSPUESTA, "sesion"),
+            // «Más tarde»: la de esta visita, o la que quedó en la cuenta para esta neurona.
+            neuronaPospuesta: leerMarca(CLAVE_NEURONA_POSPUESTA, "sesion") || neuronaPospuestaEnCuenta(thisDeviceId()),
         });
         setRitoEnCurso(etapaActual() !== null);
     }, []);
@@ -167,6 +181,16 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                 return;
             }
             setSesion("cuenta");
+            // La cuenta debe estar BAJADA antes de decidir nada sobre esta neurona: en un medio
+            // nuevo, lo que la cuenta ya sabe (configurada, «más tarde», nombre, ajustes) aún no
+            // está en su localStorage. Si no se puede leer (corte, sin red), no se decide a ciegas:
+            // se espera a que la lectura tenga éxito y entonces se vuelve a evaluar.
+            const cuenta = await esperarPullInicial(4000);
+            if (!cuenta.fiable) {
+                esperaCuentaRef.current?.();
+                esperaCuentaRef.current = cuandoCuentaFiable(() => { void evaluar(); }, 0);
+                return;
+            }
             let perfil = false;
             try {
                 const { data: prof } = await sb.from("profiles").select("handle").eq("user_id", user.id).maybeSingle();
@@ -175,6 +199,8 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                 perfil = false; // sin datos, no se abre nada encima de nadie
             }
             const id = thisDeviceId();
+            copiarNeuronaConfiguradaACuenta(id); // una marca local antigua se hereda en los demás medios
+            leerMarcas(); // ya con la cuenta bajada: «Más tarde» y demás marcas al día
             let estado: EstadoNeurona;
             try {
                 const { data: fila, error } = await sb
@@ -184,7 +210,7 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                     .maybeSingle();
                 const f = fila as { name?: string; created_at?: string } | null;
                 estado = {
-                    configuradaAqui: leerMarca(CLAVE_NEURONA_CONFIGURADA),
+                    configuradaAqui: neuronaConfiguradaAqui(id),
                     // Con error de red no se sabe: se decide solo por nombre/ajustes y la marca.
                     enCuenta: error ? true : Boolean(f),
                     creadaEnEsteArranque: error ? false : creadaDesde(f?.created_at, arranqueRef.current),
@@ -192,7 +218,7 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                 };
                 setNombreNeurona(f?.name ?? "");
             } catch {
-                estado = { configuradaAqui: leerMarca(CLAVE_NEURONA_CONFIGURADA), enCuenta: true, creadaEnEsteArranque: false, tieneNombreOAjustes: tieneNombreOAjustes(id) };
+                estado = { configuradaAqui: neuronaConfiguradaAqui(id), enCuenta: true, creadaEnEsteArranque: false, tieneNombreOAjustes: tieneNombreOAjustes(id) };
             }
             setTienePerfil(perfil);
             setNeurona(estado);
@@ -284,6 +310,7 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
 
     const posponerNeurona = useCallback(() => {
         ponerMarca(CLAVE_NEURONA_POSPUESTA, "sesion");
+        posponerNeuronaEnCuenta(thisDeviceId()); // y con la cuenta, por neurona: no vuelve al reiniciar ni en otro medio
         setMarcas((m) => ({ ...m, neuronaPospuesta: true }));
         setAbierta(null);
     }, []);
@@ -295,7 +322,7 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                 nombreInicial={nombreNeurona}
                 onPosponer={posponerNeurona}
                 onClose={() => {
-                    setNeurona((n) => (n ? { ...n, configuradaAqui: leerMarca(CLAVE_NEURONA_CONFIGURADA) } : n));
+                    setNeurona((n) => (n ? { ...n, configuradaAqui: neuronaConfiguradaAqui(thisDeviceId()) } : n));
                     setAbierta(null);
                 }}
             />
