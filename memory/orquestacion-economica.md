@@ -702,3 +702,13 @@ curl -s -X POST http://localhost:9002/api/mando/suenos -H 'Content-Type: applica
 código citado (`suenos.py por-verificar`, `suenos.py veredicto … --por claude-<modelo>`) →
 `suenos.py consolidar` cuando todo esté verificado (INFORME.md + `olas/cola-suenos-propuesta-<fecha>.json`,
 que NO se lanza: se abre en el Diseñador). Tope del supervisor: ≤ 25 min y ≤ 6 informes por pasada.
+
+**Lección de la primera sesión real (2026-09-29, 4 informes en 151 min).** Tres causas, las tres
+arregladas: (1) ids muertos (403/404) reintentados en cada ronda de cada sueño → ahora la salud es
+de la SESIÓN y un 403/404/410 saca el modelo al primer intento; (2) respuestas buenas rechazadas
+(razonamiento antes del JSON, JSON cortado por max_tokens) → `extraer_json` robusto que rescata lo
+completo y modo JSON donde se sabe; (3) una pausa GLOBAL de 104 s entre llamadas y una lista fija
+de 8 modelos → sin pausa (el ritmo es el cupo por minuto de cada proveedor), flota VIVA sacada del
+informe de pasarelas + rotación + revisores, y reparto por turnos entre todos. De paso, «dictionary
+changed size during iteration» (progreso y latidos tocados por cinco hilos) → RLock y copias atómicas.
+Regla: **una flota gratuita se reparte por turnos entre TODOS los proveedores vivos; nunca una lista fija.**

@@ -212,7 +212,24 @@ def lanzar_directo(raiz, cola_rel, workers, tope_analisis=None, medio=None):
 
 # ─────────────────────────────── plan y colas ───────────────────────────────
 
+def horas_de(raiz, a):
+    """Las horas pedidas o, al RELANZAR una sesión que ya existe, las de su último
+    lanzamiento: con otras horas cambiarían los archivos de cada área y la lectura ya hecha
+    (dream/profundo/<fecha>/.mapa) no se aprovecharía."""
+    if getattr(a, "horas", None) is not None:
+        return float(a.horas)
+    if getattr(a, "fecha", None):
+        plan = _leer_json(os.path.join(rutas(raiz)["profundo"], a.fecha, "plan.json"), {})
+        lanz = (plan.get("lanzamientos") or [{}])[-1] if isinstance(plan, dict) else {}
+        try:
+            return float(lanz.get("horas") or 0)
+        except (TypeError, ValueError, AttributeError):
+            return 0.0
+    return 0.0
+
+
 def construir(raiz, a):
+    a.horas = horas_de(raiz, a)
     fecha = datetime.date.fromisoformat(a.fecha) if getattr(a, "fecha", None) else datetime.date.today()
     return suenos_areas.construir_plan(
         suenos_areas.cargar_areas(raiz), suenos_areas.listar_repo(raiz), fecha, a.horas,
@@ -595,7 +612,8 @@ def parser():
     sub = ap.add_subparsers(dest="orden", required=True)
 
     def comunes_plan(p):
-        p.add_argument("--horas", type=float, default=0)
+        p.add_argument("--horas", type=float, default=None,
+                       help="profundidad (archivos por área); al relanzar una sesión, por defecto la de su último lanzamiento")
         p.add_argument("--areas", default="")
         p.add_argument("--lentes", default="")
         p.add_argument("--fecha", default="")

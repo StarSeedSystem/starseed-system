@@ -37,8 +37,10 @@ resultado es un informe y una cola PROPUESTA que una persona abre en el Diseñad
 - **Mismo conjunto de archivos para las seis lentes de un área** (documentos que mandan +
   código repartido por turnos según la relevancia de cada lente): es lo que permite leer cada
   trozo UNA vez. Profundidad: 16 archivos por área hasta 1 h, +6 por hora, máx. 48.
-- **`--horas N`** reparte las llamadas en N horas (pausa entre llamadas de cada trabajador,
-  ≤ 15 min, con latido); `0` = tan rápido como dejen los cupos. Nunca salen `.env`, `.pem`…
+- **`--horas N`** solo da la PROFUNDIDAD (archivos por área). No hay pausa global: el ritmo lo
+  pone el cupo por minuto de cada proveedor (primera sesión real, 2026-09-29: con 104 s de pausa
+  entre llamadas, 4 informes en 151 min). Al relanzar una sesión con `--fecha`, se reusan sus
+  horas para aprovechar la lectura ya hecha. Nunca salen `.env`, `.pem`…
 
 ## 3. El analista (`scripts/enjambre/analista.py`)
 
@@ -53,9 +55,27 @@ resultado es un informe y una cola PROPUESTA que una persona abre en el Diseñad
    del disco por el analista) y dice confirmado · dudoso · refutado. Lo refutado sale del
    informe (queda en «Descartados»). Una cita inexistente pierde la mitad de la confianza.
 
+**Flota viva y salud de sesión (2026-09-29, tras la primera sesión real).** La flota no es una
+lista fija: el orquestador la calcula (`_flota_analisis` → `analista.flota_desde`) con lo que el
+informe de pasarelas da por vivo (`~/.starseed/pasarelas-informe.json`, la «puerta de
+pasarelas»), la rotación de escritores, los revisores y las sondas; solo proveedores que
+`llamar_llm` sabe llamar, nada de pago y OpenRouter solo `:free`; se relee cada 3 min y, si el
+informe tiene más de 15 min, se renueva en segundo plano. La salud es de la SESIÓN y la comparten
+todos los sueños (`SaludFlota`): 403/404/410/«model not found» → fuera al primer intento; sin
+clave → fuera; sin cuota → 1 h fuera; 429 → ese modelo 90 s y su proveedor 30 s; 5xx/timeout →
+60 s, creciente; dos respuestas sin el JSON pedido → 10 min, cinco → fuera. Reparto por turnos
+entre TODOS los proveedores sanos (el menos usado primero; los de cupo por minuto lleno, al final).
+Sin nadie sano se espera en tramos cortos releyendo la flota; si ya no queda nadie que pueda
+volver, fallo al momento. Tope por defecto: 8 sueños a la vez.
+
+**JSON robusto.** `extraer_json(texto, clave)` busca objetos balanceados en cualquier parte
+(razonamiento «We need to output JSON…», vallas ```json, prosa), prefiere el que trae la clave
+pedida y, si la respuesta llegó cortada por max_tokens, rescata los elementos completos de la
+lista. A Groq, OpenRouter, Gemini y NIM se les pide modo JSON (se aprende y se quita si alguno lo
+rechaza con 400/422). Salida de la lectura: 4000 tokens (Groq 1800 por su límite por minuto).
+
 Cuotas: todo pasa por `llamar_llm` del orquestador (cupos RPM, rotación de claves, avisos de
-cuota). 429 → ese proveedor se enfría 75 s y se prueba otro; sin nadie → se ESPERA hasta 45 min
-(«esperando proveedor»); si ya no queda nadie que pueda volver, fallo al momento. Salida:
+cuota). Salida:
 `<área>--<lente>.md` (formato del Dream: Top 3 accionables · Mejoras · Riesgos · Ideas, que
 `dream_a_cola.py` sabe leer) y `.json`. Estado final en progreso.json: **`informe`** (nunca
 «sin_cambios») o `fallo`. Al bus solo `inicio` e `informe`/`fallo` por sueño; los pasos van a
@@ -154,7 +174,21 @@ curl -s -X POST http://localhost:9002/api/mando/colas -H 'Content-Type: applicat
 Luego, la tarea programada «Supervisor de sueños» (cada hora, «Requerir esta computadora»)
 con el bloque de `scripts/puente/supervisor_suenos.md`.
 
-## 8. Límites honestos
+## 8. Cambio en caliente de una sesión en marcha
+
+```bash
+cd ~/Documents/starseed-os-main
+git fetch -q .transfer/<paquete>.bundle ola0929-suenos:suenos && git merge --ff-only suenos
+bash scripts/enjambre/instalar.sh && bash scripts/enjambre/instalar.sh --comprobar
+curl -s -X POST http://localhost:9002/api/mando/colas -H 'Content-Type: application/json' \
+     -d '{"accion":"detener","nombre":"suenos-<fecha>","donde":"mac"}'     # SIGTERM solo a ese orquestador
+python3 scripts/puente/suenos.py lanzar --fecha <fecha>                      # mismas horas; lo escrito se conserva
+python3 scripts/puente/suenos.py estado
+```
+Parar con SIGTERM no pierde nada: los informes escritos se saltan al relanzar, la lectura
+compartida (`.mapa/`) se reutiliza y los reclamos y cerrojos de un proceso muerto se rompen solos.
+
+## 9. Límites honestos
 
 - Los tokens de los sueños son **estimados** (3 caracteres por token, como `limite_proveedor.py`):
   `llamar_llm` no devuelve el uso real de cada pasarela.

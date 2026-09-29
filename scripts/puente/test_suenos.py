@@ -185,6 +185,16 @@ class Lanzar(Base):
         self.assertEqual(len(plan["tareas"]), 5)  # las 4 que había + la nueva
         self.assertEqual(len(plan["lanzamientos"]), 1)
 
+    def test_relanzar_la_sesion_reusa_sus_horas(self):
+        plan = json.load(open(os.path.join(self.sesion, "plan.json")))
+        plan["lanzamientos"] = [{"t": "2026-09-29 14:25:00", "horas": 4, "por": "mando"}]
+        json.dump(plan, open(os.path.join(self.sesion, "plan.json"), "w"))
+        codigo, d = self.correr("lanzar", "--fecha", SESION, "--areas", "mando", "--seco")
+        self.assertEqual(codigo, 0)
+        plan_nuevo = S.construir(self.raiz, S.parser().parse_args(["lanzar", "--fecha", SESION, "--areas", "mando"]))
+        self.assertEqual(plan_nuevo["horas"], 4.0)
+        self.assertEqual(plan_nuevo["pausa_s"], 0)
+
     def test_si_el_mando_no_contesta_va_directo(self):
         self.parchear(S, "lanzar_por_mando", lambda nombre, w: None)
         _, d = self.correr("lanzar", "--areas", "mando", "--fecha", SESION)
