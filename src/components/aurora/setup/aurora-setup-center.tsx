@@ -47,9 +47,13 @@ import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
 import {
   AURORA_SETUP_OPEN_EVENT,
+  copiarSetupLocalACuenta,
   isSetupPending,
   markSetupDone,
 } from "@/lib/aurora/setup-config";
+// (2026-09-29 · persistencia entre medios) Ningún gate decide «nunca configurado» con el medio
+// vacío: espera a que la cuenta esté bajada (o a saber que no hay cuenta).
+import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import {
   DEFAULT_ANSWERS,
@@ -199,35 +203,41 @@ export function AuroraSetupCenter() {
   /* ── Gate 1: primera vez (tras el alta de cuenta) ── */
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (offered.current || !isSetupPending()) return;
-    const path = window.location.pathname || "";
-    if (PUBLIC_PATH.test(path)) return;
-
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    void (async () => {
-      try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        if (cancelled || !data?.user) return; // invitado → primero el alta de cuenta
-        let completed = false;
+    // Espera a la cuenta ANTES de mirar si está pendiente: un medio nuevo de una cuenta ya
+    // configurada no debe ofrecer el centro solo porque su localStorage esté vacío.
+    const cancelarCuenta = cuandoCuentaFiable(() => {
+      if (cancelled) return;
+      copiarSetupLocalACuenta(); // un «hecho» antiguo de este medio se hereda en los demás
+      if (offered.current || !isSetupPending()) return;
+      const path = window.location.pathname || "";
+      if (PUBLIC_PATH.test(path)) return;
+      void (async () => {
         try {
-          completed = (await getOnboarding()).completed;
+          const supabase = createClient();
+          const { data } = await supabase.auth.getUser();
+          if (cancelled || !data?.user) return; // invitado → primero el alta de cuenta
+          let completed = false;
+          try {
+            completed = (await getOnboarding()).completed;
+          } catch {
+            completed = false;
+          }
+          if (cancelled || !completed) return; // aún en el asistente de identidad
+          timer = setTimeout(() => {
+            if (cancelled || offered.current || !isSetupPending()) return;
+            offered.current = true;
+            setOpen(true);
+          }, 1200);
         } catch {
-          completed = false;
+          /* sin sesión / sin red → no mostramos nada */
         }
-        if (cancelled || !completed) return; // aún en el asistente de identidad
-        timer = setTimeout(() => {
-          if (cancelled || offered.current || !isSetupPending()) return;
-          offered.current = true;
-          setOpen(true);
-        }, 1200);
-      } catch {
-        /* sin sesión / sin red → no mostramos nada */
-      }
-    })();
+      })();
+    });
     return () => {
       cancelled = true;
+      cancelarCuenta();
       if (timer) clearTimeout(timer);
     };
   }, []);
@@ -235,23 +245,38 @@ export function AuroraSetupCenter() {
   /* ── Gate 2: AI Studio con el perfil sin configurar ── */
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (offered.current || !isSetupPending()) return;
     if (!STUDIO_PATH.test(pathname ?? "")) return;
-    offered.current = true;
-    const t = setTimeout(() => setOpen(true), 400);
-    return () => clearTimeout(t);
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const cancelarCuenta = cuandoCuentaFiable(() => {
+      copiarSetupLocalACuenta();
+      if (offered.current || !isSetupPending()) return;
+      offered.current = true;
+      t = setTimeout(() => setOpen(true), 400);
+    });
+    return () => {
+      cancelarCuenta();
+      if (t) clearTimeout(t);
+    };
   }, [pathname]);
 
   /* ── Gate 3: primera vez que se ABRE Aurora ── */
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const cancelar = new Set<() => void>();
     const onAurora = () => {
-      if (offered.current || !isSetupPending()) return;
-      offered.current = true;
-      setTimeout(() => setOpen(true), 600);
+      const quitar = cuandoCuentaFiable(() => {
+        copiarSetupLocalACuenta();
+        if (offered.current || !isSetupPending()) return;
+        offered.current = true;
+        setTimeout(() => setOpen(true), 600);
+      });
+      cancelar.add(quitar);
     };
     window.addEventListener(AURORA_EXOCORTEX_OPEN_EVENT, onAurora);
-    return () => window.removeEventListener(AURORA_EXOCORTEX_OPEN_EVENT, onAurora);
+    return () => {
+      window.removeEventListener(AURORA_EXOCORTEX_OPEN_EVENT, onAurora);
+      cancelar.forEach((c) => c());
+    };
   }, []);
 
   const finish = useCallback(
