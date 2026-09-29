@@ -18,6 +18,8 @@ vi.mock("@/modules/weather/context/weather-location-context", () => ({
 import { EnMarco, MEDIDAS } from "../_catalogo/prueba-marco";
 import { FlowDirectorWidget } from "../flow-director-widget";
 import { ProjectSwarmWidget } from "../project-swarm-widget";
+import { IdeaForgeWidget } from "../idea-forge-widget";
+import { QUICK_NOTES_KEY } from "@/lib/notes/quick-notes";
 import { QUICK_TASKS_KEY } from "@/lib/tasks/quick-tasks";
 import { CLAVE_SESION } from "../flow-director-partes";
 
@@ -117,5 +119,52 @@ describe("Enjambre de Propósitos", () => {
         expect(leerTareas()[0].text).toBe("Comprar mangueras #huerto");
         const proponer = screen.getByRole("link", { name: /Proponer #huerto a la red/ });
         expect(proponer.getAttribute("href")).toMatch(/^\/decisiones\?nueva=1&title=Proyecto/);
+    });
+});
+
+const leerNotas = () => (JSON.parse(localStorage.getItem(QUICK_NOTES_KEY) || '{"items":[]}').items as any[]);
+
+describe("Incubadora de Quimeras", () => {
+    it.each(["micro", "s", "m", "l", "xl", "panoramico", "torre"] as ClaseTamano[])("se pinta en %s con la chispa del día", (clase) => {
+        pintar(<IdeaForgeWidget />, clase);
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/Incubadora de quimeras: chispa de hoy .+ por .+\. 0 ideas/);
+    });
+    it("apunta una idea en las Notas con #idea y la lleva a la red como propuesta", () => {
+        pintar(<IdeaForgeWidget />, "xl");
+        expect(screen.getByText(/bloc vacío/)).toBeTruthy();
+        fireEvent.change(screen.getByRole("textbox", { name: /Nueva idea/ }), { target: { value: "Biblioteca de semillas en cada plaza" } });
+        fireEvent.submit(screen.getByRole("textbox", { name: /Nueva idea/ }).closest("form")!);
+        expect(leerNotas()[0].text).toBe("Biblioteca de semillas en cada plaza #idea");
+        expect(screen.getByText(/Guardada en tus Notas/)).toBeTruthy();
+        const enlace = screen.getByRole("link", { name: /Proponer a la red: Biblioteca de semillas en cada plaza/ });
+        expect(enlace.getAttribute("href")).toContain("/decisiones?nueva=1");
+        expect(decodeURIComponent(enlace.getAttribute("href")!.replace(/\+/g, " "))).toContain("title=Biblioteca de semillas en cada plaza");
+    });
+    it("guardar la chispa, anclar y borrar con deshacer", () => {
+        pintar(<IdeaForgeWidget />, "xl");
+        fireEvent.click(screen.getByRole("button", { name: "Guardar esta chispa como idea" }));
+        expect(leerNotas()).toHaveLength(1);
+        expect(leerNotas()[0].text).toMatch(/ × .+: .+ #idea$/);
+        fireEvent.click(screen.getByRole("button", { name: /^Anclar:/ }));
+        expect(leerNotas()[0].pinned).toBe(true);
+        fireEvent.click(screen.getByRole("button", { name: /^Borrar:/ }));
+        expect(leerNotas()).toHaveLength(0);
+        fireEvent.click(screen.getByRole("button", { name: /Deshacer el borrado/ }));
+        expect(leerNotas()).toHaveLength(1);
+    });
+    it("las notas sin #idea no cuentan como ideas", () => {
+        localStorage.setItem(QUICK_NOTES_KEY, JSON.stringify({ v: 1, items: [{ id: "a", text: "Comprar pan", createdAt: 1, updatedAt: 1 }] }));
+        pintar(<IdeaForgeWidget />, "l");
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/0 ideas/);
+    });
+    it("barajar cambia la chispa", () => {
+        pintar(<IdeaForgeWidget />, "m");
+        const antes = screen.getByRole("region").getAttribute("aria-label");
+        let distinta = false;
+        for (let i = 0; i < 4 && !distinta; i++) {
+            fireEvent.click(screen.getByRole("button", { name: "Barajar otra chispa" }));
+            distinta = screen.getByRole("region").getAttribute("aria-label") !== antes;
+        }
+        expect(distinta).toBe(true);
     });
 });

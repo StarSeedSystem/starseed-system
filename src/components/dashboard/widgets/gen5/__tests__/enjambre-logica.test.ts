@@ -31,3 +31,29 @@ describe("Enjambre · etiquetas y proyectos", () => {
         }
     });
 });
+
+import { chispa, comoNota, esIdea, ideasDe, textoIdea, tituloDe, CONCEPTOS } from "../idea-forge-partes";
+
+describe("Incubadora · chispas e ideas", () => {
+    it("la chispa es determinista por día, con dos conceptos distintos", () => {
+        expect(chispa(20000)).toEqual(chispa(20000));
+        for (let d = 0; d < 50; d++) {
+            const c = chispa(20000 + d, d % 3);
+            expect(c.a).not.toBe(c.b);
+            expect(CONCEPTOS).toContain(c.a as (typeof CONCEPTOS)[number]);
+        }
+    });
+    it("marca, limpia y ordena las ideas", () => {
+        expect(comoNota("Una idea")).toBe("Una idea #idea");
+        expect(comoNota("Una idea #idea")).toBe("Una idea #idea");
+        expect(esIdea({ text: "algo #ideas" })).toBe(false);
+        expect(textoIdea("Una #idea buena")).toBe("Una buena");
+        expect(tituloDe("Primera frase. Segunda frase #idea")).toBe("Primera frase");
+        const ideas = ideasDe([
+            { id: "1", text: "a #idea", createdAt: 1, updatedAt: 5 },
+            { id: "2", text: "b #idea", createdAt: 1, updatedAt: 1, pinned: true },
+            { id: "3", text: "c", createdAt: 1, updatedAt: 9 },
+        ]);
+        expect(ideas.map((n) => n.id)).toEqual(["2", "1"]);
+    });
+});
