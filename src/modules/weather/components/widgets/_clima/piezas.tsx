@@ -12,11 +12,12 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useMarcoUnificado, type BaseTamano, type ContextoMarcoUnificado } from "@/components/dashboard/kit/contexto-marco";
+import { ContextoMarco, useMarcoUnificado, type BaseTamano, type ContextoMarcoUnificado } from "@/components/dashboard/kit/contexto-marco";
 import { useElementSize } from "@/components/dashboard/kit/use-element-size";
 import { WidgetErrorState } from "@/components/dashboard/kit/primitives";
-import { MarcoUnificado } from "@/components/widgets-libres/marco-unificado";
-import { dispositivoActual, type ClaseDispositivo, type ClaseTamano } from "@/lib/widgets/forma/tamanos";
+import { ESPACIADO_MARCO, radioDe } from "@/components/widgets-libres/marco-unificado";
+import { disenoDe } from "@/components/widgets-libres/familias/comun";
+import { claseDesdePx, dispositivoActual, type ClaseDispositivo, type ClaseTamano } from "@/lib/widgets/forma/tamanos";
 import { useNivelRender } from "@/lib/widgets/forma/nivel-dispositivo";
 import type { LocationData } from "@/modules/weather/context/weather-location-context";
 import { ETIQUETA_VIENTO, useEnPantalla, useUbicacionClima, useUnidades, type UnidadViento } from "@/modules/weather/datos/hooks";
@@ -86,19 +87,40 @@ function Interior({ etiqueta, ctx, children }: { etiqueta: string; ctx: Contexto
 }
 
 /**
+ * Fuera del marco unificado (vistas /atmosphere y /clima, «marco clásico» de Ajustes) el widget
+ * mide su caja y elige su diseño él mismo, con un fondo propio del clima: oscuro, con la luz de su
+ * acento arriba a la izquierda. NO se envuelve en el marco unificado — el marco clásico es la
+ * salida de emergencia y tiene que seguir siéndolo.
+ */
+function MarcoPropio({ etiqueta, acento, acento2, children }: { etiqueta: string; acento: string; acento2: string; children: (i: InfoMarco) => React.ReactNode }) {
+    const { ref, size } = useElementSize<HTMLDivElement>();
+    const clase = claseDesdePx(Math.round(size.width), Math.round(size.height));
+    const { base, horizontal } = disenoDe(clase);
+    const ctx = React.useMemo<ContextoMarcoUnificado>(
+        () => ({ acento, acento2, clase, base, horizontal, espaciado: ESPACIADO_MARCO[base] }),
+        [acento, acento2, clase, base, horizontal],
+    );
+    return (
+        <div ref={ref} role="group" aria-label={etiqueta} data-marco="clima" data-tamano={clase}
+            className="dark relative h-full w-full overflow-hidden shadow-[0_18px_40px_-24px_rgba(0,0,0,0.8)] ring-1 ring-white/10"
+            style={{ borderRadius: radioDe(clase), background: `radial-gradient(120% 90% at 0% 0%, ${acento}29, transparent 58%), radial-gradient(90% 80% at 100% 100%, ${acento2}1f, transparent 60%), linear-gradient(160deg, #161c3d, #0a0d22)` }}>
+            <ContextoMarco.Provider value={ctx}>
+                <Interior etiqueta={etiqueta} ctx={ctx}>{children}</Interior>
+            </ContextoMarco.Provider>
+        </div>
+    );
+}
+
+/**
  * El cuerpo del widget con su información de tamaño. Dentro del marco unificado usa su clase;
- * fuera (vista /atmosphere, /clima, «marco clásico») se pone el mismo material.
+ * fuera, se mide y se pone su propio fondo (ver `MarcoPropio`).
  */
 export function MarcoClima({ etiqueta, acento = "#38bdf8", acento2 = "#7c5cff", children }: {
     etiqueta: string; acento?: string; acento2?: string; children: (i: InfoMarco) => React.ReactNode;
 }) {
     const ctx = useMarcoUnificado();
     if (ctx) return <Interior etiqueta={etiqueta} ctx={ctx}>{children}</Interior>;
-    return (
-        <MarcoUnificado acento={acento} acento2={acento2} etiqueta={etiqueta}>
-            {(c) => <Interior etiqueta={etiqueta} ctx={c}>{children}</Interior>}
-        </MarcoUnificado>
-    );
+    return <MarcoPropio etiqueta={etiqueta} acento={acento} acento2={acento2}>{children}</MarcoPropio>;
 }
 
 // ── Tipografía y piezas ───────────────────────────────────────────────
