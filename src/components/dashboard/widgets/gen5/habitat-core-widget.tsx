@@ -1,220 +1,261 @@
 'use client';
 
-import { useState } from "react";
-import Link from "next/link";
-import {
-    Home, ChevronRight, Thermometer, Lightbulb, Wind, Bot, Sun, Sunset, Moon,
-} from "lucide-react";
-import { WidgetShell, MiniList, ProgressBar, ProgressRing, StatTile } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { HabitatRoom, HabitatRobot } from "@/lib/widget-data";
-import { cn } from "@/lib/utils";
-
 // ════════════════════════════════════════════════════════════════
-// HabitatCoreWidget — Núcleo de Simbiosis Habitacional.
-// Domótica integrada en el Oikos. Gradientes de clima/luz por
-// habitación + robots de apoyo. Iluminación circadiana opcional.
-// Datos "devices.habitat". Adaptativo.
+// HabitatCoreWidget — Núcleo del Hábitat (rediseño Ola 0929-C)
+// ----------------------------------------------------------------
+// Simbiosis con la casa, con datos reales:
+// • Luz circadiana: qué luz pide el cuerpo ahora según la altura REAL
+//   del Sol en tu lugar (calculada sin red) y cuándo cambia.
+// • Ventilar: si conviene abrir, con el tiempo REAL de fuera (la
+//   lectura compartida de Open-Meteo, 30 min, solo a la vista).
+// • Tu casa: SOLO si conectaste tu Home Assistant en el Centro de
+//   Control (Hogar): temperaturas, humedad, luces y enchufes, en solo
+//   lectura, cada 5 min y a la vista. Sin él, no se inventa ninguna
+//   habitación ni robot: vacío honesto con cómo conectarlo.
+// Estados honestos: cargando, vacío y error (cada fuente dice el suyo).
 // ════════════════════════════════════════════════════════════════
 
-const CIRCADIAN_META = {
-    dia:   { icon: Sun,    label: "Día",   color: "#f59e0b", desc: "Luz plena · máximo metabolismo" },
-    tarde: { icon: Sunset, label: "Tarde", color: "#f97316", desc: "Luz cálida · transición energética" },
-    noche: { icon: Moon,   label: "Noche", color: "#818cf8", desc: "Oscuridad suave · recuperación" },
-} as const;
+import * as React from "react";
+import { Home, Lightbulb, Plug, Thermometer, Wind, WindArrowDown } from "lucide-react";
+import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
+import { Lienzo, useIdSvg, useLienzo, type EstadoLienzo } from "./_catalogo/lienzo";
+import { CargandoSilueta, tinta } from "./_catalogo/piezas";
+import { horasDesde, useMeteo } from "./_catalogo/meteo";
+import { useCompartido } from "./_catalogo/recurso";
+import { analizarHa, consejoVentilar, haListo, leerHa, luzAhora, type ConfigHa, type Hogar, type LuzCircadiana } from "./habitat-core-partes";
 
-function RoomCard({ room, circadian }: { room: HabitatRoom; circadian: boolean }) {
-    const lightColor = circadian
-        ? CIRCADIAN_META[room.light > 0.7 ? "dia" : room.light > 0.45 ? "tarde" : "noche"].color
-        : room.accent;
-    const airColor = room.airQuality > 0.75 ? "#10b981" : room.airQuality > 0.5 ? "#f59e0b" : "#fb7185";
-
-    return (
-        <div
-            className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-opacity-60 transition-colors"
-            style={{ borderColor: `color-mix(in srgb, ${room.accent} 25%, transparent)` }}
-        >
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="text-[10px] font-black truncate" style={{ color: room.accent }}>{room.label}</span>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground/70 shrink-0">
-                    <Thermometer className="size-2.5" style={{ color: room.accent }} />
-                    {room.tempC.toFixed(1)}°C
-                </span>
-            </div>
-            <div className="space-y-1">
-                <div className="flex items-center gap-1.5">
-                    <Lightbulb className="size-2.5 shrink-0 text-muted-foreground/50" />
-                    <div className="flex-1"><ProgressBar value={room.light} color={lightColor} height={3} /></div>
-                    <span className="text-[8px] tabular-nums text-muted-foreground/50 w-5 text-right">{Math.round(room.light * 100)}%</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <Wind className="size-2.5 shrink-0 text-muted-foreground/50" />
-                    <div className="flex-1"><ProgressBar value={room.airQuality} color={airColor} height={3} /></div>
-                    <span className="text-[8px] tabular-nums text-muted-foreground/50 w-5 text-right">{Math.round(room.airQuality * 100)}%</span>
-                </div>
-            </div>
-        </div>
-    );
+async function traerHogar(c: ConfigHa): Promise<Hogar> {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 10_000);
+    try {
+        const res = await fetch(`${c.url!.replace(/\/+$/, "")}/api/states`, { headers: { Authorization: `Bearer ${c.token}` }, signal: ctl.signal });
+        if (res.status === 401) throw new Error("Home Assistant rechazó el token (401)");
+        if (!res.ok) throw new Error(`Home Assistant respondió ${res.status}`);
+        return analizarHa(await res.json());
+    } finally {
+        clearTimeout(t);
+    }
 }
 
-function RobotRow({ robot }: { robot: HabitatRobot }) {
+function Casa({ W, luz, altura, hora, luces, l }: { W: number; luz: LuzCircadiana | null; altura: number | null; hora: number; luces: number | null; l: EstadoLienzo }) {
+    const id = useIdSvg("casa");
+    const H = W * 0.9, cx = W / 2;
+    const base = H * 0.95, ancho = W * 0.56, alto = H * 0.36, tejado = H * 0.2;
+    const x0 = cx - ancho / 2, techo = base - alto;
+    // El cielo sobre la casa: de izquierda a derecha, la hora del día (0–24 h); de abajo arriba,
+    // la altura REAL del Sol (bajo el horizonte, el astro queda por debajo de la línea).
+    const R = W * 0.44, cy = techo - tejado * 0.2;
+    const noche = altura !== null && altura < 0;
+    const sx = noche ? cx + R * 0.55 : cx - R + Math.min(1, Math.max(0, hora)) * 2 * R;
+    const sy = noche ? cy - R * 0.45 : cy - (Math.min(90, altura ?? 0) / 90) * R * 0.75;
+    const color = luz?.color ?? "#94a3b8";
+    const dia = altura !== null && altura > -4;
     return (
-        <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-white/[0.02] px-2 py-1.5">
-            <Bot className="size-3.5 shrink-0 text-muted-foreground/60" />
-            <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-bold truncate block">{robot.label}</span>
-                <span className="text-[8px] text-muted-foreground/50 truncate block">{robot.task}</span>
-            </div>
-            <div className="shrink-0 flex flex-col items-end gap-1 w-12">
-                <span
-                    className={cn(
-                        "inline-block size-1.5 rounded-full",
-                        robot.active ? "bg-emerald-400 shadow-[0_0_4px_#10b981]" : "bg-muted/40"
-                    )}
-                />
-                <div className="w-full">
-                    <ProgressBar value={robot.battery} color={robot.battery > 0.3 ? "#f59e0b" : "#fb7185"} height={3} />
-                </div>
-            </div>
-        </div>
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden className="block shrink-0 overflow-visible">
+            <defs>
+                <radialGradient id={`${id}-v`} cx="50%" cy="50%" r="60%">
+                    <stop offset="0%" stopColor={color} stopOpacity={0.95} />
+                    <stop offset="100%" stopColor={color} stopOpacity={0.35} />
+                </radialGradient>
+                <radialGradient id={`${id}-halo`} cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={color} stopOpacity={0} />
+                </radialGradient>
+            </defs>
+            <line x1={cx - R} x2={cx + R} y1={cy} y2={cy} stroke="#fff" strokeOpacity={0.12} strokeDasharray="2 4" />
+            {altura !== null && (
+                <circle cx={sx} cy={sy} r={Math.max(4, W * 0.045)} fill={dia ? "#FFBF00" : "#e2e8f0"} opacity={dia ? 0.95 : 0.8}
+                    className={l.animar ? "ss-respirar" : undefined} style={{ ["--ss-dur" as string]: "6s", transformBox: "fill-box", transformOrigin: "center" }} />
+            )}
+            <circle cx={cx} cy={base - alto * 0.45} r={ancho * 0.55} fill={`url(#${id}-halo)`} />
+            <path d={`M${x0 - W * 0.04} ${techo}L${cx} ${techo - tejado}L${x0 + ancho + W * 0.04} ${techo}`} fill="none" stroke={tinta(l.acento, 0.2)} strokeWidth={2} strokeLinejoin="round" />
+            <rect x={x0} y={techo} width={ancho} height={alto} rx={3} fill={conAlfa("#ffffff", 0.04)} stroke={conAlfa("#ffffff", 0.35)} />
+            <rect x={x0 + ancho * 0.14} y={techo + alto * 0.2} width={ancho * 0.3} height={alto * 0.34} rx={2} fill={`url(#${id}-v)`} />
+            <rect x={x0 + ancho * 0.58} y={techo + alto * 0.36} width={ancho * 0.26} height={alto * 0.64} rx={2} fill={conAlfa("#ffffff", 0.08)} stroke={conAlfa("#ffffff", 0.25)} />
+            {luces !== null && luces > 0 && Array.from({ length: Math.min(6, luces) }, (_, i) => (
+                <circle key={i} cx={x0 + ancho * 0.14 + i * W * 0.035} cy={base + H * 0.035} r={Math.max(1.5, W * 0.012)} fill="#FFBF00" />
+            ))}
+        </svg>
     );
 }
 
 export function HabitatCoreWidget() {
-    const { data, loading } = useWidgetData("devices.habitat", { refreshMs: 8000 });
-    const [circadianLighting, setCircadianLighting] = useState(true);
+    const l = useLienzo("#f59e0b", "#818cf8");
+    const meteo = useMeteo(l.visible);
+    const [ha, setHa] = React.useState<ConfigHa>({ enabled: false });
+    const [ahora, setAhora] = React.useState(() => new Date());
+    React.useEffect(() => {
+        const leer = () => setHa(leerHa());
+        leer();
+        const alm = (e: StorageEvent) => { if (e.key === null || e.key === "starseed.iot.homeassistant.v1") leer(); };
+        window.addEventListener("storage", alm);
+        return () => window.removeEventListener("storage", alm);
+    }, []);
+    React.useEffect(() => {
+        if (!l.visible) return;
+        setAhora(new Date());
+        const t = window.setInterval(() => setAhora(new Date()), 5 * 60_000);
+        return () => window.clearInterval(t);
+    }, [l.visible]);
 
-    return (
-        <WidgetShell
-            title="Núcleo Habitacional"
-            subtitle="Simbiosis del Oikos"
-            icon={Home}
-            accent="#f59e0b"
-            live
-            actions={
-                <Link
-                    href="/dashboard?cat=habitat"
-                    className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer"
-                >
-                    Hábitat <ChevronRight className="size-3" />
-                </Link>
-            }
-        >
-            {(size) => {
-                if (loading && !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const d = data!;
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const cm = CIRCADIAN_META[d.circadianMode];
-                const CircIcon = cm.icon;
+    const listo = haListo(ha);
+    const hogar = useCompartido<Hogar>(listo ? `ha:${ha.url}` : null, 5 * 60_000, () => traerHogar(ha), l.visible && listo, { persistir: false });
+    const lugar = meteo.lugar;
+    const cielo = React.useMemo(() => (lugar ? luzAhora(ahora, lugar.lat, lugar.lon) : null), [lugar?.lat, lugar?.lon, ahora]); // eslint-disable-line react-hooks/exhaustive-deps
+    const m = meteo.datos;
+    const ventilar = React.useMemo(() => {
+        if (!m) return null;
+        const prox = horasDesde(m, ahora.getTime(), 3);
+        return consejoVentilar({ temp: m.ahora.temp, humedad: m.ahora.humedad, viento: m.ahora.viento, lluvia: m.ahora.lluvia }, prox.length ? Math.max(...prox.map((h) => h.probLluvia)) : 0);
+    }, [m, ahora]);
+    const casa = hogar.datos;
+    const lucesOn = casa ? casa.luces.filter((x) => x.encendido).length : null;
+    const hora = (d: Date) => d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    const diaFrac = (ahora.getHours() * 60 + ahora.getMinutes()) / 1440;
 
-                if (micro) {
-                    const avgTemp = d.rooms.reduce((a, r) => a + r.tempC, 0) / Math.max(1, d.rooms.length);
-                    return (
-                        <div className="h-full flex flex-col items-center justify-center gap-1.5">
-                            <ProgressRing
-                                value={d.energyHarmony}
-                                size={60}
-                                color="#f59e0b"
-                                sublabel="sincronía"
-                            />
-                            <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground/70">
-                                <CircIcon className="size-3" style={{ color: cm.color }} />
-                                <span style={{ color: cm.color }}>{cm.label}</span>
-                                <span className="text-muted-foreground/50">·</span>
-                                <Thermometer className="size-3 text-muted-foreground/50" />
-                                <span>{avgTemp.toFixed(1)}°C</span>
-                            </div>
-                        </div>
-                    );
-                }
+    const etiqueta = [
+        cielo ? `Luz para ahora: ${cielo.luz.nombre.toLowerCase()} (${cielo.luz.kelvin} K)${cielo.cambio ? `, ${cielo.cambio.luz.nombre.toLowerCase()} a las ${hora(cielo.cambio.en)}` : ""}` : "Sin ubicación: vacío de luz y ventilación",
+        ventilar ? `${ventilar.titulo}: ${ventilar.razon}` : meteo.error ? "Ventilar: error, el tiempo no respondió" : lugar ? "Ventilar: cargando el tiempo" : null,
+        !listo ? "Casa: Home Assistant sin conectar" : casa ? `Casa: ${casa.temperaturas[0] ? `${casa.temperaturas[0].nombre} ${casa.temperaturas[0].valor} ${casa.temperaturas[0].unidad}, ` : ""}${lucesOn} de ${casa.luces.length} luces encendidas` : hogar.error ? "Casa: error, Home Assistant no respondió" : "Casa: cargando Home Assistant",
+    ].filter(Boolean).join(". ");
 
-                const maxRooms  = size.vTier === "expanded" ? 4 : 2;
-                const maxRobots = size.vTier === "expanded" ? 3 : size.vTier === "compact" ? 1 : 2;
+    if (l.base === "micro") {
+        return (
+            <Lienzo l={l} titulo="Núcleo del Hábitat" etiqueta={`Núcleo del hábitat. ${etiqueta}`} sinCabecera>
+                <div className="grid h-full place-items-center"><Casa W={l.lado - 12} luz={cielo?.luz ?? null} altura={cielo?.altura ?? null} hora={diaFrac} luces={lucesOn} l={l} /></div>
+            </Lienzo>
+        );
+    }
 
-                return (
-                    <div className="flex flex-col gap-2.5 pt-1 h-full">
-                        {/* Modo circadiano + energyHarmony */}
-                        <div className="shrink-0 flex items-center gap-3">
-                            <ProgressRing
-                                value={d.energyHarmony}
-                                size={56}
-                                color="#f59e0b"
-                                sublabel="sincronía"
-                            />
-                            <div className="flex-1 space-y-1">
-                                <div className="flex items-center gap-1.5">
-                                    <CircIcon className="size-3.5 shrink-0" style={{ color: cm.color }} />
-                                    <span className="text-[10px] font-black" style={{ color: cm.color }}>{cm.label}</span>
-                                </div>
-                                <p className="text-[9px] text-muted-foreground/60 leading-snug">{cm.desc}</p>
-                                {/* Toggle iluminación circadiana */}
-                                <button
-                                    onClick={() => setCircadianLighting((v) => !v)}
-                                    className={cn(
-                                        "inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide rounded-full border px-2 py-0.5 transition-colors cursor-pointer",
-                                        circadianLighting
-                                            ? "border-amber-500/40 text-amber-300 bg-amber-500/10"
-                                            : "border-border/40 text-muted-foreground/50 hover:border-border/60"
-                                    )}
-                                >
-                                    <Lightbulb className="size-2.5" />
-                                    {circadianLighting ? "Circadiana ON" : "Circadiana OFF"}
-                                </button>
-                            </div>
-                        </div>
+    const bloqueLuz = (detalle: boolean) => cielo ? (
+        <div className="min-w-0" title={cielo.luz.consejo}>
+            <p className="text-[11px] uppercase tracking-[0.12em] text-white/45">Luz para ahora</p>
+            <p className="flex items-center gap-2 text-[14px] text-white/90">
+                <span aria-hidden className="size-3 shrink-0 rounded-full" style={{ background: cielo.luz.color, boxShadow: `0 0 10px ${cielo.luz.color}` }} />
+                <span className="truncate">{cielo.luz.nombre} · <span className="tabular-nums">{cielo.luz.kelvin} K</span></span>
+            </p>
+            {detalle && <p className="line-clamp-2 text-[11.5px] leading-snug text-white/55">{cielo.luz.consejo}</p>}
+            {detalle && cielo.cambio && <p className="text-[11px] text-white/45">{cielo.cambio.luz.nombre} a las {hora(cielo.cambio.en)}</p>}
+        </div>
+    ) : (
+        <p role="status" className="text-[11.5px] leading-snug text-white/55">Sin ubicación (vacío): elige tu lugar en el clima para la luz y la ventilación.</p>
+    );
 
-                        {/* Habitaciones */}
-                        {size.vTier !== "micro" && (
-                            <>
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 shrink-0">
-                                    Habitaciones
-                                </span>
-                                <div className={cn("shrink-0 grid gap-2", maxRooms > 2 ? "grid-cols-2" : "grid-cols-2")}>
-                                    {d.rooms.slice(0, maxRooms).map((room) => (
-                                        <RoomCard key={room.id} room={room} circadian={circadianLighting} />
-                                    ))}
-                                </div>
-                            </>
-                        )}
+    const bloqueVentilar = (detalle: boolean) => {
+        if (!lugar) return null;
+        if (!ventilar) return meteo.error
+            ? <p className="text-[11.5px] text-white/50">Ventilar: el tiempo no respondió (error).</p>
+            : <p className="text-[11.5px] text-white/45">Ventilar: cargando el tiempo…</p>;
+        const col = ventilar.abrir ? "#10B981" : "#60a5fa";
+        const I = ventilar.abrir ? Wind : WindArrowDown;
+        return (
+            <div className="flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-1.5" style={{ background: conAlfa(col, 0.1), boxShadow: `inset 0 0 0 1px ${conAlfa(col, 0.28)}` }} title={`${ventilar.titulo}: ${ventilar.razon}`}>
+                <I className="size-4 shrink-0" style={{ color: tinta(col, 0.3) }} aria-hidden />
+                <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px] text-white/90">{detalle && l.ancho >= 420 ? ventilar.titulo : ventilar.corto}</span>
+                    {detalle && <span className="block truncate text-[11px] text-white/55">{ventilar.razon}</span>}
+                </span>
+            </div>
+        );
+    };
 
-                        {/* Robots */}
-                        {size.vTier !== "compact" && (
-                            <div className="flex-1 min-h-0 flex flex-col gap-1">
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 shrink-0">
-                                    Robots de apoyo
-                                </span>
-                                <div className="flex-1 min-h-0">
-                                    <MiniList
-                                        items={d.robots}
-                                        max={maxRobots}
-                                        empty="Sin robots activos"
-                                        render={(robot) => <RobotRow robot={robot} />}
-                                    />
-                                </div>
-                            </div>
-                        )}
+    const bloqueCasa = (detalle: boolean) => {
+        if (!listo) return (
+            <div role="status" className="min-w-0">
+                <p className="text-[12.5px] text-white/85">Tu casa: sin conectar</p>
+                <p className="line-clamp-4 text-[11.5px] leading-snug text-white/50" title="Conecta tu Home Assistant en el Centro de Control (borde derecho), pestaña Hogar. Solo lectura, y la llave se queda en este dispositivo.">Conéctalo en el Centro de Control › Hogar (borde derecho). Solo lectura.</p>
+            </div>
+        );
+        if (!casa) return hogar.error
+            ? <p role="alert" className="text-[11.5px] leading-snug text-rose-200/85">Home Assistant no respondió (error): {hogar.error instanceof Error ? hogar.error.message : "revisa la URL, el token o CORS"}.</p>
+            : <CargandoSilueta color={l.acento} filas={2} etiqueta="Cargando tu Home Assistant…" />;
+        const temps = casa.temperaturas.slice(0, detalle ? 4 : 2);
+        return (
+            <div className="flex min-w-0 flex-col gap-1">
+                <p className="text-[11px] uppercase tracking-[0.12em] text-white/45">Tu casa</p>
+                {temps.length === 0 && casa.luces.length === 0 && <p className="text-[11.5px] text-white/55">Ni sensores de temperatura ni luces entre tus {casa.entidades} entidades.</p>}
+                <ul className="flex flex-col gap-0.5" aria-label="Temperaturas de casa">
+                    {temps.map((t) => (
+                        <li key={t.id} className="flex items-center gap-2 text-[12px] text-white/75">
+                            <Thermometer className="size-3.5 shrink-0 text-white/45" aria-hidden />
+                            <span className="min-w-0 flex-1 truncate">{t.nombre}</span>
+                            <span className="tabular-nums text-white/90">{t.valor.toLocaleString("es-ES", { maximumFractionDigits: 1 })} {t.unidad}</span>
+                        </li>
+                    ))}
+                </ul>
+                {(casa.luces.length > 0 || casa.enchufes.length > 0) && (
+                    <p className="flex flex-wrap items-center gap-x-3 text-[12px] text-white/70">
+                        {casa.luces.length > 0 && <span className="inline-flex items-center gap-1"><Lightbulb className="size-3.5 text-amber-300/80" aria-hidden /><span className="tabular-nums">{lucesOn}/{casa.luces.length}</span> luces</span>}
+                        {casa.enchufes.length > 0 && <span className="inline-flex items-center gap-1"><Plug className="size-3.5 text-white/50" aria-hidden /><span className="tabular-nums">{casa.enchufes.filter((x) => x.encendido).length}/{casa.enchufes.length}</span> enchufes</span>}
+                    </p>
+                )}
+            </div>
+        );
+    };
 
-                        {/* Compact fallback: stat tiles */}
-                        {size.vTier === "compact" && (
-                            <div className="grid grid-cols-2 gap-2 shrink-0">
-                                <StatTile
-                                    label="Habitaciones"
-                                    value={d.rooms.length}
-                                    accent="#f59e0b"
-                                    compact
-                                />
-                                <StatTile
-                                    label="Robots activos"
-                                    value={d.robots.filter((r) => r.active).length}
-                                    icon={Bot}
-                                    accent="#10b981"
-                                    compact
-                                />
-                            </div>
-                        )}
+    const hb = Math.max(80, l.alto - 64);
+
+    if (l.base === "s") {
+        return (
+            <Lienzo l={l} titulo="Núcleo del Hábitat" etiqueta={`Núcleo del hábitat. ${etiqueta}`} sinCabecera>
+                <div className="flex h-full flex-col items-center justify-center gap-1">
+                    <Casa W={Math.max(70, Math.min(l.ancho - 30, (l.alto - 44) / 0.9))} luz={cielo?.luz ?? null} altura={cielo?.altura ?? null} hora={diaFrac} luces={lucesOn} l={l} />
+                    <span className="max-w-full truncate text-[12px] text-white/80">{cielo ? `${cielo.luz.nombre} · ${cielo.luz.kelvin} K` : "Sin ubicación"}</span>
+                </div>
+            </Lienzo>
+        );
+    }
+
+    if (l.horizontal) {
+        const W = Math.max(90, Math.min(hb / 0.9, l.ancho * 0.2));
+        return (
+            <Lienzo l={l} titulo="Núcleo del Hábitat" subtitulo="Luz, aire y casa" icono={Home} etiqueta={etiqueta}>
+                <div className="flex h-full min-h-0 items-center gap-4">
+                    <Casa W={W} luz={cielo?.luz ?? null} altura={cielo?.altura ?? null} hora={diaFrac} luces={lucesOn} l={l} />
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">{bloqueLuz(true)}{bloqueVentilar(true)}</div>
+                    <div className="min-w-0 flex-1">{bloqueCasa(false)}</div>
+                </div>
+            </Lienzo>
+        );
+    }
+
+    if (l.torre) {
+        return (
+            <Lienzo l={l} titulo="Hábitat" subtitulo="Luz, aire y casa" icono={Home} etiqueta={etiqueta}>
+                <div className="flex h-full min-h-0 flex-col items-center gap-3 overflow-y-auto">
+                    <Casa W={Math.max(80, Math.min(l.ancho - 40, hb * 0.28))} luz={cielo?.luz ?? null} altura={cielo?.altura ?? null} hora={diaFrac} luces={lucesOn} l={l} />
+                    <div className="flex w-full flex-col gap-2.5">{bloqueLuz(true)}{bloqueVentilar(false)}{bloqueCasa(false)}</div>
+                </div>
+            </Lienzo>
+        );
+    }
+
+    if (l.base === "xl") {
+        const W = Math.max(120, Math.min(l.ancho * 0.36, (hb * 0.48) / 0.9));
+        return (
+            <Lienzo l={l} titulo="Núcleo del Hábitat" subtitulo="La luz, el aire y tu casa, ahora" icono={Home} etiqueta={etiqueta}>
+                <div className="flex h-full min-h-0 flex-col gap-3">
+                    <div className="flex min-h-0 items-center gap-4">
+                        <Casa W={W} luz={cielo?.luz ?? null} altura={cielo?.altura ?? null} hora={diaFrac} luces={lucesOn} l={l} />
+                        <div className="flex min-w-0 flex-1 flex-col gap-2.5">{bloqueLuz(true)}{bloqueVentilar(true)}</div>
                     </div>
-                );
-            }}
-        </WidgetShell>
+                    <div className="min-h-0 flex-1 overflow-y-auto">{bloqueCasa(true)}</div>
+                </div>
+            </Lienzo>
+        );
+    }
+
+    const W = Math.max(90, Math.min((hb - 8) / 0.9, l.ancho * 0.36));
+    return (
+        <Lienzo l={l} titulo="Núcleo del Hábitat" subtitulo={l.ancho >= 300 ? "Luz, aire y casa" : undefined} icono={Home} etiqueta={etiqueta}>
+            <div className="flex h-full min-h-0 items-center gap-4">
+                <Casa W={W} luz={cielo?.luz ?? null} altura={cielo?.altura ?? null} hora={diaFrac} luces={lucesOn} l={l} />
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
+                    {bloqueLuz(l.base === "l")}
+                    {bloqueVentilar(l.base === "l")}
+                    {l.base === "l" && bloqueCasa(false)}
+                </div>
+            </div>
+        </Lienzo>
     );
 }

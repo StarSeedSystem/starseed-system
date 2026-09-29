@@ -1,325 +1,243 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// IdeaForgeWidget — Forja de Quimeras
+// IdeaForgeWidget — Incubadora de Quimeras (rediseño Ola 0929-C)
 // ----------------------------------------------------------------
-// Combina DOS semillas de idea (selectores A y B del Códice) y forja
-// una quimera determinista: el puente creativo y el nombre derivan de
-// la combinación (no de Math.random). Lista local de ideas forjadas,
-// favoritos (★) y filtro de disciplina como lente estética. Adaptive:
-// micro muestra a ✕ b + botón forjar. Data: "creativity.ideas".
+// Un crisol: dos conceptos que chocan (la «chispa» del día, que se
+// puede barajar) y una pregunta puente. Debajo, un campo para apuntar
+// TU idea: se guarda en tus Notas rápidas con la marca #idea (mismo
+// bloc que el widget de Notas, sincronizado con la cuenta). Cada idea
+// se puede anclar, llevar a la red como propuesta (/decisiones ya
+// rellenada) o a Imaginación Intuitiva, y borrar con deshacer.
+// Estados honestos: cargando (primer montaje), vacío (aún sin ideas:
+// la chispa invita a la primera) y error del almacén local (si no se
+// puede guardar, se dice).
 // ════════════════════════════════════════════════════════════════
 
-import { useState, useMemo, useCallback } from "react";
-import Link from "next/link";
-import { Wand2, ChevronRight, Sparkles, Atom, Star, X, Shuffle } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { WidgetShell, Chip } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { IdeaForgeState, IdeaSpark } from "@/lib/widget-data";
-import { cn } from "@/lib/utils";
+import * as React from "react";
+import { Landmark, Lightbulb, Pin, PinOff, Plus, Shuffle, Sparkles, Trash2, Undo2 } from "lucide-react";
+import { useQuickNotes, readQuickNotes, type QuickNote } from "@/lib/notes/quick-notes";
+import { buildProposalLink } from "@/lib/governance/links";
+import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
+import { Lienzo, useIdSvg, useLienzo, type EstadoLienzo } from "./_catalogo/lienzo";
+import { Accion, Rot, tinta } from "./_catalogo/piezas";
+import { chispa, comoNota, diaDe, ideasDe, textoChispa, textoIdea, tituloDe, type Chispa } from "./idea-forge-partes";
 
-const ACCENT = "#ec4899";
-
-// Puentes creativos: seleccionados de forma DETERMINISTA por la combinación.
-const BRIDGES = [
-    "¿Y si la estructura de uno guiara el crecimiento del otro?",
-    "Busca el patrón compartido entre ambos sistemas.",
-    "Imagina el segundo como metáfora operativa del primero.",
-    "¿Qué emerge si los fusionas en un único organismo?",
-    "Diseña un ritual que honre la tensión entre ambos conceptos.",
-    "Traduce las reglas de uno al lenguaje del otro.",
-    "¿Qué problema del primero resuelve la lógica del segundo?",
-];
-
-// Hash determinista estable (FNV-1a simplificado) sobre la combinación.
-function comboHash(a: string, b: string): number {
-    const s = `${a}::${b}`;
-    let h = 2166136261;
-    for (let i = 0; i < s.length; i++) {
-        h ^= s.charCodeAt(i);
-        h = Math.imul(h, 16777619);
-    }
-    return Math.abs(h);
-}
-
-// Nombre de quimera derivado de las dos semillas (primeras palabras).
-function chimeraName(a: string, b: string): string {
-    const head = (x: string) => x.split(" ")[0];
-    return `${head(a)} · ${head(b)}`;
+function Crisol({ c, D, l, conNombres }: { c: Chispa; D: number; l: EstadoLienzo; conNombres: boolean }) {
+    const id = useIdSvg("crisol");
+    const cx = D / 2, cy = D / 2;
+    const R = D * 0.3;
+    const r = D * 0.13;
+    const fs = Math.max(10, D * 0.075);
+    return (
+        <svg width={D} height={D} viewBox={`0 0 ${D} ${D}`} aria-hidden className="block shrink-0 overflow-visible">
+            <defs>
+                <radialGradient id={`${id}-a`} cx="35%" cy="30%" r="75%">
+                    <stop offset="0%" stopColor={tinta(l.acento, 0.55)} />
+                    <stop offset="100%" stopColor={conAlfa(l.acento, 0.25)} />
+                </radialGradient>
+                <radialGradient id={`${id}-b`} cx="35%" cy="30%" r="75%">
+                    <stop offset="0%" stopColor={tinta(l.acento2, 0.5)} />
+                    <stop offset="100%" stopColor={conAlfa(l.acento2, 0.25)} />
+                </radialGradient>
+                <radialGradient id={`${id}-f`}>
+                    <stop offset="0%" stopColor="#ffffff" />
+                    <stop offset="30%" stopColor={tinta(l.acento, 0.3)} stopOpacity={0.9} />
+                    <stop offset="100%" stopColor={l.acento} stopOpacity={0} />
+                </radialGradient>
+            </defs>
+            {/* órbita compartida */}
+            <circle cx={cx} cy={cy} r={R} fill="none" stroke="#fff" strokeOpacity={0.08} strokeDasharray="2 5" />
+            {/* estelas hacia el centro */}
+            <path d={`M${cx - R * 0.94 + r * 0.9} ${cy - R * 0.28}Q${cx - R * 0.3} ${cy - R * 0.1} ${cx} ${cy}`} fill="none" stroke={l.acento} strokeOpacity={0.5} strokeWidth={1.2} />
+            <path d={`M${cx + R * 0.94 - r * 0.9} ${cy + R * 0.28}Q${cx + R * 0.3} ${cy + R * 0.1} ${cx} ${cy}`} fill="none" stroke={l.acento2} strokeOpacity={0.5} strokeWidth={1.2} />
+            {/* los dos conceptos, flotando a destiempo */}
+            <g className={l.animar ? "ss-flotar" : undefined} style={{ ["--ss-dur" as string]: "7s" }}>
+                <circle cx={cx - R * 0.94} cy={cy - R * 0.34} r={r} fill={`url(#${id}-a)`} />
+            </g>
+            <g className={l.animar ? "ss-flotar" : undefined} style={{ ["--ss-dur" as string]: "8s", animationDelay: "-3s" }}>
+                <circle cx={cx + R * 0.94} cy={cy + R * 0.34} r={r} fill={`url(#${id}-b)`} />
+            </g>
+            {/* la chispa */}
+            <circle cx={cx} cy={cy} r={D * 0.2} fill={`url(#${id}-f)`} className={l.animar ? "ss-respirar" : undefined}
+                style={{ ["--ss-dur" as string]: "4s", transformBox: "fill-box", transformOrigin: "center" }} />
+            {Array.from({ length: 8 }, (_, i) => {
+                const a = (i / 8) * Math.PI * 2 + 0.3;
+                const r1 = D * 0.045, r2 = D * (i % 2 ? 0.09 : 0.12);
+                return <line key={i} x1={cx + Math.cos(a) * r1} y1={cy + Math.sin(a) * r1} x2={cx + Math.cos(a) * r2} y2={cy + Math.sin(a) * r2} stroke="#fff" strokeOpacity={0.7} strokeWidth={1.1} strokeLinecap="round" />;
+            })}
+            {conNombres && (() => {
+                // Los nombres van en las esquinas libres (arriba a la izquierda y abajo a la derecha)
+                // y encogen para caber siempre dentro del dibujo.
+                const cabe = (t: string) => Math.min(fs, (D * 0.92) / Math.max(1, t.length * 0.6));
+                return (
+                    <>
+                        <text x={2} y={cabe(c.a) + 1} textAnchor="start" fill={tinta(l.acento, 0.3)} style={{ fontSize: cabe(c.a), fontWeight: 600 }}>{c.a}</text>
+                        <text x={D - 2} y={D - 3} textAnchor="end" fill={tinta(l.acento2, 0.4)} style={{ fontSize: cabe(c.b), fontWeight: 600 }}>{c.b}</text>
+                    </>
+                );
+            })()}
+        </svg>
+    );
 }
 
 export function IdeaForgeWidget() {
-    const { data, loading } = useWidgetData("creativity.ideas", { refreshMs: 30000 });
+    const l = useLienzo("#ffbf00", "#7c5cff");
+    const { notes, add, togglePin, remove } = useQuickNotes();
+    const [montado, setMontado] = React.useState(false);
+    const [vuelta, setVuelta] = React.useState(0);
+    const [borrador, setBorrador] = React.useState("");
+    const [estado, setEstado] = React.useState<{ tipo: "guardada" | "error"; texto: string } | null>(null);
+    const [borrada, setBorrada] = React.useState<QuickNote | null>(null);
+    React.useEffect(() => { setMontado(true); }, []);
+    React.useEffect(() => {
+        if (!estado && !borrada) return;
+        const t = window.setTimeout(() => { setEstado(null); setBorrada(null); }, 6000);
+        return () => window.clearTimeout(t);
+    }, [estado, borrada]);
 
-    // Semillas seleccionadas (índices en conceptPool). null = sin elegir aún.
-    const [seedA, setSeedA] = useState<string | null>(null);
-    const [seedB, setSeedB] = useState<string | null>(null);
-    // Ideas forjadas localmente (las más recientes primero)
-    const [forged, setForged] = useState<IdeaSpark[]>([]);
-    // Favoritos por id
-    const [favIds, setFavIds] = useState<Set<string>>(new Set());
-    // Filtro de disciplina (lente estética)
-    const [activeDiscipline, setActiveDiscipline] = useState<string | null>(null);
+    const c = chispa(diaDe(Date.now()), vuelta);
+    const ideas = React.useMemo(() => ideasDe(notes), [notes]);
 
-    const pool = useMemo(() => (data as IdeaForgeState | undefined)?.conceptPool ?? [], [data]);
+    const guardar = (texto: string) => {
+        const t = comoNota(texto);
+        if (!t) return;
+        const antes = readQuickNotes().length;
+        add(t);
+        // El bloc nunca lanza: si no creció, el almacén está lleno o bloqueado y hay que decirlo.
+        if (readQuickNotes().length <= antes && !readQuickNotes().some((n) => n.text === t)) {
+            setEstado({ tipo: "error", texto: "No se pudo guardar (almacén del navegador lleno o bloqueado)." });
+            return;
+        }
+        setEstado({ tipo: "guardada", texto: "Guardada en tus Notas con #idea." });
+    };
+    const enviar = (e: React.FormEvent) => { e.preventDefault(); if (borrador.trim()) { guardar(borrador); setBorrador(""); } };
+    const borrar = (n: QuickNote) => { remove(n.id); setBorrada(n); };
+    const deshacer = () => { if (borrada) { add(borrada.text); setBorrada(null); } };
 
-    // Defaults derivados del pool (deterministas) si el usuario no eligió
-    const effA = seedA ?? pool[0] ?? null;
-    const effB = seedB ?? pool[1] ?? null;
+    const etiqueta = `Incubadora de quimeras: chispa de hoy ${c.a} por ${c.b}. ${ideas.length} idea${ideas.length === 1 ? "" : "s"} guardada${ideas.length === 1 ? "" : "s"}.`;
 
-    // Preview de la quimera de la combinación actual (determinista)
-    const preview = useMemo<IdeaSpark | null>(() => {
-        if (!effA || !effB || effA === effB) return null;
-        const h = comboHash(effA, effB);
-        return {
-            id: `combo-${effA}-${effB}`,
-            a: effA,
-            b: effB,
-            prompt: BRIDGES[h % BRIDGES.length],
-            saved: false,
-        };
-    }, [effA, effB]);
+    if (!montado) {
+        return (
+            <Lienzo l={l} titulo="Incubadora de Quimeras" icono={Lightbulb} etiqueta="Incubadora de quimeras: cargando tus ideas">
+                <div role="status" className="grid h-full place-items-center text-[12px] text-white/60">Cargando tus ideas…</div>
+            </Lienzo>
+        );
+    }
 
-    const allSparks: IdeaSpark[] = useMemo(
-        () => [...forged, ...((data as IdeaForgeState | undefined)?.sparks ?? [])],
-        [forged, data]
+    const barajar = <Accion color={l.acento} alto={l.toque} icono={Shuffle} onClick={() => setVuelta((v) => v + 1)} soloIcono={l.base === "s"} etiqueta="Barajar otra chispa">Otra chispa</Accion>;
+
+    if (l.base === "micro") {
+        return (
+            <Lienzo l={l} titulo="Incubadora de Quimeras" etiqueta={etiqueta} sinCabecera>
+                <div className="relative grid h-full place-items-center">
+                    <Crisol c={c} D={l.lado - 14} l={l} conNombres={false} />
+                    <span className="absolute bottom-0 right-1 text-[12px] font-semibold tabular-nums text-white/85" aria-hidden>{ideas.length}</span>
+                </div>
+            </Lienzo>
+        );
+    }
+
+    if (l.base === "s") {
+        const D = Math.max(80, Math.min(l.ancho - 16, l.alto - l.toque - 20));
+        return (
+            <Lienzo l={l} titulo="Incubadora de Quimeras" etiqueta={etiqueta} sinCabecera>
+                <div className="flex h-full flex-col items-center justify-center gap-1">
+                    <Crisol c={c} D={D} l={l} conNombres />
+                    {barajar}
+                </div>
+            </Lienzo>
+        );
+    }
+
+    const puente = (
+        <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: tinta(l.acento, 0.3) }}>
+                {c.a} <span className="text-white/45">×</span> <span style={{ color: tinta(l.acento2, 0.4) }}>{c.b}</span>
+            </p>
+            <p className="mt-1 text-[13.5px] leading-snug text-white/90">{c.puente}</p>
+        </div>
     );
 
-    const handleForge = useCallback(() => {
-        if (!preview) return;
-        setForged((prev) => {
-            // evita duplicar exactamente la última forja idéntica
-            if (prev[0]?.id === preview.id) return prev;
-            return [{ ...preview, id: `forged-${preview.a}-${preview.b}-${prev.length}` }, ...prev];
-        });
-    }, [preview]);
+    const campo = (
+        <form onSubmit={enviar} className="flex min-w-0 flex-col gap-1">
+            <div className="ss-redondo flex min-w-0 items-center gap-1 rounded-full pl-3 pr-1" style={{ background: conAlfa(l.acento, 0.1), boxShadow: `inset 0 0 0 1px ${conAlfa(l.acento, 0.4)}`, minHeight: l.toque }}>
+                <input value={borrador} onChange={(e) => setBorrador(e.target.value)} placeholder="Apunta tu idea…" aria-label="Nueva idea (se guarda en tus Notas con #idea)"
+                    className="min-w-0 flex-1 bg-transparent py-1.5 text-[12.5px] text-white placeholder:text-white/45 focus:outline-none" />
+                <button type="submit" aria-label="Guardar la idea" className="ss-redondo grid shrink-0 cursor-pointer place-items-center rounded-full text-white transition-colors duration-200 hover:bg-white/10"
+                    style={{ width: Math.min(l.toque, 36) - 6, height: Math.min(l.toque, 36) - 6 }}>
+                    <Plus className="size-4" />
+                </button>
+            </div>
+            <div className="flex min-h-[18px] flex-wrap items-center gap-2 text-[11px]" aria-live="polite">
+                {estado && <span className={estado.tipo === "error" ? "text-amber-200" : "text-white/60"} role={estado.tipo === "error" ? "alert" : undefined}>{estado.texto}</span>}
+                {borrada && (
+                    <button type="button" onClick={deshacer} className="ss-redondo inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 text-white/80 transition-colors duration-200 hover:bg-white/10">
+                        <Undo2 aria-hidden className="size-3" />Deshacer el borrado
+                    </button>
+                )}
+            </div>
+        </form>
+    );
 
-    // Avanza B a la siguiente semilla del pool (determinista, sin random)
-    const cycleB = useCallback(() => {
-        if (pool.length < 2) return;
-        const cur = effB ?? pool[0];
-        let i = (pool.indexOf(cur) + 1) % pool.length;
-        if (pool[i] === effA) i = (i + 1) % pool.length;
-        setSeedB(pool[i]);
-    }, [pool, effA, effB]);
+    const guardarChispa = <Accion color={l.acento2} alto={l.toque} icono={Sparkles} onClick={() => guardar(textoChispa(c))} etiqueta="Guardar esta chispa como idea">Guardar chispa</Accion>;
 
-    const toggleFav = useCallback((id: string) => {
-        setFavIds((prev) => {
-            const n = new Set(prev);
-            if (n.has(id)) n.delete(id); else n.add(id);
-            return n;
-        });
-    }, []);
+    const listaIdeas = (max: number) => ideas.length === 0 ? (
+        <p className="text-[12px] leading-snug text-white/55">Aún no hay ideas (bloc vacío). La primera puede salir de esta chispa.</p>
+    ) : (
+        <ul className="flex min-h-0 flex-col gap-1.5" aria-label="Tus ideas">
+            {ideas.slice(0, max).map((n) => (
+                <li key={n.id} className="flex min-w-0 items-center gap-2">
+                    <span aria-hidden className="ss-redondo size-1.5 shrink-0 rounded-full" style={{ background: n.pinned ? l.acento : conAlfa("#ffffff", 0.4) }} />
+                    <p className="min-w-0 flex-1 truncate text-[12.5px] text-white/85" title={textoIdea(n.text)}>{textoIdea(n.text)}</p>
+                    <div className="flex shrink-0 items-center gap-1">
+                        <Accion color={l.acento} alto={Math.min(l.toque, 28)} soloIcono icono={Landmark}
+                            href={buildProposalLink("", { title: tituloDe(n.text), description: textoIdea(n.text) })}
+                            etiqueta={`Proponer a la red: ${tituloDe(n.text)}`}>Proponer</Accion>
+                        <Accion color="#ffffff" alto={Math.min(l.toque, 28)} soloIcono icono={n.pinned ? PinOff : Pin} onClick={() => togglePin(n.id)}
+                            etiqueta={n.pinned ? `Desanclar: ${tituloDe(n.text)}` : `Anclar: ${tituloDe(n.text)}`}>{n.pinned ? "Desanclar" : "Anclar"}</Accion>
+                        <Accion color="#ffffff" alto={Math.min(l.toque, 28)} soloIcono icono={Trash2} onClick={() => borrar(n)} etiqueta={`Borrar: ${tituloDe(n.text)}`}>Borrar</Accion>
+                    </div>
+                </li>
+            ))}
+        </ul>
+    );
+
+    const subtitulo = ideas.length ? `${ideas.length} idea${ideas.length === 1 ? "" : "s"} en tus Notas` : "La chispa de hoy";
+    const grande = l.base === "l" || l.base === "xl";
+    const fila = l.horizontal || l.ancho >= l.alto * 1.25 || l.base === "xl";
+    const cab = 52;
+    const D = fila ? Math.max(90, Math.min(l.alto - cab - 20, l.ancho * (l.horizontal ? 0.24 : 0.38))) : Math.max(90, Math.min(l.ancho - 28, (l.alto - cab) * 0.34));
+    const acciones = <div className="flex flex-wrap items-center gap-1.5">{barajar}{grande && guardarChispa}{grande && <Accion color={l.acento2} alto={l.toque} icono={Sparkles} href="/imaginacion" etiqueta="Abrir Imaginación Intuitiva">Imaginar</Accion>}</div>;
 
     return (
-        <WidgetShell
-            title="Forja de Quimeras"
-            subtitle="Combina dos semillas de idea"
-            icon={Atom}
-            accent={ACCENT}
-            actions={
-                <Link
-                    href="/library"
-                    className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer"
-                >
-                    Biblioteca <ChevronRight className="size-3" />
-                </Link>
-            }
-        >
-            {(size) => {
-                if (loading && !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const compact = size.vTier === "compact";
-
-                // ── MICRO: combinación actual + forjar ───────────
-                if (micro) {
-                    return (
-                        <div className="flex flex-col gap-2 pt-1 h-full">
-                            {preview ? (
-                                <div className="rounded-xl border border-pink-500/20 bg-pink-500/[0.04] px-2.5 py-2">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                        <Sparkles className="size-3 shrink-0 text-pink-400" />
-                                        <span className="text-[10px] font-black truncate min-w-0 flex-1" style={{ color: ACCENT }}>
-                                            {preview.a}
-                                        </span>
-                                        <X className="size-2.5 shrink-0 text-muted-foreground/40" />
-                                        <span className="text-[10px] font-black truncate min-w-0 flex-1" style={{ color: ACCENT }}>
-                                            {preview.b}
-                                        </span>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 text-center">
-                                    <span className="text-[10px] text-muted-foreground/60">Elige dos semillas</span>
-                                </div>
-                            )}
-                            <button
-                                onClick={handleForge}
-                                disabled={!preview}
-                                className={cn(
-                                    "w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-pink-500/30 bg-pink-500/[0.08]",
-                                    "px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-pink-300/90",
-                                    "hover:bg-pink-500/[0.15] hover:border-pink-500/50 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed",
-                                )}
-                            >
-                                <Wand2 className="size-3" />
-                                Forjar
-                            </button>
-                        </div>
-                    );
-                }
-
-                const max = size.vTier === "expanded" ? 5 : compact ? 1 : 3;
-                const visible = allSparks.slice(0, max);
-
-                return (
-                    <div className="flex flex-col gap-2.5 pt-1 h-full">
-                        {/* Selectores de semillas A y B */}
-                        <div className="shrink-0 flex items-center gap-1.5">
-                            <select
-                                value={effA ?? ""}
-                                onChange={(e) => setSeedA(e.target.value)}
-                                className="flex-1 min-w-0 rounded-lg border border-pink-500/30 bg-pink-500/[0.06] px-2 py-1.5 text-[10px] font-bold text-pink-200 cursor-pointer focus:outline-none focus:border-pink-500/60"
-                            >
-                                {pool.map((c) => <option key={c} value={c} className="bg-background text-foreground">{c}</option>)}
-                            </select>
-                            <div className="shrink-0 grid place-items-center size-6 rounded-full border border-border/40 bg-white/[0.04]">
-                                <X className="size-3 text-muted-foreground/60" />
-                            </div>
-                            <select
-                                value={effB ?? ""}
-                                onChange={(e) => setSeedB(e.target.value)}
-                                className="flex-1 min-w-0 rounded-lg border border-purple-500/30 bg-purple-500/[0.06] px-2 py-1.5 text-[10px] font-bold text-purple-200 cursor-pointer focus:outline-none focus:border-purple-500/60"
-                            >
-                                {pool.map((c) => <option key={c} value={c} className="bg-background text-foreground">{c}</option>)}
-                            </select>
-                            <button
-                                onClick={cycleB}
-                                aria-label="Rotar segunda semilla"
-                                className="shrink-0 grid place-items-center size-7 rounded-lg border border-border/40 text-muted-foreground/60 hover:border-pink-500/40 hover:text-pink-300 transition-all cursor-pointer"
-                            >
-                                <Shuffle className="size-3" />
-                            </button>
-                        </div>
-
-                        {/* Quimera resultante (preview determinista) */}
-                        <AnimatePresence mode="wait">
-                            {preview ? (
-                                <motion.div
-                                    key={preview.id}
-                                    initial={{ opacity: 0, scale: 0.97 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.97 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="shrink-0 rounded-2xl border border-pink-500/25 bg-gradient-to-br from-pink-500/[0.07] to-purple-500/[0.04] px-3 py-2.5"
-                                >
-                                    <div className="flex items-center gap-1.5 mb-1.5">
-                                        <Atom className="size-3.5 text-pink-400 shrink-0" />
-                                        <span className="text-[11px] @sm:text-xs font-black text-pink-200 truncate">
-                                            {chimeraName(preview.a, preview.b)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-start gap-1.5 rounded-lg border border-border/30 bg-white/[0.02] px-2 py-1.5">
-                                        <Sparkles className="size-3 text-pink-400/70 shrink-0 mt-0.5" />
-                                        <p className="text-[10px] @sm:text-[11px] italic leading-snug text-muted-foreground/80 line-clamp-2">
-                                            {preview.prompt}
-                                        </p>
-                                    </div>
-                                </motion.div>
-                            ) : (
-                                <div className="shrink-0 rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2.5 text-center">
-                                    <span className="text-[10px] text-muted-foreground/60">Elige dos semillas distintas para forjar.</span>
-                                </div>
-                            )}
-                        </AnimatePresence>
-
-                        {/* Botón forjar */}
-                        <button
-                            onClick={handleForge}
-                            disabled={!preview}
-                            className={cn(
-                                "shrink-0 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-pink-500/30 bg-pink-500/[0.08]",
-                                "px-3 py-2 text-[10px] font-black uppercase tracking-wider text-pink-300/90",
-                                "hover:bg-pink-500/[0.16] hover:border-pink-500/50 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed",
-                            )}
-                        >
-                            <Wand2 className="size-3.5" />
-                            Forjar quimera
-                        </button>
-
-                        {/* Filtro de disciplina */}
-                        {(data as IdeaForgeState | undefined)?.disciplines?.length && !compact ? (
-                            <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-0.5">
-                                {(data as IdeaForgeState).disciplines.map((dsc) => (
-                                    <button
-                                        key={dsc}
-                                        onClick={() => setActiveDiscipline((prev) => prev === dsc ? null : dsc)}
-                                        className="shrink-0 cursor-pointer"
-                                    >
-                                        <Chip color={activeDiscipline === dsc ? ACCENT : undefined} soft={activeDiscipline !== dsc}>
-                                            {dsc}
-                                        </Chip>
-                                    </button>
-                                ))}
-                            </div>
-                        ) : null}
-
-                        {/* Ideas forjadas (lista local) */}
-                        <div className="flex-1 min-h-0 flex flex-col gap-1.5 overflow-auto custom-scrollbar">
-                            {visible.length === 0 ? (
-                                <div className="grid place-items-center h-full text-center px-3">
-                                    <span className="text-[10px] text-muted-foreground/50">Aún no has forjado ideas. Combina dos semillas y pulsa Forjar.</span>
-                                </div>
-                            ) : (
-                                visible.map((spark) => {
-                                    const fav = favIds.has(spark.id);
-                                    return (
-                                        <motion.div
-                                            key={spark.id}
-                                            layout
-                                            initial={{ opacity: 0, y: 4 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ duration: 0.18 }}
-                                            className="shrink-0 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 flex items-center gap-2 min-w-0 hover:border-pink-500/25 transition-colors"
-                                        >
-                                            <Atom className="size-3.5 shrink-0 text-pink-400/60" />
-                                            <div className="min-w-0 flex-1">
-                                                <span className="text-[10px] font-bold truncate block text-foreground/80">
-                                                    {spark.a} <span className="text-muted-foreground/50">✕</span> {spark.b}
-                                                </span>
-                                                <span className="text-[9px] text-muted-foreground/50 truncate block line-clamp-1">{spark.prompt}</span>
-                                            </div>
-                                            <button
-                                                onClick={() => toggleFav(spark.id)}
-                                                aria-pressed={fav}
-                                                aria-label="Favorito"
-                                                className={cn(
-                                                    "shrink-0 grid place-items-center size-5 rounded-md border transition-all cursor-pointer",
-                                                    fav
-                                                        ? "border-amber-400/50 bg-amber-400/[0.15] text-amber-300"
-                                                        : "border-border/40 bg-white/[0.02] text-muted-foreground/40 hover:border-amber-400/40 hover:text-amber-300",
-                                                )}
-                                            >
-                                                <Star className={cn("size-2.5", fav && "fill-current")} />
-                                            </button>
-                                        </motion.div>
-                                    );
-                                })
-                            )}
-                        </div>
-
-                        {/* Resumen de favoritos */}
-                        {favIds.size > 0 && (
-                            <div className="shrink-0 inline-flex items-center gap-1 self-start rounded-full border border-amber-400/30 bg-amber-400/[0.08] px-2.5 py-0.5 text-[9px] font-black text-amber-300">
-                                <Star className="size-2.5 fill-current" />
-                                {favIds.size} favorita{favIds.size > 1 ? "s" : ""}
-                            </div>
-                        )}
+        <Lienzo l={l} titulo="Incubadora de Quimeras" subtitulo={subtitulo} icono={Lightbulb} etiqueta={etiqueta}>
+            {l.horizontal ? (
+                <div className="flex h-full min-h-0 items-center gap-4">
+                    <Crisol c={c} D={D} l={l} conNombres />
+                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">{puente}{campo}</div>
+                    <div className="flex w-[36%] min-w-0 flex-col justify-center gap-2"><Rot>Tus ideas</Rot>{listaIdeas(3)}</div>
+                </div>
+            ) : fila ? (
+                <div className="flex h-full min-h-0 items-center gap-4">
+                    <Crisol c={c} D={D} l={l} conNombres />
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-2.5">
+                        {puente}
+                        {acciones}
+                        {campo}
+                        {l.base === "xl" && <><Rot>Tus ideas</Rot>{listaIdeas(4)}</>}
                     </div>
-                );
-            }}
-        </WidgetShell>
+                </div>
+            ) : (
+                <div className="flex h-full min-h-0 flex-col justify-center gap-2.5">
+                    <div className={`flex gap-3 ${l.ancho < 300 ? "flex-col items-center text-center" : "items-center"}`}>
+                        <Crisol c={c} D={Math.min(D, 110)} l={l} conNombres={false} />
+                        {puente}
+                    </div>
+                    {campo}
+                    {grande ? listaIdeas(l.torre ? 3 : 2) : acciones}
+                </div>
+            )}
+        </Lienzo>
     );
 }
