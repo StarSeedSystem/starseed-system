@@ -201,7 +201,7 @@ export function ProjectSwarmWidget() {
                     <VacioHonesto icono={Hexagon} color={l.acento} compacto={l.base === "s"} llenar={false}
                         ilustracion={<PanalVacio color={l.acento} tam={l.base === "s" ? 13 : 17} />}
                         titulo="Aún no tienes proyectos"
-                        ayuda={libres ? `Tienes ${libres} tarea${libres === 1 ? "" : "s"} suelta${libres === 1 ? "" : "s"}: etiquétala con #nombre y nacerá su proyecto.` : "Etiqueta una tarea con #nombre (por ejemplo, «Preparar semilleros #huerto») y nacerá su proyecto."} />
+                        ayuda={libres ? `Tienes ${libres} tarea${libres === 1 ? "" : "s"} suelta${libres === 1 ? "" : "s"}: etiquétala con #nombre y nacerá su proyecto.` : "Etiqueta una tarea con #nombre, como «Preparar semilleros #huerto», y nacerá su proyecto."} />
                     {l.base !== "s" && campo(true)}
                 </div>
             </Lienzo>

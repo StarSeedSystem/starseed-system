@@ -44,10 +44,20 @@ vi.mock("@/utils/supabase/client", () => ({
     }),
 }));
 
+let contactos: { listo: boolean; contactos: any[]; error: string | null } = { listo: true, contactos: [], error: null };
+vi.mock("@/lib/contactos/store", () => ({ useContactos: () => ({ ...contactos, sinSesion: false, categorias: [], listas: [] }) }));
+const asignar = vi.fn((ctx: any, id: string | null) => {
+    const a = JSON.parse(localStorage.getItem("starseed.aurora.personality.active.v1") || '{"porSeccion":{}}');
+    a.porSeccion[ctx.seccion] = id ?? undefined;
+    localStorage.setItem("starseed.aurora.personality.active.v1", JSON.stringify(a));
+});
+vi.mock("@/lib/aurora/personalities", () => ({ setActivePersonality: asignar }));
+
 import { EnMarco, MEDIDAS } from "../../gen5/_catalogo/prueba-marco";
 import { _vaciarCompartidos } from "../../gen5/_catalogo/recurso";
 import { IdentityVaultWidget } from "../identity-vault-widget";
 import { UniversalLibraryWidget } from "../universal-library-widget";
+import { MentorMatchWidget } from "../mentor-match-widget";
 
 function pintar(ui: React.ReactElement, clase: ClaseTamano) {
     medida = MEDIDAS[clase];
@@ -138,5 +148,41 @@ describe("Biblioteca Universal", () => {
         localStorage.setItem("starseed.library.saved", JSON.stringify([{ id: "s1", kind: "app", title: "Red 3D", url: "/red-3d", savedAt: 1 }]));
         pintar(<UniversalLibraryWidget />, clase);
         expect(await screen.findByRole("region", { name: /1 elementos en tu biblioteca/ }, { timeout: 4000 })).toBeTruthy();
+    });
+});
+
+const persona = (id: string, nombre: string, extra: object = {}) => ({ id, nombre, relacion: "mentoria", favorito: false, actualizado: "2026-09-01T00:00:00Z", telefonos: [], correos: [], enlaces: [], categorias: [], listas: [], ...extra });
+
+describe("Mentoría Híbrida", () => {
+    beforeEach(() => { contactos = { listo: true, contactos: [], error: null }; asignar.mockClear(); });
+    it.each(TODAS)("sin mentores (%s): lo dice y ofrece añadir, con la mentora IA siempre a mano", async (clase) => {
+        pintar(<MentorMatchWidget />, clase);
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/0 personas mentoras/);
+        if (["m", "l", "xl", "panoramico", "torre"].includes(clase)) {
+            expect(screen.getByRole("link", { name: /Añadir en Contactos/ }).getAttribute("href")).toBe("/contactos?nuevo=1");
+        }
+    });
+    it("lista tus contactos de mentoría (favorito primero) con su ficha y el mensaje directo", () => {
+        contactos.contactos = [
+            persona("c1", "Sol Herrera", { actualizado: "2026-09-09T00:00:00Z" }),
+            persona("c2", "Naima Solá", { favorito: true, username: "naima", relacionDetalle: "Mediación" }),
+            { ...persona("c3", "Ana Amiga"), relacion: "amistad" },
+        ];
+        pintar(<MentorMatchWidget />, "xl");
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/2 personas mentoras, destaca Naima Solá/);
+        expect(screen.getByRole("link", { name: "Abrir la ficha de Naima Solá" }).getAttribute("href")).toBe("/contactos?c=c2");
+        expect(screen.getByRole("link", { name: "Escribir a Naima Solá" }).getAttribute("href")).toBe("/messages?to=naima");
+        expect(screen.queryByText("Ana Amiga")).toBeNull();
+    });
+    it("enciende y apaga a Aurora como mentora de Educación", async () => {
+        pintar(<MentorMatchWidget />, "l");
+        fireEvent.click(screen.getByRole("button", { name: "Hacer de Aurora tu mentora en Educación" }));
+        await screen.findByRole("button", { name: "Quitar a Aurora el modo mentora en Educación" });
+        expect(asignar).toHaveBeenCalledWith({ scope: "seccion", seccion: "educacion" }, "preset-mentora-sabia");
+    });
+    it("mientras la libreta carga, lo dice", () => {
+        contactos.listo = false;
+        pintar(<MentorMatchWidget />, "m");
+        expect(screen.getByText("Cargando tu libreta…")).toBeTruthy();
     });
 });
