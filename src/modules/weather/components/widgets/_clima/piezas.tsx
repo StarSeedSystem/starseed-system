@@ -189,9 +189,9 @@ const VIENTOS: UnidadViento[] = ["kmh", "ms", "mph", "kn"];
  * «⋯» abre una lista vertical con TODAS las acciones con su nombre completo: cambiar ubicación
  * (buscar o la tuya), °C/°F, unidad del viento, actualizar y abrir la app completa.
  */
-export function MenuClima({ info, ruta, rutaEtiqueta = "Abrir el tiempo", alActualizar, extra = [], vistaInicial = "acciones", etiquetaBoton, conUnidades = true }: {
+export function MenuClima({ info, ruta, rutaEtiqueta = "Abrir el tiempo", alActualizar, extra = [], vistaInicial = "acciones", etiquetaBoton, conUnidades = true, conUbicacion = true }: {
     info: InfoMarco; ruta?: string; rutaEtiqueta?: string; alActualizar?: () => void; extra?: AccionExtra[];
-    vistaInicial?: "acciones" | "buscar"; etiquetaBoton?: string; conUnidades?: boolean;
+    vistaInicial?: "acciones" | "buscar"; etiquetaBoton?: string; conUnidades?: boolean; conUbicacion?: boolean;
 }) {
     const [abierto, setAbierto] = React.useState(false);
     const [vista, setVista] = React.useState<"acciones" | "buscar">(vistaInicial);
@@ -230,13 +230,13 @@ export function MenuClima({ info, ruta, rutaEtiqueta = "Abrir el tiempo", alActu
             <PopoverContent align="end" className="w-72 rounded-2xl border-white/10 bg-[#0c0f24]/95 p-2 text-white shadow-2xl backdrop-blur-xl">
                 {vista === "acciones" ? (
                     <ul role="menu" aria-label="Acciones del clima" className="flex flex-col gap-0.5">
-                        {ubicacion && (
+                        {conUbicacion && ubicacion && (
                             <li className="px-3 pb-1.5 pt-1 text-[11px] text-white/55" role="none">
                                 <span className="block truncate" title={ubicacion.nombre}>{ubicacion.nombre}{ubicacion.elegida ? "" : " · por defecto"}</span>
                             </li>
                         )}
-                        <li role="none"><button role="menuitem" type="button" className={fila} onClick={() => setVista("buscar")}><Search aria-hidden className="size-4 text-white/60" />Cambiar ubicación</button></li>
-                        <li role="none"><button role="menuitem" type="button" className={fila} onClick={() => usarMia().then(() => setAbierto(false)).catch((e: Error) => setAviso(e.message))}><LocateFixed aria-hidden className="size-4 text-white/60" />Usar mi ubicación</button></li>
+                        {conUbicacion && <li role="none"><button role="menuitem" type="button" className={fila} onClick={() => setVista("buscar")}><Search aria-hidden className="size-4 text-white/60" />Cambiar ubicación</button></li>}
+                        {conUbicacion && <li role="none"><button role="menuitem" type="button" className={fila} onClick={() => usarMia().then(() => setAbierto(false)).catch((e: Error) => setAviso(e.message))}><LocateFixed aria-hidden className="size-4 text-white/60" />Usar mi ubicación</button></li>}
                         {conUnidades && (
                             <>
                                 <li role="none"><button role="menuitem" type="button" className={fila} onClick={() => fijarUnidades({ temp: unidades.temp === "c" ? "f" : "c" })}>

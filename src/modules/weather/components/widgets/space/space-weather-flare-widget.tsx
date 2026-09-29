@@ -1,171 +1,158 @@
 'use client';
-
-import React, { useMemo } from 'react';
-import { Card } from "@/components/ui/card";
-import { motion, AnimatePresence } from "framer-motion";
-import { Flame, Activity, Zap, Info, ShieldAlert, Sparkles, Sun, Timer, TrendingUp, Gauge } from "lucide-react";
-import { UnifiedSpaceWeather } from "@/modules/weather/services/space/schema";
-import { cn } from "@/lib/utils";
+/**
+ * Llamaradas solares (WEATHER_SPACE_FLARE) — Ola 0929 · paquete A.
+ *
+ * Datos REALES de NOAA SWPC / GOES: el flujo de rayos X de 6 h en escala logarítmica con las
+ * clases A-B-C-M-X, la clase de ahora y su efecto (apagones de radio, escala R), las
+ * llamaradas de los últimos 7 días y la probabilidad de llamarada C/M/X hoy combinando las
+ * regiones activas del día. Antes pintaba «A1.0» o «M1.2» inventados cuando no le pasaban datos.
+ *   micro → clase · s → clase + efecto · m → + curva de 6 h · l → + 7 días y probabilidades
+ *   xl → + regiones activas y previsión R · panorámico/torre → composiciones propias.
+ * Las props `data`/`loading` se conservan por compatibilidad y se ignoran.
+ */
+import * as React from 'react';
+import { Zap } from 'lucide-react';
+import type { UnifiedSpaceWeather } from '@/modules/weather/services/space/schema';
+import { fuenteEscalas, fuenteSol } from '@/modules/weather/datos/noaa';
+import { claseRayos, escalaR, explicarLlamarada, probabilidadCombinada } from '@/modules/weather/datos/interpretar';
+import { formateadores, useFuente } from '@/modules/weather/datos/hooks';
+import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { COLOR_CLASE, GraficaRayos, LineaLlamaradas, PildoraSeveridad } from '../_cosmos/piezas-cosmos';
+import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
 
 interface FlareWidgetProps {
+    /** Heredado: ya no se usa (el widget lee GOES por sí mismo). */
     data?: UnifiedSpaceWeather;
     loading?: boolean;
 }
 
-export const XRayFlareWidget: React.FC<FlareWidgetProps> = ({ data, loading }) => {
-    const latestFlare = useMemo(() => {
-        if (!data?.xRayFlux || data.xRayFlux.length === 0) return { classLabel: "A1.0", flux: 1e-8, timestamp: "00:00" };
-        return data.xRayFlux[data.xRayFlux.length - 1];
-    }, [data]);
+function Contenido({ info }: { info: InfoMarco }) {
+    const { base, clase } = info;
+    const sol = useFuente(fuenteSol, undefined, info.visible);
+    const escalas = useFuente(fuenteEscalas, undefined, info.visible && base === 'xl');
+    const fmt = React.useMemo(() => formateadores(), []);
+    const dia = React.useCallback((t: number) => new Intl.DateTimeFormat('es-ES', { weekday: 'short' }).format(new Date(t)).replace('.', ''), []);
+    const id = React.useId().replace(/:/g, '');
 
-    const flareClass = latestFlare.classLabel.charAt(0);
-
-    const intensity = useMemo(() => {
-        switch (flareClass) {
-            case 'X': return { factor: 1.0, color: "text-fuchsia-500", glow: "shadow-fuchsia-500/50", label: "Extreme", bg: "bg-fuchsia-500/10" };
-            case 'M': return { factor: 0.8, color: "text-rose-500", glow: "shadow-rose-500/40", label: "Strong", bg: "bg-rose-500/10" };
-            case 'C': return { factor: 0.5, color: "text-orange-500", glow: "shadow-orange-500/30", label: "Moderate", bg: "bg-orange-500/10" };
-            case 'B': return { factor: 0.3, color: "text-blue-500", glow: "shadow-blue-500/20", label: "Minor", bg: "bg-blue-500/10" };
-            default: return { factor: 0.1, color: "text-white/40", glow: "", label: "Quiet", bg: "bg-white/5" };
-        }
-    }, [flareClass]);
-
-    const history = data?.xRayFlux || [];
-
-    return (
-        <Card className="@container relative overflow-hidden w-full h-full min-h-[400px] bg-[#03060a] border border-white/10 group rounded-[2.5rem] shadow-2xl transition-all duration-700 hover:border-fuchsia-500/30">
-
-            {/* Solar Eruption Background */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className={cn(
-                    "absolute inset-0 transition-opacity duration-1000",
-                    flareClass === 'X' ? "opacity-30 bg-[radial-gradient(circle_at_50%_40%,#d946ef44,transparent_70%)]" : "opacity-10 bg-[radial-gradient(circle_at_50%_40%,#3b82f633,transparent_70%)]"
-                )} />
-
-                {/* Micro-Grid HUD */}
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[length:20px_20px]" />
-
-                {/* Logarithmic Scale Reference */}
-                <div className="absolute left-4 top-20 bottom-32 w-[1px] bg-white/5 flex flex-col justify-between py-1 text-[7px] font-black text-white/20 uppercase tracking-tighter">
-                    {['X', 'M', 'C', 'B', 'A'].map(l => <span key={l}>{l}</span>)}
-                </div>
-            </div>
-
-            {/* Main Content Interface */}
-            <div className="relative z-10 h-full p-6 flex flex-col">
-
-                {/* Header Section */}
-                <div className="flex justify-between items-start mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className={cn(
-                            "size-11 rounded-xl border flex items-center justify-center transition-all duration-500 shadow-xl",
-                            intensity.bg,
-                            "border-white/10",
-                            flareClass === 'X' && "border-fuchsia-500/40 text-fuchsia-400"
-                        )}>
-                            <Flame className={cn("size-5", flareClass === 'X' && "animate-pulse")} />
-                        </div>
-                        <div className="flex flex-col">
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 leading-none mb-1">GOES-X-RAY.v2</h2>
-                            <span className="text-sm font-bold tracking-tight text-white flex items-center gap-2 uppercase">
-                                X-Ray Flare
-                                <div className={cn("size-1 rounded-full", flareClass === 'X' ? "bg-fuchsia-500 animate-ping" : "bg-blue-400")} />
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className={cn(
-                        "px-3 py-1.5 rounded-lg border backdrop-blur-md text-[9px] font-black tracking-widest flex items-center gap-2",
-                        flareClass === 'X' ? "bg-fuchsia-500/20 border-fuchsia-500/40 text-fuchsia-300" : "bg-white/5 border-white/10 text-white/40"
-                    )}>
-                        <Activity className="size-3" />
-                        {flareClass === 'X' ? 'EXTREME EVENT' : 'NOMINAL FLUX'}
-                    </div>
-                </div>
-
-                {/* Central Value Visualization */}
-                <div className="flex-1 flex flex-col items-center justify-center relative">
-                    <div className="relative mb-6">
-                        <motion.div
-                            animate={{
-                                scale: flareClass === 'X' ? [1, 1.1, 1] : 1,
-                                opacity: flareClass === 'X' ? [0.4, 0.7, 0.4] : 0.3
-                            }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                            className={cn(
-                                "absolute inset-0 blur-[80px] rounded-full",
-                                flareClass === 'X' ? "bg-fuchsia-600" : "bg-blue-600"
-                            )}
-                        />
-                        <div className="relative flex flex-col items-center">
-                            <motion.span
-                                key={latestFlare.classLabel}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={cn(
-                                    "text-[80px] @md:text-[110px] font-black leading-none tracking-tighter drop-shadow-2xl",
-                                    flareClass === 'X' ? "text-fuchsia-400" :
-                                        flareClass === 'M' ? "text-rose-400" : "text-white"
-                                )}
-                            >
-                                {latestFlare.classLabel}
-                            </motion.span>
-                            <div className="flex items-center gap-2 mt-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
-                                <Sparkles className="size-3 text-fuchsia-400" />
-                                <span className="text-[10px] font-black tracking-[0.3em] uppercase text-white/60">
-                                    {intensity.label} Intensity
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Highly Dense Spectral History */}
-                    <div className="w-full h-24 mb-4 flex items-end gap-[2px] px-2 overflow-hidden relative">
-                        <div className="absolute inset-x-0 top-0 h-[1px] bg-white/5" />
-                        {history.map((pt: any, i: number) => {
-                            const val = Math.log10(pt.flux) + 8; // Normalized log scale
-                            const h = Math.max(8, val * 12);
-                            const isExtreme = pt.classLabel.startsWith('X');
-                            return (
-                                <motion.div
-                                    key={i}
-                                    initial={{ height: 0 }}
-                                    animate={{ height: `${h}%` }}
-                                    className={cn(
-                                        "flex-1 rounded-t-[1px] transition-all",
-                                        isExtreme ? "bg-fuchsia-500 shadow-[0_0_15px_#d946ef]" :
-                                            pt.classLabel.startsWith('M') ? "bg-rose-500/80" : "bg-blue-500/20"
-                                    )}
-                                />
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Telemetry Bottom Tray */}
-                <div className="grid grid-cols-3 gap-2 mt-4">
-                    {[
-                        { label: 'Total Flux', val: latestFlare.flux.toExponential(2), unit: 'W/m²', icon: Zap, color: 'text-yellow-400' },
-                        { label: 'Last Peak', val: /^\d{2}:\d{2}/.test(latestFlare.timestamp) ? latestFlare.timestamp : new Date(latestFlare.timestamp).toISOString().slice(11, 16), unit: 'UTC', icon: Timer, color: 'text-blue-400' },
-                        { label: 'Delta', val: '+0.12', unit: 'log', icon: TrendingUp, color: 'text-emerald-400' }
-                    ].map((m, i) => (
-                        <div key={i} className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 flex flex-col items-center justify-center transition-all hover:bg-white/[0.08] hover:border-white/10 group/item">
-                            <m.icon className={cn("size-3 mb-2 opacity-40 group-hover/item:opacity-100 transition-all", m.color)} />
-                            <div className="flex items-baseline gap-0.5">
-                                <span className="text-[11px] font-black text-white">{m.val}</span>
-                                <span className="text-[7px] font-bold text-white/30">{m.unit}</span>
-                            </div>
-                            <span className="text-[6px] font-black text-white/20 uppercase tracking-[0.2em] mt-1">{m.label}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Aesthetic Borders */}
-            <div className="absolute top-4 left-4 size-4 border-l border-t border-white/20" />
-            <div className="absolute top-4 right-4 size-4 border-r border-t border-white/20" />
-            <div className="absolute bottom-4 left-4 size-4 border-l border-b border-white/20" />
-            <div className="absolute bottom-4 right-4 size-4 border-r border-b border-white/20" />
-        </Card>
+    const espera = estadoCosmos(sol, info, 'Mirando el Sol en rayos X…');
+    if (espera) return espera;
+    const d = sol.datos!;
+    const ultimo = d.rayos[d.rayos.length - 1];
+    const cl = claseRayos(ultimo?.flujo ?? null);
+    const r = escalaR(ultimo?.flujo ?? null);
+    const color = cl ? COLOR_CLASE[cl.letra] : '#94a3b8';
+    const ahora = Date.now();
+    const ult24 = d.llamaradas.filter((l) => l.inicio > ahora - 86_400_000 && /^[MX]/.test(l.clase));
+    const pC = probabilidadCombinada(d.regiones.lista.map((x) => x.pC));
+    const pM = probabilidadCombinada(d.regiones.lista.map((x) => x.pM));
+    const pX = probabilidadCombinada(d.regiones.lista.map((x) => x.pX));
+    const refrescar = () => { sol.refrescar(); escalas.refrescar(); };
+    const cabecera = <CabeceraCosmos info={info} titulo="Llamaradas solares" subtitulo={d.satelite ? `GOES-${d.satelite} · rayos X` : undefined} icono={Zap} alActualizar={refrescar} />;
+    const sello = <SelloFuente fuente="NOAA SWPC · GOES" en={sol.en} />;
+    const efecto = r > 0 ? `Apagón de radio R${r} en el lado diurno` : 'Sin apagones de radio';
+    const insignia = (tam: number) => (
+        <div className="flex shrink-0 flex-col items-center justify-center rounded-2xl px-3 py-2" style={{ background: `${color}1f`, boxShadow: `inset 0 0 0 1px ${color}66, 0 0 24px -8px ${color}` }}
+            role="img" aria-label={cl ? `Rayos X ahora: clase ${cl.etiqueta}` : 'Sin lectura de rayos X'}>
+            <span className={`${s.cifra} font-light leading-none`} style={{ fontSize: tam, color }}>{cl?.etiqueta ?? '—'}</span>
+            <span className="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/55">ahora</span>
+        </div>
     );
-};
+    const probs = (pC !== null || pM !== null) && (
+        <ul className="grid grid-cols-3 gap-2" aria-label="Probabilidad de llamarada hoy">
+            {([['C', pC], ['M', pM], ['X', pX]] as const).map(([c, p]) => (
+                <li key={c} className="rounded-xl bg-white/[0.05] px-2 py-1.5 text-center">
+                    <span className="block text-[10px] uppercase tracking-[0.12em] text-white/50">Clase {c} hoy</span>
+                    <span className={`${s.cifra} block text-[16px] font-semibold`} style={{ color: COLOR_CLASE[c] }}>{p === null ? '—' : `${p} %`}</span>
+                </li>
+            ))}
+        </ul>
+    );
+
+    if (base === 'micro') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={cl ? `Rayos X clase ${cl.etiqueta}` : 'Sin lectura de rayos X'}>
+                <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">Rayos X</span>
+                <span className={`${s.cifra} text-[24px] font-light leading-none`} style={{ color }}>{cl?.etiqueta ?? '—'}</span>
+            </div>
+        );
+    }
+    if (base === 's') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-2 p-2 text-center">
+                {insignia(30)}
+                <span className="line-clamp-2 text-[11px] text-white/75">{efecto}</span>
+            </div>
+        );
+    }
+    const bloque = (
+        <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="text-[12px] leading-snug text-white/80">{explicarLlamarada(cl?.letra ?? null)}</p>
+            <PildoraSeveridad severidad={r >= 3 ? 'fuerte' : r >= 1 ? 'moderada' : 'calma'}>{efecto}</PildoraSeveridad>
+            {ult24.length > 0 && <p className="text-[11px] text-amber-100/90">{ult24.length} llamarada{ult24.length > 1 ? 's' : ''} M o X en 24 h (la mayor, {ult24.reduce((m, l) => ((l.flujo ?? 0) > (m.flujo ?? 0) ? l : m)).clase})</p>}
+        </div>
+    );
+    if (clase === 'panoramico') {
+        return (
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(0,1.3fr) minmax(0,1fr)' }}>
+                {insignia(28)}
+                <GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={Math.max(60, (info.alto || 130) - 20)} id={id} />
+                <div className="min-w-0 space-y-1">{cabecera}<LineaLlamaradas llamaradas={d.llamaradas} ahora={ahora} dia={dia} dias={5} /></div>
+            </div>
+        );
+    }
+    if (clase === 'torre') {
+        return (
+            <div className="flex h-full flex-col gap-3 p-3.5">
+                {cabecera}
+                <div className="flex justify-center">{insignia(36)}</div>
+                {bloque}
+                <GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={100} id={id} />
+                {probs}
+                <div className="mt-auto">{sello}</div>
+            </div>
+        );
+    }
+    if (base === 'm') {
+        return (
+            <div className="flex h-full flex-col gap-2 p-3.5">
+                {cabecera}
+                <div className="flex items-center gap-3">{insignia(26)}{bloque}</div>
+                <div className="min-h-0 flex-1"><GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={Math.max(56, (info.alto || 240) - 170)} id={id} /></div>
+            </div>
+        );
+    }
+    const regiones = d.regiones.lista.slice(0, 3);
+    return (
+        <div className="flex h-full flex-col gap-3 p-4">
+            {cabecera}
+            <div className="flex items-center gap-4">{insignia(base === 'xl' ? 40 : 32)}{bloque}</div>
+            <GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={base === 'xl' ? 110 : 88} id={id} />
+            <LineaLlamaradas llamaradas={d.llamaradas} ahora={ahora} dia={dia} />
+            {probs}
+            {base === 'xl' && regiones.length > 0 && (
+                <ul className="space-y-1" aria-label="Regiones activas de hoy">
+                    {regiones.map((x) => (
+                        <li key={x.numero} className="flex items-center gap-2 text-[12px]" title={`Región ${x.numero} en ${x.ubicacion}: ${x.manchas ?? '?'} manchas, clase magnética ${x.claseMagnetica ?? '?'}`}>
+                            <span className={`${s.cifra} w-12 font-semibold`}>{x.numero}</span>
+                            <span className="w-16 text-white/60">{x.ubicacion}</span>
+                            <span className="w-10 text-white/60">{x.claseMagnetica ?? '—'}</span>
+                            <span className="flex-1 text-right text-white/75">M {x.pM ?? '—'} % · X {x.pX ?? '—'} %</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {base === 'xl' && escalas.datos && escalas.datos.dias.length > 0 && (
+                <p className="text-[11px] text-white/60">Previsión de apagones R1-R2: {escalas.datos.dias.map((x) => `${x.probRMenor ?? '—'} %`).join(' · ')} (hoy, mañana, pasado)</p>
+            )}
+            <div className="mt-auto">{sello}</div>
+        </div>
+    );
+}
+
+export const XRayFlareWidget: React.FC<FlareWidgetProps> = () => (
+    <MarcoClima etiqueta="Llamaradas solares" acento="#fb923c" acento2="#facc15">
+        {(info) => <Contenido info={info} />}
+    </MarcoClima>
+);
+
+export default XRayFlareWidget;

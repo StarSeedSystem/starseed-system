@@ -328,3 +328,19 @@ export function probabilidadCombinada(ps: (number | null)[]): number | null {
 
 /** Resonancias de Schumann: valores de referencia medidos por la ciencia (Hz). */
 export const MODOS_SCHUMANN = [7.83, 14.3, 20.8, 27.3, 33.8] as const;
+
+/** El titular del clima espacial en una frase, con su severidad (lo que manda es lo peor). */
+export function titularCosmos(e: { g: number | null; r: number | null; s: number | null; kp: number | null; claseRayos: string | null; maxPrevistoKp: number | null }): { texto: string; severidad: Severidad } {
+    const g = Math.max(e.g ?? 0, escalaG(e.kp));
+    const r = e.r ?? 0, sR = e.s ?? 0;
+    const sevDe = (n: number): Severidad => (n >= 4 ? "extrema" : n === 3 ? "fuerte" : n === 2 ? "moderada" : n === 1 ? "menor" : "calma");
+    if (g >= 1) {
+        const lat = Math.round(lineaAuroraKp(e.kp ?? (5 + g - 1)));
+        return { texto: `Tormenta geomagnética ${nombreG(g)}: auroras posibles hacia ${lat}° de latitud magnética`, severidad: sevDe(g) };
+    }
+    if (sR >= 1) return { texto: `Tormenta de radiación S${sR}: más protones energéticos; afecta a satélites y vuelos polares`, severidad: sevDe(sR) };
+    if (r >= 1) return { texto: `Apagón de radio R${r} en el lado diurno${e.claseRayos ? ` (llamarada ${e.claseRayos})` : ""}`, severidad: sevDe(r) };
+    if ((e.maxPrevistoKp ?? 0) >= 5) return { texto: `Tranquilo ahora; se espera tormenta ${nombreG(escalaG(e.maxPrevistoKp))} en los próximos días`, severidad: "menor" };
+    if ((e.kp ?? 0) >= 4) return { texto: "Campo magnético activo, sin tormenta: auroras en latitudes altas", severidad: "menor" };
+    return { texto: "Tranquilo: sin tormentas, sin apagones de radio y sin tormenta de radiación", severidad: "calma" };
+}
