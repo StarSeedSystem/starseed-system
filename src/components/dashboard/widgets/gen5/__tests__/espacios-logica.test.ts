@@ -61,3 +61,22 @@ describe("Estudio Creativo · lógica", () => {
         expect(resumenConteo(conteoPorTipo([e("1", "presentacion")]))).toBe("1 presentación");
     });
 });
+
+import { normalizarRecursos, ordenarRecursos } from "../_catalogo/procomun";
+
+describe("Procomún · lógica", () => {
+    it("normaliza los recursos comunes y los ordena por utilidad", () => {
+        const r = normalizarRecursos([
+            { id: "a", name: "Sala", type: "Espacio", status: "En uso", assignedTo: "u2" },
+            { id: "b", name: "Taladro", status: "Disponible" },
+            { id: "c", name: "Bici", status: "En uso", assignedTo: "u1" },
+            { id: "d", name: "Batería", status: "Roto" },
+            { id: "e", name: "Horno", status: "Mantenimiento" },
+            { name: "sin id" }, null,
+        ]);
+        expect(r).toHaveLength(5);
+        expect(r.find((x) => x.id === "b")!.tipo).toBe("Recurso");
+        expect(r.find((x) => x.id === "d")!.estado).toBe("Disponible");
+        expect(ordenarRecursos(r, "u1").map((x) => x.id)).toEqual(["c", "d", "b", "a", "e"]);
+    });
+});

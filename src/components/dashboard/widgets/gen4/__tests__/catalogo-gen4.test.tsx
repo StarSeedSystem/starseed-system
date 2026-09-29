@@ -80,7 +80,19 @@ const crearCaso = vi.fn(async (input: any): Promise<any> => {
     localStorage.setItem("starseed.politics.mediation.v1", JSON.stringify(casosRed.list));
     return { ok: true, degraded: false };
 });
-vi.mock("@/lib/governance/political", () => ({ loadMediationCases: cargarCasos, createMediationCase: crearCaso }));
+let comunes: any[] = [];
+let falloComunes = false;
+const cargarComunes = vi.fn(async () => { if (falloComunes) throw new Error("sin red"); return { list: comunes, degraded: false }; });
+const guardarComun = vi.fn(async (input: any): Promise<any> => {
+    const i = comunes.findIndex((r) => r.id === input.id);
+    const e = { ...input, updatedAt: "2026-09-29T10:00:00Z" };
+    comunes = i < 0 ? [...comunes, e] : comunes.map((r, k) => (k === i ? e : r));
+    return { ok: true, degraded: false };
+});
+vi.mock("@/lib/governance/political", () => ({
+    loadMediationCases: cargarCasos, createMediationCase: crearCaso,
+    loadCommonsResources: cargarComunes, upsertCommonsResource: guardarComun, labelForUser: async () => "Alex",
+}));
 
 import { EnMarco, MEDIDAS } from "../../gen5/_catalogo/prueba-marco";
 import { _vaciarCompartidos } from "../../gen5/_catalogo/recurso";
@@ -92,6 +104,7 @@ import { CONSEJEROS } from "../elder-council-partes";
 import { RestorativeCourtWidget } from "../restorative-court-widget";
 import { MultiverseHubWidget } from "../multiverse-hub-widget";
 import { CreativeStudioWidget } from "../creative-studio-widget";
+import { BarterMarketWidget } from "../barter-market-widget";
 
 function pintar(ui: React.ReactElement, clase: ClaseTamano) {
     medida = MEDIDAS[clase];
@@ -385,5 +398,46 @@ describe("Estudio Creativo", () => {
         await vi.waitFor(() => expect(empujar).toHaveBeenCalledWith("/documento/d-nuevo"));
         expect(crearDoc).toHaveBeenCalledWith("Carta a la asamblea");
         expect(await screen.findByRole("region", { name: /1 obra \(1 documento\)\. La última: «Carta a la asamblea»/ })).toBeTruthy();
+    });
+});
+
+describe("Trueque y Procomún", () => {
+    const rec = (id: string, name: string, status: string, extra: any = {}) => ({ id, name, type: "Herramienta", status, updatedAt: "", ...extra });
+    beforeEach(() => { comunes = []; falloComunes = false; guardarComun.mockClear(); cargarComunes.mockClear(); });
+
+    it.each(TODAS)("sin recursos (%s) lo dice sin inventar anuncios", async (clase) => {
+        pintar(<BarterMarketWidget />, clase);
+        await screen.findByRole("region", { name: /aún no hay recursos comunes/ });
+    });
+
+    it("usa un recurso libre (queda a tu nombre) y devuelve lo tuyo, con el procomún real", async () => {
+        usuario = { id: "u1" };
+        comunes = [rec("r1", "Taladro", "Disponible", { notes: "en el cobertizo" }), rec("r2", "Bici de carga", "En uso", { assignedTo: "u1", assignedLabel: "Alex" }), rec("r3", "Sala", "En uso", { assignedTo: "u2", assignedLabel: "Naima" }), rec("r4", "Batería", "Mantenimiento")];
+        pintar(<BarterMarketWidget />, "xl");
+        await screen.findByRole("region", { name: /1 libre de 4 \(2 en uso, 1 en mantenimiento\)\. Tienes 1 en uso/ });
+        expect(screen.getByText(/en uso por Naima/)).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Usar «Taladro»" }));
+        await screen.findByRole("region", { name: /0 libres de 4 .*Tienes 2 en uso/ });
+        expect(guardarComun).toHaveBeenCalledWith(expect.objectContaining({ id: "r1", status: "En uso", assignedTo: "u1", assignedLabel: "Alex", notes: "en el cobertizo" }));
+        fireEvent.click(screen.getByRole("button", { name: "Devolver «Bici de carga»" }));
+        await screen.findByRole("region", { name: /1 libre de 4 .*Tienes 1 en uso/ });
+        expect(guardarComun).toHaveBeenLastCalledWith(expect.objectContaining({ id: "r2", status: "Disponible", assignedTo: null }));
+    });
+
+    it("ofrece algo al procomún", async () => {
+        usuario = { id: "u1" };
+        pintar(<BarterMarketWidget />, "l");
+        fireEvent.click(await screen.findByRole("button", { name: "Ofrecer algo al procomún" }));
+        fireEvent.change(screen.getByRole("textbox", { name: "Qué ofreces" }), { target: { value: "Escalera de 3 m" } });
+        fireEvent.change(screen.getByRole("combobox", { name: "Tipo de recurso" }), { target: { value: "Herramienta" } });
+        fireEvent.submit(screen.getByRole("form", { name: "Ofrecer al procomún" }));
+        await screen.findByRole("region", { name: /1 libre de 1/ });
+        expect(guardarComun).toHaveBeenCalledWith(expect.objectContaining({ name: "Escalera de 3 m", type: "Herramienta", status: "Disponible" }));
+    });
+
+    it("si la red no responde lo dice (error)", async () => {
+        falloComunes = true;
+        pintar(<BarterMarketWidget />, "m");
+        expect(await screen.findByRole("region", { name: /error, no se pudieron leer/ })).toBeTruthy();
     });
 });
