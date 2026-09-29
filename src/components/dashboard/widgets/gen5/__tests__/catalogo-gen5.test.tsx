@@ -20,6 +20,7 @@ import { FlowDirectorWidget } from "../flow-director-widget";
 import { ProjectSwarmWidget } from "../project-swarm-widget";
 import { IdeaForgeWidget } from "../idea-forge-widget";
 import { CryptoShieldWidget } from "../crypto-shield-widget";
+import { SerendipityLensWidget } from "../serendipity-lens-widget";
 import { QUICK_NOTES_KEY } from "@/lib/notes/quick-notes";
 import { QUICK_TASKS_KEY } from "@/lib/tasks/quick-tasks";
 import { CLAVE_SESION } from "../flow-director-partes";
@@ -194,5 +195,30 @@ describe("Escudo Ontológico", () => {
         fireEvent.click(await screen.findByRole("button", { name: /Escanear: Secretos a la vista/ }));
         expect(screen.getByText(/posibles? secretos? a la vista/)).toBeTruthy();
         expect(screen.getByRole("link", { name: /Revisar:/ }).getAttribute("href")).toBe("/seguridad");
+    });
+});
+
+describe("Lente de Serendipia", () => {
+    it.each(["micro", "s", "m", "l", "xl", "panoramico", "torre"] as ClaseTamano[])("en %s descubre algo real del OS", async (clase) => {
+        pintar(<SerendipityLensWidget />, clase);
+        expect(await screen.findByRole("region", { name: /hoy descubres «.+»/ }, { timeout: 4000 })).toBeTruthy();
+    });
+    it("«ya lo conozco» no lo vuelve a enseñar y guardar lo lleva a tu Biblioteca", async () => {
+        pintar(<SerendipityLensWidget />, "xl");
+        const region = await screen.findByRole("region", { name: /hoy descubres/ }, { timeout: 4000 });
+        const titulo = region.getAttribute("aria-label")!.match(/«(.+?)»/)![1];
+        fireEvent.click(screen.getByRole("button", { name: `Guardar ${titulo} en tu Biblioteca` }));
+        const guardados = JSON.parse(localStorage.getItem("starseed.library.saved") || "[]");
+        expect(guardados.some((g: any) => g.title === titulo)).toBe(true);
+        fireEvent.click(screen.getByRole("button", { name: `Ya conozco ${titulo}: no volver a mostrarlo` }));
+        expect(screen.getByRole("region").getAttribute("aria-label")).not.toContain(`«${titulo}»`);
+        expect(JSON.parse(localStorage.getItem("starseed.serendipia.v1")!).vistos.length).toBe(1);
+    });
+    it("la rareza se elige y se recuerda", async () => {
+        pintar(<SerendipityLensWidget />, "xl");
+        await screen.findByRole("region", { name: /hoy descubres/ }, { timeout: 4000 });
+        fireEvent.click(screen.getByRole("radio", { name: "Inesperado" }));
+        expect(screen.getByRole("radio", { name: "Inesperado" }).getAttribute("aria-checked")).toBe("true");
+        expect(JSON.parse(localStorage.getItem("starseed.serendipia.v1")!).rareza).toBe(1);
     });
 });

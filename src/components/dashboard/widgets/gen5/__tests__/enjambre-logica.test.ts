@@ -57,3 +57,26 @@ describe("Incubadora · chispas e ideas", () => {
         expect(ideas.map((n) => n.id)).toEqual(["2", "1"]);
     });
 });
+
+import { afinidad, desdeApp, desdePaquete, elegirHallazgo, type Hallazgo } from "../serendipity-lens-partes";
+
+describe("Serendipia · elección", () => {
+    const h = (id: string, etiquetas: string[]): Hallazgo => ({ id, origen: "paquete", tipo: "Widget", titulo: id, descripcion: "", href: null, externo: false, icono: "Package", color: "#fff", etiquetas });
+    const todos = [h("a", ["musica", "audio"]), h("b", ["musica"]), h("c", ["gobernanza"]), h("d", ["clima"]), h("e", [])];
+    const mias = new Set(["musica", "audio"]);
+    it("afinidad por etiquetas en común", () => {
+        expect(afinidad(todos[0], mias)).toBe(1);
+        expect(afinidad(todos[2], mias)).toBe(0);
+    });
+    it("determinista por día, respeta lo visto y la rareza", () => {
+        expect(elegirHallazgo(todos, 100, 0, new Set(), 0.5, mias)).toEqual(elegirHallazgo(todos, 100, 0, new Set(), 0.5, mias));
+        expect(elegirHallazgo(todos, 100, 0, new Set(todos.map((x) => x.id)), 0.5, mias)).toBeNull();
+        for (let d = 0; d < 20; d++) expect(elegirHallazgo(todos, d, 0, new Set(["a"]), 0.5, mias)?.id).not.toBe("a");
+    });
+    it("los paquetes «próximamente» no se ofrecen y las URL externas solo si son https", () => {
+        expect(desdePaquete({ id: "x", kind: "app", name: "X", description: "", icon: "", tags: [], payload: {}, comingSoon: true })).toBeNull();
+        expect(desdePaquete({ id: "y", kind: "repo", name: "Y", description: "", icon: "", tags: [], payload: { url: "javascript:alert(1)" } })?.href).toBeNull();
+        expect(desdePaquete({ id: "z", kind: "app", name: "Z", description: "", icon: "", tags: [], payload: { route: "/xr" } })?.href).toBe("/xr");
+        expect(desdeApp({ id: "a", name: "A", description: "", accent: "#fff", category: "sistema", open: { primary: "route", route: "/hub" }, status: "soon" }, "X")).toBeNull();
+    });
+});

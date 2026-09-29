@@ -176,7 +176,10 @@ export interface LienzoProps {
 }
 
 export function Lienzo({ l, titulo, subtitulo, icono, acciones, vivo, sinCabecera, etiqueta, className, cuerpoClassName, children }: LienzoProps) {
-    const conCabecera = !sinCabecera && l.base !== "micro";
+    // Hasta la primera medida no se pinta la composición: evita un fotograma de «micro» (y medidas
+    // negativas en los dibujos) antes de saber cuánto sitio hay.
+    const medido = l.ancho > 0 && l.alto > 0;
+    const conCabecera = medido && !sinCabecera && l.base !== "micro";
     return (
         <div
             ref={l.ref}
@@ -202,8 +205,8 @@ export function Lienzo({ l, titulo, subtitulo, icono, acciones, vivo, sinCabecer
                     espaciado={l.esp}
                 />
             )}
-            <div className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", l.esp.cuerpo, !conCabecera && (l.base === "micro" ? "p-2" : "pt-3"), cuerpoClassName)}>
-                {children}
+            <div aria-busy={!medido || undefined} className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", l.esp.cuerpo, !conCabecera && (l.base === "micro" ? "p-2" : "pt-3"), cuerpoClassName)}>
+                {medido ? children : null}
             </div>
         </div>
     );
