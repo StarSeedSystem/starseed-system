@@ -1,272 +1,231 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from "react";
-import Link from "next/link";
-import {
-    Boxes, Printer, Car, FlaskRound, Server, Tractor, CalendarClock,
-    ChevronRight, Check, Wheat, type LucideIcon,
-} from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { WidgetShell, MiniList, Chip } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { CommonsResource } from "@/lib/widget-data";
-import { cn } from "@/lib/utils";
-
 // ════════════════════════════════════════════════════════════════
-// CommonsMatrixWidget — Matriz de Patrimonio Común.
-// Disponibilidad en tiempo real de los medios de producción compartidos.
-// "Reserva por Propósito" (no se paga; se explica el propósito).
+// Patrimonio común — los medios de producción compartidos (Ola 0929, paquete B).
 // ----------------------------------------------------------------
-// Datos REALES (cuando hay): lee el catálogo de granos del procomún
-// (`grain_types`) del proyecto Supabase compartido — los granos son
-// recursos productivos comunes — junto con `seed_market` para valorar
-// cada grano en Semillas/€. Realtime: suscripción a `grain_types` y
-// `seed_market` (postgres_changes). Sin red/datos → degrada con
-// elegancia a "oikos.commons" simulado.
-// Invariante: medios de producción como procomún, acceso libre.
+// Antes: el catálogo de granos disfrazado de «recursos» y reservas de mentira, con un
+// canal en tiempo real propio. Ahora, los RECURSOS COMUNES REALES que la comunidad
+// administra en el Área Política → Ejecutivo (`loadCommonsResources`: entity_state con
+// espejo local si la nube no responde, y se dice). Usar un recurso o liberarlo es real
+// (`upsertCommonsResource`), igual que en su panel. Sin sondeo: una lectura compartida
+// (TTL 10 min). Invariante (§3): los medios de producción son procomún, acceso libre.
+//
+//   micro      → anillo: cuántos recursos están libres ahora.
+//   s          → la matriz (una celda por recurso) y «N libres de M».
+//   m          → matriz por tipo + recuento + «Gestionar».
+//   panorámico → matriz a la izquierda, uso por tipo a la derecha.   torre → en columna.
+//   l          → uso por tipo y la lista con «Usar» / «Liberar».
+//   xl         → matriz, uso por tipo, lista completa y lo que tienes en uso.
+// Estados honestos: cargando, error con reintento, copia local y vacío con «Registrar».
 // ════════════════════════════════════════════════════════════════
-const KIND_ICON: Record<CommonsResource["kind"], LucideIcon> = {
-    impresora3d: Printer, vehiculo: Car, laboratorio: FlaskRound, servidores: Server, maquinaria: Tractor,
-};
-const STATUS_META: Record<CommonsResource["status"], { label: string; color: string }> = {
-    libre: { label: "Libre", color: "#10b981" },
-    reservado: { label: "Reservado", color: "#f59e0b" },
-    mantenimiento: { label: "Mantenimiento", color: "#94a3b8" },
-};
-function eta(min: number): string {
-    if (min <= 0) return "ahora";
-    if (min < 60) return `${min} min`;
-    return `${Math.round(min / 60)} h`;
-}
 
-const INT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
-const EUR_4 = new Intl.NumberFormat("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-const DEFAULT_GRAIN = "#9FE870";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { Boxes, RefreshCw, ExternalLink, Hand, Undo2, WifiOff } from "lucide-react";
+import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../../kit";
+import { useCurrentUid } from "@/lib/widget-data/os-live";
+import { cn } from "@/lib/utils";
+import { invalidarCompartido, leerCompartido, useDatoCompartido, type ResultadoDato } from "../gen2/_paquete-b/cache-compartida";
+import { AccionB, AnilloB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
+import { CLAVE_PROCOMUN, COLOR_ESTADO_RECURSO, cargarProcomun, porTipo, type DatosProcomun, type RecursoComun } from "../gen2/_paquete-b/datos-procomun";
 
-// ── Recurso común real derivado de un grano del procomún ──
-interface GrainCommons {
-    id: string;
-    label: string;        // nombre del grano
-    emoji: string | null;
-    color: string;        // color del grano
-    seedsPer100g: number; // densidad en Semillas / 100 g
-    eurPer100g: number | null; // valor en € (si hay precio de mercado)
-}
-
-interface GrainTypeRow {
-    id: string;
-    name: string | null;
-    color: string | null;
-    emoji: string | null;
-    seeds_per_100g: number | null;
-}
-interface SeedMarketRow { day: string; seed_eur: number }
+const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
+const CLAVE = CLAVE_PROCOMUN;
+export { porTipo, COLOR_ESTADO_RECURSO };
+export type { RecursoComun };
 
 export function CommonsMatrixWidget() {
-    const supabase = useMemo(() => createClient(), []);
-    const { data: sim, loading: simLoading } = useWidgetData("oikos.commons", { refreshMs: 10000 });
-
-    const [reserved, setReserved] = useState<Record<string, boolean>>({});
-    const toggle = useCallback((id: string) => setReserved((p) => ({ ...p, [id]: !p[id] })), []);
-
-    // Datos reales (opcional): granos del procomún + precio de la Semilla.
-    const [grains, setGrains] = useState<GrainCommons[] | null>(null);
-    const [seedEur, setSeedEur] = useState<number | null>(null);
-
-    const reload = useCallback(async () => {
-        try {
-            const [grainsRes, marketRes] = await Promise.all([
-                supabase.from("grain_types").select("id, name, color, emoji, seeds_per_100g").order("name"),
-                supabase.from("seed_market").select("day, seed_eur").order("day", { ascending: false }).limit(1),
-            ]);
-            const price = (!marketRes.error && marketRes.data && marketRes.data.length)
-                ? Number((marketRes.data[0] as SeedMarketRow).seed_eur)
-                : null;
-            setSeedEur(Number.isFinite(price as number) ? price : null);
-
-            if (!grainsRes.error && grainsRes.data && grainsRes.data.length > 0) {
-                const rows = grainsRes.data as GrainTypeRow[];
-                setGrains(rows.map((g) => {
-                    const seeds = Number(g.seeds_per_100g) || 0;
-                    return {
-                        id: g.id,
-                        label: g.name?.trim() || "Grano común",
-                        emoji: g.emoji,
-                        color: g.color?.trim() || DEFAULT_GRAIN,
-                        seedsPer100g: seeds,
-                        eurPer100g: price !== null ? seeds * price : null,
-                    };
-                }));
-            } else {
-                setGrains([]);
-            }
-        } catch {
-            setGrains([]); // fallback silencioso a modo simulado
-        }
-    }, [supabase]);
-
-    useEffect(() => {
-        let alive = true;
-        void (async () => { if (alive) await reload(); })();
-        // Realtime: catálogo de granos y precio de la Semilla en vivo.
-        const ch = supabase
-            .channel("w-commons-matrix")
-            .on("postgres_changes", { event: "*", schema: "public", table: "grain_types" }, () => { void reload(); })
-            .on("postgres_changes", { event: "*", schema: "public", table: "seed_market" }, () => { void reload(); })
-            .subscribe();
-        return () => { alive = false; supabase.removeChannel(ch); };
-    }, [supabase, reload]);
-
-    const hasReal = grains !== null && grains.length > 0;
-    const loading = hasReal ? false : (simLoading || !sim);
-
+    const marco = useMarcoUnificado();
+    const { uid } = useCurrentUid();
+    const datos = useDatoCompartido<DatosProcomun>(CLAVE, cargarProcomun);
     return (
         <WidgetShell
-            title="Patrimonio Común"
-            subtitle={hasReal ? "Granos del procomún · en vivo" : "Medios de producción compartidos"}
+            title="Patrimonio común"
+            subtitle="Medios compartidos, acceso libre"
             icon={Boxes}
-            accent="#38bdf8"
-            live
-            connections={[
-                { label: "Economía", href: "https://starseed-nexus.vercel.app/#fundacion", color: "#9FE870" },
-                { label: "Comunidades", href: "/hub", color: "#38bdf8" },
-            ]}
+            bare={marco?.base === "micro"}
             actions={
-                <Link href="/hub" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
-                    Reservas <ChevronRight className="size-3" />
-                </Link>
-            }
-            footer={
-                <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
-                    {hasReal
-                        ? `Procomún del Café · ${INT_ES.format(grains!.length)} granos`
-                        : "Medios de producción · modo simulado"}
-                </p>
+                <button type="button" onClick={datos.recargar} aria-label="Actualizar el patrimonio común"
+                    className="grid size-7 cursor-pointer place-items-center rounded-full ss-redondo text-white/70 transition-colors hover:text-white">
+                    <RefreshCw className={cn("size-3.5", datos.estado === "cargando" && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                </button>
             }
         >
-            {(size) => {
-                if (loading) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const maxList = size.vTier === "expanded" ? 5 : size.vTier === "compact" ? 2 : 4;
-
-                // ── Micro ────────────────────────────────────────────────────
-                if (micro) {
-                    if (hasReal) {
-                        return (
-                            <div className="h-full grid place-items-center text-center">
-                                <div>
-                                    <div className="text-2xl font-black tabular-nums" style={{ color: DEFAULT_GRAIN }}>
-                                        {INT_ES.format(grains!.length)}
-                                    </div>
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">granos comunes</div>
-                                </div>
-                            </div>
-                        );
-                    }
-                    const free = sim!.filter((r) => r.status === "libre").length;
-                    return (
-                        <div className="h-full grid place-items-center text-center">
-                            <div>
-                                <div className="text-2xl font-black tabular-nums text-sky-400">{free}/{sim!.length}</div>
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">recursos libres</div>
-                            </div>
-                        </div>
-                    );
-                }
-
-                // ── Datos REALES: granos del procomún ─────────────────────────
-                if (hasReal) {
-                    return (
-                        <div className="pt-1 h-full">
-                            <MiniList
-                                items={grains!}
-                                max={maxList}
-                                empty="Sin granos registrados"
-                                render={(g: GrainCommons) => {
-                                    const isReserved = reserved[g.id];
-                                    return (
-                                        <div className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-sky-500/30 transition-colors">
-                                            <span className="grid place-items-center size-9 rounded-xl border shrink-0 text-base"
-                                                style={{ color: g.color, borderColor: `${g.color}40`, background: `${g.color}14` }}>
-                                                {g.emoji ? <span aria-hidden>{g.emoji}</span> : <Wheat className="size-4" />}
-                                            </span>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-[11px] @sm:text-xs font-bold truncate">{g.label}</span>
-                                                    <Chip color={g.color}>procomún</Chip>
-                                                </div>
-                                                <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/60 tabular-nums">
-                                                    <span>{INT_ES.format(g.seedsPer100g)} semillas / 100 g</span>
-                                                    {g.eurPer100g !== null && (
-                                                        <span className="shrink-0">· {EUR_4.format(g.eurPer100g)} €</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => toggle(g.id)}
-                                                title="Reserva por propósito"
-                                                className={cn(
-                                                    "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer shrink-0",
-                                                    isReserved ? "bg-sky-500/15 border-sky-500/40 text-sky-300" : "border-border/40 text-muted-foreground/70 hover:text-foreground hover:border-sky-500/40"
-                                                )}
-                                            >
-                                                {isReserved ? <><Check className="size-2.5" /> Solicitado</> : "Reservar"}
-                                            </button>
-                                        </div>
-                                    );
-                                }}
-                            />
-                        </div>
-                    );
-                }
-
-                // ── Fallback simulado (medios de producción) ──────────────────
-                return (
-                    <div className="pt-1 h-full">
-                        <MiniList
-                            items={sim!}
-                            max={maxList}
-                            empty="Sin recursos registrados"
-                            render={(r) => {
-                                const Icon = KIND_ICON[r.kind];
-                                const sm = STATUS_META[r.status];
-                                const isReserved = reserved[r.id];
-                                const canReserve = r.status !== "mantenimiento";
-                                return (
-                                    <div className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-sky-500/30 transition-colors">
-                                        <span className="grid place-items-center size-9 rounded-xl border shrink-0"
-                                            style={{ color: sm.color, borderColor: `${sm.color}40`, background: `${sm.color}14` }}>
-                                            <Icon className="size-4" />
-                                        </span>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-[11px] @sm:text-xs font-bold truncate">{r.label}</span>
-                                                <Chip color={sm.color}>{sm.label}</Chip>
-                                            </div>
-                                            <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/60">
-                                                <span className="inline-flex items-center gap-0.5"><CalendarClock className="size-3" /> {eta(r.availableInMin)}</span>
-                                                {r.queue > 0 && <span>· {r.queue} en cola</span>}
-                                                {r.priorityPurpose && size.vTier === "expanded" && <span className="truncate">· {r.priorityPurpose}</span>}
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => toggle(r.id)}
-                                            disabled={!canReserve}
-                                            title="Reserva por propósito"
-                                            className={cn(
-                                                "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
-                                                isReserved ? "bg-sky-500/15 border-sky-500/40 text-sky-300" : "border-border/40 text-muted-foreground/70 hover:text-foreground hover:border-sky-500/40"
-                                            )}
-                                        >
-                                            {isReserved ? <><Check className="size-2.5" /> Solicitado</> : "Reservar"}
-                                        </button>
-                                    </div>
-                                );
-                            }}
-                        />
-                    </div>
-                );
-            }}
+            {(size) => <Cuerpo size={size} uid={uid} datos={datos} />}
         </WidgetShell>
+    );
+}
+
+function Cuerpo({ size, uid, datos }: { size: ElementSize; uid: string | null; datos: ResultadoDato<DatosProcomun> }) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    const [enCurso, setEnCurso] = useState<string | null>(null);
+    const [aviso, setAviso] = useState<{ texto: string; ok: boolean } | null>(null);
+
+    const cambiar = useCallback((r: RecursoComun, usar: boolean) => {
+        if (!uid) { setAviso({ texto: "Entra en tu cuenta para usar un recurso común.", ok: false }); return; }
+        setEnCurso(r.id);
+        setAviso(null);
+        void (async () => {
+            try {
+                const { upsertCommonsResource, labelForUser } = await import("@/lib/governance/political");
+                const etiqueta = usar ? await labelForUser(uid) : null;
+                const res = await upsertCommonsResource({ ...r, status: usar ? "En uso" : "Disponible", assignedTo: usar ? uid : null, assignedLabel: etiqueta });
+                if (!res.ok) throw new Error("No se pudo guardar.");
+                setAviso({ texto: usar ? `«${r.name}» queda en tu uso${res.degraded ? " (guardado en este dispositivo)" : ""}.` : `«${r.name}» vuelve a estar libre.`, ok: true });
+                invalidarCompartido(CLAVE);
+                void leerCompartido(CLAVE, cargarProcomun);
+            } catch {
+                setAviso({ texto: "No se pudo cambiar el recurso ahora.", ok: false });
+            } finally {
+                setEnCurso(null);
+            }
+        })();
+    }, [uid]);
+
+    let contenido: ReactNode;
+    if (!datos.dato) {
+        contenido = datos.estado === "error"
+            ? <WidgetErrorState message={datos.error ?? "No se pudo leer el patrimonio común."} onRetry={datos.recargar} />
+            : <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "block"} />;
+    } else if (datos.dato.lista.length === 0) {
+        contenido = lienzo.base === "micro"
+            ? <a href="/network/politics" className={cn(estilosB.foco, "grid h-full place-items-center text-center text-[11px] text-white/65")}>sin recursos</a>
+            : <WidgetEmptyState icon={Boxes} title="Aún no hay recursos comunes" message="Registra herramientas, espacios o vehículos que la comunidad comparte." actionLabel="Registrar el primero" actionHref="/network/politics" accent={lienzo.acento} />;
+    } else {
+        contenido = <Composicion d={datos.dato} uid={uid} lienzo={lienzo} cambiar={cambiar} enCurso={enCurso} aviso={aviso} />;
+    }
+    return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
+}
+
+function Composicion({ d, uid, lienzo, cambiar, enCurso, aviso }: {
+    d: DatosProcomun; uid: string | null; lienzo: LienzoB; cambiar: (r: RecursoComun, usar: boolean) => void;
+    enCurso: string | null; aviso: { texto: string; ok: boolean } | null;
+}) {
+    const tipos = useMemo(() => porTipo(d.lista), [d.lista]);
+    const libres = d.lista.filter((r) => r.status === "Disponible").length;
+    const mios = d.lista.filter((r) => uid && r.assignedTo === uid);
+    const b = lienzo.base;
+    const frase = `${libres} de ${d.lista.length} recursos libres ahora`;
+    const copia = d.copiaLocal && (
+        <p className="inline-flex items-center gap-1 text-[11px] text-amber-200/80" role="status"><WifiOff className="size-3" aria-hidden /> Copia de este dispositivo: la red no respondió.</p>
+    );
+
+    if (b === "micro") {
+        return (
+            <a href="/network/politics" aria-label={`${frase}. Gestionar`} title={frase} className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}>
+                <AnilloB fraccion={d.lista.length ? libres / d.lista.length : 0} lado={72} color={COLOR_ESTADO_RECURSO.Disponible}>
+                    <text x={36} y={32} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={22} fontWeight={300}>{libres}</text>
+                    <text x={36} y={50} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,.6)" fontSize={9} fontWeight={600} letterSpacing=".08em">LIBRES</text>
+                </AnilloB>
+            </a>
+        );
+    }
+    const matriz = <Matriz lista={d.lista} uid={uid} lienzo={lienzo} etiqueta={frase} />;
+    const gestionar = <AccionB href="/network/politics" icono={ExternalLink} color={lienzo.acento2} tactil={lienzo.tactil}>Gestionar</AccionB>;
+    const avisoNodo = aviso && <p role="status" className="text-[11px]" style={{ color: aviso.ok ? "#6ee7b7" : "#fda4af" }}>{aviso.texto}</p>;
+
+    if (b === "s") return <div className="flex h-full min-h-0 flex-col gap-1.5">{matriz}<p className="text-[12px] text-white/70">{frase}</p></div>;
+    if (lienzo.clase === "panoramico") {
+        return (
+            <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.2fr)" }}>
+                {matriz}
+                <div className="flex min-w-0 flex-col gap-2"><Tipos tipos={tipos} max={3} />{gestionar}</div>
+            </div>
+        );
+    }
+    if (b === "m" && lienzo.clase !== "torre") {
+        return <div className="flex h-full min-h-0 flex-col gap-2">{matriz}<p className="text-[12px] text-white/70">{frase}</p>{copia}<div className="mt-auto">{gestionar}</div></div>;
+    }
+    const lista = (max: number) => <Lista lista={d.lista} uid={uid} lienzo={lienzo} cambiar={cambiar} enCurso={enCurso} max={max} />;
+    if (lienzo.clase === "torre" || b === "l") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2.5">
+                <Tipos tipos={tipos} max={lienzo.clase === "torre" ? 4 : 3} />
+                {lista(b === "l" ? 4 : 5)}
+                {avisoNodo}
+                {copia}
+                <div className="mt-auto">{gestionar}</div>
+            </div>
+        );
+    }
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.2fr)" }}>
+            <div className="flex min-h-0 flex-col gap-3">
+                {matriz}
+                <Tipos tipos={tipos} max={6} />
+                {copia}
+            </div>
+            <div className="flex min-h-0 flex-col gap-2.5 border-l border-white/[0.08] pl-4">
+                {mios.length > 0 && <RotuloB color={tintaB(COLOR_ESTADO_RECURSO["En uso"], 0.3)}>En tu uso: {mios.map((r) => r.name).join(", ")}</RotuloB>}
+                {lista(8)}
+                {avisoNodo}
+                <div className="mt-auto">{gestionar}</div>
+            </div>
+        </div>
+    );
+}
+
+/** Una celda por recurso, del color de su estado; las tuyas con anillo. */
+function Matriz({ lista, uid, lienzo, etiqueta }: { lista: RecursoComun[]; uid: string | null; lienzo: LienzoB; etiqueta: string }) {
+    const ordenada = [...lista].sort((a, b) => (a.type ?? "").localeCompare(b.type ?? "", "es") || a.name.localeCompare(b.name, "es")).slice(0, 60);
+    return (
+        <ul className="grid gap-1" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${lienzo.tv ? 22 : 16}px, 1fr))` }} role="img" aria-label={etiqueta}>
+            {ordenada.map((r, i) => {
+                const c = COLOR_ESTADO_RECURSO[r.status] ?? "#64748b";
+                const mio = !!uid && r.assignedTo === uid;
+                return (
+                    <li key={r.id} title={`${r.name} · ${r.type} · ${r.status}${r.assignedLabel ? ` · ${r.assignedLabel}` : ""}`}
+                        className={cn("aspect-square rounded-[5px]", estilosB.entrar)}
+                        style={{ background: r.status === "Disponible" ? `${c}` : `${c}66`, boxShadow: mio ? `0 0 0 2px #fff` : `inset 0 0 0 1px ${c}`, animationDelay: `${i * 12}ms`, opacity: r.status === "Mantenimiento" ? 0.6 : 1 }} />
+                );
+            })}
+        </ul>
+    );
+}
+
+function Tipos({ tipos, max }: { tipos: ReturnType<typeof porTipo>; max: number }) {
+    return (
+        <ul className="flex flex-col gap-1.5" aria-label="Uso por tipo">
+            {tipos.slice(0, max).map((t) => (
+                <li key={t.tipo} className="grid items-center gap-2 text-[12px]" style={{ gridTemplateColumns: "minmax(0, 6rem) minmax(0, 1fr) auto" }}>
+                    <span className="text-white/80 line-clamp-1" title={t.tipo}>{t.tipo}</span>
+                    <span className="flex h-1.5 overflow-hidden rounded-full bg-white/[0.08]" role="img" aria-label={`${t.libres} libres, ${t.enUso} en uso, ${t.mant} en mantenimiento`}>
+                        <span className={estilosB.crecer} style={{ width: `${(t.libres / t.total) * 100}%`, background: COLOR_ESTADO_RECURSO.Disponible }} />
+                        <span className={estilosB.crecer} style={{ width: `${(t.enUso / t.total) * 100}%`, background: COLOR_ESTADO_RECURSO["En uso"] }} />
+                        <span className={estilosB.crecer} style={{ width: `${(t.mant / t.total) * 100}%`, background: COLOR_ESTADO_RECURSO.Mantenimiento }} />
+                    </span>
+                    <span className="whitespace-nowrap tabular-nums text-white/60">{t.libres}/{t.total} libres</span>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+function Lista({ lista, uid, lienzo, cambiar, enCurso, max }: {
+    lista: RecursoComun[]; uid: string | null; lienzo: LienzoB; cambiar: (r: RecursoComun, usar: boolean) => void; enCurso: string | null; max: number;
+}) {
+    const orden = [...lista].sort((a, b) => Number(b.assignedTo === uid) - Number(a.assignedTo === uid) || Number(b.status === "Disponible") - Number(a.status === "Disponible"));
+    return (
+        <ul className="flex min-h-0 flex-col gap-0.5" aria-label="Recursos comunes">
+            {orden.slice(0, max).map((r) => {
+                const mio = !!uid && r.assignedTo === uid;
+                const c = COLOR_ESTADO_RECURSO[r.status] ?? "#64748b";
+                return (
+                    <li key={r.id} className={cn("flex items-center gap-2", lienzo.tactil ? "min-h-11" : "min-h-8")}>
+                        <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: c }} aria-hidden />
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-[12px] font-semibold text-white/85 line-clamp-1" title={r.name}>{r.name}</span>
+                            <span className="block text-[10px] text-white/50 line-clamp-1">{r.type} · {mio ? "en tu uso" : r.status === "En uso" && r.assignedLabel ? `lo usa ${r.assignedLabel}` : r.status.toLowerCase()}</span>
+                        </span>
+                        {mio ? (
+                            <AccionB onClick={() => cambiar(r, false)} disabled={enCurso === r.id} icono={Undo2} color={COLOR_ESTADO_RECURSO.Disponible} tactil={lienzo.tactil} aria-label={`Liberar ${r.name}`}>Liberar</AccionB>
+                        ) : r.status === "Disponible" ? (
+                            <AccionB onClick={() => cambiar(r, true)} disabled={enCurso === r.id} icono={Hand} color={lienzo.acento} tactil={lienzo.tactil} aria-label={`Usar ${r.name}`}>Usar</AccionB>
+                        ) : null}
+                    </li>
+                );
+            })}
+        </ul>
     );
 }

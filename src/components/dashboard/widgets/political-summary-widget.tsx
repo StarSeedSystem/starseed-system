@@ -1,394 +1,293 @@
 'use client';
 
-import { useState, useMemo } from "react";
+// ════════════════════════════════════════════════════════════════
+// Gobernanza directa — el pulso de tu soberanía (Ola 0929, paquete B).
+// ----------------------------------------------------------------
+// Un HEMICICLO donde cada asiento es una propuesta REAL del motor de Ontocracia
+// (`proposals` + `proposal_votes`), coloreado por su suerte: aprobadas · con tu voz ·
+// te faltan · rechazadas · caducadas. Comparte la lectura con el Ágora (misma clave de
+// caché): en la pestaña Política las dos piden UNA vez. Sin sondeo ni tiempo real.
+//
+//   micro      → anillo de tu participación con las que te faltan.
+//   s          → el hemiciclo con cuántas hay en votación.
+//   m          → hemiciclo + tres cifras + la acción que toca (votar o proponer).
+//   panorámico → hemiciclo a la izquierda, cifras y acciones a la derecha.
+//   torre      → hemiciclo arriba, cifras en columna.
+//   l          → + leyenda por grupo y el título del asiento al pasar.
+//   xl         → + tu voz en anillo y las decisiones recién resueltas.
+// Estados honestos: cargando (esqueleto), error con reintento y vacío con «Proponer».
+// ════════════════════════════════════════════════════════════════
+
+import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { Vote, Landmark, ChevronRight, ThumbsUp, ThumbsDown, Clock, Scale, Filter, Users } from "lucide-react";
-import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing, timeUntil } from "../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { LawProposal } from "@/lib/widget-data";
-import { listPartidos } from "@/data/sample-governance";
-import {
-    ResponsiveContainer, AreaChart, Area, XAxis, Tooltip,
-    BarChart, Bar, Cell,
-} from "recharts";
+import { Landmark, RefreshCw, Vote, Plus, History } from "lucide-react";
+import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../kit";
+import { useCurrentUid } from "@/lib/widget-data/os-live";
+import { cn } from "@/lib/utils";
+import { useDatoCompartido, type ResultadoDato } from "./gen2/_paquete-b/cache-compartida";
+import { cargarAgora, type DatosAgora, colorEstado, etiquetaEstado, etiquetaOpcion, resumenCivico, tiempoDe, type PropuestaViva } from "./gen2/_paquete-b/datos-civicos";
+import { HEMI, recuentoGrupos, sentar, type GrupoAsiento } from "./gen2/_paquete-b/hemiciclo";
+import { AccionB, AnilloB, RaizB, RotuloB, estilosB, tintaB, useAhoraB, useLienzoB, useVisibleB, type LienzoB } from "./gen2/_paquete-b/piezas-b";
 
-// ════════════════════════════════════════════════════════════════
-// PoliticalSummaryWidget — resumen de gobernanza directa.
-// Datos en vivo "politics.proposals". Lista por urgencia, Chip por
-// stage, barra support/threshold, deadline, voto local.
-// Adaptativo + theme-aware. Accent "#FFBF00". Link a /network/politics.
-// ════════════════════════════════════════════════════════════════
+const FAMILIA = { acento: "#dc143c", acento2: "#23d5ab" };
 
-const ACCENT = "#FFBF00";
-
-const STAGE_META: Record<LawProposal["stage"], { color: string; label: string }> = {
-    borrador:   { color: "#94a3b8", label: "Borrador"  },
-    firmas:     { color: "#38bdf8", label: "Firmas"    },
-    debate:     { color: "#a855f7", label: "Debate"    },
-    votacion:   { color: "#FFBF00", label: "Votación"  },
-    ratificada: { color: "#10b981", label: "Ratificada"},
+export const COLOR_GRUPO: Record<GrupoAsiento, string> = {
+    aprobada: "#10b981",
+    votada: "#e2e8f0",
+    pendiente: "#FFBF00",
+    rechazada: "#f43f5e",
+    caducada: "#64748b",
 };
-
-const SCOPE_LABEL: Record<LawProposal["scope"], string> = {
-    vecinal:      "Vecinal",
-    municipal:    "Municipal",
-    biorregional: "Biorregional",
-    global:       "Global",
-};
-
-type VoteState = "favor" | "contra" | null;
-type StageFilter = "todas" | LawProposal["stage"];
-
-const FILTERS: { id: StageFilter; label: string }[] = [
-    { id: "todas", label: "Todas" },
-    { id: "votacion", label: "Votación" },
-    { id: "debate", label: "Debate" },
-    { id: "firmas", label: "Firmas" },
-    { id: "ratificada", label: "Aprobadas" },
-];
-
-// Serie determinista de participación (12 ciclos) derivada del id de propuesta.
-function participationSeries(seed: string): { label: string; v: number }[] {
-    let h = 0;
-    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-    return Array.from({ length: 12 }, (_, i) => {
-        const s = Math.sin((i / 12) * Math.PI * 2 + (h % 100) / 100 * 6.28);
-        return { label: `C${i + 1}`, v: Math.round(48 + (s + 1) / 2 * 44) };
-    });
-}
-
-/** Urgencia < 48h desde el deadline en ms. */
-function isUrgent(deadlineTs: number): boolean {
-    return deadlineTs - Date.now() < 48 * 3_600_000 && deadlineTs > Date.now();
-}
-
-const listItemVariants = {
-    hidden: { opacity: 0, y: 8 },
-    visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.06, duration: 0.22 } }),
-    exit:   { opacity: 0, y: -6, transition: { duration: 0.15 } },
-};
-
-const statVariants = {
-    hidden: { opacity: 0, scale: 0.9 },
-    visible: (i: number) => ({ opacity: 1, scale: 1, transition: { delay: i * 0.08, duration: 0.25, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] } }),
+export const ETIQUETA_GRUPO: Record<GrupoAsiento, string> = {
+    aprobada: "Aprobadas",
+    votada: "Con tu voz",
+    pendiente: "Te faltan",
+    rechazada: "Rechazadas",
+    caducada: "Caducadas",
 };
 
 export function PoliticalSummaryWidget() {
-    const { data, loading } = useWidgetData("politics.proposals", { refreshMs: 6000 });
-    // Local vote overrides (optimistic UI on top of youVoted from server)
-    const [localVotes, setLocalVotes] = useState<Record<string, VoteState>>({});
-    const [filter, setFilter] = useState<StageFilter>("todas");
-
-    const proposals = data ?? [];
-
-    // Partidos para sección "coalición" en expanded
-    const topPartidos = useMemo(() => listPartidos().slice(0, 3), []);
-
-    const stats = useMemo(() => {
-        const inVoting  = proposals.filter(p => p.stage === "votacion").length;
-        const ratified  = proposals.filter(p => p.stage === "ratificada").length;
-        const youVoted  = proposals.filter(p => {
-            const lv = localVotes[p.id];
-            return lv !== undefined ? lv !== null : p.youVoted != null;
-        }).length;
-        const avgRatio = proposals.length
-            ? proposals.reduce((a, p) => a + Math.min(1, p.support / p.threshold), 0) / proposals.length
-            : 0;
-        return { inVoting, ratified, youVoted, avgRatio };
-    }, [proposals, localVotes]);
-
-    // Distribución por fase (para BarChart) + serie de participación (AreaChart).
-    const stageDist = useMemo(() => {
-        const order: LawProposal["stage"][] = ["firmas", "debate", "votacion", "ratificada"];
-        return order.map((st) => ({
-            stage: st,
-            label: STAGE_META[st].label,
-            value: proposals.filter((p) => p.stage === st).length,
-            color: STAGE_META[st].color,
-        }));
-    }, [proposals]);
-
-    const partSeries = useMemo(() => participationSeries(proposals[0]?.id ?? "seed"), [proposals]);
-
-    // Most urgent: votacion first, then by deadline (con filtro por fase)
-    const sorted = useMemo(() => {
-        const base = filter === "todas" ? proposals : proposals.filter((p) => p.stage === filter);
-        return [...base].sort((a, b) => {
-            const stageOrder = { votacion: 0, debate: 1, firmas: 2, borrador: 3, ratificada: 4 };
-            const sd = (stageOrder[a.stage] ?? 5) - (stageOrder[b.stage] ?? 5);
-            if (sd !== 0) return sd;
-            return a.deadlineTs - b.deadlineTs;
-        });
-    }, [proposals, filter]);
-
-    const topUrgent = sorted[0];
-
-    function castVote(id: string, v: VoteState) {
-        setLocalVotes(prev => ({ ...prev, [id]: prev[id] === v ? null : v }));
-    }
+    const marco = useMarcoUnificado();
+    const { uid, ready } = useCurrentUid();
+    const clave = ready ? `agora.v1.${uid ?? "anon"}` : null;
+    const cargar = useCallback(() => cargarAgora(uid), [uid]);
+    const datos = useDatoCompartido(clave, cargar);
+    const micro = marco?.base === "micro";
 
     return (
         <WidgetShell
-            title="Gobernanza Directa"
-            subtitle="Propuestas y votación"
+            title="Gobernanza directa"
+            subtitle="Tu soberanía, de un vistazo"
             icon={Landmark}
-            accent={ACCENT}
-            connections={[
-                { label: "Comunidades", href: "/hub", color: "#9FE870" },
-                { label: "Cultura", href: "/network/culture", color: "#C9A8FF" },
-                { label: "Educación", href: "/network/education", color: "#7FB8FF" },
-            ]}
-            live
+            bare={micro}
             actions={
-                <Link href="/network/politics" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
-                    Ágora <ChevronRight className="size-3" />
-                </Link>
+                <button type="button" onClick={datos.recargar} aria-label="Actualizar la gobernanza"
+                    className="grid size-7 cursor-pointer place-items-center rounded-full ss-redondo text-white/70 transition-colors hover:text-white">
+                    <RefreshCw className={cn("size-3.5", datos.estado === "cargando" && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                </button>
             }
         >
-            {(size) => {
-                if (loading && !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-
-                const micro = size.tier === "micro" || size.vTier === "micro";
-
-                // ── Micro: propuesta más urgente + barra ──────────
-                if (micro) {
-                    if (!topUrgent) return <div className="h-full grid place-items-center text-xs text-muted-foreground/50 italic">Sin propuestas</div>;
-                    const ratio = Math.min(1, topUrgent.support / topUrgent.threshold);
-                    const urgent = isUrgent(topUrgent.deadlineTs);
-                    return (
-                        <div className="h-full flex items-center gap-3 px-1">
-                            <div style={topUrgent.stage === "votacion" ? { animation: "pulse 2s infinite" } : undefined}>
-                                <ProgressRing value={ratio} size={52} stroke={5} color={STAGE_META[topUrgent.stage].color}
-                                    label={`${Math.round(ratio * 100)}%`} sublabel="apoyo" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-black line-clamp-2 leading-tight">{topUrgent.title}</p>
-                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                                    <p className="text-[9px] uppercase tracking-wide font-bold" style={{ color: STAGE_META[topUrgent.stage].color }}>
-                                        {STAGE_META[topUrgent.stage].label} · {timeUntil(topUrgent.deadlineTs)}
-                                    </p>
-                                    {urgent && (
-                                        <span className="text-[8px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-full px-1.5 py-px">URGENTE</span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                }
-
-                const maxItems = size.vTier === "expanded" ? 4 : size.vTier === "compact" ? 2 : 3;
-                const showStats = size.vTier !== "compact";
-
-                return (
-                    <div className="flex flex-col gap-2.5 pt-1 h-full">
-
-                        {/* Métricas resumen — entrada escalonada */}
-                        {showStats && (
-                            <div className="shrink-0 grid grid-cols-3 gap-1.5">
-                                {[
-                                    { label: "En votación", value: stats.inVoting, color: ACCENT, icon: Vote },
-                                    { label: "Ratificadas", value: stats.ratified, color: "#10b981", icon: Scale },
-                                    { label: "Tu voz",      value: stats.youVoted, color: "#38bdf8", icon: ThumbsUp },
-                                ].map(({ label, value, color, icon: Icon }, i) => (
-                                    <motion.div key={label}
-                                        custom={i}
-                                        variants={statVariants}
-                                        initial="hidden"
-                                        animate="visible"
-                                        className="rounded-xl border border-border/40 bg-white/[0.02] px-2 py-1.5 flex flex-col items-center gap-0.5">
-                                        <Icon className="size-3.5" style={{ color }} />
-                                        <span className="text-base font-black tabular-nums" style={{ color }}>{value}</span>
-                                        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60 text-center leading-tight">{label}</span>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Barra de consenso global */}
-                        {showStats && (
-                            <div className="shrink-0">
-                                <ProgressBar value={stats.avgRatio} label="Consenso medio" showPct color={ACCENT} height={5} />
-                            </div>
-                        )}
-
-                        {/* Mini-gráficas de gobernanza (recharts) — solo si hay alto */}
-                        {size.vTier === "expanded" && (
-                            <div className="shrink-0 grid grid-cols-2 gap-2">
-                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2 pt-1.5 pb-1">
-                                    <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-0.5">Participación cívica</p>
-                                    <div className="h-12">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={partSeries} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-                                                <defs>
-                                                    <linearGradient id="ps-part" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="0%" stopColor={ACCENT} stopOpacity={0.5} />
-                                                        <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <XAxis dataKey="label" hide />
-                                                <Tooltip cursor={false} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 10, padding: "2px 6px" }}
-                                                    labelStyle={{ display: "none" }} formatter={(v: number) => [`${v}%`, "Participa"]} />
-                                                <Area type="monotone" dataKey="v" stroke={ACCENT} strokeWidth={2} fill="url(#ps-part)" />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2 pt-1.5 pb-1">
-                                    <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-0.5">Propuestas por fase</p>
-                                    <div className="h-12">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={stageDist} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-                                                <XAxis dataKey="label" hide />
-                                                <Tooltip cursor={{ fill: "hsl(var(--muted)/0.2)" }} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 10, padding: "2px 6px" }}
-                                                    labelStyle={{ fontWeight: 700 }} formatter={(v: number) => [v, "propuestas"]} />
-                                                <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-                                                    {stageDist.map((d) => <Cell key={d.stage} fill={d.color} />)}
-                                                </Bar>
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Sección Partidos (solo expanded) */}
-                        {size.vTier === "expanded" && topPartidos.length > 0 && (
-                            <div className="shrink-0 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2">
-                                <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Partidos</p>
-                                <div className="flex flex-col gap-1">
-                                    {topPartidos.map((p) => (
-                                        <Link key={p.slug} href={`/partido/${p.slug}`}
-                                            className="flex items-center gap-2 hover:bg-white/[0.04] rounded-lg px-1 py-0.5 transition-colors cursor-pointer group">
-                                            <span className="size-2 rounded-full shrink-0" style={{ background: p.accent }} />
-                                            <span className="text-[10px] font-bold truncate flex-1 group-hover:text-foreground transition-colors text-muted-foreground/80">{p.name}</span>
-                                            <span className="text-[9px] font-semibold text-muted-foreground/50 shrink-0 tabular-nums">
-                                                <Users className="size-2.5 inline mr-0.5" />{p.members.toLocaleString("es-ES")}
-                                            </span>
-                                            <ChevronRight className="size-2.5 shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
-                                        </Link>
-                                    ))}
-                                </div>
-                                {/* Coalición */}
-                                {topPartidos[0]?.coalitions?.[0] && (
-                                    <p className="mt-1.5 text-[8px] text-muted-foreground/50 font-semibold">
-                                        Coalición: {topPartidos[0].coalitions.map(c => c.name).join(" · ")}
-                                    </p>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Filtro por fase legislativa — con AnimatePresence en el trigger */}
-                        {size.tier !== "compact" && (
-                            <div className="shrink-0 flex items-center gap-1 overflow-x-auto custom-scrollbar pb-0.5">
-                                <Filter className="size-3 shrink-0 text-muted-foreground/50" />
-                                {FILTERS.map((f) => {
-                                    const c = f.id === "todas" ? proposals.length : proposals.filter((p) => p.stage === f.id).length;
-                                    return (
-                                        <button key={f.id} onClick={() => setFilter(f.id)}
-                                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer ${filter === f.id ? "bg-amber-500/20 border-amber-500/45 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:border-amber-500/30"}`}>
-                                            {f.label}{c > 0 && <span className="opacity-60"> {c}</span>}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* Lista de propuestas — animada con AnimatePresence */}
-                        <div className="flex-1 min-h-0">
-                            <AnimatePresence mode="popLayout">
-                                <MiniList
-                                    key={filter}
-                                    items={sorted}
-                                    max={maxItems}
-                                    empty="Sin propuestas activas"
-                                    render={(p, idx) => {
-                                        const stageInfo = STAGE_META[p.stage];
-                                        const ratio = Math.min(1, p.support / p.threshold);
-                                        const effectiveVote = localVotes[p.id] !== undefined ? localVotes[p.id] : (p.youVoted ?? null);
-                                        const canVote = p.stage === "votacion" || p.stage === "debate";
-                                        const urgent = isUrgent(p.deadlineTs);
-                                        const isVoting = p.stage === "votacion";
-                                        return (
-                                            <motion.div
-                                                key={p.id}
-                                                custom={idx}
-                                                variants={listItemVariants}
-                                                initial="hidden"
-                                                animate="visible"
-                                                exit="exit"
-                                                whileHover={{ scale: 1.005 }}
-                                                className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-amber-500/20 transition-colors overflow-hidden"
-                                                style={isVoting ? { boxShadow: `0 0 0 1px ${stageInfo.color}22` } : undefined}
-                                            >
-                                                {/* Enlace al área de política (partes no-voto) */}
-                                                <Link href="/network/politics" className="block px-2.5 pt-2 pb-1 cursor-pointer">
-                                                    {/* Fila 1: título + chip stage + urgente */}
-                                                    <div className="flex items-start gap-2">
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="text-[11px] @sm:text-xs font-bold line-clamp-2 leading-snug">{p.title}</p>
-                                                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                                                <span style={isVoting ? { animation: "pulse 2s infinite" } : undefined}>
-                                                                    <Chip color={stageInfo.color}>{stageInfo.label}</Chip>
-                                                                </span>
-                                                                <span className="text-[9px] text-muted-foreground/60 font-semibold">{SCOPE_LABEL[p.scope]}</span>
-                                                                {urgent && (
-                                                                    <span className="text-[8px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-full px-1.5 py-px">URGENTE</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        {/* Deadline */}
-                                                        <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground/60">
-                                                            <Clock className="size-2.5" />{timeUntil(p.deadlineTs)}
-                                                        </span>
-                                                    </div>
-
-                                                    {/* Barra support/threshold */}
-                                                    <div className="mt-1.5">
-                                                        <ProgressBar value={ratio} color={stageInfo.color} height={4} />
-                                                        <div className="flex items-center justify-between mt-0.5">
-                                                            <span className="text-[8px] text-muted-foreground/50 font-bold">
-                                                                {p.support.toLocaleString()} / {p.threshold.toLocaleString()}
-                                                            </span>
-                                                            <span className="text-[8px] font-black tabular-nums" style={{ color: stageInfo.color }}>
-                                                                {Math.round(ratio * 100)}%
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </Link>
-
-                                                {/* Botones de voto (si aplica) — fuera del Link */}
-                                                {canVote && (
-                                                    <div className="px-2.5 pb-2 flex items-center gap-1.5">
-                                                        <button
-                                                            onClick={() => castVote(p.id, "favor")}
-                                                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${effectiveVote === "favor" ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" : "border-border/40 text-muted-foreground/60 hover:border-emerald-500/30 hover:text-emerald-400"}`}
-                                                        >
-                                                            <ThumbsUp className="size-2.5" /> A favor
-                                                        </button>
-                                                        <button
-                                                            onClick={() => castVote(p.id, "contra")}
-                                                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${effectiveVote === "contra" ? "bg-rose-500/20 border-rose-500/40 text-rose-300" : "border-border/40 text-muted-foreground/60 hover:border-rose-500/30 hover:text-rose-400"}`}
-                                                        >
-                                                            <ThumbsDown className="size-2.5" /> En contra
-                                                        </button>
-                                                        {effectiveVote && (
-                                                            <span className="ml-auto text-[8px] font-bold uppercase tracking-wide"
-                                                                style={{ color: effectiveVote === "favor" ? "#10b981" : "#f43f5e" }}>
-                                                                Votado
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </motion.div>
-                                        );
-                                    }}
-                                />
-                            </AnimatePresence>
-                        </div>
-                    </div>
-                );
-            }}
+            {(size) => <Cuerpo size={size} datos={datos} />}
         </WidgetShell>
+    );
+}
+
+function Cuerpo({ size, datos }: { size: ElementSize; datos: ResultadoDato<DatosAgora> }) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    const ahora = useAhoraB(60_000, visible);
+    const lista = useMemo(() => datos.dato?.propuestas ?? [], [datos.dato]);
+    const res = useMemo(() => resumenCivico(lista, ahora ?? undefined), [lista, ahora]);
+
+    let contenido: ReactNode;
+    if (!datos.dato || !ahora) {
+        contenido = datos.estado === "error"
+            ? <WidgetErrorState message={datos.error ?? "No se pudo leer la gobernanza."} onRetry={datos.recargar} />
+            : <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "block"} />;
+    } else if (lista.length === 0) {
+        contenido = lienzo.base === "micro"
+            ? <Link href="/decisiones?nueva=1" aria-label="Sin decisiones todavía. Proponer" className={cn(estilosB.foco, "grid h-full place-items-center text-[12px] font-semibold text-white/70")}>Proponer</Link>
+            : <WidgetEmptyState icon={Landmark} title="Aún no hay decisiones en tu red" message="La soberanía empieza con una propuesta: cualquiera puede abrirla." actionLabel="Proponer" actionHref="/decisiones?nueva=1" accent={lienzo.acento} />;
+    } else {
+        contenido = <Composicion lista={lista} res={res} ahora={ahora} lienzo={lienzo} />;
+    }
+    return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
+}
+
+type Resumen = ReturnType<typeof resumenCivico>;
+
+function Composicion({ lista, res, ahora, lienzo }: { lista: PropuestaViva[]; res: Resumen; ahora: number; lienzo: LienzoB }) {
+    const [foco, setFoco] = useState<PropuestaViva | null>(null);
+    const grupos = useMemo(() => recuentoGrupos(lista), [lista]);
+    const b = lienzo.base;
+
+    if (b === "micro") {
+        const lado = 72;
+        const etiqueta = res.abiertas
+            ? `Has votado ${res.votadas} de ${res.abiertas} votaciones abiertas; te faltan ${res.porVotar}`
+            : "Sin votaciones abiertas";
+        return (
+            <Link href="/network/politics" aria-label={etiqueta} title={etiqueta} className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}>
+                <AnilloB fraccion={res.participacion ?? 0} lado={lado} color={res.porVotar ? COLOR_GRUPO.pendiente : COLOR_GRUPO.aprobada}>
+                    <text x={lado / 2} y={lado / 2 - 4} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={22} fontWeight={300}>{res.porVotar}</text>
+                    <text x={lado / 2} y={lado / 2 + 14} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,.6)" fontSize={9} fontWeight={600} letterSpacing=".08em">TE FALTAN</text>
+                </AnilloB>
+            </Link>
+        );
+    }
+
+    const hemiciclo = <Hemiciclo lista={lista} res={res} lienzo={lienzo} onFoco={setFoco} />;
+    const cifras = <Cifras res={res} lienzo={lienzo} vertical={lienzo.clase === "torre"} />;
+    const acciones = <Acciones res={res} lienzo={lienzo} conHistorial={b === "l" || b === "xl"} />;
+
+    if (b === "s") {
+        return (
+            <Link href="/network/politics" aria-label={`${res.abiertas} propuestas en votación; te faltan ${res.porVotar}. Abrir el Ágora`} className={cn(estilosB.foco, "flex h-full items-center rounded-[14px]")}>
+                {hemiciclo}
+            </Link>
+        );
+    }
+    if (lienzo.clase === "panoramico") {
+        return (
+            <div className="grid h-full min-h-0 items-center gap-3" style={{ gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)" }}>
+                <div className="min-h-0">{hemiciclo}</div>
+                <div className="flex min-w-0 flex-col gap-2">{cifras}{acciones}</div>
+            </div>
+        );
+    }
+    if (b === "m") {
+        return <div className="flex h-full min-h-0 flex-col gap-2">{hemiciclo}{cifras}<div className="mt-auto">{acciones}</div></div>;
+    }
+    const pie = <Pie foco={foco} ahora={ahora} />;
+    if (b === "l") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2">
+                {hemiciclo}
+                <Leyenda grupos={grupos} />
+                {pie}
+                {cifras}
+                <div className="mt-auto">{acciones}</div>
+            </div>
+        );
+    }
+    // xl
+    const resueltas = lista.filter((p) => p.estado !== "open").slice(0, 4);
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 1fr)" }}>
+            <div className="flex min-h-0 flex-col gap-2">
+                {hemiciclo}
+                <Leyenda grupos={grupos} />
+                {pie}
+            </div>
+            <div className="flex min-h-0 flex-col gap-3 border-l border-white/[0.08] pl-4">
+                <div className="flex items-center gap-3">
+                    <AnilloB fraccion={res.participacion ?? 0} lado={lienzo.tv ? 84 : 68} color={res.porVotar ? COLOR_GRUPO.pendiente : COLOR_GRUPO.aprobada}
+                        etiqueta={res.participacion === null ? "Sin votaciones abiertas" : `Tu voz en el ${Math.round(res.participacion * 100)} % de las abiertas`}>
+                        <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={lienzo.tv ? 20 : 16} fontWeight={600}>
+                            {res.participacion === null ? "—" : `${Math.round(res.participacion * 100)}%`}
+                        </text>
+                    </AnilloB>
+                    <div className="min-w-0">
+                        <RotuloB>Tu voz</RotuloB>
+                        <p className="text-[13px] leading-snug text-white/80">
+                            {res.abiertas === 0 ? "No hay nada en votación ahora." : res.porVotar === 0 ? "Has votado todo lo abierto." : `Te faltan ${res.porVotar} de ${res.abiertas}.`}
+                        </p>
+                    </div>
+                </div>
+                {cifras}
+                {resueltas.length > 0 && (
+                    <div className="flex min-h-0 flex-col gap-1">
+                        <RotuloB>Recién resueltas</RotuloB>
+                        <ul className="flex flex-col gap-1" aria-label="Decisiones recién resueltas">
+                            {resueltas.map((p) => (
+                                <li key={p.id} className="flex items-center gap-2 text-[12px]">
+                                    <span className="size-2 shrink-0 rounded-full" style={{ background: colorEstado(p.estado) }} aria-hidden />
+                                    <span className="min-w-0 flex-1 text-white/80 line-clamp-1" title={p.titulo}>{p.titulo}</span>
+                                    <span className="shrink-0 whitespace-nowrap text-[11px]" style={{ color: tintaB(colorEstado(p.estado), 0.35) }}>
+                                        {etiquetaEstado(p.estado)}{p.ganadora ? ` · ${etiquetaOpcion(p, p.ganadora)}` : ""}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                <div className="mt-auto">{acciones}</div>
+            </div>
+        </div>
+    );
+}
+
+function Hemiciclo({ lista, res, lienzo, onFoco }: { lista: PropuestaViva[]; res: Resumen; lienzo: LienzoB; onFoco: (p: PropuestaViva | null) => void }) {
+    const sentados = useMemo(() => sentar(lista), [lista]);
+    const pulsos = lienzo.nivel !== "ligero";
+    const suelo = `hemi${useId().replace(/:/g, "")}`;
+    let latidos = 0;
+    return (
+        <svg viewBox={`0 0 ${HEMI.ancho} ${HEMI.alto}`} className="block h-auto max-h-full w-full" role="img"
+            aria-label={`Hemiciclo de ${lista.length} decisiones: ${res.abiertas} en votación, ${res.porVotar} te faltan`}
+            onMouseLeave={() => onFoco(null)}>
+            <defs>
+                <radialGradient id={suelo} cx="50%" cy="100%" r="70%">
+                    <stop offset="0%" stopColor={lienzo.acento} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor={lienzo.acento} stopOpacity={0} />
+                </radialGradient>
+            </defs>
+            <path d={`M ${HEMI.cx - HEMI.rMax - 6} ${HEMI.cy} A ${HEMI.rMax + 6} ${HEMI.rMax + 6} 0 0 1 ${HEMI.cx + HEMI.rMax + 6} ${HEMI.cy} Z`} fill={`url(#${suelo})`} />
+            <line x1={HEMI.cx - HEMI.rMax - 6} y1={HEMI.cy + 0.5} x2={HEMI.cx + HEMI.rMax + 6} y2={HEMI.cy + 0.5} stroke="#fff" strokeOpacity={0.12} />
+            {sentados.map(({ p, asiento, grupo }) => {
+                const c = COLOR_GRUPO[grupo];
+                const hueco = grupo === "pendiente";
+                const late = hueco && pulsos && latidos++ < 6;
+                return (
+                    <circle key={p.id} cx={asiento.x} cy={asiento.y} r={asiento.r}
+                        fill={hueco ? "transparent" : c} fillOpacity={grupo === "caducada" ? 0.55 : 0.92}
+                        stroke={c} strokeWidth={hueco ? Math.max(1, asiento.r * 0.35) : 0}
+                        className={late ? estilosB.latido : undefined}
+                        style={{ animationDelay: late ? `${(latidos % 6) * 0.35}s` : undefined }}
+                        onMouseEnter={() => onFoco(p)}>
+                        <title>{`${p.titulo} · ${ETIQUETA_GRUPO[grupo]}`}</title>
+                    </circle>
+                );
+            })}
+            <text x={HEMI.cx} y={HEMI.cy - 16} textAnchor="middle" fill="#fff" fontSize={lienzo.base === "s" ? 26 : 22} fontWeight={300} style={{ fontVariantNumeric: "tabular-nums" }}>{res.abiertas}</text>
+            <text x={HEMI.cx} y={HEMI.cy - 3} textAnchor="middle" fill="rgba(255,255,255,.6)" fontSize={7.5} fontWeight={600} letterSpacing=".12em">EN VOTACIÓN</text>
+        </svg>
+    );
+}
+
+function Leyenda({ grupos }: { grupos: Record<GrupoAsiento, number> }) {
+    return (
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] tabular-nums text-white/65" aria-label="Leyenda del hemiciclo">
+            {(Object.keys(ETIQUETA_GRUPO) as GrupoAsiento[]).filter((g) => grupos[g] > 0).map((g) => (
+                <li key={g} className="inline-flex items-center gap-1.5">
+                    <span className="size-2 rounded-full" style={g === "pendiente" ? { boxShadow: `inset 0 0 0 1.5px ${COLOR_GRUPO[g]}` } : { background: COLOR_GRUPO[g] }} aria-hidden />
+                    {ETIQUETA_GRUPO[g]} <b className="font-semibold text-white/85">{grupos[g]}</b>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+function Pie({ foco, ahora }: { foco: PropuestaViva | null; ahora: number }) {
+    return (
+        <p className="min-h-[1.25rem] text-[12px] text-white/70 line-clamp-1" aria-live="polite">
+            {foco ? (
+                <><b className="font-semibold text-white">{foco.titulo}</b> · {foco.estado === "open" ? `quedan ${tiempoDe(foco, ahora).texto}` : etiquetaEstado(foco.estado)}</>
+            ) : (
+                <span className="text-white/45">Pasa por un asiento para ver su propuesta</span>
+            )}
+        </p>
+    );
+}
+
+function Cifras({ res, lienzo, vertical }: { res: Resumen; lienzo: LienzoB; vertical?: boolean }) {
+    const items = [
+        { n: res.porVotar, etiqueta: "te faltan", color: COLOR_GRUPO.pendiente },
+        { n: res.aprobadas30, etiqueta: "aprobadas · 30 d", color: COLOR_GRUPO.aprobada },
+        { n: res.rechazadas30, etiqueta: "rechazadas · 30 d", color: COLOR_GRUPO.rechazada },
+    ];
+    return (
+        <dl className={cn("grid gap-2", vertical ? "grid-cols-1" : "grid-cols-3")}>
+            {items.map((it) => (
+                <div key={it.etiqueta} className={cn("min-w-0", vertical && "flex items-baseline gap-2")}>
+                    <dt className="sr-only">{it.etiqueta}</dt>
+                    <dd className={cn("font-light tabular-nums text-white", lienzo.tv ? "text-[30px]" : "text-[24px]")} style={{ lineHeight: 1 }}>{it.n}</dd>
+                    <span className="mt-0.5 block text-[11px] leading-tight" style={{ color: tintaB(it.color, 0.35) }} aria-hidden>{it.etiqueta}</span>
+                </div>
+            ))}
+        </dl>
+    );
+}
+
+function Acciones({ res, lienzo, conHistorial }: { res: Resumen; lienzo: LienzoB; conHistorial?: boolean }) {
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            {res.porVotar > 0
+                ? <AccionB href="/network/politics" icono={Vote} color={COLOR_GRUPO.pendiente} tono="llena" tactil={lienzo.tactil}>Votar ahora</AccionB>
+                : <AccionB href="/decisiones?nueva=1" icono={Plus} color={lienzo.acento} tono="llena" tactil={lienzo.tactil}>Proponer</AccionB>}
+            {res.porVotar > 0 && <AccionB href="/decisiones?nueva=1" icono={Plus} color={lienzo.acento} tactil={lienzo.tactil}>Proponer</AccionB>}
+            {conHistorial && <AccionB href="/mi-actividad" icono={History} color={lienzo.acento2} tactil={lienzo.tactil}>Mi actividad</AccionB>}
+        </div>
     );
 }

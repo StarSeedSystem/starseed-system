@@ -1,56 +1,43 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-    BrainCircuit, Pause, Search, Zap, Loader2, Check, X, ChevronLeft, type LucideIcon,
-} from "lucide-react";
-import { WidgetShell, ProgressRing, ProgressBar } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import { cn } from "@/lib/utils";
-
 // ════════════════════════════════════════════════════════════════
-// AstrauraCortexWidget — Córtex / Exocórtex (IA).
+// Córtex Astraura — lo que tu exocórtex ve ahora (Ola 0929, paquete B).
 // ----------------------------------------------------------------
-// PROFUNDIZACIÓN (esta versión):
-//   • Sugerencias con CONFIANZA (barra) derivada de forma determinista.
-//   • Aceptar / Descartar cada sugerencia (estado local) → desaparece de
-//     la lista y suma al contador de acciones gestionadas.
-//   • Filtro por tipo (pausa / investigar / acción / todas).
-//   • Vista de escenario: al pulsar una sugerencia se abre un panel con
-//     detalle, factores y acciones (aceptar / descartar / volver).
-//   • Tareas de fondo con progreso (recharts no necesario aquí).
-// Invariante: amplificar cognición; el exocórtex sirve al usuario.
+// Antes: sugerencias inventadas («pausa», «investigar») con confianzas de adorno. Ahora,
+// AVISOS REALES derivados de lo que el OS ya sabe de ti (y comparte por caché con los demás
+// widgets, sin peticiones propias extra): votaciones que te faltan, delegaciones que caducan,
+// la Semilla moviéndose y el mérito que espera aval. Más la franja REAL de los cinco
+// sistemas de esta neurona (LLM · Astraura · Voz · Cerebro · Señales) que abre su
+// configuración. Invariante (§3): el Exocórtex es tuyo y te sirve a ti.
+//
+//   micro      → el orbe con cuántos avisos hay.
+//   s          → orbe + el aviso más importante.
+//   m          → la lista de avisos con su acción y «Hablar con Astraura».
+//   panorámico → orbe · avisos · sistemas, en una fila.   torre → en columna.
+//   l          → + los cinco sistemas de la neurona.
+//   xl         → orbe grande, todos los avisos y los sistemas con su valor.
+// Estados honestos: cargando, error con reintento y vacío («todo en calma»).
 // ════════════════════════════════════════════════════════════════
 
-type Kind = "pausa" | "investigar" | "accion";
-const kindIcon: Record<Kind, LucideIcon> = { pausa: Pause, investigar: Search, accion: Zap };
-const kindColor: Record<Kind, string> = { pausa: "#38bdf8", investigar: "#a78bfa", accion: "#10b981" };
-const kindLabel: Record<Kind, string> = { pausa: "Pausa", investigar: "Investigar", accion: "Acción" };
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { BrainCircuit, Vote, Network, Sprout, Award, MessageCircle, X, type LucideIcon } from "lucide-react";
+import { WidgetShell, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../../kit";
+import { useCurrentUid } from "@/lib/widget-data/os-live";
+import { cn } from "@/lib/utils";
+import { useDatoCompartido } from "./_paquete-b/cache-compartida";
+import { cargarAgora, cargarDelegaciones, type DatosAgora, type DatosDelegacion } from "./_paquete-b/datos-civicos";
+import { cargarMercado, type DatosMercado } from "./_paquete-b/datos-economia";
+import { cargarMerito, type DatosMerito } from "./_paquete-b/datos-merito";
+import { avisosCortex, type AvisoCortex, type TipoAviso } from "./_paquete-b/cortex";
+import { AccionB, RaizB, RotuloB, estilosB, tintaB, useAhoraB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
-const FILTERS: { id: Kind | "all"; label: string }[] = [
-    { id: "all", label: "Todas" },
-    { id: "pausa", label: "Pausa" },
-    { id: "investigar", label: "Estudio" },
-    { id: "accion", label: "Acción" },
-];
-
-// hash determinista local para confianza por id (sin Math.random).
-function confOf(id: string): number {
-    let h = 2166136261;
-    for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
-    return 0.55 + ((h >>> 0) / 4294967295) * 0.42;
-}
-function detailOf(kind: Kind): { drivers: string[]; rationale: string } {
-    if (kind === "pausa") return { rationale: "Tu carga cognitiva acumulada sugiere un descanso breve para sostener la calidad de decisión.", drivers: ["carga cognitiva ↑", "sesión prolongada", "ritmo circadiano"] };
-    if (kind === "investigar") return { rationale: "Detecté una propuesta relevante para tus delegaciones que aún no has revisado.", drivers: ["afinidad temática", "votación próxima", "fuentes nuevas"] };
-    return { rationale: "Una acción de bajo coste con alto impacto en el procomún está disponible ahora.", drivers: ["excedente disponible", "ventana óptima", "consenso vecinal"] };
-}
+const FAMILIA = { acento: "#22d3ee", acento2: "#7c5cff" };
+const ICONO: Record<TipoAviso, LucideIcon> = { voto: Vote, delegacion: Network, mercado: Sprout, merito: Award };
+const COLOR: Record<TipoAviso, string> = { voto: "#ff5c7a", delegacion: "#23d5ab", mercado: "#10b981", merito: "#a78bfa" };
 
 /** Valores REALES abreviados de los 5 sistemas de la neurona (A149). */
-interface RealSystems { llm: string; astraura: string; voz: string; cerebro: string; senales: string }
-
-const SYSTEM_STRIP: ReadonlyArray<readonly [tab: string, label: string, key: keyof RealSystems, color: string]> = [
+interface Sistemas { llm: string; astraura: string; voz: string; cerebro: string; senales: string }
+const FRANJA: ReadonlyArray<readonly [pestana: string, etiqueta: string, clave: keyof Sistemas, color: string]> = [
     ["llm", "LLM", "llm", "#22d3ee"],
     ["astraura", "Astraura", "astraura", "#fbbf24"],
     ["openvoice", "Voz", "voz", "#e879f9"],
@@ -58,33 +45,21 @@ const SYSTEM_STRIP: ReadonlyArray<readonly [tab: string, label: string, key: key
     ["senales", "Señales", "senales", "#34d399"],
 ];
 
-export function AstrauraCortexWidget() {
-    const { data, loading } = useWidgetData("ai.astraura", { refreshMs: 4000 });
-    const [filter, setFilter] = useState<Kind | "all">("all");
-    const [resolved, setResolved] = useState<Record<string, "accept" | "dismiss">>({});
-    const [openId, setOpenId] = useState<string | null>(null);
-
-    const managed = useMemo(() => Object.keys(resolved).length, [resolved]);
-
-    // ── ESTADO REAL de los sistemas de la neurona (A149 · pendientes) ─────────
-    // Las sugerencias de arriba siguen siendo simuladas (useWidgetData), pero
-    // esta franja lee la resolución REAL de la capa neurona×personalidad —
-    // el escritorio era la única superficie de la SPEC con cobertura cero.
-    // Import PEREZOSO dentro del efecto: no arrastra personalities/engine-registry
-    // al chunk del escritorio (mismo patrón que /cuenta y la paleta de comandos).
-    const [real, setReal] = useState<RealSystems | null>(null);
+/** Resolución real de la capa neurona×personalidad (import perezoso; si falta, no se pinta). */
+function useSistemas(): Sistemas | null {
+    const [s, setS] = useState<Sistemas | null>(null);
     useEffect(() => {
-        let alive = true;
-        let off: (() => void) | null = null;
+        let vivo = true;
+        let soltar: (() => void) | null = null;
         void (async () => {
             try {
                 const mod = await import("@/lib/astraura/neuron-persona-systems");
-                const compute = () => {
+                const calcular = () => {
                     try {
                         const r = mod.resolvePersonaSystems(mod.ALL_PERSONAS, undefined, null);
                         const cerradas = Object.values(r.senales.porAntena).filter((x) => !x.enabled || !x.salida).length;
-                        if (!alive) return;
-                        setReal({
+                        if (!vivo) return;
+                        setS({
                             llm: r.llm.modelo || r.llm.fuente || "Auto",
                             astraura: r.astraura.modo === "fija" ? "Fija" : "Auto",
                             voz: String(r.voz.motor),
@@ -93,169 +68,205 @@ export function AstrauraCortexWidget() {
                         });
                     } catch { /* best-effort */ }
                 };
-                compute();
-                off = mod.subscribeNeuronPersona(compute);
-            } catch { /* módulo no disponible: la franja simplemente no se pinta */ }
+                calcular();
+                soltar = mod.subscribeNeuronPersona(calcular);
+            } catch { /* módulo no disponible */ }
         })();
-        return () => { alive = false; off?.(); };
+        return () => { vivo = false; soltar?.(); };
     }, []);
+    return s;
+}
 
-    /** Abre la ventana de sistemas en la pestaña pedida (drawer global A149). */
-    const openSystems = (tab: string) => {
-        void import("@/lib/astraura/config-ui").then((m) => m.openAstrauraConfig(tab)).catch(() => { /* */ });
-    };
+function abrirSistemas(pestana: string) {
+    void import("@/lib/astraura/config-ui").then((m) => m.openAstrauraConfig(pestana)).catch(() => { /* */ });
+}
+
+export function AstrauraCortexWidget() {
+    const marco = useMarcoUnificado();
+    const { uid, ready } = useCurrentUid();
+    const u = uid ?? "anon";
+    const cA = useCallback(() => cargarAgora(uid), [uid]);
+    const cD = useCallback(() => cargarDelegaciones(uid), [uid]);
+    const cM = useCallback(() => cargarMerito(uid), [uid]);
+    const agora = useDatoCompartido<DatosAgora>(ready ? `agora.v1.${u}` : null, cA);
+    const delegacion = useDatoCompartido<DatosDelegacion>(ready ? `delegacion.v1.${u}` : null, cD, { ttlMs: 15 * 60_000 });
+    const mercado = useDatoCompartido<DatosMercado>("mercado.v1", cargarMercado);
+    const merito = useDatoCompartido<DatosMerito>(ready ? `merito.v1.${u}` : null, cM, { ttlMs: 30 * 60_000 });
+    const sistemas = useSistemas();
+    const fuentes = [agora, delegacion, mercado, merito];
+    const cargando = fuentes.every((f) => f.estado === "cargando");
+    const fallo = fuentes.every((f) => f.estado === "error");
+    const recargar = useCallback(() => { agora.recargar(); delegacion.recargar(); mercado.recargar(); merito.recargar(); }, [agora, delegacion, mercado, merito]);
 
     return (
-        <WidgetShell title="Córtex Astraura" subtitle="Tu exocórtex" icon={BrainCircuit} accent="#8b5cf6" live>
-            {(size) => {
-                if (loading || !data) return <div className="pt-2 h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const micro = size.tier === "micro" || size.vTier === "micro";
-
-                const visible = data.suggestions
-                    .filter((s) => !resolved[s.id])
-                    .filter((s) => filter === "all" || s.kind === filter);
-                const opened = data.suggestions.find((s) => s.id === openId) ?? null;
-
-                const resolve = (id: string, v: "accept" | "dismiss") => {
-                    setResolved((p) => ({ ...p, [id]: v }));
-                    setOpenId((o) => (o === id ? null : o));
-                };
-
-                return (
-                    <div className="flex flex-col gap-3 pt-1 h-full">
-                        {/* Cabecera: carga + atención */}
-                        <div className="flex items-center gap-3">
-                            <ProgressRing value={data.cognitiveLoad} size={micro ? 60 : 70} color="#8b5cf6"
-                                label={`${Math.round(data.cognitiveLoad * 100)}%`} sublabel="carga" />
-                            {!micro && (
-                                <div className="min-w-0 flex-1">
-                                    <div className="text-[10px] uppercase tracking-wider font-black text-violet-300/70">Atención</div>
-                                    <p className="text-xs @sm:text-sm font-semibold leading-snug line-clamp-2">{data.attention}</p>
-                                    <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground/70">
-                                        <span className="font-bold tabular-nums text-violet-300">{data.pendingTasks}</span> tareas ·
-                                        gestionadas <span className="font-bold tabular-nums text-emerald-300">{managed}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Filtros */}
-                        {!micro && (
-                            <div className="flex items-center gap-1 flex-wrap">
-                                {FILTERS.map((f) => (
-                                    <button key={f.id} type="button" onClick={() => setFilter(f.id)}
-                                        className={cn("rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider border transition-colors cursor-pointer",
-                                            filter === f.id ? "bg-violet-500/20 border-violet-500/40 text-violet-200" : "border-border/40 bg-white/[0.02] text-muted-foreground hover:text-foreground")}>
-                                        {f.label}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* SISTEMAS REALES de esta neurona (A149): clic → su pestaña. */}
-                        {!micro && real && (
-                            <div className="flex flex-wrap items-center gap-1" aria-label="Sistemas de Astraura en esta neurona (estado real)">
-                                {SYSTEM_STRIP.map(([tab, label, key, color]) => (
-                                    <button
-                                        key={tab}
-                                        type="button"
-                                        onClick={() => openSystems(tab)}
-                                        title={`${label}: ${real[key]} — abrir configuración de sistemas`}
-                                        className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/40 bg-white/[0.03] px-1.5 py-0.5 text-[8px] text-muted-foreground transition-colors duration-200 hover:text-foreground hover:border-violet-500/30 cursor-pointer"
-                                    >
-                                        <span className="size-1.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
-                                        <span className="font-bold uppercase tracking-wider">{label}</span>
-                                        <span className="max-w-[72px] truncate normal-case">{real[key]}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Detalle de escenario o lista */}
-                        {!micro && size.vTier !== "compact" && (
-                            <AnimatePresence mode="wait" initial={false}>
-                                {opened ? (
-                                    <motion.div key="detail" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
-                                        className="rounded-2xl border p-2.5 space-y-2"
-                                        style={{ borderColor: `color-mix(in srgb, ${kindColor[opened.kind]} 40%, transparent)`, background: `color-mix(in srgb, ${kindColor[opened.kind]} 8%, transparent)` }}>
-                                        <button type="button" onClick={() => setOpenId(null)}
-                                            className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer">
-                                            <ChevronLeft className="size-3" />Volver
-                                        </button>
-                                        <p className="text-xs font-semibold leading-snug">{opened.text}</p>
-                                        <p className="text-[10px] text-muted-foreground/70 leading-snug">{detailOf(opened.kind).rationale}</p>
-                                        <ProgressBar value={confOf(opened.id)} label="Confianza del modelo" showPct color={kindColor[opened.kind]} height={5} />
-                                        <div className="flex flex-wrap gap-1">
-                                            {detailOf(opened.kind).drivers.map((d) => (
-                                                <span key={d} className="rounded-md bg-white/[0.05] border border-border/40 px-1.5 py-0.5 text-[8px] text-muted-foreground/70">{d}</span>
-                                            ))}
-                                        </div>
-                                        <div className="flex gap-1.5 pt-0.5">
-                                            <button type="button" onClick={() => resolve(opened.id, "accept")}
-                                                className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors hover:bg-emerald-500/30 cursor-pointer">
-                                                <Check className="size-3" />Aceptar
-                                            </button>
-                                            <button type="button" onClick={() => resolve(opened.id, "dismiss")}
-                                                className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-white/[0.04] border border-border/40 text-muted-foreground py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors hover:text-foreground cursor-pointer">
-                                                <X className="size-3" />Descartar
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                ) : (
-                                    <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-1.5">
-                                        {visible.length === 0 ? (
-                                            <div className="rounded-xl border border-border/40 bg-white/[0.02] py-3 text-center text-[10px] text-muted-foreground/60">
-                                                Sin sugerencias {filter !== "all" ? "de este tipo" : "pendientes"}
-                                            </div>
-                                        ) : visible.slice(0, size.vTier === "expanded" ? 3 : 2).map((s) => {
-                                            const Icon = kindIcon[s.kind as Kind];
-                                            const color = kindColor[s.kind as Kind];
-                                            return (
-                                                <div key={s.id}
-                                                    className="rounded-xl border border-border/40 bg-white/[0.03] p-2 hover:border-violet-500/30 transition-colors">
-                                                    <button type="button" onClick={() => setOpenId(s.id)}
-                                                        className="flex items-start gap-2 w-full text-left cursor-pointer">
-                                                        <span className="grid place-items-center size-6 rounded-lg shrink-0 mt-0.5"
-                                                            style={{ background: `color-mix(in srgb, ${color} 18%, transparent)`, color }}>
-                                                            <Icon className="size-3" />
-                                                        </span>
-                                                        <span className="text-[11px] leading-tight line-clamp-2 flex-1">{s.text}</span>
-                                                    </button>
-                                                    <div className="mt-1.5 flex items-center gap-1.5">
-                                                        <span className="text-[8px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full"
-                                                            style={{ color, background: `color-mix(in srgb, ${color} 14%, transparent)` }}>{kindLabel[s.kind as Kind]}</span>
-                                                        <div className="flex-1"><ProgressBar value={confOf(s.id)} color={color} height={3} /></div>
-                                                        <button type="button" onClick={() => resolve(s.id, "accept")} title="Aceptar"
-                                                            className="grid place-items-center size-6 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 transition-colors cursor-pointer">
-                                                            <Check className="size-3" />
-                                                        </button>
-                                                        <button type="button" onClick={() => resolve(s.id, "dismiss")} title="Descartar"
-                                                            className="grid place-items-center size-6 rounded-lg bg-white/[0.04] border border-border/40 text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-                                                            <X className="size-3" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        )}
-
-                        {/* Tareas de fondo */}
-                        {size.vTier === "expanded" && !opened && (
-                            <div className="mt-auto space-y-1.5">
-                                {data.backgroundJobs.map((j) => (
-                                    <div key={j.id} className="flex items-center gap-2">
-                                        <Loader2 className="size-3 text-violet-400 animate-spin shrink-0" />
-                                        <div className="flex-1"><ProgressBar value={j.progress} label={j.label} color="#8b5cf6" height={5} /></div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                );
-            }}
+        <WidgetShell title="Córtex Astraura" subtitle="Tu exocórtex" icon={BrainCircuit} bare={marco?.base === "micro"}>
+            {(size) => (
+                <Cuerpo size={size} cargando={cargando} fallo={fallo} recargar={recargar} sistemas={sistemas}
+                    datos={{ agora: agora.dato, delegacion: delegacion.dato, mercado: mercado.dato, merito: merito.dato }} />
+            )}
         </WidgetShell>
+    );
+}
+
+function Cuerpo({ size, cargando, fallo, recargar, sistemas, datos }: {
+    size: ElementSize; cargando: boolean; fallo: boolean; recargar: () => void; sistemas: Sistemas | null;
+    datos: Parameters<typeof avisosCortex>[0];
+}) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    const ahora = useAhoraB(60_000, visible);
+    const [descartados, setDescartados] = useState<Set<string>>(() => new Set());
+    const avisos = useMemo(() => (ahora ? avisosCortex(datos, ahora).filter((a) => !descartados.has(a.id)) : []), [datos, ahora, descartados]);
+    const descartar = useCallback((id: string) => setDescartados((s) => new Set(s).add(id)), []);
+
+    let contenido: ReactNode;
+    if (fallo) contenido = <WidgetErrorState message="Tu exocórtex no pudo leer tus datos ahora." onRetry={recargar} />;
+    else if (cargando || !ahora) contenido = <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "list"} rows={3} />;
+    else contenido = <Composicion avisos={avisos} sistemas={sistemas} lienzo={lienzo} descartar={descartar} />;
+    return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
+}
+
+function Composicion({ avisos, sistemas, lienzo, descartar }: { avisos: AvisoCortex[]; sistemas: Sistemas | null; lienzo: LienzoB; descartar: (id: string) => void }) {
+    const b = lienzo.base;
+    const frase = avisos.length === 0 ? "Todo en calma: nada requiere tu atención" : avisos.length === 1 ? "Un aviso de tu exocórtex" : `${avisos.length} avisos de tu exocórtex`;
+    const orbe = (lado: number) => <Orbe lado={lado} n={avisos.length} urgente={avisos.some((a) => a.prioridad === 0)} lienzo={lienzo} etiqueta={frase} />;
+    const hablar = <AccionB href="/agent" icono={MessageCircle} color={lienzo.acento} tono="llena" tactil={lienzo.tactil}>Hablar con Astraura</AccionB>;
+    const calma = <p className="text-[12px] leading-relaxed text-white/65">Todo en calma: no te falta ninguna votación, tus delegaciones siguen vigentes y tu mérito está al día.</p>;
+    const lista = (max: number, compacta = false) => avisos.length === 0 ? calma : (
+        <ul className="flex min-h-0 flex-col gap-1" aria-label="Avisos del exocórtex">
+            {avisos.slice(0, max).map((a) => <Aviso key={a.id} a={a} lienzo={lienzo} compacta={compacta} descartar={descartar} />)}
+        </ul>
+    );
+
+    if (b === "micro") return <a href="/agent" aria-label={`${frase}. Hablar con Astraura`} className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}>{orbe(76)}</a>;
+    if (b === "s") {
+        const a = avisos[0];
+        return (
+            <div className="flex h-full min-h-0 flex-col items-center justify-center gap-1.5 text-center">
+                {orbe(64)}
+                <p className="text-[12px] font-semibold leading-snug text-white/85 line-clamp-2">{a ? a.texto : "Todo en calma"}</p>
+            </div>
+        );
+    }
+    if (lienzo.clase === "panoramico") {
+        return (
+            <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "auto minmax(0, 1.4fr) minmax(0, 1fr)" }}>
+                {orbe(88)}
+                {lista(2, true)}
+                <FranjaSistemas s={sistemas} lienzo={lienzo} vertical />
+            </div>
+        );
+    }
+    if (b === "m" && lienzo.clase !== "torre") {
+        return <div className="flex h-full min-h-0 flex-col gap-2"><RotuloB>{frase}</RotuloB>{lista(2, true)}<div className="mt-auto">{hablar}</div></div>;
+    }
+    if (lienzo.clase === "torre" || b === "l") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2.5">
+                <div className="flex items-center gap-3">{orbe(64)}<RotuloB className="whitespace-normal">{frase}</RotuloB></div>
+                {lista(b === "l" ? 3 : 4)}
+                <FranjaSistemas s={sistemas} lienzo={lienzo} vertical={lienzo.clase === "torre"} />
+                <div className="mt-auto">{hablar}</div>
+            </div>
+        );
+    }
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 0.8fr) minmax(0, 1.4fr)" }}>
+            <div className="flex min-h-0 flex-col items-center gap-3 text-center">
+                {orbe(lienzo.tv ? 170 : 140)}
+                <p className="text-[13px] text-white/75">{frase}</p>
+                {hablar}
+            </div>
+            <div className="flex min-h-0 flex-col gap-3 border-l border-white/[0.08] pl-4">
+                {lista(6)}
+                <div className="mt-auto flex flex-col gap-1.5">
+                    <RotuloB>Sistemas de esta neurona</RotuloB>
+                    <FranjaSistemas s={sistemas} lienzo={lienzo} vertical />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function Aviso({ a, lienzo, compacta, descartar }: { a: AvisoCortex; lienzo: LienzoB; compacta?: boolean; descartar: (id: string) => void }) {
+    const Icono = ICONO[a.tipo];
+    const color = COLOR[a.tipo];
+    return (
+        <li className={cn(estilosB.entrar, "flex items-start gap-2.5 py-1")}>
+            <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full" style={{ background: `${color}22`, boxShadow: a.prioridad === 0 ? `0 0 0 1.5px ${color}` : undefined }} aria-hidden>
+                <Icono className="size-3.5" style={{ color: tintaB(color, 0.3) }} />
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold leading-snug text-white/90">{a.texto}</p>
+                {!compacta && <p className="mt-0.5 text-[11px] leading-snug text-white/55 line-clamp-2" title={a.detalle}>{a.detalle}</p>}
+                {a.href && a.accion && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <AccionB href={a.href} color={color} tactil={lienzo.tactil}>{a.accion}</AccionB>
+                    </div>
+                )}
+            </div>
+            <button type="button" onClick={() => descartar(a.id)} aria-label={`Descartar: ${a.texto}`}
+                className={cn(estilosB.foco, "grid shrink-0 cursor-pointer place-items-center rounded-full ss-redondo text-white/45 transition-colors hover:text-white", lienzo.tactil ? "size-11" : "size-6")}>
+                <X className="size-3.5" aria-hidden />
+            </button>
+        </li>
+    );
+}
+
+function FranjaSistemas({ s, lienzo, vertical }: { s: Sistemas | null; lienzo: LienzoB; vertical?: boolean }) {
+    if (!s) return null;
+    return (
+        <ul className={cn("flex gap-1", vertical ? "flex-col" : "flex-wrap")} aria-label="Sistemas de esta neurona">
+            {FRANJA.map(([pestana, etiqueta, clave, color]) => (
+                <li key={pestana}>
+                    <button type="button" onClick={() => abrirSistemas(pestana)} title={`Configurar ${etiqueta}: ${s[clave]}`}
+                        className={cn(estilosB.foco, estilosB.fila, "flex w-full cursor-pointer items-center gap-1.5 rounded-full ss-redondo px-2 text-left text-[11px]", lienzo.tactil ? "min-h-11" : "min-h-7")}>
+                        <span className="size-1.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
+                        <span className="font-semibold text-white/80">{etiqueta}</span>
+                        <span className="min-w-0 text-white/50 line-clamp-1">{s[clave]}</span>
+                    </button>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+/** El orbe del córtex: un núcleo de luz con tres órbitas de neuronas; late si hay algo urgente. */
+function Orbe({ lado, n, urgente, lienzo, etiqueta }: { lado: number; n: number; urgente: boolean; lienzo: LienzoB; etiqueta: string }) {
+    const id = useId().replace(/:/g, "");
+    const vivo = lienzo.nivel !== "ligero";
+    const orbitas = [
+        { rx: 42, ry: 16, rot: 0, dur: 38 },
+        { rx: 42, ry: 16, rot: 60, dur: 52 },
+        { rx: 42, ry: 16, rot: 120, dur: 66 },
+    ];
+    return (
+        <svg width={lado} height={lado} viewBox="0 0 100 100" role="img" aria-label={etiqueta} className="shrink-0 overflow-visible">
+            <defs>
+                <radialGradient id={`n${id}`} cx="42%" cy="38%" r="65%">
+                    <stop offset="0%" stopColor="#ffffff" />
+                    <stop offset="35%" stopColor={tintaB(lienzo.acento, 0.4)} />
+                    <stop offset="100%" stopColor={lienzo.acento2} stopOpacity={0.85} />
+                </radialGradient>
+                <radialGradient id={`h${id}`}>
+                    <stop offset="0%" stopColor={lienzo.acento} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={lienzo.acento} stopOpacity={0} />
+                </radialGradient>
+            </defs>
+            <circle cx={50} cy={50} r={48} fill={`url(#h${id})`} />
+            {orbitas.map((o, i) => (
+                <g key={i} transform={`rotate(${o.rot} 50 50)`}>
+                    <ellipse cx={50} cy={50} rx={o.rx} ry={o.ry} fill="none" stroke={tintaB(lienzo.acento, 0.3)} strokeOpacity={0.35} strokeWidth={0.7} />
+                    <g transform={`translate(50 50) scale(1 ${(o.ry / o.rx).toFixed(3)}) translate(-50 -50)`}>
+                        <g className={vivo ? estilosB.orbita : undefined} style={{ ["--b-dur" as string]: `${o.dur}s`, animationDelay: `${-i * 7}s` }}>
+                            <circle cx={50 + o.rx} cy={50} r={2.4} fill={tintaB(lienzo.acento, 0.5)} />
+                        </g>
+                    </g>
+                </g>
+            ))}
+            <circle cx={50} cy={50} r={17} fill={`url(#n${id})`} className={urgente && vivo ? estilosB.latido : undefined} />
+            <text x={50} y={51} textAnchor="middle" dominantBaseline="middle" fill="#0b1020" fontSize={14} fontWeight={700} style={{ fontVariantNumeric: "tabular-nums" }}>{n}</text>
+        </svg>
     );
 }

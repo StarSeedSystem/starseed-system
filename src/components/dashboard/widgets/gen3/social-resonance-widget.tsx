@@ -1,281 +1,235 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from "react";
-import Link from "next/link";
-import {
-    Thermometer, Search, Eye, EyeOff, TrendingUp, TrendingDown, Minus,
-    Users, ChevronRight, type LucideIcon, Sparkle, Flame, Zap, HelpCircle, Handshake,
-} from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { WidgetShell, MiniList, Chip } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { CivicEmotion } from "@/lib/widget-data";
-import { cn } from "@/lib/utils";
-
 // ════════════════════════════════════════════════════════════════
-// SocialResonanceWidget — Termómetro de Resonancia Social.
-// Heatmap semántico de los temas más debatidos por emoción. Modo
-// "Burbuja Rota" muestra el argumento contrario para mitigar el sesgo.
+// Resonancia social — de qué habla la Red ahora (Ola 0929, paquete B).
 // ----------------------------------------------------------------
-// Datos REALES (cuando hay): agrega las últimas filas de `cafe_posts`
-// del proyecto Supabase compartido por `kind`/`branch` → conteos de
-// participación + calor por recencia. Suscripción realtime a
-// `cafe_posts` (postgres_changes) para refrescar en vivo. Sin
-// red/datos → degrada con elegancia a "politics.resonance" simulado.
+// Antes: «emociones» asignadas por un hash y una «burbuja rota» con argumentos inventados.
+// Ahora, las ETIQUETAS REALES (#algo) de las últimas publicaciones públicas de la Red
+// (`posts`, el mismo filtro que el feed), pesadas por calor: cada publicación suma
+// e^(−edad/72 h). Tocar un tema enseña sus publicaciones —de voces distintas primero, para
+// que la burbuja se abra con gente real— y cada una se abre en /post/<id>. Una lectura
+// compartida con el Ágora del don (50 filas, 10 min), sin sondeo ni canal propio.
+// Ciberdelia (§3): inteligencia colectiva visible, sin algoritmo que decida por ti.
+//
+//   micro      → el tema más vivo con su anillo de calor.
+//   s          → las tres burbujas más vivas.
+//   m          → el campo de burbujas y el tema elegido.
+//   panorámico → burbujas a la izquierda, ranking a la derecha.   torre → en columna.
+//   l          → + las publicaciones del tema elegido.
+//   xl         → campo grande, ranking con calor y publicaciones, y «Publicar sobre #tema».
+// Estados honestos: cargando, error con reintento y vacío (sin etiquetas aún).
 // ════════════════════════════════════════════════════════════════
-const EMOTION_META: Record<CivicEmotion, { label: string; color: string; icon: LucideIcon }> = {
-    esperanza: { label: "Esperanza", color: "#10b981", icon: Sparkle },
-    indignacion: { label: "Indignación", color: "#f43f5e", icon: Flame },
-    urgencia: { label: "Urgencia", color: "#f59e0b", icon: Zap },
-    curiosidad: { label: "Curiosidad", color: "#38bdf8", icon: HelpCircle },
-    consenso: { label: "Consenso", color: "#a855f7", icon: Handshake },
-};
-const EMOTION_KEYS: CivicEmotion[] = ["esperanza", "indignacion", "urgencia", "curiosidad", "consenso"];
 
-const TrendIcon = ({ t }: { t: "up" | "down" | "flat" }) =>
-    t === "up" ? <TrendingUp className="size-3 text-emerald-400" /> : t === "down" ? <TrendingDown className="size-3 text-rose-400" /> : <Minus className="size-3 text-muted-foreground/50" />;
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { Radio, RefreshCw, PenLine } from "lucide-react";
+import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, timeAgo, type ElementSize } from "../../kit";
+import { cn } from "@/lib/utils";
+import { useDatoCompartido, type ResultadoDato } from "../gen2/_paquete-b/cache-compartida";
+import { cargarPublicacionesRed, enlaceComponer, resonancia, type PublicacionRed, type TemaResonancia } from "../gen2/_paquete-b/datos-red";
+import { AccionB, AnilloB, RaizB, RotuloB, estilosB, tintaB, useAhoraB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
+import { mezclar } from "@/components/widgets-libres/familias/comun";
 
-// ── Forma de tema (compatible con el render simulado y el real) ──
-interface ResonanceTopic {
-    id: string;
-    label: string;
-    emotion: CivicEmotion;
-    heat: number;        // 0..1
-    participants: number;
-    trend: "up" | "down" | "flat";
-    threadHref: string;
-    opposingView: string;
-}
+const FAMILIA = { acento: "#dc143c", acento2: "#23d5ab" };
 
-// Fila pública de cafe_posts (sólo lo que necesitamos).
-interface CafePostRow {
-    id: string;
-    kind: string | null;
-    branch: string | null;
-    title: string | null;
-    status: string | null;
-    created_at: string | null;
-}
-
-const INT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
-
-// Asigna una emoción estable a partir del kind/etiqueta del tema.
-function emotionForKind(kind: string): CivicEmotion {
-    const k = kind.toLowerCase();
-    if (k.includes("propuesta") || k.includes("proposal")) return "consenso";
-    if (k.includes("alert") || k.includes("urg")) return "urgencia";
-    if (k.includes("pregunta") || k.includes("duda") || k.includes("?")) return "curiosidad";
-    if (k.includes("queja") || k.includes("issue")) return "indignacion";
-    // hash determinista → reparto estable entre las 5 emociones
-    let h = 0;
-    for (let i = 0; i < kind.length; i++) h = (h * 31 + kind.charCodeAt(i)) >>> 0;
-    return EMOTION_KEYS[h % EMOTION_KEYS.length];
-}
-
-const LABELS_ES: Record<string, string> = {
-    elixir: "Elixires", recipe: "Recetas", proposal: "Propuestas",
-    propuesta: "Propuestas", post: "Publicaciones", review: "Reseñas",
-};
-function labelForKind(kind: string): string {
-    return LABELS_ES[kind.toLowerCase()] ?? (kind.charAt(0).toUpperCase() + kind.slice(1));
-}
-
-/** Agrega posts → temas (uno por kind/branch), calor por recencia. */
-function buildTopics(rows: CafePostRow[]): ResonanceTopic[] {
-    if (rows.length === 0) return [];
-    const now = Date.now();
-    const groups = new Map<string, { count: number; recent: number; titles: string[] }>();
-    for (const r of rows) {
-        const key = (r.branch?.trim() || r.kind?.trim() || "general").toLowerCase();
-        const g = groups.get(key) ?? { count: 0, recent: 0, titles: [] };
-        g.count += 1;
-        const ts = r.created_at ? new Date(r.created_at).getTime() : now;
-        // recencia 0..1 con vida media de ~3 días
-        g.recent = Math.max(g.recent, Math.exp(-(now - ts) / (1000 * 60 * 60 * 72)));
-        if (r.title) g.titles.push(r.title);
-        groups.set(key, g);
+/** Burbujas en espiral sin solaparse (determinista). PURO. */
+export function empaquetar(temas: TemaResonancia[], ancho: number, alto: number): { t: TemaResonancia; x: number; y: number; r: number }[] {
+    const max = Math.max(1, ...temas.map((t) => t.n));
+    const escala = Math.min(ancho, alto) / 140;
+    const puestas: { t: TemaResonancia; x: number; y: number; r: number }[] = [];
+    for (const t of temas) {
+        const r = (9 + 21 * Math.sqrt(t.n / max)) * escala;
+        let x = ancho / 2, y = alto / 2;
+        for (let paso = 0; paso < 600; paso++) {
+            const a = paso * 0.35, d = paso * 0.9 * escala;
+            x = ancho / 2 + Math.cos(a) * d;
+            y = alto / 2 + Math.sin(a) * d * 0.72;
+            const dentro = x - r >= 0 && x + r <= ancho && y - r >= 0 && y + r <= alto;
+            if (dentro && puestas.every((p) => Math.hypot(p.x - x, p.y - y) >= p.r + r + 2 * escala)) break;
+        }
+        if (x - r < 0 || x + r > ancho || y - r < 0 || y + r > alto) continue;
+        puestas.push({ t, x, y, r });
     }
-    const maxCount = Math.max(...[...groups.values()].map(g => g.count), 1);
-    return [...groups.entries()]
-        .map(([key, g]) => {
-            const heat = Math.min(1, 0.25 + (g.count / maxCount) * 0.55 + g.recent * 0.2);
-            return {
-                id: key,
-                label: labelForKind(key),
-                emotion: emotionForKind(key),
-                heat,
-                participants: g.count,
-                trend: (g.recent > 0.55 ? "up" : g.recent < 0.15 ? "down" : "flat") as "up" | "down" | "flat",
-                threadHref: "/network/politics",
-                opposingView: g.titles[0]
-                    ? `Un tema reciente: "${g.titles[0]}". ¿Y si el marco fuese el contrario?`
-                    : "Considera la perspectiva opuesta antes de posicionarte.",
-            };
-        })
-        .sort((a, b) => b.heat - a.heat);
+    return puestas;
 }
 
 export function SocialResonanceWidget() {
-    const supabase = useMemo(() => createClient(), []);
-    const { data: sim, loading: simLoading } = useWidgetData("politics.resonance", { refreshMs: 8000 });
-
-    const [query, setQuery] = useState("");
-    const [broken, setBroken] = useState(false);
-
-    // Datos reales (opcional): temas derivados de cafe_posts + total.
-    const [realTopics, setRealTopics] = useState<ResonanceTopic[] | null>(null);
-    const [totalPosts, setTotalPosts] = useState<number | null>(null);
-
-    const reload = useCallback(async () => {
-        try {
-            const [postsRes, countRes] = await Promise.all([
-                supabase.from("cafe_posts")
-                    .select("id, kind, branch, title, status, created_at")
-                    .order("created_at", { ascending: false }).limit(120),
-                supabase.from("cafe_posts").select("id", { count: "exact", head: true }),
-            ]);
-            if (!postsRes.error && postsRes.data && postsRes.data.length > 0) {
-                setRealTopics(buildTopics(postsRes.data as CafePostRow[]));
-            } else {
-                setRealTopics([]);
-            }
-            if (!countRes.error && typeof countRes.count === "number") setTotalPosts(countRes.count);
-        } catch {
-            setRealTopics([]); // fallback silencioso al modo simulado
-        }
-    }, [supabase]);
-
-    useEffect(() => {
-        let alive = true;
-        void (async () => { if (alive) await reload(); })();
-        // Realtime: cualquier cambio en cafe_posts → recarga la resonancia.
-        const ch = supabase
-            .channel("w-social-resonance")
-            .on("postgres_changes", { event: "*", schema: "public", table: "cafe_posts" }, () => { void reload(); })
-            .subscribe();
-        return () => { alive = false; supabase.removeChannel(ch); };
-    }, [supabase, reload]);
-
-    // ¿Tenemos datos reales utilizables?
-    const hasReal = realTopics !== null && realTopics.length > 0;
-    const loading = hasReal ? false : (simLoading || !sim);
-
-    // Emoción dominante: la del tema más caliente (real) o la simulada.
-    const dominant: CivicEmotion = hasReal
-        ? realTopics![0].emotion
-        : (sim?.dominantEmotion ?? "curiosidad");
-
-    const windowLabel = hasReal
-        ? (totalPosts !== null ? `${INT_ES.format(totalPosts)} señales · en vivo` : "Señales en vivo")
-        : (sim?.window ?? "Pulso del debate");
-
-    const topics = useMemo(() => {
-        const base: ResonanceTopic[] = hasReal
-            ? realTopics!
-            : (sim?.topics as ResonanceTopic[] | undefined) ?? [];
-        const q = query.trim().toLowerCase();
-        return q ? base.filter((t) => t.label.toLowerCase().includes(q)) : base;
-    }, [hasReal, realTopics, sim, query]);
-
+    const marco = useMarcoUnificado();
+    const datos = useDatoCompartido<PublicacionRed[]>("red.publicaciones.v1", cargarPublicacionesRed);
     return (
         <WidgetShell
-            title="Resonancia Social"
-            subtitle={windowLabel}
-            icon={Thermometer}
-            accent="#f43f5e"
-            live
+            title="Resonancia social"
+            subtitle="De qué habla la Red ahora"
+            icon={Radio}
+            bare={marco?.base === "micro"}
             actions={
-                <Link href="/network/politics" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
-                    Ágora <ChevronRight className="size-3" />
-                </Link>
-            }
-            footer={
-                <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
-                    {hasReal ? "Resonancia del Café · datos en vivo" : "Pulso del debate · modo simulado"}
-                </p>
+                <button type="button" onClick={datos.recargar} aria-label="Actualizar la resonancia"
+                    className="grid size-7 cursor-pointer place-items-center rounded-full ss-redondo text-white/70 transition-colors hover:text-white">
+                    <RefreshCw className={cn("size-3.5", datos.estado === "cargando" && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                </button>
             }
         >
-            {(size) => {
-                if (loading) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const compact = size.vTier === "compact";
-                const maxList = size.vTier === "expanded" ? 5 : compact ? 2 : 4;
-                const dom = EMOTION_META[dominant];
-
-                return (
-                    <div className="flex flex-col gap-2 pt-1 h-full">
-                        {/* Emoción dominante + Burbuja Rota */}
-                        <div className="shrink-0 flex items-center gap-2">
-                            <div className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wide"
-                                style={{ color: dom.color, borderColor: `${dom.color}40`, background: `${dom.color}14` }}>
-                                <dom.icon className="size-3" /> {dom.label}
-                            </div>
-                            {!micro && (
-                                <button
-                                    onClick={() => setBroken((b) => !b)}
-                                    title="Modo Burbuja Rota: muestra la postura contraria"
-                                    className={cn(
-                                        "ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer",
-                                        broken ? "bg-violet-500/15 border-violet-500/40 text-violet-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground"
-                                    )}
-                                >
-                                    {broken ? <EyeOff className="size-3" /> : <Eye className="size-3" />} Burbuja Rota
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Buscador */}
-                        {!micro && !compact && (
-                            <div className="shrink-0 flex items-center gap-1.5 rounded-lg border border-border/40 bg-black/20 px-2 py-1">
-                                <Search className="size-3 text-muted-foreground/50 shrink-0" />
-                                <input
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    placeholder="Filtrar temas…"
-                                    className="w-full bg-transparent text-[11px] outline-none placeholder:text-muted-foreground/40"
-                                />
-                            </div>
-                        )}
-
-                        {/* Heatmap de temas */}
-                        <div className="flex-1 min-h-0">
-                            <MiniList
-                                items={topics}
-                                max={maxList}
-                                empty="Sin temas que coincidan"
-                                render={(t) => {
-                                    const meta = EMOTION_META[t.emotion];
-                                    return (
-                                        <Link href={t.threadHref} className="block rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 transition-colors cursor-pointer relative overflow-hidden">
-                                            {/* franja de calor */}
-                                            <div className="absolute inset-y-0 left-0 w-1" style={{ background: meta.color, opacity: 0.3 + t.heat * 0.7 }} />
-                                            <div className="flex items-center justify-between gap-2 pl-1.5">
-                                                <span className="text-[11px] @sm:text-xs font-bold truncate flex-1">{t.label}</span>
-                                                {!micro && <Chip color={meta.color}>{meta.label}</Chip>}
-                                            </div>
-                                            {!micro && (
-                                                <div className="mt-1 flex items-center gap-2 pl-1.5 text-[10px] text-muted-foreground/60">
-                                                    {/* barra de calor */}
-                                                    <div className="h-1 flex-1 rounded-full bg-white/5 overflow-hidden">
-                                                        <div className="h-full rounded-full" style={{ width: `${t.heat * 100}%`, background: meta.color }} />
-                                                    </div>
-                                                    <span className="inline-flex items-center gap-0.5 shrink-0"><Users className="size-3" /> {t.participants > 999 ? `${(t.participants / 1000).toFixed(1)}k` : t.participants}</span>
-                                                    <TrendIcon t={t.trend} />
-                                                </div>
-                                            )}
-                                            {broken && !micro && (
-                                                <div className="mt-1.5 ml-1.5 rounded-lg border border-violet-500/30 bg-violet-500/[0.06] px-2 py-1 text-[10px] leading-snug text-violet-200/90">
-                                                    <span className="font-bold text-violet-300">Postura contraria: </span>{t.opposingView}
-                                                </div>
-                                            )}
-                                        </Link>
-                                    );
-                                }}
-                            />
-                        </div>
-                    </div>
-                );
-            }}
+            {(size) => <Cuerpo size={size} datos={datos} />}
         </WidgetShell>
+    );
+}
+
+function Cuerpo({ size, datos }: { size: ElementSize; datos: ResultadoDato<PublicacionRed[]> }) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    const ahora = useAhoraB(10 * 60_000, visible);
+    const temas = useMemo(() => (datos.dato && ahora ? resonancia(datos.dato, ahora) : []), [datos.dato, ahora]);
+    let contenido: ReactNode;
+    if (!datos.dato || !ahora) {
+        contenido = datos.estado === "error"
+            ? <WidgetErrorState message={datos.error ?? "No se pudo leer la Red."} onRetry={datos.recargar} />
+            : <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "block"} />;
+    } else if (temas.length === 0) {
+        contenido = lienzo.base === "micro"
+            ? <p className="grid h-full place-items-center text-center text-[11px] text-white/60">sin temas aún</p>
+            : <WidgetEmptyState icon={Radio} title="Aún no resuena ningún tema" message="Las etiquetas (#algo) de lo que se publica en la Red aparecerán aquí, con su calor." actionLabel="Publicar" actionHref={enlaceComponer("")} accent={lienzo.acento} />;
+    } else {
+        contenido = <Composicion temas={temas} publicaciones={datos.dato} lienzo={lienzo} size={size} />;
+    }
+    return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
+}
+
+function colorCalor(calor: number, lienzo: LienzoB): string {
+    return mezclar(lienzo.acento2, lienzo.acento, Math.max(0, Math.min(1, calor)));
+}
+
+function Composicion({ temas, publicaciones, lienzo, size }: { temas: TemaResonancia[]; publicaciones: PublicacionRed[]; lienzo: LienzoB; size: ElementSize }) {
+    const [elegida, setElegida] = useState<string | null>(null);
+    const tema = temas.find((t) => t.etiqueta === elegida) ?? temas[0];
+    const b = lienzo.base;
+    const frase = `Resuenan ${temas.length} temas; el más vivo es #${temas[0].etiqueta} con ${temas[0].n} ${temas[0].n === 1 ? "publicación" : "publicaciones"}`;
+
+    if (b === "micro") {
+        const t = temas[0];
+        return (
+            <Link href={enlaceComponer(`#${t.etiqueta} `)} aria-label={`${frase}. Publicar sobre #${t.etiqueta}`} title={frase} className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}>
+                <AnilloB fraccion={t.calor} lado={72} color={colorCalor(t.calor, lienzo)}>
+                    <text x={36} y={34} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={t.etiqueta.length > 8 ? 9 : 11} fontWeight={700}>#{t.etiqueta.slice(0, 12)}</text>
+                    <text x={36} y={48} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,.6)" fontSize={8.5}>{t.n} publ.</text>
+                </AnilloB>
+            </Link>
+        );
+    }
+    const campo = (clase: string, max: number) => <Campo temas={temas.slice(0, max)} lienzo={lienzo} elegida={tema.etiqueta} elegir={setElegida} className={clase} etiqueta={frase} />;
+    const ranking = (max: number) => (
+        <ol className="flex flex-col gap-1" aria-label="Temas por calor">
+            {temas.slice(0, max).map((t, i) => (
+                <li key={t.etiqueta}>
+                    <button type="button" onClick={() => setElegida(t.etiqueta)} aria-pressed={t.etiqueta === tema.etiqueta}
+                        className={cn(estilosB.foco, estilosB.fila, "grid w-full cursor-pointer items-center gap-2 rounded-[10px] px-1 text-left text-[12px]", lienzo.tactil ? "min-h-11" : "min-h-7")}
+                        style={{ gridTemplateColumns: "1.2rem minmax(0, 1fr) minmax(0, 5rem) auto" }}>
+                        <span className="tabular-nums text-white/45">{i + 1}</span>
+                        <span className={cn("font-semibold line-clamp-1", t.etiqueta === tema.etiqueta ? "text-white" : "text-white/80")}>#{t.etiqueta}</span>
+                        <span className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]" aria-hidden><span className={cn("block h-full rounded-full", estilosB.crecer)} style={{ width: `${t.calor * 100}%`, background: colorCalor(t.calor, lienzo) }} /></span>
+                        <span className="tabular-nums text-white/55">{t.n}</span>
+                    </button>
+                </li>
+            ))}
+        </ol>
+    );
+    const publicacionesTema = (max: number) => {
+        const lista = voces(publicaciones.filter((p) => tema.ids.includes(p.id)));
+        return (
+            <div className="flex min-h-0 flex-col gap-1">
+                <RotuloB>#{tema.etiqueta} · voces distintas primero</RotuloB>
+                <ul className="flex min-h-0 flex-col gap-0.5" aria-label={`Publicaciones de #${tema.etiqueta}`}>
+                    {lista.slice(0, max).map((p) => (
+                        <li key={p.id}>
+                            <Link href={`/post/${encodeURIComponent(p.id)}`} className={cn(estilosB.foco, estilosB.fila, "block rounded-[10px] px-1.5 py-1", lienzo.tactil && "min-h-11")}>
+                                <span className="block text-[12px] leading-snug text-white/85 line-clamp-1" title={p.titulo || p.cuerpo}>{p.titulo || p.cuerpo}</span>
+                                <span className="block text-[10px] text-white/45">{p.autor}{p.ts ? ` · hace ${timeAgo(p.ts)}` : ""}</span>
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        );
+    };
+    const publicar = <AccionB href={enlaceComponer(`#${tema.etiqueta} `)} icono={PenLine} color={lienzo.acento} tactil={lienzo.tactil}>Publicar sobre #{tema.etiqueta}</AccionB>;
+
+    if (b === "s") return campo("h-full w-full", 3);
+    if (lienzo.clase === "panoramico") {
+        return <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>{campo("h-full w-full", 8)}{ranking(Math.max(3, Math.floor((size.height - 40) / 30)))}</div>;
+    }
+    if (b === "m" && lienzo.clase !== "torre") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-1.5">
+                <div className="min-h-0 flex-1">{campo("h-full w-full", 8)}</div>
+                <p className="text-[12px] text-white/70"><b className="font-semibold text-white">#{tema.etiqueta}</b> · {tema.n} {tema.n === 1 ? "publicación" : "publicaciones"} · última hace {timeAgo(tema.ultima)}</p>
+            </div>
+        );
+    }
+    if (lienzo.clase === "torre") return <div className="flex h-full min-h-0 flex-col gap-2">{<div className="h-[38%] min-h-0">{campo("h-full w-full", 7)}</div>}{ranking(5)}{publicacionesTema(2)}</div>;
+    if (b === "l") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2">
+                <div className="h-[45%] min-h-[90px]">{campo("h-full w-full", 10)}</div>
+                {publicacionesTema(3)}
+                <div className="mt-auto">{publicar}</div>
+            </div>
+        );
+    }
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)" }}>
+            <div className="flex min-h-0 flex-col gap-2">
+                <div className="min-h-0 flex-1">{campo("h-full w-full", 14)}</div>
+                <p className="text-[11px] text-white/50">Calor = publicaciones recientes con esa etiqueta (lo de hace 3 días pesa un tercio). Sin algoritmo que elija por ti.</p>
+            </div>
+            <div className="flex min-h-0 flex-col gap-3 border-l border-white/[0.08] pl-4">
+                {ranking(6)}
+                {publicacionesTema(4)}
+                <div className="mt-auto">{publicar}</div>
+            </div>
+        </div>
+    );
+}
+
+/** Voces distintas primero: una publicación por autor antes de repetir a nadie. PURO. */
+export function voces(lista: PublicacionRed[]): PublicacionRed[] {
+    const vistos = new Set<string>();
+    const primero: PublicacionRed[] = [], despues: PublicacionRed[] = [];
+    for (const p of [...lista].sort((a, b) => b.ts - a.ts)) {
+        if (vistos.has(p.autor)) despues.push(p); else { vistos.add(p.autor); primero.push(p); }
+    }
+    return [...primero, ...despues];
+}
+
+function Campo({ temas, lienzo, elegida, elegir, className, etiqueta }: {
+    temas: TemaResonancia[]; lienzo: LienzoB; elegida: string; elegir: (e: string) => void; className?: string; etiqueta: string;
+}) {
+    const W = 200, Hh = 140;
+    const burbujas = useMemo(() => empaquetar(temas, W, Hh), [temas]);
+    const vivo = lienzo.nivel !== "ligero";
+    return (
+        <svg viewBox={`0 0 ${W} ${Hh}`} preserveAspectRatio="xMidYMid meet" className={cn("block", className)} role="group" aria-label={etiqueta}>
+            <defs>
+                {burbujas.map(({ t }, i) => (
+                    <radialGradient key={t.etiqueta} id={`bu${i}-${t.etiqueta.replace(/[^a-z0-9]/gi, "")}`} cx="38%" cy="32%" r="75%">
+                        <stop offset="0%" stopColor={tintaB(colorCalor(t.calor, lienzo), 0.55)} stopOpacity={0.95} />
+                        <stop offset="100%" stopColor={colorCalor(t.calor, lienzo)} stopOpacity={0.35 + 0.4 * t.calor} />
+                    </radialGradient>
+                ))}
+            </defs>
+            {burbujas.map(({ t, x, y, r }, i) => {
+                const activa = t.etiqueta === elegida;
+                const cabe = r > 11;
+                return (
+                    <g key={t.etiqueta} role="button" tabIndex={0} aria-pressed={activa} aria-label={`#${t.etiqueta}: ${t.n} ${t.n === 1 ? "publicación" : "publicaciones"}`}
+                        onClick={() => elegir(t.etiqueta)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(t.etiqueta); } }}
+                        className={cn("cursor-pointer outline-none [&:focus-visible>circle]:[stroke-opacity:1] [&:focus-visible>circle]:[stroke-width:2.5px]", estilosB.entrar)} style={{ animationDelay: `${i * 40}ms` }}>
+                        <circle cx={x} cy={y} r={r} fill={`url(#bu${i}-${t.etiqueta.replace(/[^a-z0-9]/gi, "")})`} stroke="#fff" strokeOpacity={activa ? 0.9 : 0.2} strokeWidth={activa ? 1.4 : 0.6}
+                            className={i === 0 && vivo ? estilosB.latido : undefined} />
+                        {cabe && <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={Math.min(11, Math.max(6, r * 0.42))} fontWeight={600}>#{t.etiqueta.length > 10 ? `${t.etiqueta.slice(0, 9)}…` : t.etiqueta}</text>}
+                        <title>{`#${t.etiqueta} · ${t.n} publicaciones`}</title>
+                    </g>
+                );
+            })}
+        </svg>
     );
 }

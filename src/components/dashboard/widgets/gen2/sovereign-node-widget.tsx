@@ -1,243 +1,276 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-    Server, Cpu, MemoryStick, HardDrive, Network as NetIcon, Share2,
-    Power, type LucideIcon,
-} from "lucide-react";
-import {
-    AreaChart, Area, ResponsiveContainer, YAxis,
-} from "recharts";
-import { WidgetShell, ProgressRing, ProgressBar } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { SeriesPoint } from "@/lib/widget-data";
-import { cn } from "@/lib/utils";
-
 // ════════════════════════════════════════════════════════════════
-// SovereignNodeWidget — Nodo Soberano (Sistema).
+// Nodo soberano — tu neurona y tu red personal (Ola 0929, paquete B).
 // ----------------------------------------------------------------
-// PROFUNDIZACIÓN (esta versión):
-//   • Métricas en vivo seleccionables: CPU / RAM / Almacenamiento / Red.
-//     Cada una con anillo, valor y mini-área (recharts) de su histórico.
-//   • Histórico real en cliente: se acumula una ventana deslizante de
-//     muestras a partir de cada refresco del adaptador (no Math.random).
-//   • Estado de salud global derivado (óptimo / cargado / crítico).
-//   • Toggles de servicios soberanos (estado local) con efecto en carga.
-//   • Uptime determinista (anclado al arranque de sesión) y pares IPFS.
-// Invariante: identidad soberana, infraestructura propiedad del usuario.
+// Antes: CPU, RAM y «pares IPFS» inventados cada 2,5 s. Ahora, datos REALES:
+//   · ESTE dispositivo, medido en el navegador sin red: almacenamiento usado/cuota,
+//     batería, conexión (tipo, bajada, latencia), núcleos, memoria, GPU, app instalada.
+//     Batería y conexión se escuchan por eventos (sin sondeo). El navegador no da el uso
+//     de CPU: se enseña la capacidad, nunca una carga inventada.
+//   · TUS neuronas (`listNeurons()`, con su caché compartida de 5 min del contrato de
+//     consumo): cuántas hay, cuáles están en línea y cuáles tienen IA local.
+// Invariante (§6): identidad soberana — la infraestructura es del usuario.
+//
+//   micro      → el cristal del nodo con tus neuronas en línea.
+//   s          → cristal con los arcos de almacén, batería y red.
+//   m          → + tres cifras y «Neuronas».
+//   panorámico → cristal · cifras · neuronas, en una fila.   torre → en columna.
+//   l          → + la lista de tus neuronas.
+//   xl         → + la ficha de este dispositivo (plataforma, navegador, GPU, núcleos…).
+// Estados honestos: cargando (midiendo), error con reintento y vacío (solo este dispositivo).
 // ════════════════════════════════════════════════════════════════
 
-type MetricId = "cpu" | "memory" | "storage" | "network";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Server, RefreshCw, Monitor, Laptop, Smartphone, Tablet, Cpu, Settings2, type LucideIcon } from "lucide-react";
+import { WidgetShell, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../../kit";
+import { useCurrentUid } from "@/lib/widget-data/os-live";
+import { cn } from "@/lib/utils";
+import { useDatoCompartido } from "./_paquete-b/cache-compartida";
+import { calidadRed, escucharNodo, gb, medirNodo, usoAlmacen, type MedidaNodo } from "./_paquete-b/datos-nodo";
+import { AccionB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
-const METRICS: Record<MetricId, { label: string; short: string; icon: LucideIcon; color: string; unit: string }> = {
-    cpu: { label: "Procesador", short: "CPU", icon: Cpu, color: "#06b6d4", unit: "%" },
-    memory: { label: "Memoria", short: "RAM", icon: MemoryStick, color: "#8b5cf6", unit: "%" },
-    storage: { label: "Almacenamiento", short: "SSD", icon: HardDrive, color: "#10b981", unit: "%" },
-    network: { label: "Red", short: "NET", icon: NetIcon, color: "#f59e0b", unit: "Mbps" },
-};
+const FAMILIA = { acento: "#94a3b8", acento2: "#23d5ab" };
+const ALMACEN = "#23d5ab";
+const BATERIA = "#10b981";
+const RED = "#38bdf8";
 
-interface ServiceDef { id: string; label: string; defaultOn: boolean }
-const SERVICES: ServiceDef[] = [
-    { id: "consensus", label: "Consenso", defaultOn: true },
-    { id: "ipfs", label: "Almacén IPFS", defaultOn: true },
-    { id: "exocortex", label: "Exocórtex", defaultOn: true },
-    { id: "mesh", label: "Relay Mesh", defaultOn: false },
-];
+interface NeuronaBreve { id: string; nombre: string; tipo: string; enLinea: boolean; esEste: boolean; iaLocal: boolean }
 
-const WINDOW = 24;
+async function cargarNeuronas(): Promise<NeuronaBreve[]> {
+    const { listNeurons } = await import("@/lib/neurons/neurons");
+    const lista = await listNeurons();
+    return lista.map((n) => ({
+        id: n.id,
+        nombre: n.name,
+        tipo: n.kind,
+        enLinea: !!n.online,
+        esEste: !!n.isThisDevice,
+        iaLocal: !!(n.capabilities?.ollama || n.capabilities?.lmstudio || n.capabilities?.webgpu || n.capabilities?.astraura158?.online),
+    }));
+}
 
-function pushSample(prev: SeriesPoint[], v: number): SeriesPoint[] {
-    const next = [...prev, { t: Date.now(), v }];
-    return next.length > WINDOW ? next.slice(next.length - WINDOW) : next;
+const ICONO_TIPO: Record<string, LucideIcon> = { desktop: Monitor, laptop: Laptop, mobile: Smartphone, tablet: Tablet, server: Server };
+
+/** Este dispositivo, medido al montar y re-medido con cada evento de batería o red. */
+function useMedida(): { medida: MedidaNodo | null; error: string | null; medir: () => void } {
+    const [medida, setMedida] = useState<MedidaNodo | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const medir = useCallback(() => {
+        medirNodo().then((m) => { setMedida(m); setError(null); }).catch(() => setError("No se pudo medir este dispositivo."));
+    }, []);
+    useEffect(() => {
+        medir();
+        return escucharNodo(medir);
+    }, [medir]);
+    return { medida, error, medir };
 }
 
 export function SovereignNodeWidget() {
-    const { data, loading } = useWidgetData("system.node", { refreshMs: 2500 });
-    const [active, setActive] = useState<MetricId>("cpu");
-    const [services, setServices] = useState<Record<string, boolean>>(
-        () => Object.fromEntries(SERVICES.map((s) => [s.id, s.defaultOn]))
-    );
-
-    // Histórico deslizante por métrica (acumulado en cliente a cada refresco).
-    const histRef = useRef<Record<MetricId, SeriesPoint[]>>({ cpu: [], memory: [], storage: [], network: [] });
-    const [, force] = useState(0);
-
-    // Carga extra inducida por los servicios activos (estado local → efecto real visible).
-    const activeCount = useMemo(() => SERVICES.filter((s) => services[s.id]).length, [services]);
-
-    // Valores normalizados (0..1) por métrica, derivados del adaptador.
-    const values = useMemo(() => {
-        if (!data) return null;
-        const loadBoost = 1 + (activeCount - 2) * 0.06; // más servicios → más carga
-        const storage = Math.min(0.99, 0.42 + data.contributedShare * 0.5 + data.ledgerSync * 0.06);
-        const network = Math.min(1, 0.25 + (data.ipfsPeers / 80) + data.threads[3].load * 0.3);
-        return {
-            cpu: Math.min(1, data.cpu * loadBoost),
-            memory: Math.min(1, data.memory * (1 + (activeCount - 2) * 0.03)),
-            storage,
-            network,
-        } as Record<MetricId, number>;
-    }, [data, activeCount]);
-
-    useEffect(() => {
-        if (!values) return;
-        const h = histRef.current;
-        (Object.keys(values) as MetricId[]).forEach((k) => { h[k] = pushSample(h[k], values[k]); });
-        force((n) => n + 1);
-    }, [values]);
-
-    // Uptime determinista: ancla al montaje del componente.
-    const bootRef = useRef<number>(Date.now() - 1000 * 60 * 60 * 9 - 1000 * 60 * 14);
-    const [uptime, setUptime] = useState("");
-    useEffect(() => {
-        const fmt = () => {
-            const ms = Date.now() - bootRef.current;
-            const d = Math.floor(ms / 86_400_000);
-            const h = Math.floor((ms % 86_400_000) / 3_600_000);
-            const m = Math.floor((ms % 3_600_000) / 60_000);
-            setUptime(d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m`);
-        };
-        fmt();
-        const id = setInterval(fmt, 30_000);
-        return () => clearInterval(id);
-    }, []);
-
+    const marco = useMarcoUnificado();
+    const { uid, ready } = useCurrentUid();
+    const { medida, error, medir } = useMedida();
+    const neuronas = useDatoCompartido<NeuronaBreve[]>(ready ? `neuronas.v1.${uid ?? "anon"}` : null, cargarNeuronas, { ttlMs: 5 * 60_000, persistir: false });
+    const recargar = useCallback(() => { medir(); neuronas.recargar(); }, [medir, neuronas]);
     return (
-        <WidgetShell title="Nodo Soberano" subtitle="Tu infraestructura" icon={Server} accent="#06b6d4" live>
-            {(size) => {
-                if (loading || !data || !values) return <div className="pt-2 h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const micro = size.tier === "micro" || size.vTier === "micro";
-
-                // Salud global: media ponderada de cpu/ram/temp.
-                const tempLoad = Math.min(1, data.temperature / 80);
-                const stress = (values.cpu * 0.4 + values.memory * 0.35 + tempLoad * 0.25);
-                const health = stress > 0.82 ? { label: "Crítico", color: "#f43f5e" }
-                    : stress > 0.62 ? { label: "Cargado", color: "#f59e0b" }
-                        : { label: "Óptimo", color: "#10b981" };
-
-                if (micro) {
-                    return (
-                        <div className="h-full grid grid-cols-2 gap-2 place-items-center">
-                            <ProgressRing value={values.cpu} size={52} color={METRICS.cpu.color} sublabel="cpu" />
-                            <ProgressRing value={values.memory} size={52} color={METRICS.memory.color} sublabel="ram" />
-                        </div>
-                    );
-                }
-
-                const meta = METRICS[active];
-                const hist = histRef.current[active];
-                const networkMbps = Math.round(50 + values.network * 920);
-                const displayVal = active === "network" ? `${networkMbps}` : `${Math.round(values[active] * 100)}`;
-
-                return (
-                    <div className="flex flex-col gap-3 pt-1 h-full">
-                        {/* Selector de métrica */}
-                        <div className="grid grid-cols-4 gap-1.5">
-                            {(Object.keys(METRICS) as MetricId[]).map((id) => {
-                                const m = METRICS[id];
-                                const on = active === id;
-                                const Icon = m.icon;
-                                return (
-                                    <button key={id} type="button" onClick={() => setActive(id)}
-                                        title={m.label}
-                                        className={cn("flex flex-col items-center gap-1 rounded-xl border px-1 py-1.5 transition-all cursor-pointer",
-                                            on ? "border-transparent" : "border-border/40 bg-white/[0.02] hover:bg-white/[0.05]")}
-                                        style={on ? { background: `color-mix(in srgb, ${m.color} 16%, transparent)`, borderColor: `color-mix(in srgb, ${m.color} 45%, transparent)` } : undefined}>
-                                        <Icon className="size-3.5" style={{ color: on ? m.color : undefined }} />
-                                        <span className="text-[8px] font-black uppercase tracking-wider tabular-nums"
-                                            style={{ color: on ? m.color : undefined }}>
-                                            {id === "network" ? `${networkMbps}` : `${Math.round(values[id] * 100)}${m.unit === "%" ? "" : ""}`}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* Panel de la métrica activa: anillo + área de histórico */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-white/[0.03] p-2.5">
-                            <ProgressRing
-                                value={active === "network" ? values.network : values[active]}
-                                size={size.tier === "expanded" ? 64 : 56}
-                                color={meta.color}
-                                label={`${displayVal}${meta.unit === "%" ? "%" : ""}`}
-                                sublabel={meta.short}
-                            />
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[10px] uppercase tracking-wider font-black" style={{ color: meta.color }}>{meta.label}</span>
-                                    <span className="text-[9px] font-bold tabular-nums px-1.5 py-0.5 rounded-full"
-                                        style={{ color: health.color, background: `color-mix(in srgb, ${health.color} 14%, transparent)` }}>
-                                        {health.label}
-                                    </span>
-                                </div>
-                                <div className="h-9 mt-1">
-                                    {hist.length >= 2 ? (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={hist} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-                                                <defs>
-                                                    <linearGradient id={`node-${active}`} x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="0%" stopColor={meta.color} stopOpacity={0.45} />
-                                                        <stop offset="100%" stopColor={meta.color} stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <YAxis hide domain={[0, 1]} />
-                                                <Area type="monotone" dataKey="v" stroke={meta.color} strokeWidth={2}
-                                                    fill={`url(#node-${active})`} isAnimationActive={false} dot={false} />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    ) : (
-                                        <div className="h-full w-full grid place-items-center text-[9px] text-muted-foreground/50">muestreando…</div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Sparkline de temperatura + datos de red */}
-                        {size.vTier !== "compact" && (
-                            <div className="grid grid-cols-3 gap-2">
-                                <div className="rounded-xl border border-border/40 bg-white/[0.03] p-2">
-                                    <div className="text-[8px] uppercase tracking-wider font-bold text-muted-foreground/60">Temp</div>
-                                    <div className="text-sm font-black tabular-nums" style={{ color: tempLoad > 0.7 ? "#f43f5e" : "#06b6d4" }}>{data.temperature}°</div>
-                                </div>
-                                <div className="rounded-xl border border-border/40 bg-white/[0.03] p-2">
-                                    <div className="text-[8px] uppercase tracking-wider font-bold text-muted-foreground/60">Pares IPFS</div>
-                                    <div className="text-sm font-black tabular-nums text-cyan-300">{data.ipfsPeers}</div>
-                                </div>
-                                <div className="rounded-xl border border-border/40 bg-white/[0.03] p-2">
-                                    <div className="text-[8px] uppercase tracking-wider font-bold text-muted-foreground/60 flex items-center gap-1"><Share2 className="size-2.5" />Donado</div>
-                                    <div className="text-sm font-black tabular-nums text-emerald-300">{Math.round(data.contributedShare * 100)}%</div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Toggles de servicios soberanos + uptime */}
-                        {size.vTier === "expanded" && (
-                            <div className="mt-auto space-y-2">
-                                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-cyan-300/70">
-                                    <span>Servicios ({activeCount}/{SERVICES.length})</span>
-                                    <span className="normal-case tracking-normal text-muted-foreground/70 font-bold">uptime {uptime}</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-1.5">
-                                    {SERVICES.map((s) => {
-                                        const on = services[s.id];
-                                        return (
-                                            <button key={s.id} type="button"
-                                                onClick={() => setServices((p) => ({ ...p, [s.id]: !p[s.id] }))}
-                                                title={on ? `Apagar ${s.label}` : `Encender ${s.label}`}
-                                                className={cn("flex items-center justify-between gap-1.5 rounded-xl border px-2 py-1.5 transition-colors cursor-pointer",
-                                                    on ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200" : "border-border/40 bg-white/[0.02] text-muted-foreground hover:text-foreground")}>
-                                                <span className="text-[10px] font-bold truncate">{s.label}</span>
-                                                <Power className={cn("size-3 shrink-0", on ? "text-emerald-400" : "opacity-50")} />
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                <ProgressBar value={data.ledgerSync} label="Sincronía del Ledger" showPct color="#06b6d4" height={5} />
-                            </div>
-                        )}
-                    </div>
-                );
-            }}
+        <WidgetShell
+            title="Nodo soberano"
+            subtitle="Tu neurona y tu red"
+            icon={Server}
+            bare={marco?.base === "micro"}
+            actions={
+                <button type="button" onClick={recargar} aria-label="Volver a medir el nodo"
+                    className="grid size-7 cursor-pointer place-items-center rounded-full ss-redondo text-white/70 transition-colors hover:text-white">
+                    <RefreshCw className={cn("size-3.5", !medida && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                </button>
+            }
+        >
+            {(size) => <Cuerpo size={size} medida={medida} error={error} medir={medir} neuronas={neuronas.dato} />}
         </WidgetShell>
+    );
+}
+
+function Cuerpo({ size, medida, error, medir, neuronas }: { size: ElementSize; medida: MedidaNodo | null; error: string | null; medir: () => void; neuronas: NeuronaBreve[] | null }) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    let contenido: ReactNode;
+    if (!medida) {
+        contenido = error ? <WidgetErrorState message={error} onRetry={medir} /> : <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "block"} />;
+    } else {
+        contenido = <Composicion m={medida} neuronas={neuronas} lienzo={lienzo} />;
+    }
+    return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
+}
+
+function Composicion({ m, neuronas, lienzo }: { m: MedidaNodo; neuronas: NeuronaBreve[] | null; lienzo: LienzoB }) {
+    const b = lienzo.base;
+    const total = neuronas?.length ?? 1;
+    const enLinea = neuronas ? neuronas.filter((n) => n.enLinea || n.esEste).length : 1;
+    const frase = `${enLinea} de ${total} ${total === 1 ? "neurona" : "neuronas"} en línea${m.enLinea ? "" : " · este dispositivo sin conexión"}`;
+    const cristal = (lado: number) => <Cristal m={m} lado={lado} enLinea={enLinea} total={total} lienzo={lienzo} etiqueta={frase} />;
+
+    if (b === "micro") return <div className="grid h-full place-items-center">{cristal(76)}</div>;
+
+    const cifras = (vertical: boolean) => <Cifras m={m} vertical={vertical} />;
+    const acciones = (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <AccionB href="/cuenta" icono={Settings2} color={lienzo.acento2} tono="llena" tactil={lienzo.tactil}>Neuronas</AccionB>
+            {(b === "l" || b === "xl") && <AccionB href="/servidores" icono={Server} color={lienzo.acento} tactil={lienzo.tactil}>Servidores</AccionB>}
+        </div>
+    );
+    const lista = (max: number) => <ListaNeuronas neuronas={neuronas} max={max} lienzo={lienzo} />;
+    const lado = (fr: number) => Math.max(72, Math.min(lienzo.tv ? 200 : 170, fr));
+
+    if (b === "s") return <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">{cristal(92)}<p className="text-[12px] text-white/70">{frase}</p></div>;
+    if (lienzo.clase === "panoramico") {
+        return (
+            <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "auto minmax(0, 1fr) minmax(0, 1fr)" }}>
+                {cristal(96)}
+                {cifras(true)}
+                {lista(2)}
+            </div>
+        );
+    }
+    if (b === "m" && lienzo.clase !== "torre") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2">
+                <div className="flex min-h-0 flex-1 items-center gap-3">{cristal(104)}{cifras(true)}</div>
+                {acciones}
+            </div>
+        );
+    }
+    if (lienzo.clase === "torre" || b === "l") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2.5">
+                <div className="flex items-center gap-3">{cristal(lado(120))}{cifras(true)}</div>
+                <RotuloB>{frase}</RotuloB>
+                {lista(b === "l" ? 3 : 4)}
+                <div className="mt-auto">{acciones}</div>
+            </div>
+        );
+    }
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
+            <div className="flex min-h-0 flex-col items-center gap-3">
+                {cristal(lado(180))}
+                {cifras(false)}
+            </div>
+            <div className="flex min-h-0 flex-col gap-2.5 border-l border-white/[0.08] pl-4">
+                <RotuloB>{frase}</RotuloB>
+                {lista(5)}
+                <Ficha m={m} />
+                <div className="mt-auto">{acciones}</div>
+            </div>
+        </div>
+    );
+}
+
+/** El cristal del nodo: arcos de almacén, batería y red alrededor de un núcleo facetado. */
+function Cristal({ m, lado, enLinea, total, lienzo, etiqueta }: { m: MedidaNodo; lado: number; enLinea: number; total: number; lienzo: LienzoB; etiqueta: string }) {
+    const id = useId().replace(/:/g, "");
+    const arcos: { v: number | null; color: string; r: number; nombre: string }[] = [
+        { v: usoAlmacen(m), color: ALMACEN, r: 44, nombre: "almacén" },
+        { v: m.bateria ? m.bateria.nivel / 100 : null, color: BATERIA, r: 38, nombre: "batería" },
+        { v: calidadRed(m), color: RED, r: 32, nombre: "red" },
+    ];
+    const vivo = lienzo.nivel !== "ligero";
+    return (
+        <svg width={lado} height={lado} viewBox="0 0 100 100" role="img" aria-label={etiqueta} className="shrink-0 overflow-visible">
+            <defs>
+                <linearGradient id={`c${id}`} x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor={tintaB(lienzo.acento2, 0.55)} />
+                    <stop offset="100%" stopColor={lienzo.acento2} stopOpacity={0.55} />
+                </linearGradient>
+            </defs>
+            {arcos.map((a) => {
+                const c = 2 * Math.PI * a.r;
+                return (
+                    <g key={a.nombre}>
+                        <circle cx={50} cy={50} r={a.r} fill="none" stroke="#fff" strokeOpacity={0.07} strokeWidth={3.2} />
+                        {a.v !== null && (
+                            <circle cx={50} cy={50} r={a.r} fill="none" stroke={a.color} strokeWidth={3.2} strokeLinecap="round"
+                                strokeDasharray={`${(c * Math.max(0.01, a.v)).toFixed(1)} ${c.toFixed(1)}`} transform="rotate(-90 50 50)" opacity={0.9}>
+                                <title>{`${a.nombre}: ${Math.round(a.v * 100)} %`}</title>
+                            </circle>
+                        )}
+                    </g>
+                );
+            })}
+            <g className={vivo ? estilosB.orbita : undefined} style={{ ["--b-dur" as string]: "120s" }}>
+                <polygon points="50,28 69,39 69,61 50,72 31,61 31,39" fill={`url(#c${id})`} stroke="#fff" strokeOpacity={0.4} strokeWidth={0.8} />
+                <polyline points="31,39 50,50 69,39 M50,50 50,72" fill="none" stroke="#fff" strokeOpacity={0.25} strokeWidth={0.6} />
+            </g>
+            <text x={50} y={49} textAnchor="middle" dominantBaseline="middle" fill="#0b1020" fontSize={12} fontWeight={700} style={{ fontVariantNumeric: "tabular-nums" }}>{enLinea}/{total}</text>
+            <text x={50} y={60} textAnchor="middle" dominantBaseline="middle" fill="#0b1020" fillOpacity={0.75} fontSize={5.5} fontWeight={700} letterSpacing=".08em">EN LÍNEA</text>
+            {!m.enLinea && <circle cx={84} cy={16} r={4} fill="#f43f5e" className={vivo ? estilosB.latido : undefined}><title>Sin conexión</title></circle>}
+        </svg>
+    );
+}
+
+function Cifras({ m, vertical }: { m: MedidaNodo; vertical: boolean }) {
+    const alm = usoAlmacen(m);
+    const items = [
+        { color: ALMACEN, etiqueta: "Almacén", valor: alm === null ? "—" : `${Math.round(alm * 100)} %`, detalle: m.almacenCuotaGb ? `${gb(m.almacenUsadoGb)} de ${gb(m.almacenCuotaGb)}` : "sin dato" },
+        { color: BATERIA, etiqueta: "Batería", valor: m.bateria ? `${m.bateria.nivel} %` : "—", detalle: m.bateria ? (m.bateria.cargando ? "cargando" : "sin cargar") : "sin dato" },
+        { color: RED, etiqueta: "Red", valor: !m.enLinea ? "sin red" : m.conexion?.tipo?.toUpperCase() ?? "en línea", detalle: m.conexion?.bajadaMbps != null ? `↓ ${m.conexion.bajadaMbps} Mbps · ${m.conexion.latenciaMs ?? "—"} ms` : m.enLinea ? "conectada" : "sin conexión" },
+    ];
+    return (
+        <dl className={cn("grid min-w-0 gap-2", vertical ? "grid-cols-1" : "w-full grid-cols-3")}>
+            {items.map((it) => (
+                <div key={it.etiqueta} className={cn("min-w-0", vertical && "flex items-baseline gap-2")}>
+                    <dt className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/55">
+                        <span className="size-1.5 rounded-full" style={{ background: it.color }} aria-hidden />{it.etiqueta}
+                    </dt>
+                    <dd className="min-w-0">
+                        <span className="text-[16px] font-light tabular-nums text-white">{it.valor}</span>
+                        <span className="ml-1.5 text-[11px] text-white/50 line-clamp-1">{it.detalle}</span>
+                    </dd>
+                </div>
+            ))}
+        </dl>
+    );
+}
+
+function ListaNeuronas({ neuronas, max, lienzo }: { neuronas: NeuronaBreve[] | null; max: number; lienzo: LienzoB }) {
+    if (!neuronas) return <p className="text-[11px] text-white/50">Buscando tus neuronas…</p>;
+    if (neuronas.length <= 1) return <p className="text-[12px] text-white/60">Solo este dispositivo por ahora: entra con tu cuenta en otro y se unirá a tu red.</p>;
+    return (
+        <ul className="flex min-h-0 flex-col gap-0.5" aria-label="Tus neuronas">
+            {neuronas.slice(0, max).map((n) => {
+                const Icono = ICONO_TIPO[n.tipo] ?? Cpu;
+                return (
+                    <li key={n.id} className={cn("flex items-center gap-2 text-[12px]", lienzo.tactil ? "min-h-11" : "min-h-7")}>
+                        <span className="relative grid size-6 shrink-0 place-items-center rounded-full bg-white/[0.06]" aria-hidden>
+                            <Icono className="size-3.5 text-white/75" />
+                            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full ring-2 ring-[#0c0e22]" style={{ background: n.enLinea || n.esEste ? "#10b981" : "#475569" }} />
+                        </span>
+                        <span className="min-w-0 flex-1 text-white/85 line-clamp-1" title={n.nombre}>{n.nombre}</span>
+                        <span className="shrink-0 whitespace-nowrap text-[11px] text-white/50">{n.esEste ? "este" : n.enLinea ? "en línea" : "dormida"}{n.iaLocal ? " · IA" : ""}</span>
+                    </li>
+                );
+            })}
+            {neuronas.length > max && <li className="text-[11px] text-white/45">+{neuronas.length - max} más</li>}
+        </ul>
+    );
+}
+
+function Ficha({ m }: { m: MedidaNodo }) {
+    const filas: [string, string][] = [
+        ["Plataforma", `${m.plataforma} · ${m.navegador}`],
+        ["Núcleos", m.nucleos ? String(m.nucleos) : "—"],
+        ["Memoria", m.memoriaGb ? `≥ ${m.memoriaGb} GB` : "—"],
+        ["GPU", m.gpu ?? (m.webgpu ? "WebGPU disponible" : "—")],
+        ["App", m.appInstalada ? "instalada" : "en el navegador"],
+    ];
+    return (
+        <dl className="grid gap-x-3 gap-y-0.5 text-[11px]" style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }} aria-label="Este dispositivo">
+            {filas.map(([k, v]) => (
+                <div key={k} className="contents">
+                    <dt className="text-white/50">{k}</dt>
+                    <dd className="text-white/80 line-clamp-1" title={v}>{v}</dd>
+                </div>
+            ))}
+        </dl>
     );
 }

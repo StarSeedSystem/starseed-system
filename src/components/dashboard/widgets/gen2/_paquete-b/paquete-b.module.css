@@ -1,0 +1,99 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Paquete B (Ontocracia · gobernanza · economía) — Ola 0929.
+   Solo transform/opacity (y un stroke-dashoffset puntual). Todo se para
+   con movimiento reducido, en «eco», en nivel ligero y cuando el widget
+   no se ve (data-pausa). Nada sale de .raiz.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.raiz {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.raiz[data-pausa="si"] *,
+.raiz[data-pausa="si"] {
+  animation-play-state: paused !important;
+}
+
+@keyframes bLatido {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.18); }
+}
+.latido {
+  animation: bLatido 2.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes bOrbita { to { transform: rotate(360deg); } }
+.orbita {
+  animation: bOrbita var(--b-dur, 60s) linear infinite;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+
+@keyframes bFlujo { to { stroke-dashoffset: -20; } }
+.flujo {
+  stroke-dasharray: 2 8;
+  animation: bFlujo 1.8s linear infinite;
+}
+
+@keyframes bEntrar {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.entrar {
+  animation: bEntrar 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes bCrecer {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.crecer {
+  transform-origin: left center;
+  animation: bCrecer 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.raiz[data-nivel-render="ligero"] .latido,
+.raiz[data-nivel-render="ligero"] .orbita,
+.raiz[data-nivel-render="ligero"] .flujo,
+.raiz[data-nivel-render="ligero"] .entrar,
+.raiz[data-nivel-render="ligero"] .crecer {
+  animation: none !important;
+}
+
+:global(html[data-perf="eco"]) .latido,
+:global(html[data-perf="eco"]) .orbita,
+:global(html[data-perf="eco"]) .flujo,
+:global(html[data-perf="eco"]) .entrar,
+:global(html[data-perf="eco"]) .crecer {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .latido, .orbita, .flujo, .entrar, .crecer { animation: none !important; }
+}
+
+/* Foco visible del color de la familia; en TV más grueso y separado. */
+.foco:focus-visible {
+  outline: 2px solid var(--b-acento, #7c5cff);
+  outline-offset: 2px;
+}
+.raiz[data-dispositivo="tv"] .foco:focus-visible {
+  outline-width: 3px;
+  outline-offset: 3px;
+}
+
+/* Fila pulsable de una lista: sin caja; al pasar, una luz tenue del acento. */
+.fila {
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+.fila:hover {
+  background-color: color-mix(in srgb, var(--b-acento, #7c5cff) 9%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .fila { transition: none; }
+}

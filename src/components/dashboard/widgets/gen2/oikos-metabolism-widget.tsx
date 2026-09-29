@@ -1,267 +1,284 @@
 'use client';
 
-import { useMemo, useState } from "react";
-import { Leaf, Zap, Droplets, Wheat, ArrowRightLeft, type LucideIcon } from "lucide-react";
-import {
-    AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
-} from "recharts";
-import { WidgetShell, ProgressRing, ProgressBar, StatTile } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { SeriesPoint } from "@/lib/widget-data";
-
 // ════════════════════════════════════════════════════════════════
-// OikosMetabolismWidget — metabolismo del hogar común (Oikos).
+// Metabolismo Oikos — lo que el cielo da aquí y lo que podríais captar (Ola 0929).
 // ----------------------------------------------------------------
-// PROFUNDIZACIÓN (esta versión):
-//   • Conmutador de recurso: Energía / Agua / Alimento. Cada recurso
-//     tiene su propia balanza entrada→salida, excedente/déficit y serie.
-//   • Diagrama de flujo (mini-sankey en SVG): cinta de entrada que se
-//     bifurca hacia consumo y excedente enrutado, ancho ∝ magnitud.
-//   • Estado de SUPERÁVIT / DÉFICIT con color e icono claros.
-//   • Área de tendencia con recharts (línea de equilibrio de referencia).
-//   • Mezcla de fuentes por barras (energía) o destinos (agua/alimento).
-//   Datos deterministas: derivados del adaptador oikos.flow + cifras
-//   ancla por recurso (sin Math.random en el render).
+// Antes: energía, agua y alimento inventados que «respiraban» cada 3 s. Ahora, datos
+// REALES y públicos (Open-Meteo, sin clave, la misma fuente del Clima): la radiación
+// solar (kWh/m²), las horas de sol y la lluvia (L/m²) de hoy y los próximos 6 días en tu
+// ubicación del Clima. Las captaciones son ESTIMACIONES con los supuestos a la vista
+// (superficie de paneles y de tejado que eliges, rendimiento 18 %, aprovechamiento 80 %).
+// Una petición por lugar y hora como mucho (caché compartida). Invariante (§3): el Oikos
+// —energía, agua, alimento— es procomún; este widget ayuda a planificarlo.
+//
+//   micro      → el Sol de hoy en kWh/m².
+//   s          → Sol y lluvia de hoy.
+//   m          → + los 7 días en espejo (sol arriba, lluvia abajo).
+//   panorámico → cifras a la izquierda, semana a lo ancho.   torre → todo en columna.
+//   l          → + tu captación estimada (paneles y tejado) con tus supuestos.
+//   xl         → semana con días, totales, supuestos editables y de dónde sale cada dato.
+// Estados honestos: cargando, error con reintento y vacío (sin ubicación → elegirla en el Clima).
 // ════════════════════════════════════════════════════════════════
 
-type ResourceId = "energia" | "agua" | "alimento";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Leaf, RefreshCw, MapPin } from "lucide-react";
+import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../../kit";
+import { useLugarB, useSupuestosOikos, type LugarB } from "./_paquete-b/lugar";
+import { cn } from "@/lib/utils";
+import { useDatoCompartido, type ResultadoDato } from "./_paquete-b/cache-compartida";
+import {
+    APROVECHAMIENTO_TEJADO, RENDIMIENTO_PANEL, aguaTejado, cargarCieloOikos, diaCorto, energiaPaneles,
+    type CieloOikos, type DiaOikos,
+} from "./_paquete-b/datos-oikos";
+import { AccionB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
-interface ResourceModel {
-    id: ResourceId;
-    label: string;
-    unit: string;
-    icon: LucideIcon;
-    color: string;
-    input: number;            // entrada (generación / captación / cosecha)
-    output: number;           // salida (consumo / uso)
-    routing: { to: string; amount: number }[];
-    sources: { id: string; label: string; share: number }[];
-    history: SeriesPoint[];
-    decimals: number;
-}
+const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
+const SOL = "#FFBF00";
+const LLUVIA = "#38bdf8";
+const DEC1 = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
+const ENT = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
+
+type Lugar = LugarB;
+const useLugar = useLugarB;
+
+const useSupuestos = useSupuestosOikos;
 
 export function OikosMetabolismWidget() {
-    const { data, loading } = useWidgetData("oikos.flow", { refreshMs: 3000 });
-    const [resource, setResource] = useState<ResourceId>("energia");
-
-    // Modelos por recurso, derivados de forma determinista de oikos.flow.
-    const models = useMemo<Record<ResourceId, ResourceModel> | null>(() => {
-        if (!data) return null;
-        const e = data;
-
-        // Escalas estables derivadas de la energía generada (sin azar nuevo).
-        const waterIn = e.waterCaptured;                       // L captados
-        const waterOut = Math.round(e.waterCaptured * 0.82);   // 82% uso
-        const foodIn = Math.round(40 + e.energyGenerated * 6); // kg cosecha
-        const foodOut = Math.round(34 + e.energyConsumed * 5);
-
-        const histScale = (factor: number): SeriesPoint[] =>
-            e.history.map((p) => ({ t: p.t, v: Number((p.v * factor).toFixed(2)) }));
-
-        return {
-            energia: {
-                id: "energia", label: "Energía", unit: "kW", icon: Zap, color: "#f59e0b",
-                input: e.energyGenerated, output: e.energyConsumed,
-                routing: e.surplusRouting,
-                sources: e.sources.map(s => ({ id: s.id, label: s.label, share: s.share })),
-                history: e.history, decimals: 1,
-            },
-            agua: {
-                id: "agua", label: "Agua", unit: "L", icon: Droplets, color: "#38bdf8",
-                input: waterIn, output: waterOut,
-                routing: [
-                    { to: "Riego vivero", amount: Math.round(waterIn * 0.11) },
-                    { to: "Cisterna Sangha", amount: Math.round(waterIn * 0.05) },
-                    { to: "Red vecinal", amount: Math.round(waterIn * 0.02) },
-                ],
-                sources: [
-                    { id: "lluvia", label: "Lluvia", share: 0.58 },
-                    { id: "niebla", label: "Niebla", share: 0.27 },
-                    { id: "reciclaje", label: "Reciclaje", share: 0.15 },
-                ],
-                history: histScale(60), decimals: 0,
-            },
-            alimento: {
-                id: "alimento", label: "Alimento", unit: "kg", icon: Wheat, color: "#9FE870",
-                input: foodIn, output: foodOut,
-                routing: [
-                    { to: "Comedor común", amount: Math.round(foodIn * 0.12) },
-                    { to: "Reserva semillas", amount: Math.round(foodIn * 0.06) },
-                    { to: "Trueque vecinal", amount: Math.round(foodIn * 0.04) },
-                ],
-                sources: [
-                    { id: "huerto", label: "Huerto", share: 0.49 },
-                    { id: "invernadero", label: "Invernadero", share: 0.34 },
-                    { id: "micelio", label: "Micelio", share: 0.17 },
-                ],
-                history: histScale(8), decimals: 0,
-            },
-        };
-    }, [data]);
-
+    const marco = useMarcoUnificado();
+    const lugar = useLugar();
+    const clave = lugar ? `oikos.cielo.v1.${lugar.lat.toFixed(2)},${lugar.lon.toFixed(2)}` : null;
+    const cargar = useCallback(() => cargarCieloOikos(lugar!.lat, lugar!.lon, lugar!.nombre), [lugar]);
+    const cielo = useDatoCompartido<CieloOikos>(clave, cargar, { ttlMs: 60 * 60_000 });
     return (
-        <WidgetShell title="Metabolismo Oikos" subtitle="Energía · agua · alimento" icon={Leaf} accent="#10b981" live>
-            {(size) => {
-                if (loading || !data || !models) return <div className="pt-2 h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const m = models[resource];
-                const net = m.input - m.output;
-                const surplus = net >= 0;
-                const ratio = Math.max(0, Math.min(1, m.input / (m.output || 1) / 2));
-                const stateColor = surplus ? "#10b981" : "#f59e0b";
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const nf = (v: number) => v.toLocaleString("es-ES", { maximumFractionDigits: m.decimals });
-
-                if (micro) {
-                    return (
-                        <div className="h-full flex flex-col items-center justify-center gap-1">
-                            <ProgressRing value={ratio} size={64} color={stateColor}
-                                label={`${surplus ? "+" : ""}${net.toFixed(m.decimals)}`} sublabel={`${m.unit} net`} />
-                        </div>
-                    );
-                }
-
-                // Anchos del mini-sankey (proporción salida vs excedente).
-                const routed = m.routing.reduce((s, r) => s + r.amount, 0);
-                const consumedW = Math.max(8, Math.min(90, (m.output / m.input) * 100));
-                const surplusW = Math.max(0, Math.min(90, (Math.max(0, net) / m.input) * 100));
-
-                const chartData = m.history.map((p, i) => ({ i, v: p.v }));
-                const avg = chartData.length ? chartData.reduce((s, d) => s + d.v, 0) / chartData.length : 0;
-
-                return (
-                    <div className="flex flex-col gap-3 pt-1 h-full">
-                        {/* ── Conmutador de recurso ── */}
-                        <div className="inline-flex self-start rounded-full border border-border/50 bg-white/[0.04] p-0.5">
-                            {(Object.values(models)).map((rm) => {
-                                const RIcon = rm.icon;
-                                const active = rm.id === resource;
-                                return (
-                                    <button
-                                        key={rm.id}
-                                        type="button"
-                                        onClick={() => setResource(rm.id)}
-                                        aria-pressed={active}
-                                        title={rm.label}
-                                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${active ? "text-background" : "text-muted-foreground/70 hover:text-foreground"}`}
-                                        style={active ? { background: rm.color } : undefined}
-                                    >
-                                        <RIcon className="size-3" /> {rm.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* ── Balanza + ring de estado ── */}
-                        <div className="flex items-center gap-3">
-                            <ProgressRing value={ratio} size={size.tier === "expanded" ? 84 : 68}
-                                color={stateColor} label={`${surplus ? "+" : ""}${net.toFixed(m.decimals)}`} sublabel={`${m.unit} net`} />
-                            <div className="flex-1 grid grid-cols-2 gap-2">
-                                <StatTile label="Entrada" value={nf(m.input)} unit={m.unit} accent={m.color} icon={m.icon} compact />
-                                <StatTile label="Salida" value={nf(m.output)} unit={m.unit} accent="#94a3b8" compact />
-                            </div>
-                        </div>
-
-                        {/* ── Estado superávit/déficit ── */}
-                        <div className="flex items-center justify-between rounded-2xl border px-3 py-2"
-                            style={{ borderColor: `${stateColor}40`, background: `${stateColor}14` }}>
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider" style={{ color: stateColor }}>
-                                <ArrowRightLeft className="size-3.5" /> {surplus ? "Superávit" : "Déficit"}
-                            </span>
-                            <span className="text-[11px] font-black tabular-nums" style={{ color: stateColor }}>
-                                {surplus ? "+" : ""}{nf(net)} {m.unit}
-                            </span>
-                        </div>
-
-                        {/* ── Mini-sankey de flujo (SVG) ── */}
-                        <div className="rounded-2xl border border-border/40 bg-white/[0.02] p-2.5">
-                            <div className="flex items-center justify-between text-[9px] uppercase tracking-wider font-bold text-muted-foreground/60 mb-1.5">
-                                <span>Entrada {nf(m.input)} {m.unit}</span>
-                                <span>Reparto</span>
-                            </div>
-                            <svg viewBox="0 0 100 26" preserveAspectRatio="none" className="w-full" style={{ height: 40 }}>
-                                <defs>
-                                    <linearGradient id="oikIn" x1="0" y1="0" x2="1" y2="0">
-                                        <stop offset="0%" stopColor={m.color} stopOpacity={0.85} />
-                                        <stop offset="100%" stopColor={m.color} stopOpacity={0.45} />
-                                    </linearGradient>
-                                </defs>
-                                {/* cinta de entrada */}
-                                <rect x="0" y="9" width="34" height="8" rx="2" fill="url(#oikIn)" />
-                                {/* bifurcación a consumo */}
-                                <path d={`M34,11 C46,11 46,${4} 60,${4} L100,${4} L100,${4 + (consumedW / 100) * 9} L60,${4 + (consumedW / 100) * 9} C46,${4 + (consumedW / 100) * 9} 46,13 34,13 Z`}
-                                    fill="#94a3b8" fillOpacity={0.5} />
-                                {/* bifurcación a excedente */}
-                                {surplusW > 1 && (
-                                    <path d={`M34,15 C46,15 46,${22 - (surplusW / 100) * 8} 60,${22 - (surplusW / 100) * 8} L100,${22 - (surplusW / 100) * 8} L100,22 L60,22 C46,22 46,15 34,15 Z`}
-                                        fill={stateColor} fillOpacity={0.6} />
-                                )}
-                            </svg>
-                            <div className="flex items-center justify-between text-[9px] font-bold mt-1">
-                                <span className="text-slate-400">Consumo {nf(m.output)} {m.unit}</span>
-                                {routed > 0 && <span style={{ color: stateColor }}>Excedente {nf(routed)} {m.unit}</span>}
-                            </div>
-                        </div>
-
-                        {/* ── Tendencia (recharts) ── */}
-                        {size.vTier !== "compact" && (
-                            <div className="rounded-2xl border border-border/40 bg-white/[0.02] p-2.5">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">
-                                    {m.label} · tendencia neta
-                                </span>
-                                <div style={{ height: size.vTier === "expanded" ? 80 : 52 }} className="mt-1">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={chartData} margin={{ top: 4, right: 2, left: 2, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id={`oik-${m.id}`} x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0%" stopColor={m.color} stopOpacity={0.4} />
-                                                    <stop offset="100%" stopColor={m.color} stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <XAxis dataKey="i" hide />
-                                            <YAxis hide domain={["dataMin", "dataMax"]} />
-                                            <ReferenceLine y={avg} stroke="currentColor" strokeOpacity={0.18} strokeDasharray="3 3" />
-                                            <Tooltip
-                                                cursor={{ stroke: m.color, strokeOpacity: 0.3 }}
-                                                contentStyle={{ background: "rgba(10,12,16,0.92)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, fontSize: 11, padding: "6px 10px" }}
-                                                formatter={(val: number) => [`${nf(val)} ${m.unit}`, m.label]}
-                                                labelFormatter={() => ""}
-                                            />
-                                            <Area type="monotone" dataKey="v" stroke={m.color} strokeWidth={2} fill={`url(#oik-${m.id})`} />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ── Mezcla de fuentes ── */}
-                        {size.vTier !== "compact" && (
-                            <div className="space-y-1.5">
-                                {m.sources.map((s) => (
-                                    <ProgressBar key={s.id} value={s.share} label={s.label} showPct color={m.color} />
-                                ))}
-                            </div>
-                        )}
-
-                        {/* ── Excedente enrutado ── */}
-                        {size.vTier === "expanded" && routed > 0 && (
-                            <div className="mt-auto rounded-2xl border p-2.5"
-                                style={{ borderColor: `${stateColor}33`, background: `${stateColor}10` }}>
-                                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: stateColor }}>
-                                    <ArrowRightLeft className="size-3" /> Excedente enrutado
-                                </div>
-                                <div className="space-y-1">
-                                    {m.routing.map((r) => (
-                                        <div key={r.to} className="flex justify-between text-[11px]">
-                                            <span className="text-muted-foreground/70 truncate">{r.to}</span>
-                                            <span className="font-bold tabular-nums" style={{ color: stateColor }}>{nf(r.amount)} {m.unit}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                );
-            }}
+        <WidgetShell
+            title="Metabolismo Oikos"
+            subtitle={lugar?.nombre ? `Lo que el cielo da en ${lugar.nombre}` : "Lo que el cielo da aquí"}
+            icon={Leaf}
+            bare={marco?.base === "micro"}
+            actions={lugar ? (
+                <button type="button" onClick={cielo.recargar} aria-label="Actualizar el cielo del Oikos"
+                    className="grid size-7 cursor-pointer place-items-center rounded-full ss-redondo text-white/70 transition-colors hover:text-white">
+                    <RefreshCw className={cn("size-3.5", cielo.estado === "cargando" && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                </button>
+            ) : undefined}
+        >
+            {(size) => <Cuerpo size={size} lugar={lugar} cielo={cielo} />}
         </WidgetShell>
+    );
+}
+
+function Cuerpo({ size, lugar, cielo }: { size: ElementSize; lugar: Lugar | null; cielo: ResultadoDato<CieloOikos> }) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    let contenido: ReactNode;
+    if (!lugar) {
+        contenido = lienzo.base === "micro"
+            ? <a href="/clima" aria-label="Elige tu lugar en el Clima" className={cn(estilosB.foco, "grid h-full place-items-center text-white/70")}><MapPin className="size-6" aria-hidden /></a>
+            : <WidgetEmptyState icon={MapPin} title="¿Dónde está tu Oikos?" message="Elige tu lugar en el Clima para ver el sol y la lluvia que recibe." actionLabel="Elegir lugar" actionHref="/clima" accent={lienzo.acento} />;
+    } else if (!cielo.dato) {
+        contenido = cielo.estado === "error"
+            ? <WidgetErrorState message={cielo.error ?? "No se pudo leer el cielo."} onRetry={cielo.recargar} />
+            : <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "block"} />;
+    } else {
+        contenido = <Composicion dias={cielo.dato.dias} lugar={lugar} lienzo={lienzo} />;
+    }
+    return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
+}
+
+function GlifoSol({ lado }: { lado: number }) {
+    const id = useId().replace(/:/g, "");
+    return (
+        <svg width={lado} height={lado} viewBox="0 0 40 40" aria-hidden className="shrink-0 overflow-visible">
+            <defs>
+                <radialGradient id={`sol${id}`}>
+                    <stop offset="0%" stopColor="#fff8e1" />
+                    <stop offset="45%" stopColor="#ffe08a" />
+                    <stop offset="100%" stopColor={SOL} />
+                </radialGradient>
+            </defs>
+            <g className={estilosB.orbita} style={{ ["--b-dur" as string]: "90s" }}>
+                {Array.from({ length: 12 }, (_, i) => {
+                    const a = (i * Math.PI) / 6;
+                    return <line key={i} x1={20 + Math.cos(a) * 13} y1={20 + Math.sin(a) * 13} x2={20 + Math.cos(a) * (i % 2 ? 16 : 18.5)} y2={20 + Math.sin(a) * (i % 2 ? 16 : 18.5)} stroke={SOL} strokeWidth={1.6} strokeLinecap="round" opacity={0.8} />;
+                })}
+            </g>
+            <circle cx={20} cy={20} r={10} fill={`url(#sol${id})`} />
+        </svg>
+    );
+}
+
+function GlifoGota({ lado }: { lado: number }) {
+    const id = useId().replace(/:/g, "");
+    return (
+        <svg width={lado} height={lado} viewBox="0 0 40 40" aria-hidden className="shrink-0">
+            <defs>
+                <linearGradient id={`g${id}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#bae6fd" />
+                    <stop offset="100%" stopColor={LLUVIA} />
+                </linearGradient>
+            </defs>
+            <path d="M20 5c5.5 8 10 13.2 10 19a10 10 0 0 1-20 0c0-5.8 4.5-11 10-19Z" fill={`url(#g${id})`} stroke="#fff" strokeOpacity={0.35} strokeWidth={0.8} />
+            <ellipse cx={16} cy={24} rx={2.2} ry={4} fill="#fff" fillOpacity={0.35} />
+        </svg>
+    );
+}
+
+function Cifra({ glifo, valor, unidad, etiqueta, grande }: { glifo: ReactNode; valor: string; unidad: string; etiqueta: string; grande?: boolean }) {
+    return (
+        <div className="flex min-w-0 items-center gap-2" role="group" aria-label={`${etiqueta}: ${valor} ${unidad}`}>
+            {glifo}
+            <div className="min-w-0">
+                <p className="flex items-baseline gap-1">
+                    <span className={cn("font-light tabular-nums leading-none text-white", grande ? "text-[30px]" : "text-[24px]")}>{valor}</span>
+                    <span className="text-[11px] font-semibold text-white/60">{unidad}</span>
+                </p>
+                <p className="mt-0.5 text-[11px] text-white/55">{etiqueta}</p>
+            </div>
+        </div>
+    );
+}
+
+/** La semana en espejo: el sol crece hacia arriba, la lluvia hacia abajo. */
+function Espejo({ dias, conDias, className }: { dias: DiaOikos[]; conDias?: boolean; className?: string }) {
+    const maxSol = Math.max(...dias.map((d) => d.solKwh), 1);
+    const maxLluvia = Math.max(...dias.map((d) => d.lluviaL), 10);
+    const n = dias.length;
+    return (
+        <div className={cn("flex min-h-0 flex-col gap-1", className)}>
+            <svg viewBox={`0 0 ${n * 20} 64`} preserveAspectRatio="none" className="min-h-[40px] w-full flex-1" role="img"
+                aria-label={`Próximos ${n} días: ${dias.map((d) => `${diaCorto(d.fecha)} ${DEC1.format(d.solKwh)} kWh/m² y ${DEC1.format(d.lluviaL)} L/m²`).join("; ")}`}>
+                <line x1={0} x2={n * 20} y1={32} y2={32} stroke="#fff" strokeOpacity={0.15} strokeWidth={0.5} vectorEffect="non-scaling-stroke" />
+                {dias.map((d, i) => {
+                    const hs = (d.solKwh / maxSol) * 29;
+                    const hl = (d.lluviaL / maxLluvia) * 29;
+                    return (
+                        <g key={d.fecha} className={estilosB.entrar} style={{ animationDelay: `${i * 40}ms` }}>
+                            <rect x={i * 20 + 5} y={31 - hs} width={10} height={Math.max(0.5, hs)} rx={3} fill={SOL} opacity={i === 0 ? 1 : 0.75} />
+                            {hl > 0.2 && <rect x={i * 20 + 5} y={33} width={10} height={hl} rx={3} fill={LLUVIA} opacity={i === 0 ? 1 : 0.75} />}
+                        </g>
+                    );
+                })}
+            </svg>
+            {conDias && (
+                <div className="grid text-center text-[10px] tabular-nums text-white/55" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }} aria-hidden>
+                    {dias.map((d, i) => <span key={d.fecha} className={i === 0 ? "font-semibold text-white/85" : undefined}>{i === 0 ? "hoy" : diaCorto(d.fecha)}</span>)}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function Supuestos({ s, cambiar, lienzo }: { s: { paneles: number; tejado: number }; cambiar: (p: Partial<{ paneles: number; tejado: number }>) => void; lienzo: LienzoB }) {
+    const id = useId().replace(/:/g, "");
+    const campo = (clave: "paneles" | "tejado", etiqueta: string) => (
+        <label htmlFor={`${id}-${clave}`} className="flex items-center gap-1.5 text-[12px] text-white/70">
+            {etiqueta}
+            <input id={`${id}-${clave}`} type="number" min={0} max={100000} inputMode="numeric" value={s[clave]}
+                onChange={(e) => cambiar({ [clave]: Math.max(0, Math.min(100000, Number(e.target.value) || 0)) })}
+                className={cn(estilosB.foco, lienzo.tactil ? "min-h-11" : "min-h-8", "w-20 rounded-full ss-redondo bg-white/[0.06] px-3 text-right tabular-nums text-white outline-none")} />
+            m²
+        </label>
+    );
+    return <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">{campo("paneles", "Paneles")}{campo("tejado", "Tejado")}</div>;
+}
+
+function Composicion({ dias, lugar, lienzo }: { dias: DiaOikos[]; lugar: Lugar; lienzo: LienzoB }) {
+    const [s, cambiar] = useSupuestos();
+    const hoy = dias[0];
+    const semana = useMemo(() => ({
+        sol: dias.reduce((a, d) => a + d.solKwh, 0),
+        lluvia: dias.reduce((a, d) => a + d.lluviaL, 0),
+    }), [dias]);
+    const b = lienzo.base;
+    const solHoy = DEC1.format(hoy.solKwh);
+    const lluviaHoy = DEC1.format(hoy.lluviaL);
+
+    if (b === "micro") {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-0.5 text-center" role="group" aria-label={`Hoy en ${lugar.nombre}: ${solHoy} kWh/m² de sol y ${lluviaHoy} L/m² de lluvia`}>
+                <GlifoSol lado={34} />
+                <span className="text-[20px] font-light tabular-nums leading-none text-white">{solHoy}</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/55">kWh/m² hoy</span>
+            </div>
+        );
+    }
+
+    const lado = lienzo.tv ? 40 : b === "s" ? 28 : 34;
+    const cifras = (vertical: boolean) => (
+        <div className={cn("flex gap-3", vertical ? "flex-col" : "flex-wrap items-center justify-between")}>
+            <Cifra glifo={<GlifoSol lado={lado} />} valor={solHoy} unidad="kWh/m²" etiqueta={`sol hoy · ${DEC1.format(hoy.solHoras)} h`} grande={b === "xl"} />
+            <Cifra glifo={<GlifoGota lado={lado} />} valor={lluviaHoy} unidad="L/m²" etiqueta="lluvia hoy" grande={b === "xl"} />
+        </div>
+    );
+    const estimacion = (periodo: "hoy" | "semana") => {
+        const sol = periodo === "hoy" ? hoy.solKwh : semana.sol;
+        const lluvia = periodo === "hoy" ? hoy.lluviaL : semana.lluvia;
+        return (
+            <p className="text-[12px] leading-relaxed text-white/75">
+                {periodo === "hoy" ? "Hoy" : "Esta semana"}, {s.paneles} m² de paneles darían <b className="font-semibold" style={{ color: tintaB(SOL, 0.3) }}>≈ {DEC1.format(energiaPaneles(sol, s.paneles))} kWh</b>
+                {" "}y {s.tejado} m² de tejado recogerían <b className="font-semibold" style={{ color: tintaB(LLUVIA, 0.3) }}>≈ {ENT.format(aguaTejado(lluvia, s.tejado))} L</b>.
+            </p>
+        );
+    };
+    const fuente = (
+        <p className="text-[10px] text-white/45">
+            Fuente: Open-Meteo · estimación con rendimiento {Math.round(RENDIMIENTO_PANEL * 100)} % y aprovechamiento {Math.round(APROVECHAMIENTO_TEJADO * 100)} %.
+        </p>
+    );
+
+    if (b === "s") return <div className="flex h-full flex-col justify-center gap-2">{cifras(true)}</div>;
+    if (lienzo.clase === "panoramico") {
+        return (
+            <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "minmax(0, 0.9fr) minmax(0, 2fr)" }}>
+                {cifras(true)}
+                <Espejo dias={dias} conDias className="h-full" />
+            </div>
+        );
+    }
+    if (b === "m" && lienzo.clase !== "torre") {
+        return <div className="flex h-full min-h-0 flex-col gap-2">{cifras(false)}<Espejo dias={dias} className="min-h-0 flex-1" /></div>;
+    }
+    if (lienzo.clase === "torre") {
+        return <div className="flex h-full min-h-0 flex-col gap-3">{cifras(true)}<Espejo dias={dias} conDias className="h-24" />{estimacion("hoy")}<div className="mt-auto">{fuente}</div></div>;
+    }
+    if (b === "l") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2.5">
+                {cifras(false)}
+                <Espejo dias={dias} conDias className="min-h-[56px] flex-1" />
+                <div className="flex flex-col gap-1.5">
+                    <RotuloB>Tu captación estimada</RotuloB>
+                    {estimacion("hoy")}
+                    <Supuestos s={s} cambiar={cambiar} lienzo={lienzo} />
+                </div>
+                {fuente}
+            </div>
+        );
+    }
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 1.3fr) minmax(0, 1fr)" }}>
+            <div className="flex min-h-0 flex-col gap-3">
+                {cifras(false)}
+                <Espejo dias={dias} conDias className="min-h-[96px] flex-1" />
+                <dl className="grid grid-cols-2 gap-2">
+                    <div><dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/50">Sol · 7 días</dt><dd className="text-[16px] tabular-nums text-white">{DEC1.format(semana.sol)} kWh/m²</dd></div>
+                    <div><dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/50">Lluvia · 7 días</dt><dd className="text-[16px] tabular-nums text-white">{DEC1.format(semana.lluvia)} L/m²</dd></div>
+                </dl>
+            </div>
+            <div className="flex min-h-0 flex-col gap-2.5 border-l border-white/[0.08] pl-4">
+                <RotuloB>Tu captación estimada</RotuloB>
+                {estimacion("hoy")}
+                {estimacion("semana")}
+                <Supuestos s={s} cambiar={cambiar} lienzo={lienzo} />
+                <p className="border-l-2 pl-2.5 text-[11px] leading-relaxed text-white/65" style={{ borderColor: lienzo.acento }}>
+                    El Oikos es procomún: con estas cifras la asamblea puede decidir cuántos paneles y cisternas necesita la Sangha.
+                </p>
+                <div className="mt-auto flex flex-wrap items-center gap-1.5">
+                    <AccionB href="/clima" icono={MapPin} color={lienzo.acento2} tactil={lienzo.tactil}>Cambiar lugar</AccionB>
+                </div>
+                {fuente}
+            </div>
+        </div>
     );
 }
