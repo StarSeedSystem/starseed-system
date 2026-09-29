@@ -24,6 +24,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import {
     useRealtimeRows,
     type UseRealtimeRowsResult,
@@ -46,9 +47,10 @@ export function useCurrentUid(): { uid: string | null; ready: boolean } {
 
         (async () => {
             try {
-                const { data } = await supabase.auth.getUser();
+                // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+                const id = await uidActual();
                 if (active) {
-                    setUid(data?.user?.id ?? null);
+                    setUid(id);
                     setReady(true);
                 }
             } catch {

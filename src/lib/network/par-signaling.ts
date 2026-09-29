@@ -38,6 +38,7 @@
 import { createClient } from "@/utils/supabase/client";
 import type { Signal, SignalSubscription } from "@/lib/network/signaling";
 import { hmacFirmar, hmacVerificar } from "@/lib/network/par-crypto";
+import { crearBucle, falloDe, MINUTO_MS, type BucleFondo } from "@/lib/network/bucle-fondo";
 
 /** El mismo contrato mínimo que `webrtc-mesh.ts` necesita de un transporte de señalización. */
 export interface TransporteSenal {
@@ -46,8 +47,17 @@ export interface TransporteSenal {
 }
 
 const BROADCAST_EVENT = "signal";
-/** Cadencia del fallback de sondeo (igual que `signaling.ts`). */
+/**
+ * Cadencia del fallback de sondeo MIENTRAS SE NEGOCIA (igual que `signaling.ts`).
+ * (2026-09-29 · contrato «consumo») Antes se sondeaba cada 2,5 s durante TODA la vida del
+ * vínculo (≈ 1.440 peticiones/h por vínculo y pestaña si Realtime no llegaba a SUBSCRIBED).
+ * Ahora: rápido solo en la ventana de negociación (2 min desde que se abre, se envía o llega
+ * una señal); fuera de ella, cada 5 min; nada con el dispositivo oculto; freno y espera
+ * exponencial ante fallos; parada ante 400/404 (`bucle-fondo.ts`).
+ */
 const POLL_INTERVAL_MS = 2_500;
+export const VENTANA_NEGOCIACION_MS = 2 * MINUTO_MS;
+export const POLL_EN_REPOSO_MS = 5 * MINUTO_MS;
 /** Espera máxima a que el canal Realtime quede `SUBSCRIBED` antes de caer al fallback. */
 const SUBSCRIBE_TIMEOUT_MS = 4_000;
 
@@ -120,6 +130,13 @@ export function crearTransporteSenalPar(opts: {
 }): TransporteSenal {
   const { vinculoId, topic, claveParHex, soyDe } = opts;
   const channelTopic = `starseed-par-${topic}`;
+  /** Hasta cuándo dura la negociación en curso (sondeo rápido del buzón de respaldo). */
+  let negociandoHasta = 0;
+  let bucleRespaldo: BucleFondo | null = null;
+  const marcarActividad = () => {
+    negociandoHasta = Date.now() + VENTANA_NEGOCIACION_MS;
+    bucleRespaldo?.adelantar();
+  };
 
   const send: TransporteSenal["send"] = async (sig) => {
     try {
@@ -127,6 +144,7 @@ export function crearTransporteSenalPar(opts: {
       const mac = await hmacFirmar(claveParHex, payload);
       if (!mac) return false; // nunca se envía sin firmar
       const sobre: SobreFirmado = { payload, mac };
+      marcarActividad(); // enviar = negociar: la respuesta llegará pronto
 
       // 1) Realtime (si hay un canal vivo de una suscripción activa de este
       //    mismo transporte — ver `subscribe`, que guarda la referencia).
@@ -190,7 +208,10 @@ export function crearTransporteSenalPar(opts: {
       const ok = await hmacVerificar(claveParHex, raw.payload, raw.mac);
       if (!ok) return; // sin firma válida: se descarta ANTES de parsear
       const sig = parsearSignal(raw.payload);
-      if (sig) deliver(sig);
+      if (sig) {
+        marcarActividad();
+        deliver(sig);
+      }
     };
 
     // --- Intento Realtime ---
@@ -258,17 +279,20 @@ export function crearTransporteSenalPar(opts: {
     const columnaEntrante = soyDe ? "buzon_a" : "buzon_de"; // leo lo que el OTRO lado escribió
 
     const tick = async () => {
-      if (stopped) return;
+      if (stopped) return {};
+      const siguienteMs = Date.now() < negociandoHasta ? POLL_INTERVAL_MS : POLL_EN_REPOSO_MS;
       try {
         const supabase = createClient();
-        const { data, error } = await supabase
+        const res = await supabase
           .from("os_mesh_vinculos")
           .select(columnaEntrante)
           .eq("id", vinculoId)
           .maybeSingle();
-        if (error || !data) return;
+        const { data, error } = res;
+        if (error) return { fallo: falloDe(res as { error?: unknown; status?: number }) };
+        if (!data) return { siguienteMs };
         const buzon = (data as Record<string, unknown>)[columnaEntrante];
-        if (!Array.isArray(buzon)) return;
+        if (!Array.isArray(buzon)) return { siguienteMs };
         for (const item of buzon) {
           if (!esSobreFirmado(item)) continue;
           // Dedup por el `payload` completo (el fallback no borra lo ya
@@ -286,20 +310,33 @@ export function crearTransporteSenalPar(opts: {
           }
           await onSobre(item);
         }
-      } catch {
-        /* silencioso: reintenta en el siguiente tick */
+      } catch (e) {
+        return { fallo: { message: e instanceof Error ? e.message : "sin red" } };
       }
+      // Recalculado tras procesar: una señal recién llegada abre la ventana de negociación.
+      return { siguienteMs: Date.now() < negociandoHasta ? POLL_INTERVAL_MS : POLL_EN_REPOSO_MS };
     };
 
-    const timer = setInterval(() => void tick(), POLL_INTERVAL_MS);
-    void tick();
+    // Suscribirse ES el inicio de una negociación.
+    negociandoHasta = Date.now() + VENTANA_NEGOCIACION_MS;
+    const bucle = crearBucle({
+      nombre: `vínculo ${vinculoId.slice(0, 8)} · buzón de respaldo`,
+      consulta: "select os_mesh_vinculos.buzon_*",
+      intervaloMs: POLL_INTERVAL_MS,
+      // Este mesh de par ya solo existe en la pestaña líder (vinculos-entre-cuentas.ts).
+      soloLider: false,
+      tarea: tick,
+    });
+    bucleRespaldo = bucle;
+    bucle.iniciar();
 
     return {
       transport: "polling",
       unsubscribe: () => {
         if (stopped) return;
         stopped = true;
-        clearInterval(timer);
+        bucle.detener();
+        if (bucleRespaldo === bucle) bucleRespaldo = null;
       },
     };
   };

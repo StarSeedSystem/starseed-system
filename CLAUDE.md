@@ -380,6 +380,13 @@ Proveedores comunitarios con clave solo en el servidor: `/api/ai/openrouter`
 Hermes tiene `providers.nvidia` (`NVIDIA_API_KEY` en `~/.hermes/.env`). Claves: nunca en el repo
 ni en memorias — solo nombres de variables. **Cada respuesta termina con un informe de uso**
 (modelos/APIs/tokens/créditos usados, cuánto queda y opciones de enrutamiento).
+**Consumo de bases de datos** (2026-09-29, `memory/orquestacion-economica.md` §15): el plan gratuito
+de Supabase NO tiene límite de gasto diario, así que lo ponemos nosotros. `scripts/puente/vigia_consumo.py`
+(cada 15 min, sin tráfico del proyecto) mide peticiones y salida estimada por día UTC contra
+`~/.starseed/presupuestos.json` (25.000 peticiones · 150 MB/día · 5 GB/ciclo): aviso al 70 %, **freno
+remoto** en `os_freno` al 100 % hasta las 00:00 UTC, y alarma de **bucles** (ruta > 1.500/h o agente +
+ruta > 800/h). `scripts/puente/limites_supabase.py` pone los topes del servidor (PostgREST `max_rows`
+1000, límites de Auth y Realtime). Se verifica en el medidor **«Consumo y créditos»** del Mando.
 
 ## 🌐 Navegador de los agentes: extensiones de Claude y de ChatGPT en el Chrome de la fundación (2026-09-08)
 

@@ -54,12 +54,28 @@ import { makeIsCertRevoked } from "./device-revocation";
 import { getActiveModemPreset } from "./sync";
 import { getMeshState } from "./store";
 import type { MeshPayloadType, TrafficClass } from "./types";
+// Contrato «consumo» (2026-09-29): id de cuenta sin red + clasificación de fallos para los bucles.
+import { uidActual } from "@/lib/consumo/usuario";
+import { falloDe, type FalloConsulta } from "@/lib/network/bucle-fondo";
 
 /** Ventana de frescura de un faro (más viejo = neurona apagada). */
-const BEACON_FRESH_MS = 4 * 60_000;
+/**
+ * (2026-09-29 · contrato «consumo») Un faro se refresca cada 20 min (antes 40 s): ventana de
+ * frescura de 30 min y caducidad de 35 min. La RPC `solicitar_vinculo` usa la MISMA ventana
+ * (migración `20260929090200_faros_ventana_30min.sql`).
+ */
+export const BEACON_FRESH_MS = 30 * 60_000;
 /** Caducidad que se graba en la fila (limpieza). */
 const RELAY_TTL_MS = 24 * 60 * 60_000;
-const BEACON_TTL_MS = 5 * 60_000;
+const BEACON_TTL_MS = 35 * 60_000;
+/** La limpieza de MIS filas caducadas corre como mucho una vez por hora (antes: en cada faro). */
+const PURGA_CADA_MS = 60 * 60_000;
+let ultimaPurga = 0;
+/** Los device_id de MIS faros cambian muy poco: se releen como mucho cada hora. */
+const MIS_FAROS_CADA_MS = 60 * 60_000;
+let misFarosCache: { owner: string; en: number; ids: Set<string> } | null = null;
+/** Evento de broadcast de cuenta que despierta la bandeja de relé de mis otras neuronas. */
+export const EVENTO_DESPERTAR_RELE = "malla:rele";
 /** Feed público: página y tope de páginas por sondeo (drenado sin huecos, Adenda 119). */
 const FEED_PAGE = 100;
 const FEED_MAX_PAGES = 12;
@@ -117,14 +133,26 @@ async function client() {
 }
 
 async function ownerId(
-  supabase: NonNullable<Awaited<ReturnType<typeof client>>>,
+  _supabase: NonNullable<Awaited<ReturnType<typeof client>>>,
 ): Promise<string | null> {
+  // (2026-09-29) Sin red: la sesión guardada (antes, `getUser()` = una petición a
+  // /auth/v1/user en CADA faro, sondeo y subida).
   try {
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    return await uidActual();
   } catch {
     return null;
   }
+}
+
+/**
+ * Avisa a MIS otras neuronas (canal de cuenta `acct:<uid>`, sin tocar la base) de que hay un
+ * relé nuevo: su bandeja lo recoge ya en vez de esperar al próximo sondeo. Las filas de relé
+ * solo las lee la propia cuenta (RLS), así que este aviso alcanza a todos sus destinatarios.
+ */
+function despertarBandejaDeCuenta(): void {
+  void import("@/lib/sync/realtime-sync")
+    .then((m) => m.sendAccountBroadcast(EVENTO_DESPERTAR_RELE, { at: Date.now() }))
+    .catch(() => undefined);
 }
 
 /** ¿Hay sesión de cuenta ahora? (el enrutador lo usa para `hasAccount`). */
@@ -331,6 +359,7 @@ export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promi
       .select("id")
       .single();
     if (error) return { ok: false, detail: `servidor rechazó el relé: ${error.message}` };
+    despertarBandejaDeCuenta();
     const ref = data?.id ? String(data.id).slice(0, 8) : undefined;
     return { ok: true, ref, detail: `relé cifrado subido${ref ? ` · fila ${ref}` : ""}` };
   } catch {
@@ -436,6 +465,7 @@ export async function uploadRelayMulti(env: ServerEnvelope, recipients: string[]
       if (error) summary.failed++;
       else summary.sent++;
     }
+    if (summary.sent > 0) despertarBandejaDeCuenta();
     return summary;
   } catch {
     return summary;
@@ -514,55 +544,83 @@ function myPublicOffer(): { offersPublic: boolean; port?: number } {
 /**
  * Emite (refresca) el FARO de esta neurona: anuncia que está en línea con sus
  * datos de antena mínimos. Respeta la privacidad (visibility='private' no
- * emite faro; nombre solo con shareName). delete+insert = un faro por neurona.
+ * emite faro; nombre solo con shareName). Un faro por neurona.
+ *
+ * (2026-09-29 · contrato «consumo») Antes: 3 peticiones + `getUser()` cada 40 s. Ahora, en
+ * régimen: UNA (`update` del faro existente, que renueva `created_at`/`expires_at`); solo si no
+ * hay faro previo se hace `delete`+`insert`. La purga de MIS filas caducadas va aparte y como
+ * mucho una vez por hora. Devuelve el fallo de la consulta para que el bucle decida.
  */
-export async function emitBeacon(): Promise<boolean> {
+export async function emitBeaconDetallado(): Promise<{ ok: boolean; fallo: FalloConsulta | null }> {
   try {
     const privacy = getMeshPrivacy();
-    if (privacy.visibility === "private") return false; // invisible: sin faro
+    if (privacy.visibility === "private") return { ok: false, fallo: null }; // invisible: sin faro
     // Internet público apagado (SESIÓN PRIVADA) → no anunciarse al radar público.
     // Radar público en "off" → participa en la malla, pero invisible entre cuentas.
     const conn = getConnectivitySettings();
-    if (!conn.publicInternet) return false;
-    if (privacy.publicRadar === "off") return false;
+    if (!conn.publicInternet) return { ok: false, fallo: null };
+    if (privacy.publicRadar === "off") return { ok: false, fallo: null };
     // En "anonymous" damos y recibimos, pero SIN exponer usuario ni ubicación.
     const anonymous = privacy.publicRadar === "anonymous";
     const supabase = await client();
-    if (!supabase) return false;
+    if (!supabase) return { ok: false, fallo: null };
     const owner = await ownerId(supabase);
-    if (!owner) return false;
+    if (!owner) return { ok: false, fallo: null };
     const s = getMeshState();
     const online = s.nodes.filter((n) => !n.isSelf && n.presence === "online").length;
     const me = deviceId();
-    // Limpieza best-effort: retira MIS filas caducadas (relés/faros viejos) —
-    // así `expires_at` se hace cumplir de verdad y la tabla no crece sin límite.
-    await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).lt("expires_at", new Date().toISOString());
-    // Un solo faro por neurona: retira el anterior y pon uno fresco.
+    const ahora = Date.now();
+    // Limpieza best-effort de MIS filas caducadas (relés/faros viejos): así `expires_at` se
+    // hace cumplir y la tabla no crece sin límite. Una vez por hora basta.
+    if (ahora - ultimaPurga > PURGA_CADA_MS) {
+      ultimaPurga = ahora;
+      await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).lt("expires_at", new Date(ahora).toISOString());
+    }
+    const campos = {
+      // Anuncia si ofrece internet público + puerto (Adenda 115) y la etiqueta
+      // de identidad {nid,sid} (Ola 366) para que la malla de neuronas case este
+      // faro con una neurona/deviceId de sync ya conocidos, sin PII adicional
+      // (son los MISMOS ids opacos que ya viajaban en `neuron_devices`/sync).
+      payload: { ...myPublicOffer(), ...myIdentityTag() },
+      // Anónimo → sin etiqueta de usuario. Visible → según shareName.
+      label: anonymous ? null : privacy.shareName ? s.self?.shortName || s.self?.longName || "Neurona" : null,
+      region: s.region,
+      preset: getActiveModemPreset(),
+      online_count: online,
+      expires_at: new Date(ahora + BEACON_TTL_MS).toISOString(),
+    };
+    // Régimen: renovar el faro que ya existe (una sola petición). `created_at` se renueva
+    // porque es lo que miran el radar y `solicitar_vinculo` para decidir si está fresco.
+    const upd = await supabase
+      .from("os_mesh_relay")
+      .update({ ...campos, created_at: new Date(ahora).toISOString() })
+      .eq("owner_id", owner)
+      .eq("device_id", me)
+      .eq("kind", "beacon")
+      .select("id");
+    if (!upd.error && Array.isArray(upd.data) && upd.data.length > 0) return { ok: true, fallo: null };
+    // Sin faro previo (o el update no se pudo): un solo faro por neurona → retira y pon uno fresco.
     await supabase.from("os_mesh_relay").delete().eq("owner_id", owner).eq("device_id", me).eq("kind", "beacon");
-    const { error } = await supabase.from("os_mesh_relay").insert({
+    const ins = await supabase.from("os_mesh_relay").insert({
       owner_id: owner,
       channel: "public",
       kind: "beacon",
       cls: "P1",
       ptype: "presence",
       enc: false,
-      // Anuncia si ofrece internet público + puerto (Adenda 115) y la etiqueta
-      // de identidad {nid,sid} (Ola 366) para que la malla de neuronas case este
-      // faro con una neurona/deviceId de sync ya conocidos, sin PII adicional
-      // (son los MISMOS ids opacos que ya viajaban en `neuron_devices`/sync).
-      payload: { ...myPublicOffer(), ...myIdentityTag() },
       device_id: me,
-      // Anónimo → sin etiqueta de usuario. Visible → según shareName.
-      label: anonymous ? null : privacy.shareName ? s.self?.shortName || s.self?.longName || "Neurona" : null,
-      region: s.region,
-      preset: getActiveModemPreset(),
-      online_count: online,
-      expires_at: new Date(Date.now() + BEACON_TTL_MS).toISOString(),
+      ...campos,
     });
-    return !error;
-  } catch {
-    return false;
+    const fallo = falloDe(ins as { error?: unknown; status?: number });
+    return { ok: !fallo, fallo };
+  } catch (e) {
+    return { ok: false, fallo: { message: e instanceof Error ? e.message : "sin red" } };
   }
+}
+
+/** Emite (refresca) el faro de esta neurona. `true` si quedó publicado. Nunca lanza. */
+export async function emitBeacon(): Promise<boolean> {
+  return (await emitBeaconDetallado()).ok;
 }
 
 /** Retira el faro de esta neurona (al apagar o pasar a invisible). */
@@ -584,13 +642,42 @@ export async function purgeBeacon(): Promise<void> {
 }
 
 /**
+ * device_id de los faros de MI cuenta (para marcar `own` sin leer el owner_id de terceros).
+ * Cambian muy poco: caché de una hora por cuenta.
+ */
+async function misFaros(
+  supabase: NonNullable<Awaited<ReturnType<typeof client>>>,
+  owner: string,
+): Promise<Set<string>> {
+  if (misFarosCache && misFarosCache.owner === owner && Date.now() - misFarosCache.en < MIS_FAROS_CADA_MS) {
+    return misFarosCache.ids;
+  }
+  const ids = new Set<string>();
+  const { data: mine, error } = await supabase
+    .from("os_mesh_relay")
+    .select("device_id")
+    .eq("owner_id", owner)
+    .eq("kind", "beacon");
+  if (Array.isArray(mine)) {
+    for (const r of mine as Array<Record<string, unknown>>) {
+      if (r.device_id) ids.add(String(r.device_id));
+    }
+  }
+  // Mi propio faro siempre es mío aunque la lectura falle o llegue antes de emitirlo.
+  ids.add(deviceId());
+  if (!error) misFarosCache = { owner, en: Date.now(), ids };
+  return ids;
+}
+
+/**
  * Lee los FAROS recientes de la red → neuronas online cercanas (radar). Incluye
  * las de otras cuentas (feed público) y marca cuáles son de la propia cuenta.
+ * Devuelve también el fallo de la consulta (para el bucle de consumo).
  */
-export async function pullBeacons(): Promise<RelayBeacon[]> {
+export async function pullBeaconsDetallado(): Promise<{ faros: RelayBeacon[]; fallo: FalloConsulta | null }> {
   try {
     const supabase = await client();
-    if (!supabase) return [];
+    if (!supabase) return { faros: [], fallo: null };
     const owner = await ownerId(supabase);
     const me = deviceId();
     const cutoff = new Date(Date.now() - BEACON_FRESH_MS).toISOString();
@@ -599,28 +686,18 @@ export async function pullBeacons(): Promise<RelayBeacon[]> {
     // el feed público NO selecciona owner_id (era una fuga del UUID de cuenta
     // soberana a cualquiera). En su lugar, consulto los device_id de MI cuenta
     // aparte (RLS me deja) y comparo localmente.
-    const myDevices = new Set<string>();
-    if (owner) {
-      const { data: mine } = await supabase
-        .from("os_mesh_relay")
-        .select("device_id")
-        .eq("owner_id", owner)
-        .eq("kind", "beacon");
-      if (Array.isArray(mine)) {
-        for (const r of mine as Array<Record<string, unknown>>) {
-          if (r.device_id) myDevices.add(String(r.device_id));
-        }
-      }
-    }
+    const myDevices = owner ? await misFaros(supabase, owner) : new Set<string>();
 
-    const { data, error } = await supabase
+    const res = await supabase
       .from("os_mesh_relay")
       .select("device_id, label, region, preset, online_count, payload, created_at")
       .eq("kind", "beacon")
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .limit(48);
-    if (error || !Array.isArray(data)) return [];
+    const fallo = falloDe(res as { error?: unknown; status?: number });
+    const data = res.data;
+    if (fallo || !Array.isArray(data)) return { faros: [], fallo };
     const out: RelayBeacon[] = [];
     const seen = new Set<string>();
     for (const row of data as Array<Record<string, unknown>>) {
@@ -642,10 +719,15 @@ export async function pullBeacons(): Promise<RelayBeacon[]> {
         syncId: typeof offer?.sid === "string" ? offer.sid : undefined,
       });
     }
-    return out;
-  } catch {
-    return [];
+    return { faros: out, fallo: null };
+  } catch (e) {
+    return { faros: [], fallo: { message: e instanceof Error ? e.message : "sin red" } };
   }
+}
+
+/** Lee los faros recientes (radar). Nunca lanza. */
+export async function pullBeacons(): Promise<RelayBeacon[]> {
+  return (await pullBeaconsDetallado()).faros;
 }
 
 /** Un mensaje de relé descifrado listo para entregar a las dimensiones. */
@@ -904,11 +986,12 @@ export async function revokeDeviceByCert(fp: string): Promise<{ ok: boolean }> {
   }
 }
 
-/** Refresca el mapa VERIFICADO fp→cuenta desde el registro público. */
-export async function refreshIdentities(): Promise<void> {
+/** Refresca el mapa VERIFICADO fp→cuenta desde el registro público. Devuelve el fallo de la 1.ª página. */
+export async function refreshIdentities(): Promise<FalloConsulta | null> {
+  let falloPrimera: FalloConsulta | null = null;
   try {
     const supabase = await client();
-    if (!supabase) return;
+    if (!supabase) return null;
     // DRENADO keyset de TODAS las filas de identidad (seguimiento de la revisión adversarial
     // Adenda 126): el `limit(500)` fijo (i) dejaba las identidades MÁS ALLÁ de 500 SIN resolver
     // para siempre y (ii) permitía a un inundador Sybil EXPULSAR del tope la fila de identidad de
@@ -930,18 +1013,22 @@ export async function refreshIdentities(): Promise<void> {
     let firstPageErrored = false;
     for (let page = 0; page < IDENTITY_MAX_PAGES; page++) {
       const from = page * FEED_PAGE;
-      const { data, error } = await supabase
+      const res = await supabase
         .from("os_mesh_relay")
         .select("id, payload, owner_id, device_id, created_at")
         .eq("kind", "identity")
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, from + FEED_PAGE - 1);
+      const { data, error } = res;
       // Defensivo: error/no-array de página → para y procesa lo ya drenado. Si falla la PRIMERA
       // página no se aprende nada nuevo → se PRESERVA el mapa vigente (como el `limit(500)`
       // original) en vez de vaciarlo por un fallo transitorio. Un fallo posterior procesa lo drenado.
       if (error || !Array.isArray(data)) {
-        if (page === 0) firstPageErrored = true;
+        if (page === 0) {
+          firstPageErrored = true;
+          falloPrimera = falloDe(res as { error?: unknown; status?: number });
+        }
         break;
       }
       if (data.length === 0) break; // agotado
@@ -951,7 +1038,7 @@ export async function refreshIdentities(): Promise<void> {
         console.warn(`[mesh] refreshIdentities: tope de ${IDENTITY_MAX_PAGES} páginas por sondeo; el resto se drena en el próximo ciclo.`);
       }
     }
-    if (firstPageErrored) return; // primera lectura falló: no toques idMap/encMap (preserva lo conocido)
+    if (firstPageErrored) return falloPrimera; // primera lectura falló: no toques idMap/encMap (preserva lo conocido)
     // DETECCIÓN DE CONFLICTO EN LOTE (revisión adversarial Adenda 126): si DOS cuentas
     // distintas reclaman el MISMO device_id dentro de este lote, NINGUNA lo keyea — mata el
     // "cara o cruz" del primer avistamiento cuando ambas filas están presentes. El device_id
@@ -1052,8 +1139,9 @@ export async function refreshIdentities(): Promise<void> {
     encMap = nextEnc;
     if (pinsDirty) savePinMap(ACCOUNT_MFP_LS, pins); // persiste solo los anclas nuevos
     if (devicePinsDirty) savePinMap(DEVICE_OWNER_LS, devicePins);
-  } catch {
-    /* */
+    return null;
+  } catch (e) {
+    return falloPrimera ?? { message: e instanceof Error ? e.message : "sin red" };
   }
 }
 
@@ -1155,11 +1243,12 @@ export async function revokeIdentity(): Promise<{ ok: boolean; oldFp?: string; n
   }
 }
 
-/** Refresca el conjunto VERIFICADO de identidades revocadas desde el registro público. */
-export async function refreshRevocations(): Promise<void> {
+/** Refresca el conjunto VERIFICADO de identidades revocadas desde el registro público. Devuelve el fallo de la 1.ª página. */
+export async function refreshRevocations(): Promise<FalloConsulta | null> {
+  let falloPrimera: FalloConsulta | null = null;
   try {
     const supabase = await client();
-    if (!supabase) return;
+    if (!supabase) return null;
     // DRENADO por PÁGINAS de TODAS las actas de revocación (cierre del ENTIERRO de revocaciones,
     // revisión adversarial). El `limit(500)` SIN `.order()` anterior devolvía las filas en orden
     // FÍSICO arbitrario (heap): un atacante que insertara cientos de actas `revocation` bajo su
@@ -1178,18 +1267,22 @@ export async function refreshRevocations(): Promise<void> {
     let firstPageErrored = false;
     for (let page = 0; page < REVOCATION_MAX_PAGES; page++) {
       const from = page * FEED_PAGE;
-      const { data, error } = await supabase
+      const res = await supabase
         .from("os_mesh_relay")
         .select("id, payload, created_at")
         .eq("kind", "revocation")
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, from + FEED_PAGE - 1);
+      const { data, error } = res;
       // Defensivo: si falla la PRIMERA página no se aprende nada nuevo → se PRESERVA el set vigente
       // (como el limit(500) original) en vez de vaciarlo por un fallo transitorio. Un fallo en página
       // posterior conserva lo ya drenado (el set solo crece: las revocaciones no se deshacen).
       if (error || !Array.isArray(data)) {
-        if (page === 0) firstPageErrored = true;
+        if (page === 0) {
+          firstPageErrored = true;
+          falloPrimera = falloDe(res as { error?: unknown; status?: number });
+        }
         break;
       }
       if (data.length === 0) break; // agotado
@@ -1205,10 +1298,11 @@ export async function refreshRevocations(): Promise<void> {
         console.warn(`[mesh] refreshRevocations: tope de ${REVOCATION_MAX_PAGES} páginas por sondeo; el resto se drena en el próximo ciclo.`);
       }
     }
-    if (firstPageErrored) return; // primera lectura falló: no toques revokedSet (preserva lo conocido)
+    if (firstPageErrored) return falloPrimera; // primera lectura falló: no toques revokedSet (preserva lo conocido)
     revokedSet = next;
-  } catch {
-    /* */
+    return null;
+  } catch (e) {
+    return falloPrimera ?? { message: e instanceof Error ? e.message : "sin red" };
   }
 }
 
@@ -1234,7 +1328,7 @@ export async function refreshRevocations(): Promise<void> {
  * ráfaga de ≥cupo filas propias dejaría `items` vacío y el watermark ATASCADO (mismo razonamiento
  * que el `next` de `pullPublicFeed`). Ver synaptic.ts (inboxWatermark).
  */
-export async function pullRelayInbox(since: number): Promise<{ items: RelayInboundItem[]; next: number }> {
+export async function pullRelayInbox(since: number): Promise<{ items: RelayInboundItem[]; next: number; fallo?: FalloConsulta | null }> {
   try {
     const supabase = await client();
     if (!supabase) return { items: [], next: since };
@@ -1248,7 +1342,7 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
     let cursorMs = since; // frontera a devolver: máximo created_at de TODO lo drenado (incl. propias)
     for (let page = 0; page < RELAY_INBOX_MAX_PAGES; page++) {
       const from = page * FEED_PAGE;
-      const { data, error } = await supabase
+      const res = await supabase
         .from("os_mesh_relay")
         .select("id, cls, ptype, enc, payload, recipient, device_id, created_at")
         .eq("channel", "relay")
@@ -1257,11 +1351,12 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, from + FEED_PAGE - 1);
+      const { data, error } = res;
       // Fallo de página: 1ª página → no avances (preserva el watermark del llamador). Página
       // posterior → entrega lo drenado con el cursor avanzado (un fallo parcial no descarta el
       // progreso; el dedup por deliveredRelayIds cubre la re-lectura del borde inclusivo `>=`).
       if (error || !Array.isArray(data)) {
-        if (page === 0) return { items: [], next: since };
+        if (page === 0) return { items: [], next: since, fallo: falloDe(res as { error?: unknown; status?: number }) };
         break;
       }
       for (const row of data as Array<Record<string, unknown>>) {
@@ -1302,9 +1397,9 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
         console.warn(`[mesh] pullRelayInbox: tope de ${RELAY_INBOX_MAX_PAGES} páginas por sondeo; el resto se drena en el próximo ciclo.`);
       }
     }
-    return { items: out, next: cursorMs };
-  } catch {
-    return { items: [], next: since };
+    return { items: out, next: cursorMs, fallo: null };
+  } catch (e) {
+    return { items: [], next: since, fallo: { message: e instanceof Error ? e.message : "sin red" } };
   }
 }
 
@@ -1331,7 +1426,7 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
  */
 export async function pullPublicFeed(
   since: { atIso: string; id: string },
-): Promise<{ items: RelayInboundItem[]; next: { atIso: string; id: string } }> {
+): Promise<{ items: RelayInboundItem[]; next: { atIso: string; id: string }; fallo?: FalloConsulta | null }> {
   try {
     const supabase = await client();
     if (!supabase) return { items: [], next: since };
@@ -1355,17 +1450,18 @@ export async function pullPublicFeed(
     const out: RelayInboundItem[] = [];
     const drained = new Set<string>();
     for (let page = 0; page < FEED_MAX_PAGES; page++) {
-      const { data, error } = await supabase.rpc("mesh_public_feed", {
+      const res = await supabase.rpc("mesh_public_feed", {
         p_at: cursorAt,
         p_id: cursorId,
         p_limit: FEED_PAGE,
       });
+      const { data, error } = res;
       if (error || !Array.isArray(data)) {
         // 1ª página falló (RPC ausente / fallo transitorio): PRESERVA el cursor del
         // llamador (no reproceses ni retrocedas el descubrimiento). Fallo en página
         // posterior: entrega lo ya drenado con el cursor avanzado (como el drenado
         // de identidades: un fallo parcial no descarta el progreso).
-        if (page === 0) return { items: [], next: since };
+        if (page === 0) return { items: [], next: since, fallo: falloDe(res as { error?: unknown; status?: number }) };
         break;
       }
       for (const row of data as Array<Record<string, unknown>>) {
@@ -1399,9 +1495,9 @@ export async function pullPublicFeed(
     // VERBATIM como p_at en el próximo sondeo, preservando la resolución que hace que
     // el desempate por `id` funcione dentro de un empate de created_at (cierre real
     // del DoS; ver la nota de precisión al inicio de la función).
-    return { items: out, next: { atIso: cursorAt, id: cursorId } };
-  } catch {
-    return { items: [], next: since };
+    return { items: out, next: { atIso: cursorAt, id: cursorId }, fallo: null };
+  } catch (e) {
+    return { items: [], next: since, fallo: { message: e instanceof Error ? e.message : "sin red" } };
   }
 }
 
@@ -1673,6 +1769,14 @@ export function subscribeEndpointStream(onItem: (item: RelayInboundItem) => void
  * esperar el sondeo (Adenda 105): contenido público / relé propio → `onContent`;
  * faros → `onBeacon`. Best-effort: si el realtime no está publicado/disponible,
  * no hace nada y el sondeo sigue cubriéndolo. Devuelve unsubscribe. Nunca lanza.
+ *
+ * ⚠️ RETIRADA del arranque (2026-09-29 · contrato «consumo»): `os_mesh_relay` sale de la
+ * publicación `supabase_realtime` (migración `20260929090100_realtime_publicacion_minima.sql`).
+ * Cada faro, identidad y relé de TODA la red se reenviaba a cada suscriptor (tráfico de salida
+ * que crece con el cuadrado de las neuronas) y, sin la tabla publicada, este canal quedaría en
+ * CHANNEL_ERROR reintentando cada 10 s. La entrega rápida entre MIS neuronas va ahora por el
+ * broadcast de cuenta `EVENTO_DESPERTAR_RELE` (sin tocar la base). Se conserva la función por
+ * si un servidor propio publica la tabla, pero `synaptic.ts` ya no la llama.
  */
 export function subscribeRelayRealtime(handlers: {
   onContent: (item: RelayInboundItem) => void;

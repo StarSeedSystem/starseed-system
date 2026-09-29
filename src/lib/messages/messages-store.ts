@@ -22,6 +22,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 
 // ── Tipos ────────────────────────────────────────────────────────
 
@@ -78,9 +79,9 @@ async function getCtx(): Promise<{ supabase: ReturnType<typeof createClient>; ui
     if (!isClient()) return null;
     try {
         const supabase = createClient();
-        const { data, error } = await supabase.auth.getUser();
-        const uid = data?.user?.id;
-        if (error || !uid) return null;
+        // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+        const uid = await uidActual();
+        if (!uid) return null;
         return { supabase, uid };
     } catch {
         return null;

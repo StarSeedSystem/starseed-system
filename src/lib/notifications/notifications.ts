@@ -34,6 +34,7 @@
 // -----------------------------------------------------------------------------
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import { chat } from "@/ai/client/chat";
 
 // ----------------------------- Tipos ----------------------------------------
@@ -171,10 +172,8 @@ export async function loadAllNotifications(): Promise<UnifiedNotification[]> {
   try {
     const supabase = createClient();
 
-    const {
-      data: userData,
-    } = await supabase.auth.getUser();
-    const uid = userData?.user?.id;
+    // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+    const uid = await uidActual();
     if (!uid) return [];
 
     // Cargamos ambas fuentes en paralelo. Cada una tolera su propio fallo.
@@ -226,8 +225,7 @@ export async function markSeen(item: UnifiedNotification): Promise<boolean> {
   if (typeof window === "undefined" || !item) return false;
   try {
     const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData?.user?.id;
+    const uid = await uidActual();
     if (!uid) return false;
 
     const table = item.source === "proposal" ? "proposal_notifications" : "notifications";
@@ -253,8 +251,7 @@ export async function markAllSeen(items: UnifiedNotification[]): Promise<boolean
   }
   try {
     const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData?.user?.id;
+    const uid = await uidActual();
     if (!uid) return false;
 
     const generalIds = items

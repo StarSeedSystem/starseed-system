@@ -139,7 +139,9 @@ describe("crearTransporteSenalPar", () => {
     await emisor.send(unaSenal());
     expect(fake.sentToChannel).toHaveLength(1);
     fake.emit(fake.sentToChannel[0]);
-    await new Promise((r) => setTimeout(r, 0));
+    // La verificación HMAC es WebCrypto asíncrono: con la máquina cargada no cabe en un solo
+    // tick (fallaba de forma intermitente al correr muchas pruebas a la vez).
+    await vi.waitFor(() => expect(recibidas).toHaveLength(1), { timeout: 2000 });
 
     expect(recibidas).toHaveLength(1);
     expect(recibidas[0].sdp).toBe("sdp-de-prueba");

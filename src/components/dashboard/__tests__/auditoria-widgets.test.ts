@@ -156,8 +156,6 @@ const EXCEPCIONES = new Set<string>([
     // Falta el contrato completo de estados; Ola 306.
     "my-pages-widget.tsx",
     // Falta el contrato completo de estados; Ola 306.
-    "network-feed-widget.tsx",
-    // Falta el contrato completo de estados; Ola 306.
     "nexus-quick-access-widget.tsx",
     // Faltan estados y conserva relleno; Olas 306 y 307.
     "political-summary-widget.tsx",

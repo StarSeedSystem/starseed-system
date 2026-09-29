@@ -4,19 +4,22 @@
 // NetworkFeedWidget — mini-previsualizaciones del feed REAL de la Red
 // (lib/feed/network-feed.ts → tabla `posts`, el mismo Lienzo Universal
 // que /network). Sin datos simulados: vacío honesto si aún no hay
-// publicaciones. Refresco suave cada 45s (dato vivo, no intrusivo).
+// publicaciones. Refresco suave cada 10 min, nunca con la pestaña oculta
+// (contrato «consumo», 2026-09-29: antes cada 45 s aunque nadie mirase,
+// y reintentando igual ante los 400 de la tabla `posts`).
 // ════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Layers, Heart, MessageSquare, Image as ImageIcon } from 'lucide-react';
+import { Layers, Heart, MessageSquare, Image as ImageIcon, CloudOff } from 'lucide-react';
 import { WidgetShell, WidgetEmptyState, timeAgo } from '../kit';
 import { useAppearance } from '@/context/appearance-context';
-import { fetchNetworkFeed, type FeedPost } from '@/lib/feed/network-feed';
+import { feedNoDisponible, fetchNetworkFeedConEstado, type FeedPost } from '@/lib/feed/network-feed';
+import { crearBucle } from '@/lib/network/bucle-fondo';
 
 const ACCENT = '#3B82F6';
-const POLL_MS = 45_000;
+const POLL_MS = 10 * 60_000;
 
 function initials(name: string): string {
     return name.trim().split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('') || 'S';
@@ -27,13 +30,32 @@ export function NetworkFeedWidget() {
     const prefersReduced = useReducedMotion();
     const animate = config.animations.enabled && !prefersReduced;
     const [posts, setPosts] = useState<FeedPost[] | null>(null);
+    /** La última lectura falló (red, cuota…): se dice, en vez de fingir un feed vacío. */
+    const [fallo, setFallo] = useState(false);
+    const [noDisponible, setNoDisponible] = useState(false);
 
     useEffect(() => {
         let alive = true;
-        const load = () => { void fetchNetworkFeed({ limit: 18 }).then((rows) => { if (alive) setPosts(rows); }); };
-        load();
-        const t = setInterval(load, POLL_MS);
-        return () => { alive = false; clearInterval(t); };
+        // Es UI de esta pestaña (no un sondeo de fondo): no espera a ser líder, pero se pausa
+        // con el dispositivo oculto, respeta el freno y se para ante un 400/404 (bucle-fondo).
+        const bucle = crearBucle({
+            nombre: 'feed de la Red · widget',
+            consulta: 'select posts (feed)',
+            intervaloMs: POLL_MS,
+            soloLider: false,
+            tarea: async () => {
+                const { posts: rows, fallo: error } = await fetchNetworkFeedConEstado({ limit: 18 });
+                if (alive) {
+                    // Con un fallo se conserva lo que hubiera; si no había nada, se dice que falló.
+                    setPosts((prev) => (error ? prev ?? [] : rows));
+                    setFallo(!!error);
+                    setNoDisponible(feedNoDisponible());
+                }
+                return { fallo: error };
+            },
+        });
+        bucle.iniciar();
+        return () => { alive = false; bucle.detener(); };
     }, []);
 
     return (
@@ -47,7 +69,24 @@ export function NetworkFeedWidget() {
             connections={[{ label: 'Explorar red', href: '/network', color: ACCENT, icon: Layers }]}
         >
             {(size) => {
-                if (posts === null) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+                if (posts === null) {
+                    return <div role="status" aria-label="Cargando el feed de la Red" className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+                }
+
+                if (posts.length === 0 && (fallo || noDisponible)) {
+                    return (
+                        <WidgetEmptyState
+                            icon={CloudOff}
+                            title={noDisponible ? 'El feed no está disponible aquí' : 'No se pudo cargar el feed'}
+                            message={noDisponible
+                                ? 'Las publicaciones de la Red aún no están activas en este servidor. No se volverá a preguntar hasta recargar.'
+                                : 'Lo volveré a intentar solo, con calma, para no gastar la cuota.'}
+                            actionLabel="Abrir la Red"
+                            actionHref="/network"
+                            accent={ACCENT}
+                        />
+                    );
+                }
 
                 if (posts.length === 0) {
                     return (

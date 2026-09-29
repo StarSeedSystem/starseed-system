@@ -119,6 +119,7 @@ import { GlobalEditorHost } from "@/components/creation/global-editor-host";
 // las alarmas deben sonar también desde /messages y /correos (fuera de (app)).
 import { AlarmsEngine } from "@/components/alarms/alarms-engine";
 import { MontajeGlobalMensajeria } from "@/components/mensajeria/montaje-global";
+import { MontajeConsumo } from "@/components/consumo/montaje-consumo";
 // Fondos animados del CATÁLOGO DE TEMAS (theme-engine.ts + theme-catalog.ts):
 // matrix-rain/estrellas/gradiente-aurora/weather-live. Sin efecto salvo que
 // un ThemePack del catálogo los active (data-ss-background en <html>).
@@ -374,6 +375,7 @@ export default function RootLayout({
                         <CursorFxHost />
                         <AlarmsEngine />
                         <SoloFueraDeMinima><MontajeGlobalMensajeria /></SoloFueraDeMinima>
+                        <MontajeConsumo />
                         <CommandPalette />
                         <Toaster />
                         <Sonner />

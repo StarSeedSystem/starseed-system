@@ -11,8 +11,15 @@
  * de una cuenta «compartida por TODO el ecosistema». FALSO:
  * `dzkjapinnewkxzjltadv` es el proyecto de Nexus/Café y sus cuentas están
  * SEPARADAS de las del OS (CLAUDE.md §2).
- * dispositivo. Refleja una imagen espejo en `cafe_accounts.apps` cuando existe
- * fila del usuario (defensivo, opcional).
+ * dispositivo.
+ *
+ * (2026-09-29 · contrato «consumo») Se RETIRA el espejo en `cafe_accounts.apps`: esa tabla es
+ * del esquema del Café (cuentas SEPARADAS de las del OS, CLAUDE.md §2) y en la base del OS no
+ * tiene la columna `user_id` por la que se filtraba → HTTP 400 en CADA subida de la biblioteca
+ * (los «cafe_accounts 400 repetidos» del registro del 28-09). El espejo no le servía a nadie: la
+ * verdad de la cuenta del OS es `user_settings.prefs.installed`. Además: debounce de 2 s, la
+ * lectura trae solo las 5 claves que usa (no la columna `prefs` entera) y solo se relee al
+ * cambiar de CUENTA, no en cada refresco de token.
  *
  * Principios (alineados con CLAUDE.md · Identidad Soberana, Singularidad del contenido):
  *  - LOCAL ES LA VERDAD: localStorage (vía library-store) sigue mandando sin
@@ -31,6 +38,7 @@
 
 import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 import {
     getSaved,
@@ -53,8 +61,8 @@ import { recomputeCapabilityMirror, CAPS_KEY } from "@/ai/astraura/skills";
 
 // Mismo nombre de evento que emite el store soberano tras cada mutación.
 const LIBRARY_EVENT = "starseed:library";
-// Debounce de subida (~1s) para agrupar ráfagas de cambios.
-const PUSH_DEBOUNCE_MS = 1000;
+// Debounce de subida (≥ 2 s, contrato «consumo») para agrupar ráfagas de cambios.
+const PUSH_DEBOUNCE_MS = 2000;
 
 // ── Helpers de bajo nivel ────────────────────────────────────────
 function isClient(): boolean {
@@ -62,13 +70,8 @@ function isClient(): boolean {
 }
 
 async function getUserId(): Promise<string | null> {
-    try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        return data?.user?.id ?? null;
-    } catch {
-        return null;
-    }
+    // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+    return uidActual();
 }
 
 /** Clave de dedup coherente con library-store: url+título / id. */
@@ -147,13 +150,17 @@ function mergeRemoteIntoLocal(remote: {
 async function pullAndMerge(userId: string): Promise<void> {
     try {
         const supabase = createClient();
+        // Solo las claves de este módulo (rutas JSON de PostgREST), no la columna entera.
         const { data, error } = await supabase
             .from("user_settings")
-            .select("prefs")
+            .select(
+                "library:prefs->library, installed:prefs->installed, cydiaInstalled:prefs->cydiaInstalled, " +
+                    "cydiaFunctions:prefs->cydiaFunctions, capabilities:prefs->capabilities",
+            )
             .eq("user_id", userId)
             .maybeSingle();
-        if (error || !data?.prefs || typeof data.prefs !== "object") return;
-        const prefs = data.prefs as Record<string, unknown>;
+        if (error || !data || typeof data !== "object") return;
+        const prefs = data as Record<string, unknown>;
         mergeRemoteIntoLocal({ library: prefs.library, installed: prefs.installed });
 
         // Cydia (paquetes/skills) de la cuenta → unión con lo local (nunca resta).
@@ -198,7 +205,6 @@ function readLocalCaps(): string[] {
 // ── Escritura remota (merge no destructivo de prefs) ─────────────
 async function pushSnapshot(userId: string): Promise<void> {
     try {
-        const supabase = createClient();
 
         // 1) Solo NUESTRAS claves: nunca volvemos a mandar la columna entera.
         //
@@ -229,26 +235,9 @@ async function pushSnapshot(userId: string): Promise<void> {
             /* defensivo: nunca rompemos la subida por esto */
         }
 
-        // 2) Mezcla atómica (ver src/lib/sync/user-prefs.ts).
+        // 2) Mezcla atómica (ver src/lib/sync/user-prefs.ts). Si la cuenta ya tiene
+        //    exactamente estos valores, `mergeUserPrefs` no hace ninguna petición.
         await mergeUserPrefs(patch, { userId });
-
-        // 4) Opcional/defensivo: reflejar installed en cafe_accounts.apps
-        //    SOLO si ya existe fila del usuario (no la creamos aquí).
-        try {
-            const { data: acct } = await supabase
-                .from("cafe_accounts")
-                .select("user_id")
-                .eq("user_id", userId)
-                .maybeSingle();
-            if (acct) {
-                await supabase
-                    .from("cafe_accounts")
-                    .update({ apps: installed })
-                    .eq("user_id", userId);
-            }
-        } catch {
-            /* cafe_accounts inexistente / sin columna apps: ignorar */
-        }
     } catch {
         /* nunca rompemos: localStorage sigue siendo la verdad */
     }
@@ -296,10 +285,12 @@ export function useLibrarySync(): void {
             }, PUSH_DEBOUNCE_MS);
         };
 
-        // Fusión inicial: trae lo remoto y lo une a lo local.
+        // Fusión inicial: trae lo remoto y lo une a lo local (una vez por cuenta).
+        let cuentaFundida: string | null = null;
         void (async () => {
             const userId = await getUserId();
-            if (!active || !userId) return;
+            if (!active || !userId || cuentaFundida === userId) return;
+            cuentaFundida = userId;
             await pullAndMerge(userId);
         })();
 
@@ -307,12 +298,20 @@ export function useLibrarySync(): void {
         const onLibraryChange = () => schedulePush();
         window.addEventListener(LIBRARY_EVENT, onLibraryChange);
 
-        // Cambios de sesión: al iniciar sesión, refundir lo remoto sobre lo local.
+        // Cambios de sesión: al entrar con OTRA cuenta, refundir lo remoto sobre lo local.
+        // (Antes cada evento —TOKEN_REFRESHED cada hora, SIGNED_IN al volver a la pestaña—
+        // releía la columna `prefs` entera.)
         const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
             void (async () => {
                 if (!active) return;
                 const userId = session?.user?.id ?? null;
-                if (userId) await pullAndMerge(userId);
+                if (!userId) {
+                    cuentaFundida = null;
+                    return;
+                }
+                if (userId === cuentaFundida) return;
+                cuentaFundida = userId;
+                await pullAndMerge(userId);
             })();
         });
 

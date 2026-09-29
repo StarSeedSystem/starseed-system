@@ -27,6 +27,7 @@ import "@/components/mando/mando-cristal.css";
 import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/mando/medidor-abrible";
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
+import { MedidorConsumo } from "@/components/mando/medidor-consumo";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { ESPERA_A_OTRA, cargaDePublicacion, falloDePublicacion } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
@@ -1927,6 +1928,10 @@ export function CentroMando() {
                             }}
                         />
                     ) : null}
+                    {/* (2026-09-29) Alex: «añade un medidor de esos créditos que lo verifique
+                        desde el Puente de Mando». Supabase (hoy, ciclo, freno, bucles), Jev y
+                        el crédito de Claude, con sus presupuestos editables. */}
+                    <MedidorConsumo />
                 </div>
             ) : null}
 

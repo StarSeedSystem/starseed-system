@@ -32,6 +32,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import { onTableChange, type RealtimePayload } from "@/lib/realtime/realtime";
 import type { FormatoMensaje } from "@/lib/mensajeria/formato-tipos";
 
@@ -218,13 +219,8 @@ function isClient(): boolean {
 
 async function getCurrentUserId(): Promise<string | null> {
     if (!isClient()) return null;
-    try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        return data.user?.id ?? null;
-    } catch {
-        return null;
-    }
+    // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+    return uidActual();
 }
 
 /* ───────────────────────── Lectura: hilos + no-leídos ──────────────────── */

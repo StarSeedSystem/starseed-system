@@ -20,11 +20,12 @@
  *      las neuronas de OTRAS cuentas también se detecten (radar), sin tocar
  *      la radio LoRa (eso sigue siendo `connectMesh()` explícito).
  *
- * Egress (Supabase): reutiliza el heartbeat de neuronas (60 s/3 min oculto,
- * ya existente) + los ciclos YA existentes de `startMeshSubsystem` (faro
- * ~40 s, radar ~30 s, federación 45/60 s) — no se añaden sondeos nuevos a la
- * cuenta aparte de `listNeurons()` cada `POLL_MS` (20 s visible / 90 s oculto).
- * El canal WebRTC en sí no toca Supabase (solo la señalización inicial).
+ * Egress (Supabase) — contrato «consumo» (2026-09-29): reutiliza el latido de neuronas
+ * (5 min) y los ciclos de `startMeshSubsystem` (faro+radar 20 min, bandeja 5–15 min,
+ * federación 10–30 min); aparte, `listNeurons()` cada 15 min. Todo SOLO en la pestaña líder
+ * y nunca con el dispositivo oculto: las demás pestañas reciben la lista por BroadcastChannel
+ * (`bucle-fondo.ts`). Antes: `listNeurons()` cada 20 s por pestaña (y cada lectura hacía un
+ * upsert + dos `getUser()`). El canal WebRTC no toca Supabase (solo la señalización inicial).
  *
  * Todo lo PURO (decisión de autovínculo, clasificación de RAM, parseo de
  * ficha) está exportado y se prueba sin DOM ni red — ver
@@ -52,19 +53,22 @@ import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 // dependencias pesadas (ver su cabecera), así que importarlo aquí no crea
 // ningún ciclo con `availability.ts` (que es quien lo alimenta).
 import { fuentesListasSnapshot } from "@/ai/astraura/ready-sources-snapshot";
+import { crearBucle } from "@/lib/network/bucle-fondo";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
 /* ------------------------------------------------------------------ */
 
-/** Cadencia de refresco de `listNeurons()` con la pestaña visible. */
-const POLL_VISIBLE_MS = 20_000;
-/** Cadencia mientras la pestaña está oculta (mucho más lenta: no hay UI que ver). */
-const POLL_HIDDEN_MS = 90_000;
-/** Late (ficha + heartbeat de latencia) por el canal cada esto. */
+/**
+ * Cadencia de `listNeurons()` (pestaña líder, dispositivo visible). El «online» de cada
+ * neurona lo decide su latido (5 min, ventana de 12 min), así que releer más a menudo solo
+ * gastaría peticiones.
+ */
+export const MALLA_NEURONAS_CADA_MS = 15 * 60_000;
+/** Late (ficha + heartbeat de latencia) por el canal cada esto (WebRTC: no toca Supabase). */
 const CANAL_HEARTBEAT_MS = 30_000;
-/** Un faro más viejo que esto no cuenta como "neurona cercana detectada". */
-const BEACON_CONSIDERADO_RECIENTE_MS = 10 * 60_000;
+/** Un faro más viejo que esto no cuenta como "neurona cercana detectada" (se renueva cada 20 min). */
+const BEACON_CONSIDERADO_RECIENTE_MS = 30 * 60_000;
 /** Versión estática del OS para la ficha (ver `package.json`; no auto-sincronizada). */
 const OS_VERSION = "0.2.2";
 
@@ -498,37 +502,37 @@ export function useMallaNeuronas(deps?: {
   const concienciaRef = useRef<(() => void) | null>(null);
   const hbSentAtRef = useRef<Map<string, number>>(new Map());
 
-  /* ---- 1) neuronas de la cuenta (poll suave, más lento en oculto) ---- */
+  /* ---- 1) neuronas de la cuenta: bucle de la pestaña líder, difundido al resto ---- */
   useEffect(() => {
     let cancelado = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const tick = async () => {
-      try {
-        const lista = await listNeuronsFn();
-        if (!cancelado) {
-          setNeuronas(lista);
-          setLoading(false);
-        }
-      } catch {
+    const aplicar = (lista: Neuron[]) => {
+      if (cancelado || !Array.isArray(lista)) return;
+      setNeuronas(lista);
+      setLoading(false);
+    };
+    const bucle = crearBucle<Neuron[]>({
+      nombre: "malla · neuronas de la cuenta",
+      consulta: "select neuron_devices",
+      intervaloMs: MALLA_NEURONAS_CADA_MS,
+      difundir: true,
+      tarea: async () => {
+        const lista = await listNeuronsFn({ fresco: true });
+        aplicar(lista);
+        return { datos: lista };
+      },
+      alRecibirDatos: aplicar,
+    });
+    bucle.iniciar();
+    // Pinta ya lo que haya (caché compartida de listNeurons: sin red si está vigente).
+    void listNeuronsFn()
+      .then(aplicar)
+      .catch(() => {
         /* deja la lista anterior: nunca rompe la UI */
-      }
-      if (cancelado) return;
-      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
-      timer = setTimeout(() => void tick(), hidden ? POLL_HIDDEN_MS : POLL_VISIBLE_MS);
-    };
-    void tick();
-
-    const onVisibility = () => {
-      // Un cambio a visible refresca ya (no espera el intervalo largo).
-      if (typeof document !== "undefined" && document.visibilityState === "visible") void tick();
-    };
-    document.addEventListener?.("visibilitychange", onVisibility);
+      });
 
     return () => {
       cancelado = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener?.("visibilitychange", onVisibility);
+      bucle.detener();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

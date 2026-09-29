@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { fetchGuardado } from "@/lib/consumo/guardian";
 
 // Advertencia única (por sesión de navegador) si faltan las envs públicas de
 // Supabase: sin ellas, TODAS las llamadas (auth/rest/storage/realtime) fallan
@@ -37,7 +38,14 @@ function buildClient() {
     return createBrowserClient(
         url || "https://dummy.supabase.co",
         anonKey || "dummy-anon-key",
-        { auth: { lock: cerrojoEnProceso } },
+        {
+            auth: { lock: cerrojoEnProceso },
+            // (2026-09-29, contrato «consumo») Toda petición del navegador a Supabase —datos,
+            // auth, almacenamiento, funciones— pasa por el guardián: cortacircuitos ante 402 /
+            // «restricted», presupuesto por pestaña y por día, y deduplicación. Transparente; en
+            // SSR es fetch tal cual. Ver src/lib/consumo/guardian.ts.
+            ...(typeof window !== "undefined" ? { global: { fetch: fetchGuardado } } : {}),
+        },
     );
 }
 

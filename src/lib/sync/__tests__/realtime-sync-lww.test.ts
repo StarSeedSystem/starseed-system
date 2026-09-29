@@ -34,6 +34,9 @@ vi.mock("@/utils/supabase/client", () => {
     return { createClient: () => client };
 });
 vi.mock("@/lib/sync/user-prefs", () => ({
+    // Huellas del estado de la cuenta (contrato «consumo»): aquí no se prueban.
+    recordarPrefsServidor: () => {},
+    olvidarHuellasPrefs: () => {},
     mergeUserPrefs: (patch: Record<string, unknown>) => {
         mergedPatches.push(patch);
         return new Promise((r) => {
@@ -50,22 +53,22 @@ afterAll(() => {
     localStorage.clear();
 });
 
-test("el parche de setItem funciona también donde la asignación no parchea (prototipo)", async () => {
+test("el parche de setItem funciona también donde la asignación no parchea (prototipo)", { timeout: 10_000 }, async () => {
     const rs = await import("@/lib/sync/realtime-sync");
     await rs.startRealtimeSync();
     await sleep(50);
     localStorage.setItem(K, JSON.stringify({ v: "cero" }));
     expect(localStorage.getItem("setItem")).toBeNull();
-    await sleep(900);
+    await sleep(2100); // debounce de 2 s (contrato «consumo»)
     expect(mergedPatches.length).toBeGreaterThan(0);
     resolveMerge?.({ ok: true, atomic: true });
     await sleep(20);
 });
 
-test("una edición hecha mientras vuela el push NO se pierde con el eco (LWW sin retroceso)", async () => {
+test("una edición hecha mientras vuela el push NO se pierde con el eco (LWW sin retroceso)", { timeout: 10_000 }, async () => {
     expect(pgCallback).toBeTruthy();
     localStorage.setItem(K, JSON.stringify({ v: "A" })); // edición 1 (T1)
-    await sleep(900); // debounce 800 ms → push en vuelo
+    await sleep(2100); // debounce 2 s → push en vuelo
     const t1 = (mergedPatches.at(-1)!.__meta as Record<string, number>)[K];
 
     await sleep(5);

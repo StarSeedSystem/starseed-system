@@ -31,7 +31,7 @@
  */
 
 import type { DeviceInfo } from "@/lib/network/device-registry";
-import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import {
   initMesh,
   isWebRtcSupported as meshWebRtcSupported,
@@ -141,10 +141,9 @@ export function describeLanSync(status: LanSyncStatus = lanSyncStatus()): string
 /* ------------------------------------------------------------------ */
 
 async function getUserId(): Promise<string | null> {
+  // (2026-09-29 · contrato «consumo») Sin red: la sesión guardada, no /auth/v1/user.
   try {
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    return await uidActual();
   } catch {
     return null;
   }

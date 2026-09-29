@@ -7,11 +7,15 @@
  * COMPACTA de la malla LoRa que cada una ve — para dibujar una topología
  * federada (qué vecinos alcanza cada neurona) sin exponer la malla a terceros.
  *
- *   · PUSH: cada ~45 s (throttled) sube self + vecinos online (campos mínimos)
- *     a `os_mesh_topology` (upsert por device_id). Solo si hay malla lista.
- *   · PULL: cada ~60 s lee las instantáneas RECIENTES de las OTRAS neuronas de
+ *   · PUSH: cada 10 min sube self + vecinos online (campos mínimos) a
+ *     `os_mesh_topology` (upsert por device_id). Solo si hay malla lista.
+ *   · PULL: cada 10 min lee las instantáneas RECIENTES de las OTRAS neuronas de
  *     la cuenta y las publica en el store como `remoteTopologies` (la UI las
- *     pinta como "vía otra neurona").
+ *     pinta como "vía otra neurona"); cada 30 min si la última lectura vino vacía.
+ *
+ *   (2026-09-29 · contrato «consumo») Antes: push 45 s / pull 60 s en cada pestaña, con la
+ *   pestaña oculta, y un `getUser()` en cada vuelta. Ahora: solo la pestaña líder, pausa con
+ *   el dispositivo oculto, freno remoto y parada ante 400/404 (`bucle-fondo.ts`).
  *
  * Identidad soberana: RLS por owner (la migración). Degradación TOTAL y
  * silenciosa: sin sesión, sin tabla o sin red, no hace nada y la malla local
@@ -23,15 +27,19 @@ import { getMeshPrivacy } from "./privacy";
 import { getMeshState, setMeshState } from "./store";
 import { getActiveModemPreset } from "./sync";
 import type { RemoteTopology } from "./types";
+import { uidActual } from "@/lib/consumo/usuario";
+import { crearBucle, falloDe, MINUTO_MS, type BucleFondo, type FalloConsulta } from "@/lib/network/bucle-fondo";
 
 const DEVICE_ID_KEY = "starseed.mesh.device-id.v1";
-const PUSH_INTERVAL_MS = 45_000;
-const PULL_INTERVAL_MS = 60_000;
+export const PUSH_INTERVAL_MS = 10 * MINUTO_MS;
+export const PULL_INTERVAL_MS = 10 * MINUTO_MS;
+/** Sin topologías ajenas en la última lectura: no hay otra neurona con radio, se mira menos. */
+const PULL_EN_CALMA_MS = 30 * MINUTO_MS;
 /** Instantáneas más viejas que esto se ignoran al leer (neurona apagada). */
 const REMOTE_FRESH_MS = 10 * 60_000;
 
-let pushTimer: ReturnType<typeof setInterval> | null = null;
-let pullTimer: ReturnType<typeof setInterval> | null = null;
+let buclePush: BucleFondo | null = null;
+let buclePull: BucleFondo | null = null;
 let started = false;
 
 /** Id estable de ESTE dispositivo (no PII; aleatorio, persistido local). */
@@ -58,28 +66,29 @@ async function client() {
   }
 }
 
-async function ownerId(supabase: NonNullable<Awaited<ReturnType<typeof client>>>): Promise<string | null> {
+async function ownerId(_supabase: NonNullable<Awaited<ReturnType<typeof client>>>): Promise<string | null> {
+  // Sin red (antes `getUser()` en cada push/pull).
   try {
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    return await uidActual();
   } catch {
     return null;
   }
 }
 
 /** Sube la instantánea compacta de la malla local (si hay). Nunca lanza. */
-async function pushSnapshot(): Promise<void> {
+async function pushSnapshot(): Promise<FalloConsulta | null> {
   try {
     const s = getMeshState();
-    if (s.status !== "ready" && s.status !== "degraded") return;
+    // Sin radio lista no hay nada que federar: cero peticiones.
+    if (s.status !== "ready" && s.status !== "degraded") return null;
     // PRIVACIDAD (Adenda 98): "private" = esta neurona NO publica nada a la
     // federación; nombres y posición solo viajan con opt-in explícito.
     const privacy = getMeshPrivacy();
-    if (privacy.visibility === "private") return;
+    if (privacy.visibility === "private") return null;
     const supabase = await client();
-    if (!supabase) return;
+    if (!supabase) return null;
     const owner = await ownerId(supabase);
-    if (!owner) return; // sin sesión → sin federación (local sigue igual)
+    if (!owner) return null; // sin sesión → sin federación (local sigue igual)
 
     const nameOf = (n: { shortName?: string; longName?: string }) =>
       privacy.shareName ? n.shortName || n.longName || null : null;
@@ -104,7 +113,7 @@ async function pushSnapshot(): Promise<void> {
       region: s.region,
       preset: getActiveModemPreset(),
     };
-    await supabase.from("os_mesh_topology").upsert(
+    const res = await supabase.from("os_mesh_topology").upsert(
       {
         owner_id: owner,
         device_id: deviceId(),
@@ -117,25 +126,28 @@ async function pushSnapshot(): Promise<void> {
       },
       { onConflict: "owner_id,device_id" },
     );
-  } catch {
+    return falloDe(res as { error?: unknown; status?: number });
+  } catch (e) {
     /* federación best-effort */
+    return { message: e instanceof Error ? e.message : "sin red" };
   }
 }
 
 /** Lee las instantáneas de las OTRAS neuronas de la cuenta. Nunca lanza. */
-async function pullSnapshots(): Promise<void> {
+async function pullSnapshots(): Promise<{ fallo: FalloConsulta | null; siguienteMs?: number }> {
   try {
     const supabase = await client();
-    if (!supabase) return;
+    if (!supabase) return { fallo: null };
     const owner = await ownerId(supabase);
-    if (!owner) return;
-    const { data, error } = await supabase
+    if (!owner) return { fallo: null };
+    const res = await supabase
       .from("os_mesh_topology")
       .select("device_id, device_label, snapshot, online_count, updated_at")
       .eq("owner_id", owner)
       .order("updated_at", { ascending: false })
       .limit(24);
-    if (error || !Array.isArray(data)) return;
+    const { data, error } = res;
+    if (error || !Array.isArray(data)) return { fallo: falloDe(res as { error?: unknown; status?: number }) };
 
     const me = deviceId();
     const cutoff = Date.now() - REMOTE_FRESH_MS;
@@ -154,27 +166,39 @@ async function pullSnapshots(): Promise<void> {
       });
     }
     setMeshState({ remoteTopologies: remote });
-  } catch {
-    /* */
+    return { fallo: null, siguienteMs: remote.length ? PULL_INTERVAL_MS : PULL_EN_CALMA_MS };
+  } catch (e) {
+    return { fallo: { message: e instanceof Error ? e.message : "sin red" } };
   }
 }
 
-/** Arranca la federación (idempotente). Coste ~0 sin sesión/malla. */
+/** Arranca la federación (idempotente). Coste ~0 sin sesión/malla; solo en la pestaña líder. */
 export function startMeshFederation(): void {
   if (started || typeof window === "undefined") return;
   started = true;
-  // Primer pull rápido para poblar la UI; luego cadencia normal.
-  void pullSnapshots();
-  pushTimer = setInterval(() => void pushSnapshot(), PUSH_INTERVAL_MS);
-  pullTimer = setInterval(() => void pullSnapshots(), PULL_INTERVAL_MS);
+  buclePull = crearBucle({
+    nombre: "malla · federación (lectura)",
+    consulta: "select os_mesh_topology",
+    intervaloMs: PULL_INTERVAL_MS,
+    tarea: pullSnapshots,
+  });
+  buclePush = crearBucle({
+    nombre: "malla · federación (subida)",
+    consulta: "upsert os_mesh_topology",
+    intervaloMs: PUSH_INTERVAL_MS,
+    arrancarYa: false,
+    tarea: async () => ({ fallo: await pushSnapshot() }),
+  });
+  buclePull.iniciar();
+  buclePush.iniciar();
 }
 
 export function stopMeshFederation(): void {
   started = false;
-  if (pushTimer) clearInterval(pushTimer);
-  if (pullTimer) clearInterval(pullTimer);
-  pushTimer = null;
-  pullTimer = null;
+  buclePush?.detener();
+  buclePull?.detener();
+  buclePush = null;
+  buclePull = null;
 }
 
 /**

@@ -14,7 +14,11 @@
  * Persistencia:
  *   · Identidad del dispositivo → localStorage `starseed.neuron.device-id`.
  *   · Registro vivo → tabla Supabase `neuron_devices` (RLS por owner);
- *     heartbeat en `last_seen_at` ⇒ online = visto hace < 3 min.
+ *     heartbeat en `last_seen_at` ⇒ online = visto hace < 12 min.
+ *     (2026-09-29 · contrato «consumo») El latido es cada 5 min, SOLO en la pestaña
+ *     líder y nunca con el dispositivo oculto; `listNeurons()` comparte una caché de
+ *     5 min entre todos sus llamadores y ya NO re-registra el dispositivo en cada
+ *     lectura (antes: upsert + 2 `getUser()` + select cada 20 s por pestaña).
  *   · Preferencias/permisos por dispositivo → `starseed.neurons.prefs.v1`
  *     (viaja con la cuenta vía settings-sync → user_settings).
  *
@@ -38,15 +42,25 @@ import { deviceId as meshDeviceId } from "@/ai/astraura/mesh/federation";
 // Config de conectividad portátil (Adenda 100): señales/internet por neurona.
 // Solo tipo ⇒ se borra en compilación (sin dependencia circular en runtime).
 import type { ConnectivityConfig } from "@/ai/astraura/mesh";
+// Contrato «consumo» (2026-09-29): id de cuenta sin red y bucles de fondo con líder/visibilidad/freno.
+import { uidActual } from "@/lib/consumo/usuario";
+import { frenoActivo } from "@/lib/consumo/freno";
+import { crearBucle, falloDe, type BucleFondo, type FalloConsulta } from "@/lib/network/bucle-fondo";
 
 export const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
 export const NEURON_PREFS_KEY = "starseed.neurons.prefs.v1";
 export const NEURON_EVENT = "starseed:neurons";
-/** Visto hace menos de esto ⇒ online. */
-export const ONLINE_WINDOW_MS = 3 * 60_000;
-const HEARTBEAT_MS = 60_000;
-/** Cadencia del latido cuando la pestaña está oculta (Ola 366): más lento, nunca cero. */
-const HIDDEN_HEARTBEAT_MS = 3 * 60_000;
+/**
+ * Visto hace menos de esto ⇒ online. 12 min = dos latidos y medio de margen (el latido es
+ * cada 5 min): una pestaña que tarda un poco más en latir no parpadea a «offline».
+ */
+export const ONLINE_WINDOW_MS = 12 * 60_000;
+/** Cadencia del latido (solo pestaña líder y dispositivo visible). */
+export const HEARTBEAT_MS = 5 * 60_000;
+/** Cada cuántos latidos se vuelve a subir la ficha completa (capacidades, nombre…): 30 min. */
+const LATIDOS_POR_FICHA = 6;
+/** Vida de la caché compartida de `listNeurons()`. */
+export const LISTA_CACHE_MS = 5 * 60_000;
 
 export type NeuronKind = "desktop" | "laptop" | "mobile" | "tablet" | "server" | "other";
 
@@ -420,20 +434,20 @@ export function allowsFileRequests(): boolean {
 
 /* ───────────────────── Registro remoto (Supabase) ───────────────────── */
 
+/** Cuenta con sesión (sin red: `uidActual()` lee la sesión guardada). */
 async function getOwner(): Promise<string | null> {
   try {
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    return await uidActual();
   } catch { return null; }
 }
 
-async function upsertRemote(patch: Partial<Neuron> & { id: string }): Promise<void> {
+/** Sube (upsert) la fila de la neurona. Devuelve el fallo de la consulta, si lo hubo. Nunca lanza. */
+async function upsertRemote(patch: Partial<Neuron> & { id: string }): Promise<FalloConsulta | null> {
   const owner = await getOwner();
-  if (!owner || !patch.id) return;
+  if (!owner || !patch.id) return null;
   try {
     const supabase = createClient();
-    await supabase.from("neuron_devices").upsert(
+    const res = await supabase.from("neuron_devices").upsert(
       {
         id: patch.id,
         owner,
@@ -445,19 +459,26 @@ async function upsertRemote(patch: Partial<Neuron> & { id: string }): Promise<vo
       },
       { onConflict: "id" },
     );
-  } catch { /* tabla ausente / offline: degradación silenciosa */ }
+    const fallo = falloDe(res as { error?: unknown; status?: number });
+    // Un cambio de nombre/permisos/ficha debe verse ya en la lista de esta pestaña.
+    if (!fallo && (patch.name || patch.kind || patch.capabilities || patch.permissions)) invalidarListaNeuronas();
+    return fallo;
+  } catch (e) {
+    return { message: e instanceof Error ? e.message : "sin red" };
+  }
 }
 
-/**
- * Registra/actualiza ESTE dispositivo como neurona y arranca el heartbeat.
- * Idempotente; llamar una vez por sesión (p. ej. desde el provider de Aurora
- * o el panel de Neuronas). Nunca lanza.
- */
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-export async function ensureThisNeuron(): Promise<Neuron | null> {
-  if (typeof window === "undefined") return null;
-  const id = thisDeviceId();
-  if (!id) return null;
+/* ── Latido (contrato «consumo») ─────────────────────────────────────────── */
+
+let neuronaLocal: Neuron | null = null;
+/** Cuándo se midió `neuronaLocal` (para no repetir las sondas locales en el primer latido). */
+let neuronaLocalEn = 0;
+let neuronaLocalEnVuelo: Promise<Neuron | null> | null = null;
+let latido: BucleFondo | null = null;
+let latidosDesdeFicha = 0;
+
+/** Construye la ficha local de ESTE dispositivo (sondas locales, sin Supabase). */
+async function construirNeuronaLocal(id: string): Promise<Neuron> {
   const { kind } = detectPlatform();
   const capabilities = await detectCapabilities();
   // AUTO-ENLACE HERMES (Adenda 71-bis; HONESTO desde Adenda 118): solo se marca
@@ -480,31 +501,78 @@ export async function ensureThisNeuron(): Promise<Neuron | null> {
   const name = prefs.names[id] || defaultName(capabilities, kind);
   const perms = permissionsFor(id);
   perms.sync = true;
-  const neuron: Neuron = {
+  return {
     id, name, kind, capabilities,
     permissions: perms,
     isThisDevice: true, online: true,
   };
-  void upsertRemote(neuron);
-  if (!heartbeatTimer) {
-    // Ola 366 (malla de neuronas): antes, una pestaña en segundo plano (Mac
-    // minimizada, tablet con la pantalla apagada) dejaba de latir DEL TODO, así
-    // que a los 3 min (ONLINE_WINDOW_MS) esa neurona se veía "offline" aunque
-    // siguiera encendida — la malla nunca la detectaba para autovincularse. Con
-    // la pestaña oculta seguimos latiendo, solo que más despacio (cada
-    // HIDDEN_HEARTBEAT_MS) para no gastar cuota de Supabase sin necesidad.
-    let lastHiddenBeat = 0;
-    heartbeatTimer = setInterval(() => {
-      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
-      if (hidden) {
-        const now = Date.now();
-        if (now - lastHiddenBeat < HIDDEN_HEARTBEAT_MS) return;
-        lastHiddenBeat = now;
-      }
-      void upsertRemote({ id });
-    }, HEARTBEAT_MS);
+}
+
+/**
+ * Una vuelta del latido: la PRIMERA (y una de cada `LATIDOS_POR_FICHA`) sube la ficha
+ * completa con las capacidades recién medidas; el resto solo `last_seen_at`.
+ */
+async function latirUnaVez(id: string): Promise<{ fallo: FalloConsulta | null }> {
+  if (latidosDesdeFicha % LATIDOS_POR_FICHA === 0) {
+    const reciente = neuronaLocal && neuronaLocal.id === id && Date.now() - neuronaLocalEn < 60_000;
+    const fresca = reciente && neuronaLocal ? neuronaLocal : await construirNeuronaLocal(id);
+    neuronaLocal = fresca;
+    neuronaLocalEn = Date.now();
+    latidosDesdeFicha += 1;
+    return { fallo: await upsertRemote(fresca) };
   }
-  return neuron;
+  latidosDesdeFicha += 1;
+  return { fallo: await upsertRemote({ id }) };
+}
+
+/** Solo pruebas: para el latido y olvida la ficha local (cada prueba empieza de cero). */
+export function _detenerLatidoParaPruebas(): void {
+  latido?.detener();
+  latido = null;
+  latidosDesdeFicha = 0;
+  neuronaLocal = null;
+  neuronaLocalEn = 0;
+  neuronaLocalEnVuelo = null;
+  cacheLista = null;
+  listaParada = false;
+  listaAvisada = false;
+}
+
+/**
+ * Registra ESTE dispositivo como neurona y arranca el latido. Idempotente y barato: la
+ * primera llamada mide las capacidades (sondas locales) y arranca el bucle; las siguientes
+ * devuelven la ficha ya medida SIN tocar la red. El registro remoto lo hace el latido, solo
+ * en la pestaña líder, cada `HEARTBEAT_MS`, y nunca con el dispositivo oculto (ver
+ * `bucle-fondo.ts`). Un 400/404 (tabla o columna ausente) lo para hasta recargar. Nunca lanza.
+ */
+export async function ensureThisNeuron(): Promise<Neuron | null> {
+  if (typeof window === "undefined") return null;
+  const id = thisDeviceId();
+  if (!id) return null;
+  if (neuronaLocal && neuronaLocal.id === id) return neuronaLocal;
+  if (!neuronaLocalEnVuelo) {
+    neuronaLocalEnVuelo = construirNeuronaLocal(id)
+      .then((n) => {
+        neuronaLocal = n;
+        neuronaLocalEn = Date.now();
+        return n;
+      })
+      .catch(() => null)
+      .finally(() => {
+        neuronaLocalEnVuelo = null;
+      });
+  }
+  const neuron = await neuronaLocalEnVuelo;
+  if (!latido) {
+    latido = crearBucle({
+      nombre: "neuronas · latido",
+      consulta: "upsert neuron_devices (last_seen_at)",
+      intervaloMs: HEARTBEAT_MS,
+      tarea: () => latirUnaVez(id),
+    });
+    latido.iniciar();
+  }
+  return neuron ?? neuronaLocal;
 }
 
 /**
@@ -542,6 +610,7 @@ export async function linkHermesToNeuron(neuronId: string): Promise<boolean> {
       .from("neuron_devices")
       .update({ capabilities: caps, permissions: perms, last_seen_at: new Date().toISOString() })
       .eq("id", neuronId);
+    invalidarListaNeuronas();
     return true;
   } catch {
     return false;
@@ -582,6 +651,7 @@ export async function setNeuronHermioneSync(neuronId: string, on: boolean): Prom
       .from("neuron_devices")
       .update({ capabilities: caps, last_seen_at: new Date().toISOString() })
       .eq("id", neuronId);
+    if (!error) invalidarListaNeuronas();
     if (!error && typeof window !== "undefined") {
       try { window.dispatchEvent(new Event(NEURON_EVENT)); } catch { /* */ }
     }
@@ -591,19 +661,97 @@ export async function setNeuronHermioneSync(neuronId: string, on: boolean): Prom
   }
 }
 
-/** Lista TODAS las neuronas de la cuenta (esta primero). Nunca lanza. */
-export async function listNeurons(): Promise<Neuron[]> {
+/* ── Caché compartida de la lista (contrato «consumo») ───────────────────── */
+
+interface CacheLista {
+  owner: string;
+  en: number;
+  filas: Array<Record<string, unknown>>;
+}
+let cacheLista: CacheLista | null = null;
+let listaEnVuelo: Promise<{ filas: Array<Record<string, unknown>> | null; fallo: FalloConsulta | null }> | null = null;
+/** La lectura de `neuron_devices` devolvió 400/404: no se vuelve a pedir hasta recargar. */
+let listaParada = false;
+let listaAvisada = false;
+
+/** Olvida la caché: la próxima `listNeurons()` vuelve a leer (tras una mutación propia). */
+export function invalidarListaNeuronas(): void {
+  cacheLista = null;
+}
+
+function pestanaOculta(): boolean {
+  return typeof document !== "undefined" && document.visibilityState === "hidden";
+}
+
+/** Lee `neuron_devices` (una sola petición en vuelo aunque la pidan 5 superficies a la vez). */
+async function leerFilasNeuronas(): Promise<{ filas: Array<Record<string, unknown>> | null; fallo: FalloConsulta | null }> {
+  if (!listaEnVuelo) {
+    listaEnVuelo = (async () => {
+      try {
+        const supabase = createClient();
+        const res = await supabase
+          .from("neuron_devices")
+          .select("id, name, kind, capabilities, permissions, last_seen_at, created_at")
+          .order("last_seen_at", { ascending: false });
+        const fallo = falloDe(res as { error?: unknown; status?: number });
+        if (fallo || !Array.isArray(res.data)) return { filas: null, fallo };
+        return { filas: res.data as Array<Record<string, unknown>>, fallo: null };
+      } catch (e) {
+        return { filas: null, fallo: { message: e instanceof Error ? e.message : "sin red" } };
+      } finally {
+        listaEnVuelo = null;
+      }
+    })();
+  }
+  return listaEnVuelo;
+}
+
+/**
+ * Lista TODAS las neuronas de la cuenta (esta primero). Nunca lanza.
+ *
+ * (2026-09-29) Comparte una caché de `LISTA_CACHE_MS` entre todos sus llamadores (malla,
+ * widgets, paneles); con la pestaña oculta o el freno remoto activo devuelve lo último que
+ * tenga sin tocar la red. `{ fresco: true }` fuerza la lectura (botón «Actualizar»).
+ */
+export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]> {
   const meId = thisDeviceId();
   const local = await ensureThisNeuron();
   const owner = await getOwner();
   if (!owner) return local ? [local] : [];
   try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("neuron_devices")
-      .select("id, name, kind, capabilities, permissions, last_seen_at, created_at")
-      .order("last_seen_at", { ascending: false });
-    if (error || !Array.isArray(data)) return local ? [local] : [];
+    let filas: Array<Record<string, unknown>> | null = null;
+    const cache = cacheLista && cacheLista.owner === owner ? cacheLista : null;
+    const vigente = cache && Date.now() - cache.en < LISTA_CACHE_MS;
+    let frenado = false;
+    try {
+      frenado = frenoActivo();
+    } catch {
+      frenado = false;
+    }
+    // Se lee de la red solo si se puede (sin freno ni parada) y hace falta: no hay caché, se
+    // pidió fresca, o caducó con la pestaña a la vista. Si no, lo último que haya.
+    const puedeLeer = !frenado && !listaParada;
+    const hayQueLeer = !cache || !!opts?.fresco || (!vigente && !pestanaOculta());
+    if (!puedeLeer || !hayQueLeer) {
+      filas = cache?.filas ?? null;
+    } else {
+      const { filas: leidas, fallo } = await leerFilasNeuronas();
+      if (fallo && (fallo.status === 400 || fallo.status === 404)) {
+        listaParada = true;
+        if (!listaAvisada) {
+          listaAvisada = true;
+          console.warn(
+            `[consumo] neuronas · lista: «select neuron_devices» responde HTTP ${fallo.status}` +
+              `${fallo.code ? ` · ${fallo.code}` : ""}${fallo.message ? ` (${fallo.message})` : ""}. ` +
+              "No se vuelve a pedir hasta recargar la página.",
+          );
+        }
+      }
+      if (leidas) cacheLista = { owner, en: Date.now(), filas: leidas };
+      filas = leidas ?? cache?.filas ?? null;
+    }
+    if (!filas) return local ? [local] : [];
+    const data = filas;
     const prefs = readPrefs();
     const now = Date.now();
     const out = data.map((row: any): Neuron => ({
@@ -633,6 +781,7 @@ export async function removeNeuron(id: string): Promise<boolean> {
   try {
     const supabase = createClient();
     const { error } = await supabase.from("neuron_devices").delete().eq("id", id);
+    if (!error) invalidarListaNeuronas();
     return !error;
   } catch { return false; }
 }

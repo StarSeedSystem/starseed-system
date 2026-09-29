@@ -32,6 +32,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 
 /* ─────────────────────────────── Ajustes ─────────────────────────────────── */
 
@@ -136,13 +137,8 @@ export function saveUserContextSettings(patch: Partial<UserContextSettings>): Us
 
 async function getUid(): Promise<string | null> {
   if (!isClient()) return null;
-  try {
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
-  } catch {
-    return null;
-  }
+  // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+  return uidActual();
 }
 
 /** Escapa comodines de `ilike` (`%`, `_`) en texto libre del usuario. */

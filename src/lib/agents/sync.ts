@@ -32,6 +32,7 @@
 
 import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 import { getAgentsSnapshot, mergeAgentsFromAccount } from "./store";
 
@@ -43,13 +44,8 @@ function isClient(): boolean {
 }
 
 async function getUserId(): Promise<string | null> {
-  try {
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
-  } catch {
-    return null;
-  }
+  // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+  return uidActual();
 }
 
 /** Trae agentes/bindings/públicos de la cuenta y los FUSIONA con lo local. */

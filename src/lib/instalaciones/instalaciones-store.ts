@@ -14,6 +14,7 @@
 import { useSyncExternalStore } from "react";
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 import { onAccountBroadcast, sendAccountBroadcast } from "@/lib/sync/realtime-sync";
 
@@ -83,12 +84,8 @@ export function useInstalaciones(): DestinoInstalacion[] {
 }
 
 async function usuarioId(): Promise<string | null> {
-    try {
-        const { data } = await createClient().auth.getUser();
-        return data?.user?.id ?? null;
-    } catch {
-        return null;
-    }
+    // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+    return uidActual();
 }
 
 /**

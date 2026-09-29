@@ -41,9 +41,18 @@
  * aplicar, proyecto self-hosted antiguo), se cae al patrón antiguo de
  * leer-mezclar-upsert. Sigue habiendo carrera, pero la app NO se rompe; y se
  * avisa UNA vez por consola para que el fallo sea diagnosticable.
+ *
+ * SIN CAMBIOS, SIN PETICIÓN (contrato «consumo», 2026-09-29): 1.112 llamadas a
+ * `merge_user_prefs` en 4 h, casi todas con el MISMO valor que ya tenía la cuenta (copias de
+ * seguridad periódicas, re-subidas de otras pestañas). Se guarda la huella de lo que la cuenta
+ * tiene en cada clave (lo último que subimos o que vimos llegar por realtime/lectura) y se
+ * omite toda clave cuyo valor no cambió; si no queda ninguna, no hay petición. La huella vale
+ * 30 min: pasado ese tiempo, una escritura idéntica vuelve a salir (acota el caso raro de un
+ * cambio remoto que esta pestaña no llegó a ver).
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 
 /** Parche de preferencias: claves de primer nivel. `null` BORRA la clave. */
 export type PrefsPatch = Record<string, unknown>;
@@ -58,6 +67,62 @@ export interface MergePrefsResult {
     error?: string;
     /** true si falta la tabla `user_settings` (la UI lo explica al usuario). */
     missingTable?: boolean;
+    /** true si no hubo petición porque la cuenta ya tenía exactamente esos valores. */
+    sinCambios?: boolean;
+}
+
+/* ── Huellas del estado de la cuenta por clave ──────────────────────────────── */
+
+/** Una huella de clave deja de valer pasado este tiempo. */
+export const HUELLA_VIGENCIA_MS = 30 * 60_000;
+const huellas = new Map<string, { h: string; en: number }>();
+
+/** JSON con las claves de objeto ORDENADAS (jsonb reordena: la huella no debe depender del orden). */
+function estable(v: unknown): string {
+    if (v === undefined) return "null";
+    if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
+    if (Array.isArray(v)) return `[${v.map(estable).join(",")}]`;
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+        .filter((k) => o[k] !== undefined)
+        .sort()
+        .map((k) => `${JSON.stringify(k)}:${estable(o[k])}`)
+        .join(",")}}`;
+}
+
+/** Huella corta y estable de un valor (FNV-1a de 32 bits + longitud). */
+export function huellaValor(v: unknown): string {
+    const texto = estable(v);
+    let h = 0x811c9dc5;
+    for (let i = 0; i < texto.length; i++) {
+        h ^= texto.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return `${h.toString(16)}:${texto.length}`;
+}
+
+/**
+ * Anota lo que la CUENTA tiene ahora (fila leída, cambio recibido por realtime o broadcast):
+ * a partir de aquí, subir ese mismo valor no genera petición. `__meta` no se anota.
+ */
+export function recordarPrefsServidor(prefs: Record<string, unknown> | null | undefined): void {
+    if (!prefs || typeof prefs !== "object") return;
+    const en = Date.now();
+    for (const [k, v] of Object.entries(prefs)) {
+        if (k === "__meta") continue;
+        huellas.set(k, { h: huellaValor(v), en });
+    }
+}
+
+/** Olvida todas las huellas (cambio de cuenta o cierre de sesión). */
+export function olvidarHuellasPrefs(): void {
+    huellas.clear();
+}
+
+/** ¿La cuenta ya tiene exactamente este valor en esta clave (según una huella vigente)? */
+function yaEnLaCuenta(k: string, v: unknown, ahora: number): boolean {
+    const prev = huellas.get(k);
+    return !!prev && ahora - prev.en < HUELLA_VIGENCIA_MS && prev.h === huellaValor(v);
 }
 
 /** ¿El error dice que la RPC no existe? (base sin la migración de la Adenda 69). */
@@ -91,12 +156,40 @@ export async function mergeUserPrefs(
     }
     if (Object.keys(patch).length === 0) return { ok: true, atomic: true };
 
+    // Solo con el cliente del OS: un Supabase propio del usuario es otra cuenta, otras huellas.
+    const conHuellas = !opts?.client;
+    if (conHuellas) {
+        const ahora = Date.now();
+        const claves = Object.keys(patch).filter((k) => k !== "__meta");
+        const cambiadas = claves.filter((k) => !yaEnLaCuenta(k, patch[k], ahora));
+        if (claves.length > 0 && cambiadas.length === 0) return { ok: true, atomic: true, sinCambios: true };
+        if (cambiadas.length < claves.length) {
+            // Fuera las claves sin cambios, y su marca LWW con ellas (no marcar lo que no se sube).
+            const omitidas = new Set(claves.filter((k) => !cambiadas.includes(k)));
+            const reducido: PrefsPatch = {};
+            for (const k of cambiadas) reducido[k] = patch[k];
+            const meta = patch.__meta;
+            if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+                const m: Record<string, unknown> = {};
+                for (const [mk, mv] of Object.entries(meta as Record<string, unknown>)) {
+                    if (!omitidas.has(mk)) m[mk] = mv;
+                }
+                if (Object.keys(m).length > 0) reducido.__meta = m;
+            }
+            patch = reducido;
+        }
+    }
+    const anotar = (res: MergePrefsResult): MergePrefsResult => {
+        if (res.ok && conHuellas) recordarPrefsServidor(patch);
+        return res;
+    };
+
     const sb = opts?.client ?? createClient();
 
     // ── Camino BUENO: mezcla atómica en el servidor ─────────────────────────
     try {
         const { error } = await sb.rpc("merge_user_prefs", { p_patch: patch });
-        if (!error) return { ok: true, atomic: true };
+        if (!error) return anotar({ ok: true, atomic: true });
 
         const msg = error.message ?? String(error);
         if (isMissingTable(msg)) return { ok: false, atomic: false, error: msg, missingTable: true };
@@ -118,18 +211,20 @@ export async function mergeUserPrefs(
     }
 
     // ── Degradación: leer-mezclar-upsert (con la carrera conocida) ──────────
-    return legacyMerge(sb, patch, opts?.userId);
+    return anotar(await legacyMerge(sb, patch, opts?.userId, conHuellas));
 }
 
 async function legacyMerge(
     sb: MinimalClient,
     patch: PrefsPatch,
     userId?: string,
+    clienteDelOS = true,
 ): Promise<MergePrefsResult> {
     try {
         let uid = userId;
-        if (!uid) {
-            const { data } = await sb.auth.getUser();
+        if (!uid && clienteDelOS) uid = (await uidActual()) ?? undefined; // sin red
+        if (!uid && !clienteDelOS) {
+            const { data } = await sb.auth.getUser(); // Supabase propio del usuario: su sesión
             uid = data?.user?.id;
         }
         if (!uid) return { ok: false, atomic: false, error: "Sin sesión." };

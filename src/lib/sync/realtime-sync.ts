@@ -78,7 +78,10 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { mergeUserPrefs, recordarPrefsServidor, olvidarHuellasPrefs } from "@/lib/sync/user-prefs";
+// Contrato «consumo» (2026-09-29): id de cuenta sin red y pestaña líder.
+import { uidActual } from "@/lib/consumo/usuario";
+import { esLider } from "@/lib/consumo/lider-pestana";
 
 // ── Configuración ────────────────────────────────────────────────────────────
 /** Toggle persistido (ON por defecto con sesión). */
@@ -107,7 +110,16 @@ const LOCAL_META_KEY = "starseed.sync.meta.v1";
 /** Sub-objeto reservado dentro de `user_settings.prefs` con las marcas LWW. */
 const CLOUD_META_FIELD = "__meta";
 
-const PUSH_DEBOUNCE_MS = 800;
+/**
+ * (2026-09-29 · contrato «consumo») Debounce de subida ≥ 2 s (antes 800 ms) y solo con cambio
+ * REAL: el parche de `setItem` ignora escrituras con el mismo valor, `mergeUserPrefs` omite las
+ * claves que la cuenta ya tiene, y el cambio que llega de OTRA pestaña por el evento `storage`
+ * solo lo reenvía la pestaña líder, más tarde, y solo si la nube aún no lo tiene (lo normal es
+ * que la pestaña de origen ya lo haya subido).
+ */
+export const PUSH_DEBOUNCE_MS = 2000;
+/** Espera extra antes de reenviar un cambio visto por el evento `storage` (da tiempo al origen). */
+const PUSH_DESDE_OTRA_PESTANA_MS = 6000;
 const SELF_ECHO_WINDOW_MS = 4000;
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -280,6 +292,24 @@ function readLocal(key: string): unknown {
  * las escrituras van siempre por `mergeUserPrefs()` (Adenda 69). Nunca lanza:
  * sin red devuelve `{}` y seguimos local-first.
  */
+/**
+ * Lee SOLO las marcas LWW (`prefs->__meta`) de la cuenta: es lo único que necesita la subida
+ * para no pisar un cambio más nuevo. Antes se bajaba la columna `prefs` entera en cada subida.
+ */
+async function readCloudMeta(userId: string): Promise<MetaMap> {
+    try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+            .from("user_settings")
+            .select("meta:prefs->__meta")
+            .eq("user_id", userId)
+            .maybeSingle();
+        if (error) return {};
+        return cloudMetaOf({ [CLOUD_META_FIELD]: (data as { meta?: unknown } | null)?.meta });
+    } catch { /* sin red: local-first */ }
+    return {};
+}
+
 async function readCloudPrefs(userId: string): Promise<Record<string, unknown>> {
     try {
         const supabase = createClient();
@@ -431,15 +461,20 @@ function collectAllSyncedLocal(): Record<string, unknown> {
  * (p. ej. sesión presente pero aún sin hidratar en memoria).
  */
 async function getUserId(): Promise<string | null> {
+    // (2026-09-29) `uidActual()` (G1): la misma idea de arriba, con caché compartida por todo el
+    // OS e invalidada por `onAuthStateChange` — ni una petición a /auth/v1/user.
     try {
-        const supabase = createClient();
-        const { data: sessionData } = await supabase.auth.getSession();
-        const fromSession = sessionData?.session?.user?.id ?? null;
-        if (fromSession) return fromSession;
-        const { data } = await supabase.auth.getUser();
-        return data?.user?.id ?? null;
+        return await uidActual();
     } catch {
         return null;
+    }
+}
+
+function liderSeguro(): boolean {
+    try {
+        return esLider();
+    } catch {
+        return true;
     }
 }
 
@@ -522,11 +557,9 @@ function wasJustAppliedRemote(key: string): boolean {
 async function pushChanges(userId: string, keys: string[]): Promise<void> {
     if (keys.length === 0) return;
     try {
-        // Lee prefs SOLO para comparar marcas LWW (no para reescribir la columna:
-        // eso es justo lo que causaba el borrado — ver Adenda 69 y user-prefs.ts).
-        const prefs = await readCloudPrefs(userId);
-
-        const cloudMeta = cloudMetaOf(prefs);
+        // Lee SOLO las marcas LWW para comparar (no la columna: ni para reescribirla —eso es
+        // justo lo que causaba el borrado, Adenda 69— ni para bajarla entera en cada subida).
+        const cloudMeta = await readCloudMeta(userId);
         const localMeta = readLocalMeta();
         const changes: Record<string, unknown> = {};
         const changeMeta: MetaMap = {};
@@ -547,8 +580,9 @@ async function pushChanges(userId: string, keys: string[]): Promise<void> {
             // ahora mismo (push forzado desde el botón "Sincronizar").
             const ts = localMeta[key] ?? now;
             // LWW también en la SUBIDA: si la nube ya tiene algo MÁS NUEVO que lo
-            // nuestro, no lo pisamos (lo aplicaremos nosotros al recibirlo).
-            if ((cloudMeta[key] ?? 0) > ts) continue;
+            // nuestro, no lo pisamos (lo aplicaremos nosotros al recibirlo). Con la MISMA marca,
+            // la nube ya tiene ESTA escritura (la subió la pestaña donde ocurrió): no se repite.
+            if ((cloudMeta[key] ?? 0) >= ts) continue;
 
             const safe = sanitizeForCloud(key, v); // ← el secreto (apiKey…) NO sube
             changes[key] = safe;
@@ -569,6 +603,7 @@ async function pushChanges(userId: string, keys: string[]): Promise<void> {
             { userId },
         );
         if (!res.ok) return;
+        if (res.sinCambios) return; // la cuenta ya tenía esos valores: nada que avisar
 
         // Sella localmente lo que acabamos de subir (para futuras comparaciones).
         touchLocalMetaMany(changeMeta);
@@ -601,9 +636,11 @@ async function pushChanges(userId: string, keys: string[]): Promise<void> {
     }
 }
 
-function scheduleLocalPush(key: string): void {
+function scheduleLocalPush(key: string, desdeOtraPestana = false): void {
     if (wasJustAppliedRemote(key)) return; // eco del propio cambio remoto recién aplicado
-    touchLocalMeta(key); // sella el instante REAL de la escritura (no el del push)
+    // La marca la sella la pestaña donde OCURRIÓ la escritura (la meta local es compartida):
+    // re-sellarla aquí la haría «más nueva» y forzaría una segunda subida idéntica.
+    if (!desdeOtraPestana) touchLocalMeta(key); // sella el instante REAL de la escritura (no el del push)
     pendingKeys.add(key);
     if (pushTimer) clearTimeout(pushTimer);
     pushTimer = setTimeout(() => {
@@ -614,7 +651,7 @@ function scheduleLocalPush(key: string): void {
             if (!userId) return;
             await pushChanges(userId, keys);
         })();
-    }, PUSH_DEBOUNCE_MS);
+    }, desdeOtraPestana ? PUSH_DESDE_OTRA_PESTANA_MS : PUSH_DEBOUNCE_MS);
 }
 
 // ── Aplicar cambios remotos a localStorage + eventos de UI en vivo ─────────
@@ -753,6 +790,7 @@ function getOrCreateBroadcastChannel(userId: string): RealtimeChannel | null {
         broadcastChannel.on<BroadcastPayload>("broadcast", { event: "changes" }, (msg) => {
             const payload = msg?.payload as BroadcastPayload | undefined;
             if (!payload || payload.deviceId === deviceId()) return; // anti-eco
+            recordarPrefsServidor(payload.changes ?? {}); // la cuenta ya tiene estos valores
             applyRemoteChanges(payload.changes ?? {}, payload.deviceId, payload.meta ?? {});
         });
         // Re-cablea los eventos CUSTOM ya registrados vía onAccountBroadcast
@@ -857,6 +895,7 @@ function subscribePostgresChanges(userId: string): void {
                     // lo originó este dispositivo el valor local YA es igual, así que es un no-op).
                     // Las marcas LWW de `__meta` evitan que esta fila entera pise cambios más nuevos.
                     const prefsObj = prefs as Record<string, unknown>;
+                    recordarPrefsServidor(prefsObj); // la fila ES el estado de la cuenta
                     const remoteMeta = cloudMetaOf(prefsObj);
                     const changes: Record<string, unknown> = {};
                     for (const [key, value] of Object.entries(prefsObj)) {
@@ -892,8 +931,13 @@ function patchLocalStorageOnce(): void {
         const proto = Object.getPrototypeOf(localStorage) as Storage;
         const original = proto.setItem;
         proto.setItem = function patchedSetItem(this: Storage, key: string, value: string): void {
+            // ¿Cambio REAL? Reescribir el mismo valor (guardados periódicos) no es un cambio.
+            let igual = false;
+            try {
+                igual = this === window.localStorage && isSyncedKey(key) && this.getItem(key) === String(value);
+            } catch { igual = false; }
             original.call(this, key, value);
-            if (this !== window.localStorage) return;
+            if (this !== window.localStorage || igual) return;
             try {
                 if (isSyncedKey(key) && !wasJustAppliedRemote(key)) scheduleLocalPush(key);
             } catch { /* nunca romper la escritura original por el hook de sync */ }
@@ -910,7 +954,12 @@ function patchLocalStorageOnce(): void {
 function onStorageEvent(e: StorageEvent): void {
     if (!e.key) return; // e.key === null ⇒ localStorage.clear(): no hay clave concreta que reenviar
     if (!isSyncedKey(e.key)) return;
-    scheduleLocalPush(e.key);
+    if (e.oldValue === e.newValue) return; // sin cambio real
+    // La pestaña donde ocurrió ya lo sube. Solo la LÍDER hace de red de seguridad (por si esa
+    // pestaña no tiene el motor, p. ej. /mando), más tarde, y `pushChanges` lo omite si la
+    // nube ya tiene esa marca. Antes, N pestañas = N subidas idénticas de cada cambio.
+    if (!liderSeguro()) return;
+    scheduleLocalPush(e.key, true);
 }
 
 // ── Ciclo de vida del motor ──────────────────────────────────────────────────
@@ -967,11 +1016,14 @@ function ensureAuthSubscription(): void {
         const { data } = supabase.auth.onAuthStateChange((_event, session) => {
             const uid = session?.user?.id ?? null;
             if (uid) {
+                // Otra cuenta: las huellas de lo que tenía la anterior ya no valen.
+                if (currentUserId && uid !== currentUserId) olvidarHuellasPrefs();
                 // Sesión disponible: conecta si aún no lo estábamos, o si cambió la cuenta.
                 if (uid !== currentUserId || !(postgresChannel || broadcastChannel)) {
                     void connectForUser(uid);
                 }
             } else {
+                olvidarHuellasPrefs();
                 teardownChannels();
                 currentUserId = null;
                 setStatus({ state: "no-session" });
@@ -1055,6 +1107,7 @@ export async function pullAndApplyNow(): Promise<{ applied: number; pushedBack: 
     if (!userId) return result;
 
     const prefs = await readCloudPrefs(userId);
+    recordarPrefsServidor(prefs); // lo leído ES el estado de la cuenta
 
     const remoteMeta = cloudMetaOf(prefs);
     const localMeta = readLocalMeta();

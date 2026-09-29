@@ -607,3 +607,65 @@ Medidor: **«Crédito Claude nube»** en el pulso de trabajo del Mando (`src/lib
 (archivo `~/.starseed/credito-claude-nube.json`, chmod 600, fuera del repo). Cada sesión en la
 nube puede dejar su consumo (solo tokens) con `credito_claude_nube.py uso > uso.json` y, en la Mac,
 `credito_claude_nube.py anotar uso.json`: el medidor avisa de las sesiones demasiado largas.
+
+## 15. Consumo de bases de datos: presupuesto diario, freno y medidor (2026-09-29)
+
+**Por qué.** El proyecto Supabase del OS (`nxstilnyidvkqeosofuh`) quedó bloqueado por exceder la
+salida gratuita (egress, 5 GB/ciclo) el 28-09 22:00 UTC, tres días después de volver a usarse:
+pestañas del OS en la Mac pidiendo `/auth/v1/user`, `os_mesh_relay`, `neuron_devices`… sin parar
+(picos de 27.000–33.000 peticiones/hora) y una publicación de Realtime con 107 tablas. Alex: «ya
+no pueden haber errores de ese tipo que consuman los créditos» y «en Supabase agrega límites de
+gastos diarios si es posible». **Dicho con honestidad: el plan gratuito de Supabase NO tiene
+límite de gasto diario ni de tráfico por día. Los límites de esta sección son NUESTROS**, y se
+hacen cumplir en tres capas (contrato «consumo», agentes G1/G2/G3):
+
+1. **Cliente** (G1, `src/lib/consumo/*`): cortacircuitos ante 402, cubo de fichas por pestaña,
+   presupuesto por dispositivo, pestaña líder y lectura del freno remoto `os_freno`.
+2. **Vigía diaria** (G3, `scripts/puente/vigia_consumo.py`, cada 15 min desde el director de
+   orquestación; cero tráfico del proyecto: lee la API de REGISTROS de gestión):
+   - Por día UTC: peticiones (edge_logs) y **salida estimada**: `content-length` cuando la
+     respuesta lo trae + media de lo medido de esa ruta × las que no; sin ninguna medida, un
+     tamaño típico por tipo de ruta; errores 250 B. Realtime **estimado** = escrituras REST ×
+     3 suscriptores × 800 B (los registros de Realtime no cuentan mensajes; se anotan aparte).
+     Es una estimación y se dice así en el medidor (qué % fue medido).
+   - Historial de 45 días en `~/.starseed/consumo-historial.json`; el día anterior se relee
+     entero una vez al cambiar de día.
+   - Presupuestos en `~/.starseed/presupuestos.json` (se crea solo; el Mando lo edita):
+     `supabase_peticiones_dia` 25.000 · `supabase_mb_dia` 150 · `supabase_mb_ciclo` 5120 ·
+     `ciclo_inicio` (fecha de inicio del ciclo de facturación; null = se supone el primer día
+     medido) · `jev_usd_dia` 0,05 · `openrouter_usd_min_saldo` 2.
+   - **70 %** del presupuesto (peticiones, MB del día o MB del ciclo, el mayor) → aviso al canal
+     una vez al día. **100 %** → **freno remoto**: UNA escritura en `public.os_freno` (id=1:
+     `activo`, `motivo`, `hasta` = próxima 00:00 UTC, `actualizado`) con la clave de servicio;
+     los clientes frenan sus sondeos. A las 00:00 UTC (o si el día deja de superarlo) se apaga con
+     otra escritura. Con 402 no se escribe nada (`restringido: true`).
+   - **Detector de bucles**: una ruta > 1.500 peticiones/h o un agente (user-agent) + ruta > 800/h
+     → «BUCLE · ruta · n/h desde «agente»» al canal (como mucho cada 3 h por bucle) y queda como
+     «último bucle detectado» en el Mando. Rutas y agentes van saneados: sin ids ni nada que
+     parezca una clave.
+   - **Nunca en bucle**: si falla la API de registros, la vuelta se corta; un fallo al escribir
+     el freno espera 1 h; «tabla inexistente» (migración `20260929090000_os_freno.sql` sin
+     aplicar) avisa una vez y no se reintenta hasta el día siguiente. `--seco` mide sin escribir
+     el freno ni avisar.
+3. **Topes del servidor** (G3, `scripts/puente/limites_supabase.py`, a mano y una vez; idempotente):
+   por la API de gestión con `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF`: PostgREST
+   `max_rows` = 1000; Auth `rate_limit_token_refresh` 60/5 min por IP, `verify` 15, `otp` 10/h,
+   `anonymous_users` 10/h, `web3` 10/h; Realtime (si la API expone los campos) clientes 60,
+   eventos 50/s, presencia 10/s, uniones 20/s, 50 KB/s. Solo BAJA valores, solo parchea campos
+   que existen y solo imprime nombres y números (la respuesta trae secretos: nunca se imprime).
+   Cambiar Realtime desconecta una vez a los clientes. Primero `--seco`:
+   `python3 scripts/puente/limites_supabase.py --seco` y luego sin `--seco`.
+
+**Medidor en el Mando: «Consumo y créditos»** (bajo el pulso de trabajo;
+`src/components/mando/medidor-consumo.tsx`, `GET/POST /api/mando/consumo`, lector
+`src/lib/mando/consumo.ts`, tipos `src/lib/mando/consumo-tipos.ts`). Una fila por medio con barra y
+estado: Supabase (peticiones y MB de hoy contra el presupuesto, ciclo contra 5 GB con días
+restantes si se conoce el inicio, estado ok · aviso · freno · restringido 402, 3 rutas que más
+piden, 14 días, último bucle), Jev/OpenRouter (USD de hoy / techo, saldo / mínimo) y Claude nube
+(restante declarado, fecha de la declaración, enlace y comando para actualizarlo). Los presupuestos
+se editan ahí mismo (POST local, validado). Lee cada 60 s SOLO con la pestaña visible, y avisa si
+la vigía lleva más de 45 min sin medir.
+
+**Qué hacer cuando salta:** mirar las 3 rutas y el último bucle en el medidor → buscar quién sondea
+esa ruta (`grep -rn "<tabla>" src/`) → frenarlo con `esLider()`/`frenoActivo()`/visibilidad (ver
+contrato G2) → nunca subir el presupuesto para «hacer sitio» a un bucle.

@@ -41,6 +41,9 @@ import {
   type DeviceCert,
   type DeviceCertRevocation,
 } from "./master-identity";
+// Contrato «consumo» (2026-09-29): id de cuenta sin red + fallo para el bucle que refresca la CRL.
+import { uidActual } from "@/lib/consumo/usuario";
+import { falloDe, type FalloConsulta } from "@/lib/network/bucle-fondo";
 
 /** Canal de las revocaciones: público, como la revocación de identidad (cualquiera la verifica). */
 const REVOCATION_CHANNEL = "public";
@@ -57,11 +60,11 @@ async function client() {
 }
 
 async function ownerId(
-  supabase: NonNullable<Awaited<ReturnType<typeof client>>>,
+  _supabase: NonNullable<Awaited<ReturnType<typeof client>>>,
 ): Promise<string | null> {
+  // Sin red (antes: `getUser()` = /auth/v1/user en cada refresco de la CRL).
   try {
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    return await uidActual();
   } catch {
     return null;
   }
@@ -121,11 +124,11 @@ export async function publishDeviceCertRevocation(cert: DeviceCert): Promise<boo
  *
  * `expectedMfp`: el ancla maestra PROPIA/PINEADA de esta neurona (ver cabecera del módulo).
  */
-export async function refreshDeviceCertRevocations(expectedMfp: string): Promise<void> {
+export async function refreshDeviceCertRevocations(expectedMfp: string): Promise<FalloConsulta | null> {
   try {
-    if (!expectedMfp) return; // sin ancla no se puede verificar nada: preserva lo conocido
+    if (!expectedMfp) return null; // sin ancla no se puede verificar nada: preserva lo conocido
     const supabase = await client();
-    if (!supabase) return;
+    if (!supabase) return null;
     // Solo verifican las actas firmadas por la maestra PROPIA (expectedMfp), y todas las
     // neuronas de la cuenta comparten owner_id. Filtrar por dueño elimina la superficie de
     // INUNDACIÓN entre cuentas (revisión adversarial Adenda 128): filas basura de otras
@@ -140,8 +143,9 @@ export async function refreshDeviceCertRevocations(expectedMfp: string): Promise
       .order("created_at", { ascending: false })
       .limit(CRL_READ_LIMIT);
     if (owner) query = query.eq("owner_id", owner);
-    const { data, error } = await query;
-    if (error || !Array.isArray(data)) return; // fallo transitorio: NO vacía el set
+    const res = await query;
+    const { data, error } = res;
+    if (error || !Array.isArray(data)) return falloDe(res as { error?: unknown; status?: number }); // NO vacía el set
     const next = new Set<string>(revokedCertIds); // conserva las ya conocidas (p. ej. la recién publicada)
     for (const row of data as Array<Record<string, unknown>>) {
       const acta = (row.payload ?? null) as DeviceCertRevocation | null;
@@ -150,8 +154,9 @@ export async function refreshDeviceCertRevocations(expectedMfp: string): Promise
       next.add(acta.certId);
     }
     revokedCertIds = next;
-  } catch {
-    /* */
+    return null;
+  } catch (e) {
+    return { message: e instanceof Error ? e.message : "sin red" };
   }
 }
 

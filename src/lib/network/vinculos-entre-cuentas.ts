@@ -44,6 +44,10 @@ import { createMesh, type MeshHandle, type PeerSnapshot } from "@/lib/network/we
 import { crearTransporteSenalPar } from "@/lib/network/par-signaling";
 import { exportPubJwk, derivarClaveParHex, topicDePar } from "@/lib/network/par-crypto";
 import { rolEnVinculo, type EstadoVinculo, type RolVinculo } from "@/lib/network/vinculos-transiciones";
+// Contrato «consumo» (2026-09-29): id de cuenta sin red + bucle de la pestaña líder.
+import { uidActual } from "@/lib/consumo/usuario";
+import { esLider, alCambiarLider } from "@/lib/consumo/lider-pestana";
+import { crearBucle, falloDe, MINUTO_MS, type FalloConsulta } from "@/lib/network/bucle-fondo";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                              */
@@ -104,14 +108,20 @@ function filaARow(r: Record<string, unknown>, miUid: string | null): VinculoRow 
 }
 
 async function miOwnerId(): Promise<string | null> {
+  // Sin red (antes: `getUser()` = /auth/v1/user en CADA sondeo de 8 s).
   try {
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    return await uidActual();
   } catch {
     return null;
   }
 }
+
+/**
+ * Columnas que el motor necesita. NUNCA `*`: la fila lleva además los buzones de
+ * señalización (`buzon_de`/`buzon_a`, hasta 40 sobres firmados cada uno) que aquí no se usan.
+ */
+const COLUMNAS_VINCULO =
+  "id, de_owner, de_device, a_owner, a_device, estado, mensaje, permisos_solicitados, permisos, de_pub, a_pub, sal, created_at";
 
 /* ------------------------------------------------------------------ */
 /* Capa de datos: las 4 acciones (delegan TODO en las RPC del servidor) */
@@ -382,7 +392,24 @@ export function refrescarVinculosAhora(): void {
 /* Motor — useVinculosEntreCuentas (montado UNA vez)                  */
 /* ------------------------------------------------------------------ */
 
-const POLL_MS = 8_000;
+/**
+ * (2026-09-29 · contrato «consumo») Antes: cada 8 s en cada pestaña, oculta o no, con un
+ * `getUser()` en cada vuelta (≈ 900 peticiones/h por pestaña). Ahora: pestaña líder,
+ * dispositivo visible, cada 10 min (30 min si la cuenta no tiene ningún vínculo); las acciones
+ * propias refrescan al momento (`refrescarVinculosAhora`) y el resultado se difunde a las
+ * demás pestañas. Los mesh de par dedicados se abren SOLO en la pestaña líder (un dispositivo,
+ * una conexión por vínculo).
+ */
+export const POLL_MS = 10 * MINUTO_MS;
+export const POLL_SIN_VINCULOS_MS = 30 * MINUTO_MS;
+
+function liderSeguro(): boolean {
+  try {
+    return esLider();
+  } catch {
+    return true;
+  }
+}
 
 /**
  * useVinculosEntreCuentas — EL MOTOR. Se monta UNA sola vez (ver
@@ -406,7 +433,8 @@ export function useVinculosEntreCuentas(deps?: {
 
   useEffect(() => {
     let cancelado = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    /** Lo último leído (propio o difundido): para reabrir los mesh al heredar el liderazgo. */
+    let ultimasFilas: { filas: Record<string, unknown>[]; uid: string | null } | null = null;
 
     const cerrarMesh = (vinculoId: string) => {
       const mesh = meshesRef.current.get(vinculoId);
@@ -499,54 +527,91 @@ export function useVinculosEntreCuentas(deps?: {
       void mesh.connectToDevice(targetDevice);
     };
 
-    const tick = async () => {
-      try {
-        const uid = (await (deps?.ownerId?.() ?? miOwnerId())) ?? null;
-        if (!uid) {
-          if (!cancelado) publicarFilas([]);
-        } else {
-          const filas = deps?.listarPropias
-            ? await deps.listarPropias()
-            : await (async () => {
-                const supabase = createClient();
-                const { data, error } = await supabase
-                  .from("os_mesh_vinculos")
-                  .select("*")
-                  .or(`de_owner.eq.${uid},a_owner.eq.${uid}`)
-                  .order("created_at", { ascending: false });
-                if (error || !Array.isArray(data)) return [] as Record<string, unknown>[];
-                return data as Record<string, unknown>[];
-              })();
-          if (cancelado) return;
-          const rows = filas.map((r) => filaARow(r, uid));
-          publicarFilas(rows);
+    /** Publica las filas para la UI y, SOLO en la pestaña líder, abre/cierra los mesh de par. */
+    const aplicarFilas = (filas: Record<string, unknown>[], uid: string | null) => {
+      if (cancelado) return;
+      ultimasFilas = { filas, uid };
+      if (!uid) {
+        publicarFilas([]);
+        return;
+      }
+      const rows = filas.map((r) => filaARow(r, uid));
+      publicarFilas(rows);
+      if (!liderSeguro()) return;
+      const idsVigentes = new Set(rows.filter((r) => r.estado === "aceptado").map((r) => r.id));
+      for (const row of rows) void abrirMeshDeVinculo(row);
+      for (const vinculoId of Array.from(meshesRef.current.keys())) {
+        if (!idsVigentes.has(vinculoId)) cerrarMesh(vinculoId);
+      }
+      refrescarPeers();
+    };
 
-          const idsVigentes = new Set(rows.filter((r) => r.estado === "aceptado").map((r) => r.id));
-          for (const row of rows) void abrirMeshDeVinculo(row);
-          for (const vinculoId of Array.from(meshesRef.current.keys())) {
-            if (!idsVigentes.has(vinculoId)) cerrarMesh(vinculoId);
-          }
+    const leer = async (): Promise<{ fallo?: FalloConsulta | null; datos?: Record<string, unknown>[]; siguienteMs?: number }> => {
+      const uid = (await (deps?.ownerId?.() ?? miOwnerId())) ?? null;
+      if (!uid) {
+        aplicarFilas([], null);
+        return {};
+      }
+      let filas: Record<string, unknown>[];
+      if (deps?.listarPropias) {
+        filas = await deps.listarPropias();
+      } else {
+        const supabase = createClient();
+        const res = await supabase
+          .from("os_mesh_vinculos")
+          .select(COLUMNAS_VINCULO)
+          .or(`de_owner.eq.${uid},a_owner.eq.${uid}`)
+          .order("created_at", { ascending: false });
+        const fallo = falloDe(res as { error?: unknown; status?: number });
+        if (fallo || !Array.isArray(res.data)) return { fallo };
+        filas = res.data as Record<string, unknown>[];
+      }
+      aplicarFilas(filas, uid);
+      return { datos: filas, siguienteMs: filas.length ? POLL_MS : POLL_SIN_VINCULOS_MS };
+    };
+
+    const bucle = crearBucle<Record<string, unknown>[]>({
+      nombre: "vínculos entre cuentas",
+      consulta: "select os_mesh_vinculos (de_owner|a_owner = yo)",
+      intervaloMs: POLL_MS,
+      tarea: leer,
+      difundir: true,
+      // Lo que leyó otra pestaña (la líder, o una que refrescó tras su propia acción).
+      alRecibirDatos: (filas) => {
+        void (async () => {
+          const uid = (await (deps?.ownerId?.() ?? miOwnerId())) ?? null;
+          aplicarFilas(Array.isArray(filas) ? filas : [], uid);
+        })();
+      },
+    });
+    bucle.iniciar();
+
+    // Heredar el liderazgo abre los mesh; perderlo los cierra (una conexión por dispositivo).
+    let liderOff: (() => void) | null = null;
+    try {
+      liderOff = alCambiarLider((lider) => {
+        if (cancelado) return;
+        if (lider && ultimasFilas) aplicarFilas(ultimasFilas.filas, ultimasFilas.uid);
+        if (!lider) {
+          for (const vinculoId of Array.from(meshesRef.current.keys())) cerrarMesh(vinculoId);
           refrescarPeers();
         }
-      } catch {
-        /* deja el estado anterior: nunca rompe la UI */
-      }
-      if (cancelado) return;
-      timer = setTimeout(() => void tick(), POLL_MS);
-    };
-    void tick();
+      });
+    } catch {
+      liderOff = null;
+    }
 
     // Permite a la UI pedir un sondeo INMEDIATO tras su propia acción
     // (solicitar/aceptar/rechazar/revocar) en vez de esperar `POLL_MS`.
     forzarSondeoAhora = () => {
       if (cancelado) return;
-      if (timer) clearTimeout(timer);
-      void tick();
+      void bucle.ahora();
     };
 
     return () => {
       cancelado = true;
-      if (timer) clearTimeout(timer);
+      bucle.detener();
+      liderOff?.();
       if (forzarSondeoAhora) forzarSondeoAhora = null;
       for (const vinculoId of Array.from(meshesRef.current.keys())) cerrarMesh(vinculoId);
       publicarPeers([]);

@@ -18,6 +18,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
+import { clasificarFallo, falloDe, type FalloConsulta } from "@/lib/network/bucle-fondo";
 import type { Post, User } from "@/services/network-simulation-service";
 import type { CommentAttachment } from "@/lib/posts/post-entity";
 import type {
@@ -279,28 +281,118 @@ export interface FetchFeedOptions {
     limit?: number;
 }
 
+/*
+ * ── Los «posts 400» del 28-09 (contrato «consumo», 2026-09-29) ──────────────────────────────
+ * El widget del feed pedía esta consulta cada 45 s por pestaña y la base del OS la rechazaba con
+ * HTTP 400 una y otra vez. NINGUNA migración del repo crea las columnas del Lienzo en `posts`
+ * (`type`, `post_references`, `interactions`: solo el «esquema acordado» de post-entity.ts); la
+ * tabla viene de un esquema anterior, así que o falta alguna de esas columnas (42703) o `type`
+ * no admite el valor `comment` (22P02). El arreglo no depende de adivinar cuál:
+ *   1. «preciso»: la consulta de siempre (columnas justas, filtro en el servidor).
+ *   2. Si responde 400 por el esquema: UN aviso en consola con el código y el mensaje REALES
+ *      de Postgres, y la sesión pasa a «tolerante»: `select *` (sin nombrar columnas que quizá
+ *      no existen), orden por `created_at` y el filtro de comentarios hecho aquí.
+ *   3. Si también falla (tabla ausente): «parado» hasta recargar, sin más peticiones.
+ * `enrichCommentCounts` y `fetchMyConnectionIds` dependen de esas mismas columnas: fuera del
+ * modo «preciso» no piden nada.
+ */
+type ModoFeed = "preciso" | "tolerante" | "parado";
+let modoFeed: ModoFeed = "preciso";
+const avisosFeed = new Set<string>();
+
+function avisarFeed(clave: string, consulta: string, f: FalloConsulta | null, despues: string): void {
+    if (avisosFeed.has(clave)) return;
+    avisosFeed.add(clave);
+    const cual = [f?.status ? `HTTP ${f.status}` : null, f?.code || null].filter(Boolean).join(" · ");
+    console.warn(
+        `[consumo] feed de la Red: la consulta «${consulta}» responde ${cual || "un error"}` +
+            `${f?.message ? ` (${f.message})` : ""}. ${despues}`,
+    );
+}
+
+/** ¿El fallo dice que la TABLA no existe (no solo una columna o un valor)? */
+function tablaAusente(f: FalloConsulta | null): boolean {
+    return !!f && (f.status === 404 || f.code === "42P01" || f.code === "PGRST205");
+}
+
+/** ¿El feed quedó parado en esta sesión porque la tabla no existe/no se puede leer? (UI honesta) */
+export function feedNoDisponible(): boolean {
+    return modoFeed === "parado";
+}
+
+/** Para pruebas: vuelve al modo inicial. */
+export function _reiniciarFeedParaPruebas(): void {
+    modoFeed = "preciso";
+    avisosFeed.clear();
+}
+
+/**
+ * Como `fetchNetworkFeed`, pero devuelve también el fallo de la consulta (para que el sondeo
+ * del widget espere o se pare según el contrato de consumo). Nunca lanza.
+ */
+export async function fetchNetworkFeedConEstado(
+    opts: FetchFeedOptions = {},
+): Promise<{ posts: FeedPost[]; fallo: FalloConsulta | null }> {
+    const limit = opts.limit ?? 60;
+    if (modoFeed === "parado") return { posts: [], fallo: null };
+    try {
+        const supabase = createClient();
+        if (modoFeed === "preciso") {
+            const res = await supabase
+                .from("posts")
+                .select("id, author_id, content, post_references, interactions, created_at")
+                // Todos los tipos de publicación del Lienzo (post, artículo, galería, código,
+                // transmisión, proyecto, servidor, historia…) — solo se excluyen los comentarios.
+                .neq("type", "comment")
+                .order("created_at", { ascending: false })
+                .limit(limit);
+            const fallo = falloDe(res as { error?: unknown; status?: number });
+            if (!fallo && Array.isArray(res.data)) {
+                return { posts: res.data.map((row) => normalizeRow(row as PostRow)), fallo: null };
+            }
+            if (clasificarFallo(fallo) !== "permanente") return { posts: [], fallo };
+            if (tablaAusente(fallo)) {
+                modoFeed = "parado";
+                avisarFeed("tabla", "select posts", fallo, "La tabla no existe en esta base: el feed queda vacío y no se vuelve a pedir hasta recargar.");
+                return { posts: [], fallo };
+            }
+            modoFeed = "tolerante";
+            avisarFeed(
+                "preciso",
+                "posts?select=id,author_id,content,post_references,interactions,created_at&type=neq.comment",
+                fallo,
+                "El esquema de `posts` no es el del Lienzo: se sigue con `select *` y el filtro de comentarios en el cliente.",
+            );
+        }
+        // Modo tolerante: sin nombrar columnas que quizá no existen; se pide un poco más para
+        // que los comentarios filtrados aquí no dejen el feed corto.
+        const res = await supabase
+            .from("posts")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(Math.min(limit * 2, 120));
+        const fallo = falloDe(res as { error?: unknown; status?: number });
+        if (fallo || !Array.isArray(res.data)) {
+            if (clasificarFallo(fallo) === "permanente") {
+                modoFeed = "parado";
+                avisarFeed("tolerante", "posts?select=*&order=created_at.desc", fallo, "El feed queda vacío y no se vuelve a pedir hasta recargar la página.");
+            }
+            return { posts: [], fallo };
+        }
+        const filas = (res.data as Array<Record<string, unknown>>).filter((r) => r.type !== "comment").slice(0, limit);
+        return { posts: filas.map((row) => normalizeRow(row as unknown as PostRow)), fallo: null };
+    } catch (e) {
+        return { posts: [], fallo: { message: e instanceof Error ? e.message : "sin red" } };
+    }
+}
+
 /**
  * Trae el feed público real de la Red: publicaciones de tipo `post` cuyo
  * destino incluye la Red/Feed público, o sin destino de área restringido.
  * Nunca lanza: ante cualquier fallo devuelve `[]` (estado vacío honesto).
  */
 export async function fetchNetworkFeed(opts: FetchFeedOptions = {}): Promise<FeedPost[]> {
-    const limit = opts.limit ?? 60;
-    try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-            .from("posts")
-            .select("id, author_id, content, post_references, interactions, created_at")
-            // Todos los tipos de publicación del Lienzo (post, artículo, galería, código,
-            // transmisión, proyecto, servidor, historia…) — solo se excluyen los comentarios.
-            .neq("type", "comment")
-            .order("created_at", { ascending: false })
-            .limit(limit);
-        if (error || !Array.isArray(data)) return [];
-        return data.map((row) => normalizeRow(row as PostRow));
-    } catch {
-        return [];
-    }
+    return (await fetchNetworkFeedConEstado(opts)).posts;
 }
 
 /** Enriquecimiento best-effort: resuelve nombre/handle del autor por lote. */
@@ -336,6 +428,7 @@ export async function enrichAuthors(posts: FeedPost[]): Promise<FeedPost[]> {
 /** Conteo real de comentarios por publicación (best-effort, tolera fallos). */
 export async function enrichCommentCounts(posts: FeedPost[]): Promise<FeedPost[]> {
     if (posts.length === 0) return posts;
+    if (modoFeed !== "preciso") return posts; // sin `type`/`post_references` fiables: no se pide
     try {
         const supabase = createClient();
         const ids = posts.map((p) => p.postId);
@@ -365,8 +458,7 @@ export async function fetchMyConnectionIds(): Promise<Set<string>> {
     const ids = new Set<string>();
     try {
         const supabase = createClient();
-        const { data: authData } = await supabase.auth.getUser();
-        const uid = authData?.user?.id;
+        const uid = await uidActual(); // sin red (antes getUser → /auth/v1/user)
         if (!uid) return ids;
 
         // Autores de publicaciones que ya di like.
@@ -386,7 +478,12 @@ export async function fetchMyConnectionIds(): Promise<Set<string>> {
             }
         }
 
-        // Autores de hilos donde ya comenté (comentarios propios → parent).
+        // Autores de hilos donde ya comenté (comentarios propios → parent). Filtra por
+        // `type`/`post_references`: solo con el esquema del Lienzo (ver `modoFeed`).
+        if (modoFeed !== "preciso") {
+            ids.delete(uid);
+            return ids;
+        }
         const { data: myComments } = await supabase
             .from("posts")
             .select("post_references")

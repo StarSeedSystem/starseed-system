@@ -28,6 +28,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 /* ------------------------------------------------------------------ */
@@ -203,10 +204,9 @@ export async function getPublicIp(timeoutMs = 4000): Promise<string | null> {
 /* ------------------------------------------------------------------ */
 
 async function getUserId(): Promise<string | null> {
+  // (2026-09-29 · contrato «consumo») Sin red: la sesión guardada, no /auth/v1/user.
   try {
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    return await uidActual();
   } catch {
     return null;
   }

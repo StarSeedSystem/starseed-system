@@ -31,6 +31,8 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
+import { crearBucle, falloDe, MINUTO_MS, type BucleFondo, type FalloConsulta, type ResultadoVuelta } from "@/lib/network/bucle-fondo";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 /* ------------------------------------------------------------------ */
@@ -79,8 +81,22 @@ const PREFS_SIGNALS_KEY = "signals";
 const BROADCAST_EVENT = "signal";
 /** TTL de una señal en el fallback (ms). Más allá se descarta/limpia. */
 const SIGNAL_TTL_MS = 60_000;
-/** Cadencia de polling del fallback (ms). */
+/**
+ * Cadencia de polling del fallback MIENTRAS SE NEGOCIA (ms).
+ * (2026-09-29 · contrato «consumo») Antes: cada 2,5 s toda la vida de la suscripción. Ahora
+ * rápido solo 2 min desde que se abre, se envía o llega una señal; fuera de eso cada 5 min;
+ * nada con el dispositivo oculto; freno, espera ante fallos y parada ante 400/404.
+ */
 const POLL_INTERVAL_MS = 2_500;
+const VENTANA_NEGOCIACION_MS = 2 * MINUTO_MS;
+const POLL_EN_REPOSO_MS = 5 * MINUTO_MS;
+/** Última actividad de señalización de este dispositivo (abre la ventana rápida). */
+let negociandoHasta = 0;
+const buclesRespaldo = new Set<BucleFondo>();
+function marcarNegociacion(): void {
+  negociandoHasta = Date.now() + VENTANA_NEGOCIACION_MS;
+  for (const b of buclesRespaldo) b.adelantar();
+}
 /** Tope de señales retenidas en la cola (evita crecimiento ilimitado). */
 const MAX_SIGNALS = 60;
 
@@ -134,10 +150,9 @@ function normalizeSignal(x: unknown): Signal | null {
 }
 
 async function getUserId(): Promise<string | null> {
+  // Sin red (antes `getUser()` = /auth/v1/user en cada señal enviada).
   try {
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    return await uidActual();
   } catch {
     return null;
   }
@@ -329,21 +344,30 @@ function parseSignalQueue(raw: unknown): Signal[] {
   return out;
 }
 
-/** Lee la cola de señales de la cuenta (o [] defensivo). */
-async function fetchSignalQueue(userId: string): Promise<Signal[]> {
+/**
+ * Lee SOLO `prefs.signals` de la cuenta (ruta JSON de PostgREST). Antes se bajaba la columna
+ * `prefs` entera —todas las preferencias sincronizadas de la cuenta— cada 2,5 s.
+ */
+async function leerColaCruda(userId: string): Promise<{ raw: unknown; fallo: FalloConsulta | null }> {
   try {
     const supabase = createClient();
-    const { data, error } = await supabase
+    const res = await supabase
       .from("user_settings")
-      .select("prefs")
+      .select(`cola:prefs->${PREFS_SIGNALS_KEY}`)
       .eq("user_id", userId)
       .maybeSingle();
-    if (error || !data?.prefs || typeof data.prefs !== "object") return [];
-    const prefs = data.prefs as Record<string, unknown>;
-    return parseSignalQueue(prefs[PREFS_SIGNALS_KEY]);
-  } catch {
-    return [];
+    const fallo = falloDe(res as { error?: unknown; status?: number });
+    if (fallo) return { raw: null, fallo };
+    return { raw: (res.data as { cola?: unknown } | null)?.cola ?? null, fallo: null };
+  } catch (e) {
+    return { raw: null, fallo: { message: e instanceof Error ? e.message : "sin red" } };
   }
+}
+
+/** Lee la cola de señales de la cuenta (o [] defensivo) y el fallo de la consulta. */
+async function fetchSignalQueue(userId: string): Promise<{ cola: Signal[]; fallo: FalloConsulta | null }> {
+  const { raw, fallo } = await leerColaCruda(userId);
+  return { cola: fallo ? [] : parseSignalQueue(raw), fallo };
 }
 
 /**
@@ -356,24 +380,10 @@ async function updateSignalQueue(
   mutate: (current: Signal[]) => Signal[],
 ): Promise<boolean> {
   try {
-    const supabase = createClient();
     // Lectura SOLO de nuestra cola (no de la columna entera para reescribirla:
     // ese patrón borraba las claves de los demás módulos — Adenda 69 · A).
-    let prefs: Record<string, unknown> = {};
-    try {
-      const { data } = await supabase
-        .from("user_settings")
-        .select("prefs")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (data?.prefs && typeof data.prefs === "object") {
-        prefs = data.prefs as Record<string, unknown>;
-      }
-    } catch {
-      /* partimos de cola vacía si no se pudo leer */
-    }
-
-    const current = parseSignalQueue(prefs[PREFS_SIGNALS_KEY]);
+    const { raw } = await leerColaCruda(userId);
+    const current = parseSignalQueue(raw);
     let next = mutate(current);
     // Poda por TTL + tope de tamaño (nos quedamos con las más recientes).
     const now = Date.now();
@@ -412,6 +422,7 @@ export async function sendSignal(sig: Signal): Promise<boolean> {
       at: typeof sig.at === "number" ? sig.at : Date.now(),
       nonce: sig.nonce || makeNonce(),
     };
+    marcarNegociacion(); // enviar = negociar: la respuesta llegará pronto
 
     // 1) Realtime primero (si hay hub listo o se puede crear).
     const hub = realtimeHubs.get(userId) ?? (await ensureRealtimeHub(userId));
@@ -486,12 +497,14 @@ export async function subscribeSignals(
   const consumedNonces = new Set<string>();
   let stopped = false;
 
-  const tick = async () => {
-    if (stopped) return;
+  const tick = async (): Promise<ResultadoVuelta> => {
+    if (stopped) return {};
     try {
-      const queue = await fetchSignalQueue(userId);
+      const { cola: queue, fallo } = await fetchSignalQueue(userId);
+      if (fallo) return { fallo };
       const mine = queue.filter((s) => s.to === self && s.from !== self && !consumedNonces.has(s.nonce));
       if (mine.length > 0) {
+        marcarNegociacion();
         for (const s of mine) {
           consumedNonces.add(s.nonce);
           deliver(s);
@@ -500,20 +513,32 @@ export async function subscribeSignals(
         const toRemove = new Set(mine.map((s) => s.nonce));
         await updateSignalQueue(userId, (current) => current.filter((s) => !toRemove.has(s.nonce)));
       }
-    } catch {
-      /* silencioso: reintentamos en el siguiente tick */
+    } catch (e) {
+      return { fallo: { message: e instanceof Error ? e.message : "sin red" } };
     }
+    return { siguienteMs: Date.now() < negociandoHasta ? POLL_INTERVAL_MS : POLL_EN_REPOSO_MS };
   };
 
-  const timer = setInterval(() => void tick(), POLL_INTERVAL_MS);
-  void tick(); // primera pasada inmediata
+  // Suscribirse ES el inicio de una negociación: primera pasada inmediata y rápido 2 min.
+  negociandoHasta = Math.max(negociandoHasta, Date.now() + VENTANA_NEGOCIACION_MS);
+  const bucle = crearBucle({
+    nombre: "señalización de la cuenta · buzón de respaldo",
+    consulta: "select user_settings.prefs->signals",
+    intervaloMs: POLL_INTERVAL_MS,
+    // El mesh de la cuenta vive en cada pestaña; oculta no sondea (bucle-fondo).
+    soloLider: false,
+    tarea: tick,
+  });
+  buclesRespaldo.add(bucle);
+  bucle.iniciar();
 
   return {
     transport: "polling",
     unsubscribe: () => {
       if (stopped) return;
       stopped = true;
-      clearInterval(timer);
+      bucle.detener();
+      buclesRespaldo.delete(bucle);
     },
   };
 }

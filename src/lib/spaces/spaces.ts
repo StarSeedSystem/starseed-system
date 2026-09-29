@@ -34,6 +34,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deviceId } from "@/lib/sync/entity-state";
 import { syncManager, OS_TABLE } from "@/lib/sync/sync-manager";
@@ -100,13 +101,8 @@ function mapEditorRow(row: Record<string, unknown>): SpaceEditor {
 }
 
 async function getUserId(): Promise<string | null> {
-    try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        return data?.user?.id ?? null;
-    } catch {
-        return null;
-    }
+    // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+    return uidActual();
 }
 
 /* ─────────────────────────── CRUD ─────────────────────────── */

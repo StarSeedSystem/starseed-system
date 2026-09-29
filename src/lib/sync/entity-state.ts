@@ -16,6 +16,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 
 export type EntityKind =
     | "user"
@@ -60,13 +61,9 @@ export function deviceId(): string {
 
 /** Ref del usuario autenticado (o null sin sesión). Nunca lanza. */
 export async function currentUserRef(): Promise<EntityRef | null> {
-    try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        return data.user ? { kind: "user", id: data.user.id } : null;
-    } catch {
-        return null;
-    }
+    // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+    const uid = await uidActual();
+    return uid ? { kind: "user", id: uid } : null;
 }
 
 /**

@@ -41,6 +41,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { uidActual } from "@/lib/consumo/usuario";
 import { deviceId, type EntityRef } from "@/lib/sync/entity-state";
 import { emitChange } from "@/lib/sync/live-signal";
 // Historial de archivos (Adenda 66 §2): cada subida y cada versión nueva crean
@@ -128,13 +129,8 @@ function isClient(): boolean {
 
 async function getCurrentUserId(): Promise<string | null> {
     if (!isClient()) return null;
-    try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        return data.user?.id ?? null;
-    } catch {
-        return null;
-    }
+    // (2026-09-29, consumo) Sin red: sesión local en caché — /auth/v1/user fue la ruta más pedida.
+    return uidActual();
 }
 
 /** Slug seguro para nombre de archivo en storage (conserva extensión). */
