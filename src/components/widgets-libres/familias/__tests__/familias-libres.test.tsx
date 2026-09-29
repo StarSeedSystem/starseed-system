@@ -52,6 +52,7 @@ vi.mock("@/lib/weather-mock", () => ({ fetchWeatherData: async () => clima, MOCK
 
 import { RelojLibre } from "../reloj-libre";
 import { ClimaLibre, cieloPorCodigo } from "../clima-libre";
+import { _olvidarClima } from "../clima-partes";
 import { NotificacionesLibre } from "../notificaciones-libre";
 import { AccesosLibre } from "../accesos-libre";
 import { EstadoSistemaLibre, saludDe } from "../estado-sistema-libre";
@@ -102,6 +103,8 @@ describe("Clima libre", () => {
         expect(screen.getByText("Despejado")).toBeTruthy();
         expect(screen.getByText("sensación 20°")).toBeTruthy();
         unmount();
+        _olvidarClima();
+        localStorage.removeItem("starseed.inicio.clima.v1");
         clima = { _sources: [], terrestrial: { current: { temperature_2m: 99, weather_code: 0 } } };
         render(<ClimaLibre />);
         expect(await screen.findByText("sin dato del clima")).toBeTruthy();
