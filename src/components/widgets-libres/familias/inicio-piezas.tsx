@@ -190,7 +190,7 @@ export interface AnilloProps {
 export function Anillo({ valor, tam, grosor = Math.max(3, tam * 0.08), color, color2 = color, pista = 0.14, children, etiqueta }: AnilloProps) {
     const id = React.useId().replace(/:/g, "");
     const v = Math.max(0, Math.min(1, Number.isFinite(valor) ? valor : 0));
-    const r = (tam - grosor) / 2, c = 2 * Math.PI * r;
+    const r = Math.max(0.5, (tam - grosor) / 2), c = 2 * Math.PI * r;
     const fin = { x: tam / 2 + r * Math.sin(v * 2 * Math.PI), y: tam / 2 - r * Math.cos(v * 2 * Math.PI) };
     return (
         <div className="relative grid shrink-0 place-items-center" style={{ width: tam, height: tam }}
@@ -208,7 +208,7 @@ export function Anillo({ valor, tam, grosor = Math.max(3, tam * 0.08), color, co
                         strokeDasharray={`${c * v} ${c}`} transform={`rotate(-90 ${tam / 2} ${tam / 2})`}
                         style={{ transition: "stroke-dasharray .6s cubic-bezier(.22,1,.36,1)" }} />
                 )}
-                {v > 0 && v < 1 && <circle cx={fin.x} cy={fin.y} r={grosor * 0.62} fill="#ffffff" opacity={0.9} />}
+                {v > 0 && v < 1 && tam > grosor * 2 && <circle cx={fin.x} cy={fin.y} r={grosor * 0.62} fill="#ffffff" opacity={0.9} />}
             </svg>
             <div className="relative flex flex-col items-center justify-center text-center">{children}</div>
         </div>

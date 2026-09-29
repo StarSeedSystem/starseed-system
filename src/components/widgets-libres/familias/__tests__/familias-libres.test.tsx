@@ -24,7 +24,11 @@ vi.mock("@/lib/widget-data/os-live", () => ({
 const actualizar = vi.fn(async () => ({}));
 vi.mock("@/utils/supabase/client", () => ({ createClient: () => ({ from: () => ({ update: () => ({ eq: actualizar }) }) }) }));
 const tareas = { tasks: [] as any[], pending: [] as any[], completed: [], add: vi.fn(), toggle: vi.fn(), remove: vi.fn(), clearCompleted: vi.fn() };
-vi.mock("@/lib/tasks/quick-tasks", () => ({ useQuickTasks: () => tareas }));
+const altaTarea = vi.fn((texto: string) => ({ id: "nueva", text: texto, done: false, createdAt: Date.now() }));
+vi.mock("@/lib/tasks/quick-tasks", () => ({
+    useQuickTasks: () => tareas, addQuickTask: (t: string, p?: string) => altaTarea(t, p),
+    readQuickTasks: () => tareas.tasks, QUICK_TASKS_KEY: "starseed.tasks.quick.v1", QUICK_TASKS_EVENT: "starseed:tasks",
+}));
 let chat: any[] = [];
 vi.mock("@/lib/aurora/aurora-chat-log", () => ({ readAuroraChatEntries: () => chat, AURORA_CHATLOG_CHANGE_EVENT: "x", AURORA_CHATLOG_KEY: "k" }));
 vi.mock("@/lib/sync/realtime-sync", () => ({ getRealtimeSyncStatus: () => ({ state: "connected" }), onRealtimeSyncStatus: () => () => {} }));
@@ -130,17 +134,21 @@ describe("Notificaciones libres", () => {
 });
 
 describe("Accesos libres", () => {
-    it("micro son cuatro en cruz; l dos anillos con nombre y las acciones", () => {
+    it("micro son cuatro en cruz; l los fijados, crear y entrar; al editar se ven todos y se fijan", () => {
         tam("micro");
         const { unmount } = render(<AccesosLibre />);
         expect(screen.getAllByRole("link")).toHaveLength(4);
         unmount();
         tam("l");
         render(<AccesosLibre />);
-        expect(screen.getByText("Perfil")).toBeTruthy();
-        expect(screen.getByRole("link", { name: "Mensajes" })).toBeTruthy();
+        expect(screen.getByRole("link", { name: "Red" })).toBeTruthy();
+        expect(screen.queryByRole("link", { name: "Mensajes" })).toBeNull();
         expect(screen.getByText("Publicar")).toBeTruthy();
         expect(screen.getByText("Entra para tus accesos")).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Elegir qué accesos se fijan" }));
+        expect(screen.getByRole("link", { name: "Mensajes" })).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Fijar Mensajes" }));
+        expect(JSON.parse(localStorage.getItem("starseed.inicio.accesos.v1")!).fijados).toContain("/mensajes");
     });
 });
 
@@ -167,8 +175,8 @@ describe("Eventos libres", () => {
     it("sin eventos lo dice y ofrece crear; con uno, s es su cápsula", () => {
         eventos.rows = [];
         const { unmount } = render(<EventosLibre />);
-        expect(screen.getByText("Semana libre")).toBeTruthy();
-        expect(screen.getByRole("link", { name: /Evento/ }).getAttribute("href")).toBe("?createEntity=event");
+        expect(screen.getByText("Semana libre en la red")).toBeTruthy();
+        expect(screen.getByRole("link", { name: "Crear un evento" }).getAttribute("href")).toBe("?createEntity=event");
         unmount();
         eventos.rows = [{ id: "1", slug: "luna", title: "Círculo de luna", starts_at: new Date(Date.now() + 7_200_000).toISOString() }];
         tam("s");
@@ -178,20 +186,20 @@ describe("Eventos libres", () => {
 });
 
 describe("Tareas libres", () => {
-    it("cada pétalo completa su tarea; l deja añadir", () => {
+    it("cada casilla completa su tarea (con «Deshacer»); l añade con atajos", () => {
         tareas.tasks = [{ id: "t1", text: "Regar", done: false, createdAt: 1 }, { id: "t2", text: "Leer", done: true, createdAt: 2 }];
         tareas.pending = [tareas.tasks[0]];
         tam("s");
         const { unmount } = render(<TareasLibre />);
-        fireEvent.click(screen.getByRole("button", { name: /Regar: pendiente/ }));
+        fireEvent.click(screen.getByRole("checkbox", { name: /Regar: pendiente/ }));
         expect(tareas.toggle).toHaveBeenCalledWith("t1");
+        expect(screen.getByRole("button", { name: "Deshacer: Regar" })).toBeTruthy();
         unmount();
         tam("l");
         render(<TareasLibre />);
-        fireEvent.click(screen.getByRole("button", { name: "Añadir tarea" }));
-        fireEvent.change(screen.getByLabelText("Nueva tarea"), { target: { value: "Meditar" } });
+        fireEvent.change(screen.getByLabelText("Nueva tarea"), { target: { value: "Meditar mañana!" } });
         fireEvent.click(screen.getByRole("button", { name: "Guardar tarea" }));
-        expect(tareas.add).toHaveBeenCalledWith("Meditar");
+        expect(altaTarea).toHaveBeenCalledWith("Meditar", "alta");
     });
 });
 
