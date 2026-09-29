@@ -31,7 +31,19 @@ vi.mock("@/lib/tasks/quick-tasks", () => ({
 }));
 let chat: any[] = [];
 vi.mock("@/lib/aurora/aurora-chat-log", () => ({ readAuroraChatEntries: () => chat, AURORA_CHATLOG_CHANGE_EVENT: "x", AURORA_CHATLOG_KEY: "k" }));
-vi.mock("@/lib/sync/realtime-sync", () => ({ getRealtimeSyncStatus: () => ({ state: "connected" }), onRealtimeSyncStatus: () => () => {} }));
+let estadoSync = "connected";
+const sincronizar = vi.fn(async () => ({ applied: 0, pushedBack: 0 }));
+vi.mock("@/lib/sync/realtime-sync", () => ({
+    getRealtimeSyncStatus: () => ({ state: estadoSync, lastChangeAt: null }), onRealtimeSyncStatus: () => () => {},
+    syncNow: () => sincronizar(), setRealtimeSyncEnabled: vi.fn(),
+}));
+let aviso = { corte: false, corteHasta: null as number | null, frenoLocalHasta: null, diaAgotado: false };
+vi.mock("@/lib/consumo/guardian", () => ({
+    leerAvisoConsumo: () => aviso, avisoConsumoServidor: () => aviso, suscribirConsumo: () => () => {},
+    leerContadores: () => ({ porRuta: {}, total: 10, frenos: 0, corteHasta: null, hoy: 1200, presupuestoDia: 8000, bloqueadas: 0, frenoLocalHasta: null, frenoRemoto: false }),
+}));
+vi.mock("@/lib/consumo/freno", () => ({ useFreno: () => ({ activo: false, motivo: null, hasta: null }) }));
+vi.mock("@/lib/perf/device-tier", () => ({ getPerfMode: () => "auto", setPerfMode: vi.fn(), PERF_CHANGED_EVENT: "starseed:perf-changed" }));
 vi.mock("@/lib/neurons/neurons", () => ({ listNeurons: async () => [{ online: true }, { online: false }] }));
 vi.mock("@/components/dashboard/widgets/clock-date-widget", () => ({ zoneLabel: (z: string) => (z === "Asia/Tokyo" ? "Tokio" : z) }));
 const Icono = () => <svg />;
@@ -156,10 +168,27 @@ describe("Accesos libres", () => {
 });
 
 describe("Estado del sistema libre", () => {
-    it("m son tres ondas; lo que el navegador no mide es «—»", () => {
+    it("m es el anillo de salud con lo que el navegador no mide como «sin dato»; l da el arreglo", async () => {
+        const { unmount } = render(<EstadoSistemaLibre />);
+        expect((await screen.findByRole("img", { name: /Salud de esta neurona/ })).getAttribute("aria-label")).toMatch(/Batería sin dato/);
+        expect(screen.getByText("Todo en orden")).toBeTruthy();
+        unmount();
+        estadoSync = "error";
+        tam("l");
         render(<EstadoSistemaLibre />);
-        expect(screen.getAllByRole("meter")).toHaveLength(3);
-        expect(screen.getByRole("meter", { name: /Batería: sin dato/ })).toBeTruthy();
+        fireEvent.click(await screen.findByRole("button", { name: "Sincronizar ahora" }));
+        expect(sincronizar).toHaveBeenCalled();
+        estadoSync = "connected";
+    });
+    it("con la nube en pausa no se ofrece sincronizar (se explica por qué)", async () => {
+        estadoSync = "error";
+        aviso = { ...aviso, corte: true, corteHasta: Date.now() + 1_800_000 };
+        tam("l");
+        render(<EstadoSistemaLibre />);
+        expect((await screen.findByRole("button", { name: "Sincronizar ahora" })).hasAttribute("disabled")).toBe(true);
+        expect(screen.getByText("La nube está en pausa por consumo")).toBeTruthy();
+        estadoSync = "connected";
+        aviso = { ...aviso, corte: false, corteHasta: null };
     });
     it("la salud sale de la sincronía y la batería", () => {
         expect(saludDe("connected", 0.8)).toBe("bien");
