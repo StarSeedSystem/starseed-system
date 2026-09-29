@@ -89,9 +89,10 @@ describe("estados de un sueño", () => {
 
 describe("consolidado y lanzamiento", () => {
     it("consolidadoDe tolera campos que faltan y quita barras iniciales de las rutas", () => {
-        const c = consolidadoDe({ resumen: "r", top: [{ titulo: "Uno", archivo: "/abs/x.ts", ya_encargada: true }, {}] });
+        const c = consolidadoDe({ resumen: "r", top: [{ titulo: "Uno", archivo: "/abs/x.ts", ya_encargada: true, accionable: false, jev: "baja · 0.10 (local) · VETO" }, {}] });
         expect(c?.top).toHaveLength(2);
-        expect(c?.top[0]).toMatchObject({ titulo: "Uno", archivo: "abs/x.ts", yaEncargada: true, verificacion: "sin_verificar", apariciones: 1 });
+        expect(c?.top[0]).toMatchObject({ titulo: "Uno", archivo: "abs/x.ts", yaEncargada: true, verificacion: "sin_verificar", apariciones: 1, accionable: false, jev: "baja · 0.10 (local) · VETO" });
+        expect(c?.top[1].accionable).toBe(true);
         expect(consolidadoDe({})).toBeNull();
     });
 

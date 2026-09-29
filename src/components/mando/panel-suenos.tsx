@@ -253,6 +253,7 @@ function Recomendaciones({ top }: { top: RecomendacionSueno[] }) {
                         <span className="font-semibold text-white/90">{u.titulo}</span>
                         {u.apariciones > 1 ? <span className="text-white/40">(+{u.apariciones - 1})</span> : null}
                         {u.yaEncargada ? <span className="rounded bg-white/10 px-1 text-[10px] text-white/50">ya propuesta</span> : null}
+                        {!u.accionable ? <span className="rounded bg-rose-500/15 px-1 text-[10px] text-rose-200/80">no accionable</span> : null}
                     </p>
                     <p className="mt-0.5 flex flex-wrap gap-x-3 text-[10px] text-white/50">
                         <span>{u.area} × {u.lente}</span>
@@ -263,6 +264,7 @@ function Recomendaciones({ top }: { top: RecomendacionSueno[] }) {
                         </span>
                     </p>
                     {u.propuesta ? <p className="mt-0.5 text-[10px] text-violet-200/80">Tarea: {u.propuesta}</p> : null}
+                    {u.jev ? <p className="mt-0.5 text-[10px] text-white/40">Consejero Jev: {u.jev}</p> : null}
                 </li>
             ))}
         </ol>

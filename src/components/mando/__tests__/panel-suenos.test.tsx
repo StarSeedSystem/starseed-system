@@ -36,7 +36,7 @@ const datos = {
             resumen: "Sueños profundos 2026-09-29: 1 informe.",
             propuestas: 3,
             cuentas: {},
-            top: [{ titulo: "Frenar el sondeo de la malla", area: "voz", lente: "rendimiento-consumo", archivo: "src/lib/voces/motor.ts", linea: 40, impacto: 5, esfuerzo: 1, confianza: 0.9, verificacion: "verificado", por: "claude-opus-5.5", capacidad: true, privado: false, puntuacion: 4.5, tarea: "SA09299", apariciones: 2, yaEncargada: false, seccion: "riesgo", propuesta: "Frenar el sondeo" }],
+            top: [{ titulo: "Frenar el sondeo de la malla", area: "voz", lente: "rendimiento-consumo", archivo: "src/lib/voces/motor.ts", linea: 40, impacto: 5, esfuerzo: 1, confianza: 0.9, verificacion: "verificado", por: "claude-opus-5.5", capacidad: true, privado: false, puntuacion: 4.5, tarea: "SA09299", apariciones: 2, yaEncargada: false, seccion: "riesgo", propuesta: "Frenar el sondeo", accionable: true, prioridad: "alta", jev: "alta · 0.93 (local)" }],
         },
         ultimoLanzamiento: { t: "2026-09-29 10:00:00", horas: 3, por: "mando" },
     },
@@ -63,6 +63,7 @@ describe("PanelSuenos", () => {
         expect(screen.getByText("claude-opus-5.5 · 48 k")).toBeInTheDocument();
         expect(screen.getByLabelText("privado")).toBeInTheDocument();
         expect(screen.getByText(/No se ha lanzado/)).toBeInTheDocument();
+        expect(screen.getByText("Consejero Jev: alta · 0.93 (local)")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: /Abrir en Diseñador/ })).toBeInTheDocument();
     });
 

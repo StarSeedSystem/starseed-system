@@ -97,6 +97,12 @@ export interface RecomendacionSueno {
     yaEncargada: boolean;
     seccion: string;
     propuesta: string;
+    /** ¿Se puede encargar? (regla determinista, con el veto de Jev si lo hubo). */
+    accionable: boolean;
+    /** alta · media · baja (regla, o Jev cuando su confianza pasa de 0,6). */
+    prioridad: string;
+    /** Qué dijo el consejero: «alta · 0.93 (local)», «regla: media», «… · VETO». */
+    jev: string;
 }
 
 export interface ConsolidadoSueno {
@@ -276,6 +282,9 @@ export function consolidadoDe(bruto: unknown): ConsolidadoSueno | null {
                 yaEncargada: u.ya_encargada === true,
                 seccion: texto(u.seccion),
                 propuesta: texto(u.propuesta).slice(0, 200),
+                accionable: u.accionable !== false,
+                prioridad: texto(u.prioridad),
+                jev: texto(u.jev).slice(0, 80),
             };
         }),
     };
