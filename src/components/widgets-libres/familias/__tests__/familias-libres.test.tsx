@@ -77,8 +77,8 @@ describe("Reloj celeste", () => {
         const ajustes = vi.fn();
         render(<RelojLibre widget={{ settings: { clockZones: ["Asia/Tokyo"] } } as any} onUpdateSettings={ajustes} />);
         expect(screen.getByText(/Tokio \d{2}:\d{2}/)).toBeTruthy();
-        expect(screen.getByText(/☀↑|sin ubicación/)).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: "Agujas" }));
+        expect(screen.getByRole("img", { name: /sale a las \d{2}:\d{2} y se pone/ })).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Ver la hora con agujas" }));
         expect(ajustes).toHaveBeenCalledWith({ clockMode: "analog" });
     });
 });
