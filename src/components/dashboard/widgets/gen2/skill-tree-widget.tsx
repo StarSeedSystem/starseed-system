@@ -1,158 +1,275 @@
 'use client';
 
-import { useMemo, useState } from "react";
-import { GitBranch, BadgeCheck, Target, ChevronRight, Lock, Zap, Award, Sparkles } from "lucide-react";
-import { WidgetShell, ProgressBar, Chip } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { SkillBranch } from "@/lib/widget-data/types";
+// ════════════════════════════════════════════════════════════════
+// Árbol del mérito — tus insignias como hojas de un árbol vivo (Ola 0929, paquete B).
+// ----------------------------------------------------------------
+// Meritocracia del entendimiento (CLAUDE.md §3): la autoridad técnica se gana con
+// sabiduría aplicada VERIFICABLE. Datos REALES: el catálogo `badges`, tus facetas
+// `profiles` y lo otorgado en `profile_badges`. Cada rama es un área (Política,
+// Educación, Cultura, General) y cada hoja una insignia: encendida si es tuya, con
+// anillo blanco si otra persona la ha AVALADO (solo esas cuentan como mérito: +0,5 a tu
+// voz en su área, tope ×2, y solo en las decisiones que activan la meritocracia).
+// Sin sondeo: una lectura compartida (TTL 30 min).
+//
+//   micro      → anillo: cuántas insignias tienes del catálogo.
+//   s          → el árbol y «N de M».
+//   m          → + tus áreas con su recuento.
+//   panorámico → árbol a la izquierda, áreas a la derecha.   torre → árbol arriba.
+//   l          → + barras por área con tu peso de mérito y tus últimas insignias.
+//   xl         → árbol grande con nombres de rama; áreas, últimas, cómo se gana y acciones.
+// Estados honestos: cargando, error con reintento, sin sesión y catálogo vacío.
+// ════════════════════════════════════════════════════════════════
+
+import { useCallback, useId, useMemo, useRef, type ReactNode } from "react";
+import Link from "next/link";
+import { GitBranch, RefreshCw, Award, BookOpen, LogIn, BadgeCheck } from "lucide-react";
+import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, timeAgo, type ElementSize } from "../../kit";
+import { useCurrentUid } from "@/lib/widget-data/os-live";
 import { cn } from "@/lib/utils";
-import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from "recharts";
+import { useDatoCompartido, type ResultadoDato } from "./_paquete-b/cache-compartida";
+import {
+    AREAS_MERITO, COLOR_AREA, ETIQUETA_AREA, cargarMerito, resumenAreas,
+    type AreaMerito, type DatosMerito,
+} from "./_paquete-b/datos-merito";
+import { AccionB, AnilloB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
-const ACCENT = "#a78bfa";
-
-interface FlatNode {
-    node: SkillBranch;
-    depth: number;
-    parentId: string | null;
-    locked: boolean;     // requisito: el padre debe alcanzar maestría >= 0.5
-}
-
-function flatten(branch: SkillBranch, depth = 0, parentId: string | null = null, parentMastery = 1, acc: FlatNode[] = []): FlatNode[] {
-    if (depth > 0) acc.push({ node: branch, depth, parentId, locked: parentMastery < 0.5 });
-    branch.children?.forEach((c) => flatten(c, depth + 1, branch.id, branch.mastery, acc));
-    return acc;
-}
-
-// XP determinista derivado del id + maestría (no aleatorio).
-function xpFor(node: SkillBranch): { xp: number; next: number } {
-    let h = 0;
-    for (let i = 0; i < node.id.length; i++) h = (h * 31 + node.id.charCodeAt(i)) >>> 0;
-    const next = 800 + (h % 5) * 200;
-    return { xp: Math.round(node.mastery * next), next };
-}
+const FAMILIA = { acento: "#7c5cff", acento2: "#23d5ab" };
+const DEC1 = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
 
 export function SkillTreeWidget() {
-    const { data, loading } = useWidgetData("education.skilltree", { refreshMs: 15000 });
-    const [active, setActive] = useState<string | null>(null);
-    const [disc, setDisc] = useState<string | null>(null);
-
-    const rows = useMemo(() => (data ? flatten(data) : []), [data]);
-    const disciplines = useMemo(() => Array.from(new Set(rows.map((r) => r.node.discipline))), [rows]);
-    const filtered = useMemo(() => (disc ? rows.filter((r) => r.node.discipline === disc) : rows), [rows, disc]);
-    const activeRow = active ? rows.find((r) => r.node.id === active) ?? null : null;
-
+    const marco = useMarcoUnificado();
+    const { uid, ready } = useCurrentUid();
+    const cargar = useCallback(() => cargarMerito(uid), [uid]);
+    const datos = useDatoCompartido<DatosMerito>(ready ? `merito.v1.${uid ?? "anon"}` : null, cargar, { ttlMs: 30 * 60_000 });
     return (
-        <WidgetShell title="Árbol de Habilidades" subtitle="Maestría aplicada" icon={GitBranch} accent={ACCENT}
-            connections={[{ label: "Biblioteca", href: "/library", color: "#a855f7" }, { label: "Educación", href: "/network/education", color: "#7FB8FF" }]}>
-            {(size) => {
-                if (loading || !data) return <div className="pt-2 h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const max = size.vTier === "micro" ? 3 : size.vTier === "compact" ? 4 : size.vTier === "regular" ? 6 : 10;
-                const overall = rows.length ? rows.reduce((s, r) => s + r.node.mastery, 0) / rows.length : 0;
-                const certified = rows.filter((r) => r.node.certified).length;
-
-                // ── Panel de detalle de rama seleccionada ──
-                if (activeRow && size.tier !== "micro") {
-                    const n = activeRow.node;
-                    const { xp, next } = xpFor(n);
-                    const ring = [{ name: "m", value: Math.round(n.mastery * 100), fill: ACCENT }];
-                    return (
-                        <div className="flex flex-col gap-2.5 pt-1 h-full">
-                            <button onClick={() => setActive(null)}
-                                className="self-start inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer">
-                                <ChevronRight className="size-3 rotate-180" /> Volver
-                            </button>
-                            <div className="flex items-center gap-3">
-                                <div className="relative size-20 shrink-0">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <RadialBarChart innerRadius="72%" outerRadius="100%" data={ring} startAngle={90} endAngle={-270}>
-                                            <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                                            <RadialBar background={{ fill: "hsl(var(--muted)/0.25)" }} dataKey="value" cornerRadius={8} />
-                                        </RadialBarChart>
-                                    </ResponsiveContainer>
-                                    <div className="absolute inset-0 grid place-items-center">
-                                        <span className="text-base font-black tabular-nums text-violet-300">{Math.round(n.mastery * 100)}%</span>
-                                    </div>
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <h4 className="text-sm font-black leading-tight truncate">{n.label}</h4>
-                                        {n.certified && <BadgeCheck className="size-4 text-violet-400 shrink-0" />}
-                                    </div>
-                                    <Chip color={ACCENT}>{n.discipline}</Chip>
-                                    <div className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-amber-300">
-                                        <Zap className="size-3.5" /> {xp.toLocaleString()} <span className="text-muted-foreground/50">/ {next.toLocaleString()} XP</span>
-                                    </div>
-                                </div>
-                            </div>
-                            {n.microMission ? (
-                                <div className="rounded-2xl border border-violet-500/25 bg-violet-500/[0.07] p-3">
-                                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-violet-300 mb-1">
-                                        <Target className="size-3.5" /> Misión activa
-                                    </div>
-                                    <p className="text-xs text-violet-100/90 leading-snug">{n.microMission}</p>
-                                </div>
-                            ) : (
-                                <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.07] p-3 flex items-center gap-2">
-                                    <Award className="size-4 text-emerald-400 shrink-0" />
-                                    <p className="text-xs text-emerald-100/90 leading-snug">Rama dominada. Sin misiones pendientes.</p>
-                                </div>
-                            )}
-                            <div className="mt-auto rounded-xl border border-border/40 bg-white/[0.02] p-2.5">
-                                <ProgressBar value={n.mastery} color={ACCENT} showPct label="Progreso de maestría" />
-                            </div>
-                        </div>
-                    );
-                }
-
-                return (
-                    <div className="flex flex-col gap-2 pt-1 h-full">
-                        {size.vTier !== "micro" && (
-                            <div className="flex items-center gap-1.5 rounded-2xl border border-violet-500/20 bg-violet-500/[0.06] px-3 py-2">
-                                <Sparkles className="size-3.5 text-violet-300 shrink-0" />
-                                <span className="text-[10px] uppercase tracking-wider font-black text-violet-300">Maestría global</span>
-                                <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300"><BadgeCheck className="size-3" />{certified}</span>
-                                <span className="text-lg font-black tabular-nums text-violet-300 ml-2">{Math.round(overall * 100)}%</span>
-                            </div>
-                        )}
-                        {/* Selección de rama por disciplina */}
-                        {size.tier !== "micro" && disciplines.length > 1 && (
-                            <div className="shrink-0 flex items-center gap-1 overflow-x-auto custom-scrollbar pb-0.5">
-                                <button onClick={() => setDisc(null)}
-                                    className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer",
-                                        !disc ? "bg-violet-500/20 border-violet-500/45 text-violet-300" : "border-border/40 text-muted-foreground/60 hover:border-violet-500/30")}>
-                                    Todas
-                                </button>
-                                {disciplines.map((d) => (
-                                    <button key={d} onClick={() => setDisc(disc === d ? null : d)}
-                                        className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer capitalize",
-                                            disc === d ? "bg-violet-500/20 border-violet-500/45 text-violet-300" : "border-border/40 text-muted-foreground/60 hover:border-violet-500/30")}>
-                                        {d}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar space-y-1.5">
-                            {filtered.slice(0, max).map(({ node, depth, locked }) => (
-                                <button key={node.id} onClick={() => !locked && setActive(node.id)} disabled={locked}
-                                    className={cn("w-full text-left rounded-xl border p-2 transition-colors",
-                                        locked ? "border-border/30 bg-white/[0.01] opacity-55 cursor-not-allowed" : "border-border/40 bg-white/[0.03] hover:border-violet-500/40 cursor-pointer")}
-                                    style={{ marginLeft: depth > 1 ? (depth - 1) * 10 : 0 }}>
-                                    <div className="flex items-center gap-2">
-                                        {depth > 1 && <ChevronRight className="size-3 text-muted-foreground/40 shrink-0" />}
-                                        <span className="text-xs font-bold truncate flex-1">{node.label}</span>
-                                        {locked
-                                            ? <Lock className="size-3 text-muted-foreground/50 shrink-0" />
-                                            : node.certified && <BadgeCheck className="size-3.5 text-violet-400 shrink-0" />}
-                                        <span className="text-[10px] font-black tabular-nums text-violet-300">{Math.round(node.mastery * 100)}%</span>
-                                    </div>
-                                    <div className="mt-1.5"><ProgressBar value={locked ? 0 : node.mastery} color={locked ? "hsl(var(--muted-foreground))" : ACCENT} height={5} /></div>
-                                    {locked && <p className="mt-1 text-[9px] text-muted-foreground/60 italic">Requiere 50% en la rama anterior</p>}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                );
-            }}
+        <WidgetShell
+            title="Árbol del mérito"
+            subtitle="Insignias verificables"
+            icon={GitBranch}
+            bare={marco?.base === "micro"}
+            actions={
+                <button type="button" onClick={datos.recargar} aria-label="Actualizar insignias"
+                    className="grid size-7 cursor-pointer place-items-center rounded-full ss-redondo text-white/70 transition-colors hover:text-white">
+                    <RefreshCw className={cn("size-3.5", datos.estado === "cargando" && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                </button>
+            }
+        >
+            {(size) => <Cuerpo size={size} datos={datos} />}
         </WidgetShell>
+    );
+}
+
+function Cuerpo({ size, datos }: { size: ElementSize; datos: ResultadoDato<DatosMerito> }) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    let contenido: ReactNode;
+    if (!datos.dato) {
+        contenido = datos.estado === "error"
+            ? <WidgetErrorState message={datos.error ?? "No se pudieron leer las insignias."} onRetry={datos.recargar} />
+            : <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "block"} />;
+    } else if (datos.dato.catalogo.length === 0) {
+        contenido = lienzo.base === "micro"
+            ? <p className="grid h-full place-items-center text-[11px] text-white/60">sin catálogo</p>
+            : <WidgetEmptyState icon={Award} title="Aún no hay insignias en el catálogo" message="Cuando la comunidad defina sus insignias, aquí crecerá tu árbol." actionLabel="Ver insignias" actionHref="/insignias" accent={lienzo.acento} />;
+    } else {
+        contenido = <Composicion d={datos.dato} lienzo={lienzo} />;
+    }
+    return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
+}
+
+function Composicion({ d, lienzo }: { d: DatosMerito; lienzo: LienzoB }) {
+    const areas = useMemo(() => resumenAreas(d), [d]);
+    const b = lienzo.base;
+    const conSesion = !!d.uid;
+    const frase = conSesion ? `Tienes ${d.mias.length} de ${d.catalogo.length} insignias; ${d.mias.filter((m) => m.avalada).length} avaladas por otras personas` : `El catálogo tiene ${d.catalogo.length} insignias`;
+
+    if (b === "micro") {
+        const lado = 72;
+        return (
+            <Link href="/insignias" aria-label={`${frase}. Abrir insignias`} title={frase} className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}>
+                <AnilloB fraccion={d.catalogo.length ? d.mias.length / d.catalogo.length : 0} lado={lado} color={lienzo.acento}>
+                    <text x={lado / 2} y={lado / 2 - 4} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={22} fontWeight={300}>{d.mias.length}</text>
+                    <text x={lado / 2} y={lado / 2 + 14} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,.6)" fontSize={9} fontWeight={600} letterSpacing=".08em">INSIGNIAS</text>
+                </AnilloB>
+            </Link>
+        );
+    }
+
+    const arbol = (clase: string, nombres = false) => <Arbol d={d} lienzo={lienzo} nombres={nombres} className={clase} etiqueta={frase} />;
+    const acciones = (
+        <div className="flex flex-wrap items-center gap-1.5">
+            {conSesion
+                ? <AccionB href="/insignias" icono={Award} color={lienzo.acento} tono="llena" tactil={lienzo.tactil}>Mis insignias</AccionB>
+                : <AccionB href="/login" icono={LogIn} color={lienzo.acento} tono="llena" tactil={lienzo.tactil}>Entra para ver tu mérito</AccionB>}
+            {(b === "l" || b === "xl") && <AccionB href="/library" icono={BookOpen} color={lienzo.acento2} tactil={lienzo.tactil}>Aprender</AccionB>}
+        </div>
+    );
+    const cuenta = <p className="text-[12px] text-white/70"><b className="text-[15px] font-semibold tabular-nums text-white">{d.mias.length}</b> de {d.catalogo.length} insignias{conSesion && d.mias.length > 0 ? ` · ${d.mias.filter((m) => m.avalada).length} avaladas` : ""}</p>;
+
+    if (b === "s") return <div className="flex h-full min-h-0 flex-col items-center gap-1 text-center"><div className="min-h-0 w-full flex-1">{arbol("h-full w-full")}</div>{cuenta}</div>;
+    if (lienzo.clase === "panoramico") {
+        return (
+            <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "minmax(0, 0.8fr) minmax(0, 1.2fr)" }}>
+                {arbol("h-full w-full")}
+                <div className="flex min-w-0 flex-col gap-2">{cuenta}<Areas areas={areas} lienzo={lienzo} barras={false} />{acciones}</div>
+            </div>
+        );
+    }
+    if (b === "m" && lienzo.clase !== "torre") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2">
+                <div className="min-h-0 flex-1">{arbol("h-full w-full")}</div>
+                <Areas areas={areas} lienzo={lienzo} barras={false} />
+                {acciones}
+            </div>
+        );
+    }
+    if (lienzo.clase === "torre" || b === "l") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2.5">
+                <div className="min-h-[96px] flex-1">{arbol("h-full w-full", b === "l")}</div>
+                {cuenta}
+                <Areas areas={areas} lienzo={lienzo} barras />
+                {conSesion && <Ultimas d={d} max={2} />}
+                <div className="mt-auto">{acciones}</div>
+            </div>
+        );
+    }
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)" }}>
+            <div className="flex min-h-0 flex-col gap-2">
+                <div className="min-h-0 flex-1">{arbol("h-full w-full", true)}</div>
+                {cuenta}
+            </div>
+            <div className="flex min-h-0 flex-col gap-3 border-l border-white/[0.08] pl-4">
+                <Areas areas={areas} lienzo={lienzo} barras />
+                {conSesion && <Ultimas d={d} max={4} />}
+                <p className="border-l-2 pl-2.5 text-[11px] leading-relaxed text-white/60" style={{ borderColor: lienzo.acento }}>
+                    Solo cuentan las insignias avaladas por otra persona: +0,5 a tu voz en su área (tope ×2), y solo en las decisiones que activan la meritocracia. Por defecto, una persona, un voto.
+                </p>
+                <div className="mt-auto">{acciones}</div>
+            </div>
+        </div>
+    );
+}
+
+function Areas({ areas, lienzo, barras }: { areas: ReturnType<typeof resumenAreas>; lienzo: LienzoB; barras: boolean }) {
+    const visibles = areas.filter((a) => a.hay > 0);
+    if (!barras) {
+        return (
+            <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] tabular-nums text-white/70" aria-label="Insignias por área">
+                {visibles.map((a) => (
+                    <li key={a.area} className="inline-flex items-center gap-1.5">
+                        <span className="size-2 rounded-full" style={{ background: COLOR_AREA[a.area] }} aria-hidden />
+                        {ETIQUETA_AREA[a.area]} <b className="font-semibold text-white">{a.tienes}</b><span className="text-white/45">/{a.hay}</span>
+                    </li>
+                ))}
+            </ul>
+        );
+    }
+    return (
+        <ul className="flex flex-col gap-1.5" aria-label="Insignias y peso de mérito por área">
+            {visibles.map((a) => (
+                <li key={a.area} className="grid items-center gap-2 text-[12px]" style={{ gridTemplateColumns: "minmax(0, 5.5rem) minmax(0, 1fr) auto" }}>
+                    <span className="text-white/80">{ETIQUETA_AREA[a.area]}</span>
+                    <span className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]" role="img" aria-label={`${a.tienes} de ${a.hay}`}>
+                        <span className={cn("block h-full rounded-full", estilosB.crecer)} style={{ width: `${a.hay ? (a.tienes / a.hay) * 100 : 0}%`, background: COLOR_AREA[a.area] }} />
+                    </span>
+                    <span className="whitespace-nowrap tabular-nums text-white/60" title="Peso de tu voz en esta área cuando la decisión activa el mérito">
+                        {a.tienes}/{a.hay}{a.mult > 1 && <b className="ml-1.5 font-semibold" style={{ color: tintaB(COLOR_AREA[a.area], 0.3) }}>×{DEC1.format(a.mult)}</b>}
+                    </span>
+                </li>
+            ))}
+            {lienzo.base === "xl" && visibles.length === 0 && <li className="text-[12px] text-white/55">El catálogo aún no tiene áreas.</li>}
+        </ul>
+    );
+}
+
+function Ultimas({ d, max }: { d: DatosMerito; max: number }) {
+    if (d.mias.length === 0) return <p className="text-[12px] text-white/55">Aún no tienes insignias: se ganan aplicando lo aprendido y las avalan tus pares.</p>;
+    return (
+        <div className="flex flex-col gap-1">
+            <RotuloB>Últimas</RotuloB>
+            <ul className="flex flex-col gap-1" aria-label="Tus últimas insignias">
+                {d.mias.slice(0, max).map((m) => (
+                    <li key={m.id} className="flex items-center gap-2 text-[12px]">
+                        <BadgeCheck className="size-4 shrink-0" style={{ color: COLOR_AREA[m.area] }} aria-hidden />
+                        <span className="min-w-0 flex-1 text-white/85 line-clamp-1" title={m.descripcion ?? m.nombre}>{m.nombre}</span>
+                        <span className="shrink-0 whitespace-nowrap text-[11px] text-white/50">{m.avalada ? "avalada" : "sin aval"}{m.otorgada ? ` · ${timeAgo(m.otorgada)}` : ""}</span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+// ── El árbol ────────────────────────────────────────────────────────────────
+
+const TRONCO = { x: 100, base: 196, cruz: 128 };
+const PUNTAS: Record<AreaMerito, [number, number]> = { politica: [26, 74], educacion: [70, 26], cultura: [130, 26], general: [174, 74] };
+
+/** Punto y tangente de la rama cuadrática de un área en t ∈ [0,1]. PURO. */
+export function puntoRama(area: AreaMerito, t: number): { x: number; y: number; angulo: number } {
+    const [ex, ey] = PUNTAS[area];
+    const x0 = TRONCO.x, y0 = TRONCO.cruz, cx = TRONCO.x + (ex - TRONCO.x) * 0.15, cy = TRONCO.cruz - 62;
+    const u = 1 - t;
+    const x = u * u * x0 + 2 * u * t * cx + t * t * ex;
+    const y = u * u * y0 + 2 * u * t * cy + t * t * ey;
+    const dx = 2 * u * (cx - x0) + 2 * t * (ex - cx);
+    const dy = 2 * u * (cy - y0) + 2 * t * (ey - cy);
+    return { x, y, angulo: (Math.atan2(dy, dx) * 180) / Math.PI };
+}
+
+function Arbol({ d, lienzo, nombres, className, etiqueta }: { d: DatosMerito; lienzo: LienzoB; nombres: boolean; className?: string; etiqueta: string }) {
+    const id = useId().replace(/:/g, "");
+    const mias = useMemo(() => new Map(d.mias.map((m) => [m.id, m])), [d.mias]);
+    const vivo = lienzo.nivel !== "ligero";
+    return (
+        <svg viewBox="0 0 200 200" className={cn("block", className)} preserveAspectRatio="xMidYMid meet" role="img" aria-label={etiqueta}>
+            <defs>
+                <radialGradient id={`suelo${id}`} cx="50%" cy="100%" r="60%">
+                    <stop offset="0%" stopColor={lienzo.acento} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={lienzo.acento} stopOpacity={0} />
+                </radialGradient>
+                <linearGradient id={`tronco${id}`} x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor={tintaB(lienzo.acento, 0.1)} stopOpacity={0.9} />
+                    <stop offset="100%" stopColor={tintaB(lienzo.acento, 0.5)} stopOpacity={0.9} />
+                </linearGradient>
+            </defs>
+            <ellipse cx={100} cy={198} rx={70} ry={16} fill={`url(#suelo${id})`} />
+            <path d={`M95 ${TRONCO.base} C97 170 98 150 99 ${TRONCO.cruz} L101 ${TRONCO.cruz} C102 150 103 170 105 ${TRONCO.base} Z`} fill={`url(#tronco${id})`} />
+            {AREAS_MERITO.map((area) => {
+                const [ex, ey] = PUNTAS[area];
+                const cx = TRONCO.x + (ex - TRONCO.x) * 0.15, cy = TRONCO.cruz - 62;
+                const hojas = d.catalogo.filter((b) => b.area === area).slice(0, 9);
+                const color = COLOR_AREA[area];
+                return (
+                    <g key={area}>
+                        <path d={`M${TRONCO.x} ${TRONCO.cruz} Q${cx} ${cy} ${ex} ${ey}`} fill="none" stroke={`url(#tronco${id})`} strokeWidth={hojas.length ? 2.4 : 1.2} strokeLinecap="round" opacity={hojas.length ? 0.9 : 0.35} />
+                        {hojas.map((h, i) => {
+                            const t = 0.3 + (0.7 * (i + 1)) / (hojas.length + 0.2);
+                            const p = puntoRama(area, Math.min(1, t));
+                            const lado = i % 2 ? 1 : -1;
+                            const ang = p.angulo + lado * 45;
+                            const rad = (p.angulo + lado * 90) * (Math.PI / 180);
+                            const x = p.x + Math.cos(rad) * 6, y = p.y + Math.sin(rad) * 6;
+                            const mia = mias.get(h.id);
+                            return (
+                                <g key={h.id} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ang.toFixed(1)})`}>
+                                    <title>{`${h.nombre}${mia ? (mia.avalada ? " · tuya, avalada" : " · tuya, sin aval") : " · por ganar"}`}</title>
+                                    <ellipse rx={6.5} ry={3.1} fill={mia ? color : "transparent"} stroke={mia ? (mia.avalada ? "#fff" : color) : "#fff"} strokeOpacity={mia ? (mia.avalada ? 0.9 : 0.6) : 0.22} strokeWidth={mia?.avalada ? 1 : 0.7}
+                                        className={mia && vivo && i === 0 ? estilosB.latido : undefined} />
+                                </g>
+                            );
+                        })}
+                        {nombres && hojas.length > 0 && (
+                            <text x={ex + (ex < 100 ? -2 : 2)} y={ey - 9} textAnchor={ex < 100 ? "start" : "end"} fill={tintaB(color, 0.3)} fontSize={8.5} fontWeight={600}>{ETIQUETA_AREA[area]}</text>
+                        )}
+                    </g>
+                );
+            })}
+            <circle cx={TRONCO.x} cy={TRONCO.cruz} r={4} fill={tintaB(lienzo.acento, 0.5)} />
+        </svg>
     );
 }
