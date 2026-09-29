@@ -110,12 +110,18 @@ export function SystemStatusWidget() {
     const [sync, setSync] = useState<RealtimeSyncStatus>(() => getRealtimeSyncStatus());
     useEffect(() => onRealtimeSyncStatus(setSync), []);
     const [neurons, setNeurons] = useState<Neuron[] | null>(null);
+    // (Ola 0929 · F) Presupuesto de tráfico: la lista de neuronas cada 5 min y solo con la pestaña a
+    // la vista (antes, cada 30 s). listNeurons ya respeta el freno de consumo y su propia caché.
     useEffect(() => {
         let alive = true;
-        const load = () => { void listNeurons().then((list) => { if (alive) setNeurons(list); }); };
+        const load = () => {
+            if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+            void listNeurons().then((list) => { if (alive) setNeurons(list); }).catch(() => { /* sin red */ });
+        };
         load();
-        const t = setInterval(load, 30_000);
-        return () => { alive = false; clearInterval(t); };
+        const t = setInterval(load, 5 * 60_000);
+        document.addEventListener("visibilitychange", load);
+        return () => { alive = false; clearInterval(t); document.removeEventListener("visibilitychange", load); };
     }, []);
     const onlineNeurons = neurons?.filter((n) => n.online).length ?? 0;
     const syncMeta = SYNC_META[sync.state] ?? SYNC_META.idle;
@@ -123,10 +129,9 @@ export function SystemStatusWidget() {
     return (
         <WidgetShell
             title="Nodo Soberano"
-            subtitle="Telemetría del núcleo"
+            subtitle="CPU, RAM y temperatura: demostración · sincronía y neuronas: reales"
             icon={Activity}
             accent="#38bdf8"
-            live
             expandHref="/explorer"
             connections={[
                 { label: "Mesh",      href: "/network/graph", color: "#10b981", icon: Network },
@@ -137,8 +142,8 @@ export function SystemStatusWidget() {
                 !loading && data ? (
                     <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-muted-foreground/60 min-w-0">
                         <span className="inline-flex items-center gap-1.5 min-w-0">
-                            <PulseDot color="#38bdf8" />
-                            <span className="truncate tabular-nums">{data.ipfsPeers} pares IPFS · 2,5 s</span>
+                            <span aria-hidden className="inline-block size-2 shrink-0 rounded-full bg-amber-400/80" />
+                            <span className="truncate">Telemetría de demostración (no mide este equipo)</span>
                         </span>
                         <span className="shrink-0 tabular-nums">act. {timeAgo(updatedTs)}</span>
                     </div>
