@@ -65,7 +65,9 @@ export function normalizarEspacios(filas: unknown): Espacio[] {
             titulo: typeof f.title === "string" && f.title.trim() ? f.title.trim() : "Sin título",
             tipo: tipoDe(f),
             actualizado: typeof f.updated_at === "string" ? f.updated_at : "",
-        }));
+        }))
+        // Lo más reciente primero (la consulta ya lo pide así; esto lo garantiza).
+        .sort((a, b) => (a.actualizado < b.actualizado ? 1 : a.actualizado > b.actualizado ? -1 : 0));
 }
 
 async function cargarEspacios(uid: string): Promise<Espacio[]> {

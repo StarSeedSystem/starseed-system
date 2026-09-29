@@ -192,7 +192,6 @@ export function MultiverseHubWidget() {
     );
 
     const conPortales = l.horizontal || l.base === "xl";
-    const estrecho = l.ancho < 240;
     const listaMundos = (max: number, detalle = true) => {
         if (cargando) return <CargandoSilueta color={l.acento} filas={Math.min(3, max)} etiqueta="Cargando tus mundos…" />;
         if (esp.sinSesion) return (
@@ -249,7 +248,7 @@ export function MultiverseHubWidget() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-2">
             {creando ? formulario : <>
                 {listaMundos(max, detalle)}
-                {!cargando && !sinDatos && !esp.sinSesion && <div className="flex flex-wrap gap-1.5">{botonCrear(mundos.length || estrecho ? "Nueva escena" : "Crear una escena 3D")}</div>}
+                {!cargando && !sinDatos && !esp.sinSesion && <div className="flex flex-wrap gap-1.5">{botonCrear(mundos.length || l.ancho < 440 ? "Nueva escena" : "Crear una escena 3D")}</div>}
                 {esp.sinSesion && <div className="flex flex-wrap gap-1.5"><Accion color={l.acento} alto={l.toque} href="/login" etiqueta="Iniciar sesión">Iniciar sesión</Accion></div>}
             </>}
         </div>

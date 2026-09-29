@@ -13,6 +13,11 @@ const empujar = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: empujar, replace: vi.fn(), back: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }) }));
 const crearEscena = vi.fn(async (titulo: string): Promise<any> => ({ refId: "e-nueva", ruta: `/escena/e-nueva?t=${titulo.length}` }));
 vi.mock("@/lib/vivo/escena3d", () => ({ crearVivoEscena3d: crearEscena }));
+const crearDoc = vi.fn(async (titulo: string): Promise<any> => ({ refId: "d-nuevo", ruta: "/documento/d-nuevo" }));
+const crearPres = vi.fn(async (titulo: string): Promise<any> => { throw new Error("No se pudo crear. Inicia sesión e inténtalo de nuevo."); });
+vi.mock("@/lib/vivo/documento", () => ({ crearVivoDocumento: crearDoc }));
+vi.mock("@/lib/vivo/presentacion", () => ({ crearVivoPresentacion: crearPres }));
+vi.mock("@/lib/vivo/tabla", () => ({ crearVivoTabla: vi.fn() }));
 let ubicacion: any = null;
 vi.mock("@/modules/weather/context/weather-location-context", () => ({
     useWeatherLocationOpcional: () => ubicacion,
@@ -86,6 +91,7 @@ import { ElderCouncilWidget } from "../elder-council-widget";
 import { CONSEJEROS } from "../elder-council-partes";
 import { RestorativeCourtWidget } from "../restorative-court-widget";
 import { MultiverseHubWidget } from "../multiverse-hub-widget";
+import { CreativeStudioWidget } from "../creative-studio-widget";
 
 function pintar(ui: React.ReactElement, clase: ClaseTamano) {
     medida = MEDIDAS[clase];
@@ -338,5 +344,46 @@ describe("Multiverso", () => {
         pintar(<MultiverseHubWidget />, "m");
         expect(await screen.findByRole("region", { name: /error, no se pudieron leer tus mundos/ })).toBeTruthy();
         expect(screen.getByRole("alert")).toBeTruthy();
+    });
+});
+
+describe("Estudio Creativo", () => {
+    beforeEach(() => { empujar.mockClear(); crearDoc.mockClear(); crearPres.mockClear(); });
+
+    it.each(TODAS)("sin sesión (%s) no inventa proyectos", async (clase) => {
+        pintar(<CreativeStudioWidget />, clase);
+        await screen.findByRole("region", { name: /sin sesión/ });
+        expect(peticiones).not.toContain("os_spaces");
+    });
+
+    it("pinta tus obras reales (no las escenas) con su tipo y comparte la lectura con el Multiverso", async () => {
+        usuario = { id: "u1" };
+        tablas = { os_spaces: [...ESPACIOS, { id: "t1", title: "Inventario", kind: "dashboard", vivo: "tabla", updated_at: hace(1) }, { id: "b1", title: "Lluvia de ideas", kind: "board", updated_at: hace(90) }] };
+        pintar(<><CreativeStudioWidget /><MultiverseHubWidget /></>, "xl");
+        await screen.findByRole("region", { name: /Estudio Creativo: 3 obras \(1 documento, 1 tabla y 1 pizarra\)\. La última: «Inventario»/ });
+        await screen.findByRole("region", { name: /Multiverso: 3 mundos/ });
+        expect(screen.getByRole("link", { name: /Manifiesto del barrio/ }).getAttribute("href")).toBe("/documento/d1");
+        expect(screen.getByRole("link", { name: /Lluvia de ideas/ }).getAttribute("href")).toBe("/pizarra?board-space=b1");
+        expect(peticiones.filter((t) => t === "os_spaces")).toHaveLength(1);
+    });
+
+    it("crea un documento de verdad y entra en él; si falla lo dice", async () => {
+        usuario = { id: "u1" };
+        tablas = { os_spaces: [] };
+        pintar(<CreativeStudioWidget />, "l");
+        expect(await screen.findByText("Aún no has creado ninguna obra")).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Crear una obra nueva" }));
+        expect(screen.getByRole("link", { name: /Pizarra/ }).getAttribute("href")).toBe("/pizarra");
+        fireEvent.click(screen.getByRole("button", { name: /^Presentación/ }));
+        fireEvent.submit(screen.getByRole("form", { name: "Crear presentación" }));
+        expect(await screen.findByRole("alert")).toBeTruthy();
+        expect(empujar).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole("button", { name: "Elegir otro tipo" }));
+        fireEvent.click(screen.getByRole("button", { name: /^Documento/ }));
+        fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Carta a la asamblea" } });
+        fireEvent.submit(screen.getByRole("form", { name: "Crear documento" }));
+        await vi.waitFor(() => expect(empujar).toHaveBeenCalledWith("/documento/d-nuevo"));
+        expect(crearDoc).toHaveBeenCalledWith("Carta a la asamblea");
+        expect(await screen.findByRole("region", { name: /1 obra \(1 documento\)\. La última: «Carta a la asamblea»/ })).toBeTruthy();
     });
 });

@@ -46,3 +46,18 @@ describe("Tus espacios · lógica", () => {
         expect(angulos[1] - angulos[0]).toBeCloseTo(Math.PI / 2);
     });
 });
+
+import { conteoPorTipo, obrasDe, resumenConteo } from "../../gen4/creative-studio-partes";
+
+describe("Estudio Creativo · lógica", () => {
+    it("las obras son documentos, presentaciones, tablas, pizarras y programas", () => {
+        const e = (id: string, tipo: any) => ({ id, titulo: id, tipo, actualizado: "" });
+        const o = obrasDe([e("1", "documento"), e("2", "escena"), e("3", "tabla"), e("4", "dashboard"), e("5", "documento"), e("6", "programa")]);
+        expect(o.map((x) => x.id)).toEqual(["1", "3", "5", "6"]);
+        const c = conteoPorTipo(o);
+        expect(c).toEqual({ documento: 2, presentacion: 0, tabla: 1, pizarra: 0, programa: 1 });
+        expect(resumenConteo(c)).toBe("2 documentos, 1 tabla y 1 programa");
+        expect(resumenConteo(conteoPorTipo([]))).toBe("ninguna obra");
+        expect(resumenConteo(conteoPorTipo([e("1", "presentacion")]))).toBe("1 presentación");
+    });
+});
