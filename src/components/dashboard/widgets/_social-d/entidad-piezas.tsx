@@ -208,3 +208,23 @@ export function TarjetaEntidad({ p, acento, tactil, accion, altoPortada = 72 }: 
         </article>
     );
 }
+
+// ── Invitar (compartir el enlace real) ───────────────────────────────
+
+/** Comparte la dirección de la entidad: hoja de compartir del sistema si existe; si no, al portapapeles. */
+export async function invitarA(e: Pick<EntidadVista, "nombre" | "href">): Promise<void> {
+    const url = typeof window !== "undefined" ? `${window.location.origin}${e.href}` : e.href;
+    try {
+        const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }) : null;
+        if (nav?.share) {
+            await nav.share({ title: e.nombre, text: `Únete a ${e.nombre} en StarSeed`, url });
+            return;
+        }
+        await navigator.clipboard.writeText(url);
+        toast.success(`Enlace de ${e.nombre} copiado: compártelo con quien quieras invitar.`);
+    } catch (err) {
+        // Cancelar la hoja de compartir no es un error.
+        if (err instanceof Error && err.name === "AbortError") return;
+        toast.error("No se pudo copiar el enlace. Ábrela y compártela desde su página.");
+    }
+}

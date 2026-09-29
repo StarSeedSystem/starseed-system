@@ -1,170 +1,94 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════
-// FederatedEntitiesWidget — entidades federativas REALES (os_pages).
+// FederatedEntitiesWidget — las instituciones y proyectos de la Red (Ola 0929 · D)
 // ----------------------------------------------------------------
-// Datos reales EN VIVO: filtra os_pages por kind ∈ {entidad, pagina,
-// proyecto} (las facetas federativas / institucionales de la red) vía
-// useLivePages (realtime). Cada tarjeta navega a /pagina/<slug>. Cabecera
-// con acción al directorio. Estado vacío en español con CTA para registrar
-// la primera entidad federativa. Adaptativo + theme.
+// Entidades federativas REALES: páginas de tipo entidad, página o proyecto
+// (`os_pages`), con su actividad medida de la semana (`os_posts`) y el
+// porqué de su orden. Sin E.F. de ejemplo: lo que no está en la base no se
+// enseña. Acciones reales: seguir (`os_follows`), invitar, abrir (las E.F.
+// en /entidad/<slug>) y registrar una nueva con el diálogo real.
+// Hooks compartidos de os-live.
+//
+// micro = cuántas · s = la más viva · m/torre = lista con motivos · l =
+// tipo (E.F./proyecto/página) + búsqueda + seguir · xl = tarjetas ·
+// panorámico = tarjetas en fila. Estados: cargando (lista), vacío con
+// «Registrar una entidad»; sin error visible: los hooks degradan a lista
+// vacía.
 // ════════════════════════════════════════════════════════════════
 
-import { useMemo } from "react";
-import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import { Network, Plus, Users, ChevronRight, Landmark, FolderKanban, Building2, type LucideIcon } from "lucide-react";
-import { WidgetShell, Chip } from "../kit";
-import { useAppearance } from "@/context/appearance-context";
-import { useLivePages, rowAccent } from "@/lib/widget-data/os-live";
+import * as React from "react";
+import { Building2, FolderKanban, Landmark, Network, Plus } from "lucide-react";
+import { useCurrentUid, useLivePages, useLivePosts, useMyMemberships } from "@/lib/widget-data/os-live";
+import { MarcoSocial, estadoSocial } from "./_social-d/marco-social";
+import { BotonIcono, Segmentos } from "./_social-d/piezas";
+import { BotonRelacion, useAccionesEntidad } from "./_social-d/entidad-piezas";
+import { actividadPorEntidad, claveEntidad, entidadDePagina, puntuar, type Puntuada } from "./_social-d/entidades";
+import { VistaEntidades } from "./_social-d/vista-entidades";
+import { useCrearEntidad } from "./_social-d/crear-entidad";
+import { plural } from "./_social-d/formato";
 
-const ACCENT = "#a855f7";
+const ACENTO = "#a855f7";
+const CLASES = new Set(["entidad", "pagina", "proyecto"]);
 
-const KIND_META: Record<string, { icon: LucideIcon; label: string }> = {
-    entidad:  { icon: Building2,    label: "Entidad" },
-    pagina:   { icon: Landmark,     label: "Federativa" },
-    proyecto: { icon: FolderKanban, label: "Proyecto" },
-};
-function kindMeta(kind: string | null) {
-    return KIND_META[(kind ?? "").toLowerCase()] ?? { icon: Network, label: kind || "Entidad" };
-}
+type Filtro = "todas" | "entidad" | "proyecto" | "pagina";
 
 export function FederatedEntitiesWidget() {
-    const { config } = useAppearance();
-    const prefersReduced = useReducedMotion();
-    const animate = config.animations.enabled && !prefersReduced;
+    const { uid } = useCurrentUid();
+    const paginas = useLivePages();
+    const posts = useLivePosts(40);
+    const membresias = useMyMemberships(uid);
+    const [filtro, setFiltro] = React.useState<Filtro>("todas");
+    const crear = useCrearEntidad(() => void paginas.reload());
+    const acciones = useAccionesEntidad(uid, React.useMemo(() => new Set(membresias.rows.map((m) => m.group_slug)), [membresias.rows]));
 
-    const { rows, loading } = useLivePages();
+    const entidades: Puntuada[] = React.useMemo(() => {
+        const ahora = Date.now();
+        const act = actividadPorEntidad(posts.rows, ahora);
+        return paginas.rows
+            .filter((p) => CLASES.has((p.kind ?? "").toLowerCase()))
+            .map(entidadDePagina)
+            .map((e) => puntuar(e, act.get(claveEntidad("pagina", e.slug)) ?? null, new Map(), ahora))
+            .sort((a, b) => b.puntos - a.puntos);
+    }, [paginas.rows, posts.rows]);
 
-    // Entidades federativas = páginas institucionales (no comunidades ni perfiles).
-    const entities = useMemo(
-        () => rows.filter((p) => {
-            const k = (p.kind ?? "").toLowerCase();
-            return k === "entidad" || k === "pagina" || k === "proyecto";
-        }).sort((a, b) => (b.member_count ?? 0) - (a.member_count ?? 0)),
-        [rows],
-    );
-
-    const totalMembers = useMemo(() => entities.reduce((s, e) => s + (e.member_count ?? 0), 0), [entities]);
+    const cuenta = (c: string) => entidades.filter((p) => p.e.clase === c).length;
+    const visibles = filtro === "todas" ? entidades : entidades.filter((p) => p.e.clase === filtro);
+    const estado = estadoSocial({ cargando: paginas.loading, hayDatos: entidades.length > 0 });
 
     return (
-        <WidgetShell
-            title="Entidades Federativas"
-            subtitle="Instituciones · proyectos de la red"
-            icon={Network}
-            accent={ACCENT}
-            live
-            connections={[
-                { label: "Red", href: "/network", color: "#38bdf8" },
-                { label: "Explorar", href: "/explorer", color: "#f59e0b" },
-            ]}
-            actions={
-                <>
-                    <Link href="/network" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
-                        Red <ChevronRight className="size-3" />
-                    </Link>
-                    <Link href="?createEntity=page" className="inline-flex items-center gap-1 rounded-full border border-purple-400/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-purple-300 hover:bg-purple-500/20 transition-colors cursor-pointer">
-                        <Plus className="size-3" /> Registrar
-                    </Link>
-                </>
-            }
-        >
-            {(size) => {
-                if (loading && rows.length === 0) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-
-                if (entities.length === 0) {
-                    return (
-                        <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-3">
-                            <span className="grid place-items-center size-12 rounded-2xl border border-purple-400/30 bg-purple-500/10">
-                                <Building2 className="size-6 text-purple-300/70" strokeWidth={1.5} />
-                            </span>
-                            <div>
-                                <p className="text-sm font-bold text-foreground/90">Aún no hay entidades</p>
-                                <p className="text-[11px] text-muted-foreground/60 mt-0.5">Registra la primera entidad federativa.</p>
-                            </div>
-                            <Link href="?createEntity=page" className="inline-flex items-center gap-1.5 rounded-full border border-purple-400/40 bg-purple-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-purple-300 hover:bg-purple-500/25 transition-colors cursor-pointer">
-                                <Plus className="size-3.5" /> Registrar entidad
-                            </Link>
-                        </div>
-                    );
-                }
-
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const max = micro ? 3 : size.vTier === "expanded" ? 6 : 4;
-
-                if (micro) {
-                    const top = entities[0];
-                    const meta = kindMeta(top?.kind ?? null);
-                    const Icon = meta.icon;
-                    return (
-                        <div className="h-full flex items-center gap-3 px-1">
-                            <span className="shrink-0 grid place-items-center size-11 rounded-2xl border text-white"
-                                style={{ background: `linear-gradient(135deg, ${rowAccent(top?.accent)}, ${rowAccent(top?.accent)}66)`, borderColor: `${rowAccent(top?.accent)}55` }}>
-                                <Icon className="size-5" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                                {top && (
-                                    <Link href={`/pagina/${top.slug}`} className="block cursor-pointer">
-                                        <p className="text-[11px] font-black truncate" style={{ color: rowAccent(top.accent) }}>{top.name}</p>
-                                        <p className="text-[10px] font-bold text-muted-foreground/70 tabular-nums">{entities.length} entidades</p>
-                                    </Link>
-                                )}
-                            </div>
-                        </div>
-                    );
-                }
-
-                return (
-                    <div className="flex flex-col gap-2 pt-1 h-full">
-                        {size.tier !== "compact" && (
-                            <div className="shrink-0 flex items-center gap-3 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-1.5">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-300 tabular-nums">
-                                    <Network className="size-3" />{entities.length} entidades
-                                </span>
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-muted-foreground/70 tabular-nums">
-                                    <Users className="size-3" />{totalMembers.toLocaleString()} miembros
-                                </span>
-                            </div>
-                        )}
-
-                        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                            <div className="flex flex-col gap-1.5">
-                                {entities.slice(0, max).map((e, idx) => {
-                                    const meta = kindMeta(e.kind);
-                                    const Icon = meta.icon;
-                                    const accent = rowAccent(e.accent);
-                                    return (
-                                        <motion.div key={e.id}
-                                            initial={animate ? { opacity: 0, x: -10 } : false}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ duration: animate ? 0.3 : 0, delay: animate ? idx * 0.05 : 0 }}
-                                            className="rounded-xl border border-border/40 bg-white/[0.02]">
-                                            <Link href={`/pagina/${e.slug}`} className="block px-2.5 py-2 cursor-pointer">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="shrink-0 grid place-items-center size-8 rounded-xl border text-white"
-                                                        style={{ background: `linear-gradient(135deg, ${accent}, ${accent}55)`, borderColor: `${accent}44` }}>
-                                                        <Icon className="size-4" />
-                                                    </span>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-[11px] @sm:text-xs font-bold truncate">{e.name}</span>
-                                                            <Chip color={accent}>{meta.label}</Chip>
-                                                        </div>
-                                                        {e.description && <p className="text-[9px] text-muted-foreground/60 truncate mt-0.5">{e.description}</p>}
-                                                    </div>
-                                                    <span className="shrink-0 text-[9px] font-black tabular-nums inline-flex items-center gap-0.5" style={{ color: accent }}>
-                                                        <Users className="size-2.5" />{(e.member_count ?? 0).toLocaleString()}
-                                                    </span>
-                                                </div>
-                                            </Link>
-                                        </motion.div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                );
-            }}
-        </WidgetShell>
+        <>
+            <MarcoSocial
+                titulo="Entidades Federativas"
+                subtitulo={`${plural(entidades.length, "entidad", "entidades")} · instituciones y proyectos`}
+                icono={Network}
+                categoria="red"
+                acento={ACENTO}
+                estado={estado}
+                vivo
+                esqueleto="lista"
+                vacio={{ icono: Landmark, titulo: "Aún no hay entidades federativas", mensaje: "Registra la de tu territorio, tu institución o tu proyecto como página de la Red.", accion: { etiqueta: "Registrar una entidad", onClick: () => crear.abrir("page") } }}
+                acciones={(t) => <BotonIcono icono={Plus} etiqueta="Registrar una entidad" onClick={() => crear.abrir("page")} acento={t.acento} tactil={t.tactil} />}
+            >
+                {(t) => (
+                    <VistaEntidades t={t} lista={t.base === "l" || t.base === "xl" || t.clase === "panoramico" ? visibles : entidades} unidad="entidades" etiquetaLista="Entidades federativas"
+                        controles={
+                            <Segmentos<Filtro> etiqueta="Tipo de entidad" acento={t.acento} tactil={t.tactil} valor={filtro} onCambio={setFiltro}
+                                opciones={[
+                                    { id: "todas", etiqueta: "Todas", n: entidades.length },
+                                    ...(cuenta("entidad") ? [{ id: "entidad" as const, etiqueta: "E.F.", n: cuenta("entidad"), icono: Building2 }] : []),
+                                    ...(cuenta("proyecto") ? [{ id: "proyecto" as const, etiqueta: "Proyectos", n: cuenta("proyecto"), icono: FolderKanban }] : []),
+                                    ...(cuenta("pagina") ? [{ id: "pagina" as const, etiqueta: "Páginas", n: cuenta("pagina"), icono: Landmark }] : []),
+                                ]} />
+                        }
+                        accion={(p, soloIcono) => (
+                            <BotonRelacion e={p.e} relacion={acciones.relacion(p.e)} onActuar={acciones.actuar} enCurso={acciones.enCurso === p.e.id} acento={t.acento} tactil={t.tactil} soloIcono={soloIcono} />
+                        )} />
+                )}
+            </MarcoSocial>
+            {crear.dialogo}
+        </>
     );
 }
+
+export default FederatedEntitiesWidget;
