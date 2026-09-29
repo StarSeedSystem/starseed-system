@@ -63,6 +63,16 @@ const consultar = vi.fn(async (input: any, op?: any): Promise<any> => {
 });
 vi.mock("@/lib/aurora/council", () => ({ consultCouncil: consultar }));
 
+let casosRed: { list: any[]; degraded: boolean } = { list: [], degraded: false };
+const cargarCasos = vi.fn(async () => casosRed);
+const crearCaso = vi.fn(async (input: any): Promise<any> => {
+    const nuevo = { id: "med-n", title: input.title, description: "", participants: input.participants, facilitator: null, stage: "solicitada", createdAt: "2026-09-29T10:00:00Z", updates: [] };
+    casosRed = { list: [nuevo, ...casosRed.list], degraded: false };
+    localStorage.setItem("starseed.politics.mediation.v1", JSON.stringify(casosRed.list));
+    return { ok: true, degraded: false };
+});
+vi.mock("@/lib/governance/political", () => ({ loadMediationCases: cargarCasos, createMediationCase: crearCaso }));
+
 import { EnMarco, MEDIDAS } from "../../gen5/_catalogo/prueba-marco";
 import { _vaciarCompartidos } from "../../gen5/_catalogo/recurso";
 import { IdentityVaultWidget } from "../identity-vault-widget";
@@ -70,6 +80,7 @@ import { UniversalLibraryWidget } from "../universal-library-widget";
 import { MentorMatchWidget } from "../mentor-match-widget";
 import { ElderCouncilWidget } from "../elder-council-widget";
 import { CONSEJEROS } from "../elder-council-partes";
+import { RestorativeCourtWidget } from "../restorative-court-widget";
 
 function pintar(ui: React.ReactElement, clase: ClaseTamano) {
     medida = MEDIDAS[clase];
@@ -221,5 +232,54 @@ describe("Consejo de Sabios", () => {
         fireEvent.change(screen.getByRole("textbox", { name: /Pregunta o propuesta/ }), { target: { value: "¿Algo?" } });
         fireEvent.submit(screen.getByRole("textbox", { name: /Pregunta o propuesta/ }).closest("form")!);
         expect(await screen.findByRole("alert")).toBeTruthy();
+    });
+});
+
+const caso = (id: string, title: string, stage: string, extra: any = {}) => ({ id, title, description: "", participants: ["Ana", "Luis"], facilitator: null, stage, createdAt: "2026-09-20T10:00:00Z", updates: [], ...extra });
+
+describe("Círculos de Paz", () => {
+    beforeEach(() => { casosRed = { list: [], degraded: false }; cargarCasos.mockClear(); crearCaso.mockClear(); });
+
+    it.each(TODAS)("sin casos (%s) lo dice y no inventa ninguno", async (clase) => {
+        pintar(<RestorativeCourtWidget />, clase);
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/0 abiertos y 0 con acuerdo/);
+        await vi.waitFor(() => expect(cargarCasos).toHaveBeenCalledTimes(1));
+    });
+
+    it("pinta los casos reales de la red, abiertos primero, y pasa de uno a otro", async () => {
+        casosRed = { list: [caso("m3", "Reparto de la leña", "acuerdo"), caso("m1", "Uso del huerto comunal", "en_circulo", { facilitator: "Naima" }), caso("m2", "Ruido en el taller", "solicitada")], degraded: false };
+        pintar(<RestorativeCourtWidget />, "xl");
+        const region = await screen.findByRole("region", { name: /2 abiertos y 1 con acuerdo\. «Uso del huerto comunal»: en círculo de paz/ });
+        expect(region).toBeTruthy();
+        expect(screen.getByText(/facilita Naima/)).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Caso siguiente" }));
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/«Ruido en el taller»: solicitud recibida/);
+        fireEvent.click(screen.getByRole("button", { name: /Reparto de la leña/ }));
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/«Reparto de la leña»: acuerdo alcanzado/);
+        expect(screen.getByRole("link", { name: /Área Política/ }).getAttribute("href")).toBe("/network/politics");
+    });
+
+    it("pide un Círculo de Paz de verdad con sus participantes", async () => {
+        pintar(<RestorativeCourtWidget />, "l");
+        fireEvent.click(screen.getByRole("button", { name: "Pedir un Círculo de Paz" }));
+        fireEvent.change(screen.getByRole("textbox", { name: "Título del caso" }), { target: { value: "Turnos del horno comunal" } });
+        fireEvent.change(screen.getByRole("textbox", { name: "Participantes" }), { target: { value: "Ana, Luis; Ana" } });
+        fireEvent.submit(screen.getByRole("form", { name: "Pedir un Círculo de Paz" }));
+        expect(await screen.findByText(/Círculo de Paz pedido/)).toBeTruthy();
+        expect(crearCaso).toHaveBeenCalledWith({ title: "Turnos del horno comunal", description: "", participants: ["Ana", "Luis"] });
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/1 abierto y 0 con acuerdo\. «Turnos del horno comunal»/);
+    });
+
+    it("sin red enseña la copia local y lo avisa", async () => {
+        localStorage.setItem("starseed.politics.mediation.v1", JSON.stringify([caso("m1", "Uso del huerto comunal", "facilitador_asignado")]));
+        casosRed = { list: [caso("m1", "Uso del huerto comunal", "facilitador_asignado")], degraded: true };
+        pintar(<RestorativeCourtWidget />, "l");
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/1 abierto/);
+        expect(await screen.findByText(/Casos guardados en este dispositivo/)).toBeTruthy();
+    });
+
+    it("en S es un acceso directo al Área Política", () => {
+        pintar(<RestorativeCourtWidget />, "s");
+        expect(screen.getByRole("link", { name: /Abrir los Círculos de Paz: 0 abiertos/ }).getAttribute("href")).toBe("/network/politics");
     });
 });
