@@ -2033,7 +2033,11 @@ CUPOS = {k: Cupo(max(2, int(v * FACTOR_CUPO))) for k, v in CUPOS_RPM.items()}
 SEM_OPENCODE = threading.Semaphore(CONCURRENCIA_OPENCODE)
 SEM_PESADO = threading.Semaphore(1)  # tsc / vitest: uno a la vez (RAM)
 LOCK_INTEGRAR = threading.Lock()  # integración en main serializada
-LOCK_ESTADO = threading.Lock()
+# (2026-09-29) RLock y no Lock: `set_estado` toca PROG DENTRO del cerrojo y luego llama a
+# `guardar_prog`, que vuelve a tomarlo. Con cinco sueños en paralelo, tocar PROG fuera del
+# cerrojo mientras otro hilo lo volcaba a disco daba «dictionary changed size during
+# iteration» y un sueño bueno acababa en fallo (SA092910, 2026-09-29).
+LOCK_ESTADO = threading.RLock()
 
 
 # ── cerrojos ENTRE PROCESOS (varias olas a la vez sobre el mismo repo) ──────
@@ -2503,8 +2507,9 @@ def fusionar_progreso(memoria, disco, propias):
 def set_estado(tid, **kw):
     if "t" not in kw:
         kw["t"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    PROG.setdefault(tid, {}).update(kw)
-    guardar_prog(PROG)
+    with LOCK_ESTADO:
+        PROG.setdefault(tid, {}).update(kw)
+        guardar_prog(PROG)
 
 
 # ── revisión cruzada por otro proveedor ─────────────────────────────────────
@@ -5187,8 +5192,15 @@ def priorizar_modelos_del_arriendo(tid, modelos):
     return preferidos + [m for m in modelos if m not in preferidos]
 
 
+def _foto_latidos():
+    """Copia de LATIDOS hecha con copias de C (atómicas bajo el GIL): volcar el dict vivo
+    mientras otro hilo late daba «dictionary changed size during iteration»."""
+    return {tid: dict(d) for tid, d in list(LATIDOS.items())}
+
+
 def _volcar_latidos():
     try:
+        foto = _foto_latidos()
         with cerrojo("latidos-" + os.path.basename(LAT_JSON), espera_aviso=9999):
             json.dump(
                 {
@@ -5196,7 +5208,7 @@ def _volcar_latidos():
                     "cola": os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "",
                     "medio": MEDIO,
                     "donde": os.environ.get("STARSEED_DONDE", "nube"),
-                    "tareas": LATIDOS,
+                    "tareas": foto,
                 },
                 open(LAT_JSON, "w", encoding="utf-8"),
                 ensure_ascii=False,
@@ -5377,7 +5389,7 @@ def foto_enjambre(vivas_txt):
         "medios": list(medios_vivos.values()),
         "arriendos": list((registro.get("arriendos") or {}).values()),
         "memoriaMb": memoria_libre_mb(),
-        "integradas": sum(1 for v in PROG.values() if v.get("estado") == "commit"),
+        "integradas": sum(1 for v in list(PROG.values()) if v.get("estado") == "commit"),
         "resumen": vivas_txt,
     }
 
@@ -5528,7 +5540,7 @@ def vigilante():
         _volcar_latidos()
         if t - ultimo_bus >= LATIDO_S:
             ultimo_bus = t
-            hechas = sum(1 for v in PROG.values() if v.get("estado") == "commit")
+            hechas = sum(1 for v in list(PROG.values()) if v.get("estado") == "commit")
             texto_latido = "%s · %d integradas" % (
                 " | ".join(vivas) or "sin tareas activas",
                 hechas,
@@ -7559,7 +7571,7 @@ def main():
     )
     # Último latido, ya sin tareas vivas: si no, el Mando de la otra máquina seguía viendo
     # «P2 escribiendo» hasta 4 min después de terminar (el latido anterior seguía en ventana).
-    for d in LATIDOS.values():
+    for d in list(LATIDOS.values()):
         d["fase"] = "hecho"
     _volcar_latidos()
     try:
@@ -7567,7 +7579,7 @@ def main():
             "latido",
             "",
             "cola terminada · sin tareas activas · %d integradas"
-            % sum(1 for v in PROG.values() if v.get("estado") == "commit"),
+            % sum(1 for v in list(PROG.values()) if v.get("estado") == "commit"),
             datos=foto_enjambre(""),
         )
     except Exception:

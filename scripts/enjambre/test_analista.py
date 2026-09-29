@@ -324,6 +324,41 @@ class Orquestador(unittest.TestCase):
         cls.E = importlib.util.module_from_spec(espec)
         espec.loader.exec_module(cls.E)
 
+    def test_set_estado_y_latir_a_la_vez_no_rompen(self):
+        """SA092910 (2026-09-29): «dictionary changed size during iteration» con cinco sueños
+        latiendo y guardando progreso a la vez. Ocho hilos, cientos de escrituras: ni una excepción."""
+        import threading
+        E = self.E
+        d = tempfile.mkdtemp(prefix="carrera-")
+        viejos = (E.PROG_JSON, E.PROG_MD, E.LAT_JSON, E.PROG, dict(E.LATIDOS))
+        errores = []
+        try:
+            E.PROG_JSON, E.PROG_MD, E.LAT_JSON = (os.path.join(d, n) for n in ("p.json", "p.md", "l.json"))
+            E.PROG = {}
+            E.LATIDOS.clear()
+
+            def trabajo(n):
+                try:
+                    for i in range(30):
+                        tid = "C%d_%d" % (n, i)  # una tarea NUEVA cada vez: el dict crece mientras otro lo vuelca
+                        E.set_estado(tid, estado="en_curso", nota="vuelta %d" % i, **{"k%d" % (i % 5): i})
+                        E.latir(tid, "analizando", subfase="x%d" % i, **{"k%d" % (i % 5): i}, avance=time.time())
+                except Exception as e:  # noqa: BLE001
+                    errores.append(repr(e))
+
+            hilos = [threading.Thread(target=trabajo, args=(n,)) for n in range(8)]
+            for h in hilos:
+                h.start()
+            for h in hilos:
+                h.join()
+            self.assertEqual(errores, [])
+            self.assertEqual(len(json.load(open(E.PROG_JSON))), 8 * 30)
+        finally:
+            E.PROG_JSON, E.PROG_MD, E.LAT_JSON, E.PROG = viejos[:4]
+            E.LATIDOS.clear()
+            E.LATIDOS.update(viejos[4])
+            shutil.rmtree(d, ignore_errors=True)
+
     def test_informe_es_terminal_y_no_es_sin_cambios(self):
         self.assertIn("informe", self.E.ESTADOS_TERMINADOS)
         self.assertIn("sin_cambios", self.E.ESTADOS_TERMINADOS)
