@@ -1,413 +1,235 @@
 'use client';
 
-import { useState, useMemo } from "react";
-import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import { TrendingUp, ChevronRight, Users, Telescope, Globe, Landmark, Vote, BookOpen, Palette, Building2, Flame, Sparkles, Check, type LucideIcon } from "lucide-react";
-import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing } from "../kit";
-import { useAppearance } from "@/context/appearance-context";
-import { useWidgetData } from "@/lib/widget-data";
-import type { NetworkEntity } from "@/lib/widget-data";
-import { widgetEntityHref } from "@/lib/entity-links";
-import { useOsPages, useOsGroups } from "@/hooks/use-os-entities";
-import { setFollow, setMembership } from "@/lib/os-social";
-import type { OsPage, OsGroup } from "@/lib/os-social";
-import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
-import { samplePages, sampleGroups } from "@/data/sample-entities";
-
 // ════════════════════════════════════════════════════════════════
-// ExploreNetworkWidget — comunidades y entidades en tendencia.
-// Datos en vivo "social.entities". Lista de momentum + filtro kind.
-// Diseño data-driven: el momentum tiñe acentos, marca "candentes" (🔥),
-// y la cabecera muestra el pulso de tendencias (mini-distribución).
-// Adaptativo + theme-aware. Accent "#f59e0b". Link a /explorer.
+// ExploreNetworkWidget — descubrir la Red, con datos REALES (Ola 0929 · D)
+// ----------------------------------------------------------------
+// Comunidades, páginas y grupos de verdad (`os_pages` / `os_groups`) con
+// su actividad medida (publicaciones de `os_posts` de la última semana) y
+// un orden que se explica: cada entidad dice POR QUÉ aparece (miembros,
+// publicaciones esta semana, nueva, afín a tus grupos). Sin partidos ni
+// entidades de relleno: lo que no existe en la base no se enseña.
+// Acciones reales: unirse a un grupo (`os_memberships`), seguir una página
+// (`os_follows`), abrir su página y fundar una nueva con el diálogo real.
+// Tráfico: solo los hooks compartidos de os-live (una lectura + el canal
+// común de cada tabla); nada de sondeos propios.
+//
+// micro = la entidad más viva · s = su tarjeta · m/torre = las que más
+// se mueven · l = filtros + búsqueda + unirse/seguir · xl = mosaico de
+// tarjetas con portada · panorámico = el pulso de la Red + tarjetas.
+// Estados: cargando (esqueleto de tarjetas), vacío con «Fundar», sin
+// resultados por filtro con «Ver todo». No hay error que enseñar: los hooks
+// de os-live degradan a lista vacía y el vacío lo dice.
 // ════════════════════════════════════════════════════════════════
 
-const ACCENT = "#f59e0b";
+import * as React from 'react';
+import Link from 'next/link';
+import { Compass, Plus, Sparkles, Telescope, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useCurrentUid, useLiveGroups, useLivePages, useLivePosts, useMyMemberships } from '@/lib/widget-data/os-live';
+import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
+import { MarcoSocial, estadoSocial } from './_social-d/marco-social';
+import { BotonIcono, Buscador, Cifra, Pastilla, Segmentos, estilosSocial as estilos } from './_social-d/piezas';
+import { BotonRelacion, Escudo, FilaEntidad, TarjetaEntidad, useAccionesEntidad } from './_social-d/entidad-piezas';
+import { actividadPorEntidad, afinidadDe, claveEntidad, entidadDeGrupo, entidadDePagina, puntuar, type Puntuada } from './_social-d/entidades';
+import { useCrearEntidad } from './_social-d/crear-entidad';
+import { columnasQueCaben, filasQueCaben, type TamanoSocial } from './_social-d/tamano';
+import { coincide, formatoNumero } from './_social-d/formato';
 
-// Umbrales de momentum → estado data-driven (color + etiqueta + icono).
-const HOT = 0.78;     // candente
-const RISING = 0.55;  // en ascenso
+const ACENTO = '#fb923c';
 
-const KIND_META: Record<NetworkEntity["kind"], { label: string; icon: LucideIcon }> = {
-    comunidad:  { label: "Comunidad",  icon: Users },
-    sangha:     { label: "Sangha",     icon: Globe },
-    colectivo:  { label: "Colectivo",  icon: Palette },
-    biorregion: { label: "Biorregión", icon: Landmark },
-};
-
-// Extended filter tabs including governance types
-type FilterKind = NetworkEntity["kind"] | "todas" | "partido" | "entidad";
-
-const FILTER_KEYS: FilterKind[] = ["todas", "comunidad", "sangha", "colectivo", "biorregion", "partido", "entidad"];
-
-const FILTER_META: Record<FilterKind, { label: string; icon: LucideIcon }> = {
-    todas:     { label: "Todo",       icon: Globe },
-    comunidad: { label: "Comunidad",  icon: Users },
-    sangha:    { label: "Sangha",     icon: Globe },
-    colectivo: { label: "Colectivo",  icon: Palette },
-    biorregion:{ label: "Biorregión", icon: Landmark },
-    partido:   { label: "Partido",    icon: Vote },
-    entidad:   { label: "E.F.",       icon: Building2 },
-};
-
-interface RichEntity extends NetworkEntity {
-    href: string;
-    typeLabel: string;
-    typeIcon: LucideIcon;
-    filterKind: FilterKind;
-}
-
-/** Deriva el `kind` de widget a partir de una página/grupo OS. */
-function entityKindFromOs(name: string, tags: string[], isGroup: boolean): NetworkEntity["kind"] {
-    const hay = `${name} ${tags.join(" ")}`.toLowerCase();
-    if (/biorregi/.test(hay)) return "biorregion";
-    if (/sangha/.test(hay)) return "sangha";
-    if (isGroup || /colectiv/.test(hay)) return "colectivo";
-    return "comunidad";
-}
-
-/** Momentum sintético estable 0..1 a partir del nº de miembros (log-escala). */
-function synthMomentum(members: number): number {
-    const v = Math.log10(Math.max(10, members)) / 5; // ~0.2..1
-    return Math.min(1, Math.max(0.15, v));
-}
-
-/** Estado de tendencia derivado del momentum (diseño reactivo a datos). */
-function momentumState(m: number): { label: string; color: string; hot: boolean; rising: boolean } {
-    if (m >= HOT) return { label: "Candente", color: "#fb7185", hot: true, rising: true };
-    if (m >= RISING) return { label: "En ascenso", color: "#10b981", hot: false, rising: true };
-    return { label: "Estable", color: "#94a3b8", hot: false, rising: false };
-}
-
-function osToEntity(p: OsPage | OsGroup, isGroup: boolean): NetworkEntity {
-    return {
-        id: `${isGroup ? "g" : "p"}:${p.slug}`,
-        name: p.name,
-        kind: entityKindFromOs(p.name, p.tags, isGroup),
-        momentum: synthMomentum(p.memberCount),
-        members: p.memberCount,
-        focus: p.description?.slice(0, 80) || (isGroup ? "Colectivo de la Red" : "Entidad de la Red"),
-        accent: p.accent,
-    };
-}
-
-// Build rich entities from sample governance + sample entity data (always available)
-function buildRichEntities(): RichEntity[] {
-    const result: RichEntity[] = [];
-
-    // From parties → /partido/<slug>
-    for (const p of listPartidos()) {
-        result.push({
-            id: `partido:${p.slug}`,
-            name: p.name,
-            kind: "colectivo",
-            filterKind: "partido",
-            momentum: synthMomentum(p.members),
-            members: p.members,
-            focus: p.ideology,
-            accent: p.accent,
-            href: `/partido/${p.slug}`,
-            typeLabel: "Partido",
-            typeIcon: Vote,
-        });
-    }
-
-    // From federative entities → /entidad/<slug>
-    for (const ef of listFederativeEntities()) {
-        result.push({
-            id: `ef:${ef.slug}`,
-            name: ef.name,
-            kind: "biorregion",
-            filterKind: "entidad",
-            momentum: synthMomentum(ef.citizens),
-            members: ef.citizens,
-            focus: ef.blurb.slice(0, 80),
-            accent: ef.accent,
-            href: `/entidad/${ef.slug}`,
-            typeLabel: "E.F.",
-            typeIcon: Building2,
-        });
-    }
-
-    // From samplePages (comunidades / sanghas)
-    for (const p of samplePages) {
-        const kf: FilterKind = p.kind === "comunidad" ? "comunidad" : "sangha";
-        result.push({
-            id: `page:${p.id}`,
-            name: p.title,
-            kind: p.kind === "comunidad" ? "comunidad" : "sangha",
-            filterKind: kf,
-            momentum: synthMomentum(p.members),
-            members: p.members,
-            focus: p.description.slice(0, 80),
-            accent: p.accent,
-            href: `/pagina/${p.id}`,
-            typeLabel: p.kind === "comunidad" ? "Comunidad" : "Sangha",
-            typeIcon: KIND_META[p.kind === "comunidad" ? "comunidad" : "sangha"].icon,
-        });
-    }
-
-    // From sampleGroups (colectivos / círculos)
-    for (const g of sampleGroups) {
-        result.push({
-            id: `group:${g.id}`,
-            name: g.name,
-            kind: "colectivo",
-            filterKind: "colectivo",
-            momentum: synthMomentum(g.members),
-            members: g.members,
-            focus: g.description.slice(0, 80),
-            accent: g.accent,
-            href: `/grupo/${g.id}`,
-            typeLabel: g.kind === "asamblea" ? "Asamblea" : g.kind === "colectivo" ? "Colectivo" : "Círculo",
-            typeIcon: g.kind === "asamblea" ? Landmark : g.kind === "colectivo" ? Palette : BookOpen,
-        });
-    }
-
-    return result;
-}
+type Filtro = 'descubrir' | 'comunidades' | 'grupos' | 'nuevas';
 
 export function ExploreNetworkWidget() {
-    const { config } = useAppearance();
-    const prefersReduced = useReducedMotion();
-    const animate = config.animations.enabled && !prefersReduced;
+    const { uid } = useCurrentUid();
+    const paginas = useLivePages();
+    const grupos = useLiveGroups();
+    const posts = useLivePosts(40);
+    const membresias = useMyMemberships(uid);
+    const [filtro, setFiltro] = React.useState<Filtro>('descubrir');
+    const [consulta, setConsulta] = React.useState('');
+    const crear = useCrearEntidad(() => { void paginas.reload(); void grupos.reload(); });
 
-    // Datos simulados como último recurso; las entidades reales vienen de Supabase.
-    const { data: mockData, loading: mockLoading } = useWidgetData("social.entities", { refreshMs: 6000 });
-    const { data: pages, loading: pagesLoading } = useOsPages();
-    const { data: groups, loading: groupsLoading } = useOsGroups();
-    const [filter, setFilter] = useState<FilterKind>("todas");
-    const [joined, setJoined] = useState<Set<string>>(new Set());
+    const miembroDe = React.useMemo(() => new Set(membresias.rows.map((m) => m.group_slug)), [membresias.rows]);
+    const acciones = useAccionesEntidad(uid, miembroDe);
 
-    const loading = (pagesLoading || groupsLoading) && (mockLoading && !mockData);
+    const ahora = Date.now();
+    const todas: Puntuada[] = React.useMemo(() => {
+        const ents = [
+            ...paginas.rows.filter((p) => (p.kind ?? '').toLowerCase() !== 'perfil').map(entidadDePagina),
+            ...grupos.rows.map(entidadDeGrupo),
+        ];
+        const act = actividadPorEntidad(posts.rows, ahora);
+        const afin = afinidadDe(ents.filter((e) => e.origen === 'grupo'), membresias.rows);
+        return ents
+            .map((e) => puntuar(e, act.get(claveEntidad(e.origen, e.slug)) ?? null, afin, ahora))
+            .sort((a, b) => b.puntos - a.puntos);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [paginas.rows, grupos.rows, posts.rows, membresias.rows]);
 
-    // Rich entities from governance + sample data (SSR-safe, deterministic)
-    const richEntities = useMemo(() => buildRichEntities(), []);
+    const mias = (p: Puntuada) => acciones.relacion(p.e) !== null;
+    const visibles = React.useMemo(() => {
+        let l = todas;
+        if (filtro === 'descubrir') l = l.filter((p) => !mias(p));
+        if (filtro === 'comunidades') l = l.filter((p) => p.e.origen === 'pagina');
+        if (filtro === 'grupos') l = l.filter((p) => p.e.origen === 'grupo');
+        if (filtro === 'nuevas') l = l.filter((p) => p.nueva);
+        if (consulta.trim()) l = l.filter((p) => coincide(`${p.e.nombre} ${p.e.descripcion} ${p.e.etiquetas.join(' ')} ${p.e.claseEtiqueta}`, consulta));
+        return l;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [todas, filtro, consulta, acciones.relacion]);
 
-    // Combina páginas + grupos reales (o de ejemplo) en entidades de la red.
-    const data: NetworkEntity[] = useMemo(() => {
-        const fromPages = (pages ?? []).map((p) => osToEntity(p, false));
-        const fromGroups = (groups ?? []).map((g) => osToEntity(g, true));
-        const combined = [...fromPages, ...fromGroups];
-        if (combined.length > 0) return combined;
-        return mockData ?? [];
-    }, [pages, groups, mockData]);
+    const pulso = React.useMemo(() => ({
+        comunidades: todas.filter((p) => p.e.origen === 'pagina').length,
+        grupos: todas.filter((p) => p.e.origen === 'grupo').length,
+        nuevas: todas.filter((p) => p.nueva).length,
+        semana: todas.reduce((n, p) => n + (p.actividad?.semana ?? 0), 0),
+    }), [todas]);
 
-    // Resuelve el slug real de una entidad combinada para persistir la acción.
-    const entitySlug = (id: string) => id.replace(/^[pg]:/, "");
-    const entityIsGroup = (id: string) => id.startsWith("g:");
+    const estado = estadoSocial({ cargando: paginas.loading && grupos.loading, hayDatos: todas.length > 0 });
+    const destacada = (filtro === 'descubrir' ? todas.find((p) => !mias(p)) : null) ?? todas[0];
 
-    // Use richEntities as primary; fall back to widget data entities if no OS data
-    const displayEntities = richEntities.length > 0 ? richEntities : (data ?? []).map(e => ({
-        ...e,
-        filterKind: e.kind as FilterKind,
-        href: widgetEntityHref(e.name, e.kind),
-        typeLabel: KIND_META[e.kind]?.label ?? e.kind,
-        typeIcon: KIND_META[e.kind]?.icon ?? Globe,
-    })) as RichEntity[];
-
-    const sorted = useMemo(() => {
-        const filtered = filter === "todas"
-            ? displayEntities
-            : displayEntities.filter(e => e.filterKind === filter);
-        return [...filtered].sort((a, b) => b.momentum - a.momentum);
-    }, [displayEntities, filter]);
-
-    const top = sorted[0];
-    const totalMembers = displayEntities.reduce((acc, e) => acc + e.members, 0);
-    // Métricas data-driven para la cabecera: cuántas candentes / en ascenso.
-    const hotCount = useMemo(() => displayEntities.filter(e => e.momentum >= HOT).length, [displayEntities]);
-    // Conteos por filtro (se muestran como badge en cada pestaña).
-    const filterCounts = useMemo(() => {
-        const c = {} as Record<FilterKind, number>;
-        for (const k of FILTER_KEYS) c[k] = k === "todas" ? displayEntities.length : displayEntities.filter(e => e.filterKind === k).length;
-        return c;
-    }, [displayEntities]);
+    const accion = (p: Puntuada, t: TamanoSocial, soloIcono = false) => (
+        <BotonRelacion e={p.e} relacion={acciones.relacion(p.e)} onActuar={acciones.actuar} enCurso={acciones.enCurso === p.e.id} acento={t.acento} tactil={t.tactil} soloIcono={soloIcono} />
+    );
 
     return (
-        <WidgetShell
-            title="Explorar Red"
-            subtitle="Entidades en tendencia"
-            icon={Telescope}
-            accent={ACCENT}
-            connections={[{ label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }, { label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Política", href: "/network/politics", color: "#DC143C" }, { label: "Explorer", href: "/explorer", color: "#22d3ee" }]}
-            live
-            actions={
-                <Link href="/explorer" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
-                    Explorer <ChevronRight className="size-3" />
-                </Link>
-            }
-        >
-            {(size) => {
-                if (loading && displayEntities.length === 0) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-
-                const micro = size.tier === "micro" || size.vTier === "micro";
-
-                // ── Micro: top entidad + ring de momentum ──────────
-                if (micro) {
-                    if (!top) return <div className="h-full grid place-items-center text-xs text-muted-foreground/50 italic">Sin entidades</div>;
-                    const TopIcon = top.typeIcon ?? Globe;
-                    const st = momentumState(top.momentum);
-                    return (
-                        <Link href={top.href} className="h-full flex items-center gap-3 px-1 cursor-pointer">
-                            <ProgressRing value={top.momentum} size={52} stroke={5} color={st.color}
-                                label={`${Math.round(top.momentum * 100)}%`} sublabel="mom." />
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-black truncate flex items-center gap-1" style={{ color: top.accent ?? ACCENT }}>
-                                    {st.hot && <Flame className="size-3 shrink-0" style={{ color: st.color }} />}{top.name}
-                                </p>
-                                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wide truncate inline-flex items-center gap-0.5">
-                                    <TopIcon className="size-2.5" />{top.typeLabel}
-                                </p>
-                                <p className="text-[10px] font-bold text-muted-foreground/70 mt-0.5 tabular-nums">
-                                    <Users className="size-2.5 inline mr-0.5" />{top.members.toLocaleString()}
-                                </p>
-                            </div>
-                        </Link>
-                    );
-                }
-
-                const maxItems = size.vTier === "expanded" ? 5 : size.vTier === "compact" ? 3 : 4;
-                const showFilter = size.tier !== "compact" && size.vTier !== "compact";
-                // Show at most 4 filter tabs in compact layouts, all 7 in expanded
-                const filterTabsVisible = size.vTier === "expanded" ? FILTER_KEYS : FILTER_KEYS.slice(0, 4);
-
-                return (
-                    <div className="flex flex-col gap-2 pt-1 h-full">
-
-                        {/* Cabecera: conteo total + pulso de tendencias + filtro kind */}
-                        <div className="shrink-0 flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider tabular-nums" style={{ color: ACCENT }}>
-                                    <Globe className="size-3" /> {displayEntities.length} entidades · {totalMembers.toLocaleString()} miembros
-                                </span>
-                                {hotCount > 0 && (
-                                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-rose-300 tabular-nums">
-                                        <Flame className="size-2.5" />{hotCount} candentes
+        <>
+            <MarcoSocial
+                titulo="Explorar Red"
+                subtitulo={`${formatoNumero(todas.length)} entidades vivas${pulso.nuevas ? ` · ${pulso.nuevas} nuevas` : ''}`}
+                icono={Telescope}
+                categoria="descubrimientos"
+                acento={ACENTO}
+                estado={estado}
+                esqueleto="tarjetas"
+                vacio={{ icono: Compass, titulo: 'La Red aún no tiene comunidades', mensaje: 'Funda la primera: una página para tu comunidad o un grupo para tu círculo.', accion: { etiqueta: 'Fundar una comunidad', onClick: () => crear.abrir('page') } }}
+                acciones={(t) => (
+                    <>
+                        <BotonIcono icono={Plus} etiqueta="Fundar una comunidad o grupo" onClick={() => crear.abrir('page')} acento={t.acento} tactil={t.tactil} />
+                        <BotonIcono icono={Compass} etiqueta="Abrir el explorador" href="/explorer" acento={t.acento} tactil={t.tactil} />
+                    </>
+                )}
+            >
+                {(t) => {
+                    if (t.base === 'micro') {
+                        return (
+                            <Link href={destacada.e.href} aria-label={`${destacada.e.nombre}: ${destacada.motivos.join(', ')}`} className="flex h-full cursor-pointer flex-col items-center justify-center gap-1">
+                                <Escudo e={destacada.e} tam={Math.max(32, Math.min(t.ancho, t.alto) * 0.5)} />
+                                <span className="max-w-full truncate text-[11px] font-semibold text-white/85">{destacada.e.nombre}</span>
+                            </Link>
+                        );
+                    }
+                    if (t.base === 's') {
+                        return (
+                            <div className="flex h-full min-h-0 flex-col justify-center gap-2">
+                                <Link href={destacada.e.href} className="flex cursor-pointer items-center gap-2.5" aria-label={`${destacada.e.nombre}: ${destacada.motivos.join(', ')}`}>
+                                    <Escudo e={destacada.e} tam={42} />
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-[13px] font-semibold text-white">{destacada.e.nombre}</span>
+                                        <span className="block truncate text-[11px]" style={{ color: destacada.e.acento }}>{destacada.e.claseEtiqueta}</span>
                                     </span>
-                                )}
+                                </Link>
+                                <p className="line-clamp-2 text-[11.5px] text-white/60">{destacada.motivos.join(' · ') || destacada.e.descripcion}</p>
+                                <div>{accion(destacada, t)}</div>
                             </div>
-                            {showFilter && (
-                                <div className="flex items-center gap-1 flex-wrap">
-                                    {filterTabsVisible.map(k => {
-                                        const FIcon = FILTER_META[k].icon;
-                                        const n = filterCounts[k];
-                                        const active = filter === k;
-                                        return (
-                                            <button key={k} onClick={() => setFilter(k)} aria-pressed={active}
-                                                className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${active ? "border-amber-500/40 bg-amber-500/15 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground hover:border-border/70"}`}>
-                                                <FIcon className="size-2.5" />{FILTER_META[k].label}
-                                                {n > 0 && <span className="tabular-nums opacity-60">{n}</span>}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                        );
+                    }
+                    const barra = (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Segmentos<Filtro> etiqueta="Qué descubrir" acento={t.acento} tactil={t.tactil} valor={filtro} onCambio={setFiltro}
+                                opciones={[
+                                    { id: 'descubrir', etiqueta: 'Para descubrir', icono: Sparkles },
+                                    { id: 'comunidades', etiqueta: 'Páginas', n: pulso.comunidades },
+                                    { id: 'grupos', etiqueta: 'Grupos', n: pulso.grupos },
+                                    ...(pulso.nuevas ? [{ id: 'nuevas' as const, etiqueta: 'Nuevas', n: pulso.nuevas }] : []),
+                                ]} />
+                            {(t.base === 'xl' || t.ancho > 560) && (
+                                <Buscador valor={consulta} onCambio={setConsulta} placeholder="Buscar por nombre o tema…" etiqueta="Buscar entidades" acento={t.acento} tactil={t.tactil} className="min-w-[180px] flex-1" />
                             )}
                         </div>
-
-                        {/* Lista de entidades */}
-                        <div className="flex-1 min-h-0">
-                            <MiniList
-                                items={sorted}
-                                max={maxItems}
-                                empty={filter === "todas" ? "Sin entidades en tendencia" : "Sin entidades de este tipo"}
-                                render={(e) => {
-                                    const isJoined = joined.has(e.id);
-                                    const EIcon = (e as RichEntity).typeIcon ?? KIND_META[e.kind]?.icon ?? Globe;
-                                    const eHref = (e as RichEntity).href ?? widgetEntityHref(e.name, e.kind);
-                                    const eLabel = (e as RichEntity).typeLabel ?? KIND_META[e.kind]?.label ?? e.kind;
-                                    const st = momentumState(e.momentum);
-                                    return (
-                                        <motion.div
-                                            whileHover={animate ? { scale: 1.01 } : undefined}
-                                            className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-amber-500/25 hover:bg-white/[0.04] transition-all"
-                                            style={st.hot ? { boxShadow: `inset 2px 0 0 ${st.color}` } : undefined}
-                                        >
-                                          <Link href={eHref} className="block px-2.5 py-2 cursor-pointer">
-                                            <div className="flex items-center gap-2">
-                                                {/* Avatar inicial */}
-                                                <div className="shrink-0 grid place-items-center size-7 rounded-lg text-[11px] font-black text-white"
-                                                    style={{ background: `linear-gradient(135deg, ${e.accent}, color-mix(in srgb, ${e.accent} 50%, #000))` }}>
-                                                    {e.name.charAt(0)}
-                                                </div>
-
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[11px] @sm:text-xs font-bold truncate">{e.name}</span>
-                                                        {st.hot && <Flame className="size-3 shrink-0" style={{ color: st.color }} />}
-                                                        <Chip color={e.accent ?? ACCENT}>
-                                                            <EIcon className="size-2 inline mr-0.5" />{eLabel}
-                                                        </Chip>
-                                                    </div>
-                                                    <p className="text-[9px] text-muted-foreground/60 truncate leading-tight">{e.focus}</p>
-                                                </div>
-
-                                                <div className="shrink-0 flex flex-col items-end gap-1">
-                                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-black tabular-nums" style={{ color: st.color }} title={st.label}>
-                                                        <TrendingUp className="size-2.5" />{Math.round(e.momentum * 100)}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(ev) => {
-                                                            ev.preventDefault();
-                                                            ev.stopPropagation();
-                                                            const willJoin = !isJoined;
-                                                            setJoined(prev => {
-                                                                const next = new Set(prev);
-                                                                willJoin ? next.add(e.id) : next.delete(e.id);
-                                                                return next;
-                                                            });
-                                                            const slug = entitySlug(e.id);
-                                                            const persist = entityIsGroup(e.id)
-                                                                ? setMembership(slug, willJoin)
-                                                                : setFollow(slug, willJoin);
-                                                            persist.then((res) => {
-                                                                if (!res.ok) {
-                                                                    setJoined(prev => {
-                                                                        const next = new Set(prev);
-                                                                        willJoin ? next.delete(e.id) : next.add(e.id);
-                                                                        return next;
-                                                                    });
-                                                                }
-                                                            });
-                                                        }}
-                                                        aria-pressed={isJoined}
-                                                        className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wide transition-colors cursor-pointer ${isJoined ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300" : "border-amber-500/40 text-amber-400 hover:bg-amber-500/10"}`}
-                                                    >
-                                                        {isJoined ? <><Check className="size-2.5" />Miembro</> : "Unirse"}
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-1.5 flex items-center gap-2">
-                                                <div className="flex-1"><ProgressBar value={e.momentum} color={st.color} height={3} /></div>
-                                                <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/60 tabular-nums">
-                                                    <Users className="size-2.5" />{e.members.toLocaleString()}
-                                                </span>
-                                            </div>
-                                          </Link>
-                                        </motion.div>
-                                    );
-                                }}
-                            />
+                    );
+                    const sinResultados = (
+                        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center" role="status">
+                            <p className="text-[12.5px] text-white/65">{consulta ? `Nada coincide con «${consulta}».` : filtro === 'descubrir' ? 'Ya participas en todo lo que hay: ¡funda algo nuevo!' : 'Nada con este filtro.'}</p>
+                            <Pastilla acento={t.acento} onClick={() => { setFiltro('comunidades'); setConsulta(''); }} tactil={t.tactil}>Ver todo</Pastilla>
                         </div>
+                    );
 
-                        {/* Footer expandido: top entidad destacada con link real */}
-                        {size.vTier === "expanded" && top && (() => {
-                            const st = momentumState(top.momentum);
+                    if (t.clase === 'panoramico') {
+                        if (t.alto < 200) {
+                            const cols = columnasQueCaben(t.ancho, 250, 1, 5);
                             return (
-                                <Link href={top.href} className="shrink-0 rounded-xl border px-2.5 py-1.5 cursor-pointer hover:opacity-80 transition-opacity" style={{ borderColor: `color-mix(in srgb, ${top.accent} 25%, transparent)`, background: `color-mix(in srgb, ${top.accent} 5%, transparent)` }}>
-                                    <span className="text-[9px] font-bold uppercase tracking-wider inline-flex items-center gap-1" style={{ color: top.accent }}>
-                                        {st.hot ? <Flame className="size-2.5" /> : <Sparkles className="size-2.5" />} Top momentum · {st.label}
-                                    </span>
-                                    <p className="text-[11px] font-semibold leading-snug truncate">{top.name} — {top.focus}</p>
-                                </Link>
+                                <ul className="grid h-full min-h-0 items-center gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Entidades">
+                                    {visibles.slice(0, cols).map((p) => <li key={p.e.id} className="min-w-0"><FilaEntidad p={p} acento={t.acento} tactil={t.tactil} derecha={accion(p, t, true)} /></li>)}
+                                </ul>
                             );
-                        })()}
-                    </div>
-                );
-            }}
-        </WidgetShell>
+                        }
+                        const anchoPulso = 200;
+                        const cols = columnasQueCaben(t.ancho - anchoPulso - 16, 200, 1, 5);
+                        return (
+                            <div className="flex h-full min-h-0 gap-4">
+                                <Pulso t={t} pulso={pulso} ancho={anchoPulso} onFundar={() => crear.abrir('page')} onGrupo={() => crear.abrir('group')} />
+                                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+                                    {barra}
+                                    {visibles.length === 0 ? sinResultados : (
+                                        <ul className="grid min-h-0 flex-1 gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Entidades">
+                                            {visibles.slice(0, cols).map((p) => <li key={p.e.id} className="min-h-0"><TarjetaEntidad p={p} acento={t.acento} tactil={t.tactil} accion={accion(p, t)} altoPortada={Math.max(56, Math.min(110, t.alto * 0.28))} /></li>)}
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    }
+                    if (t.base === 'xl') {
+                        const cols = columnasQueCaben(t.ancho, 190, 2, 4);
+                        const filas = Math.max(1, Math.floor((t.alto - 50) / 230));
+                        return (
+                            <div className="flex h-full min-h-0 flex-col gap-2.5">
+                                {barra}
+                                {visibles.length === 0 ? sinResultados : (
+                                    <ul className="grid min-h-0 flex-1 auto-rows-fr gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Entidades">
+                                        {visibles.slice(0, cols * filas).map((p) => <li key={p.e.id} className="min-h-0"><TarjetaEntidad p={p} acento={t.acento} tactil={t.tactil} accion={accion(p, t)} /></li>)}
+                                    </ul>
+                                )}
+                            </div>
+                        );
+                    }
+                    const conBarra = t.base === 'l';
+                    const max = filasQueCaben(t.alto - (conBarra ? 44 : 0), t.tactil ? 58 : 50, 2, 9);
+                    return (
+                        <div className="flex h-full min-h-0 flex-col gap-2">
+                            {conBarra && barra}
+                            {visibles.length === 0 ? sinResultados : (
+                                <ul className={cn('flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-0.5 ss-scroll', visibles.length > max && estilos.desvanece)} aria-label="Entidades">
+                                    {(conBarra ? visibles : todas.filter((p) => !mias(p)).concat(todas.filter(mias))).slice(0, max).map((p) => (
+                                        <li key={p.e.id} className={estilos.aparece}><FilaEntidad p={p} acento={t.acento} tactil={t.tactil} derecha={accion(p, t, t.ancho < 330)} /></li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    );
+                }}
+            </MarcoSocial>
+            {crear.dialogo}
+        </>
     );
 }
+
+function Pulso({ t, pulso, ancho, onFundar, onGrupo }: { t: TamanoSocial; pulso: { comunidades: number; grupos: number; nuevas: number; semana: number }; ancho: number; onFundar: () => void; onGrupo: () => void }) {
+    return (
+        <aside className="flex h-full shrink-0 flex-col justify-between gap-3 rounded-[18px] p-3" style={{ width: ancho, background: `radial-gradient(120% 90% at 0% 0%, ${conAlfa(t.acento, 0.2)}, transparent 70%)` }} aria-label="Pulso de la Red">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+                <Cifra valor={formatoNumero(pulso.comunidades)} etiqueta="Páginas" acento={t.acento} />
+                <Cifra valor={formatoNumero(pulso.grupos)} etiqueta="Grupos" acento={t.acento} />
+                <Cifra valor={formatoNumero(pulso.nuevas)} etiqueta="Nuevas (14 d)" />
+                <Cifra valor={formatoNumero(pulso.semana)} etiqueta="Publ. semana" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+                <Pastilla acento={t.acento} icono={Plus} onClick={onFundar} solida tactil={t.tactil}>Fundar comunidad</Pastilla>
+                <Pastilla acento={t.acento} icono={Users} onClick={onGrupo} tactil={t.tactil}>Crear grupo</Pastilla>
+            </div>
+        </aside>
+    );
+}
+
+export default ExploreNetworkWidget;
