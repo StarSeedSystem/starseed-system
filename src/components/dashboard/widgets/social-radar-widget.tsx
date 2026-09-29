@@ -4,7 +4,7 @@
 // SocialRadarWidget — lo que se acerca en la Red, en un radar (Ola 0929 · D)
 // ----------------------------------------------------------------
 // Solo eventos REALES del OS (`os_events` vía `useOsEvents` + el filtro
-// `realEventsOnly`): si el hook sirve su relleno de ejemplo, el widget se
+// `realEventsOnly`): si el hook sirve su relleno de muestra, el widget se
 // queda en el vacío honesto. El radar no inventa posiciones: la distancia al
 // centro es el TIEMPO que falta (anillos: hoy · 7 días · 30 días) y el
 // sector es el TIPO de evento — se dice en la leyenda. Acciones reales:

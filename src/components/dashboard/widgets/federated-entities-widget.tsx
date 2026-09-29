@@ -5,7 +5,7 @@
 // ----------------------------------------------------------------
 // Entidades federativas REALES: páginas de tipo entidad, página o proyecto
 // (`os_pages`), con su actividad medida de la semana (`os_posts`) y el
-// porqué de su orden. Sin E.F. de ejemplo: lo que no está en la base no se
+// porqué de su orden. Sin E.F. de relleno: lo que no está en la base no se
 // enseña. Acciones reales: seguir (`os_follows`), invitar, abrir (las E.F.
 // en /entidad/<slug>) y registrar una nueva con el diálogo real.
 // Hooks compartidos de os-live.
