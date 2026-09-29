@@ -19,6 +19,7 @@ import { EnMarco, MEDIDAS } from "../_catalogo/prueba-marco";
 import { FlowDirectorWidget } from "../flow-director-widget";
 import { ProjectSwarmWidget } from "../project-swarm-widget";
 import { IdeaForgeWidget } from "../idea-forge-widget";
+import { CryptoShieldWidget } from "../crypto-shield-widget";
 import { QUICK_NOTES_KEY } from "@/lib/notes/quick-notes";
 import { QUICK_TASKS_KEY } from "@/lib/tasks/quick-tasks";
 import { CLAVE_SESION } from "../flow-director-partes";
@@ -166,5 +167,32 @@ describe("Incubadora de Quimeras", () => {
             distinta = screen.getByRole("region").getAttribute("aria-label") !== antes;
         }
         expect(distinta).toBe(true);
+    });
+});
+
+describe("Escudo Ontológico", () => {
+    it.each(["micro", "s", "m", "l", "xl", "panoramico", "torre"] as ClaseTamano[])("se pinta en %s con su puntuación", async (clase) => {
+        pintar(<CryptoShieldWidget />, clase);
+        expect(await screen.findByRole("region", { name: /Escudo de este dispositivo: \d+ de \d+/ })).toBeTruthy();
+    });
+    it("sin bloqueo lo marca como fallo con la acción que lo arregla", async () => {
+        pintar(<CryptoShieldWidget />, "xl");
+        await screen.findByText("Sin bloqueo en este dispositivo");
+        expect(screen.getByRole("link", { name: /Poner bloqueo: Sin bloqueo/ }).getAttribute("href")).toBe("/cuenta?section=seguridad");
+    });
+    it("con PIN y 10 min de inactividad lo da por bueno", async () => {
+        localStorage.setItem("starseed.device.id", "neu-prueba");
+        localStorage.setItem("starseed.bloqueo.v1", JSON.stringify({ "neu-prueba": { metodo: "pin", alAbrir: true, minutosInactividad: 10, secreto: { metodo: "pin" }, v: 1 } }));
+        pintar(<CryptoShieldWidget />, "xl");
+        expect(await screen.findByText("Bloqueo con PIN")).toBeTruthy();
+        expect(screen.getByText("Se bloquea tras 10 min")).toBeTruthy();
+    });
+    it("escanea en local y encuentra un secreto a la vista sin tocar las bóvedas", async () => {
+        localStorage.setItem("starseed.api.token", "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD");
+        localStorage.setItem("starseed.ai.providers", JSON.stringify({ openai: "sk-proj-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" }));
+        pintar(<CryptoShieldWidget />, "xl");
+        fireEvent.click(await screen.findByRole("button", { name: /Escanear: Secretos a la vista/ }));
+        expect(screen.getByText(/posibles? secretos? a la vista/)).toBeTruthy();
+        expect(screen.getByRole("link", { name: /Revisar:/ }).getAttribute("href")).toBe("/seguridad");
     });
 });
