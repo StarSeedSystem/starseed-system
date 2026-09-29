@@ -20,7 +20,7 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...r }: any) => <a hre
 vi.mock("@/modules/weather/context/weather-location-context", () => ({
     useWeatherLocationOpcional: () => ({ location: { lat: 40.4168, lon: -3.7038, name: "Madrid", timezone: "Europe/Madrid" } }),
 }));
-const buscarLugares = vi.fn(async () => [{ name: "Sevilla", country: "España", lat: 37.39, lon: -5.99, timezone: "Europe/Madrid" }]);
+const buscarLugares = vi.fn(async (_q: string, _n: number) => [{ name: "Sevilla", country: "España", lat: 37.39, lon: -5.99, timezone: "Europe/Madrid" }]);
 vi.mock("@/lib/geocoding", () => ({ searchPlaces: (q: string, n: number) => buscarLugares(q, n) }));
 
 import { ContextoMarco } from "@/components/dashboard/kit/contexto-marco";
