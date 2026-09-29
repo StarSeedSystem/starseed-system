@@ -1,246 +1,139 @@
 'use client';
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
-import { fetchWeatherData } from '@/lib/weather-mock';
-import { Card } from "@/components/ui/card";
-import {
-    Droplet, Umbrella, Waves, CloudRain, Activity,
-    Thermometer, ShieldCheck, Info, Droplets, Zap, Filter
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
-
 /**
- * WeatherHumidityWidget - Liquid Crystal Hyper-Optimized
- * 
- * Features:
- * - Osmotic Purity HUD (Molecular Hydration)
- * - Kinetic Vapor Aura (Rising bio-particles)
- * - Hydro-Stability Matrix (Dew Point & Comfort)
- * - 12h Aqueous Saturation Forecast
+ * Humedad (WEATHER_HUMIDITY) — Ola 0929 · paquete A.
+ * Real (Open-Meteo). Foco: una gota que se llena hasta la humedad relativa, con la superficie
+ * ondeando. El punto de rocío dice cómo se SIENTE el aire (seco, cómodo, bochornoso…), que es lo
+ * que la humedad sola no cuenta.
+ *   micro → % · s → gota + rocío · m → + confort y próximas horas · l → + barras de 24 h,
+ *   visibilidad y lluvia · xl → + lluvia por días · panorámico/torre → composiciones propias.
  */
-export function WeatherHumidityWidget() {
-    const { location } = useWeatherLocation();
-    const [data, setData] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+import * as React from 'react';
+import { Droplets } from 'lucide-react';
+import { confortRocio } from '@/modules/weather/datos/interpretar';
+import { BarrasHoras, grados } from '../_clima/graficas';
+import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
+import { estilosClima as s } from '../_clima/piezas';
 
-    useEffect(() => {
-        let mounted = true;
-        setLoading(true);
-        fetchWeatherData(location.lat, location.lon)
-            .then(json => {
-                if (mounted && json.terrestrial?.current) {
-                    setData(json.terrestrial);
-                    setLoading(false);
-                }
-            })
-            .catch(err => {
-                console.error("Error fetching water data:", err);
-                if (mounted) setLoading(false);
-            });
-        return () => { mounted = false; };
-    }, [location.lat, location.lon]);
+const COLOR = '#60a5fa';
 
-    const humidity = data?.current?.relative_humidity_2m || 65;
-    const precipProb = data?.hourly?.precipitation_probability?.[0] || 12;
-    const dewPoint = (data?.current?.dew_point_2m || 14.2).toFixed(1);
-
-    const hourlyHumidity = data?.hourly?.relative_humidity_2m?.slice(0, 12) || Array(12).fill(65);
-    const maxHumid = Math.max(...hourlyHumidity, 100);
-
-    const humidityState = useMemo(() => {
-        if (humidity < 30) return { id: 'arid', label: 'Arid', color: 'text-orange-400', tone: '#f97316', status: 'HYPO-HYDRATION' };
-        if (humidity < 60) return { id: 'optimal', label: 'Optimal', color: 'text-emerald-400', tone: '#10b981', status: 'HOMEOSTASIS' };
-        return { id: 'saturated', label: 'Saturated', color: 'text-cyan-400', tone: '#06b6d4', status: 'HYPER-AQUEOUS' };
-    }, [humidity]);
-
+function Gota({ humedad, lado, id }: { humedad: number | null; lado: number; id: string }) {
+    const nivel = humedad === null ? 0 : Math.max(0, Math.min(100, humedad));
+    const y = 92 - (nivel / 100) * 70;
     return (
-        <Card className="@container relative overflow-hidden w-full h-full min-h-[450px] bg-[#020508] border border-white/10 group rounded-[2.5rem] shadow-2xl transition-all duration-700 hover:border-cyan-500/30">
-
-            {/* Liquid Crystal Overlay */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className={cn(
-                    "absolute inset-0 transition-opacity duration-1000",
-                    humidity > 60 ? "opacity-20 bg-[radial-gradient(circle_at_50%_0%,#06b6d422,transparent_70%)]" : "opacity-10 bg-[radial-gradient(circle_at_50%_0%,#10b98111,transparent_70%)]"
-                )} />
-
-                {/* Kinetic Vapor Particles */}
-                {[...Array(15)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ y: "110%", opacity: 0, scale: 0.5 }}
-                        animate={{
-                            y: "-10%",
-                            opacity: [0, 0.4, 0],
-                            scale: [0.5, 1.2, 0.5],
-                        }}
-                        transition={{
-                            duration: 5 + Math.random() * 8,
-                            repeat: Infinity,
-                            ease: "easeInOut",
-                            delay: Math.random() * 5
-                        }}
-                        className={cn("absolute w-1 h-1 rounded-full blur-[2px]", humidityState.color)}
-                        style={{
-                            left: `${Math.random() * 100}%`,
-                            backgroundColor: humidityState.tone
-                        }}
-                    />
-                ))}
+        <div className="relative shrink-0" style={{ width: lado * 0.8, height: lado }} role="img" aria-label={humedad === null ? 'Sin dato de humedad' : `Humedad ${Math.round(nivel)} %`}>
+            <svg viewBox="0 0 80 100" className="absolute inset-0 h-full w-full" aria-hidden>
+                <defs>
+                    <clipPath id={`gc-${id}`}><path d="M40 4 C 40 4, 72 44, 72 64 A 32 32 0 0 1 8 64 C 8 44, 40 4, 40 4 Z" /></clipPath>
+                    <linearGradient id={`gg-${id}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#7dd3fc" /><stop offset="100%" stopColor="#2563eb" />
+                    </linearGradient>
+                </defs>
+                <path d="M40 4 C 40 4, 72 44, 72 64 A 32 32 0 0 1 8 64 C 8 44, 40 4, 40 4 Z" fill="#ffffff" fillOpacity={0.05} stroke="#ffffff" strokeOpacity={0.25} strokeWidth={1.2} />
+                <g clipPath={`url(#gc-${id})`}>
+                    <g className={s.ola} style={{ ['--dur' as string]: '6s' }}>
+                        <path d={`M0 ${y} Q10 ${y - 3} 20 ${y} T40 ${y} T60 ${y} T80 ${y} T100 ${y} T120 ${y} T140 ${y} T160 ${y} V100 H0 Z`} fill={`url(#gg-${id})`} opacity={0.9} />
+                    </g>
+                </g>
+                <ellipse cx={28} cy={46} rx={4} ry={9} fill="#fff" opacity={0.18} transform="rotate(20 28 46)" />
+            </svg>
+            <div className="absolute inset-x-0 bottom-[16%] flex justify-center">
+                <span className={`${s.cifra} font-light leading-none text-white`} style={{ fontSize: lado * 0.22 }}>{humedad === null ? '—' : `${Math.round(nivel)}%`}</span>
             </div>
-
-            {/* Content Interface */}
-            <div className="relative z-10 h-full p-6 flex flex-col">
-
-                {/* Header HUD */}
-                <div className="flex justify-between items-start mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className={cn(
-                            "size-11 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center transition-all duration-500 shadow-xl",
-                            "group-hover:border-cyan-500/40 text-cyan-400"
-                        )}>
-                            <Droplets className="size-5" />
-                        </div>
-                        <div className="flex flex-col">
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 leading-none mb-1">Osmotic.Purity.v2</h2>
-                            <span className="text-sm font-bold tracking-tight text-white flex items-center gap-2 uppercase">
-                                Aqueous Core Node
-                                <div className={cn("size-1 rounded-full", humidity > 80 ? "bg-cyan-500 animate-pulse" : "bg-emerald-500")} />
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] backdrop-blur-md text-[9px] font-black tracking-widest text-white/40 flex items-center gap-2">
-                        <Waves className="size-3 text-cyan-500 opacity-50" />
-                        STABILITY: NOMINAL
-                    </div>
-                </div>
-
-                {/* Main Humidity HUD */}
-                <div className="flex-1 flex flex-col items-center justify-center relative py-4">
-                    <div className="relative group/main">
-                        {/* Osmotic HUD Rings */}
-                        <div className="relative size-60 @md:size-72 flex items-center justify-center">
-                            <svg className="absolute inset-0 size-full -rotate-90">
-                                <circle cx="50%" cy="50%" r="48%" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                                <motion.circle
-                                    cx="50%" cy="50%" r="48%"
-                                    fill="none"
-                                    stroke={humidityState.tone}
-                                    strokeWidth="2"
-                                    strokeDasharray="1 8"
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-                                    className="opacity-30"
-                                />
-                                <motion.circle
-                                    cx="50%" cy="50%" r="44%"
-                                    fill="none"
-                                    stroke={humidityState.tone}
-                                    strokeWidth="8"
-                                    strokeDasharray="276.46"
-                                    initial={{ strokeDashoffset: 276.46 }}
-                                    animate={{ strokeDashoffset: 276.46 * (1 - humidity / 100) }}
-                                    transition={{ duration: 2, ease: "circOut" }}
-                                    strokeLinecap="round"
-                                    style={{ filter: `drop-shadow(0 0 12px ${humidityState.tone}44)` }}
-                                />
-                            </svg>
-
-                            {/* Center Value */}
-                            <div className="flex flex-col items-center">
-                                <motion.div
-                                    key={humidity}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className={cn("text-[80px] @md:text-[100px] font-black leading-none tracking-tighter text-white", humidityState.color)}
-                                >
-                                    {humidity}<span className="text-3xl text-white/20">%</span>
-                                </motion.div>
-                                <span className="text-[10px] font-black tracking-[0.4em] uppercase text-white/40 -mt-1">Saturation</span>
-
-                                <div className={cn(
-                                    "mt-4 px-3 py-1 rounded-full border text-[9px] font-black tracking-widest uppercase",
-                                    "bg-white/5 border-white/10 text-white/60"
-                                )}>
-                                    {humidityState.status}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Hydro-Stability Matrix */}
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                    <div className="p-4 rounded-[2rem] bg-white/[0.03] border border-white/5 flex flex-col gap-3 group/metric hover:bg-white/[0.07] transition-all">
-                        <div className="flex items-center gap-2">
-                            <Thermometer className="size-3 text-emerald-400 opacity-60" />
-                            <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">Dew_Point</span>
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black text-white">{dewPoint}°</span>
-                            <span className="text-[10px] font-bold text-white/20 uppercase tracking-tighter">CELSIUS</span>
-                        </div>
-                        <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${(parseFloat(dewPoint) / 40) * 100}%` }}
-                                className="h-full bg-emerald-500"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="p-4 rounded-[2rem] bg-white/[0.03] border border-white/5 flex flex-col gap-3 group/metric hover:bg-white/[0.07] transition-all">
-                        <div className="flex items-center gap-2">
-                            <Umbrella className="size-3 text-cyan-400 opacity-60" />
-                            <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">Precip_Prob</span>
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black text-white">{precipProb}%</span>
-                            <span className="text-[10px] font-bold text-white/20 uppercase tracking-tighter">POTENTIAL</span>
-                        </div>
-                        <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${precipProb}%` }}
-                                className="h-full bg-cyan-500"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Aqueous Forecast Cluster */}
-                <div className="mt-4 p-4 rounded-[2rem] bg-white/[0.02] border border-white/5 flex flex-col gap-3">
-                    <div className="flex justify-between items-center px-1">
-                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em]">Saturation Flux</span>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[7px] font-black text-cyan-500/60 uppercase tracking-widest">Aqueous Forecast</span>
-                            <div className="size-1.5 rounded-full bg-cyan-500/30 animate-pulse" />
-                        </div>
-                    </div>
-                    <div className="h-10 flex items-end gap-1.5 px-1">
-                        {hourlyHumidity.map((val: number, i: number) => (
-                            <motion.div
-                                key={i}
-                                initial={{ scaleY: 0 }}
-                                animate={{ scaleY: val / 100 }}
-                                className={cn(
-                                    "flex-1 h-full rounded-t-sm origin-bottom",
-                                    val > 70 ? "bg-cyan-500/40" : "bg-white/10"
-                                )}
-                            />
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Scanning Laser Overlay */}
-            <motion.div
-                animate={{ top: ['-10%', '110%'] }}
-                transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-[#06f9c8]/30 to-transparent z-50 pointer-events-none shadow-[0_0_15px_#06f9c844]"
-            />
-        </Card>
+        </div>
     );
 }
+
+function Cuerpo({ info, a, c, d, prox, id, cabecera, sello }: CtxMagnitud) {
+    const { base, clase } = info;
+    const u = d.u;
+    const conf = confortRocio(a.rocio);
+    const lado = Math.max(84, Math.min(info.ancho || 200, info.alto || 200) * (base === 's' ? 0.74 : 0.55));
+    const vis = a.visibilidad === null ? '—' : a.visibilidad >= 10_000 ? `${Math.round(a.visibilidad / 1000)} km` : `${(a.visibilidad / 1000).toFixed(1).replace('.', ',')} km`;
+    const lluviaProx = prox.slice(1, 13).find((h) => (h.probLluvia ?? 0) >= 50);
+    const filas = [
+        { t: 'Punto de rocío', v: grados(a.rocio, u), n: conf?.texto, color: conf?.color },
+        { t: 'Visibilidad', v: vis },
+        { t: 'Lluvia', v: lluviaProx ? `${Math.round(lluviaProx.probLluvia as number)} %` : 'no prevista', n: lluviaProx ? `a las ${d.fmt.hora(lluviaProx.t)}` : 'en 12 h' },
+    ];
+    const barras = (n: number) => (
+        <BarrasHoras horas={prox.slice(0, n)} valor={(h) => h.humedad} color={() => COLOR} hora={d.fmt.hora} formato={(v) => `${Math.round(v)} %`} maximo={100} etiqueta={`Humedad de las próximas ${n} horas`} />
+    );
+
+    if (base === 'micro') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-0.5" role="img" aria-label={`Humedad ${a.humedad === null ? 'sin dato' : `${Math.round(a.humedad)} %`}`}>
+                <Droplets aria-hidden className="size-5" style={{ color: COLOR }} />
+                <span className={`${s.cifra} text-[24px] font-light leading-none`}>{a.humedad === null ? '—' : `${Math.round(a.humedad)}%`}</span>
+            </div>
+        );
+    }
+    if (base === 's') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-1 p-2">
+                <Gota humedad={a.humedad} lado={lado} id={id} />
+                <span className="truncate text-[11px] text-white/75" title={conf?.texto}>Rocío {grados(a.rocio, u)}{conf ? ` · ${conf.texto}` : ''}</span>
+            </div>
+        );
+    }
+    if (clase === 'panoramico') {
+        return (
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(9rem,auto) minmax(0,1fr)' }}>
+                <Gota humedad={a.humedad} lado={Math.min(118, (info.alto || 130) - 16)} id={id} />
+                <div className="min-w-0 space-y-1">{cabecera('Humedad')}<Datos columnas={1} filas={filas.slice(0, 2)} /></div>
+                {barras(12)}
+            </div>
+        );
+    }
+    if (clase === 'torre') {
+        return (
+            <div className="flex h-full flex-col gap-3 p-3.5">
+                {cabecera('Humedad')}
+                <div className="flex justify-center"><Gota humedad={a.humedad} lado={Math.min(160, (info.ancho || 160) - 20)} id={id} /></div>
+                <Datos columnas={1} filas={filas} />
+                <div className="mt-auto">{barras(8)}</div>
+                {sello}
+            </div>
+        );
+    }
+    if (base === 'm') {
+        return (
+            <div className="flex h-full flex-col gap-2 p-3.5">
+                {cabecera('Humedad')}
+                <div className="flex min-h-0 flex-1 items-center gap-3">
+                    <Gota humedad={a.humedad} lado={Math.min(118, lado)} id={id} />
+                    <div className="min-w-0 flex-1"><Datos columnas={1} filas={filas.slice(0, 2)} /></div>
+                </div>
+                {barras(8)}
+            </div>
+        );
+    }
+    const dias = c.dias.slice(0, base === 'xl' ? 5 : 3);
+    return (
+        <div className="flex h-full flex-col gap-3 p-4">
+            {cabecera('Humedad')}
+            <div className="flex items-center gap-4">
+                <Gota humedad={a.humedad} lado={base === 'xl' ? 170 : 130} id={id} />
+                <div className="min-w-0 flex-1 space-y-2">
+                    <Datos columnas={1} filas={filas} />
+                </div>
+            </div>
+            {barras(24)}
+            <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0,1fr))` }} aria-label="Lluvia por día">
+                {dias.map((dd, i) => (
+                    <li key={dd.t} className="min-w-0 rounded-xl bg-white/[0.05] px-2 py-1.5 text-center">
+                        <span className="block truncate text-[11px] capitalize text-white/65">{i === 0 ? 'Hoy' : d.fmt.dia(dd.t)}</span>
+                        <span className={`${s.cifra} block text-[15px] font-semibold text-sky-300`}>{dd.probLluvia === null ? '—' : `${Math.round(dd.probLluvia)}%`}</span>
+                        <span className="block truncate text-[10px] text-white/50">{dd.lluviaMm === null ? '' : `${dd.lluviaMm.toFixed(1).replace('.', ',')} mm`}</span>
+                    </li>
+                ))}
+            </ul>
+            <div className="mt-auto">{sello}</div>
+        </div>
+    );
+}
+
+export function WeatherHumidityWidget() {
+    return <WidgetMagnitud etiqueta="Humedad" acento={COLOR} acento2="#22d3ee" icono={Droplets} render={Cuerpo} />;
+}
+
+export default WeatherHumidityWidget;

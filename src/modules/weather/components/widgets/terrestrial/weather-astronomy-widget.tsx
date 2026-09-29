@@ -1,237 +1,192 @@
 'use client';
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
-import { fetchWeatherData } from '@/lib/weather-mock';
-import { Card } from "@/components/ui/card";
-import {
-    MoonStar, Compass, ExternalLink, Sun, Stars,
-    Orbit, Sunrise, Sunset, Sparkles, Navigation,
-    Milestone, Telescope, Map, MoveUpRight, Zap, Globe
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
-
 /**
- * WeatherAstronomyWidget - Liquid Crystal Hyper-Optimized
- * 
- * Features:
- * - Celestial Mechanics HUD (3D Moon Reconstruction)
- * - Kinetic Starfield Alpha (Parallax simulation)
- * - Zenith & Nadir Vector Tracking
- * - Solar/Lunar Flux Projection
+ * Sol y Luna (WEATHER_ASTRONOMY) — Ola 0929 · paquete A.
+ * El cielo REAL de tu sitio, calculado en el propio dispositivo (src/lib/astro/cielo.ts, sin
+ * red): el Sol recorriendo su arco entre el orto y el ocaso, la Luna con su fase e iluminación,
+ * cuánta luz gana o pierde el día, la hora dorada, los signos del Sol y la Luna y las próximas
+ * luna llena y nueva. Cero peticiones: solo necesita la ubicación.
+ *   micro → Luna + % · s → Luna + orto/ocaso · m → arco del Sol + Luna · l → + hora dorada,
+ *   signos y próximas fases · xl → + las lunas de las dos próximas semanas
+ *   panorámico → arco | Luna | datos · torre → en columna.
  */
-export function WeatherAstronomyWidget() {
-    const { location } = useWeatherLocation();
-    const [data, setData] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+import * as React from 'react';
+import { MoonStar } from 'lucide-react';
+import { alturaSol, COLOR_ELEMENTO, faseLunar, horasDelSol, proximaFase, proximoCambioDeSigno, signosDelCielo } from '@/lib/astro/cielo';
+import { formateadores, useReloj, useUbicacionClima } from '@/modules/weather/datos/hooks';
+import { LunaFase } from '../_clima/cielo';
+import { ArcoSolar } from '../_clima/graficas';
+import { LugarClima, MarcoClima, MenuClima, RotuloClima, SinUbicacion, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 
-    useEffect(() => {
-        let mounted = true;
-        setLoading(true);
-        fetchWeatherData(location.lat, location.lon)
-            .then(json => {
-                if (mounted && json.astronomical) {
-                    setData(json.astronomical);
-                    setLoading(false);
-                }
-            })
-            .catch(err => {
-                console.error("Error fetching astronomy data:", err);
-                if (mounted) setLoading(false);
-            });
-        return () => { mounted = false; };
-    }, [location.lat, location.lon]);
+/** Horas doradas del día: el Sol entre −4° y 6° (mañana y tarde), por barrido de 5 min. */
+export function horasDoradas(dia: Date, lat: number, lon: number): { manana: [number, number] | null; tarde: [number, number] | null } {
+    const sol = horasDelSol(dia, lat, lon);
+    if (!sol.orto || !sol.ocaso) return { manana: null, tarde: null };
+    const tramo = (desde: number, hasta: number, paso: number) => {
+        let ini: number | null = null, fin: number | null = null;
+        for (let t = desde; paso > 0 ? t <= hasta : t >= hasta; t += paso) {
+            const h = alturaSol(new Date(t), lat, lon);
+            if (h >= -4 && h <= 6) { if (ini === null) ini = t; fin = t; } else if (ini !== null) break;
+        }
+        return ini !== null && fin !== null ? ([Math.min(ini, fin), Math.max(ini, fin)] as [number, number]) : null;
+    };
+    const o = sol.orto.getTime(), c = sol.ocaso.getTime();
+    return { manana: tramo(o - 3_600_000, o + 3 * 3_600_000, 300_000), tarde: tramo(c + 3_600_000, c - 3 * 3_600_000, -300_000) };
+}
 
-    const moonPhaseRaw = data?.moon_phase || 0.45;
-    const sunrise = data?.sunrise || "06:12";
-    const sunset = data?.sunset || "18:45";
+function duracion(min: number): string {
+    return `${Math.floor(min / 60)} h ${String(Math.round(min % 60)).padStart(2, '0')} min`;
+}
 
-    const moonPhaseInfo = useMemo(() => {
-        if (moonPhaseRaw < 0.05) return { name: "NEW MOON", color: "text-slate-500", tone: "#64748b" };
-        if (moonPhaseRaw < 0.25) return { name: "WAXING CRESCENT", color: "text-indigo-300", tone: "#a5b4fc" };
-        if (moonPhaseRaw < 0.45) return { name: "FIRST QUARTER", color: "text-indigo-400", tone: "#818cf8" };
-        if (moonPhaseRaw < 0.65) return { name: "FULL MOON", color: "text-white", tone: "#ffffff" };
-        return { name: "WANING GIBBOUS", color: "text-indigo-400", tone: "#818cf8" };
-    }, [moonPhaseRaw]);
+function Contenido({ info }: { info: InfoMarco }) {
+    const { ubicacion } = useUbicacionClima();
+    const ahora = useReloj(60_000);
+    const id = React.useId().replace(/:/g, '');
+    const fmt = React.useMemo(() => formateadores(ubicacion?.zona), [ubicacion?.zona]);
+    const hora = Math.floor((ahora ?? 0) / 3_600_000);
+    const cielo = React.useMemo(() => {
+        if (!ahora || !ubicacion) return null;
+        const f = new Date(ahora);
+        const sol = horasDelSol(f, ubicacion.lat, ubicacion.lon);
+        const ayer = horasDelSol(new Date(ahora - 86_400_000), ubicacion.lat, ubicacion.lon);
+        const luz = sol.orto && sol.ocaso ? (sol.ocaso.getTime() - sol.orto.getTime()) / 60_000 : null;
+        const luzAyer = ayer.orto && ayer.ocaso ? (ayer.ocaso.getTime() - ayer.orto.getTime()) / 60_000 : null;
+        return {
+            sol, luz, cambio: luz !== null && luzAyer !== null ? Math.round(luz - luzAyer) : null,
+            fase: faseLunar(f), signos: signosDelCielo(f), altura: alturaSol(f, ubicacion.lat, ubicacion.lon),
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [Math.floor((ahora ?? 0) / 60_000), ubicacion?.lat, ubicacion?.lon]);
+    const lento = React.useMemo(() => {
+        if (!ahora || !ubicacion) return null;
+        const f = new Date(hora * 3_600_000);
+        return {
+            llena: proximaFase(f, 'llena'), nueva: proximaFase(f, 'nueva'), signo: proximoCambioDeSigno(f),
+            doradas: horasDoradas(new Date(ahora), ubicacion.lat, ubicacion.lon),
+            lunas: Array.from({ length: 14 }, (_, i) => ({ t: ahora + i * 86_400_000, f: faseLunar(new Date(ahora + i * 86_400_000)) })),
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hora, ubicacion?.lat, ubicacion?.lon]);
 
+    if (!ubicacion) return <SinUbicacion info={info} />;
+    if (!ahora || !cielo || !lento) return <div role="status" className="grid h-full place-items-center text-[12px] text-white/60">Calculando el cielo…</div>;
+
+    const { base, clase } = info;
+    const orto = cielo.sol.orto?.getTime() ?? null, ocaso = cielo.sol.ocaso?.getTime() ?? null;
+    const pct = Math.round(cielo.fase.iluminada * 100);
+    const falta = (t: Date) => { const h = Math.round((t.getTime() - ahora) / 3_600_000); return h >= 36 ? `en ${Math.round(h / 24)} días` : `en ${Math.max(0, h)} h`; };
+    const cambioTxt = cielo.cambio === null || cielo.cambio === 0 ? null : `${cielo.cambio > 0 ? '+' : '−'}${Math.abs(cielo.cambio)} min que ayer`;
+    const luna = (r: number) => (
+        <svg viewBox={`${-r * 1.4} ${-r * 1.4} ${r * 2.8} ${r * 2.8}`} width={r * 2.8} height={r * 2.8} className="shrink-0 overflow-visible" role="img" aria-label={`${cielo.fase.nombre}, iluminada al ${pct} %`}>
+            <LunaFase r={r} fase={cielo.fase} id={`${id}m${r}`} />
+        </svg>
+    );
+    const menu = <MenuClima info={info} conUnidades={false} ruta="/atmosphere" rutaEtiqueta="Abrir el cielo y el clima espacial" />;
+    const cabecera = (
+        <div className="flex min-w-0 items-center gap-2">
+            <MoonStar aria-hidden className="size-4 shrink-0" style={{ color: info.acento }} />
+            <div className="min-w-0 flex-1"><RotuloClima>Sol y Luna</RotuloClima>{base !== 's' && <LugarClima nombre={ubicacion.nombre} elegida={ubicacion.elegida} className="text-[11px]" />}</div>
+            {menu}
+        </div>
+    );
+    const ortoOcaso = (
+        <p className={`${s.cifra} text-[12px] text-white/80`} aria-label={orto && ocaso ? `Sale el sol a las ${fmt.hora(orto)} y se pone a las ${fmt.hora(ocaso)}` : 'Sin orto ni ocaso hoy'}>
+            {orto && ocaso ? <>Sale el sol <b className="font-semibold text-amber-200">{fmt.hora(orto)}</b> · se pone <b className="font-semibold text-rose-200">{fmt.hora(ocaso)}</b></> : cielo.altura > 0 ? 'Sol de medianoche' : 'Noche polar'}
+        </p>
+    );
+    const datoLuz = cielo.luz !== null && (
+        <p className="text-[12px] text-white/75"><span className={`${s.cifra} font-semibold text-white`}>{duracion(cielo.luz)}</span> de luz{cambioTxt && <span className="text-white/55"> · {cambioTxt}</span>}</p>
+    );
+    const faseTxt = <p className="text-[12px]"><span className="font-semibold">{cielo.fase.nombre}</span> <span className={`${s.cifra} text-white/60`}>{pct} %</span></p>;
+    const signos = (
+        <p className="text-[12px] text-white/75">
+            Sol en <b className="font-semibold" style={{ color: COLOR_ELEMENTO[cielo.signos.sol.elemento] }}>{cielo.signos.sol.nombre}</b> · Luna en <b className="font-semibold" style={{ color: COLOR_ELEMENTO[cielo.signos.luna.elemento] }}>{cielo.signos.luna.nombre}</b>
+        </p>
+    );
+    const proximas = (
+        <ul className="grid grid-cols-2 gap-2 text-[12px]" aria-label="Próximas fases">
+            <li className="rounded-xl bg-white/[0.05] px-2.5 py-1.5"><span className="block text-[10px] uppercase tracking-[0.12em] text-white/50">Luna llena</span><span className={s.cifra}>{fmt.diaLargo(lento.llena.getTime())}</span> <span className="text-white/55">{falta(lento.llena)}</span></li>
+            <li className="rounded-xl bg-white/[0.05] px-2.5 py-1.5"><span className="block text-[10px] uppercase tracking-[0.12em] text-white/50">Luna nueva</span><span className={s.cifra}>{fmt.diaLargo(lento.nueva.getTime())}</span> <span className="text-white/55">{falta(lento.nueva)}</span></li>
+        </ul>
+    );
+    const doradas = (lento.doradas.manana || lento.doradas.tarde) && (
+        <p className="text-[12px] text-white/75">Hora dorada {lento.doradas.manana && <span className={`${s.cifra} text-amber-200`}>{fmt.hora(lento.doradas.manana[0])}–{fmt.hora(lento.doradas.manana[1])}</span>}{lento.doradas.manana && lento.doradas.tarde && ' y '}{lento.doradas.tarde && <span className={`${s.cifra} text-amber-200`}>{fmt.hora(lento.doradas.tarde[0])}–{fmt.hora(lento.doradas.tarde[1])}</span>}</p>
+    );
+
+    if (base === 'micro') {
+        return <div className="flex h-full flex-col items-center justify-center gap-0.5">{luna(16)}<span className={`${s.cifra} text-[12px] text-white/80`}>{pct}%</span></div>;
+    }
+    if (base === 's') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-1.5 p-2 text-center">
+                {luna(Math.max(16, Math.min(30, (Math.min(info.ancho || 150, info.alto || 150) - 70) / 3)))}
+                {faseTxt}
+                <p className={`${s.cifra} text-[11px] text-white/70`}>{orto ? fmt.hora(orto) : '—'} · {ocaso ? fmt.hora(ocaso) : '—'}</p>
+            </div>
+        );
+    }
+    const arco = (alto: number) => <ArcoSolar orto={orto} ocaso={ocaso} ahora={ahora} fase={cielo.fase} hora={fmt.hora} id={id} alto={alto} conLuna={false} />;
+    if (clase === 'panoramico') {
+        return (
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'minmax(8rem,1.2fr) auto minmax(0,1.3fr)' }}>
+                {arco(Math.max(60, (info.alto || 130) - 24))}
+                {luna(Math.min(26, ((info.alto || 130) - 30) / 3))}
+                <div className="min-w-0 space-y-1">{cabecera}{faseTxt}{datoLuz}</div>
+            </div>
+        );
+    }
+    if (clase === 'torre') {
+        return (
+            <div className="flex h-full flex-col gap-3 p-3.5">
+                {cabecera}
+                {arco(90)}
+                {ortoOcaso}{datoLuz}
+                <div className="flex items-center gap-3">{luna(22)}{faseTxt}</div>
+                {signos}{proximas}
+            </div>
+        );
+    }
+    if (base === 'm') {
+        return (
+            <div className="flex h-full flex-col gap-2 p-3.5">
+                {cabecera}
+                <div className="min-h-0 flex-1">{arco(Math.max(64, (info.alto || 240) - 150))}</div>
+                <div className="flex items-center gap-3">
+                    {luna(15)}
+                    <div className="min-w-0 flex-1">{faseTxt}{datoLuz}</div>
+                </div>
+            </div>
+        );
+    }
     return (
-        <Card className="@container relative overflow-hidden w-full h-full min-h-[500px] bg-[#020508] border border-white/10 group rounded-[2.5rem] shadow-2xl transition-all duration-700 hover:border-indigo-500/30">
-
-            {/* Cosmic Background Shell */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,#1e1b4b_0%,transparent_100%)] opacity-40" />
-
-                {/* Kinetic Starfield */}
-                {[...Array(40)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{
-                            opacity: [0.1, 0.8, 0.1],
-                            scale: [0.5, 1.2, 0.5],
-                        }}
-                        transition={{
-                            duration: 2 + Math.random() * 5,
-                            repeat: Infinity,
-                            delay: Math.random() * 10
-                        }}
-                        className="absolute size-1 bg-white rounded-full blur-[0.5px]"
-                        style={{
-                            top: `${Math.random() * 100}%`,
-                            left: `${Math.random() * 100}%`,
-                            opacity: 0.1 + Math.random() * 0.5
-                        }}
-                    />
-                ))}
-
-                {/* Nebula Pulse */}
-                <motion.div
-                    animate={{
-                        opacity: [0.05, 0.15, 0.05],
-                        scale: [1, 1.2, 1]
-                    }}
-                    transition={{ duration: 20, repeat: Infinity }}
-                    className="absolute inset-x-0 -top-1/2 h-full bg-indigo-500/20 blur-[150px] rounded-full"
-                />
+        <div className="flex h-full flex-col gap-3 p-4">
+            {cabecera}
+            <div className="grid items-center gap-3" style={{ gridTemplateColumns: 'minmax(0,1.5fr) auto' }}>
+                {arco(base === 'xl' ? 120 : 96)}
+                {luna(base === 'xl' ? 30 : 22)}
             </div>
-
-            {/* Content Interface */}
-            <div className="relative z-10 h-full p-6 flex flex-col">
-
-                {/* Header HUD */}
-                <div className="flex justify-between items-start mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className={cn(
-                            "size-11 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center transition-all duration-500 shadow-xl",
-                            "group-hover:border-indigo-500/40 text-indigo-400"
-                        )}>
-                            <Orbit className="size-5" />
-                        </div>
-                        <div className="flex flex-col">
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 leading-none mb-1">Celestial.Mechanics.v1</h2>
-                            <span className="text-sm font-bold tracking-tight text-white flex items-center gap-2 uppercase">
-                                Astra Telemetry Node
-                                <div className="size-1 rounded-full bg-indigo-500 animate-pulse" />
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] backdrop-blur-md text-[9px] font-black tracking-widest text-white/40 flex items-center gap-2">
-                        <Compass className="size-3 text-indigo-400 opacity-50" />
-                        ZENITH: 42.1°
-                    </div>
-                </div>
-
-                {/* Celestial Body HUD - 3D Moon Simulation */}
-                <div className="flex-1 flex flex-col items-center justify-center relative py-8">
-                    <div className="relative group/celestial">
-                        {/* Orbital HUD Rings */}
-                        <div className="relative size-64 @md:size-80 flex items-center justify-center">
-                            {/* Rotation Indicator */}
-                            <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-                                className="absolute inset-0 border border-white/5 rounded-full border-dashed opacity-20"
-                            />
-
-                            {/* Moon Body Shell */}
-                            <div className="relative size-48 @md:size-60 rounded-full bg-slate-900 border border-white/10 overflow-hidden shadow-[0_0_80px_rgba(0,0,0,1)] group-hover/celestial:shadow-[0_0_100px_rgba(99,102,241,0.2)] transition-all duration-700">
-                                {/* Surface Detail (Grain) */}
-                                <div className="absolute inset-0 opacity-20 mix-blend-overlay bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
-
-                                {/* Volumetric Lighting */}
-                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.15),transparent_60%)] z-10" />
-
-                                {/* Phase Geometry */}
-                                <motion.div
-                                    className="absolute inset-0 bg-white"
-                                    style={{
-                                        clipPath: moonPhaseRaw <= 0.5
-                                            ? `circle(100% at ${30 + (moonPhaseRaw * 100)}% 50%)`
-                                            : `circle(100% at ${130 - (moonPhaseRaw * 100)}% 50%)`
-                                    }}
-                                    animate={{ opacity: [0.9, 1, 0.9] }}
-                                    transition={{ duration: 4, repeat: Infinity }}
-                                />
-
-                                {/* Crater Shadows */}
-                                <div className="absolute top-1/4 left-1/3 size-12 rounded-full bg-black/40 blur-lg" />
-                                <div className="absolute bottom-1/3 right-1/4 size-16 rounded-full bg-black/30 blur-xl" />
-                            </div>
-
-                            {/* Phase Label HUD */}
-                            <div className="absolute -bottom-4 px-6 py-2 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-3xl flex flex-col items-center shadow-2xl">
-                                <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-1 leading-none">Lunar Mode</span>
-                                <span className={cn("text-lg font-black tracking-tight uppercase leading-none", moonPhaseInfo.color)}>
-                                    {moonPhaseInfo.name}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Astral Flux Grid */}
-                <div className="grid grid-cols-2 gap-4 mt-6">
-                    <div className="p-5 rounded-[2.5rem] bg-white/[0.03] border border-white/5 flex flex-col gap-4 group/solar hover:bg-white/[0.07] transition-all">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Sunrise className="size-4 text-orange-400" />
-                                <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">Ignition</span>
-                            </div>
-                            <span className="text-sm font-black text-white/40">AM</span>
-                        </div>
-                        <div className="text-4xl font-black text-white tracking-tighter">{sunrise}</div>
-                        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: '85%' }}
-                                className="h-full bg-gradient-to-r from-orange-600 to-orange-400"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="p-5 rounded-[2.5rem] bg-white/[0.03] border border-white/5 flex flex-col gap-4 group/lunar hover:bg-white/[0.07] transition-all">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Sunset className="size-4 text-indigo-400" />
-                                <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">Descent</span>
-                            </div>
-                            <span className="text-sm font-black text-white/40">PM</span>
-                        </div>
-                        <div className="text-4xl font-black text-white tracking-tighter">{sunset}</div>
-                        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: '65%' }}
-                                className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Sub-Telemetry Cluster */}
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                    {[
-                        { label: 'Visib.', val: '99%', icon: Sparkles, color: 'text-yellow-400' },
-                        { label: 'Azimuth', val: '284°', icon: Navigation, color: 'text-indigo-400' },
-                        { label: 'Flux', val: '1.2k', icon: Zap, color: 'text-cyan-400' }
-                    ].map((m, i) => (
-                        <div key={i} className="py-3 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center justify-center">
-                            <m.icon className={cn("size-3 mb-1.5 opacity-50", m.color)} />
-                            <span className="text-[11px] font-black text-white tracking-widest">{m.val}</span>
-                            <span className="text-[7px] font-black text-white/20 uppercase tracking-tighter">{m.label}</span>
-                        </div>
+            <div className="space-y-1">{ortoOcaso}{datoLuz}{doradas}{faseTxt}{signos}</div>
+            {proximas}
+            {base === 'xl' && (
+                <ol className="grid grid-cols-7 gap-1" aria-label="La Luna de las próximas dos semanas">
+                    {lento.lunas.map(({ t, f }, i) => (
+                        <li key={t} className="flex flex-col items-center gap-0.5" title={`${fmt.diaLargo(t)}: ${f.nombre}, ${Math.round(f.iluminada * 100)} %`}>
+                            <svg viewBox="-9 -9 18 18" width={20} height={20} aria-hidden><LunaFase r={7} fase={f} id={`${id}d${i}`} /></svg>
+                            <span className="text-[9px] capitalize text-white/55">{i === 0 ? 'hoy' : fmt.dia(t - 43_200_000)}</span>
+                        </li>
                     ))}
-                </div>
-            </div>
-
-            {/* Kinetic Horizon Sweep */}
-            <motion.div
-                animate={{ left: ['-10%', '110%'] }}
-                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-y-0 w-px bg-gradient-to-b from-transparent via-indigo-500/20 to-transparent z-40 pointer-events-none"
-            />
-        </Card>
+                </ol>
+            )}
+            <p className="mt-auto text-[10px] text-white/45">Calculado en tu dispositivo · próximo cambio de signo del Sol: {lento.signo.signo.nombre}, {fmt.diaLargo(lento.signo.fecha.getTime())}</p>
+        </div>
     );
 }
+
+export function WeatherAstronomyWidget() {
+    return (
+        <MarcoClima etiqueta="Sol y Luna" acento="#c4b5fd" acento2="#fde047">
+            {(info) => <Contenido info={info} />}
+        </MarcoClima>
+    );
+}
+
+export default WeatherAstronomyWidget;

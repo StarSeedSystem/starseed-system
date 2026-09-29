@@ -1,316 +1,193 @@
 'use client';
-
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
-import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
-import { fetchWeatherData } from '@/lib/weather-mock';
-import { Card } from "@/components/ui/card";
-import {
-    Globe, Zap, Maximize2, Sparkles, Activity, ShieldCheck,
-    Waves, Wind, Thermometer, Leaf, BarChart3, Fingerprint,
-    Cpu, Radio, Signal, Target, Layers, Compass
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+/**
+ * Esfera del tiempo (WEATHER_HOLISTIC) — Ola 0929 · paquete A.
+ *
+ * Todo el tiempo de tu sitio en un solo objeto: un planeta con el color del cielo de ahora y,
+ * a su alrededor, un anillo por capa, de dentro afuera — temperatura, humedad, viento (con su
+ * rumbo), UV, aire — y un halo exterior con el campo magnético de la Tierra (Kp de NOAA): el
+ * clima de abajo y el de arriba juntos. Cada anillo se llena con el dato REAL; si una capa no
+ * tiene dato, su anillo queda vacío y la leyenda lo dice. Pasar por la leyenda resalta su anillo.
+ * Sustituye a la escena 3D anterior: SVG ligero, sin WebGL, que se congela en modo eco.
+ *   micro → planeta + cifra · s → esfera · m → esfera + leyenda · l → + frase de cada capa
+ *   xl → + avisos y clima espacial · panorámico → esfera | leyenda a dos columnas · torre → en columna.
+ */
+import * as React from 'react';
 import Link from 'next/link';
-import { cn } from "@/lib/utils";
+import { Orbit } from 'lucide-react';
+import {
+    avisosClima, colorTemperatura, COLOR_SEVERIDAD, explicarKp, familiaCielo, nivelAire, nivelUv, nombreG, escalaG, procedencia,
+    severidadKp, textoCielo,
+} from '@/modules/weather/datos/interpretar';
+import { fuenteKp, resumirKp } from '@/modules/weather/datos/noaa';
+import { useFuente } from '@/modules/weather/datos/hooks';
+import { paletaCielo } from '../_clima/cielo';
+import { grados, velocidad } from '../_clima/graficas';
+import { CargandoClima, ErrorClima, LugarClima, MarcoClima, MenuClima, RotuloClima, SelloFuente, SinUbicacion, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { useDatosClima } from '../_clima/use-clima';
 
-// Dynamically import the 3D scene for performance
-const WeatherHolisticScene = React.lazy(() => import('./weather-holistic-scene'));
+interface Capa { id: string; nombre: string; valor: string; nota: string; fraccion: number | null; color: string; rumbo?: number | null }
 
-export function WeatherHolisticWidget() {
-    const { location } = useWeatherLocation();
-    const [data, setData] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [hovered, setHovered] = useState(false);
-
-    useEffect(() => {
-        let mounted = true;
-        setLoading(true);
-        fetchWeatherData(location.lat, location.lon)
-            .then(json => {
-                if (mounted) {
-                    setData(json);
-                    setLoading(false);
-                }
-            })
-            .catch(err => {
-                console.error("Error fetching holistic weather data:", err);
-                if (mounted) setLoading(false);
-            });
-        return () => { mounted = false; };
-    }, [location.lat, location.lon]);
-
-    const terrestrial = data?.terrestrial?.current || {};
-    const temp = Math.round(terrestrial.temperature_2m || 0);
-    const windSpeed = terrestrial.wind_speed_10m || 0;
-    const humidity = terrestrial.relative_humidity_2m || 50;
-    const aqi = data?.terrestrial?.current?.us_aqi || 0;
-    const pressure = terrestrial.pressure_msl || 1013;
-
-    const energetic = data?.energetic || {};
-    const kpIndex = energetic.kp || 0;
-
-    const synergyScore = useMemo(() => {
-        const tempScore = Math.max(0, 100 - Math.abs(temp - 22) * 4);
-        const humScore = Math.max(0, 100 - Math.abs(humidity - 50) * 2);
-        const aqiScore = Math.max(0, 100 - (aqi > 50 ? (aqi - 50) : 0));
-        return Math.round((tempScore + humScore + aqiScore) / 3);
-    }, [temp, humidity, aqi]);
-
-    if (loading || !data) {
-        return (
-            <Card className="w-full h-full bg-slate-950/40 backdrop-blur-3xl border-white/5 flex items-center justify-center rounded-[2.5rem]">
-                <div className="flex flex-col items-center gap-4">
-                    <Activity className="w-8 h-8 text-[#06f9c8] animate-pulse" />
-                    <span className="text-[10px] font-black tracking-[0.5em] text-[#06f9c8] uppercase">Syncing_Biosphere</span>
-                </div>
-            </Card>
-        );
-    }
-
+function Esfera({ capas, lado, centro, altura, codigo, foco, animar, etiqueta }: {
+    capas: Capa[]; lado: number; centro: React.ReactNode; altura: number | null; codigo: number | null; foco: string | null; animar: boolean; etiqueta: string;
+}) {
+    const id = React.useId().replace(/:/g, '');
+    const p = paletaCielo(altura, familiaCielo(codigo));
+    const arco = (r: number, f: number) => {
+        const a1 = -Math.PI / 2 + Math.max(0.001, Math.min(0.999, f)) * 2 * Math.PI;
+        const x1 = Math.cos(a1) * r, y1 = Math.sin(a1) * r;
+        return `M0 ${-r} A${r} ${r} 0 ${f > 0.5 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+    };
     return (
-        <Card
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-            className="@container w-full h-full relative overflow-hidden bg-[#020508]/40 backdrop-blur-[40px] border border-white/10 p-8 flex flex-col group rounded-[3.5rem] transition-all duration-1000 hover:border-[#06f9c8]/30 shadow-2xl"
-        >
-            {/* Liquid Crystal FX Layers */}
-            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-0 right-0 w-full h-full bg-[#06f9c8]/5 blur-[200px] rounded-full animate-pulse" />
-                <div className="absolute -bottom-[20%] -left-[20%] w-full h-full bg-blue-500/5 blur-[200px] rounded-full" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(6,249,200,0.03),transparent_70%)]" />
-
-                {/* Micro-Digital Pattern */}
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] mix-blend-overlay" />
-            </div>
-
-            {/* 3D Scene Layer */}
-            <div className="absolute inset-0 z-0 opacity-40 group-hover:opacity-80 transition-all duration-1000 scale-110 group-hover:scale-100 filter blur-[2px] group-hover:blur-0">
-                <Suspense fallback={null}>
-                    <WeatherHolisticScene
-                        temp={temp}
-                        kpIndex={kpIndex}
-                        humidity={humidity}
-                        condition={terrestrial.weather_code_label || "Clear"}
-                    />
-                </Suspense>
-            </div>
-
-            {/* Header: Biosphere Telemetry HUD */}
-            <div className="relative z-10 flex items-center justify-between mb-8">
-                <div className="flex items-center gap-6">
-                    <div className="relative">
-                        <motion.div
-                            animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.5, 0.2] }}
-                            transition={{ duration: 4, repeat: Infinity }}
-                            className="absolute inset-0 bg-[#06f9c8] blur-2xl rounded-full"
-                        />
-                        <div className="size-14 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center justify-center transition-all duration-500 shadow-2xl group-hover:border-[#06f9c8]/40">
-                            <Globe className="size-6 text-[#06f9c8] group-hover:rotate-[360deg] transition-transform duration-1000" />
-                        </div>
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-3 mb-1.5">
-                            <h3 className="text-[11px] font-black text-[#06f9c8] uppercase tracking-[0.5em] leading-none">Omni.Biosphere.v1</h3>
-                            <div className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-1.5">
-                                <div className="size-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_#34d399]" />
-                                <span className="text-[8px] font-black text-emerald-400 tracking-widest uppercase text-shadow-glow">SYNC_STABLE</span>
-                            </div>
-                        </div>
-                        <p className="text-2xl font-black text-white tracking-tighter uppercase tabular-nums drop-shadow-lg">
-                            Ecosystem.Synergy.Index
-                        </p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <div className="px-4 py-2 rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl shadow-inner hidden @xl:flex items-center gap-3">
-                        <div className="flex gap-1">
-                            {[1, 2, 3].map(i => <div key={i} className="size-1 rounded-full bg-[#06f9c8]/40" />)}
-                        </div>
-                        <span className="text-[10px] font-black text-[#06f9c8]/60 tracking-[0.4em] uppercase">NEURAL_LINK: 98%</span>
-                    </div>
-                    <div className="size-10 rounded-xl border border-white/5 bg-white/[0.03] flex items-center justify-center hover:border-[#06f9c8]/30 transition-colors">
-                        <Maximize2 className="size-4 text-white/20" />
-                    </div>
-                </div>
-            </div>
-
-            {/* Main Stage: Synergy Ring HUD */}
-            <div className="flex-1 flex flex-col items-center justify-center relative z-10 py-6">
-                <div className="relative size-64 @md:size-80 flex items-center justify-center group/ring">
-                    {/* Kinetic Orbital Ring */}
-                    <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                        className="absolute inset-[-20px] rounded-full border border-dashed border-[#06f9c8]/10"
-                    />
-
-                    {/* Multi-Layered Gauges */}
-                    <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none filter drop-shadow-[0_0_50px_rgba(6,249,200,0.15)]" viewBox="0 0 100 100">
-                        {/* Outer Track */}
-                        <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-white/5" />
-
-                        {/* Synergy Progress - Liquid Crystal Gradient */}
-                        <motion.circle
-                            cx="50" cy="50" r="45"
-                            fill="none"
-                            stroke="url(#holisticGradient)"
-                            strokeWidth="5"
-                            strokeDasharray="283"
-                            initial={{ strokeDashoffset: 283 }}
-                            animate={{ strokeDashoffset: 283 - (283 * synergyScore) / 100 }}
-                            transition={{ duration: 2.5, ease: "circOut" }}
-                            strokeLinecap="round"
-                            className="filter drop-shadow-[0_0_25px_rgba(6,249,200,0.5)]"
-                        />
-
-                        {/* Health Pulse Indicator */}
-                        <motion.circle
-                            cx="50" cy="50" r="40"
-                            fill="none"
-                            stroke="rgba(255,255,255,0.05)"
-                            strokeWidth="1"
-                            strokeDasharray="2,4"
-                            className="animate-spin-slow"
-                        />
-
-                        <defs>
-                            <linearGradient id="holisticGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#06f9c8" />
-                                <stop offset="50%" stopColor="#22d3ee" />
-                                <stop offset="100%" stopColor="#06f9c8" />
-                            </linearGradient>
-                        </defs>
-                    </svg>
-
-                    {/* Score Centerpiece */}
-                    <div className="relative flex flex-col items-center group/score">
-                        <motion.div
-                            animate={{ scale: hovered ? 1.05 : 1 }}
-                            className="flex flex-col items-center"
-                        >
-                            <div className="flex items-baseline gap-2 relative">
-                                <motion.span
-                                    key={synergyScore}
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className="text-[9.5rem] @md:text-[11rem] font-black text-white tracking-tighter tabular-nums drop-shadow-[0_30px_70px_rgba(0,0,0,0.6)]"
-                                >
-                                    {synergyScore}
-                                </motion.span>
-                                <span className="text-3xl font-black text-[#06f9c8] drop-shadow-[0_0_30px_rgba(6,249,200,0.5)] outline-text ml-1">%</span>
-                            </div>
-                            <div className="flex items-center gap-3 px-6 py-2.5 rounded-2xl bg-[#06f9c8]/10 border border-[#06f9c8]/20 backdrop-blur-2xl shadow-2xl -mt-6 relative z-20">
-                                <Sparkles className="size-4 text-[#06f9c8] animate-pulse" />
-                                <span className="text-[10px] font-black text-[#06f9c8] uppercase tracking-[0.4em]">Biosphere_Sync_Ok</span>
-                            </div>
-                        </motion.div>
-                    </div>
-
-                    {/* Neural Orbitals */}
-                    {[0, 1, 2].map((i) => (
-                        <motion.div
-                            key={i}
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 15 + i * 8, repeat: Infinity, ease: "linear" }}
-                            className="absolute inset-0 pointer-events-none"
-                        >
-                            <div
-                                className="absolute top-0 left-1/2 -translate-x-1/2 size-2.5 rounded-full bg-[#06f9c8] blur-[1px] shadow-[0_0_15px_#06f9c8]"
-                                style={{ transform: `translateX(-50%) translateY(${i * 12}px)`, opacity: 0.2 + i * 0.2 }}
-                            />
-                        </motion.div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Bottom Grid: Multi-Layered Telemetry Tiles */}
-            <div className="relative z-10 grid grid-cols-2 @[40rem]:grid-cols-4 gap-4 mt-8 pt-8 border-t border-white/5">
-                <MiniTelemetryNode
-                    icon={<Thermometer className="size-4" />}
-                    label="Thermal_Flux"
-                    value={`${temp}°`}
-                    sub="Stable_Iso"
-                    color="text-rose-400"
-                />
-                <MiniTelemetryNode
-                    icon={<Waves className="size-4" />}
-                    label="Aquatic_Sat"
-                    value={`${humidity}%`}
-                    sub="Hydrated"
-                    color="text-blue-400"
-                />
-                <MiniTelemetryNode
-                    icon={<Leaf className="size-4" />}
-                    label="Biotic_Purity"
-                    value={`${aqi} AQI`}
-                    sub="Pure_Air"
-                    color="text-emerald-400"
-                />
-                <MiniTelemetryNode
-                    icon={<Activity className="size-4" />}
-                    label="Neural_Flux"
-                    value={`${kpIndex} Kp`}
-                    sub="High_Freq"
-                    color="text-purple-400"
-                />
-            </div>
-
-            {/* Footer HUD Stat */}
-            <div className="mt-8 pt-8 border-t border-white/5 flex items-center justify-between relative z-10">
-                <div className="flex items-center gap-4">
-                    <Fingerprint className="size-4 text-white/20" />
-                    <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.4em] mb-1">Biosphere.Signature.Hash</span>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-[#06f9c8]/40 tracking-widest tabular-nums uppercase">0x8C_Ecosystem_V1</span>
-                            <div className="size-1 rounded-full bg-[#06f9c8]/20" />
-                            <span className="text-[10px] font-black text-white/30 tracking-widest uppercase">Verified</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-3">
-                        <Signal className="size-4 text-[#06f9c8]/40" />
-                        <span className="text-[9px] font-black text-[#06f9c8]/60 uppercase tracking-[0.3em]">Neural.Core.Active</span>
-                    </div>
-                    <div className="flex gap-2">
-                        {[1, 2, 3, 4].map((s) => (
-                            <div key={s} className={cn("w-1.5 h-3 rounded-full", s <= 3 ? "bg-[#06f9c8] shadow-[0_0_8px_#06f9c8]" : "bg-white/5")} />
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Scanning Laser Overlay */}
-            <motion.div
-                animate={{ top: ['-10%', '110%'] }}
-                transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#06f9c8]/30 to-transparent z-50 pointer-events-none"
-            />
-        </Card>
-
+        <div className="relative shrink-0" style={{ width: lado, height: lado }} role="img" aria-label={etiqueta}>
+            <svg viewBox="-100 -100 200 200" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
+                <defs>
+                    <radialGradient id={`ep-${id}`} cx="38%" cy="32%" r="80%">
+                        <stop offset="0%" stopColor={p.horizonte} />
+                        <stop offset="55%" stopColor={p.alto} />
+                        <stop offset="100%" stopColor={p.bajo} />
+                    </radialGradient>
+                    <radialGradient id={`eh-${id}`}>
+                        <stop offset="60%" stopColor={p.horizonte} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={p.horizonte} stopOpacity={0} />
+                    </radialGradient>
+                </defs>
+                <circle r={46} fill={`url(#eh-${id})`} />
+                <circle r={37} fill={`url(#ep-${id})`} />
+                <ellipse cx={-10} cy={-14} rx={16} ry={9} fill="#fff" opacity={0.12} transform="rotate(-25 -10 -14)" />
+                {animar && <circle r={98} fill="none" stroke="#fff" strokeOpacity={0.08} strokeDasharray="1 6" className={s.gira} style={{ ['--dur' as string]: '90s' }} />}
+                {capas.map((c, i) => {
+                    const r = 47 + i * 9.5;
+                    const tenue = foco !== null && foco !== c.id;
+                    return (
+                        <g key={c.id} opacity={tenue ? 0.25 : 1} style={{ transition: 'opacity 200ms' }}>
+                            <circle r={r} fill="none" stroke="#fff" strokeOpacity={0.08} strokeWidth={c.id === 'kp' ? 2 : 5} />
+                            {c.fraccion !== null && c.fraccion > 0 && (
+                                <path d={arco(r, c.fraccion)} fill="none" stroke={c.color} strokeWidth={c.id === 'kp' ? 2.4 : 5} strokeLinecap="round" strokeDasharray={c.id === 'kp' ? '2 3' : undefined} />
+                            )}
+                            {c.rumbo !== undefined && c.rumbo !== null && (() => {
+                                const a = ((c.rumbo + 180) % 360) * (Math.PI / 180);
+                                return <path d="M0 -4 L3 3 L-3 3 Z" fill={c.color} transform={`translate(${(Math.sin(a) * r).toFixed(2)} ${(-Math.cos(a) * r).toFixed(2)}) rotate(${(c.rumbo + 180) % 360})`} />;
+                            })()}
+                        </g>
+                    );
+                })}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">{centro}</div>
+        </div>
     );
 }
 
-function MiniTelemetryNode({ icon, label, value, sub, color }: any) {
+function Leyenda({ capas, foco, setFoco, conNotas, columnas = 1 }: { capas: Capa[]; foco: string | null; setFoco: (id: string | null) => void; conNotas: boolean; columnas?: number }) {
     return (
-        <div className="flex flex-col p-4 rounded-[2.5rem] bg-white/[0.03] border border-white/5 hover:border-[#06f9c8]/20 hover:bg-white/[0.06] transition-all group/node shadow-xl">
-            <div className="flex items-center justify-between mb-3">
-                <div className={cn("p-2 rounded-xl bg-white/5", color)}>
-                    {icon}
-                </div>
-                <div className="flex gap-1">
-                    {[1, 2].map(i => (
-                        <div key={i} className="w-1 h-3 rounded-full bg-white/10" />
-                    ))}
-                </div>
+        <ul className="grid gap-x-3 gap-y-1" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0,1fr))` }} aria-label="Capas de la esfera">
+            {capas.map((c) => (
+                <li key={c.id}>
+                    <button type="button" className={`${s.foco} flex w-full cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-left transition-colors duration-150 hover:bg-white/[0.06]`}
+                        onMouseEnter={() => setFoco(c.id)} onMouseLeave={() => setFoco(null)} onFocus={() => setFoco(c.id)} onBlur={() => setFoco(null)}
+                        aria-label={`${c.nombre}: ${c.valor}${c.nota ? `, ${c.nota}` : ''}`}>
+                        <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: c.fraccion === null ? 'transparent' : c.color, boxShadow: `inset 0 0 0 1.5px ${c.color}` }} />
+                        <span className="w-[4.6rem] shrink-0 truncate text-[12px] text-white/70">{c.nombre}</span>
+                        <span className={`${s.cifra} shrink-0 text-[13px] font-semibold`}>{c.valor}</span>
+                        {conNotas && <span className="min-w-0 truncate text-[11px] text-white/50" title={c.nota}>{c.nota}</span>}
+                    </button>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+function Contenido({ info }: { info: InfoMarco }) {
+    const { base, clase } = info;
+    const d = useDatosClima(info, { aire: base !== 'micro' && base !== 's' });
+    const kpDatos = useFuente(fuenteKp, undefined, info.visible && base !== 'micro');
+    const [foco, setFoco] = React.useState<string | null>(null);
+
+    if (d.estado === 'sin-ubicacion') return <SinUbicacion info={info} />;
+    if (d.estado === 'cargando') return <CargandoClima base={base} texto="Reuniendo las capas…" />;
+    if (!d.clima.datos) return <ErrorClima mensaje={d.clima.error ?? 'Open-Meteo no respondió'} onReintentar={d.clima.refrescar} />;
+
+    const c = d.clima.datos, a = c.actual, u = d.u;
+    const ahora = d.ahora ?? a.t;
+    const na = nivelAire(d.aire.datos);
+    const uv = nivelUv(a.uv);
+    const rk = kpDatos.datos ? resumirKp(kpDatos.datos, ahora) : null;
+    const kp = rk?.actual?.kp ?? null;
+    const capas: Capa[] = [
+        { id: 'temp', nombre: 'Temperatura', valor: grados(a.temp, u), nota: `sensación ${grados(a.sensacion, u)}`, fraccion: a.temp === null ? null : (a.temp + 10) / 55, color: colorTemperatura(a.temp) },
+        { id: 'hum', nombre: 'Humedad', valor: a.humedad === null ? '—' : `${Math.round(a.humedad)} %`, nota: `rocío ${grados(a.rocio, u)}`, fraccion: a.humedad === null ? null : a.humedad / 100, color: '#60a5fa' },
+        { id: 'viento', nombre: 'Viento', valor: velocidad(a.viento, u), nota: procedencia(a.dirViento), fraccion: a.viento === null ? null : a.viento / 60, color: '#5eead4', rumbo: a.dirViento },
+        { id: 'uv', nombre: 'UV', valor: a.uv === null ? '—' : String(Math.round(a.uv)), nota: uv?.texto.toLowerCase() ?? 'sin dato', fraccion: a.uv === null ? null : a.uv / 11, color: uv?.color ?? '#facc15' },
+        { id: 'aire', nombre: 'Aire', valor: na ? String(na.indice) : '—', nota: na ? na.texto.toLowerCase() : d.aire.error ? 'sin dato' : base === 's' ? '' : 'leyendo…', fraccion: na ? Math.max(0.03, na.fraccion) : null, color: na?.color ?? '#50ccaa' },
+        { id: 'kp', nombre: 'Magnetosfera', valor: kp === null ? '—' : `Kp ${kp.toFixed(1).replace('.', ',')}`, nota: kp === null ? (kpDatos.error ? 'sin dato' : 'leyendo…') : nombreG(escalaG(kp)).toLowerCase(), fraccion: kp === null ? null : Math.max(0.03, kp / 9), color: COLOR_SEVERIDAD[severidadKp(kp)] },
+    ];
+    const cielo = textoCielo(a.codigo, a.esDia);
+    const etiqueta = `Esfera del tiempo en ${d.ubicacion?.nombre ?? ''}: ${capas.map((x) => `${x.nombre} ${x.valor}`).join(', ')}`;
+    const centro = (tam: number) => (
+        <>
+            <span className={`${s.cifra} ${s.sombraTexto} font-extralight leading-none`} style={{ fontSize: tam }}>{grados(a.temp, u)}</span>
+            {base !== 'micro' && base !== 's' && <span className={`${s.sombraTexto} mt-0.5 max-w-[5.5rem] truncate text-[10px] text-white/80`} title={cielo}>{cielo}</span>}
+        </>
+    );
+    const menu = <MenuClima info={info} ruta="/clima" rutaEtiqueta="Abrir el tiempo" alActualizar={() => { d.clima.refrescar(); d.aire.refrescar(); kpDatos.refrescar(); }}
+        extra={[]} />;
+    const cabecera = (
+        <div className="flex min-w-0 items-center gap-2">
+            <Orbit aria-hidden className="size-4 shrink-0" style={{ color: info.acento }} />
+            <div className="min-w-0 flex-1"><RotuloClima>Esfera del tiempo</RotuloClima>{d.ubicacion && <LugarClima nombre={d.ubicacion.nombre} elegida={d.ubicacion.elegida} className="text-[11px]" />}</div>
+            {menu}
+        </div>
+    );
+    const lado = (fr: number) => Math.max(90, Math.min(info.ancho || 300, info.alto || 300) * fr);
+    const esfera = (l: number, tam: number) => <Esfera capas={base === 'micro' ? [] : capas} lado={l} centro={centro(tam)} altura={d.astro.altura} codigo={a.codigo} foco={foco} animar={info.animar && info.visible} etiqueta={etiqueta} />;
+
+    if (base === 'micro') return <div className="grid h-full place-items-center">{esfera(lado(0.9), 18)}</div>;
+    if (base === 's') return <div className="grid h-full place-items-center p-1">{esfera(lado(0.92), lado(0.92) * 0.16)}</div>;
+    if (clase === 'panoramico') {
+        return (
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(0,1fr)' }}>
+                {esfera(Math.min(170, (info.alto || 150) - 8), 24)}
+                <div className="min-w-0 space-y-1">{cabecera}<Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={false} columnas={2} /></div>
             </div>
-            <div className="flex flex-col">
-                <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.4em] mb-1.5">{label}</span>
-                <span className="text-2xl font-black text-white tracking-tighter tabular-nums leading-none mb-1.5">{value}</span>
-                <span className={cn("text-[9px] font-bold uppercase tracking-widest", color)}>{sub}</span>
+        );
+    }
+    if (base === 'm' && clase !== 'torre') {
+        const ancho = info.ancho >= info.alto * 1.25;
+        return (
+            <div className={`flex h-full gap-2 p-3 ${ancho ? 'flex-row items-center' : 'flex-col'}`}>
+                {!ancho && cabecera}
+                <div className={`flex ${ancho ? '' : 'min-h-0 flex-1'} items-center justify-center`}>{esfera(ancho ? lado(0.86) : lado(0.6), 22)}</div>
+                <div className="min-w-0 flex-1 space-y-1">{ancho && cabecera}<Leyenda capas={ancho ? capas : capas.slice(0, 4)} foco={foco} setFoco={setFoco} conNotas={false} columnas={ancho ? 1 : 2} /></div>
+            </div>
+        );
+    }
+    const avisos = avisosClima(c, d.aire.datos, d.fmt.hora, ahora);
+    const tamEsfera = clase === 'torre' ? Math.min((info.ancho || 280) - 24, 260) : base === 'xl' ? Math.min(300, (info.alto || 440) * 0.62) : Math.min(230, lado(0.62));
+    return (
+        <div className="flex h-full flex-col gap-3 p-4">
+            {cabecera}
+            <div className="flex justify-center">{esfera(tamEsfera, tamEsfera * 0.13)}</div>
+            <Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={base === 'xl' || clase === 'torre' || (info.ancho || 0) > 330} columnas={base === 'xl' && (info.ancho || 0) > 620 ? 2 : 1} />
+            {base === 'xl' && (
+                <div className="space-y-1.5 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/[0.06]">
+                    {avisos.slice(0, 2).map((av) => <p key={av.id} role="note" className="text-[12px] text-amber-100">{av.texto}</p>)}
+                    <p className="text-[12px] text-white/75">{explicarKp(kp)}</p>
+                    <Link href="/atmosphere" className={`${s.foco} inline-flex cursor-pointer text-[12px] font-semibold text-sky-300 hover:underline`}>Ver el clima espacial</Link>
+                </div>
+            )}
+            <div className="mt-auto flex flex-wrap gap-x-3">
+                <SelloFuente fuente="Open-Meteo" en={d.clima.en} />
+                {kpDatos.en && <SelloFuente fuente="NOAA SWPC" en={kpDatos.en} />}
             </div>
         </div>
     );
 }
+
+export function WeatherHolisticWidget() {
+    return (
+        <MarcoClima etiqueta="Esfera del tiempo" acento="#5eead4" acento2="#a78bfa">
+            {(info) => <Contenido info={info} />}
+        </MarcoClima>
+    );
+}
+
+export default WeatherHolisticWidget;
