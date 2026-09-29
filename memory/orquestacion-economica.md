@@ -669,3 +669,36 @@ la vigía lleva más de 45 min sin medir.
 **Qué hacer cuando salta:** mirar las 3 rutas y el último bucle en el medidor → buscar quién sondea
 esa ruta (`grep -rn "<tabla>" src/`) → frenarlo con `esLider()`/`frenoActivo()`/visibilidad (ver
 contrato G2) → nunca subir el presupuesto para «hacer sitio» a un bucle.
+
+## 16. Sueños profundos: flota gratuita que lee, Claude que verifica (2026-09-29)
+
+**Qué es.** Una sesión de sueños analiza cada área de StarSeed OS (las 11 de `areas.ts` + mando,
+dashboards, gobernanza) con seis lentes (arquitectura-deuda, ux-accesibilidad-diseno,
+rendimiento-consumo, seguridad-privacidad **privada**, pruebas-fiabilidad, coherencia-triada). SOP:
+`architecture/suenos-profundos.md`.
+
+**Reparto de coste (regla).** Leer y escribir los informes = tareas `tipo: "analisis"` del
+orquestador único con la flota GRATUITA (`scripts/enjambre/analista.py`: lectura compartida por
+área → síntesis por lente → contraste por otro proveedor; OpenRouter solo `:free`). Claude
+(sesiones en la nube del crédito de 250 $, §14, y la interactiva) solo DIRIGE, VERIFICA y
+CONSOLIDA, siempre por la terminal de la Mac y por localhost:9002. Jev aconseja
+accionable/prioridad en la consolidación (local primero, techo diario, lo privado solo en local).
+
+**Estado nuevo `informe`**: el sueño terminó bien sin código que integrar. Es terminal en el
+orquestador, el vigilante, el reconciliador y el Mando, y **nunca** cuenta como «sin_cambios».
+El vigilante no coge ninguna `cola-suenos-*` (ni la de la sesión ni la propuesta).
+
+**Desplegar y lanzar en la Mac:**
+```bash
+cd ~/Documents/starseed-os-main
+bash scripts/enjambre/instalar.sh && bash scripts/enjambre/instalar.sh --comprobar   # orquestador + analista.py
+python3 scripts/puente/reconstruir_mando.py --una-vez                                # panel y /api/mando/suenos
+python3 scripts/puente/suenos.py plan --horas 4 && python3 scripts/puente/suenos.py lanzar --horas 4
+python3 scripts/puente/suenos.py estado        # o http://localhost:9002/mando?pestana=procesos → «Sueños profundos»
+curl -s -X POST http://localhost:9002/api/mando/suenos -H 'Content-Type: application/json' -d '{"accion":"lanzar","horas":4}'
+```
+**Supervisar (cada hora, tarea programada con «Requerir esta computadora»):** el bloque de
+`scripts/puente/supervisor_suenos.md` — salud → desatascar → verificar 3-6 informes abriendo el
+código citado (`suenos.py por-verificar`, `suenos.py veredicto … --por claude-<modelo>`) →
+`suenos.py consolidar` cuando todo esté verificado (INFORME.md + `olas/cola-suenos-propuesta-<fecha>.json`,
+que NO se lanza: se abre en el Diseñador). Tope del supervisor: ≤ 25 min y ≤ 6 informes por pasada.
