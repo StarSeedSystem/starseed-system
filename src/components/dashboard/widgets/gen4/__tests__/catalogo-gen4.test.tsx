@@ -53,11 +53,23 @@ const asignar = vi.fn((ctx: any, id: string | null) => {
 });
 vi.mock("@/lib/aurora/personalities", () => ({ setActivePersonality: asignar }));
 
+const consultar = vi.fn(async (input: any, op: any) => {
+    op?.onProgress?.("Dictamen", 5, 6);
+    return {
+        topic: input.title, at: 1, ms: 10, failed: 1, singleSource: true, sourcesUsed: ["Fuente libre"], reviews: [],
+        opinions: ["ontocratico", "ecologico", "abundancia", "simbiotico", "empatico"].map((id, i) => ({ perspective: { id }, ok: i !== 3, verdict: i % 2 ? "con_enmiendas" : "a_favor", sourceLabel: "Fuente libre" })),
+        synthesis: { ok: true, verdict: "con_enmiendas", text: "Apoyo con dos enmiendas: priorizar a quien no tiene placas." },
+    };
+});
+vi.mock("@/lib/aurora/council", () => ({ consultCouncil: consultar }));
+
 import { EnMarco, MEDIDAS } from "../../gen5/_catalogo/prueba-marco";
 import { _vaciarCompartidos } from "../../gen5/_catalogo/recurso";
 import { IdentityVaultWidget } from "../identity-vault-widget";
 import { UniversalLibraryWidget } from "../universal-library-widget";
 import { MentorMatchWidget } from "../mentor-match-widget";
+import { ElderCouncilWidget } from "../elder-council-widget";
+import { CONSEJEROS } from "../elder-council-partes";
 
 function pintar(ui: React.ReactElement, clase: ClaseTamano) {
     medida = MEDIDAS[clase];
@@ -184,5 +196,30 @@ describe("Mentoría Híbrida", () => {
         contactos.listo = false;
         pintar(<MentorMatchWidget />, "m");
         expect(screen.getByText("Cargando tu libreta…")).toBeTruthy();
+    });
+});
+
+describe("Consejo de Sabios", () => {
+    it.each(TODAS)("sin consultas (%s) la mesa espera tu pregunta", (clase) => {
+        pintar(<ElderCouncilWidget />, clase);
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/aún no has consultado/);
+    });
+    it("convoca al Consejo real, guarda el informe resumido y ofrece llevarlo a propuesta", async () => {
+        pintar(<ElderCouncilWidget />, "xl");
+        fireEvent.change(screen.getByRole("textbox", { name: /Pregunta o propuesta/ }), { target: { value: "Reparto del excedente solar" } });
+        fireEvent.submit(screen.getByRole("textbox", { name: /Pregunta o propuesta/ }).closest("form")!);
+        expect(await screen.findByText("Con enmiendas", { selector: "p" })).toBeTruthy();
+        expect(consultar).toHaveBeenCalledWith({ title: "Reparto del excedente solar" }, expect.objectContaining({ review: false }));
+        expect(screen.getByText(/Una sola fuente razonó las cinco voces \(Fuente libre\) · 1 dictamen sin respuesta/)).toBeTruthy();
+        expect(screen.getByRole("link", { name: /Llevar «Reparto del excedente solar» a una propuesta/ }).getAttribute("href")).toMatch(/^\/decisiones\?nueva=1/);
+        expect(JSON.parse(localStorage.getItem("starseed.consejo.ultimo.v1")!).dictamenes).toHaveLength(5);
+    });
+    it("si ningún consejero responde, lo dice como error", async () => {
+        consultar.mockImplementationOnce(async (input: any) => ({ topic: input.title, at: 1, ms: 1, failed: 5, singleSource: true, sourcesUsed: [], reviews: [],
+            opinions: CONSEJEROS.map((k) => ({ perspective: { id: k.id }, ok: false, verdict: "indeterminado" })), synthesis: { ok: false, verdict: "indeterminado", text: "" } }));
+        pintar(<ElderCouncilWidget />, "l");
+        fireEvent.change(screen.getByRole("textbox", { name: /Pregunta o propuesta/ }), { target: { value: "¿Algo?" } });
+        fireEvent.submit(screen.getByRole("textbox", { name: /Pregunta o propuesta/ }).closest("form")!);
+        expect(await screen.findByRole("alert")).toBeTruthy();
     });
 });
