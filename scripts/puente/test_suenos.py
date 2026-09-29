@@ -255,6 +255,66 @@ class Procesos(unittest.TestCase):
         self.assertFalse(S.puede_sonar({"segundos": 100, "solo": True}, 9_000.0, ahora))
 
 
+class Detener(Base):
+    """Parar en caliente una sesión: solo su orquestador, con el flock del progreso tomado
+    (nunca a medio escribir progreso.json) y sin SIGKILL."""
+
+    def setUp(self):
+        super().setUp()
+        self.cerrojo = os.path.join(self.raiz, "progreso.lock")
+        self.parchear(S, "CERROJO_PROGRESO", self.cerrojo)
+        self.vivos = {40, 41}
+        self.senales = []
+
+        def matar(pid, sig):
+            import fcntl
+            # Mientras se manda la señal, el cerrojo del progreso está tomado por `detener`.
+            with open(self.cerrojo, "a") as f:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.senales.append((pid, sig))
+            self.vivos.discard(pid)
+
+        self.matar = matar
+
+    def test_solo_para_el_de_su_cola_con_el_cerrojo_tomado(self):
+        import signal
+        objetivos = [{"pid": 40, "cola": "cola-suenos-%s.json" % SESION}]
+        r = S.detener_orquestadores(objetivos, matar=self.matar, vivo=lambda p: p in self.vivos,
+                                    dormir=lambda s: None)
+        self.assertEqual(self.senales, [(40, signal.SIGTERM)])
+        self.assertEqual(r, {"enviados": [40], "siguen": [], "cerrojo": True})
+        self.assertIn(41, self.vivos)
+
+    def test_cli_elige_la_cola_de_la_fecha(self):
+        self.parchear(S, "orquestadores_vivos", lambda: [
+            {"pid": 40, "segundos": 60, "cola": "cola-suenos-%s.json" % SESION, "solo": False},
+            {"pid": 41, "segundos": 60, "cola": "cola-auto-0929.json", "solo": False}])
+        visto = {}
+        self.parchear(S, "detener_orquestadores", lambda objs, espera_s=30: visto.update(objs=objs, espera=espera_s)
+                      or {"enviados": [o["pid"] for o in objs], "siguen": [], "cerrojo": True})
+        codigo, d = self.correr("detener", "--fecha", SESION, "--espera", "5")
+        self.assertEqual(codigo, 0)
+        self.assertEqual([o["pid"] for o in visto["objs"]], [40])
+        self.assertEqual(visto["espera"], 5)
+        self.assertTrue(d["ok"])
+
+    def test_sin_orquestador_de_esa_sesion_no_toca_nada(self):
+        self.parchear(S, "orquestadores_vivos", lambda: [{"pid": 41, "segundos": 60, "cola": "cola-auto-0929.json", "solo": False}])
+        self.parchear(S, "detener_orquestadores", lambda *a, **k: self.fail("no debía parar nada"))
+        codigo, d = self.correr("detener", "--fecha", SESION)
+        self.assertEqual(codigo, 1)
+        self.assertFalse(d["ok"])
+
+    def test_si_sigue_vivo_lo_dice_y_no_manda_sigkill(self):
+        senales = []
+        r = S.detener_orquestadores([{"pid": 40}], matar=lambda p, s: senales.append(s), vivo=lambda p: True,
+                                    dormir=lambda s: None, espera_s=0)
+        import signal
+        self.assertEqual(senales, [signal.SIGTERM])
+        self.assertEqual(r["siguen"], [40])
+
+
 class Latido(Base):
     def test_el_supervisor_aparece_como_agente_claude(self):
         self.parchear(L, "DIR_OLAS", self.r["olas"])

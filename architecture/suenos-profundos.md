@@ -180,11 +180,15 @@ con el bloque de `scripts/puente/supervisor_suenos.md`.
 cd ~/Documents/starseed-os-main
 git fetch -q .transfer/<paquete>.bundle ola0929-suenos:suenos && git merge --ff-only suenos
 bash scripts/enjambre/instalar.sh && bash scripts/enjambre/instalar.sh --comprobar
-curl -s -X POST http://localhost:9002/api/mando/colas -H 'Content-Type: application/json' \
-     -d '{"accion":"detener","nombre":"suenos-<fecha>","donde":"mac"}'     # SIGTERM solo a ese orquestador
-python3 scripts/puente/suenos.py lanzar --fecha <fecha>                      # mismas horas; lo escrito se conserva
+python3 scripts/puente/suenos.py detener --fecha <fecha> --seco    # qué pid pararía
+python3 scripts/puente/suenos.py detener --fecha <fecha>           # SIGTERM solo a ese orquestador
+python3 scripts/puente/suenos.py lanzar --fecha <fecha>            # mismas horas; lo escrito se conserva
 python3 scripts/puente/suenos.py estado
 ```
+`detener` toma el flock de `progreso.json` (`~/.starseed/cerrojos/progreso.lock`) mientras
+manda la señal, así el orquestador nunca muere a medio escribir el progreso (que no se escribe
+con renombrado atómico), y no manda SIGKILL. (El botón «detener» del Mando busca con
+`pgrep -af`, que en macOS solo imprime pids: allí no encuentra la cola; usa la CLI.)
 Parar con SIGTERM no pierde nada: los informes escritos se saltan al relanzar, la lectura
 compartida (`.mapa/`) se reutiliza y los reclamos y cerrojos de un proceso muerto se rompen solos.
 
