@@ -138,6 +138,11 @@ export function tintaB(color: string, t = 0.35): string {
     return esHex(color) ? mezclar(normalizarHex(color), "#ffffff", t) : color;
 }
 
+/** El acento oscurecido hacia la noche del vidrio (para fondos de degradado). */
+export function sombraB(color: string, t = 0.4): string {
+    return esHex(color) ? mezclar(normalizarHex(color), "#0b1020", t) : color;
+}
+
 export function haloB(color: string, fondo = 0.12, filo = 0.4): React.CSSProperties {
     return { background: conAlfa(color, fondo), boxShadow: `inset 0 0 0 1px ${conAlfa(color, filo)}` };
 }
