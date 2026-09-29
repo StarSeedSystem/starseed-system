@@ -20,15 +20,13 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { toast } from 'sonner';
 import { CloudOff, Image as ImageIcon, Layers, PenSquare, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toggleLike } from '@/lib/os-social';
 import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
 import { MarcoSocial, estadoSocial } from './_social-d/marco-social';
 import { useEnPantalla, useFuenteCompartida } from './_social-d/fuente-compartida';
 import { cargarFeedRed, type FeedRed } from './_social-d/feed-red-datos';
-import { guardarEnBiblioteca } from './_social-d/guardar';
+import { useAccionesRed } from './_social-d/acciones-red';
 import { BotonActualizar, BotonIcono, Miniatura, Pastilla, Segmentos, Avatar, Tiempo, estilosSocial as estilos } from './_social-d/piezas';
 import { BarraAcciones, FilaPublicacion, PortadaPublicacion, TarjetaPublicacion, iconoMedia, textoDe, type AccionesPublicacion, type PublicacionVista } from './_social-d/publicaciones';
 import { columnasQueCaben, filasQueCaben, type TamanoSocial } from './_social-d/tamano';
@@ -44,7 +42,6 @@ export function NetworkFeedWidget() {
     const enPantalla = useEnPantalla(refRaiz);
     const fuente = useFuenteCompartida<FeedRed>('red:feed', () => cargarFeedRed(12), { intervaloMs: INTERVALO, enPantalla });
     const [filtro, setFiltro] = React.useState<Filtro>('todo');
-    const [guardadas, setGuardadas] = React.useState<Set<string>>(() => new Set());
 
     const ahora = Date.now();
     const vistas: PublicacionVista[] = React.useMemo(
@@ -68,25 +65,7 @@ export function NetworkFeedWidget() {
     );
     const hoy = vistas.filter((p) => esReciente(p.ms, ahora)).length;
 
-    const resonar = React.useCallback(async (p: PublicacionVista) => {
-        const antes = { meGusta: !!p.meGusta, n: p.reacciones };
-        const aplicar = (meGusta: boolean, n: number) => fuente.mutar((prev) => prev && { ...prev, publicaciones: prev.publicaciones.map((x) => (x.id === p.id ? { ...x, meGusta, reacciones: n } : x)) });
-        aplicar(!antes.meGusta, Math.max(0, antes.n + (antes.meGusta ? -1 : 1)));
-        const r = await toggleLike(p.id);
-        if (r.ok) aplicar(r.active, r.count);
-        else {
-            aplicar(antes.meGusta, antes.n);
-            toast.error(r.needsAuth ? 'Entra en tu cuenta para resonar con una publicación.' : 'No se pudo guardar tu resonancia. Inténtalo de nuevo.');
-        }
-    }, [fuente]);
-
-    const guardar = React.useCallback(async (p: PublicacionVista) => {
-        const r = await guardarEnBiblioteca({ tipo: 'post', refId: p.id, ruta: p.href, titulo: textoDe(p), miniatura: p.media });
-        if (r === 'ok') {
-            setGuardadas((s) => new Set(s).add(p.id));
-            toast.success('Guardada en tu biblioteca.');
-        } else toast.error(r === 'sin-sesion' ? 'Entra en tu cuenta para guardar en tu biblioteca.' : 'No se pudo guardar. Inténtalo de nuevo.');
-    }, []);
+    const { resonar, guardar, guardadas } = useAccionesRed(fuente);
 
     const acciones: AccionesPublicacion = { onResonar: resonar, onGuardar: guardar, guardadas, etiquetaGuardar: 'Guardar en tu biblioteca' };
     const noDisponible = !!fuente.datos?.noDisponible || fuente.detenida;
