@@ -7,7 +7,7 @@
  */
 import type { DashboardWidget } from "../dashboard-types";
 import { getSizeConstraints } from "../widget-manifest";
-import { acomodoPara, type ItemRejilla, type PuntoCorte } from "@/lib/dashboard/acomodo-pantalla";
+import { acomodoPara, rolDe, type ItemRejilla, type PuntoCorte, type RolWidget } from "@/lib/dashboard/acomodo-pantalla";
 
 const COLUMNAS = 12;
 
@@ -159,4 +159,87 @@ export function mismoAcomodo(a: DashboardWidget[], b: DashboardWidget[]): boolea
         return o && o.id === w.id && o.layout.x === w.layout.x && o.layout.y === w.layout.y && o.layout.w === w.layout.w
             && o.layout.h === w.layout.h && estaBloqueado(o) === estaBloqueado(w);
     });
+}
+
+// ── (2026-09-29) Herramientas nuevas del panel «Acomodo» ───────────────────────────────────────
+
+const PRIORIDAD_ROL: Record<RolWidget, number> = { heroe: 0, apoyo: 1, dato: 2, franja: 3 };
+
+/** Coloca en orden de lectura bajando lo que choque con lo ya colocado (los bloqueados primero). */
+function resolverChoques(widgets: DashboardWidget[]): DashboardWidget[] {
+    const colocados: Caja[] = widgets.filter(estaBloqueado).map((w) => w.layout);
+    const salida = new Map<string, DashboardWidget>();
+    for (const w of widgets.filter((x) => !estaBloqueado(x)).sort(porLectura)) {
+        let y = w.layout.y;
+        while (colocados.some((c) => chocan(c, { ...w.layout, y }))) y++;
+        const movido = conCaja(w, { y });
+        colocados.push(movido.layout);
+        salida.set(w.id, movido);
+    }
+    return widgets.map((w) => salida.get(w.id) ?? w);
+}
+
+/**
+ * Acomodo inteligente: compone la pestaña por papeles — el héroe (el widget grande) arriba a la
+ * izquierda, luego las piezas de apoyo, después los datos agrupados y las franjas al final — sin
+ * cambiar el tamaño de nada y rodeando a los bloqueados. Es lo que mejor se deriva después a
+ * tablet, móvil y TV.
+ */
+export function acomodoInteligente(widgets: DashboardWidget[]): DashboardWidget[] {
+    if (widgets.length === 0) return widgets;
+    const colocados: { layout: Caja }[] = widgets.filter(estaBloqueado).map((f) => ({ layout: f.layout }));
+    const salida = new Map<string, DashboardWidget>();
+    const orden = widgets
+        .filter((x) => !estaBloqueado(x))
+        .sort((a, b) => PRIORIDAD_ROL[rolDe(a.layout)] - PRIORIDAD_ROL[rolDe(b.layout)] || porLectura(a, b));
+    for (const w of orden) {
+        const franja = rolDe(w.layout) === "franja";
+        const fondo = colocados.reduce((m, c) => Math.max(m, c.layout.y + c.layout.h), 0);
+        const hueco = franja ? { x: 0, y: fondo } : mejorHueco(colocados, w.layout.w, w.layout.h);
+        const movido = conCaja(w, hueco);
+        colocados.push({ layout: movido.layout });
+        salida.set(w.id, movido);
+    }
+    return widgets.map((w) => salida.get(w.id) ?? w);
+}
+
+/** Igualar alturas por fila: los widgets que empiezan en la misma fila toman la altura del más alto. */
+export function igualarAlturas(widgets: DashboardWidget[]): DashboardWidget[] {
+    const filas = new Map<number, DashboardWidget[]>();
+    for (const w of widgets) {
+        if (estaBloqueado(w)) continue;
+        const f = filas.get(w.layout.y) ?? [];
+        f.push(w);
+        filas.set(w.layout.y, f);
+    }
+    const nuevos = new Map<string, DashboardWidget>();
+    for (const fila of filas.values()) {
+        if (fila.length < 2) continue;
+        const alto = Math.max(...fila.map((w) => w.layout.h));
+        for (const w of fila) {
+            const c = getSizeConstraints(w.widget_type);
+            const h = c.maxH ? Math.min(alto, c.maxH) : alto;
+            if (h !== w.layout.h) nuevos.set(w.id, conCaja(w, { h }));
+        }
+    }
+    if (nuevos.size === 0) return widgets;
+    return resolverChoques(widgets.map((w) => nuevos.get(w.id) ?? w));
+}
+
+/** Rellenar huecos: cada widget se estira a la derecha mientras haya sitio libre en su fila. */
+export function rellenarFilas(widgets: DashboardWidget[], columnas = COLUMNAS): DashboardWidget[] {
+    let actual = widgets;
+    for (const w of [...widgets].filter((x) => !estaBloqueado(x)).sort(porLectura)) {
+        const yo = actual.find((x) => x.id === w.id)!;
+        const c = getSizeConstraints(yo.widget_type);
+        const tope = Math.min(columnas, c.maxW ? yo.layout.x + c.maxW : columnas);
+        let ancho = yo.layout.w;
+        while (yo.layout.x + ancho < tope) {
+            const prueba = { ...yo.layout, w: ancho + 1 };
+            if (actual.some((o) => o.id !== yo.id && chocan(o.layout, prueba))) break;
+            ancho++;
+        }
+        if (ancho !== yo.layout.w) actual = actual.map((x) => (x.id === yo.id ? conCaja(x, { w: ancho }) : x));
+    }
+    return actual;
 }

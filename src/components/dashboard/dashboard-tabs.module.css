@@ -1,46 +1,60 @@
-/* ── Carril de pestañas del menú del Dashboard ────────────────────────────
-   Estilos del rediseño "esquinas/full-bleed" (gen10): scroll sin barra
-   visible y desvanecido (fade) en los extremos cuando hay más pestañas de
-   las que caben. Las clases de overflow/fade se aplican desde
-   dashboard-layout.tsx SOLO cuando el contenido desborda (railOverflow),
-   para no oscurecer los extremos cuando todo cabe. */
+/* ── Pestañas de los dashboards (2026-09-29) ────────────────────────────────
+   Fondo ambiental de cada pestaña temática y el aviso breve al cambiar de pestaña.
+   Solo se anima `transform` y `opacity`; nada con movimiento reducido ni en modo eco. */
 
-.railY {
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
-    overscroll-behavior: contain;
+.ambiente {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: var(--screen-corner, 0);
 }
 
-.railX {
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    overscroll-behavior: contain;
+/* La luz del tema deriva muy despacio (38 s, ida y vuelta). */
+.luz {
+    position: absolute;
+    inset: -6%;
+    will-change: transform;
+    animation: deriva 38s ease-in-out infinite alternate;
+    transition: opacity 400ms ease;
 }
 
-.railY::-webkit-scrollbar,
-.railX::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
+.motivo {
+    position: absolute;
+    inset: 0;
+    transition: opacity 400ms ease;
 }
 
-/* Fades en los extremos del carril (indican que hay más pestañas). */
-.fadeY {
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
-    mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+@keyframes deriva {
+    0% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(1.5%, 1%, 0) scale(1.03); }
+    100% { transform: translate3d(-1%, 1.5%, 0) scale(1.01); }
 }
 
-.fadeX {
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
-    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+/* Aviso de la pestaña a la que se llegó deslizando: aparece, se lee y se va (≈1,2 s). */
+.aviso {
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    z-index: 40;
+    transform: translateX(-50%);
+    pointer-events: none;
+    animation: aviso 1200ms ease forwards;
 }
 
-/* Accesibilidad: sin desplazamiento animado si el usuario lo prefiere. */
+@keyframes aviso {
+    0% { opacity: 0; transform: translate(-50%, -6px); }
+    15% { opacity: 1; transform: translate(-50%, 0); }
+    75% { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .railY,
-    .railX {
-        scroll-behavior: auto;
-    }
+    .luz { animation: none; }
+    .aviso { animation-duration: 1ms; animation-delay: 1100ms; opacity: 1; }
+}
+
+:global(html[data-perf="eco"]) .luz {
+    animation: none;
 }

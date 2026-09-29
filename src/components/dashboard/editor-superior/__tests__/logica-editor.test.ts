@@ -161,3 +161,36 @@ describe("aspecto de pestaña", () => {
         expect(acentoDePestana("red; background:url(x)")).toBeUndefined();
     });
 });
+
+// (2026-09-29) Herramientas nuevas del panel «Acomodo».
+import { acomodoInteligente, igualarAlturas, rellenarFilas } from "../acomodo";
+
+describe("acomodo inteligente, igualar alturas y rellenar huecos", () => {
+    it("el héroe sube arriba a la izquierda, los datos después y la franja al final", () => {
+        const ws = [
+            w("dato", 0, 0, 3, 3), w("franja", 0, 3, 12, 2), w("apoyo", 3, 0, 4, 4), w("heroe", 0, 10, 6, 6),
+        ];
+        const res = acomodoInteligente(ws);
+        const por = (id: string) => res.find((x) => x.id === id)!.layout;
+        expect(por("heroe")).toMatchObject({ x: 0, y: 0 });
+        expect(por("franja").y).toBeGreaterThanOrEqual(Math.max(...res.filter((x) => x.id !== "franja").map((x) => x.layout.y + x.layout.h)));
+        expect(sinChoques(res)).toBe(true);
+        // Nunca cambia tamaños.
+        expect(res.map((x) => [x.layout.w, x.layout.h])).toEqual(ws.map((x) => [x.layout.w, x.layout.h]));
+    });
+    it("igualar alturas por fila sin solapar la fila siguiente", () => {
+        const ws = [w("a", 0, 0, 4, 3), w("b", 4, 0, 4, 5), w("c", 0, 3, 4, 2), w("fijo", 8, 0, 4, 2, { settings: { bloqueado: true } })];
+        const res = igualarAlturas(ws);
+        expect(res.find((x) => x.id === "a")!.layout.h).toBe(5);
+        expect(res.find((x) => x.id === "fijo")!.layout.h).toBe(2);
+        expect(sinChoques(res)).toBe(true);
+    });
+    it("rellenar huecos estira a la derecha hasta el vecino o el borde", () => {
+        const ws = [w("a", 0, 0, 4, 3), w("b", 6, 0, 3, 3), w("c", 0, 3, 5, 3)];
+        const res = rellenarFilas(ws);
+        expect(res.find((x) => x.id === "a")!.layout.w).toBe(6);
+        expect(res.find((x) => x.id === "b")!.layout.w).toBe(6);
+        expect(res.find((x) => x.id === "c")!.layout.w).toBe(12);
+        expect(sinChoques(res)).toBe(true);
+    });
+});

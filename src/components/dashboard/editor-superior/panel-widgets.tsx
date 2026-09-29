@@ -6,7 +6,7 @@
  * hueco libre) o, con ratón, arrastrarla a la rejilla.
  */
 import * as React from "react";
-import { ChevronDown, ChevronRight, Flame, Hammer, LayoutGrid, Plus, Search, Sparkles, Star, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Flame, Hammer, LayoutGrid, Plus, Search, Sparkles, Star, Wand2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DashboardWidget, WidgetType } from "../dashboard-types";
 import { getCategoryById, type WidgetCategory } from "../widget-categories";
@@ -17,6 +17,34 @@ import { dimsTalla, NOMBRE_CLASE, TALLAS_EDITOR } from "./tallas";
 import { iniciarArrastreCatalogo, terminarArrastreCatalogo } from "./arrastre-catalogo";
 import type { TallaEditor } from "./tipos";
 import { Seccion, pildoraFantasma } from "./ui-editor";
+import { ALL_DASHBOARD_TEMPLATES } from "../dashboard-defaults";
+import { getSizeConstraints, getManifest } from "../widget-manifest";
+import { sizeFromWH } from "../dashboard-size";
+import { claseDesdeGrid, type ClaseTamano } from "@/lib/widgets/forma/tamanos";
+import { temaDeCategoria } from "../pestanas/temas";
+
+/** «Sugerido»: el tamaño que el diseño del tema (o el manifiesto) da a cada widget. */
+export type TallaCatalogo = TallaEditor | "sugerido";
+
+interface Huella {
+    w: number;
+    h: number;
+    clase: ClaseTamano;
+}
+
+/** Huella con la que se añadiría un widget con la talla elegida. */
+export function huellaPara(type: WidgetType, talla: TallaCatalogo, categoriaPestana?: string): Huella {
+    if (talla !== "sugerido") {
+        const d = dimsTalla(type, talla);
+        return { w: d.w, h: d.h, clase: d.clase };
+    }
+    const deTema = categoriaPestana ? ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoriaPestana)?.widgets.find((w) => w.type === type) : undefined;
+    const man = getManifest(type);
+    const c = getSizeConstraints(type);
+    const w = Math.min(12, Math.max(c.minW, deTema?.w ?? man?.w ?? 4));
+    const h = Math.max(c.minH, deTema?.h ?? man?.h ?? 4);
+    return { w, h, clase: claseDesdeGrid(w, h) };
+}
 
 const VIOLETA = "#7C5CFF";
 const CATEGORIAS_VISIBLES = 9;
@@ -26,9 +54,12 @@ type Filtro = FiltroCategoria | "pestana";
 export interface PanelWidgetsProps {
     widgets: DashboardWidget[];
     nombrePestana: string;
-    talla: TallaEditor;
-    onTalla: (t: TallaEditor) => void;
-    onAnadir: (type: WidgetType, talla: TallaEditor) => void;
+    /** (2026-09-29) Tema de la pestaña: sus piezas que faltan se recomiendan primero. */
+    categoriaPestana?: string;
+    talla: TallaCatalogo;
+    onTalla: (t: TallaCatalogo) => void;
+    /** Con «Sugerido», `dims` lleva la huella exacta del diseño del tema. */
+    onAnadir: (type: WidgetType, talla: TallaEditor, dims?: { w: number; h: number }) => void;
     onForjar: () => void;
     onCrearDesdePlantilla: (categoryId: string, nombre: string) => void;
     /** Con ratón: las fichas se pueden arrastrar a la rejilla. */
@@ -45,8 +76,7 @@ function GlifoTalla({ talla }: { talla: TallaEditor }) {
 }
 
 /** Silueta viva de un widget con la proporción de la talla elegida (no monta el widget real). */
-function VistaPrevia({ entrada, talla }: { entrada: EntradaCatalogo; talla: TallaEditor }) {
-    const d = dimsTalla(entrada.type, talla);
+function VistaPrevia({ entrada, d }: { entrada: EntradaCatalogo; d: Huella }) {
     const r = (d.w * 95) / (d.h * 65);
     const ancho = r >= 2.6;
     const semilla = entrada.type.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
@@ -83,19 +113,19 @@ function VistaPrevia({ entrada, talla }: { entrada: EntradaCatalogo; talla: Tall
     );
 }
 
-function FichaWidget({ entrada, talla, motivo, presentes, arrastrable, onAnadir }: {
-    entrada: EntradaCatalogo; talla: TallaEditor; motivo?: string; presentes: number; arrastrable: boolean; onAnadir: () => void;
+function FichaWidget({ entrada, talla, huella, motivo, presentes, arrastrable, onAnadir }: {
+    entrada: EntradaCatalogo; talla: TallaCatalogo; huella: Huella; motivo?: string; presentes: number; arrastrable: boolean; onAnadir: () => void;
 }) {
     const cat = getCategoryById(entrada.categoria);
     const IconoCat = cat?.icon ?? LayoutGrid;
-    const etiquetaTalla = TALLAS_EDITOR.find((t) => t.id === talla)?.etiqueta ?? talla;
+    const etiquetaTalla = talla === "sugerido" ? `sugerido, ${NOMBRE_CLASE[huella.clase]}` : TALLAS_EDITOR.find((t) => t.id === talla)?.etiqueta ?? talla;
     return (
         <button
             type="button"
             draggable={arrastrable}
             onDragStart={(e) => {
-                const d = dimsTalla(entrada.type, talla);
-                iniciarArrastreCatalogo(e.dataTransfer, { type: entrada.type, talla, w: d.w, h: d.h });
+                const tallaReal: TallaEditor = talla === "sugerido" ? sizeFromWH(huella.w, huella.h) : talla;
+                iniciarArrastreCatalogo(e.dataTransfer, { type: entrada.type, talla: tallaReal, w: huella.w, h: huella.h });
             }}
             onDragEnd={() => terminarArrastreCatalogo()}
             onClick={onAnadir}
@@ -104,7 +134,7 @@ function FichaWidget({ entrada, talla, motivo, presentes, arrastrable, onAnadir 
             className="group relative flex h-full flex-col gap-2 rounded-2xl p-2.5 text-left cursor-pointer transition-[background,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:translate-y-0"
             style={{ background: "rgba(255,255,255,.03)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.07)", outlineColor: entrada.acento }}
         >
-            <VistaPrevia entrada={entrada} talla={talla} />
+            <VistaPrevia entrada={entrada} d={huella} />
             <div className="flex items-start gap-2">
                 <span className="grid size-8 shrink-0 place-items-center rounded-xl [&_svg]:size-4" style={pildoraFantasma(entrada.acento)}>
                     {entrada.icono ?? <IconoCat className="size-4" style={{ color: entrada.acento }} />}
@@ -118,7 +148,9 @@ function FichaWidget({ entrada, talla, motivo, presentes, arrastrable, onAnadir 
                 </span>
             </div>
             <span className="mt-auto flex flex-wrap items-center justify-between gap-1 text-[11px] text-white/45">
-                <span>{cat?.name ?? entrada.categoria}{presentes > 0 ? ` · ya tienes ${presentes}` : ""}</span>
+                <span>
+                    <span className="tabular-nums">{huella.w}×{huella.h}</span> · {cat?.name ?? entrada.categoria}{presentes > 0 ? ` · ya tienes ${presentes}` : ""}
+                </span>
                 <span className="inline-flex items-center gap-0.5 font-semibold transition-colors duration-200 group-hover:text-white" style={{ color: entrada.acento }}>
                     <Plus className="size-3.5" aria-hidden /> Añadir
                 </span>
@@ -145,7 +177,7 @@ function ChipFiltro({ activo, onClick, children, n }: { activo: boolean; onClick
     );
 }
 
-export function PanelWidgets({ widgets, nombrePestana, talla, onTalla, onAnadir, onForjar, onCrearDesdePlantilla, arrastrable }: PanelWidgetsProps) {
+export function PanelWidgets({ widgets, nombrePestana, categoriaPestana, talla, onTalla, onAnadir, onForjar, onCrearDesdePlantilla, arrastrable }: PanelWidgetsProps) {
     const catalogo = React.useMemo(() => catalogoCompleto(), []);
     const [texto, setTexto] = React.useState("");
     const [filtro, setFiltro] = React.useState<Filtro>("pestana");
@@ -157,11 +189,23 @@ export function PanelWidgets({ widgets, nombrePestana, talla, onTalla, onAnadir,
         return m;
     }, [widgets]);
 
-    const sugerencias = React.useMemo(() => sugerenciasPara({
-        titulo: nombrePestana,
-        widgetsPresentes: widgets.map((w) => w.widget_type),
-        categoriasPresentes: [],
-    }, 8), [nombrePestana, widgets]);
+    // (2026-09-29) Primero, las piezas del diseño de su tema que le faltan; después, las sugerencias
+    // por el nombre de la pestaña (sugerencias-pestana.ts), sin repetir.
+    const sugerencias = React.useMemo(() => {
+        const presentesSet = new Set(widgets.map((w) => w.widget_type));
+        const plantilla = categoriaPestana ? ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoriaPestana) : undefined;
+        const tema = temaDeCategoria(categoriaPestana ?? null);
+        const delTema = (plantilla?.widgets ?? [])
+            .filter((w) => w.type !== "APP_LAUNCHER" && !presentesSet.has(w.type))
+            .map((w) => ({ tipo: w.type, motivo: w.rol === "heroe" ? `El protagonista de ${tema.nombre}.` : `Parte del diseño de ${tema.nombre}.` }));
+        const vistos = new Set(delTema.map((x) => x.tipo));
+        const porNombre = sugerenciasPara({
+            titulo: nombrePestana,
+            widgetsPresentes: widgets.map((w) => w.widget_type),
+            categoriasPresentes: [],
+        }, 8).filter((x) => !vistos.has(x.tipo)).map((x) => ({ tipo: x.tipo, motivo: x.motivo }));
+        return [...delTema, ...porNombre].slice(0, 12);
+    }, [nombrePestana, widgets, categoriaPestana]);
     const motivos = React.useMemo(() => new Map(sugerencias.map((s) => [s.tipo, s.motivo])), [sugerencias]);
 
     const categorias = React.useMemo(() => categoriasConWidgets(catalogo), [catalogo]);
@@ -201,14 +245,31 @@ export function PanelWidgets({ widgets, nombrePestana, talla, onTalla, onAnadir,
                 <DashboardAiSuggestions
                     widgets={widgets}
                     dashboardName={nombrePestana}
-                    onAddWidget={(type) => onAnadir(type, talla)}
+                    onAddWidget={(type) => {
+                        const h = huellaPara(type, talla, categoriaPestana);
+                        onAnadir(type, talla === "sugerido" ? sizeFromWH(h.w, h.h) : talla, talla === "sugerido" ? { w: h.w, h: h.h } : undefined);
+                    }}
                     onCreateFromTemplate={(categoryId, nombre) => onCrearDesdePlantilla(categoryId, nombre)}
                     variant="button"
                 />
             </div>
 
-            <Seccion titulo="Tamaño al añadir" ayuda="Cada tamaño es un diseño distinto del widget, no una simple escala.">
+            <Seccion titulo="Tamaño al añadir" ayuda="Cada tamaño es un diseño distinto del widget, no una simple escala. «Sugerido» usa el que le da el diseño de esta pestaña.">
                 <div role="radiogroup" aria-label="Tamaño al añadir" className="flex flex-wrap gap-1.5">
+                    <button
+                        type="button"
+                        role="radio"
+                        aria-checked={talla === "sugerido"}
+                        title="El tamaño que el diseño del tema da a cada widget"
+                        onClick={() => onTalla("sugerido")}
+                        className={cn(
+                            "ss-redondo inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
+                            talla === "sugerido" ? "text-white" : "text-white/60 hover:bg-white/[0.06] hover:text-white",
+                        )}
+                        style={talla === "sugerido" ? pildoraFantasma(VIOLETA) : { boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
+                    >
+                        <Wand2 className="size-3.5" aria-hidden /> Sugerido
+                    </button>
                     {TALLAS_EDITOR.map((t) => {
                         const activo = t.id === talla;
                         return (
@@ -293,10 +354,15 @@ export function PanelWidgets({ widgets, nombrePestana, talla, onTalla, onAnadir,
                             key={e.type}
                             entrada={e}
                             talla={talla}
+                            huella={huellaPara(e.type, talla, categoriaPestana)}
                             motivo={filtro === "pestana" && !texto.trim() ? motivos.get(e.type) : undefined}
                             presentes={presentes.get(e.type) ?? 0}
                             arrastrable={arrastrable}
-                            onAnadir={() => onAnadir(e.type, talla)}
+                            onAnadir={() => {
+                                if (talla !== "sugerido") { onAnadir(e.type, talla); return; }
+                                const h = huellaPara(e.type, talla, categoriaPestana);
+                                onAnadir(e.type, sizeFromWH(h.w, h.h), { w: h.w, h: h.h });
+                            }}
                         />
                     ))}
                 </div>
