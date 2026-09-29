@@ -146,20 +146,28 @@ class EnDisco(unittest.TestCase):
         self.assertEqual(md["hallazgos"][0]["archivo"], "src/lib/feed/a.ts")
         self.assertEqual(md["hallazgos"][0]["impacto"], 4)
         self.assertEqual(md["hallazgos"][0]["seccion"], "riesgo")
-        r = S.ejecutar(self.sesion, self.olas, "2026-09-29", memoria=self.memoria,
+        r = S.ejecutar(self.sesion, self.olas, "2026-09-29", memoria=self.memoria, consejero=None,
+                       bus=lambda texto, datos: self.dichos.append(("bus", datos)) or True,
                        decir=lambda texto, quien, tipo: self.dichos.append(texto))
         self.assertTrue(os.path.exists(os.path.join(self.sesion, "INFORME.md")))
         cola = json.load(open(os.path.join(self.olas, "cola-suenos-propuesta-2026-09-29.json")))
         self.assertEqual(len(cola), 2)
         self.assertEqual(len(json.load(open(self.memoria))["claves"]), 2)
-        self.assertEqual(len(self.dichos), 1)
+        self.assertEqual(len(self.dichos), 2)
+        self.assertEqual(self.dichos[1], ("bus", {"sesion": "2026-09-29", "propuestas": 2, "cola": "cola-suenos-propuesta-2026-09-29.json"}))
+        self.assertTrue(r["anuncio"]["reportes"])
         self.assertFalse(r["anuncio"]["telegram"])
+        consolidado = json.load(open(os.path.join(self.sesion, "consolidado.json")))
+        self.assertEqual(consolidado["top"][0]["jev"].split(":")[0], "regla")
+        self.assertFalse(consolidado["informe"].startswith("/"))
         # Segunda pasada: lo ya encargado no vuelve a la cola.
-        r2 = S.ejecutar(self.sesion, self.olas, "2026-09-29", memoria=self.memoria, decir=lambda *a: None)
+        r2 = S.ejecutar(self.sesion, self.olas, "2026-09-29", memoria=self.memoria, decir=lambda *a: None,
+                        consejero=None, bus=None)
         self.assertEqual(r2["propuestas"], 0)
 
     def test_seco_no_escribe_nada(self):
-        r = S.ejecutar(self.sesion, self.olas, "2026-09-29", seco=True, memoria=self.memoria, decir=lambda *a: None)
+        r = S.ejecutar(self.sesion, self.olas, "2026-09-29", seco=True, memoria=self.memoria, decir=lambda *a: None,
+                       consejero=None, bus=None)
         self.assertTrue(r["seco"])
         self.assertFalse(os.path.exists(os.path.join(self.sesion, "INFORME.md")))
         self.assertFalse(os.path.exists(self.memoria))
@@ -174,6 +182,99 @@ class EnDisco(unittest.TestCase):
         self.assertEqual(v["ajustes"][1], {"esfuerzo": 4})
         self.assertEqual(v["rechazados"], {3})
         self.assertEqual(v["por"], "claude-haiku")
+
+
+class Jev(unittest.TestCase):
+    """Jev de consejero: veta lo no accionable con mucha seguridad, afina la prioridad con
+    confianza, lo privado solo en local, y sin Jev manda la regla (y se dice)."""
+
+    def setUp(self):
+        self.informes = [
+            informe("SA1", "voz", "arquitectura-deuda", [
+                hallazgo("Unificar el cliente de voz", impacto=4, esfuerzo=2),
+                hallazgo("Reducir el sondeo", archivo="src/lib/y.ts", impacto=3, esfuerzo=3),
+            ]),
+            informe("SA2", "mando", "seguridad-privacidad", [
+                hallazgo("Validar el origen", archivo="src/app/api/mando/x/route.ts", seccion="riesgo")], privado=True),
+        ]
+        self.vistos = []
+
+    def consejero(self, estado, privado):
+        self.vistos.append((estado["hallazgo"]["titulo"], privado))
+        titulo = estado["hallazgo"]["titulo"]
+        if titulo == "Unificar el cliente de voz":
+            return {"p_accionable": 0.1, "prioridad": "baja", "confianza": 0.9, "medio": "local"}
+        if titulo == "Reducir el sondeo":
+            return {"p_accionable": 0.95, "prioridad": "alta", "confianza": 0.8, "medio": "openrouter"}
+        return None
+
+    def test_veto_prioridad_y_privado(self):
+        c = S.consolidar(self.informes, {}, consejero=self.consejero)
+        por = {u["titulo"]: u for u in c["ranking"]}
+        self.assertFalse(por["Unificar el cliente de voz"]["accionable"])
+        self.assertTrue(por["Unificar el cliente de voz"]["jev"]["veto"])
+        self.assertEqual(por["Reducir el sondeo"]["prioridad"], "alta")
+        self.assertEqual(por["Validar el origen"]["jev"]["medio"], "regla")
+        self.assertIn(("Validar el origen", True), self.vistos)
+        self.assertEqual(c["cuentas"]["jev"]["vetados"], 1)
+        self.assertEqual(c["cuentas"]["jev"]["por_medio"], {"local": 1, "openrouter": 1})
+        # Lo accionable va antes que lo vetado, y lo vetado no entra en la cola.
+        titulos = [u["titulo"] for u in c["ranking"]]
+        self.assertLess(titulos.index("Reducir el sondeo"), titulos.index("Unificar el cliente de voz"))
+        cola = S.cola_propuesta(c, "2026-09-29")
+        self.assertNotIn("Hacer: Unificar el cliente de voz", [t["titulo"] for t in cola])
+        self.assertTrue(any("CONSEJO DE JEV: alta" in t["prompt"] for t in cola))
+        texto = S.render_informe(c, "2026-09-29")
+        self.assertIn("VETO", texto)
+        self.assertIn("Consejero Jev:** 2 consultas", texto)
+
+    def test_tope_de_consultas(self):
+        c = S.consolidar(self.informes, {}, consejero=self.consejero, tope_jev=1)
+        self.assertEqual(c["cuentas"]["jev"]["consultas"] + c["cuentas"]["jev"]["regla"], 3)
+        self.assertEqual(len(self.vistos), 1)
+
+    def test_respuesta_del_contrato(self):
+        r = {"answers": [{"id": "accionable", "answer": "sí", "probs": {"sí": 0.83, "no": 0.17}, "confidence": 0.83},
+                         {"id": "prioridad", "answer": "media", "probs": {}, "confidence": 0.7}], "medio": "local"}
+        self.assertEqual(S.leer_respuesta_jev(r), {"medio": "local", "p_accionable": 0.83, "prioridad": "media", "confianza": 0.7})
+        self.assertIsNone(S.leer_respuesta_jev({"answers": []}))
+
+    def test_jev_apagado_es_solo_la_regla(self):
+        viejo = os.environ.get("STARSEED_JEV")
+        os.environ["STARSEED_JEV"] = "0"
+        try:
+            self.assertIsNone(S.consejero_jev())
+        finally:
+            if viejo is None:
+                del os.environ["STARSEED_JEV"]
+            else:
+                os.environ["STARSEED_JEV"] = viejo
+
+
+class Hermes(unittest.TestCase):
+    def test_el_resumen_final_va_a_telegram_por_hermes(self):
+        d = tempfile.mkdtemp(prefix="hermes-")
+        try:
+            registro = os.path.join(d, "args")
+            falso = os.path.join(d, "hermes")
+            with open(falso, "w") as f:
+                f.write("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %s\n" % registro)
+            os.chmod(falso, 0o755)
+            viejo = S._hermes
+            S._hermes = lambda: falso
+            try:
+                r = S.anunciar("resumen", telegram=True, decir=lambda *a: None)
+            finally:
+                S._hermes = viejo
+            self.assertTrue(r["telegram"])
+            args = open(registro).read().splitlines()
+            self.assertEqual(args[:3], ["send", "-t", "telegram:Maggasukha"])
+            self.assertIn("-s", args)
+            self.assertEqual(args[-1], "resumen")
+            sin = S.anunciar("resumen", telegram=False, decir=lambda *a: None)
+            self.assertFalse(sin["telegram"])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == "__main__":

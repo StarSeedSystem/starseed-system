@@ -139,6 +139,20 @@ class Verificar(Base):
         self.assertFalse(os.path.exists(os.path.join(self.sesion, "verificaciones.jsonl")))
 
 
+class Consolidar(Base):
+    def test_consolida_sin_jev_y_solo_telegram_si_esta_completa(self):
+        avisos = []
+        self.parchear(S.director_suenos, "anunciar", lambda texto, telegram=False, **k: avisos.append(telegram) or {})
+        self.parchear(S.director_suenos, "MEMORIA_ENCARGADAS", os.path.join(self.raiz, "encargado.json"))
+        codigo, d = self.correr("consolidar", "--sin-jev")
+        self.assertEqual(codigo, 0)
+        self.assertFalse(d["completa"])
+        self.assertEqual(avisos, [False])
+        self.assertTrue(os.path.exists(os.path.join(self.sesion, "INFORME.md")))
+        self.assertTrue(os.path.exists(os.path.join(self.sesion, "consolidado.json")))
+        self.assertEqual(d["informe"], "starseed_memory_root/dream/profundo/%s/INFORME.md" % SESION)
+
+
 class Lanzar(Base):
     def setUp(self):
         super().setUp()

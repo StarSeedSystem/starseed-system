@@ -17,7 +17,7 @@ terminal y por localhost. Nada de esto escribe código en el repositorio.
                                                --nota "…" --por claude-<modelo>
                                                [--hallazgo N --impacto X --esfuerzo Y --confianza Z]
                                                [--rechazar-hallazgos 2,5] [--fecha …]
-  python3 scripts/puente/suenos.py consolidar  [--fecha …] [--tope 15] [--seco] [--telegram|--sin-telegram] [--json]
+  python3 scripts/puente/suenos.py consolidar  [--fecha …] [--tope 15] [--seco] [--telegram|--sin-telegram] [--sin-jev] [--json]
   python3 scripts/puente/suenos.py latido      --agente <id> --fase "<texto>" [--modelo anthropic/claude-…] [--terminar]
 
 Dónde queda todo (nada se versiona: starseed_memory_root/ está en .gitignore):
@@ -502,8 +502,9 @@ def cmd_consolidar(a, raiz):
     r = rutas(raiz)
     est = estado_sesion(raiz, sesion, vivos=[])
     telegram = (est["completa"] or a.telegram) and not a.sin_telegram
+    extra = {"consejero": None} if a.sin_jev else {}
     res = director_suenos.ejecutar(os.path.join(r["profundo"], sesion), r["olas"], sesion, tope=a.tope, seco=a.seco,
-                                   planificadas=est["total"], telegram=telegram)
+                                   planificadas=est["total"], telegram=telegram, **extra)
     res["completa"] = est["completa"]
     return 0, res
 
@@ -637,6 +638,7 @@ def parser():
     p.add_argument("--seco", action="store_true")
     p.add_argument("--telegram", action="store_true", help="mandar el resumen aunque la sesión no esté completa")
     p.add_argument("--sin-telegram", action="store_true")
+    p.add_argument("--sin-jev", action="store_true", help="solo la regla determinista, sin consultar a Jev")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("latido")
     p.add_argument("--agente", required=True)
