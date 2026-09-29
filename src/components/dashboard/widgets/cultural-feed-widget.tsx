@@ -1,360 +1,215 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { Palette, ChevronRight, Sparkles, Heart, Bookmark, ChevronLeft, Filter } from "lucide-react";
-import { WidgetShell, MiniList, Chip, ProgressBar, timeAgo } from "../kit";
-import { MarcoWidget } from "@/components/dashboard/kit/marco-widget";
-import { estadoDe } from "@/components/dashboard/calidad-widget";
-import type { FeedItem } from "@/lib/widget-data";
-import { createClient } from "@/utils/supabase/client";
-import { cn } from "@/lib/utils";
-import { slugify } from "@/lib/entity-links";
-// Identicón determinista derivado del nombre real de la autoría: no aporta
-// contenido inventado, solo la imagen del avatar.
-import { diceBearAvatar } from "@/data/sample-entities";
-
 // ════════════════════════════════════════════════════════════════
-// CulturalFeedWidget — corriente cultural de la red (obras, eventos,
-// manifiestos). Lee creaciones reales de la comunidad (`cafe_posts`
-// del proyecto unificado) como corriente cultural viva, con conteo
-// total. Realtime: suscripción a `cafe_posts` (postgres_changes). Si
-// `cafe_posts` no devuelve nada, enseña el vacío honesto del marco
-// común: ni obras de ejemplo ni portadas de relleno (Ola 305 · zW4).
-// Animaciones stagger con framer-motion + avatares.
+// CulturalFeedWidget — la Corriente Cultural como una sala de obras (Ola 0929 · D)
+// ----------------------------------------------------------------
+// Creaciones REALES de la comunidad: las del Café (`cafe_posts`: obras,
+// elixires, recetas, propuestas…) y las publicaciones del Lienzo con área
+// «cultura» (`posts`). Cada obra es una pieza con su imagen (o su
+// emblema de tipo), su autoría, sus reacciones y comentarios reales. Se
+// filtra por tipo, se lee entera sin salir del tablero (las del Café no
+// tienen página propia en el OS) y las del Lienzo se pueden guardar en tu
+// biblioteca o abrir. Lecturas compartidas con Publicaciones relevantes y
+// el Feed de la Red (mismas claves), cada ≥ 5 min y solo a la vista.
+//
+// micro = la última obra como azulejo · s = su lámina · m = sala 2×2 ·
+// torre = columna de láminas · l = tipos + sala de 3 · xl = portada + sala
+// · panorámico = la exposición en fila. Estados: cargando (rejilla), vacío
+// honesto del marco común con «Compartir una obra», error con reintento
+// solo si fallan las dos fuentes.
 // ════════════════════════════════════════════════════════════════
-const KIND_COLOR: Record<string, string> = {
-    obra: "#ec4899", propuesta: "#f59e0b", debate: "#a855f7",
-    misión: "#10b981", evento: "#38bdf8",
-    elixir: "#10b981", receta: "#f59e0b", // tipos reales del Café
+
+import * as React from 'react';
+import Link from 'next/link';
+import {
+    CalendarDays, ChefHat, FlaskConical, Heart, Lightbulb, MessagesSquare, Palette, PenSquare, Sparkles, Target, type LucideIcon,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
+import { MarcoSocial, estadoSocial } from './_social-d/marco-social';
+import { useEnPantalla, useFuenteCompartida } from './_social-d/fuente-compartida';
+import { cargarFeedRed, type FeedRed } from './_social-d/feed-red-datos';
+import { cargarCafe, type CreacionCafe } from './_social-d/cafe-datos';
+import { useAccionesRed } from './_social-d/acciones-red';
+import { tipoCreacion, vistaDeCafe, vistaDeRed, type PublicacionConOrigen } from './_social-d/vistas';
+import { BotonActualizar, BotonIcono, Miniatura, Pastilla, Segmentos, estilosSocial as estilos, tintaDe } from './_social-d/piezas';
+import { Abrir, LectorPublicacion, PortadaPublicacion, textoDe, type AccionesPublicacion, type PublicacionVista } from './_social-d/publicaciones';
+import { columnasQueCaben, type TamanoSocial } from './_social-d/tamano';
+import { formatoNumero, recortar } from './_social-d/formato';
+
+const ACENTO = '#ffbf00';
+const INTERVALO_RED = 10 * 60_000;
+
+const ICONO_TIPO: Record<string, LucideIcon> = {
+    obra: Palette, propuesta: Lightbulb, debate: MessagesSquare, mision: Target, 'misión': Target,
+    evento: CalendarDays, elixir: FlaskConical, receta: ChefHat,
 };
-
-interface CafePostRow {
-    id: string;
-    kind: string | null;
-    branch: string | null;
-    title: string | null;
-    body: string | null;
-    author_name: string | null;
-    created_at: string | null;
-}
-
-// Resonancia determinista derivada de id + recencia (0.50..0.97).
-function derivedResonance(id: string, createdAt: string | null): number {
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    const base = 0.55 + (h % 1000) / 1000 * 0.4;
-    const ageDays = createdAt ? (Date.now() - new Date(createdAt).getTime()) / 86_400_000 : 30;
-    const recency = Math.max(0, 1 - ageDays / 45) * 0.1;
-    return Math.min(0.97, base + recency);
-}
-
-function mapCafeFeed(rows: CafePostRow[]): FeedItem[] {
-    return rows.map((r, i) => ({
-        id: r.id ?? `cafe-feed-${i}`,
-        title: r.title ?? "Nueva creación del Café",
-        author: [r.author_name, r.branch].filter(Boolean).join(" · ") || "Comunidad StarSeed",
-        kind: r.kind ?? "obra",
-        ts: r.created_at ? new Date(r.created_at).getTime() : Date.now() - i * 3_600_000,
-        resonance: derivedResonance(r.id ?? String(i), r.created_at),
-    }));
-}
-
-/** Lista estable para el caso «todavía no hay obras reales». */
-const SIN_OBRAS: FeedItem[] = [];
-
-const INT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
-
-// ── Variantes de animación ────────────────────────────────────────
-const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: (i: number) => ({
-        opacity: 1, y: 0,
-        transition: { delay: i * 0.06, duration: 0.22, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
-    }),
-    exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
-};
+const iconoTipo = (tipo: string | null) => ICONO_TIPO[(tipo ?? '').toLowerCase()] ?? Sparkles;
 
 export function CulturalFeedWidget() {
-    const supabase = useMemo(() => createClient(), []);
-    const [realData, setRealData] = useState<FeedItem[] | null>(null);
-    const [total, setTotal] = useState<number | null>(null);
-    const [cargando, setCargando] = useState(true);
-    const [errorFuente, setErrorFuente] = useState<unknown>(null);
+    const refRaiz = React.useRef<HTMLDivElement | null>(null);
+    const enPantalla = useEnPantalla(refRaiz);
+    const cafe = useFuenteCompartida<CreacionCafe[]>('cafe:publicaciones', cargarCafe, { enPantalla });
+    const red = useFuenteCompartida<FeedRed>('red:feed', () => cargarFeedRed(12), { intervaloMs: INTERVALO_RED, enPantalla });
+    const { resonar, guardar, guardadas } = useAccionesRed(red);
+    const [tipo, setTipo] = React.useState<string>('todo');
+    const [leyendo, setLeyendo] = React.useState<string | null>(null);
 
-    const reload = useCallback(async () => {
-        setCargando(true);
-        try {
-            const [rowsRes, countRes] = await Promise.all([
-                supabase.from("cafe_posts")
-                    .select("id, kind, branch, title, body, author_name, created_at")
-                    .order("created_at", { ascending: false }).limit(12),
-                supabase.from("cafe_posts").select("id", { count: "exact", head: true }),
-            ]);
-            if (rowsRes.error) throw rowsRes.error;
-            const mapped = mapCafeFeed((rowsRes.data ?? []) as CafePostRow[]);
-            // Una lista vacía es una respuesta válida: significa vacío, no error.
-            setRealData(mapped);
-            setErrorFuente(null);
-            if (!countRes.error && typeof countRes.count === "number") setTotal(countRes.count);
-        } catch (e) {
-            setRealData(null);
-            setErrorFuente(e);
-        } finally {
-            setCargando(false);
-        }
-    }, [supabase]);
+    const obras: PublicacionConOrigen[] = React.useMemo(() => {
+        const delLienzo = (red.datos?.publicaciones ?? []).filter((p) => (p.area ?? '').toLowerCase() === 'cultura').map((p) => ({ ...vistaDeRed(p), tipo: 'obra', etiqueta: 'Lienzo' }));
+        return [...(cafe.datos ?? []).map(vistaDeCafe), ...delLienzo].sort((a, b) => b.ms - a.ms);
+    }, [cafe.datos, red.datos]);
 
-    useEffect(() => {
-        let active = true;
-        void (async () => { if (active) await reload(); })();
-        const ch = supabase
-            .channel("w-cultural-feed")
-            .on("postgres_changes", { event: "*", schema: "public", table: "cafe_posts" }, () => { void reload(); })
-            .subscribe();
-        return () => { active = false; supabase.removeChannel(ch); };
-    }, [supabase, reload]);
+    const tipos = React.useMemo(() => {
+        const m = new Map<string, number>();
+        for (const o of obras) m.set(o.tipo ?? 'obra', (m.get(o.tipo ?? 'obra') ?? 0) + 1);
+        return [...m.entries()].sort((a, b) => b[1] - a[1]);
+    }, [obras]);
+    const visibles = tipo === 'todo' ? obras : obras.filter((o) => (o.tipo ?? 'obra') === tipo);
 
-    // Única fuente: `cafe_posts`. Sin ella no hay nada que enseñar.
-    const data = realData ?? SIN_OBRAS;
-    // Estado honesto del widget (error > cargando > vacío > listo).
-    const estado = estadoDe({ cargando, error: errorFuente, datos: realData });
+    const ambasFallan = !!cafe.fallo && !!red.fallo && !cafe.datos && !red.datos;
+    const cargando = cafe.cargando && !cafe.fallo && !cafe.detenida;
+    const estado = estadoSocial({ cargando, hayDatos: obras.length > 0, error: ambasFallan ? new Error(cafe.fallo?.message || 'fuente') : undefined });
+    const recargar = () => { cafe.recargar(); red.recargar(); };
 
-    const [likes, setLikes] = useState<Record<string, boolean>>({});
-    const [saves, setSaves] = useState<Record<string, boolean>>({});
-    const [kindFilter, setKindFilter] = useState<string | null>(null);
-    const [openId, setOpenId] = useState<string | null>(null);
-
-    const kinds = useMemo(() => Array.from(new Set((data ?? []).map((i) => i.kind))), [data]);
-    const openItem = openId ? (data ?? []).find((i) => i.id === openId) ?? null : null;
-
-    // Cargando, vacío y error salen del marco común (un único marco: no se
-    // duplica la cabecera del WidgetShell). El vacío usa `mensajeVacio`.
-    if (estado !== "listo") {
-        return (
-            <MarcoWidget
-                titulo="Corriente Cultural"
-                categoria="cultura"
-                icono={<Palette />}
-                cargando={estado === "cargando"}
-                error={errorFuente}
-                vacio={estado === "vacio"}
-                onReintentar={() => { void reload(); }}
-            >
-                {null}
-            </MarcoWidget>
-        );
-    }
+    const abrir = (p: PublicacionVista) => setLeyendo(p.id);
+    const accionesDe = (p: PublicacionConOrigen): AccionesPublicacion => (p.origen === 'red'
+        ? { onResonar: resonar, onGuardar: guardar, guardadas, etiquetaGuardar: 'Guardar en tu biblioteca' }
+        : { onAbrir: abrir });
+    const lectura = leyendo ? obras.find((o) => o.id === leyendo) ?? null : null;
 
     return (
-        <WidgetShell
-            title="Corriente Cultural"
-            subtitle={total !== null ? `${INT_ES.format(total)} obras · en vivo` : "Creaciones · en vivo"}
-            icon={Palette}
-            accent="#ec4899"
-            expandHref="/network/culture"
-            connections={[{ label: "Cultura", href: "/network/culture", color: "#C9A8FF" }, { label: "Publicar", href: "/publish", color: "#FFBF00" }, { label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }]}
-            live
-            actions={
-                <Link href="/network/culture" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
-                    Ver <ChevronRight className="size-3" />
-                </Link>
-            }
-            footer={
-                <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
-                    Corriente del Café · datos en vivo
-                </p>
-            }
-        >
-            {(size) => {
-                const micro = size.tier === "micro" || size.vTier === "micro";
+        <div ref={refRaiz} className="h-full w-full">
+            <MarcoSocial
+                titulo="Corriente Cultural"
+                subtitulo={`${formatoNumero(obras.length)} creaciones · ${tipos.length} ${tipos.length === 1 ? 'tipo' : 'tipos'}`}
+                icono={Palette}
+                categoria="cultura"
+                acento={ACENTO}
+                estado={estado}
+                error={ambasFallan ? new Error(cafe.fallo?.message || 'fuente') : undefined}
+                onReintentar={recargar}
+                esqueleto="rejilla"
+                vacio={{ icono: Palette, mensaje: 'Las obras, recetas y propuestas de la comunidad aparecen aquí en cuanto alguien las comparte.', accion: { etiqueta: 'Compartir una obra', href: '/publicar?area=cultura' } }}
+                acciones={(t) => (
+                    <>
+                        <BotonActualizar onClick={recargar} actualizando={cafe.actualizando || red.actualizando} actualizado={Math.max(cafe.actualizado, red.actualizado)} acento={t.acento} tactil={t.tactil} />
+                        <BotonIcono icono={PenSquare} etiqueta="Compartir una obra" href="/publicar?area=cultura" acento={t.acento} tactil={t.tactil} />
+                    </>
+                )}
+            >
+                {(t) => {
+                    if (lectura && t.base !== 'micro' && t.base !== 's') {
+                        return (
+                            <LectorPublicacion p={lectura} acento={t.acento} tactil={t.tactil} onCerrar={() => setLeyendo(null)} acciones={accionesDe(lectura)}
+                                pie={<Link href="/network/culture" className="cursor-pointer text-[11.5px] font-semibold hover:underline" style={{ color: tintaDe(t.acento) }}>Ir a Cultura</Link>} />
+                        );
+                    }
+                    const ultima = obras[0];
+                    if (t.base === 'micro') {
+                        return <Lamina p={ultima} t={t} onAbrir={undefined} compacta />;
+                    }
+                    if (t.base === 's') {
+                        return <Lamina p={ultima} t={t} onAbrir={undefined} />;
+                    }
+                    const filtro = tipos.length > 1 ? (
+                        <Segmentos<string> etiqueta="Tipo de creación" acento={t.acento} tactil={t.tactil} valor={tipo} onCambio={setTipo}
+                            opciones={[{ id: 'todo', etiqueta: 'Todo', n: obras.length }, ...tipos.slice(0, t.base === 'l' ? 3 : 5).map(([k, n]) => ({ id: k, etiqueta: tipoCreacion(k).etiqueta, n, icono: iconoTipo(k) }))]} />
+                    ) : null;
 
-                // ── Vista ampliada de una obra ──
-                if (openItem && !micro) {
-                    const c = KIND_COLOR[openItem.kind] ?? "#ec4899";
-                    const liked = !!likes[openItem.id];
-                    const saved = !!saves[openItem.id];
-                    // Avatar del autor
-                    const avatarUrl = diceBearAvatar(openItem.author, "glass");
-                    return (
-                        <div className="flex flex-col gap-2.5 pt-1 h-full">
-                            <button onClick={() => setOpenId(null)}
-                                className="self-start inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer">
-                                <ChevronLeft className="size-3" /> Volver
-                            </button>
-                            <Chip color={c}>{openItem.kind}</Chip>
-                            <h4 className="text-sm @sm:text-base font-black leading-tight">{openItem.title}</h4>
-                            {/* Autor con avatar */}
-                            <div className="flex items-center gap-2">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={avatarUrl} alt={openItem.author} width={24} height={24}
-                                    className="size-6 rounded-full border border-border/40 shrink-0 object-cover" />
-                                <p className="text-[11px] text-muted-foreground/80">{openItem.author} · {timeAgo(openItem.ts)}</p>
+                    if (t.clase === 'panoramico') {
+                        const alto = Math.max(80, t.alto - (filtro && t.alto >= 200 ? 40 : 0));
+                        const cols = columnasQueCaben(t.ancho, Math.max(150, alto * 0.78), 2, 7);
+                        return (
+                            <div className="flex h-full min-h-0 flex-col gap-2">
+                                {t.alto >= 200 && filtro}
+                                <ul className="grid min-h-0 flex-1 gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Exposición">
+                                    {visibles.slice(0, cols).map((o, i) => (
+                                        <li key={o.id} className={cn('min-h-0', estilos.aparece)} style={{ animationDelay: `${i * 50}ms` }}>
+                                            <Lamina p={o} t={t} onAbrir={o.origen === 'cafe' ? abrir : undefined} />
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
-                            <div className="rounded-2xl border border-border/40 bg-white/[0.03] p-3">
-                                <div className="flex items-center justify-between text-[10px] font-bold mb-1.5">
-                                    <span className="text-muted-foreground/70">Resonancia colectiva</span>
-                                    <span className="inline-flex items-center gap-1 text-pink-400"><Sparkles className="size-3" />{Math.round(openItem.resonance * 100)}%</span>
-                                </div>
-                                {/* Barra de resonancia con gradiente rosa → púrpura */}
-                                <div className="relative h-1.5 w-full rounded-full bg-white/[0.08] overflow-hidden">
-                                    <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
-                                        style={{ width: `${openItem.resonance * 100}%`, background: "linear-gradient(90deg, #ec4899, #a855f7)" }} />
-                                </div>
+                        );
+                    }
+                    if (t.base === 'xl') {
+                        const portada = visibles.find((o) => o.media) ?? visibles[0];
+                        const resto = visibles.filter((o) => o.id !== portada?.id);
+                        return (
+                            <div className="flex h-full min-h-0 flex-col gap-2.5">
+                                {filtro}
+                                {portada ? (
+                                    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-3">
+                                        <PortadaPublicacion p={portada} acento={t.acento} tactil={t.tactil} acciones={accionesDe(portada)} />
+                                        <Sala t={t} obras={resto} cols={2} filas={2} abrir={abrir} />
+                                    </div>
+                                ) : <Pastilla acento={t.acento} onClick={() => setTipo('todo')} tactil={t.tactil}>Ver todo</Pastilla>}
                             </div>
-                            <div className="grid grid-cols-2 gap-2 mt-auto">
-                                <button onClick={() => setLikes((p) => ({ ...p, [openItem.id]: !p[openItem.id] }))}
-                                    className={cn("flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-black uppercase tracking-wider border transition-colors cursor-pointer",
-                                        liked ? "bg-pink-500/25 border-pink-500/50 text-pink-300" : "bg-white/5 border-border/40 hover:border-pink-500/40 text-muted-foreground")}>
-                                    <Heart className={cn("size-4", liked && "fill-current")} /> Me gusta
-                                </button>
-                                <button onClick={() => setSaves((p) => ({ ...p, [openItem.id]: !p[openItem.id] }))}
-                                    className={cn("flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-black uppercase tracking-wider border transition-colors cursor-pointer",
-                                        saved ? "bg-amber-500/25 border-amber-500/50 text-amber-300" : "bg-white/5 border-border/40 hover:border-amber-500/40 text-muted-foreground")}>
-                                    <Bookmark className={cn("size-4", saved && "fill-current")} /> Guardar
-                                </button>
+                        );
+                    }
+                    if (t.clase === 'torre') {
+                        return <Sala t={t} obras={visibles} cols={1} filas={Math.max(2, Math.floor(t.alto / 150))} abrir={abrir} />;
+                    }
+                    if (t.base === 'l') {
+                        return (
+                            <div className="flex h-full min-h-0 flex-col gap-2">
+                                {filtro}
+                                <Sala t={t} obras={visibles} cols={columnasQueCaben(t.ancho, 150, 2, 4)} filas={1} abrir={abrir} />
                             </div>
-                        </div>
-                    );
-                }
-
-                const base = kindFilter ? data.filter((i) => i.kind === kindFilter) : data;
-                const sorted = [...base].sort((a, b) => b.resonance - a.resonance);
-                const max = micro ? 2 : size.vTier === "expanded" ? 5 : 3;
-
-                // Ítem de mayor resonancia (para badge TOP)
-                const topId = sorted[0]?.id;
-
-                return (
-                    <div className="pt-1 h-full flex flex-col gap-2">
-                        {/* Filtros con AnimatePresence */}
-                        {!micro && kinds.length > 1 && (
-                            <div className="shrink-0 flex items-center gap-1 overflow-x-auto custom-scrollbar pb-0.5">
-                                <Filter className="size-3 shrink-0 text-muted-foreground/50" />
-                                <button onClick={() => setKindFilter(null)}
-                                    className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer",
-                                        !kindFilter ? "bg-pink-500/20 border-pink-500/45 text-pink-300" : "border-border/40 text-muted-foreground/60 hover:border-pink-500/30")}>
-                                    Todo
-                                </button>
-                                {kinds.map((k) => (
-                                    <button key={k} onClick={() => setKindFilter(kindFilter === k ? null : k)}
-                                        className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer",
-                                            kindFilter === k ? "bg-pink-500/20 border-pink-500/45 text-pink-300" : "border-border/40 text-muted-foreground/60 hover:border-pink-500/30")}
-                                        style={kindFilter === k ? undefined : { color: KIND_COLOR[k] ?? undefined }}>
-                                        {k}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        <div className="flex-1 min-h-0">
-                            {/* AnimatePresence en el contenedor: al cambiar filtro anima salida/entrada */}
-                            <AnimatePresence mode="popLayout">
-                                <MiniList
-                                    key={kindFilter ?? "all"}
-                                    items={sorted}
-                                    max={max}
-                                    empty="Sin obras en este filtro"
-                                    render={(item, idx) => {
-                                        const c = KIND_COLOR[item.kind] ?? "#ec4899";
-                                        const liked = !!likes[item.id];
-                                        const saved = !!saves[item.id];
-                                        const isTop = !micro && item.id === topId;
-                                        // Sin portada real todavía: no se pinta una foto de
-                                        // relleno haciéndola pasar por la imagen de la obra.
-                                        const avatarUrl = size.vTier === "expanded" ? diceBearAvatar(item.author, "glass") : null;
-                                        return (
-                                            <motion.div
-                                                key={item.id}
-                                                custom={idx}
-                                                variants={itemVariants}
-                                                initial="hidden"
-                                                animate="visible"
-                                                exit="exit"
-                                                className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-pink-500/30 transition-colors overflow-hidden"
-                                                style={{ borderLeftWidth: 3, borderLeftColor: c }}
-                                            >
-                                                <button onClick={() => !micro && setOpenId(item.id)} className={cn("w-full text-left", !micro && "cursor-pointer")}>
-                                                    <div className="flex items-start gap-2 px-2.5 py-2">
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="flex items-start justify-between gap-2">
-                                                                <div className="min-w-0 flex-1">
-                                                                    {/* Título como Link a /article/<slug> además del openId */}
-                                                                    {!micro ? (
-                                                                        <Link href={`/article/${slugify(item.title)}`}
-                                                                            onClick={(e) => { e.stopPropagation(); }}
-                                                                            className="text-[11px] @sm:text-xs font-bold leading-snug line-clamp-2 hover:text-pink-300 transition-colors block">
-                                                                            {item.title}
-                                                                        </Link>
-                                                                    ) : (
-                                                                        <span className="text-[11px] font-bold leading-snug line-clamp-2 block">{item.title}</span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex items-center gap-1 shrink-0">
-                                                                    {isTop && (
-                                                                        <span className="text-[7px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full px-1.5 py-px">TOP</span>
-                                                                    )}
-                                                                    {!micro && <Chip color={c}>{item.kind}</Chip>}
-                                                                </div>
-                                                            </div>
-                                                            {!micro && (
-                                                                <div className="mt-1 flex items-center justify-between gap-2">
-                                                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                                                        {/* Avatar (expanded only) */}
-                                                                        {avatarUrl && (
-                                                                            // eslint-disable-next-line @next/next/no-img-element
-                                                                            <img src={avatarUrl} alt={item.author} width={16} height={16}
-                                                                                className="size-4 rounded-full border border-border/40 shrink-0 object-cover" />
-                                                                        )}
-                                                                        <span className="text-[10px] text-muted-foreground/70 truncate">{item.author} · {timeAgo(item.ts)}</span>
-                                                                    </div>
-                                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-pink-400 shrink-0">
-                                                                        <Sparkles className="size-3" /> {Math.round(item.resonance * 100)}%
-                                                                    </span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                                {!micro && (
-                                                    <>
-                                                        {/* Barra de resonancia degradado */}
-                                                        {size.vTier === "expanded" && (
-                                                            <div className="mx-2.5 mb-1">
-                                                                <div className="relative h-1 w-full rounded-full bg-white/[0.08] overflow-hidden">
-                                                                    <div className="absolute inset-y-0 left-0 rounded-full"
-                                                                        style={{ width: `${item.resonance * 100}%`, background: "linear-gradient(90deg, #ec4899, #a855f7)" }} />
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {size.vTier !== "expanded" && (
-                                                            <div className="mx-2.5 mb-1">
-                                                                <ProgressBar value={item.resonance} color={c} height={3} />
-                                                            </div>
-                                                        )}
-                                                        <div className="px-2.5 pb-2 flex items-center gap-1.5">
-                                                            <button onClick={() => setLikes((p) => ({ ...p, [item.id]: !p[item.id] }))} title="Me gusta"
-                                                                className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors cursor-pointer",
-                                                                    liked ? "bg-pink-500/20 border-pink-500/40 text-pink-300" : "border-border/40 text-muted-foreground/60 hover:border-pink-500/30")}>
-                                                                <Heart className={cn("size-2.5", liked && "fill-current")} /> {liked ? "Te gusta" : "Gusta"}
-                                                            </button>
-                                                            <button onClick={() => setSaves((p) => ({ ...p, [item.id]: !p[item.id] }))} title="Guardar"
-                                                                className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors cursor-pointer",
-                                                                    saved ? "bg-amber-500/20 border-amber-500/40 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:border-amber-500/30")}>
-                                                                <Bookmark className={cn("size-2.5", saved && "fill-current")} /> {saved ? "Guardada" : "Guardar"}
-                                                            </button>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </motion.div>
-                                        );
-                                    }}
-                                />
-                            </AnimatePresence>
-                        </div>
-                    </div>
-                );
-            }}
-        </WidgetShell>
+                        );
+                    }
+                    return <Sala t={t} obras={obras} cols={2} filas={2} abrir={abrir} />;
+                }}
+            </MarcoSocial>
+        </div>
     );
 }
+
+// ── La sala: rejilla de láminas ─────────────────────────────────────
+
+function Sala({ t, obras, cols, filas, abrir }: { t: TamanoSocial; obras: PublicacionConOrigen[]; cols: number; filas: number; abrir: (p: PublicacionVista) => void }) {
+    if (obras.length === 0) return <p role="status" className="grid flex-1 place-items-center text-[12px] text-white/55">Nada de este tipo todavía.</p>;
+    return (
+        <ul className="grid min-h-0 flex-1 auto-rows-fr gap-2.5" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Obras">
+            {obras.slice(0, cols * filas).map((o, i) => (
+                <li key={o.id} className={cn('min-h-0', estilos.aparece)} style={{ animationDelay: `${i * 50}ms` }}>
+                    <Lamina p={o} t={t} onAbrir={o.origen === 'cafe' ? abrir : undefined} />
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+/** Una obra como lámina: su imagen (o su emblema de tipo) con la autoría y las señales encima. */
+function Lamina({ p, t, onAbrir, compacta = false }: { p: PublicacionConOrigen; t: TamanoSocial; onAbrir?: (p: PublicacionVista) => void; compacta?: boolean }) {
+    const Icono = iconoTipo(p.tipo);
+    const color = p.colorEtiqueta ?? t.acento;
+    return (
+        <Abrir p={p} onAbrir={onAbrir} etiqueta={`${p.etiqueta ?? 'Obra'} de ${p.autor}: ${textoDe(p)}. ${p.reacciones} reacciones`}
+            className={cn(estilos.tarjeta, 'relative block h-full w-full overflow-hidden rounded-[16px]')} style={{ minHeight: compacta ? 0 : 90 }}>
+            {p.tipoMedia && p.media ? (
+                <Miniatura url={p.media} icono={Icono} acento={color} semilla={p.id} className="absolute inset-0 size-full" redondeo={16} />
+            ) : (
+                <span aria-hidden className="absolute inset-0 grid place-items-center" style={{ background: `radial-gradient(110% 110% at 25% 20%, ${conAlfa(color, 0.45)}, ${conAlfa(color, 0.08)} 60%, rgba(12,14,34,.5))` }}>
+                    <Icono className="size-[34%] max-h-12 max-w-12 text-white/75" strokeWidth={1.25} />
+                </span>
+            )}
+            {!compacta && (
+                <>
+                    <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(8,9,24,0) 35%, rgba(8,9,24,.88) 100%)' }} />
+                    <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full ss-redondo bg-black/40 px-2 py-0.5 text-[10.5px] font-semibold tabular-nums text-white/90">
+                        <Heart className="size-3" aria-hidden />{formatoNumero(p.reacciones)}
+                    </span>
+                    <span className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-2.5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: tintaDe(color) }}>{p.etiqueta ?? 'Obra'}</span>
+                        <span className="line-clamp-2 text-[12.5px] font-semibold leading-snug text-white">{recortar(p.titulo || p.texto || textoDe(p), 90)}</span>
+                        <span className="truncate text-[10.5px] text-white/60">{p.autor}</span>
+                    </span>
+                </>
+            )}
+        </Abrir>
+    );
+}
+
+export default CulturalFeedWidget;

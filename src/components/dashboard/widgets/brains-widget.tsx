@@ -1,159 +1,222 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════
-// BrainsWidget — cerebros REALES del usuario (tabla brains).
+// BrainsWidget — tus Cerebros como constelaciones REALES (Ola 0929 · D)
 // ----------------------------------------------------------------
-// Datos reales con alcance al propietario (owner = uid) EN VIVO vía
-// useMyBrains (realtime). Cada tarjeta navega a /cerebro. Cabecera con
-// acción para abrir Cerebros. Estados: cargando, sin sesión, vacío (CTA).
-// Un "cerebro" empaqueta memorias, baúles, conexiones y servidores de IA.
-// NUNCA inyecta datos falsos.
+// Cada cerebro (`brains`, con alcance a tu cuenta, en vivo por el hook
+// compartido de os-live) es un núcleo con sus brazos: memorias, baúles,
+// conexiones, personalidades y servidores — el tamaño de cada nodo es lo
+// que de verdad incluye (`includes` / `servers`). Nada se estima: un
+// cerebro vacío se dibuja vacío y dice qué le falta.
+//
+// micro = el núcleo del último cerebro · s = núcleo + cifras · m = la
+// constelación del cerebro activo + los demás · torre = columna de
+// cerebros · l/xl = búsqueda + rejilla de constelaciones · panorámico =
+// constelaciones en fila. Estados: cargando (orbe), sin sesión, vacío con
+// «Crear cerebro»; sin error visible: el hook degrada a lista vacía.
 // ════════════════════════════════════════════════════════════════
 
-import { useMemo } from "react";
+import * as React from "react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import { BrainCircuit, Plus, ChevronRight, Server, Boxes, LogIn } from "lucide-react";
-import { WidgetShell, Chip, timeAgo } from "../kit";
-import { useAppearance } from "@/context/appearance-context";
+import { BookMarked, BrainCircuit, Link2, Map as MapaIcono, Plus, Server, Sparkles, Vault, type LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useMyBrains, tsOf, type BrainRow } from "@/lib/widget-data/os-live";
+import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
+import { mezclar } from "@/components/widgets-libres/familias/comun";
+import { MarcoSocial, estadoSocial } from "./_social-d/marco-social";
+import { BotonIcono, Buscador, Tiempo, estilosSocial as estilos } from "./_social-d/piezas";
+import { columnasQueCaben, filasQueCaben, type TamanoSocial } from "./_social-d/tamano";
+import { coincide, plural } from "./_social-d/formato";
 
-const ACCENT = "#a855f7";
+const ACENTO = "#a855f7";
 
-function serverCount(b: BrainRow): number {
-    return Array.isArray(b.servers) ? b.servers.length : 0;
+interface Brazo { id: string; etiqueta: string; singular: string; icono: LucideIcon; color: string; n: number }
+
+const ALCANCE: Record<string, string> = { account: "Cuenta", profile: "Perfil", group: "Grupo", page: "Página" };
+
+function lista(v: unknown): unknown[] {
+    return Array.isArray(v) ? v : [];
+}
+
+/** Los brazos de un cerebro con lo que de verdad incluye (PURO). */
+export function brazosDe(b: Pick<BrainRow, "includes" | "servers">): Brazo[] {
+    const inc = (b.includes ?? {}) as Record<string, unknown>;
+    return [
+        { id: "memorias", etiqueta: "Memorias", singular: "memoria", icono: BookMarked, color: "#38bdf8", n: lista(inc.memories).length },
+        { id: "baules", etiqueta: "Baúles", singular: "baúl", icono: Vault, color: "#f59e0b", n: lista(inc.vaults).length },
+        { id: "conexiones", etiqueta: "Conexiones", singular: "conexión", icono: Link2, color: "#10b981", n: lista(inc.connections).length },
+        { id: "personalidades", etiqueta: "Personalidades", singular: "personalidad", icono: Sparkles, color: "#ec4899", n: lista(inc.personalities).length },
+        { id: "servidores", etiqueta: "Servidores", singular: "servidor", icono: Server, color: "#818cf8", n: lista(b.servers).length },
+    ];
+}
+
+function resumen(brazos: Brazo[]): string {
+    const con = brazos.filter((x) => x.n > 0);
+    if (!con.length) return "Vacío: vincula memorias o un servidor";
+    return con.map((x) => plural(x.n, x.singular, x.etiqueta.toLowerCase())).join(" · ");
 }
 
 export function BrainsWidget() {
-    const { config } = useAppearance();
-    const prefersReduced = useReducedMotion();
-    const animate = config.animations.enabled && !prefersReduced;
-
     const { rows, loading, authPending, needsAuth } = useMyBrains();
+    const [consulta, setConsulta] = React.useState("");
+    const [activo, setActivo] = React.useState<string | null>(null);
 
-    const sorted = useMemo(() => [...rows].sort((a, b) => tsOf(b.updated_at) - tsOf(a.updated_at)), [rows]);
-    const totalServers = useMemo(() => rows.reduce((s, b) => s + serverCount(b), 0), [rows]);
+    const cerebros = React.useMemo(() => [...rows].sort((a, b) => tsOf(b.updated_at) - tsOf(a.updated_at)), [rows]);
+    const visibles = cerebros.filter((b) => coincide(`${b.name ?? ""} ${b.description ?? ""} ${ALCANCE[b.scope ?? ""] ?? ""}`, consulta));
+    const foco = cerebros.find((b) => b.id === activo) ?? cerebros[0];
+    const servidores = cerebros.reduce((n, b) => n + lista(b.servers).length, 0);
+
+    const estado = estadoSocial({ sinSesion: needsAuth, cargando: authPending || loading, hayDatos: cerebros.length > 0 });
 
     return (
-        <WidgetShell
-            title="Cerebros"
-            subtitle="Contenedores de contexto IA"
-            icon={BrainCircuit}
-            accent={ACCENT}
-            live
-            connections={[
-                { label: "Memorias", href: "/memorias", color: "#007FFF" },
-                { label: "Baúles", href: "/baules", color: "#f59e0b" },
-            ]}
-            actions={
+        <MarcoSocial
+            titulo="Cerebros"
+            subtitulo={`${plural(cerebros.length, "cerebro", "cerebros")} · ${plural(servidores, "servidor", "servidores")}`}
+            icono={BrainCircuit}
+            categoria="ia"
+            acento={ACENTO}
+            estado={estado}
+            vivo
+            esqueleto="orbe"
+            sinSesion={{ mensaje: "Entra para ver y ensamblar tus cerebros." }}
+            vacio={{ icono: BrainCircuit, titulo: "Aún no hay cerebros", mensaje: "Un cerebro empaqueta tu contexto —memorias, baúles, conexiones, personalidades— y lo conecta a tus servidores.", accion: { etiqueta: "Crear cerebro", href: "/cerebros" } }}
+            acciones={(t) => (
                 <>
-                    <Link href="/cerebros" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
-                        Abrir <ChevronRight className="size-3" />
-                    </Link>
-                    <Link href="/cerebros" className="inline-flex items-center gap-1 rounded-full border border-purple-400/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-purple-300 hover:bg-purple-500/20 transition-colors cursor-pointer">
-                        <Plus className="size-3" /> Nuevo
-                    </Link>
+                    <BotonIcono icono={MapaIcono} etiqueta="Ver el mapa del cerebro" href="/cerebro/mapa" acento={t.acento} tactil={t.tactil} />
+                    <BotonIcono icono={Plus} etiqueta="Crear o editar cerebros" href="/cerebros" acento={t.acento} tactil={t.tactil} />
                 </>
-            }
+            )}
         >
-            {(size) => {
-                if (authPending || (loading && rows.length === 0 && !needsAuth)) {
-                    return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                }
-
-                if (needsAuth) {
+            {(t) => {
+                if (t.base === "micro") {
+                    const lado = Math.max(44, Math.min(t.ancho, t.alto));
                     return (
-                        <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-3">
-                            <span className="grid place-items-center size-12 rounded-2xl border border-purple-400/30 bg-purple-500/10">
-                                <LogIn className="size-6 text-purple-300/70" strokeWidth={1.5} />
-                            </span>
-                            <p className="text-[11px] text-muted-foreground/70">Entra para gestionar tus cerebros.</p>
-                            <Link href="/login" className="inline-flex items-center gap-1.5 rounded-full border border-purple-400/40 bg-purple-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-purple-300 hover:bg-purple-500/25 transition-colors cursor-pointer">
-                                <LogIn className="size-3.5" /> Entrar
-                            </Link>
-                        </div>
+                        <Link href="/cerebros" aria-label={`${foco.name ?? "Cerebro"}: ${resumen(brazosDe(foco))}`} className="flex h-full cursor-pointer items-center justify-center">
+                            <Constelacion b={foco} lado={lado} t={t} sinRotulos />
+                        </Link>
                     );
                 }
-
-                if (rows.length === 0) {
+                if (t.base === "s") {
                     return (
-                        <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-3">
-                            <span className="grid place-items-center size-12 rounded-2xl border border-purple-400/30 bg-purple-500/10">
-                                <BrainCircuit className="size-6 text-purple-300/70" strokeWidth={1.5} />
+                        <Link href="/cerebros" className="flex h-full min-h-0 cursor-pointer items-center gap-3" aria-label={`${foco.name ?? "Cerebro"}: ${resumen(brazosDe(foco))}`}>
+                            <Constelacion b={foco} lado={Math.max(64, Math.min(t.alto, t.ancho * 0.5))} t={t} sinRotulos />
+                            <span className="min-w-0">
+                                <span className="block truncate text-[13px] font-semibold text-white">{foco.name ?? "Cerebro"}</span>
+                                <span className="line-clamp-2 text-[11px] text-white/60">{resumen(brazosDe(foco))}</span>
                             </span>
-                            <div>
-                                <p className="text-sm font-bold text-foreground/90">Aún no hay cerebros</p>
-                                <p className="text-[11px] text-muted-foreground/60 mt-0.5">Ensambla el primero con tus memorias y servidores.</p>
-                            </div>
-                            <Link href="/cerebros" className="inline-flex items-center gap-1.5 rounded-full border border-purple-400/40 bg-purple-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-purple-300 hover:bg-purple-500/25 transition-colors cursor-pointer">
-                                <Plus className="size-3.5" /> Crear cerebro
-                            </Link>
-                        </div>
+                        </Link>
                     );
                 }
-
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const max = micro ? 3 : size.vTier === "expanded" ? 6 : 4;
-
-                if (micro) {
-                    const top = sorted[0];
+                if (t.clase === "m") {
                     return (
-                        <div className="h-full flex items-center gap-3 px-1">
-                            <span className="shrink-0 grid place-items-center size-11 rounded-2xl border text-white" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT}66)`, borderColor: `${ACCENT}55` }}>
-                                <BrainCircuit className="size-5" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-black truncate" style={{ color: ACCENT }}>{top?.name ?? "Cerebro"}</p>
-                                <p className="text-[10px] font-bold text-muted-foreground/70 tabular-nums">{rows.length} cerebros</p>
+                        <div className="grid h-full min-h-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+                            <Constelacion b={foco} lado={Math.max(110, Math.min(t.alto - 6, t.ancho * 0.52))} t={t} />
+                            <div className="flex min-h-0 flex-col gap-1.5">
+                                <div className="min-w-0">
+                                    <p className="truncate text-[14px] font-semibold text-white">{foco.name ?? "Cerebro"}</p>
+                                    <p className="truncate text-[11px] text-white/55">{ALCANCE[foco.scope ?? ""] ?? foco.scope ?? "Cuenta"} · <Tiempo ms={tsOf(foco.updated_at)} /></p>
+                                </div>
+                                {cerebros.length > 1 ? (
+                                    <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto ss-scroll" aria-label="Otros cerebros">
+                                        {cerebros.filter((b) => b.id !== foco.id).slice(0, filasQueCaben(t.alto - 50, 34, 1, 5)).map((b) => (
+                                            <li key={b.id}>
+                                                <button type="button" onClick={() => setActivo(b.id)} className={cn(estilos.fila, "flex w-full cursor-pointer items-center gap-2 px-1.5 py-1 text-left")} aria-label={`Ver ${b.name ?? "Cerebro"}`}>
+                                                    <BrainCircuit className="size-3.5 shrink-0" style={{ color: t.acento }} aria-hidden />
+                                                    <span className="min-w-0 flex-1 truncate text-[12px] text-white/85">{b.name ?? "Cerebro"}</span>
+                                                    <Tiempo ms={tsOf(b.updated_at)} corto className="text-[10px]" />
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : <p className="text-[11.5px] text-white/60">{resumen(brazosDe(foco))}</p>}
                             </div>
                         </div>
                     );
                 }
-
+                if (t.clase === "torre") {
+                    return (
+                        <ul className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto ss-scroll" aria-label="Cerebros">
+                            {cerebros.map((b) => <li key={b.id}><TarjetaCerebro b={b} t={t} lado={Math.min(t.ancho - 20, 120)} /></li>)}
+                        </ul>
+                    );
+                }
+                if (t.clase === "panoramico") {
+                    const lado = Math.max(80, Math.min(t.alto - 40, 150));
+                    const cols = columnasQueCaben(t.ancho, lado + 90, 1, 6);
+                    return (
+                        <ul className="grid h-full min-h-0 items-center gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Cerebros">
+                            {cerebros.slice(0, cols).map((b) => <li key={b.id} className="min-w-0"><TarjetaCerebro b={b} t={t} lado={lado} horizontal /></li>)}
+                        </ul>
+                    );
+                }
+                const lado = t.base === "xl" ? 130 : 104;
+                const cols = columnasQueCaben(t.ancho, lado + 40, 2, 5);
                 return (
-                    <div className="flex flex-col gap-2 pt-1 h-full">
-                        {size.tier !== "compact" && (
-                            <div className="shrink-0 flex items-center gap-3 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-1.5">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-300 tabular-nums">
-                                    <BrainCircuit className="size-3" />{rows.length} cerebros
-                                </span>
-                                {totalServers > 0 && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-muted-foreground/70 tabular-nums">
-                                        <Server className="size-3" />{totalServers} servidores
-                                    </span>
-                                )}
-                            </div>
+                    <div className="flex h-full min-h-0 flex-col gap-2.5">
+                        {cerebros.length > 3 && <Buscador valor={consulta} onCambio={setConsulta} placeholder="Buscar un cerebro…" etiqueta="Buscar cerebros" acento={t.acento} tactil={t.tactil} />}
+                        {visibles.length === 0 ? <p role="status" className="grid flex-1 place-items-center text-[12px] text-white/55">Ningún cerebro coincide.</p> : (
+                            <ul className="grid min-h-0 flex-1 auto-rows-fr gap-3 overflow-y-auto ss-scroll" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Cerebros">
+                                {visibles.map((b) => <li key={b.id} className="min-h-0"><TarjetaCerebro b={b} t={t} lado={lado} /></li>)}
+                            </ul>
                         )}
-
-                        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                            <div className="flex flex-col gap-1.5">
-                                {sorted.slice(0, max).map((b, idx) => (
-                                    <motion.div key={b.id}
-                                        initial={animate ? { opacity: 0, x: -10 } : false}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ duration: animate ? 0.3 : 0, delay: animate ? idx * 0.05 : 0 }}
-                                        className="rounded-xl border border-border/40 bg-white/[0.02]">
-                                        <Link href="/cerebro" className="block px-2.5 py-2 cursor-pointer">
-                                            <div className="flex items-center gap-2">
-                                                <span className="shrink-0 grid place-items-center size-8 rounded-xl border text-white" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT}55)`, borderColor: `${ACCENT}44` }}>
-                                                    <BrainCircuit className="size-4" />
-                                                </span>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[11px] @sm:text-xs font-bold truncate">{b.name || "Cerebro"}</span>
-                                                        {b.scope && <Chip color={ACCENT}>{b.scope}</Chip>}
-                                                    </div>
-                                                    <p className="text-[9px] text-muted-foreground/60 mt-0.5 truncate">{b.description || (serverCount(b) > 0 ? `${serverCount(b)} servidor(es)` : "Sin servidores")}</p>
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </div>
                     </div>
                 );
             }}
-        </WidgetShell>
+        </MarcoSocial>
     );
 }
+
+function TarjetaCerebro({ b, t, lado, horizontal = false }: { b: BrainRow; t: TamanoSocial; lado: number; horizontal?: boolean }) {
+    const br = brazosDe(b);
+    return (
+        <Link href="/cerebros" className={cn(estilos.tarjeta, "flex h-full min-w-0 cursor-pointer items-center gap-2 rounded-[18px] p-2", horizontal ? "flex-row" : "flex-col text-center")}
+            style={{ background: `radial-gradient(120% 100% at 50% 0%, ${conAlfa(t.acento, 0.14)}, transparent 70%)` }} aria-label={`${b.name ?? "Cerebro"}: ${resumen(br)}`}>
+            <Constelacion b={b} lado={lado} t={t} sinRotulos={lado < 110} />
+            <span className="min-w-0">
+                <span className="block truncate text-[12.5px] font-semibold text-white">{b.name ?? "Cerebro"}</span>
+                <span className="line-clamp-2 text-[11px] text-white/55">{resumen(br)}</span>
+            </span>
+        </Link>
+    );
+}
+
+/** El cerebro como constelación: núcleo + cinco brazos cuyo nodo crece con lo que incluye. */
+function Constelacion({ b, lado, t, sinRotulos = false }: { b: Pick<BrainRow, "includes" | "servers" | "name">; lado: number; t: TamanoSocial; sinRotulos?: boolean }) {
+    const id = React.useId().replace(/:/g, "");
+    const br = brazosDe(b);
+    const max = Math.max(1, ...br.map((x) => x.n));
+    return (
+        <svg width={lado} height={lado} viewBox="-60 -60 120 120" role="img" aria-label={`${b.name ?? "Cerebro"}: ${resumen(br)}`} className="shrink-0 overflow-visible">
+            <defs>
+                <radialGradient id={`n-${id}`}>
+                    <stop offset="0%" stopColor="#fff" />
+                    <stop offset="35%" stopColor={mezclar(t.acento, "#ffffff", 0.4)} />
+                    <stop offset="100%" stopColor={t.acento} stopOpacity={0} />
+                </radialGradient>
+            </defs>
+            <circle r={44} fill="none" stroke="#fff" strokeOpacity={0.06} />
+            <circle r={26} fill="none" stroke="#fff" strokeOpacity={0.05} strokeDasharray="2 3" />
+            {br.map((x, i) => {
+                const a = (i / br.length) * Math.PI * 2 - Math.PI / 2;
+                const largo = x.n ? 22 + 20 * Math.sqrt(x.n / max) : 20;
+                const px = Math.cos(a) * largo, py = Math.sin(a) * largo;
+                const rn = x.n ? 3 + 4.5 * Math.sqrt(x.n / max) : 2.2;
+                return (
+                    <g key={x.id}>
+                        <line x1={0} y1={0} x2={px} y2={py} stroke={x.color} strokeOpacity={x.n ? 0.55 : 0.15} strokeWidth={x.n ? 1.4 : 0.8} strokeDasharray={x.n ? undefined : "2 2"} />
+                        <circle cx={px} cy={py} r={rn} fill={x.n ? x.color : "transparent"} stroke={x.color} strokeOpacity={x.n ? 1 : 0.4} style={x.n ? { filter: `drop-shadow(0 0 3px ${x.color})` } : undefined}>
+                            <title>{`${x.etiqueta}: ${x.n}`}</title>
+                        </circle>
+                        {!sinRotulos && x.n > 0 && (
+                            <text x={Math.cos(a) * (largo + rn + 7)} y={Math.sin(a) * (largo + rn + 7) + 3} textAnchor="middle" fontSize={8} fontWeight={700} fill="#fff" fillOpacity={0.85}>{x.n}</text>
+                        )}
+                    </g>
+                );
+            })}
+            <circle r={13} fill={`url(#n-${id})`} className="ss-respirar" style={{ ["--ss-dur" as string]: "5s", transformBox: "fill-box", transformOrigin: "center" }} />
+            <circle r={5} fill="#fff" fillOpacity={0.9} />
+        </svg>
+    );
+}
+
+export default BrainsWidget;

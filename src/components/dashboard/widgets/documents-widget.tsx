@@ -1,163 +1,128 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════
-// DocumentsWidget — archivos/documentos REALES del usuario (tabla documents).
+// DocumentsWidget — «Archivos»: tus archivos REALES del OS (Ola 0929 · D)
 // ----------------------------------------------------------------
-// Datos reales con alcance al propietario (account_id = uid) EN VIVO vía
-// useMyDocuments (realtime). Cada tarjeta navega a /almacenes. Cabecera
-// con acción para abrir Archivos. Estados: cargando, sin sesión, vacío (CTA).
-// Sin datos falsos: si aún no hay tabla/filas, estado vacío limpio.
+// Los archivos que subiste a la Biblioteca (`os_files`, los mismos de
+// /library y del explorador de neuronas; columnas justas, nunca `*`), no
+// la tabla `documents`, que ningún módulo del OS escribe. Cada archivo es
+// una hoja del color de su formato (imagen, vídeo, audio, PDF, texto,
+// código, 3D, app…) con su miniatura si es una imagen, su tamaño, si es
+// público o privado y desde qué neurona llegó. Búsqueda, tipo y
+// rejilla/lista en l/xl; subir y abrir en tu Biblioteca a un toque.
+// Lectura compartida cada ≥ 10 min, solo a la vista.
+//
+// micro = cuántos · s = composición por formato + el último · m = las
+// cuatro últimas hojas · torre = columna · l = explorador · xl =
+// composición + explorador · panorámico = composición + hojas en fila.
+// Estados: cargando (rejilla), sin sesión, vacío con «Subir archivo»,
+// error con reintento.
 // ════════════════════════════════════════════════════════════════
 
-import { useMemo } from "react";
-import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import { FolderOpen, Plus, ChevronRight, FileText, FileImage, FileVideo, FileAudio, FileCode2, FileType2, Box, LogIn, HardDrive, type LucideIcon } from "lucide-react";
+import * as React from "react";
+import {
+    AppWindow, Box, File as FileIcon, FileCode2, FileText, FileType2, Film, FolderOpen, Image as ImageIcon, Link2, Music, Upload,
+} from "lucide-react";
 import { detectFormat, type FileFormat } from "@/components/files/file-preview";
-import { WidgetShell, timeAgo } from "../kit";
-import { useAppearance } from "@/context/appearance-context";
-import { useMyDocuments, tsOf, type DocumentRow } from "@/lib/widget-data/os-live";
+import { useCurrentUid } from "@/lib/widget-data/os-live";
+import { listMyFiles, type OsFile } from "@/lib/files/os-files";
+import { MarcoSocial, estadoSocial } from "./_social-d/marco-social";
+import { useEnPantalla, useFuenteCompartida } from "./_social-d/fuente-compartida";
+import { BotonActualizar, BotonIcono } from "./_social-d/piezas";
+import { useExplorador, type ArchivoVista, type TipoArchivo } from "./_social-d/archivos-piezas";
+import { DisposicionArchivos } from "./_social-d/disposicion-archivos";
+import { msDe, plural } from "./_social-d/formato";
 
-const ACCENT = "#eab308";
+const ACENTO = "#e0a43a";
+const INTERVALO = 10 * 60_000;
 
-// Mapa de formato → icono/color para dar jerarquía visual por tipo de archivo.
-const FMT_META: Record<FileFormat, { icon: LucideIcon; color: string; label: string }> = {
-    image:    { icon: FileImage, color: "#38bdf8", label: "IMG" },
-    video:    { icon: FileVideo, color: "#f472b6", label: "VID" },
-    audio:    { icon: FileAudio, color: "#a78bfa", label: "AUD" },
-    pdf:      { icon: FileType2, color: "#fb7185", label: "PDF" },
-    markdown: { icon: FileText,  color: "#34d399", label: "MD" },
-    code:     { icon: FileCode2, color: "#facc15", label: "CODE" },
-    link:     { icon: ChevronRight, color: "#22d3ee", label: "URL" },
-    model3d:  { icon: Box,       color: "#c084fc", label: "3D" },
-    app:      { icon: FolderOpen, color: "#fbbf24", label: "APP" },
-    generic:  { icon: FileText,  color: "#eab308", label: "DOC" },
+const FORMATO: Record<FileFormat, TipoArchivo> = {
+    image: { id: "image", etiqueta: "Imagen", icono: ImageIcon, color: "#ec4899" },
+    video: { id: "video", etiqueta: "Vídeo", icono: Film, color: "#a855f7" },
+    audio: { id: "audio", etiqueta: "Audio", icono: Music, color: "#22d3ee" },
+    pdf: { id: "pdf", etiqueta: "PDF", icono: FileText, color: "#f87171" },
+    markdown: { id: "markdown", etiqueta: "Texto", icono: FileType2, color: "#94a3b8" },
+    code: { id: "code", etiqueta: "Código", icono: FileCode2, color: "#34d399" },
+    link: { id: "link", etiqueta: "Enlace", icono: Link2, color: "#60a5fa" },
+    model3d: { id: "model3d", etiqueta: "3D", icono: Box, color: "#fbbf24" },
+    app: { id: "app", etiqueta: "App", icono: AppWindow, color: "#818cf8" },
+    generic: { id: "generic", etiqueta: "Archivo", icono: FileIcon, color: "#e0a43a" },
 };
-function fmtOf(name: string | null | undefined): { icon: LucideIcon; color: string; label: string } {
-    const f = detectFormat({ name: name ?? undefined });
-    return FMT_META[f] ?? FMT_META.generic;
+
+/** «1,2 MB» (PURO). */
+export function tamanoLegible(bytes: number | null | undefined): string | null {
+    if (!bytes || bytes <= 0) return null;
+    const u = ["B", "KB", "MB", "GB"];
+    let v = bytes, i = 0;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return `${v.toLocaleString("es-ES", { maximumFractionDigits: v < 10 && i > 0 ? 1 : 0 })} ${u[i]}`;
+}
+
+/** Un archivo del OS como hoja (PURO). */
+export function hojaDeArchivo(f: OsFile): ArchivoVista {
+    const formato = detectFormat({ name: f.name, mime: f.mime, url: f.url });
+    const tipo = FORMATO[formato] ?? FORMATO.generic;
+    const extension = f.name.includes(".") ? f.name.split(".").pop()?.toUpperCase() ?? null : null;
+    return {
+        id: f.id,
+        nombre: f.name,
+        tipo,
+        detalle: [extension, tamanoLegible(f.size)].filter(Boolean).join(" · ") || null,
+        imagen: formato === "image" ? f.url : null,
+        marcas: [f.isPublic ? { texto: "pública", color: "#10b981" } : { texto: "privada", color: "#94a3b8" }, ...(f.groupSlug ? [{ texto: f.groupSlug }] : [])],
+        ms: msDe(f.createdAt),
+        href: "/library?view=personal",
+        buscable: `${f.mime ?? ""} ${f.groupSlug ?? ""}`,
+    };
+}
+
+async function cargarArchivos() {
+    const archivos = await listMyFiles({ limit: 24 });
+    return { datos: archivos };
 }
 
 export function DocumentsWidget() {
-    const { config } = useAppearance();
-    const prefersReduced = useReducedMotion();
-    const animate = config.animations.enabled && !prefersReduced;
-
-    const { rows, loading, authPending, needsAuth } = useMyDocuments();
-
-    const sorted = useMemo(() => [...rows].sort((a, b) => tsOf(b.updated_at) - tsOf(a.updated_at)), [rows]);
+    const { uid, ready } = useCurrentUid();
+    const refRaiz = React.useRef<HTMLDivElement | null>(null);
+    const enPantalla = useEnPantalla(refRaiz);
+    const fuente = useFuenteCompartida<OsFile[]>(uid ? `archivos:${uid}` : null, cargarArchivos, { intervaloMs: INTERVALO, enPantalla });
+    const hojas = React.useMemo(() => (fuente.datos ?? []).map(hojaDeArchivo), [fuente.datos]);
+    const ex = useExplorador(hojas);
+    const estado = estadoSocial({
+        sinSesion: ready && !uid,
+        cargando: !ready || fuente.cargando,
+        hayDatos: hojas.length > 0,
+        error: fuente.fallo ? new Error(fuente.fallo.message || "fuente") : undefined,
+    });
 
     return (
-        <WidgetShell
-            title="Archivos"
-            subtitle="Documentos soberanos"
-            icon={FolderOpen}
-            accent={ACCENT}
-            live
-            connections={[
-                { label: "Almacenes", href: "/almacenes", color: "#eab308" },
-                { label: "Baúles", href: "/baules", color: "#f59e0b" },
-            ]}
-            actions={
-                <>
-                    <Link href="/almacenes" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
-                        Abrir <ChevronRight className="size-3" />
-                    </Link>
-                    <Link href="/almacenes" className="inline-flex items-center gap-1 rounded-full border border-yellow-400/30 bg-yellow-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-yellow-300 hover:bg-yellow-500/20 transition-colors cursor-pointer">
-                        <Plus className="size-3" /> Nuevo
-                    </Link>
-                </>
-            }
-        >
-            {(size) => {
-                if (authPending || (loading && rows.length === 0 && !needsAuth)) {
-                    return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                }
-
-                if (needsAuth) {
-                    return (
-                        <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-3">
-                            <span className="grid place-items-center size-12 rounded-2xl border border-yellow-400/30 bg-yellow-500/10">
-                                <LogIn className="size-6 text-yellow-300/70" strokeWidth={1.5} />
-                            </span>
-                            <p className="text-[11px] text-muted-foreground/70">Entra para ver tus archivos.</p>
-                            <Link href="/login" className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/40 bg-yellow-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-yellow-300 hover:bg-yellow-500/25 transition-colors cursor-pointer">
-                                <LogIn className="size-3.5" /> Entrar
-                            </Link>
-                        </div>
-                    );
-                }
-
-                if (rows.length === 0) {
-                    return (
-                        <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-3">
-                            <span className="grid place-items-center size-12 rounded-2xl border border-yellow-400/30 bg-yellow-500/10">
-                                <HardDrive className="size-6 text-yellow-300/70" strokeWidth={1.5} />
-                            </span>
-                            <div>
-                                <p className="text-sm font-bold text-foreground/90">Aún no hay archivos</p>
-                                <p className="text-[11px] text-muted-foreground/60 mt-0.5">Crea o sube el primer documento.</p>
-                            </div>
-                            <Link href="/almacenes" className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/40 bg-yellow-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-yellow-300 hover:bg-yellow-500/25 transition-colors cursor-pointer">
-                                <Plus className="size-3.5" /> Nuevo archivo
-                            </Link>
-                        </div>
-                    );
-                }
-
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const max = micro ? 3 : size.vTier === "expanded" ? 7 : 5;
-
-                if (micro) {
-                    const top = sorted[0];
-                    return (
-                        <div className="h-full flex items-center gap-3 px-1">
-                            <span className="shrink-0 grid place-items-center size-11 rounded-2xl border text-white" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT}66)`, borderColor: `${ACCENT}55` }}>
-                                <FolderOpen className="size-5" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-black truncate" style={{ color: ACCENT }}>{top?.name ?? "Archivo"}</p>
-                                <p className="text-[10px] font-bold text-muted-foreground/70 tabular-nums">{rows.length} archivos</p>
-                            </div>
-                        </div>
-                    );
-                }
-
-                return (
-                    <div className="flex flex-col gap-2 pt-1 h-full">
-                        {size.tier !== "compact" && (
-                            <div className="shrink-0 flex items-center gap-3 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-1.5">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-yellow-300 tabular-nums">
-                                    <FolderOpen className="size-3" />{rows.length} archivos
-                                </span>
-                            </div>
-                        )}
-
-                        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                            <div className="flex flex-col gap-1">
-                                {sorted.slice(0, max).map((d, idx) => (
-                                    <motion.div key={d.name ?? idx}
-                                        initial={animate ? { opacity: 0, x: -8 } : false}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ duration: animate ? 0.25 : 0, delay: animate ? idx * 0.04 : 0 }}
-                                        className="rounded-lg border border-border/40 bg-white/[0.02]">
-                                        <Link href="/almacenes" className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer">
-                                            {(() => { const m = fmtOf(d.name); const I = m.icon; return (
-                                                <span className="grid size-6 shrink-0 place-items-center rounded-md border" style={{ color: m.color, borderColor: `${m.color}40`, background: `${m.color}1a` }}>
-                                                    <I className="size-3.5" />
-                                                </span>
-                                            ); })()}
-                                            <span className="text-[11px] font-semibold truncate min-w-0 flex-1">{d.name || "Documento"}</span>
-                                            <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-black uppercase tracking-wider" style={{ color: fmtOf(d.name).color, background: `${fmtOf(d.name).color}1a` }}>{fmtOf(d.name).label}</span>
-                                            {d.updated_at && <span className="text-[9px] text-muted-foreground/50 tabular-nums shrink-0">{timeAgo(tsOf(d.updated_at))}</span>}
-                                        </Link>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                );
-            }}
-        </WidgetShell>
+        <div ref={refRaiz} className="h-full w-full">
+            <MarcoSocial
+                titulo="Archivos"
+                subtitulo={`${plural(hojas.length, "archivo reciente", "archivos recientes")}`}
+                icono={FolderOpen}
+                categoria="archivos"
+                acento={ACENTO}
+                estado={estado}
+                error={fuente.fallo ? new Error(fuente.fallo.message || "fuente") : undefined}
+                onReintentar={fuente.recargar}
+                esqueleto="rejilla"
+                sinSesion={{ mensaje: "Entra para ver tus archivos en cualquier neurona." }}
+                vacio={{ icono: Upload, accion: { etiqueta: "Subir archivo", href: "/library?view=personal" } }}
+                acciones={(t) => (
+                    <>
+                        <BotonActualizar onClick={fuente.recargar} actualizando={fuente.actualizando} actualizado={fuente.actualizado} acento={t.acento} tactil={t.tactil} />
+                        <BotonIcono icono={Upload} etiqueta="Subir o gestionar en tu Biblioteca" href="/library?view=personal" acento={t.acento} tactil={t.tactil} />
+                    </>
+                )}
+            >
+                {(t) => (
+                    <DisposicionArchivos t={t} archivos={hojas} ex={ex}
+                        textos={{ singular: "archivo", plural: "archivos", buscar: "Buscar por nombre o tipo…", hrefTodo: "/library?view=personal", etiquetaTodo: "Abrir en la Biblioteca", icono: FolderOpen }} />
+                )}
+            </MarcoSocial>
+        </div>
     );
 }
+
+export default DocumentsWidget;
