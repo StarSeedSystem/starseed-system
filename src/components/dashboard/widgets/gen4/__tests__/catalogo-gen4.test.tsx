@@ -53,7 +53,7 @@ const asignar = vi.fn((ctx: any, id: string | null) => {
 });
 vi.mock("@/lib/aurora/personalities", () => ({ setActivePersonality: asignar }));
 
-const consultar = vi.fn(async (input: any, op: any) => {
+const consultar = vi.fn(async (input: any, op?: any): Promise<any> => {
     op?.onProgress?.("Dictamen", 5, 6);
     return {
         topic: input.title, at: 1, ms: 10, failed: 1, singleSource: true, sourcesUsed: ["Fuente libre"], reviews: [],
