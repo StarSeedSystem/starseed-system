@@ -17,6 +17,7 @@ vi.mock("@/modules/weather/context/weather-location-context", () => ({
 
 import { EnMarco, MEDIDAS } from "../_catalogo/prueba-marco";
 import { FlowDirectorWidget } from "../flow-director-widget";
+import { ProjectSwarmWidget } from "../project-swarm-widget";
 import { QUICK_TASKS_KEY } from "@/lib/tasks/quick-tasks";
 import { CLAVE_SESION } from "../flow-director-partes";
 
@@ -70,5 +71,51 @@ describe("Director de Flujo", () => {
         ubicacion = { location: { lat: 40.4, lon: -3.7, name: "Madrid" } };
         pintar(<FlowDirectorWidget />, "l");
         expect(screen.getByText(/de luz|Amanece|Sin orto/)).toBeTruthy();
+    });
+});
+
+const tareas = (items: any[]) => localStorage.setItem(QUICK_TASKS_KEY, JSON.stringify({ v: 1, items }));
+const leerTareas = () => JSON.parse(localStorage.getItem(QUICK_TASKS_KEY)!).items as any[];
+
+describe("Enjambre de Propósitos", () => {
+    it.each(["micro", "s", "m", "l", "xl", "panoramico", "torre"] as ClaseTamano[])("en %s pinta el vacío honesto sin romperse", (clase) => {
+        pintar(<ProjectSwarmWidget />, clase);
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/Enjambre de propósitos/);
+        if (clase !== "micro") expect(screen.getByText("Aún no tienes proyectos")).toBeTruthy();
+    });
+    it("una tarea con #etiqueta crea el proyecto y aparece en el panal", () => {
+        pintar(<ProjectSwarmWidget />, "l");
+        fireEvent.change(screen.getByRole("textbox"), { target: { value: "Preparar semilleros #huerto" } });
+        fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+        expect(leerTareas()[0].text).toBe("Preparar semilleros #huerto");
+        expect(screen.getByRole("button", { name: /#huerto: 0 de 1 tareas hechas/ })).toBeTruthy();
+    });
+    it("sin #etiqueta y sin proyectos avisa en vez de crear una tarea suelta", () => {
+        pintar(<ProjectSwarmWidget />, "m");
+        fireEvent.change(screen.getByRole("textbox"), { target: { value: "Algo sin etiqueta" } });
+        fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+        expect(screen.getByRole("alert").textContent).toMatch(/#nombre/);
+        expect(localStorage.getItem(QUICK_TASKS_KEY)).toBeNull();
+    });
+    it.each(["m", "l", "xl", "panoramico", "torre", "s", "micro"] as ClaseTamano[])("con proyectos se pinta en %s", (clase) => {
+        tareas([{ id: "a", text: "Riego #huerto", done: false, createdAt: 1 }, { id: "b", text: "Compost #huerto", done: true, createdAt: 2 }]);
+        pintar(<ProjectSwarmWidget />, clase);
+        expect(screen.getByRole("region").getAttribute("aria-label")).toMatch(/1 proyectos|#huerto va al 50/);
+    });
+    it("elige un proyecto, completa su siguiente tarea y añade otra con su etiqueta", () => {
+        tareas([
+            { id: "a", text: "Riego #huerto", done: false, createdAt: 1 },
+            { id: "b", text: "Acta #asamblea", done: false, createdAt: 3 },
+            { id: "c", text: "Convocar #asamblea", done: true, createdAt: 2, doneAt: 5 },
+        ]);
+        pintar(<ProjectSwarmWidget />, "xl");
+        fireEvent.click(screen.getByRole("button", { name: /#huerto: 0 de 1/ }));
+        fireEvent.click(screen.getByRole("button", { name: "Completar la próxima tarea: Riego" }));
+        expect(leerTareas().find((t) => t.id === "a").done).toBe(true);
+        fireEvent.change(screen.getByRole("textbox"), { target: { value: "Comprar mangueras" } });
+        fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+        expect(leerTareas()[0].text).toBe("Comprar mangueras #huerto");
+        const proponer = screen.getByRole("link", { name: /Proponer #huerto a la red/ });
+        expect(proponer.getAttribute("href")).toMatch(/^\/decisiones\?nueva=1&title=Proyecto/);
     });
 });

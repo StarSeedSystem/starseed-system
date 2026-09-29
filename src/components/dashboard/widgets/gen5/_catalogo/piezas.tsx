@@ -99,16 +99,20 @@ export interface VacioProps {
     color: string;
     accion?: React.ReactNode;
     compacto?: boolean;
+    /** Dibujo propio en lugar del icono en su halo. */
+    ilustracion?: React.ReactNode;
+    /** Ocupa todo el alto disponible (por defecto sí). */
+    llenar?: boolean;
 }
 
 /** Estado vacío: qué falta y qué hacer, con la acción a un toque. */
-export function VacioHonesto({ icono: Icono, titulo, ayuda, color, accion, compacto }: VacioProps) {
+export function VacioHonesto({ icono: Icono, titulo, ayuda, color, accion, compacto, ilustracion, llenar = true }: VacioProps) {
     return (
-        <div role="status" className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 px-1 text-center">
-            <span aria-hidden className="ss-redondo grid shrink-0 place-items-center rounded-full"
+        <div role="status" className={cn("flex min-h-0 w-full flex-col items-center justify-center gap-2 px-1 text-center", llenar && "h-full")}>
+            {ilustracion ?? <span aria-hidden className="ss-redondo grid shrink-0 place-items-center rounded-full"
                 style={{ width: compacto ? 34 : 46, height: compacto ? 34 : 46, background: `radial-gradient(circle at 35% 30%, ${conAlfa(color, 0.35)}, ${conAlfa(color, 0.06)} 70%)`, boxShadow: `inset 0 0 0 1px ${conAlfa(color, 0.45)}, 0 0 22px -6px ${conAlfa(color, 0.6)}` }}>
                 <Icono className={compacto ? "size-4" : "size-5"} style={{ color: tinta(color) }} strokeWidth={1.8} />
-            </span>
+            </span>}
             <p className={cn("font-semibold leading-snug text-white/90", compacto ? "text-[12px]" : "text-[13px]")}>{titulo}</p>
             {ayuda && !compacto && <p className="max-w-[26ch] text-[12px] leading-snug text-white/60">{ayuda}</p>}
             {accion}
