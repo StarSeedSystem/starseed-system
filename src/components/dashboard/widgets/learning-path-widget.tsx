@@ -1,201 +1,287 @@
 'use client';
 
-import Link from "next/link";
-import { motion, useMotionValue, useTransform, animate } from "framer-motion";
-import { GraduationCap, Bot, User, Users, ChevronRight, TrendingUp, PlayCircle, CheckCircle2, type LucideIcon } from "lucide-react";
-import { WidgetShell, MiniList, ProgressBar, ProgressRing } from "../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { LearningPath } from "@/lib/widget-data";
-import { useEffect } from "react";
-
 // ════════════════════════════════════════════════════════════════
-// LearningPathWidget — rutas de aprendizaje del usuario (mentoría
-// híbrida humano + IA). Datos "education.paths". Adaptativo.
-// Progreso en % entero (redondeo consistente) y próxima acción
-// concreta destacada como CTA.
+// LearningPathWidget — tus rutas de aprendizaje (Ola 0929 · paquete E)
+// ----------------------------------------------------------------
+// Datos REALES: los pasos que te pones tú en cada tema de /network/education
+// (entity_state «education:progress»). Antes pintaba un adaptador simulado que
+// siempre devolvía una lista vacía.
+// Qué hace: ver dónde vas en cada tema como un SENDERO (cada paso es una piedra:
+// las hechas brillan, la siguiente respira), marcar el siguiente paso con un toque,
+// añadir uno nuevo y saltar a Educación.
+// Composición: micro = anillo · s = anillo + tema · m = tema + sendero + siguiente ·
+// l = + lista de rutas y paso nuevo · xl = + todos los pasos del tema elegido ·
+// panorámico = sendero a lo ancho · torre = lista de rutas.
+// Tráfico: una lectura compartida cada ≥ 5 min, solo con el widget a la vista.
+// Estados honestos: cargando (esqueleto), vacío (con el siguiente paso), error (con
+// reintento o el aviso de pausa de consumo de la nube) y sin sesión.
 // ════════════════════════════════════════════════════════════════
-const MENTOR_ICON: Record<LearningPath["mentorKind"], LucideIcon> = {
-    humano: User, ia: Bot, hibrido: Users,
-};
-const MENTOR_LABEL: Record<LearningPath["mentorKind"], string> = {
-    humano: "Mentor humano", ia: "Exocórtex IA", hibrido: "Mentoría híbrida",
-};
-// Porcentajes localizados y consistentes (es-ES, sin decimales).
-const PCT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
-const fmtPct = (p: number) => PCT_ES.format(Math.round(p * 100));
 
-/** Número animado que cuenta desde 0 hasta `target` al montar. */
-function AnimatedPct({ target, color }: { target: number; color: string }) {
-    const mv = useMotionValue(0);
-    const rounded = useTransform(mv, (v) => `${Math.round(v)}%`);
+import { useMemo, useState } from "react";
+import { GraduationCap, Check, Plus, ArrowUpRight, LogIn, CloudOff, Circle, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
+import { addLearningStep, toggleLearningStep } from "@/lib/education/progress";
+import { builtinById, colorForRoot, rootIdOf } from "@/lib/education/curriculum";
+import { useLienzoE, px, type LienzoE } from "./paquete-e/lienzo";
+import { AnilloE, BotonE, CargandoE, EncabezadoE, EnlaceE, ErrorE, RaizE, VacioE, estilosE, tintaE } from "./paquete-e/piezas";
+import { escribirCacheE, useCacheadoE } from "./paquete-e/cache";
+import { cargarRutas, nombreTema, pausaServidorE, resumirRutas, type DatosRutas, type LearningStep, type ResumenRuta } from "./paquete-e/estudio";
 
-    useEffect(() => {
-        const ctrl = animate(mv, target, { duration: 0.8, ease: "easeOut" });
-        return ctrl.stop;
-    }, [mv, target]);
+const RUTA = "/network/education";
+const CLAVE = "estudio-rutas-v1";
+const CATALOGO = builtinById();
 
-    return (
-        <motion.span style={{ color }} className="text-[10px] font-black tabular-nums shrink-0">
-            {rounded}
-        </motion.span>
-    );
+function colorTema(tema: string, respaldo: string): string {
+    try { return CATALOGO.has(tema) ? colorForRoot(rootIdOf(tema, CATALOGO)) : respaldo; } catch { return respaldo; }
 }
 
-/** Línea vertical SVG animada que conecta los items de la ruta. */
-function PathTreeLine({ color, count }: { color: string; count: number }) {
-    const height = count * 64; // ~64px por item
+/** El sendero: una curva con una piedra por paso. Las hechas brillan; la siguiente respira. */
+function Sendero({ pasos, ancho, alto, color, lienzo, alPulsar }: { pasos: LearningStep[]; ancho: number; alto: number; color: string; lienzo: LienzoE; alPulsar: (p: LearningStep) => void }) {
+    const maximo = Math.max(3, Math.min(12, Math.floor(ancho / 30)));
+    const iSig = pasos.findIndex((s) => !s.done);
+    // Ventana alrededor del siguiente paso si no caben todos.
+    const inicio = pasos.length <= maximo ? 0 : Math.max(0, Math.min(pasos.length - maximo, (iSig < 0 ? pasos.length : iSig) - Math.floor(maximo / 2)));
+    const vis = pasos.slice(inicio, inicio + maximo);
+    const pad = Math.max(12, alto * 0.22);
+    const r = Math.max(5, Math.min(11, ancho / 44, alto / 5));
+    const pts = vis.map((_, i) => {
+        const x = vis.length === 1 ? ancho / 2 : pad + (i * (ancho - 2 * pad)) / (vis.length - 1);
+        const y = alto / 2 + Math.sin((i + inicio) * 1.15) * (alto / 2 - r - 3);
+        return [x, y] as const;
+    });
+    const curva = (hasta: number) => pts.slice(0, hasta + 1).reduce((d, [x, y], i) => {
+        if (i === 0) return `M${x.toFixed(1)} ${y.toFixed(1)}`;
+        const [px0, py0] = pts[i - 1];
+        const cx = (px0 + x) / 2;
+        return `${d} C${cx.toFixed(1)} ${py0.toFixed(1)} ${cx.toFixed(1)} ${y.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }, "");
+    const ultimoHecho = vis.reduce((k, s, i) => (s.done ? i : k), -1);
+    const id = `sd-${ancho}-${alto}`;
     return (
-        <div className="absolute left-[18px] top-8 bottom-0 pointer-events-none" style={{ height }}>
-            <svg width="2" height={height} style={{ overflow: "visible" }}>
-                <motion.line
-                    x1="1" y1="0" x2="1" y2={height}
-                    stroke={color} strokeWidth="1.5"
-                    strokeDasharray="4 3"
-                    strokeOpacity={0.4}
-                    initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: 1 }}
-                    transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 }}
-                />
-            </svg>
-        </div>
+        <svg width={ancho} height={alto} viewBox={`0 0 ${ancho} ${alto}`} className="block max-w-full overflow-visible" role="group" aria-label="Sendero de pasos">
+            <defs>
+                <linearGradient id={id} x1="0" x2="1" y1="0" y2="0">
+                    <stop offset="0%" stopColor={color} />
+                    <stop offset="100%" stopColor={lienzo.acento2} />
+                </linearGradient>
+            </defs>
+            {pts.length > 1 && <path d={curva(pts.length - 1)} fill="none" stroke="rgba(255,255,255,.18)" strokeWidth={2} strokeDasharray="2 6" strokeLinecap="round" />}
+            {ultimoHecho > 0 && <path d={curva(ultimoHecho)} fill="none" stroke={`url(#${id})`} strokeWidth={3} strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${conAlfa(color, 0.7)})` }} />}
+            {vis.map((s, i) => {
+                const [x, y] = pts[i];
+                const esSig = inicio + i === iSig;
+                const etiqueta = `${s.done ? "Hecho" : esSig ? "Siguiente" : "Pendiente"}: ${s.title}`;
+                return (
+                    <g key={s.id} role="button" tabIndex={0} aria-label={`${etiqueta}. Pulsa para ${s.done ? "desmarcar" : "marcar hecho"}`}
+                        onClick={() => alPulsar(s)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alPulsar(s); } }}
+                        className="cursor-pointer outline-none [&:focus-visible>circle:first-of-type]:stroke-white">
+                        <title>{etiqueta}</title>
+                        <circle cx={x} cy={y} r={r + 7} fill="transparent" stroke="transparent" strokeWidth={2} />
+                        {esSig && <circle cx={x} cy={y} r={r + 5} fill="none" stroke={color} strokeOpacity={0.6} strokeWidth={1.5} className={lienzo.animar ? "ss-respirar" : undefined} style={{ transformBox: "fill-box", transformOrigin: "center" }} />}
+                        <circle cx={x} cy={y} r={r} fill={s.done ? color : "rgba(12,14,34,.85)"} stroke={s.done ? "#fff" : esSig ? color : "rgba(255,255,255,.35)"} strokeWidth={s.done ? 1 : 2}
+                            style={s.done ? { filter: `drop-shadow(0 0 5px ${conAlfa(color, 0.8)})` } : undefined} />
+                        {s.done && <path d={`M${x - r * 0.45} ${y}l${r * 0.32} ${r * 0.34} ${r * 0.62}-${r * 0.7}`} fill="none" stroke="#0b0d20" strokeWidth={Math.max(1.4, r * 0.28)} strokeLinecap="round" strokeLinejoin="round" />}
+                    </g>
+                );
+            })}
+            {inicio > 0 && <text x={2} y={alto - 2} fontSize={10} fill="rgba(255,255,255,.45)">+{inicio}</text>}
+            {inicio + vis.length < pasos.length && <text x={ancho - 2} y={alto - 2} fontSize={10} textAnchor="end" fill="rgba(255,255,255,.45)">+{pasos.length - inicio - vis.length}</text>}
+        </svg>
     );
 }
 
 export function LearningPathWidget() {
-    const { data, loading } = useWidgetData("education.paths", { refreshMs: 15000 });
+    const { ref, lienzo } = useLienzoE();
+    const { datos, cargando, error, recargar } = useCacheadoE<DatosRutas>(CLAVE, cargarRutas, { visible: lienzo.visible });
+    const [elegido, setElegido] = useState<string | null>(null);
+    const [nuevo, setNuevo] = useState("");
+    const [ocupado, setOcupado] = useState(false);
+    const [aviso, setAviso] = useState<string | null>(null);
 
-    return (
-        <WidgetShell
-            title="Ruta de Aprendizaje"
-            subtitle="Mentoría humano · IA"
-            icon={GraduationCap}
-            accent="#a855f7"
-            connections={[{ label: "Educación", href: "/network/education", color: "#7FB8FF" }, { label: "Biblioteca", href: "/library", color: "#FFBF00" }, { label: "Agente IA", href: "/agent", color: "#22d3ee" }]}
-            expandHref="/network/education"
-            actions={
-                <Link href="/network/education" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
-                    Aprender <ChevronRight className="size-3" />
-                </Link>
-            }
-            footer={
-                !loading && data && data.length ? (() => {
-                    const avg = data.reduce((s, p) => s + p.progress, 0) / data.length;
-                    const done = data.filter((p) => p.progress >= 0.999).length;
-                    return (
-                        <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-muted-foreground/70 min-w-0">
-                            <span className="inline-flex items-center gap-1.5 min-w-0">
-                                <span className="size-1.5 rounded-full shrink-0" style={{ background: "#a855f7" }} />
-                                <span className="truncate">{data.length} rutas · {done} completadas</span>
-                            </span>
-                            <span className="shrink-0 inline-flex items-center gap-1">
-                                <TrendingUp className="size-3" style={{ color: "#a855f7" }} />
-                                <span className="font-black tabular-nums" style={{ color: "#a855f7" }}>{fmtPct(avg)}%</span>
-                                <span className="text-muted-foreground/50">medio</span>
-                            </span>
-                        </div>
-                    );
-                })() : undefined
-            }
-        >
-            {(size) => {
-                if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const isExpanded = size.vTier === "expanded";
-                const sorted = [...data].sort((a, b) => b.progress - a.progress);
-                const max = micro ? 3 : isExpanded ? 4 : 3;
-                const shown = sorted.slice(0, max);
+    const rutas = useMemo(() => resumirRutas(datos?.rutas ?? {}), [datos]);
+    const foco: ResumenRuta | null = rutas.find((r) => r.tema === elegido) ?? rutas[0] ?? null;
 
+    const guardarLista = (tema: string, lista: LearningStep[]) => {
+        if (!datos) return;
+        escribirCacheE(CLAVE, { ...datos, rutas: { ...datos.rutas, [tema]: lista } });
+    };
+
+    const alternar = async (tema: string, paso: LearningStep) => {
+        const previa = datos?.rutas[tema] ?? [];
+        guardarLista(tema, previa.map((s) => (s.id === paso.id ? { ...s, done: !s.done } : s)));
+        setOcupado(true);
+        try {
+            const lista = await toggleLearningStep(tema, paso.id);
+            if (lista.length) guardarLista(tema, lista);
+        } catch {
+            setAviso("No se pudo guardar el paso.");
+            guardarLista(tema, previa);
+        } finally { setOcupado(false); }
+    };
+
+    const anadir = async () => {
+        if (!foco || !nuevo.trim()) return;
+        setOcupado(true);
+        try {
+            const lista = await addLearningStep(foco.tema, nuevo.trim());
+            guardarLista(foco.tema, lista);
+            setNuevo("");
+        } catch { setAviso("No se pudo añadir el paso."); } finally { setOcupado(false); }
+    };
+
+    const { base, clase, horizontal } = lienzo;
+    const compacto = base === "micro" || base === "s";
+    const raiz = { lienzo, refRaiz: ref, etiqueta: "Rutas de aprendizaje", tipo: "LEARNING_PATH" } as const;
+
+    if (!datos && cargando) return <RaizE {...raiz}><CargandoE etiqueta="Cargando tus rutas…" filas={compacto ? 2 : 3} /></RaizE>;
+    if (!datos && error) {
+        const pausa = pausaServidorE();
+        return <RaizE {...raiz}>{pausa ? <VacioE lienzo={lienzo} icono={CloudOff} titulo="La nube está en pausa" texto={pausa} compacto={compacto} /> : <ErrorE lienzo={lienzo} texto="No se pudieron leer tus rutas." onReintentar={recargar} />}</RaizE>;
+    }
+    if (datos && !datos.sesion) {
+        return (
+            <RaizE {...raiz}>
+                <VacioE lienzo={lienzo} icono={LogIn} titulo="Entra para seguir tus rutas" texto="Los pasos que te pones en cada tema viajan con tu cuenta." compacto={compacto}>
+                    <EnlaceE lienzo={lienzo} href="/login" variante="primario" compacto={compacto}>Entrar</EnlaceE>
+                </VacioE>
+            </RaizE>
+        );
+    }
+    if (!foco) {
+        return (
+            <RaizE {...raiz}>
+                <VacioE lienzo={lienzo} icono={GraduationCap} titulo="Todavía no sigues ningún camino" texto="Elige un tema en Educación y ponte tus propios pasos." compacto={compacto}>
+                    <EnlaceE lienzo={lienzo} href={RUTA} variante="primario" compacto={compacto} icono={ArrowUpRight}>Elegir un tema</EnlaceE>
+                </VacioE>
+            </RaizE>
+        );
+    }
+
+    const color = colorTema(foco.tema, lienzo.acento);
+    const nombre = nombreTema(foco.tema, CATALOGO);
+    const tinta = tintaE(color);
+
+    if (compacto) {
+        const lado = base === "micro" ? Math.max(48, Math.min(lienzo.ancho || 80, lienzo.alto || 80) * 0.78) : Math.max(64, Math.min(96, (lienzo.alto || 150) * 0.56));
+        return (
+            <RaizE {...raiz}>
+                <a href={RUTA} className="flex h-full cursor-pointer flex-col items-center justify-center gap-1.5 p-1 text-center outline-none" title={`${nombre}: ${foco.hechos}/${foco.pasos.length} pasos`}>
+                    <AnilloE valor={foco.pct} lado={lado} acento={color} acento2={lienzo.acento2} etiqueta={`${nombre}: ${Math.round(foco.pct * 100)} por ciento`}>
+                        <span className="tabular-nums text-white" style={{ fontSize: Math.max(11, lado * 0.26), fontWeight: 300 }}>{Math.round(foco.pct * 100)}<span className="text-white/55" style={{ fontSize: "0.55em" }}>%</span></span>
+                    </AnilloE>
+                    {base === "s" && <span className="line-clamp-2 text-[12px] font-medium leading-tight text-white/85">{nombre}</span>}
+                </a>
+            </RaizE>
+        );
+    }
+
+    const anchoSendero = Math.max(160, (lienzo.ancho || 280) - 12);
+    const siguienteBtn = foco.siguiente ? (
+        <button type="button" onClick={() => void alternar(foco.tema, foco.siguiente!)} disabled={ocupado}
+            className="group flex min-h-10 w-full min-w-0 cursor-pointer items-center gap-2 rounded-2xl px-2.5 py-1.5 text-left transition-colors duration-200 hover:bg-white/[0.06] disabled:opacity-60"
+            style={{ background: conAlfa(color, 0.1) }} aria-label={`Marcar hecho: ${foco.siguiente.title}`}>
+            <Circle aria-hidden className="size-4 shrink-0 group-hover:hidden" style={{ color: tinta }} />
+            <Check aria-hidden className="hidden size-4 shrink-0 group-hover:block" style={{ color: tinta }} />
+            <span className="min-w-0 flex-1 truncate text-white/90" style={{ fontSize: px(lienzo, 13) }}>{foco.siguiente.title}</span>
+            <span className="shrink-0 text-[11px] text-white/45">Siguiente</span>
+        </button>
+    ) : (
+        <p className="flex items-center gap-1.5 text-[12px] text-white/70"><CheckCircle2 className="size-4" style={{ color: tinta }} aria-hidden /> Ruta completa: ¡bien hecho!</p>
+    );
+
+    const cabecera = (
+        <EncabezadoE lienzo={lienzo} icono={GraduationCap} titulo="Ruta de aprendizaje" detalle={rutas.length > 1 ? `${rutas.length} temas` : undefined}
+            acciones={<EnlaceE lienzo={lienzo} href={RUTA} compacto variante="fantasma" icono={ArrowUpRight}>Educación</EnlaceE>} />
+    );
+    const titular = (
+        <div className="flex min-w-0 items-baseline gap-2">
+            <span className="min-w-0 truncate font-semibold text-white" style={{ fontSize: px(lienzo, 15) }} title={nombre}>{nombre}</span>
+            <span className="shrink-0 tabular-nums text-white/55" style={{ fontSize: px(lienzo, 12) }}>{foco.hechos}/{foco.pasos.length} · {Math.round(foco.pct * 100)} %</span>
+        </div>
+    );
+
+    // panorámico: el sendero a lo ancho.
+    if (horizontal) {
+        return (
+            <RaizE {...raiz}>
+                <div className="flex h-full min-h-0 items-center gap-4 p-1">
+                    <div className="flex w-[34%] min-w-0 shrink-0 flex-col gap-1.5">{cabecera}{titular}{siguienteBtn}</div>
+                    <div className="min-w-0 flex-1"><Sendero pasos={foco.pasos} ancho={Math.max(160, (lienzo.ancho || 600) * 0.6)} alto={Math.max(40, (lienzo.alto || 120) - 20)} color={color} lienzo={lienzo} alPulsar={(p) => void alternar(foco.tema, p)} /></div>
+                </div>
+            </RaizE>
+        );
+    }
+
+    // torre: lista de rutas con barras.
+    const listaRutas = (max: number) => (
+        <ul className={cn("flex min-h-0 flex-col gap-0.5", estilosE.desliza)} aria-label="Tus rutas">
+            {rutas.slice(0, max).map((r) => {
+                const c = colorTema(r.tema, lienzo.acento);
+                const sel = r.tema === foco.tema;
                 return (
-                    <div className="pt-1 h-full">
-                        {/* Árbol visual de rutas (solo en expanded + normal, no micro) */}
-                        {!micro && (
-                            <div className="relative">
-                                {isExpanded && shown.length > 1 && (
-                                    <PathTreeLine color="#a855f7" count={shown.length} />
-                                )}
-                                <div className="flex flex-col gap-1.5">
-                                    {shown.map((p, idx) => {
-                                        const MentorIcon = MENTOR_ICON[p.mentorKind];
-                                        const pct = Math.round(p.progress * 100);
-                                        const isDone = p.progress >= 0.999;
-
-                                        return (
-                                            <motion.div
-                                                key={p.title}
-                                                initial={{ opacity: 0, y: 6 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ duration: 0.3, delay: idx * 0.07, ease: "easeOut", type: "spring", stiffness: 220, damping: 20 }}
-                                                whileHover={{ y: -1 }}
-                                            >
-                                                <Link href="/network/education" className="block cursor-pointer">
-                                                    <div className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 hover:bg-white/[0.04] transition-colors">
-                                                        <div className="shrink-0 relative">
-                                                            <ProgressRing value={p.progress} size={38} stroke={4} color={p.accent} />
-                                                            {isDone && (
-                                                                <span className="absolute inset-0 grid place-items-center">
-                                                                    <CheckCircle2 className="size-3.5" style={{ color: p.accent }} />
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <span className="text-[11px] @sm:text-xs font-bold truncate min-w-0">{p.title}</span>
-                                                                <AnimatedPct target={pct} color={p.accent} />
-                                                            </div>
-                                                            <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/70 min-w-0">
-                                                                <span className="truncate min-w-0 capitalize">{p.discipline}</span>
-                                                                <span className="inline-flex items-center gap-1 shrink-0" title={MENTOR_LABEL[p.mentorKind]}>
-                                                                    <MentorIcon className="size-3" style={{ color: p.accent }} /> {p.mentor}
-                                                                </span>
-                                                            </div>
-
-                                                            {/* CTA "Continuar" — visible en normal y expanded */}
-                                                            {!isDone && (
-                                                                <div
-                                                                    className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold min-w-0 max-w-full"
-                                                                    style={{ color: p.accent, borderColor: `color-mix(in srgb, ${p.accent} 35%, transparent)`, background: `color-mix(in srgb, ${p.accent} 10%, transparent)` }}
-                                                                >
-                                                                    <PlayCircle className="size-3 shrink-0" />
-                                                                    <span className="uppercase tracking-wider shrink-0">Continuar</span>
-                                                                    {isExpanded && (
-                                                                        <span className="truncate min-w-0 font-semibold normal-case tracking-normal text-foreground/80">{p.nextLesson}</span>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </Link>
-                                            </motion.div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Modo micro: lista horizontal de progreso compacta */}
-                        {micro && (
-                            <MiniList
-                                items={sorted}
-                                max={max}
-                                empty="Sin rutas activas"
-                                render={(p) => (
-                                    <Link href="/network/education" className="block cursor-pointer">
-                                        <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2">
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center justify-between gap-2 mb-1">
-                                                    <span className="text-[11px] font-bold truncate min-w-0">{p.title}</span>
-                                                    <span className="text-[10px] font-black tabular-nums shrink-0" style={{ color: p.accent }}>{fmtPct(p.progress)}%</span>
-                                                </div>
-                                                <ProgressBar value={p.progress} color={p.accent} height={3} />
-                                            </div>
-                                        </div>
-                                    </Link>
-                                )}
-                            />
-                        )}
-                    </div>
+                    <li key={r.tema}>
+                        <button type="button" onClick={() => setElegido(r.tema)} aria-pressed={sel}
+                            className={cn("flex w-full min-w-0 cursor-pointer flex-col gap-1 rounded-xl px-2 py-1.5 text-left transition-colors duration-200", sel ? "bg-white/[0.08]" : "hover:bg-white/[0.04]")}>
+                            <span className="flex min-w-0 items-center gap-2">
+                                <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/90">{nombreTema(r.tema, CATALOGO)}</span>
+                                <span className="shrink-0 text-[11px] tabular-nums text-white/50">{r.hechos}/{r.pasos.length}</span>
+                            </span>
+                            <span className="block h-1 w-full overflow-hidden rounded-full bg-white/10">
+                                <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.round(r.pct * 100)}%`, background: `linear-gradient(90deg, ${c}, ${lienzo.acento2})` }} />
+                            </span>
+                        </button>
+                    </li>
                 );
-            }}
-        </WidgetShell>
+            })}
+        </ul>
+    );
+
+    if (clase === "torre") {
+        return <RaizE {...raiz}><div className="flex h-full min-h-0 flex-col gap-2 p-1">{cabecera}{listaRutas(12)}{siguienteBtn}</div></RaizE>;
+    }
+
+    const grande = base === "l" || base === "xl";
+    const altoSendero = Math.max(44, Math.min(90, (lienzo.alto || 240) * (grande ? 0.24 : 0.3)));
+    return (
+        <RaizE {...raiz}>
+            <div className="flex h-full min-h-0 flex-col gap-2 p-1">
+                {cabecera}
+                <div className={cn("flex min-h-0 flex-1 gap-3", base === "xl" ? "flex-row" : "flex-col")}>
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+                        {titular}
+                        <Sendero pasos={foco.pasos} ancho={base === "xl" ? anchoSendero * 0.58 : anchoSendero} alto={altoSendero} color={color} lienzo={lienzo} alPulsar={(p) => void alternar(foco.tema, p)} />
+                        {siguienteBtn}
+                        {grande && (
+                            <form className="flex items-center gap-1.5" onSubmit={(e) => { e.preventDefault(); void anadir(); }}>
+                                <input value={nuevo} onChange={(e) => setNuevo(e.target.value)} placeholder="Añadir un paso…" aria-label={`Paso nuevo en ${nombre}`} maxLength={120}
+                                    className="min-w-0 flex-1 rounded-full bg-white/[0.06] px-3 text-[13px] text-white placeholder:text-white/40 outline-none focus:bg-white/[0.1]"
+                                    style={{ height: lienzo.tactil ? 44 : 32, boxShadow: `inset 0 0 0 1px ${conAlfa(color, 0.3)}` }} />
+                                <BotonE lienzo={{ ...lienzo, acento: color }} variante="primario" type="submit" icono={Plus} etiqueta="Añadir paso" disabled={!nuevo.trim() || ocupado} />
+                            </form>
+                        )}
+                        {grande && rutas.length > 1 && base === "l" && <div className="min-h-0 flex-1">{listaRutas(4)}</div>}
+                    </div>
+                    {base === "xl" && (
+                        <div className="flex min-h-0 w-[40%] shrink-0 flex-col gap-2">
+                            {rutas.length > 1 && <div className="max-h-[45%] min-h-0">{listaRutas(6)}</div>}
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Pasos</p>
+                            <ol className={cn("flex min-h-0 flex-col gap-0.5", estilosE.desliza)}>
+                                {foco.pasos.map((p) => (
+                                    <li key={p.id}>
+                                        <button type="button" onClick={() => void alternar(foco.tema, p)} aria-pressed={p.done}
+                                            className="flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-left transition-colors hover:bg-white/[0.05]">
+                                            {p.done ? <CheckCircle2 aria-hidden className="size-4 shrink-0" style={{ color }} /> : <Circle aria-hidden className="size-4 shrink-0 text-white/40" />}
+                                            <span className={cn("min-w-0 flex-1 truncate text-[12px]", p.done ? "text-white/50 line-through" : "text-white/90")}>{p.title}</span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    )}
+                </div>
+                {aviso && <p role="alert" className="text-[11px] text-rose-200">{aviso}</p>}
+            </div>
+        </RaizE>
     );
 }

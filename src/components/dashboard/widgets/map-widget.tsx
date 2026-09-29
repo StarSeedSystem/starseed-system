@@ -1,708 +1,326 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// MapWidget — Mapa real e interactivo (OpenStreetMap + Leaflet CDN)
+// MapWidget — tu mapa: dónde estás y qué hay de la red cerca (Ola 0929 · paquete E)
 // ----------------------------------------------------------------
-// Carga Leaflet 1.9.4 dinámicamente desde unpkg (CSS + JS) en el
-// cliente, sin añadir dependencias al bundle. Renderiza un mapa con
-// tiles OSM estándar, centrado en la ubicación del usuario
-// (useWeatherLocation), con marcador propio + entidades StarSeed de
-// ejemplo cercanas. Controles de zoom y botón "mi ubicación".
-// SSR-safe (typeof window) y robusto fuera del WeatherLocationProvider.
-//
-// Mejoras v2:
-//   · Capas de marcadores por tipo: Eventos / Comunidades / E.F.
-//   · Toggle chips para mostrar/ocultar capas (con badges de conteo)
-//   · Panel lateral glass con lista de puntos cercanos + enlaces
-//   · Leyenda visual por capa
-//   · Accent colors por sistema (Crimson/Azure/Lime/Amber)
+// Mapa REAL (Leaflet 1.9.4 por CDN, el mismo cargador que el mapa del Hub) con tu
+// ubicación y solo lugares y eventos de la red CON coordenadas reales (páginas,
+// grupos y eventos de Supabase). Antes rellenaba el mapa con eventos de muestra
+// repartidos en círculo alrededor de ti y con una ubicación inventada: ya no.
+// Honesto con la ubicación: si nunca elegiste una, se dice («ubicación por defecto»)
+// y un toque en «Usar mi ubicación» la pide al navegador (solo con tu gesto).
+// Seguridad: las fichas de los marcadores se construyen con nodos de texto, nunca con
+// HTML que venga de la red.
+// Tráfico: los puntos se leen una vez y se comparten 15 min (las páginas, con la
+// misma caché que «Proyectos de la red»), solo con el widget a la vista.
+// Composición: micro = cuántos lugares hay cerca · s = tu sitio y el más cercano ·
+// m = mapa · l = mapa + capas + lista corta · xl = mapa + lista con distancias ·
+// panorámico = mapa ancho con la lista al lado · torre = mapa arriba y lista.
+// Estados: cargando (el mapa o los puntos), vacío (nada con coordenadas cerca: se dice
+// y se invita a crear), error (sin conexión al mapa: reintentar).
 // ════════════════════════════════════════════════════════════════
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import Link from "next/link";
-import {
-    MapPin,
-    LocateFixed,
-    Loader2,
-    Calendar,
-    Users,
-    Building2,
-    ChevronRight,
-    X,
-    Layers,
-    type LucideIcon,
-} from "lucide-react";
-import { WidgetShell } from "../kit";
-import {
-    useWeatherLocation,
-    type LocationData,
-} from "@/modules/weather/context/weather-location-context";
-import { sampleEntitiesAround, type GeoEntity } from "@/lib/geo";
-import { sampleEvents } from "@/data/sample-events";
-import { fetchEvents, fetchGroups, fetchPages } from "@/lib/os-social";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MapPin, LocateFixed, Calendar, Users, Building2, ArrowUpRight, Map as MapIcon, Loader2, Moon, Sun } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
+import { useWeatherLocationOpcional } from '@/modules/weather/context/weather-location-context';
+import { loadLeaflet, type LeafletNS } from '@/lib/map/leaflet-loader';
+import { BASE_LAYER_BY_ID } from '@/lib/map/map-config';
+import { useLienzoE, px } from './paquete-e/lienzo';
+import { BotonE, EncabezadoE, EnlaceE, RaizE, SelloE, estilosE, tintaE } from './paquete-e/piezas';
+import { TTL_EXTERNO_MS, useCacheadoE } from './paquete-e/cache';
+import { cargarPuntosRed, type PuntoRed } from './paquete-e/red';
+import { formatearDistancia, ordenarPorCercania } from './paquete-e/geo';
 
-// ── Accent palette ─────────────────────────────────────────────
-const ACCENT_USER    = "#10b981"; // Emerald — marcador de usuario
-const ACCENT_EVENT_P = "#DC143C"; // Crimson  — eventos políticos
-const ACCENT_EVENT_E = "#007FFF"; // Azure    — eventos educativos
-const ACCENT_EVENT_C = "#39FF14"; // Lime     — eventos culturales
-const ACCENT_COMUNIDAD = "#FFBF00"; // Amber  — Comunidades / Sanghas
-const ACCENT_EF        = "#a855f7"; // Purple — Entidades Federativas
+const RUTA_MAPA = '/hub/mapa';
+const CLAVE_PUNTOS = 'red-puntos-v1';
+const CLAVE_UBICACION = 'starseed_weather_location';
+const RADIO_CERCA_KM = 50;
 
-const FALLBACK_LOCATION: LocationData = {
-    lat: 18.9226,
-    lon: -99.2347,
-    name: "Cuernavaca, Morelos",
-};
-
-const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-const LEAFLET_JS  = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-
-// ── Layer ids ──────────────────────────────────────────────────
-type LayerId = "eventos" | "comunidades" | "ef";
-
-interface LayerDef {
-    id: LayerId;
-    label: string;
-    accent: string;
-    icon: LucideIcon;
-}
-
-const LAYERS: LayerDef[] = [
-    { id: "eventos",     label: "Eventos",     accent: ACCENT_EVENT_P, icon: Calendar   },
-    { id: "comunidades", label: "Comunidades", accent: ACCENT_COMUNIDAD, icon: Users     },
-    { id: "ef",          label: "E.F.",         accent: ACCENT_EF,       icon: Building2 },
+type Tipo = PuntoRed['tipo'];
+const TIPOS: { id: Tipo; etiqueta: string; color: string; icono: typeof Calendar }[] = [
+    { id: 'evento', etiqueta: 'Eventos', color: '#39ff14', icono: Calendar },
+    { id: 'comunidad', etiqueta: 'Comunidades', color: '#ffbf00', icono: Building2 },
+    { id: 'grupo', etiqueta: 'Grupos', color: '#a855f7', icono: Users },
 ];
+const COLOR: Record<Tipo, string> = { evento: '#39ff14', comunidad: '#ffbf00', grupo: '#a855f7' };
 
-// ── GeoPoint types for overlay list ───────────────────────────
-interface MapPoint {
-    id: string;
-    layer: LayerId;
-    label: string;
-    sublabel: string;
-    accent: string;
-    href: string;
-    lat: number;
-    lon: number;
+function iconoPunto(L: LeafletNS, color: string, lado = 14) {
+    // Solo colores de la tabla de arriba: ningún dato de la red entra en este HTML.
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${lado}" height="${lado}" viewBox="0 0 ${lado} ${lado}"><circle cx="${lado / 2}" cy="${lado / 2}" r="${lado / 2 - 2}" fill="${color}" fill-opacity=".9" stroke="#fff" stroke-width="1.5"/></svg>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [lado, lado], iconAnchor: [lado / 2, lado / 2], popupAnchor: [0, -lado / 2 - 2] });
 }
 
-// ── Helper: accent for event system ───────────────────────────
-function eventAccent(system: string): string {
-    if (system === "politico")  return ACCENT_EVENT_P;
-    if (system === "educativo") return ACCENT_EVENT_E;
-    if (system === "cultural")  return ACCENT_EVENT_C;
-    return ACCENT_EVENT_P;
+function iconoYo(L: LeafletNS) {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#14b8a6" fill-opacity=".25"/><circle cx="12" cy="12" r="6" fill="#14b8a6" stroke="#fff" stroke-width="2"/></svg>';
+    return L.divIcon({ html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
 }
 
-function useSafeLocation(): LocationData {
-    try {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        return useWeatherLocation().location ?? FALLBACK_LOCATION;
-    } catch {
-        return FALLBACK_LOCATION;
-    }
-}
-
-function ensureLeafletCss() {
-    if (typeof document === "undefined") return;
-    if (document.querySelector(`link[href="${LEAFLET_CSS}"]`)) return;
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = LEAFLET_CSS;
-    link.crossOrigin = "";
-    document.head.appendChild(link);
-}
-
-function loadLeaflet(): Promise<any> {
-    return new Promise((resolve, reject) => {
-        if (typeof window === "undefined") { reject(new Error("no-window")); return; }
-        const w = window as any;
-        if (w.L) { resolve(w.L); return; }
-        const existing = document.querySelector(`script[src="${LEAFLET_JS}"]`) as HTMLScriptElement | null;
-        if (existing) {
-            existing.addEventListener("load",  () => resolve((window as any).L));
-            existing.addEventListener("error", () => reject(new Error("leaflet-load-error")));
-            if ((window as any).L) resolve((window as any).L);
-            return;
-        }
-        const script = document.createElement("script");
-        script.src = LEAFLET_JS;
-        script.crossOrigin = "";
-        script.async = true;
-        script.onload  = () => resolve((window as any).L);
-        script.onerror = () => reject(new Error("leaflet-load-error"));
-        document.head.appendChild(script);
-    });
-}
-
-/** Crea un icono SVG circular para Leaflet con el color dado. */
-function makeCircleIcon(L: any, color: string, size = 18) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-      <circle cx="${size/2}" cy="${size/2}" r="${size/2 - 2}" fill="${color}" fill-opacity="0.85" stroke="white" stroke-width="1.5"/>
-    </svg>`;
-    return L.divIcon({
-        html: svg,
-        className: "",
-        iconSize:   [size, size],
-        iconAnchor: [size/2, size/2],
-        popupAnchor:[0, -(size/2 + 4)],
-    });
-}
-
-/** Crea el icono del usuario (estrella verde). */
-function makeUserIcon(L: any) {
-    const size = 22;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-      <circle cx="${size/2}" cy="${size/2}" r="${size/2 - 2}" fill="${ACCENT_USER}" fill-opacity="0.95" stroke="white" stroke-width="2"/>
-      <circle cx="${size/2}" cy="${size/2}" r="4" fill="white" fill-opacity="0.9"/>
-    </svg>`;
-    return L.divIcon({
-        html: svg,
-        className: "",
-        iconSize:   [size, size],
-        iconAnchor: [size/2, size/2],
-        popupAnchor:[0, -(size/2 + 4)],
-    });
-}
-
-// ── Distributed geo offsets for demo points ───────────────────
-function offsetAround(
-    center: { lat: number; lon: number },
-    index: number,
-    total: number,
-    radiusKm: number,
-): { lat: number; lon: number } {
-    const angle = (index / total) * 2 * Math.PI;
-    const r = radiusKm * (0.3 + 0.55 * ((index % 3) / 2));
-    const latPerKm = 1 / 111;
-    const lonPerKm = 1 / (111 * (Math.cos((center.lat * Math.PI) / 180) || 1));
-    return {
-        lat: center.lat + Math.sin(angle) * r * latPerKm,
-        lon: center.lon + Math.cos(angle) * r * lonPerKm,
-    };
-}
-
-/** ¿Tiene la entidad coordenadas geográficas válidas? */
-function hasGeo(e: { lat?: number | null; lng?: number | null }): boolean {
-    return (
-        typeof e.lat === "number" &&
-        typeof e.lng === "number" &&
-        Number.isFinite(e.lat) &&
-        Number.isFinite(e.lng)
-    );
-}
-
-/**
- * Carga las entidades REALES geolocalizadas (eventos, grupos, páginas) desde
- * Supabase y las convierte en `MapPoint`. DEFENSIVO: nunca lanza; si no hay red,
- * columnas geo o sesión, devuelve []. Solo incluye entidades con lat/lng reales
- * — no inventa coordenadas (no fake data).
- */
-async function fetchRealGeoPoints(): Promise<MapPoint[]> {
-    const points: MapPoint[] = [];
-    try {
-        const [events, groups, pages] = await Promise.all([
-            fetchEvents().catch(() => []),
-            fetchGroups().catch(() => []),
-            fetchPages().catch(() => []),
-        ]);
-
-        for (const ev of events) {
-            if (!hasGeo(ev)) continue;
-            points.push({
-                id: `real-ev-${ev.id}`,
-                layer: "eventos",
-                label: ev.title,
-                sublabel: ev.placeLabel || ev.location || "Evento",
-                accent: ACCENT_EVENT_C,
-                href: `/evento/${ev.slug}`,
-                lat: ev.lat as number,
-                lon: ev.lng as number,
-            });
-        }
-
-        for (const g of groups) {
-            if (!hasGeo(g)) continue;
-            points.push({
-                id: `real-grp-${g.id}`,
-                layer: "comunidades",
-                label: g.name,
-                sublabel: g.placeLabel || "Grupo",
-                accent: ACCENT_COMUNIDAD,
-                href: `/grupo/${g.slug}`,
-                lat: g.lat as number,
-                lon: g.lng as number,
-            });
-        }
-
-        for (const p of pages) {
-            if (!hasGeo(p)) continue;
-            // Las páginas de tipo comunidad son Sanghas → capa comunidades;
-            // el resto se muestran también como comunidades (nodos de la red).
-            points.push({
-                id: `real-pg-${p.id}`,
-                layer: "comunidades",
-                label: p.name,
-                sublabel: p.placeLabel || (p.kind === "comunidad" ? "Comunidad" : "Página"),
-                accent: ACCENT_COMUNIDAD,
-                href: `/pagina/${p.slug}`,
-                lat: p.lat as number,
-                lon: p.lng as number,
-            });
-        }
-    } catch {
-        /* degradación silenciosa: sin puntos reales */
-    }
-    return points;
+/** Ficha del marcador construida con nodos (textContent): nada de HTML ajeno. */
+function fichaDe(p: PuntoRed & { km?: number }): HTMLElement {
+    const div = document.createElement('div');
+    div.style.minWidth = '160px';
+    const b = document.createElement('b');
+    b.textContent = p.nombre;
+    b.style.color = COLOR[p.tipo];
+    b.style.fontSize = '13px';
+    const s = document.createElement('div');
+    s.textContent = [p.detalle, typeof p.km === 'number' ? formatearDistancia(p.km) : ''].filter(Boolean).join(' · ');
+    s.style.fontSize = '11px';
+    s.style.opacity = '.75';
+    const a = document.createElement('a');
+    a.href = p.href.startsWith('/') ? p.href : '/hub';
+    a.textContent = 'Ver ficha';
+    a.style.fontSize = '11px';
+    a.style.color = COLOR[p.tipo];
+    div.append(b, s, a);
+    return div;
 }
 
 export function MapWidget() {
-    const location = useSafeLocation();
-    const containerRef  = useRef<HTMLDivElement | null>(null);
-    const mapRef        = useRef<any>(null);
-    const userMarkerRef = useRef<any>(null);
-    // Layer group refs
-    const layerGroupsRef = useRef<Record<LayerId, any>>({
-        eventos:     null,
-        comunidades: null,
-        ef:          null,
-    });
+    const { ref, lienzo } = useLienzoE();
+    const ubic = useWeatherLocationOpcional();
+    const [porDefecto, setPorDefecto] = useState(true);
+    const [pidiendo, setPidiendo] = useState(false);
+    const [avisoUbic, setAvisoUbic] = useState<string | null>(null);
+    const [estadoMapa, setEstadoMapa] = useState<'cargando' | 'listo' | 'error'>('cargando');
+    const [capas, setCapas] = useState<Set<Tipo>>(new Set(['evento', 'comunidad', 'grupo']));
+    const [oscuro, setOscuro] = useState(true);
+    const [intento, setIntento] = useState(0);
+    const { datos: puntos, cargando, error, recargar } = useCacheadoE<PuntoRed[]>(CLAVE_PUNTOS, cargarPuntosRed, { ttlMs: TTL_EXTERNO_MS, visible: lienzo.visible });
 
-    const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-    const [activeLayers, setActiveLayers] = useState<Set<LayerId>>(
-        new Set(["eventos", "comunidades", "ef"]),
-    );
-    const [showPanel, setShowPanel] = useState(false);
-    const [mapPoints, setMapPoints] = useState<MapPoint[]>([]);
-    // Puntos REALES geolocalizados (Supabase). Aditivos a los de demostración.
-    const [realPoints, setRealPoints] = useState<MapPoint[]>([]);
-    // Referencia a Leaflet (`L`) para poder plotear puntos reales tras la carga.
-    const leafletRef = useRef<any>(null);
-
-    // ── Build map points from sample data ─────────────────────
-    const buildMapPoints = useCallback(
-        (lat: number, lon: number): MapPoint[] => {
-            const center = { lat, lon };
-            const points: MapPoint[] = [];
-
-            // Eventos — 6 events distributed around center
-            const eventsToShow = sampleEvents.slice(0, 6);
-            eventsToShow.forEach((ev, i) => {
-                const pos = offsetAround(center, i, eventsToShow.length, 3.5);
-                points.push({
-                    id:       ev.id,
-                    layer:    "eventos",
-                    label:    ev.title,
-                    sublabel: ev.location,
-                    accent:   eventAccent(ev.system),
-                    href:     `/evento/${ev.slug}`,
-                    lat:      pos.lat,
-                    lon:      pos.lon,
-                });
-            });
-
-            // Comunidades — from sampleEntitiesAround (kind === Comunidad / Cultura / Energía…)
-            const entities: GeoEntity[] = sampleEntitiesAround(center, 5);
-            entities.forEach((e) => {
-                const layer: LayerId = e.kind === "Gobernanza" ? "ef" : "comunidades";
-                points.push({
-                    id:       e.id,
-                    layer,
-                    label:    e.name,
-                    sublabel: e.kind,
-                    accent:   layer === "ef" ? ACCENT_EF : ACCENT_COMUNIDAD,
-                    href:     layer === "ef" ? `/entidad/${e.id}` : `/pagina/${e.id}`,
-                    lat:      e.lat,
-                    lon:      e.lon,
-                });
-            });
-
-            return points;
-        },
-        [],
-    );
-
-    // ── Inicialización del mapa (una vez) ─────────────────────
+    const loc = ubic?.location ?? null;
     useEffect(() => {
-        let cancelled = false;
-        ensureLeafletCss();
+        try { setPorDefecto(!window.localStorage.getItem(CLAVE_UBICACION)); } catch { setPorDefecto(true); }
+    }, [loc?.lat, loc?.lon]);
 
-        loadLeaflet()
-            .then((L) => {
-                if (cancelled || !containerRef.current || mapRef.current) return;
-                leafletRef.current = L;
+    const cerca = useMemo(() => (loc && puntos ? ordenarPorCercania(puntos, { lat: loc.lat, lng: loc.lon }) : []), [loc, puntos]);
+    const visibles = cerca.filter((p) => capas.has(p.tipo));
+    const enRadio = cerca.filter((p) => p.km <= RADIO_CERCA_KM);
 
-                const map = L.map(containerRef.current, {
-                    center:           [location.lat, location.lon],
-                    zoom:             13,
-                    zoomControl:      true,
-                    attributionControl: true,
-                });
+    const usarMiUbicacion = async () => {
+        if (!ubic) return;
+        setPidiendo(true);
+        setAvisoUbic(null);
+        try { await ubic.requestGeolocation(); setPorDefecto(false); }
+        catch { setAvisoUbic('No se pudo leer tu ubicación: revisa el permiso del navegador.'); }
+        finally { setPidiendo(false); }
+    };
 
-                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                    maxZoom:     19,
-                    attribution: "© OpenStreetMap",
-                }).addTo(map);
+    // ── Leaflet (solo desde «m») ──
+    const { base, clase, horizontal } = lienzo;
+    const conMapa = base !== 'micro' && base !== 's';
+    const contenedor = useRef<HTMLDivElement>(null);
+    const mapa = useRef<LeafletNS | null>(null);
+    const L = useRef<LeafletNS | null>(null);
+    const grupo = useRef<LeafletNS | null>(null);
+    const yo = useRef<LeafletNS | null>(null);
+    const fondo = useRef<LeafletNS | null>(null);
 
-                // Marcador del usuario
-                userMarkerRef.current = L.marker(
-                    [location.lat, location.lon],
-                    { icon: makeUserIcon(L) },
-                )
-                    .addTo(map)
-                    .bindPopup(`<b>${location.name || "Tu ubicación"}</b>`);
-
-                // Crear grupos de capas
-                const groups: Record<LayerId, any> = {
-                    eventos:     L.layerGroup().addTo(map),
-                    comunidades: L.layerGroup().addTo(map),
-                    ef:          L.layerGroup().addTo(map),
-                };
-                layerGroupsRef.current = groups;
-
-                // Generar y añadir puntos
-                const pts = buildMapPoints(location.lat, location.lon);
-                setMapPoints(pts);
-
-                pts.forEach((pt) => {
-                    const group = groups[pt.layer];
-                    if (!group) return;
-                    const icon = makeCircleIcon(L, pt.accent, pt.layer === "eventos" ? 16 : 14);
-                    L.marker([pt.lat, pt.lon], { icon })
-                        .addTo(group)
-                        .bindPopup(
-                            `<div style="min-width:160px">
-                              <b style="color:${pt.accent};font-size:13px">${pt.label}</b>
-                              <br/>
-                              <span style="font-size:11px;opacity:.75">${pt.sublabel}</span>
-                              <br/>
-                              <a href="${pt.href}" style="font-size:11px;color:${pt.accent};text-decoration:underline">Ver →</a>
-                            </div>`,
-                        );
-                });
-
-                mapRef.current = map;
-                setTimeout(() => {
-                    try { map.invalidateSize(); } catch { /* noop */ }
-                }, 200);
-                if (!cancelled) setStatus("ready");
-            })
-            .catch(() => {
-                if (!cancelled) setStatus("error");
-            });
-
+    useEffect(() => {
+        if (!conMapa || !loc) return;
+        let vivo = true;
+        setEstadoMapa('cargando');
+        loadLeaflet().then((Lns) => {
+            if (!vivo || !contenedor.current || mapa.current) return;
+            L.current = Lns;
+            const quieto = lienzo.nivel === 'ligero';
+            const m = Lns.map(contenedor.current, { center: [loc.lat, loc.lon], zoom: 12, zoomControl: base === 'l' || base === 'xl', attributionControl: true, zoomAnimation: !quieto, fadeAnimation: !quieto, markerZoomAnimation: !quieto });
+            grupo.current = Lns.layerGroup().addTo(m);
+            yo.current = Lns.marker([loc.lat, loc.lon], { icon: iconoYo(Lns), keyboard: false }).addTo(m);
+            mapa.current = m;
+            setEstadoMapa('listo');
+            window.setTimeout(() => { try { m.invalidateSize(); } catch { /* desmontado */ } }, 200);
+        }).catch(() => { if (vivo) setEstadoMapa('error'); });
         return () => {
-            cancelled = true;
-            if (mapRef.current) {
-                try { mapRef.current.remove(); } catch { /* noop */ }
-                mapRef.current = null;
-            }
+            vivo = false;
+            try { mapa.current?.remove(); } catch { /* ya retirado */ }
+            mapa.current = null; grupo.current = null; yo.current = null; fondo.current = null;
         };
+        // El mapa se crea una vez por montaje (y al reintentar); centro y capas se actualizan abajo.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [conMapa, !!loc, intento]);
 
-    // ── Re-centra y actualiza el marcador al cambiar la ubicación
+    // Capa base (oscura a juego con el OS, o la estándar de OSM).
     useEffect(() => {
-        const map = mapRef.current;
-        if (!map) return;
+        const m = mapa.current, Lns = L.current;
+        if (!m || !Lns || estadoMapa !== 'listo') return;
+        const def = BASE_LAYER_BY_ID[oscuro ? 'oscuro' : 'osm'];
+        try { fondo.current?.remove(); } catch { /* sin capa previa */ }
+        fondo.current = Lns.tileLayer(def.url, { maxZoom: def.maxZoom, attribution: def.attribution, ...(def.subdomains ? { subdomains: def.subdomains } : {}) }).addTo(m);
+    }, [oscuro, estadoMapa]);
+
+    // Centro y marcador propio.
+    useEffect(() => {
+        const m = mapa.current;
+        if (!m || !loc) return;
+        try { m.setView([loc.lat, loc.lon], m.getZoom() ?? 12); yo.current?.setLatLng([loc.lat, loc.lon]); } catch { /* mapa en transición */ }
+    }, [loc?.lat, loc?.lon]);
+
+    // Marcadores de la red (solo los tipos visibles).
+    useEffect(() => {
+        const g = grupo.current, Lns = L.current;
+        if (!g || !Lns || estadoMapa !== 'listo') return;
         try {
-            map.setView([location.lat, location.lon], map.getZoom() ?? 13);
-            if (userMarkerRef.current) {
-                userMarkerRef.current.setLatLng([location.lat, location.lon]);
-                userMarkerRef.current.setPopupContent(
-                    `<b>${location.name || "Tu ubicación"}</b>`,
+            g.clearLayers();
+            for (const p of visibles.slice(0, 300)) {
+                Lns.marker([p.lat, p.lng], { icon: iconoPunto(Lns, COLOR[p.tipo], p.tipo === 'evento' ? 16 : 14), title: p.nombre, alt: p.nombre }).bindPopup(fichaDe(p)).addTo(g);
+            }
+        } catch { /* un marcador raro no rompe el resto */ }
+    }, [visibles, estadoMapa]);
+
+    useEffect(() => { try { mapa.current?.invalidateSize(); } catch { /* sin mapa */ } }, [lienzo.ancho, lienzo.alto]);
+
+    const irA = useCallback((p: PuntoRed) => { try { mapa.current?.setView([p.lat, p.lng], 15); } catch { /* sin mapa */ } }, []);
+    const alternarCapa = (t: Tipo) => setCapas((prev) => { const n = new Set(prev); if (n.has(t)) n.delete(t); else n.add(t); return n; });
+
+    const tinta = tintaE(lienzo.acento);
+    const nombreLugar = loc?.name ?? 'Sin ubicación';
+    const raiz = { lienzo, refRaiz: ref, etiqueta: `Mapa: ${nombreLugar}${porDefecto ? ' (ubicación por defecto)' : ''}, ${enRadio.length} lugares de la red a menos de ${RADIO_CERCA_KM} km`, tipo: 'MAP_LOCATION' } as const;
+
+    const botonUbic = ubic ? <BotonE lienzo={lienzo} variante={porDefecto ? 'primario' : 'fantasma'} compacto icono={pidiendo ? Loader2 : LocateFixed} disabled={pidiendo} onClick={() => void usarMiUbicacion()}>{porDefecto ? 'Usar mi ubicación' : 'Recentrar'}</BotonE> : null;
+    const selloUbic = porDefecto ? <SelloE title="Aún no elegiste ubicación: el OS usa una por defecto">ubicación por defecto</SelloE> : null;
+
+    // ── micro / s: sin mapa, el dato ──
+    if (!conMapa) {
+        const primero = cerca[0];
+        return (
+            <RaizE {...raiz}>
+                <a href={RUTA_MAPA} className="flex h-full cursor-pointer flex-col items-center justify-center gap-1 p-1 text-center outline-none" title="Abrir el mapa de la red">
+                    <MapPin aria-hidden className="size-5" style={{ color: tinta, filter: `drop-shadow(0 0 6px ${conAlfa(lienzo.acento, 0.7)})` }} />
+                    {base === 'micro' ? (
+                        <span className="tabular-nums text-white" style={{ fontSize: 22, fontWeight: 250 }}>{puntos ? enRadio.length : '—'}</span>
+                    ) : (
+                        <>
+                            <span className="line-clamp-1 max-w-full text-[13px] font-semibold text-white">{nombreLugar}</span>
+                            {porDefecto && <span className="text-[10px] uppercase tracking-[0.1em] text-amber-200/80">por defecto</span>}
+                            <span className="line-clamp-2 text-[11px] text-white/60">
+                                {!puntos ? (cargando ? 'Buscando lugares…' : 'Sin datos de la red') : primero ? `${primero.nombre} · ${formatearDistancia(primero.km)}` : 'Nada con coordenadas cerca'}
+                            </span>
+                        </>
+                    )}
+                </a>
+            </RaizE>
+        );
+    }
+
+    const lista = (max: number) => (
+        <section aria-label="Cerca de ti" className="flex min-h-0 min-w-0 flex-col gap-1">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Cerca de ti</span>
+            {!puntos ? (
+                <p className="text-[12px] text-white/50">{cargando ? 'Cargando lugares de la red…' : error ? 'No se pudieron leer los lugares.' : ''}</p>
+            ) : visibles.length === 0 ? (
+                <p className="text-[12px] leading-snug text-white/55">Vacío por ahora: ninguna página, grupo o evento de la red tiene coordenadas {capas.size < 3 ? 'en estas capas' : 'todavía'}.</p>
+            ) : (
+                <ul className={cn('flex min-h-0 flex-col gap-0.5', estilosE.desliza)}>
+                    {visibles.slice(0, max).map((p) => (
+                        <li key={p.id} className="flex items-center gap-1">
+                            <button type="button" onClick={() => irA(p)} title={`Ver ${p.nombre} en el mapa`} className="flex min-h-9 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-2 text-left hover:bg-white/[0.05]">
+                                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: COLOR[p.tipo], boxShadow: `0 0 6px ${COLOR[p.tipo]}` }} />
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[12px] text-white/90">{p.nombre}</span>
+                                    <span className="block truncate text-[11px] text-white/45">{p.detalle}</span>
+                                </span>
+                                <span className="shrink-0 text-[11px] tabular-nums text-white/55">{formatearDistancia(p.km)}</span>
+                            </button>
+                            <a href={p.href} aria-label={`Abrir la ficha de ${p.nombre}`} className="ss-redondo grid size-7 shrink-0 cursor-pointer place-items-center rounded-full text-white/50 hover:bg-white/10 hover:text-white"><ArrowUpRight className="size-3.5" /></a>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+
+    const filtros = (
+        <div role="group" aria-label="Capas del mapa" className="flex flex-wrap gap-1.5">
+            {TIPOS.map((t) => {
+                const on = capas.has(t.id);
+                const n = cerca.filter((p) => p.tipo === t.id).length;
+                return (
+                    <button key={t.id} type="button" onClick={() => alternarCapa(t.id)} aria-pressed={on}
+                        className="ss-redondo inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition-colors"
+                        style={on ? { background: conAlfa(t.color, 0.18), boxShadow: `inset 0 0 0 1px ${conAlfa(t.color, 0.55)}`, color: '#fff' } : { background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.55)' }}>
+                        <t.icono aria-hidden className="size-3.5" style={{ color: on ? t.color : undefined }} />{t.etiqueta}<span className="tabular-nums opacity-70">{n}</span>
+                    </button>
                 );
-            }
-        } catch { /* noop */ }
-    }, [location.lat, location.lon, location.name]);
+            })}
+        </div>
+    );
 
-    // ── Sync layer visibility with state ──────────────────────
-    useEffect(() => {
-        const map = mapRef.current;
-        if (!map) return;
-        const groups = layerGroupsRef.current;
-        (Object.keys(groups) as LayerId[]).forEach((layerId) => {
-            const group = groups[layerId];
-            if (!group) return;
-            try {
-                if (activeLayers.has(layerId)) {
-                    if (!map.hasLayer(group)) map.addLayer(group);
-                } else {
-                    if (map.hasLayer(group)) map.removeLayer(group);
-                }
-            } catch { /* noop */ }
-        });
-    }, [activeLayers]);
+    const mapaEl = (
+        <div className="relative min-h-[120px] min-w-0 flex-1 overflow-hidden rounded-[18px]" style={{ boxShadow: `inset 0 0 0 1px ${conAlfa(lienzo.acento, 0.2)}` }}>
+            {loc ? <div ref={contenedor} className="absolute inset-0 z-0 [&_.leaflet-container]:!bg-[#0b0c1e]" aria-label={`Mapa centrado en ${nombreLugar}`} role="application" /> : null}
+            {!loc && (
+                <div className="absolute inset-0 grid place-items-center p-3 text-center text-[12px] text-white/60">Sin ubicación: elige una para ver el mapa.</div>
+            )}
+            {loc && estadoMapa === 'cargando' && (
+                <div role="status" className="absolute inset-0 z-10 grid place-items-center bg-black/30 text-[12px] text-white/70">
+                    <span className="inline-flex items-center gap-2"><Loader2 aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />Preparando el mapa</span>
+                </div>
+            )}
+            {estadoMapa === 'error' && (
+                <div role="alert" className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/50 p-3 text-center text-[12px] text-white/70">
+                    No se pudo cargar el mapa (¿sin conexión?).
+                    <BotonE lienzo={lienzo} compacto onClick={() => setIntento((x) => x + 1)}>Reintentar</BotonE>
+                </div>
+            )}
+            {estadoMapa === 'listo' && (base === 'l' || base === 'xl' || horizontal) && (
+                <div className="absolute right-2 top-2 z-[500]">
+                    <BotonE lienzo={lienzo} variante="suave" compacto icono={oscuro ? Sun : Moon} etiqueta={oscuro ? 'Mapa claro (OpenStreetMap)' : 'Mapa oscuro'} onClick={() => setOscuro((v) => !v)} className="backdrop-blur-md" />
+                </div>
+            )}
+        </div>
+    );
 
-    // ── Carga de puntos REALES geolocalizados (una vez, en cliente) ───────────
-    useEffect(() => {
-        let active = true;
-        fetchRealGeoPoints()
-            .then((pts) => {
-                if (active) setRealPoints(pts);
-            })
-            .catch(() => {
-                /* sin puntos reales: el mapa sigue funcionando con la demo */
-            });
-        return () => {
-            active = false;
-        };
-    }, []);
+    const cabecera = (
+        <EncabezadoE lienzo={lienzo} icono={MapPin} titulo={nombreLugar} detalle={puntos ? `${enRadio.length} cerca` : undefined}
+            acciones={<>{selloUbic}{botonUbic}<EnlaceE lienzo={lienzo} href={RUTA_MAPA} compacto variante="fantasma" icono={MapIcon}>Mapa</EnlaceE></>} />
+    );
+    const pie = <>{avisoUbic && <p role="alert" className="text-[11px] text-amber-200">{avisoUbic}</p>}{error && !puntos && <p className="text-[11px] text-white/50">No se pudieron leer los lugares de la red. <button type="button" className="cursor-pointer underline" onClick={recargar}>Reintentar</button></p>}</>;
 
-    // ── Plotea los puntos reales en los grupos de capas cuando estén listos ───
-    // Depende de que el mapa (status ready) y Leaflet estén disponibles. Los
-    // puntos reales se AÑADEN a los grupos existentes y se registran en
-    // `mapPoints` para el panel lateral (dedupe por id).
-    useEffect(() => {
-        const L = leafletRef.current;
-        const groups = layerGroupsRef.current;
-        if (status !== "ready" || !L || realPoints.length === 0) return;
+    if (horizontal) {
+        return (
+            <RaizE {...raiz}>
+                <div className="flex h-full min-h-0 gap-3 p-1">
+                    <div className="flex min-h-0 min-w-0 flex-[3] flex-col gap-1.5">{cabecera}{mapaEl}</div>
+                    <div className="flex min-h-0 min-w-0 flex-[2] flex-col gap-1.5">{filtros}{lista(8)}{pie}</div>
+                </div>
+            </RaizE>
+        );
+    }
 
-        realPoints.forEach((pt) => {
-            const group = groups[pt.layer];
-            if (!group) return;
-            try {
-                const icon = makeCircleIcon(L, pt.accent, pt.layer === "eventos" ? 16 : 14);
-                L.marker([pt.lat, pt.lon], { icon })
-                    .addTo(group)
-                    .bindPopup(
-                        `<div style="min-width:160px">
-                          <b style="color:${pt.accent};font-size:13px">${pt.label}</b>
-                          <br/>
-                          <span style="font-size:11px;opacity:.75">${pt.sublabel}</span>
-                          <br/>
-                          <a href="${pt.href}" style="font-size:11px;color:${pt.accent};text-decoration:underline">Ver →</a>
-                        </div>`,
-                    );
-            } catch {
-                /* noop: un punto que falle no rompe el resto */
-            }
-        });
+    if (base === 'm' && clase !== 'torre') {
+        return <RaizE {...raiz}><div className="flex h-full min-h-0 flex-col gap-1.5 p-1">{cabecera}{mapaEl}{pie}</div></RaizE>;
+    }
 
-        // Registra en el panel lateral (dedupe por id).
-        setMapPoints((prev) => {
-            const seen = new Set(prev.map((p) => p.id));
-            const merged = [...prev];
-            for (const pt of realPoints) {
-                if (!seen.has(pt.id)) merged.push(pt);
-            }
-            return merged;
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [status, realPoints]);
+    if (base === 'xl') {
+        return (
+            <RaizE {...raiz}>
+                <div className="flex h-full min-h-0 flex-col gap-1.5 p-1">
+                    {cabecera}
+                    <div className="flex min-h-0 flex-1 gap-3">
+                        <div className="flex min-h-0 min-w-0 flex-[3] flex-col">{mapaEl}</div>
+                        <div className="flex min-h-0 w-[36%] shrink-0 flex-col gap-2">{filtros}{lista(12)}</div>
+                    </div>
+                    {pie}
+                </div>
+            </RaizE>
+        );
+    }
 
-    const toggleLayer = (id: LayerId) => {
-        setActiveLayers((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    };
-
-    const goToMyLocation = () => {
-        const map = mapRef.current;
-        if (!map) return;
-        if (typeof navigator !== "undefined" && navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    try { map.setView([pos.coords.latitude, pos.coords.longitude], 15); }
-                    catch { /* noop */ }
-                },
-                () => {
-                    try { map.setView([location.lat, location.lon], 14); }
-                    catch { /* noop */ }
-                },
-                { enableHighAccuracy: true, timeout: 5000 },
-            );
-        } else {
-            try { map.setView([location.lat, location.lon], 14); } catch { /* noop */ }
-        }
-    };
-
-    // Filtered points for side panel
-    const visiblePoints = mapPoints.filter((p) => activeLayers.has(p.layer));
-    const countByLayer = (id: LayerId) => mapPoints.filter((p) => p.layer === id).length;
-
+    // l / torre
     return (
-        <WidgetShell
-            title="Mapa"
-            subtitle={location.name}
-            icon={MapPin}
-            accent={ACCENT_USER}
-            bodyClassName="p-0"
-        >
-            <div className="relative h-full w-full overflow-hidden rounded-2xl">
-                {/* Contenedor del mapa */}
-                <div
-                    ref={containerRef}
-                    className="absolute inset-0 z-0 [&_.leaflet-container]:!bg-black/40"
-                    style={{ background: "rgba(0,0,0,0.4)" }}
-                />
-
-                {/* Estados de carga / error */}
-                {status === "loading" && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                        <div className="flex items-center gap-2 text-xs text-white/70">
-                            <Loader2 className="size-4 animate-spin" />
-                            Cargando mapa…
-                        </div>
-                    </div>
-                )}
-                {status === "error" && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 px-4 text-center">
-                        <p className="text-xs text-white/60">
-                            No se pudo cargar el mapa. Revisa tu conexión.
-                        </p>
-                    </div>
-                )}
-
-                {status === "ready" && (
-                    <>
-                        {/* ── Chips de capas (top-left) ───────────────────── */}
-                        <div className="absolute left-3 top-3 z-[400] flex flex-wrap gap-1.5">
-                            {LAYERS.map((layer) => {
-                                const Icon    = layer.icon;
-                                const active  = activeLayers.has(layer.id);
-                                const count   = countByLayer(layer.id);
-                                return (
-                                    <button
-                                        key={layer.id}
-                                        type="button"
-                                        onClick={() => toggleLayer(layer.id)}
-                                        className="flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium backdrop-blur-md transition-all duration-150 shadow"
-                                        style={{
-                                            borderColor: active ? layer.accent : "rgba(255,255,255,0.12)",
-                                            background:  active
-                                                ? `${layer.accent}22`
-                                                : "rgba(0,0,0,0.55)",
-                                            color: active ? layer.accent : "rgba(255,255,255,0.55)",
-                                        }}
-                                        aria-pressed={active}
-                                        aria-label={`${active ? "Ocultar" : "Mostrar"} capa ${layer.label}`}
-                                    >
-                                        <Icon className="size-2.5" />
-                                        <span>{layer.label}</span>
-                                        <span
-                                            className="rounded-full px-1 py-px text-[9px] font-bold"
-                                            style={{
-                                                background: active ? `${layer.accent}33` : "rgba(255,255,255,0.08)",
-                                                color:      active ? layer.accent        : "rgba(255,255,255,0.4)",
-                                            }}
-                                        >
-                                            {count}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* ── Botón panel lateral ─────────────────────────── */}
-                        <button
-                            type="button"
-                            onClick={() => setShowPanel((v) => !v)}
-                            aria-label="Ver puntos StarSeed cercanos"
-                            className="absolute bottom-12 right-3 z-[400] grid size-9 place-items-center rounded-full border border-white/15 bg-black/60 text-white/80 backdrop-blur-md transition-colors hover:bg-black/80 hover:text-white cursor-pointer shadow-lg"
-                        >
-                            <Layers className="size-4" style={{ color: ACCENT_COMUNIDAD }} />
-                        </button>
-
-                        {/* ── Botón mi ubicación ──────────────────────────── */}
-                        <button
-                            type="button"
-                            onClick={goToMyLocation}
-                            aria-label="Ir a mi ubicación"
-                            className="absolute bottom-3 right-3 z-[400] grid size-9 place-items-center rounded-full border border-white/15 bg-black/60 text-white/80 backdrop-blur-md transition-colors hover:bg-black/80 hover:text-white cursor-pointer shadow-lg"
-                        >
-                            <LocateFixed className="size-4" style={{ color: ACCENT_USER }} />
-                        </button>
-
-                        {/* ── Leyenda (bottom-left) ───────────────────────── */}
-                        <div className="absolute bottom-3 left-3 z-[400] flex flex-col gap-0.5 rounded-xl border border-white/10 bg-black/60 p-2 backdrop-blur-md text-[9px] text-white/60 shadow">
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                                <span className="inline-block size-2.5 rounded-full border border-white/30" style={{ background: ACCENT_USER }} />
-                                <span>Tu ubicación</span>
-                            </div>
-                            {LAYERS.map((l) => (
-                                <div key={l.id} className="flex items-center gap-1.5">
-                                    <span className="inline-block size-2.5 rounded-full" style={{ background: l.accent, opacity: activeLayers.has(l.id) ? 1 : 0.3 }} />
-                                    <span style={{ opacity: activeLayers.has(l.id) ? 1 : 0.4 }}>{l.label}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* ── Panel lateral glass ─────────────────────────── */}
-                        {showPanel && (
-                            <div className="absolute inset-y-0 right-0 z-[500] flex w-64 flex-col gap-0 rounded-r-2xl border-l border-white/10 bg-black/75 backdrop-blur-xl shadow-2xl overflow-hidden">
-                                {/* Header */}
-                                <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-                                    <span className="text-xs font-semibold text-white/80">Puntos StarSeed</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPanel(false)}
-                                        className="cursor-pointer rounded-full p-0.5 text-white/40 hover:text-white/80 transition-colors"
-                                        aria-label="Cerrar panel"
-                                    >
-                                        <X className="size-3.5" />
-                                    </button>
-                                </div>
-
-                                {/* Layer sections */}
-                                <div className="flex-1 overflow-y-auto">
-                                    {LAYERS.map((layer) => {
-                                        const pts = visiblePoints.filter((p) => p.layer === layer.id);
-                                        if (pts.length === 0) return null;
-                                        const Icon = layer.icon;
-                                        return (
-                                            <div key={layer.id}>
-                                                <div
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider border-b border-white/5"
-                                                    style={{ color: layer.accent }}
-                                                >
-                                                    <Icon className="size-3" />
-                                                    <span>{layer.label}</span>
-                                                    <span
-                                                        className="ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-bold"
-                                                        style={{ background: `${layer.accent}22`, color: layer.accent }}
-                                                    >
-                                                        {pts.length}
-                                                    </span>
-                                                </div>
-                                                {pts.map((pt) => (
-                                                    <Link
-                                                        key={pt.id}
-                                                        href={pt.href}
-                                                        className="group flex cursor-pointer items-start gap-2 px-3 py-2 hover:bg-white/5 transition-colors border-b border-white/5"
-                                                    >
-                                                        <span
-                                                            className="mt-0.5 shrink-0 size-2 rounded-full"
-                                                            style={{ background: pt.accent }}
-                                                        />
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="truncate text-[11px] font-medium text-white/85 group-hover:text-white transition-colors">
-                                                                {pt.label}
-                                                            </p>
-                                                            <p className="truncate text-[9px] text-white/40">
-                                                                {pt.sublabel}
-                                                            </p>
-                                                        </div>
-                                                        <ChevronRight className="mt-0.5 size-3 shrink-0 text-white/20 group-hover:text-white/50 transition-colors" />
-                                                    </Link>
-                                                ))}
-                                            </div>
-                                        );
-                                    })}
-                                    {visiblePoints.length === 0 && (
-                                        <p className="px-3 py-4 text-center text-xs text-white/30">
-                                            Activa al menos una capa para ver puntos.
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </>
-                )}
+        <RaizE {...raiz}>
+            <div className="flex h-full min-h-0 flex-col gap-1.5 p-1">
+                {cabecera}
+                {filtros}
+                <div className="flex min-h-0 flex-[3] flex-col">{mapaEl}</div>
+                <div className="min-h-0 flex-[2]">{lista(clase === 'torre' ? 8 : 3)}</div>
+                {pie}
             </div>
-        </WidgetShell>
+        </RaizE>
     );
 }
+
+export default MapWidget;

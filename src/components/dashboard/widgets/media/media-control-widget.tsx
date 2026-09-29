@@ -1,563 +1,254 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// MediaControlWidget — Centro de Control de Medios (con salida).
+// MediaControlWidget — Control de medios (Ola 0929 · paquete E, familia de medios)
 // ----------------------------------------------------------------
-// Un único panel de mando para el motor de audio global del OS
-// (useMediaPlayer): "sonando ahora" + transporte + volumen maestro,
-// lanzamiento rápido desde el catálogo (música + radio) y una sección
-// de "Salida de medios":
-//   1) Enviar la visualización al fondo del sistema (Audiomorphic) →
-//      conmuta config.background.type entre 'audiomorphic' y el previo,
-//      vía useAppearance().updateConfig (deep-merge). Restaura el fondo
-//      anterior al desactivar.
-//   2) Dispositivo de salida → SOLO si el navegador lo soporta
-//      (mediaDevices.enumerateDevices + HTMLMediaElement.setSinkId). La
-//      enumeración ocurre tras un gesto del usuario (botón), con guardas
-//      SSR. Como el motor NO expone su <audio>, el selector es
-//      INFORMATIVO: la salida real la decide el sistema → se rotula con
-//      honestidad ("según el sistema"); si no hay soporte, "Salida:
-//      sistema" deshabilitado.
-//
-// Adaptabilidad (render-prop `size`):
-//   • micro/compact → solo sonando-ahora + transporte + volumen.
-//   • regular/expanded → añade lanzamiento rápido + salida de medios.
-// Accesibilidad: controles con aria-label/title + foco visible; sliders
-// con <input type=range> + aria-valuetext; "sonando ahora" en role=status
-// con aria-live. Animaciones respetan animations.enabled + reduced-motion.
-// Tiempos en tabular-nums. "EN VIVO" para radios; barra de progreso solo
-// con duración finita > 0 y no-radio. SSR-safe (nada toca window/navigator
-// fuera de efectos o handlers de gesto).
+// El mando de TODO lo que suena en el OS, en un sitio:
+//   · sonando ahora (Reproductor o Radio, el mismo motor compartido) con mandos,
+//     onda/ecualizador y volumen maestro;
+//   · Omnifrecuencias (su propio motor): cuántas capas suenan y «detener»;
+//   · fuentes rápidas (tus audios abiertos, pistas y emisoras) en lista vertical;
+//   · salida: la visualización Audiomorphic como capa del fondo (su interruptor) y
+//     los dispositivos de salida. Honesto: el navegador no deja elegir la salida de
+//     este motor, así que se listan (tras tu gesto) y se dice «la decide el sistema».
+// El audio solo arranca con un toque; el movimiento se para en pausa, en «eco»,
+// con movimiento reducido o fuera de la vista.
+// Composición: micro = play/pausa · s = portada + título + play · m = sonando + mandos +
+// volumen · l = + fuentes y salida · xl = dos columnas · panorámico = barra de mando ·
+// torre = columna. Estados: cargando (el stream), vacío (nada sonando: invita a
+// elegir una fuente), error (no se pudieron listar las salidas).
 // ════════════════════════════════════════════════════════════════
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import {
-    SlidersHorizontal,
-    Play,
-    Pause,
-    SkipBack,
-    SkipForward,
-    Volume2,
-    Volume1,
-    VolumeX,
-    Loader2,
-    Music,
-    Radio,
-    Disc3,
-    AudioWaveform,
-    Speaker,
-    Headphones,
-    Check,
-    RefreshCw,
-} from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { SlidersHorizontal, Music, Radio as RadioIcon, AudioWaveform, Speaker, Waves, Square, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { WidgetShell, Chip } from '@/components/dashboard/kit';
+import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
 import { useAppearance } from '@/context/appearance-context';
 import { audiomorphicLayer, normalizeLayers, setAudiomorphicEnabled } from '@/lib/appearance/background-layers';
 import { useMediaPlayer, type MediaTrack } from '@/components/dashboard/apps/media/media-engine';
 import { SAMPLE_TRACKS, RADIO_STATIONS } from '@/components/dashboard/apps/media/media-catalog';
+import { useAudio } from '@/components/dashboard/apps/omnifrecuencias/frecuencias/hooks/useAudio';
+import { useLienzoE, px } from '../paquete-e/lienzo';
+import { BotonE, EncabezadoE, RaizE, SelloE, estilosE, tintaE } from '../paquete-e/piezas';
+import { EqE, OndaE, PortadaE, TransporteE, VolumenE, tiempoE } from '../paquete-e/medios';
+import { usePistasLocalesE } from '../paquete-e/pistas-locales';
 
-const ACCENT = '#F472B6';
+interface Salida { id: string; nombre: string }
 
-const FOCUS_RING =
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background';
-
-function fmtTime(sec: number): string {
-    if (!Number.isFinite(sec) || sec < 0) return '0:00';
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-// Primeras pistas de cada fuente para el "lanzamiento rápido".
-const QUICK_TRACKS: MediaTrack[] = SAMPLE_TRACKS.slice(0, 3);
-const QUICK_RADIOS: MediaTrack[] = RADIO_STATIONS.slice(0, 3);
-
-interface OutputDevice {
-    id: string;
-    label: string;
+/** Interruptor accesible (role=switch) con la voz del acento. */
+function Interruptor({ activo, onCambio, etiqueta, acento }: { activo: boolean; onCambio: () => void; etiqueta: string; acento: string }) {
+    return (
+        <button type="button" role="switch" aria-checked={activo} aria-label={etiqueta} onClick={onCambio}
+            className="ss-redondo relative h-6 w-11 shrink-0 cursor-pointer rounded-full outline-none transition-colors duration-200 focus-visible:ring-2"
+            style={{ background: activo ? conAlfa(acento, 0.6) : 'rgba(255,255,255,.14)', ['--tw-ring-color' as string]: acento } as React.CSSProperties}>
+            <span aria-hidden className="absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform duration-200" style={{ transform: `translateX(${activo ? 22 : 2}px)` }} />
+        </button>
+    );
 }
 
 export function MediaControlWidget() {
+    const { ref, lienzo } = useLienzoE();
     const { config, updateConfig } = useAppearance();
-    const prefersReduced = useReducedMotion();
-    // Anima solo si está habilitado globalmente y el usuario no pidió menos movimiento.
-    const animate = config.animations.enabled && !prefersReduced;
-
     const { state, playTrack, toggle, next, prev, seek, setVolume } = useMediaPlayer();
-    const current = state.track;
-    const isRadio = current?.kind === 'radio';
+    const omni = useAudio();
+    const locales = usePistasLocalesE();
+    const pista = state.track;
+    const esRadio = pista?.kind === 'radio';
+    const duracion = Number.isFinite(state.duration) && state.duration > 0 ? state.duration : 0;
+    const progreso = duracion && !esRadio ? Math.min(1, state.currentTime / duracion) : 0;
+    const cargando = state.loading && !state.playing;
+    const capasOmni = omni.oscillators.filter((o) => o.isPlaying).length;
+    const omniSuena = omni.isPlaying && capasOmni > 0;
 
-    // Progreso solo con duración finita > 0 y que no sea una radio en vivo.
-    const duration = Number.isFinite(state.duration) && state.duration > 0 ? state.duration : 0;
-    const hasProgress = duration > 0 && !isRadio;
-    const progress = hasProgress ? Math.min(1, state.currentTime / duration) : 0;
-    const buffering = state.loading && !state.playing;
+    // ── Capa Audiomorphic (nunca toca el fondo base del usuario) ──
+    const capas = normalizeLayers(config.background?.layers);
+    const audiomorphicActivo = !!audiomorphicLayer(capas);
+    const alternarAudiomorphic = useCallback(() => {
+        updateConfig({ background: { layers: setAudiomorphicEnabled(capas, !audiomorphicActivo) } } as never);
+    }, [capas, audiomorphicActivo, updateConfig]);
 
-    const volume = state.volume;
-    const muted = volume <= 0;
-    const VolIcon = muted ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
-
-    // ── Salida: CAPA Audiomorphic (Adenda 68 · D) ──────────────────
-    // Ya no se pisa `background.type` (eso dejaba el visualizador pegado como
-    // fondo exclusivo del OS y sincronizado a toda la cuenta): se enciende o se
-    // apaga SU capa. El fondo base del usuario no se toca nunca.
-    const bgLayers = normalizeLayers(config.background.layers);
-    const bgIsAudiomorphic = !!audiomorphicLayer(bgLayers);
-
-    const toggleAudiomorphic = useCallback(() => {
-        updateConfig({
-            background: { layers: setAudiomorphicEnabled(bgLayers, !bgIsAudiomorphic) },
-        } as any);
-    }, [bgLayers, bgIsAudiomorphic, updateConfig]);
-
-    // ── Salida: dispositivo (feature-detect, honesto, SSR-safe) ────
-    const [outputSupported, setOutputSupported] = useState(false);
-    const [devices, setDevices] = useState<OutputDevice[]>([]);
-    const [selectedDeviceId, setSelectedDeviceId] = useState<string>('default');
-    const [enumerating, setEnumerating] = useState(false);
-    const [enumError, setEnumError] = useState(false);
-
-    // Detección de soporte (solo en cliente, dentro de efecto).
+    // ── Salidas de audio (solo tras un gesto; honesto sobre lo que se puede hacer) ──
+    const [soportaSalidas, setSoportaSalidas] = useState(false);
+    const [salidas, setSalidas] = useState<Salida[] | null>(null);
+    const [errorSalidas, setErrorSalidas] = useState<string | null>(null);
     useEffect(() => {
-        if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
-        const canEnumerate = typeof navigator.mediaDevices?.enumerateDevices === 'function';
-        const canSetSink =
-            typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
-        // Solo lo damos por "soportado" si ambas piezas existen; aun así, el motor
-        // no expone su <audio>, por lo que aplicarlo queda "según el sistema".
-        setOutputSupported(canEnumerate && canSetSink);
+        setSoportaSalidas(typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.enumerateDevices === 'function');
     }, []);
-
-    // Enumeración bajo gesto del usuario (clic) — evita prompts no solicitados.
-    const enumerateDevices = useCallback(async () => {
-        if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
-        setEnumerating(true);
-        setEnumError(false);
+    const listarSalidas = async () => {
+        setErrorSalidas(null);
         try {
-            const all = await navigator.mediaDevices.enumerateDevices();
-            const outs = all
-                .filter((d) => d.kind === 'audiooutput')
-                .map((d, i) => ({
-                    id: d.deviceId || `out-${i}`,
-                    label: d.label || `Salida ${i + 1}`,
-                }));
-            setDevices(outs);
-            if (!outs.some((o) => o.id === selectedDeviceId)) {
-                setSelectedDeviceId(outs[0]?.id ?? 'default');
-            }
+            const todos = await navigator.mediaDevices.enumerateDevices();
+            setSalidas(todos.filter((d) => d.kind === 'audiooutput').map((d, i) => ({ id: d.deviceId || `s-${i}`, nombre: d.label || (d.deviceId === 'default' ? 'Salida predeterminada' : `Salida ${i + 1}`) })));
         } catch {
-            setEnumError(true);
-        } finally {
-            setEnumerating(false);
+            setErrorSalidas('El navegador no dejó listar las salidas.');
         }
-    }, [selectedDeviceId]);
+    };
 
-    return (
-        <WidgetShell
-            title="Control de Medios"
-            subtitle="Reproductor + salida"
-            icon={SlidersHorizontal}
-            accent={ACCENT}
-            live={isRadio && state.playing}
-            connections={[
-                { label: 'Reproductor', color: ACCENT, icon: Music },
-                { label: 'Radio en vivo', color: '#FB923C', icon: Radio },
-                { label: 'Audiomorphic', color: '#A855F7', icon: AudioWaveform },
-            ]}
-        >
-            {(size) => {
-                const micro = size.tier === 'micro' || size.vTier === 'micro';
-                // Secciones extra solo con espacio suficiente (regular/expanded).
-                const showExtras = !micro && size.tier !== 'compact' && size.vTier !== 'compact';
+    const tocar = (t: MediaTrack, cola: MediaTrack[]) => { if (pista?.id === t.id) toggle(); else playTrack(t, cola); };
+    const alternar = () => { if (pista) toggle(); else playTrack(locales[0] ?? SAMPLE_TRACKS[0], locales.length ? locales : SAMPLE_TRACKS); };
 
-                return (
-                    <div className="flex h-full flex-col gap-2.5 pt-1">
-                        {/* ── Sonando ahora ───────────────────────────── */}
-                        <section
-                            className="shrink-0 rounded-2xl border border-pink-400/25 bg-white/[0.03] p-2.5"
-                            aria-label="Sonando ahora"
-                        >
-                            <div className="flex items-center gap-2.5">
-                                {/* Arte / icono */}
-                                <span
-                                    className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10"
-                                    style={{
-                                        background: current
-                                            ? `linear-gradient(135deg, ${ACCENT}, color-mix(in srgb, ${ACCENT} 35%, transparent))`
-                                            : 'rgba(255,255,255,0.04)',
-                                    }}
-                                >
-                                    {current?.art ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                            src={current.art}
-                                            alt=""
-                                            aria-hidden
-                                            className="h-full w-full object-cover"
-                                        />
-                                    ) : isRadio ? (
-                                        <Radio className="size-5" style={{ color: current ? '#fff' : ACCENT }} />
-                                    ) : (
-                                        <motion.span
-                                            animate={animate && state.playing ? { rotate: 360 } : { rotate: 0 }}
-                                            transition={
-                                                animate && state.playing
-                                                    ? { duration: 6, repeat: Infinity, ease: 'linear' }
-                                                    : undefined
-                                            }
-                                        >
-                                            <Disc3 className="size-5" style={{ color: current ? '#fff' : ACCENT }} />
-                                        </motion.span>
-                                    )}
-                                </span>
+    const { base, clase, horizontal } = lienzo;
+    const titulo = pista?.title ?? 'Nada sonando';
+    const sub = cargando ? 'Cargando…' : pista ? (esRadio ? `En vivo · ${pista.artist ?? ''}` : pista.artist ?? '') : 'Elige una fuente';
+    const raiz = { lienzo, refRaiz: ref, etiqueta: `Control de medios: ${pista ? `${titulo}${state.playing ? ', sonando' : ', en pausa'}` : 'nada sonando'}`, tipo: 'MEDIA_CONTROL' } as const;
 
-                                <span className="min-w-0 flex-1" role="status" aria-live="polite">
-                                    <span className="flex items-center gap-1.5">
-                                        <span className="block truncate text-[12px] font-bold leading-tight">
-                                            {current ? current.title : 'Nada sonando'}
-                                        </span>
-                                        {isRadio && (
-                                            <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/40 bg-rose-500/15 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-rose-300">
-                                                <motion.span
-                                                    aria-hidden
-                                                    className="size-1 rounded-full bg-rose-400"
-                                                    animate={animate ? { opacity: [0.3, 1, 0.3] } : undefined}
-                                                    transition={animate ? { duration: 1.8, repeat: Infinity } : undefined}
-                                                />
-                                                En vivo
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className="block truncate text-[10px] text-muted-foreground/60">
-                                        {buffering ? 'Cargando…' : current?.artist ?? 'Elige una fuente abajo'}
-                                    </span>
-                                </span>
-                            </div>
+    const info = (tam = 14) => (
+        <div className="min-w-0" aria-live="polite">
+            <p className="truncate font-semibold text-white" style={{ fontSize: px(lienzo, tam) }} title={titulo}>{titulo}</p>
+            <p className="truncate text-white/55" style={{ fontSize: px(lienzo, 12) }}>{sub}</p>
+        </div>
+    );
+    const progresoEl = (alto: number) => esRadio
+        ? <EqE suena={state.playing} lienzo={lienzo} barras={11} alto={alto * 0.8} />
+        : pista ? <div className="flex w-full min-w-0 items-center gap-2">
+            <OndaE id={pista.id} progreso={progreso} alto={alto} lienzo={lienzo} etiqueta={`Posición ${tiempoE(state.currentTime)} de ${tiempoE(duracion)}`} onSaltar={duracion ? (f) => seek(f * duracion) : undefined} barras={40} />
+            <span className="shrink-0 text-[11px] tabular-nums text-white/50">{tiempoE(duracion - state.currentTime)}</span>
+        </div> : null;
 
-                            {/* Transporte */}
-                            <div
-                                className="mt-2 flex items-center justify-center gap-3"
-                                role="group"
-                                aria-label="Controles de transporte"
-                            >
-                                <button
-                                    type="button"
-                                    onClick={() => prev()}
-                                    disabled={!current}
-                                    aria-label="Pista anterior"
-                                    title="Anterior"
-                                    className={cn(
-                                        'grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground/80 transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed',
-                                        FOCUS_RING,
-                                    )}
-                                >
-                                    <SkipBack className="size-4" />
+    const frecuencias = (
+        <div className="flex min-w-0 items-center gap-2.5 rounded-2xl px-2.5 py-2" style={{ background: conAlfa('#22d3ee', omniSuena ? 0.12 : 0.05) }}>
+            <Waves aria-hidden className="size-4 shrink-0" style={{ color: omniSuena ? '#67e8f9' : 'rgba(255,255,255,.45)' }} />
+            <span className="min-w-0 flex-1">
+                <span className="block truncate text-[12px] font-semibold text-white/90">Omnifrecuencias</span>
+                <span className="block truncate text-[11px] text-white/50">{omniSuena ? `${capasOmni} ${capasOmni === 1 ? 'capa sonando' : 'capas sonando'}` : omni.oscillators.length ? 'En pausa' : 'En silencio'}</span>
+            </span>
+            {omni.oscillators.length > 0 && (
+                <BotonE lienzo={{ ...lienzo, acento: '#22d3ee' }} compacto icono={Square} onClick={() => omni.oscillators.forEach((o) => omni.removeOscillator(o.id))}>Detener</BotonE>
+            )}
+        </div>
+    );
+
+    const fuentes = (max: number) => {
+        const lista: { t: MediaTrack; cola: MediaTrack[]; radio: boolean }[] = [
+            ...locales.slice(0, 2).map((t) => ({ t, cola: locales, radio: false })),
+            ...SAMPLE_TRACKS.slice(0, 2).map((t) => ({ t, cola: SAMPLE_TRACKS, radio: false })),
+            ...RADIO_STATIONS.slice(0, 3).map((t) => ({ t, cola: RADIO_STATIONS, radio: true })),
+        ].slice(0, max);
+        return (
+            <section aria-label="Fuentes rápidas" className="flex min-h-0 min-w-0 flex-col gap-1">
+                <div className="flex items-center gap-2"><span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Fuentes</span><SelloE title="Pistas SoundHelix para probar; las emisoras son reales">pistas de demostración</SelloE></div>
+                <ul className={cn('flex min-h-0 flex-col gap-0.5', estilosE.desliza)}>
+                    {lista.map(({ t, cola, radio }) => {
+                        const activa = pista?.id === t.id;
+                        return (
+                            <li key={t.id}>
+                                <button type="button" onClick={() => tocar(t, cola)} aria-pressed={activa} aria-label={`${activa && state.playing ? 'Pausar' : radio ? 'Sintonizar' : 'Reproducir'} ${t.title}`}
+                                    className={cn('flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-xl px-2 text-left transition-colors duration-150', activa ? 'bg-white/[0.08]' : 'hover:bg-white/[0.05]')}>
+                                    {activa && state.playing ? <EqE suena lienzo={lienzo} barras={3} alto={12} /> : radio ? <RadioIcon aria-hidden className="size-3.5 shrink-0 text-white/45" /> : <Music aria-hidden className="size-3.5 shrink-0 text-white/45" />}
+                                    <span className="min-w-0 flex-1 truncate text-[12px] text-white/85">{t.title}</span>
+                                    <span className="shrink-0 text-[10px] uppercase tracking-[0.1em] text-white/40">{radio ? 'radio' : t.id.startsWith('local-') ? 'tuyo' : 'pista'}</span>
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (current) toggle();
-                                        else playTrack(QUICK_TRACKS[0] ?? SAMPLE_TRACKS[0], SAMPLE_TRACKS);
-                                    }}
-                                    aria-label={state.playing ? 'Pausar' : 'Reproducir'}
-                                    title={state.playing ? 'Pausar' : 'Reproducir'}
-                                    className={cn(
-                                        'grid size-10 shrink-0 place-items-center rounded-full border border-white/15 text-white shadow-lg transition-transform hover:scale-105 cursor-pointer',
-                                        FOCUS_RING,
-                                    )}
-                                    style={{
-                                        background: `linear-gradient(135deg, ${ACCENT}, color-mix(in srgb, ${ACCENT} 45%, transparent))`,
-                                    }}
-                                >
-                                    {buffering ? (
-                                        <Loader2 className="size-5 animate-spin" />
-                                    ) : state.playing ? (
-                                        <Pause className="size-5" />
-                                    ) : (
-                                        <Play className="size-5 translate-x-px" />
-                                    )}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => next()}
-                                    disabled={!current}
-                                    aria-label="Pista siguiente"
-                                    title="Siguiente"
-                                    className={cn(
-                                        'grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground/80 transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed',
-                                        FOCUS_RING,
-                                    )}
-                                >
-                                    <SkipForward className="size-4" />
-                                </button>
-                            </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </section>
+        );
+    };
 
-                            {/* Progreso (seek) — solo con duración finita > 0 y no radio. */}
-                            {hasProgress && (
-                                <div className="mt-2 flex items-center gap-2">
-                                    <span className="w-8 shrink-0 text-right text-[9px] tabular-nums text-muted-foreground/60">
-                                        {fmtTime(state.currentTime)}
-                                    </span>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={duration}
-                                        step={0.5}
-                                        value={Math.min(state.currentTime, duration)}
-                                        onChange={(e) => seek(Number(e.target.value))}
-                                        aria-label="Posición de reproducción"
-                                        aria-valuetext={`${fmtTime(state.currentTime)} de ${fmtTime(duration)}`}
-                                        className={cn(
-                                            'h-1 flex-1 cursor-pointer appearance-none rounded-full accent-pink-400 [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-pink-400',
-                                            FOCUS_RING,
-                                        )}
-                                        style={{
-                                            background: `linear-gradient(90deg, ${ACCENT} ${progress * 100}%, rgba(255,255,255,0.15) ${progress * 100}%)`,
-                                        }}
-                                    />
-                                    <span className="w-8 shrink-0 text-[9px] tabular-nums text-muted-foreground/60">
-                                        {fmtTime(duration)}
-                                    </span>
-                                </div>
-                            )}
-                        </section>
+    const salida = (
+        <section aria-label="Salida de medios" className="flex min-w-0 flex-col gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Salida</span>
+            <div className="flex min-w-0 items-center gap-2.5">
+                <AudioWaveform aria-hidden className="size-4 shrink-0" style={{ color: audiomorphicActivo ? tintaE(lienzo.acento) : 'rgba(255,255,255,.45)' }} />
+                <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12px] font-semibold text-white/90">Visualización al fondo</span>
+                    <span className="block truncate text-[11px] text-white/50">Audiomorphic como capa del fondo</span>
+                </span>
+                <Interruptor activo={audiomorphicActivo} onCambio={alternarAudiomorphic} etiqueta="Visualización Audiomorphic en el fondo" acento={lienzo.acento} />
+            </div>
+            <div className="flex min-w-0 items-start gap-2.5">
+                <Speaker aria-hidden className="mt-0.5 size-4 shrink-0 text-white/45" />
+                <div className="min-w-0 flex-1">
+                    {salidas === null ? (
+                        <span className="block text-[12px] text-white/70">{soportaSalidas ? 'Salidas de audio' : 'Salida: la del sistema'}</span>
+                    ) : salidas.length === 0 ? (
+                        <span className="block text-[12px] text-white/70">El navegador no enseña salidas.</span>
+                    ) : (
+                        <ul className="flex flex-col gap-0.5">{salidas.slice(0, 4).map((s) => <li key={s.id} className="truncate text-[12px] text-white/80">{s.nombre}</li>)}</ul>
+                    )}
+                    <span className="block text-[11px] text-white/45">{errorSalidas ?? 'La salida la decide el sistema.'}</span>
+                </div>
+                {soportaSalidas && <BotonE lienzo={lienzo} variante="fantasma" compacto icono={RefreshCw} onClick={() => void listarSalidas()}>{salidas ? 'Actualizar' : 'Ver'}</BotonE>}
+            </div>
+        </section>
+    );
 
-                        {/* ── Volumen maestro ─────────────────────────── */}
-                        <section
-                            className="flex shrink-0 items-center gap-2.5 rounded-2xl border border-border/40 bg-white/[0.02] px-3 py-2"
-                            aria-label="Volumen maestro"
-                        >
-                            <button
-                                type="button"
-                                onClick={() => setVolume(muted ? 0.8 : 0)}
-                                aria-label={muted ? 'Activar sonido' : 'Silenciar'}
-                                aria-pressed={muted}
-                                title={muted ? 'Activar sonido' : 'Silenciar'}
-                                className={cn(
-                                    'grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground/80 transition-colors hover:text-foreground cursor-pointer',
-                                    FOCUS_RING,
-                                )}
-                            >
-                                <VolIcon className="size-4" />
-                            </button>
-                            <input
-                                type="range"
-                                min={0}
-                                max={1}
-                                step={0.01}
-                                value={volume}
-                                onChange={(e) => setVolume(Number(e.target.value))}
-                                aria-label="Volumen maestro"
-                                aria-valuetext={`${Math.round(volume * 100)} por ciento`}
-                                className={cn(
-                                    'h-1 flex-1 cursor-pointer appearance-none rounded-full accent-pink-400 [&::-webkit-slider-thumb]:size-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-pink-300',
-                                    FOCUS_RING,
-                                )}
-                                style={{
-                                    background: `linear-gradient(90deg, ${ACCENT} ${volume * 100}%, rgba(255,255,255,0.15) ${volume * 100}%)`,
-                                }}
-                            />
-                            <span className="w-8 shrink-0 text-right text-[10px] font-bold tabular-nums text-muted-foreground/70">
-                                {Math.round(volume * 100)}%
-                            </span>
-                        </section>
+    if (base === 'micro') {
+        return (
+            <RaizE {...raiz}>
+                <div className="m-auto"><TransporteE lienzo={lienzo} suena={state.playing} cargando={cargando} hayPista={!!pista} onAlternar={alternar} sinSaltos /></div>
+            </RaizE>
+        );
+    }
 
-                        {/* ── Lanzamiento rápido ──────────────────────── */}
-                        {showExtras && (
-                            <section className="shrink-0" aria-label="Lanzamiento rápido">
-                                <h4 className="mb-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground/60">
-                                    <Music className="size-3" /> Lanzamiento rápido
-                                </h4>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {QUICK_TRACKS.map((t) => {
-                                        const active = current?.id === t.id;
-                                        return (
-                                            <button
-                                                key={t.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    if (active) toggle();
-                                                    else playTrack(t, SAMPLE_TRACKS);
-                                                }}
-                                                aria-pressed={active}
-                                                aria-label={`Reproducir ${t.title}${t.artist ? ` de ${t.artist}` : ''}`}
-                                                title={t.artist ? `${t.title} — ${t.artist}` : t.title}
-                                                className={cn(
-                                                    'inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer hover:-translate-y-px',
-                                                    FOCUS_RING,
-                                                    active
-                                                        ? 'border-pink-400/50 bg-pink-400/15 text-pink-100'
-                                                        : 'border-border/40 bg-white/[0.03] text-foreground/85 hover:border-pink-400/30',
-                                                )}
-                                            >
-                                                {active && state.playing ? (
-                                                    <Pause className="size-3 shrink-0" />
-                                                ) : (
-                                                    <Play className="size-3 shrink-0" />
-                                                )}
-                                                <span className="truncate">{t.title}</span>
-                                            </button>
-                                        );
-                                    })}
-                                    {QUICK_RADIOS.map((r) => {
-                                        const active = current?.id === r.id;
-                                        return (
-                                            <button
-                                                key={r.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    if (active) toggle();
-                                                    else playTrack(r, RADIO_STATIONS);
-                                                }}
-                                                aria-pressed={active}
-                                                aria-label={`Sintonizar radio ${r.title}`}
-                                                title={r.artist ? `${r.title} — ${r.artist}` : r.title}
-                                                className={cn(
-                                                    'inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer hover:-translate-y-px',
-                                                    FOCUS_RING,
-                                                    active
-                                                        ? 'border-orange-400/50 bg-orange-400/15 text-orange-100'
-                                                        : 'border-border/40 bg-white/[0.03] text-foreground/85 hover:border-orange-400/30',
-                                                )}
-                                            >
-                                                <Radio className="size-3 shrink-0" />
-                                                <span className="truncate">{r.title}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </section>
-                        )}
+    if (base === 's') {
+        return (
+            <RaizE {...raiz}>
+                <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
+                    <PortadaE id={pista?.id ?? 'nada'} arte={pista?.art} lado={Math.max(48, Math.min(72, (lienzo.alto || 150) * 0.4))} suena={state.playing} lienzo={lienzo} radio={esRadio} />
+                    <div className="w-full">{info(12)}</div>
+                    <TransporteE lienzo={lienzo} suena={state.playing} cargando={cargando} hayPista={!!pista} onAlternar={alternar} sinSaltos />
+                </div>
+            </RaizE>
+        );
+    }
 
-                        {/* ── Salida de medios ────────────────────────── */}
-                        {showExtras && (
-                            <section
-                                className="mt-auto shrink-0 space-y-2 rounded-2xl border border-purple-400/20 bg-white/[0.02] p-2.5"
-                                aria-label="Salida de medios"
-                            >
-                                <h4 className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground/60">
-                                    <Speaker className="size-3" /> Salida de medios
-                                </h4>
+    if (horizontal) {
+        const ancho = lienzo.ancho || 800;
+        return (
+            <RaizE {...raiz}>
+                <div className="flex h-full min-h-0 items-center gap-3 px-1">
+                    <PortadaE id={pista?.id ?? 'nada'} arte={pista?.art} lado={Math.max(44, Math.min(80, (lienzo.alto || 100) - 20))} suena={state.playing} lienzo={lienzo} radio={esRadio} />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">{info()}{progresoEl(18)}</div>
+                    <TransporteE lienzo={lienzo} suena={state.playing} cargando={cargando} hayPista={!!pista} onAnterior={prev} onAlternar={alternar} onSiguiente={next} />
+                    {ancho > 620 && <VolumenE lienzo={lienzo} volumen={state.volume} onCambio={setVolume} className="w-32 shrink-0" />}
+                    {ancho > 820 && <Interruptor activo={audiomorphicActivo} onCambio={alternarAudiomorphic} etiqueta="Visualización Audiomorphic en el fondo" acento={lienzo.acento} />}
+                </div>
+            </RaizE>
+        );
+    }
 
-                                {/* (1) Visualización al fondo (Audiomorphic) */}
-                                <button
-                                    type="button"
-                                    onClick={toggleAudiomorphic}
-                                    role="switch"
-                                    aria-checked={bgIsAudiomorphic}
-                                    aria-label="Enviar la visualización al fondo del sistema (Audiomorphic)"
-                                    title="Visualización en el fondo del sistema"
-                                    className={cn(
-                                        'flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-all cursor-pointer',
-                                        FOCUS_RING,
-                                        bgIsAudiomorphic
-                                            ? 'border-purple-400/45 bg-purple-400/[0.1]'
-                                            : 'border-border/40 bg-white/[0.02] hover:border-purple-400/30',
-                                    )}
-                                >
-                                    <AudioWaveform
-                                        className="size-4 shrink-0"
-                                        style={{ color: bgIsAudiomorphic ? '#C084FC' : 'currentColor' }}
-                                    />
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-[11px] font-bold leading-tight">
-                                            Visualización al fondo
-                                        </span>
-                                        <span className="block truncate text-[9px] text-muted-foreground/60">
-                                            Audiomorphic a pantalla completa
-                                        </span>
-                                    </span>
-                                    {/* Switch visual */}
-                                    <span
-                                        aria-hidden
-                                        className={cn(
-                                            'relative h-4 w-7 shrink-0 rounded-full border transition-colors',
-                                            bgIsAudiomorphic
-                                                ? 'border-purple-400/60 bg-purple-400/40'
-                                                : 'border-border/60 bg-white/10',
-                                        )}
-                                    >
-                                        <motion.span
-                                            className="absolute top-0.5 size-3 rounded-full bg-white shadow"
-                                            animate={{ left: bgIsAudiomorphic ? 14 : 2 }}
-                                            transition={animate ? { type: 'spring', stiffness: 500, damping: 30 } : { duration: 0 }}
-                                        />
-                                    </span>
-                                </button>
+    const sonando = (
+        <div className="flex min-w-0 flex-col gap-2.5">
+            <div className="flex min-w-0 items-center gap-3">
+                <PortadaE id={pista?.id ?? 'nada'} arte={pista?.art} lado={base === 'xl' ? 88 : 60} suena={state.playing} lienzo={lienzo} radio={esRadio} />
+                <div className="min-w-0 flex-1">{info(base === 'xl' ? 16 : 14)}</div>
+            </div>
+            {progresoEl(20)}
+            <TransporteE lienzo={lienzo} suena={state.playing} cargando={cargando} hayPista={!!pista} onAnterior={prev} onAlternar={alternar} onSiguiente={next} grande={base !== 'm'} />
+            <VolumenE lienzo={lienzo} volumen={state.volume} onCambio={setVolume} />
+        </div>
+    );
 
-                                {/* (2) Dispositivo de salida — honesto y feature-detected */}
-                                {outputSupported ? (
-                                    <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2">
-                                        <div className="mb-1 flex items-center justify-between gap-2">
-                                            <span className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground/70">
-                                                <Headphones className="size-3" /> Dispositivo
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={enumerateDevices}
-                                                disabled={enumerating}
-                                                aria-label="Detectar dispositivos de salida"
-                                                title="Detectar dispositivos"
-                                                className={cn(
-                                                    'inline-flex items-center gap-1 rounded-full border border-border/40 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground/80 transition-colors hover:text-foreground cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
-                                                    FOCUS_RING,
-                                                )}
-                                            >
-                                                <RefreshCw className={cn('size-2.5', enumerating && 'animate-spin')} />
-                                                {devices.length ? 'Actualizar' : 'Detectar'}
-                                            </button>
-                                        </div>
-                                        {devices.length > 0 ? (
-                                            <label className="sr-only" htmlFor="media-output-device">
-                                                Dispositivo de salida
-                                            </label>
-                                        ) : null}
-                                        {devices.length > 0 ? (
-                                            <select
-                                                id="media-output-device"
-                                                value={selectedDeviceId}
-                                                onChange={(e) => setSelectedDeviceId(e.target.value)}
-                                                className={cn(
-                                                    'w-full cursor-pointer rounded-lg border border-border/50 bg-white/[0.04] px-2 py-1 text-[10px] font-semibold text-foreground/90',
-                                                    FOCUS_RING,
-                                                )}
-                                            >
-                                                {devices.map((d) => (
-                                                    <option key={d.id} value={d.id} className="bg-background text-foreground">
-                                                        {d.label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <p className="text-[9px] text-muted-foreground/55">
-                                                {enumError
-                                                    ? 'No se pudo enumerar (permiso denegado).'
-                                                    : 'Pulsa “Detectar” para listar las salidas disponibles.'}
-                                            </p>
-                                        )}
-                                        {/* Honestidad: el motor no expone su <audio>, así que el
-                                            enrutado real lo decide el sistema. */}
-                                        <p className="mt-1 flex items-center gap-1 text-[9px] text-muted-foreground/50">
-                                            <Check className="size-2.5 text-purple-300/70" />
-                                            Enrutado según el sistema
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 opacity-70">
-                                        <Speaker className="size-3.5 shrink-0 text-muted-foreground/60" />
-                                        <span className="min-w-0 flex-1 text-[10px] font-semibold text-muted-foreground/65">
-                                            Salida: sistema
-                                        </span>
-                                        <Chip color="#A855F7">No configurable</Chip>
-                                    </div>
-                                )}
-                            </section>
-                        )}
+    if (base === 'm' && clase !== 'torre') {
+        return <RaizE {...raiz}><div className="flex h-full min-h-0 flex-col justify-center gap-2 p-1">{sonando}{omni.oscillators.length > 0 && frecuencias}</div></RaizE>;
+    }
+
+    if (base === 'xl') {
+        return (
+            <RaizE {...raiz}>
+                <div className="flex h-full min-h-0 flex-col gap-2 p-1">
+                    <EncabezadoE lienzo={lienzo} icono={SlidersHorizontal} titulo="Control de medios" vivo={esRadio && state.playing} />
+                    <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
+                        <div className="flex min-h-0 flex-col gap-3">{sonando}{frecuencias}</div>
+                        <div className="flex min-h-0 flex-col gap-3">{fuentes(7)}{salida}</div>
                     </div>
-                );
-            }}
-        </WidgetShell>
+                </div>
+            </RaizE>
+        );
+    }
+
+    // l y torre.
+    return (
+        <RaizE {...raiz}>
+            <div className={cn('flex h-full min-h-0 flex-col gap-2.5 p-1', estilosE.desliza)}>
+                <EncabezadoE lienzo={lienzo} icono={SlidersHorizontal} titulo="Control de medios" vivo={esRadio && state.playing} />
+                {sonando}
+                {frecuencias}
+                {fuentes(clase === 'torre' ? 7 : 4)}
+                {salida}
+            </div>
+        </RaizE>
     );
 }
