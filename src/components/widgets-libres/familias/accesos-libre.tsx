@@ -182,7 +182,8 @@ export function AccesosLibre() {
 
                 // ── m ──
                 if (b === "m") {
-                    const apaisado = ancho >= alto * 1.3;
+                    // Apaisado con sitio para cuentas de ≥ 40 px y una columna de recientes de ≥ 140 px.
+                    const apaisado = ancho >= alto * 1.3 && ancho >= 360;
                     if (apaisado) {
                         const izq = Math.min(ancho * 0.54, alto * 1.2);
                         const tam = Math.min(50, (izq - 3 * 22) / 3, (alto - 60) / 2 - 16) * k;
