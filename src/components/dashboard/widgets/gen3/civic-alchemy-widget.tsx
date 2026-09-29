@@ -76,7 +76,7 @@ function Cuerpo({ size, agora }: { size: ElementSize; agora: ResultadoDato<Datos
             <label htmlFor={`${id}-q`} className="flex min-h-0 flex-col gap-1">
                 <RotuloB>¿Qué te preocupa?</RotuloB>
                 <textarea id={`${id}-q`} value={queja} onChange={(e) => setQueja(e.target.value)} rows={filas} maxLength={600}
-                    placeholder="Por ejemplo: la plaza no tiene sombra en verano y los mayores no pueden estar"
+                    placeholder="Con tus palabras: la plaza no tiene sombra en verano y los mayores no pueden estar"
                     className={cn(estilosB.foco, "w-full resize-none rounded-[14px] bg-white/[0.06] px-3 py-2 text-[13px] leading-snug text-white outline-none placeholder:text-white/35")} />
             </label>
         );
