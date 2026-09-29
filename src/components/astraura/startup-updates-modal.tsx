@@ -5,7 +5,7 @@
  * ESTA NEURONA» (Adenda 111 · refactor 132 · rediseño 149).
  * ============================================================================
  * ENVOLTORIO FINO: conserva el GATE de auto-apertura (primera entrada de la neurona o
- * novedades de catálogo, `shouldShowUpdates`, retardo ~1200 ms), el evento de apertura
+ * novedades de catálogo, `decidirArranque`, retardo ~1200 ms + espera a la cuenta), el evento de apertura
  * manual (`subscribeStartupOpen` / `openStartupUpdates`) y su overlay centrado z-[120].
  * El CONTENIDO es el componente reutilizable `AstrauraOmniVoiceConfig`
  * (variant="modal"): título dinámico por contexto (neurona nueva / actualización
@@ -23,11 +23,28 @@
  * con Escape. Escape equivale a «Recordar luego»: pospone (`snoozeUpdates`) igual
  * que la X y el botón del pie, en vez de cerrar sin dejar rastro.
  *
+ * Persistencia entre medios (2026-09-29): «Alex: hay ventanas que reaparecen de las configuraciones
+ * de las neuronas al reiniciar». La causa: el «visto» era local a cada navegador y la decisión se
+ * tomaba a los ~1,2 s, antes de bajar la cuenta. Ahora:
+ *   · la decisión ESPERA al primer pull de la cuenta (`cuandoCuentaFiable`); si la cuenta no se
+ *     puede leer (402, sin red) no se decide a ciegas: no se asume «nunca visto»;
+ *   · el «visto», la primera configuración y el «recordar luego» viajan con la cuenta
+ *     (`startup-updates.ts` → `avisos-cuenta`); lo que un medio antiguo tenía en local se respeta
+ *     y se copia a la cuenta;
+ *   · un cambio de catálogo NO reabre esta ventana: sale un aviso pequeño no bloqueante con
+ *     «Ver». La ventana grande solo se abre por primera configuración o algo que pide acción;
+ *   · TODA vía de cierre deja rastro (Escape, X, «Recordar luego», enlaces, «Cerrar»).
+ *
  * SSR-safe: no renderiza en servidor; decide abrir tras montar. Nunca lanza.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { shouldShowUpdates, subscribeStartupOpen, openStartupUpdates, snoozeUpdates } from "@/lib/astraura/startup-updates";
+import { toast } from "sonner";
+import {
+  copiarEstadoLocalACuenta, decidirArranque, getStartupState, sellarCatalogoVisto,
+  subscribeStartupOpen, openStartupUpdates, snoozeUpdates, type DecisionArranque,
+} from "@/lib/astraura/startup-updates";
+import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
 import { esMiTurno, terminarEtapa, suscribirRito } from "@/lib/onboarding/director-rito";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
@@ -86,6 +103,21 @@ export function StartupUpdatesModal() {
     lanzarGuiaPendiente();
   }, [lanzarGuiaPendiente, cerrarDefinitivo]);
 
+  /**
+   * Cierre SIN aplicar ni «recordar luego» explícito (enlaces «ir a Configuración IA», botón
+   * «Cerrar»…): también deja rastro. Si la ventana seguiría pendiente, se pospone 24 h con la
+   * cuenta; si ya estaba pospuesta o resuelta (aplicar), no se toca nada.
+   */
+  const cerrarSinAplicar = useCallback(() => {
+    try {
+      const st = getStartupState();
+      const pospuesta = !!st.snoozeUntil && st.snoozeUntil > Date.now();
+      if (!pospuesta && decidirArranque().accion === "ventana") snoozeUpdates();
+    } catch { /* cerrar nunca falla */ }
+    cerrarDefinitivo();
+    lanzarGuiaPendiente();
+  }, [cerrarDefinitivo, lanzarGuiaPendiente]);
+
   // Foco inicial + trampa de Tab + Escape (patrón de la Adenda 137).
   useModalA11y({ open, onClose: remindLater, containerRef });
 
@@ -98,7 +130,7 @@ export function StartupUpdatesModal() {
 
   useEffect(() => {
     // Auto-apertura GARANTIZADA por neurona (A149 · olas): primera entrada,
-    // novedades del catálogo o CONFIGURACIÓN PENDIENTE (`shouldShowUpdates`
+    // novedades del catálogo o CONFIGURACIÓN PENDIENTE (`decidirArranque`
     // ya integra `pendingConfiguration()`, p.ej. la vía de voz sin elegir).
     // Si el Centro de Configuración de Aurora está PENDIENTE ya NO se pierde la
     // sesión entera (regresión de la A132 detectada por Alex: en neuronas sin
@@ -114,6 +146,8 @@ export function StartupUpdatesModal() {
     // vínculos de la guía («Ir a Cerebros» no navegaba). La apertura MANUAL
     // (evento/ajustes) sigue siendo inmediata.
     let cancelaEspera: (() => void) | null = null;
+    let cancelaCuenta: (() => void) | null = null;
+    let cancelaEsperaAviso: (() => void) | null = null;
     const abrirConCortesia = () => {
       if (cerradaPorUsuarioRef.current) return;
       void import("@/lib/ui/fullscreen-modal")
@@ -124,6 +158,46 @@ export function StartupUpdatesModal() {
           });
         })
         .catch(() => { if (!cerradaPorUsuarioRef.current) setOpen(true); });
+    };
+    // Aviso pequeño de novedades de catálogo (no bloqueante). Se sella en la CUENTA al mostrarlo,
+    // así ni este medio ni los demás lo repiten; «Ver» abre la ventana con el detalle. Espera a que
+    // el rito/la guía dejen el primer plano, como la ventana grande.
+    const mostrarAvisoNovedades = (d: Extract<DecisionArranque, { accion: "aviso" }>) => {
+      sellarCatalogoVisto(d.firma);
+      const partes: string[] = [];
+      if (d.modelos > 0) partes.push(`${d.modelos} ${d.modelos === 1 ? "modelo nuevo" : "modelos nuevos"}`);
+      if (d.fuentes > 0) partes.push(`${d.fuentes} ${d.fuentes === 1 ? "fuente nueva" : "fuentes nuevas"}`);
+      const lanzar = () => {
+        try {
+          toast("Astraura tiene novedades", {
+            description: `${partes.join(" · ")}. Tu configuración sigue igual.`,
+            duration: 12000,
+            action: { label: "Ver", onClick: () => openStartupUpdates() },
+          });
+        } catch { /* sin toaster: el aviso es prescindible */ }
+      };
+      void import("@/lib/ui/fullscreen-modal")
+        .then((m) => { cancelaEsperaAviso?.(); cancelaEsperaAviso = m.alLiberarsePrimerPlano(lanzar); })
+        .catch(lanzar);
+    };
+    // La decisión de arranque, ya con la cuenta bajada. Copia primero lo que un medio antiguo
+    // tenía «visto» en local (así los demás medios lo heredan) y decide con el estado unificado.
+    const decidirYActuar = () => {
+      if (cerradaPorUsuarioRef.current) return;
+      try {
+        copiarEstadoLocalACuenta();
+        const d = decidirArranque();
+        if (d.accion === "ventana") abrirConCortesia();
+        else if (d.accion === "aviso") mostrarAvisoNovedades(d);
+        else if (d.sellar) sellarCatalogoVisto(d.sellar);
+      } catch { /* si falla el gate, no se abre nada: mejor callar que reabrir */ }
+    };
+    /** ¿Toca la ventana grande ahora? (con la cuenta ya bajada) */
+    const tocaVentana = () => {
+      try {
+        copiarEstadoLocalACuenta();
+        return decidirArranque().accion === "ventana";
+      } catch { return false; }
     };
     // (Ola 247 · 2026-09-05) Relevo directo del rito: si la máquina de estados
     // del director está en «sistemas» (la bienvenida acaba de terminar), esta
@@ -141,7 +215,9 @@ export function StartupUpdatesModal() {
     abrirSiEsSistemas();
     const offRito = suscribirRito(() => abrirSiEsSistemas());
 
-    const t = setTimeout(() => {
+    // ESPERA al primer pull de la cuenta: decidir a los 1,2 s con el medio vacío era lo que
+    // reabría la ventana en cada medio nuevo. Sin cuenta legible, no se decide a ciegas.
+    const arrancarDecision = () => {
       try {
         if (isSetupPending()) {
           offSetup = subscribeSetup(() => {
@@ -149,7 +225,7 @@ export function StartupUpdatesModal() {
               if (isSetupPending()) return; // sigue pendiente: esperar al siguiente evento
               offSetup?.();
               offSetup = null;
-              t2 = setTimeout(() => { if (shouldShowUpdates()) abrirConCortesia(); }, 800);
+              t2 = setTimeout(decidirYActuar, 800);
             } catch { /* */ }
           });
           // RED DE SEGURIDAD (garantía de aparición por neurona): el Centro solo
@@ -161,23 +237,24 @@ export function StartupUpdatesModal() {
             try {
               if (!isSetupPending()) return; // el flujo por evento ya se encarga
               const centerOnScreen = !!document.querySelector("[data-aurora-setup-center]");
-              if (!centerOnScreen && shouldShowUpdates()) {
+              if (!centerOnScreen && tocaVentana()) {
                 offSetup?.();
                 offSetup = null;
-                abrirConCortesia();
+                decidirYActuar();
               }
             } catch { /* */ }
           }, 9000);
           return;
         }
       } catch { /* si falla el gate, seguimos con el flujo normal */ }
-      if (shouldShowUpdates()) abrirConCortesia();
-    }, 1200);
+      decidirYActuar();
+    };
+    const t = setTimeout(() => { cancelaCuenta = cuandoCuentaFiable(arrancarDecision, 4000); }, 1200);
     // Apertura manual por evento (desde ajustes/notificaciones): siempre abre.
     const off = subscribeStartupOpen(() => { manualRef.current = true; setOpen(true); });
     // Paridad con openAuroraSetup: disparador global.
     try { (window as unknown as { openAstrauraStartup?: () => void }).openAstrauraStartup = openStartupUpdates; } catch { /* */ }
-    return () => { clearTimeout(t); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); offRito(); cancelaEspera?.(); };
+    return () => { clearTimeout(t); cancelaCuenta?.(); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); offRito(); cancelaEspera?.(); cancelaEsperaAviso?.(); };
   }, []);
 
   // (Adenda 192) RED DE CORTESÍA FINAL: si esta ventana quedó abierta por
@@ -238,7 +315,7 @@ export function StartupUpdatesModal() {
         variant="modal"
         initialSection="astraura"
         onApply={() => { cerrarDefinitivo(); lanzarGuiaPendiente(); }}
-        onDismiss={() => { cerrarDefinitivo(); lanzarGuiaPendiente(); }}
+        onDismiss={cerrarSinAplicar}
       />
     </div>
   );

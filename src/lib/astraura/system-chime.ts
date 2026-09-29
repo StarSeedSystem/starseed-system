@@ -26,7 +26,7 @@
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import { A11Y_STORAGE_KEY } from "@/lib/a11y/apply";
 
-/** Clave de preferencia (entra en el catch-all `starseed.astraura.*` de sync). */
+/** Clave de preferencia (está en `SYNCED_KEYS`: viaja con la cuenta; no existe ningún «catch-all» `starseed.astraura.*`). */
 export const CHIME_KEY = "starseed.astraura.chime.v1";
 /** Evento para que cualquier interruptor abierto se entere del cambio. */
 export const CHIME_EVENT = "starseed:astraura-chime";

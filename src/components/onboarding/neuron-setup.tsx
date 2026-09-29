@@ -16,8 +16,12 @@
  *      esta neurona» (Configurar Neurona).
  *
  * Lo decide y lo abre el orquestador del primer arranque (primer-arranque.tsx). «Más
- * tarde» o Escape lo posponen solo en esta visita; «Listo» deja la marca de neurona
- * configurada. Reconfigurable siempre en Ajustes.
+ * tarde» o Escape lo posponen (con la cuenta, por neurona); «Listo» deja la neurona
+ * configurada (marca local + cuenta). Reconfigurable siempre en Ajustes.
+ *
+ * Persistencia entre medios (2026-09-29): si la cuenta YA tiene otras neuronas, lo primero que
+ * se pregunta es «¿Es esta una neurona que ya configuraste?» (mismo equipo visto desde otro
+ * medio): «Usar su configuración» adopta esa neurona y recarga; «Es otra neurona» sigue aquí.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -32,20 +36,22 @@ import { Switch } from "@/components/ui/switch";
 import { PasoAnimado, useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { listBrains, type Brain } from "@/lib/brains/brains";
 import {
-  permissionsFor, setNeuronName, setNeuronSettings, setPermission, settingsFor, thisDeviceId,
+  listNeurons, permissionsFor, setNeuronName, setNeuronSettings, setPermission, settingsFor, thisDeviceId,
   type NeuronPermissions,
 } from "@/lib/neurons/neurons";
+import { candidatasAdopcion, usarConfiguracionDeNeurona, type NeuronaCandidata } from "@/lib/neurons/adopcion-neurona";
 import { saveOnboarding } from "@/lib/onboarding/onboarding";
 import { PreferenciasArranque } from "@/components/inicio/preferencias-arranque";
 import { deviceId } from "@/lib/sync/entity-state";
 import { detectar, recomendar, type HW } from "@/lib/onboarding/neuron-recommend";
 import {
-  CLAVE_NEURONA_CONFIGURADA, ponerMarca, resumenSincronizado, type ConteoSincronizado,
+  creadaDesde, marcarNeuronaConfigurada, resumenSincronizado, type ConteoSincronizado,
 } from "@/lib/onboarding/primer-arranque";
 import { CLAVE_PREFERENCIA, leerPreferencia, PERFILES, type PreferenciaCalidadFondo } from "@/lib/perf/calidad-fondo";
 import { guardarPreferenciaFondo } from "@/lib/perf/fondo-vivo";
 import { getInstalled, getSaved } from "@/lib/library-store";
 import AgentRecommendation from "./agent-recommendation";
+import { AdoptarNeurona } from "./adoptar-neurona";
 import { IconoStarSeed } from "./icono-starseed";
 
 type ModoSync = "tiempo-real" | "al-abrir" | "manual";
@@ -123,10 +129,22 @@ export interface NeuronSetupProps {
   onPosponer?: () => void;
   /** Nombre que ya tiene en la cuenta (si lo tiene). */
   nombreInicial?: string;
+  /** Recarga la página tras adoptar otra neurona (solo las pruebas lo sustituyen). */
+  recargar?: () => void;
 }
 
-export function NeuronSetup({ onClose, onPosponer, nombreInicial }: NeuronSetupProps) {
+/** Espera máxima a la lista de neuronas antes de seguir con el asistente normal. */
+const ESPERA_LISTA_MS = 2500;
+
+type Fase = "buscando" | "adoptar" | "asistente";
+
+export function NeuronSetup({ onClose, onPosponer, nombreInicial, recargar }: NeuronSetupProps) {
   const router = useRouter();
+  const [fase, setFase] = useState<Fase>("buscando");
+  const [candidatas, setCandidatas] = useState<NeuronaCandidata[]>([]);
+  const [propiaCreadaAhora, setPropiaCreadaAhora] = useState(false);
+  const [adoptando, setAdoptando] = useState<string | null>(null);
+  const [errorAdopcion, setErrorAdopcion] = useState<string | null>(null);
   const [cerebros, setCerebros] = useState<Brain[] | null>(null);
   const [sel, setSel] = useState<Record<string, boolean>>({});
   const [modo, setModo] = useState<ModoSync>("tiempo-real");
@@ -161,6 +179,41 @@ export function NeuronSetup({ onClose, onPosponer, nombreInicial }: NeuronSetupP
     try { setFondo(leerPreferencia(window.localStorage.getItem(CLAVE_PREFERENCIA))); } catch { /* */ }
     return () => { alive = false; };
   }, []);
+
+  // ¿La cuenta ya tiene otras neuronas? Entonces primero se pregunta si ESTA es una de ellas.
+  useEffect(() => {
+    let vivo = true;
+    const seguir = (otras: NeuronaCandidata[], creadaAhora: boolean) => {
+      if (!vivo) return;
+      setPropiaCreadaAhora(creadaAhora);
+      setCandidatas(otras);
+      setFase(otras.length > 0 ? "adoptar" : "asistente");
+    };
+    const plazo = setTimeout(() => seguir([], false), ESPERA_LISTA_MS);
+    listNeurons()
+      .then((todas) => {
+        clearTimeout(plazo);
+        const propia = todas.find((n) => n.isThisDevice);
+        let arranque = Date.now();
+        try { if (Number.isFinite(performance.timeOrigin)) arranque = performance.timeOrigin; } catch { /* */ }
+        seguir(candidatasAdopcion(todas as NeuronaCandidata[]), creadaDesde(propia?.created_at, arranque));
+      })
+      .catch(() => { clearTimeout(plazo); seguir([], false); });
+    return () => { vivo = false; clearTimeout(plazo); };
+  }, []);
+
+  const usarSuConfiguracion = useCallback(async (n: NeuronaCandidata) => {
+    setAdoptando(n.id);
+    setErrorAdopcion(null);
+    const r = await usarConfiguracionDeNeurona(n.id, { propiaCreadaAhora });
+    if (!r.ok) {
+      setAdoptando(null);
+      setErrorAdopcion("No se pudo cambiar la identidad de este dispositivo (¿almacenamiento bloqueado?). Puedes seguir con el asistente.");
+      return;
+    }
+    // El id de neurona lo leen muchos módulos al arrancar: recargar es lo único que los pone de acuerdo.
+    (recargar ?? (() => window.location.reload()))();
+  }, [propiaCreadaAhora, recargar]);
 
   const razones = useMemo(() => {
     const r: string[] = [];
@@ -198,7 +251,7 @@ export function NeuronSetup({ onClose, onPosponer, nombreInicial }: NeuronSetupP
         },
       });
     } catch { /* best-effort: la marca local evita repetir */ }
-    ponerMarca(CLAVE_NEURONA_CONFIGURADA);
+    marcarNeuronaConfigurada(id);
     setAplicado(true);
     setCargando(false);
     onClose();
@@ -220,6 +273,39 @@ export function NeuronSetup({ onClose, onPosponer, nombreInicial }: NeuronSetupP
 
   const actual = PASOS[paso];
   const ultimo = paso === PASOS.length - 1;
+
+  // «¿Es esta una neurona que ya configuraste?»: solo si la cuenta ya tiene otras neuronas.
+  if (fase !== "asistente") {
+    return (
+      <Dialog open onOpenChange={(o) => { if (!o) posponer(); }}>
+        <DialogContent className={CLASES_VENTANA_ARRANQUE} aria-describedby="neurona-nueva-desc" data-testid="neurona-nueva-adoptar">
+          <DialogHeader className="items-center text-center">
+            <IconoStarSeed className="mx-auto" size={48} />
+            <DialogTitle>{fase === "adoptar" ? "¿Es esta una neurona que ya configuraste?" : "Nueva neurona en tu cuenta"}</DialogTitle>
+            <DialogDescription id="neurona-nueva-desc">
+              {fase === "adoptar"
+                ? "Tu cuenta ya tiene otras neuronas. Si este navegador o app es una de ellas (el mismo equipo visto desde otro medio), usa su configuración y no repitas nada."
+                : "Buscando las neuronas de tu cuenta…"}
+            </DialogDescription>
+          </DialogHeader>
+          {fase === "adoptar" ? (
+            <AdoptarNeurona
+              candidatas={candidatas}
+              adoptando={adoptando}
+              error={errorAdopcion}
+              onUsar={(n) => void usarSuConfiguracion(n)}
+              onOtra={() => setFase("asistente")}
+            />
+          ) : (
+            <p role="status" className="text-center text-xs text-white/50">Un momento…</p>
+          )}
+          <div className="flex justify-start pt-1">
+            <Button variant="ghost" size="sm" onClick={posponer} className="cursor-pointer" disabled={adoptando !== null}>Más tarde</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) posponer(); }}>

@@ -30,6 +30,9 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+// (2026-09-29 · persistencia entre medios) El «visto/hecho/luego» de las ventanas de arranque
+// viaja con la cuenta como un almacén FUSIONABLE (ver `esClaveFusionable` más abajo).
+import { AVISOS_KEY, fusionarAvisosCrudo } from "@/lib/sync/avisos-cuenta";
 // Adenda 149 · tanda 3: el pull MANUAL («Recuperar mis ajustes») es otro camino
 // de entrada del estado del dock y también debe normalizarlo — si no, bajar los
 // ajustes de una cuenta antigua volvía a borrar «Señales» y «Feed de red».
@@ -130,7 +133,6 @@ export const SYNCED_KEYS = [
     "starseed.apps.notify-prefs.v1",   // permiso de avisos/popups por app instalada (default ON)
     "starseed.library.autoupdate.v1",  // aplicar solas las actualizaciones de la Librería (opt-in)
     // ── Audiomorphic completo (Adenda 69 K): presets por cuenta ───────────────
-    "starseed.audiomorphic.presets.v1", // presets guardados del visualizador Audiomorphic
     "starseed.integration.searxng",          // búsqueda web soberana de Aurora
     // ── Adenda 68 · A · SYNC TOTAL de Aurora/Astraura ────────────────────────
     //    Todo lo de Aurora/Astraura es de ÁMBITO CUENTA (decisión del usuario):
@@ -178,6 +180,23 @@ export const SYNCED_KEYS = [
     //    respaldo para que un dispositivo nuevo no dispare una re-siembra
     //    local espuria si la cuenta ya migró desde otro dispositivo.
     "starseed_defaults_version",
+    // ── Preferencias de usuario que faltaban (auditoría 2026-09-29 · persistencia entre medios) ──
+    //    Todas pequeñas, sin secretos y sin depender del hardware de un dispositivo concreto.
+    //    Criterio y resto de claves: architecture/persistencia-entre-medios.md.
+    "starseed.astraura.chime.v1",         // sonido sutil al guardar en la ventana de sistemas (system-chime.ts)
+    "starseed.voz.modo.v1",               // voz femenina/masculina/neutra/autónoma (voz-inicial.ts)
+    "starseed.voz.timbre.v1",             // timbre elegido (id) — timbres.ts
+    "starseed.voz.timbres-propios.v1",    // timbres propios (≤ 6, solo parámetros): viajan CON el timbre que los referencia
+    "starseed.inicio.pantalla.v1",        // pantalla al abrir StarSeed, por perfil y por neurona (pantalla-inicial.ts)
+    "starseed.theme.favorites.v1",        // temas favoritos (ids) — theme-catalog-gallery.tsx
+    "starseed.privacy.telemetry",         // telemetría opt-in («1» = permitida): lo que se apaga en un medio no debe seguir encendido en otro
+    "starseed.privacy.ghost",             // modo fantasma («1» = activo): idem, por privacidad
+    // ── Avisos vistos/hechos/pospuestos por la cuenta (2026-09-29 · persistencia entre medios) ──
+    //    UN solo almacén para las ventanas que se abren solas (sistemas de Astraura, centro de
+    //    configuración, neurona nueva, guía de bienvenida, novedad de bloqueo…): antes cada una
+    //    guardaba su «visto» en una clave local suelta y cada medio (localhost, Vercel, PWA,
+    //    Tauri) la volvía a abrir. Se FUSIONA por id al bajar (no se pisa): ver AVISOS_KEY.
+    "starseed.avisos.vistos.v1", // src/lib/sync/avisos-cuenta.ts
 ] as const;
 
 /**
@@ -194,6 +213,28 @@ export const SYNCED_KEYS = [
 export const SYNCED_PREFIXES = [
     "starseed.brain.", // starseed.brain.<id>.{moa,channels,memoryRoots,library}
 ] as const;
+
+/**
+ * Claves cuyo valor NO se sustituye por el que llega de la cuenta: se FUSIONA con el local.
+ * El motor resuelve cada clave entera por última escritura; para un almacén de marcas
+ * compartido por varios medios (`avisos-cuenta`), eso perdería lo que otro medio marcó a la
+ * vez. Con la fusión por id todos convergen. El gating por marca LWW no se aplica a estas
+ * claves (la fusión es conmutativa: el orden de llegada no importa).
+ */
+export const CLAVES_FUSIONABLES: readonly string[] = [AVISOS_KEY];
+
+export function esClaveFusionable(key: string): boolean {
+    return CLAVES_FUSIONABLES.includes(key);
+}
+
+/**
+ * Mezcla el valor remoto de una clave fusionable con lo que este medio ya tiene.
+ * `difiereDeRemoto`: lo local aportaba algo que la cuenta no tiene ⇒ hay que subirlo.
+ */
+export function fusionarConLocal(key: string, remoto: unknown, localRaw: string | null): { valor: unknown; difiereDeRemoto: boolean } {
+    if (key === AVISOS_KEY) return fusionarAvisosCrudo(remoto, localRaw);
+    return { valor: remoto, difiereDeRemoto: false };
+}
 
 /** Prefijos EXCLUIDOS aunque coincidan con un prefijo sincronizado (defensa en profundidad). */
 export const SYNCED_PREFIX_EXCLUDE = [
@@ -224,6 +265,28 @@ export const NEVER_SYNCED_KEYS = [
     "starseed.connectors.creds.v1",     // credenciales del Hub de Conectores (cifradas, locales)
     "starseed.aurora.wake.porcupine.key", // clave de Porcupine (wake acústico)
     "starseed.aurora.chats.v1",         // multichat: cada chat puede llevar `apiKey` EN CLARO (mode:"custom")
+    "starseed.media.prefs.v1",          // mezcla preferencias con `hfToken`/`muapiKey` EN CLARO: antes de viajar necesita un sanitizador
+    "starseed.nvidia.apikey",           // clave NVIDIA NIM del usuario
+    "starseed.voicebox.key.v1",         // clave del gestor de voz
+    "starseed.almacenamiento.tokens.v1",    // tokens OAuth de los medios de almacenamiento
+    "starseed.almacenamiento.clientids.v1", // ids de cliente OAuth del usuario
+    "starseed.telegram.user.v1",        // identidad de Telegram vinculada a ESTE medio
+    // ── Bloqueo, biometría e identidad de este dispositivo (nunca con la cuenta) ──
+    "starseed.bloqueo.v1",              // método de bloqueo de ESTE dispositivo (PIN/contraseña/passkey)
+    "starseed.bloqueo.sesion.v1",       // sesión desbloqueada de ESTE dispositivo
+    "starseed.bloqueo.intentos.v1",     // intentos fallidos de desbloqueo
+    "starseed.device.id",               // id de eco del sync: compartirlo anularía la supresión de eco
+    "starseed.device.id.v1",            // id de dispositivo del terminal
+    "starseed.device.self",             // ficha de este dispositivo
+    "starseed.device.alias.v1",         // alias de neurona adoptada por origen (adoptarNeurona)
+    "starseed.neuron.device-id",        // id de neurona de ESTE medio (se adopta a mano, nunca por sync)
+    "starseed.mesh.device-id.v1",       // id de malla (TOFU de claves): compartirlo rompería el anclaje
+    "starseed.mesh.identity.v1",        // identidad criptográfica de la malla
+    "starseed.mesh.master-identity.v1", // identidad maestra de la malla
+    "starseed.mesh.enc-identity.v1",    // clave de cifrado de la malla
+    "starseed.mesh.relay-key.v1",       // clave de relé
+    "starseed.mesh.relay-keyring.v1",   // llavero de relés
+    "starseed.mesh.revocation-cert.v1", // certificado de revocación
     // ── Estado propio del DISPOSITIVO (sincronizarlo lo rompería) ───────────
     "starseed.aurora.leader.v1",        // elección de instancia única de Aurora (por pestaña/dispositivo)
     "starseed.aurora.orb.hidden.v1",    // descarte de sesión del orbe (no es preferencia estable)
@@ -563,6 +626,8 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
                 // La clave API local se conserva: la nube nunca la trae, y aplicar
                 // la config remota no debe borrar la que este dispositivo ya tiene.
                 let merged = mergeLocalSecrets(key, value, window.localStorage.getItem(key));
+                // Almacenes fusionables (avisos vistos): se mezclan con lo local, no lo pisan.
+                if (esClaveFusionable(key)) merged = fusionarConLocal(key, merged, window.localStorage.getItem(key)).valor;
                 // Dock: misma garantía que en la carga local y en el sync en vivo.
                 // La escritura de abajo NO está en ventana anti-eco, así que el
                 // parche de setItem de realtime-sync ya la empujará a la cuenta.

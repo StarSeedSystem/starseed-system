@@ -19,6 +19,13 @@
  *  4. Deduplicación: dos lecturas idénticas en vuelo comparten UNA petición de red (cada llamador
  *     recibe su propia copia de la respuesta).
  *
+ * Lecturas ESENCIALES (2026-09-29, persistencia entre medios): la lectura única de las
+ * preferencias de la cuenta al arrancar (`user_settings`) no puede caer por el presupuesto LOCAL —
+ * el diario ni el freno local de la pestaña—: si cae, el OS «olvida» lo que la cuenta ya sabe y
+ * reabre ventanas ya vistas. Una lectura se marca esencial con `senalEsencial()` (se pasa como
+ * `.abortSignal(...)` de la consulta). Sigue respetando el cortacircuitos 402 y el freno remoto
+ * (los dos dicen «la nube no puede servirte»), y NUNCA espera en cola.
+ *
  * Transparencia: mismas respuestas que fetch (las copias son `clone()`), el cuerpo de la petición
  * no se toca, AbortSignal sigue funcionando, y nada lanza donde fetch no lanzaría. Sin ventana
  * (SSR/Node) no hay guardián: `fetchGuardado` es fetch tal cual.
@@ -135,6 +142,8 @@ interface Peticion {
     refresco: boolean;
     freno: boolean;
     sonda: boolean;
+    /** Lectura marcada con `senalEsencial()`: exenta del presupuesto local (no del corte ni del freno remoto). */
+    esencial: boolean;
     signal: AbortSignal | null;
     clave: string | null;
 }
@@ -266,6 +275,33 @@ function validarCorte(x: unknown): EstadoCorte | null {
         motivo: typeof c.motivo === "string" ? c.motivo : "",
         sondaEn: typeof c.sondaEn === "number" ? c.sondaEn : 0,
     };
+}
+
+// ── Lecturas esenciales ─────────────────────────────────────────────────────────────────────
+const senalesEsenciales = new WeakSet<object>();
+
+/**
+ * Señal de aborto que MARCA una lectura como esencial. Se pasa a la consulta de Supabase:
+ * `supabase.from(...).select(...).abortSignal(senalEsencial())`. Caduca sola (por defecto 8 s).
+ * La marca vive en la propia señal: no toca la URL, las cabeceras ni el cuerpo de la petición.
+ */
+export function senalEsencial(timeoutMs = 8_000): AbortSignal {
+    let senal: AbortSignal;
+    try {
+        senal = typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(timeoutMs) : nuevaSenalConPlazo(timeoutMs);
+    } catch {
+        senal = nuevaSenalConPlazo(timeoutMs);
+    }
+    senalesEsenciales.add(senal);
+    return senal;
+}
+
+function nuevaSenalConPlazo(ms: number): AbortSignal {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), ms);
+    // No mantener vivo el proceso (Node) ni el temporizador si la señal se descarta.
+    (t as unknown as { unref?: () => void }).unref?.();
+    return c.signal;
 }
 
 // ── Fábrica ─────────────────────────────────────────────────────────────────────────────────
@@ -520,8 +556,11 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
         if (corte && ahora() < corte.hasta) return "corte";
         if (pet.lectura && !pet.auth && !pet.freno) {
             if (frenoRemoto) return "freno-remoto";
-            if (hoy() >= presupuestoDia) return "dia";
-            if (ahora() < frenoLocalHasta) return "freno-local";
+            // Una lectura esencial no cae por el presupuesto LOCAL (diario ni freno de la pestaña).
+            if (!pet.esencial) {
+                if (hoy() >= presupuestoDia) return "dia";
+                if (ahora() < frenoLocalHasta) return "freno-local";
+            }
         }
         return null;
     }
@@ -756,6 +795,7 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
             refresco: auth && url.includes("grant_type=refresh_token"),
             freno: url.includes("/rest/v1/os_freno"),
             sonda: false,
+            esencial: signal !== null && senalesEsenciales.has(signal),
             signal,
             clave: lectura && !esRequest ? `${metodo} ${url}\n${claveCabeceras(init?.headers)}` : null,
         };
@@ -781,7 +821,7 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
 
         if (!pet.lectura || pet.clave === null) {
             // Escrituras (y lecturas con objeto Request): nunca esperan en cola, sí gastan ficha.
-            if (pet.lectura && !pet.auth && !pet.freno && !pet.sonda && !tomarFicha()) {
+            if (pet.lectura && !pet.auth && !pet.freno && !pet.sonda && !pet.esencial && !tomarFicha()) {
                 // Lectura con Request sin ficha: esperamos en cola como las demás.
                 const v = nuevoVuelo(pet, input, init);
                 const p = unirse(v, pet.signal);
@@ -818,12 +858,15 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
 
         // Lecturas: deduplicación y cubo de fichas.
         const existente = enVuelo.get(pet.clave);
-        if (existente && existente.estado !== "hecho" && !pet.sonda) return unirse(existente, pet.signal);
+        // Una esencial solo se une a una petición YA en la red: si la otra espera en cola, iría detrás.
+        if (existente && existente.estado !== "hecho" && !pet.sonda && (!pet.esencial || existente.estado === "red")) {
+            return unirse(existente, pet.signal);
+        }
 
         const v = nuevoVuelo(pet, input, init);
         enVuelo.set(pet.clave, v);
         const p = unirse(v, pet.signal);
-        if (pet.auth || pet.freno || pet.sonda) {
+        if (pet.auth || pet.freno || pet.sonda || pet.esencial) {
             gastarFicha();
             arrancar(v);
         } else if (cola.length === 0 && tomarFicha()) {

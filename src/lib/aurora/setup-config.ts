@@ -35,6 +35,8 @@
  */
 
 import type { AuroraSense, PersonalitySourcePin } from "@/lib/aurora/personalities";
+// (2026-09-29 · persistencia entre medios) El «hecho» del centro también va con la cuenta.
+import { avisoResuelto, estadoAviso, marcarAviso, olvidarAviso } from "@/lib/sync/avisos-cuenta";
 
 /* ═══════════════════════ Claves y eventos ═══════════════════════ */
 
@@ -135,20 +137,47 @@ export function getSetupState(): SetupState {
   };
 }
 
+/**
+ * (2026-09-29 · persistencia entre medios) El «ya pasé por el centro» también vive en el almacén
+ * de avisos de la CUENTA (`avisos-cuenta`, fusionable): la clave `starseed.aurora.setup.v1` es de
+ * última escritura entera y, sobre todo, cada medio nuevo decidía abrir el centro ANTES de bajar
+ * la cuenta. El id lleva la versión del esquema: si `SETUP_VERSION` sube, vuelve a ofrecerse.
+ */
+export const AVISO_SETUP_CENTRO = `aurora.setup.centro.v${SETUP_VERSION}`;
+
+function avisoSetupResuelto(): boolean {
+  try { return avisoResuelto(estadoAviso(AVISO_SETUP_CENTRO)); } catch { return false; }
+}
+
 /** ¿Hay que ofrecer el centro? (nunca hecho, o hecho con un esquema anterior). */
 export function isSetupPending(): boolean {
   if (!hasWindow()) return false; // SSR: jamás abrimos nada
   const s = getSetupState();
-  return !s.done || s.version < SETUP_VERSION;
+  // Hecho aquí (clave local/sincronizada, incluidos los medios antiguos) O en la cuenta.
+  if (s.done && s.version >= SETUP_VERSION) return false;
+  return !avisoSetupResuelto();
 }
 
 export function markSetupDone(): void {
   writeJson(AURORA_SETUP_KEY, { done: true, version: SETUP_VERSION, at: new Date().toISOString() });
+  marcarAviso(AVISO_SETUP_CENTRO, "hecho");
+}
+
+/**
+ * Compatibilidad: si ESTE medio ya tenía el centro hecho en su clave antigua, lo copia a la
+ * cuenta para que los demás medios lo hereden. Idempotente; nunca lanza.
+ */
+export function copiarSetupLocalACuenta(): void {
+  try {
+    const s = getSetupState();
+    if (s.done && s.version >= SETUP_VERSION && !avisoSetupResuelto()) marcarAviso(AVISO_SETUP_CENTRO, "hecho");
+  } catch { /* la copia es un extra */ }
 }
 
 /** Vuelve a marcar el centro como pendiente (para «reconfigurar desde cero»). */
 export function resetSetupState(): void {
   writeJson(AURORA_SETUP_KEY, { ...DEFAULT_SETUP_STATE });
+  olvidarAviso(AVISO_SETUP_CENTRO); // un registro NUEVO que gana a cualquier «hecho» viejo en todos los medios
 }
 
 /* ═══════════════════════ 2 · Sentidos ═══════════════════════ */

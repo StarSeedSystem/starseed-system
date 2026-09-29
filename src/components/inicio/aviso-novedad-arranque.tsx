@@ -10,7 +10,12 @@
  * nunca encima del rito de bienvenida/perfil, de Configurar Neurona, del
  * Puente de Mando ni de las rutas de acceso, llamada o vivo.
  *
- * Tres salidas, siempre en este dispositivo (localStorage, ver aviso-novedad.ts):
+ * Persistencia entre medios (2026-09-29): la respuesta viaja con la CUENTA (una novedad se anuncia
+ * una vez por cuenta, no una vez por medio: localhost, Vercel, PWA y Tauri ya no la repiten) y la
+ * decisión espera a que las marcas de la cuenta hayan bajado (`cuandoCuentaFiable`). Lo que sigue
+ * siendo de cada dispositivo es tener ya un bloqueo o una pantalla inicial elegida.
+ *
+ * Tres salidas (localStorage + cuenta, ver aviso-novedad.ts):
  *   · Configurar DENTRO del propio diálogo — se reutiliza `PreferenciasArranque`
  *     tal cual; guardar el bloqueo o elegir la pantalla inicial la cierra sola
  *     y la marca «configurado» (no vuelve a insistir).
@@ -29,9 +34,11 @@ import { activeProfileId } from "@/lib/profiles/profiles";
 import { deviceId } from "@/lib/sync/entity-state";
 import { EVENTO_CONFIG_BLOQUEO, leerConfigBloqueo } from "@/lib/bloqueo/politica-bloqueo";
 import { EVENTO_PANTALLA_INICIAL, leerPreferencias } from "@/lib/inicio/pantalla-inicial";
+import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { ritoActivo } from "@/lib/ui/rito-activo";
 import { primerPlanoOcupado } from "@/lib/ui/fullscreen-modal";
 import {
+    copiarAvisoLocalACuenta,
     debeMostrarAviso,
     esRutaExcluidaAviso,
     leerEstadoAviso,
@@ -148,8 +155,12 @@ export function AvisoNovedadArranque() {
         if (cerradaRef.current || esRutaExcluidaAviso(ruta)) return;
         let vivo = true;
         let temporizador: number | undefined;
+        // Hasta que la cuenta haya entregado sus marcas no se decide nada: con el medio vacío todo
+        // parecía «nunca visto» y la novedad salía en cada medio.
+        let cuentaLista = false;
 
         const evaluarTrasIdle = () => {
+            if (!cuentaLista) return;
             if (temporizador) window.clearTimeout(temporizador);
             temporizador = window.setTimeout(() => { void evaluar(); }, ESPERA_IDLE_MS);
         };
@@ -186,11 +197,17 @@ export function AvisoNovedadArranque() {
             }
         };
 
-        evaluarTrasIdle();
+        const cancelarEspera = cuandoCuentaFiable(() => {
+            if (!vivo) return;
+            cuentaLista = true;
+            copiarAvisoLocalACuenta(); // la respuesta local antigua se cuenta a la cuenta
+            evaluarTrasIdle();
+        }, 4000);
         const actividad: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "scroll"];
         actividad.forEach((ev) => window.addEventListener(ev, evaluarTrasIdle, { passive: true }));
         return () => {
             vivo = false;
+            cancelarEspera();
             if (temporizador) window.clearTimeout(temporizador);
             actividad.forEach((ev) => window.removeEventListener(ev, evaluarTrasIdle));
         };

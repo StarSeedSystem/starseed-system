@@ -15,6 +15,23 @@ const est = vi.hoisted(() => ({
     fila: null as { id: string; name: string; created_at: string } | null,
     oyenteAuth: null as null | (() => void),
     consultas: [] as string[],
+    /** La cuenta ya se bajó (primer pull hecho). Falso = «sin conexión con la cuenta». */
+    cuentaFiable: true,
+    esperasCuenta: [] as Array<() => void>,
+    /** Neuronas de la cuenta que devuelve `listNeurons` (la de este dispositivo incluida). */
+    neuronas: [] as Array<Record<string, unknown>>,
+}));
+
+// El motor de sync real no corre aquí: el test decide si la cuenta ya está bajada.
+vi.mock("@/lib/sync/realtime-sync", () => ({
+    esperarPullInicial: async () =>
+        est.cuentaFiable ? { estado: "sincronizado", fiable: true } : { estado: "sin-conexion", fiable: false },
+    cuandoCuentaFiable: (cb: () => void) => {
+        est.esperasCuenta.push(cb);
+        return () => {
+            est.esperasCuenta = est.esperasCuenta.filter((f) => f !== cb);
+        };
+    },
 }));
 
 vi.mock("@/utils/supabase/client", () => ({
@@ -59,6 +76,7 @@ const neuronas = vi.hoisted(() => ({ nombres: [] as string[] }));
 vi.mock("@/lib/neurons/neurons", () => ({
     NEURON_PREFS_KEY: "starseed.neurons.prefs.v1",
     thisDeviceId: () => "dispositivo-1",
+    listNeurons: async () => est.neuronas,
     permissionsFor: () => ({ compute: true, storage: true, sync: true, agent: true, senses: true, wake: true }),
     settingsFor: () => ({}),
     setPermission: vi.fn(),
@@ -76,6 +94,8 @@ vi.mock("@/lib/onboarding/neuron-recommend", () => ({
 vi.mock("@/lib/perf/fondo-vivo", () => ({ guardarPreferenciaFondo: vi.fn() }));
 
 import { PrimerArranque } from "../primer-arranque";
+import { AVISO_NEURONA_CONFIGURADA, AVISO_NEURONA_NUEVA_LUEGO } from "@/lib/onboarding/primer-arranque";
+import { AVISOS_KEY, _reiniciarCacheAvisosParaPruebas, estadoAviso } from "@/lib/sync/avisos-cuenta";
 
 const CUENTA: Usuario = { id: "u-1", email: "ana@star.seed" };
 
@@ -98,9 +118,14 @@ beforeEach(() => {
     est.fila = null;
     est.oyenteAuth = null;
     est.consultas = [];
+    est.cuentaFiable = true;
+    est.esperasCuenta = [];
+    est.neuronas = [];
     neuronas.nombres = [];
     window.localStorage.clear();
     window.sessionStorage.clear();
+    window.localStorage.setItem("starseed.neuron.device-id", "dispositivo-1");
+    _reiniciarCacheAvisosParaPruebas();
     Object.defineProperty(window, "matchMedia", {
         writable: true,
         configurable: true,
@@ -228,13 +253,95 @@ describe("PrimerArranque · con cuenta", () => {
         expect(neuronas.nombres).toEqual(["Neurona macOS"]);
     });
 
-    it("«Más tarde» la pospone solo en esta visita", async () => {
+    it("«Más tarde» la pospone con la cuenta, por neurona (no vuelve al reiniciar)", async () => {
         montar();
         await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
         fireEvent.click(screen.getByRole("button", { name: "Más tarde" }));
         await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
         expect(window.sessionStorage.getItem("starseed.primer-arranque.neurona-pospuesta.v1")).toBe("1");
         expect(window.localStorage.getItem("starseed.neuron.setup.v1")).toBeNull();
+        // Con la cuenta: registro `luego` de ESTA neurona, con su hora.
+        const luego = estadoAviso(AVISO_NEURONA_NUEVA_LUEGO, { neurona: "dispositivo-1" });
+        expect(luego.estado).toBe("luego");
+        expect(luego.hasta).toBeGreaterThan(Date.now());
+        // «Reiniciar» (visita nueva: sessionStorage vacío, montaje nuevo): sigue pospuesta.
+        cleanup();
+        window.sessionStorage.clear();
+        montar();
+        await pausa(200);
+        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+    });
+
+    it("«Más tarde» de OTRA neurona no pospone a esta", async () => {
+        window.localStorage.setItem(
+            AVISOS_KEY,
+            JSON.stringify({ v: 1, ids: {}, porNeurona: { "otra-neurona": { [AVISO_NEURONA_NUEVA_LUEGO]: { estado: "luego", ts: 5, hasta: Date.now() + 3_600_000 } } } }),
+        );
+        _reiniciarCacheAvisosParaPruebas();
+        montar();
+        await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
+    });
+
+    it("mientras la cuenta no esté bajada NO abre los ajustes; al bajar, decide con lo que ya sabe la cuenta", async () => {
+        est.cuentaFiable = false;
+        montar();
+        await pausa(200);
+        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        expect(est.esperasCuenta.length).toBe(1); // esperando a la cuenta, sin sondear
+        // La cuenta baja y resulta que esta neurona ya estaba configurada.
+        window.localStorage.setItem(
+            AVISOS_KEY,
+            JSON.stringify({ v: 1, ids: {}, porNeurona: { "dispositivo-1": { [AVISO_NEURONA_CONFIGURADA]: { estado: "hecho", ts: 5 } } } }),
+        );
+        _reiniciarCacheAvisosParaPruebas();
+        est.cuentaFiable = true;
+        await act(async () => {
+            est.esperasCuenta.forEach((f) => f());
+        });
+        await pausa(200);
+        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+    });
+
+    it("con la cuenta bajada y sin nada suyo, sí abre los ajustes al volver la cuenta", async () => {
+        est.cuentaFiable = false;
+        montar();
+        await pausa(100);
+        est.cuentaFiable = true;
+        await act(async () => {
+            est.esperasCuenta.forEach((f) => f());
+        });
+        await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
+    });
+
+    it("la cuenta dice que esta neurona ya está configurada: no abre nada", async () => {
+        window.localStorage.setItem(
+            AVISOS_KEY,
+            JSON.stringify({ v: 1, ids: {}, porNeurona: { "dispositivo-1": { [AVISO_NEURONA_CONFIGURADA]: { estado: "hecho", ts: 5 } } } }),
+        );
+        _reiniciarCacheAvisosParaPruebas();
+        montar();
+        await pausa(200);
+        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+    });
+
+    it("una marca local antigua de «configurada» se respeta y se copia a la cuenta", async () => {
+        window.localStorage.setItem("starseed.neuron.setup.v1", "1");
+        montar();
+        await pausa(200);
+        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        expect(estadoAviso(AVISO_NEURONA_CONFIGURADA, { neurona: "dispositivo-1" }).estado).toBe("hecho");
+    });
+
+    it("terminar deja la neurona configurada también en la cuenta", async () => {
+        montar();
+        await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
+        for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
+        await screen.findByRole("heading", { name: "Al abrir StarSeed aquí" });
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "Listo" }));
+        });
+        await waitFor(() => expect(screen.queryByRole("heading", { name: /Al abrir StarSeed aquí/ })).toBeNull());
+        expect(estadoAviso(AVISO_NEURONA_CONFIGURADA, { neurona: "dispositivo-1" }).estado).toBe("hecho");
     });
 
     it("una neurona conocida (en la cuenta desde antes y con nombre) no abre nada", async () => {
