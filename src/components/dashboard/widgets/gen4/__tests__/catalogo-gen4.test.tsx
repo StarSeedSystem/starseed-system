@@ -9,6 +9,10 @@ vi.mock("@/components/dashboard/kit/use-element-size", () => ({
     useElementSize: () => ({ ref: { current: null }, size: { ...medida, tier: "regular", vTier: "regular", landscape: true } }),
 }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...r }: any) => <a href={String(href)} {...r}>{children}</a> }));
+const empujar = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: empujar, replace: vi.fn(), back: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }) }));
+const crearEscena = vi.fn(async (titulo: string): Promise<any> => ({ refId: "e-nueva", ruta: `/escena/e-nueva?t=${titulo.length}` }));
+vi.mock("@/lib/vivo/escena3d", () => ({ crearVivoEscena3d: crearEscena }));
 let ubicacion: any = null;
 vi.mock("@/modules/weather/context/weather-location-context", () => ({
     useWeatherLocationOpcional: () => ubicacion,
@@ -81,6 +85,7 @@ import { MentorMatchWidget } from "../mentor-match-widget";
 import { ElderCouncilWidget } from "../elder-council-widget";
 import { CONSEJEROS } from "../elder-council-partes";
 import { RestorativeCourtWidget } from "../restorative-court-widget";
+import { MultiverseHubWidget } from "../multiverse-hub-widget";
 
 function pintar(ui: React.ReactElement, clase: ClaseTamano) {
     medida = MEDIDAS[clase];
@@ -281,5 +286,57 @@ describe("Círculos de Paz", () => {
     it("en S es un acceso directo al Área Política", () => {
         pintar(<RestorativeCourtWidget />, "s");
         expect(screen.getByRole("link", { name: /Abrir los Círculos de Paz: 0 abiertos/ }).getAttribute("href")).toBe("/network/politics");
+    });
+});
+
+const hace = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+const ESPACIOS = [
+    { id: "e1", title: "Jardín de cristal", kind: "escena", updated_at: hace(2) },
+    { id: "d1", title: "Manifiesto del barrio", kind: "dashboard", app: "documento", updated_at: hace(3) },
+    { id: "j1", title: "Tarde de juegos", kind: "dashboard", vivo: "juego", updated_at: hace(20) },
+    { id: "e2", title: "Templo sonoro", kind: "escena", updated_at: hace(50) },
+];
+
+describe("Multiverso", () => {
+    beforeEach(() => { empujar.mockClear(); crearEscena.mockClear(); });
+
+    it.each(TODAS)("sin sesión (%s) no inventa mundos ni presencias", async (clase) => {
+        pintar(<MultiverseHubWidget />, clase);
+        await screen.findByRole("region", { name: /sin sesión/ });
+        expect(peticiones).not.toContain("os_spaces");
+    });
+
+    it("pinta tus escenas 3D y salas de juego reales (no los documentos) y los portales de la red", async () => {
+        usuario = { id: "u1" };
+        tablas = { os_spaces: ESPACIOS };
+        pintar(<MultiverseHubWidget />, "xl");
+        await screen.findByRole("region", { name: /3 mundos tuyos \(2 escenas 3D y 1 sala de juego\)/ });
+        expect(screen.getByRole("link", { name: /Jardín de cristal/ }).getAttribute("href")).toBe("/escena/e1");
+        expect(screen.getByRole("link", { name: /Tarde de juegos/ }).getAttribute("href")).toBe("/juego/j1");
+        expect(screen.queryByText("Manifiesto del barrio")).toBeNull();
+        expect(screen.getByRole("link", { name: /Mundo de avatares/ }).getAttribute("href")).toBe("/mundo-avatares");
+        expect(screen.getByText(/Este navegador no ofrece WebXR/)).toBeTruthy();
+        expect(peticiones.filter((t) => t === "os_spaces")).toHaveLength(1);
+    });
+
+    it("sin mundos lo dice y crea una escena de verdad, entrando en ella", async () => {
+        usuario = { id: "u1" };
+        tablas = { os_spaces: [] };
+        pintar(<MultiverseHubWidget />, "l");
+        expect(await screen.findByText("Aún no has creado ningún mundo")).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Crear una escena 3D nueva" }));
+        fireEvent.change(screen.getByRole("textbox", { name: "Nombre de la escena" }), { target: { value: "Plaza del sol" } });
+        fireEvent.submit(screen.getByRole("form", { name: "Crear una escena 3D" }));
+        await vi.waitFor(() => expect(empujar).toHaveBeenCalledWith("/escena/e-nueva?t=13"));
+        expect(crearEscena).toHaveBeenCalledWith("Plaza del sol");
+        expect(await screen.findByRole("region", { name: /1 mundo tuyo \(1 escena 3D/ })).toBeTruthy();
+    });
+
+    it("si la nube no responde lo dice (error) y deja reintentar", async () => {
+        usuario = { id: "u1" };
+        fallo = "timeout";
+        pintar(<MultiverseHubWidget />, "m");
+        expect(await screen.findByRole("region", { name: /error, no se pudieron leer tus mundos/ })).toBeTruthy();
+        expect(screen.getByRole("alert")).toBeTruthy();
     });
 });
