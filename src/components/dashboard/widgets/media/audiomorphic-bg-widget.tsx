@@ -1,253 +1,155 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// AudiomorphicBgWidget — Control de la CAPA de fondo "Audiomorphic".
+// AudiomorphicBgWidget — la capa Audiomorphic del fondo (Ola 0929 · paquete E, medios)
 // ----------------------------------------------------------------
-// Adenda 68 · D: Audiomorphic ya NO secuestra el fondo del OS. Este widget
-// enciende/apaga su CAPA (config.background.layers) y ajusta su opacidad. La
-// pinta <BackgroundLayerStack/> con mezcla "screen" (el negro opaco de la app
-// desaparece y solo se ve el espiral sobre el fondo elegido).
-// Antes escribía config.background.type = "audiomorphic": eso es lo que dejaba
-// el visualizador pegado como fondo exclusivo y sincronizado a toda la cuenta.
-//
-// Adaptabilidad (render-prop `size`): en micro se ocultan el control de
-// overlay y la nota inferior; los botones activar/quitar mantienen su
-// retícula. Accesibilidad: estado anunciado con role="status"/aria-live,
-// botones con aria-label/aria-pressed + foco visible, overlay con
-// aria-valuetext. Animaciones respetan animations.enabled + reduced-motion.
-//
-// "Gratis y completo dentro de StarSeed OS."
+// Audiomorphic es una CAPA del fondo (config.background.layers), no el fondo: se
+// enciende y se apaga sin tocar nunca el fondo base de la persona (Adenda 68 · D).
+// Qué hace: encender/apagar la visualización con un interruptor, ajustar cuánto se
+// ve (opacidad de la capa), abrir su configuración (modos, micrófono, cámara) y
+// abrir la app nativa. La flor de la vida de la portada gira solo con la capa
+// encendida, movimiento permitido y el widget a la vista.
+// Composición: micro = la flor, que es el interruptor · s = flor + estado · m = flor
+// + interruptor + opacidad · l/xl = + configurar, abrir la app y la nota ·
+// panorámico = fila · torre = columna.
 // ════════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { AudioWaveform, Power, X, ExternalLink, Check, Wand2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { WidgetShell } from '@/components/dashboard/kit';
+import Link from 'next/link';
+import { AudioWaveform, Settings2, ExternalLink } from 'lucide-react';
+import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
 import { useAppearance } from '@/context/appearance-context';
-import {
-    audiomorphicLayer,
-    normalizeLayers,
-    patchLayer,
-    setAudiomorphicEnabled,
-} from '@/lib/appearance/background-layers';
+import { audiomorphicLayer, normalizeLayers, patchLayer, setAudiomorphicEnabled } from '@/lib/appearance/background-layers';
+import { useLienzoE, px, type LienzoE } from '../paquete-e/lienzo';
+import { BotonE, EncabezadoE, RaizE, RangoE, tintaE } from '../paquete-e/piezas';
 
-// Acento por defecto (violeta Audiomorphic). Si el OS corre con un tema
-// holográfico afín, el widget adopta su acento para integrarse sin romper
-// el resto de su estética. Cambio aditivo y seguro: solo afecta a este color.
-const ACCENT_DEFAULT = '#A855F7';
-const ACCENT_BY_OS_THEME: Partial<Record<string, string>> = {
-    audiomorphic: '#A855F7', // violeta místico
-    omnifrecuencias: '#22D3EE', // cian holográfico
-};
-// Adenda 68 · E: Audiomorphic es NATIVO del OS. "Abrir la app" ya no manda a un
-// sitio externo: abre la ruta portada `/audiomorphic` (desbloqueada, sin tour).
-const AUDIOMORPHIC_ROUTE = '/audiomorphic';
+const RUTA = '/audiomorphic';
 
-const FOCUS_RING =
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background';
+/** Flor de la vida: siete círculos y su anillo, con el acento de la familia. */
+function Flor({ lado, activa, lienzo }: { lado: number; activa: boolean; lienzo: LienzoE }) {
+    const r = lado / 2;
+    const k = r * 0.3;
+    const centros = [[0, 0], ...Array.from({ length: 6 }, (_, i) => [Math.cos((i * Math.PI) / 3) * k, Math.sin((i * Math.PI) / 3) * k])];
+    const gid = React.useId().replace(/:/g, '');
+    return (
+        <svg width={lado} height={lado} viewBox={`${-r} ${-r} ${lado} ${lado}`} aria-hidden className="shrink-0 overflow-visible" style={{ filter: activa ? `drop-shadow(0 0 14px ${conAlfa(lienzo.acento, 0.6)})` : undefined }}>
+            <defs>
+                <radialGradient id={`fl-${gid}`}>
+                    <stop offset="0%" stopColor={lienzo.acento} stopOpacity={activa ? 0.45 : 0.15} />
+                    <stop offset="100%" stopColor={lienzo.acento2} stopOpacity={0} />
+                </radialGradient>
+            </defs>
+            <circle r={r * 0.98} fill={`url(#fl-${gid})`} />
+            <g className={activa && lienzo.animar ? 'ss-girar' : undefined} style={{ ['--ss-dur' as string]: '48s', transformBox: 'fill-box', transformOrigin: 'center' } as React.CSSProperties}>
+                <circle r={r * 0.9} fill="none" stroke={activa ? '#d4af37' : 'rgba(255,255,255,.3)'} strokeOpacity={0.7} strokeWidth={1.2} />
+                {centros.map(([x, y], i) => (
+                    <circle key={i} cx={x} cy={y} r={k} fill="none" stroke={activa ? lienzo.acento : 'rgba(255,255,255,.45)'} strokeOpacity={activa ? 0.9 : 0.6} strokeWidth={1.2} />
+                ))}
+                {Array.from({ length: 6 }, (_, i) => {
+                    const a = (i * Math.PI) / 3 + Math.PI / 6;
+                    return <circle key={`p${i}`} cx={Math.cos(a) * k * 1.73} cy={Math.sin(a) * k * 1.73} r={Math.max(1.2, lado * 0.012)} fill={activa ? '#fff' : 'rgba(255,255,255,.4)'} />;
+                })}
+            </g>
+        </svg>
+    );
+}
+
+function Interruptor({ activo, onCambio, acento, etiqueta }: { activo: boolean; onCambio: () => void; acento: string; etiqueta: string }) {
+    return (
+        <button type="button" role="switch" aria-checked={activo} aria-label={etiqueta} onClick={onCambio}
+            className="ss-redondo relative h-7 w-12 shrink-0 cursor-pointer rounded-full outline-none transition-colors duration-200 focus-visible:ring-2"
+            style={{ background: activo ? conAlfa(acento, 0.65) : 'rgba(255,255,255,.14)', ['--tw-ring-color' as string]: acento } as React.CSSProperties}>
+            <span aria-hidden className="absolute top-1 size-5 rounded-full bg-white shadow transition-transform duration-200" style={{ transform: `translateX(${activo ? 24 : 4}px)` }} />
+        </button>
+    );
+}
 
 export function AudiomorphicBgWidget() {
+    const { ref, lienzo } = useLienzoE();
     const { config, updateConfig } = useAppearance();
-    const prefersReduced = useReducedMotion();
-    const animate = config.animations.enabled && !prefersReduced;
+    const capas = normalizeLayers(config.background?.layers);
+    const capa = audiomorphicLayer(capas);
+    const activa = !!capa;
+    const opacidad = capa?.opacity ?? 0.9;
 
-    // Acento del widget: sigue al tema del OS si es uno afín; si no, violeta.
-    const ACCENT = ACCENT_BY_OS_THEME[config.themeStore?.osTheme ?? 'default'] ?? ACCENT_DEFAULT;
+    const alternar = () => updateConfig({ background: { layers: setAudiomorphicEnabled(capas, !activa) } } as never);
+    const cambiarOpacidad = (v: number) => { if (capa) updateConfig({ background: { layers: patchLayer(capas, capa.id, { opacity: v }) } } as never); };
+    const configurar = () => { try { window.dispatchEvent(new CustomEvent('starseed:open-audiomorphic-config')); } catch { /* sin eventos */ } };
 
-    // Audiomorphic es una CAPA (Adenda 68 · D), ya no un `background.type`.
-    // Encenderlo/apagarlo NUNCA toca el fondo base del usuario: se limita a su
-    // propia capa, así que no puede volver a "secuestrar" el fondo del OS.
-    const layers = normalizeLayers(config.background.layers);
-    const layer = audiomorphicLayer(layers);
-    const isActive = !!layer;
-    const opacity = layer?.opacity ?? 0.9;
+    const { base, clase, horizontal } = lienzo;
+    const raiz = { lienzo, refRaiz: ref, etiqueta: `Audiomorphic en el fondo: ${activa ? 'encendido' : 'apagado'}`, tipo: 'AUDIOMORPHIC_BG' } as const;
+    const estado = (
+        <div className="min-w-0" aria-live="polite">
+            <p className="truncate font-semibold text-white" style={{ fontSize: px(lienzo, 14) }}>{activa ? 'Visualización encendida' : 'Visualización apagada'}</p>
+            <p className="truncate text-white/55" style={{ fontSize: px(lienzo, 12) }}>{activa ? `Capa del fondo al ${Math.round(opacidad * 100)} %` : 'Añádela como capa del fondo'}</p>
+        </div>
+    );
+    const interruptor = <Interruptor activo={activa} onCambio={alternar} acento={lienzo.acento} etiqueta="Visualización Audiomorphic en el fondo" />;
+    const opacidadEl = activa ? (
+        <label className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-[11px] text-white/55">Opacidad</span>
+            <RangoE lienzo={lienzo} valor={opacidad} onCambio={cambiarOpacidad} etiqueta="Opacidad de la capa Audiomorphic" textoValor={`${Math.round(opacidad * 100)} por ciento`} />
+            <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-white/60">{Math.round(opacidad * 100)} %</span>
+        </label>
+    ) : null;
+    const acciones = (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <BotonE lienzo={lienzo} variante="suave" compacto icono={Settings2} onClick={configurar}>Configurar</BotonE>
+            <Link href={RUTA} className="ss-redondo inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold text-white/85 transition-colors hover:bg-white/10">
+                <ExternalLink aria-hidden className="size-3.5" /> Abrir la app
+            </Link>
+        </div>
+    );
 
-    const activate = () => {
-        updateConfig({ background: { layers: setAudiomorphicEnabled(layers, true) } } as any);
-    };
+    if (base === 'micro') {
+        const lado = Math.max(48, Math.min(lienzo.ancho || 80, lienzo.alto || 80) * 0.84);
+        return (
+            <RaizE {...raiz}>
+                <button type="button" role="switch" aria-checked={activa} aria-label="Visualización Audiomorphic en el fondo" onClick={alternar}
+                    className="ss-redondo m-auto cursor-pointer rounded-full outline-none focus-visible:ring-2" style={{ ['--tw-ring-color' as string]: lienzo.acento } as React.CSSProperties}>
+                    <Flor lado={lado} activa={activa} lienzo={lienzo} />
+                </button>
+            </RaizE>
+        );
+    }
 
-    const deactivate = () => {
-        updateConfig({ background: { layers: setAudiomorphicEnabled(layers, false) } } as any);
-    };
+    if (base === 's') {
+        return (
+            <RaizE {...raiz}>
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                    <Flor lado={Math.max(56, Math.min(90, (lienzo.alto || 150) * 0.5))} activa={activa} lienzo={lienzo} />
+                    {interruptor}
+                </div>
+            </RaizE>
+        );
+    }
 
-    /** Opacidad de la capa (antes era el "overlay" negro que la oscurecía). */
-    const setOpacity = (v: number) => {
-        if (!layer) return;
-        updateConfig({ background: { layers: patchLayer(layers, layer.id, { opacity: v }) } } as any);
-    };
+    if (horizontal) {
+        return (
+            <RaizE {...raiz}>
+                <div className="flex h-full min-h-0 items-center gap-3 px-1">
+                    <Flor lado={Math.max(48, Math.min(96, (lienzo.alto || 110) - 12))} activa={activa} lienzo={lienzo} />
+                    <div className="min-w-0 flex-1">{estado}</div>
+                    {(lienzo.ancho || 0) > 560 && <div className="w-44 shrink-0">{opacidadEl}</div>}
+                    {interruptor}
+                </div>
+            </RaizE>
+        );
+    }
 
-    const openApp = () => {
-        if (typeof window !== 'undefined') {
-            window.location.assign(AUDIOMORPHIC_ROUTE);
-        }
-    };
-
-    // Abre la ventana de configuración del fondo (modos, micrófono/cámara, preset…).
-    const openConfig = () => {
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('starseed:open-audiomorphic-config'));
-        }
-    };
-
+    const grande = base === 'l' || base === 'xl' || clase === 'torre';
     return (
-        <WidgetShell
-            title="Audiomorphic"
-            subtitle="Fondo del sistema"
-            icon={AudioWaveform}
-            accent={ACCENT}
-            live={isActive}
-            connections={[{ label: 'Apariencia', href: '/settings', color: ACCENT }]}
-        >
-            {(size) => {
-                const micro = size.tier === 'micro' || size.vTier === 'micro';
-                return (
-                    <div className="flex h-full flex-col gap-2.5 pt-1">
-                        {/* Estado */}
-                        <div
-                            role="status"
-                            aria-live="polite"
-                            className={cn(
-                                'flex shrink-0 items-center gap-2.5 rounded-2xl border px-3 py-2.5 transition-colors',
-                                isActive
-                                    ? 'border-purple-400/40 bg-purple-400/[0.1]'
-                                    : 'border-border/40 bg-white/[0.02]',
-                            )}
-                        >
-                            <span
-                                className="relative grid size-9 shrink-0 place-items-center rounded-xl border border-white/10"
-                                style={{
-                                    background: isActive
-                                        ? `linear-gradient(135deg, ${ACCENT}, color-mix(in srgb, ${ACCENT} 40%, transparent))`
-                                        : 'rgba(255,255,255,0.04)',
-                                }}
-                            >
-                                <AudioWaveform className="size-4" style={{ color: isActive ? '#fff' : ACCENT }} />
-                                {isActive && (
-                                    <motion.span
-                                        aria-hidden
-                                        className="absolute inset-0 rounded-xl border border-purple-300/60"
-                                        animate={animate ? { opacity: [0.6, 0], scale: [1, 1.35] } : { opacity: 0 }}
-                                        transition={animate ? { duration: 2, repeat: Infinity, ease: 'easeOut' } : undefined}
-                                    />
-                                )}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                                <span className="flex items-center gap-1.5 text-[11px] font-bold leading-tight">
-                                    {isActive ? 'Fondo activo' : 'Fondo inactivo'}
-                                    {isActive && <Check className="size-3.5 text-purple-300" />}
-                                </span>
-                                <span className="block truncate text-[10px] text-muted-foreground/60">
-                                    {isActive ? 'Capa nativa · transparencia real' : 'Añádelo como capa del fondo'}
-                                </span>
-                            </span>
-                        </div>
-
-                        {/* Acciones activar/quitar */}
-                        <div className="grid shrink-0 grid-cols-2 gap-2">
-                            <button
-                                type="button"
-                                onClick={activate}
-                                disabled={isActive}
-                                aria-pressed={isActive}
-                                aria-label="Activar Audiomorphic como fondo del sistema"
-                                title="Activar fondo"
-                                className={cn(
-                                    'flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed',
-                                    FOCUS_RING,
-                                    isActive
-                                        ? 'border-purple-400/30 bg-purple-400/10 text-purple-300/60 opacity-60'
-                                        : 'border-purple-400/40 bg-purple-400/[0.08] text-purple-200 hover:bg-purple-400/15',
-                                )}
-                            >
-                                <Power className="size-3.5" />
-                                Activar fondo
-                            </button>
-                            <button
-                                type="button"
-                                onClick={deactivate}
-                                disabled={!isActive}
-                                aria-label="Quitar el fondo Audiomorphic"
-                                title="Quitar fondo"
-                                className={cn(
-                                    'flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed',
-                                    FOCUS_RING,
-                                    !isActive
-                                        ? 'border-border/40 bg-white/[0.02] text-muted-foreground/50 opacity-60'
-                                        : 'border-border/50 bg-white/[0.03] text-foreground hover:border-rose-400/40 hover:bg-rose-400/[0.06]',
-                                )}
-                            >
-                                <X className="size-3.5" />
-                                Quitar fondo
-                            </button>
-                        </div>
-
-                        {/* Opacidad de la capa */}
-                        {!micro && isActive && (
-                            <div className="shrink-0 rounded-xl border border-purple-400/20 bg-white/[0.02] px-3 py-2">
-                                <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold">
-                                    <span className="text-muted-foreground/70">Opacidad de la capa</span>
-                                    <span className="tabular-nums" style={{ color: ACCENT }}>
-                                        {Math.round(opacity * 100)}%
-                                    </span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={1}
-                                    step={0.01}
-                                    value={opacity}
-                                    onChange={(e) => setOpacity(Number(e.target.value))}
-                                    aria-label="Opacidad de la capa Audiomorphic"
-                                    aria-valuetext={`${Math.round(opacity * 100)} por ciento`}
-                                    className={cn(
-                                        'h-1 w-full cursor-pointer appearance-none rounded-full accent-purple-400 [&::-webkit-slider-thumb]:size-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-300',
-                                        FOCUS_RING,
-                                    )}
-                                    style={{
-                                        background: `linear-gradient(90deg, ${ACCENT} ${opacity * 100}%, rgba(255,255,255,0.15) ${opacity * 100}%)`,
-                                    }}
-                                />
-                            </div>
-                        )}
-
-                        <div className="mt-auto shrink-0 space-y-2">
-                            <button
-                                type="button"
-                                onClick={openConfig}
-                                aria-label="Configurar el fondo Audiomorphic (modos, micrófono, cámara, preset)"
-                                title="Configurar fondo"
-                                className={cn(
-                                    'flex w-full items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-bold transition-colors cursor-pointer',
-                                    'border-purple-400/40 bg-purple-400/[0.1] text-purple-100 hover:bg-purple-400/20',
-                                    FOCUS_RING,
-                                )}
-                            >
-                                <Wand2 className="size-3.5" />
-                                Configurar fondo
-                            </button>
-                            <button
-                                type="button"
-                                onClick={openApp}
-                                aria-label="Abrir la app Audiomorphic dentro del OS"
-                                title="Abrir la app"
-                                className={cn(
-                                    'flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/40 bg-white/[0.03] px-2 py-2 text-[11px] font-bold text-muted-foreground/80 transition-colors hover:border-purple-400/30 hover:text-foreground cursor-pointer',
-                                    FOCUS_RING,
-                                )}
-                            >
-                                <ExternalLink className="size-3.5" />
-                                Abrir la app
-                            </button>
-                            {!micro && (
-                                <p className="text-center text-[10px] font-semibold text-muted-foreground/60">
-                                    Nativo en StarSeed OS: sin tour, sin login, sin planes.
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                );
-            }}
-        </WidgetShell>
+        <RaizE {...raiz}>
+            <div className="flex h-full min-h-0 flex-col gap-2.5 p-1">
+                {grande && <EncabezadoE lienzo={lienzo} icono={AudioWaveform} titulo="Audiomorphic" vivo={activa} detalle="Fondo del sistema" />}
+                <div className={grande && clase !== 'torre' ? 'flex min-w-0 items-center gap-4' : 'flex min-w-0 items-center gap-3'}>
+                    <Flor lado={base === 'xl' ? 150 : grande ? 112 : Math.max(64, Math.min(96, (lienzo.alto || 240) * 0.36))} activa={activa} lienzo={lienzo} />
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">{estado}<div className="flex items-center gap-2">{interruptor}<span className="text-[12px] text-white/60">{activa ? 'Encendida' : 'Apagada'}</span></div></div>
+                </div>
+                {opacidadEl}
+                {grande ? acciones : <div className="mt-auto">{acciones}</div>}
+                {grande && <p className="mt-auto text-[11px] leading-snug text-white/50" style={{ color: conAlfa(tintaE(lienzo.acento), 0.75) }}>Es una capa encima de tu fondo: apagarla no cambia el fondo que elegiste. Responde al micrófono solo si tú lo activas en su configuración.</p>}
+            </div>
+        </RaizE>
     );
 }

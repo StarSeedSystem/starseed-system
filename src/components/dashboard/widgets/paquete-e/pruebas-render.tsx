@@ -25,6 +25,23 @@ export function entornoNavegador() {
     HTMLMediaElement.prototype.pause = function () {};
     HTMLMediaElement.prototype.load = function () {};
     HTMLCanvasElement.prototype.getContext = (() => null) as any;
+    class Nodo { connect() {} disconnect() {} }
+    const parametro = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {}, cancelScheduledValues() {} });
+    class ContextoAudio {
+        state = "running"; currentTime = 0; sampleRate = 44100; destination = new Nodo(); listener = { positionX: parametro(), positionY: parametro(), positionZ: parametro() };
+        createGain() { return Object.assign(new Nodo(), { gain: parametro() }); }
+        createOscillator() { return Object.assign(new Nodo(), { frequency: parametro(), detune: parametro(), type: "sine", start() {}, stop() {} }); }
+        createAnalyser() { return Object.assign(new Nodo(), { fftSize: 256, frequencyBinCount: 128, getByteFrequencyData() {}, getByteTimeDomainData() {}, getFloatTimeDomainData() {} }); }
+        createPanner() { return Object.assign(new Nodo(), { positionX: parametro(), positionY: parametro(), positionZ: parametro(), panningModel: "", distanceModel: "", setPosition() {} }); }
+        createStereoPanner() { return Object.assign(new Nodo(), { pan: parametro() }); }
+        createChannelMerger() { return new Nodo(); }
+        createBiquadFilter() { return Object.assign(new Nodo(), { frequency: parametro(), Q: parametro() }); }
+        createDynamicsCompressor() { return Object.assign(new Nodo(), { threshold: parametro(), knee: parametro(), ratio: parametro(), attack: parametro(), release: parametro() }); }
+        resume() { return Promise.resolve(); } suspend() { return Promise.resolve(); } close() { return Promise.resolve(); }
+    }
+    g.AudioContext = ContextoAudio; g.webkitAudioContext = ContextoAudio;
+    g.requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(() => cb(0), 16) as unknown as number;
+    g.cancelAnimationFrame = (id: number) => clearTimeout(id);
 }
 
 export const TODAS: ClaseTamano[] = ["micro", "s", "m", "l", "xl", "panoramico", "torre"];
