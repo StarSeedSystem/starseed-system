@@ -1,407 +1,334 @@
 'use client';
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import {
-    CalendarDays, MapPin, Users, ChevronRight, type LucideIcon,
-    Landmark, Hammer, Sparkles, Palette, Store, LayoutGrid,
-} from "lucide-react";
-import {
-    RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
-} from "recharts";
-import { WidgetShell, MiniList, Chip, timeUntil } from "../kit";
-import { MarcoWidget } from "@/components/dashboard/kit/marco-widget";
-import { estadoDe } from "@/components/dashboard/calidad-widget";
-import { useAppearance } from "@/context/appearance-context";
-import type { SocialEvent } from "@/lib/widget-data";
-import { eventHref, slugify } from "@/lib/entity-links";
-import { useOsEvents } from "@/hooks/use-os-entities";
-import type { OsEvent } from "@/lib/os-social";
-
-// Conteos localizados con separador de millares (es-ES).
-const NUM_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
-
 // ════════════════════════════════════════════════════════════════
-// SocialRadarWidget — eventos próximos de la red (asambleas, talleres,
-// rituales, obras, mercados). Radar visual con recharts, segmentos por
-// tipo, urgencia data-driven (eventos inminentes → pulso ámbar/verde),
-// countdown pill y live-pulse. Adaptativo + theme.
+// SocialRadarWidget — lo que se acerca en la Red, en un radar (Ola 0929 · D)
+// ----------------------------------------------------------------
+// Solo eventos REALES del OS (`os_events` vía `useOsEvents` + el filtro
+// `realEventsOnly`): si el hook sirve su relleno de ejemplo, el widget se
+// queda en el vacío honesto. El radar no inventa posiciones: la distancia al
+// centro es el TIEMPO que falta (anillos: hoy · 7 días · 30 días) y el
+// sector es el TIPO de evento — se dice en la leyenda. Acciones reales:
+// asistir (`os_event_attendance`), abrir el evento y convocar uno nuevo con
+// el diálogo real. Una lectura al montar (sin sondeos ni realtime).
 //
-// Fuente única: los eventos reales del OS (`useOsEvents`). Cuando el hook
-// avisa de que está sirviendo su relleno de ejemplo (`usingFallback`), el
-// widget prefiere el vacío honesto del marco común antes que enseñar
-// asambleas y talleres inventados como si fueran reales (Ola 305 · zW4).
+// micro = la cuenta atrás del siguiente · s = su tarjeta con fecha · m =
+// radar + los tres siguientes · l = tipos + radar + asistir · xl = radar +
+// agenda por horizonte · panorámico = la franja de los próximos días ·
+// torre = agenda. Estados: cargando (orbe), vacío honesto con «Convocar un
+// evento», error con reintento.
 // ════════════════════════════════════════════════════════════════
-const KIND_META: Record<SocialEvent["kind"], { icon: LucideIcon; color: string; label: string }> = {
-    asamblea: { icon: Landmark, color: "#f59e0b", label: "Asamblea" },
-    taller:   { icon: Hammer,   color: "#10b981", label: "Taller"   },
-    ritual:   { icon: Sparkles, color: "#a855f7", label: "Ritual"   },
-    obra:     { icon: Palette,  color: "#ec4899", label: "Obra"     },
-    mercado:  { icon: Store,    color: "#38bdf8", label: "Mercado"  },
+
+import * as React from 'react';
+import Link from 'next/link';
+import { toast } from 'sonner';
+import {
+    CalendarDays, CalendarPlus, Check, Hammer, Landmark, Loader2, MapPin, Palette, Sparkles, Store, Users, type LucideIcon,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useOsEvents } from '@/hooks/use-os-entities';
+import { realEventsOnly, setAttendance, type OsEvent } from '@/lib/os-social';
+import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
+import { MarcoSocial, estadoSocial } from './_social-d/marco-social';
+import { BotonIcono, Punto, Segmentos, estilosSocial as estilos, tintaDe } from './_social-d/piezas';
+import { useCrearEntidad } from './_social-d/crear-entidad';
+import { columnasQueCaben, filasQueCaben, type TamanoSocial } from './_social-d/tamano';
+import { diasEntre, formatoNumero, horaCorta, msDe, rotuloDia } from './_social-d/formato';
+
+const ACENTO = '#fb923c';
+const HORA = 3_600_000, DIA = 24 * HORA;
+const MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
+type Tipo = 'asamblea' | 'taller' | 'ritual' | 'obra' | 'mercado' | 'encuentro';
+const TIPOS: Record<Tipo, { icono: LucideIcon; color: string; etiqueta: string }> = {
+    asamblea: { icono: Landmark, color: '#f59e0b', etiqueta: 'Asamblea' },
+    taller: { icono: Hammer, color: '#10b981', etiqueta: 'Taller' },
+    ritual: { icono: Sparkles, color: '#a855f7', etiqueta: 'Ritual' },
+    obra: { icono: Palette, color: '#ec4899', etiqueta: 'Cultura' },
+    mercado: { icono: Store, color: '#38bdf8', etiqueta: 'Mercado' },
+    encuentro: { icono: Users, color: '#94a3b8', etiqueta: 'Encuentro' },
 };
-const MONTHS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
-const KIND_ORDER: SocialEvent["kind"][] = ["asamblea", "taller", "ritual", "obra", "mercado"];
+const ORDEN: Tipo[] = ['asamblea', 'taller', 'encuentro', 'ritual', 'obra', 'mercado'];
 
-type RadarFilter = "todos" | SocialEvent["kind"];
-
-type RadarEvent = SocialEvent & { slug?: string };
-
-/** Lista estable para el caso «todavía no hay eventos reales». */
-const SIN_EVENTOS: RadarEvent[] = [];
-
-function radarKind(kind: string): SocialEvent["kind"] {
-    const k = kind.toLowerCase();
-    if (k.includes("asamblea")) return "asamblea";
-    if (k.includes("taller") || k.includes("curso")) return "taller";
-    if (k.includes("ritual")) return "ritual";
-    if (k.includes("mercado")) return "mercado";
-    return "obra";
+/** Tipo de radar de un evento real (PURO). */
+export function tipoDeEvento(kind: string | null | undefined): Tipo {
+    const k = (kind ?? '').toLowerCase();
+    if (k.includes('asamblea')) return 'asamblea';
+    if (k.includes('taller') || k.includes('curso')) return 'taller';
+    if (k.includes('ritual') || k.includes('celebra')) return 'ritual';
+    if (k.includes('mercado') || k.includes('trueque')) return 'mercado';
+    if (k.includes('obra') || k.includes('expos') || k.includes('concierto')) return 'obra';
+    return 'encuentro';
 }
 
-function osEventToRadar(e: OsEvent): RadarEvent {
-    return {
-        id: e.id,
-        title: e.title,
-        place: e.location || "Red StarSeed",
-        startTs: e.startsAt ? new Date(e.startsAt).getTime() : Date.now(),
-        attendees: e.attendeeCount,
-        kind: radarKind(e.kind),
-        slug: e.slug,
-    };
+/** «en 25 min» · «en 3 h» · «mañana» · «en 5 días» · «ahora» (PURO). */
+export function cuentaAtras(ms: number, ahora: number): string {
+    const d = ms - ahora;
+    if (d <= 0) return 'ahora';
+    if (d < HORA) return `en ${Math.max(1, Math.round(d / 60_000))} min`;
+    if (d < DIA && diasEntre(ms, ahora) === 0) return `en ${Math.round(d / HORA)} h`;
+    const dias = -diasEntre(ms, ahora);
+    if (dias === 1) return `mañana ${horaCorta(ms)}`;
+    return `en ${dias} días`;
 }
 
-/** Formato de cuenta regresiva legible: "en 2h 15m" / "en 3 días" / "iniciado" */
-function timeCountdown(ts: number): string {
-    const diff = ts - Date.now();
-    if (diff < 0) return "iniciado";
-    const h = Math.floor(diff / 3_600_000);
-    const m = Math.floor((diff % 3_600_000) / 60_000);
-    if (h > 48) return `en ${Math.floor(h / 24)} días`;
-    if (h > 0) return `en ${h}h ${m}m`;
-    return `en ${m}m`;
-}
-
-/** Urgencia data-driven: "live" (<1h), "soon" (<24h) o "scheduled". */
-function eventUrgency(ts: number): "live" | "soon" | "scheduled" {
-    const diff = ts - Date.now();
-    if (diff > 0 && diff < 3_600_000) return "live";
-    if (diff > 0 && diff < 86_400_000) return "soon";
-    return "scheduled";
-}
-
-/** ¿El evento empieza dentro de 1 hora? */
-function startsWithinHour(ts: number): boolean {
-    return eventUrgency(ts) === "live";
-}
-
-// ── Mini radar SVG para modo micro ──────────────────────────────
-function MicroRadarRings({ counts }: { counts: Record<string, number> }) {
-    const total = Object.values(counts).reduce((s, v) => s + v, 0) || 1;
-    const cx = 24, cy = 24, r = 18;
-    let startAngle = -Math.PI / 2;
-    const arcs = KIND_ORDER.map((k) => {
-        const frac = (counts[k] ?? 0) / total;
-        const angle = frac * Math.PI * 2;
-        const end = startAngle + angle;
-        const x1 = cx + r * Math.cos(startAngle);
-        const y1 = cy + r * Math.sin(startAngle);
-        const x2 = cx + r * Math.cos(end);
-        const y2 = cy + r * Math.sin(end);
-        const large = angle > Math.PI ? 1 : 0;
-        const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
-        const result = { path, color: KIND_META[k].color, key: k };
-        startAngle = end;
-        return result;
-    });
-    return (
-        <svg width={48} height={48} viewBox="0 0 48 48" aria-hidden>
-            {arcs.map((a) => (
-                <path key={a.key} d={a.path} fill={a.color} fillOpacity={0.75} />
-            ))}
-            <circle cx={cx} cy={cy} r={10} fill="hsl(var(--card))" />
-        </svg>
-    );
-}
+interface Proximo { e: OsEvent; tipo: Tipo; ms: number }
 
 export function SocialRadarWidget() {
-    const { config } = useAppearance();
-    const prefersReduced = useReducedMotion();
-    const animate = config.animations.enabled && !prefersReduced;
+    const { data, loading, error, usingFallback, refetch } = useOsEvents();
+    const [filtro, setFiltro] = React.useState<'todos' | Tipo>('todos');
+    const [asistire, setAsistire] = React.useState<Set<string>>(() => new Set());
+    const [enCurso, setEnCurso] = React.useState<string | null>(null);
+    const crear = useCrearEntidad(refetch);
 
-    const { data: osEvents, loading, error: errorFuente, usingFallback, refetch } = useOsEvents();
-    const [filter, setFilter] = useState<RadarFilter>("todos");
+    const ahora = Date.now();
+    // Solo lo real: con el relleno del hook, nada; y solo lo que aún no ha pasado (1 h de margen).
+    const proximos: Proximo[] = React.useMemo(() => (usingFallback ? [] : realEventsOnly(data))
+        .map((e) => ({ e, tipo: tipoDeEvento(e.kind), ms: msDe(e.startsAt) }))
+        .filter((x) => x.ms > 0 && x.ms >= Date.now() - HORA)
+        .sort((a, b) => a.ms - b.ms), [data, usingFallback]);
+    const visibles = filtro === 'todos' ? proximos : proximos.filter((x) => x.tipo === filtro);
+    const semana = proximos.filter((x) => x.ms - ahora < 7 * DIA).length;
 
-    // Solo eventos reales del OS: si el hook está sirviendo su relleno de
-    // ejemplo, el widget se queda vacío en vez de inventar la agenda de la red.
-    const data: RadarEvent[] = useMemo(
-        () => (usingFallback ? SIN_EVENTOS : osEvents.map(osEventToRadar)),
-        [osEvents, usingFallback],
-    );
+    const estado = estadoSocial({ cargando: loading, hayDatos: proximos.length > 0, error: error && usingFallback ? new Error(error) : undefined });
 
-    // Estado honesto del widget (error > cargando > vacío > listo).
-    const estado = estadoDe({ cargando: loading, error: errorFuente, datos: data });
-
-    // Conteos por tipo para el radar y los segmentos.
-    const kindCounts = useMemo(() => {
-        const counts: Record<string, number> = {};
-        if (data) for (const e of data) counts[e.kind] = (counts[e.kind] ?? 0) + 1;
-        return counts;
-    }, [data]);
-
-    // Datos formateados para recharts RadarChart
-    const radarData = useMemo(() =>
-        KIND_ORDER.map((k) => ({ kind: KIND_META[k].label, value: kindCounts[k] ?? 0 })),
-        [kindCounts]
-    );
-
-    // Lista filtrada por segmento de tipo.
-    const filtered = useMemo(() => {
-        if (!data) return [];
-        const base = filter === "todos" ? data : data.filter(e => e.kind === filter);
-        return [...base].sort((a, b) => a.startTs - b.startTs);
-    }, [data, filter]);
-
-    // Evento más próximo (para countdown pill y live pulse)
-    const nearestEvent = useMemo(() => filtered[0] ?? null, [filtered]);
-    const liveNow = nearestEvent ? startsWithinHour(nearestEvent.startTs) : false;
-    // Cuántos eventos son inminentes (<24h): señal de urgencia data-driven.
-    const soonCount = useMemo(() => (data ?? []).filter(e => eventUrgency(e.startTs) !== "scheduled").length, [data]);
-
-    // Segmentos de tipo presentes (solo los que tienen eventos).
-    const segments = useMemo<RadarFilter[]>(() => {
-        const present = KIND_ORDER.filter(k => (kindCounts[k] ?? 0) > 0);
-        return ["todos", ...present];
-    }, [kindCounts]);
-
-    // Cargando, vacío y error salen del marco común (un único marco: no se
-    // duplica la cabecera del WidgetShell). El vacío usa `mensajeVacio`.
-    if (estado !== "listo") {
-        return (
-            <MarcoWidget
-                titulo="Radar Social"
-                categoria="descubrimientos"
-                icono={<CalendarDays />}
-                cargando={estado === "cargando"}
-                error={errorFuente}
-                vacio={estado === "vacio"}
-                onReintentar={refetch}
-            >
-                {null}
-            </MarcoWidget>
-        );
-    }
+    const asistir = async (x: Proximo) => {
+        if (enCurso) return;
+        setEnCurso(x.e.id);
+        try {
+            const r = await setAttendance(x.e.slug, 'asiste');
+            if (r.ok) {
+                setAsistire((s) => new Set(s).add(x.e.id));
+                toast.success(`Te esperan en «${x.e.title}».`);
+            } else toast.error(r.needsAuth ? 'Entra en tu cuenta para confirmar tu asistencia.' : 'No se pudo confirmar. Inténtalo de nuevo.');
+        } finally {
+            setEnCurso(null);
+        }
+    };
 
     return (
-        <WidgetShell
-            title="Radar Social"
-            subtitle="Eventos próximos"
-            icon={CalendarDays}
-            accent="#ec4899"
-            expandHref="/network/culture"
-            actions={
-                <Link href="/network/culture" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
-                    Calendario <ChevronRight className="size-3" />
-                </Link>
-            }
-            connections={[
-                { label: "Cultura",    href: "/network/culture",  color: "#ec4899", icon: Palette   },
-                { label: "Asambleas",  href: "/network/politics", color: "#f59e0b", icon: Landmark  },
-                { label: "Hub",        href: "/hub",              color: "#10b981", icon: Users     },
-            ]}
-            footer={
-                !loading && data && data.length ? (() => {
-                    const next = [...data].sort((a, b) => a.startTs - b.startTs)[0];
-                    const totalAttendees = data.reduce((s, e) => s + e.attendees, 0);
-                    return (
-                        <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-muted-foreground/70 min-w-0">
-                            <span className="inline-flex items-center gap-1.5 min-w-0">
-                                {/* Live pulse indicator */}
-                                {liveNow ? (
-                                    <span className={`size-1.5 rounded-full shrink-0 bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />
-                                ) : (
-                                    <span className="size-1.5 rounded-full shrink-0" style={{ background: "#ec4899" }} />
-                                )}
-                                <span className="truncate tabular-nums">{data.length} eventos · {NUM_ES.format(totalAttendees)} asistentes</span>
-                            </span>
-                            <span className="shrink-0 tabular-nums">próximo {timeUntil(next.startTs)}</span>
-                        </div>
+        <>
+            <MarcoSocial
+                titulo="Radar Social"
+                subtitulo={proximos.length ? `${formatoNumero(proximos.length)} próximos · ${semana} esta semana` : 'Eventos próximos'}
+                icono={CalendarDays}
+                categoria="descubrimientos"
+                acento={ACENTO}
+                estado={estado}
+                error={error ? new Error(error) : undefined}
+                onReintentar={refetch}
+                esqueleto="orbe"
+                vacio={{ icono: CalendarPlus, titulo: 'No hay eventos próximos en la Red', mensaje: 'Convoca una asamblea, un taller o un encuentro: aparecerá aquí para quien esté cerca.', accion: { etiqueta: 'Convocar un evento', onClick: () => crear.abrir('event') } }}
+                acciones={(t) => <BotonIcono icono={CalendarPlus} etiqueta="Convocar un evento" onClick={() => crear.abrir('event')} acento={t.acento} tactil={t.tactil} />}
+            >
+                {(t) => {
+                    const sig = proximos[0];
+                    if (t.base === 'micro') {
+                        const m = TIPOS[sig.tipo];
+                        return (
+                            <Link href={`/evento/${sig.e.slug}`} aria-label={`Siguiente: ${sig.e.title}, ${cuentaAtras(sig.ms, ahora)}`} className="flex h-full cursor-pointer flex-col items-center justify-center gap-1 text-center">
+                                <m.icono className="size-5" style={{ color: m.color }} aria-hidden />
+                                <span className="text-[13px] font-semibold tabular-nums text-white">{cuentaAtras(sig.ms, ahora)}</span>
+                            </Link>
+                        );
+                    }
+                    if (t.base === 's') return <TarjetaEvento x={sig} t={t} ahora={ahora} grande />;
+                    const accion = (x: Proximo) => <BotonAsistir x={x} t={t} hecho={asistire.has(x.e.id)} enCurso={enCurso === x.e.id} onAsistir={asistir} />;
+                    if (t.clase === 'panoramico') return <Franja t={t} proximos={visibles} ahora={ahora} />;
+                    if (t.clase === 'torre') return <Agenda t={t} proximos={proximos} ahora={ahora} max={filasQueCaben(t.alto, 58, 2, 10)} accion={accion} />;
+                    const lado = Math.max(100, Math.min(t.alto - (t.base === 'l' ? 44 : 4), t.ancho * (t.base === 'xl' ? 0.42 : 0.46)));
+                    const filtros = t.base !== 'm' && (
+                        <Segmentos<'todos' | Tipo> etiqueta="Tipo de evento" acento={t.acento} tactil={t.tactil} valor={filtro} onCambio={setFiltro}
+                            opciones={[{ id: 'todos', etiqueta: 'Todos', n: proximos.length }, ...ORDEN.filter((k) => proximos.some((x) => x.tipo === k)).map((k) => ({ id: k, etiqueta: TIPOS[k].etiqueta, icono: TIPOS[k].icono }))]} />
                     );
-                })() : undefined
-            }
-        >
-            {(size) => {
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const sorted = filtered;
-                const max = micro ? 3 : size.vTier === "expanded" ? 5 : 3;
-
-                // Micro: miniatura de radar + lista compacta
-                if (micro) {
                     return (
-                        <div className="pt-1 h-full flex items-center gap-2.5">
-                            <MicroRadarRings counts={kindCounts} />
-                            <div className="flex-1 min-h-0 overflow-hidden">
-                                <MiniList
-                                    items={sorted}
-                                    max={3}
-                                    empty="Sin eventos"
-                                    render={(e) => {
-                                        const meta = KIND_META[e.kind];
-                                        const Icon = meta.icon;
-                                        const soon = startsWithinHour(e.startTs);
-                                        return (
-                                            <Link href={e.slug ? eventHref(e.slug) : eventHref(slugify(e.title) || "evento")}
-                                                className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 hover:bg-white/[0.04] transition-colors cursor-pointer">
-                                                <Icon className="size-3 shrink-0" style={{ color: meta.color }} />
-                                                <span className="text-[10px] font-bold truncate flex-1">{e.title}</span>
-                                                {soon && <span className={`size-1.5 rounded-full shrink-0 bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />}
-                                            </Link>
-                                        );
-                                    }}
-                                />
+                        <div className="flex h-full min-h-0 flex-col gap-2">
+                            {filtros}
+                            <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+                                <Radar t={t} proximos={visibles} ahora={ahora} lado={lado} />
+                                <Agenda t={t} proximos={visibles} ahora={ahora} max={filasQueCaben(t.alto - (filtros ? 44 : 0), t.base === 'm' ? 54 : 62, 2, 8)} accion={t.base === 'm' ? undefined : accion} agrupar={t.base === 'xl'} />
                             </div>
                         </div>
                     );
-                }
-
-                return (
-                    <div className="pt-1 h-full flex flex-col gap-2.5">
-                        {/* ── Segmentos por tipo + señal de urgencia ── */}
-                        {size.tier !== "compact" && (
-                            <div className="shrink-0 flex items-center gap-1 overflow-x-auto no-scrollbar -mx-0.5 px-0.5">
-                                {segments.map((s) => {
-                                    const active = filter === s;
-                                    const meta = s === "todos" ? null : KIND_META[s];
-                                    const SIcon = s === "todos" ? CalendarDays : meta!.icon;
-                                    const n = s === "todos" ? data.length : (kindCounts[s] ?? 0);
-                                    const col = s === "todos" ? "#ec4899" : meta!.color;
-                                    return (
-                                        <button key={s} type="button" onClick={() => setFilter(s)} aria-pressed={active}
-                                            className="shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer tabular-nums"
-                                            style={active
-                                                ? { color: col, borderColor: `${col}66`, background: `${col}1f` }
-                                                : { color: "hsl(var(--muted-foreground)/0.7)", borderColor: "hsl(var(--border)/0.4)" }}>
-                                            <SIcon className="size-2.5" />{s === "todos" ? "Todos" : meta!.label}<span className="opacity-60">{n}</span>
-                                        </button>
-                                    );
-                                })}
-                                {soonCount > 0 && (
-                                    <span className="shrink-0 ml-auto inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-300 tabular-nums">
-                                        <span className={`size-1.5 rounded-full bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />{soonCount} pronto
-                                    </span>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ── Radar visual (expanded) ── */}
-                        {size.vTier === "expanded" && (
-                            <div className="shrink-0 rounded-2xl border border-border/40 bg-white/[0.02] p-2.5">
-                                <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">Actividad por tipo</p>
-                                <div style={{ height: 100 }}>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <RadarChart data={radarData} margin={{ top: 4, right: 16, bottom: 4, left: 16 }}>
-                                            <PolarGrid stroke="rgba(255,255,255,0.08)" />
-                                            <PolarAngleAxis dataKey="kind"
-                                                tick={{ fontSize: 8, fill: "currentColor", opacity: 0.55 }} />
-                                            <Radar name="Eventos" dataKey="value" stroke="#ec4899"
-                                                strokeWidth={1.5} fill="#ec4899" fillOpacity={0.25}
-                                                isAnimationActive={animate} />
-                                        </RadarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ── Lista de eventos (stagger) ── */}
-                        <div className="flex-1 min-h-0">
-                            <MiniList
-                                items={sorted}
-                                max={max}
-                                empty={filter === "todos" ? "Sin eventos próximos" : `Sin ${KIND_META[filter as SocialEvent["kind"]]?.label.toLowerCase()}s próximos`}
-                                emptyIcon={LayoutGrid}
-                                render={(e, idx) => {
-                                    const meta = KIND_META[e.kind];
-                                    const d = new Date(e.startTs);
-                                    const hh = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-                                    const isNearest = e.id === nearestEvent?.id;
-                                    const urgency = eventUrgency(e.startTs);
-                                    const startingSoon = urgency === "live";
-                                    // Urgencia ⇒ el badge de fecha se intensifica.
-                                    const badgeColor = startingSoon ? "#10b981" : meta.color;
-                                    return (
-                                        <motion.div
-                                            key={e.id}
-                                            initial={animate ? { opacity: 0, y: 10 } : false}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: animate ? idx * 0.07 : 0, duration: animate ? 0.22 : 0, ease: [0.16, 1, 0.3, 1] }}
-                                        >
-                                            <Link
-                                                href={e.slug ? eventHref(e.slug) : eventHref(slugify(e.title) || "evento")}
-                                                className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 transition-all cursor-pointer block"
-                                                onMouseEnter={(ev) => {
-                                                    (ev.currentTarget as HTMLElement).style.boxShadow = `0 0 12px ${meta.color}33`;
-                                                    (ev.currentTarget as HTMLElement).style.borderColor = `${meta.color}40`;
-                                                }}
-                                                onMouseLeave={(ev) => {
-                                                    (ev.currentTarget as HTMLElement).style.boxShadow = "";
-                                                    (ev.currentTarget as HTMLElement).style.borderColor = "";
-                                                }}
-                                            >
-                                                {/* Badge de fecha con glow sutil; pulso si inminente */}
-                                                <div className="shrink-0 relative grid place-items-center size-10 rounded-xl border text-center leading-none"
-                                                    style={{
-                                                        color: badgeColor,
-                                                        borderColor: `${badgeColor}40`,
-                                                        background: `${badgeColor}1a`,
-                                                        boxShadow: `0 0 8px ${badgeColor}66`,
-                                                    }}>
-                                                    <span className="text-[8px] font-black uppercase">{MONTHS[d.getMonth()]}</span>
-                                                    <span className="text-base font-black tabular-nums">{d.getDate()}</span>
-                                                    {startingSoon && animate && (
-                                                        <motion.span
-                                                            animate={{ scale: [1, 1.35, 1], opacity: [0.55, 0, 0.55] }}
-                                                            transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-                                                            className="absolute inset-0 rounded-xl border-2 pointer-events-none"
-                                                            style={{ borderColor: badgeColor }}
-                                                        />
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-[11px] @sm:text-xs font-bold truncate">{e.title}</span>
-                                                        <Chip color={meta.color}>{meta.label}</Chip>
-                                                    </div>
-                                                    <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/70 min-w-0">
-                                                        <span className="inline-flex items-center gap-1 truncate min-w-0">
-                                                            <MapPin className="size-3 shrink-0" /> {hh} · {e.place}
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-1 ml-auto shrink-0 tabular-nums" title={`${NUM_ES.format(e.attendees)} asistentes`}>
-                                                            <Users className="size-3" /> {NUM_ES.format(e.attendees)}
-                                                        </span>
-                                                    </div>
-                                                    {/* Countdown pill: para el más próximo o cualquier evento inminente */}
-                                                    {(isNearest || urgency !== "scheduled") && (
-                                                        <div className="mt-1 flex items-center gap-1.5">
-                                                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-px text-[8px] font-black uppercase tracking-wider ${startingSoon ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : urgency === "soon" ? "bg-amber-500/15 border-amber-500/30 text-amber-300" : "bg-white/[0.06] border-border/40 text-muted-foreground/60"}`}>
-                                                                {startingSoon && <span className={`size-1.5 rounded-full bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />}
-                                                                {timeCountdown(e.startTs)}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </Link>
-                                        </motion.div>
-                                    );
-                                }}
-                            />
-                        </div>
-
-                        {/* Sin fuente real de entidades activas todavía: antes se
-                            pintaban las de ejemplo de `sample-governance` como si
-                            estuvieran activas y se han quitado (Ola 305 · zW4). */}
-                    </div>
-                );
-            }}
-        </WidgetShell>
+                }}
+            </MarcoSocial>
+            {crear.dialogo}
+        </>
     );
 }
+
+// ── Radar (tiempo → distancia, tipo → sector) ───────────────────────
+
+function Radar({ t, proximos, ahora, lado }: { t: TamanoSocial; proximos: Proximo[]; ahora: number; lado: number }) {
+    const id = React.useId().replace(/:/g, '');
+    const R = 46;
+    const radio = (ms: number) => {
+        const d = Math.max(0, ms - ahora);
+        if (d < DIA) return 6 + (d / DIA) * 12;            // hoy: 6-18
+        if (d < 7 * DIA) return 18 + ((d - DIA) / (6 * DIA)) * 14; // semana: 18-32
+        return Math.min(R - 2, 32 + ((d - 7 * DIA) / (23 * DIA)) * 12); // mes: 32-44
+    };
+    const porTipo = new Map<Tipo, number>();
+    return (
+        <figure className="flex shrink-0 flex-col items-center gap-1" aria-label="Radar de eventos: más cerca del centro, antes; cada tipo en su sector">
+            <svg width={lado} height={lado} viewBox="-50 -50 100 100" role="img" aria-label={`${proximos.length} eventos próximos en el radar`} className="overflow-visible">
+                <defs>
+                    <radialGradient id={`f-${id}`}>
+                        <stop offset="0%" stopColor={t.acento} stopOpacity={0.3} />
+                        <stop offset="100%" stopColor={t.acento} stopOpacity={0.02} />
+                    </radialGradient>
+                    <linearGradient id={`hz-${id}`} x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor={t.acento} stopOpacity={0} />
+                        <stop offset="100%" stopColor={t.acento} stopOpacity={0.35} />
+                    </linearGradient>
+                </defs>
+                <circle r={R} fill={`url(#f-${id})`} />
+                {[18, 32, R].map((r, i) => <circle key={r} r={r} fill="none" stroke="#fff" strokeOpacity={0.1 + (2 - i) * 0.04} strokeDasharray={i === 2 ? undefined : '1.5 2.5'} />)}
+                {ORDEN.map((k, i) => {
+                    const a = (i / ORDEN.length) * Math.PI * 2 - Math.PI / 2;
+                    return <line key={k} x1={0} y1={0} x2={Math.cos(a) * R} y2={Math.sin(a) * R} stroke="#fff" strokeOpacity={0.05} />;
+                })}
+                <path className={estilos.barrido} d={`M0 0L0 ${-R}A${R} ${R} 0 0 1 ${(Math.sin(Math.PI / 5) * R).toFixed(2)} ${(-Math.cos(Math.PI / 5) * R).toFixed(2)}Z`} fill={`url(#hz-${id})`} />
+                {proximos.slice(0, 30).map((x) => {
+                    const i = ORDEN.indexOf(x.tipo);
+                    const n = porTipo.get(x.tipo) ?? 0;
+                    porTipo.set(x.tipo, n + 1);
+                    const sector = (Math.PI * 2) / ORDEN.length;
+                    const a = i * sector - Math.PI / 2 - sector / 2 + sector * (0.25 + ((n * 0.37) % 0.5));
+                    const r = radio(x.ms);
+                    const m = TIPOS[x.tipo];
+                    const inminente = x.ms - ahora < 3 * HORA;
+                    return (
+                        <a key={x.e.id} href={`/evento/${x.e.slug}`} aria-label={`${x.e.title}, ${cuentaAtras(x.ms, ahora)}`}>
+                            {inminente && <circle className={estilos.onda} cx={Math.cos(a) * r} cy={Math.sin(a) * r} r={3.2} fill="none" stroke={m.color} />}
+                            <circle cx={Math.cos(a) * r} cy={Math.sin(a) * r} r={2.4 + Math.min(2, Math.log10(1 + x.e.attendeeCount))} fill={m.color} style={{ filter: `drop-shadow(0 0 2px ${m.color})` }} className="cursor-pointer">
+                                <title>{`${x.e.title} · ${cuentaAtras(x.ms, ahora)}`}</title>
+                            </circle>
+                        </a>
+                    );
+                })}
+                <circle r={2.5} fill="#fff" />
+            </svg>
+            {t.base !== 'm' && <figcaption className="text-center text-[10px] text-white/45">Centro: hoy · anillos: 7 y 30 días</figcaption>}
+        </figure>
+    );
+}
+
+// ── Piezas de evento ────────────────────────────────────────────────
+
+function BloqueFecha({ ms, color, grande = false }: { ms: number; color: string; grande?: boolean }) {
+    const d = new Date(ms);
+    return (
+        <span className={cn('grid shrink-0 place-items-center rounded-[12px] text-center leading-none', grande ? 'size-14' : 'size-11')} aria-hidden
+            style={{ background: `linear-gradient(160deg, ${conAlfa(color, 0.3)}, ${conAlfa(color, 0.08)})`, boxShadow: `inset 0 0 0 1px ${conAlfa(color, 0.4)}` }}>
+            <span>
+                <span className={cn('block font-light tabular-nums text-white', grande ? 'text-[22px]' : 'text-[17px]')}>{d.getDate()}</span>
+                <span className="block text-[9px] font-bold tracking-[0.12em]" style={{ color: tintaDe(color) }}>{MESES[d.getMonth()]}</span>
+            </span>
+        </span>
+    );
+}
+
+function TarjetaEvento({ x, t, ahora, grande = false, derecha }: { x: Proximo; t: TamanoSocial; ahora: number; grande?: boolean; derecha?: React.ReactNode }) {
+    const m = TIPOS[x.tipo];
+    return (
+        <div className={cn(estilos.fila, 'flex min-w-0 items-center gap-2.5 px-1.5', grande ? 'h-full' : t.tactil ? 'py-2' : 'py-1.5')}>
+            <Link href={`/evento/${x.e.slug}`} className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5" aria-label={`${m.etiqueta}: ${x.e.title}, ${cuentaAtras(x.ms, ahora)}${x.e.location ? `, en ${x.e.location}` : ''}`}>
+                <BloqueFecha ms={x.ms} color={m.color} grande={grande} />
+                <span className="min-w-0 flex-1">
+                    <span className={cn('block font-semibold text-white', grande ? 'line-clamp-2 text-[13.5px]' : 'truncate text-[12.5px]')}>{x.e.title}</span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+                        <span className="shrink-0 font-semibold" style={{ color: tintaDe(m.color) }}>{cuentaAtras(x.ms, ahora)}</span>
+                        {x.e.location && <span className="inline-flex min-w-0 items-center gap-0.5 truncate"><MapPin className="size-3 shrink-0" aria-hidden />{x.e.location}</span>}
+                    </span>
+                    {grande && x.e.attendeeCount > 0 && <span className="text-[11px] tabular-nums text-white/50">{formatoNumero(x.e.attendeeCount)} asistentes</span>}
+                </span>
+            </Link>
+            {derecha}
+        </div>
+    );
+}
+
+function BotonAsistir({ x, t, hecho, enCurso, onAsistir }: { x: Proximo; t: TamanoSocial; hecho: boolean; enCurso: boolean; onAsistir: (x: Proximo) => void }) {
+    const alto = t.tactil ? 'min-h-11 min-w-11' : 'min-h-7';
+    if (hecho) {
+        return <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full ss-redondo px-2.5 text-[11px] font-semibold', alto)} style={{ color: '#6ee7b7', background: 'rgba(16,185,129,.14)' }}><Check className="size-3.5" aria-hidden />Asistirás</span>;
+    }
+    return (
+        <button type="button" onClick={() => onAsistir(x)} disabled={enCurso} aria-label={`Asistir a ${x.e.title}`}
+            className={cn('inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full ss-redondo px-2.5 text-[11px] font-semibold text-white transition-transform duration-200 hover:-translate-y-px disabled:cursor-wait', alto)}
+            style={{ background: conAlfa(t.acento, 0.16), boxShadow: `inset 0 0 0 1px ${conAlfa(t.acento, 0.5)}` }}>
+            {enCurso ? <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> : <CalendarPlus className="size-3.5" aria-hidden />}Asistir
+        </button>
+    );
+}
+
+function Agenda({ t, proximos, ahora, max, accion, agrupar = false }: { t: TamanoSocial; proximos: Proximo[]; ahora: number; max: number; accion?: (x: Proximo) => React.ReactNode; agrupar?: boolean }) {
+    if (!proximos.length) return <p role="status" className="grid flex-1 place-items-center text-[12px] text-white/55">Nada de este tipo por ahora.</p>;
+    const lista = proximos.slice(0, max);
+    if (!agrupar) {
+        return (
+            <ul className={cn('flex min-h-0 flex-col gap-0.5 overflow-y-auto pr-0.5 ss-scroll', proximos.length > max && estilos.desvanece)} aria-label="Próximos eventos">
+                {lista.map((x) => <li key={x.e.id} className={estilos.aparece}><TarjetaEvento x={x} t={t} ahora={ahora} derecha={accion?.(x)} /></li>)}
+            </ul>
+        );
+    }
+    const horizontes: { rotulo: string; lista: Proximo[] }[] = [
+        { rotulo: 'Hoy', lista: lista.filter((x) => x.ms - ahora < DIA && diasEntre(x.ms, ahora) <= 0) },
+        { rotulo: 'Esta semana', lista: lista.filter((x) => !(x.ms - ahora < DIA && diasEntre(x.ms, ahora) <= 0) && x.ms - ahora < 7 * DIA) },
+        { rotulo: 'Más adelante', lista: lista.filter((x) => x.ms - ahora >= 7 * DIA) },
+    ].filter((h) => h.lista.length);
+    return (
+        <div className="min-h-0 overflow-y-auto pr-0.5 ss-scroll">
+            {horizontes.map((h) => (
+                <section key={h.rotulo} aria-label={h.rotulo}>
+                    <h4 className="py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white/55">{h.rotulo}</h4>
+                    <ul className="flex flex-col gap-0.5">{h.lista.map((x) => <li key={x.e.id}><TarjetaEvento x={x} t={t} ahora={ahora} derecha={accion?.(x)} /></li>)}</ul>
+                </section>
+            ))}
+        </div>
+    );
+}
+
+/** Panorámico: la franja de los próximos días, una columna por día con sus eventos. */
+function Franja({ t, proximos, ahora }: { t: TamanoSocial; proximos: Proximo[]; ahora: number }) {
+    if (t.alto < 120) {
+        const cols = columnasQueCaben(t.ancho, 240, 1, 5);
+        return (
+            <ul className="grid h-full min-h-0 items-center gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }} aria-label="Próximos eventos">
+                {proximos.slice(0, cols).map((x) => <li key={x.e.id} className="min-w-0"><TarjetaEvento x={x} t={t} ahora={ahora} /></li>)}
+            </ul>
+        );
+    }
+    const dias = Math.max(3, Math.min(10, Math.floor(t.ancho / 150)));
+    const columnas = Array.from({ length: dias }, (_, d) => ({ d, lista: proximos.filter((x) => -diasEntre(x.ms, ahora) === d) }));
+    const caben = Math.max(1, Math.floor((t.alto - 26) / 46));
+    return (
+        <ol className="grid h-full min-h-0 gap-2" style={{ gridTemplateColumns: `repeat(${dias}, minmax(0,1fr))` }} aria-label="Los próximos días">
+            {columnas.map(({ d, lista }) => (
+                <li key={d} className="flex min-h-0 min-w-0 flex-col gap-1 rounded-[14px] p-1.5" style={{ background: d === 0 ? conAlfa(t.acento, 0.1) : 'rgba(255,255,255,.02)' }}>
+                    <span className={cn('flex items-center gap-1 truncate text-[10.5px] font-semibold uppercase tracking-[0.1em]', d === 0 ? 'text-white' : 'text-white/50')}>
+                        {d === 0 && <Punto color={t.acento} tam={5} />}{d === 1 ? 'Mañana' : rotuloDia(ahora + d * DIA, ahora)}
+                    </span>
+                    <ul className="flex min-h-0 flex-col gap-1 overflow-hidden">
+                        {lista.slice(0, caben).map((x) => {
+                            const m = TIPOS[x.tipo];
+                            return (
+                                <li key={x.e.id} className="min-w-0">
+                                    <Link href={`/evento/${x.e.slug}`} title={`${x.e.title}${x.e.location ? ` · ${x.e.location}` : ''}`} aria-label={`${x.e.title}, ${cuentaAtras(x.ms, ahora)}`}
+                                        className="block cursor-pointer rounded-[10px] px-2 py-1 transition-colors duration-200 hover:brightness-125" style={{ background: conAlfa(m.color, 0.14), boxShadow: `inset 2px 0 0 ${m.color}` }}>
+                                        <span className="block truncate text-[11.5px] font-semibold text-white">{x.e.title}</span>
+                                        <span className="block truncate text-[10.5px] tabular-nums text-white/60">{horaCorta(x.ms)}{x.e.location ? ` · ${x.e.location}` : ''}</span>
+                                    </Link>
+                                </li>
+                            );
+                        })}
+                        {lista.length > caben && <li className="px-1 text-[10.5px] text-white/45">+{lista.length - caben} más</li>}
+                        {lista.length === 0 && <li className="px-1 text-[10.5px] text-white/30">—</li>}
+                    </ul>
+                </li>
+            ))}
+        </ol>
+    );
+}
+
+export default SocialRadarWidget;

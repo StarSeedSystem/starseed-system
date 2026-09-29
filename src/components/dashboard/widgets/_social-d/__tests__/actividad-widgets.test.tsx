@@ -46,7 +46,7 @@ describe("Actividad Reciente · por tamaño", () => {
     });
 
     it("m: agrupada por día", () => {
-        estado.posts = [post("1", 1), post("2", 30)];
+        estado.posts = [post("1", 0.02), post("2", 30)];
         render(<EnMarco clase="m"><RecentActivityWidget /></EnMarco>);
         expect(within(screen.getByRole("region", { name: "Hoy" })).getByRole("link", { name: /Luz publicó en huerto/ })).toBeInTheDocument();
         expect(screen.getAllByRole("link", { name: /Luz publicó en huerto/ })).toHaveLength(2);
