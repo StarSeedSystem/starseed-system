@@ -9,8 +9,9 @@ terminal y por localhost. Nada de esto escribe código en el repositorio.
 
   python3 scripts/puente/suenos.py plan        [--horas N] [--areas a,b] [--lentes x,y] [--json]
   python3 scripts/puente/suenos.py lanzar      [--horas N] [--areas …] [--lentes …] [--donde mac]
-                                               [--workers 3] [--tope-analisis 5] [--rehacer]
+                                               [--workers 3] [--tope-analisis 8] [--rehacer]
                                                [--directo] [--forzar] [--seco] [--json]
+  python3 scripts/puente/suenos.py detener     [--fecha AAAA-MM-DD] [--espera 30] [--seco] [--json]
   python3 scripts/puente/suenos.py estado      [--fecha AAAA-MM-DD] [--json]
   python3 scripts/puente/suenos.py por-verificar [--n 3] [--fecha …] [--json]
   python3 scripts/puente/suenos.py veredicto   <tarea> --estado verificado|ajustado|rechazado
@@ -39,10 +40,12 @@ Protocolo de un supervisor Claude: `scripts/puente/supervisor_suenos.md`. SOP:
 """
 
 import argparse
+import contextlib
 import datetime
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -61,6 +64,8 @@ MANDO_URL = os.environ.get("STARSEED_MANDO_URL", "http://localhost:9002").rstrip
 PATRON_ORQ = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
 MARCA_ANALISIS = "_ejecutar_analisis"
 ESTADOS_VEREDICTO = ("verificado", "ajustado", "rechazado")
+# El mismo flock con el que el orquestador escribe progreso.json (cerrojo("progreso")).
+CERROJO_PROGRESO = os.path.expanduser("~/.starseed/cerrojos/progreso.lock")
 LATIDO_FRESCO_S = 180
 
 
@@ -161,6 +166,73 @@ def orquestadores_vivos():
     return orquestadores_de(salida.splitlines())
 
 
+def _pid_vivo(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError, TypeError, ValueError):
+        return True
+
+
+@contextlib.contextmanager
+def cerrojo_progreso(ruta=None, espera_s=60, dormir=time.sleep):
+    """Toma el flock de progreso.json. Mientras lo tenemos, ningún orquestador puede estar a
+    medio escribir el progreso: si le llega SIGTERM, muere antes o después de escribir, nunca
+    en medio (guardar_prog no escribe con renombrado atómico). Sin fcntl, sigue sin él."""
+    ruta = ruta or CERROJO_PROGRESO
+    try:
+        import fcntl
+    except ImportError:
+        yield False
+        return
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    f = open(ruta, "a")
+    tomado = False
+    try:
+        t0 = time.time()
+        while True:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                tomado = True
+                break
+            except BlockingIOError:
+                if time.time() - t0 > espera_s:
+                    break
+                dormir(0.5)
+        yield tomado
+    finally:
+        if tomado:
+            try:
+                fcntl.flock(f, fcntl.LOCK_UN)
+            except OSError:
+                pass
+        f.close()
+
+
+def detener_orquestadores(objetivos, matar=os.kill, vivo=_pid_vivo, dormir=time.sleep, espera_s=30,
+                          cerrojo=None, reloj=time.time):
+    """SIGTERM a cada orquestador de `objetivos` con el flock del progreso tomado y espera a que
+    salgan (≤ espera_s). No manda SIGKILL: lo que siga vivo se devuelve en `siguen`."""
+    cerrojo = cerrojo or cerrojo_progreso
+    enviados, siguen = [], []
+    with cerrojo() as tomado:
+        for o in objetivos:
+            try:
+                matar(int(o["pid"]), signal.SIGTERM)
+                enviados.append(int(o["pid"]))
+            except ProcessLookupError:
+                continue
+        t0 = reloj()
+        while True:
+            siguen = [p for p in enviados if vivo(p)]
+            if not siguen or reloj() - t0 >= espera_s:
+                break
+            dormir(0.5)
+    return {"enviados": enviados, "siguen": siguen, "cerrojo": bool(tomado)}
+
+
 def orquestador_instalado_apto(ruta=None):
     """(apto, mtime): ¿la copia instalada sabe soñar? (lleva la rama de análisis)."""
     ruta = ruta or ruta_orquestador()
@@ -212,7 +284,24 @@ def lanzar_directo(raiz, cola_rel, workers, tope_analisis=None, medio=None):
 
 # ─────────────────────────────── plan y colas ───────────────────────────────
 
+def horas_de(raiz, a):
+    """Las horas pedidas o, al RELANZAR una sesión que ya existe, las de su último
+    lanzamiento: con otras horas cambiarían los archivos de cada área y la lectura ya hecha
+    (dream/profundo/<fecha>/.mapa) no se aprovecharía."""
+    if getattr(a, "horas", None) is not None:
+        return float(a.horas)
+    if getattr(a, "fecha", None):
+        plan = _leer_json(os.path.join(rutas(raiz)["profundo"], a.fecha, "plan.json"), {})
+        lanz = (plan.get("lanzamientos") or [{}])[-1] if isinstance(plan, dict) else {}
+        try:
+            return float(lanz.get("horas") or 0)
+        except (TypeError, ValueError, AttributeError):
+            return 0.0
+    return 0.0
+
+
 def construir(raiz, a):
+    a.horas = horas_de(raiz, a)
     fecha = datetime.date.fromisoformat(a.fecha) if getattr(a, "fecha", None) else datetime.date.today()
     return suenos_areas.construir_plan(
         suenos_areas.cargar_areas(raiz), suenos_areas.listar_repo(raiz), fecha, a.horas,
@@ -439,10 +528,33 @@ def cmd_lanzar(a, raiz):
             pid = lanzar_directo(raiz, cola_rel, workers, a.tope_analisis, "claude" if os.environ.get("CLAUDECODE") else None)
             fuera.update(accion="directo", pid=pid, mensaje="El Mando no contestó: orquestador lanzado desde la terminal.")
     try:
-        director_suenos.anunciar("Sueños profundos %s: %d tareas en marcha (%s) · pausa %d s entre llamadas · "
-                                 "verificación por supervisores Claude." % (sesion, len(plan["tareas"]), fuera["accion"], plan["pausa_s"]))
+        director_suenos.anunciar("Sueños profundos %s: %d tareas en marcha (%s) · hasta %d a la vez · "
+                                 "verificación por supervisores Claude." % (sesion, len(plan["tareas"]), fuera["accion"],
+                                                                            a.tope_analisis))
     except Exception:
         pass
+    return 0, fuera
+
+
+def cmd_detener(a, raiz):
+    """Para con seguridad el orquestador de UNA sesión de sueños (solo el de su cola): SIGTERM
+    con el flock del progreso tomado. Lo escrito se conserva: al relanzar con la misma
+    --fecha, los informes hechos se saltan, la lectura compartida (.mapa/) se reutiliza y los
+    reclamos del proceso muerto se rompen solos."""
+    sesion = sesion_elegida(raiz, a.fecha)
+    cola = nombre_cola(sesion)
+    objetivos = [o for o in orquestadores_vivos() if o["cola"] == cola]
+    fuera = {"ok": True, "sesion": sesion, "cola": cola, "pids": [o["pid"] for o in objetivos]}
+    if not objetivos:
+        return 1, dict(fuera, ok=False, error="No hay ningún orquestador vivo con %s en esta máquina." % cola)
+    if a.seco:
+        return 0, dict(fuera, seco=True)
+    r = detener_orquestadores(objetivos, espera_s=a.espera)
+    fuera.update(r)
+    if r["siguen"]:
+        fuera.update(ok=False, error="Siguen vivos tras %d s: %s. Espera un poco y repite (no mando SIGKILL)."
+                     % (a.espera, ", ".join(str(p) for p in r["siguen"])))
+        return 5, fuera
     return 0, fuera
 
 
@@ -585,6 +697,12 @@ def pintar(orden, codigo, d):
         print(d.get("resumen", ""))
         if not d.get("seco"):
             print("  %s\n  %s" % (d.get("informe"), d.get("cola") or "(sin propuestas nuevas)"))
+    elif orden == "detener":
+        if d.get("seco"):
+            print("Pararía %s: pid %s" % (d["cola"], ", ".join(str(p) for p in d["pids"])))
+        elif d.get("ok"):
+            print("✓ %s parado (pid %s)%s" % (d["cola"], ", ".join(str(p) for p in d["enviados"]),
+                                               "" if d.get("cerrojo") else " · sin el cerrojo del progreso"))
     elif orden == "latido":
         print("✓ latido de %s%s" % (d.get("agente"), " terminado" if d.get("terminado") else " · " + str(d.get("fase"))))
 
@@ -595,7 +713,8 @@ def parser():
     sub = ap.add_subparsers(dest="orden", required=True)
 
     def comunes_plan(p):
-        p.add_argument("--horas", type=float, default=0)
+        p.add_argument("--horas", type=float, default=None,
+                       help="profundidad (archivos por área); al relanzar una sesión, por defecto la de su último lanzamiento")
         p.add_argument("--areas", default="")
         p.add_argument("--lentes", default="")
         p.add_argument("--fecha", default="")
@@ -613,6 +732,11 @@ def parser():
     p.add_argument("--forzar", action="store_true", help="lanzar aunque haya otro orquestador vivo")
     p.add_argument("--seco", action="store_true")
     p.add_argument("--por", default=os.environ.get("STARSEED_MEDIO") or "terminal")
+    p = sub.add_parser("detener")
+    p.add_argument("--fecha", default="")
+    p.add_argument("--espera", type=int, default=30)
+    p.add_argument("--seco", action="store_true")
+    p.add_argument("--json", action="store_true")
     p = sub.add_parser("estado")
     p.add_argument("--fecha", default="")
     p.add_argument("--json", action="store_true")
@@ -652,7 +776,7 @@ def parser():
     return ap
 
 
-ORDENES = {"plan": cmd_plan, "lanzar": cmd_lanzar, "estado": cmd_estado, "por-verificar": cmd_por_verificar,
+ORDENES = {"plan": cmd_plan, "lanzar": cmd_lanzar, "detener": cmd_detener, "estado": cmd_estado, "por-verificar": cmd_por_verificar,
            "veredicto": cmd_veredicto, "consolidar": cmd_consolidar, "latido": cmd_latido}
 
 

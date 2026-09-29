@@ -16,7 +16,8 @@ Qué decide este módulo (y nada más):
     orquestación (mando, dashboards, gobernanza). Una prueba falla si se separan.
   · qué lee cada área: sus raíces en el repo (RAICES) y sus documentos de memoria.
   · con qué lentes: LENTES (la de seguridad es privada: solo en la Mac).
-  · cuántas llamadas costará y a qué ritmo, para llenar `--horas` sin pasar los cupos.
+  · cuántas llamadas costará; `--horas` da la profundidad (archivos por área). El ritmo no
+    lo pone el plan: lo ponen los cupos por minuto de cada proveedor.
 
 Módulo PURO en su núcleo (`construir_plan` no abre archivos ni red); lo impuro —listar el
 repo y leer areas.ts— está en funciones pequeñas aparte que la CLI y `suenos.py` usan.
@@ -374,7 +375,12 @@ def construir_plan(areas, archivos_repo, fecha, horas=0, ids_areas=None, ids_len
                 },
             })
     trab = max(1, int(trabajadores or 1))
-    pausa = pausa_entre_llamadas(llamadas, horas, min(trab, max(1, len(tareas))))
+    # (2026-09-29, primera sesión real) Sin pausa global: con 104 s entre llamadas, ocho
+    # trabajadores iban a paso de uno (4 informes en 151 min). El ritmo lo pone el cupo por
+    # minuto de CADA proveedor (llamar_llm) y el reparto por turnos del analista; `--horas`
+    # solo decide la profundidad (archivos por área). `pausa_entre_llamadas` queda como
+    # referencia de cuánto «cabría» esperar, no se aplica.
+    pausa = 0
     for t in tareas:
         t["pausa_s"] = pausa
         t["tope_analisis"] = trab
