@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Leaf, RefreshCw, MapPin } from "lucide-react";
 import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../../kit";
-import { useWeatherLocationOpcional } from "@/modules/weather/context/weather-location-context";
+import { useLugarB, type LugarB } from "./_paquete-b/lugar";
 import { cn } from "@/lib/utils";
 import { useDatoCompartido, type ResultadoDato } from "./_paquete-b/cache-compartida";
 import {
@@ -39,22 +39,8 @@ const CLAVE_SUPUESTOS = "starseed.oikos.superficies.v1";
 const DEC1 = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
 const ENT = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
 
-interface Lugar { lat: number; lon: number; nombre: string }
-
-/** Ubicación del Clima: su contexto si está; si no, la guardada. null si no hay ninguna. */
-function useLugar(): Lugar | null {
-    const ctx = useWeatherLocationOpcional();
-    const [guardado, setGuardado] = useState<Lugar | null>(null);
-    useEffect(() => {
-        if (ctx) return;
-        try {
-            const j = JSON.parse(localStorage.getItem("starseed_weather_location") || "null");
-            if (j && typeof j.lat === "number" && typeof j.lon === "number") setGuardado({ lat: j.lat, lon: j.lon, nombre: j.name ?? "" });
-        } catch { /* sin almacén */ }
-    }, [ctx]);
-    if (ctx) return { lat: ctx.location.lat, lon: ctx.location.lon, nombre: ctx.location.name };
-    return guardado;
-}
+type Lugar = LugarB;
+const useLugar = useLugarB;
 
 /** Superficies elegidas (preferencia de este dispositivo). */
 function useSupuestos(): [{ paneles: number; tejado: number }, (p: Partial<{ paneles: number; tejado: number }>) => void] {
