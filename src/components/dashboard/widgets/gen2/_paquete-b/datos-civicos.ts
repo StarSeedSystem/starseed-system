@@ -43,6 +43,18 @@ export interface PropuestaViva {
     urgencia: string;
     /** Opción ganadora sellada por el servidor (propuestas cerradas). */
     ganadora: string | null;
+    /** Ejecución del mandato (solo aprobadas/ejecutadas): lo que el Ejecutivo ha hecho con ella. */
+    ejecucion: EjecucionMandato | null;
+}
+
+export type EstadoMandato = "pendiente" | "en_ejecucion" | "completado";
+export interface EjecucionMandato {
+    estado: EstadoMandato;
+    /** 0-100 */
+    progreso: number;
+    responsable: string | null;
+    informes: number;
+    ultimoInforme: number | null;
 }
 
 export interface DatosAgora {
@@ -210,6 +222,25 @@ export function normalizarPropuesta(fila: FilaPropuesta, votos: FilaVoto[], uid:
         minParticipantes: num(params.minParticipants, 1),
         urgencia: typeof params.urgency === "string" ? params.urgency : "normal",
         ganadora: typeof resultado.winningChoice === "string" ? resultado.winningChoice : null,
+        ejecucion: ejecucionDe(fila.status ?? "", resultado),
+    };
+}
+
+/** Estado de ejecución de un mandato (mismo criterio que getExecution del Ejecutivo). PURO. */
+export function ejecucionDe(estado: string, resultado: Record<string, unknown>): EjecucionMandato | null {
+    if (estado !== "passed" && estado !== "executed") return null;
+    const e = (resultado.execution && typeof resultado.execution === "object" ? resultado.execution : {}) as Record<string, unknown>;
+    const informes = Array.isArray(e.reports) ? (e.reports as { at?: unknown }[]) : [];
+    const ult = informes.map((r) => (typeof r?.at === "string" ? Date.parse(r.at) : NaN)).filter((n) => Number.isFinite(n));
+    let est: EstadoMandato = e.status === "en_ejecucion" || e.status === "completado" ? e.status : "pendiente";
+    let progreso = typeof e.progress === "number" && Number.isFinite(e.progress) ? Math.max(0, Math.min(100, e.progress)) : 0;
+    if (estado === "executed" && est !== "completado") { est = "completado"; progreso = 100; }
+    return {
+        estado: est,
+        progreso,
+        responsable: typeof e.responsibleLabel === "string" && e.responsibleLabel.trim() ? e.responsibleLabel.trim() : null,
+        informes: informes.length,
+        ultimoInforme: ult.length ? Math.max(...ult) : null,
     };
 }
 

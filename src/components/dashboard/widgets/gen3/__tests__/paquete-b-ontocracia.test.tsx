@@ -44,6 +44,11 @@ import { __reiniciarCacheB } from "../../gen2/_paquete-b/cache-compartida";
 import { palabrasClave, parecidas, redactar } from "../../gen2/_paquete-b/alquimia";
 import { normalizarPropuesta } from "../../gen2/_paquete-b/datos-civicos";
 import { CivicAlchemyWidget, enlacePropuesta } from "../civic-alchemy-widget";
+import { VitalFlowAuditWidget, mandatos } from "../vital-flow-audit-widget";
+import { ejecucionDe } from "../../gen2/_paquete-b/datos-civicos";
+
+const asumir = vi.fn(async (_id: string) => ({ ok: true }));
+vi.mock("@/lib/governance/political", () => ({ assignResponsible: (id: string) => asumir(id) }));
 
 function enMarco(clase: ClaseTamano, ui: React.ReactElement) {
     const { base, horizontal } = disenoDe(clase);
@@ -110,5 +115,42 @@ describe("Alquimia cívica", () => {
         fallar = true;
         render(enMarco("l", <CivicAlchemyWidget />));
         expect(await screen.findByText(/No se pudo mirar el Ágora ahora; puedes proponer igual/)).toBeInTheDocument();
+    });
+});
+
+describe("Flujo vital (mandatos)", () => {
+    function conMandatos() {
+        tablas.proposals = [
+            ...tablas.proposals,
+            { id: "m1", scope: "global", scope_ref: null, title: "Huerto en el solar", description: null, kind: "decision", options: [], params: {}, status: "passed", result: { execution: { status: "en_ejecucion", progress: 40, responsibleLabel: "Ana", reports: [{ at: new Date(T0 - 7_200_000).toISOString(), note: "semillas" }] } }, created_at: new Date(T0 - 200_000_000).toISOString(), resolved_at: new Date(T0 - 100_000_000).toISOString() },
+            { id: "m2", scope: "global", scope_ref: null, title: "Paneles en la escuela", description: null, kind: "decision", options: [], params: {}, status: "executed", result: {}, created_at: new Date(T0 - 300_000_000).toISOString() },
+        ];
+    }
+    it("lee la ejecución como el Ejecutivo y ordena lo atrasado primero", () => {
+        expect(ejecucionDe("open", {})).toBeNull();
+        expect(ejecucionDe("executed", {})).toMatchObject({ estado: "completado", progreso: 100 });
+        expect(ejecucionDe("passed", { execution: { status: "en_ejecucion", progress: 140 } })).toMatchObject({ estado: "en_ejecucion", progreso: 100 });
+        conMandatos();
+        const lista = tablas.proposals.map((f) => normalizarPropuesta(f as any, [], null));
+        const r = mandatos(lista);
+        expect(r.por).toEqual({ pendiente: 1, en_ejecucion: 1, completado: 1 });
+        expect(r.lista[0].id).toBe("p2");
+    });
+    it.each(["micro", "s", "m", "l", "xl", "panoramico", "torre"] as ClaseTamano[])("audita los mandatos reales en %s", async (clase) => {
+        conMandatos();
+        render(enMarco(clase, <VitalFlowAuditWidget />));
+        expect((await screen.findAllByLabelText(/1 de 3 mandatos cumplidos/)).length).toBeGreaterThan(0);
+    });
+    it("en l se puede asumir un mandato sin responsable (real)", async () => {
+        conMandatos();
+        render(enMarco("l", <VitalFlowAuditWidget />));
+        fireEvent.click(await screen.findByRole("button", { name: "Asumir el mandato: Biblioteca de semillas" }));
+        await waitFor(() => expect(asumir).toHaveBeenCalledWith("p2"));
+        expect(await screen.findByText(/Asumes «Biblioteca de semillas»/)).toBeInTheDocument();
+    });
+    it("vacío honesto sin decisiones aprobadas", async () => {
+        tablas.proposals = [tablas.proposals[0]];
+        render(enMarco("m", <VitalFlowAuditWidget />));
+        expect(await screen.findByText("Aún no hay mandatos")).toBeInTheDocument();
     });
 });
