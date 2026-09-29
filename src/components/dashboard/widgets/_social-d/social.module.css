@@ -1,0 +1,158 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Paquete D (Ola 0929) — «Social, red y archivos». Todo queda dentro de
+   .raiz: ninguna regla sale de aquí y nada toca globals.css.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.raiz {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Fuera de pantalla o con la pestaña oculta, ninguna animación gasta compositor. */
+.raiz[data-en-pantalla="no"] *,
+.raiz[data-en-pantalla="no"] *::before,
+.raiz[data-en-pantalla="no"] *::after {
+  animation-play-state: paused !important;
+}
+
+.raiz :where(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--social-acento, #ec4899);
+  outline-offset: 2px;
+}
+
+/* TV: el foco se ve desde el sofá. */
+.raiz[data-dispositivo="tv"] :where(a, button, input, [tabindex]):focus-visible {
+  outline-width: 3px;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--social-acento, #ec4899) 25%, transparent);
+}
+
+.cuerpo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Fila que se ilumina (sin caja): halo del acento al pasar o enfocar. */
+.fila {
+  position: relative;
+  border-radius: 14px;
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.fila:hover,
+.fila:focus-within {
+  background-color: color-mix(in srgb, var(--social-acento, #ec4899) 9%, transparent);
+}
+
+.fila:active {
+  transform: scale(0.995);
+}
+
+/* Lista que se desvanece al final en vez de cortarse. */
+.desvanece {
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 22px), transparent 100%);
+}
+
+.desvaneceLado {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+
+/* Esqueleto: solo opacidad (compositor). */
+.esqueleto {
+  background: rgba(255, 255, 255, 0.06);
+  animation: socialLatido 1.6s ease-in-out infinite;
+}
+
+@keyframes socialLatido {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* Miniatura con brillo sutil al pasar. */
+.miniatura {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.miniatura img,
+.miniatura video {
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fila:hover .miniatura img,
+.tarjeta:hover .miniatura img {
+  transform: scale(1.04);
+}
+
+.tarjeta {
+  position: relative;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tarjeta:hover {
+  transform: translateY(-2px);
+}
+
+/* Barrido de radar y ondas: rotación en el compositor. */
+.barrido {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  animation: socialGiro 6s linear infinite;
+}
+
+.onda {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: socialOnda 3.6s ease-out infinite;
+}
+
+@keyframes socialGiro {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes socialOnda {
+  0% { transform: scale(0.4); opacity: 0.6; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+.aparece {
+  animation: socialAparece 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes socialAparece {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto,
+  .barrido,
+  .onda,
+  .aparece { animation: none; }
+  .fila,
+  .tarjeta,
+  .miniatura img { transition: none; }
+  .tarjeta:hover { transform: none; }
+}
+
+:global(html[data-perf="eco"]) .barrido,
+:global(html[data-perf="eco"]) .onda,
+:global(html[data-perf="eco"]) .aparece,
+.raiz[data-nivel="ligero"] .barrido,
+.raiz[data-nivel="ligero"] .onda,
+.raiz[data-nivel="ligero"] .aparece {
+  animation: none;
+}
