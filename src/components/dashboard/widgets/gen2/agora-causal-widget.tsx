@@ -1,247 +1,376 @@
 'use client';
 
-import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Vote, ThumbsUp, ThumbsDown, Leaf, Building2, Globe2, Users, ChevronLeft, Filter, Clock, TrendingUp } from "lucide-react";
-import { WidgetShell, ProgressBar, Chip, MiniList, timeUntil } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { LawProposal } from "@/lib/widget-data/types";
+// ════════════════════════════════════════════════════════════════
+// Ágora — propuestas VIVAS del motor de Ontocracia (Ola 0929, paquete B).
+// ----------------------------------------------------------------
+// Datos REALES: `proposals` + `proposal_votes` (lo mismo que /network/politics y
+// /decisiones), leídos una vez y compartidos con «Gobernanza directa» por la caché del
+// paquete (TTL 10 min, sin sondeo ni tiempo real). Votar es real (`castVote`): el voto
+// es público y se puede cambiar mientras la votación siga abierta.
+//
+// Un diseño por tamaño:
+//   micro      → anillo del tiempo que le queda a la próxima votación + cuántas te faltan.
+//   s          → la votación que antes cierra, con Sí / No a un toque.
+//   m          → lista con anillos de tiempo, reparto de voces y tu voto.
+//   panorámico → las votaciones en columnas, un anillo por propuesta.
+//   torre      → la próxima en grande y el resto debajo.
+//   l          → pestañas Abiertas / Por votar / Resueltas + lista + acciones.
+//   xl         → lista y detalle a la vez (reparto, quórum, umbral, votar).
+// Estados honestos: cargando, error con reintento, vacío con «Proponer».
+// ════════════════════════════════════════════════════════════════
+
+import { useCallback, useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { Vote, RefreshCw, Plus, ExternalLink, Landmark, Check } from "lucide-react";
+import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../../kit";
+import { useCurrentUid } from "@/lib/widget-data/os-live";
 import { cn } from "@/lib/utils";
+import { useDatoCompartido, type ResultadoDato } from "./_paquete-b/cache-compartida";
+import { cargarAgora, etiquetaOpcion, resumenCivico, tiempoDe, type DatosAgora, type PropuestaViva } from "./_paquete-b/datos-civicos";
+import {
+    AccionB, AnilloB, PestanasB, RaizB, RotuloB, colorOpcion, estilosB, haloB, tintaB,
+    useAhoraB, useLienzoB, useVisibleB, type LienzoB,
+} from "./_paquete-b/piezas-b";
+import { AMBAR_URGENTE, DetallePropuestaB, FilaPropuestaB, colorAnillo, useVotoB, type VotoB } from "./_paquete-b/propuesta-b";
 
-const scopeIcon = { vecinal: Users, municipal: Building2, biorregional: Leaf, global: Globe2 } as const;
-const scopeLabel = { vecinal: "Vecinal", municipal: "Municipal", biorregional: "Biorregional", global: "Global" } as const;
-const stageColor: Record<LawProposal["stage"], string> = {
-    borrador: "hsl(var(--muted-foreground))",
-    firmas: "#38bdf8",
-    debate: "#f59e0b",
-    votacion: "#10b981",
-    ratificada: "#a78bfa",
-};
-const stageLabel: Record<LawProposal["stage"], string> = {
-    borrador: "Borrador", firmas: "Firmas", debate: "Debate", votacion: "Votación", ratificada: "Ratificada",
-};
-
-type Vote = "favor" | "contra";
-type StageFilter = "todas" | "debate" | "votacion" | "ratificada";
-const FILTERS: { id: StageFilter; label: string }[] = [
-    { id: "todas", label: "Todas" },
-    { id: "debate", label: "En debate" },
-    { id: "votacion", label: "En votación" },
-    { id: "ratificada", label: "Aprobadas" },
-];
+const FAMILIA = { acento: "#dc143c", acento2: "#23d5ab" };
+type Filtro = "abiertas" | "pendientes" | "resueltas";
 
 export function AgoraCausalWidget() {
-    const { data, loading } = useWidgetData("politics.proposals", { refreshMs: 6000 });
-    const [votes, setVotes] = useState<Record<string, Vote>>({});
-    const [filter, setFilter] = useState<StageFilter>("todas");
-    const [openId, setOpenId] = useState<string | null>(null);
-
-    const proposals = data ?? [];
-
-    // Conteo local de votos por propuesta (determinista desde id + voto local).
-    function baseTally(p: LawProposal): { favor: number; contra: number } {
-        let h = 0;
-        for (let i = 0; i < p.id.length; i++) h = (h * 31 + p.id.charCodeAt(i)) >>> 0;
-        const favor = p.support;
-        const contra = Math.round(p.support * (0.25 + (h % 100) / 100 * 0.35));
-        return { favor, contra };
-    }
-
-    function tally(p: LawProposal): { favor: number; contra: number } {
-        const t = baseTally(p);
-        const v = votes[p.id] ?? (p.youVoted === "favor" || p.youVoted === "contra" ? p.youVoted : undefined);
-        if (v === "favor") return { favor: t.favor + 1, contra: t.contra };
-        if (v === "contra") return { favor: t.favor, contra: t.contra + 1 };
-        return t;
-    }
-
-    const filtered = useMemo(() => {
-        const arr = filter === "todas" ? proposals : proposals.filter((p) => p.stage === filter);
-        const order = { votacion: 0, debate: 1, firmas: 2, ratificada: 3, borrador: 4 };
-        return [...arr].sort((a, b) => (order[a.stage] - order[b.stage]) || (a.deadlineTs - b.deadlineTs));
-    }, [proposals, filter]);
-
-    const openProposal = openId ? proposals.find((p) => p.id === openId) ?? null : null;
-
-    function cast(id: string, v: Vote) {
-        setVotes((prev) => ({ ...prev, [id]: prev[id] === v ? (undefined as unknown as Vote) : v }));
-    }
+    const marco = useMarcoUnificado();
+    const { uid, ready } = useCurrentUid();
+    const clave = ready ? `agora.v1.${uid ?? "anon"}` : null;
+    const cargar = useCallback(() => cargarAgora(uid), [uid]);
+    const datos = useDatoCompartido(clave, cargar);
+    const voto = useVotoB(clave, uid, cargar);
+    const micro = marco?.base === "micro";
 
     return (
         <WidgetShell
-            title="Ágora Causal"
-            subtitle="Soberanía directa"
+            title="Ágora"
+            subtitle="Propuestas en votación"
             icon={Vote}
-            accent="#10b981"
-            live
-            connections={[
-                { label: "Gobernanza", href: "/network/politics", color: "#FFBF00" },
-                { label: "Comunidades", href: "/hub", color: "#9FE870" },
-            ]}
+            bare={micro}
+            actions={
+                <button
+                    type="button"
+                    onClick={datos.recargar}
+                    aria-label="Actualizar el Ágora"
+                    title={datos.actualizado ? `Leído ${new Date(datos.actualizado).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : "Actualizar"}
+                    className="grid size-7 cursor-pointer place-items-center rounded-full ss-redondo text-white/70 transition-colors hover:text-white"
+                >
+                    <RefreshCw className={cn("size-3.5", datos.estado === "cargando" && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                </button>
+            }
         >
-            {(size) => {
-                if (loading && !data) return <Skeleton />;
-
-                // ── Vista de detalle / expandida de una propuesta ──
-                if (openProposal) {
-                    const t = tally(openProposal);
-                    const total = t.favor + t.contra || 1;
-                    const favorPct = t.favor / total;
-                    const myVote = votes[openProposal.id] ?? (openProposal.youVoted === "favor" || openProposal.youVoted === "contra" ? openProposal.youVoted : undefined);
-                    const Scope = scopeIcon[openProposal.scope];
-                    const pct = Math.min(1, openProposal.support / openProposal.threshold);
-                    return (
-                        <div className="flex flex-col gap-2.5 pt-1 h-full">
-                            <button onClick={() => setOpenId(null)}
-                                className="self-start inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer">
-                                <ChevronLeft className="size-3" /> Volver
-                            </button>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                                <Chip color={stageColor[openProposal.stage]}>{stageLabel[openProposal.stage]}</Chip>
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground/70">
-                                    <Scope className="size-3" /> {scopeLabel[openProposal.scope]}
-                                </span>
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground/70 ml-auto">
-                                    <Clock className="size-3" /> {timeUntil(openProposal.deadlineTs)}
-                                </span>
-                            </div>
-                            <h4 className="text-sm @sm:text-base font-black leading-tight">{openProposal.title}</h4>
-                            <p className="text-[11px] text-muted-foreground/80 leading-relaxed">{openProposal.summary}</p>
-
-                            <div className="rounded-2xl border border-border/40 bg-white/[0.03] p-3 space-y-2">
-                                <div className="flex items-center justify-between text-[10px] font-bold">
-                                    <span className="text-emerald-400">A favor · {t.favor.toLocaleString()}</span>
-                                    <span className="text-rose-400">En contra · {t.contra.toLocaleString()}</span>
-                                </div>
-                                <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-rose-500/30">
-                                    <motion.div className="h-full rounded-full bg-gradient-to-r from-emerald-500/60 to-emerald-400"
-                                        initial={{ width: 0 }} animate={{ width: `${favorPct * 100}%` }} transition={{ duration: 0.7, ease: "easeOut" }} />
-                                </div>
-                                <ProgressBar value={pct} color={stageColor[openProposal.stage]} showPct
-                                    label={`Apoyo: ${openProposal.support.toLocaleString()} / ${openProposal.threshold.toLocaleString()}`} height={6} />
-                            </div>
-
-                            {/* Impacto previsto */}
-                            <div className="grid grid-cols-3 gap-1.5">
-                                {([
-                                    ["Fiscal", openProposal.impact.taxes],
-                                    ["Ecología", openProposal.impact.ecology],
-                                    ["Sector", openProposal.impact.sector],
-                                ] as const).map(([label, val]) => {
-                                    const positive = val >= 0;
-                                    return (
-                                        <div key={label} className="rounded-xl border border-border/40 bg-white/[0.02] px-2 py-1.5 text-center">
-                                            <div className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60">{label}</div>
-                                            <div className={cn("mt-0.5 inline-flex items-center gap-0.5 text-xs font-black tabular-nums", positive ? "text-emerald-400" : "text-rose-400")}>
-                                                <TrendingUp className={cn("size-3", !positive && "rotate-180")} />
-                                                {positive ? "+" : ""}{Math.round(val * 100)}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 mt-auto">
-                                <VoteButton kind="favor" active={myVote === "favor"} onClick={() => cast(openProposal.id, "favor")} />
-                                <VoteButton kind="contra" active={myVote === "contra"} onClick={() => cast(openProposal.id, "contra")} />
-                            </div>
-                        </div>
-                    );
-                }
-
-                const max = size.vTier === "micro" ? 2 : size.vTier === "compact" ? 3 : size.vTier === "regular" ? 4 : 7;
-                const showFilters = size.tier !== "micro" && size.vTier !== "micro";
-
-                return (
-                    <div className="flex flex-col gap-2 pt-1 h-full">
-                        {showFilters && (
-                            <div className="shrink-0 flex items-center gap-1 overflow-x-auto custom-scrollbar pb-0.5">
-                                <Filter className="size-3 shrink-0 text-muted-foreground/50" />
-                                {FILTERS.map((f) => {
-                                    const count = f.id === "todas" ? proposals.length : proposals.filter((p) => p.stage === f.id).length;
-                                    return (
-                                        <button key={f.id} onClick={() => setFilter(f.id)}
-                                            className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer",
-                                                filter === f.id ? "bg-emerald-500/20 border-emerald-500/45 text-emerald-300" : "border-border/40 text-muted-foreground/60 hover:border-emerald-500/30")}>
-                                            {f.label} {count > 0 && <span className="opacity-60">{count}</span>}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        <div className="flex-1 min-h-0">
-                            <MiniList
-                                items={filtered}
-                                max={max}
-                                empty="Sin propuestas en esta fase"
-                                render={(p) => {
-                                    const Scope = scopeIcon[p.scope];
-                                    const t = tally(p);
-                                    const myVote = votes[p.id] ?? (p.youVoted === "favor" || p.youVoted === "contra" ? p.youVoted : undefined);
-                                    const pct = Math.min(1, p.support / p.threshold);
-                                    const detailed = size.tier !== "micro";
-                                    return (
-                                        <div className="rounded-2xl border border-border/40 bg-white/[0.03] p-2.5 @sm:p-3 hover:border-emerald-500/30 transition-colors">
-                                            <button onClick={() => setOpenId(p.id)} className="w-full text-left cursor-pointer">
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <Chip color={stageColor[p.stage]}>{stageLabel[p.stage]}</Chip>
-                                                    {detailed && <Scope className="size-3 text-muted-foreground/60" />}
-                                                    {detailed && <span className="ml-auto inline-flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground/50"><Clock className="size-2.5" />{timeUntil(p.deadlineTs)}</span>}
-                                                </div>
-                                                <h4 className="mt-1 text-xs @sm:text-sm font-bold leading-tight line-clamp-1">{p.title}</h4>
-                                                {detailed && size.vTier !== "compact" && (
-                                                    <p className="mt-0.5 text-[10px] text-muted-foreground/60 line-clamp-2 leading-snug">{p.summary}</p>
-                                                )}
-                                            </button>
-                                            <div className="mt-2">
-                                                <ProgressBar value={pct} color={stageColor[p.stage]} showPct label={`${p.support.toLocaleString()} / ${p.threshold.toLocaleString()}`} />
-                                            </div>
-                                            {(p.stage === "votacion" || p.stage === "debate") && (
-                                                <div className="mt-2 grid grid-cols-2 gap-1.5">
-                                                    <VoteButton kind="favor" compact active={myVote === "favor"} count={t.favor} onClick={() => cast(p.id, "favor")} />
-                                                    <VoteButton kind="contra" compact active={myVote === "contra"} count={t.contra} onClick={() => cast(p.id, "contra")} />
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                }}
-                            />
-                        </div>
-                    </div>
-                );
-            }}
+            {(size) => <CuerpoAgora size={size} uid={uid} datos={datos} voto={voto} />}
         </WidgetShell>
     );
 }
 
-function VoteButton({ kind, active, onClick, compact, count }: { kind: Vote; active: boolean; onClick: () => void; compact?: boolean; count?: number }) {
-    const isFavor = kind === "favor";
-    const Icon = isFavor ? ThumbsUp : ThumbsDown;
+function CuerpoAgora({ size, uid, datos, voto }: {
+    size: ElementSize;
+    uid: string | null;
+    datos: ResultadoDato<DatosAgora>;
+    voto: VotoB;
+}) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    const ahora = useAhoraB(30_000, visible);
+    const [filtro, setFiltro] = useState<Filtro>("abiertas");
+    const [abierta, setAbierta] = useState<string | null>(null);
+
+    const lista = useMemo(() => (datos.dato?.propuestas ?? []).map(voto.aplicar), [datos.dato, voto.aplicar]);
+    const t = ahora ?? 0;
+    const res = useMemo(() => resumenCivico(lista, t || undefined), [lista, t]);
+
+    const contenido = (() => {
+        if (!datos.dato || !ahora) {
+            if (datos.estado === "error") return <WidgetErrorState message={datos.error ?? "No se pudo leer el Ágora."} onRetry={datos.recargar} />;
+            return <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "list"} rows={3} />;
+        }
+        if (lista.length === 0) {
+            if (lienzo.base === "micro") return <MicroVacio lienzo={lienzo} />;
+            return (
+                <WidgetEmptyState icon={Landmark} title="El Ágora está en calma"
+                    message="Aún no hay propuestas en tu red. Abre la primera: se decide entre todas las personas."
+                    actionLabel="Proponer" actionHref="/decisiones?nueva=1" accent={lienzo.acento} />
+            );
+        }
+        const detalle = abierta ? lista.find((p) => p.id === abierta) ?? null : null;
+        if (detalle && lienzo.base !== "xl") {
+            return <DetallePropuestaB p={detalle} ahora={ahora} lienzo={lienzo} uid={uid} voto={voto} onVolver={() => setAbierta(null)} grande={lienzo.base === "l"} />;
+        }
+        switch (lienzo.base) {
+            case "micro": return <Micro res={res} ahora={ahora} lienzo={lienzo} />;
+            case "s": return <Pequeno res={res} lista={lista} ahora={ahora} lienzo={lienzo} uid={uid} voto={voto} abrir={setAbierta} />;
+            case "m":
+                if (lienzo.clase === "panoramico") return <Panoramico lista={lista} ahora={ahora} lienzo={lienzo} size={size} abrir={setAbierta} />;
+                if (lienzo.clase === "torre") return <Torre res={res} lista={lista} ahora={ahora} lienzo={lienzo} size={size} abrir={setAbierta} />;
+                return <Mediano res={res} lista={lista} ahora={ahora} lienzo={lienzo} size={size} abrir={setAbierta} />;
+            case "l": return <Grande res={res} lista={lista} ahora={ahora} lienzo={lienzo} size={size} filtro={filtro} setFiltro={setFiltro} abrir={setAbierta} />;
+            default: return (
+                <Enorme res={res} lista={lista} ahora={ahora} lienzo={lienzo} size={size} filtro={filtro} setFiltro={setFiltro}
+                    seleccion={detalle ?? res.proxima ?? lista[0]} abrir={setAbierta} uid={uid} voto={voto} />
+            );
+        }
+    })();
+
     return (
-        <button
-            onClick={onClick}
-            className={cn(
-                "flex items-center justify-center gap-1.5 rounded-xl font-black uppercase tracking-wider border transition-colors cursor-pointer",
-                compact ? "py-1.5 text-[10px]" : "py-2.5 text-xs",
-                active
-                    ? isFavor ? "bg-emerald-500/25 border-emerald-500/50 text-emerald-300" : "bg-rose-500/25 border-rose-500/50 text-rose-300"
-                    : isFavor ? "bg-white/5 border-border/40 hover:border-emerald-500/40 text-muted-foreground" : "bg-white/5 border-border/40 hover:border-rose-500/40 text-muted-foreground"
-            )}>
-            <Icon className={compact ? "size-3" : "size-4"} /> {isFavor ? "A favor" : "Contra"}
-            {typeof count === "number" && <span className="opacity-60 tabular-nums">{count.toLocaleString()}</span>}
-        </button>
+        <RaizB ref={ref} lienzo={lienzo} visible={visible}>
+            {datos.dato && datos.error && lienzo.base !== "micro" && (
+                <p role="status" className="mb-1 text-[11px] text-amber-200/80">{datos.error}</p>
+            )}
+            {contenido}
+        </RaizB>
     );
 }
 
-function Skeleton() {
+type Resumen = ReturnType<typeof resumenCivico>;
+
+function filtrar(lista: PropuestaViva[], f: Filtro): PropuestaViva[] {
+    if (f === "abiertas") return lista.filter((p) => p.estado === "open");
+    if (f === "pendientes") return lista.filter((p) => p.estado === "open" && !p.miVoto);
+    return lista.filter((p) => p.estado !== "open");
+}
+
+/** Cuántas filas caben (≈ 50 px cada una) dejando sitio a cabecera y acciones. */
+function filasQueCaben(alto: number, reservado: number, porFila = 50, max = 7): number {
+    return Math.max(1, Math.min(max, Math.floor((alto - reservado) / porFila)));
+}
+
+function MicroVacio({ lienzo }: { lienzo: LienzoB }) {
     return (
-        <div className="space-y-2 pt-1">
-            <AnimatePresence>
-                {[0, 1, 2].map((i) => (
-                    <motion.div key={i} animate={{ opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
-                        className="h-16 rounded-2xl bg-muted/15" />
-                ))}
-            </AnimatePresence>
+        <Link href="/decisiones?nueva=1" aria-label="El Ágora está en calma: sin propuestas abiertas. Proponer" className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}>
+            <AnilloB fraccion={0} lado={64} color={lienzo.acento}>
+                <text x={32} y={34} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,.75)" fontSize={11} fontWeight={600}>calma</text>
+            </AnilloB>
+        </Link>
+    );
+}
+
+function Micro({ res, ahora, lienzo }: { res: Resumen; ahora: number; lienzo: LienzoB }) {
+    const p = res.proxima;
+    const tt = p ? tiempoDe(p, ahora) : null;
+    const lado = 72;
+    const gid = `agm${useId().replace(/:/g, "")}`;
+    const cifra = res.porVotar || res.abiertas;
+    const etiqueta = p
+        ? `${res.porVotar} por votar de ${res.abiertas} abiertas. La próxima cierra en ${tt?.texto}: ${p.titulo}`
+        : "Sin votaciones abiertas";
+    return (
+        <Link href="/network/politics" aria-label={etiqueta} title={etiqueta} className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}>
+            <AnilloB fraccion={tt?.fraccion ?? 0} lado={lado} color={p ? colorAnillo(p, ahora, lienzo.acento) : lienzo.acento} urgente={tt?.urgente} gradienteId={gid}>
+                <text x={lado / 2} y={lado / 2 - 4} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={22} fontWeight={300} style={{ fontVariantNumeric: "tabular-nums" }}>{cifra}</text>
+                <text x={lado / 2} y={lado / 2 + 14} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,.6)" fontSize={9} fontWeight={600} letterSpacing=".08em">
+                    {res.porVotar ? "POR VOTAR" : p ? "ABIERTAS" : "EN CALMA"}
+                </text>
+            </AnilloB>
+        </Link>
+    );
+}
+
+function Pequeno({ res, lista, ahora, lienzo, uid, voto, abrir }: {
+    res: Resumen; lista: PropuestaViva[]; ahora: number; lienzo: LienzoB; uid: string | null; voto: VotoB; abrir: (id: string) => void;
+}) {
+    const p = res.proxima ?? lista[0];
+    const tt = tiempoDe(p, ahora);
+    const lado = lienzo.tv ? 60 : 50;
+    const rapido = p.estado === "open" && p.siNo && uid && !p.miVoto;
+    return (
+        <div className="flex h-full min-h-0 flex-col gap-2">
+            <button type="button" onClick={() => abrir(p.id)} aria-label={`${p.titulo}. ${tt.abierta ? `Quedan ${tt.texto}` : "Cerrada"}. Abrir detalle`}
+                className={cn(estilosB.foco, "flex min-h-0 cursor-pointer items-center gap-2.5 rounded-[14px] text-left")}>
+                <AnilloB fraccion={tt.abierta ? tt.fraccion : 1} lado={lado} color={colorAnillo(p, ahora, lienzo.acento)} urgente={tt.urgente}>
+                    <text x={lado / 2} y={lado / 2} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={lado * 0.22} fontWeight={600}>
+                        {tt.abierta ? tt.texto.split(" ").slice(0, 2).join(" ") : "fin"}
+                    </text>
+                </AnilloB>
+                <span className="min-w-0 flex-1">
+                    <RotuloB color={tt.urgente ? AMBAR_URGENTE : undefined}>{tt.abierta ? "Cierra antes" : "Última"}</RotuloB>
+                    <span className="mt-0.5 block text-[13px] font-semibold leading-snug text-white line-clamp-3" title={p.titulo}>{p.titulo}</span>
+                </span>
+            </button>
+            <div className="mt-auto flex items-center gap-1.5">
+                {rapido ? (
+                    ["yes", "no"].map((o, i) => (
+                        <button key={o} type="button" disabled={voto.enviando === p.id} onClick={() => voto.votar(p, o)}
+                            className={cn(estilosB.foco, "flex-1 cursor-pointer whitespace-nowrap rounded-full ss-redondo font-semibold text-white transition-transform duration-200 hover:scale-[1.04] disabled:opacity-60 motion-reduce:transition-none", lienzo.tactil ? "min-h-11 text-[13px]" : "min-h-8 text-[12px]")}
+                            style={haloB(colorOpcion(o, i), 0.16, 0.5)} aria-label={`Votar ${o === "yes" ? "Sí" : "No"}: ${p.titulo}`}>
+                            {o === "yes" ? "Sí" : "No"}
+                        </button>
+                    ))
+                ) : p.miVoto ? (
+                    <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-white/80"><Check className="size-3.5" style={{ color: colorOpcion(p.miVoto, p.opciones.findIndex((o) => o.id === p.miVoto)) }} aria-hidden />Tu voto: {etiquetaOpcion(p, p.miVoto)}</span>
+                ) : (
+                    <AccionB onClick={() => abrir(p.id)} color={lienzo.acento} tactil={lienzo.tactil}>{p.estado === "open" ? "Votar" : "Ver"}</AccionB>
+                )}
+                {res.porVotar > 1 && <span className="ml-auto whitespace-nowrap text-[11px] tabular-nums text-white/55">+{res.porVotar - (rapido ? 1 : 0)} por votar</span>}
+            </div>
+        </div>
+    );
+}
+
+function Acciones({ lienzo }: { lienzo: LienzoB }) {
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <AccionB href="/decisiones?nueva=1" icono={Plus} color={lienzo.acento} tono="llena" tactil={lienzo.tactil}>Proponer</AccionB>
+            <AccionB href="/network/politics" icono={ExternalLink} color={lienzo.acento2} tactil={lienzo.tactil}>Todo el Ágora</AccionB>
+        </div>
+    );
+}
+
+function LineaResumen({ res, lienzo }: { res: Resumen; lienzo: LienzoB }) {
+    return (
+        <p className="flex flex-wrap items-baseline gap-x-2 text-[12px] tabular-nums text-white/60">
+            <span><b className="text-[15px] font-semibold text-white">{res.abiertas}</b> abiertas</span>
+            <span aria-hidden>·</span>
+            <span style={{ color: res.porVotar ? tintaB(lienzo.acento, 0.45) : undefined }}><b className="font-semibold">{res.porVotar}</b> por votar</span>
+            {res.participacion !== null && <><span aria-hidden>·</span><span>tu voz en {Math.round(res.participacion * 100)} %</span></>}
+        </p>
+    );
+}
+
+function Mediano({ res, lista, ahora, lienzo, size, abrir }: {
+    res: Resumen; lista: PropuestaViva[]; ahora: number; lienzo: LienzoB; size: ElementSize; abrir: (id: string) => void;
+}) {
+    const n = filasQueCaben(size.height, 150, 52, 4);
+    const visibles = lista.slice(0, n);
+    return (
+        <div className="flex h-full min-h-0 flex-col gap-2">
+            <LineaResumen res={res} lienzo={lienzo} />
+            <ul className="flex min-h-0 flex-col gap-0.5" aria-label="Propuestas">
+                {visibles.map((p) => <li key={p.id}><FilaPropuestaB p={p} ahora={ahora} lienzo={lienzo} onAbrir={() => abrir(p.id)} /></li>)}
+            </ul>
+            <div className="mt-auto"><Acciones lienzo={lienzo} /></div>
+        </div>
+    );
+}
+
+function Panoramico({ lista, ahora, lienzo, size, abrir }: {
+    lista: PropuestaViva[]; ahora: number; lienzo: LienzoB; size: ElementSize; abrir: (id: string) => void;
+}) {
+    const columnas = Math.max(2, Math.min(4, Math.floor(size.width / 170)));
+    const visibles = lista.slice(0, columnas);
+    const lado = Math.max(40, Math.min(72, size.height - 110));
+    return (
+        <div className="grid h-full min-h-0 items-stretch gap-2" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
+            {visibles.map((p) => {
+                const tt = tiempoDe(p, ahora);
+                return (
+                    <button key={p.id} type="button" onClick={() => abrir(p.id)} title={p.titulo}
+                        aria-label={`${p.titulo}. ${tt.abierta ? `Quedan ${tt.texto}` : "Cerrada"}. ${p.miVoto ? `Tu voto: ${etiquetaOpcion(p, p.miVoto)}` : "Sin tu voto"}`}
+                        className={cn(estilosB.foco, estilosB.fila, "flex min-w-0 cursor-pointer flex-col items-center gap-1.5 rounded-[16px] px-1.5 py-1 text-center")}>
+                        <AnilloB fraccion={tt.abierta ? tt.fraccion : 1} lado={lado} color={colorAnillo(p, ahora, lienzo.acento)} urgente={tt.urgente}>
+                            <text x={lado / 2} y={lado / 2} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={lado * 0.2} fontWeight={600}>
+                                {tt.abierta ? tt.texto.split(" ").slice(0, 2).join(" ") : p.participantes}
+                            </text>
+                        </AnilloB>
+                        <span className="text-[12px] font-semibold leading-snug text-white/90 line-clamp-2">{p.titulo}</span>
+                        <span className="text-[11px] text-white/55">{p.miVoto ? `Tu voto: ${etiquetaOpcion(p, p.miVoto)}` : p.estado === "open" ? "sin tu voto" : "cerrada"}</span>
+                    </button>
+                );
+            })}
+            {visibles.length < columnas && (
+                <Link href="/decisiones?nueva=1" className={cn(estilosB.foco, estilosB.fila, "flex flex-col items-center justify-center gap-1.5 rounded-[16px] text-center text-[12px] font-semibold text-white/75")}>
+                    <span className="grid size-10 place-items-center rounded-full" style={haloB(lienzo.acento)}><Plus className="size-4" aria-hidden /></span>
+                    Proponer
+                </Link>
+            )}
+        </div>
+    );
+}
+
+function Torre({ res, lista, ahora, lienzo, size, abrir }: {
+    res: Resumen; lista: PropuestaViva[]; ahora: number; lienzo: LienzoB; size: ElementSize; abrir: (id: string) => void;
+}) {
+    const p = res.proxima ?? lista[0];
+    const tt = tiempoDe(p, ahora);
+    const lado = Math.max(72, Math.min(120, size.width * 0.55));
+    const gid = `agt${useId().replace(/:/g, "")}`;
+    const resto = lista.filter((x) => x.id !== p.id).slice(0, filasQueCaben(size.height, lado + 190, 52, 5));
+    return (
+        <div className="flex h-full min-h-0 flex-col items-stretch gap-2">
+            <button type="button" onClick={() => abrir(p.id)} aria-label={`${p.titulo}. ${tt.abierta ? `Quedan ${tt.texto}` : "Cerrada"}. Abrir detalle`}
+                className={cn(estilosB.foco, "flex cursor-pointer flex-col items-center gap-1.5 rounded-[16px] text-center")}>
+                <AnilloB fraccion={tt.abierta ? tt.fraccion : 1} lado={lado} color={colorAnillo(p, ahora, lienzo.acento)} urgente={tt.urgente} gradienteId={gid}>
+                    <text x={lado / 2} y={lado / 2 - 4} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={lado * 0.19} fontWeight={300}>{tt.abierta ? tt.texto : "cerrada"}</text>
+                    <text x={lado / 2} y={lado / 2 + lado * 0.16} textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,.55)" fontSize={Math.max(9, lado * 0.09)}>{tt.abierta ? "para cerrar" : `${p.participantes} voces`}</text>
+                </AnilloB>
+                <span className="text-[14px] font-semibold leading-snug text-white line-clamp-3">{p.titulo}</span>
+            </button>
+            <LineaResumen res={res} lienzo={lienzo} />
+            <ul className="flex min-h-0 flex-col gap-0.5" aria-label="Más propuestas">
+                {resto.map((x) => <li key={x.id}><FilaPropuestaB p={x} ahora={ahora} lienzo={lienzo} onAbrir={() => abrir(x.id)} conReparto={false} /></li>)}
+            </ul>
+            <div className="mt-auto"><Acciones lienzo={lienzo} /></div>
+        </div>
+    );
+}
+
+function Grande({ res, lista, ahora, lienzo, size, filtro, setFiltro, abrir }: {
+    res: Resumen; lista: PropuestaViva[]; ahora: number; lienzo: LienzoB; size: ElementSize;
+    filtro: Filtro; setFiltro: (f: Filtro) => void; abrir: (id: string) => void;
+}) {
+    const filtradas = filtrar(lista, filtro);
+    const n = filasQueCaben(size.height, 170, 54, 6);
+    return (
+        <div className="flex h-full min-h-0 flex-col gap-2">
+            <PestanasB etiqueta="Filtrar propuestas" valor={filtro} onCambio={setFiltro} color={lienzo.acento} tactil={lienzo.tactil}
+                opciones={[
+                    { id: "abiertas", etiqueta: "Abiertas", n: res.abiertas },
+                    { id: "pendientes", etiqueta: "Por votar", n: res.porVotar },
+                    { id: "resueltas", etiqueta: "Resueltas", n: lista.length - res.abiertas },
+                ]} />
+            {filtradas.length === 0 ? (
+                <p role="status" className="py-3 text-center text-[12px] text-white/60">
+                    {filtro === "pendientes" ? "Tu voz está al día: no te falta ninguna votación." : filtro === "abiertas" ? "No hay votaciones abiertas ahora mismo." : "Aún no se ha resuelto ninguna."}
+                </p>
+            ) : (
+                <ul className="flex min-h-0 flex-col gap-0.5" aria-label="Propuestas">
+                    {filtradas.slice(0, n).map((p) => <li key={p.id}><FilaPropuestaB p={p} ahora={ahora} lienzo={lienzo} onAbrir={() => abrir(p.id)} /></li>)}
+                </ul>
+            )}
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
+                <Acciones lienzo={lienzo} />
+                {filtradas.length > n && <span className="text-[11px] tabular-nums text-white/50">+{filtradas.length - n} más</span>}
+            </div>
+        </div>
+    );
+}
+
+function Enorme({ res, lista, ahora, lienzo, size, filtro, setFiltro, seleccion, abrir, uid, voto }: {
+    res: Resumen; lista: PropuestaViva[]; ahora: number; lienzo: LienzoB; size: ElementSize;
+    filtro: Filtro; setFiltro: (f: Filtro) => void; seleccion: PropuestaViva; abrir: (id: string) => void;
+    uid: string | null; voto: VotoB;
+}) {
+    const filtradas = filtrar(lista, filtro);
+    const n = filasQueCaben(size.height, 190, 56, 8);
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.1fr)" }}>
+            <div className="flex min-h-0 flex-col gap-2">
+                <LineaResumen res={res} lienzo={lienzo} />
+                <PestanasB etiqueta="Filtrar propuestas" valor={filtro} onCambio={setFiltro} color={lienzo.acento} tactil={lienzo.tactil}
+                    opciones={[
+                        { id: "abiertas", etiqueta: "Abiertas", n: res.abiertas },
+                        { id: "pendientes", etiqueta: "Por votar", n: res.porVotar },
+                        { id: "resueltas", etiqueta: "Resueltas", n: lista.length - res.abiertas },
+                    ]} />
+                {filtradas.length === 0 ? (
+                    <p role="status" className="py-3 text-[12px] text-white/60">{filtro === "pendientes" ? "Tu voz está al día." : "Nada en esta vista."}</p>
+                ) : (
+                    <ul className="flex min-h-0 flex-col gap-0.5" aria-label="Propuestas">
+                        {filtradas.slice(0, n).map((p) => (
+                            <li key={p.id}><FilaPropuestaB p={p} ahora={ahora} lienzo={lienzo} onAbrir={() => abrir(p.id)} seleccionada={p.id === seleccion.id} /></li>
+                        ))}
+                    </ul>
+                )}
+                <div className="mt-auto"><Acciones lienzo={lienzo} /></div>
+            </div>
+            <section aria-label="Detalle de la propuesta" className="min-h-0 overflow-auto border-l border-white/[0.08] pl-4">
+                <DetallePropuestaB p={seleccion} ahora={ahora} lienzo={lienzo} uid={uid} voto={voto} grande />
+            </section>
         </div>
     );
 }
