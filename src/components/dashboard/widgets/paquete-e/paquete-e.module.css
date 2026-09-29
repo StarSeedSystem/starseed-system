@@ -166,3 +166,18 @@
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
   overscroll-behavior: contain;
 }
+
+/* ── Teclas (calculadora): la regla global cuadra todo <button> con !important; aquí la
+   especificidad de clase + !important recupera el squircle propio. ── */
+.tecla {
+  border-radius: 14px !important;
+  transition: transform 120ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.tecla:active {
+  transform: scale(0.94);
+}
+
+.tecla[data-pulsada="si"] {
+  transform: scale(0.94);
+}
