@@ -41,6 +41,7 @@ import type { ClaseTamano } from "@/lib/widgets/forma/tamanos";
 import { __reiniciarCacheB } from "../../gen2/_paquete-b/cache-compartida";
 import { donDe, enlaceComponer, extraerEtiquetas, resonancia } from "../../gen2/_paquete-b/datos-red";
 import { GiftAgoraWidget } from "../gift-agora-widget";
+import { SocialResonanceWidget, empaquetar, voces } from "../social-resonance-widget";
 
 const H = 3_600_000;
 const T0 = Date.now();
@@ -101,5 +102,38 @@ describe("Ágora del don", () => {
         falla = true;
         render(enMarco("m", <GiftAgoraWidget />));
         expect(await screen.findByText("No se pudieron leer las publicaciones de la Red.")).toBeInTheDocument();
+    });
+});
+
+describe("Resonancia social", () => {
+    it("empaqueta burbujas sin solaparse y pone voces distintas primero", () => {
+        const temas = Array.from({ length: 8 }, (_, i) => ({ etiqueta: `t${i}`, n: 8 - i, calor: 1 - i / 10, ultima: T0, ids: [] }));
+        const b = empaquetar(temas, 200, 140);
+        expect(b.length).toBeGreaterThan(4);
+        for (let i = 0; i < b.length; i++) for (let j = i + 1; j < b.length; j++) {
+            expect(Math.hypot(b[i].x - b[j].x, b[i].y - b[j].y)).toBeGreaterThanOrEqual(b[i].r + b[j].r);
+        }
+        const v = voces([
+            { id: "1", autor: "Ana", ts: 3, titulo: "a", cuerpo: "" },
+            { id: "2", autor: "Ana", ts: 2, titulo: "b", cuerpo: "" },
+            { id: "3", autor: "Luis", ts: 1, titulo: "c", cuerpo: "" },
+        ]);
+        expect(v.map((p) => p.id)).toEqual(["1", "3", "2"]);
+    });
+    it.each(["micro", "s", "m", "l", "xl", "panoramico", "torre"] as ClaseTamano[])("muestra los temas reales en %s", async (clase) => {
+        render(enMarco(clase, <SocialResonanceWidget />, "#dc143c"));
+        expect((await screen.findAllByLabelText(/huerto/)).length).toBeGreaterThan(0);
+    });
+    it("una sola lectura para el don y la resonancia, y en l elegir un tema enseña sus publicaciones", async () => {
+        render(enMarco("l", <><GiftAgoraWidget /><SocialResonanceWidget /></>, "#dc143c"));
+        fireEvent.click(await screen.findByRole("button", { name: /#agua: 1 publicación/ }));
+        expect(await screen.findByRole("list", { name: "Publicaciones de #agua" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /Asamblea del jueves/ })).toHaveAttribute("href", "/post/a3");
+        expect(pedidas.filter((t) => t === "posts")).toHaveLength(1);
+    });
+    it("vacío honesto sin etiquetas", async () => {
+        filas = [{ id: "z", author_name: "Ana", created_at: iso(T0), titulo: "Hola", cuerpo: "sin etiquetas" }];
+        render(enMarco("m", <SocialResonanceWidget />, "#dc143c"));
+        expect(await screen.findByText("Aún no resuena ningún tema")).toBeInTheDocument();
     });
 });
