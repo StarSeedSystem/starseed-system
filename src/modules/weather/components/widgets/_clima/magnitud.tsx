@@ -8,7 +8,7 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 import type { ActualClima, AireReal, ClimaReal, DiaClima, HoraClima } from "@/modules/weather/datos/open-meteo";
 import { diaDeHoy, proximasHoras } from "@/modules/weather/datos/open-meteo";
-import { CargandoClima, ErrorClima, LugarClima, MarcoClima, MenuClima, RotuloClima, SelloFuente, SinUbicacion, type InfoMarco } from "./piezas";
+import { CargandoClima, ErrorClima, LugarClima, MarcoClima, MenuClima, RotuloClima, SelloFuente, SinUbicacion, type AccionExtra, type InfoMarco } from "./piezas";
 import { useDatosClima } from "./use-clima";
 
 export interface CtxMagnitud {
@@ -28,19 +28,23 @@ export interface CtxMagnitud {
     cabecera: (titulo: string, extra?: React.ReactNode) => React.ReactNode;
 }
 
-export function WidgetMagnitud({ etiqueta, acento, acento2, icono: Icono, aire = false, principal = "clima", render }: {
+export function WidgetMagnitud({ etiqueta, acento, acento2, icono: Icono, aire = false, principal = "clima", render, extra, ruta = "/clima" }: {
     etiqueta: string; acento: string; acento2: string; icono: LucideIcon; aire?: boolean | ((i: InfoMarco) => boolean);
     principal?: "clima" | "aire"; render: React.FC<CtxMagnitud>;
+    /** Acciones propias del widget en el menú (p. ej. la unidad de presión). */
+    extra?: AccionExtra[];
+    /** Ruta de la app completa. */
+    ruta?: string;
 }) {
     return (
         <MarcoClima etiqueta={etiqueta} acento={acento} acento2={acento2}>
-            {(info) => <Interior info={info} etiqueta={etiqueta} icono={Icono} aire={typeof aire === "function" ? aire(info) : aire} principal={principal} render={render} />}
+            {(info) => <Interior info={info} etiqueta={etiqueta} icono={Icono} aire={typeof aire === "function" ? aire(info) : aire} principal={principal} render={render} extra={extra} ruta={ruta} />}
         </MarcoClima>
     );
 }
 
-function Interior({ info, etiqueta, icono: Icono, aire, principal, render }: {
-    info: InfoMarco; etiqueta: string; icono: LucideIcon; aire: boolean; principal: "clima" | "aire"; render: React.FC<CtxMagnitud>;
+function Interior({ info, etiqueta, icono: Icono, aire, principal, render, extra, ruta }: {
+    info: InfoMarco; etiqueta: string; icono: LucideIcon; aire: boolean; principal: "clima" | "aire"; render: React.FC<CtxMagnitud>; extra?: AccionExtra[]; ruta: string;
 }) {
     const d = useDatosClima(info, { aire: aire || principal === "aire" });
     const id = React.useId().replace(/:/g, "");
@@ -55,7 +59,7 @@ function Interior({ info, etiqueta, icono: Icono, aire, principal, render }: {
     const c = d.clima.datos;
     const ahora = d.ahora ?? c.actual.t;
     const menu = (
-        <MenuClima info={info} ruta="/clima" rutaEtiqueta="Abrir el tiempo" alActualizar={() => { d.clima.refrescar(); if (aire || principal === "aire") d.aire.refrescar(); }} />
+        <MenuClima info={info} ruta={ruta} rutaEtiqueta="Abrir el tiempo" extra={extra} alActualizar={() => { d.clima.refrescar(); if (aire || principal === "aire") d.aire.refrescar(); }} />
     );
     const fuenteTexto = principal === "aire" ? "Open-Meteo · CAMS" : "Open-Meteo";
     const sello = <SelloFuente fuente={fuenteTexto} en={principal === "aire" ? d.aire.en : d.clima.en} />;
