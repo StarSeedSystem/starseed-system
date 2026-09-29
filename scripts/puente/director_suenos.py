@@ -459,15 +459,22 @@ def ejecutar(dir_sesion, dir_olas, sesion, tope=TOPE_PROPUESTA, seco=False, memo
     nombre_cola = "cola-suenos-propuesta-%s.json" % sesion
     texto = render_informe(c, sesion, planificadas, nombre_cola if cola else None, len(cola), tope)
     resumen = resumen_corto(c, sesion, len(cola))
+    # Rutas RELATIVAS al repositorio: esto lo enseña el Mando, que nunca devuelve rutas del disco.
     fuera = {"sesion": sesion, "cuentas": c["cuentas"], "propuestas": len(cola), "resumen": resumen,
-             "informe": os.path.join(dir_sesion, "INFORME.md"), "cola": os.path.join(dir_olas, nombre_cola) if cola else "",
-             "top": [{k: u.get(k) for k in ("titulo", "area", "lente", "archivo", "linea", "impacto", "esfuerzo",
-                                              "confianza", "verificacion", "capacidad", "privado", "puntuacion", "tarea")}
-                     for u in c["ranking"][:tope]]}
+             "informe": "starseed_memory_root/dream/profundo/%s/INFORME.md" % sesion,
+             "cola": ("starseed_memory_root/olas/%s" % nombre_cola) if cola else "",
+             "generado": time.strftime("%Y-%m-%d %H:%M:%S"),
+             "top": [dict({k: u.get(k) for k in ("titulo", "area", "lente", "archivo", "linea", "impacto", "esfuerzo",
+                                                  "confianza", "verificacion", "por", "capacidad", "privado", "puntuacion",
+                                                  "tarea", "apariciones", "ya_encargada", "seccion")},
+                          propuesta=(u.get("propuesta") or {}).get("titulo") or "")
+                     for u in c["ranking"][:max(tope, 30)]]}
     if seco:
         fuera["seco"] = True
         return fuera
     _escribir(os.path.join(dir_sesion, "INFORME.md"), texto)
+    # Lo que lee el panel del Mando (Procesos → Sueños profundos): el ranking ya hecho.
+    _escribir(os.path.join(dir_sesion, "consolidado.json"), json.dumps(fuera, ensure_ascii=False, indent=1))
     if cola:
         _escribir(os.path.join(dir_olas, nombre_cola), json.dumps(cola, ensure_ascii=False, indent=2) + "\n")
         anotar_encargadas([t["origen"]["clave"] for t in cola], memoria)

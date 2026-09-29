@@ -20,7 +20,7 @@ import type { EventoRelevo } from "@/lib/mando/tipos";
 const REPO_REMOTO = "https://github.com/StarSeedSystem/starseed-system";
 
 /** Hitos que cuentan como «cierre» de la tarea (terminan el carril). */
-const TIPOS_CIERRE = new Set(["commit", "bloqueante", "fallo", "sin_cambios", "verificado"]);
+const TIPOS_CIERRE = new Set(["commit", "bloqueante", "fallo", "sin_cambios", "verificado", "informe"]);
 
 /** Extrae un hash de commit de un texto (7–40 caracteres hexadecimales). */
 function extraerCommit(texto: string): string | null {

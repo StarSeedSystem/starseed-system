@@ -31,6 +31,7 @@ import { MedidorConsumo } from "@/components/mando/medidor-consumo";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { ESPERA_A_OTRA, cargaDePublicacion, falloDePublicacion } from "@/lib/mando/medidores";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
+import { PanelSuenos } from "@/components/mando/panel-suenos";
 import { PanelGrafo } from "@/components/mando/panel-grafo";
 import { PanelOlas } from "@/components/mando/panel-olas";
 import { PanelFlota } from "@/components/mando/panel-flota";
@@ -1979,6 +1980,8 @@ export function CentroMando() {
 
                 <TabsContent value="procesos">
                     <PanelProcesos />
+                    {/* 2026-09-29 · Sueños profundos: la flota de análisis y su verificación por Claude. */}
+                    <PanelSuenos />
                 </TabsContent>
                 <TabsContent value="director">
                     <ControlDirectores />

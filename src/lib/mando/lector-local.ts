@@ -261,6 +261,7 @@ export function tareasDeCola(crudo: unknown, nombreArchivo: string): TareaOla[] 
             cola: nombreCola,
             archivos,
             descripcion: descripcionDePrompt(datos.prompt ?? datos.descripcion),
+            ...(datos.tipo === "analisis" ? { tipo: "analisis" as const } : {}),
         });
     }
     return fuera;
@@ -343,7 +344,7 @@ export function colaInteligente(
     const tituloDe = new Map(tareas.map((t) => [t.id, t.titulo.trim()]));
     const estadoDe = (id: string): string => {
         const local = texto(objeto(progreso[id]).estado);
-        if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada"].includes(local)) return local;
+        if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada", "informe"].includes(local)) return local;
         const enGit =
             commitsGit.has(`${olaDe.get(id) ?? ""}|${id}`) ||
             commitsGit.has(`${id}|${tituloDe.get(id) ?? ""}`) ||
@@ -351,7 +352,7 @@ export function colaInteligente(
         return enGit ? "commit" : local;
     };
     const terminada = (id: string): boolean =>
-        ["commit", "sin_cambios", "sustituida", "reasignada"].includes(estadoDe(id));
+        ["commit", "sin_cambios", "sustituida", "reasignada", "informe"].includes(estadoDe(id));
     const enMarcha = new Set(latidos.map((l) => l.tarea));
 
     const fila: TareaEnFila[] = [];
@@ -554,6 +555,20 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
                 bytesLog: número(d.bytes, 0),
                 ...(tieneTexto(texto(d.titulo)) ? { titulo: texto(d.titulo) } : {}),
                 ...(tieneTexto(texto(d.proveedor)) ? { proveedor: texto(d.proveedor) } : {}),
+                // (2026-09-29) Los sueños profundos traen sus tokens (estimados) y su subfase en el
+                // propio latido: no escriben con opencode, así que su base de datos no los tiene.
+                ...(tieneTexto(texto(d.subfase)) ? { subfase: texto(d.subfase).slice(0, 80) } : {}),
+                ...(Object.keys(objeto(d.tokens)).length
+                    ? {
+                          tokens: {
+                              entrada: número(objeto(d.tokens).entrada, 0),
+                              salida: número(objeto(d.tokens).salida, 0),
+                              razonamiento: número(objeto(d.tokens).razonamiento, 0),
+                              cacheLeida: número(objeto(d.tokens).cacheLeida, 0),
+                              llamadas: número(objeto(d.tokens).llamadas, 0),
+                          },
+                      }
+                    : {}),
             });
         }
     }
@@ -692,7 +707,7 @@ export function resumirOlas(
     // o un «fallo» antiguo no valen si el commit de esa tarea ya está en main.
     const estadoDe = (id: string, ola: string): string => {
         const local = texto(objeto(progreso[id]).estado);
-        if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada"].includes(local)) return local;
+        if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada", "informe"].includes(local)) return local;
         const enGit =
             commitsGit.has(`${numero(ola)}|${id}`) ||
             commitsGit.has(`${id}|${tituloDe.get(id + "|" + ola) ?? ""}`) ||
@@ -711,7 +726,8 @@ export function resumirOlas(
         let pendientes = 0;
         for (const tarea of lista) {
             const estado = estadoDe(tarea.id, tarea.ola);
-            if (estado === "commit") procesadas += 1;
+            // (2026-09-29) Un sueño con su informe está procesado: no hay código que integrar.
+            if (estado === "commit" || estado === "informe") procesadas += 1;
             else if (CERRADAS_SIN_CAMBIOS.includes(estado)) sinCambios += 1;
             // Un agente latiendo manda sobre el estado guardado (un reintento de algo rechazado
             // está en curso aunque progreso aún diga «rechazada»). «reasignada» es de la nube:

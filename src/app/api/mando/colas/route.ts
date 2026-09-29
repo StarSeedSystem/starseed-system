@@ -33,6 +33,7 @@ import {
     decidirTarea,
     validarCola,
     reintentarTarea,
+    motivoNoNube,
     PATRON_NOMBRE,
 } from "@/lib/mando/colas";
 
@@ -63,12 +64,12 @@ export async function POST(peticion: Request): Promise<Response> {
     const nombre = typeof cuerpo.nombre === "string" ? cuerpo.nombre.trim().toLowerCase() : "";
 
     if (accion === "validar" || accion === "guardar") {
-        const { errores, tareas } = validarCola(nombre, cuerpo.tareas);
+        const { errores, tareas, avisos } = validarCola(nombre, cuerpo.tareas);
         if (accion === "validar" || errores.length > 0) {
-            return Response.json({ ok: errores.length === 0, errores, tareas }, { headers: { "Cache-Control": "no-store" } });
+            return Response.json({ ok: errores.length === 0, errores, avisos, tareas }, { headers: { "Cache-Control": "no-store" } });
         }
         const r = await guardarCola(nombre, tareas, cuerpo.sobrescribir === true);
-        return Response.json(r.ok ? { ok: true, archivo: r.archivo, tareas } : { ok: false, errores: [r.error ?? "No se pudo guardar."] }, {
+        return Response.json(r.ok ? { ok: true, archivo: r.archivo, tareas, avisos } : { ok: false, errores: [r.error ?? "No se pudo guardar."] }, {
             status: r.ok ? 200 : 409,
             headers: { "Cache-Control": "no-store" },
         });
@@ -99,6 +100,9 @@ export async function POST(peticion: Request): Promise<Response> {
             tareas = enDisco?.tareas ?? [];
         }
         if (tareas.length === 0) return Response.json({ ok: false, error: "La cola está vacía o no existe." }, { status: 400 });
+        // (2026-09-29) Ni sueños ni tareas privadas (lente de seguridad) salen de la Mac.
+        const noNube = motivoNoNube(tareas);
+        if (noNube) return Response.json({ ok: false, error: noNube }, { status: 400, headers: { "Cache-Control": "no-store" } });
         const r = await lanzarEnNube(nombre, tareas, Math.min(4, Math.max(1, Math.round(workers))), aprobacion);
         return Response.json(r, { status: r.ok ? 200 : 400, headers: { "Cache-Control": "no-store" } });
     }
