@@ -24,10 +24,26 @@ vi.mock("@/lib/widget-data/os-live", () => ({
 const actualizar = vi.fn(async () => ({}));
 vi.mock("@/utils/supabase/client", () => ({ createClient: () => ({ from: () => ({ update: () => ({ eq: actualizar }) }) }) }));
 const tareas = { tasks: [] as any[], pending: [] as any[], completed: [], add: vi.fn(), toggle: vi.fn(), remove: vi.fn(), clearCompleted: vi.fn() };
-vi.mock("@/lib/tasks/quick-tasks", () => ({ useQuickTasks: () => tareas }));
+const altaTarea = vi.fn((texto: string, _prioridad?: string) => ({ id: "nueva", text: texto, done: false, createdAt: Date.now() }));
+vi.mock("@/lib/tasks/quick-tasks", () => ({
+    useQuickTasks: () => tareas, addQuickTask: (t: string, p?: string) => altaTarea(t, p),
+    readQuickTasks: () => tareas.tasks, QUICK_TASKS_KEY: "starseed.tasks.quick.v1", QUICK_TASKS_EVENT: "starseed:tasks",
+}));
 let chat: any[] = [];
 vi.mock("@/lib/aurora/aurora-chat-log", () => ({ readAuroraChatEntries: () => chat, AURORA_CHATLOG_CHANGE_EVENT: "x", AURORA_CHATLOG_KEY: "k" }));
-vi.mock("@/lib/sync/realtime-sync", () => ({ getRealtimeSyncStatus: () => ({ state: "connected" }), onRealtimeSyncStatus: () => () => {} }));
+let estadoSync = "connected";
+const sincronizar = vi.fn(async () => ({ applied: 0, pushedBack: 0 }));
+vi.mock("@/lib/sync/realtime-sync", () => ({
+    getRealtimeSyncStatus: () => ({ state: estadoSync, lastChangeAt: null }), onRealtimeSyncStatus: () => () => {},
+    syncNow: () => sincronizar(), setRealtimeSyncEnabled: vi.fn(),
+}));
+let aviso = { corte: false, corteHasta: null as number | null, frenoLocalHasta: null, diaAgotado: false };
+vi.mock("@/lib/consumo/guardian", () => ({
+    leerAvisoConsumo: () => aviso, avisoConsumoServidor: () => aviso, suscribirConsumo: () => () => {},
+    leerContadores: () => ({ porRuta: {}, total: 10, frenos: 0, corteHasta: null, hoy: 1200, presupuestoDia: 8000, bloqueadas: 0, frenoLocalHasta: null, frenoRemoto: false }),
+}));
+vi.mock("@/lib/consumo/freno", () => ({ useFreno: () => ({ activo: false, motivo: null, hasta: null }) }));
+vi.mock("@/lib/perf/device-tier", () => ({ getPerfMode: () => "auto", setPerfMode: vi.fn(), PERF_CHANGED_EVENT: "starseed:perf-changed" }));
 vi.mock("@/lib/neurons/neurons", () => ({ listNeurons: async () => [{ online: true }, { online: false }] }));
 vi.mock("@/components/dashboard/widgets/clock-date-widget", () => ({ zoneLabel: (z: string) => (z === "Asia/Tokyo" ? "Tokio" : z) }));
 const Icono = () => <svg />;
@@ -48,6 +64,7 @@ vi.mock("@/lib/weather-mock", () => ({ fetchWeatherData: async () => clima, MOCK
 
 import { RelojLibre } from "../reloj-libre";
 import { ClimaLibre, cieloPorCodigo } from "../clima-libre";
+import { _olvidarClima } from "../clima-partes";
 import { NotificacionesLibre } from "../notificaciones-libre";
 import { AccesosLibre } from "../accesos-libre";
 import { EstadoSistemaLibre, saludDe } from "../estado-sistema-libre";
@@ -77,8 +94,8 @@ describe("Reloj celeste", () => {
         const ajustes = vi.fn();
         render(<RelojLibre widget={{ settings: { clockZones: ["Asia/Tokyo"] } } as any} onUpdateSettings={ajustes} />);
         expect(screen.getByText(/Tokio \d{2}:\d{2}/)).toBeTruthy();
-        expect(screen.getByText(/☀↑|sin ubicación/)).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: "Agujas" }));
+        expect(screen.getByRole("img", { name: /sale a las \d{2}:\d{2} y se pone/ })).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Ver la hora con agujas" }));
         expect(ajustes).toHaveBeenCalledWith({ clockMode: "analog" });
     });
 });
@@ -98,6 +115,8 @@ describe("Clima libre", () => {
         expect(screen.getByText("Despejado")).toBeTruthy();
         expect(screen.getByText("sensación 20°")).toBeTruthy();
         unmount();
+        _olvidarClima();
+        localStorage.removeItem("starseed.inicio.clima.v1");
         clima = { _sources: [], terrestrial: { current: { temperature_2m: 99, weather_code: 0 } } };
         render(<ClimaLibre />);
         expect(await screen.findByText("sin dato del clima")).toBeTruthy();
@@ -114,7 +133,7 @@ describe("Notificaciones libres", () => {
         tam("m");
         render(<NotificacionesLibre />);
         expect(screen.getByText("Voto abierto")).toBeTruthy();
-        fireEvent.click(screen.getAllByRole("button", { name: "Marcar como leída" })[0]);
+        fireEvent.click(screen.getAllByRole("button", { name: /^Marcar como leída/ })[0]);
         expect(actualizar).toHaveBeenCalledWith("id", "a");
     });
     it("sin nuevas: «Todo al día»; sin sesión lo dice", () => {
@@ -130,25 +149,46 @@ describe("Notificaciones libres", () => {
 });
 
 describe("Accesos libres", () => {
-    it("micro son cuatro en cruz; l dos anillos con nombre y las acciones", () => {
+    it("micro son cuatro en cruz; l los fijados, crear y entrar; al editar se ven todos y se fijan", () => {
         tam("micro");
         const { unmount } = render(<AccesosLibre />);
         expect(screen.getAllByRole("link")).toHaveLength(4);
         unmount();
         tam("l");
         render(<AccesosLibre />);
-        expect(screen.getByText("Perfil")).toBeTruthy();
-        expect(screen.getByRole("link", { name: "Mensajes" })).toBeTruthy();
+        expect(screen.getByRole("link", { name: "Red" })).toBeTruthy();
+        expect(screen.queryByRole("link", { name: "Mensajes" })).toBeNull();
         expect(screen.getByText("Publicar")).toBeTruthy();
         expect(screen.getByText("Entra para tus accesos")).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Elegir qué accesos se fijan" }));
+        expect(screen.getByRole("link", { name: "Mensajes" })).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Fijar Mensajes" }));
+        expect(JSON.parse(localStorage.getItem("starseed.inicio.accesos.v1")!).fijados).toContain("/mensajes");
     });
 });
 
 describe("Estado del sistema libre", () => {
-    it("m son tres ondas; lo que el navegador no mide es «—»", () => {
+    it("m es el anillo de salud con lo que el navegador no mide como «sin dato»; l da el arreglo", async () => {
+        const { unmount } = render(<EstadoSistemaLibre />);
+        expect((await screen.findByRole("img", { name: /Salud de esta neurona/ })).getAttribute("aria-label")).toMatch(/Batería sin dato/);
+        expect(screen.getByText("Todo en orden")).toBeTruthy();
+        unmount();
+        estadoSync = "error";
+        tam("l");
         render(<EstadoSistemaLibre />);
-        expect(screen.getAllByRole("meter")).toHaveLength(3);
-        expect(screen.getByRole("meter", { name: /Batería: sin dato/ })).toBeTruthy();
+        fireEvent.click(await screen.findByRole("button", { name: "Sincronizar ahora" }));
+        expect(sincronizar).toHaveBeenCalled();
+        estadoSync = "connected";
+    });
+    it("con la nube en pausa no se ofrece sincronizar (se explica por qué)", async () => {
+        estadoSync = "error";
+        aviso = { ...aviso, corte: true, corteHasta: Date.now() + 1_800_000 };
+        tam("l");
+        render(<EstadoSistemaLibre />);
+        expect((await screen.findByRole("button", { name: "Sincronizar ahora" })).hasAttribute("disabled")).toBe(true);
+        expect(screen.getByText("La nube está en pausa por consumo")).toBeTruthy();
+        estadoSync = "connected";
+        aviso = { ...aviso, corte: false, corteHasta: null };
     });
     it("la salud sale de la sincronía y la batería", () => {
         expect(saludDe("connected", 0.8)).toBe("bien");
@@ -167,8 +207,8 @@ describe("Eventos libres", () => {
     it("sin eventos lo dice y ofrece crear; con uno, s es su cápsula", () => {
         eventos.rows = [];
         const { unmount } = render(<EventosLibre />);
-        expect(screen.getByText("Semana libre")).toBeTruthy();
-        expect(screen.getByRole("link", { name: /Evento/ }).getAttribute("href")).toBe("?createEntity=event");
+        expect(screen.getByText("Semana libre en la red")).toBeTruthy();
+        expect(screen.getByRole("link", { name: "Crear un evento" }).getAttribute("href")).toBe("?createEntity=event");
         unmount();
         eventos.rows = [{ id: "1", slug: "luna", title: "Círculo de luna", starts_at: new Date(Date.now() + 7_200_000).toISOString() }];
         tam("s");
@@ -178,20 +218,20 @@ describe("Eventos libres", () => {
 });
 
 describe("Tareas libres", () => {
-    it("cada pétalo completa su tarea; l deja añadir", () => {
+    it("cada casilla completa su tarea (con «Deshacer»); l añade con atajos", () => {
         tareas.tasks = [{ id: "t1", text: "Regar", done: false, createdAt: 1 }, { id: "t2", text: "Leer", done: true, createdAt: 2 }];
         tareas.pending = [tareas.tasks[0]];
         tam("s");
         const { unmount } = render(<TareasLibre />);
-        fireEvent.click(screen.getByRole("button", { name: /Regar: pendiente/ }));
+        fireEvent.click(screen.getByRole("checkbox", { name: /Regar: pendiente/ }));
         expect(tareas.toggle).toHaveBeenCalledWith("t1");
+        expect(screen.getByRole("button", { name: "Deshacer: Regar" })).toBeTruthy();
         unmount();
         tam("l");
         render(<TareasLibre />);
-        fireEvent.click(screen.getByRole("button", { name: "Añadir tarea" }));
-        fireEvent.change(screen.getByLabelText("Nueva tarea"), { target: { value: "Meditar" } });
+        fireEvent.change(screen.getByLabelText("Nueva tarea"), { target: { value: "Meditar mañana!" } });
         fireEvent.click(screen.getByRole("button", { name: "Guardar tarea" }));
-        expect(tareas.add).toHaveBeenCalledWith("Meditar");
+        expect(altaTarea).toHaveBeenCalledWith("Meditar", "alta");
     });
 });
 
