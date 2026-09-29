@@ -344,7 +344,12 @@ export function scoutModels(caps: NeuronCapabilities, opts?: ScoutOptions): Scou
 
 /* ────────────────────────── Firma de novedades (patrón startup-updates.ts) ────────────────────────── */
 
-/** Clave localStorage de la última firma de scout VISTA por el usuario (viaja con la cuenta vía settings-sync). */
+/**
+ * Clave localStorage de la última firma de scout VISTA por el usuario. Es LOCAL a cada medio A
+ * PROPÓSITO (no está en SYNCED_KEYS): la firma incluye la RAM/GPU/núcleos de ESTE equipo (ver
+ * `scoutSignature`), y lo que un ordenador ya vio no dice nada de lo que verá un móvil.
+ * (Antes decía «viaja con la cuenta vía settings-sync»: era falso.)
+ */
 export const SCOUT_SIGNATURE_KEY = "starseed.astraura.scout.sig.v1";
 
 /** Hash simple (djb2) — mismo algoritmo que `startup-updates.ts::hash` para consistencia de estilo. */

@@ -232,6 +232,12 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     // Hub de conectores (modo, NO credenciales)
     "starseed.connectors.mode.v1": ["starseed:connectors"],
 
+    // Preferencias de usuario añadidas en la auditoría de persistencia (2026-09-29): las que ya
+    // tienen evento propio lo usan; el resto se lee al abrir su pantalla.
+    "starseed.astraura.chime.v1": ["starseed:astraura-chime"],
+    "starseed.voz.modo.v1": ["starseed:voz-modo"],
+    "starseed.inicio.pantalla.v1": ["starseed:inicio"],
+
     // Avisos vistos/hechos/pospuestos (avisos-cuenta.ts): refresco en vivo de las ventanas
     // de arranque (`useAviso`) cuando otro medio de la cuenta marca algo.
     "starseed.avisos.vistos.v1": ["starseed:avisos"],

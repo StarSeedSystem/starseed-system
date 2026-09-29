@@ -19,9 +19,10 @@
  * (en el dispositivo) manda, luego el servidor StarSeed/OpenVoice automático,
  * luego las APIs gratis sin coste y, al final, las externas con clave.
  *
- * Persistencia: clave localStorage `starseed.astraura.model-order.v1`. El
- * catch-all `starseed.astraura.*` (settings-sync) ya la lleva con la cuenta
- * soberana; aquí NO añadimos ninguna clave nueva ni ningún I/O de red.
+ * Persistencia: clave localStorage `starseed.astraura.model-order.v1`. Está en
+ * `SYNCED_KEYS` (settings-sync), así que viaja con la cuenta soberana — no hay
+ * ningún «catch-all» `starseed.astraura.*`: cada clave se añade a mano; aquí NO
+ * añadimos ninguna clave nueva ni ningún I/O de red.
  *
  * Módulo AUTOCONTENIDO a propósito: cero imports del proyecto (evita ciclos con
  * `router.ts` y `engine-registry.ts`, que SÍ importan de aquí). Todo defensivo,
