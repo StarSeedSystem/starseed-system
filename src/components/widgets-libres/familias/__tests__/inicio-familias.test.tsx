@@ -29,7 +29,7 @@ vi.mock("@/lib/tasks/quick-tasks", () => ({
 let chat: any[] = [];
 vi.mock("@/lib/aurora/aurora-chat-log", () => ({ readAuroraChatEntries: () => chat, AURORA_CHATLOG_CHANGE_EVENT: "x", AURORA_CHATLOG_KEY: "k" }));
 let auroraLista = false;
-const preguntar = vi.fn(async () => auroraLista);
+const preguntar = vi.fn(async (_opciones?: unknown) => auroraLista);
 vi.mock("@/lib/aurora/open-aurora", () => ({ openAurora: (o: unknown) => preguntar(o), getAuroraBridge: () => null }));
 vi.mock("@/lib/sync/realtime-sync", () => ({ getRealtimeSyncStatus: () => ({ state: "connected", lastChangeAt: null }), onRealtimeSyncStatus: () => () => {}, syncNow: vi.fn(), setRealtimeSyncEnabled: vi.fn() }));
 vi.mock("@/lib/neurons/neurons", () => ({ listNeurons: async () => [{ online: true }] }));

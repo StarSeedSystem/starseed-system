@@ -24,7 +24,7 @@ vi.mock("@/lib/widget-data/os-live", () => ({
 const actualizar = vi.fn(async () => ({}));
 vi.mock("@/utils/supabase/client", () => ({ createClient: () => ({ from: () => ({ update: () => ({ eq: actualizar }) }) }) }));
 const tareas = { tasks: [] as any[], pending: [] as any[], completed: [], add: vi.fn(), toggle: vi.fn(), remove: vi.fn(), clearCompleted: vi.fn() };
-const altaTarea = vi.fn((texto: string) => ({ id: "nueva", text: texto, done: false, createdAt: Date.now() }));
+const altaTarea = vi.fn((texto: string, _prioridad?: string) => ({ id: "nueva", text: texto, done: false, createdAt: Date.now() }));
 vi.mock("@/lib/tasks/quick-tasks", () => ({
     useQuickTasks: () => tareas, addQuickTask: (t: string, p?: string) => altaTarea(t, p),
     readQuickTasks: () => tareas.tasks, QUICK_TASKS_KEY: "starseed.tasks.quick.v1", QUICK_TASKS_EVENT: "starseed:tasks",
