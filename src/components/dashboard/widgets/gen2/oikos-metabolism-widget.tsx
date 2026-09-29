@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Leaf, RefreshCw, MapPin } from "lucide-react";
 import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../../kit";
-import { useLugarB, type LugarB } from "./_paquete-b/lugar";
+import { useLugarB, useSupuestosOikos, type LugarB } from "./_paquete-b/lugar";
 import { cn } from "@/lib/utils";
 import { useDatoCompartido, type ResultadoDato } from "./_paquete-b/cache-compartida";
 import {
@@ -35,31 +35,13 @@ import { AccionB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, typ
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
 const SOL = "#FFBF00";
 const LLUVIA = "#38bdf8";
-const CLAVE_SUPUESTOS = "starseed.oikos.superficies.v1";
 const DEC1 = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
 const ENT = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
 
 type Lugar = LugarB;
 const useLugar = useLugarB;
 
-/** Superficies elegidas (preferencia de este dispositivo). */
-function useSupuestos(): [{ paneles: number; tejado: number }, (p: Partial<{ paneles: number; tejado: number }>) => void] {
-    const [s, setS] = useState({ paneles: 10, tejado: 50 });
-    useEffect(() => {
-        try {
-            const j = JSON.parse(localStorage.getItem(CLAVE_SUPUESTOS) || "null");
-            if (j && typeof j.paneles === "number" && typeof j.tejado === "number") setS({ paneles: j.paneles, tejado: j.tejado });
-        } catch { /* sin almacén */ }
-    }, []);
-    const cambiar = useCallback((p: Partial<{ paneles: number; tejado: number }>) => {
-        setS((prev) => {
-            const n = { ...prev, ...p };
-            try { localStorage.setItem(CLAVE_SUPUESTOS, JSON.stringify(n)); } catch { /* cuota */ }
-            return n;
-        });
-    }, []);
-    return [s, cambiar];
-}
+const useSupuestos = useSupuestosOikos;
 
 export function OikosMetabolismWidget() {
     const marco = useMarcoUnificado();

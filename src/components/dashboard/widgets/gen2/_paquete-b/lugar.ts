@@ -4,7 +4,7 @@
  * y, si no, la que guardó el Clima en este dispositivo. null si no hay ninguna: se dice y se ofrece
  * elegirla en /clima. Sin red.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useWeatherLocationOpcional } from "@/modules/weather/context/weather-location-context";
 
 export interface LugarB { lat: number; lon: number; nombre: string }
@@ -22,3 +22,25 @@ export function useLugarB(): LugarB | null {
     if (ctx) return { lat: ctx.location.lat, lon: ctx.location.lon, nombre: ctx.location.name };
     return guardado;
 }
+
+const CLAVE_SUPUESTOS = "starseed.oikos.superficies.v1";
+
+/** Superficies elegidas (preferencia de este dispositivo). */
+export function useSupuestosOikos(): [{ paneles: number; tejado: number }, (p: Partial<{ paneles: number; tejado: number }>) => void] {
+    const [s, setS] = useState({ paneles: 10, tejado: 50 });
+    useEffect(() => {
+        try {
+            const j = JSON.parse(localStorage.getItem(CLAVE_SUPUESTOS) || "null");
+            if (j && typeof j.paneles === "number" && typeof j.tejado === "number") setS({ paneles: j.paneles, tejado: j.tejado });
+        } catch { /* sin almacén */ }
+    }, []);
+    const cambiar = useCallback((p: Partial<{ paneles: number; tejado: number }>) => {
+        setS((prev) => {
+            const n = { ...prev, ...p };
+            try { localStorage.setItem(CLAVE_SUPUESTOS, JSON.stringify(n)); } catch { /* cuota */ }
+            return n;
+        });
+    }, []);
+    return [s, cambiar];
+}
+

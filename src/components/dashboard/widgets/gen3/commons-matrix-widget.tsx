@@ -26,33 +26,12 @@ import { useCurrentUid } from "@/lib/widget-data/os-live";
 import { cn } from "@/lib/utils";
 import { invalidarCompartido, leerCompartido, useDatoCompartido, type ResultadoDato } from "../gen2/_paquete-b/cache-compartida";
 import { AccionB, AnilloB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
+import { CLAVE_PROCOMUN, COLOR_ESTADO_RECURSO, cargarProcomun, porTipo, type DatosProcomun, type RecursoComun } from "../gen2/_paquete-b/datos-procomun";
 
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
-type Estado = "Disponible" | "En uso" | "Mantenimiento";
-export interface RecursoComun { id: string; name: string; type: string; status: Estado; assignedTo?: string | null; assignedLabel?: string | null; notes?: string; updatedAt: string }
-interface DatosProcomun { lista: RecursoComun[]; copiaLocal: boolean }
-
-export const COLOR_ESTADO_RECURSO: Record<Estado, string> = { Disponible: "#10b981", "En uso": "#f59e0b", Mantenimiento: "#64748b" };
-const CLAVE = "procomun.v1";
-
-async function cargarProcomun(): Promise<DatosProcomun> {
-    const { loadCommonsResources } = await import("@/lib/governance/political");
-    const r = await loadCommonsResources();
-    return { lista: (r.list as RecursoComun[]).filter((x) => x && x.id && x.name), copiaLocal: r.degraded };
-}
-
-/** Recursos por tipo: total, libres, en uso y en mantenimiento. PURO. */
-export function porTipo(lista: RecursoComun[]): { tipo: string; total: number; libres: number; enUso: number; mant: number }[] {
-    const m = new Map<string, { tipo: string; total: number; libres: number; enUso: number; mant: number }>();
-    for (const r of lista) {
-        const t = r.type?.trim() || "Otros";
-        const g = m.get(t) ?? { tipo: t, total: 0, libres: 0, enUso: 0, mant: 0 };
-        g.total += 1;
-        if (r.status === "Disponible") g.libres += 1; else if (r.status === "En uso") g.enUso += 1; else g.mant += 1;
-        m.set(t, g);
-    }
-    return Array.from(m.values()).sort((a, b) => b.total - a.total || a.tipo.localeCompare(b.tipo, "es"));
-}
+const CLAVE = CLAVE_PROCOMUN;
+export { porTipo, COLOR_ESTADO_RECURSO };
+export type { RecursoComun };
 
 export function CommonsMatrixWidget() {
     const marco = useMarcoUnificado();
