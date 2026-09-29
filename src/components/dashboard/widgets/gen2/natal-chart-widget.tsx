@@ -1,397 +1,436 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Sparkles, Sun, Moon, Compass, Sprout, Flower2, Leaf, Snowflake } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { WidgetShell, ProgressRing, MiniList, Chip } from "../../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import { useAppearance } from "@/context/appearance-context";
-import { useWeatherLocation } from "@/modules/weather/context/weather-location-context";
-import type { AstroTransit } from "@/lib/widget-data/types";
+// ════════════════════════════════════════════════════════════════
+// Carta natal — TU carta de verdad y los tránsitos de hoy (Ola 0929, paquete B).
+// ----------------------------------------------------------------
+// Antes: «tránsitos» inventados por el adaptador. Ahora se calcula tu carta REAL con tus
+// datos de nacimiento (fecha, hora si la sabes y lugar): Sol, Luna y planetas clásicos
+// (src/lib/astro.ts), Ascendente y Medio Cielo por el tiempo sidéreo local, casas iguales,
+// aspectos natales y los tránsitos de hoy sobre tu carta. Sin hora no hay Ascendente ni
+// casas, y se dice. Sin datos, se enseña el cielo de AHORA y se invita a añadirlos.
+// Tus datos se guardan solo en este dispositivo (y puedes borrarlos). El lugar se busca con
+// el geocodificador público del Clima solo cuando pulsas «Buscar».
+//
+//   micro      → el glifo de tu signo solar.
+//   s          → la rueda mínima y tus tres pilares (Sol · Luna · Ascendente).
+//   m          → rueda con aspectos + pilares + el tránsito más exacto de hoy.
+//   panorámico → rueda · pilares · tránsitos.   torre → en columna.
+//   l          → rueda con casas y aspectos, pilares, tres tránsitos y «Editar».
+//   xl         → + tránsitos en la rueda, tabla de posiciones, balance de elementos.
+// Estados honestos: cargando (hasta montar), vacío (sin datos → el cielo de ahora + formulario)
+// y error del formulario (fecha imposible, lugar no encontrado).
+// ════════════════════════════════════════════════════════════════
+
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Sparkles, Pencil, Search, MapPin, Trash2, Save, X } from "lucide-react";
+import { WidgetShell, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../../kit";
+import { useWeatherLocationOpcional } from "@/modules/weather/context/weather-location-context";
+import { COLOR_ELEMENTO } from "@/lib/astro/cielo";
+import { cn } from "@/lib/utils";
 import {
-    SYNODIC_MONTH,
-    KNOWN_NEW_MOON_UTC,
-    moonPhase as astroMoonPhase,
-    lunarDay as astroLunarDay,
-    sunSign,
-    planetPositions,
-    type MoonPhaseResult,
-} from "@/lib/astro";
+    ASPECTOS, ELEMENTO_SIGNO, GLIFO_SIGNO, NOMBRE_SIGNO, aspectos, calcularCarta, cielo, elementos, frasePosicion, validarNacimiento,
+    type Carta, type Cuerpo, type DatosNacimiento,
+} from "./_paquete-b/datos-natal";
+import { AccionB, RaizB, RotuloB, estilosB, tintaB, useAhoraB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
-// ════════════════════════════════════════════════════════════════
-// Natal Chart Widget — astrología que se ADAPTA al momento real.
-// El diseño (paleta, glifo, disco lunar, estación) y la información
-// se calculan EN VIVO desde `new Date()` y la ubicación del usuario
-// usando la biblioteca pura `@/lib/astro` (aproximación, sin libs ext.).
-//  • Fase lunar real (% de iluminación) + día lunar 1..30.
-//  • Signo solar tropical vigente (longitud eclíptica del Sol).
-//  • Posiciones planetarias geocéntricas aproximadas y su signo.
-//  • Día planetario de la semana (Sol/Luna/Marte/…).
-//  • Estación (hemisferio norte) → acento cromático.
-// ════════════════════════════════════════════════════════════════
+const FAMILIA = { acento: "#818cf8", acento2: "#23d5ab" };
+const CLAVE = "starseed.carta-natal.v1";
 
-// Tipo de fase lunar usado por el disco SVG (compatibilidad de campos).
-interface MoonPhase {
-    /** 0..1 fracción del ciclo (0 = nueva, 0.5 = llena) */
-    cycle: number;
-    /** 0..1 iluminación visible */
-    illum: number;
-    name: string;
-    glyph: string;
-    waxing: boolean;
-}
-
-/** Adapta el resultado de la biblioteca astro al shape local del disco. */
-function toLocalPhase(p: MoonPhaseResult): MoonPhase {
-    return {
-        cycle: p.fraction,
-        illum: p.illumination,
-        name: p.name,
-        glyph: p.emoji,
-        waxing: p.waxing,
-    };
-}
-
-/** Próximo evento (luna nueva o llena) más cercano y su fecha aprox. */
-function nextLunarEvent(now: Date): { label: string; date: Date } {
-    const days = (now.getTime() - KNOWN_NEW_MOON_UTC) / 86400000;
-    const pos = ((days % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH;
-    const toNew = SYNODIC_MONTH - pos;                 // días hasta próxima nueva
-    const toFull = (SYNODIC_MONTH / 2 - pos + SYNODIC_MONTH) % SYNODIC_MONTH; // hasta próxima llena
-    const newDate = new Date(now.getTime() + toNew * 86400000);
-    const fullDate = new Date(now.getTime() + toFull * 86400000);
-    return toFull < toNew
-        ? { label: "Luna llena", date: fullDate }
-        : { label: "Luna nueva", date: newDate };
-}
-
-// ── Día planetario ──────────────────────────────────────────────
-interface PlanetDay {
-    name: string;
-    body: string;
-    glyph: string;
-    color: string;
-    meaning: string;
-}
-const PLANET_DAYS: PlanetDay[] = [
-    { name: "Domingo", body: "Sol", glyph: "☉", color: "#fbbf24", meaning: "Vitalidad, voluntad y propósito" },
-    { name: "Lunes", body: "Luna", glyph: "☽", color: "#a5b4fc", meaning: "Emoción, intuición y ciclos internos" },
-    { name: "Martes", body: "Marte", glyph: "♂", color: "#f87171", meaning: "Acción, coraje e impulso" },
-    { name: "Miércoles", body: "Mercurio", glyph: "☿", color: "#34d399", meaning: "Mente, comunicación y enlaces" },
-    { name: "Jueves", body: "Júpiter", glyph: "♃", color: "#c084fc", meaning: "Expansión, sentido y abundancia" },
-    { name: "Viernes", body: "Venus", glyph: "♀", color: "#f9a8d4", meaning: "Amor, vínculo y belleza" },
-    { name: "Sábado", body: "Saturno", glyph: "♄", color: "#94a3b8", meaning: "Estructura, límite y maestría" },
-];
-
-// ── Color por elemento (para teñir el signo solar) ──────────────
-const ELEMENT_COLOR: Record<string, string> = {
-    Fuego: "#f87171",
-    Tierra: "#86efac",
-    Aire: "#fcd34d",
-    Agua: "#93c5fd",
-};
-
-// ── Estación (hemisferio norte) ─────────────────────────────────
-interface Season {
-    name: string;
-    icon: LucideIcon;
-    color: string;
-    accentBg: string;
-}
-function season(now: Date): Season {
-    const m = now.getMonth() + 1;
-    const d = now.getDate();
-    const after = (sm: number, sd: number) => m > sm || (m === sm && d >= sd);
-    if (after(3, 20) && !after(6, 21)) return { name: "Primavera", icon: Sprout, color: "#86efac", accentBg: "radial-gradient(circle at 30% 20%, #86efac22, transparent 60%)" };
-    if (after(6, 21) && !after(9, 23)) return { name: "Verano", icon: Flower2, color: "#fbbf24", accentBg: "radial-gradient(circle at 30% 20%, #fbbf2422, transparent 60%)" };
-    if (after(9, 23) && !after(12, 21)) return { name: "Otoño", icon: Leaf, color: "#fb923c", accentBg: "radial-gradient(circle at 30% 20%, #fb923c22, transparent 60%)" };
-    return { name: "Invierno", icon: Snowflake, color: "#93c5fd", accentBg: "radial-gradient(circle at 30% 20%, #93c5fd22, transparent 60%)" };
-}
-
-// ── Disco lunar SVG (fase real con máscara) ─────────────────────
-function MoonDisc({ phase, size, glow, animate }: { phase: MoonPhase; size: number; glow: string; animate: boolean }) {
-    const r = size / 2;
-    // Terminador: desplazamos un círculo de sombra. illum 0 → totalmente cubierto;
-    // illum 1 → descubierto. waxing ilumina la derecha, menguante la izquierda.
-    const k = phase.cycle * 2 * Math.PI;
-    // offset horizontal del óvalo de sombra (-r..r) según el coseno de la fase.
-    const shadowShift = Math.cos(k) * r;
-    const dir = phase.waxing ? 1 : -1;
-    const idShadow = `moon-sh-${Math.round(phase.cycle * 1000)}`;
-    const idGlow = `moon-gl-${Math.round(phase.cycle * 1000)}`;
-    return (
-        <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className="shrink-0">
-            <defs>
-                <radialGradient id={idGlow} cx="38%" cy="34%" r="75%">
-                    <stop offset="0%" stopColor="#fefce8" />
-                    <stop offset="62%" stopColor="#e2e8f0" />
-                    <stop offset="100%" stopColor="#94a3b8" />
-                </radialGradient>
-                <clipPath id={idShadow}>
-                    <circle cx={r} cy={r} r={r - 1} />
-                </clipPath>
-            </defs>
-            {/* halo según acento estacional */}
-            <circle cx={r} cy={r} r={r} fill="none" stroke={glow} strokeOpacity={0.5} strokeWidth={1.5}
-                style={animate ? { filter: `drop-shadow(0 0 6px ${glow})` } : undefined} />
-            {/* cara iluminada */}
-            <circle cx={r} cy={r} r={r - 1} fill={`url(#${idGlow})`} />
-            {/* sombra: óvalo desplazado dentro del clip del disco */}
-            <g clipPath={`url(#${idShadow})`}>
-                <ellipse
-                    cx={r + dir * shadowShift}
-                    cy={r}
-                    rx={r}
-                    ry={r - 1}
-                    fill="#0b1020"
-                    fillOpacity={0.92}
-                />
-                {/* media-sombra base para fases nueva/llena correctas */}
-                {phase.illum < 0.5 && (
-                    <rect
-                        x={phase.waxing ? 0 : r}
-                        y={0}
-                        width={r}
-                        height={size}
-                        fill="#0b1020"
-                        fillOpacity={0.92}
-                    />
-                )}
-                {phase.illum >= 0.5 && (
-                    <rect
-                        x={phase.waxing ? 0 : r}
-                        y={0}
-                        width={0}
-                        height={size}
-                        fill="transparent"
-                    />
-                )}
-            </g>
-            {/* reflejo de cristal líquido */}
-            <ellipse cx={r * 0.7} cy={r * 0.6} rx={r * 0.34} ry={r * 0.2} fill="#ffffff" fillOpacity={0.14} />
-        </svg>
-    );
+function leerGuardado(): DatosNacimiento | null {
+    try {
+        const j = JSON.parse(localStorage.getItem(CLAVE) || "null");
+        if (j && typeof j.fecha === "string") return { fecha: j.fecha, hora: typeof j.hora === "string" ? j.hora : null, lugar: j.lugar && typeof j.lugar.lat === "number" ? j.lugar : null };
+    } catch { /* sin almacén */ }
+    return null;
 }
 
 export function NatalChartWidget() {
-    const { data, loading } = useWidgetData("astro.natal", { refreshMs: 12000 });
-    const { config } = useAppearance();
-    const animate = !!config.animations.enabled;
-    const { location } = useWeatherLocation();
-
-    // Reloj vivo: se recalcula cada minuto (limpia el intervalo al desmontar).
-    const [tick, setTick] = useState(() => Date.now());
-    useEffect(() => {
-        const id = setInterval(() => setTick(Date.now()), 60000);
-        return () => clearInterval(id);
+    const marco = useMarcoUnificado();
+    const [montado, setMontado] = useState(false);
+    const [datos, setDatos] = useState<DatosNacimiento | null>(null);
+    const [editando, setEditando] = useState(false);
+    useEffect(() => { setDatos(leerGuardado()); setMontado(true); }, []);
+    const guardar = useCallback((d: DatosNacimiento | null) => {
+        setDatos(d);
+        setEditando(false);
+        try { if (d) localStorage.setItem(CLAVE, JSON.stringify(d)); else localStorage.removeItem(CLAVE); } catch { /* cuota */ }
     }, []);
-
-    // Cielo real recalculado por minuto desde la fecha/hora actual.
-    const sky = useMemo(() => {
-        const now = new Date();
-        const planet = PLANET_DAYS[now.getDay()];
-        const phaseRaw = astroMoonPhase(now);
-        const phase = toLocalPhase(phaseRaw);
-        const solar = sunSign(now);                 // signo solar tropical real
-        const sign = {
-            name: solar.sign.name,
-            glyph: solar.sign.symbol,
-            element: solar.sign.element,
-            color: ELEMENT_COLOR[solar.sign.element] ?? "#a5b4fc",
-            degree: solar.degreeInSign,
-        };
-        const seas = season(now);
-        const evt = nextLunarEvent(now);
-        const lunDay = astroLunarDay(now);          // día lunar 1..30
-        const planets = planetPositions(now);       // posiciones geocéntricas aprox.
-        return { now, planet, phase, sign, seas, evt, lunDay, planets };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tick]);
-
-    const accent = sky.planet.color;
-    const eventDays = Math.max(0, Math.round((sky.evt.date.getTime() - sky.now.getTime()) / 86400000));
-
-    // Tránsitos REALES derivados de las posiciones planetarias calculadas
-    // (excluimos el Sol, ya destacado como signo solar). Reemplaza el mock.
-    const liveTransits: AstroTransit[] = sky.planets
-        .filter((p) => p.body !== "Sol")
-        .map((p) => ({
-            body: p.body,
-            sign: p.sign.name,
-            degree: Math.round(p.degreeInSign),
-            intensity: (1 - Math.cos((p.degreeInSign / 30) * 2 * Math.PI)) / 2,
-            note: `${p.sign.element} · ${p.symbol}`,
-        }));
-
-    const calcTime = sky.now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-
     return (
         <WidgetShell
-            title="Sincronía Vital"
-            subtitle={`${sky.planet.name} · ${sky.seas.name}`}
+            title="Carta natal"
+            subtitle={datos ? "Tu cielo y sus tránsitos" : "El cielo de ahora"}
             icon={Sparkles}
-            accent={accent}
-            designMode="original"
-            live
-            expandHref="/network/culture"
-            connections={[
-                { label: "Cultura", href: "/network/culture", icon: Sparkles, color: sky.sign.color },
-                { label: "Exocórtex", href: "/agent", icon: Sun, color: accent },
-                { label: "Biblioteca", href: "/library", icon: Moon, color: sky.seas.color },
-            ]}
+            bare={marco?.base === "micro"}
+            actions={montado && datos && !editando ? (
+                <button type="button" onClick={() => setEditando(true)} aria-label="Editar tus datos de nacimiento"
+                    className="grid size-7 cursor-pointer place-items-center rounded-full ss-redondo text-white/70 transition-colors hover:text-white">
+                    <Pencil className="size-3.5" aria-hidden />
+                </button>
+            ) : undefined}
         >
-            {(size) => {
-                if (loading || !data) return <div className="pt-2 h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const discSize = micro ? 52 : 64;
-
-                return (
-                    <div className="relative flex flex-col h-full pt-1 gap-3 min-w-0">
-                        {/* Lavado cromático estacional de fondo (cristal teñido). */}
-                        <div
-                            aria-hidden
-                            className="pointer-events-none absolute -inset-3 -z-[1] rounded-3xl"
-                            style={{ background: sky.seas.accentBg }}
-                        />
-
-                        {/* Cabecera viva: disco lunar real + signo solar vigente. */}
-                        <div className="flex items-center gap-3 min-w-0">
-                            <motion.div
-                                animate={animate ? { y: [0, -2.5, 0] } : undefined}
-                                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                                className="motion-reduce:!translate-y-0 shrink-0"
-                            >
-                                <MoonDisc phase={sky.phase} size={discSize} glow={sky.seas.color} animate={animate} />
-                            </motion.div>
-
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="text-lg leading-none shrink-0" style={{ color: sky.sign.color }}>{sky.sign.glyph}</span>
-                                    <span className="text-sm font-black truncate">{sky.sign.name}</span>
-                                    <Chip color={sky.sign.color}>{sky.sign.element}</Chip>
-                                </div>
-                                <div className="mt-1 text-[11px] font-bold truncate" style={{ color: sky.seas.color }}>
-                                    {sky.phase.glyph} {sky.phase.name} · día lunar {sky.lunDay}
-                                </div>
-                                <div className="mt-1 flex items-center gap-1.5">
-                                    <div className="flex-1 h-1.5 rounded-full bg-muted/25 overflow-hidden">
-                                        <motion.div
-                                            className="h-full motion-reduce:!transition-none"
-                                            style={{ background: `linear-gradient(90deg, ${sky.seas.color}, #fefce8)` }}
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${Math.round(sky.phase.illum * 100)}%` }}
-                                            transition={{ duration: animate ? 0.8 : 0 }}
-                                        />
-                                    </div>
-                                    <span className="text-[10px] tabular-nums text-muted-foreground/70 shrink-0">
-                                        {Math.round(sky.phase.illum * 100)}%
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Banda del día planetario: glifo dominante + significado. */}
-                        <div
-                            className="flex items-center gap-2.5 rounded-2xl border p-2.5 min-w-0"
-                            style={{
-                                borderColor: `color-mix(in srgb, ${accent} 38%, transparent)`,
-                                background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 16%, transparent), transparent)`,
-                            }}
-                        >
-                            <span
-                                className="grid place-items-center rounded-xl size-9 shrink-0 text-lg font-black text-white shadow-lg"
-                                style={{ background: `linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 45%, transparent))` }}
-                            >
-                                {sky.planet.glyph}
-                            </span>
-                            <div className="min-w-0">
-                                <div className="text-[9px] uppercase tracking-[0.18em] font-bold text-muted-foreground/60">
-                                    Día de {sky.planet.body}
-                                </div>
-                                <div className="text-[11px] font-semibold leading-snug truncate" title={sky.planet.meaning}>
-                                    {sky.planet.meaning}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Coherencia + triada natal (datos de la cuenta). */}
-                        {!micro && (
-                            <div className="flex items-center gap-3 min-w-0">
-                                <ProgressRing
-                                    value={data.coherence}
-                                    size={micro ? 52 : 60}
-                                    color={accent}
-                                    label={`${Math.round(data.coherence * 100)}%`}
-                                    sublabel="coher."
-                                />
-                                <div className="flex-1 grid grid-cols-3 gap-1.5 text-center min-w-0">
-                                    <Triad icon={Sun} label="Sol" value={sky.sign.name} accent={accent} />
-                                    <Triad icon={Moon} label="Luna" value={sky.planets[1].sign.name} accent={accent} />
-                                    <Triad icon={Compass} label="Asc" value={data.ascendant} accent={accent} />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Próximo evento lunar (calculado). */}
-                        <div className="flex items-center justify-between gap-2 rounded-xl border border-border/40 bg-white/[0.03] px-2.5 py-1.5 min-w-0">
-                            <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground/60 shrink-0">Próximo</span>
-                            <span className="text-[11px] font-black truncate" style={{ color: sky.seas.color }}>
-                                {sky.evt.label}
-                            </span>
-                            <span className="text-[10px] tabular-nums text-muted-foreground/70 shrink-0">
-                                {eventDays === 0 ? "hoy" : `en ${eventDays} d`}
-                            </span>
-                        </div>
-
-                        {/* Sello de cálculo en vivo: hora local + ubicación del usuario. */}
-                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/55 min-w-0">
-                            <span className="inline-block size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" aria-hidden />
-                            <span className="truncate">calculado en vivo · {calcTime} · {location.name}</span>
-                        </div>
-
-                        {/* Tránsitos REALES (posiciones planetarias calculadas en vivo). */}
-                        {!micro && size.vTier === "expanded" && (
-                            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                                <MiniList
-                                    items={liveTransits}
-                                    max={6}
-                                    render={(t: AstroTransit) => (
-                                        <div className="rounded-xl border border-border/40 bg-white/[0.03] p-2 min-w-0">
-                                            <div className="flex items-center justify-between gap-2 min-w-0">
-                                                <span className="text-xs font-black truncate">{t.body} en {t.sign} {t.degree}°</span>
-                                                {t.aspect && <Chip color={accent}>{t.aspect}</Chip>}
-                                            </div>
-                                            <div className="mt-1 flex items-center gap-2 min-w-0">
-                                                <div className="flex-1 h-1.5 rounded-full bg-muted/25 overflow-hidden">
-                                                    <motion.div
-                                                        className="h-full motion-reduce:!transition-none"
-                                                        style={{ background: accent }}
-                                                        initial={{ width: 0 }}
-                                                        animate={{ width: `${t.intensity * 100}%` }}
-                                                        transition={{ duration: animate ? 0.6 : 0 }}
-                                                    />
-                                                </div>
-                                                <span className="text-[10px] text-muted-foreground/60 line-clamp-1 max-w-[55%]">{t.note}</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                />
-                            </div>
-                        )}
-                    </div>
-                );
-            }}
+            {(size) => <Cuerpo size={size} montado={montado} datos={datos} editando={editando} setEditando={setEditando} guardar={guardar} />}
         </WidgetShell>
     );
 }
 
-function Triad({ icon: Icon, label, value, accent }: { icon: typeof Sun; label: string; value: string; accent: string }) {
-    return (
-        <div className="rounded-xl border border-border/40 bg-white/[0.03] py-1.5 min-w-0">
-            <Icon className="size-3.5 mx-auto" style={{ color: accent }} />
-            <div className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-bold mt-0.5">{label}</div>
-            <div className="text-[11px] font-black truncate px-1">{value}</div>
+function Cuerpo({ size, montado, datos, editando, setEditando, guardar }: {
+    size: ElementSize; montado: boolean; datos: DatosNacimiento | null; editando: boolean;
+    setEditando: (v: boolean) => void; guardar: (d: DatosNacimiento | null) => void;
+}) {
+    const lienzo = useLienzoB(size, FAMILIA);
+    const ref = useRef<HTMLDivElement>(null);
+    const visible = useVisibleB(ref);
+    const ahora = useAhoraB(10 * 60_000, visible);
+    const carta = useMemo(() => (datos ? calcularCarta(datos) : null), [datos]);
+    const hoy = useMemo(() => (ahora ? cielo(new Date(ahora)) : null), [ahora]);
+
+    let contenido: ReactNode;
+    if (!montado || !hoy) contenido = <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "block"} />;
+    else if (editando) contenido = <Formulario inicial={datos} lienzo={lienzo} guardar={guardar} cancelar={() => setEditando(false)} />;
+    else if (!carta) contenido = <SinCarta hoy={hoy} lienzo={lienzo} editar={() => setEditando(true)} />;
+    else contenido = <ConCarta carta={carta} hoy={hoy} lienzo={lienzo} datos={datos!} editar={() => setEditando(true)} />;
+    return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
+}
+
+// ── Sin datos: el cielo de ahora ────────────────────────────────────────────
+
+function SinCarta({ hoy, lienzo, editar }: { hoy: Cuerpo[]; lienzo: LienzoB; editar: () => void }) {
+    const sol = hoy.find((c) => c.cuerpo === "Sol")!;
+    const luna = hoy.find((c) => c.cuerpo === "Luna")!;
+    const b = lienzo.base;
+    const frase = `Ahora: Sol en ${sol.signo}, Luna en ${luna.signo}. Añade tu nacimiento para ver tu carta.`;
+    if (b === "micro") {
+        return (
+            <button type="button" onClick={editar} aria-label={frase} title={frase} className={cn(estilosB.foco, "flex h-full w-full cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[14px]")}>
+                <span className="text-[34px] leading-none" style={{ color: COLOR_ELEMENTO[ELEMENTO_SIGNO[luna.indiceSigno]] }}>{GLIFO_SIGNO[luna.indiceSigno]}</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/60">Luna en {luna.signo}</span>
+            </button>
+        );
+    }
+    const cta = <AccionB onClick={editar} icono={Sparkles} color={lienzo.acento} tono="llena" tactil={lienzo.tactil}>Añadir mi nacimiento</AccionB>;
+    const rueda = <Rueda natal={hoy} asc={null} lienzo={lienzo} detalle={b === "s" ? "min" : "normal"} etiqueta={`El cielo de ahora: ${hoy.map(frasePosicion).join(", ")}`} className="h-full w-full" />;
+    if (b === "s") return <div className="flex h-full min-h-0 flex-col items-center gap-1.5">{<div className="min-h-0 w-full flex-1">{rueda}</div>}{cta}</div>;
+    const texto = (
+        <div className="flex min-w-0 flex-col gap-2">
+            <RotuloB>El cielo de ahora</RotuloB>
+            <p className="text-[13px] leading-snug text-white/80">Sol en <b className="font-semibold text-white">{sol.signo}</b> · Luna en <b className="font-semibold text-white">{luna.signo}</b></p>
+            <p className="text-[12px] leading-relaxed text-white/60">Tu carta natal sale de tu fecha, hora y lugar de nacimiento. Se guardan solo en este dispositivo.</p>
+            {cta}
         </div>
+    );
+    if (lienzo.clase === "panoramico" || b === "xl") {
+        return <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>{rueda}{texto}</div>;
+    }
+    return <div className="flex h-full min-h-0 flex-col gap-2"><div className="min-h-0 flex-1">{rueda}</div>{texto}</div>;
+}
+
+// ── Con carta ───────────────────────────────────────────────────────────────
+
+function ConCarta({ carta, hoy, lienzo, datos, editar }: { carta: Carta; hoy: Cuerpo[]; lienzo: LienzoB; datos: DatosNacimiento; editar: () => void }) {
+    const b = lienzo.base;
+    const sol = carta.cuerpos.find((c) => c.cuerpo === "Sol")!;
+    const luna = carta.cuerpos.find((c) => c.cuerpo === "Luna")!;
+    const asc = carta.cuerpos.find((c) => c.cuerpo === "Ascendente") ?? null;
+    const natales = useMemo(() => aspectos(carta.cuerpos, carta.cuerpos, true), [carta]);
+    const transitos = useMemo(() => aspectos(hoy, carta.cuerpos.filter((c) => c.cuerpo !== "Medio Cielo")), [hoy, carta]);
+    const pilares = `Sol en ${sol.signo}, Luna en ${luna.signo}${asc ? `, Ascendente ${asc.signo}` : ""}`;
+
+    if (b === "micro") {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-0.5" role="img" aria-label={`Tu carta: ${pilares}`} title={pilares}>
+                <span className="text-[36px] leading-none" style={{ color: COLOR_ELEMENTO[ELEMENTO_SIGNO[sol.indiceSigno]] }}>{GLIFO_SIGNO[sol.indiceSigno]}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/65">{sol.signo}</span>
+            </div>
+        );
+    }
+    const detalle = b === "s" ? "min" : b === "xl" ? "pleno" : "normal";
+    const rueda = (clase = "h-full w-full") => (
+        <Rueda natal={carta.cuerpos} transitos={detalle === "pleno" ? hoy : undefined} aspectosNatales={detalle !== "min" ? natales : []} asc={carta.asc} lienzo={lienzo} detalle={detalle}
+            etiqueta={`Tu carta natal: ${carta.cuerpos.map(frasePosicion).join(", ")}`} className={clase} />
+    );
+    const tres = <Pilares sol={sol} luna={luna} asc={asc} sinHora={carta.sinHora} lienzo={lienzo} />;
+    const listaTransitos = (max: number) => <Transitos lista={transitos.slice(0, max)} />;
+
+    if (b === "s") return <div className="flex h-full min-h-0 flex-col items-center gap-1"><div className="min-h-0 w-full flex-1">{rueda()}</div>{tres}</div>;
+    if (lienzo.clase === "panoramico") {
+        return (
+            <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "auto minmax(0, 1fr) minmax(0, 1.2fr)" }}>
+                <div className="h-full" style={{ aspectRatio: "1 / 1" }}>{rueda()}</div>
+                {tres}
+                {listaTransitos(2)}
+            </div>
+        );
+    }
+    if (b === "m" && lienzo.clase !== "torre") {
+        return <div className="flex h-full min-h-0 flex-col gap-2"><div className="min-h-0 flex-1">{rueda()}</div>{tres}{listaTransitos(1)}</div>;
+    }
+    if (lienzo.clase === "torre" || b === "l") {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-2.5">
+                <div className="min-h-[110px] flex-1">{rueda()}</div>
+                {tres}
+                {listaTransitos(3)}
+                <p className="text-[10px] text-white/45">{datos.fecha}{datos.hora ? ` · ${datos.hora}` : " · sin hora"}{datos.lugar ? ` · ${datos.lugar.nombre}` : ""}</p>
+            </div>
+        );
+    }
+    const el = elementos(carta.cuerpos);
+    const totalEl = Object.values(el).reduce((s, n) => s + n, 0) || 1;
+    return (
+        <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1fr)" }}>
+            <div className="flex min-h-0 flex-col gap-2">
+                <div className="min-h-0 flex-1">{rueda()}</div>
+                {tres}
+            </div>
+            <div className="flex min-h-0 flex-col gap-3 overflow-auto border-l border-white/[0.08] pl-4">
+                <table className="w-full text-[12px] tabular-nums" aria-label="Posiciones natales">
+                    <tbody>
+                        {carta.cuerpos.map((c) => (
+                            <tr key={c.cuerpo} className="border-b border-white/[0.05] last:border-0">
+                                <th scope="row" className="py-0.5 pr-2 text-left font-semibold text-white/85"><span className="mr-1.5 inline-block w-4 text-center" aria-hidden>{c.simbolo}</span>{c.cuerpo}</th>
+                                <td className="py-0.5 pr-2" style={{ color: tintaB(COLOR_ELEMENTO[ELEMENTO_SIGNO[c.indiceSigno]], 0.3) }}>{GLIFO_SIGNO[c.indiceSigno]} {c.signo}</td>
+                                <td className="py-0.5 pr-2 text-right text-white/70">{Math.floor(c.grado)}°{String(Math.floor((c.grado % 1) * 60)).padStart(2, "0")}′</td>
+                                <td className="py-0.5 text-right text-white/50">{c.casa ? `casa ${c.casa}` : ""}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                <div className="flex flex-col gap-1">
+                    <RotuloB>Elementos</RotuloB>
+                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-white/[0.08]" role="img" aria-label={`Fuego ${el.fuego}, tierra ${el.tierra}, aire ${el.aire}, agua ${el.agua}`}>
+                        {(["fuego", "tierra", "aire", "agua"] as const).map((k, i) => (
+                            <span key={k} className={estilosB.crecer} style={{ width: `${(el[k] / totalEl) * 100}%`, background: COLOR_ELEMENTO[k], marginLeft: i ? 1 : 0 }} />
+                        ))}
+                    </div>
+                    <p className="text-[11px] capitalize text-white/60">fuego {el.fuego} · tierra {el.tierra} · aire {el.aire} · agua {el.agua}</p>
+                </div>
+                {listaTransitos(5)}
+                <div className="mt-auto flex flex-wrap gap-1.5">
+                    <AccionB onClick={editar} icono={Pencil} color={lienzo.acento} tactil={lienzo.tactil}>Editar nacimiento</AccionB>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function Pilares({ sol, luna, asc, sinHora, lienzo }: { sol: Cuerpo; luna: Cuerpo; asc: Cuerpo | null; sinHora: boolean; lienzo: LienzoB }) {
+    const item = (c: Cuerpo | null, etiqueta: string) => c && (
+        <li className="flex min-w-0 items-center gap-1.5" title={`${etiqueta} en ${c.signo} ${Math.floor(c.grado)}°`}>
+            <span className="text-[18px] leading-none" style={{ color: COLOR_ELEMENTO[ELEMENTO_SIGNO[c.indiceSigno]] }} aria-hidden>{GLIFO_SIGNO[c.indiceSigno]}</span>
+            <span className="min-w-0">
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-white/50">{etiqueta}</span>
+                <span className={cn("block font-semibold text-white/90", lienzo.tv ? "text-[15px]" : "text-[13px]")}>{c.signo}</span>
+            </span>
+        </li>
+    );
+    return (
+        <div className="flex flex-col gap-1">
+            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1" aria-label="Tus tres pilares">
+                {item(sol, "Sol")}
+                {item(luna, "Luna")}
+                {item(asc, "Ascendente")}
+            </ul>
+            {sinHora && <p className="text-[10px] text-white/45">Sin hora: sin Ascendente ni casas; la Luna es aproximada.</p>}
+        </div>
+    );
+}
+
+function Transitos({ lista }: { lista: ReturnType<typeof aspectos> }) {
+    if (lista.length === 0) return <p className="text-[11px] text-white/50">Hoy no hay tránsitos cerrados sobre tu carta.</p>;
+    return (
+        <div className="flex flex-col gap-1">
+            <RotuloB>Tránsitos de hoy</RotuloB>
+            <ul className="flex flex-col gap-0.5" aria-label="Tránsitos de hoy sobre tu carta">
+                {lista.map((t) => {
+                    const color = ASPECTOS.find((a) => a.tipo === t.tipo)?.color ?? "#fff";
+                    return (
+                        <li key={`${t.a}-${t.b}-${t.tipo}`} className="flex items-center gap-2 text-[12px]">
+                            <span className="size-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
+                            <span className="min-w-0 flex-1 text-white/80 line-clamp-1">{t.a} en {t.tipo} a tu {t.b}</span>
+                            <span className="shrink-0 tabular-nums text-white/45">{t.orbe.toLocaleString("es-ES", { maximumFractionDigits: 1 })}°</span>
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+// ── La rueda ────────────────────────────────────────────────────────────────
+
+/** Ángulo de pantalla (grados, antihorario desde la derecha) de una longitud: Ascendente (o Aries 0°) a la izquierda. */
+function angulo(lon: number, asc: number | null): number {
+    return 180 + (lon - (asc ?? 0));
+}
+function punto(lon: number, asc: number | null, r: number): [number, number] {
+    const a = (angulo(lon, asc) * Math.PI) / 180;
+    return [100 + Math.cos(a) * r, 100 - Math.sin(a) * r];
+}
+/** Reparte los cuerpos que caen demasiado juntos (≥ 9° entre sí) para que sus glifos no se pisen. */
+function repartir(c: Cuerpo[]): { c: Cuerpo; lon: number }[] {
+    const orden = [...c].sort((a, b) => a.lon - b.lon).map((x) => ({ c: x, lon: x.lon }));
+    for (let vuelta = 0; vuelta < 3; vuelta++) {
+        for (let i = 1; i < orden.length; i++) if (orden[i].lon - orden[i - 1].lon < 9) orden[i].lon = orden[i - 1].lon + 9;
+    }
+    return orden;
+}
+
+function Rueda({ natal, transitos, aspectosNatales = [], asc, lienzo, detalle, etiqueta, className }: {
+    natal: Cuerpo[]; transitos?: Cuerpo[]; aspectosNatales?: ReturnType<typeof aspectos>; asc: number | null; lienzo: LienzoB;
+    detalle: "min" | "normal" | "pleno"; etiqueta: string; className?: string;
+}) {
+    const id = useId().replace(/:/g, "");
+    const planetas = natal.filter((c) => c.cuerpo !== "Ascendente" && c.cuerpo !== "Medio Cielo");
+    const porNombre = new Map(planetas.map((c) => [c.cuerpo, c]));
+    const vivo = lienzo.nivel !== "ligero";
+    return (
+        <svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" className={cn("block", className)} role="img" aria-label={etiqueta}>
+            <defs>
+                <radialGradient id={`f${id}`}>
+                    <stop offset="0%" stopColor={lienzo.acento} stopOpacity={0.16} />
+                    <stop offset="100%" stopColor={lienzo.acento} stopOpacity={0.02} />
+                </radialGradient>
+            </defs>
+            <circle cx={100} cy={100} r={96} fill={`url(#f${id})`} />
+            {/* anillo del zodiaco: doce sectores con el color de su elemento */}
+            <g className={vivo && asc === null ? estilosB.orbita : undefined} style={{ ["--b-dur" as string]: "600s" }}>
+                {Array.from({ length: 12 }, (_, i) => {
+                    const a0 = (angulo(i * 30, asc) * Math.PI) / 180, a1 = (angulo(i * 30 + 30, asc) * Math.PI) / 180;
+                    const p = (r: number, a: number) => `${(100 + Math.cos(a) * r).toFixed(2)} ${(100 - Math.sin(a) * r).toFixed(2)}`;
+                    const color = COLOR_ELEMENTO[ELEMENTO_SIGNO[i]];
+                    const [gx, gy] = punto(i * 30 + 15, asc, 88);
+                    return (
+                        <g key={i}>
+                            <path d={`M${p(96, a0)} A96 96 0 0 0 ${p(96, a1)} L${p(80, a1)} A80 80 0 0 1 ${p(80, a0)} Z`} fill={color} fillOpacity={i % 2 ? 0.1 : 0.16} stroke="#fff" strokeOpacity={0.12} strokeWidth={0.4} />
+                            <text x={gx} y={gy} textAnchor="middle" dominantBaseline="central" fontSize={detalle === "min" ? 11 : 9.5} fill={tintaB(color, 0.3)}>{GLIFO_SIGNO[i]}<title>{NOMBRE_SIGNO[i]}</title></text>
+                        </g>
+                    );
+                })}
+            </g>
+            <circle cx={100} cy={100} r={80} fill="none" stroke="#fff" strokeOpacity={0.15} strokeWidth={0.5} />
+            {/* casas iguales desde el Ascendente */}
+            {asc !== null && detalle !== "min" && Array.from({ length: 12 }, (_, k) => {
+                const [x1, y1] = punto(asc + k * 30, asc, 34), [x2, y2] = punto(asc + k * 30, asc, 80);
+                const eje = k % 3 === 0;
+                return <line key={k} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#fff" strokeOpacity={eje ? 0.45 : 0.12} strokeWidth={eje ? 0.9 : 0.5} />;
+            })}
+            {asc !== null && (() => { const [x, y] = punto(asc, asc, 99); return <text x={x + 1} y={y} textAnchor="end" dominantBaseline="central" fontSize={6.5} fontWeight={700} fill="#fff" fillOpacity={0.75}>AC</text>; })()}
+            {/* aspectos natales */}
+            {detalle !== "min" && aspectosNatales.filter((a) => a.tipo !== "conjunción" && a.a !== "Ascendente" && a.b !== "Ascendente").slice(0, 12).map((a) => {
+                const x = porNombre.get(a.a as Cuerpo["cuerpo"]), y = porNombre.get(a.b as Cuerpo["cuerpo"]);
+                if (!x || !y) return null;
+                const [x1, y1] = punto(x.lon, asc, 34), [x2, y2] = punto(y.lon, asc, 34);
+                const color = ASPECTOS.find((z) => z.tipo === a.tipo)?.color ?? "#fff";
+                return <line key={`${a.a}-${a.b}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeOpacity={0.25 + 0.4 * a.exacto} strokeWidth={0.7}><title>{`${a.a} ${a.tipo} ${a.b}`}</title></line>;
+            })}
+            <circle cx={100} cy={100} r={34} fill="none" stroke="#fff" strokeOpacity={0.1} strokeWidth={0.5} />
+            {/* tránsitos de hoy (anillo interior del zodiaco, tenues) */}
+            {transitos && repartir(transitos).map(({ c, lon }) => {
+                const [x, y] = punto(lon, asc, 73);
+                return <text key={`t${c.cuerpo}`} x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={7} fill="#fff" fillOpacity={0.45}>{c.simbolo}<title>{`Hoy: ${frasePosicion(c)}`}</title></text>;
+            })}
+            {/* planetas natales */}
+            {repartir(planetas).map(({ c, lon }) => {
+                const [x, y] = punto(lon, asc, transitos ? 58 : 62);
+                const [tx, ty] = punto(c.lon, asc, 80);
+                const [ux, uy] = punto(c.lon, asc, 76);
+                const color = COLOR_ELEMENTO[ELEMENTO_SIGNO[c.indiceSigno]];
+                return (
+                    <g key={c.cuerpo}>
+                        <line x1={tx} y1={ty} x2={ux} y2={uy} stroke={color} strokeWidth={1} strokeOpacity={0.8} />
+                        <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={detalle === "min" ? 12 : 10.5} fontWeight={600} fill={tintaB(color, 0.45)}>{c.simbolo}<title>{frasePosicion(c)}</title></text>
+                    </g>
+                );
+            })}
+        </svg>
+    );
+}
+
+// ── Formulario ──────────────────────────────────────────────────────────────
+
+function Formulario({ inicial, lienzo, guardar, cancelar }: { inicial: DatosNacimiento | null; lienzo: LienzoB; guardar: (d: DatosNacimiento | null) => void; cancelar: () => void }) {
+    const clima = useWeatherLocationOpcional();
+    const id = useId().replace(/:/g, "");
+    const [fecha, setFecha] = useState(inicial?.fecha ?? "");
+    const [hora, setHora] = useState(inicial?.hora ?? "");
+    const [sinHora, setSinHora] = useState(inicial ? !inicial.hora : false);
+    const [lugar, setLugar] = useState<DatosNacimiento["lugar"]>(inicial?.lugar ?? null);
+    const [busqueda, setBusqueda] = useState("");
+    const [resultados, setResultados] = useState<NonNullable<DatosNacimiento["lugar"]>[] | null>(null);
+    const [buscando, setBuscando] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const alto = lienzo.tactil ? "min-h-11" : "min-h-8";
+    const campo = cn(estilosB.foco, alto, "w-full rounded-full ss-redondo bg-white/[0.06] px-3 text-[12px] text-white outline-none [color-scheme:dark]");
+
+    const buscar = async () => {
+        const q = busqueda.trim();
+        if (q.length < 2) return;
+        setBuscando(true);
+        setError(null);
+        try {
+            const { searchPlaces } = await import("@/lib/geocoding");
+            const r = await searchPlaces(q, 5);
+            setResultados(r.map((x) => ({ nombre: [x.name, x.country].filter(Boolean).join(", "), lat: x.lat, lon: x.lon, zona: x.timezone ?? null })));
+            if (r.length === 0) setError("No encontré ese lugar: prueba con la ciudad y el país.");
+        } catch {
+            setError("No se pudo buscar el lugar ahora.");
+        } finally {
+            setBuscando(false);
+        }
+    };
+    const enviar = (e: FormEvent) => {
+        e.preventDefault();
+        const d: DatosNacimiento = { fecha, hora: sinHora || !hora ? null : hora, lugar };
+        const fallo = validarNacimiento(d);
+        if (fallo) { setError(fallo); return; }
+        guardar(d);
+    };
+    return (
+        <form onSubmit={enviar} className={cn(estilosB.entrar, "flex h-full min-h-0 flex-col gap-2 overflow-auto")} aria-label="Tus datos de nacimiento">
+            <div className="grid gap-2" style={{ gridTemplateColumns: lienzo.base === "s" || lienzo.base === "m" ? "1fr" : "1fr 1fr" }}>
+                <label htmlFor={`${id}-f`} className="flex flex-col gap-1 text-[11px] font-semibold text-white/70">Fecha
+                    <input id={`${id}-f`} type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} className={campo} />
+                </label>
+                <label htmlFor={`${id}-h`} className="flex flex-col gap-1 text-[11px] font-semibold text-white/70">Hora (local del lugar)
+                    <input id={`${id}-h`} type="time" value={hora} disabled={sinHora} onChange={(e) => setHora(e.target.value)} className={cn(campo, "disabled:opacity-40")} />
+                </label>
+            </div>
+            <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-white/70">
+                <input type="checkbox" checked={sinHora} onChange={(e) => setSinHora(e.target.checked)} className="size-4 cursor-pointer accent-current" style={{ color: lienzo.acento }} />
+                No sé la hora
+            </label>
+            <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold text-white/70">Lugar {lugar ? <b className="font-semibold text-white">· {lugar.nombre}</b> : <span className="font-normal text-white/45">(para el Ascendente)</span>}</span>
+                <div className="flex gap-1.5">
+                    <label className="sr-only" htmlFor={`${id}-l`}>Buscar lugar</label>
+                    <input id={`${id}-l`} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Ciudad, país"
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void buscar(); } }} className={cn(campo, "flex-1")} />
+                    <AccionB onClick={() => void buscar()} icono={Search} color={lienzo.acento2} tactil={lienzo.tactil} disabled={buscando}>{buscando ? "Buscando…" : "Buscar"}</AccionB>
+                </div>
+                {clima && (
+                    <button type="button" onClick={() => setLugar({ nombre: clima.location.name, lat: clima.location.lat, lon: clima.location.lon, zona: clima.location.timezone ?? null })}
+                        className={cn(estilosB.foco, "inline-flex w-fit cursor-pointer items-center gap-1 rounded-full ss-redondo px-2 text-[11px] text-white/65 hover:text-white", alto)}>
+                        <MapPin className="size-3.5" aria-hidden /> Usar {clima.location.name}
+                    </button>
+                )}
+                {resultados && resultados.length > 0 && (
+                    <ul className="flex flex-col" aria-label="Lugares encontrados">
+                        {resultados.map((r) => (
+                            <li key={`${r.lat},${r.lon}`}>
+                                <button type="button" onClick={() => { setLugar(r); setResultados(null); }}
+                                    className={cn(estilosB.foco, estilosB.fila, "w-full cursor-pointer rounded-[12px] px-2 text-left text-[12px] text-white/85", alto)}>{r.nombre}</button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+            {error && <p role="alert" className="text-[11px] text-rose-300">{error}</p>}
+            <p className="text-[10px] text-white/45">Tus datos de nacimiento se guardan solo en este dispositivo.</p>
+            <div className="mt-auto flex flex-wrap items-center gap-1.5">
+                <AccionB icono={Save} color={lienzo.acento} tono="llena" tactil={lienzo.tactil} enviar>Guardar</AccionB>
+                <AccionB icono={X} color="#94a3b8" tactil={lienzo.tactil} onClick={cancelar}>Cancelar</AccionB>
+                {inicial && <AccionB icono={Trash2} color="#f43f5e" tactil={lienzo.tactil} onClick={() => guardar(null)}>Borrar mis datos</AccionB>}
+            </div>
+        </form>
     );
 }

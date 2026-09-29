@@ -162,12 +162,14 @@ export interface AccionBProps {
     disabled?: boolean;
     titulo?: string;
     className?: string;
+    /** Botón de envío de un formulario. */
+    enviar?: boolean;
     "aria-label"?: string;
     "aria-pressed"?: boolean;
 }
 
 /** Pastilla de acción: enlace interno, externo (pestaña nueva) o botón. Nunca se corta el texto. */
-export function AccionB({ children, href, onClick, icono: Icono, color, tono = "fantasma", tactil, externo, disabled, titulo, className, ...aria }: AccionBProps) {
+export function AccionB({ children, href, onClick, icono: Icono, color, tono = "fantasma", tactil, externo, disabled, titulo, className, enviar, ...aria }: AccionBProps) {
     const clase = cn(
         estilos.foco,
         "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-full ss-redondo px-3 font-semibold text-white",
@@ -190,7 +192,7 @@ export function AccionB({ children, href, onClick, icono: Icono, color, tono = "
         return <Link href={href} className={clase} style={estilo} title={titulo} aria-label={aria["aria-label"]}>{contenido}</Link>;
     }
     return (
-        <button type="button" onClick={onClick} disabled={disabled} className={clase} style={estilo} title={titulo} aria-label={aria["aria-label"]} aria-pressed={aria["aria-pressed"]}>
+        <button type={enviar ? "submit" : "button"} onClick={onClick} disabled={disabled} className={clase} style={estilo} title={titulo} aria-label={aria["aria-label"]} aria-pressed={aria["aria-pressed"]}>
             {contenido}
         </button>
     );
