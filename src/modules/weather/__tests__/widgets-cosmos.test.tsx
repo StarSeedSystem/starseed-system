@@ -20,6 +20,7 @@ import { SpaceEnergySolarWidget } from "../components/widgets/solar/space-energy
 import { SolarWindWidget } from "../components/widgets/space/space-weather-solar-wind-widget";
 import { horasDoradas } from "../components/widgets/terrestrial/weather-astronomy-widget";
 import { SpaceWeatherWidget } from "@/components/dashboard/widgets/space/space-weather-widget";
+import { SpaceWeatherApp } from "@/components/dashboard/widgets/space/space-weather-app";
 
 function marco(clase: ClaseTamano): ContextoMarcoUnificado {
     const { base, horizontal } = disenoDe(clase);
@@ -98,6 +99,16 @@ describe("Clima espacial · un diseño por tamaño con datos de NOAA", () => {
         cleanup();
         pintar(<SpaceWeatherWidget />, "m");
         expect(await screen.findByRole("button", { name: /Reintentar/ })).toBeInTheDocument();
+    });
+
+    it("la vista app reúne todos los instrumentos con una sola petición por fuente", async () => {
+        render(<SpaceWeatherApp />);
+        for (const nombre of ["Panel de clima espacial", "Índice Kp", "Viento solar", "Llamaradas solares", "Magnetómetro", "Resonancia Schumann"]) {
+            expect(screen.getByRole("region", { name: nombre })).toBeInTheDocument();
+        }
+        await screen.findAllByRole("img", { name: /Índice Kp/ });
+        const llamadas = (fetch as unknown as { mock: { calls: string[][] } }).mock.calls.filter(([u]) => String(u).includes("k-index-forecast"));
+        expect(llamadas.length).toBeLessThanOrEqual(1);
     });
 
     it("varios widgets del cosmos comparten una sola petición de Kp", async () => {

@@ -239,7 +239,7 @@ function Contenido({ info }: { info: InfoMarco }) {
     const previsionDias = escalas.datos?.dias.length ? (
         <ul className="grid grid-cols-3 gap-2" aria-label="Previsión de 3 días">
             {escalas.datos.dias.map((d, i) => (
-                <li key={d.fecha || i} className="rounded-xl bg-white/[0.05] px-2 py-1.5 text-center text-[11px]">
+                <li key={`${d.fecha}-${i}`} className="rounded-xl bg-white/[0.05] px-2 py-1.5 text-center text-[11px]">
                     <span className="block capitalize text-white/60">{i === 0 ? "Hoy" : d.fecha ? dia(Date.parse(`${d.fecha}T12:00:00Z`)) : "—"}</span>
                     <span className="block" style={{ color: COLOR_SEVERIDAD[sevDeEscala(d.g)] }}>G{d.g ?? 0}</span>
                     <span className="block text-white/55">R1-2 {d.probRMenor ?? "—"} %</span>
