@@ -36,7 +36,8 @@
  *
  * DISPONIBILIDAD
  *   · Cuentas nuevas / primera visita → arranca sola (marca
- *     localStorage 'starseed.guide.seen.v1'); no reaparece si ya se vio.
+ *     localStorage 'starseed.guide.seen.v1' + marca de la CUENTA `guia.bienvenida`, ver
+ *     lib/onboarding/guia-vista.ts); no reaparece si ya se vio en ningún medio.
  *   · Existentes / bajo demanda        → escucha el CustomEvent
  *     'starseed:open-guide' y expone window.openStarseedGuide(); además pinta un
  *     acceso flotante discreto "Guía" (abajo-izquierda) siempre reabrible.
@@ -106,6 +107,8 @@ import {
   subscribeGuideButtonVisible,
 } from "@/lib/onboarding/guide-visibility";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
+import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
+import { copiarGuiaLocalACuenta, marcarGuiaVista } from "@/lib/onboarding/guia-vista";
 import { esRutaConsola } from "@/components/layout/solo-fuera-de-consola";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { usePerfilDispositivo } from "@/hooks/use-perfil-dispositivo";
@@ -116,7 +119,6 @@ import { transicionPaso, variantesPaso, type Direccion } from "@/lib/movimiento/
 import type { PerfilEntrada } from "@/lib/gestos";
 
 // ── contratos externos (solo strings/constantes; sin importar el motor) ──────
-const GUIDE_SEEN_KEY = "starseed.guide.seen.v1";
 const GUIDE_MODE_KEY = "starseed.guide.mode.v1";
 export const OPEN_GUIDE_EVENT = "starseed:open-guide";
 const AURORA_EXOCORTEX_OPEN_EVENT = "starseed:open-aurora-exocortex";
@@ -508,18 +510,30 @@ export function AuroraGuide() {
   useEffect(() => {
     setMounted(true);
     if (typeof window === "undefined") return;
-    let seen = false;
-    try { seen = window.localStorage.getItem(GUIDE_SEEN_KEY) === "1"; } catch { /* */ }
-    // No competir con la presentación breve de Aurora (AuroraIntro): el tour de
-    // interfaz solo arranca solo DESPUÉS de que el intro se haya completado, para
-    // no solapar dos ventanas la primera vez. El tour sigue disponible a demanda.
-    let introDone = false;
-    try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
-    if (!seen && introDone) {
-      // Primera visita (tras el intro): arranca sola tras un instante.
-      const t = setTimeout(() => setOpen(true), 900);
-      return () => clearTimeout(t);
-    }
+    // (2026-09-29 · persistencia entre medios) «Ya la vi» es un dato de la CUENTA: la decisión
+    // espera a que el pull inicial haya traído las marcas (y el intro de Aurora, que también
+    // viaja con la cuenta). Sin esa espera, un medio recién abierto no sabía nada y abría la guía
+    // «por primera vez» en cada medio. Si la cuenta no responde, no se abre sola (se puede
+    // abrir a demanda), y en cuanto responda se decide.
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    const decidir = () => {
+      // Una marca local antigua se respeta y se copia a la cuenta para los demás medios.
+      const seen = copiarGuiaLocalACuenta();
+      // No competir con la presentación breve de Aurora (AuroraIntro): el tour de
+      // interfaz solo arranca solo DESPUÉS de que el intro se haya completado, para
+      // no solapar dos ventanas la primera vez. El tour sigue disponible a demanda.
+      let introDone = false;
+      try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
+      if (!seen && introDone) {
+        // Primera visita (tras el intro): arranca sola tras un instante.
+        temporizador = setTimeout(() => setOpen(true), 900);
+      }
+    };
+    const cancelarEspera = cuandoCuentaFiable(decidir, 4000);
+    return () => {
+      cancelarEspera();
+      if (temporizador) clearTimeout(temporizador);
+    };
   }, []);
 
   // ── reabrir bajo demanda: evento + helper global ───────────────────────────
@@ -589,7 +603,7 @@ export function AuroraGuide() {
   // Al cerrar, marca visto (no reaparece sola). Reabrible siempre por evento.
   const markSeen = useCallback(() => {
     if (typeof window === "undefined") return;
-    try { window.localStorage.setItem(GUIDE_SEEN_KEY, "1"); } catch { /* */ }
+    marcarGuiaVista(); // este medio + la cuenta (los demás medios ya no la abren sola)
   }, []);
 
   const close = useCallback(() => {
