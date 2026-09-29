@@ -384,3 +384,50 @@ export function PestanasE<T extends string>({
         </div>
     );
 }
+
+// ── Anillo de progreso (objeto de luz, no una barra en una caja) ──────
+
+/**
+ * Anillo con degradado del acento al segundo tono y halo suave. `valor` 0-1, o `null` cuando no
+ * hay dato (se dibuja la pista punteada y un «—» honesto en vez de un 0 %).
+ */
+export function AnilloE({
+    valor, lado, grosor, acento, acento2, children, etiqueta,
+}: {
+    valor: number | null;
+    lado: number;
+    grosor?: number;
+    acento: string;
+    acento2: string;
+    children?: React.ReactNode;
+    etiqueta?: string;
+}) {
+    const id = React.useId().replace(/:/g, "");
+    const g = grosor ?? Math.max(4, lado * 0.09);
+    const r = (lado - g) / 2 - 2;
+    const c = 2 * Math.PI * r;
+    const v = valor === null ? 0 : Math.max(0, Math.min(1, valor));
+    return (
+        <span className="relative inline-grid shrink-0 place-items-center" style={{ width: lado, height: lado }} role={etiqueta ? "img" : undefined} aria-label={etiqueta}>
+            <svg width={lado} height={lado} viewBox={`0 0 ${lado} ${lado}`} className="absolute inset-0 -rotate-90 overflow-visible" aria-hidden>
+                <defs>
+                    <linearGradient id={`an-${id}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={acento} />
+                        <stop offset="100%" stopColor={acento2} />
+                    </linearGradient>
+                    <radialGradient id={`ha-${id}`}>
+                        <stop offset="55%" stopColor={acento} stopOpacity={0.18} />
+                        <stop offset="100%" stopColor={acento} stopOpacity={0} />
+                    </radialGradient>
+                </defs>
+                <circle cx={lado / 2} cy={lado / 2} r={lado / 2} fill={`url(#ha-${id})`} />
+                <circle cx={lado / 2} cy={lado / 2} r={r} fill="none" stroke="rgba(255,255,255,.1)" strokeWidth={g} strokeDasharray={valor === null ? `${g * 0.4} ${g * 1.2}` : undefined} />
+                {valor !== null && v > 0 && (
+                    <circle cx={lado / 2} cy={lado / 2} r={r} fill="none" stroke={`url(#an-${id})`} strokeWidth={g} strokeLinecap="round"
+                        strokeDasharray={`${c * v} ${c}`} style={{ transition: "stroke-dasharray 600ms cubic-bezier(.22,1,.36,1)", filter: `drop-shadow(0 0 ${Math.max(2, g * 0.6)}px ${conAlfa(acento, 0.7)})` }} />
+                )}
+            </svg>
+            <span className="relative grid place-items-center text-center leading-none">{children}</span>
+        </span>
+    );
+}
