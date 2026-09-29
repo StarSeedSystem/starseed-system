@@ -29,11 +29,29 @@ export interface AspectoPestana {
     acento?: string;
 }
 
+/** Marca de la plantilla de la que sale una pestaña (ver pestanas/migracion.ts). */
+export interface MarcaPlantillaEditor {
+    cat: string;
+    v: string;
+    huella: string;
+    descartada?: string;
+}
+
 /** Un dashboard con su aspecto opcional (campos aditivos: viajan en el mismo JSON guardado). */
-export type DashboardConAspecto = Dashboard & AspectoPestana;
+export type DashboardConAspecto = Dashboard & AspectoPestana & {
+    /** (2026-09-29) Plantilla temática de la que salió (generación y huella). */
+    plantilla?: MarcaPlantillaEditor;
+    /** (2026-09-29) Fondo ambiental de la pestaña: automático (del tema) o apagado. */
+    ambiente?: "auto" | "apagado";
+};
+
+/** Variante de una plantilla temática (pestanas/variantes.ts). */
+export type VariantePlantilla = "completo" | "esencial" | "enfoque";
 
 export interface OpcionesAnadir {
     talla: TallaEditor;
+    /** (2026-09-29) Huella exacta (p. ej. la «sugerida» por el diseño del tema); manda sobre la talla. */
+    dims?: { w: number; h: number };
     /** Celda de destino (rejilla de escritorio, 12 columnas). Sin ella, el mejor hueco libre. */
     posicion?: { x: number; y: number };
 }
@@ -60,7 +78,17 @@ export interface AccionesEditor {
     onGestorDispositivos: () => void;
     onRestaurarTematicas: () => void;
     // ── Plantillas ──
-    onAplicarPlantilla: (categoryId: string) => void;
+    onAplicarPlantilla: (categoryId: string, variante?: VariantePlantilla) => void;
+    // ── (2026-09-29) Diseño del tema de la pestaña ──
+    /** Estrena el diseño nuevo de su tema (la persona había cambiado la suya). */
+    onAplicarNovedad?: (id: string) => void;
+    /** Se queda con su versión: no se vuelve a ofrecer. */
+    onDescartarNovedad?: (id: string) => void;
+    /** Vuelve al diseño de fábrica de su tema. */
+    onRestablecerDiseno?: (id: string) => void;
+    onAmbiente?: (id: string, ambiente: "auto" | "apagado") => void;
+    onExportar?: (id: string) => void;
+    onImportar?: (archivo: File) => void;
     // ── Historial ──
     onDeshacer: () => void;
     onRehacer: () => void;

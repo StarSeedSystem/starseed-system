@@ -4,13 +4,21 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Dashboard, DashboardWidget, WidgetType } from "./dashboard-types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Search, Cpu, Wifi } from "lucide-react";
+import { Search, Cpu, Wifi, Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { WidgetForgeDialog } from "./widget-forge/widget-forge-dialog";
 import { WeatherLocationProvider } from "@/modules/weather/context/weather-location-context";
 import { DEFAULT_DASHBOARD_TEMPLATES, ALL_DASHBOARD_TEMPLATES, type DefaultDashboardTemplate } from "./dashboard-defaults";
 import { getCategoryById } from "./widget-categories";
+// (2026-09-29) Pestañas gen12: temas, migración que respeta lo tocado, variantes y exportar/importar.
+import {
+    VERSION_PREDETERMINADOS, aplicarDiseno, descartarNovedad, generarPredeterminados, localizarPredeterminada,
+    migrarPredeterminados, novedadDisponible, type InformeMigracion, type TableroMarcado,
+} from "./pestanas/migracion";
+import { aspectoDe, conAlfa, temaDeCategoria } from "./pestanas/temas";
+import { variantePlantilla, type VarianteDiseno } from "./pestanas/variantes";
+import { exportarPestana, importarPestana, nombreArchivo } from "./pestanas/exportar";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -66,33 +74,31 @@ import {
 } from "./editor-superior/historial";
 import type { PropsSistema } from "./editor-superior/panel-sistema";
 import { ADD_WIDGET_SIZE_HINT_EVENT, type AddWidgetSizeHintDetail } from "./dashboard-size";
-import { getManifest } from "./widget-manifest";
+import { getManifest, getSizeConstraints } from "./widget-manifest";
 
 // ── LocalStorage Keys ────────────────────────────────────────────
 const LS_DASHBOARDS = 'starseed_dashboards';
 const LS_WIDGETS = 'starseed_widgets';
 const LS_ORDER = 'dashboard_order';
 const LS_INITIALIZED = 'starseed_dashboards_initialized';
-// Versión del catálogo de dashboards predeterminados. Súbela cada vez que cambie
-// el acomodo/los widgets por defecto para que las instalaciones existentes
-// re-siembren los tableros predeterminados (preservando los tableros propios).
-// REGLA DE MIGRACIÓN (patrón idéntico al dock, ver layout/dock-config.ts): al
-// montar, se compara `storedVersion` (localStorage) contra esta constante. Si
-// difieren, `reseedDefaultDashboards()` regenera SOLO los tableros cuya
-// `category` coincide con una plantilla predeterminada actual (fresco, con el
-// acomodo más reciente) y conserva intactos, al final de la lista, los
-// tableros del usuario (categoría ajena al catálogo). Es idempotente: una vez
-// igualada la versión, no vuelve a re-sembrar hasta el próximo bump. La
-// versión viaja también con la cuenta (SYNCED_KEYS en lib/settings-sync.ts +
-// el blob de lib/dashboard/dashboard-sync.ts) para que un dispositivo nuevo
-// no dispare una re-siembra local espuria si la cuenta ya migró.
-//
-// gen11 (2026-07-11): cabecera con saludo + acciones (añadir widget/
-// plantillas/editar), sistema de tallas S/M/L/XL (dashboard-size.ts) y
-// composiciones predeterminadas rediseñadas para "Inicio", "Red", "Sistema"
-// y el nuevo "Creativo" (promovido desde plantillas futuras).
+// Versión del catálogo de dashboards predeterminados (historia):
+// gen11 (2026-07-11): cabecera, tallas S/M/L/XL y composiciones rediseñadas; al cambiar la versión
+// se re-sembraban de cero TODAS las temáticas (perdiendo lo que la persona hubiera tocado).
+// gen12 (2026-09-29): ver abajo — migración pestaña a pestaña que nunca destruye.
 const LS_DEFAULTS_VERSION = 'starseed_defaults_version';
-const DEFAULTS_VERSION = 'gen11-2026-07-11-cabecera-plantillas-tamanos';
+// gen12 (2026-09-29): 18 pestañas temáticas curadas (héroe + apoyo + datos, un tema por pestaña).
+// La GENERACIÓN viaja ahora DENTRO de cada pestaña (`plantilla`, ver pestanas/migracion.ts): así la
+// migración sabe, pestaña a pestaña, si la persona la tocó. La migración corre en cada arranque y
+// en cada rehidratación (es idempotente) y nunca destruye: renueva las intactas, conserva las
+// tocadas (ofreciendo su diseño nuevo) y añade las que faltan.
+const DEFAULTS_VERSION = VERSION_PREDETERMINADOS;
+// ⚠️ La clave global `starseed_defaults_version` viaja con la cuenta y la leen los clientes
+// ANTERIORES a gen12 (la web publicada, una PWA en caché): si ven un valor distinto al suyo,
+// ejecutan su re-siembra vieja, que regeneraba de cero TODAS las pestañas temáticas y borraba lo
+// que la persona había cambiado. Por eso aquí se sigue escribiendo el valor de gen11: la
+// generación nueva vive en cada pestaña y los clientes viejos se quedan quietos.
+const VERSION_CLAVE_COMPATIBLE = 'gen11-2026-07-11-cabecera-plantillas-tamanos';
+void DEFAULTS_VERSION;
 const LS_ACTIVE_PROFILE = 'starseed_active_profile_v1';
 const LS_AI_PROVIDER = 'starseed_ai_provider_v1';
 const LS_SERVERS = 'starseed_internet_servers_v1';
@@ -202,33 +208,18 @@ function seedWidgetsFromTemplate(
     }));
 }
 
-function generateDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Record<string, DashboardWidget[]> } {
-    const dashboards: Dashboard[] = [];
-    const widgetMap: Record<string, DashboardWidget[]> = {};
-    const now = new Date().toISOString();
-
-    for (const template of DEFAULT_DASHBOARD_TEMPLATES) {
-        const dashId = crypto.randomUUID();
-        dashboards.push({
-            id: dashId,
-            profile_id: 'local',
-            name: template.name,
-            is_default: !!template.isDefault,
-            category: template.categoryId,
-            created_at: now,
-            updated_at: now,
-        });
-
-        widgetMap[dashId] = seedWidgetsFromTemplate(template, dashId, now);
-    }
-
-    return { dashboards, widgetMap };
+/** Dependencias reales de la lógica pura: ids aleatorios y la hora de ahora. */
+function depsReales() {
+    return { uuid: () => crypto.randomUUID(), ahora: new Date().toISOString() };
 }
 
-// (2026-09-28) Completa los tableros PREDETERMINADOS que falten (Política, Educación, Clima…),
-// sin tocar los que existen ni los que la persona borró a propósito. Antes solo se sembraban en
-// el primer arranque o al cambiar DEFAULTS_VERSION: una cuenta cuyo blob remoto (dashboard_state)
-// nació con menos tableros no veía nunca las pestañas temáticas. Devuelve true si añadió alguno.
+function generateDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Record<string, DashboardWidget[]> } {
+    const { dashboards, widgets } = generarPredeterminados(DEFAULT_DASHBOARD_TEMPLATES, depsReales());
+    return { dashboards, widgetMap: widgets };
+}
+
+// (2026-09-28) Categorías predeterminadas que la persona BORRÓ a propósito: no se vuelven a
+// sembrar (viajan con la cuenta en el blob de dashboard-sync).
 const LS_RETIRADOS = 'starseed_dashboards_retirados';
 function leerRetirados(): Set<string> {
     try { const v = JSON.parse(localStorage.getItem(LS_RETIRADOS) || '[]'); return new Set(Array.isArray(v) ? v : []); } catch { return new Set(); }
@@ -238,52 +229,37 @@ function retirarPredeterminado(categoria: string | null | undefined) {
     const r = leerRetirados(); r.add(categoria);
     try { localStorage.setItem(LS_RETIRADOS, JSON.stringify([...r])); } catch { /* sin almacén */ }
 }
-function completarPredeterminados(): boolean {
-    const stored = loadDashboards();
-    if (stored.length === 0) return false;
-    const presentes = new Set(stored.map((d) => d.category).filter(Boolean));
-    const retirados = leerRetirados();
-    const faltan = DEFAULT_DASHBOARD_TEMPLATES.filter((t) => !presentes.has(t.categoryId) && !retirados.has(t.categoryId));
-    if (faltan.length === 0) return false;
-    const now = new Date().toISOString();
-    const widgets = loadAllWidgets();
-    const nuevos: Dashboard[] = faltan.map((t) => {
-        const id = crypto.randomUUID();
-        widgets[id] = seedWidgetsFromTemplate(t, id, now);
-        return { id, profile_id: 'local', name: t.name, is_default: false, category: t.categoryId, created_at: now, updated_at: now };
-    });
-    saveDashboards([...stored, ...nuevos]);
-    saveAllWidgets(widgets);
-    return true;
+
+/**
+ * (2026-09-29) Migra las pestañas predeterminadas guardadas a la generación actual (gen12) sin
+ * tocar lo de la persona — ver pestanas/migracion.ts. Sustituye a la vieja re-siembra (que
+ * regeneraba de cero todas las temáticas) y a «completar predeterminados» (que ahora es parte de
+ * la migración). Idempotente: se puede llamar en cada arranque y en cada rehidratación.
+ */
+function migrarLocal(): { cambio: boolean; informe: InformeMigracion } | null {
+    const dashboards = loadDashboards() as TableroMarcado[];
+    if (dashboards.length === 0) return null;
+    const r = migrarPredeterminados({
+        dashboards,
+        widgets: loadAllWidgets(),
+        retirados: [...leerRetirados()],
+        plantillas: DEFAULT_DASHBOARD_TEMPLATES,
+    }, depsReales());
+    if (r.cambio) {
+        saveAllWidgets(r.widgets);
+        saveDashboards(r.dashboards);
+    }
+    try {
+        if (localStorage.getItem(LS_DEFAULTS_VERSION) !== VERSION_CLAVE_COMPATIBLE) localStorage.setItem(LS_DEFAULTS_VERSION, VERSION_CLAVE_COMPATIBLE);
+    } catch { /* sin almacén */ }
+    return { cambio: r.cambio, informe: r.informe };
 }
 
-// Re-siembra los dashboards predeterminados con el acomodo más reciente,
-// preservando los tableros que el usuario creó (categorías no predeterminadas).
-// Devuelve la lista combinada y persiste dashboards + widgets + versión.
-function reseedDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Record<string, DashboardWidget[]> } {
-    const defaultCategoryIds = new Set(DEFAULT_DASHBOARD_TEMPLATES.map(t => t.categoryId));
-    const stored = loadDashboards();
-    const storedWidgets = loadAllWidgets();
-
-    // Tableros 100% personalizados del usuario (categoría no predeterminada): se conservan.
-    const customDashboards = stored.filter(d => !d.category || !defaultCategoryIds.has(d.category as any));
-    const preservedWidgetMap: Record<string, DashboardWidget[]> = {};
-    for (const d of customDashboards) {
-        if (storedWidgets[d.id]) preservedWidgetMap[d.id] = storedWidgets[d.id];
-    }
-
-    // Regenera todos los predeterminados frescos (nuevo acomodo gen4/gen5).
-    const { dashboards: freshDefaults, widgetMap: freshWidgets } = generateDefaultDashboards();
-
-    const merged = [...freshDefaults, ...customDashboards];
-    const mergedWidgets = { ...freshWidgets, ...preservedWidgetMap };
-
-    saveDashboards(merged);
-    saveAllWidgets(mergedWidgets);
-    // Reinicia el orden para que el nuevo conjunto se ordene por defecto.
-    try { localStorage.removeItem(LS_ORDER); } catch {}
-    localStorage.setItem(LS_DEFAULTS_VERSION, DEFAULTS_VERSION);
-    return { dashboards: merged, widgetMap: mergedWidgets };
+/** La plantilla de la que sale una pestaña (su marca o su categoría). */
+function plantillaDe(d: TableroMarcado | undefined): DefaultDashboardTemplate | undefined {
+    if (!d) return undefined;
+    const cat = d.plantilla?.cat ?? d.category;
+    return cat ? ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === cat) : undefined;
 }
 
 export function DashboardLayout() {
@@ -292,7 +268,7 @@ export function DashboardLayout() {
     const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
     const [loading, setLoading] = useState(true);
     const [isEditMode, setIsEditMode] = useState(false);
-    const [selectedTemplate, setSelectedTemplate] = useState(DEFAULT_DASHBOARD_TEMPLATES[0]?.categoryId || 'social');
+    const [selectedTemplate, setSelectedTemplate] = useState<string>(DEFAULT_DASHBOARD_TEMPLATES[0]?.categoryId || 'social');
     const [templateSearch, setTemplateSearch] = useState('');
 
     // --- Overhaul and Fullscreen State ---
@@ -426,6 +402,8 @@ export function DashboardLayout() {
 
     const { toast } = useToast();
     const confirm = useConfirm();
+    // (2026-09-29) Resumen de la migración gen12 para avisar una vez, al terminar de cargar.
+    const avisoMigracionRef = useRef<InformeMigracion | null>(null);
 
     // ── Re-hidratación desde localStorage (fuente de verdad local) ──────────────
     // Relee la lista de tableros y los widgets del tablero activo desde
@@ -433,7 +411,9 @@ export function DashboardLayout() {
     // (BroadcastChannel / storage) como para la sincronización ENTRE DISPOSITIVOS
     // (Supabase realtime, tras volcar el blob remoto a localStorage).
     const rehydrateFromLocal = useCallback(() => {
-        completarPredeterminados();
+        // (2026-09-29) Lo que llega de otra pestaña o de otro dispositivo también se migra (en
+        // silencio): un cliente viejo pudo subir pestañas gen11 sin marca.
+        migrarLocal();
         const stored = loadDashboards();
         if (stored.length > 0) {
             const sorted = sortDashboards(stored);
@@ -526,7 +506,7 @@ export function DashboardLayout() {
             saveDashboards(merged);
             saveAllWidgets(mergedWidgets);
             localStorage.setItem(LS_INITIALIZED, 'true');
-            localStorage.setItem(LS_DEFAULTS_VERSION, DEFAULTS_VERSION);
+            localStorage.setItem(LS_DEFAULTS_VERSION, VERSION_CLAVE_COMPATIBLE);
 
             const sorted = sortDashboards(merged);
             setDashboards(sorted);
@@ -535,32 +515,21 @@ export function DashboardLayout() {
                 setWidgets(mergedWidgets[sorted[0].id] || []);
             }
         } else {
-            // Re-siembra versionada: si cambió el catálogo de defaults, regenera los
-            // tableros predeterminados con el nuevo acomodo (conservando los propios).
-            const storedVersion = localStorage.getItem(LS_DEFAULTS_VERSION);
-            if (storedVersion !== DEFAULTS_VERSION && loadDashboards().length > 0) {
-                const { dashboards: merged, widgetMap } = reseedDefaultDashboards();
-                const sorted = sortDashboards(merged);
-                setDashboards(sorted);
-                if (sorted.length > 0) {
-                    setActiveDashboardId(sorted[0].id);
-                    setWidgets(widgetMap[sorted[0].id] || []);
-                }
-                setLoading(false);
-                return;
-            }
-
-            completarPredeterminados();
+            // (2026-09-29) Migración gen12 pestaña a pestaña (nunca destruye): renueva las
+            // temáticas intactas, conserva las tocadas y añade las que faltan.
+            const migracion = migrarLocal();
             const stored = loadDashboards();
             if (stored.length > 0) {
                 const sorted = sortDashboards(stored);
                 setDashboards(sorted);
                 setActiveDashboardId(sorted[0].id);
                 setWidgets(loadWidgetsForDashboard(sorted[0].id));
+                if (migracion?.cambio) avisoMigracionRef.current = migracion.informe;
             } else {
                 const { dashboards: defaults, widgetMap } = generateDefaultDashboards();
                 saveDashboards(defaults);
                 saveAllWidgets(widgetMap);
+                try { localStorage.setItem(LS_DEFAULTS_VERSION, VERSION_CLAVE_COMPATIBLE); } catch { /* sin almacén */ }
 
                 const sorted = sortDashboards(defaults);
                 setDashboards(sorted);
@@ -572,6 +541,23 @@ export function DashboardLayout() {
         }
         setLoading(false);
     }, []);
+
+    // (2026-09-29) Aviso único tras migrar: qué estrenó diseño y qué se conservó como la dejaste.
+    useEffect(() => {
+        if (loading) return;
+        const inf = avisoMigracionRef.current;
+        avisoMigracionRef.current = null;
+        if (!inf) return;
+        const { renovadas, conservadas, anadidas } = inf;
+        if (!renovadas.length && !anadidas.length && !conservadas.length) return;
+        const partes: string[] = [];
+        if (renovadas.length) partes.push(`${renovadas.length} pestaña${renovadas.length === 1 ? "" : "s"} estrena${renovadas.length === 1 ? "" : "n"} diseño`);
+        if (anadidas.length) partes.push(`llega${anadidas.length === 1 ? "" : "n"} ${anadidas.length} nueva${anadidas.length === 1 ? "" : "s"} (${anadidas.slice(0, 3).join(", ")}${anadidas.length > 3 ? "…" : ""})`);
+        const cola = conservadas.length
+            ? ` ${conservadas.length === 1 ? "La que cambiaste se conserva" : `Las ${conservadas.length} que cambiaste se conservan`} tal cual: su diseño nuevo te espera en el menú de la pestaña.`
+            : "";
+        toast({ title: "Pestañas renovadas", description: `${partes.join(" y ")}.${cola}`.replace(/^\./, "").trim() });
+    }, [loading, toast]);
 
     // ── [Sync multi-dispositivo] Resolver UID de sesión (para el filtro realtime) ──
     // Aditivo: si no hay sesión, syncUid queda undefined y la capa Supabase es inerte.
@@ -896,20 +882,38 @@ export function DashboardLayout() {
 
     // Restablece los dashboards predeterminados al acomodo más reciente,
     // conservando los tableros propios del usuario. Vía manual de re-siembra.
+    // Restablece TODAS las pestañas temáticas a su diseño de fábrica (gen12). A diferencia de la
+    // vieja re-siembra, conserva cada pestaña (id, nombre, icono, color, dispositivos, orden), no toca
+    // las pestañas propias y deja CADA cambio en el historial de su pestaña (Deshacer lo devuelve).
     const handleResetLayout = async () => {
         if (!(await confirm({
-            title: "Restablecer tableros",
-            description: "¿Restablecer los tableros predeterminados al acomodo más reciente? Tus tableros personalizados se conservan.",
+            title: "Restablecer las pestañas temáticas",
+            description: "Cada pestaña temática vuelve a su diseño de fábrica. Tus pestañas propias no se tocan y en cada una puedes deshacerlo desde el editor.",
+            confirmText: "Restablecer",
             destructive: true,
         }))) return;
-        const { dashboards: merged, widgetMap } = reseedDefaultDashboards();
-        const sorted = sortDashboards(merged);
-        setDashboards(sorted);
-        if (sorted.length > 0) {
-            setActiveDashboardId(sorted[0].id);
-            setWidgets(widgetMap[sorted[0].id] || []);
+        const deps = depsReales();
+        let lista = loadDashboards() as TableroMarcado[];
+        const todos = loadAllWidgets();
+        let n = 0;
+        for (const t of DEFAULT_DASHBOARD_TEMPLATES) {
+            const d = localizarPredeterminada(lista, t);
+            if (!d) continue;
+            const previos = todos[d.id] ?? [];
+            const r = aplicarDiseno(d, t, previos, deps);
+            const h = historialesRef.current.get(d.id) ?? historialVacio<DashboardWidget[]>();
+            historialesRef.current.set(d.id, registrarHistorial(h, previos));
+            todos[d.id] = r.widgets;
+            lista = lista.map((x) => (x.id === d.id ? r.dashboard : x));
+            n++;
         }
-        toast({ title: "Tableros restablecidos", description: "Se aplicó el acomodo predeterminado más reciente." });
+        saveAllWidgets(todos);
+        saveDashboards(lista);
+        setDashboards(sortDashboards(lista));
+        if (activeDashboardId) setWidgets(todos[activeDashboardId] ?? []);
+        setVersionWidgets((v) => v + 1);
+        setVersionHistorial((v) => v + 1);
+        toast({ title: "Pestañas temáticas restablecidas", description: `${n} pestaña${n === 1 ? "" : "s"} con su diseño de fábrica. Tus pestañas propias siguen igual.` });
     };
 
     // ── Widgets de un tablero: lectura, guardado e historial (editor superior) ──
@@ -977,7 +981,16 @@ export function DashboardLayout() {
             if (pista && pista.type === type && Date.now() - pista.at < 3000) talla = pista.size;
             pistaTallaRef.current = null;
         }
-        const d = dimsTalla(type, talla);
+        const base = dimsTalla(type, talla);
+        // (2026-09-29) «Sugerido»: la huella exacta del diseño del tema, dentro de los límites del widget.
+        const lim = getSizeConstraints(type);
+        const d = opciones?.dims
+            ? {
+                ...base,
+                w: Math.min(12, Math.max(lim.minW, Math.round(opciones.dims.w))),
+                h: Math.max(lim.minH, Math.round(opciones.dims.h)),
+            }
+            : base;
         const nuevo: DashboardWidget = {
             id: crypto.randomUUID(),
             dashboard_id: dashboardId,
@@ -998,7 +1011,7 @@ export function DashboardLayout() {
         }
         aplicarWidgets(dashboardId, updated);
         const nombre = getManifest(type)?.label ?? type.replace(/_/g, " ").toLowerCase();
-        const etiquetaTalla = TALLAS_EDITOR.find((t) => t.id === talla)?.etiqueta ?? talla;
+        const etiquetaTalla = opciones?.dims ? `sugerido (${d.w}×${d.h})` : TALLAS_EDITOR.find((t) => t.id === talla)?.etiqueta ?? talla;
         toast({ title: "Widget añadido", description: `${nombre} · ${etiquetaTalla}. Puedes deshacerlo desde el editor.` });
     };
 
@@ -1054,12 +1067,12 @@ export function DashboardLayout() {
                 profile_id: 'local',
                 name: newDashboardName,
                 is_default: false,
-                category: selectedTemplate,
+                ...(selectedTemplate ? { category: selectedTemplate } : {}),
                 created_at: now,
                 updated_at: now,
             };
 
-            const template = ALL_DASHBOARD_TEMPLATES.find(t => t.categoryId === selectedTemplate);
+            const template = selectedTemplate ? ALL_DASHBOARD_TEMPLATES.find(t => t.categoryId === selectedTemplate) : undefined;
             const seededWidgets: DashboardWidget[] = template ? seedWidgetsFromTemplate(template, dashId, now) : [];
 
             const allDashboards = [...dashboards, newDashboard];
@@ -1115,11 +1128,12 @@ export function DashboardLayout() {
     // esto REEMPLAZA los widgets del tablero activo por los de la plantilla
     // elegida. Destructivo → el llamador (diálogo "Plantillas") debe confirmar
     // primero. Conserva el id/nombre/categoría del dashboard activo.
-    const handleApplyTemplateToCurrentDashboard = useCallback((categoryId: string, dashId?: string) => {
+    const handleApplyTemplateToCurrentDashboard = useCallback((categoryId: string, dashId?: string, variante: VarianteDiseno = "completo") => {
         const destino = dashId ?? activeDashboardId;
         if (!destino) return;
-        const template = ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoryId);
-        if (!template) return;
+        const base = ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoryId);
+        if (!base) return;
+        const template = variantePlantilla(base, variante);
         const now = new Date().toISOString();
         const seededWidgets = seedWidgetsFromTemplate(template, destino, now);
         // Por aplicarWidgets: queda en el historial (Deshacer devuelve los widgets de antes).
@@ -1291,8 +1305,8 @@ export function DashboardLayout() {
         () => dashboards.find(d => d.id === activeDashboardId) ?? dashboards[0],
         [dashboards, activeDashboardId]
     );
-    const activeCategory = useMemo(
-        () => activeDashboard ? getCategoryById(activeDashboard.category as any) : undefined,
+    const aspectoActivo = useMemo(
+        () => (activeDashboard ? aspectoDe(activeDashboard as TableroMarcado) : null),
         [activeDashboard]
     );
     const totalWidgets = widgets.length;
@@ -1384,26 +1398,142 @@ export function DashboardLayout() {
     );
     const restaurarTematicas = useCallback(() => {
         try { localStorage.removeItem(LS_RETIRADOS); } catch { /* sin almacén */ }
-        const anadio = completarPredeterminados();
+        const r = migrarLocal();
         rehydrateFromLocal();
+        const n = r?.informe.anadidas.length ?? 0;
         toast({
-            title: anadio ? "Pestañas temáticas restauradas" : "Ya tienes todas las pestañas temáticas",
-            description: anadio ? "Vuelven con su acomodo predeterminado." : undefined,
+            title: n ? "Pestañas temáticas restauradas" : "Ya tienes todas las pestañas temáticas",
+            description: n ? `Vuelven ${n} con su diseño: ${r!.informe.anadidas.join(", ")}.` : undefined,
         });
     }, [rehydrateFromLocal, toast]);
 
-    const aplicarPlantillaConfirmada = useCallback(async (dashId: string, categoryId: string) => {
+    const aplicarPlantillaConfirmada = useCallback(async (dashId: string, categoryId: string, variante: VarianteDiseno = "completo") => {
         const plantilla = ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoryId);
         const destino = dashboards.find((d) => d.id === dashId);
         if (!plantilla || !destino) return;
+        const etiqueta = variante === "completo" ? plantilla.name : `${plantilla.name} · ${variante === "esencial" ? "Esencial" : "Enfoque"}`;
         const ok = await confirm({
             title: "Aplicar plantilla",
-            description: `Los widgets de «${destino.name}» se sustituirán por los de «${plantilla.name}». Puedes volver atrás con Deshacer.`,
+            description: `Los widgets de «${destino.name}» se sustituirán por los de «${etiqueta}». Puedes volver atrás con Deshacer.`,
             confirmText: "Aplicar",
             destructive: true,
         });
-        if (ok) handleApplyTemplateToCurrentDashboard(categoryId, dashId);
+        if (ok) handleApplyTemplateToCurrentDashboard(categoryId, dashId, variante);
     }, [dashboards, confirm, handleApplyTemplateToCurrentDashboard]);
+
+    // ── (2026-09-29) Diseño de la pestaña: estrenar, restablecer o mantener el mío ─────────────
+    const guardarTablero = useCallback((d: TableroMarcado) => {
+        setDashboards((prev) => {
+            const updated = prev.map((x) => (x.id === d.id ? d : x));
+            saveDashboards(updated);
+            return updated;
+        });
+    }, []);
+
+    /** Sustituye los widgets de la pestaña por el diseño de su tema (queda en su historial). */
+    const disenarPestana = useCallback(async (id: string, modo: "novedad" | "restablecer" | "vacia") => {
+        const d = dashboards.find((x) => x.id === id) as TableroMarcado | undefined;
+        const t = plantillaDe(d);
+        if (!d || !t) return;
+        if (modo !== "vacia") {
+            const ok = await confirm({
+                title: modo === "novedad" ? `Estrenar el diseño nuevo de «${t.name}»` : `Restablecer «${d.name}»`,
+                description: modo === "novedad"
+                    ? `Los widgets de «${d.name}» se sustituyen por la composición nueva de su tema. Si no te convence, Deshacer la devuelve como estaba.`
+                    : `Vuelve a su diseño de fábrica. Deshacer la devuelve como estaba.`,
+                confirmText: modo === "novedad" ? "Estrenar" : "Restablecer",
+                destructive: modo === "restablecer",
+            });
+            if (!ok) return;
+        }
+        const r = aplicarDiseno(d, t, widgetsDe(id), depsReales());
+        aplicarWidgets(id, r.widgets);
+        guardarTablero(r.dashboard);
+        toast({
+            title: modo === "novedad" ? "Diseño nuevo estrenado" : modo === "vacia" ? `Diseño «${t.name}» aplicado` : "Pestaña restablecida",
+            description: modo === "vacia" ? "Ya puedes moverlo y cambiarlo a tu gusto." : "Puedes deshacerlo desde el editor.",
+        });
+    }, [dashboards, confirm, widgetsDe, aplicarWidgets, guardarTablero, toast]);
+
+    const mantenerMiVersion = useCallback((id: string) => {
+        const d = dashboards.find((x) => x.id === id) as TableroMarcado | undefined;
+        if (!d) return;
+        guardarTablero(descartarNovedad(d));
+        toast({ title: "Se queda como la tienes", description: "No volveremos a proponerte este diseño en esta pestaña." });
+    }, [dashboards, guardarTablero, toast]);
+
+    const novedades = useMemo(
+        () => new Set((dashboards as TableroMarcado[]).filter((d) => novedadDisponible(d, DEFAULT_DASHBOARD_TEMPLATES)).map((d) => d.id)),
+        [dashboards],
+    );
+    const predeterminadas = useMemo(
+        () => new Set((dashboards as TableroMarcado[]).filter((d) => d.plantilla && DEFAULT_DASHBOARD_TEMPLATES.some((t) => t.categoryId === d.plantilla!.cat)).map((d) => d.id)),
+        [dashboards],
+    );
+    const disenoPara = useCallback((id: string) => plantillaDe(dashboards.find((x) => x.id === id) as TableroMarcado | undefined)?.name ?? null, [dashboards]);
+
+    // ── (2026-09-29) Exportar e importar una pestaña (.json) ───────────────────────────────────
+    const exportarTablero = useCallback((id: string) => {
+        const d = dashboards.find((x) => x.id === id) as TableroMarcado | undefined;
+        if (!d) return;
+        try {
+            const datos = exportarPestana(d, widgetsDe(id), new Date().toISOString());
+            const url = URL.createObjectURL(new Blob([JSON.stringify(datos, null, 2)], { type: "application/json" }));
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = nombreArchivo(d.name);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            toast({ title: "Pestaña exportada", description: `«${d.name}» con ${datos.widgets.length} widget${datos.widgets.length === 1 ? "" : "s"}. Impórtala desde el editor → Pestaña.` });
+        } catch {
+            toast({ title: "No se pudo exportar", description: "Inténtalo de nuevo.", variant: "destructive" });
+        }
+    }, [dashboards, widgetsDe, toast]);
+
+    const importarTablero = useCallback(async (archivo: File) => {
+        let texto = "";
+        try { texto = await archivo.text(); } catch { /* ilegible */ }
+        const r = importarPestana(texto, depsReales());
+        if (!r.ok) { toast({ title: "No se pudo importar", description: r.motivo, variant: "destructive" }); return; }
+        saveWidgetsForDashboard(r.dashboard.id, r.widgets);
+        setDashboards((prev) => {
+            const todos = [...prev, r.dashboard];
+            saveDashboards(todos);
+            saveOrder(todos);
+            return todos;
+        });
+        setActiveDashboardId(r.dashboard.id);
+        setWidgets(r.widgets);
+        pedirFoco(r.dashboard.id);
+        toast({
+            title: "Pestaña importada",
+            description: `«${r.dashboard.name}» con ${r.widgets.length} widget${r.widgets.length === 1 ? "" : "s"}${r.omitidos ? ` (${r.omitidos} no se importaron: tipo desconocido o forjado con IA)` : ""}.`,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [toast, pedirFoco]);
+
+    const cambiarAmbiente = useCallback((id: string, ambiente: "auto" | "apagado") => {
+        const d = dashboards.find((x) => x.id === id) as TableroMarcado | undefined;
+        if (!d) return;
+        const siguiente: TableroMarcado = { ...d, updated_at: new Date().toISOString() };
+        if (ambiente === "apagado") siguiente.ambiente = "apagado"; else delete siguiente.ambiente;
+        guardarTablero(siguiente);
+    }, [dashboards, guardarTablero]);
+
+    /** Abre el editor en «Pestaña» sobre esa pestaña (icono, color y fondo). */
+    const editarAspecto = useCallback((id: string) => {
+        pedirFoco(id);
+        setIsEditMode(true);
+        setGrupoEditor("pestana");
+    }, [pedirFoco]);
+
+    /** Abre el catálogo del editor (también desde un tablero vacío fuera de la edición). */
+    const abrirCatalogo = useCallback(() => {
+        setIsEditMode(true);
+        setGrupoEditor("widgets");
+    }, []);
 
     // ── Entrar y salir del editor ──────────────────────────────────────────────
     const alternarEdicion = useCallback(() => {
@@ -1515,7 +1645,13 @@ export function DashboardLayout() {
         onDispositivos: handleSetDeviceTags,
         onGestorDispositivos: () => setIsDeviceManagerOpen(true),
         onRestaurarTematicas: restaurarTematicas,
-        onAplicarPlantilla: (categoryId) => { void aplicarPlantillaConfirmada(dashId, categoryId); },
+        onAplicarPlantilla: (categoryId, variante) => { void aplicarPlantillaConfirmada(dashId, categoryId, variante); },
+        onAplicarNovedad: (id) => { void disenarPestana(id, "novedad"); },
+        onDescartarNovedad: mantenerMiVersion,
+        onRestablecerDiseno: (id) => { void disenarPestana(id, "restablecer"); },
+        onAmbiente: cambiarAmbiente,
+        onExportar: exportarTablero,
+        onImportar: (archivo) => { void importarTablero(archivo); },
         onDeshacer: () => deshacerEn(dashId),
         onRehacer: () => rehacerEn(dashId),
         onListo: terminarEdicion,
@@ -1546,6 +1682,8 @@ export function DashboardLayout() {
                 temasRecientes={recentThemes}
                 onAplicarTema={applyTheme}
                 sistema={sistema}
+                novedad={novedades.has(dashboardId)}
+                predeterminada={predeterminadas.has(dashboardId)}
             />
         );
     };
@@ -1592,25 +1730,25 @@ export function DashboardLayout() {
                                 className="flex flex-col items-center gap-4 flex-shrink-0 overflow-hidden"
                             >
                                 <div className="flex flex-col items-center text-center mt-2">
-                                    {/* Eyebrow — categoría activa dinámica */}
+                                    {/* Eyebrow — el tema de la pestaña activa: su icono, su luz y su lema */}
                                     <AnimatePresence mode="wait">
                                         <motion.div
-                                            key={activeCategory?.id ?? "all"}
+                                            key={activeDashboard?.id ?? "all"}
                                             initial={{ opacity: 0, y: -6 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: 6 }}
                                             transition={{ duration: 0.25 }}
-                                            className="flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.03] backdrop-blur-md mb-3"
+                                            className="flex items-center gap-2 px-3 py-1 rounded-full backdrop-blur-md mb-3"
+                                            style={{ background: aspectoActivo ? conAlfa(aspectoActivo.acento, 0.1) : "rgba(255,255,255,.03)", boxShadow: `inset 0 0 0 1px ${aspectoActivo ? conAlfa(aspectoActivo.acento, 0.3) : "rgba(255,255,255,.1)"}` }}
                                         >
-                                            {activeCategory?.icon && (
-                                                <activeCategory.icon className="w-3.5 h-3.5 text-cyan-300" />
+                                            {aspectoActivo?.icono && (
+                                                <aspectoActivo.icono className="w-3.5 h-3.5" style={{ color: aspectoActivo.acento }} aria-hidden />
                                             )}
-                                            <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/50">
-                                                {activeCategory?.name ?? "Panel de Control"}
+                                            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
+                                                {aspectoActivo?.tema.lema ?? "Panel de control"}
                                             </span>
-                                            <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                                            <span className="text-[10px] font-mono text-white/40">
-                                                {dashboards.length} paneles · {totalWidgets} widgets
+                                            <span className="text-[11px] tabular-nums text-white/40">
+                                                · {totalWidgets} widget{totalWidgets === 1 ? "" : "s"}
                                             </span>
                                         </motion.div>
                                     </AnimatePresence>
@@ -1697,80 +1835,109 @@ export function DashboardLayout() {
                                 onReordenar={reordenarDashboards}
                                 cuadricula={cuadricula}
                                 onSoltarCatalogo={(dashId, type, talla, posicion) => handleAddWidget(dashId, type, { talla, posicion })}
-                                onAbrirCatalogo={() => setGrupoEditor("widgets")}
+                                onAbrirCatalogo={abrirCatalogo}
+                                // ── (2026-09-29) Menú de cada pestaña y diseño de su tema ──
+                                onDuplicar={duplicarDashboard}
+                                onMover={moverDashboard}
+                                onPrincipal={handleSetDefault}
+                                onExportar={exportarTablero}
+                                onEditarAspecto={editarAspecto}
+                                onRestablecerDiseno={(id) => { void disenarPestana(id, "restablecer"); }}
+                                onAplicarNovedad={(id) => { void disenarPestana(id, "novedad"); }}
+                                onDescartarNovedad={mantenerMiVersion}
+                                novedades={novedades}
+                                predeterminadas={predeterminadas}
+                                disenoPara={disenoPara}
+                                onAplicarDisenoTablero={(id) => { void disenarPestana(id, "vacia"); }}
                             />
                         </WorkspaceProvider>
                     </div>
 
-                    {/* Hidden Create Dashboard Dialog (triggered via props) */}
+                    {/* Crear pestaña (2026-09-29): nombre + tema, con cada tema enseñando su icono,
+                        su luz, su lema y cuántos widgets trae; o una pestaña en blanco. */}
                     <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                        <DialogContent className="w-[90vw] max-w-[800px] flex flex-col p-6 sm:p-8">
-                            <DialogHeader className="text-center sm:text-center shrink-0 mb-4">
-                                <DialogTitle className="text-2xl font-bold">Crear nuevo dashboard</DialogTitle>
+                        <DialogContent className="w-[94vw] max-w-[820px] max-h-[88dvh] flex flex-col gap-0 p-0 overflow-hidden">
+                            <DialogHeader className="shrink-0 px-6 pt-6 pb-4 text-left">
+                                <DialogTitle className="text-xl font-bold">Nueva pestaña</DialogTitle>
                                 <DialogDescription className="text-sm">
-                                    Organiza tus widgets en un nuevo espacio expandido.
+                                    Ponle nombre y elige un tema: llega con una composición pensada para él, o empieza en blanco.
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="grid gap-6 py-6 items-center justify-center max-w-2xl mx-auto w-full">
-                                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4 w-full">
-                                    <Label htmlFor="name" className="sm:text-right font-semibold">
-                                        Nombre
-                                    </Label>
+                            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 space-y-4 custom-scrollbar">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="name" className="text-xs font-semibold text-muted-foreground">Nombre</Label>
                                     <Input
                                         id="name"
                                         value={newDashboardName}
                                         onChange={(e) => setNewDashboardName(e.target.value)}
-                                        className="col-span-1 sm:col-span-3 text-center sm:text-left h-12"
-                                        placeholder="Ej. Finanzas Cuánticas"
+                                        onKeyDown={(e) => { if (e.key === "Enter") handleCreateDashboard(); }}
+                                        maxLength={60}
+                                        className="h-11"
+                                        placeholder="Ej. Finanzas del colectivo"
                                     />
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-4 w-full">
-                                    <Label className="sm:text-right font-semibold pt-3">Categoría</Label>
-                                    <div className="col-span-1 sm:col-span-3 space-y-3">
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <div className="space-y-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <Label className="text-xs font-semibold text-muted-foreground">Tema</Label>
+                                        <div className="relative w-full sm:w-64">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden />
                                             <Input
-                                                placeholder="Buscar categoría..."
+                                                placeholder="Buscar tema…"
+                                                aria-label="Buscar tema"
                                                 value={templateSearch}
                                                 onChange={(e) => setTemplateSearch(e.target.value)}
-                                                className="pl-9 h-10"
+                                                className="pl-9 h-9"
                                             />
                                         </div>
-                                        <div className="flex flex-wrap justify-center sm:justify-start gap-2 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin">
-                                            {ALL_DASHBOARD_TEMPLATES
-                                                .filter(t => {
-                                                    if (!templateSearch.trim()) return true;
-                                                    const cat = getCategoryById(t.categoryId);
-                                                    const q = templateSearch.toLowerCase();
-                                                    return t.name.toLowerCase().includes(q) ||
-                                                        cat?.tags.some(tag => tag.includes(q)) || false;
-                                                })
-                                                .map((t) => {
-                                                    const cat = getCategoryById(t.categoryId);
-                                                    const Icon = cat?.icon;
-                                                    const widgetCount = t.widgets.length;
-                                                    return (
-                                                        <Button
-                                                            key={t.categoryId}
-                                                            variant={selectedTemplate === t.categoryId ? "default" : "outline"}
-                                                            size="sm"
-                                                            onClick={() => setSelectedTemplate(t.categoryId)}
-                                                            className={cn("gap-1.5 transition-all", widgetCount === 0 && "opacity-50")}
-                                                            title={cat?.description}
-                                                        >
-                                                            {Icon && <Icon className="h-3.5 w-3.5" />}
-                                                            {t.name}
-                                                            {widgetCount > 0 && <span className="text-[10px] opacity-60">({widgetCount})</span>}
-                                                        </Button>
-                                                    );
-                                                })}
-                                        </div>
+                                    </div>
+                                    <div role="radiogroup" aria-label="Tema de la pestaña" className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(200px,1fr))]">
+                                        {[{ categoryId: "", name: "En blanco", widgets: [] as DefaultDashboardTemplate["widgets"] }, ...ALL_DASHBOARD_TEMPLATES]
+                                            .filter((t) => {
+                                                const q = templateSearch.trim().toLowerCase();
+                                                if (!q) return true;
+                                                const tema = temaDeCategoria(t.categoryId);
+                                                const cat = t.categoryId ? getCategoryById(t.categoryId as DefaultDashboardTemplate["categoryId"]) : undefined;
+                                                return [t.name, tema.lema, ...(cat?.tags ?? [])].join(" ").toLowerCase().includes(q);
+                                            })
+                                            .map((t) => {
+                                                const tema = temaDeCategoria(t.categoryId || null);
+                                                const a = aspectoDe({ category: t.categoryId || null });
+                                                const Icono = t.categoryId ? a.icono : Plus;
+                                                const activo = selectedTemplate === t.categoryId;
+                                                const n = t.widgets.length;
+                                                return (
+                                                    <button
+                                                        key={t.categoryId || "blanco"}
+                                                        type="button"
+                                                        role="radio"
+                                                        aria-checked={activo}
+                                                        onClick={() => setSelectedTemplate(t.categoryId as typeof selectedTemplate)}
+                                                        className="flex items-start gap-3 rounded-2xl p-3 text-left cursor-pointer transition-[background,box-shadow] duration-200 hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                                        style={{
+                                                            background: activo ? conAlfa(a.acento, 0.14) : "rgba(255,255,255,.03)",
+                                                            boxShadow: `inset 0 0 0 1px ${activo ? conAlfa(a.acento, 0.6) : "rgba(255,255,255,.08)"}`,
+                                                            outlineColor: a.acento,
+                                                        }}
+                                                    >
+                                                        <span className="grid size-9 shrink-0 place-items-center rounded-xl" style={{ background: conAlfa(a.acento, 0.16) }}>
+                                                            {Icono ? <Icono className="size-[18px]" style={{ color: a.acento }} aria-hidden /> : null}
+                                                        </span>
+                                                        <span className="min-w-0">
+                                                            <span className="block text-[14px] font-semibold leading-tight text-white/90">{t.name}</span>
+                                                            <span className="mt-0.5 block text-[12px] leading-snug text-white/55">
+                                                                {t.categoryId ? `${tema.lema} · ${n} widget${n === 1 ? "" : "s"}` : "Sin widgets: la llenas tú desde el catálogo."}
+                                                            </span>
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
                                     </div>
                                 </div>
                             </div>
-                            <DialogFooter className="sm:justify-center mt-4 border-t border-border/50 pt-6">
-                                <Button type="submit" onClick={handleCreateDashboard} disabled={isCreating} className="w-full sm:w-auto min-w-[200px] h-12 text-base font-semibold">
-                                    {isCreating ? "Creando..." : "Crear Dashboard"}
+                            <DialogFooter className="shrink-0 gap-2 border-t border-border/50 px-6 py-4 sm:justify-end">
+                                <Button variant="ghost" onClick={() => setIsCreateDialogOpen(false)}>Cancelar</Button>
+                                <Button type="submit" onClick={handleCreateDashboard} disabled={isCreating || !newDashboardName.trim()} className="min-w-[160px] h-11 font-semibold">
+                                    {isCreating ? "Creando…" : "Crear pestaña"}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>

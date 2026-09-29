@@ -17,14 +17,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, Redo2, Undo2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DashboardWidget, DeviceType } from "../dashboard-types";
-import { acentoDePestana, iconoDePestana } from "./aspecto-pestana";
-import { PanelWidgets } from "./panel-widgets";
+import { PanelWidgets, type TallaCatalogo } from "./panel-widgets";
+import { aspectoDe } from "../pestanas/temas";
 import { PanelAcomodo } from "./panel-acomodo";
 import { PanelPestana } from "./panel-pestana";
 import { PanelApariencia } from "./panel-apariencia";
 import { PanelPlantillas } from "./panel-plantillas";
 import { PanelSistema, type PropsSistema } from "./panel-sistema";
-import { GRUPOS_EDITOR, type AccionesEditor, type DashboardConAspecto, type EstiloBarra, type GrupoEditor, type TallaEditor } from "./tipos";
+import { GRUPOS_EDITOR, type AccionesEditor, type DashboardConAspecto, type EstiloBarra, type GrupoEditor } from "./tipos";
 import { CRISTAL, DEF_GRUPOS, HojaInferior, materialBarra, pildoraFantasma, useEsMovil, usePunteroFino, useTransicionEditor } from "./ui-editor";
 
 export interface EditorSuperiorProps {
@@ -47,6 +47,9 @@ export interface EditorSuperiorProps {
     temasRecientes: string[];
     onAplicarTema: (idONombre: string) => void;
     sistema: PropsSistema;
+    /** (2026-09-29) Su tema tiene un diseño nuevo sin estrenar / sale de una plantilla temática. */
+    novedad?: boolean;
+    predeterminada?: boolean;
 }
 
 /** true si el foco está en un campo de texto (ahí Ctrl+Z es del campo, no del tablero). */
@@ -83,7 +86,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
     const esMovil = useEsMovil();
     const punteroFino = usePunteroFino();
     const transicion = useTransicionEditor();
-    const [talla, setTalla] = React.useState<TallaEditor>("M");
+    const [talla, setTalla] = React.useState<TallaCatalogo>("M");
     const idPanel = React.useId();
     const refChips = React.useRef<HTMLDivElement>(null);
 
@@ -114,8 +117,10 @@ export function EditorSuperior(props: EditorSuperiorProps) {
     };
 
     const indice = dashboards.findIndex((d) => d.id === dashboard.id);
-    const IconoPestana = iconoDePestana(dashboard.icono);
-    const acentoPestana = acentoDePestana(dashboard.acento) ?? "#10B981";
+    // (2026-09-29) La identidad que se ve es la de su tema salvo que la persona eligiera otra.
+    const aspecto = aspectoDe(dashboard);
+    const IconoPestana = aspecto.icono;
+    const acentoPestana = aspecto.acento;
     const def = grupo ? DEF_GRUPOS[grupo] : null;
 
     const contenido = (g: GrupoEditor): React.ReactNode => {
@@ -125,9 +130,10 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                     <PanelWidgets
                         widgets={widgets}
                         nombrePestana={dashboard.name}
+                        categoriaPestana={dashboard.plantilla?.cat ?? dashboard.category}
                         talla={talla}
                         onTalla={setTalla}
-                        onAnadir={(type, t) => acciones.onAnadirWidget(type, { talla: t })}
+                        onAnadir={(type, t, dims) => acciones.onAnadirWidget(type, dims ? { talla: t, dims } : { talla: t })}
                         onForjar={acciones.onForjar}
                         onCrearDesdePlantilla={acciones.onCrearDesdePlantilla}
                         arrastrable={punteroFino && !esMovil}
@@ -142,6 +148,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                         onCuadricula={props.onCuadricula}
                         onRestablecer={acciones.onRestablecerPredeterminados}
                         tactil={!punteroFino}
+                        dispositivo={props.currentDevice}
                     />
                 );
             case "pestana":
@@ -152,6 +159,8 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                         total={dashboards.length}
                         faltanTematicas={props.faltanTematicas}
                         currentDevice={props.currentDevice}
+                        novedad={props.novedad}
+                        predeterminada={props.predeterminada}
                         acciones={acciones}
                     />
                 );
@@ -170,6 +179,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                 return (
                     <PanelPlantillas
                         nombrePestana={dashboard.name}
+                        categoriaPestana={dashboard.plantilla?.cat ?? dashboard.category}
                         onAplicar={acciones.onAplicarPlantilla}
                         onCrear={acciones.onCrearDesdePlantilla}
                     />
@@ -195,7 +205,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                     </span>
                     <span className="leading-tight">
                         <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Editando</span>
-                        <span className="block max-w-[16ch] truncate text-[13.5px] font-semibold text-white/90">{dashboard.name}</span>
+                        <span className="block max-w-[18ch] truncate text-[13.5px] font-semibold text-white/90" title={dashboard.name}>{dashboard.name}</span>
                     </span>
                 </div>
 
@@ -213,7 +223,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                                 aria-controls={activo ? idPanel : undefined}
                                 onClick={() => onGrupo(activo ? null : g)}
                                 className={cn(
-                                    "ss-redondo inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
+                                    "ss-redondo inline-flex h-9 [@media(pointer:coarse)]:h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
                                     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
                                     activo ? "text-white" : "text-white/70 hover:bg-white/[0.07] hover:text-white",
                                 )}
@@ -230,7 +240,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                     <button
                         type="button" onClick={acciones.onDeshacer} disabled={!puedeDeshacer}
                         aria-label="Deshacer" title="Deshacer (Ctrl/Cmd+Z)"
-                        className="ss-redondo inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-white/75 cursor-pointer transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        className="ss-redondo inline-flex h-9 [@media(pointer:coarse)]:h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-white/75 cursor-pointer transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
                     >
                         <Undo2 className="size-4" aria-hidden /> <span className="max-sm:sr-only">Deshacer</span>
@@ -238,7 +248,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                     <button
                         type="button" onClick={acciones.onRehacer} disabled={!puedeRehacer}
                         aria-label="Rehacer" title="Rehacer (Ctrl/Cmd+Mayús+Z)"
-                        className="ss-redondo inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-white/75 cursor-pointer transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        className="ss-redondo inline-flex h-9 [@media(pointer:coarse)]:h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-white/75 cursor-pointer transition-colors duration-200 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
                     >
                         <Redo2 className="size-4" aria-hidden /> <span className="max-sm:sr-only">Rehacer</span>
@@ -246,7 +256,7 @@ export function EditorSuperior(props: EditorSuperiorProps) {
                     <button
                         type="button" onClick={acciones.onListo}
                         aria-label="Listo: terminar la edición"
-                        className="ss-redondo inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-bold text-white cursor-pointer transition-[transform,box-shadow] duration-200 hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:scale-100"
+                        className="ss-redondo inline-flex h-9 [@media(pointer:coarse)]:h-11 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-bold text-white cursor-pointer transition-[transform,box-shadow] duration-200 hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:scale-100"
                         style={{ background: "linear-gradient(135deg, #10B981, #0EA5A4)", boxShadow: "0 0 22px -6px #10B981, inset 0 1px 0 rgba(255,255,255,.25)", outlineColor: "#10B981" }}
                     >
                         <Check className="size-4" aria-hidden /> Listo

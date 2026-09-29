@@ -5,12 +5,12 @@
  * las miniaturas de cómo queda en escritorio, tablet y móvil.
  */
 import * as React from "react";
-import { ArrowUpToLine, Grid3x3, Lock, LockOpen, Monitor, RotateCcw, Smartphone, Tablet, WandSparkles } from "lucide-react";
+import { ArrowUpToLine, Grid3x3, Lock, LockOpen, Monitor, MoveHorizontal, RotateCcw, Smartphone, Sparkles, StretchVertical, Tablet, WandSparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import type { DashboardWidget } from "../dashboard-types";
+import type { DashboardWidget, DeviceType } from "../dashboard-types";
 import { getWidgetFunctionStyle } from "../widget-function-style";
 import { COLUMNAS, type PuntoCorte } from "@/lib/dashboard/acomodo-pantalla";
-import { autoAcomodar, compactar, conBloqueo, estaBloqueado, mismoAcomodo, vistaPantalla } from "./acomodo";
+import { acomodoInteligente, autoAcomodar, compactar, conBloqueo, estaBloqueado, igualarAlturas, mismoAcomodo, rellenarFilas, vistaPantalla } from "./acomodo";
 import { BotonHerramienta, Seccion } from "./ui-editor";
 
 const AZUR = "#007FFF";
@@ -22,16 +22,18 @@ export interface PanelAcomodoProps {
     onCuadricula: (v: boolean) => void;
     onRestablecer: () => void;
     tactil: boolean;
+    /** (2026-09-29) Dispositivo actual: su miniatura se marca «este dispositivo». */
+    dispositivo?: DeviceType;
 }
 
-const PANTALLAS: { punto: PuntoCorte; nombre: string; icono: typeof Monitor }[] = [
-    { punto: "lg", nombre: "Escritorio", icono: Monitor },
-    { punto: "sm", nombre: "Tablet", icono: Tablet },
-    { punto: "xxs", nombre: "Móvil", icono: Smartphone },
+const PANTALLAS: { punto: PuntoCorte; nombre: string; icono: typeof Monitor; dispositivos: DeviceType[] }[] = [
+    { punto: "lg", nombre: "Escritorio y TV", icono: Monitor, dispositivos: ["desktop", "tv", "all"] },
+    { punto: "sm", nombre: "Tablet", icono: Tablet, dispositivos: ["tablet"] },
+    { punto: "xxs", nombre: "Móvil", icono: Smartphone, dispositivos: ["phone", "watch"] },
 ];
 
 /** Miniatura del acomodo en una pantalla (proporción real de columna/fila: 95 × 65 px). */
-export function MiniAcomodo({ widgets, punto, nombre, icono: Icono }: { widgets: DashboardWidget[]; punto: PuntoCorte; nombre: string; icono: typeof Monitor }) {
+export function MiniAcomodo({ widgets, punto, nombre, icono: Icono, actual }: { widgets: DashboardWidget[]; punto: PuntoCorte; nombre: string; icono: typeof Monitor; actual?: boolean }) {
     const items = React.useMemo(() => vistaPantalla(widgets, punto), [widgets, punto]);
     const tipos = React.useMemo(() => new Map(widgets.map((w) => [w.id, w.widget_type])), [widgets]);
     const cols = COLUMNAS[punto];
@@ -41,7 +43,7 @@ export function MiniAcomodo({ widgets, punto, nombre, icono: Icono }: { widgets:
     return (
         <figure className="min-w-0 space-y-1.5">
             <div
-                className={`relative overflow-hidden rounded-xl bg-black/30 ring-1 ring-white/10 ${punto === "xxs" ? "mx-auto w-1/2" : punto === "sm" ? "mx-auto w-3/4" : "w-full"}`}
+                className={`relative overflow-hidden rounded-xl bg-black/30 ring-1 ${actual ? "ring-[#007FFF]/70" : "ring-white/10"} ${punto === "xxs" ? "mx-auto w-1/2" : punto === "sm" ? "mx-auto w-3/4" : "w-full"}`}
                 style={{ aspectRatio: `100 / ${Math.round(Math.min(220, Math.max(40, altoRel)))}` }}
             >
                 {items.map((it) => {
@@ -61,16 +63,20 @@ export function MiniAcomodo({ widgets, punto, nombre, icono: Icono }: { widgets:
                     );
                 })}
             </div>
-            <figcaption className="flex items-center gap-1.5 text-[12px] font-medium text-white/65">
+            <figcaption className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-white/65">
                 <Icono className="size-3.5" aria-hidden /> {nombre} · {cols} columnas
+                {actual && <span className="rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold text-white" style={{ background: "#007FFF33" }}>este dispositivo</span>}
             </figcaption>
         </figure>
     );
 }
 
-export function PanelAcomodo({ widgets, onCambiar, cuadricula, onCuadricula, onRestablecer, tactil }: PanelAcomodoProps) {
+export function PanelAcomodo({ widgets, onCambiar, cuadricula, onCuadricula, onRestablecer, tactil, dispositivo }: PanelAcomodoProps) {
     const acomodado = React.useMemo(() => autoAcomodar(widgets), [widgets]);
     const compactado = React.useMemo(() => compactar(widgets), [widgets]);
+    const inteligente = React.useMemo(() => acomodoInteligente(widgets), [widgets]);
+    const igualado = React.useMemo(() => igualarAlturas(widgets), [widgets]);
+    const rellenado = React.useMemo(() => rellenarFilas(widgets), [widgets]);
     const bloqueados = widgets.filter(estaBloqueado).length;
 
     return (
@@ -83,6 +89,14 @@ export function PanelAcomodo({ widgets, onCambiar, cuadricula, onCuadricula, onR
             </p>
 
             <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))]">
+                <BotonHerramienta
+                    icono={Sparkles}
+                    titulo="Acomodo inteligente"
+                    ayuda={mismoAcomodo(widgets, inteligente) ? "Ya está compuesto: protagonista arriba, datos juntos." : "Protagonista arriba, apoyo al lado, datos juntos y franjas al final. Así se adapta mejor a cada pantalla."}
+                    acento={AZUR}
+                    disabled={widgets.length === 0 || mismoAcomodo(widgets, inteligente)}
+                    onClick={() => onCambiar(inteligente)}
+                />
                 <BotonHerramienta
                     icono={WandSparkles}
                     titulo="Auto-acomodar"
@@ -98,6 +112,22 @@ export function PanelAcomodo({ widgets, onCambiar, cuadricula, onCuadricula, onR
                     acento={AZUR}
                     disabled={widgets.length === 0 || mismoAcomodo(widgets, compactado)}
                     onClick={() => onCambiar(compactado)}
+                />
+                <BotonHerramienta
+                    icono={StretchVertical}
+                    titulo="Igualar alturas por fila"
+                    ayuda={mismoAcomodo(widgets, igualado) ? "Cada fila ya tiene la misma altura." : "Los widgets de una misma fila toman la altura del más alto."}
+                    acento={AZUR}
+                    disabled={widgets.length === 0 || mismoAcomodo(widgets, igualado)}
+                    onClick={() => onCambiar(igualado)}
+                />
+                <BotonHerramienta
+                    icono={MoveHorizontal}
+                    titulo="Rellenar huecos"
+                    ayuda={mismoAcomodo(widgets, rellenado) ? "No quedan huecos a la derecha." : "Estira cada widget hacia la derecha hasta su vecino o el borde."}
+                    acento={AZUR}
+                    disabled={widgets.length === 0 || mismoAcomodo(widgets, rellenado)}
+                    onClick={() => onCambiar(rellenado)}
                 />
                 <BotonHerramienta
                     icono={Lock}
@@ -117,8 +147,8 @@ export function PanelAcomodo({ widgets, onCambiar, cuadricula, onCuadricula, onR
                 />
                 <BotonHerramienta
                     icono={RotateCcw}
-                    titulo="Restablecer predeterminados"
-                    ayuda="Devuelve los tableros de fábrica a su acomodo original. Los tuyos se conservan."
+                    titulo="Restablecer las temáticas"
+                    ayuda="Cada pestaña temática vuelve a su diseño de fábrica (con Deshacer). Las tuyas no se tocan."
                     peligro
                     onClick={onRestablecer}
                 />
@@ -135,9 +165,11 @@ export function PanelAcomodo({ widgets, onCambiar, cuadricula, onCuadricula, onR
                 <Switch checked={cuadricula} onCheckedChange={onCuadricula} aria-label="Cuadrícula visible" />
             </label>
 
-            <Seccion titulo="Así se verá en cada pantalla" ayuda="El acomodo de escritorio se adapta solo: lo ancho llena la fila y lo mediano va de dos en dos.">
+            <Seccion titulo="Así se verá en cada pantalla" ayuda="Se adapta solo por papeles: el protagonista llena la fila, lo mediano va de dos en dos y los datos se vuelven teselas. En una TV, todo crece en proporción.">
                 <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(140px,1fr))]">
-                    {PANTALLAS.map((p) => <MiniAcomodo key={p.punto} widgets={widgets} punto={p.punto} nombre={p.nombre} icono={p.icono} />)}
+                    {PANTALLAS.map((p) => (
+                        <MiniAcomodo key={p.punto} widgets={widgets} punto={p.punto} nombre={p.nombre} icono={p.icono} actual={!!dispositivo && p.dispositivos.includes(dispositivo)} />
+                    ))}
                 </div>
             </Seccion>
         </div>

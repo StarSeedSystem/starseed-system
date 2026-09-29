@@ -22,7 +22,12 @@ import { Blocks, LayoutPanelLeft, Plus } from "lucide-react";
 // (2026-09-28) Editor superior: se acopla bajo la barra de pestañas del panel enfocado.
 import { DockEditorSuperior } from "./editor-superior/editor-superior";
 import { elegirPanelEditor, sincronizarPaneles } from "./editor-superior/workspace-sync";
-import type { TallaEditor } from "./editor-superior/tipos";
+import type { DashboardConAspecto, TallaEditor } from "./editor-superior/tipos";
+// (2026-09-29) Pestañas: fondo ambiental del tema, deslizar para cambiar y su aviso.
+import { FondoAmbiente } from "./pestanas/fondo-ambiente";
+import { decidirDeslizamiento, vecino } from "./pestanas/navegacion";
+import { aspectoDe, conAlfa } from "./pestanas/temas";
+import estilos from "./dashboard-tabs.module.css";
 
 interface WorkspaceRendererProps {
     dashboards: Dashboard[];
@@ -63,6 +68,39 @@ interface WorkspaceRendererProps {
     onSoltarCatalogo?: (dashboardId: string, type: WidgetType, talla: TallaEditor, posicion?: { x: number; y: number }) => void;
     /** Abre el catálogo del editor (grupo «Widgets»). */
     onAbrirCatalogo?: () => void;
+    // ── (2026-09-29) Menú de cada pestaña y novedades de diseño ──
+    onDuplicar?: (id: string) => void;
+    onMover?: (id: string, direccion: "izquierda" | "derecha") => void;
+    onPrincipal?: (id: string) => void;
+    onExportar?: (id: string) => void;
+    onEditarAspecto?: (id: string) => void;
+    onRestablecerDiseno?: (id: string) => void;
+    onAplicarNovedad?: (id: string) => void;
+    onDescartarNovedad?: (id: string) => void;
+    novedades?: ReadonlySet<string>;
+    predeterminadas?: ReadonlySet<string>;
+    /** Tablero vacío: el diseño de su tema que se puede aplicar (nombre) o null. */
+    disenoPara?: (dashboardId: string) => string | null;
+    onAplicarDisenoTablero?: (dashboardId: string) => void;
+}
+
+/**
+ * true si el gesto empezó en algo que ya usa el deslizamiento horizontal (un carrusel con scroll,
+ * un mapa, un campo, un control deslizante): ahí el dedo es de ese elemento, no de las pestañas.
+ */
+function zonaHorizontal(objetivo: EventTarget | null, limite: HTMLElement | null): boolean {
+    let el = objetivo instanceof HTMLElement ? objetivo : null;
+    while (el && el !== limite) {
+        if (el.matches("input, textarea, select, [contenteditable='true'], [role='slider'], canvas, .leaflet-container, [data-no-deslizar]")) return true;
+        if (el.scrollWidth > el.clientWidth + 2) {
+            try {
+                const ox = window.getComputedStyle(el).overflowX;
+                if (ox === "auto" || ox === "scroll") return true;
+            } catch { /* defensivo */ }
+        }
+        el = el.parentElement;
+    }
+    return false;
 }
 
 /** Contexto interno: qué panel aloja el editor y cómo se enfoca un panel. */
@@ -180,12 +218,37 @@ function DashboardPanel({
     onRenameDashboard, onShareDashboard, onCreateFromTemplate, currentDevice, onSetDeviceTags, onOpenDeviceManager,
     renderEditor, onCambiarWidgetsDashboard, onDashboardActivo, onAlternarEdicion, onReordenar, cuadricula, onSoltarCatalogo, onAbrirCatalogo,
     panelEditorId, onEnfocarPanel,
+    onDuplicar, onMover, onPrincipal, onExportar, onEditarAspecto, onRestablecerDiseno, onAplicarNovedad, onDescartarNovedad,
+    novedades, predeterminadas, disenoPara, onAplicarDisenoTablero,
 }: { node: PanelNode } & WorkspaceRendererProps & ExtraPanel) {
     const { activeDashboardId, dashboardIds } = node;
     const activeDashboard = dashboards.find(d => d.id === activeDashboardId);
     const panelDashboards = dashboards.filter(d => dashboardIds.includes(d.id));
 
-    const { openDashboardInPanel } = useWorkspace();
+    const { openDashboardInPanel, setActiveDashboard } = useWorkspace();
+
+    // ── (2026-09-29) Deslizar en táctil para cambiar de pestaña ──
+    // Solo un gesto horizontal claro (rápido, largo, más horizontal que vertical) y fuera de la
+    // edición; lo que empieza sobre un carrusel, un mapa o un campo es de ese elemento.
+    const gestoRef = useRef<{ x: number; y: number; t: number; id: number } | null>(null);
+    const [aviso, setAviso] = useState<{ id: string; n: number } | null>(null);
+    const alTocar = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.pointerType !== "touch" || isEditMode || panelDashboards.length < 2) return;
+        if (zonaHorizontal(e.target, e.currentTarget)) { gestoRef.current = null; return; }
+        gestoRef.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
+    };
+    const alSoltarDedo = (e: React.PointerEvent<HTMLDivElement>) => {
+        const g = gestoRef.current;
+        gestoRef.current = null;
+        if (!g || g.id !== e.pointerId || !activeDashboard) return;
+        const dir = decidirDeslizamiento({ dx: e.clientX - g.x, dy: e.clientY - g.y, ms: performance.now() - g.t });
+        if (!dir) return;
+        const i = panelDashboards.findIndex((d) => d.id === activeDashboard.id);
+        const destino = panelDashboards[vecino(i, dir, panelDashboards.length)];
+        if (!destino || destino.id === activeDashboard.id) return;
+        setActiveDashboard(node.id, destino.id);
+        setAviso((a) => ({ id: destino.id, n: (a?.n ?? 0) + 1 }));
+    };
 
     // (2026-09-28) Este panel aloja el editor superior si es el enfocado; y mantiene al día el
     // tablero activo de quien aloja el espacio (antes, cambiar de pestaña no lo actualizaba y
@@ -303,7 +366,7 @@ function DashboardPanel({
         <div className="w-full h-full flex flex-col bg-transparent relative" onPointerDownCapture={() => onEnfocarPanel(node.id)}>
             <div
                 className={cn(
-                    "shrink-0 overflow-hidden transition-all duration-300 ease-out",
+                    "relative z-[2] shrink-0 overflow-hidden transition-all duration-300 ease-out",
                     cabeceraOculta ? "max-h-0 opacity-0 -translate-y-2 pointer-events-none" : "max-h-28 opacity-100"
                 )}
             >
@@ -327,6 +390,17 @@ function DashboardPanel({
                     onOpenDeviceManager={onOpenDeviceManager}
                     onAlternarEdicion={onAlternarEdicion}
                     onReordenar={onReordenar}
+                    onDuplicar={onDuplicar}
+                    onMover={onMover}
+                    onPrincipal={onPrincipal}
+                    onExportar={onExportar}
+                    onEditarAspecto={onEditarAspecto}
+                    onRestablecerDiseno={onRestablecerDiseno}
+                    onAplicarNovedad={onAplicarNovedad}
+                    onDescartarNovedad={onDescartarNovedad}
+                    novedades={novedades}
+                    predeterminadas={predeterminadas}
+                    atajos={esPanelEditor}
                 />
             </div>
 
@@ -356,7 +430,35 @@ function DashboardPanel({
                 ya no cambia el ancho del lienzo (evita re-acomodos de la rejilla al
                 ocultarse la barra). [overflow-anchor:none]: el navegador no
                 re-ancla scrollTop cuando el contenido interno cambia de alto. */}
-            <div ref={scrollRef} onScroll={onScroll} style={{ touchAction: "pan-y" }} className="box-border flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar relative px-1.5 py-2 sm:px-2 [scrollbar-gutter:stable] [overflow-anchor:none]">
+            {/* Fondo ambiental del tema de la pestaña (muy tenue, detrás de los widgets). */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 top-0 z-0">
+                <FondoAmbiente pestana={activeDashboard as DashboardConAspecto} />
+            </div>
+
+            {/* Aviso de la pestaña a la que se llegó deslizando. */}
+            {aviso && (() => {
+                const d = dashboards.find((x) => x.id === aviso.id);
+                if (!d) return null;
+                const a = aspectoDe(d as DashboardConAspecto);
+                return (
+                    <div key={aviso.n} className={estilos.aviso} role="status" aria-live="polite" onAnimationEnd={() => setAviso(null)}>
+                        <span className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-semibold text-white backdrop-blur-xl" style={{ background: "rgba(10,12,28,.8)", boxShadow: `inset 0 0 0 1px ${conAlfa(a.acento, 0.45)}, 0 10px 24px -12px ${a.acento}` }}>
+                            {a.icono ? <a.icono className="size-4" style={{ color: a.acento }} aria-hidden /> : null}
+                            {d.name}
+                        </span>
+                    </div>
+                );
+            })()}
+
+            <div
+                ref={scrollRef}
+                onScroll={onScroll}
+                onPointerDown={alTocar}
+                onPointerUp={alSoltarDedo}
+                onPointerCancel={() => { gestoRef.current = null; }}
+                style={{ touchAction: "pan-y" }}
+                className="box-border flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar relative z-[1] px-1.5 py-2 sm:px-2 [scrollbar-gutter:stable] [overflow-anchor:none]"
+            >
                 <GridArea
                     dashboardId={activeDashboard.id}
                     widgets={activeWidgets}
@@ -375,6 +477,9 @@ function DashboardPanel({
                     onForgeOpen={onForgeOpen}
                     cuadricula={isEditMode && !!cuadricula}
                     onSoltarCatalogo={onSoltarCatalogo ? (type, talla, posicion) => onSoltarCatalogo(activeDashboard.id, type, talla, posicion) : undefined}
+                    nombreDiseno={disenoPara?.(activeDashboard.id) ?? undefined}
+                    onAplicarDiseno={onAplicarDisenoTablero && disenoPara?.(activeDashboard.id) ? () => onAplicarDisenoTablero(activeDashboard.id) : undefined}
+                    onAbrirCatalogo={onAbrirCatalogo}
                 />
 
                 {isEditMode && onAbrirCatalogo && (

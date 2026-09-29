@@ -153,7 +153,7 @@ export function Segmentado<T extends string>({ opciones, valor, onCambiar, acent
                         title={o.ayuda}
                         onClick={() => onCambiar(o.valor)}
                         className={cn(
-                            "ss-redondo inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
+                            "ss-redondo inline-flex min-h-9 [@media(pointer:coarse)]:min-h-11 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer transition-[background,box-shadow,color] duration-200",
                             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
                             activo ? "text-white" : "text-white/65 hover:bg-white/[0.06] hover:text-white",
                         )}

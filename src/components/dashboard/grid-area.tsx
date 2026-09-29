@@ -7,7 +7,7 @@ import { DashboardWidget, WidgetType } from "./dashboard-types";
 import { WidgetRegistry } from "./widget-registry";
 import { getSizeConstraints } from "./widget-manifest";
 import { AddWidgetDialog } from "./add-widget-dialog";
-import { Sparkles, ChevronUp, ChevronDown, Scaling, Pin, Share2, X, Lock, LockOpen } from "lucide-react";
+import { Sparkles, ChevronUp, ChevronDown, Scaling, Pin, Share2, X, Lock, LockOpen, LayoutTemplate, Blocks } from "lucide-react";
 import { WidgetConfigPopover } from "./kit/widget-config-popover";
 import { shareWidget } from "@/lib/widget-sync";
 import { getManifest } from "./widget-manifest";
@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useWidth } from "@/hooks/use-width";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
-import { acomodosPorPantalla } from "@/lib/dashboard/acomodo-pantalla";
+import { acomodoPara, acomodosPorPantalla, altoFila, COLUMNAS, puntoParaAncho, rolDe, type ItemRejilla } from "@/lib/dashboard/acomodo-pantalla";
 import { motion, useReducedMotion } from "framer-motion";
 import { nextSize, sizeFromWH, dimsForSize, type WidgetSize } from "./dashboard-size";
 // (2026-09-28) Editor superior: bloqueo de widgets, cuadrícula visible y soltar desde el catálogo.
@@ -53,24 +53,50 @@ interface GridAreaProps {
     cuadricula?: boolean;
     /** Soltar una ficha del catálogo del editor: tipo, talla y celda (si se soltó en escritorio). */
     onSoltarCatalogo?: (type: WidgetType, talla: TallaEditor, posicion?: { x: number; y: number }) => void;
+    /** (2026-09-29) Tablero vacío: aplicar el diseño de su tema (con su nombre para el botón). */
+    onAplicarDiseno?: () => void;
+    nombreDiseno?: string;
+    /** (2026-09-29) Tablero vacío: abrir el catálogo del editor en vez del selector clásico. */
+    onAbrirCatalogo?: () => void;
 }
 
-const ALTO_FILA = 65;
 const MARGEN = 12;
 
+/** Cristal de las barras de controles táctiles y sus botones (40 px, fáciles de tocar). */
+const CRISTAL_CONTROLES: React.CSSProperties = {
+    background: "rgba(10,12,28,.72)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    boxShadow: "inset 0 0 0 1px rgba(255,255,255,.1), 0 8px 20px -10px rgba(0,0,0,.7)",
+};
+const BOTON_TACTIL = "inline-flex size-10 items-center justify-center rounded-lg text-white/85 cursor-pointer transition-colors duration-150 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35";
+
 /** Fondo con las celdas de la rejilla (columnas teñidas y filas separadas). */
-function fondoCuadricula(ancho: number): React.CSSProperties {
+function fondoCuadricula(ancho: number, fila: number): React.CSSProperties {
     const cols = columnasPara(ancho);
     const col = Math.max(8, (ancho - MARGEN * (cols - 1)) / cols);
     return {
         backgroundImage: [
-            `linear-gradient(180deg, transparent 0 ${ALTO_FILA}px, rgba(8,10,24,.55) ${ALTO_FILA}px ${ALTO_FILA + MARGEN}px)`,
+            `linear-gradient(180deg, transparent 0 ${fila}px, rgba(8,10,24,.55) ${fila}px ${fila + MARGEN}px)`,
             `linear-gradient(90deg, rgba(124,92,255,.10) 0 ${col}px, transparent ${col}px ${col + MARGEN}px)`,
         ].join(", "),
-        backgroundSize: `100% ${ALTO_FILA + MARGEN}px, ${col + MARGEN}px 100%`,
+        backgroundSize: `100% ${fila + MARGEN}px, ${col + MARGEN}px 100%`,
         backgroundRepeat: "repeat",
         borderRadius: 12,
     };
+}
+
+/** Sube cada pieza todo lo que pueda (la rejilla de escritorio compacta en vertical; la táctil igual). */
+function compactarItems(items: ItemRejilla[]): ItemRejilla[] {
+    const colocados: ItemRejilla[] = [];
+    const choca = (a: ItemRejilla, b: ItemRejilla) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    for (const it of [...items].sort((a, b) => a.y - b.y || a.x - b.x)) {
+        let y = it.y;
+        while (y > 0 && !colocados.some((c) => choca(c, { ...it, y: y - 1 }))) y--;
+        while (colocados.some((c) => choca(c, { ...it, y }))) y++;
+        colocados.push({ ...it, y });
+    }
+    return colocados;
 }
 
 /**
@@ -94,29 +120,14 @@ function useCoarsePointer(): boolean {
     return coarse;
 }
 
-/**
- * Pantalla chica (< 640px, mismo umbral que el `sm` de Tailwind). Se usa SOLO
- * para escalar la altura en píxeles de las tarjetas de la rejilla táctil
- * (cálculo en JS, fuera del alcance de las clases `max-sm:`): en un teléfono
- * la rejilla pasa a una columna y cada fila de la cuadrícula (h) ocupa menos
- * píxeles, así un widget bajo (un reloj) no reserva la misma altura fija que
- * en una tablet ancha. Encima de 640px el resultado es IDÉNTICO a como era.
- */
-function useNarrowViewport(): boolean {
-    const [narrow, setNarrow] = useState(false);
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const mq = window.matchMedia("(max-width: 639px)");
-        const update = () => setNarrow(mq.matches);
-        update();
-        try { mq.addEventListener("change", update); } catch { /* Safari viejo */ }
-        return () => { try { mq.removeEventListener("change", update); } catch { } };
-    }, []);
-    return narrow;
-}
-
-export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWidget, onAddWidget, onForgeOpen, cuadricula, onSoltarCatalogo }: GridAreaProps) {
+export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWidget, onAddWidget, onForgeOpen, cuadricula, onSoltarCatalogo, onAplicarDiseno, nombreDiseno, onAbrirCatalogo }: GridAreaProps) {
     const { width, containerRef } = useWidth();
+    // (2026-09-29) Pantalla y alto de fila de ESTE ancho: en el teléfono las filas son más bajas y
+    // en una TV crecen con el ancho, para que cada widget conserve su proporción y su versión.
+    const punto = puntoParaAncho(width);
+    const fila = altoFila(width, punto);
+    // Ancho cuantizado (40 px): el acomodo no se recalcula por un píxel de barra de scroll.
+    const anchoAcomodo = Math.max(320, Math.round(width / 40) * 40);
     const { toast } = useToast();
     const { config } = useAppearance();
     // (Ola 383) Marco libre: la celda no recorta ni sombrea — el halo de la forma respira fuera.
@@ -125,7 +136,6 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     const puntoActual = useRef<string>("lg");
     const [mounted, setMounted] = useState(false);
     const isCoarse = useCoarsePointer();
-    const isNarrow = useNarrowViewport();
     // Respeta prefers-reduced-motion: sin entrada escalonada si el usuario la desactivó.
     const shouldReduceMotion = useReducedMotion();
 
@@ -196,12 +206,14 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
             };
         });
         setLayouts((prev: any) => {
-            if (JSON.stringify(prev.lg) === JSON.stringify(layout)) return prev;
             // (2026-09-28) Cada pantalla recibe SU acomodo derivado del de escritorio (antes se
             // pasaba el mismo a md y sm y la rejilla lo recortaba). Ver acomodo-pantalla.ts.
-            return acomodosPorPantalla(layout);
+            // (2026-09-29) La pantalla actual se calcula con su ancho REAL (alturas en px exactas).
+            const todos = acomodosPorPantalla(layout);
+            const siguiente = punto === "lg" ? todos : { ...todos, [punto]: acomodoPara(punto, layout, { anchoPx: anchoAcomodo }) };
+            return JSON.stringify(prev) === JSON.stringify(siguiente) ? prev : siguiente;
         });
-    }, [widgets]);
+    }, [widgets, punto, anchoAcomodo]);
 
     const onLayoutChange = useCallback((currentLayout: any[], allLayouts: any) => {
         if (!isEditMode) return;
@@ -342,7 +354,31 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                             Añade widgets desde la biblioteca para ver datos en vivo, herramientas y experiencias adaptadas a ti. Cada widget es editable, redimensionable y se reordena con coherencia.
                         </p>
                     </div>
-                    {onAddWidget ? (
+                    {onAplicarDiseno || onAbrirCatalogo ? (
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                            {onAplicarDiseno && (
+                                <button
+                                    type="button"
+                                    onClick={onAplicarDiseno}
+                                    className="ss-redondo inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[13.5px] font-semibold text-white cursor-pointer transition-transform duration-200 hover:scale-[1.03] motion-reduce:hover:scale-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    style={{ background: "linear-gradient(135deg, #7C5CFF, #23D5AB)", boxShadow: "0 0 22px -8px #7C5CFF", outlineColor: "#7C5CFF" }}
+                                >
+                                    <LayoutTemplate className="size-4" aria-hidden />
+                                    {nombreDiseno ? `Aplicar el diseño «${nombreDiseno}»` : "Aplicar un diseño"}
+                                </button>
+                            )}
+                            {onAbrirCatalogo && (
+                                <button
+                                    type="button"
+                                    onClick={onAbrirCatalogo}
+                                    className="ss-redondo inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[13.5px] font-semibold text-white/85 cursor-pointer transition-colors duration-200 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    style={{ background: "#7C5CFF1f", boxShadow: "inset 0 0 0 1px #7C5CFF66", outlineColor: "#7C5CFF" }}
+                                >
+                                    <Blocks className="size-4 text-[#A78BFA]" aria-hidden /> Elegir widgets del catálogo
+                                </button>
+                            )}
+                        </div>
+                    ) : onAddWidget ? (
                         <div className="pt-1">
                             <AddWidgetDialog
                                 onAdd={(type) => onAddWidget(dashboardId, type)}
@@ -353,9 +389,6 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     ) : (
                         <p className="text-xs text-muted-foreground/50">Activa el modo edición para añadir widgets.</p>
                     )}
-                </div>
-                <div className="relative flex gap-2 text-[10px] text-muted-foreground/40 uppercase tracking-widest">
-                    <span>★</span><span>StarSeed Network</span><span>★</span>
                 </div>
             </div>
         );
@@ -371,15 +404,24 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
         const ordered = [...widgets].sort((a, b) =>
             (a.layout.y - b.layout.y) || (a.layout.x - b.layout.x)
         );
-        // En pantalla chica (< 640px) cada fila de la cuadrícula pesa menos
-        // píxeles: con una sola columna (ancho completo) el mismo contenido
-        // cabe en una tarjeta más baja — un widget con h=5 (p. ej. Reloj y
-        // Fecha, plantilla "L") ya no reserva ~400px de alto por defecto.
-        const ROW = isNarrow ? 40 : 65, GAP = isNarrow ? 10 : 18;
+        // (2026-09-29) La rejilla táctil usa el MISMO acomodo por pantalla que la de escritorio
+        // (acomodo-pantalla.ts): cada widget recibe columna, fila y alto según su papel (héroe,
+        // apoyo, dato, franja) y el ancho real, en una rejilla CSS normal — deslizar sigue siendo
+        // scroll y nada se mueve al tocarlo. En el teléfono: 2 columnas y filas más bajas; en
+        // tablet 6; en una TV, 12 con filas más altas.
+        const cols = COLUMNAS[punto];
+        const gap = punto === "xxs" ? 10 : MARGEN;
+        const base: ItemRejilla[] = ordered.map((w) => {
+            const c = getSizeConstraints(w.widget_type);
+            return { i: w.layout.i || w.id, x: w.layout.x, y: w.layout.y, w: Math.max(w.layout.w, c.minW), h: Math.max(w.layout.h, c.minH), minW: c.minW, minH: c.minH };
+        });
+        const colocados = punto === "lg" ? compactarItems(base) : acomodoPara(punto, base, { anchoPx: anchoAcomodo });
+        const porClave = new Map(colocados.map((it) => [it.i, it]));
         return (
             <div
                 id={`grid-container-${dashboardId}`}
                 ref={containerRef}
+                data-punto={punto}
                 className={cn(
                     // box-border: el padding no desborda el ancho en táctil (móvil).
                     // Full-bleed (gen10): margen exterior mínimo (~4-8px) y radio
@@ -391,134 +433,129 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 )}
                 style={{ touchAction: "pan-y" }}
             >
-                {/* Rejilla fluida tipo pantalla de inicio (móvil/tablet/desktop):
-                    UNA sola columna en teléfono (< 640px: ancho completo, sin
-                    contenido apretado en ~170px), 2 en tablet, 3 en tablet grande
-                    y 4 en pantallas anchas. Los widgets anchos (footprint ≥ 10/12
-                    en el grid, p. ej. el folder-dock de apps o accesos rápidos)
-                    ocupan la hilera completa. Sin recortes: box-border + separación
-                    uniforme. */}
-                {/* (2026-09-28) Dos columnas en el teléfono: antes era grid-cols-1, pero los widgets
-                    «anchos» llevaban col-span-2 y creaban una segunda columna implícita desigual
-                    (138 px + 224 px medidos): todo quedaba apretado. Ahora lo grande (L/XL) ocupa la
-                    fila y lo mediano y lo pequeño van de dos en dos, igual que el acomodo automático. */}
-                <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 box-border" style={{ touchAction: "pan-y" }}>
+                <div
+                    className="grid box-border"
+                    style={{
+                        touchAction: "pan-y",
+                        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                        gridAutoRows: `${fila}px`,
+                        gap,
+                    }}
+                >
                     {ordered.map((widget, idx) => {
-                        const h = Math.max(widget.layout.h, 3);
-                        // En móvil nunca por debajo de 200 px: con filas de 40 px un widget bajo
-                        // (Accesos rápidos, h=3) quedaba en 140 px y su contenido se montaba.
-                        const grande = widget.layout.w >= 6;
-                        const cardHeight = isNarrow ? Math.max(h * ROW + (h - 1) * GAP, grande ? 300 : 190) : h * ROW + (h - 1) * GAP;
-                        // Widgets anchos (ocupaban casi toda la fila del grid de 12) o
-                        // folders/lanzaderas de apps → hilera completa también en la
-                        // rejilla táctil, para que respiren y no queden aplastados.
-                        // En una sola columna (móvil) esto ya no cambia nada visible
-                        // (col-span-1 y col-span-2 caen en la misma columna única).
-                        const spanFull = widget.layout.w >= 10
-                            || widget.widget_type === "APP_LAUNCHER"
-                            || widget.widget_type === "QUICK_ACCESS";
+                        const it = porClave.get(widget.layout.i || widget.id);
+                        const rol = rolDe({ w: widget.layout.w, h: widget.layout.h });
                         return (
                             <motion.div
                                 key={widget.layout.i || widget.id}
                                 data-widget-key={widget.layout.i || widget.id}
+                                data-rol={rol}
                                 initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3, delay: Math.min(idx * 0.04, 0.45), ease: [0.22, 1, 0.36, 1] }}
                                 className={cn(
                                     // Radio moderado (16px): menos esquina "sobrante" y
                                     // mejor aprovechamiento del ancho en cada tarjeta.
-                                    "relative rounded-2xl bg-transparent transition-all motion-reduce:transition-none box-border",
+                                    "relative min-w-0 rounded-2xl bg-transparent transition-all motion-reduce:transition-none box-border",
                                     libre ? "overflow-visible" : "overflow-hidden",
-                                    spanFull ? "col-span-2 md:col-span-3 2xl:col-span-4" : grande && "col-span-2",
                                     isEditMode && "ring-2 ring-primary/20"
                                 )}
-                                style={{ height: cardHeight, touchAction: "pan-y" }}
+                                style={{
+                                    touchAction: "pan-y",
+                                    ...(it ? { gridColumn: `${it.x + 1} / span ${it.w}`, gridRow: `${it.y + 1} / span ${it.h}` } : { gridColumn: "1 / -1" }),
+                                }}
                             >
                                 <div className="h-full w-full overflow-auto" style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" as any }}>
                                     <WidgetRegistry widget={widget} />
                                 </div>
 
                                 {isEditMode && (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "up"); }}
-                                            disabled={idx === 0 || estaBloqueado(widget)}
-                                            aria-label="Subir el widget en el orden"
-                                            className="absolute top-2 left-2 grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors disabled:opacity-30"
-                                            title="Subir / mover antes"
-                                        >
-                                            <ChevronUp className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "down"); }}
-                                            disabled={idx === ordered.length - 1 || estaBloqueado(widget)}
-                                            aria-label="Bajar el widget en el orden"
-                                            className="absolute top-2 left-[3.25rem] grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors disabled:opacity-30"
-                                            title="Bajar / mover después"
-                                        >
-                                            <ChevronDown className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); alternarBloqueo(widget.id); }}
-                                            aria-pressed={estaBloqueado(widget)}
-                                            aria-label={estaBloqueado(widget) ? "Desbloquear el widget" : "Bloquear el widget (fija su sitio y su tamaño)"}
-                                            className={cn("absolute bottom-2 left-2 grid place-items-center min-h-[36px] min-w-[36px] border rounded-lg z-50 cursor-pointer transition-colors", estaBloqueado(widget) ? "bg-amber-500/80 hover:bg-amber-500 text-black border-amber-300" : "bg-background/80 hover:bg-background")}
-                                            title={estaBloqueado(widget) ? "Desbloquear" : "Bloquear sitio y tamaño"}
-                                        >
-                                            {estaBloqueado(widget) ? <Lock className="w-4 h-4" /> : <LockOpen className="w-4 h-4" />}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={estaBloqueado(widget)}
-                                            onClick={(e) => { e.stopPropagation(); cycleWidgetSize(widget.id); }}
-                                            aria-label={`Cambiar tamaño del widget (actual: ${widgetSize(widget)})`}
-                                            className="disabled:opacity-40 disabled:cursor-not-allowed absolute bottom-2 left-[3.25rem] flex items-center gap-1 min-h-[36px] bg-background/80 hover:bg-background border rounded-lg px-2 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
-                                            title="Cambiar tamaño (S/M/L/XL)"
-                                        >
-                                            <Scaling className="w-3.5 h-3.5" />
-                                            {widgetSize(widget)}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); handlePinWidget(widget); }}
-                                            aria-label="Fijar el widget en pantalla"
-                                            className="absolute top-2 right-[6.75rem] grid place-items-center min-h-[36px] min-w-[36px] bg-indigo-500/60 hover:bg-indigo-500 text-white border border-indigo-400/50 rounded-lg cursor-pointer z-50 transition-colors"
-                                            title="Fijar en pantalla"
-                                        >
-                                            <Pin className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); handleShareWidget(widget); }}
-                                            aria-label="Compartir el widget a la biblioteca"
-                                            className="absolute top-2 right-[3.5rem] grid place-items-center min-h-[36px] min-w-[36px] bg-emerald-500/60 hover:bg-emerald-500 text-white border border-emerald-400/50 rounded-lg cursor-pointer z-50 transition-colors"
-                                            title="Compartir a la biblioteca"
-                                        >
-                                            <Share2 className="w-4 h-4" />
-                                        </button>
-                                        {!estaBloqueado(widget) && (
+                                    // (2026-09-29) Controles táctiles en dos barras de cristal que se
+                                    // envuelven: en una tesela pequeña ya no se pisan unos a otros.
+                                    <div className="pointer-events-none absolute inset-1 z-50 flex flex-wrap content-start items-start justify-between gap-1">
+                                        <div className="pointer-events-auto flex flex-wrap gap-1 rounded-xl p-1" style={CRISTAL_CONTROLES}>
                                             <button
                                                 type="button"
-                                                onClick={(e) => { e.stopPropagation(); handleDeleteWidget(widget.id); }}
-                                                aria-label="Eliminar el widget"
-                                                className="absolute top-2 right-2 grid place-items-center min-h-[36px] min-w-[36px] bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded-lg cursor-pointer z-50 transition-colors"
-                                                title="Eliminar Widget"
+                                                onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "up"); }}
+                                                disabled={idx === 0 || estaBloqueado(widget)}
+                                                aria-label="Subir el widget en el orden"
+                                                className={BOTON_TACTIL}
+                                                title="Subir / mover antes"
                                             >
-                                                <X className="w-4 h-4" />
+                                                <ChevronUp className="w-4 h-4" />
                                             </button>
-                                        )}
-                                        {/* Config del widget (estilo: cristal/sólido/transparente/Trinity). */}
-                                        <WidgetConfigPopover
-                                            widget={widget}
-                                            onChangeSettings={(patch) => applyWidgetSettings(widget.id, patch)}
-                                            className="absolute bottom-2 right-2 min-h-[36px] min-w-[36px]"
-                                            side="top"
-                                            align="end"
-                                        />
-                                    </>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "down"); }}
+                                                disabled={idx === ordered.length - 1 || estaBloqueado(widget)}
+                                                aria-label="Bajar el widget en el orden"
+                                                className={BOTON_TACTIL}
+                                                title="Bajar / mover después"
+                                            >
+                                                <ChevronDown className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); alternarBloqueo(widget.id); }}
+                                                aria-pressed={estaBloqueado(widget)}
+                                                aria-label={estaBloqueado(widget) ? "Desbloquear el widget" : "Bloquear el widget (fija su sitio y su tamaño)"}
+                                                className={cn(BOTON_TACTIL, estaBloqueado(widget) && "bg-amber-500/85 text-black hover:bg-amber-500")}
+                                                title={estaBloqueado(widget) ? "Desbloquear" : "Bloquear sitio y tamaño"}
+                                            >
+                                                {estaBloqueado(widget) ? <Lock className="w-4 h-4" /> : <LockOpen className="w-4 h-4" />}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={estaBloqueado(widget)}
+                                                onClick={(e) => { e.stopPropagation(); cycleWidgetSize(widget.id); }}
+                                                aria-label={`Cambiar tamaño del widget (actual: ${widgetSize(widget)})`}
+                                                className={cn(BOTON_TACTIL, "w-auto gap-1 px-2 text-[11px] font-bold")}
+                                                title="Cambiar tamaño (S/M/L/XL)"
+                                            >
+                                                <Scaling className="w-3.5 h-3.5" />
+                                                {widgetSize(widget)}
+                                            </button>
+                                        </div>
+                                        <div className="pointer-events-auto flex flex-wrap gap-1 rounded-xl p-1" style={CRISTAL_CONTROLES}>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handlePinWidget(widget); }}
+                                                aria-label="Fijar el widget en pantalla"
+                                                className={cn(BOTON_TACTIL, "text-indigo-200")}
+                                                title="Fijar en pantalla"
+                                            >
+                                                <Pin className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handleShareWidget(widget); }}
+                                                aria-label="Compartir el widget a la biblioteca"
+                                                className={cn(BOTON_TACTIL, "text-emerald-200")}
+                                                title="Compartir a la biblioteca"
+                                            >
+                                                <Share2 className="w-4 h-4" />
+                                            </button>
+                                            {/* Config del widget (estilo: cristal/sólido/transparente/Trinity). */}
+                                            <WidgetConfigPopover
+                                                widget={widget}
+                                                onChangeSettings={(patch) => applyWidgetSettings(widget.id, patch)}
+                                                className="size-10 rounded-lg"
+                                                side="top"
+                                                align="end"
+                                            />
+                                            {!estaBloqueado(widget) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteWidget(widget.id); }}
+                                                    aria-label="Eliminar el widget"
+                                                    className={cn(BOTON_TACTIL, "bg-red-600/80 text-white hover:bg-red-600")}
+                                                    title="Eliminar Widget"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
                                 )}
                             </motion.div>
                         );
@@ -582,13 +619,15 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
         >
             {mounted && width > 0 && (
                 // (2026-09-28) Envoltura con la cuadrícula visible del editor (solo en edición).
-                <div className="relative" style={cuadricula && isEditMode ? fondoCuadricula(width) : undefined} data-cuadricula={cuadricula && isEditMode ? "" : undefined}>
+                <div className="relative" style={cuadricula && isEditMode ? fondoCuadricula(width, fila) : undefined} data-cuadricula={cuadricula && isEditMode ? "" : undefined} data-punto={punto}>
                 <ResponsiveGridLayout
                     className="layout transition-all duration-500"
                     layouts={layouts}
                     breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
                     cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-                    rowHeight={ALTO_FILA} // slightly taller for better visual separation
+                    // (2026-09-29) Alto de fila por pantalla (más bajo en el teléfono, más alto en una
+                    // TV): el acomodo de cada pantalla ya viene calculado con él.
+                    rowHeight={fila}
                     width={width}
                     // compactType es la API clásica (v1); la v2 compacta en vertical por
                     // defecto (`compactor`). Se conserva por compatibilidad.
@@ -630,6 +669,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                         <div
                             key={widget.layout.i || widget.id}
                             data-widget-key={widget.layout.i || widget.id}
+                            data-rol={rolDe({ w: widget.layout.w, h: widget.layout.h })}
                             className="relative group h-full"
                             // HTML5 DnD (transferencia entre paneles) solo con ratón.
                             draggable={canDragMouse}
