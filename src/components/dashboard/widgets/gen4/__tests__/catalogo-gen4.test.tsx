@@ -47,6 +47,7 @@ vi.mock("@/utils/supabase/client", () => ({
 import { EnMarco, MEDIDAS } from "../../gen5/_catalogo/prueba-marco";
 import { _vaciarCompartidos } from "../../gen5/_catalogo/recurso";
 import { IdentityVaultWidget } from "../identity-vault-widget";
+import { UniversalLibraryWidget } from "../universal-library-widget";
 
 function pintar(ui: React.ReactElement, clase: ClaseTamano) {
     medida = MEDIDAS[clase];
@@ -110,5 +111,32 @@ describe("Bóveda de Identidad", () => {
         fallo = "Failed to fetch";
         pintar(<IdentityVaultWidget />, "m");
         expect(await screen.findByRole("alert")).toBeTruthy();
+    });
+});
+
+describe("Biblioteca Universal", () => {
+    it.each(TODAS)("vacía (%s): lo dice con el recuento real del catálogo y ofrece explorar", async (clase) => {
+        pintar(<UniversalLibraryWidget />, clase);
+        const region = await screen.findByRole("region", { name: /0 elementos en tu biblioteca .* de \d+ paquetes del catálogo/ }, { timeout: 4000 });
+        expect(region).toBeTruthy();
+        if (clase !== "micro") expect(screen.getByRole("link", { name: /Explorar/ }).getAttribute("href")).toBe("/library?tab=destacado");
+    });
+    it("con recursos guardados e instalados, los pone en la estantería y busca en el catálogo", async () => {
+        const t = Date.now();
+        localStorage.setItem("starseed.library.saved", JSON.stringify([{ id: "s1", kind: "articulo", title: "Constitución comentada", url: "/info/constitution", savedAt: t }]));
+        localStorage.setItem("starseed.library.installed.v1", JSON.stringify({ "app-red-mesh": { installedAt: t - 10, version: "1", kind: "app" } }));
+        pintar(<UniversalLibraryWidget />, "xl");
+        await screen.findByRole("region", { name: /2 elementos en tu biblioteca \(1 guardados, 1 instalados\)/ }, { timeout: 4000 });
+        expect(screen.getByRole("img", { name: /Estantería con 2 elementos/ })).toBeTruthy();
+        expect(screen.getByText("Constitución comentada").closest("a")!.getAttribute("href")).toBe("/info/constitution");
+        fireEvent.change(screen.getByRole("textbox", { name: /Buscar en el catálogo/ }), { target: { value: "mesh" } });
+        expect(screen.getByRole("list", { name: "Resultados del catálogo" }).textContent).toMatch(/instalado/);
+        fireEvent.change(screen.getByRole("textbox", { name: /Buscar en el catálogo/ }), { target: { value: "zzqqxx" } });
+        expect(screen.getByText(/resultado vacío/)).toBeTruthy();
+    });
+    it.each(["s", "m", "l", "panoramico", "torre"] as ClaseTamano[])("con cosas se pinta en %s", async (clase) => {
+        localStorage.setItem("starseed.library.saved", JSON.stringify([{ id: "s1", kind: "app", title: "Red 3D", url: "/red-3d", savedAt: 1 }]));
+        pintar(<UniversalLibraryWidget />, clase);
+        expect(await screen.findByRole("region", { name: /1 elementos en tu biblioteca/ }, { timeout: 4000 })).toBeTruthy();
     });
 });
