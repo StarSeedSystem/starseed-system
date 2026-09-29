@@ -2513,7 +2513,13 @@ def set_estado(tid, **kw):
 
 
 # ── revisión cruzada por otro proveedor ─────────────────────────────────────
-def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500):
+# (2026-09-29) Proveedores que aceptan «respuesta en JSON» (response_format / responseMimeType).
+# Si alguno lo rechaza con 400/422, se aprende al vuelo y no se le vuelve a pedir.
+MODO_JSON = {"groq", "openrouter", "gemini", "nim"}
+_SIN_MODO_JSON = set()
+
+
+def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500, json_mode=False):
     """Una llamada de chat con ROTACIÓN DE CLAVE integrada (2026-09-07, Ola 271, P9B):
 
     la clave sale de la capa por medio (`clave_activa`); ante HTTP 402, contenido que sea
@@ -2524,8 +2530,10 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500):
     Los valores de clave jamás se escriben: solo nombres de variable y medios.
 
     `max_tokens` (2026-09-29): la síntesis de un sueño profundo devuelve un JSON de hasta
-    diez hallazgos con propuesta y no cabe en 2500; los revisores siguen con 2500."""
+    diez hallazgos con propuesta y no cabe en 2500; los revisores siguen con 2500.
+    `json_mode` (2026-09-29): pide la respuesta en JSON a quien sabe darla (MODO_JSON)."""
     max_tokens = max(256, min(8000, int(max_tokens or 2500)))
+    modo_json = [bool(json_mode) and proveedor in MODO_JSON and proveedor not in _SIN_MODO_JSON]
     if proveedor not in CUPOS:
         # Un proveedor sin cupo declarado (p. ej. una pasarela que no está en esta máquina)
         # no se llama: sin esto era un KeyError que se contaba como fallo del modelo.
@@ -2556,6 +2564,8 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500):
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.2, "maxOutputTokens": min(max_tokens, 8000) if max_tokens != 2500 else 1200},
             }
+            if modo_json[0]:
+                cuerpo["generationConfig"]["responseMimeType"] = "application/json"
             req = urllib.request.Request(
                 url,
                 data=json.dumps(cuerpo).encode(),
@@ -2651,6 +2661,8 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500):
             )  # el revisor no usa tools
         except Exception:
             pass
+        if modo_json[0]:
+            cuerpo["response_format"] = {"type": "json_object"}
         req = urllib.request.Request(
             url, data=json.dumps(cuerpo).encode(), headers=cabeceras
         )
@@ -2688,7 +2700,15 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500):
         return txt, False, ""
 
     kay = _clave_para(proveedor)
-    txt, agota, motivo = _peticion(kay)
+    try:
+        txt, agota, motivo = _peticion(kay)
+    except urllib.error.HTTPError as e:
+        if not (modo_json[0] and getattr(e, "code", 0) in (400, 422)):
+            raise
+        # No sabe responder en modo JSON: se aprende y se repite UNA vez sin él.
+        _SIN_MODO_JSON.add(proveedor)
+        modo_json[0] = False
+        txt, agota, motivo = _peticion(kay)
     if agota and kay:
         agotar_clave(
             proveedor,
@@ -5645,6 +5665,90 @@ def _proveedor_disponible(prov):
     return proveedor_vivo(prov) and not sin_cupo(prov) and not enfriandose(prov)
 
 
+RUTA_INFORME_PASARELAS = os.path.expanduser("~/.starseed/pasarelas-informe.json")
+_FLOTA_AN = {"t": 0.0, "roles": None, "renovando": False, "renovado": 0.0}
+_LOCK_FLOTA = threading.Lock()
+
+
+def _flota_analisis(forzar=False):
+    """(2026-09-29) La flota de los sueños, VIVA: lo que el informe de pasarelas da por vivo
+    (la «puerta de pasarelas» del arranque la escribe), la rotación de escritores ya filtrada
+    por ese informe, los revisores y las sondas. Se recalcula cada 3 min (o al pedirlo)."""
+    with _LOCK_FLOTA:
+        if not forzar and _FLOTA_AN["roles"] and time.time() - _FLOTA_AN["t"] < 180:
+            return _FLOTA_AN["roles"]
+    try:
+        refrescar_rotacion()
+    except Exception:
+        pass
+    try:
+        with open(RUTA_INFORME_PASARELAS, encoding="utf-8") as f:
+            informe = json.load(f)
+    except Exception:
+        informe = {}
+    roles = _analista.flota_desde(
+        list(MODELOS) + list(MODELOS_TODOS) + escritores_de_pasarelas(),
+        list(REVISORES),
+        informe,
+        dict(SONDAS),
+        set(CUPOS),
+        base=_analista.flota_fija()["mapa"],
+    )
+    with _LOCK_FLOTA:
+        _FLOTA_AN.update(t=time.time(), roles=roles)
+    return roles
+
+
+def _cupo_libre(prov):
+    """¿Le queda hueco en su cupo por minuto AHORA? (sin reservarlo)."""
+    c = CUPOS.get(prov)
+    if c is None:
+        return False
+    with c.lock:
+        t = time.time()
+        while c.ts and t - c.ts[0] > 60:
+            c.ts.popleft()
+        return len(c.ts) < c.rpm
+
+
+def _renovar_pasarelas_si_viejo(maximo_s=15 * 60, cada_s=10 * 60):
+    """Si el informe de pasarelas tiene más de 15 min, lo renueva EN SEGUNDO PLANO (16 tokens
+    por pasarela, como la puerta del arranque). Como mucho una vez cada 10 min."""
+    try:
+        viejo = time.time() - os.path.getmtime(RUTA_INFORME_PASARELAS) > maximo_s
+    except OSError:
+        viejo = True
+    with _LOCK_FLOTA:
+        if not viejo or _FLOTA_AN["renovando"] or time.time() - _FLOTA_AN["renovado"] < cada_s:
+            return False
+        _FLOTA_AN["renovando"] = True
+        _FLOTA_AN["renovado"] = time.time()
+    guion = os.path.join(ROOT, "scripts", "puente", "renovador-pasarelas.py")
+
+    def correr():
+        try:
+            subprocess.run([sys.executable, guion, "--segundos", "20"], cwd=ROOT,
+                           capture_output=True, timeout=240)
+        except Exception:
+            pass
+        finally:
+            with _LOCK_FLOTA:
+                _FLOTA_AN["renovando"] = False
+                _FLOTA_AN["t"] = 0.0  # la próxima petición relee la flota
+
+    if os.path.isfile(guion):
+        threading.Thread(target=correr, daemon=True).start()
+        return True
+    with _LOCK_FLOTA:
+        _FLOTA_AN["renovando"] = False
+    return False
+
+
+def _refrescar_flota():
+    _renovar_pasarelas_si_viejo()
+    return _flota_analisis(forzar=True)
+
+
 def _ejecutar_analisis(t):
     """(2026-09-29) Rama de los sueños profundos: todo lo hace `analista.ejecutar`, con las
     herramientas de ESTE orquestador (llamar_llm con cupos y rotación de claves, salud de
@@ -5680,6 +5784,9 @@ def _ejecutar_analisis(t):
         marcar_sin_cupo=marcar_sin_cupo,
         espera_429_s=ESPERA_429_S,
         espera_proveedor_s=ESPERA_PROVEEDOR_S,
+        flota=_flota_analisis,
+        cupo_libre=_cupo_libre,
+        refrescar=_refrescar_flota,
     )
 
 

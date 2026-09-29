@@ -46,6 +46,7 @@ import json
 import os
 import re
 import socket
+import threading
 import time
 
 # ─────────────────────────────── lentes ───────────────────────────────
@@ -140,7 +141,9 @@ ESPERA_429_S = 75
 ESPERA_PROVEEDOR_S = 45 * 60
 CERROJO_CADUCA_S = 10 * 60
 RECLAMO_CADUCA_S = 3 * 3600
-TOPE_ANALISIS_POR_DEFECTO = 5
+# (2026-09-29) 8 y no 5: los sueños solo hacen HTTP y ahora se reparten por turnos entre toda
+# la flota viva; el tope real es el cupo por minuto de cada proveedor, no el hierro.
+TOPE_ANALISIS_POR_DEFECTO = 8
 SECCIONES = ("mejora", "riesgo", "idea")
 
 # ─────────────────────────────── flota gratuita ───────────────────────────────
@@ -191,6 +194,9 @@ def _sin_repetir(*listas):
 # Lo que una pasarela admite de entrada (limite_proveedor.TOPES_ENTRADA, copia mínima para
 # no depender del import): el resto, sin tope conocido.
 TOPES_ENTRADA = {"groq": 7000}
+# Tope de SALIDA por proveedor: Groq cuenta los tokens pedidos en su límite por minuto (8000
+# TPM en el tramo gratuito), y un trozo ya pesa ~5.500: pedirle 4000 de salida es un 413.
+TOPES_SALIDA = {"groq": 1800}
 
 
 def es_gratuito(prov, modelo):
@@ -215,7 +221,7 @@ def es_analisis(t):
 def tope_analisis(tareas=(), env_valor=None, libre_mb=None, defecto=TOPE_ANALISIS_POR_DEFECTO):
     """Cuántos sueños a la vez. Los analistas solo hacen HTTP (sin worktree ni puertas), así
     que no comparten el tope de los agentes de código: STARSEED_TOPE_ANALISIS, o el
-    `tope_analisis` que el plan dejó en las tareas, o 5. Con la RAM justa se recorta igual:
+    `tope_analisis` que el plan dejó en las tareas, o 8. Con la RAM justa se recorta igual:
     < 400 MB libres → la mitad; < 200 MB → uno. Entre 1 y 12."""
     n = None
     if env_valor not in (None, ""):
@@ -300,27 +306,127 @@ def _corta(v, n):
     return s if len(s) <= n else s[: n - 1].rstrip() + "…"
 
 
-def extraer_json(texto):
-    """El primer objeto JSON de una respuesta de modelo: con valla ```json, suelto entre
-    llaves o con comas colgantes. None si no hay nada que se deje leer."""
+_PENSAMIENTO = re.compile(r"<think(?:ing)?>.*?</think(?:ing)?>", re.S | re.I)
+_TOPE_TEXTO_JSON = 80000
+
+
+def _cierre(texto, i):
+    """Índice del carácter que cierra el { o [ de la posición i, o -1 si no se cierra (la
+    respuesta llegó cortada). Respeta cadenas y escapes: una llave dentro de un texto no cuenta."""
+    pila, en_cadena, escape = 0, False, False
+    for j in range(i, len(texto)):
+        c = texto[j]
+        if en_cadena:
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                en_cadena = False
+            continue
+        if c == '"':
+            en_cadena = True
+        elif c in "{[":
+            pila += 1
+        elif c in "}]":
+            pila -= 1
+            if pila == 0:
+                return j
+            if pila < 0:
+                return -1
+    return -1
+
+
+def _cargar_json(trozo):
+    for intento in (trozo, re.sub(r",\s*([}\]])", r"\1", trozo)):
+        try:
+            return json.loads(intento)
+        except ValueError:
+            continue
+    return None
+
+
+def objetos_json(texto, limite=300):
+    """Los objetos JSON de nivel superior que se dejan leer, en orden de aparición. Salta
+    prosa, razonamiento («We need to output JSON…») y vallas ```json sin fiarse de ellas."""
+    fuera, i, n = [], 0, len(texto)
+    while i < n and len(fuera) < limite:
+        if texto[i] == "{":
+            j = _cierre(texto, i)
+            if j > i:
+                d = _cargar_json(texto[i:j + 1])
+                if isinstance(d, dict):
+                    fuera.append(d)
+                    i = j + 1
+                    continue
+        i += 1
+    return fuera
+
+
+def rescatar_lista(texto, clave):
+    """Los elementos COMPLETOS de la lista `clave` de una respuesta cortada por max_tokens:
+    `{"observaciones": [ {…}, {…}, { "lente": "ri` → los dos primeros. None si no hay ninguno."""
+    marcas = [m.end() for m in re.finditer(r'"%s"\s*:\s*\[' % re.escape(clave), texto)]
+    for inicio in reversed(marcas):
+        items, i, n = [], inicio, len(texto)
+        while i < n:
+            c = texto[i]
+            if c in " \t\r\n,":
+                i += 1
+                continue
+            if c != "{":
+                break
+            j = _cierre(texto, i)
+            if j < 0:
+                break
+            d = _cargar_json(texto[i:j + 1])
+            if isinstance(d, dict):
+                items.append(d)
+            i = j + 1
+        if items:
+            return items
+    return None
+
+
+def extraer_json(texto, clave=None):
+    """El objeto JSON útil de una respuesta de modelo, venga como venga.
+
+    (2026-09-29, primera sesión real) Tres formas que tumbaban lecturas buenas:
+      · nemotron: «We need to output JSON… (razonamiento con llaves)… {"observaciones": […]}»;
+      · gpt-oss en Groq: `{ "observaciones": [ {…}, {…}, { "lente": …` cortado por max_tokens;
+      · la respuesta dentro de ```json … ``` con prosa alrededor.
+    Con `clave` («observaciones», «hallazgos», «veredictos») se elige el objeto que la trae
+    (el más completo; ante empate, el último: el eco del esquema del prompt va antes que la
+    respuesta), y si ninguno cierra se rescatan los elementos completos de esa lista. Sin
+    `clave`, el primer objeto que se deje leer. None si no hay nada aprovechable."""
     if not texto:
         return None
-    t = str(texto).strip()
-    candidatos = []
-    m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", t, re.S)
-    if m:
-        candidatos.append(m.group(1))
-    i, j = t.find("{"), t.rfind("}")
-    if i >= 0 and j > i:
-        candidatos.append(t[i : j + 1])
-    for c in candidatos:
-        for intento in (c, re.sub(r",\s*([}\]])", r"\1", c)):
+    t = _PENSAMIENTO.sub(" ", str(texto))[:_TOPE_TEXTO_JSON]
+    objetos = objetos_json(t)
+    if not clave:
+        return objetos[0] if objetos else None
+    con = [(i, o) for i, o in enumerate(objetos) if isinstance(o.get(clave), list)]
+    if con:
+        return max(con, key=lambda x: (len(x[1][clave]), x[0]))[1]
+    items = rescatar_lista(t, clave)
+    if items is not None:
+        fuera = {clave: items, "_rescatado": True}
+        resumen = re.search(r'"resumen"\s*:\s*"((?:[^"\\]|\\.)*)"', t)
+        if resumen:
             try:
-                d = json.loads(intento)
+                fuera["resumen"] = json.loads('"%s"' % resumen.group(1))
             except ValueError:
-                continue
-            if isinstance(d, dict):
-                return d
+                pass
+        return fuera
+    # Una lista suelta de elementos también vale: [{…}, {…}].
+    i = t.find("[")
+    while 0 <= i < len(t):
+        j = _cierre(t, i)
+        if j > i:
+            d = _cargar_json(t[i:j + 1])
+            if isinstance(d, list) and d and all(isinstance(x, dict) for x in d):
+                return {clave: d}
+        i = t.find("[", i + 1)
     return None
 
 
@@ -413,7 +519,8 @@ def prompt_map(t, trozo, i, n):
         "Devuelve SOLO un objeto JSON, sin texto antes ni después:\n"
         '{"observaciones":[{"lente":"<id de la lente>","archivo":"<ruta exacta del encabezado ===>",'
         '"linea":<número de la izquierda>,"tipo":"mejora|riesgo|idea","texto":"qué pasa y por qué '
-        'importa, ≤40 palabras","impacto":1,"esfuerzo":1,"confianza":0.5}]}\n'
+        'importa, ≤30 palabras","impacto":1,"esfuerzo":1,"confianza":0.5}]}\n'
+        "Empieza tu respuesta por { y termina por }: nada de razonamiento fuera del JSON.\n"
         "REGLAS: como mucho 3 observaciones por lente; cita SOLO líneas que ves en este trozo; nada "
         "de suposiciones sobre código que no está aquí; si una lente no tiene nada que decir, no la "
         "inventes (una lista vacía es una respuesta válida). impacto 5 = rompe algo o cuesta dinero o "
@@ -585,7 +692,7 @@ def normalizar_hallazgos(d, lineas_por_archivo):
 
 def leer_sintesis(texto, lineas_por_archivo):
     """(resumen, hallazgos) de la respuesta del reduce, o None si no tenía la forma pedida."""
-    d = extraer_json(texto)
+    d = extraer_json(texto, "hallazgos")
     hallazgos = normalizar_hallazgos(d, lineas_por_archivo)
     if hallazgos is None:
         return None
@@ -745,19 +852,240 @@ class SinProveedor(RuntimeError):
     """Ningún proveedor gratuito respondió en todo el plazo de espera."""
 
 
+# ─────────────────────────────── salud de la flota (compartida por todos los sueños) ───────────────────────────────
+# (2026-09-29, primera sesión real: 4 informes en 151 min.) Cada sueño llevaba su propia
+# memoria de fallos, así que un id MUERTO (403 de Gemini 2.5, 404 de AIHubMix) se volvía a
+# probar en cada ronda de cada trozo de cada sueño, y un proveedor saturado (429) se
+# reintentaba en los cinco trabajadores a la vez. Ahora la salud es de la SESIÓN: un modelo
+# que da 403/404/410 o «model not found» sale para siempre al primer intento; un 429/5xx lo
+# enfría un rato corto, con espera creciente si repite; y el reparto va por turnos entre
+# TODOS los proveedores sanos (el menos usado primero), para que ningún cupo sea el cuello.
+MUERTO, SIN_CLAVE, CUOTA, RITMO, SERVIDOR, GRANDE, OTRO = (
+    "muerto", "sin_clave", "cuota", "ritmo", "servidor", "grande", "otro")
+ENFRIAR_S = {RITMO: 90, SERVIDOR: 60, OTRO: 45}
+ENFRIAR_MAX_S = 15 * 60
+CUOTA_FUERA_S = 60 * 60
+MALA_FORMA_ENFRIAR_S = 10 * 60
+
+
+def clasificar_fallo(mensaje):
+    """Qué le pasó a una llamada, por el texto de su error. PURA."""
+    msg = str(mensaje or "")
+    bajo = msg.lower()
+    codigo = re.search(r"\b(4\d\d|5\d\d)\b", msg)
+    c = codigo.group(1) if codigo else ""
+    if "sin clave" in bajo or c == "401" or "unauthorized" in bajo or "invalid api key" in bajo:
+        return SIN_CLAVE
+    if c == "402" or any(k in bajo for k in ("cuota", "quota", "sin claves útiles", "daily limit",
+                                              "insufficient", "credits", "check-in", "for today")):
+        return CUOTA
+    if c in ("403", "404", "410") or any(k in bajo for k in (
+            "model not found", "model_not_found", "does not exist", "no such model", "unknown model",
+            "invalid model", "no endpoints found", "not a valid model", "is not supported", "decommissioned")):
+        return MUERTO
+    if c == "413" or "too large" in bajo or "context length" in bajo or "maximum context" in bajo:
+        return GRANDE
+    if c == "429" or "too many requests" in bajo or "rate limit" in bajo:
+        return RITMO
+    if c in ("500", "502", "503", "504", "529") or any(k in bajo for k in (
+            "timed out", "timeout", "connection", "reset by peer", "temporarily", "overloaded", "unavailable")):
+        return SERVIDOR
+    return OTRO
+
+
+class SaludFlota(object):
+    """Memoria de la SESIÓN (todas las tareas de análisis del proceso comparten una)."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.muertos = {}          # (p, m) -> motivo: fuera para toda la sesión
+        self.fuera = {}            # p -> (hasta, motivo): sin clave (sesión) o sin cuota (1 h)
+        self.enfriado = {}         # (p, m) -> hasta
+        self.enfriado_prov = {}    # p -> hasta (un 429 suele ser del proveedor entero)
+        self.seguidos = {}         # (p, m) -> fallos seguidos (espera creciente)
+        self.mala_forma = {}       # (p, m) -> respuestas sin el JSON pedido, seguidas
+        self.uso_prov = {}         # p -> última vez que se le pidió algo
+        self.uso_mod = {}          # (p, m) -> ídem
+
+    def sano(self, p, m, ahora):
+        with self.lock:
+            if (p, m) in self.muertos:
+                return False
+            f = self.fuera.get(p)
+            if f and f[0] > ahora:
+                return False
+            return self.enfriado.get((p, m), 0) <= ahora and self.enfriado_prov.get(p, 0) <= ahora
+
+    def volvera(self, p, m, ahora):
+        """¿Puede volver a estar sano en esta sesión (no está muerto ni sin clave)?"""
+        with self.lock:
+            if (p, m) in self.muertos:
+                return False
+            f = self.fuera.get(p)
+            return not (f and f[0] == float("inf"))
+
+    def proximo(self, ahora):
+        """Cuándo se despierta el primero que está enfriándose (o None)."""
+        with self.lock:
+            fechas = [v for v in list(self.enfriado.values()) + list(self.enfriado_prov.values()) if v > ahora]
+            fechas += [v[0] for v in self.fuera.values() if ahora < v[0] < float("inf")]
+            return min(fechas) if fechas else None
+
+    def usar(self, p, m, ahora):
+        with self.lock:
+            self.uso_prov[p] = ahora
+            self.uso_mod[(p, m)] = ahora
+
+    def orden(self, pares):
+        """Por turnos: el proveedor menos usado primero, y dentro, el modelo menos usado."""
+        with self.lock:
+            return sorted(pares, key=lambda x: (self.uso_prov.get(x[0], -1.0), self.uso_mod.get(x, -1.0)))
+
+    def exito(self, p, m):
+        with self.lock:
+            self.seguidos.pop((p, m), None)
+            self.mala_forma.pop((p, m), None)
+
+    def fallo(self, p, m, clase, ahora, motivo=""):
+        """Anota un fallo y devuelve qué se hizo (para el registro)."""
+        with self.lock:
+            if clase == MUERTO or clase == GRANDE:
+                self.muertos[(p, m)] = _corta(motivo, 120) or clase
+                return "fuera para toda la sesión (%s)" % clase
+            if clase == SIN_CLAVE:
+                self.fuera[p] = (float("inf"), _corta(motivo, 120))
+                return "proveedor sin clave: fuera para toda la sesión"
+            if clase == CUOTA:
+                self.fuera[p] = (ahora + CUOTA_FUERA_S, _corta(motivo, 120))
+                return "proveedor sin cuota: fuera %d min" % (CUOTA_FUERA_S // 60)
+            n = self.seguidos.get((p, m), 0) + 1
+            self.seguidos[(p, m)] = n
+            espera = min(ENFRIAR_MAX_S, ENFRIAR_S.get(clase, 45) * (2 ** (n - 1)))
+            self.enfriado[(p, m)] = ahora + espera
+            if clase == RITMO:
+                # Un 429 suele ser del proveedor entero (su RPM): todos sus modelos, 30 s.
+                self.enfriado_prov[p] = max(self.enfriado_prov.get(p, 0), ahora + 30)
+            return "enfriado %d s (%s, %d seguidos)" % (espera, clase, n)
+
+    def forma(self, p, m, ahora):
+        """Una respuesta sin el JSON pedido: a la segunda seguida, 10 min fuera; a la quinta, sesión."""
+        with self.lock:
+            n = self.mala_forma.get((p, m), 0) + 1
+            self.mala_forma[(p, m)] = n
+            if n >= 5:
+                self.muertos[(p, m)] = "no devuelve el JSON pedido"
+                return "fuera para toda la sesión (no sigue el formato)"
+            if n >= 2:
+                self.enfriado[(p, m)] = ahora + MALA_FORMA_ENFRIAR_S
+                return "enfriado %d min (no sigue el formato)" % (MALA_FORMA_ENFRIAR_S // 60)
+            return "se reintenta con otro"
+
+    def resumen(self):
+        with self.lock:
+            return {"muertos": ["%s/%s" % k for k in self.muertos],
+                    "fuera": sorted(self.fuera), "enfriados": len(self.enfriado)}
+
+
+SALUD = SaludFlota()
+
+
+# ─────────────────────────────── la flota viva ───────────────────────────────
+# El orquestador ya sabe, AHORA, quién escribe: el informe de pasarelas del renovador
+# («puerta de pasarelas» del arranque), la rotación de escritores (MODELOS, filtrada por ese
+# informe), los revisores y las sondas. La flota de los sueños sale de ahí, no de una lista
+# fija que caduca: `flota_desde` es PURA y el orquestador la recalcula cada pocos minutos.
+PROVEEDOR_LLAMADA = {"nvidia": "nim", "google": "gemini"}
+EXCLUIDOS = PROVEEDORES_DE_PAGO | {"neurona", "deepseek"}
+UTILIZABLES = ("escribe", "lenta")
+_CAPAZ = re.compile(
+    r"kimi|deepseek-v4-pro|deepseek-v4(?!-flash)|qwen3?\.?8-max|qwen-3\.8-max|glm-5\.3(?!-flash)|"
+    r"gemini-3\.[5-9]-flash(?!-lite)|gemini-3\.\d-pro|gpt-oss-120b|muse-spark|nemotron-3-ultra|minimax-m3|"
+    r"qwen3-coder-plus|devstral|nex-n2|inkling|north-mini|qwen3\.7-plus|gemma-4", re.I)
+_RAPIDO = re.compile(
+    r"flash-lite|gpt-oss-20b|nemotron-3-super|glm-5\.3-flash|minimax-m2\.7|^gpt-oss$|deepseek-v4-flash|"
+    r"lightning|nano|flash-free|coding-glm|^auto$", re.I)
+
+
+def par_de(modelo):
+    """«nvidia/moonshotai/kimi-k3» → ("nim", "moonshotai/kimi-k3"); «google/gemini-3.6-flash» →
+    ("gemini", "gemini-3.6-flash"); «nvidia/nemotron-3-super-120b-a12b» → ("nim",
+    "nvidia/nemotron-3-super-120b-a12b") (en NIM los modelos de NVIDIA llevan su espacio)."""
+    prov, _, resto = str(modelo or "").partition("/")
+    prov = PROVEEDOR_LLAMADA.get(prov, prov)
+    if prov == "nim" and resto and "/" not in resto:
+        resto = "nvidia/" + resto
+    return prov, resto
+
+
+def flota_desde(modelos=(), revisores=(), informe=None, sondas=None, llamables=None, base=()):
+    """{"mapa": [...], "sintesis": [...], "contraste": [...]} de pares (proveedor, modelo). PURA.
+
+    · Entran: los modelos que el informe de pasarelas da por vivos (y sus `modelos_extra`),
+      la rotación de escritores, los revisores, las sondas y, al final, `base`.
+    · Fuera: proveedores de pago, OpenRouter que no sea `:free`, proveedores que el informe da
+      por sin cupo / sin clave / caídos, y los que `llamar_llm` no sabe llamar (`llamables`).
+    · mapa: todos (el reparto por turnos decide); síntesis: los capaces primero; contraste: todos.
+    """
+    estados = {}
+    candidatos = []
+    for fila in (informe or {}).get("pasarelas") or []:
+        if not isinstance(fila, dict):
+            continue
+        prov = PROVEEDOR_LLAMADA.get(fila.get("clave"), fila.get("clave"))
+        estados[prov] = fila.get("estado")
+        if fila.get("estado") in UTILIZABLES and fila.get("modelo"):
+            candidatos.append(par_de("%s/%s" % (fila.get("clave"), fila["modelo"])))
+            for extra in fila.get("modelos_extra") or []:
+                candidatos.append((prov, str(extra)))
+    for m in modelos or ():
+        candidatos.append(par_de(m))
+    for par in revisores or ():
+        candidatos.append((PROVEEDOR_LLAMADA.get(par[0], par[0]), par[1]))
+    for prov, sonda in (sondas or {}).items():
+        modelo = sonda[0] if isinstance(sonda, (list, tuple)) else sonda
+        if modelo:
+            candidatos.append((PROVEEDOR_LLAMADA.get(prov, prov), modelo))
+    for par in base or ():
+        candidatos.append(tuple(par))
+    vistos, validos = set(), []
+    for p, m in candidatos:
+        if not p or not m or (p, m) in vistos:
+            continue
+        vistos.add((p, m))
+        if p in EXCLUIDOS or not es_gratuito(p, m):
+            continue
+        if llamables is not None and p not in llamables:
+            continue
+        if estados.get(p) not in (None,) + UTILIZABLES:
+            continue
+        validos.append((p, m))
+    capaces = [x for x in validos if _CAPAZ.search(x[1])]
+    rapidos = [x for x in validos if x not in capaces and _RAPIDO.search(x[1])]
+    resto = [x for x in validos if x not in capaces and x not in rapidos]
+    return {"mapa": rapidos + resto + capaces, "sintesis": capaces + resto + rapidos,
+            "contraste": resto + capaces + rapidos}
+
+
+def flota_fija():
+    """La de siempre, por si el orquestador no da la suya (pruebas, otra máquina)."""
+    return {"mapa": _sin_repetir(MAP_RAPIDOS, CONTRASTE, REDUCE_CAPACES),
+            "sintesis": _sin_repetir(REDUCE_CAPACES, CONTRASTE, MAP_RAPIDOS),
+            "contraste": _sin_repetir(CONTRASTE, REDUCE_CAPACES, MAP_RAPIDOS)}
+
+
 class Llamador(object):
-    """Rota la flota gratuita para UNA tarea: respeta la salud del orquestador, enfría un
-    proveedor tras un 429, aparta el que se quedó sin cuota o sin clave, espera si no queda
-    nadie y lleva la cuenta de tokens (estimados) para el latido y el informe."""
+    """Pide UNA respuesta útil a la flota para UNA tarea: el proveedor sano menos usado primero
+    (por turnos entre todos), con cupo por minuto libre si lo hay; aparta al momento lo muerto,
+    enfría lo saturado y, si no queda nadie, espera releyendo la salud cada pocos minutos.
+    Lleva la cuenta de tokens (estimados) para el latido y el informe."""
 
     def __init__(self, t, llamar_llm, disponible=None, latir=None, log=None, dormir=time.sleep,
                  reloj=time.time, es_aviso_de_cuota=None, marcar_sin_cupo=None,
-                 espera_429_s=ESPERA_429_S, espera_proveedor_s=ESPERA_PROVEEDOR_S, pausa_s=0, rotar=True):
+                 espera_429_s=ESPERA_429_S, espera_proveedor_s=ESPERA_PROVEEDOR_S, pausa_s=0, rotar=True,
+                 flota=None, cupo_libre=None, refrescar=None, salud=None):
         self.t = t
-        # Cada sueño empieza la rotación en un sitio distinto: cinco trabajadores que
-        # empezaran todos por el mismo proveedor harían cola en su cupo por minuto.
-        self.rotar = rotar
         self.tid = t["id"]
+        self.rotar = rotar
         self._llamar = llamar_llm
         self._disponible = disponible or (lambda p: True)
         self._latir = latir or (lambda *a, **k: None)
@@ -766,20 +1094,25 @@ class Llamador(object):
         self._reloj = reloj
         self._aviso = es_aviso_de_cuota or (lambda s: False)
         self._marcar = marcar_sin_cupo
+        self._flota = flota or flota_fija
+        self._cupo_libre = cupo_libre or (lambda p: True)
+        self._refrescar = refrescar
+        self.salud = salud if salud is not None else SALUD
         self.espera_429_s = espera_429_s
         self.espera_proveedor_s = espera_proveedor_s
-        self.pausa_s = max(0, int(pausa_s or 0))
+        # (2026-09-29) Sin pausa global entre llamadas: el ritmo lo pone el CUPO POR MINUTO de
+        # cada proveedor (llamar_llm) y el reparto por turnos. La pausa de 104 s del plan hacía
+        # que cinco trabajadores fueran a paso de uno.
+        self.pausa_s = 0
         self.tokens = {"entrada": 0, "salida": 0, "razonamiento": 0, "cacheLeida": 0, "llamadas": 0}
-        self.fallos = {}
-        self.fuera = set()
-        self.enfriando = {}
-        self.ultima = 0.0
         self.subfase = ""
         self.modelo_actual = ""
         try:
-            self._con_max = "max_tokens" in inspect.signature(llamar_llm).parameters
+            parametros = inspect.signature(llamar_llm).parameters
         except (TypeError, ValueError):
-            self._con_max = False
+            parametros = {}
+        self._con_max = "max_tokens" in parametros
+        self._con_json = "json_mode" in parametros
 
     # latido: fase «analizando» siempre; lo que hace va en `subfase`.
     def latido(self, subfase=None, modelo=None):
@@ -798,7 +1131,7 @@ class Llamador(object):
             pass
 
     def dormir(self, segundos, motivo):
-        """Duerme en tramos de ≤ 50 s con latido: un sueño en pausa no es un agente muerto."""
+        """Duerme en tramos de ≤ 50 s con latido: un sueño esperando no es un agente muerto."""
         fin = self._reloj() + max(0.0, segundos)
         while True:
             queda = fin - self._reloj()
@@ -807,26 +1140,22 @@ class Llamador(object):
             self.latido(motivo)
             self._dormir(min(50.0, queda))
 
-    def _recuperables(self, lista, excluir, tokens_prompt):
-        """¿Queda alguien que VOLVERÁ (enfriándose tras un 429, o apartado por la salud del
-        orquestador)? Si todos fallaron dos veces, no tiene sentido esperar 45 min."""
-        for p, m in lista:
-            if not es_gratuito(p, m) or p in self.fuera or p in excluir:
-                continue
-            if self.fallos.get((p, m), 0) >= 2 or tokens_prompt > TOPES_ENTRADA.get(p, 10 ** 9):
-                continue
-            return True
-        return False
+    def _lista(self, rol):
+        try:
+            d = self._flota() or {}
+        except Exception:
+            d = {}
+        lista = list(d.get(rol) or []) if isinstance(d, dict) else []
+        return lista or flota_fija()[rol]
 
-    def _candidatos(self, lista, excluir, tokens_prompt):
-        ahora = self._reloj()
+    def _admisible(self, p, m, excluir, tokens_prompt):
+        return (es_gratuito(p, m) and p not in excluir and p not in EXCLUIDOS
+                and tokens_prompt <= TOPES_ENTRADA.get(p, 10 ** 9))
+
+    def _candidatos(self, lista, excluir, tokens_prompt, ahora):
         fuera = []
         for p, m in lista:
-            if not es_gratuito(p, m) or p in self.fuera or p in excluir:
-                continue
-            if self.fallos.get((p, m), 0) >= 2 or self.enfriando.get(p, 0) > ahora:
-                continue
-            if tokens_prompt > TOPES_ENTRADA.get(p, 10 ** 9):
+            if not self._admisible(p, m, excluir, tokens_prompt) or not self.salud.sano(p, m, ahora):
                 continue
             try:
                 if not self._disponible(p):
@@ -834,97 +1163,112 @@ class Llamador(object):
             except Exception:
                 pass
             fuera.append((p, m))
-        return fuera
+        if not fuera:
+            return fuera
+        # Por turnos entre TODOS: el proveedor menos usado primero; los que tienen el cupo por
+        # minuto lleno, al final (llamar_llm esperaría en su cupo en vez de probar otro).
+        ordenados = self.salud.orden(fuera) if self.rotar else fuera
+        con_cupo, llenos = [], []
+        for par in ordenados:
+            try:
+                libre = self._cupo_libre(par[0])
+            except Exception:
+                libre = True
+            (con_cupo if libre else llenos).append(par)
+        return con_cupo + llenos
 
-    def _clasificar(self, p, m, e):
-        msg = str(e or "")
-        bajo = msg.lower()
-        if "429" in msg or "too many requests" in bajo or "rate limit" in bajo and "today" not in bajo:
-            self.enfriando[p] = self._reloj() + self.espera_429_s
-            self._log("429 en %s/%s: lo enfrío %d s y pruebo otro" % (p, m, self.espera_429_s))
-        elif "sin clave" in bajo:
-            self.fuera.add(p)
-            self._log("%s sin clave en esta máquina: fuera de este sueño" % p)
-        elif any(k in bajo for k in ("cuota", "quota", "402", "sin claves útiles", "daily limit", "insufficient")):
-            self.fuera.add(p)
-            self._log("%s sin cuota: fuera de este sueño (%s)" % (p, _corta(msg, 120)))
-        elif "too large" in bajo or "413" in msg:
-            self.fallos[(p, m)] = 2
-            self._log("%s/%s no admite un prompt de este tamaño" % (p, m))
-        else:
-            self.fallos[(p, m)] = self.fallos.get((p, m), 0) + 1
-            self._log("fallo en %s/%s: %s" % (p, m, _corta(msg, 160)))
+    def _recuperables(self, lista, excluir, tokens_prompt, ahora):
+        return any(self._admisible(p, m, excluir, tokens_prompt) and self.salud.volvera(p, m, ahora)
+                   for p, m in lista)
 
-    def _pausa(self):
-        if self.pausa_s and self.ultima:
-            queda = self.pausa_s - (self._reloj() - self.ultima)
-            if queda > 0:
-                self.dormir(queda, "pausa · ritmo del plan (--horas)")
+    def _invocar(self, p, m, prompt, timeout, max_tokens, json_mode):
+        tope = min(max_tokens, TOPES_SALIDA.get(p, max_tokens))
+        kw = {"timeout": timeout}
+        if self._con_max:
+            kw["max_tokens"] = tope
+        if self._con_json and json_mode:
+            kw["json_mode"] = True
+        return self._llamar(p, m, prompt, **kw)
 
-    def llamar(self, fase, lista, prompt, validar, max_tokens=2500, timeout=180, excluir=(), inicio=0,
-               espera_max=None):
-        """(dato_validado, "prov/modelo"). Rota hasta que un modelo devuelva algo que
-        `validar(texto)` acepte (≠ None). Sin nadie disponible, espera; pasado el plazo,
-        SinProveedor. Si ya no queda nadie que pueda volver (todos fallaron dos veces o se
-        quedaron sin cuota), SinProveedor al momento: esperar a nadie no es esperar."""
+    def llamar(self, fase, rol, prompt, validar, max_tokens=2500, timeout=180, excluir=(), inicio=0,
+               espera_max=None, json_mode=True):
+        """(dato_validado, "prov/modelo"). `rol` es «mapa», «sintesis» o «contraste» (o una
+        lista de pares). Rota hasta que un modelo devuelva algo que `validar(texto)` acepte.
+        Sin nadie sano, espera en tramos cortos releyendo la flota cada ~3 min; si ya no queda
+        nadie que pueda volver (todo muerto o sin clave), SinProveedor al momento."""
         tokens_prompt = estimar_tokens(prompt)
         plazo = self.espera_proveedor_s if espera_max is None else min(self.espera_proveedor_s, espera_max)
+        excluir = set(excluir or ())
         limite_espera = None
+        ultimo_refresco = self._reloj()
+        refrescado_al_vacio = False
         while True:
-            cands = self._candidatos(lista, set(excluir), tokens_prompt)
+            ahora = self._reloj()
+            lista = list(rol) if isinstance(rol, (list, tuple)) else self._lista(rol)
+            cands = self._candidatos(lista, excluir, tokens_prompt, ahora)
             if not cands:
-                if not self._recuperables(lista, set(excluir), tokens_prompt):
-                    raise SinProveedor("%s: todos los modelos gratuitos fallaron o se quedaron sin cuota" % fase)
-                ahora = self._reloj()
+                if not self._recuperables(lista, excluir, tokens_prompt, ahora):
+                    if self._refrescar and not refrescado_al_vacio:
+                        refrescado_al_vacio = True
+                        self._refrescar_flota("nadie vivo en la flota")
+                        continue
+                    raise SinProveedor("%s: todos los modelos gratuitos están muertos, sin clave o sin cuota" % fase)
                 if limite_espera is None:
                     limite_espera = ahora + plazo
-                    self._log("%s: ningún proveedor gratuito disponible; espero (hasta %d min)" % (fase, plazo // 60))
+                    self._log("%s: ningún proveedor sano ahora; espero y releo la flota (hasta %d min)" % (fase, plazo // 60))
                 if ahora >= limite_espera:
                     raise SinProveedor("%s: sin proveedores gratuitos tras %d min de espera" % (fase, plazo // 60))
-                proximos = [v for v in self.enfriando.values() if v > ahora]
-                espera = min(60.0, max(5.0, (min(proximos) - ahora) if proximos else 60.0))
-                self.dormir(min(espera, max(0.0, limite_espera - ahora)) or 1.0, "esperando proveedor")
+                if self._refrescar and ahora - ultimo_refresco >= 180:
+                    ultimo_refresco = ahora
+                    self._refrescar_flota("relectura periódica mientras espero")
+                proximo = self.salud.proximo(ahora)
+                espera = min(60.0, max(5.0, (proximo - ahora) if proximo else 60.0))
+                self.dormir(min(espera, max(1.0, limite_espera - ahora)), "esperando proveedor")
                 continue
             limite_espera = None
-            k = (inicio % len(cands)) if self.rotar else 0
-            for p, m in cands[k:] + cands[:k]:
-                if p in self.fuera or self.enfriando.get(p, 0) > self._reloj():
+            for p, m in cands:
+                if not self.salud.sano(p, m, self._reloj()):
                     continue
-                self._pausa()
+                self.salud.usar(p, m, self._reloj())
                 self.latido("%s · %s/%s" % (fase, p, m), "%s/%s" % (p, m))
                 try:
-                    if self._con_max:
-                        txt = self._llamar(p, m, prompt, timeout=timeout, max_tokens=max_tokens)
-                    else:
-                        txt = self._llamar(p, m, prompt, timeout=timeout)
+                    txt = self._invocar(p, m, prompt, timeout, max_tokens, json_mode)
                 except Exception as e:  # noqa: BLE001 — cada fallo se clasifica, ninguno tumba el sueño
-                    self.ultima = self._reloj()
-                    self._clasificar(p, m, e)
+                    clase = clasificar_fallo(e)
+                    que = self.salud.fallo(p, m, clase, self._reloj(), str(e))
+                    self._log("%s/%s: %s → %s" % (p, m, _corta(str(e), 140), que))
                     continue
-                self.ultima = self._reloj()
                 txt = txt or ""
                 self.tokens["entrada"] += tokens_prompt
                 self.tokens["salida"] += estimar_tokens(txt)
                 self.tokens["llamadas"] += 1
                 if self._aviso(txt):
-                    self.fuera.add(p)
+                    que = self.salud.fallo(p, m, CUOTA, self._reloj(), txt[:120])
                     if self._marcar:
                         try:
                             self._marcar(p, txt[:160])
                         except Exception:
                             pass
-                    self._log("%s devolvió un aviso de cuota como respuesta: fuera" % p)
+                    self._log("%s devolvió un aviso de cuota como respuesta → %s" % (p, que))
                     continue
                 try:
                     dato = validar(txt)
                 except Exception:
                     dato = None
                 if dato is None:
-                    self.fallos[(p, m)] = self.fallos.get((p, m), 0) + 1
-                    self._log("%s/%s respondió sin el JSON pedido (%s)" % (p, m, _corta(txt, 100)))
+                    que = self.salud.forma(p, m, self._reloj())
+                    self._log("%s/%s respondió sin el JSON pedido (%s) → %s" % (p, m, _corta(txt, 100), que))
                     continue
+                self.salud.exito(p, m)
                 self.latido("%s · %s/%s ✓" % (fase, p, m))
                 return dato, "%s/%s" % (p, m)
+
+    def _refrescar_flota(self, motivo):
+        try:
+            self._refrescar()
+            self._log("flota releída (%s)" % motivo)
+        except Exception:
+            pass
 
 
 # ─────────────────────────────── el sueño ───────────────────────────────
@@ -975,10 +1319,10 @@ def mapear(t, trozos, dir_mapa, llamador, reloj=time.time, dormir=None):
                 if cache is None:
                     rutas = [p["archivo"] for p in tr["partes"]]
                     dato, modelo = llamador.llamar(
-                        "lectura %d/%d" % (idx + 1, len(trozos)), MAP_RAPIDOS,
+                        "lectura %d/%d" % (idx + 1, len(trozos)), "mapa",
                         prompt_map(t, tr, idx + 1, len(trozos)),
-                        lambda txt, rutas=rutas: normalizar_observaciones(extraer_json(txt), rutas),
-                        max_tokens=2500, timeout=150, inicio=inicio + idx,
+                        lambda txt, rutas=rutas: normalizar_observaciones(extraer_json(txt, "observaciones"), rutas),
+                        max_tokens=4000, timeout=150, inicio=inicio + idx,
                     )
                     cache = {"v": VERSION_MAPA, "obs": dato, "modelo": modelo, "t": reloj(), "partes": tr["partes"]}
                     _escribir_atomico(os.path.join(dir_mapa, tr["hash"] + ".json"), json.dumps(cache, ensure_ascii=False))
@@ -1003,7 +1347,8 @@ def mapear(t, trozos, dir_mapa, llamador, reloj=time.time, dormir=None):
 def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible=None,
              raiz=".", dir_profundo=None, log=None, paso_local=None, dormir=time.sleep,
              reloj=time.time, es_aviso_de_cuota=None, marcar_sin_cupo=None,
-             espera_429_s=ESPERA_429_S, espera_proveedor_s=ESPERA_PROVEEDOR_S, leer=None, rotar=True):
+             espera_429_s=ESPERA_429_S, espera_proveedor_s=ESPERA_PROVEEDOR_S, leer=None, rotar=True,
+             flota=None, cupo_libre=None, refrescar=None, salud=None):
     """Ejecuta UN sueño (tarea `tipo: "analisis"`). Devuelve el informe (dict) o None.
 
     Estados en progreso.json (vía `set_estado`): en_curso → informe | fallo. Eventos al bus
@@ -1039,7 +1384,8 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
     t0 = reloj()
     leer = leer or (lambda ruta: open(os.path.join(raiz, ruta), encoding="utf-8", errors="replace").read())
     llamador = Llamador(t, llamar_llm, disponible, latir, log, dormir, reloj, es_aviso_de_cuota,
-                        marcar_sin_cupo, espera_429_s, espera_proveedor_s, t.get("pausa_s") or 0, rotar)
+                        marcar_sin_cupo, espera_429_s, espera_proveedor_s, 0, rotar,
+                        flota=flota, cupo_libre=cupo_libre, refrescar=refrescar, salud=salud)
     try:
         set_estado(tid, estado="en_curso", modelo="", segundos=0, tipo="analisis",
                    nota="analizando · %s × %s" % (t.get("area"), lente))
@@ -1063,8 +1409,8 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
         if mias:
             # Los capaces primero; si ninguno está, cualquiera de la flota antes que esperar.
             (resumen, hallazgos), sintesis = llamador.llamar(
-                "síntesis", _sin_repetir(REDUCE_CAPACES, MAP_RAPIDOS), prompt_reduce(t, mias, len(lineas)),
-                lambda txt: leer_sintesis(txt, lineas), max_tokens=4000, timeout=300,
+                "síntesis", "sintesis", prompt_reduce(t, mias, len(lineas)),
+                lambda txt: leer_sintesis(txt, lineas), max_tokens=5000, timeout=300,
             )
         else:
             resumen = "Los lectores no vieron nada relevante para esta lente en los archivos leídos."
@@ -1075,9 +1421,10 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
             prov_sintesis = sintesis.split("/", 1)[0] if sintesis else ""
             try:
                 dato, contraste = llamador.llamar(
-                    "contraste", _sin_repetir(CONTRASTE, REDUCE_CAPACES, MAP_RAPIDOS),
-                    prompt_contraste(t, hallazgos, lineas), extraer_json,
-                    max_tokens=2500, timeout=240, excluir={prov_sintesis}, espera_max=ESPERA_CONTRASTE_S,
+                    "contraste", "contraste",
+                    prompt_contraste(t, hallazgos, lineas),
+                    lambda txt: (lambda d: d if isinstance((d or {}).get("veredictos"), list) else None)(extraer_json(txt, "veredictos")),
+                    max_tokens=3000, timeout=240, excluir={prov_sintesis}, espera_max=ESPERA_CONTRASTE_S,
                 )
                 hallazgos, descartados = aplicar_contraste(hallazgos, dato, contraste)
             except SinProveedor:

@@ -171,7 +171,10 @@ class Plan(unittest.TestCase):
         self.assertLessEqual(p, 900)
         self.assertEqual(S.pausa_entre_llamadas(1, 100, 1), 900)
         plan = S.construir_plan(self.areas, REPO, FECHA, horas=3)
-        self.assertTrue(all(t["pausa_s"] == plan["pausa_s"] for t in plan["tareas"]))
+        # Sin pausa global (2026-09-29): el ritmo lo ponen los cupos por proveedor.
+        self.assertEqual(plan["pausa_s"], 0)
+        self.assertTrue(all(t["pausa_s"] == 0 for t in plan["tareas"]))
+        self.assertTrue(all(t["tope_analisis"] == S.TOPE_ANALISIS_POR_DEFECTO == 8 for t in plan["tareas"]))
 
     def test_id_demasiado_largo_se_niega(self):
         with self.assertRaises(ValueError):

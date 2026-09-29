@@ -118,7 +118,7 @@ class Entorno(unittest.TestCase):
             set_estado=lambda tid, **k: self.estados.append(dict(k, tid=tid)),
             latir=lambda tid, fase, **k: self.latidos.append((fase, k)),
             raiz=self.dir, log=self.log.append, dormir=self.dormir, reloj=lambda: self.reloj[0],
-            rotar=False, **kw
+            rotar=False, salud=kw.pop("salud", None) or A.SaludFlota(), **kw
         )
 
 
@@ -220,10 +220,10 @@ class Cuotas(Entorno):
         solo = lambda p: p == "llm7"  # noqa: E731
         flota = Flota(fallos={"llm7": [RuntimeError("HTTP Error 429")]})
         inf = self.correr(tarea(), flota, disponible=solo)
-        # Espera (en tramos con latido) y reintenta el mismo; el contraste no tiene a nadie
-        # distinto de la síntesis y el informe sale igual, con menos confianza.
+        # Espera (en tramos con latido) a que el proveedor se enfríe y reintenta; el contraste
+        # no tiene a nadie distinto de la síntesis y el informe sale igual, con menos confianza.
         self.assertTrue(self.dormidas)
-        self.assertGreaterEqual(sum(self.dormidas), 60)
+        self.assertGreaterEqual(sum(self.dormidas), 30)
         self.assertIsNotNone(inf)
         self.assertEqual(inf["modelos"]["contraste"], "")
         self.assertTrue(all(h["contraste"] == "sin_veredicto" for h in inf["hallazgos"]))
@@ -260,6 +260,158 @@ class Cuotas(Entorno):
         self.assertFalse(A.es_gratuito("anthropic", "claude"))
         for lista in (A.MAP_RAPIDOS, A.REDUCE_CAPACES, A.CONTRASTE):
             self.assertTrue(all(A.es_gratuito(p, m) for p, m in lista))
+
+
+OBS = ('{"lente": "rendimiento-consumo", "archivo": "src/lib/voz/motor.ts", "linea": 40, "tipo": "riesgo", '
+       '"texto": "setInterval de 1 s {sin freno}", "impacto": 5, "esfuerzo": 1, "confianza": 0.9}')
+
+
+class JsonRobusto(unittest.TestCase):
+    """Las tres formas REALES que tumbaron lecturas buenas el 2026-09-29 (logs/SA09293.log)."""
+
+    def test_nemotron_razona_antes_del_json(self):
+        texto = ("We need to output JSON only. Let's think: the code at line 40 does {setInterval} and "
+                 "the schema is {\"observaciones\": [...]}. Also check {x: 1}. Final answer:\n"
+                 '{"observaciones": [%s, %s]}' % (OBS, OBS.replace("40", "41")))
+        d = A.extraer_json(texto, "observaciones")
+        self.assertEqual(len(d["observaciones"]), 2)
+        self.assertEqual(len(A.normalizar_observaciones(d, ["src/lib/voz/motor.ts"])), 2)
+
+    def test_gpt_oss_cortado_por_max_tokens_rescata_lo_completo(self):
+        texto = '{ "observaciones": [ %s, %s, { "lente": "pruebas-fiabilidad", "archivo": "src/lib/voz/motor.ts", "linea": 12, "tipo": "ri' % (OBS, OBS)
+        d = A.extraer_json(texto, "observaciones")
+        self.assertTrue(d["_rescatado"])
+        self.assertEqual(len(d["observaciones"]), 2)
+
+    def test_valla_con_prosa_y_eco_del_esquema(self):
+        eco = '{"observaciones":[{"lente":"<id de la lente>","archivo":"<ruta>","linea":1}]}'
+        texto = "Formato pedido: %s\nClaro, aquí va:\n```json\n{\"observaciones\": [%s, %s]}\n```\nEspero que sirva {nota}." % (eco, OBS, OBS)
+        self.assertEqual(len(A.extraer_json(texto, "observaciones")["observaciones"]), 2)
+        self.assertEqual(A.extraer_json("<think>{\"observaciones\": [%s]}</think> {\"observaciones\": []}" % OBS,
+                                        "observaciones"), {"observaciones": []})
+
+    def test_sintesis_cortada_conserva_el_resumen(self):
+        h = '{"titulo": "Limitar el sondeo", "archivo": "src/lib/voz/motor.ts", "linea": 40, "impacto": 5, "esfuerzo": 1, "confianza": 0.8}'
+        d = A.extraer_json('{"resumen": "Un sondeo \\"sin\\" freno.", "hallazgos": [%s, {"titulo": "Otro", "archi' % h, "hallazgos")
+        self.assertEqual(d["resumen"], 'Un sondeo "sin" freno.')
+        self.assertEqual(len(d["hallazgos"]), 1)
+
+    def test_lista_suelta_y_nada(self):
+        self.assertEqual(len(A.extraer_json("[%s]" % OBS, "observaciones")["observaciones"]), 1)
+        self.assertIsNone(A.extraer_json("We need to output JSON but I will not.", "observaciones"))
+        self.assertIsNone(A.extraer_json("", "observaciones"))
+
+
+class FlotaViva(unittest.TestCase):
+    def test_clasificar_fallos(self):
+        C = A.clasificar_fallo
+        self.assertEqual(C("HTTP Error 403: Forbidden"), A.MUERTO)
+        self.assertEqual(C("HTTP Error 404: Not Found"), A.MUERTO)
+        self.assertEqual(C("410 Gone"), A.MUERTO)
+        self.assertEqual(C("The model `x` does not exist"), A.MUERTO)
+        self.assertEqual(C("HTTP Error 429: Too Many Requests"), A.RITMO)
+        self.assertEqual(C("HTTP Error 500: Internal Server Error"), A.SERVIDOR)
+        self.assertEqual(C("The read operation timed out"), A.SERVIDOR)
+        self.assertEqual(C("sin clave groq (sin cupo declarado en esta máquina)"), A.SIN_CLAVE)
+        self.assertEqual(C("cuota agotada en aihubmix: free quota"), A.CUOTA)
+        self.assertEqual(C("Request too large for model"), A.GRANDE)
+
+    def test_flota_desde_el_informe_y_la_rotacion(self):
+        informe = {"pasarelas": [
+            {"clave": "google", "modelo": "gemini-3.5-flash-lite", "estado": "escribe"},
+            {"clave": "groq", "modelo": "openai/gpt-oss-20b", "estado": "escribe"},
+            {"clave": "nvidia", "modelo": "nvidia/nemotron-3-super-120b-a12b", "estado": "escribe"},
+            {"clave": "apinex", "modelo": "free/glm-5.3-flash", "estado": "escribe"},
+            {"clave": "freellmapi", "modelo": "auto", "estado": "lenta"},
+            {"clave": "aihubmix", "modelo": "gpt-4o-mini", "estado": "sin_cupo"},
+            {"clave": "openrouter", "modelo": "nex-agi/nex-n2.5-pro:free", "estado": "escribe",
+             "modelos_extra": ["qwen/qwen3.8-max:free", "de/pago"]},
+            {"clave": "xai", "modelo": "grok-4.6", "estado": "escribe"},
+        ]}
+        modelos = ["google/gemini-3.6-flash", "nvidia/moonshotai/kimi-k3", "nvidia/z-ai/glm-5.3", "xai/grok-4.6",
+                   "apinex/free/gemini-3.8-flash", "openrouter/cohere/north-mini-code:free", "aihubmix/x-free",
+                   "tokenrouter/z-ai/glm-5.3-free"]
+        revisores = [("llm7", "minimax-m2.7"), ("aihubmix", "coding-glm-5.3-free")]
+        llamables = {"gemini", "groq", "nim", "apinex", "freellmapi", "aihubmix", "openrouter", "llm7", "tokenrouter"}
+        f = A.flota_desde(modelos, revisores, informe, {"xkiro": ("qwen/qwen3-coder-plus:free", ())}, llamables)
+        todos = set(f["mapa"])
+        self.assertEqual(todos, set(f["sintesis"]))
+        for par in [("gemini", "gemini-3.5-flash-lite"), ("groq", "openai/gpt-oss-20b"),
+                    ("nim", "nvidia/nemotron-3-super-120b-a12b"), ("apinex", "free/glm-5.3-flash"),
+                    ("freellmapi", "auto"), ("gemini", "gemini-3.6-flash"), ("nim", "moonshotai/kimi-k3"),
+                    ("openrouter", "qwen/qwen3.8-max:free"), ("llm7", "minimax-m2.7"), ("tokenrouter", "z-ai/glm-5.3-free")]:
+            self.assertIn(par, todos)
+        for p, _ in todos:
+            self.assertNotIn(p, ("xai", "aihubmix", "xkiro"))  # pago · sin cupo según el informe · no llamable aquí
+        self.assertNotIn(("openrouter", "de/pago"), todos)
+        self.assertIn(f["sintesis"][0], [("gemini", "gemini-3.6-flash"), ("nim", "moonshotai/kimi-k3"),
+                                         ("nim", "z-ai/glm-5.3"), ("apinex", "free/gemini-3.8-flash"),
+                                         ("openrouter", "nex-agi/nex-n2.5-pro:free"), ("openrouter", "qwen/qwen3.8-max:free"),
+                                         ("openrouter", "cohere/north-mini-code:free")])
+        self.assertEqual(A.par_de("nvidia/nemotron-3-super-120b-a12b"), ("nim", "nvidia/nemotron-3-super-120b-a12b"))
+
+    def test_un_modelo_muerto_no_se_vuelve_a_probar_en_toda_la_sesion(self):
+        salud = A.SaludFlota()
+        llamadas = []
+
+        def llamar(p, m, prompt, timeout=120, max_tokens=2500):
+            llamadas.append((p, m))
+            if (p, m) == ("gemini", "gemini-2.5-flash-lite"):
+                raise RuntimeError("HTTP Error 403: Forbidden")
+            return '{"ok": 1}'
+        flota = lambda: {"mapa": [("gemini", "gemini-2.5-flash-lite"), ("llm7", "gpt-oss")]}  # noqa: E731
+        for tid in ("SA1", "SA2", "SA3"):
+            ll = A.Llamador({"id": tid}, llamar, dormir=lambda s: None, rotar=False, flota=flota, salud=salud)
+            dato, modelo = ll.llamar("lectura", "mapa", "p", A.extraer_json)
+            self.assertEqual(modelo, "llm7/gpt-oss")
+        self.assertEqual(llamadas.count(("gemini", "gemini-2.5-flash-lite")), 1)
+        self.assertIn("gemini/gemini-2.5-flash-lite", salud.resumen()["muertos"])
+
+    def test_por_turnos_entre_todos_y_el_cupo_lleno_al_final(self):
+        salud = A.SaludFlota()
+        usados = []
+        reloj = [0.0]
+
+        def llamar(p, m, prompt, timeout=120, max_tokens=2500, json_mode=False):
+            usados.append((p, json_mode))
+            reloj[0] += 1
+            return '{"ok": 1}'
+        flota = lambda: {"mapa": [("a", "m1"), ("b", "m2"), ("c", "m3")]}  # noqa: E731
+        ll = A.Llamador({"id": "SA1"}, llamar, reloj=lambda: reloj[0], flota=flota, salud=salud,
+                        cupo_libre=lambda p: p != "b")
+        for _ in range(4):
+            ll.llamar("lectura", "mapa", "p", A.extraer_json)
+        # Por turnos entre los que tienen cupo por minuto libre; «b» (cupo lleno) espera al final.
+        self.assertEqual([u[0] for u in usados], ["a", "c", "a", "c"])
+        ll2 = A.Llamador({"id": "SA2"}, llamar, reloj=lambda: reloj[0], flota=flota, salud=salud,
+                         cupo_libre=lambda p: False)
+        ll2.llamar("lectura", "mapa", "p", A.extraer_json)
+        self.assertEqual(usados[-1][0], "b")  # con todos llenos, el menos usado aunque tenga que esperar
+        self.assertTrue(all(j for _, j in usados))  # pide JSON a quien sabe darlo
+
+    def test_espera_releyendo_la_flota_y_revive(self):
+        salud = A.SaludFlota()
+        reloj = [0.0]
+        estado = {"flota": {"mapa": [("a", "m1")]}, "refrescos": 0}
+
+        def llamar(p, m, prompt, timeout=120, max_tokens=2500):
+            if p == "a":
+                raise RuntimeError("HTTP Error 500")
+            return '{"ok": 1}'
+
+        def refrescar():
+            estado["refrescos"] += 1
+            estado["flota"] = {"mapa": [("a", "m1"), ("b", "m2")]}
+
+        def dormir(sg):
+            reloj[0] += sg
+        ll = A.Llamador({"id": "SA1"}, llamar, reloj=lambda: reloj[0], dormir=dormir, rotar=False,
+                        flota=lambda: estado["flota"], refrescar=refrescar, salud=salud,
+                        disponible=lambda p: reloj[0] > 200 or p != "a")
+        dato, modelo = ll.llamar("lectura", "mapa", "p", A.extraer_json)
+        self.assertEqual(modelo, "b/m2")
+        self.assertGreaterEqual(estado["refrescos"], 1)
+        self.assertLess(reloj[0], 45 * 60)
 
 
 class Reclamos(Entorno):
@@ -303,10 +455,10 @@ class Piezas(unittest.TestCase):
             self.assertEqual(A.clave(t), D.clave(t))
 
     def test_tope_de_analisis(self):
-        self.assertEqual(A.tope_analisis([], None, None), 5)
+        self.assertEqual(A.tope_analisis([], None, None), 8)
         self.assertEqual(A.tope_analisis([{"tope_analisis": 7}], None, None), 7)
         self.assertEqual(A.tope_analisis([{"tope_analisis": 7}], "3", None), 3)
-        self.assertEqual(A.tope_analisis([], None, 350), 2)
+        self.assertEqual(A.tope_analisis([], None, 350), 4)
         self.assertEqual(A.tope_analisis([], None, 150), 1)
         self.assertEqual(A.tope_analisis([], "99", 9000), 12)
         self.assertTrue(A.es_analisis({"tipo": "analisis"}))
@@ -374,8 +526,54 @@ class Orquestador(unittest.TestCase):
         finally:
             E.worktree, E._analista.ejecutar = viejo_wt, viejo_ej
         self.assertEqual(llamado["t"]["id"], "SA09299")
-        for k in ("evento", "set_estado", "latir", "disponible", "raiz", "log", "paso_local"):
+        for k in ("evento", "set_estado", "latir", "disponible", "raiz", "log", "paso_local",
+                  "flota", "cupo_libre", "refrescar"):
             self.assertIn(k, llamado["kw"])
+
+    def test_la_flota_viva_del_orquestador(self):
+        E = self.E
+        roles = E._flota_analisis(forzar=True)
+        for rol in ("mapa", "sintesis", "contraste"):
+            self.assertTrue(roles[rol], rol)
+            for p, m in roles[rol]:
+                self.assertIn(p, E.CUPOS)  # solo lo que llamar_llm sabe llamar
+                self.assertNotIn(p, ("xai", "anthropic", "codex"))
+                if p == "openrouter":
+                    self.assertTrue(m.endswith(":free"))
+        self.assertTrue(E._cupo_libre("llm7"))
+        self.assertFalse(E._cupo_libre("no-existe"))
+
+    def test_modo_json_se_pide_y_se_aprende_si_lo_rechazan(self):
+        import io
+        import urllib.error
+        E = self.E
+        cuerpos = []
+
+        def falso(req, timeout=None):
+            cuerpo = json.loads(req.data.decode())
+            cuerpos.append(cuerpo)
+            if "response_format" in cuerpo:
+                raise urllib.error.HTTPError(req.full_url, 400, "Bad Request", {}, io.BytesIO(b"{}"))
+            return io.BytesIO(json.dumps({"choices": [{"message": {"content": '{"ok": 1}'}}]}).encode())
+
+        viejos = (E.urllib.request.urlopen, E._clave_para, dict(E.ENV))
+        try:
+            E.urllib.request.urlopen = falso
+            E._clave_para = lambda prov: None
+            E.ENV["OPENROUTER_API_KEY"] = "clave-de-prueba"
+            E._SIN_MODO_JSON.discard("openrouter")
+            txt = E.llamar_llm("openrouter", "x/y:free", "responde en json", timeout=5, max_tokens=4000, json_mode=True)
+        finally:
+            E.urllib.request.urlopen, E._clave_para = viejos[0], viejos[1]
+            E.ENV.clear()
+            E.ENV.update(viejos[2])
+        self.assertEqual(txt, '{"ok": 1}')
+        self.assertEqual(len(cuerpos), 2)
+        self.assertEqual(cuerpos[0]["response_format"], {"type": "json_object"})
+        self.assertNotIn("response_format", cuerpos[1])
+        self.assertEqual(cuerpos[1]["max_tokens"], 4000)
+        self.assertIn("openrouter", E._SIN_MODO_JSON)
+        E._SIN_MODO_JSON.discard("openrouter")
 
 
 if __name__ == "__main__":
