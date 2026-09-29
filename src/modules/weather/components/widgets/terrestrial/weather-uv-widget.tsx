@@ -1,239 +1,126 @@
 'use client';
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
-import { fetchWeatherData } from '@/lib/weather-mock';
-import { Card } from "@/components/ui/card";
-import {
-    SunDim, Sparkles, ShieldCheck, ShieldAlert, Zap, Info, EyeOff,
-    Radiation, Activity, Maximize2, Shield, Sun, Flame, AlertTriangle
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
-
 /**
- * WeatherUvWidget - Liquid Crystal Hyper-Optimized
- * 
- * Features:
- * - Ionizing Radiation HUD (Solar Core)
- * - Kinetic Photon Emission (Radiant particles)
- * - Heliotropic Protection Matrix
- * - Ozone Integrity Analysis
+ * Índice UV (WEATHER_UV) — Ola 0929 · paquete A.
+ * Real (Open-Meteo). Foco: el arco de la OMS (bajo → extremo) con la aguja en el UV de ahora,
+ * el consejo que toca y, sobre todo, la VENTANA de protección de hoy («protégete de 11:00 a
+ * 17:00»), que es lo que uno quiere saber al abrirlo. De noche lo dice y enseña el pico de mañana.
+ *   micro → cifra coloreada · s → arco · m → + consejo y ventana · l → + curva de hoy y máximos
+ *   de los días · xl → + aviso a partir de 8 · panorámico/torre → composiciones propias.
  */
-export function WeatherUvWidget() {
-    const { location } = useWeatherLocation();
-    const [data, setData] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+import * as React from 'react';
+import { Sun } from 'lucide-react';
+import { nivelUv, ventanaProteccion } from '@/modules/weather/datos/interpretar';
+import { ArcoUV, BarrasHoras } from '../_clima/graficas';
+import { WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
+import { estilosClima as s } from '../_clima/piezas';
 
-    useEffect(() => {
-        let mounted = true;
-        setLoading(true);
-        fetchWeatherData(location.lat, location.lon)
-            .then(json => {
-                if (mounted && json.terrestrial?.current) {
-                    setData(json.terrestrial);
-                    setLoading(false);
-                }
-            })
-            .catch(err => {
-                console.error("Error fetching UV data:", err);
-                if (mounted) setLoading(false);
-            });
-        return () => { mounted = false; };
-    }, [location.lat, location.lon]);
+function colorUv(v: number) {
+    return nivelUv(v)?.color ?? '#4ade80';
+}
 
-    const uvIndex = data?.daily?.uv_index_max?.[0] || 6;
-    const ozone = 295; // Dobson Units (Approx)
+function Cuerpo({ info, a, c, d, hoy, ahora, cabecera, sello }: CtxMagnitud) {
+    const { base, clase } = info;
+    const n = nivelUv(a.uv);
+    const lado = Math.max(96, Math.min(info.ancho || 200, (info.alto || 200) * 1.4) * (base === 's' ? 0.82 : 0.6));
+    const inicioHoy = hoy?.t ?? ahora - 12 * 3_600_000;
+    const ventana = ventanaProteccion(c.horas, inicioHoy, inicioHoy + 86_400_000);
+    const manana = c.dias.find((dd) => dd.t > inicioHoy);
+    const deNoche = !a.esDia || (a.uv ?? 0) < 0.5;
+    const textoVentana = ventana
+        ? ventana.fin < ahora
+            ? `Hoy ya pasó el sol fuerte (pico ${Math.round(ventana.pico)} a las ${d.fmt.hora(ventana.picoT)})`
+            : `Protégete de ${d.fmt.hora(Math.max(ventana.inicio, ahora))} a ${d.fmt.hora(ventana.fin)} · pico ${Math.round(ventana.pico)} a las ${d.fmt.hora(ventana.picoT)}`
+        : 'Hoy no hace falta protección especial';
+    const textoNoche = manana?.uvMax != null ? `Sin sol ahora · mañana hasta ${Math.round(manana.uvMax)} (${nivelUv(manana.uvMax)?.texto.toLowerCase()})` : 'Sin sol ahora';
+    const horasDia = c.horas.filter((h) => h.t >= inicioHoy && h.t < inicioHoy + 86_400_000 && h.esDia);
+    const alerta = (a.uv ?? 0) >= 8 || (ventana?.pico ?? 0) >= 8;
 
-    const uvState = useMemo(() => {
-        if (uvIndex <= 2) return { id: 'low', label: 'Minimal', color: 'text-emerald-400', tone: '#10b981', icon: ShieldCheck, advisory: 'Safe Exposure' };
-        if (uvIndex <= 5) return { id: 'moderate', label: 'Moderate', color: 'text-yellow-400', tone: '#fbbf24', icon: Sun, advisory: 'Seek Shade' };
-        if (uvIndex <= 7) return { id: 'high', label: 'Intense', color: 'text-orange-500', tone: '#f97316', icon: ShieldAlert, advisory: 'Protection Req.' };
-        return { id: 'extreme', label: 'Critical', color: 'text-[#f90650]', tone: '#f90650', icon: AlertTriangle, advisory: 'Extreme Risk' };
-    }, [uvIndex]);
-
+    if (base === 'micro') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={`Índice UV ${a.uv === null ? 'sin dato' : Math.round(a.uv)}${n ? `: ${n.texto}` : ''}`}>
+                <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">UV</span>
+                <span className={`${s.cifra} text-[30px] font-light leading-none`} style={{ color: n?.color }}>{a.uv === null ? '—' : Math.round(a.uv)}</span>
+            </div>
+        );
+    }
+    if (base === 's') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-1 p-2">
+                <ArcoUV uv={a.uv} lado={lado} />
+                <span className="text-[12px] font-medium" style={{ color: n?.color }}>{n?.texto ?? 'Sin dato'}</span>
+            </div>
+        );
+    }
+    const bloque = (
+        <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="text-[15px] font-semibold" style={{ color: n?.color }}>{n?.texto ?? 'Sin dato'}</p>
+            <p className="text-[12px] text-white/75">{deNoche ? textoNoche : n?.consejo}</p>
+            {!deNoche && <p className="text-[12px] text-white/65">{textoVentana}</p>}
+            {alerta && <p role="note" className="inline-flex rounded-full bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-medium text-rose-100 ring-1 ring-rose-400/40">UV muy alto: evita el sol del mediodía</p>}
+        </div>
+    );
+    const curva = (
+        <BarrasHoras horas={horasDia} valor={(h) => h.uv} color={colorUv} hora={d.fmt.hora} formato={(v) => `UV ${Math.round(v)}`} maximo={Math.max(8, ...horasDia.map((h) => h.uv ?? 0))} etiqueta="UV de hoy hora a hora" />
+    );
+    if (clase === 'panoramico') {
+        return (
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(10rem,auto) minmax(0,1fr)' }}>
+                <ArcoUV uv={a.uv} lado={Math.min(150, ((info.alto || 130) - 10) * 1.5)} />
+                <div className="min-w-0 space-y-1">{cabecera('Índice UV')}{bloque}</div>
+                {curva}
+            </div>
+        );
+    }
+    if (clase === 'torre') {
+        return (
+            <div className="flex h-full flex-col gap-3 p-3.5">
+                {cabecera('Índice UV')}
+                <div className="flex justify-center"><ArcoUV uv={a.uv} lado={Math.min(170, (info.ancho || 170) - 20)} /></div>
+                {bloque}
+                <div className="mt-auto">{curva}</div>
+                {sello}
+            </div>
+        );
+    }
+    if (base === 'm') {
+        return (
+            <div className="flex h-full flex-col gap-2 p-3.5">
+                {cabecera('Índice UV')}
+                <div className="flex min-h-0 flex-1 items-center gap-3">
+                    <ArcoUV uv={a.uv} lado={Math.min(130, lado)} />
+                    {bloque}
+                </div>
+            </div>
+        );
+    }
+    const dias = c.dias.slice(0, base === 'xl' ? 5 : 3);
     return (
-        <Card className="@container relative overflow-hidden w-full h-full min-h-[450px] bg-[#020508] border border-white/10 group rounded-[2.5rem] shadow-2xl transition-all duration-700 hover:border-orange-500/30">
-
-            {/* Solar Flare Background */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className={cn(
-                    "absolute inset-0 transition-opacity duration-1000",
-                    uvIndex > 5 ? "opacity-20 bg-[radial-gradient(circle_at_50%_0%,#f9731633,transparent_70%)]" : "opacity-10 bg-[radial-gradient(circle_at_50%_0%,#fbbf2422,transparent_70%)]"
-                )} />
-
-                {/* Kinetic Photon Emission */}
-                {[...Array(20)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ opacity: 0, scale: 0 }}
-                        animate={{
-                            x: [0, (Math.random() - 0.5) * 400],
-                            y: [0, (Math.random() - 0.5) * 400],
-                            opacity: [0, 0.4, 0],
-                            scale: [0, 1.5, 0],
-                        }}
-                        transition={{
-                            duration: 3 + Math.random() * 5,
-                            repeat: Infinity,
-                            ease: "easeOut",
-                            delay: Math.random() * 5
-                        }}
-                        className={cn("absolute size-1.5 rounded-full blur-[2.5px] top-1/2 left-1/2", uvState.color)}
-                        style={{ backgroundColor: uvState.tone }}
-                    />
-                ))}
+        <div className="flex h-full flex-col gap-3 p-4">
+            {cabecera('Índice UV')}
+            <div className="flex items-center gap-4">
+                <ArcoUV uv={a.uv} lado={base === 'xl' ? 190 : 150} />
+                {bloque}
             </div>
-
-            {/* Content Interface */}
-            <div className="relative z-10 h-full p-6 flex flex-col">
-
-                {/* Header HUD */}
-                <div className="flex justify-between items-start mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className={cn(
-                            "size-11 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center transition-all duration-500 shadow-xl",
-                            "group-hover:border-orange-500/40 text-orange-400"
-                        )}>
-                            <Radiation className="size-5" />
-                        </div>
-                        <div className="flex flex-col">
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 leading-none mb-1">Helio.Sensor.v9</h2>
-                            <span className="text-sm font-bold tracking-tight text-white flex items-center gap-2 uppercase">
-                                Solar Flux Node
-                                <div className={cn("size-1 rounded-full", uvIndex > 7 ? "bg-[#f90650] animate-ping" : "bg-yellow-500")} />
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] backdrop-blur-md text-[9px] font-black tracking-widest text-white/40 flex items-center gap-2">
-                        <Zap className="size-3 text-orange-500" />
-                        FLUX: {Math.round(uvIndex * 85)} W/m²
-                    </div>
-                </div>
-
-                {/* Main UV HUD */}
-                <div className="flex-1 flex flex-col items-center justify-center relative py-4">
-                    <div className="relative group/main">
-                        {/* Radiant HUD Rings */}
-                        <div className="relative size-64 @md:size-80 flex items-center justify-center">
-                            <svg className="absolute inset-0 size-full">
-                                <circle cx="50%" cy="50%" r="48%" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                                <motion.circle
-                                    cx="50%" cy="50%" r="48%"
-                                    fill="none"
-                                    stroke={uvState.tone}
-                                    strokeWidth="1.5"
-                                    strokeDasharray="4 12"
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 100, repeat: Infinity, ease: "linear" }}
-                                    className="opacity-20"
-                                />
-                                {/* Pulsing Glow Ring */}
-                                <motion.circle
-                                    cx="50%" cy="50%" r="40%"
-                                    fill="none"
-                                    stroke={uvState.tone}
-                                    strokeWidth="0.5"
-                                    animate={{
-                                        scale: [1, 1.15, 1],
-                                        opacity: [0.1, 0.4, 0.1]
-                                    }}
-                                    transition={{ duration: 4, repeat: Infinity }}
-                                />
-                            </svg>
-
-                            {/* Center Value */}
-                            <div className="flex flex-col items-center z-10">
-                                <motion.div
-                                    key={uvIndex}
-                                    initial={{ opacity: 0, scale: 0.9, rotate: -15 }}
-                                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                                    className={cn("text-[100px] @md:text-[130px] font-black leading-none tracking-tighter text-white", uvState.color)}
-                                    style={{ textShadow: `0 0 40px ${uvState.tone}66` }}
-                                >
-                                    {uvIndex}
-                                </motion.div>
-                                <span className="text-[10px] font-black tracking-[0.5em] uppercase text-white/40 -mt-2">UV Index Level</span>
-
-                                <div className={cn(
-                                    "mt-6 px-4 py-1.5 rounded-full border-2 text-[10px] font-black tracking-[0.2em] uppercase flex items-center gap-2",
-                                    "bg-white/5 backdrop-blur-xl border-white/10",
-                                    uvState.color
-                                )}>
-                                    <uvState.icon className="size-3" />
-                                    {uvState.label} Risk
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Heliotropic Matrix */}
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                    <div className="p-4 rounded-[2rem] bg-white/[0.03] border border-white/5 flex flex-col gap-3 group/metric hover:bg-white/[0.07] transition-all">
-                        <div className="flex items-center gap-2">
-                            <Shield className="size-3 text-emerald-400 opacity-60" />
-                            <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">Ozone_Layer</span>
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black text-white">{ozone}</span>
-                            <span className="text-[10px] font-bold text-white/20 uppercase tracking-tighter">DU (Dobson)</span>
-                        </div>
-                        <div className="flex gap-1 h-1.5">
-                            {[...Array(5)].map((_, i) => (
-                                <div key={i} className={cn("flex-1 rounded-full bg-white/5", i < 4 && "bg-emerald-500/40 shadow-[0_0_8px_#10b98133]")} />
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="p-4 rounded-[2rem] bg-white/[0.03] border border-white/5 flex flex-col gap-3 group/metric hover:bg-white/[0.07] transition-all">
-                        <div className="flex items-center gap-2">
-                            <Flame className="size-3 text-orange-400 opacity-60" />
-                            <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">Heat_Flux</span>
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black text-white">{(uvIndex * 1.4).toFixed(1)}</span>
-                            <span className="text-[10px] font-bold text-white/20 uppercase tracking-tighter">DEG/HR</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${(uvIndex / 11) * 100}%` }}
-                                className="h-full bg-orange-500 shadow-[0_0_10px_#f97316]"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Directive HUD */}
-                <div className="mt-4 p-4 rounded-[2.5rem] bg-white/[0.02] border border-white/5 flex items-center gap-5">
-                    <div className={cn(
-                        "size-12 rounded-2xl flex items-center justify-center transition-all shadow-2xl relative overflow-hidden",
-                        "bg-white/5 border border-white/10"
-                    )}>
-                        <motion.div
-                            animate={{ opacity: [0.1, 0.4, 0.1], scale: [1, 1.2, 1] }}
-                            transition={{ duration: 3, repeat: Infinity }}
-                            className={cn("absolute inset-0", uvState.color.replace('text-', 'bg-'))}
-                        />
-                        <Activity className={cn("size-5 relative z-10", uvState.color)} />
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.3em]">Heliotropic Directive</span>
-                        <span className="text-[13px] font-black text-white tracking-widest uppercase">
-                            {uvState.advisory}
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Scanning Laser Overlay */}
-            <motion.div
-                animate={{ top: ['-10%', '110%'] }}
-                transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-orange-400/30 to-transparent z-50 pointer-events-none shadow-[0_0_15px_#f9731644]"
-            />
-        </Card>
+            {curva}
+            <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0,1fr))` }} aria-label="UV máximo por día">
+                {dias.map((dd, i) => {
+                    const nd = nivelUv(dd.uvMax);
+                    return (
+                        <li key={dd.t} className="min-w-0 rounded-xl bg-white/[0.05] px-2 py-1.5 text-center" title={nd ? `${nd.texto}: ${nd.consejo}` : undefined}>
+                            <span className="block truncate text-[11px] capitalize text-white/65">{i === 0 ? 'Hoy' : d.fmt.dia(dd.t)}</span>
+                            <span className={`${s.cifra} block text-[16px] font-semibold`} style={{ color: nd?.color }}>{dd.uvMax === null ? '—' : Math.round(dd.uvMax)}</span>
+                            <span className="block truncate text-[10px] text-white/50">{nd?.texto ?? ''}</span>
+                        </li>
+                    );
+                })}
+            </ul>
+            <div className="mt-auto">{sello}</div>
+        </div>
     );
 }
+
+export function WeatherUvWidget() {
+    return <WidgetMagnitud etiqueta="Índice UV" acento="#facc15" acento2="#fb923c" icono={Sun} render={Cuerpo} />;
+}
+
+export default WeatherUvWidget;

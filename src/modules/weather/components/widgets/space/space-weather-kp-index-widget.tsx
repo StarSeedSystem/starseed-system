@@ -1,192 +1,179 @@
 'use client';
-
-import React, { useMemo } from 'react';
-import { Card } from "@/components/ui/card";
-import { motion, AnimatePresence } from "framer-motion";
-import { Globe, AlertTriangle, Shield, Zap, Activity, Radio, Magnet, Gauge, ZapOff, Info } from "lucide-react";
-import { UnifiedSpaceWeather } from "@/modules/weather/services/space/schema";
-import { cn } from "@/lib/utils";
+/**
+ * Índice Kp y tormentas geomagnéticas (WEATHER_SPACE_KP) — Ola 0929 · paquete A.
+ *
+ * Datos REALES de NOAA SWPC: el Kp estimado de este minuto, los bloques de 3 h observados y la
+ * previsión de 3 días, con la escala de tormentas G1-G5 en el propio medidor. Se explica en
+ * claro qué significa y, si hay ubicación, hasta qué latitud asoma la aurora (según Kp) y la
+ * probabilidad OVATION sobre tu cielo. Antes pintaba «3» fijo cuando no le pasaban datos.
+ *   micro → Kp coloreado · s → medidor · m → + explicación y máximo previsto · l → + barras
+ *   de 24 h y 24 h previstas, días y aurora según Kp · xl → + óvalo OVATION y probabilidad
+ *   panorámico → medidor | barras | texto · torre → en columna.
+ * Las props `data`/`loading` se conservan por compatibilidad y se ignoran: el widget lee su
+ * propia fuente compartida (una petición para todos, cada 15 min y solo si se ve).
+ */
+import * as React from 'react';
+import { Magnet } from 'lucide-react';
+import type { UnifiedSpaceWeather } from '@/modules/weather/services/space/schema';
+import { fuenteAurora, fuenteEscalas, fuenteKp, resumirKp, type PuntoKp } from '@/modules/weather/datos/noaa';
+import { escalaG, explicarKp, latitudGeomagnetica, lineaAuroraKp, nombreG, severidadKp } from '@/modules/weather/datos/interpretar';
+import { formateadores, useFuente, useUbicacionClima } from '@/modules/weather/datos/hooks';
+import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { BarrasKp, colorKp, MedidorKp, OvaloAurora, PildoraSeveridad } from '../_cosmos/piezas-cosmos';
+import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
 
 interface KpIndexWidgetProps {
+    /** Heredado: ya no se usa (el widget lee NOAA por sí mismo). */
     data?: UnifiedSpaceWeather;
     loading?: boolean;
 }
 
-export const KpIndexWidget: React.FC<KpIndexWidgetProps> = ({ data, loading }) => {
-    const currentKp = useMemo(() => {
-        if (!data?.kpIndex || data.kpIndex.length === 0) return 3;
-        return data.kpIndex[data.kpIndex.length - 1].value;
-    }, [data]);
+/** Máximo de Kp previsto por día (en la hora local del navegador). */
+export function maximosPorDia(previstas: PuntoKp[], dia: (t: number) => string): { dia: string; t: number; kp: number }[] {
+    const m = new Map<string, { dia: string; t: number; kp: number }>();
+    for (const p of previstas) {
+        const k = new Date(p.t).toDateString();
+        const actual = m.get(k);
+        if (!actual || p.kp > actual.kp) m.set(k, { dia: dia(p.t), t: p.t, kp: p.kp });
+    }
+    return [...m.values()].slice(0, 3);
+}
 
-    const history = data?.kpIndex || [];
+function Contenido({ info }: { info: InfoMarco }) {
+    const { base, clase } = info;
+    const kp = useFuente(fuenteKp, undefined, info.visible);
+    const escalas = useFuente(fuenteEscalas, undefined, info.visible && (base === 'l' || base === 'xl'));
+    const { ubicacion } = useUbicacionClima();
+    const conAurora = base === 'xl' && !!ubicacion;
+    const aurora = useFuente(fuenteAurora, conAurora && ubicacion ? { lat: ubicacion.lat, lon: ubicacion.lon } : null, info.visible && conAurora);
+    const fmt = React.useMemo(() => formateadores(), []);
+    const diaCorto = React.useCallback((t: number) => new Intl.DateTimeFormat('es-ES', { weekday: 'short' }).format(new Date(t)).replace('.', ''), []);
 
-    const severity = useMemo(() => {
-        if (currentKp >= 6) return { color: "text-red-500", label: "G3 Storm", gScale: "G3", tone: "#ef4444" };
-        if (currentKp >= 5) return { color: "text-orange-500", label: "G1 Storm", gScale: "G1", tone: "#f97316" };
-        if (currentKp >= 4) return { color: "text-yellow-400", label: "Active", gScale: "G0", tone: "#facc15" };
-        return { color: "text-emerald-400", label: "Optimal", gScale: "G0", tone: "#10b981" };
-    }, [currentKp]);
+    const espera = estadoCosmos(kp, info, 'Leyendo el campo magnético…');
+    if (espera) return espera;
+    const r = resumirKp(kp.datos!, Date.now());
+    const v = r.actual?.kp ?? null;
+    const g = escalaG(v);
+    const sev = severidadKp(v);
+    const texto = explicarKp(v);
+    const maxP = r.maxPrevisto;
+    const aviso = g >= 1 ? `Tormenta ${nombreG(g)} en curso` : maxP && maxP.kp >= 5 ? `Tormenta ${nombreG(escalaG(maxP.kp))} prevista ${diaCorto(maxP.t)} ${fmt.hora(maxP.t)}` : null;
+    const refrescar = () => { kp.refrescar(); escalas.refrescar(); aurora.refrescar(); };
+    const cabecera = <CabeceraCosmos info={info} titulo="Índice Kp" subtitulo={nombreG(g)} icono={Magnet} alActualizar={refrescar} conUbicacion={base === 'xl'} />;
+    const sello = <SelloFuente fuente="NOAA SWPC" en={kp.en} />;
+    const lado = (fr: number) => Math.max(84, Math.min(info.ancho || 200, info.alto || 200) * fr);
+    const dias = maximosPorDia(r.previstas, diaCorto);
+    const glat = ubicacion ? latitudGeomagnetica(ubicacion.lat, ubicacion.lon) : null;
+    const linea = v !== null ? lineaAuroraKp(Math.max(v, maxP?.kp ?? 0)) : null;
+    const frAurora = glat !== null && linea !== null
+        ? Math.abs(glat) >= linea ? 'La aurora puede asomar en tu cielo con este Kp.' : `La aurora llegaría hasta ~${Math.round(linea)}° de latitud magnética; tú estás a ${Math.round(Math.abs(glat))}°: no se verá desde aquí.`
+        : null;
 
-    return (
-        <Card className="@container relative overflow-hidden w-full h-full min-h-[400px] bg-[#020508] border border-white/10 group rounded-[2.5rem] shadow-2xl transition-all duration-700 hover:border-emerald-500/30">
-
-            {/* Geomagnetic Flux Background */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                <div className={cn(
-                    "absolute inset-0 transition-opacity duration-1000",
-                    currentKp >= 5 ? "opacity-30 bg-[radial-gradient(circle_at_50%_30%,#ef444422,transparent_70%)]" : "opacity-10 bg-[radial-gradient(circle_at_50%_30%,#10b98122,transparent_70%)]"
-                )} />
-
-                {/* Magnetic Field Lines (Aurora Effect) */}
-                <svg className="absolute inset-0 w-full h-full opacity-20 filter blur-xl">
-                    {[...Array(3)].map((_, i) => (
-                        <motion.ellipse
-                            key={i}
-                            cx="50%" cy="10%" rx="120%" ry="60%"
-                            fill="none"
-                            stroke={severity.tone}
-                            strokeWidth="20"
-                            animate={{
-                                rx: ["100%", "140%", "100%"],
-                                opacity: [0.1, 0.3, 0.1]
-                            }}
-                            transition={{ duration: 10 + i * 2, repeat: Infinity, ease: "easeInOut" }}
-                            style={{ filter: `blur(${40 + i * 10}px)` }}
-                        />
-                    ))}
-                </svg>
-
-                {/* HUD Grid Overlay */}
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[length:30px_30px]" />
+    if (base === 'micro') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={`Índice Kp ${v === null ? 'sin lectura' : v.toFixed(1)}: ${nombreG(g)}`}>
+                <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">Kp</span>
+                <span className={`${s.cifra} text-[30px] font-light leading-none`} style={{ color: v === null ? undefined : colorKp(v) }}>{v === null ? '—' : v.toFixed(1).replace('.', ',')}</span>
+                {g > 0 && <span className="text-[10px] font-semibold" style={{ color: colorKp(v ?? 0) }}>G{g}</span>}
             </div>
-
-            {/* Content Interface */}
-            <div className="relative z-10 h-full p-6 flex flex-col">
-
-                {/* Header HUD */}
-                <div className="flex justify-between items-start mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className={cn(
-                            "size-11 rounded-xl border flex items-center justify-center transition-all duration-500 shadow-xl bg-white/[0.03] border-white/10",
-                            currentKp >= 5 && "border-red-500/40 text-red-500 shadow-red-500/20"
-                        )}>
-                            <Magnet className={cn("size-5", currentKp >= 5 && "animate-pulse")} />
-                        </div>
-                        <div className="flex flex-col">
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 leading-none mb-1">G-Magnetosphere.v2</h2>
-                            <span className="text-sm font-bold tracking-tight text-white flex items-center gap-2 uppercase">
-                                Planetary K-Index
-                                <div className={cn("size-1 rounded-full", currentKp >= 5 ? "bg-red-500 animate-ping" : "bg-emerald-500")} />
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className={cn(
-                        "px-3 py-1.5 rounded-lg border backdrop-blur-md text-[9px] font-black tracking-widest flex items-center gap-2",
-                        currentKp >= 5 ? "bg-red-500/20 border-red-500/40 text-red-300" : "bg-white/5 border-white/10 text-white/40"
-                    )}>
-                        <Activity className="size-3" />
-                        {currentKp >= 6 ? 'STORM EMERGENCY' : currentKp >= 5 ? 'STORM ALERT' : 'QUIET STATUS'}
-                    </div>
-                </div>
-
-                {/* Main Gauge / Value */}
-                <div className="flex-1 flex flex-col items-center justify-center relative">
-                    <div className="relative">
-                        {/* Circular HUD Ring */}
-                        <svg className="size-56 @md:size-72 -rotate-90 overflow-visible">
-                            <circle cx="50%" cy="50%" r="45%" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-                            <motion.circle
-                                cx="50%" cy="50%" r="45%"
-                                fill="none"
-                                stroke={severity.tone}
-                                strokeWidth="8"
-                                strokeDasharray="100 300"
-                                initial={{ strokeDashoffset: 300 }}
-                                animate={{ strokeDashoffset: 300 - (currentKp / 9) * 300 }}
-                                transition={{ duration: 1.5, ease: "easeOut" }}
-                                strokeLinecap="round"
-                                className="drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]"
-                                style={{ filter: `drop-shadow(0 0 8px ${severity.tone}66)` }}
-                            />
-                            {/* Inner Decoration Ticks */}
-                            {[...Array(10)].map((_, i) => (
-                                <line
-                                    key={i}
-                                    x1="50%" y1="6%" x2="50%" y2="2%"
-                                    stroke="white" strokeWidth="1" strokeOpacity="0.1"
-                                    transform={`rotate(${i * 36}, 50%, 50%)`}
-                                />
-                            ))}
-                        </svg>
-
-                        {/* Centered Large Value */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <motion.span
-                                key={currentKp}
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                className={cn("text-[80px] @md:text-[100px] font-black leading-none tracking-tighter text-white drop-shadow-2xl", severity.color)}
-                            >
-                                {currentKp.toFixed(1)}
-                            </motion.span>
-                            <span className="text-[10px] font-black tracking-[0.4em] uppercase text-white/40 mt-1">Kp-Index</span>
-
-                            <div className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 mt-4 flex items-center gap-2">
-                                <span className={cn("text-[9px] font-black uppercase text-white/60", severity.color)}>{severity.label}</span>
-                                <div className="w-[1px] h-3 bg-white/10" />
-                                <span className="text-[9px] font-black uppercase text-white/40">{severity.gScale}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Highly Dense 24h Histogram */}
-                    <div className="w-full h-16 mt-8 flex items-end gap-[1.5px] px-4 relative">
-                        <div className="absolute inset-x-0 bottom-0 h-[1px] bg-white/5" />
-                        {history.map((pt: any, i: number) => {
-                            const h = (pt.value / 9) * 100;
-                            const isHigh = pt.value >= 5;
-                            return (
-                                <motion.div
-                                    key={i}
-                                    initial={{ height: 0 }}
-                                    animate={{ height: `${Math.max(10, h)}%` }}
-                                    className={cn(
-                                        "flex-1 rounded-t-[1px] transition-colors",
-                                        isHigh ? "bg-red-500 shadow-[0_0_10px_#ef4444]" : "bg-emerald-500/20"
-                                    )}
-                                />
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Secondary Indicators */}
-                <div className="grid grid-cols-4 gap-2 mt-4">
-                    {[
-                        { label: 'Shield', val: (Math.max(0, 100 - currentKp * 10)), unit: '%', icon: Shield, color: 'text-emerald-400' },
-                        { label: 'Neural', val: (currentKp * 1.2).toFixed(1), unit: 'ψ', icon: Activity, color: 'text-purple-400' },
-                        { label: 'G-Induced', val: (currentKp * 2.5).toFixed(1), unit: 'A', icon: Zap, color: 'text-yellow-400' },
-                        { label: 'Comm Risk', val: currentKp >= 6 ? 'High' : 'Low', unit: '', icon: Radio, color: 'text-rose-400' }
-                    ].map((m, i) => (
-                        <div key={i} className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 flex flex-col items-center justify-center transition-all hover:bg-white/[0.08] hover:border-white/10 group/item">
-                            <m.icon className={cn("size-3 mb-2 opacity-40 group-hover/item:opacity-100 transition-opacity", m.color)} />
-                            <div className="flex items-baseline gap-0.5">
-                                <span className="text-[11px] font-black text-white">{m.val}</span>
-                                <span className="text-[7px] font-bold text-white/30">{m.unit}</span>
-                            </div>
-                            <span className="text-[6px] font-black text-white/20 uppercase tracking-widest mt-1 truncate w-full text-center">
-                                {m.label}
-                            </span>
-                        </div>
-                    ))}
-                </div>
+        );
+    }
+    if (base === 's') {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-1 p-2">
+                <MedidorKp kp={v} lado={lado(0.72)} />
+                <PildoraSeveridad severidad={sev}>{nombreG(g)}</PildoraSeveridad>
             </div>
-
-            {/* Micro-Markers */}
-            <div className="absolute top-2 right-2 p-2 opacity-20 pointer-events-none">
-                <Info className="size-3 text-white" />
-            </div>
-        </Card>
+        );
+    }
+    const bloque = (
+        <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="text-[12px] leading-snug text-white/80">{texto}</p>
+            {maxP && <p className="text-[12px] text-white/60">Previsto: hasta <span className={`${s.cifra} font-semibold`} style={{ color: colorKp(maxP.kp) }}>Kp {maxP.kp.toFixed(1).replace('.', ',')}</span> {diaCorto(maxP.t)} {fmt.hora(maxP.t)}</p>}
+            {aviso && <p role="note"><PildoraSeveridad severidad={g >= 1 ? sev : 'menor'}>{aviso}</PildoraSeveridad></p>}
+        </div>
     );
-};
+    const diasTira = dias.length > 0 && (
+        <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0,1fr))` }} aria-label="Previsión por día">
+            {dias.map((dd) => {
+                const gg = escalaG(dd.kp);
+                return (
+                    <li key={dd.t} className="min-w-0 rounded-xl bg-white/[0.05] px-2 py-1.5 text-center">
+                        <span className="block truncate text-[11px] capitalize text-white/65">{dd.dia}</span>
+                        <span className={`${s.cifra} block text-[15px] font-semibold`} style={{ color: colorKp(dd.kp) }}>{dd.kp.toFixed(1).replace('.', ',')}</span>
+                        <span className="block truncate text-[10px] text-white/50">{gg ? `G${gg}` : 'sin tormenta'}</span>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+    const barras = (n: number, alto: number) => <BarrasKp pasadas={r.pasadas.slice(-n)} previstas={r.previstas.slice(0, n)} hora={fmt.soloHora} alto={alto} />;
+
+    if (clase === 'panoramico') {
+        return (
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(0,1.2fr) minmax(10rem,1fr)' }}>
+                <MedidorKp kp={v} lado={Math.min(120, (info.alto || 130) - 12)} />
+                {barras(8, Math.max(40, (info.alto || 130) - 60))}
+                <div className="min-w-0 space-y-1">{cabecera}{bloque}</div>
+            </div>
+        );
+    }
+    if (clase === 'torre') {
+        return (
+            <div className="flex h-full flex-col gap-3 p-3.5">
+                {cabecera}
+                <div className="flex justify-center"><MedidorKp kp={v} lado={Math.min(160, (info.ancho || 160) - 24)} /></div>
+                {bloque}
+                {diasTira}
+                <div className="mt-auto space-y-2">{barras(6, 56)}{sello}</div>
+            </div>
+        );
+    }
+    if (base === 'm') {
+        return (
+            <div className="flex h-full flex-col gap-2 p-3.5">
+                {cabecera}
+                <div className="flex min-h-0 flex-1 items-center gap-3">
+                    <MedidorKp kp={v} lado={Math.min(118, lado(0.56))} />
+                    {bloque}
+                </div>
+            </div>
+        );
+    }
+    return (
+        <div className="flex h-full flex-col gap-3 p-4">
+            {cabecera}
+            <div className="flex items-center gap-4">
+                <MedidorKp kp={v} lado={base === 'xl' ? 150 : 124} />
+                {bloque}
+            </div>
+            {barras(8, base === 'xl' ? 80 : 64)}
+            {diasTira}
+            {base === 'l' && frAurora && <p className="text-[11px] text-white/60">{frAurora} <span className="text-white/40">(según Kp)</span></p>}
+            {base === 'xl' && ubicacion && (
+                <div className="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/[0.06]">
+                    {aurora.datos && <OvaloAurora aurora={aurora.datos} lat={ubicacion.lat} lon={ubicacion.lon} lado={104} />}
+                    <div className="min-w-0 flex-1 space-y-1 text-[12px]">
+                        <p className="font-semibold">Aurora sobre {ubicacion.nombre}</p>
+                        {aurora.datos ? (
+                            <p className="text-white/75">Probabilidad encima: <b className={s.cifra}>{aurora.datos.sobreTi ?? 0} %</b> · en el horizonte: <b className={s.cifra}>{aurora.datos.horizonte ?? 0} %</b></p>
+                        ) : <p className="text-white/55">{aurora.error ? 'OVATION no respondió' : 'Leyendo el óvalo OVATION…'}</p>}
+                        {frAurora && <p className="text-white/55">{frAurora}</p>}
+                    </div>
+                </div>
+            )}
+            {escalas.datos?.ultimas24?.g != null && escalas.datos.ultimas24.g > 0 && (
+                <p className="text-[11px] text-amber-100/90">En las últimas 24 h hubo tormenta G{escalas.datos.ultimas24.g}.</p>
+            )}
+            <div className="mt-auto flex flex-wrap gap-x-3">{sello}{aurora.en && <SelloFuente fuente="OVATION" en={aurora.en} />}</div>
+        </div>
+    );
+}
+
+export const KpIndexWidget: React.FC<KpIndexWidgetProps> = () => (
+    <MarcoClima etiqueta="Índice Kp" acento="#34d399" acento2="#a78bfa">
+        {(info) => <Contenido info={info} />}
+    </MarcoClima>
+);
+
+export default KpIndexWidget;

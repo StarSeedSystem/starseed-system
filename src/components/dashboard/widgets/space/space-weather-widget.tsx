@@ -1,77 +1,44 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// SpaceWeatherWidget — CLIMA ESPACIAL en tiempo real (NOAA SWPC)
+// SpaceWeatherWidget — CLIMA ESPACIAL (SPACE_WEATHER) · Ola 0929 · paquete A
 // ----------------------------------------------------------------
-// Widget RICO que reacciona a los datos: el acento, los halos y los
-// gauges cambian de verde → ámbar → rojo según la severidad real
-// (escalas R/S/G de NOAA, Kp, clase de llamarada, Bz). Destaca un
-// banner de "TORMENTA GEOMAGNÉTICA" cuando G ≥ 1.
+// El panel del cielo de arriba, con datos REALES de NOAA SWPC y GOES:
+// escalas R/S/G de ahora y de los próximos 3 días, índice Kp (minuto,
+// bloques de 3 h y previsión), viento solar y su puerta Bz, rayos X y
+// llamaradas de 7 días y, con ubicación, el óvalo OVATION con la
+// probabilidad de aurora sobre tu cielo. Todo empieza por un TITULAR en
+// claro («Tranquilo…», «Tormenta G2: auroras hacia 55°…»).
 //
-// Paneles (selector segmentado / ciclo en tamaños pequeños):
-//   • Resumen   → gauge Kp + tarjetas de las escalas clave.
-//   • Viento    → velocidad/densidad/temperatura/Bz/Bt + sparkline.
-//   • Radiación → llamarada (rayos X), escala R, protones (S), F10.7, manchas.
-//   • Aurora    → potencia hemisférica + nota de visibilidad.
+// Diseño por tamaño (clase del marco unificado):
+//   micro → punto de severidad + Kp · s → titular + R/S/G
+//   m → titular + escalas + Kp, viento y rayos X
+//   l → pestañas Resumen · Viento · Radiación · Aurora
+//   xl → panel completo · panorámico → titular | escalas | Kp · torre → en columna.
 //
-// Adaptabilidad (render-prop `size` de WidgetShell):
-//   • micro/compact → vista compacta: gauge + 2 indicadores, sin selector
-//                     segmentado (chip que cicla).
-//   • regular       → selector completo + panel íntegro.
-//   • expanded      → añade más métricas y sparklines.
+// Estados honestos: cargando (esperando a NOAA), error de la fuente con
+// reintento, y vacío si NOAA responde sin ninguna lectura para este
+// momento. Cada cifra lleva su fuente y su hora. Una petición compartida
+// por fuente para todos los widgets, cada ≥ 15 min y solo si se ve.
 //
-// Datos REALES vía fetchSpaceWeather() (sin mocks). Tres casos DISTINTOS y
-// pintados distinto (Ola 305): cargando (esperando a NOAA), error (la fuente
-// no respondió, con reintento) y vacío (respondió sin lectura para este
-// momento → `mensajeVacio("astronomia")`). Ninguna cifra de relleno: donde no
-// hay lectura no se pinta un número plausible, y cada magnitud visible lleva
-// su unidad y su hora de lectura (marcada como antigua si supera la hora).
-// Atribución "NOAA SWPC" SIEMPRE visible.
-// Accesible: aria-live en estados, aria-pressed en chips, tabular-nums.
+// Se conservan los ayudantes de honestidad (`hayLectura`, `numeroDe`,
+// `lecturaDe`, `lecturasDisponibles`, `SelloHora`) que usa la vista app.
 // ════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import * as React from "react";
+import { Activity, Clock, Satellite, Sparkles, Wind, Zap, type LucideIcon } from "lucide-react";
+import type { SpaceMetric, SpaceWeatherSnapshot } from "../../apps/data-sources/space-weather-sources";
+import { fuenteAurora, fuenteEscalas, fuenteKp, fuentePlasma, fuenteSol, fuenteVientoResumen, resumirKp } from "@/modules/weather/datos/noaa";
 import {
-    Sun, Satellite, Zap, Wind, Radio, Magnet, Activity, Sparkles,
-    Clock, RotateCw, ZapOff, ChevronRight, ShieldAlert,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { WidgetShell, Sparkline, timeAgo, WidgetSkeleton, WidgetEmptyState, WidgetErrorState } from "../../kit";
-import type { ElementSize } from "../../kit";
-// Contrato de calidad compartido (el mismo que compone `MarcoWidget`): aquí
-// se reusa su CUERPO —esqueleto, vacío por categoría y error con reintento—
-// sin duplicar su marco, porque `WidgetShell` ya aporta cabecera y borde.
-import { estadoDe, mensajeVacio, mensajeError } from "../../calidad-widget";
+    claseRayos, COLOR_SEVERIDAD, escalaG, escalaR, explicarKp, explicarLlamarada, explicarViento, latitudGeomagnetica, lineaAuroraKp,
+    nombreG, severidadViento, titularCosmos, type Severidad,
+} from "@/modules/weather/datos/interpretar";
+import { formateadores, useFuente, useUbicacionClima } from "@/modules/weather/datos/hooks";
+import { CargandoClima, ErrorClima, MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from "@/modules/weather/components/widgets/_clima/piezas";
 import {
-    fetchSpaceWeather,
-    snapshotSeverity,
-    isGeomagneticStorm,
-    severityColor,
-    SPACE_WEATHER_ATTRIBUTION,
-    type SpaceWeatherSnapshot,
-    type SpaceMetric,
-    type Severity,
-} from "../../apps/data-sources/space-weather-sources";
-
-const REFRESH_MS = 300_000; // 5 min (cadencia típica de SWPC)
-
-// Acento base del widget (ámbar solar) — se mezcla con la severidad real.
-const BASE_ACCENT = "#F5A623";
-const VIOLET = "#8b5cf6";
-
-type PanelId = "resumen" | "viento" | "radiacion" | "aurora";
-
-interface PanelDef { id: PanelId; label: string; icon: LucideIcon; }
-const PANELS: PanelDef[] = [
-    { id: "resumen", label: "Resumen", icon: Activity },
-    { id: "viento", label: "Viento", icon: Wind },
-    { id: "radiacion", label: "Radiación", icon: Zap },
-    { id: "aurora", label: "Aurora", icon: Sparkles },
-];
-
-const FOCUS_RING =
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background";
+    BarrasKp, COLOR_CLASE, colorKp, FlujoViento, GraficaRayos, LineaLlamaradas, MedidorKp, OvaloAurora, PildoraSeveridad,
+} from "@/modules/weather/components/widgets/_cosmos/piezas-cosmos";
+import { CabeceraCosmos } from "@/modules/weather/components/widgets/_cosmos/marco-cosmos";
 
 // ── Honestidad de la lectura ─────────────────────────────────────
 // Una cifra sin hora no es una medida. Cada magnitud visible lleva su
@@ -121,70 +88,15 @@ export function lecturaDe(marca: string | undefined, consultadoEn: number): Lect
     };
 }
 
-/** Una magnitud con lectura real y la hora en que se leyó. */
-interface Magnitud {
-    m: SpaceMetric;
-    lectura: Lectura;
-}
-
-/** Empareja magnitudes con su marca temporal y descarta las que no tienen lectura. */
-function magnitudes(pares: Array<[SpaceMetric, string | undefined]>, consultadoEn: number): Magnitud[] {
-    return pares
-        .filter(([m]) => hayLectura(m))
-        .map(([m, marca]) => ({ m, lectura: lecturaDe(marca, consultadoEn) }));
-}
-
 /** Todas las magnitudes del snapshot que traen lectura real (0 ⇒ estado vacío). */
-export function lecturasDisponibles(s: SpaceWeatherSnapshot): SpaceMetric[] {
+export function lecturasDisponibles(snap: SpaceWeatherSnapshot): SpaceMetric[] {
     return [
-        s.geomagnetic.kp, s.geomagnetic.gScale,
-        s.solarWind.speed, s.solarWind.density, s.solarWind.temperature, s.solarWind.bt, s.solarWind.bz,
-        s.radiation.flare, s.radiation.rScale, s.radiation.sScale, s.radiation.protonFlux,
-        s.indices.f107, s.indices.sunspots, s.aurora,
+        snap.geomagnetic.kp, snap.geomagnetic.gScale,
+        snap.solarWind.speed, snap.solarWind.density, snap.solarWind.temperature, snap.solarWind.bt, snap.solarWind.bz,
+        snap.radiation.flare, snap.radiation.rScale, snap.radiation.sScale, snap.radiation.protonFlux,
+        snap.indices.f107, snap.indices.sunspots, snap.aurora,
     ].filter(hayLectura);
 }
-
-// ── Hook de datos autónomo (loading/error/retry/auto) ────────────
-function useSpaceWeather() {
-    const [data, setData] = useState<SpaceWeatherSnapshot | null>(null);
-    const [loading, setLoading] = useState(false);
-    // El error se guarda TAL CUAL para que `mensajeError` lo traduzca a un
-    // mensaje honesto (red, sesión, permiso o fuente) en vez de un texto fijo.
-    const [error, setError] = useState<unknown>(null);
-    const [auto, setAuto] = useState(true);
-    const alive = useRef(true);
-
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const snap = await fetchSpaceWeather();
-            if (!alive.current) return;
-            setData(snap);
-        } catch (e) {
-            if (!alive.current) return;
-            setError(e);
-        } finally {
-            if (alive.current) setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        alive.current = true;
-        void load();
-        return () => { alive.current = false; };
-    }, [load]);
-
-    useEffect(() => {
-        if (!auto) return;
-        const id = setInterval(() => void load(), REFRESH_MS);
-        return () => clearInterval(id);
-    }, [auto, load]);
-
-    return { data, loading, error, auto, setAuto, refresh: load };
-}
-
-// ── Sub-componentes de presentación ──────────────────────────────
 
 /**
  * Sello de hora de una magnitud: nunca se enseña un dato sin fecha.
@@ -195,7 +107,7 @@ export function SelloHora({ lectura, className }: { lectura: Lectura; className?
     return (
         <span
             title={lectura.antigua ? "Lectura de hace más de una hora: puede no reflejar el momento actual." : undefined}
-            className={`inline-flex items-center gap-1 text-[8.5px] font-semibold tabular-nums ${lectura.antigua ? "text-amber-400/85" : "text-muted-foreground/45"} ${className ?? ""}`}
+            className={`inline-flex items-center gap-1 text-[10px] font-semibold tabular-nums ${lectura.antigua ? "text-amber-300/85" : "text-white/45"} ${className ?? ""}`}
         >
             <Clock className="size-2.5 shrink-0" aria-hidden />
             <span className="truncate">{lectura.etiqueta}{lectura.antigua ? " · antigua" : ""}</span>
@@ -203,559 +115,260 @@ export function SelloHora({ lectura, className }: { lectura: Lectura; className?
     );
 }
 
-/** Hueco honesto de una magnitud sin lectura (jamás un número plausible). */
-function SinLecturaAqui({ titulo }: { titulo: string }) {
+// ── Piezas del panel ─────────────────────────────────────────────
+
+const NOMBRE_ESCALA = { R: "Radio", S: "Radiación", G: "Geomagnética" } as const;
+const sevDeEscala = (n: number | null): Severidad => (n === null ? "calma" : n >= 4 ? "extrema" : n === 3 ? "fuerte" : n === 2 ? "moderada" : n === 1 ? "menor" : "calma");
+
+/** Una escala NOAA (R/S/G) con su nivel de ahora y, si lo hay, el máximo de 24 h. */
+function Escala({ letra, nivel, max24, compacta }: { letra: "R" | "S" | "G"; nivel: number | null; max24?: number | null; compacta?: boolean }) {
+    const color = COLOR_SEVERIDAD[sevDeEscala(nivel)];
     return (
-        <div className="grid place-content-center gap-1 rounded-2xl border border-dashed border-border/50 px-3 py-4 text-center">
-            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60">{titulo}</span>
-            <span className="text-[9px] text-muted-foreground/45">La fuente respondió sin lectura para este momento.</span>
+        <div className="min-w-0 rounded-xl px-2 py-1.5 text-center" style={{ background: `${color}14`, boxShadow: `inset 0 0 0 1px ${color}44` }}
+            title={`${NOMBRE_ESCALA[letra]}: ${letra}${nivel ?? "—"}${max24 ? ` (máximo de 24 h: ${letra}${max24})` : ""}`}
+            aria-label={`Escala ${NOMBRE_ESCALA[letra].toLowerCase()} ${letra}${nivel ?? " sin dato"}`}>
+            <span className={`${s.cifra} block font-semibold leading-none ${compacta ? "text-[16px]" : "text-[20px]"}`} style={{ color }}>{letra}{nivel ?? "—"}</span>
+            {!compacta && <span className="mt-0.5 block truncate text-[10px] text-white/55">{NOMBRE_ESCALA[letra]}</span>}
         </div>
     );
 }
 
-/** Vacío del contrato para la familia del clima espacial (categoría «astronomia»). */
-function PanelVacio() {
-    const vacio = mensajeVacio("astronomia");
-    return <WidgetEmptyState icon={Sparkles} title={vacio.titulo} message={vacio.ayuda} accent={BASE_ACCENT} />;
+function Dato({ t, v, u, color }: { t: string; v: string; u?: string; color?: string }) {
+    return (
+        <div className="min-w-0 rounded-xl bg-white/[0.05] px-2.5 py-1.5" title={`${t}: ${v}${u ? ` ${u}` : ""}`}>
+            <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-white/50">{t}</span>
+            <span className={`${s.cifra} block truncate text-[16px] font-semibold`} style={{ color }}>{v}{u && <span className="ml-1 text-[11px] font-normal text-white/55">{u}</span>}</span>
+        </div>
+    );
 }
 
-/** Tarjeta de una métrica con halo teñido por severidad. */
-function MetricCard({ m, lectura, compact }: { m: SpaceMetric; lectura: Lectura; compact?: boolean }) {
-    const color = severityColor(m.severity ?? "calm");
-    return (
-        <div
-            className="relative rounded-2xl border bg-white/[0.03] px-3 py-2.5 overflow-hidden transition-colors"
-            style={{
-                borderColor: `color-mix(in srgb, ${color} 28%, hsl(var(--border)))`,
-                boxShadow: `0 0 16px -10px ${color}`,
-            }}
-        >
-            <div
-                aria-hidden
-                className="absolute inset-0 pointer-events-none"
-                style={{ background: `radial-gradient(ellipse at 50% 130%, ${color}1f 0%, transparent 70%)` }}
-            />
-            <div className="relative">
-                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60 truncate">
-                    {m.label}
-                </div>
-                <div className="mt-0.5 flex items-baseline gap-1">
-                    <span className={`font-black tabular-nums tracking-tighter ${compact ? "text-lg" : "text-xl @sm:text-2xl"}`} style={{ color }}>
-                        {m.value}
-                    </span>
-                    {m.unit && <span className="text-[9px] font-bold uppercase text-muted-foreground/45">{m.unit}</span>}
-                </div>
-                <SelloHora lectura={lectura} className="mt-1" />
-                {(m.level || m.detail) && (
-                    <div className="mt-1 flex flex-col gap-0.5">
-                        {m.level && (
-                            <span
-                                className="inline-flex w-fit items-center rounded-full border px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider"
-                                style={{ color, borderColor: `color-mix(in srgb, ${color} 35%, transparent)`, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
-                            >
-                                {m.level}
-                            </span>
-                        )}
-                        {m.detail && !compact && (
-                            <span className="text-[9px] text-muted-foreground/50 truncate">{m.detail}</span>
-                        )}
-                    </div>
-                )}
+type Pestana = "resumen" | "viento" | "radiacion" | "aurora";
+const PESTANAS: { id: Pestana; etiqueta: string; icono: LucideIcon }[] = [
+    { id: "resumen", etiqueta: "Resumen", icono: Activity },
+    { id: "viento", etiqueta: "Viento", icono: Wind },
+    { id: "radiacion", etiqueta: "Radiación", icono: Zap },
+    { id: "aurora", etiqueta: "Aurora", icono: Sparkles },
+];
+
+// ── Contenido ────────────────────────────────────────────────────
+
+function Contenido({ info }: { info: InfoMarco }) {
+    const { base, clase } = info;
+    const grande = base === "l" || base === "xl" || clase === "torre";
+    const escalas = useFuente(fuenteEscalas, undefined, info.visible);
+    const kp = useFuente(fuenteKp, undefined, info.visible);
+    const viento = useFuente(fuenteVientoResumen, undefined, info.visible && base !== "micro");
+    const sol = useFuente(fuenteSol, undefined, info.visible && base !== "micro" && base !== "s");
+    const plasma = useFuente(fuentePlasma, undefined, info.visible && base === "xl");
+    const { ubicacion } = useUbicacionClima();
+    const conAurora = grande && !!ubicacion;
+    const aurora = useFuente(fuenteAurora, conAurora && ubicacion ? { lat: ubicacion.lat, lon: ubicacion.lon } : null, info.visible && conAurora);
+    const [pestana, setPestana] = React.useState<Pestana>("resumen");
+    const fmt = React.useMemo(() => formateadores(), []);
+    const dia = React.useCallback((t: number) => new Intl.DateTimeFormat("es-ES", { weekday: "short" }).format(new Date(t)).replace(".", ""), []);
+    const id = React.useId().replace(/:/g, "");
+
+    // Estados: cargando → leyendo; error → fuente caída con reintento; vacío → sin ninguna lectura.
+    const principales = [escalas, kp];
+    if (principales.every((f) => !f.datos)) {
+        const err = principales.find((f) => f.error)?.error;
+        if (err && principales.every((f) => f.error || f.datos)) {
+            return <ErrorClima mensaje={`NOAA SWPC: ${err.toLowerCase()}`} onReintentar={() => { escalas.refrescar(); kp.refrescar(); }} />;
+        }
+        return <CargandoClima base={base} texto="Escuchando al Sol…" />;
+    }
+
+    const ahora = Date.now();
+    const rk = kp.datos ? resumirKp(kp.datos, ahora) : null;
+    const kpAhora = rk?.actual?.kp ?? null;
+    const e = escalas.datos?.actual ?? { r: null, s: null, g: null };
+    const ult24 = escalas.datos?.ultimas24 ?? null;
+    const rayo = sol.datos?.rayos[sol.datos.rayos.length - 1] ?? null;
+    const cl = claseRayos(rayo?.flujo ?? null);
+    const v = viento.datos;
+    const titular = titularCosmos({ g: e.g, r: e.r ?? (rayo ? escalaR(rayo.flujo) : null), s: e.s, kp: kpAhora, claseRayos: cl?.etiqueta ?? null, maxPrevistoKp: rk?.maxPrevisto?.kp ?? null });
+    const sinLecturas = kpAhora === null && e.g === null && e.r === null && e.s === null;
+    if (sinLecturas) {
+        return (
+            <div role="status" className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center">
+                <Satellite aria-hidden className="size-5 text-white/60" />
+                <p className="text-[12px] text-white/75">NOAA respondió vacío: sin lecturas para este momento.</p>
+            </div>
+        );
+    }
+    const refrescar = () => { escalas.refrescar(); kp.refrescar(); viento.refrescar(); sol.refrescar(); plasma.refrescar(); aurora.refrescar(); };
+    const cabecera = <CabeceraCosmos info={info} titulo="Clima espacial" subtitulo="NOAA SWPC · en vivo" icono={Satellite} alActualizar={refrescar} conUbicacion={grande} />;
+    const colorTit = COLOR_SEVERIDAD[titular.severidad];
+    const titularEl = (tam = 13) => (
+        <p className="flex items-start gap-2 leading-snug" style={{ fontSize: tam }}>
+            <span aria-hidden className="mt-[0.35em] size-2 shrink-0 rounded-full" style={{ background: colorTit, boxShadow: `0 0 10px ${colorTit}` }} />
+            <span>{titular.texto}</span>
+        </p>
+    );
+    const escalasEl = (compacta = false) => (
+        <div className="grid grid-cols-3 gap-2" aria-label="Escalas de NOAA ahora">
+            <Escala letra="R" nivel={e.r} max24={ult24?.r} compacta={compacta} />
+            <Escala letra="S" nivel={e.s} max24={ult24?.s} compacta={compacta} />
+            <Escala letra="G" nivel={e.g ?? escalaG(kpAhora)} max24={ult24?.g} compacta={compacta} />
+        </div>
+    );
+    const datos = (
+        <div className="grid grid-cols-3 gap-2">
+            <Dato t="Kp" v={kpAhora === null ? "—" : kpAhora.toFixed(1).replace(".", ",")} color={kpAhora === null ? undefined : colorKp(kpAhora)} />
+            <Dato t="Viento" v={v?.velocidad == null ? "—" : String(Math.round(v.velocidad))} u="km/s" color={COLOR_SEVERIDAD[severidadViento(v?.velocidad ?? null)]} />
+            <Dato t="Rayos X" v={cl?.etiqueta ?? "—"} color={cl ? COLOR_CLASE[cl.letra] : undefined} />
+        </div>
+    );
+    const sello = (
+        <div className="flex flex-wrap gap-x-3">
+            <SelloFuente fuente="NOAA SWPC" en={escalas.en ?? kp.en} />
+            {aurora.en && <SelloFuente fuente="OVATION" en={aurora.en} />}
+        </div>
+    );
+    const glat = ubicacion ? latitudGeomagnetica(ubicacion.lat, ubicacion.lon) : null;
+    const auroraEl = (lado: number) => ubicacion ? (
+        <div className="flex items-center gap-3">
+            {aurora.datos ? <OvaloAurora aurora={aurora.datos} lat={ubicacion.lat} lon={ubicacion.lon} lado={lado} /> : <div className="grid shrink-0 place-items-center text-[11px] text-white/55" style={{ width: lado, height: lado }}>{aurora.error ? "OVATION sin datos" : "Leyendo OVATION…"}</div>}
+            <div className="min-w-0 flex-1 space-y-1 text-[12px]">
+                <p className="font-semibold">Aurora sobre {ubicacion.nombre}</p>
+                {aurora.datos && <p className="text-white/75">Encima: <b className={s.cifra}>{aurora.datos.sobreTi ?? 0} %</b> · horizonte: <b className={s.cifra}>{aurora.datos.horizonte ?? 0} %</b></p>}
+                {glat !== null && kpAhora !== null && <p className="text-white/55">Con Kp {kpAhora.toFixed(1).replace(".", ",")} llega hasta ~{Math.round(lineaAuroraKp(kpAhora))}° magnéticos; tú, {Math.round(Math.abs(glat))}°.</p>}
             </div>
         </div>
-    );
-}
+    ) : <p className="text-[12px] text-white/60">Elige tu ubicación en el menú para ver la aurora sobre tu cielo.</p>;
+    const previsionDias = escalas.datos?.dias.length ? (
+        <ul className="grid grid-cols-3 gap-2" aria-label="Previsión de 3 días">
+            {escalas.datos.dias.map((d, i) => (
+                <li key={`${d.fecha}-${i}`} className="rounded-xl bg-white/[0.05] px-2 py-1.5 text-center text-[11px]">
+                    <span className="block capitalize text-white/60">{i === 0 ? "Hoy" : d.fecha ? dia(Date.parse(`${d.fecha}T12:00:00Z`)) : "—"}</span>
+                    <span className="block" style={{ color: COLOR_SEVERIDAD[sevDeEscala(d.g)] }}>G{d.g ?? 0}</span>
+                    <span className="block text-white/55">R1-2 {d.probRMenor ?? "—"} %</span>
+                </li>
+            ))}
+        </ul>
+    ) : null;
 
-/** Gauge semicircular del índice Kp (0–9) teñido por severidad. */
-function KpGauge({ kp, gLabel, color, size = 150 }: { kp: number; gLabel: string; color: string; size?: number }) {
-    const clamped = Math.max(0, Math.min(9, kp));
-    const r = size * 0.4;
-    const cx = size / 2;
-    const cy = size / 2;
-    const stroke = Math.max(8, size * 0.06);
-    const c = 2 * Math.PI * r;
-    // Usamos 75% del círculo como arco (de -135° a +135°).
-    const arc = 0.75;
-    const dash = c * arc;
-    const offset = dash * (1 - clamped / 9);
-
-    return (
-        <div className="relative inline-grid place-items-center" style={{ width: size, height: size }}>
-            <svg width={size} height={size} className="overflow-visible" style={{ transform: "rotate(135deg)" }}>
-                <circle
-                    cx={cx} cy={cy} r={r} fill="none"
-                    stroke="hsl(var(--border))" strokeOpacity={0.22}
-                    strokeWidth={stroke} strokeLinecap="round"
-                    strokeDasharray={`${dash} ${c}`}
-                />
-                <motion.circle
-                    cx={cx} cy={cy} r={r} fill="none"
-                    stroke={color} strokeWidth={stroke} strokeLinecap="round"
-                    strokeDasharray={`${dash} ${c}`}
-                    initial={{ strokeDashoffset: dash }}
-                    animate={{ strokeDashoffset: offset }}
-                    transition={{ duration: 1.1, ease: "easeOut" }}
-                    style={{ filter: `drop-shadow(0 0 6px ${color})` }}
-                />
-            </svg>
-            <div className="absolute inset-0 grid place-items-center text-center leading-none">
-                <div>
-                    <div className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground/50 mb-1">Kp</div>
-                    <motion.div
-                        key={clamped}
-                        initial={{ scale: 0.92, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="font-black tabular-nums tracking-tighter"
-                        style={{ color, fontSize: size * 0.3 }}
-                    >
-                        {clamped.toFixed(1)}
-                    </motion.div>
-                    <div className="mt-1 text-[9px] font-black uppercase tracking-wider" style={{ color }}>
-                        {gLabel}
-                    </div>
-                </div>
+    if (base === "micro") {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-1" role="img" aria-label={`Clima espacial: ${titular.texto}. Kp ${kpAhora ?? "sin dato"}`}>
+                <span aria-hidden className="size-3 rounded-full" style={{ background: colorTit, boxShadow: `0 0 12px ${colorTit}` }} />
+                <span className={`${s.cifra} text-[20px] font-light leading-none`} style={{ color: kpAhora === null ? undefined : colorKp(kpAhora) }}>Kp {kpAhora === null ? "—" : kpAhora.toFixed(0)}</span>
             </div>
-        </div>
-    );
-}
-
-/** Banner destacado de tormenta (solo cuando G ≥ 1). */
-function StormBanner({ snap }: { snap: SpaceWeatherSnapshot }) {
-    const color = severityColor(snap.geomagnetic.gScale.severity ?? "moderate");
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="shrink-0 flex items-center gap-2 rounded-xl border px-2.5 py-1.5"
-            style={{
-                borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
-                background: `color-mix(in srgb, ${color} 14%, transparent)`,
-            }}
-            role="alert"
-        >
-            <motion.span
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 1.8, repeat: Infinity }}
-            >
-                <ShieldAlert className="size-4 shrink-0" style={{ color }} />
-            </motion.span>
-            <span className="text-[10px] @sm:text-[11px] font-black uppercase tracking-wider truncate" style={{ color }}>
-                Tormenta geomagnética · {snap.geomagnetic.gScale.level}
-            </span>
-        </motion.div>
-    );
-}
-
-// ── Paneles ──────────────────────────────────────────────────────
-
-function ResumenPanel({ snap, size, gColor }: { snap: SpaceWeatherSnapshot; size: ElementSize; gColor: string }) {
-    const compact = size.tier === "compact" || size.tier === "micro";
-    const expanded = size.tier === "expanded";
-    const gaugeSize = expanded ? 168 : compact ? 124 : 148;
-
-    const items = magnitudes([
-        [snap.radiation.flare, undefined],
-        [snap.radiation.rScale, undefined],
-        [snap.radiation.sScale, undefined],
-        [snap.solarWind.bz, snap.solarWind.timeTag],
-        [snap.solarWind.speed, snap.solarWind.timeTag],
-        [snap.aurora, undefined],
-    ], snap.fetchedAt);
-    const shown = compact ? 2 : expanded ? 6 : 4;
-
-    // El Kp solo se dibuja si NOAA entregó su número: un gauge a 0.0 sin
-    // lectura sería una cifra inventada leída como telemetría real.
-    const kp = numeroDe(snap.geomagnetic.kp);
-    const lecturaKp = lecturaDe(snap.geomagnetic.timeTag, snap.fetchedAt);
-
-    if (kp === null && items.length === 0) return <PanelVacio />;
-
-    return (
-        <div className="flex flex-col gap-3 h-full">
-            <div className="flex items-center justify-center gap-4 pt-1">
-                {kp === null ? (
-                    <SinLecturaAqui titulo="Índice Kp sin lectura" />
-                ) : (
-                    <div className="flex flex-col items-center gap-1">
-                        <KpGauge
-                            kp={kp}
-                            gLabel={hayLectura(snap.geomagnetic.gScale) ? snap.geomagnetic.gScale.value : "Escala sin lectura"}
-                            color={gColor}
-                            size={gaugeSize}
-                        />
-                        <SelloHora lectura={lecturaKp} />
-                    </div>
-                )}
-                {!compact && kp !== null && snap.geomagnetic.kpSeries.length >= 2 && (
-                    <div className="flex-1 min-w-0 max-w-[55%]">
-                        <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">Kp · histórico</div>
-                        <Sparkline
-                            data={snap.geomagnetic.kpSeries.map((v, i) => ({ t: i, v }))}
-                            color={gColor}
-                            height={expanded ? 70 : 52}
-                        />
-                    </div>
-                )}
+        );
+    }
+    if (base === "s") {
+        return (
+            <div className="flex h-full flex-col justify-between gap-2 p-3">
+                <div className="line-clamp-3">{titularEl(12)}</div>
+                {escalasEl(true)}
             </div>
-            <div className={`grid gap-2 ${compact ? "grid-cols-2" : expanded ? "grid-cols-3" : "grid-cols-2"}`}>
-                {items.slice(0, shown).map(({ m, lectura }) => (
-                    <MetricCard key={m.label} m={m} lectura={lectura} compact={compact} />
-                ))}
+        );
+    }
+    if (clase === "panoramico") {
+        return (
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: "minmax(12rem,1.1fr) minmax(10rem,0.9fr) minmax(0,1.2fr)" }}>
+                <div className="min-w-0 space-y-1.5">{cabecera}<div className="line-clamp-2">{titularEl(12)}</div></div>
+                {escalasEl(true)}
+                {rk && <BarrasKp pasadas={rk.pasadas.slice(-6)} previstas={rk.previstas.slice(0, 6)} hora={fmt.soloHora} alto={Math.max(36, (info.alto || 130) - 70)} />}
             </div>
-        </div>
-    );
-}
-
-function VientoPanel({ snap, size }: { snap: SpaceWeatherSnapshot; size: ElementSize }) {
-    const compact = size.tier === "compact" || size.tier === "micro";
-    const expanded = size.tier === "expanded";
-    const speedColor = severityColor(snap.solarWind.speed.severity ?? "calm");
-    const bzColor = severityColor(snap.solarWind.bz.severity ?? "calm");
-
-    const marca = snap.solarWind.timeTag;
-    const items = magnitudes([
-        [snap.solarWind.speed, marca],
-        [snap.solarWind.density, marca],
-        [snap.solarWind.bz, marca],
-        [snap.solarWind.bt, marca],
-        [snap.solarWind.temperature, marca],
-    ], snap.fetchedAt);
-    const shown = compact ? 2 : expanded ? 5 : 4;
-
-    if (items.length === 0) return <PanelVacio />;
-
-    return (
-        <div className="flex flex-col gap-2.5 h-full">
-            <div className="grid grid-cols-2 gap-2">
-                {items.slice(0, shown).map(({ m, lectura }) => (
-                    <MetricCard key={m.label} m={m} lectura={lectura} compact={compact} />
-                ))}
+        );
+    }
+    if (clase === "torre") {
+        return (
+            <div className="flex h-full flex-col gap-3 p-3.5">
+                {cabecera}{titularEl(13)}{escalasEl()}
+                <div className="flex justify-center"><MedidorKp kp={kpAhora} lado={Math.min(150, (info.ancho || 160) - 30)} /></div>
+                {datos}{auroraEl(96)}
+                <div className="mt-auto">{sello}</div>
             </div>
-            {!compact && snap.solarWind.speedSeries.length >= 2 && (
-                <div className="flex-1 min-h-0 grid gap-2" style={{ gridTemplateRows: expanded && snap.solarWind.bzSeries.length >= 2 ? "1fr 1fr" : "1fr" }}>
-                    <SeriesPanel title="Velocidad (km/s)" icon={Wind} color={speedColor} data={snap.solarWind.speedSeries} expanded={expanded} lectura={lecturaDe(marca, snap.fetchedAt)} />
-                    {expanded && snap.solarWind.bzSeries.length >= 2 && (
-                        <SeriesPanel title="Bz IMF (nT)" icon={Magnet} color={bzColor} data={snap.solarWind.bzSeries} expanded={expanded} lectura={lecturaDe(marca, snap.fetchedAt)} />
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
-
-function RadiacionPanel({ snap, size }: { snap: SpaceWeatherSnapshot; size: ElementSize }) {
-    const compact = size.tier === "compact" || size.tier === "micro";
-    const expanded = size.tier === "expanded";
-    const flareColor = severityColor(snap.radiation.flare.severity ?? "calm");
-
-    // Rayos X, protones e índices no traen marca propia en la fuente: se
-    // fecha con el momento de la consulta y así se dice ("Consultada …").
-    const items = magnitudes([
-        [snap.radiation.flare, undefined],
-        [snap.radiation.rScale, undefined],
-        [snap.radiation.protonFlux, undefined],
-        [snap.radiation.sScale, undefined],
-        [snap.indices.f107, undefined],
-        [snap.indices.sunspots, undefined],
-    ], snap.fetchedAt);
-    const shown = compact ? 2 : expanded ? 6 : 4;
-
-    if (items.length === 0) return <PanelVacio />;
-
-    return (
-        <div className="flex flex-col gap-2.5 h-full">
-            <div className={`grid gap-2 ${compact ? "grid-cols-2" : expanded ? "grid-cols-3" : "grid-cols-2"}`}>
-                {items.slice(0, shown).map(({ m, lectura }) => (
-                    <MetricCard key={m.label} m={m} lectura={lectura} compact={compact} />
-                ))}
+        );
+    }
+    if (base === "m") {
+        return (
+            <div className="flex h-full flex-col gap-2.5 p-3.5">
+                {cabecera}
+                <div className="line-clamp-3">{titularEl(13)}</div>
+                {escalasEl()}
+                {datos}
             </div>
-            {!compact && snap.radiation.xraySeries.length >= 2 && (
-                <div className="flex-1 min-h-0">
-                    <SeriesPanel title="Rayos X · log₁₀ flujo" icon={Radio} color={flareColor} data={snap.radiation.xraySeries} expanded={expanded} lectura={lecturaDe(undefined, snap.fetchedAt)} />
-                </div>
-            )}
-        </div>
-    );
-}
+        );
+    }
 
-function AuroraPanel({ snap, size }: { snap: SpaceWeatherSnapshot; size: ElementSize }) {
-    const a = snap.aurora;
-    const color = severityColor(a.severity ?? "calm");
-    const compact = size.tier === "compact" || size.tier === "micro";
-    // Sin potencia hemisférica real no hay anillo: un 0 GW dibujado sería
-    // una lectura inventada (OVATION no siempre publica el valor).
-    const gw = numeroDe(a);
-    if (gw === null || !hayLectura(a)) return <PanelVacio />;
-    const pct = Math.max(0, Math.min(1, gw / 150)); // 150 GW ≈ tope visual
-    const lectura = lecturaDe(undefined, snap.fetchedAt);
-
-    return (
-        <div className="flex flex-col items-center justify-center gap-3 h-full text-center">
-            <motion.div
-                className="relative grid place-items-center rounded-full"
-                style={{ width: compact ? 92 : 124, height: compact ? 92 : 124 }}
-                animate={{ boxShadow: [`0 0 18px -6px ${color}`, `0 0 34px -4px ${color}`, `0 0 18px -6px ${color}`] }}
-                transition={{ duration: 3.2, repeat: Infinity }}
-            >
-                <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90 w-full h-full">
-                    <circle cx="50" cy="50" r="44" fill="none" stroke="hsl(var(--border))" strokeOpacity={0.2} strokeWidth="7" />
-                    <motion.circle
-                        cx="50" cy="50" r="44" fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
-                        strokeDasharray={2 * Math.PI * 44}
-                        initial={{ strokeDashoffset: 2 * Math.PI * 44 }}
-                        animate={{ strokeDashoffset: 2 * Math.PI * 44 * (1 - pct) }}
-                        transition={{ duration: 1.1, ease: "easeOut" }}
-                        style={{ filter: `drop-shadow(0 0 5px ${color})` }}
-                    />
-                </svg>
-                <Sparkles className="absolute size-5 opacity-60" style={{ color }} />
-                <div className="relative mt-7 text-center leading-none">
-                    <div className="font-black tabular-nums" style={{ color, fontSize: compact ? 22 : 28 }}>{a.value}</div>
-                    <div className="text-[9px] font-bold uppercase text-muted-foreground/45">{a.unit}</div>
-                </div>
-            </motion.div>
-            {a.level && (
-                <span
-                    className="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider"
-                    style={{ color, borderColor: `color-mix(in srgb, ${color} 35%, transparent)`, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
-                >
-                    {a.level}
-                </span>
-            )}
-            {a.detail && <div className="text-[10px] text-muted-foreground/55 tabular-nums">{a.detail}</div>}
-            <SelloHora lectura={lectura} />
-            <div className="text-[9px] text-muted-foreground/40 max-w-[16rem]">Potencia hemisférica del modelo OVATION (NOAA).</div>
-        </div>
-    );
-}
-
-/** Tarjeta con título + sparkline (reutilizada en viento/radiación). */
-function SeriesPanel({ title, icon: Icon, color, data, expanded, lectura }: { title: string; icon: LucideIcon; color: string; data: number[]; expanded: boolean; lectura: Lectura }) {
-    return (
-        <div
-            className="rounded-xl border bg-white/[0.02] p-2.5 flex flex-col min-h-0"
-            style={{ borderColor: `color-mix(in srgb, ${color} 22%, hsl(var(--border)))`, boxShadow: `0 0 14px -10px ${color}` }}
-        >
-            <div className="flex items-center gap-1.5 mb-1.5 shrink-0">
-                <Icon className="size-3 shrink-0" style={{ color }} />
-                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 truncate">{title}</span>
-                <SelloHora lectura={lectura} className="ml-auto shrink-0" />
+    // l → pestañas · xl → panel completo
+    const resumen = (
+        <div className="flex flex-col gap-3">
+            {titularEl(14)}
+            {escalasEl()}
+            <div className="flex items-center gap-3">
+                <MedidorKp kp={kpAhora} lado={base === "xl" ? 130 : 104} />
+                <p className="min-w-0 flex-1 text-[12px] leading-snug text-white/75">{explicarKp(kpAhora)}</p>
             </div>
-            <div className="flex-1 min-h-0 grid place-items-stretch">
-                <Sparkline data={data.map((v, i) => ({ t: i, v }))} color={color} height={expanded ? 64 : 48} />
+            {rk && <BarrasKp pasadas={rk.pasadas} previstas={rk.previstas.slice(0, 8)} hora={fmt.soloHora} alto={base === "xl" ? 70 : 56} />}
+            {previsionDias}
+        </div>
+    );
+    const vientoEl = (
+        <div className="flex flex-col gap-3">
+            <FlujoViento velocidad={v?.velocidad ?? null} densidad={plasma.datos?.actual?.densidad ?? null} bz={v?.bz ?? null} animar={info.animar && info.visible} alto={96} />
+            <div className="grid grid-cols-3 gap-2">
+                <Dato t="Velocidad" v={v?.velocidad == null ? "—" : String(Math.round(v.velocidad))} u="km/s" color={COLOR_SEVERIDAD[severidadViento(v?.velocidad ?? null)]} />
+                <Dato t="Bz" v={v?.bz == null ? "—" : v.bz.toFixed(1).replace(".", ",")} u="nT" color={v?.bz == null ? undefined : v.bz < 0 ? "#fb923c" : "#34d399"} />
+                <Dato t="Bt" v={v?.bt == null ? "—" : v.bt.toFixed(1).replace(".", ",")} u="nT" />
             </div>
+            <p className="text-[12px] leading-snug text-white/75">{explicarViento(v?.velocidad ?? null, v?.bz ?? null)}</p>
         </div>
     );
-}
-
-// ── Los tres casos, pintados DISTINTO ────────────────────────────
-// cargando: esqueleto con la forma del contenido (esperando a NOAA).
-// error:    la fuente no respondió → mensaje honesto + reintento.
-// vacío:    respondió sin lectura para este momento → `PanelVacio`.
-
-/** Cargando: aún no sabemos nada, así que no se insinúa ningún dato. */
-function EstadoCargando() {
-    return (
-        <div className="h-full min-h-[8rem] pt-1" aria-busy="true" aria-hidden>
-            <WidgetSkeleton rows={4} variant="list" />
+    const radiacion = sol.datos ? (
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+                <PildoraSeveridad severidad={cl?.severidad ?? "calma"}>Rayos X {cl?.etiqueta ?? "—"}</PildoraSeveridad>
+                <PildoraSeveridad severidad={sevDeEscala(e.s)}>Protones S{e.s ?? "—"}</PildoraSeveridad>
+            </div>
+            <p className="text-[12px] leading-snug text-white/75">{explicarLlamarada(cl?.letra ?? null)}</p>
+            <GraficaRayos serie={sol.datos.rayos} llamaradas={sol.datos.llamaradas} hora={fmt.hora} alto={base === "xl" ? 100 : 84} id={id} />
+            <LineaLlamaradas llamaradas={sol.datos.llamaradas} ahora={ahora} dia={dia} />
         </div>
-    );
-}
+    ) : sol.error ? <ErrorClima mensaje="GOES no respondió" onReintentar={sol.refrescar} /> : <CargandoClima base={base} texto="Mirando el Sol en rayos X…" />;
 
-/** Error: `mensajeError` traduce el fallo real; el reintento solo si sirve. */
-function EstadoError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-    const msg = mensajeError(error);
+    if (base === "xl") {
+        return (
+            <div className="grid h-full gap-4 p-5" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gridTemplateRows: "auto minmax(0,1fr) auto" }}>
+                <div className="col-span-2">{cabecera}</div>
+                <div className="min-h-0 space-y-3 overflow-hidden">{resumen}</div>
+                <div className="min-h-0 space-y-4 overflow-hidden">{vientoEl}{radiacion}{auroraEl(96)}</div>
+                <div className="col-span-2">{sello}</div>
+            </div>
+        );
+    }
     return (
-        <div className="h-full min-h-[8rem]" role="status">
-            <WidgetErrorState
-                message={`${msg.titulo}. ${msg.detalle}`}
-                onRetry={msg.reintentable ? onRetry : undefined}
-            />
-        </div>
-    );
-}
-
-// ── Widget principal ─────────────────────────────────────────────
-export function SpaceWeatherWidget() {
-    const { data, loading, error, auto, setAuto, refresh } = useSpaceWeather();
-    const [panel, setPanel] = useState<PanelId>("resumen");
-    const [updatedTs, setUpdatedTs] = useState<number | null>(null);
-    useEffect(() => { if (data) setUpdatedTs(data.fetchedAt); }, [data]);
-
-    const hayError = error !== null && error !== undefined;
-
-    // Severidad global → tiñe el acento del shell y el icono cabecera.
-    const sev: Severity = data ? snapshotSeverity(data) : "calm";
-    const accent = data ? severityColor(sev) : BASE_ACCENT;
-    const storm = data ? isGeomagneticStorm(data) : false;
-    const HeaderIcon: LucideIcon = storm ? ShieldAlert : sev === "calm" ? Sun : Satellite;
-    const gColor = data ? severityColor(data.geomagnetic.gScale.severity ?? "calm") : BASE_ACCENT;
-
-    const cyclePanel = () => {
-        const idx = PANELS.findIndex((p) => p.id === panel);
-        const next = PANELS[(idx + 1) % PANELS.length];
-        setPanel(next.id);
-    };
-
-    return (
-        <WidgetShell
-            title="Clima Espacial"
-            subtitle="Telemetría solar · NOAA SWPC"
-            icon={HeaderIcon}
-            accent={accent}
-            live={auto}
-            connections={[
-                { label: "Astronomía", href: "/network/education", color: VIOLET },
-                { label: "Datos", href: "/explorer", color: accent },
-            ]}
-            actions={
-                <button
-                    type="button"
-                    onClick={() => setAuto(!auto)}
-                    title={auto ? "Auto-refresco activo · clic para pausar" : "Auto-refresco en pausa · clic para activar"}
-                    aria-label={auto ? "Pausar auto-refresco" : "Activar auto-refresco"}
-                    aria-pressed={auto}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${FOCUS_RING}`}
-                    style={{
-                        color: auto ? accent : "hsl(var(--muted-foreground))",
-                        borderColor: auto ? `color-mix(in srgb, ${accent} 40%, transparent)` : "hsl(var(--border))",
-                        background: auto ? `color-mix(in srgb, ${accent} 12%, transparent)` : "transparent",
-                    }}
-                >
-                    {auto ? <Zap className="size-3" /> : <ZapOff className="size-3" />}
-                    {auto ? "Auto" : "Manual"}
-                </button>
-            }
-            footer={
-                <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-muted-foreground/70 min-w-0">
-                    <span className="truncate">
-                        Fuente: <span className="font-bold text-foreground/80">{SPACE_WEATHER_ATTRIBUTION}</span>
-                        {updatedTs !== null && (
-                            <span className="text-muted-foreground/50"> · consultada hace <span className="tabular-nums">{timeAgo(updatedTs)}</span></span>
-                        )}
-                        {/* Un refresco fallido no se esconde: lo que se ve es lo anterior. */}
-                        {hayError && data !== null && (
-                            <span className="text-amber-400/85"> · sin refrescar</span>
-                        )}
-                    </span>
-                    <button
-                        type="button"
-                        onClick={refresh}
-                        disabled={loading}
-                        title="Refrescar ahora"
-                        aria-label="Refrescar ahora"
-                        className={`shrink-0 inline-flex items-center gap-1 rounded-full border border-border/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default ${FOCUS_RING}`}
-                    >
-                        <RotateCw className={`size-3 ${loading ? "animate-spin" : ""}`} />
-                        Refrescar
+        <div className="flex h-full flex-col gap-3 p-4">
+            {cabecera}
+            <div role="tablist" aria-label="Paneles del clima espacial" className="grid grid-cols-4 gap-1 rounded-2xl bg-white/[0.05] p-1">
+                {PESTANAS.map((p) => (
+                    <button key={p.id} type="button" role="tab" aria-selected={pestana === p.id} onClick={() => setPestana(p.id)}
+                        className={`${s.foco} ss-redondo flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-xl px-1.5 text-[12px] font-semibold transition-colors duration-150 ${info.tactil ? "min-h-11" : "min-h-8"} ${pestana === p.id ? "bg-white/15 text-white" : "text-white/60 hover:text-white"}`}>
+                        <p.icono aria-hidden className="size-3.5 shrink-0" />
+                        <span className="truncate">{p.etiqueta}</span>
                     </button>
-                </div>
-            }
-        >
-            {(size) => {
-                // Precedencia del contrato: error > cargando > vacío > listo.
-                // Mientras hay datos en pantalla, un fallo de refresco NO borra
-                // lo ya leído: se avisa en el pie ("sin refrescar").
-                const estado = estadoDe({
-                    cargando: loading && !data,
-                    error: data ? undefined : error,
-                    datos: data ? lecturasDisponibles(data) : undefined,
-                });
-                if (estado === "error") return <EstadoError error={error} onRetry={refresh} />;
-                if (estado === "cargando") return <EstadoCargando />;
-                if (estado === "vacio" || !data) return <PanelVacio />;
-
-                const micro = size.tier === "micro" || size.vTier === "micro";
-                const kpMicro = numeroDe(data.geomagnetic.kp);
-
-                // Vista MICRO: solo el dato dominante (Kp + escala G). Sin
-                // número real de Kp no se dibuja el gauge: se dice que no hay
-                // lectura, que es la verdad.
-                if (micro) {
-                    if (kpMicro === null) return <PanelVacio />;
-                    const lecturaKp = lecturaDe(data.geomagnetic.timeTag, data.fetchedAt);
-                    return (
-                        <div className="h-full grid place-items-center">
-                            <KpGauge
-                                kp={kpMicro}
-                                gLabel={hayLectura(data.geomagnetic.gScale) ? data.geomagnetic.gScale.value : "Escala sin lectura"}
-                                color={gColor}
-                                size={Math.min(size.width, size.height) - 24}
-                            />
-                            <SelloHora lectura={lecturaKp} />
-                            <span role="status" aria-live="polite" className="sr-only">
-                                Kp {data.geomagnetic.kp.value}, {data.geomagnetic.gScale.value}. {lecturaKp.etiqueta}
-                                {lecturaKp.antigua ? ", lectura antigua." : "."}
-                            </span>
-                        </div>
-                    );
-                }
-
-                const compact = size.tier === "compact";
-
-                return (
-                    <div className="flex flex-col gap-2.5 pt-1 h-full">
-                        {storm && <StormBanner snap={data} />}
-
-                        {/* Selector de panel: segmentado en regular/expanded, ciclo en compact. */}
-                        {compact ? (
-                            <button
-                                type="button"
-                                onClick={cyclePanel}
-                                title="Cambiar panel"
-                                aria-label={`Panel actual: ${PANELS.find((p) => p.id === panel)?.label}. Clic para cambiar.`}
-                                className={`shrink-0 inline-flex items-center justify-between gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer hover:-translate-y-px ${FOCUS_RING}`}
-                                style={{ color: "#1a1206", background: accent, borderColor: accent }}
-                            >
-                                <span className="truncate">{PANELS.find((p) => p.id === panel)?.label}</span>
-                                <ChevronRight className="size-3 shrink-0 opacity-80" />
-                            </button>
-                        ) : (
-                            <div className="shrink-0 flex flex-wrap gap-1.5" role="tablist" aria-label="Paneles de clima espacial">
-                                {PANELS.map((p) => {
-                                    const activeChip = p.id === panel;
-                                    const Ic = p.icon;
-                                    return (
-                                        <button
-                                            key={p.id}
-                                            type="button"
-                                            role="tab"
-                                            aria-selected={activeChip}
-                                            onClick={() => setPanel(p.id)}
-                                            title={p.label}
-                                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer hover:-translate-y-px ${FOCUS_RING}`}
-                                            style={
-                                                activeChip
-                                                    ? { color: "#1a1206", background: accent, borderColor: accent }
-                                                    : { color: "hsl(var(--muted-foreground))", borderColor: "hsl(var(--border))", background: "transparent" }
-                                            }
-                                        >
-                                            <Ic className="size-3" />
-                                            {p.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* Panel activo */}
-                        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                            {panel === "resumen" && <ResumenPanel snap={data} size={size} gColor={gColor} />}
-                            {panel === "viento" && <VientoPanel snap={data} size={size} />}
-                            {panel === "radiacion" && <RadiacionPanel snap={data} size={size} />}
-                            {panel === "aurora" && <AuroraPanel snap={data} size={size} />}
-                        </div>
-
-                        <span role="status" aria-live="polite" className="sr-only">
-                            {loading
-                                ? "Actualizando clima espacial…"
-                                : hayError
-                                    ? `No se pudo refrescar: se muestra la última lectura, consultada hace ${updatedTs !== null ? timeAgo(updatedTs) : "un momento"}.`
-                                    : `Clima espacial leído. Kp ${data.geomagnetic.kp.value}, ${data.geomagnetic.gScale.value}. Llamarada ${data.radiation.flare.value}. ${lecturaDe(data.geomagnetic.timeTag, data.fetchedAt).etiqueta}.`}
-                        </span>
-                    </div>
-                );
-            }}
-        </WidgetShell>
+                ))}
+            </div>
+            <div role="tabpanel" className="min-h-0 flex-1 overflow-hidden">
+                {pestana === "resumen" && resumen}
+                {pestana === "viento" && vientoEl}
+                {pestana === "radiacion" && radiacion}
+                {pestana === "aurora" && <div className="space-y-3">{auroraEl(120)}{rk?.maxPrevisto && <p className="text-[12px] text-white/70">Máximo previsto: Kp {rk.maxPrevisto.kp.toFixed(1).replace(".", ",")} ({nombreG(escalaG(rk.maxPrevisto.kp))}) {dia(rk.maxPrevisto.t)} {fmt.hora(rk.maxPrevisto.t)}.</p>}</div>}
+            </div>
+            {sello}
+        </div>
     );
 }
+
+export function SpaceWeatherWidget() {
+    return (
+        <MarcoClima etiqueta="Clima espacial" acento="#F5A623" acento2="#8b5cf6">
+            {(info) => <Contenido info={info} />}
+        </MarcoClima>
+    );
+}
+
+export default SpaceWeatherWidget;
