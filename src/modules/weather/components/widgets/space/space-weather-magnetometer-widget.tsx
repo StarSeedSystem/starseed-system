@@ -17,7 +17,7 @@ import type { UnifiedSpaceWeather } from '@/modules/weather/services/space/schem
 import { fuenteKp, fuenteMagnetometro, resumirKp } from '@/modules/weather/datos/noaa';
 import { explicarKp } from '@/modules/weather/datos/interpretar';
 import { formateadores, useFuente } from '@/modules/weather/datos/hooks';
-import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { MarcoClima, MicroDato, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { colorKp, TrazaCampo } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
@@ -72,10 +72,7 @@ function Contenido({ info }: { info: InfoMarco }) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={`Campo magnético Hp ${hpTxt} nT`}>
-                <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">Hp nT</span>
-                <span className={`${s.cifra} text-[24px] font-light leading-none`} style={{ color: info.acento }}>{hp === null ? '—' : Math.round(hp)}</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Campo magnético Hp ${hpTxt} nT`} rotulo="Hp" cifra={hp === null ? '—' : String(Math.round(hp))} unidad="nT" color={info.acento} />
         );
     }
     if (base === 's') {

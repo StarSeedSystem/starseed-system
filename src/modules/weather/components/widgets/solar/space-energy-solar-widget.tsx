@@ -15,7 +15,7 @@ import { Wind } from 'lucide-react';
 import { fuenteKp, fuentePlasma, fuenteSol, fuenteVientoResumen, resumirKp } from '@/modules/weather/datos/noaa';
 import { COLOR_SEVERIDAD, explicarViento, severidadViento } from '@/modules/weather/datos/interpretar';
 import { formateadores, useFuente } from '@/modules/weather/datos/hooks';
-import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { MarcoClima, MicroDato, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { FlujoViento, GraficaPlasma } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
@@ -66,10 +66,8 @@ function Contenido({ info }: { info: InfoMarco }) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={`Viento solar ${vel === null ? 'sin lectura' : `${velTxt} km/s`}`}>
-                <span className={`${s.cifra} text-[26px] font-light leading-none`} style={{ color: COLOR_SEVERIDAD[sev] }}>{velTxt}</span>
-                <span className="text-[9px] text-white/60">km/s</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Viento solar ${vel === null ? 'sin lectura' : `${velTxt} km/s`}`}
+                cifra={String(velTxt)} unidad="km/s" color={COLOR_SEVERIDAD[sev]} />
         );
     }
     if (base === 's') {

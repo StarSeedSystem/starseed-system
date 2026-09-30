@@ -16,7 +16,7 @@ import { AudioWaveform, ExternalLink } from 'lucide-react';
 import { fuenteKp, fuenteSol, resumirKp } from '@/modules/weather/datos/noaa';
 import { claseRayos, explicarKp } from '@/modules/weather/datos/interpretar';
 import { useFuente } from '@/modules/weather/datos/hooks';
-import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { MarcoClima, MicroDato, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 import { COLOR_CLASE, colorKp, EspectroSchumann } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos } from '../_cosmos/marco-cosmos';
 
@@ -53,10 +53,7 @@ function Contenido({ info }: { info: InfoMarco }) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label="Resonancia Schumann: 7,83 Hz de referencia">
-                <span className={`${s.cifra} text-[20px] font-light leading-none`} style={{ color: info.acento }}>7,83</span>
-                <span className="text-[9px] text-white/60">Hz · ref.</span>
-            </div>
+            <MicroDato info={info} etiqueta="Resonancia Schumann: 7,83 Hz de referencia" cifra="7,83" unidad="Hz" color={info.acento} maximo={24} />
         );
     }
     if (base === 's') {

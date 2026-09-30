@@ -14,7 +14,7 @@ import { GUIA_OMS, nivelAire } from '@/modules/weather/datos/interpretar';
 import type { AireReal } from '@/modules/weather/datos/open-meteo';
 import { MedidorAire } from '../_clima/graficas';
 import { WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
-import { estilosClima as s } from '../_clima/piezas';
+import { MicroDato, estilosClima as s } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const CONTAMINANTES: { clave: 'pm25' | 'pm10' | 'no2' | 'o3' | 'so2'; nombre: string; guia: number }[] = [
@@ -88,10 +88,8 @@ function Cuerpo({ info, aire, d, cabecera, sello }: CtxMagnitud) {
     const lado = Math.max(90, Math.min(info.ancho || 200, info.alto || 200) * (base === 's' ? 0.8 : 0.56));
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={n ? `Calidad del aire ${n.texto.toLowerCase()}, índice ${n.indice}` : 'Sin dato de calidad del aire'}>
-                <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">Aire</span>
-                <span className={`${s.cifra} text-[28px] font-light leading-none`} style={{ color: n?.color }}>{n?.indice ?? '—'}</span>
-            </div>
+            <MicroDato info={info} etiqueta={n ? `Calidad del aire ${n.texto.toLowerCase()}, índice ${n.indice}` : 'Sin dato de calidad del aire'}
+                rotulo="Aire" cifra={n ? String(n.indice) : '—'} color={n?.color} />
         );
     }
     if (base === 's') {

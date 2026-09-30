@@ -35,7 +35,7 @@ import {
     nombreG, severidadViento, titularCosmos, type Severidad,
 } from "@/modules/weather/datos/interpretar";
 import { formateadores, useFuente, useUbicacionClima } from "@/modules/weather/datos/hooks";
-import { CargandoClima, ErrorClima, MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from "@/modules/weather/components/widgets/_clima/piezas";
+import { CargandoClima, ErrorClima, MarcoClima, MicroDato, SelloFuente, estilosClima as s, type InfoMarco } from "@/modules/weather/components/widgets/_clima/piezas";
 import {
     BarrasKp, COLOR_CLASE, colorKp, FlujoViento, GraficaRayos, LineaLlamaradas, MedidorKp, OvaloAurora, PildoraSeveridad,
 } from "@/modules/weather/components/widgets/_cosmos/piezas-cosmos";
@@ -251,10 +251,9 @@ function Contenido({ info }: { info: InfoMarco }) {
 
     if (base === "micro") {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-1" role="img" aria-label={`Clima espacial: ${titular.texto}. Kp ${kpAhora ?? "sin dato"}`}>
-                <span aria-hidden className="size-3 rounded-full" style={{ background: colorTit, boxShadow: `0 0 12px ${colorTit}` }} />
-                <span className={`${s.cifra} text-[20px] font-light leading-none`} style={{ color: kpAhora === null ? undefined : colorKp(kpAhora) }}>Kp {kpAhora === null ? "—" : kpAhora.toFixed(0)}</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Clima espacial: ${titular.texto}. Kp ${kpAhora ?? "sin dato"}`}
+                glifo={<span className="size-3 rounded-full" style={{ background: colorTit, boxShadow: `0 0 12px ${colorTit}` }} />}
+                cifra={`Kp ${kpAhora === null ? "—" : kpAhora.toFixed(0)}`} color={kpAhora === null ? undefined : colorKp(kpAhora)} maximo={22} />
         );
     }
     if (base === "s") {

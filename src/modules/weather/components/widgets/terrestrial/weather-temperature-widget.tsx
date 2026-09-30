@@ -14,7 +14,7 @@ import { horaDeAyer } from '@/modules/weather/datos/open-meteo';
 import { aTemp, type Unidades } from '@/modules/weather/datos/hooks';
 import { FilaDias, GraficaHoras, grados, LineaDia, RangoHoy } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
-import { estilosClima as s } from '../_clima/piezas';
+import { MicroDato, estilosClima as s } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const MIN = -10, MAX = 45;
@@ -62,9 +62,7 @@ function Cuerpo(x: CtxMagnitud) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={`Temperatura ${grados(a.temp, u)}`}>
-                <span className={`${s.cifra} text-[30px] font-extralight leading-none`} style={{ color: colorTemperatura(a.temp) }}>{grados(a.temp, u)}</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Temperatura ${grados(a.temp, u)}`} cifra={grados(a.temp, u)} color={colorTemperatura(a.temp)} peso="extralight" maximo={32} />
         );
     }
     if (base === 's') {

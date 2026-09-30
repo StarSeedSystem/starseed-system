@@ -22,7 +22,7 @@ import {
 import { indiceAhora, type HoraClima } from '@/modules/weather/datos/open-meteo';
 import { trazoSuave } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
-import { RotuloClima, estilosClima as s } from '../_clima/piezas';
+import { MicroDato, RotuloClima, estilosClima as s } from '../_clima/piezas';
 import { useUnidadPresion } from '../_clima/use-presion';
 
 const COLOR = '#a5b4fc';
@@ -222,11 +222,8 @@ function Cuerpo({ info, a, c, d, ahora, id, cabecera, sello }: CtxMagnitud) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5" role="img" aria-label={`Presión ${textoPresion(hpa, u)} ${ETIQUETA_PRESION[u]}${t ? `, ${t.texto.toLowerCase()}` : ''}`}>
-                <Flecha t={t} className="size-5" />
-                <span className={`${s.cifra} text-[22px] font-light leading-none`}>{textoPresion(hpa, u)}</span>
-                <span className="text-[9px] uppercase tracking-[0.14em] text-white/55">{ETIQUETA_PRESION[u]}</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Presión ${textoPresion(hpa, u)} ${ETIQUETA_PRESION[u]}${t ? `, ${t.texto.toLowerCase()}` : ''}`}
+                glifo={<Flecha t={t} className="size-5" />} cifra={textoPresion(hpa, u)} unidad={ETIQUETA_PRESION[u]} maximo={24} />
         );
     }
     if (base === 's') {

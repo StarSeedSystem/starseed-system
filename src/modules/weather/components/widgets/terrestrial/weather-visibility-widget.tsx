@@ -21,7 +21,7 @@ import { familiaCielo, mezclaHex } from '@/modules/weather/datos/interpretar';
 import { paletaCielo } from '../_clima/cielo';
 import { BarrasHoras, grados } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
-import { RotuloClima, estilosClima as s } from '../_clima/piezas';
+import { MicroDato, RotuloClima, estilosClima as s } from '../_clima/piezas';
 
 const COLOR = '#67e8f9';
 const DISTANCIAS = [0.4, 1.5, 4, 10, 22, 45];
@@ -132,10 +132,8 @@ function Cuerpo({ info, a, c, d, prox, id, cabecera, sello, ahora }: CtxMagnitud
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5" role="img" aria-label={`Visibilidad ${textoDistancia(m)}${nv ? `, ${nv.texto.toLowerCase()}` : ''}`}>
-                <Eye aria-hidden className="size-5" style={{ color: nv?.color ?? COLOR }} />
-                <span className={`${s.cifra} text-[20px] font-light leading-none`}>{textoDistancia(m)}</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Visibilidad ${textoDistancia(m)}${nv ? `, ${nv.texto.toLowerCase()}` : ''}`}
+                glifo={<Eye style={{ color: nv?.color ?? COLOR }} />} cifra={textoDistancia(m)} maximo={22} />
         );
     }
     if (base === 's') {

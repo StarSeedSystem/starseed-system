@@ -12,7 +12,7 @@ import { Sun } from 'lucide-react';
 import { nivelUv, ventanaProteccion } from '@/modules/weather/datos/interpretar';
 import { ArcoUV, BarrasHoras } from '../_clima/graficas';
 import { WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
-import { estilosClima as s } from '../_clima/piezas';
+import { MicroDato, estilosClima as s } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 function colorUv(v: number) {
@@ -38,10 +38,8 @@ function Cuerpo({ info, a, c, d, hoy, ahora, cabecera, sello }: CtxMagnitud) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={`Índice UV ${a.uv === null ? 'sin dato' : Math.round(a.uv)}${n ? `: ${n.texto}` : ''}`}>
-                <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">UV</span>
-                <span className={`${s.cifra} text-[30px] font-light leading-none`} style={{ color: n?.color }}>{a.uv === null ? '—' : Math.round(a.uv)}</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Índice UV ${a.uv === null ? 'sin dato' : Math.round(a.uv)}${n ? `: ${n.texto}` : ''}`}
+                rotulo="UV" cifra={a.uv === null ? '—' : String(Math.round(a.uv))} color={n?.color} maximo={30} />
         );
     }
     if (base === 's') {

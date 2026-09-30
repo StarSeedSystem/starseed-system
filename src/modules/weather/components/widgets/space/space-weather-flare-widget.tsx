@@ -16,7 +16,7 @@ import type { UnifiedSpaceWeather } from '@/modules/weather/services/space/schem
 import { fuenteEscalas, fuenteSol } from '@/modules/weather/datos/noaa';
 import { claseRayos, escalaR, explicarLlamarada, probabilidadCombinada } from '@/modules/weather/datos/interpretar';
 import { formateadores, useFuente } from '@/modules/weather/datos/hooks';
-import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { MarcoClima, MicroDato, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { COLOR_CLASE, GraficaRayos, LineaLlamaradas, PildoraSeveridad } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
@@ -71,10 +71,7 @@ function Contenido({ info }: { info: InfoMarco }) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={cl ? `Rayos X clase ${cl.etiqueta}` : 'Sin lectura de rayos X'}>
-                <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">Rayos X</span>
-                <span className={`${s.cifra} text-[24px] font-light leading-none`} style={{ color }}>{cl?.etiqueta ?? '—'}</span>
-            </div>
+            <MicroDato info={info} etiqueta={cl ? `Rayos X clase ${cl.etiqueta}` : 'Sin lectura de rayos X'} rotulo="Rayos X" cifra={cl?.etiqueta ?? '—'} color={color} maximo={26} />
         );
     }
     if (base === 's') {

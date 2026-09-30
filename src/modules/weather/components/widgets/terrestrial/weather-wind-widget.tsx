@@ -14,7 +14,7 @@ import type { HoraClima } from '@/modules/weather/datos/open-meteo';
 import { aViento, ETIQUETA_VIENTO, type Unidades } from '@/modules/weather/datos/hooks';
 import { BarrasHoras, BrujulaViento, velocidad } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
-import { estilosClima as s } from '../_clima/piezas';
+import { MicroDato, estilosClima as s } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const COLOR = '#5eead4';
@@ -69,12 +69,11 @@ function Cuerpo({ info, a, c, d, prox, cabecera, sello }: CtxMagnitud) {
     ];
 
     if (base === 'micro') {
+        // (Pulido 0930) Flecha y cifra en fila: apiladas se salían 6 px de una tesela de 65.
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5" role="img" aria-label={`Viento ${rumbo(a.dirViento)} a ${velocidad(a.viento, u)}`}>
-                <ArrowUp aria-hidden className="size-6" style={{ transform: `rotate(${((a.dirViento ?? 0) + 180) % 360}deg)`, color: COLOR }} />
-                <span className={`${s.cifra} text-[22px] font-light leading-none`}>{velocidad(a.viento, u, false)}</span>
-                <span className="text-[9px] text-white/60">{ETIQUETA_VIENTO[u.viento]}</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Viento ${rumbo(a.dirViento)} a ${velocidad(a.viento, u)}`}
+                glifo={<ArrowUp style={{ transform: `rotate(${((a.dirViento ?? 0) + 180) % 360}deg)`, color: COLOR }} />}
+                cifra={velocidad(a.viento, u, false)} unidad={ETIQUETA_VIENTO[u.viento]} />
         );
     }
     if (base === 's') {

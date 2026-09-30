@@ -20,7 +20,7 @@ import type { DiaClima, HoraClima } from '@/modules/weather/datos/open-meteo';
 import { colorIcono, iconoCielo } from '../_clima/cielo';
 import { BarrasHoras, FranjaHoras, GraficaHoras, grados, velocidad } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
-import { RotuloClima, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { MicroDato, RotuloClima, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 
 const COLOR = '#fde047';
 type Modo = 'temp' | 'lluvia' | 'viento';
@@ -170,10 +170,8 @@ function Cuerpo({ info, a, c, d, ahora, prox, id, cabecera, sello }: CtxMagnitud
     if (base === 'micro') {
         const Icono = iconoCielo(hoy.codigo, true);
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5" role="img" aria-label={`Hoy: ${textoCielo(hoy.codigo)}, de ${grados(hoy.min, d.u)} a ${grados(hoy.max, d.u)}`}>
-                <Icono aria-hidden className="size-6" style={{ color: colorIcono(hoy.codigo) }} />
-                <span className={`${s.cifra} text-[15px] font-semibold leading-none`}>{grados(hoy.max, d.u)}<span className="text-white/50"> {grados(hoy.min, d.u)}</span></span>
-            </div>
+            <MicroDato info={info} etiqueta={`Hoy: ${textoCielo(hoy.codigo)}, de ${grados(hoy.min, d.u)} a ${grados(hoy.max, d.u)}`}
+                glifo={<Icono style={{ color: colorIcono(hoy.codigo) }} />} cifra={grados(hoy.max, d.u)} unidad={grados(hoy.min, d.u)} peso="semibold" maximo={20} />
         );
     }
     if (base === 's') {

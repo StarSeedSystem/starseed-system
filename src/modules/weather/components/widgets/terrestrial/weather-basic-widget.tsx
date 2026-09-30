@@ -19,7 +19,7 @@ import {
     ArcoSolar, ArcoUV, BrujulaViento, FilaDias, FranjaHoras, GraficaHoras, grados, LineaDia, MedidorAire, RangoHoy, velocidad,
 } from '../_clima/graficas';
 import {
-    CargandoClima, ErrorClima, LugarClima, MarcoClima, MenuClima, RotuloClima, SelloFuente, SinUbicacion, estilosClima as s, type InfoMarco,
+    CargandoClima, ErrorClima, LugarClima, MarcoClima, MenuClima, MicroDato, RotuloClima, SelloFuente, SinUbicacion, estilosClima as s, type InfoMarco,
 } from '../_clima/piezas';
 import { useDatosClima } from '../_clima/use-clima';
 
@@ -82,11 +82,10 @@ function Contenido({ info, variante }: { info: InfoMarco; variante: VarianteCiel
     // ── micro: el icono y la cifra ──
     if (base === 'micro') {
         return (
-            <div className="relative h-full w-full" role="img" aria-label={resumen}>
+            <div className="relative h-full w-full">
                 {fondo}
-                <div className={`${s.sombraTexto} relative flex h-full flex-col items-center justify-center gap-0.5`}>
-                    <Icono aria-hidden className="size-6" style={{ color: colorIcono(a.codigo, a.esDia) }} />
-                    <span className={`${s.cifra} text-[26px] font-light leading-none`}>{grados(a.temp, u)}</span>
+                <div className={`${s.sombraTexto} relative h-full`}>
+                    <MicroDato info={info} etiqueta={resumen} glifo={<Icono style={{ color: colorIcono(a.codigo, a.esDia) }} />} cifra={grados(a.temp, u)} />
                 </div>
             </div>
         );

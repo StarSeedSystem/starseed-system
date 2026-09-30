@@ -18,7 +18,7 @@ import type { UnifiedSpaceWeather } from '@/modules/weather/services/space/schem
 import { fuenteAurora, fuenteEscalas, fuenteKp, resumirKp, type PuntoKp } from '@/modules/weather/datos/noaa';
 import { escalaG, explicarKp, latitudGeomagnetica, lineaAuroraKp, nombreG, severidadKp } from '@/modules/weather/datos/interpretar';
 import { formateadores, useFuente, useUbicacionClima } from '@/modules/weather/datos/hooks';
-import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { MarcoClima, MicroDato, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { BarrasKp, colorKp, MedidorKp, OvaloAurora, PildoraSeveridad } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
@@ -72,11 +72,9 @@ function Contenido({ info }: { info: InfoMarco }) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center" role="img" aria-label={`Índice Kp ${v === null ? 'sin lectura' : v.toFixed(1)}: ${nombreG(g)}`}>
-                <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">Kp</span>
-                <span className={`${s.cifra} text-[30px] font-light leading-none`} style={{ color: v === null ? undefined : colorKp(v) }}>{v === null ? '—' : v.toFixed(1).replace('.', ',')}</span>
-                {g > 0 && <span className="text-[10px] font-semibold" style={{ color: colorKp(v ?? 0) }}>G{g}</span>}
-            </div>
+            <MicroDato info={info} etiqueta={`Índice Kp ${v === null ? 'sin lectura' : v.toFixed(1)}: ${nombreG(g)}`}
+                rotulo="Kp" cifra={v === null ? '—' : v.toFixed(1).replace('.', ',')} color={v === null ? undefined : colorKp(v)} maximo={30}
+                extra={g > 0 ? <span className="shrink-0 text-[10px] font-semibold leading-none" style={{ color: colorKp(v ?? 0) }}>G{g}</span> : undefined} />
         );
     }
     if (base === 's') {

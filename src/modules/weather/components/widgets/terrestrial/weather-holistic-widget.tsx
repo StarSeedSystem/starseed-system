@@ -143,7 +143,12 @@ function Contenido({ info }: { info: InfoMarco }) {
     const lado = (fr: number) => Math.max(90, Math.min(info.ancho || 300, info.alto || 300) * fr);
     const esfera = (l: number, tam: number) => <Esfera capas={base === 'micro' ? [] : capas} lado={l} centro={centro(tam)} altura={d.astro.altura} codigo={a.codigo} foco={foco} animar={info.animar && info.visible} etiqueta={etiqueta} />;
 
-    if (base === 'micro') return <div className="grid h-full place-items-center">{esfera(lado(0.9), 18)}</div>;
+    // (Pulido 0930) En micro la esfera se mide por la tesela (antes nunca bajaba de 90 px y en una
+    // de 46-65 de alto se salía por arriba y por abajo).
+    if (base === 'micro') {
+        const l = Math.max(34, Math.min(info.ancho || 64, info.alto || 64) - 10);
+        return <div className="grid h-full place-items-center overflow-hidden">{esfera(l, Math.min(18, Math.round(l * 0.34)))}</div>;
+    }
     if (base === 's') return <div className="grid h-full place-items-center p-1">{esfera(lado(0.92), lado(0.92) * 0.16)}</div>;
     if (clase === 'panoramico') {
         return (
