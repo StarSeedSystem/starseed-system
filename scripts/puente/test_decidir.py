@@ -228,6 +228,22 @@ class Cli(Base):
         self.assertIn("tope_dia_usd", json.loads(texto))
 
 
+class ProtocoloDelSupervisor(unittest.TestCase):
+    """supervisor_suenos.md es la ÚNICA fuente que lee la tarea programada: cada orden de
+    decidir.py y de contexto_agente.py que nombra tiene que existir."""
+
+    def test_las_ordenes_del_supervisor_existen(self):
+        import re
+        texto = open(os.path.join(DIRECTORIO, "supervisor_suenos.md"), encoding="utf-8").read()
+        self.assertIn("contexto_agente.py --rol supervisor", texto)
+        subordenes = set(re.findall(r"decidir\.py ([a-z][a-z-]*)", texto))
+        self.assertTrue({"si-no", "confirmar", "uso"} <= subordenes, subordenes)
+        validas = set(D.parser()._subparsers._group_actions[0].choices)
+        self.assertTrue(subordenes <= validas, subordenes - validas)
+        for bandera in re.findall(r"decidir\.py si-no[^\n]*?(--\w+)", texto):
+            self.assertIn(bandera, ("--estado", "--quien", "--dominio", "--json", "--pregunta", "--regla", "--codigo"))
+
+
 class JevConQuien(Base):
     """El cambio mínimo en jev.py: `quien` explícito y la marca de caché."""
 
