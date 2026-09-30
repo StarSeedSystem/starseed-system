@@ -109,6 +109,50 @@ function actualizarEnlaces(
   };
 }
 
+// Parámetro numérico con slider: el arrastre solo mueve una vista previa
+// local; el valor se aplica al soltar (onValueCommit), no en cada tick.
+function ParametroNumerico({
+  clave,
+  valor,
+  defecto,
+  onAplicar,
+}: {
+  clave: string;
+  valor: number;
+  defecto: number | string | boolean;
+  onAplicar: (valor: number) => void;
+}) {
+  const [vistaPrevia, setVistaPrevia] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    setVistaPrevia(null);
+  }, [valor]);
+
+  const mostrado = vistaPrevia ?? valor;
+  const rango = rangoSensato(clave, valor);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Defecto: {defecto}</span>
+        <span className="font-medium text-foreground">{mostrado}</span>
+      </div>
+      <Slider
+        value={[mostrado]}
+        min={rango.min}
+        max={rango.max}
+        step={rango.step}
+        onValueChange={(v) => setVistaPrevia(v[0])}
+        onValueCommit={(v) => {
+          setVistaPrevia(null);
+          onAplicar(v[0] ?? valor);
+        }}
+        aria-label={`Alterar valor numérico de ${clave}`}
+      />
+    </div>
+  );
+}
+
 export interface InspectorNodoProps {
   genoma: Genoma;
   nodoId: string | null;
@@ -291,20 +335,12 @@ export function InspectorNodo({ genoma, nodoId, onCambiar }: InspectorNodoProps)
                       />
                     </div>
                   ) : typeof valor === "number" ? (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Defecto: {defecto}</span>
-                        <span className="font-medium text-foreground">{valor}</span>
-                      </div>
-                      <Slider
-                        value={[valor]}
-                        min={rangoSensato(clave, valor).min}
-                        max={rangoSensato(clave, valor).max}
-                        step={rangoSensato(clave, valor).step}
-                        onValueChange={(v) => void aplicarParametro(clave, v[0])}
-                        aria-label={`Alterar valor numérico de ${clave}`}
-                      />
-                    </div>
+                    <ParametroNumerico
+                      clave={clave}
+                      valor={valor}
+                      defecto={defecto}
+                      onAplicar={(v) => void aplicarParametro(clave, v)}
+                    />
                   ) : (
                     <Input
                       value={String(valor)}
