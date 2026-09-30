@@ -119,6 +119,9 @@ export function InspectorNodo({ genoma, nodoId, onCambiar }: InspectorNodoProps)
   const confirm = useConfirm();
   const prompt = usePrompt();
   const confirmadoRef = React.useRef<Set<string>>(new Set());
+  // Vista previa local mientras se arrastra un slider: no propaga onCambiar
+  // hasta soltar (onValueCommit), para no abrir confirmaciones en cascada.
+  const [borrador, setBorrador] = React.useState<Record<string, number>>({});
 
   const nodo = nodoId ? genoma.nodos.find((n) => n.id === nodoId) : undefined;
 
@@ -294,14 +297,26 @@ export function InspectorNodo({ genoma, nodoId, onCambiar }: InspectorNodoProps)
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Defecto: {defecto}</span>
-                        <span className="font-medium text-foreground">{valor}</span>
+                        <span className="font-medium text-foreground">
+                          {borrador[clave] ?? valor}
+                        </span>
                       </div>
                       <Slider
-                        value={[valor]}
+                        value={[borrador[clave] ?? valor]}
                         min={rangoSensato(clave, valor).min}
                         max={rangoSensato(clave, valor).max}
                         step={rangoSensato(clave, valor).step}
-                        onValueChange={(v) => void aplicarParametro(clave, v[0])}
+                        onValueChange={(v) =>
+                          setBorrador((b) => ({ ...b, [clave]: v[0] }))
+                        }
+                        onValueCommit={(v) => {
+                          setBorrador((b) => {
+                            const resto = { ...b };
+                            delete resto[clave];
+                            return resto;
+                          });
+                          void aplicarParametro(clave, v[0]);
+                        }}
                         aria-label={`Alterar valor numérico de ${clave}`}
                       />
                     </div>
