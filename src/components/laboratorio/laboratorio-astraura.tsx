@@ -285,6 +285,7 @@ function PestanhaPruebas({
 }) {
   const [resultado, setResultado] = React.useState<ResultadoBanco | null>(null);
   const [corriendo, setCorriendo] = React.useState(false);
+  const [errorLanzamiento, setErrorLanzamiento] = React.useState<string | null>(null);
 
   const version = versiones.find((v) => v.id === versionId) ?? null;
 
@@ -292,10 +293,18 @@ function PestanhaPruebas({
     if (!version) return;
     setCorriendo(true);
     setResultado(null);
-    // Pequeña pausa para dar sensación de ejecución y dejar respirar a la UI.
-    await new Promise((r) => setTimeout(r, 250));
-    setResultado(ejecutarBanco(version.instantanea));
-    setCorriendo(false);
+    setErrorLanzamiento(null);
+    try {
+      // Pequeña pausa para dar sensación de ejecución y dejar respirar a la UI.
+      await new Promise((r) => setTimeout(r, 250));
+      setResultado(ejecutarBanco(version.instantanea));
+    } catch (error) {
+      // Sin este aviso, una excepción dejaría el botón bloqueado sin explicación.
+      const detalle = error instanceof Error ? error.message : "error desconocido";
+      setErrorLanzamiento(`El banco de pruebas falló: ${detalle}`);
+    } finally {
+      setCorriendo(false);
+    }
   }, [version]);
 
   return (
@@ -333,6 +342,12 @@ function PestanhaPruebas({
               {corriendo ? "Ejecutando…" : "Lanzar el lote"}
             </Button>
           </div>
+
+          {errorLanzamiento ? (
+            <p className="text-sm text-destructive" role="alert">
+              {errorLanzamiento}
+            </p>
+          ) : null}
 
           {versiones.length === 0 ? (
             <p className="text-sm text-muted-foreground">
