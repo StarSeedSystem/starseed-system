@@ -431,6 +431,15 @@ export function LaboratorioAstraura() {
   const [versiones, setVersiones] = React.useState<VersionLab[]>([]);
   const [versionId, setVersionId] = React.useState<string>("");
   const [guardadoEn, setGuardadoEn] = React.useState<number>(0);
+  const [avisoVisible, setAvisoVisible] = React.useState(false);
+
+  // El aviso «Guardado» se anuncia a lectores de pantalla y se oculta solo a los ~3 s
+  React.useEffect(() => {
+    if (guardadoEn <= 0) return;
+    setAvisoVisible(true);
+    const temporizador = setTimeout(() => setAvisoVisible(false), 3000);
+    return () => clearTimeout(temporizador);
+  }, [guardadoEn]);
 
   React.useEffect(() => {
     if (!genomas.some((g) => g.id === genomaId)) {
@@ -552,15 +561,17 @@ export function LaboratorioAstraura() {
         </Button>
       </div>
 
-      {guardadoEn > 0 ? (
-        <span
-          key={guardadoEn}
-          className="self-end text-xs text-emerald-500"
-          style={{ animation: "appear 0.5s ease" }}
-        >
-          Guardado
-        </span>
-      ) : null}
+      <div role="status" aria-live="polite" className="self-end">
+        {avisoVisible ? (
+          <span
+            key={guardadoEn}
+            className="text-xs text-emerald-500"
+            style={{ animation: "appear 0.5s ease" }}
+          >
+            Guardado
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 
