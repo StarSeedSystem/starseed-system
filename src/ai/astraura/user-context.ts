@@ -66,6 +66,59 @@ export interface UserContextSettings {
 
 export const USER_CONTEXT_SETTINGS_KEY = "starseed.astraura.usercontext.v1";
 export const USER_CONTEXT_SETTINGS_EVENT = "starseed:astraura-usercontext";
+export const PERSIST_DIAGNOSTIC_EVENT = "starseed:persist-diagnostic";
+
+export type SafePersistResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: string };
+
+type MaybePromise<T> = T | Promise<T>;
+
+/** Motivo breve y sin contenido sensible para diagnóstico local. */
+function persistReason(error: unknown): string {
+  if (error instanceof Error && error.name) return error.name;
+  return "Error desconocido";
+}
+
+function persistFailure<T>(key: string, error: unknown): SafePersistResult<T> {
+  const reason = persistReason(error);
+  console.warn(`[persistencia] ${key}: ${reason}`);
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new CustomEvent(PERSIST_DIAGNOSTIC_EVENT, {
+        detail: { key, ok: false, reason, at: Date.now() },
+      }));
+    } catch (eventError) {
+      console.warn(`[persistencia] no se pudo emitir el diagnóstico: ${persistReason(eventError)}`);
+    }
+  }
+  return { ok: false, reason };
+}
+
+function isPromiseLike<T>(value: MaybePromise<T>): value is Promise<T> {
+  if (typeof value !== "object" || value === null || !("then" in value)) return false;
+  return typeof (value as { then?: unknown }).then === "function";
+}
+
+export function safePersist<T>(key: string, fn: () => Promise<T>): Promise<SafePersistResult<T>>;
+export function safePersist<T>(key: string, fn: () => T): SafePersistResult<T>;
+/** Ejecuta una operación tolerante y hace visible cualquier degradación. */
+export function safePersist<T>(
+  key: string,
+  fn: () => MaybePromise<T>,
+): SafePersistResult<T> | Promise<SafePersistResult<T>> {
+  try {
+    const value = fn();
+    if (isPromiseLike(value)) {
+      return value
+        .then((resolved) => ({ ok: true, value: resolved }) as const)
+        .catch((error: unknown) => persistFailure<T>(key, error));
+    }
+    return { ok: true, value };
+  } catch (error) {
+    return persistFailure<T>(key, error);
+  }
+}
 
 export const DEFAULT_USER_CONTEXT_SETTINGS: UserContextSettings = {
   enabled: true,
@@ -123,12 +176,10 @@ export function saveUserContextSettings(patch: Partial<UserContextSettings>): Us
     else delete next.about;
   }
   if (isClient()) {
-    try {
+    safePersist(USER_CONTEXT_SETTINGS_KEY, () => {
       window.localStorage.setItem(USER_CONTEXT_SETTINGS_KEY, JSON.stringify(next));
       window.dispatchEvent(new CustomEvent(USER_CONTEXT_SETTINGS_EVENT));
-    } catch {
-      /* cuota / modo privado: degradamos en silencio */
-    }
+    });
   }
   return next;
 }
@@ -178,7 +229,7 @@ export async function misPerfiles(): Promise<string> {
 export async function misGruposYPaginas(): Promise<string> {
   const uid = await getUid();
   if (!uid) return "";
-  try {
+  const result = await safePersist("contexto.grupos-paginas", async () => {
     const supabase = createClient();
     const [memberships, ownedPages, ownedGroups] = await Promise.all([
       supabase.from("os_memberships").select("group_slug", { count: "exact", head: true }).eq("user_id", uid),
@@ -194,9 +245,8 @@ export async function misGruposYPaginas(): Promise<string> {
     if (groups.length) bits.push(`grupos propios: ${groups.map((g) => g.name).join(", ")}`);
     if (memberCount) bits.push(`miembro en ${memberCount} grupo${memberCount === 1 ? "" : "s"}/comunidad${memberCount === 1 ? "" : "es"}`);
     return `Grupos y páginas — ${bits.join("; ")}.`;
-  } catch {
-    return "";
-  }
+  });
+  return result.ok ? result.value : "";
 }
 
 /** Resumen de archivos propios recientes (n, tipos, últimos 5 nombres) — os_files. */
@@ -502,7 +552,7 @@ function aboutLine(): string {
 }
 
 export async function buildUserContext(level: UserContextLevel = "breve"): Promise<string> {
-  try {
+  const result = await safePersist("contexto.compilacion", async () => {
     const about = aboutLine();
     const uid = await getUid();
     if (!uid) {
@@ -534,7 +584,6 @@ export async function buildUserContext(level: UserContextLevel = "breve"): Promi
 
     const body = joinWithBudget(lines, CHAR_BUDGET[level]);
     return [header, body, footer].filter(Boolean).join("\n");
-  } catch {
-    return "";
-  }
+  });
+  return result.ok ? result.value : "";
 }

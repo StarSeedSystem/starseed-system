@@ -65,6 +65,7 @@ import { listVoiceEngines } from "@/lib/aurora/tts-oss/engine-registry";
 import { engineSupportsRef } from "@/lib/aurora/persona-coherence";
 import { listNeurons } from "@/lib/neurons/neurons";
 import { getRawOverrides, saveOverrides, type PersonaNeuronOverrides } from "@/lib/astraura/neuron-persona-store";
+import { safePersist } from "@/ai/astraura/user-context";
 
 /* Re-export del STORE completo: los consumidores de UI importan de aquí. */
 export {
@@ -594,7 +595,7 @@ export function resonanceScore(personaId: string, deviceId: string = thisDeviceI
         weight: 22,
         arregloLabel: "Devolver a la personalidad",
         arreglo: () => {
-          try {
+          safePersist("sistemas-persona.memoria", () => {
             // Menos destructivo: BORRAR el campo (vuelve a heredar).
             saveOverrides(deviceId, personaId, { cerebro: { usarMemorias: undefined } });
             // Si la contradicción venía de «Todas», fijar el mínimo necesario.
@@ -602,7 +603,7 @@ export function resonanceScore(personaId: string, deviceId: string = thisDeviceI
             if (typeof after === "boolean" && after !== personaUsa) {
               saveOverrides(deviceId, personaId, { cerebro: { usarMemorias: personaUsa } });
             }
-          } catch { /* */ }
+          });
         },
       });
     }
@@ -617,11 +618,11 @@ export function resonanceScore(personaId: string, deviceId: string = thisDeviceI
         weight: 25,
         arregloLabel: "Respetar «fija»",
         arreglo: () => {
-          try {
+          safePersist("sistemas-persona.inteligencia", () => {
             saveOverrides(deviceId, personaId, { astraura: { modo: undefined } });
             const after = getOverrides(deviceId, personaId).astraura?.modo;
             if (after === "auto") saveOverrides(deviceId, personaId, { astraura: { modo: "fija" } });
-          } catch { /* */ }
+          });
         },
       });
     }
@@ -712,16 +713,12 @@ export async function personaDivergence(
   personaId: string,
   deviceId: string = thisDeviceId(),
 ): Promise<PersonaDivergence[]> {
-  const out: PersonaDivergence[] = [];
-  try {
+  const result = await safePersist("sistemas-persona.divergencia", async () => {
+    const out: PersonaDivergence[] = [];
     if (!personaId || !deviceId) return out;
     const mine = getRawOverrides(deviceId, personaId);
-    let neurons: { id: string; name: string }[] = [];
-    try {
-      neurons = (await listNeurons()).map((n) => ({ id: String(n.id), name: n.name || "Neurona" }));
-    } catch {
-      return out;
-    }
+    const neurons: { id: string; name: string }[] = (await listNeurons())
+      .map((n) => ({ id: String(n.id), name: n.name || "Neurona" }));
     for (const n of neurons) {
       if (!n.id || n.id === deviceId) continue;
       let other: PersonaNeuronOverrides = {};
@@ -731,6 +728,7 @@ export async function personaDivergence(
         out.push({ neuronId: n.id, name: n.name, sistemasDistintos: distintos });
       }
     }
-  } catch { /* */ }
-  return out;
+    return out;
+  });
+  return result.ok ? result.value : [];
 }

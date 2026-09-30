@@ -74,7 +74,7 @@ import {
   type AuroraSense,
 } from "@/lib/aurora/personalities";
 import { systemContextPrompt, screenContextLine, activeProvidersLine } from "./context";
-import { buildUserContext, getUserContextSettings } from "./user-context";
+import { buildUserContext, getUserContextSettings, safePersist } from "./user-context";
 import { modeForCategory } from "./provider-resolution";
 // Red Mesh Meshtastic (Adenda 97): estado de la malla para la respuesta local
 // honesta (SSR-safe: el store no toca window al importarse).
@@ -278,10 +278,10 @@ export function getIntelligenceSettings(): IntelligenceSettings {
 
 export function saveIntelligenceSettings(patch: Partial<IntelligenceSettings>): IntelligenceSettings {
   const next = mergeIntelligence(getIntelligenceSettings(), patch);
-  try {
+  safePersist(INTELLIGENCE_KEY, () => {
     window.localStorage.setItem(INTELLIGENCE_KEY, JSON.stringify(next));
     window.dispatchEvent(new CustomEvent("starseed:astraura-intelligence"));
-  } catch { /* */ }
+  });
   return next;
 }
 
@@ -535,12 +535,8 @@ export function rankCandidates(
   //     de verdad (sin la penalización freeFirst), en vez de competir en igualdad.
   //   · "auto" (por defecto) → SIN CAMBIOS: el comportamiento gratis-primero de
   //     siempre, exactamente como antes de esta capa.
-  let connectorsMode: "auto" | "prefer-own" | "only-free" = "auto";
-  try {
-    connectorsMode = modeForCategory("llm-chat");
-  } catch {
-    connectorsMode = "auto";
-  }
+  const modeResult = safePersist("router.modo-conectores", () => modeForCategory("llm-chat"));
+  const connectorsMode: "auto" | "prefer-own" | "only-free" = modeResult.ok ? modeResult.value : "auto";
 
   // SEÑALES REALES del dispositivo para el NUDGE por clase de acceso (preferencias
   // unificadas de modelo): conexión efectiva (`navigator.onLine`, guardado SSR) y
@@ -557,13 +553,11 @@ export function rankCandidates(
   // `thisDeviceId` no está disponible o lanza (SSR, localStorage bloqueado…),
   // degrada a `undefined` — `accessBias` cae en la preferencia de cuenta, IGUAL
   // que se comportaba antes de esta ola.
-  let neuronId: string | undefined;
-  try {
+  const neuronResult = safePersist("router.id-neurona", () => {
     const id = thisDeviceId();
-    if (id) neuronId = id;
-  } catch {
-    neuronId = undefined;
-  }
+    return id || undefined;
+  });
+  const neuronId = neuronResult.ok ? neuronResult.value : undefined;
 
   // (Ola 365) Capas de conciencia de Astraura 1.58: el interruptor general y las capas
   // local/nube apagan esas fuentes como si estuvieran deshabilitadas, y el nivelador suma
@@ -626,9 +620,9 @@ export function rankCandidates(
       // (Adenda 133). Es un empujón, NO domina: queda por debajo del freeFirst
       // (-6), del boost de los servicios propios (+2.5/+8) y del override
       // manual (+100). Defensivo.
-      try {
-        score += accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind, online, hasLocal, neuronId });
-      } catch { /* sin sesgo si algo raro pasa */ }
+      const biasResult = safePersist(`router.sesgo-acceso.${a.source.id}`, () =>
+        accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind, online, hasLocal, neuronId }));
+      if (biasResult.ok) score += biasResult.value;
       score += sesgoNivelador(capas, a.source.id, m.id, {
         dificil: profile.needsVision || profile.difficulty >= strongThreshold,
       });
