@@ -353,7 +353,7 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
             <iframe
                 src={src}
                 onLoad={() => setLoaded(true)}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
                 className="h-full w-full border-0 bg-white"
                 title={titleOf(item)}
             />
