@@ -32,6 +32,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { emitirFallo, razonDeError } from "@/lib/astraura/safe-persist";
 import { uidActual } from "@/lib/consumo/usuario";
 
 /* ─────────────────────────────── Ajustes ─────────────────────────────────── */
@@ -194,7 +195,8 @@ export async function misGruposYPaginas(): Promise<string> {
     if (groups.length) bits.push(`grupos propios: ${groups.map((g) => g.name).join(", ")}`);
     if (memberCount) bits.push(`miembro en ${memberCount} grupo${memberCount === 1 ? "" : "s"}/comunidad${memberCount === 1 ? "" : "es"}`);
     return `Grupos y páginas — ${bits.join("; ")}.`;
-  } catch {
+  } catch (err) {
+    emitirFallo("user-context:grupos-paginas", razonDeError(err));
     return "";
   }
 }
@@ -534,7 +536,8 @@ export async function buildUserContext(level: UserContextLevel = "breve"): Promi
 
     const body = joinWithBudget(lines, CHAR_BUDGET[level]);
     return [header, body, footer].filter(Boolean).join("\n");
-  } catch {
+  } catch (err) {
+    emitirFallo("user-context:ensamblar", razonDeError(err));
     return "";
   }
 }

@@ -31,6 +31,7 @@
  */
 
 import { thisDeviceId, settingsFor, type NeuronCapabilities, type NeuronSettings } from "@/lib/neurons/neurons";
+import { safePersist, emitirFallo, razonDeError } from "@/lib/astraura/safe-persist";
 import {
   getPersonalityProfile, listPersonalityProfiles, getActivePersonality,
   type PersonalityProfile,
@@ -575,7 +576,7 @@ export function resonanceScore(personaId: string, deviceId: string = thisDeviceI
         weight: 28,
         arregloLabel: target ? `Usar ${target}` : "Sin motor que clone",
         arreglo: () => {
-          try { if (target) saveOverrides(deviceId, personaId, { voz: { motor: target } }); } catch { /* */ }
+          safePersist("nps:arreglo-voz", () => { if (target) saveOverrides(deviceId, personaId, { voz: { motor: target } }); });
         },
       });
     }
@@ -594,7 +595,7 @@ export function resonanceScore(personaId: string, deviceId: string = thisDeviceI
         weight: 22,
         arregloLabel: "Devolver a la personalidad",
         arreglo: () => {
-          try {
+          safePersist("nps:arreglo-memoria", () => {
             // Menos destructivo: BORRAR el campo (vuelve a heredar).
             saveOverrides(deviceId, personaId, { cerebro: { usarMemorias: undefined } });
             // Si la contradicción venía de «Todas», fijar el mínimo necesario.
@@ -602,7 +603,7 @@ export function resonanceScore(personaId: string, deviceId: string = thisDeviceI
             if (typeof after === "boolean" && after !== personaUsa) {
               saveOverrides(deviceId, personaId, { cerebro: { usarMemorias: personaUsa } });
             }
-          } catch { /* */ }
+          });
         },
       });
     }
@@ -617,11 +618,11 @@ export function resonanceScore(personaId: string, deviceId: string = thisDeviceI
         weight: 25,
         arregloLabel: "Respetar «fija»",
         arreglo: () => {
-          try {
+          safePersist("nps:arreglo-pin", () => {
             saveOverrides(deviceId, personaId, { astraura: { modo: undefined } });
             const after = getOverrides(deviceId, personaId).astraura?.modo;
             if (after === "auto") saveOverrides(deviceId, personaId, { astraura: { modo: "fija" } });
-          } catch { /* */ }
+          });
         },
       });
     }
@@ -643,12 +644,12 @@ export function resonanceScore(personaId: string, deviceId: string = thisDeviceI
           weight: 18,
           arregloLabel: target ? `Abrir salida en ${target}` : "Sin antena que abrir",
           arreglo: () => {
-            try {
+            safePersist("nps:arreglo-mesh", () => {
               if (!target) return;
               saveOverrides(deviceId, personaId, {
                 senales: { porAntena: { [target]: { enabled: true, salida: true } } },
               });
-            } catch { /* */ }
+            });
           },
         });
       }
@@ -731,6 +732,8 @@ export async function personaDivergence(
         out.push({ neuronId: n.id, name: n.name, sistemasDistintos: distintos });
       }
     }
-  } catch { /* */ }
+  } catch (err) {
+    emitirFallo("nps:persona-divergencia", razonDeError(err));
+  }
   return out;
 }

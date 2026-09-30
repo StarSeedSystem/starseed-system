@@ -19,6 +19,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
+import { emitirFallo, razonDeError } from "@/lib/astraura/safe-persist";
 import { chat, type ChatRequest } from "@/ai/client/chat";
 import { decryptKey } from "@/ai/client/keyStorage";
 import type { ChatMessage, ChatResponse } from "@/ai/providers/types";
@@ -281,7 +282,10 @@ export function saveIntelligenceSettings(patch: Partial<IntelligenceSettings>): 
   try {
     window.localStorage.setItem(INTELLIGENCE_KEY, JSON.stringify(next));
     window.dispatchEvent(new CustomEvent("starseed:astraura-intelligence"));
-  } catch { /* */ }
+  } catch (err) {
+    // Sin telemetría la cuota llena o el modo privado se tragaban el guardado.
+    emitirFallo("router:guardar-inteligencia", razonDeError(err));
+  }
   return next;
 }
 
@@ -538,8 +542,9 @@ export function rankCandidates(
   let connectorsMode: "auto" | "prefer-own" | "only-free" = "auto";
   try {
     connectorsMode = modeForCategory("llm-chat");
-  } catch {
+  } catch (err) {
     connectorsMode = "auto";
+    emitirFallo("router:modo-conectores", razonDeError(err));
   }
 
   // SEÑALES REALES del dispositivo para el NUDGE por clase de acceso (preferencias
@@ -561,8 +566,9 @@ export function rankCandidates(
   try {
     const id = thisDeviceId();
     if (id) neuronId = id;
-  } catch {
+  } catch (err) {
     neuronId = undefined;
+    emitirFallo("router:id-neurona", razonDeError(err));
   }
 
   // (Ola 365) Capas de conciencia de Astraura 1.58: el interruptor general y las capas
@@ -628,7 +634,10 @@ export function rankCandidates(
       // manual (+100). Defensivo.
       try {
         score += accessBias(llmSourceAccessClass(a.source.id), { task: profile.kind, online, hasLocal, neuronId });
-      } catch { /* sin sesgo si algo raro pasa */ }
+      } catch (err) {
+        // Sin sesgo si algo raro pasa, pero con constancia del motivo.
+        emitirFallo("router:sesgo-acceso", razonDeError(err));
+      }
       score += sesgoNivelador(capas, a.source.id, m.id, {
         dificil: profile.needsVision || profile.difficulty >= strongThreshold,
       });
