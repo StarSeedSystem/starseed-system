@@ -31,6 +31,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
@@ -226,11 +227,17 @@ def respaldo(tipo, regla=None, opciones=None, niveles=None):
             "confianza": None}
 
 
+#: Una pregunta a Jev a la vez por proceso: el motor local atiende de una en una
+#: (--parallel 1) y jev.py lleva su caché y su contabilidad en archivos.
+_TURNO = threading.Lock()
+
+
 def _llamar_jev(j, estado, preguntas, quien):
-    try:
-        return j.decidir(estado, preguntas, quien=quien)
-    except TypeError:  # un jev.py anterior a `quien`
-        return j.decidir(estado, preguntas)
+    with _TURNO:
+        try:
+            return j.decidir(estado, preguntas, quien=quien)
+        except TypeError:  # un jev.py anterior a `quien`
+            return j.decidir(estado, preguntas)
 
 
 def _medio(r):

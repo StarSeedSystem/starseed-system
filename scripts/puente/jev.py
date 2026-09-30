@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 import urllib.request
 
@@ -92,7 +93,10 @@ def _leer(ruta, por_defecto):
 def _escribir(ruta, datos):
     try:
         os.makedirs(os.path.dirname(ruta) or ".", exist_ok=True)
-        tmp = ruta + ".tmp"
+        # (2026-09-30) Temporal ÚNICO por proceso e hilo: con los sueños preguntando a la vez
+        # desde varios hilos (y los supervisores desde la terminal), un «.tmp» compartido podía
+        # mezclar dos escrituras y dejar jev-uso.json ilegible, y con él el techo a cero.
+        tmp = "%s.%d.%d.tmp" % (ruta, os.getpid(), threading.get_ident())
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(datos, f, ensure_ascii=False)
         os.replace(tmp, ruta)

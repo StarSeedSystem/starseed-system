@@ -33,6 +33,16 @@ Salida: `starseed_memory_root/dream/profundo/<fecha>/<área>--<lente>.md` en el 
 (Top accionables · Mejoras · Riesgos · Ideas: `N. **Título** — cuerpo`, lo que lee
 `scripts/puente/dream_a_cola.py`) y el mismo contenido estructurado en `.json` para el director.
 
+Jev (2026-09-30, protocolo común de los agentes): con un consejero (`ConsejoJev`, lo inyecta el
+orquestador sobre `scripts/puente/decidir.py`) cada observación de la lente pasa un TRIAJE antes de
+la síntesis (¿accionable? p · valor), en lotes de 8 por llamada: el ruido con p < 0,25 se cae
+(nunca más del 60 %) y lo demás llega a la síntesis ordenado por su peso. En la síntesis y el
+contraste, cuando hay de verdad dónde elegir (≥ 2 proveedores sanos con cupo), Jev elige con la
+ficha de éxitos y fallos de la sesión; el reparto por turnos es la regla y el respaldo. Jev nunca
+bloquea: si calla (sin motor, sin crédito), todo sigue como antes, y tras 3 silencios seguidos se
+aparta 10 min. La síntesis lleva además el CONTEXTO COMÚN del analista
+(`scripts/puente/contexto_agente.py --rol analista --area X`).
+
 Seguridad: nunca se manda a un modelo nada con pinta de secreto (`sanear`), ni archivos `.env`.
 La lente de seguridad es privada: su texto no va al bus ni a Telegram (solo recuentos).
 
@@ -182,6 +192,19 @@ PROVEEDORES_DE_PAGO = {"anthropic", "xai", "codex", "openai"}
 # Plazo de espera del contraste: sin un SEGUNDO proveedor el informe sale igual (con menos
 # confianza y dicho), no se queda 45 min esperando.
 ESPERA_CONTRASTE_S = 10 * 60
+
+# Jev en los sueños (2026-09-30): triaje de observaciones y elección de modelo en la síntesis.
+TRIAJE_LOTE = 8            # observaciones por llamada a Jev (2 preguntas cada una)
+TRIAJE_MIN = 3             # con menos observaciones no merece la pena preguntar
+UMBRAL_RUIDO = 0.25        # p(accionable) por debajo → la observación se cae
+MAX_CAIDA = 0.6            # nunca se cae más del 60 % de las observaciones de un sueño
+NIVELES_VALOR = ["nulo", "bajo", "medio", "alto"]
+UMBRAL_RUTA = 0.5          # confianza mínima para que Jev cambie el orden por turnos
+TOPE_JEV_TRIAJE = 6        # llamadas de triaje por sueño
+TOPE_JEV_RUTA = 4          # llamadas de elección de modelo por sueño (2 reservadas a síntesis/contraste)
+JEV_SILENCIOS_MAX = 3
+JEV_PAUSA_S = 10 * 60
+CONTEXTO_ANALISTA_MAX = 1400
 
 
 def _sin_repetir(*listas):
@@ -537,21 +560,24 @@ def _lente(lid):
     return next((l for l in LENTES if l["id"] == lid), {"id": lid, "nombre": lid, "foco": "", "preguntas": []})
 
 
-def prompt_reduce(t, observaciones, n_archivos):
+def prompt_reduce(t, observaciones, n_archivos, contexto=""):
     l = _lente(t.get("lente"))
-    obs = sorted(observaciones, key=lambda o: -(o.get("impacto", 1) * o.get("confianza", 0)))
+    obs = sorted(observaciones, key=lambda o: -_peso(o))
+    con_jev = any(o.get("p_jev") is not None for o in obs)
     cuerpo, usados = [], 0
     for o in obs:
-        s = json.dumps({k: o[k] for k in ("archivo", "linea", "tipo", "texto", "impacto", "esfuerzo", "confianza")},
-                       ensure_ascii=False)
+        fila = {k: o[k] for k in ("archivo", "linea", "tipo", "texto", "impacto", "esfuerzo", "confianza")}
+        if o.get("p_jev") is not None:
+            fila["p_jev"] = o["p_jev"]
+        s = json.dumps(fila, ensure_ascii=False)
         if usados + len(s) > MAX_OBS_REDUCE_CARACTERES:
             break
         cuerpo.append(s)
         usados += len(s)
     return (
         "Eres el sintetizador de un sueño profundo de StarSeed OS.\n"
-        "ÁREA: %s — %s\nLENTE: %s — %s\nPreguntas guía:\n%s\n\n%s\n\n"
-        "Los lectores dejaron estas %d observaciones (con cita archivo:línea) sobre %d archivos:\n[%s]\n\n"
+        "ÁREA: %s — %s\nLENTE: %s — %s\nPreguntas guía:\n%s\n\n%s\n\n%s"
+        "Los lectores dejaron estas %d observaciones (con cita archivo:línea) sobre %d archivos:\n[%s]\n\n%s"
         "Sintetiza el informe de ESTA lente. Devuelve SOLO JSON:\n"
         '{"resumen":"2-3 frases","hallazgos":[{"titulo":"≤12 palabras, empieza por un verbo de acción '
         '(añadir, unificar, reducir, corregir, limitar, mover, documentar…)","seccion":"mejora|riesgo|idea",'
@@ -565,7 +591,12 @@ def prompt_reduce(t, observaciones, n_archivos):
         % (
             t.get("area_nombre") or t.get("area"), t.get("area_descripcion") or "",
             l["nombre"], l["foco"], "\n".join("- " + p for p in l["preguntas"]), CASA,
-            len(cuerpo), n_archivos, ",\n".join(cuerpo), MAX_HALLAZGOS,
+            ("CONTEXTO COMÚN DE LOS AGENTES (reglas de la casa; mandan sobre tu criterio):\n%s\n\n" % contexto.strip())
+            if contexto and contexto.strip() else "",
+            len(cuerpo), n_archivos, ",\n".join(cuerpo),
+            ("p_jev = probabilidad (Jev) de que la observación sea accionable: ya van ordenadas por peso; "
+             "prioriza las altas y desconfía de las bajas.\n\n") if con_jev else "",
+            MAX_HALLAZGOS,
         )
     )
 
@@ -767,6 +798,13 @@ def render_md(inf):
     ]
     if inf.get("privado"):
         lin.append("> 🔒 PRIVADO: este informe se queda en esta Mac (ni bus, ni Telegram, ni nube).")
+    jev = inf.get("jev") or {}
+    tri = jev.get("triaje") or {}
+    if tri.get("lotes") or jev.get("rutas"):
+        lin.append("> Consejo de Jev: triaje %d/%d observaciones (%d caídas por ruido)%s · %s" % (
+            tri.get("respondidas", 0), tri.get("observaciones", 0), tri.get("caidas", 0),
+            (" · eligió modelo %d vez/veces" % len(jev.get("rutas") or [])) if jev.get("rutas") else "",
+            ", ".join(jev.get("medios") or []) or "sin respuesta"))
     if inf.get("resumen"):
         lin += ["", "**Resumen:** " + inf["resumen"]]
     lin += ["", "## Top 3 accionables", ""]
@@ -906,6 +944,7 @@ class SaludFlota(object):
         self.mala_forma = {}       # (p, m) -> respuestas sin el JSON pedido, seguidas
         self.uso_prov = {}         # p -> última vez que se le pidió algo
         self.uso_mod = {}          # (p, m) -> ídem
+        self.cuentas = {}          # (p, m) -> {ok, fallos, forma}: la ficha que ve Jev al elegir
 
     def sano(self, p, m, ahora):
         with self.lock:
@@ -941,14 +980,24 @@ class SaludFlota(object):
         with self.lock:
             return sorted(pares, key=lambda x: (self.uso_prov.get(x[0], -1.0), self.uso_mod.get(x, -1.0)))
 
+    def _contar(self, p, m, que):
+        c = self.cuentas.setdefault((p, m), {"ok": 0, "fallos": 0, "forma": 0})
+        c[que] += 1
+
+    def ficha(self, p, m):
+        with self.lock:
+            return dict(self.cuentas.get((p, m)) or {"ok": 0, "fallos": 0, "forma": 0})
+
     def exito(self, p, m):
         with self.lock:
             self.seguidos.pop((p, m), None)
             self.mala_forma.pop((p, m), None)
+            self._contar(p, m, "ok")
 
     def fallo(self, p, m, clase, ahora, motivo=""):
         """Anota un fallo y devuelve qué se hizo (para el registro)."""
         with self.lock:
+            self._contar(p, m, "fallos")
             if clase == MUERTO or clase == GRANDE:
                 self.muertos[(p, m)] = _corta(motivo, 120) or clase
                 return "fuera para toda la sesión (%s)" % clase
@@ -970,6 +1019,7 @@ class SaludFlota(object):
     def forma(self, p, m, ahora):
         """Una respuesta sin el JSON pedido: a la segunda seguida, 10 min fuera; a la quinta, sesión."""
         with self.lock:
+            self._contar(p, m, "forma")
             n = self.mala_forma.get((p, m), 0) + 1
             self.mala_forma[(p, m)] = n
             if n >= 5:
@@ -987,6 +1037,166 @@ class SaludFlota(object):
 
 
 SALUD = SaludFlota()
+
+
+# ─────────────────────────────── Jev de consejero ───────────────────────────────
+
+class EstadoJev(object):
+    """Circuito de Jev compartido por la SESIÓN: tras JEV_SILENCIOS_MAX silencios seguidos
+    (sin motor local, sin crédito, sin red) se aparta JEV_PAUSA_S, para no preguntar en balde
+    en cada sueño. Una respuesta lo cierra otra vez."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.silencios = 0
+        self.pausa_hasta = 0.0
+        self.llamadas = 0
+        self.respuestas = 0
+
+    def abierto(self, ahora):
+        with self.lock:
+            return ahora >= self.pausa_hasta
+
+    def anotar(self, hablo, ahora):
+        with self.lock:
+            self.llamadas += 1
+            if hablo:
+                self.respuestas += 1
+                self.silencios = 0
+                return
+            self.silencios += 1
+            if self.silencios >= JEV_SILENCIOS_MAX:
+                self.pausa_hasta = ahora + JEV_PAUSA_S
+                self.silencios = 0
+
+
+JEV_SESION = EstadoJev()
+
+
+class ConsejoJev(object):
+    """Jev para UN sueño, con presupuesto propio (llamadas de triaje y de ruta) y el circuito
+    de la sesión. `lote(estado, preguntas, quien=, dominio=)` y `elegir(estado, pregunta,
+    opciones, regla=, quien=, dominio=)` tienen la forma de `decidir.consultar_lote` y
+    `decidir.consultar("elegir", …)`; `confirmar(exp, acierto, nota)` cierra una experiencia.
+    Cualquier fallo es silencio: nunca lanza, nunca bloquea."""
+
+    def __init__(self, lote=None, elegir=None, confirmar=None, estado=None, reloj=time.time,
+                 tope_triaje=TOPE_JEV_TRIAJE, tope_ruta=TOPE_JEV_RUTA, quien="analista"):
+        self._lote = lote
+        self._elegir = elegir
+        self._confirmar = confirmar
+        self.estado = estado if estado is not None else JEV_SESION
+        self.reloj = reloj
+        self.quedan = {"triaje": int(tope_triaje), "ruta": int(tope_ruta)}
+        self.quien = quien
+        self.medios = []
+
+    def puede(self, que, reserva=0):
+        return self.quedan.get(que, 0) > reserva and self.estado.abierto(self.reloj())
+
+    def _gastar(self, que, r, hablo):
+        self.quedan[que] = max(0, self.quedan.get(que, 0) - 1)
+        self.estado.anotar(hablo, self.reloj())
+        medio = (r or {}).get("medio") if isinstance(r, dict) else None
+        if hablo and medio and medio not in self.medios:
+            self.medios.append(medio)
+
+    def triaje(self, estado, preguntas, dominio=""):
+        """{qid: respuesta} de un lote, o None si Jev calló o no se puede preguntar."""
+        if self._lote is None or not self.puede("triaje"):
+            return None
+        try:
+            r = self._lote(estado, preguntas, quien=self.quien, dominio=dominio)
+        except Exception:
+            r = None
+        respuestas = (r or {}).get("respuestas") if isinstance(r, dict) else None
+        hablo = bool(respuestas) and (r or {}).get("medio") != "regla"
+        self._gastar("triaje", r, hablo)
+        return dict(respuestas) if hablo else None
+
+    def ruta(self, estado, pregunta, opciones, regla, dominio="", reserva=0):
+        """(opcion, confianza, experiencia) o None."""
+        if self._elegir is None or not self.puede("ruta", reserva):
+            return None
+        try:
+            r = self._elegir(estado, pregunta, opciones, regla=regla, quien=self.quien, dominio=dominio)
+        except Exception:
+            r = None
+        hablo = isinstance(r, dict) and r.get("medio") not in (None, "regla") and r.get("respuesta") in opciones
+        self._gastar("ruta", r, hablo)
+        if not hablo:
+            return None
+        return r["respuesta"], float(r.get("confianza") or 0.0), r.get("experiencia")
+
+    def confirmar(self, experiencia, acierto, nota=""):
+        if not experiencia or self._confirmar is None:
+            return
+        try:
+            self._confirmar(experiencia, bool(acierto), nota)
+        except Exception:
+            pass
+
+
+def _peso(o):
+    """Peso de una observación para la síntesis: impacto × confianza, afinado por Jev si opinó."""
+    base = o.get("impacto", 1) * o.get("confianza", 0)
+    if o.get("p_jev") is not None:
+        base *= (0.5 + float(o["p_jev"])) * (0.75 + 0.5 * float(o.get("valor_jev") or 0.0))
+    return base
+
+
+def triar(t, obs, consejo, log=None):
+    """Triaje de Jev de las observaciones de ESTA lente antes de la síntesis. Devuelve
+    (observaciones, resumen). Sin consejero, con pocas observaciones o con Jev en silencio,
+    devuelve todo tal cual (copias). Nunca cae más de MAX_CAIDA."""
+    log = log or (lambda s: None)
+    obs = [dict(o) for o in obs]
+    info = {"observaciones": len(obs), "preguntadas": 0, "respondidas": 0, "caidas": 0, "lotes": 0, "medios": []}
+    if consejo is None or len(obs) < TRIAJE_MIN:
+        info["motivo"] = "sin consejero" if consejo is None else "pocas observaciones"
+        return obs, info
+    lente = _lente(t.get("lente"))
+    for ini in range(0, len(obs), TRIAJE_LOTE):
+        if not consejo.puede("triaje"):
+            break
+        lote = obs[ini:ini + TRIAJE_LOTE]
+        estado = {
+            "area": t.get("area_nombre") or t.get("area"),
+            "lente": lente["nombre"], "foco": lente["foco"],
+            "observaciones": [{"i": k, "archivo": o["archivo"], "linea": o["linea"], "tipo": o["tipo"],
+                               "texto": o["texto"], "impacto": o["impacto"], "esfuerzo": o["esfuerzo"]}
+                              for k, o in enumerate(lote)],
+        }
+        preguntas = {}
+        for k in range(len(lote)):
+            preguntas["a%d" % k] = {"tipo": "si-no", "pregunta": (
+                "Observación %d: ¿es concreta y accionable para la lente «%s» (señala un problema o una "
+                "mejora real del código citado, no una generalidad)?" % (k, lente["nombre"]))}
+            preguntas["v%d" % k] = {"tipo": "puntuar", "niveles": NIVELES_VALOR, "pregunta": (
+                "Observación %d: valor para StarSeed OS (impacto alto con esfuerzo bajo = alto)." % k)}
+        info["lotes"] += 1
+        info["preguntadas"] += len(lote)
+        r = consejo.triaje(estado, preguntas, dominio="suenos:%s" % t.get("area"))
+        if not r:
+            continue
+        for k, o in enumerate(lote):
+            a = r.get("a%d" % k)
+            v = r.get("v%d" % k)
+            if a and a.get("p") is not None:
+                o["p_jev"] = round(float(a["p"]), 3)
+                info["respondidas"] += 1
+            if v and v.get("valor") is not None:
+                o["valor_jev"] = round(max(0.0, min(1.0, float(v["valor"]) / (len(NIVELES_VALOR) - 1))), 3)
+    info["medios"] = list(consejo.medios)
+    ruido = sorted((o for o in obs if o.get("p_jev") is not None and o["p_jev"] < UMBRAL_RUIDO),
+                   key=lambda o: o["p_jev"])
+    caen = ruido[:int(len(obs) * MAX_CAIDA)]
+    if caen:
+        fuera = {id(o) for o in caen}
+        obs = [o for o in obs if id(o) not in fuera]
+        info["caidas"] = len(caen)
+        log("triaje Jev: %d de %d observaciones caen por ruido (p < %.2f)" % (len(caen), info["observaciones"], UMBRAL_RUIDO))
+    return obs, info
 
 
 # ─────────────────────────────── la flota viva ───────────────────────────────
@@ -1082,8 +1292,10 @@ class Llamador(object):
     def __init__(self, t, llamar_llm, disponible=None, latir=None, log=None, dormir=time.sleep,
                  reloj=time.time, es_aviso_de_cuota=None, marcar_sin_cupo=None,
                  espera_429_s=ESPERA_429_S, espera_proveedor_s=ESPERA_PROVEEDOR_S, pausa_s=0, rotar=True,
-                 flota=None, cupo_libre=None, refrescar=None, salud=None):
+                 flota=None, cupo_libre=None, refrescar=None, salud=None, consejo=None):
         self.t = t
+        self.consejo = consejo
+        self.rutas_jev = []        # [(fase, elegido, confianza)] para el informe
         self.tid = t["id"]
         self.rotar = rotar
         self._llamar = llamar_llm
@@ -1177,6 +1389,47 @@ class Llamador(object):
             (con_cupo if libre else llenos).append(par)
         return con_cupo + llenos
 
+    def _ruta_jev(self, fase, rol, cands, tokens_prompt):
+        """Si hay dónde elegir de verdad (≥ 2 proveedores sanos CON cupo entre los primeros),
+        Jev elige con la ficha de la sesión. Devuelve (candidatos, (experiencia, par)|None).
+        La regla (por turnos) es el orden de entrada y el respaldo."""
+        if self.consejo is None or rol not in ("mapa", "sintesis", "contraste") or len(cands) < 2:
+            return cands, None
+        top, provs = [], set()
+        for p, m in cands:
+            try:
+                libre = self._cupo_libre(p)
+            except Exception:
+                libre = True
+            if not libre or p in provs:
+                continue
+            top.append((p, m))
+            provs.add(p)
+            if len(top) >= 3:
+                break
+        if len(top) < 2:
+            return cands, None
+        ids = ["%s/%s" % par for par in top]
+        estado = {
+            "sueño": {"area": self.t.get("area"), "lente": self.t.get("lente"), "fase": fase, "rol": rol,
+                      "tokens_prompt": tokens_prompt},
+            "candidatos": [dict(self.salud.ficha(p, m), id="%s/%s" % (p, m)) for p, m in top],
+        }
+        r = self.consejo.ruta(
+            estado,
+            "¿Qué modelo gratuito conviene para esta llamada (%s de un sueño profundo)? Prima el que más "
+            "responde con el JSON pedido y menos falla en esta sesión." % rol,
+            ids, regla=ids[0], dominio="suenos:ruta", reserva=0 if rol != "mapa" else 2)
+        if not r:
+            return cands, None
+        elegido, confianza, exp = r
+        self.rutas_jev.append((fase, elegido, round(confianza, 2)))
+        if confianza < UMBRAL_RUTA or elegido == ids[0]:
+            return cands, (exp, top[0]) if elegido == ids[0] else None
+        par = top[ids.index(elegido)]
+        self._log("%s: Jev elige %s (confianza %.2f) antes que %s" % (fase, elegido, confianza, ids[0]))
+        return [par] + [c for c in cands if c != par], (exp, par)
+
     def _recuperables(self, lista, excluir, tokens_prompt, ahora):
         return any(self._admisible(p, m, excluir, tokens_prompt) and self.salud.volvera(p, m, ahora)
                    for p, m in lista)
@@ -1202,6 +1455,8 @@ class Llamador(object):
         limite_espera = None
         ultimo_refresco = self._reloj()
         refrescado_al_vacio = False
+        consultado = False
+        apuesta = None             # (experiencia, par) de Jev, para cerrar el ciclo con lo que pase
         while True:
             ahora = self._reloj()
             lista = list(rol) if isinstance(rol, (list, tuple)) else self._lista(rol)
@@ -1226,6 +1481,9 @@ class Llamador(object):
                 self.dormir(min(espera, max(1.0, limite_espera - ahora)), "esperando proveedor")
                 continue
             limite_espera = None
+            if not consultado:
+                consultado = True
+                cands, apuesta = self._ruta_jev(fase, rol, cands, tokens_prompt)
             for p, m in cands:
                 if not self.salud.sano(p, m, self._reloj()):
                     continue
@@ -1237,6 +1495,7 @@ class Llamador(object):
                     clase = clasificar_fallo(e)
                     que = self.salud.fallo(p, m, clase, self._reloj(), str(e))
                     self._log("%s/%s: %s → %s" % (p, m, _corta(str(e), 140), que))
+                    apuesta = self._cerrar(apuesta, (p, m), False, clase)
                     continue
                 txt = txt or ""
                 self.tokens["entrada"] += tokens_prompt
@@ -1258,10 +1517,19 @@ class Llamador(object):
                 if dato is None:
                     que = self.salud.forma(p, m, self._reloj())
                     self._log("%s/%s respondió sin el JSON pedido (%s) → %s" % (p, m, _corta(txt, 100), que))
+                    apuesta = self._cerrar(apuesta, (p, m), False, "sin el JSON pedido")
                     continue
                 self.salud.exito(p, m)
+                apuesta = self._cerrar(apuesta, (p, m), True, "respondió")
                 self.latido("%s · %s/%s ✓" % (fase, p, m))
                 return dato, "%s/%s" % (p, m)
+
+    def _cerrar(self, apuesta, par, acierto, nota):
+        """Cierra la experiencia de Jev cuando SU elegido responde o falla (así aprende)."""
+        if apuesta and apuesta[1] == par and self.consejo is not None:
+            self.consejo.confirmar(apuesta[0], acierto, "%s/%s: %s" % (par[0], par[1], nota))
+            return None
+        return apuesta
 
     def _refrescar_flota(self, motivo):
         try:
@@ -1348,12 +1616,16 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
              raiz=".", dir_profundo=None, log=None, paso_local=None, dormir=time.sleep,
              reloj=time.time, es_aviso_de_cuota=None, marcar_sin_cupo=None,
              espera_429_s=ESPERA_429_S, espera_proveedor_s=ESPERA_PROVEEDOR_S, leer=None, rotar=True,
-             flota=None, cupo_libre=None, refrescar=None, salud=None):
+             flota=None, cupo_libre=None, refrescar=None, salud=None, consejo=None, contexto=None):
     """Ejecuta UN sueño (tarea `tipo: "analisis"`). Devuelve el informe (dict) o None.
 
     Estados en progreso.json (vía `set_estado`): en_curso → informe | fallo. Eventos al bus
     (vía `evento`), pocos y gruesos: `inicio` y `informe`/`fallo`, uno por tarea. El detalle
-    va a los latidos locales y al registro de la tarea (`log`)."""
+    va a los latidos locales y al registro de la tarea (`log`).
+
+    `consejo` (ConsejoJev) activa el triaje y la elección de modelo por Jev; `contexto(rol=,
+    area=, tarea=, max_chars=)` devuelve el contexto común del analista para la síntesis. Los
+    dos son opcionales y nunca bloquean."""
     evento = evento or (lambda *a, **k: None)
     set_estado = set_estado or (lambda *a, **k: None)
     log = log or (lambda s: None)
@@ -1385,7 +1657,8 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
     leer = leer or (lambda ruta: open(os.path.join(raiz, ruta), encoding="utf-8", errors="replace").read())
     llamador = Llamador(t, llamar_llm, disponible, latir, log, dormir, reloj, es_aviso_de_cuota,
                         marcar_sin_cupo, espera_429_s, espera_proveedor_s, 0, rotar,
-                        flota=flota, cupo_libre=cupo_libre, refrescar=refrescar, salud=salud)
+                        flota=flota, cupo_libre=cupo_libre, refrescar=refrescar, salud=salud,
+                        consejo=consejo)
     try:
         set_estado(tid, estado="en_curso", modelo="", segundos=0, tipo="analisis",
                    nota="analizando · %s × %s" % (t.get("area"), lente))
@@ -1405,11 +1678,26 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
         paso_local(tid, "mapa", trozos=len(trozos), propios=propios, fallidos=fallidos, observaciones=len(mias))
         log("mapa: %d observaciones de esta lente (%d trozos leídos aquí, %d fallidos)" % (len(mias), propios, fallidos))
 
+        triaje = {}
+        if mias:
+            llamador.latido("triaje de Jev")
+            mias, triaje = triar(t, mias, consejo, log)
+            if triaje.get("lotes"):
+                paso_local(tid, "triaje", preguntadas=triaje["preguntadas"], respondidas=triaje["respondidas"],
+                           caidas=triaje["caidas"], quedan=len(mias))
+        ctx = ""
+        if contexto is not None and mias:
+            try:
+                ctx = contexto(rol="analista", area=t.get("area"), tarea=t.get("titulo") or "",
+                               max_chars=CONTEXTO_ANALISTA_MAX) or ""
+            except Exception:
+                ctx = ""
+
         hallazgos, resumen, sintesis = [], "", ""
         if mias:
             # Los capaces primero; si ninguno está, cualquiera de la flota antes que esperar.
             (resumen, hallazgos), sintesis = llamador.llamar(
-                "síntesis", "sintesis", prompt_reduce(t, mias, len(lineas)),
+                "síntesis", "sintesis", prompt_reduce(t, mias, len(lineas), sanear(ctx)[:CONTEXTO_ANALISTA_MAX]),
                 lambda txt: leer_sintesis(txt, lineas), max_tokens=5000, timeout=300,
             )
         else:
@@ -1457,6 +1745,9 @@ def ejecutar(t, llamar_llm, evento=None, set_estado=None, latir=None, disponible
             "hallazgos": hallazgos,
             "descartados": descartados,
         }
+        if consejo is not None:
+            informe["jev"] = {"triaje": triaje, "rutas": [list(r) for r in llamador.rutas_jev],
+                              "medios": list(consejo.medios), "contexto": bool(ctx)}
         _escribir_atomico(ruta_json, json.dumps(informe, ensure_ascii=False, indent=1))
         _escribir_atomico(ruta_md, render_md(informe))
         set_estado(tid, estado="informe", modelo=sintesis or (modelos_mapa[0] if modelos_mapa else ""),

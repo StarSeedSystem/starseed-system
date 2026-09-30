@@ -5749,6 +5749,44 @@ def _refrescar_flota():
     return _flota_analisis(forzar=True)
 
 
+def _contexto_agente(rol, area=None, tarea="", max_chars=6000, excluir=()):
+    """(2026-09-30) El contexto COMÚN de los agentes (`scripts/puente/contexto_agente.py`):
+    reglas permanentes del rol, protocolo Jev, herramientas y área. "" si no está."""
+    try:
+        import contexto_agente as _ctx
+
+        return _ctx.texto(rol, area, tarea, max_chars, raiz=ROOT, excluir=tuple(excluir))
+    except Exception:
+        return ""
+
+
+def _decidir():
+    """La puerta común de decisión (`scripts/puente/decidir.py`), o None si no está."""
+    try:
+        import decidir as _dec
+
+        return _dec
+    except Exception:
+        return None
+
+
+def _consejo_jev_analisis():
+    """(2026-09-30) Jev de consejero para UN sueño: triaje de observaciones y elección de
+    modelo, sobre decidir.py (BitNet local → Laya → OpenRouter con techo). None sin él."""
+    if _analista is None or not hasattr(_analista, "ConsejoJev"):
+        return None
+    dec = _decidir()
+    if dec is None:
+        return None
+
+    def elegir(estado, pregunta, opciones, regla=None, quien=None, dominio=""):
+        return dec.consultar("elegir", estado, pregunta, opciones=opciones, regla=regla, quien=quien,
+                             dominio=dominio)
+
+    return _analista.ConsejoJev(lote=dec.consultar_lote, elegir=elegir, confirmar=dec.confirmar,
+                                estado=_analista.JEV_SESION)
+
+
 def _ejecutar_analisis(t):
     """(2026-09-29) Rama de los sueños profundos: todo lo hace `analista.ejecutar`, con las
     herramientas de ESTE orquestador (llamar_llm con cupos y rotación de claves, salud de
@@ -5787,6 +5825,8 @@ def _ejecutar_analisis(t):
         flota=_flota_analisis,
         cupo_libre=_cupo_libre,
         refrescar=_refrescar_flota,
+        consejo=_consejo_jev_analisis(),
+        contexto=lambda **kw: _contexto_agente(excluir=("herramientas",), **kw),
     )
 
 
