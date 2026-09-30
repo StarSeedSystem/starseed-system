@@ -58,6 +58,7 @@ import {
     type EstadoMundo,
     type HabitanteMundo,
 } from "@/lib/avatares/mundo/simulacion";
+import { debeAvanzar } from "@/lib/avatares/mundo/pausa";
 import { listPersonalityProfiles, type PersonalityProfile } from "@/lib/aurora/personalities";
 import { proceduralAvatarDataUrl } from "@/lib/aurora/persona-avatar";
 import type { Gesto } from "@/lib/avatares/movimiento/motor";
@@ -671,6 +672,10 @@ export function MundoAvatares({
      * pausa cuando la pestaña está oculta (regla del área). */
     useEffect(() => {
         if (typeof window === "undefined") return;
+        /* Con la simulación en pausa NO se crea el intervalo: el estado del
+         * mundo queda congelado de verdad, no solo reinicia el temporizador.
+         * Al reanudar, el efecto vuelve a correr y el tick continúa. */
+        if (pausado) return;
         let vivo = true;
         let temporizador: ReturnType<typeof setInterval> | null = null;
         let pasosPendientes = 0;
@@ -679,6 +684,9 @@ export function MundoAvatares({
             if (temporizador !== null) clearInterval(temporizador);
             temporizador = setInterval(() => {
                 if (!vivo) return;
+                // Doble candado: aunque el efecto aún no se haya recreado
+                // tras pulsar Pausar, ningún pulso avanza el mundo.
+                if (!debeAvanzar({ pausado, oculta: false })) return;
                 if (typeof document !== "undefined" && document.hidden) {
                     pasosPendientes = Math.min(pasosPendientes + 1, 4);
                     return;
