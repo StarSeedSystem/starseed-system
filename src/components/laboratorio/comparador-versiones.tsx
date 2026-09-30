@@ -75,6 +75,7 @@ export function ComparadorVersiones({ genomaId }: ComparadorVersionesProps) {
 
   const [ejecucion, setEjecucion] = React.useState<EstadoEjecucion[]>([]);
   const [corriendo, setCorriendo] = React.useState(false);
+  const [errorEjecucion, setErrorEjecucion] = React.useState<string | null>(null);
 
   const resultadoDe = React.useCallback(
     (id: string) => ejecucion.find((e) => e.versionId === id)?.resultado ?? null,
@@ -128,17 +129,29 @@ export function ComparadorVersiones({ genomaId }: ComparadorVersionesProps) {
   const ejecutar = React.useCallback(async () => {
     if (!versionA || !versionB) return;
     setCorriendo(true);
+    setErrorEjecucion(null);
     setEjecucion([]);
-    await new Promise((r) => setTimeout(r, 300));
-    const resA = ejecutarBanco(versionA.instantanea);
-    setEjecucion([{ versionId: versionA.id, resultado: resA }]);
-    await new Promise((r) => setTimeout(r, 300));
-    const resB = ejecutarBanco(versionB.instantanea);
-    setEjecucion([
-      { versionId: versionA.id, resultado: resA },
-      { versionId: versionB.id, resultado: resB },
-    ]);
-    setCorriendo(false);
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      const resA = ejecutarBanco(versionA.instantanea);
+      setEjecucion([{ versionId: versionA.id, resultado: resA }]);
+      await new Promise((r) => setTimeout(r, 300));
+      const resB = ejecutarBanco(versionB.instantanea);
+      setEjecucion([
+        { versionId: versionA.id, resultado: resA },
+        { versionId: versionB.id, resultado: resB },
+      ]);
+    } catch (error) {
+      // Si el banco lanza, la UI no puede quedarse clavada en «Ejecutando…»:
+      // el fallo se enseña en la cara y el finally libera el botón siempre.
+      setErrorEjecucion(
+        error instanceof Error
+          ? error.message
+          : "fallo desconocido del banco de pruebas",
+      );
+    } finally {
+      setCorriendo(false);
+    }
   }, [versionA, versionB]);
 
   const promover = React.useCallback(async () => {
@@ -246,6 +259,19 @@ export function ComparadorVersiones({ genomaId }: ComparadorVersionesProps) {
               <Progress value={ejecucion.length === 1 ? 50 : 25} />
               <p className="text-sm text-muted-foreground">
                 Ejecutando el lote en {ejecucion.length === 1 ? "la segunda" : "ambas"} versión…
+              </p>
+            </div>
+          ) : null}
+
+          {errorEjecucion ? (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-red-400/40 bg-red-400/10 p-3 text-sm text-red-300"
+            >
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                El banco de pruebas falló antes de terminar: {errorEjecucion}.
+                La ejecución quedó liberada; revisa la versión y vuelve a lanzarla.
               </p>
             </div>
           ) : null}
