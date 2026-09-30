@@ -463,6 +463,15 @@ export function LaboratorioAstraura() {
     setGuardadoEn(Date.now());
   }, [genomaActivo]);
 
+  // El aviso «Guardado» es efímero: se auto-oculta a los 3 segundos para no
+  // dejar en pantalla un estado que ya no es cierto. El temporizador se
+  // limpia al desmontar y cada guardado nuevo reinicia la cuenta.
+  React.useEffect(() => {
+    if (!guardadoEn) return;
+    const temporizador = window.setTimeout(() => setGuardadoEn(0), 3000);
+    return () => window.clearTimeout(temporizador);
+  }, [guardadoEn]);
+
   const nuevaVersion = React.useCallback(async () => {
     if (!genomaActivo) return;
     const nombre = await prompt({
@@ -553,13 +562,15 @@ export function LaboratorioAstraura() {
       </div>
 
       {guardadoEn > 0 ? (
-        <span
+        <div
           key={guardadoEn}
+          role="status"
+          aria-live="polite"
           className="self-end text-xs text-emerald-500"
           style={{ animation: "appear 0.5s ease" }}
         >
           Guardado
-        </span>
+        </div>
       ) : null}
     </div>
   );
