@@ -332,6 +332,15 @@ para Astraura, el enjambre y todos los IDE: `POST /api/jev/systemone`, con el co
 openjev, para poder cambiar el motor de debajo sin tocar a nadie. **El motor local está
 congelado mientras el enjambre escribe** (`guardia-memoria.py`, Mac de 8 GB): por eso es una
 pirámide y no un reemplazo.
+**Protocolo común de los agentes** (2026-09-30, `architecture/protocolo-comun-agentes.md`, §17 de la
+orquestación): TODO agente —escritor y revisor del enjambre, analista de los sueños, supervisor
+Claude, subagente de Claude en la terminal, Hermes, un IDE— carga el MISMO contexto de su rol
+(`python3 scripts/puente/contexto_agente.py --rol <rol> [--area X]`: reglas con su fuente, protocolo
+Jev, herramientas con su orden exacta, área y relevo) y decide la zona de duda por la MISMA puerta
+(`python3 scripts/puente/decidir.py si-no|elegir|puntuar … --regla <lo que harías> --quien <tú>`):
+la regla primero y de respaldo, Jev solo con p ≥ 0,8 (veta, nunca convierte un «no» en «sí»),
+«jev: p=…» anotado y `decidir.py confirmar <exp>` cuando se sabe si acertó; si Jev calla, se sigue.
+`decidir.py uso` da el gasto del día frente al techo.
 **Toda repo o modelo que Alex traiga y se integre entra en la Biblioteca del OS**
 (`src/lib/library/packages.ts`, `kind: "ai-source"` o `"repo"`) con su ficha de información y
 comprobación automática de versión contra el upstream (`/api/library/actualizaciones`). Lo que

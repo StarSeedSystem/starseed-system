@@ -74,6 +74,16 @@ pedida y, si la respuesta llegó cortada por max_tokens, rescata los elementos c
 lista. A Groq, OpenRouter, Gemini y NIM se les pide modo JSON (se aprende y se quita si alguno lo
 rechaza con 400/422). Salida de la lectura: 4000 tokens (Groq 1800 por su límite por minuto).
 
+**Jev en el sueño (2026-09-30, `architecture/protocolo-comun-agentes.md`).** Antes de la síntesis,
+las observaciones de la lente pasan un triaje de Jev en lotes de 8 (¿accionable? p · valor): cae el
+ruido con p < 0,25 (nunca más del 60 %) y lo demás llega ordenado por peso con `p_jev` a la vista. En
+la síntesis y el contraste (y en 2 lecturas), si hay ≥ 2 proveedores sanos con cupo, Jev elige con la
+ficha de la sesión (éxitos, fallos, sin formato); el turno es la regla y el respaldo, y cada apuesta
+se confirma con lo que pasó. La síntesis lleva el contexto común del analista
+(`contexto_agente.py --rol analista --area X`). El informe guarda `jev` (triaje, rutas, medios) y el
+.md una línea «Consejo de Jev». Tope: 6 llamadas de triaje y 4 de ruta por sueño; sin Jev, todo
+igual que antes.
+
 Cuotas: todo pasa por `llamar_llm` del orquestador (cupos RPM, rotación de claves, avisos de
 cuota). Salida:
 `<área>--<lente>.md` (formato del Dream: Top 3 accionables · Mejoras · Riesgos · Ideas, que
