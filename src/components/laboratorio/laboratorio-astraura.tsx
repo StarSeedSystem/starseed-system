@@ -445,6 +445,13 @@ export function LaboratorioAstraura() {
     setNodoSeleccionado(null);
   }, [genomaId]);
 
+  // El aviso «Guardado» se retira solo a los 3 s para no quedarse fijo en pantalla.
+  React.useEffect(() => {
+    if (guardadoEn === 0) return;
+    const timer = window.setTimeout(() => setGuardadoEn(0), 3000);
+    return () => window.clearTimeout(timer);
+  }, [guardadoEn]);
+
   const genomaActivo = genomas.find((g) => g.id === genomaId) ?? genomas[0] ?? null;
 
   const cambiarGenoma = React.useCallback((g: Genoma) => {
@@ -553,13 +560,19 @@ export function LaboratorioAstraura() {
       </div>
 
       {guardadoEn > 0 ? (
-        <span
+        <div
           key={guardadoEn}
-          className="self-end text-xs text-emerald-500"
-          style={{ animation: "appear 0.5s ease" }}
+          role="status"
+          aria-live="polite"
+          className="self-end"
         >
-          Guardado
-        </span>
+          <span
+            className="text-xs text-emerald-500"
+            style={{ animation: "appear 0.5s ease" }}
+          >
+            Guardado
+          </span>
+        </div>
       ) : null}
     </div>
   );
