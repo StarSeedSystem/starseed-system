@@ -114,6 +114,7 @@ export function importarPestana(entrada: unknown, deps: Dependencias): Resultado
         profile_id: "local",
         name: nombre,
         is_default: false,
+        origen: "persona",
         ...(typeof p.categoria === "string" && /^[a-z]{2,24}$/.test(p.categoria) ? { category: p.categoria } : {}),
         created_at: deps.ahora,
         updated_at: deps.ahora,

@@ -19,6 +19,7 @@ import {
 import { aspectoDe, conAlfa, temaDeCategoria } from "./pestanas/temas";
 import { variantePlantilla, type VarianteDiseno } from "./pestanas/variantes";
 import { exportarPestana, importarPestana, nombreArchivo } from "./pestanas/exportar";
+import { deduplicarPredeterminadas } from "./pestanas/duplicadas";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -236,23 +237,28 @@ function retirarPredeterminado(categoria: string | null | undefined) {
  * regeneraba de cero todas las temáticas) y a «completar predeterminados» (que ahora es parte de
  * la migración). Idempotente: se puede llamar en cada arranque y en cada rehidratación.
  */
-function migrarLocal(): { cambio: boolean; informe: InformeMigracion } | null {
-    const dashboards = loadDashboards() as TableroMarcado[];
-    if (dashboards.length === 0) return null;
+function migrarLocal(compartidas?: ReadonlySet<string>): { cambio: boolean; informe: InformeMigracion; quitadas: number } | null {
+    const guardados = loadDashboards() as TableroMarcado[];
+    if (guardados.length === 0) return null;
+    // (2026-09-30) Primero, una sola pestaña de fábrica por categoría temática (ver
+    // pestanas/duplicadas.ts): repara los navegadores que ya tienen «Inicio», «Inicio»… y lo que
+    // llegue duplicado de la cuenta. Después, la migración gen12 de siempre sobre lo que queda.
+    const d = deduplicarPredeterminadas({ dashboards: guardados, widgets: loadAllWidgets(), plantillas: DEFAULT_DASHBOARD_TEMPLATES, compartidas });
     const r = migrarPredeterminados({
-        dashboards,
-        widgets: loadAllWidgets(),
+        dashboards: d.dashboards,
+        widgets: d.widgets,
         retirados: [...leerRetirados()],
         plantillas: DEFAULT_DASHBOARD_TEMPLATES,
     }, depsReales());
-    if (r.cambio) {
+    const cambio = d.cambio || r.cambio;
+    if (cambio) {
         saveAllWidgets(r.widgets);
         saveDashboards(r.dashboards);
     }
     try {
         if (localStorage.getItem(LS_DEFAULTS_VERSION) !== VERSION_CLAVE_COMPATIBLE) localStorage.setItem(LS_DEFAULTS_VERSION, VERSION_CLAVE_COMPATIBLE);
     } catch { /* sin almacén */ }
-    return { cambio: r.cambio, informe: r.informe };
+    return { cambio, informe: r.informe, quitadas: d.informe.quitadas.length };
 }
 
 /** La plantilla de la que sale una pestaña (su marca o su categoría). */
@@ -410,10 +416,11 @@ export function DashboardLayout() {
     // localStorage. Se reutiliza tanto para la sincronización entre pestañas
     // (BroadcastChannel / storage) como para la sincronización ENTRE DISPOSITIVOS
     // (Supabase realtime, tras volcar el blob remoto a localStorage).
-    const rehydrateFromLocal = useCallback(() => {
+    const rehydrateFromLocal = useCallback((): boolean => {
         // (2026-09-29) Lo que llega de otra pestaña o de otro dispositivo también se migra (en
-        // silencio): un cliente viejo pudo subir pestañas gen11 sin marca.
-        migrarLocal();
+        // silencio): un cliente viejo pudo subir pestañas gen11 sin marca. (2026-09-30) Y se
+        // quitan las temáticas duplicadas. Devuelve true si cambió algo (hay que subirlo).
+        const cambio = !!migrarLocal()?.cambio;
         const stored = loadDashboards();
         if (stored.length > 0) {
             const sorted = sortDashboards(stored);
@@ -425,6 +432,7 @@ export function DashboardLayout() {
                 return nextActive;
             });
         }
+        return cambio;
     }, []);
 
     // ── Sincronización ENTRE DISPOSITIVOS (Supabase) ────────────────────────────
@@ -501,12 +509,25 @@ export function DashboardLayout() {
             // desde la Fragua global (GlobalForgeHost) en cualquier otra ruta.
             const preexisting = loadDashboards();
             const preexistingWidgets = loadAllWidgets();
-            const merged = [...defaults, ...preexisting];
-            const mergedWidgets = { ...preexistingWidgets, ...widgetMap };
-            saveDashboards(merged);
-            saveAllWidgets(mergedWidgets);
+            // (2026-09-30) Si ya había tableros (p. ej. los de la cuenta, restaurados por el respaldo
+            // antes de la primera visita), las temáticas recién sembradas que repiten categoría se
+            // quitan y se quedan las de la cuenta: antes salían 36 pestañas («Inicio», «Inicio»…).
+            const compartidas = new Set(preexisting.map((d) => d.id));
+            const dedup = deduplicarPredeterminadas({
+                dashboards: [...defaults, ...preexisting],
+                widgets: { ...preexistingWidgets, ...widgetMap },
+                plantillas: DEFAULT_DASHBOARD_TEMPLATES,
+                compartidas,
+            });
+            saveDashboards(dedup.dashboards);
+            saveAllWidgets(dedup.widgets);
             localStorage.setItem(LS_INITIALIZED, 'true');
             localStorage.setItem(LS_DEFAULTS_VERSION, VERSION_CLAVE_COMPATIBLE);
+            // (2026-09-30) Las temáticas de la cuenta que se quedaron (gen11) se renuevan ya, sin
+            // esperar a la próxima visita (las tocadas se conservan, como siempre).
+            if (preexisting.length > 0) migrarLocal(compartidas);
+            const merged = loadDashboards();
+            const mergedWidgets = loadAllWidgets();
 
             const sorted = sortDashboards(merged);
             setDashboards(sorted);
@@ -599,7 +620,9 @@ export function DashboardLayout() {
                 if (!active || !remote) return;
                 hydratingFromRemote.current = true;
                 const wrote = mergeIntoLocal(remote.data);
-                if (wrote) rehydrateFromLocal();
+                // (2026-09-30) Si al aplicarlo hubo que reparar (duplicadas, migración), el resultado
+                // se SUBE (con el mismo retardo de siempre) para que la cuenta no vuelva a crecer.
+                if (wrote && rehydrateFromLocal()) hydratingFromRemote.current = false;
             } catch {
                 /* best-effort: el fallback local ya está cargado */
             }
@@ -643,7 +666,9 @@ export function DashboardLayout() {
                     if (!remote) return;
                     hydratingFromRemote.current = true;
                     const wrote = mergeIntoLocal(remote.data);
-                    if (wrote) rehydrateFromLocal();
+                    // (2026-09-30) Si al aplicarlo hubo que reparar (duplicadas, migración), el resultado
+                    // se SUBE (con el mismo retardo de siempre) para que la cuenta no vuelva a crecer.
+                    if (wrote && rehydrateFromLocal()) hydratingFromRemote.current = false;
                 } catch {
                     /* best-effort */
                 }
@@ -1062,11 +1087,13 @@ export function DashboardLayout() {
             const now = new Date().toISOString();
             const dashId = crypto.randomUUID();
 
-            const newDashboard: Dashboard = {
+            const newDashboard: TableroMarcado = {
                 id: dashId,
                 profile_id: 'local',
                 name: newDashboardName,
                 is_default: false,
+                // (2026-09-30) Creada por la persona: nunca cuenta como la temática de fábrica.
+                origen: 'persona',
                 ...(selectedTemplate ? { category: selectedTemplate } : {}),
                 created_at: now,
                 updated_at: now,
@@ -1101,11 +1128,12 @@ export function DashboardLayout() {
         const now = new Date().toISOString();
         const dashId = crypto.randomUUID();
         const template = ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoryId);
-        const newDashboard: Dashboard = {
+        const newDashboard: TableroMarcado = {
             id: dashId,
             profile_id: 'local',
             name: name?.trim() || template?.name || 'Nuevo Dashboard',
             is_default: false,
+            origen: 'persona',
             category: categoryId,
             created_at: now,
             updated_at: now,
@@ -1348,7 +1376,10 @@ export function DashboardLayout() {
         if (!original) return;
         const now = new Date().toISOString();
         const nuevoId = crypto.randomUUID();
-        const copia: Dashboard = { ...original, id: nuevoId, name: `${original.name} (copia)`, is_default: false, created_at: now, updated_at: now };
+        // (2026-09-30) La copia es de la persona: sin la marca de plantilla (si no, contaría como
+        // una segunda temática de fábrica de su categoría).
+        const copia: TableroMarcado = { ...(original as TableroMarcado), id: nuevoId, name: `${original.name} (copia)`, is_default: false, created_at: now, updated_at: now, origen: 'persona' };
+        delete copia.plantilla;
         const copiaWidgets = widgetsDe(id).map((w) => ({
             ...w,
             id: crypto.randomUUID(),
