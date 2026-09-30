@@ -668,9 +668,11 @@ export function MundoAvatares({
     } | null>(null);
 
     /* Avance de la simulación: setInterval que se limpia al desmontar y se
-     * pausa cuando la pestaña está oculta (regla del área). */
+     * pausa cuando la pestaña está oculta (regla del área). Con `pausado`
+     * ni siquiera se crea el temporizador: el estado no avanza. */
     useEffect(() => {
         if (typeof window === "undefined") return;
+        if (!debeAvanzarMundo(pausado)) return;
         let vivo = true;
         let temporizador: ReturnType<typeof setInterval> | null = null;
         let pasosPendientes = 0;
