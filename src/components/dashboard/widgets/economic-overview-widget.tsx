@@ -21,14 +21,14 @@
 
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Coins, RefreshCw, ExternalLink, Sprout } from "lucide-react";
-import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../kit";
+import { EstadoMicro, WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMarcoUnificado, type ElementSize } from "../kit";
 import { cn } from "@/lib/utils";
 import { useDatoCompartido, type ResultadoDato } from "./gen2/_paquete-b/cache-compartida";
 import {
     PORTAL_FUNDACION, cargarMercado, entero, estadisticas, euros, variacion,
     type DatosMercado, type GranoTipo,
 } from "./gen2/_paquete-b/datos-economia";
-import { AccionB, PestanasB, RaizB, RotuloB, estilosB, haloB, useLienzoB, useVisibleB, type LienzoB } from "./gen2/_paquete-b/piezas-b";
+import { AccionB, MicroB, PestanasB, RaizB, RotuloB, estilosB, haloB, useLienzoB, useVisibleB, type LienzoB } from "./gen2/_paquete-b/piezas-b";
 import { CurvaMercado, DeltaB, EtiquetaBeta } from "./gen2/_paquete-b/piezas-economia";
 
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
@@ -66,7 +66,7 @@ function Cuerpo({ size, mercado }: { size: ElementSize; mercado: ResultadoDato<D
             : <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "block"} />;
     } else if (mercado.dato.serie.length === 0 && mercado.dato.granos.length === 0) {
         contenido = lienzo.base === "micro"
-            ? <p className="grid h-full place-items-center text-center text-[11px] text-white/60">sin cotizaciones</p>
+            ? <EstadoMicro kit="vacio" icono={Sprout} color={lienzo.acento} etiqueta="Sin cotizaciones" descripcion="La Bolsa aún no tiene cotizaciones. Ver el Portal." href={PORTAL_FUNDACION} />
             : <WidgetEmptyState icon={Sprout} title="La Bolsa aún no tiene cotizaciones" message="Cuando la Semilla cotice, aquí verás su precio y lo que vale cada grano." actionLabel="Ver el Portal" actionHref={PORTAL_FUNDACION} accent={lienzo.acento} />;
     } else {
         contenido = <Composicion m={mercado.dato} lienzo={lienzo} />;
@@ -85,12 +85,10 @@ function Composicion({ m, lienzo }: { m: DatosMercado; lienzo: LienzoB }) {
     const etiqueta = `La Semilla cotiza a ${precio !== null ? euros(precio, "precio") : "sin dato"}${delta !== null ? `, ${delta >= 0 ? "sube" : "baja"} ${Math.abs(delta).toFixed(1)} % en ${dias} días` : ""}.`;
 
     if (b === "micro") {
+        // (Pulido 0930) Precio a la izquierda y unidad + variación a su lado: apilados eran 61 px.
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-1 text-center" role="group" aria-label={etiqueta} title={etiqueta}>
-                <span className="text-[24px] font-light tabular-nums leading-none text-white">{precio !== null ? precio.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">€ / semilla</span>
-                <DeltaB v={delta} />
-            </div>
+            <MicroB etiqueta={etiqueta} cifra={precio !== null ? precio.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                rotulo="€ / semilla" extra={<DeltaB v={delta} />} />
         );
     }
 

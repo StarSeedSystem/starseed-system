@@ -26,7 +26,7 @@ import { WidgetShell, WidgetEmptyState, WidgetErrorState, WidgetSkeleton, useMar
 import { cn } from "@/lib/utils";
 import { useDatoCompartido, type ResultadoDato } from "../gen2/_paquete-b/cache-compartida";
 import { cargarPublicacionesRed, dones, enlaceComponer, type Don, type PublicacionRed, type TipoDon } from "../gen2/_paquete-b/datos-red";
-import { AccionB, PestanasB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
+import { AccionB, GlifoMicroB, PestanasB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
 
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
 const COLOR: Record<TipoDon, string> = { ofrezco: "#10b981", pido: "#f59e0b" };
@@ -66,7 +66,7 @@ function Cuerpo({ size, datos }: { size: ElementSize; datos: ResultadoDato<Publi
             : <WidgetSkeleton variant={lienzo.base === "micro" ? "rings" : "list"} rows={3} />;
     } else if (lista.length === 0) {
         contenido = lienzo.base === "micro"
-            ? <Link href={enlaceComponer("#don ")} aria-label="Aún no hay dones. Ofrecer el primero" className={cn(estilosB.foco, "grid h-full place-items-center")}><Regalo lado={56} lienzo={lienzo} n={0} /></Link>
+            ? <Link href={enlaceComponer("#don ")} aria-label="Aún no hay dones. Ofrecer el primero" className={cn(estilosB.foco, "grid h-full place-items-center")}><GlifoMicroB maximo={56}>{(l) => <Regalo lado={l} lienzo={lienzo} n={0} />}</GlifoMicroB></Link>
             : <WidgetEmptyState icon={Gift} title="Aún no hay dones en la red" message="Publica con #don lo que ofreces o con #pido lo que necesitas: aparecerá aquí para todo el mundo." actionLabel="Ofrecer el primero" actionHref={enlaceComponer("#don ")} accent={lienzo.acento} />;
     } else {
         contenido = <Composicion lista={lista} lienzo={lienzo} />;
@@ -87,7 +87,7 @@ function Composicion({ lista, lienzo }: { lista: Don[]; lienzo: LienzoB }) {
         </div>
     );
     if (b === "micro") {
-        return <Link href="/red-feed" aria-label={`${frase}. Abrir la Red`} title={frase} className={cn(estilosB.foco, "grid h-full place-items-center")}><Regalo lado={60} lienzo={lienzo} n={ofrece.length} /></Link>;
+        return <Link href="/red-feed" aria-label={`${frase}. Abrir la Red`} title={frase} className={cn(estilosB.foco, "grid h-full place-items-center")}><GlifoMicroB maximo={60}>{(l) => <Regalo lado={l} lienzo={lienzo} n={ofrece.length} />}</GlifoMicroB></Link>;
     }
     const cifras = (
         <dl className="grid grid-cols-2 gap-2">

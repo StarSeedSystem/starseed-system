@@ -31,7 +31,7 @@ import {
     ASPECTOS, ELEMENTO_SIGNO, GLIFO_SIGNO, NOMBRE_SIGNO, aspectos, calcularCarta, cielo, elementos, frasePosicion, validarNacimiento,
     type Carta, type Cuerpo, type DatosNacimiento,
 } from "./_paquete-b/datos-natal";
-import { AccionB, RaizB, RotuloB, estilosB, tintaB, useAhoraB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
+import { AccionB, MicroB, RaizB, RotuloB, estilosB, tintaB, useAhoraB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
 const FAMILIA = { acento: "#818cf8", acento2: "#23d5ab" };
 const CLAVE = "starseed.carta-natal.v1";
@@ -101,10 +101,8 @@ function SinCarta({ hoy, lienzo, editar }: { hoy: Cuerpo[]; lienzo: LienzoB; edi
     const frase = `Ahora: Sol en ${sol.signo}, Luna en ${luna.signo}. Añade tu nacimiento para ver tu carta.`;
     if (b === "micro") {
         return (
-            <button type="button" onClick={editar} aria-label={frase} title={frase} className={cn(estilosB.foco, "flex h-full w-full cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[14px]")}>
-                <span className="text-[34px] leading-none" style={{ color: COLOR_ELEMENTO[ELEMENTO_SIGNO[luna.indiceSigno]] }}>{GLIFO_SIGNO[luna.indiceSigno]}</span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/60">Luna en {luna.signo}</span>
-            </button>
+            <MicroB onClick={editar} etiqueta={frase} rotulo={`Luna en ${luna.signo}`}
+                glifo={(l) => <span className="leading-none" style={{ fontSize: l, color: COLOR_ELEMENTO[ELEMENTO_SIGNO[luna.indiceSigno]] }}>{GLIFO_SIGNO[luna.indiceSigno]}</span>} />
         );
     }
     const cta = <AccionB onClick={editar} icono={Sparkles} color={lienzo.acento} tono="llena" tactil={lienzo.tactil}>Añadir mi nacimiento</AccionB>;
@@ -137,10 +135,8 @@ function ConCarta({ carta, hoy, lienzo, datos, editar }: { carta: Carta; hoy: Cu
 
     if (b === "micro") {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5" role="img" aria-label={`Tu carta: ${pilares}`} title={pilares}>
-                <span className="text-[36px] leading-none" style={{ color: COLOR_ELEMENTO[ELEMENTO_SIGNO[sol.indiceSigno]] }}>{GLIFO_SIGNO[sol.indiceSigno]}</span>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/65">{sol.signo}</span>
-            </div>
+            <MicroB etiqueta={`Tu carta: ${pilares}`} rotulo={sol.signo}
+                glifo={(l) => <span className="leading-none" style={{ fontSize: l, color: COLOR_ELEMENTO[ELEMENTO_SIGNO[sol.indiceSigno]] }}>{GLIFO_SIGNO[sol.indiceSigno]}</span>} />
         );
     }
     const detalle = b === "s" ? "min" : b === "xl" ? "pleno" : "normal";

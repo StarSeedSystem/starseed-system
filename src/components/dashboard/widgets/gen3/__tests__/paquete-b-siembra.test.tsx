@@ -72,7 +72,8 @@ describe("siembra (puros)", () => {
 describe("Soberanía alimentaria", () => {
     it.each(["micro", "s", "m", "l", "xl", "panoramico", "torre"] as ClaseTamano[])("aconseja con el tiempo real en %s", async (clase) => {
         render(enMarco(clase, <FoodOracleWidget />));
-        await waitFor(() => expect(screen.queryAllByText(/Lechuga|para sembrar/).length).toBeGreaterThan(0));
+        // En micro el rótulo que no cabe se retira y la frase entera va en el nombre del glifo.
+        await waitFor(() => expect(screen.queryAllByText(/Lechuga|para sembrar/).length + screen.queryAllByRole("img", { name: /Lechuga|sembrar/ }).length).toBeGreaterThan(0));
     });
     it("en l cambia de grupo y explica el motivo", async () => {
         render(enMarco("l", <FoodOracleWidget />));

@@ -31,7 +31,7 @@ import { aguaTejado, cargarCieloOikos, energiaPaneles, type CieloOikos } from ".
 import { CLAVE_PROCOMUN, cargarProcomun, type DatosProcomun } from "../gen2/_paquete-b/datos-procomun";
 import { cargarPublicacionesRed, dones, enlaceComponer, type PublicacionRed } from "../gen2/_paquete-b/datos-red";
 import { useLugarB, useSupuestosOikos } from "../gen2/_paquete-b/lugar";
-import { AccionB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
+import { AccionB, GlifoMicroB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
 
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
 const ENT = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
@@ -101,7 +101,8 @@ function Composicion({ lista, lienzo, ancho = 0 }: { lista: Ciclo[]; lienzo: Lie
     const b = lienzo.base;
     const frase = lista.map((c) => `${c.nombre}: ${c.valor === null ? "sin dato" : `${ENT.format(c.valor)} ${c.unidad}`}`).join("; ");
     const circulo = (lado: number) => <Circulo lista={lista} lado={lado} lienzo={lienzo} etiqueta={frase} />;
-    if (b === "micro") return <div className="grid h-full place-items-center">{circulo(76)}</div>;
+    // (Pulido 0930) El círculo se mide por la tesela: a 76 px fijos se salía de una de 65 de alto.
+    if (b === "micro") return <GlifoMicroB>{(l) => circulo(l)}</GlifoMicroB>;
     if (b === "s") return <div className="grid h-full place-items-center">{circulo(110)}</div>;
     const cifras = (columnas: number, detalle: boolean) => (
         <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }} aria-label="Ciclos regenerativos">

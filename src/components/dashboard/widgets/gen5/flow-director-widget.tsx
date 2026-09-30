@@ -236,7 +236,8 @@ export function FlowDirectorWidget() {
 
     // ── micro: la esfera es el botón ──
     if (l.base === "micro") {
-        const D = Math.max(56, l.lado - 12);
+        // (Pulido 0930) La esfera se mide por la tesela (no baja de 56 px fijos: en una de 46 se salía).
+        const D = Math.max(28, l.lado - 18);
         return (
             <Lienzo l={l} titulo="Director de Flujo" etiqueta={etiqueta} sinCabecera>
                 <button type="button" onClick={() => (sesion ? alternarPausa() : empezar(25))}

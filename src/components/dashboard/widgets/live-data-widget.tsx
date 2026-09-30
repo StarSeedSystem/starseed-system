@@ -96,7 +96,18 @@ export function LiveDataWidget() {
     const IconoRed = t.red.enLinea ? Wifi : WifiOff;
 
     if (base === 'micro') {
-        return <RaizE {...raiz}><div className="m-auto flex flex-col items-center gap-1" title={salud.texto}><Semaforo color={color} lado={44} lienzo={lienzo} /><span className="text-[10px] text-white/70">{t.red.enLinea ? 'en línea' : 'sin red'}</span></div></RaizE>;
+        // (Pulido 0930) Semáforo y estado en fila si la tesela es apaisada; el semáforo se mide por el
+        // alto (a 44 px fijos, más la etiqueta, se salía 6 px de una tesela de 65).
+        const fila = lienzo.ancho >= lienzo.alto * 1.15 || lienzo.alto < 60;
+        const lado = Math.max(18, Math.min(fila ? 32 : 40, (lienzo.alto || 65) - (fila ? 18 : 34)));
+        return (
+            <RaizE {...raiz}>
+                <div className={cn('m-auto flex items-center', fila ? 'flex-row gap-1.5' : 'flex-col gap-1')} title={salud.texto}>
+                    <Semaforo color={color} lado={lado} lienzo={lienzo} />
+                    <span className="whitespace-nowrap text-[10px] leading-none text-white/70">{t.red.enLinea ? 'en línea' : 'sin red'}</span>
+                </div>
+            </RaizE>
+        );
     }
 
     if (base === 's') {

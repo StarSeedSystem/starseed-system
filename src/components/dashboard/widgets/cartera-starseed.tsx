@@ -31,7 +31,7 @@ import {
     PORTAL_FUNDACION, cargarCartera, cargarMercado, compacto, composicion, entero, euros, valorCartera, variacion,
     type DatosCartera, type DatosMercado,
 } from "./gen2/_paquete-b/datos-economia";
-import { AccionB, PestanasB, RaizB, RotuloB, estilosB, useLienzoB, useVisibleB, type LienzoB } from "./gen2/_paquete-b/piezas-b";
+import { AccionB, MicroB, PestanasB, RaizB, RotuloB, estilosB, useLienzoB, useVisibleB, type LienzoB } from "./gen2/_paquete-b/piezas-b";
 import { CurvaMercado, DeltaB, EtiquetaBeta, SemillaGlifo } from "./gen2/_paquete-b/piezas-economia";
 
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
@@ -95,11 +95,9 @@ function Composicion({ m, c, uid, lienzo }: { m: DatosMercado; c: DatosCartera; 
 
     if (b === "micro") {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5 text-center" role="group" aria-label={etiquetaSaldo} title={etiquetaSaldo}>
-                <SemillaGlifo lado={30} color={lienzo.acento} />
-                <span className="text-[22px] font-light tabular-nums leading-none text-white">{conSesion ? compacto(c.semillas) : precio !== null ? precio.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">{conSesion ? "semillas" : "€ / semilla"}</span>
-            </div>
+            <MicroB glifo={(l) => <SemillaGlifo lado={l} color={lienzo.acento} />} etiqueta={etiquetaSaldo}
+                cifra={conSesion ? compacto(c.semillas) : precio !== null ? precio.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                rotulo={conSesion ? "semillas" : "€ / semilla"} />
         );
     }
 

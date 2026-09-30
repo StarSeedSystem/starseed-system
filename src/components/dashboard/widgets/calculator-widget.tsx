@@ -226,8 +226,9 @@ export function CalculatorWidget() {
     if (base === "micro") {
         return (
             <RaizE {...raiz}>
-                <div className="flex h-full flex-col items-center justify-center gap-1 px-1 text-center">
-                    <Calculator aria-hidden className="size-4" style={{ color: tintaE(lienzo.acento) }} />
+                {/* (Pulido 0930) Icono y resultado en fila si la tesela es apaisada. */}
+                <div className={cn("flex h-full items-center justify-center px-1.5 text-center", lienzo.ancho >= lienzo.alto * 1.15 || lienzo.alto < 60 ? "flex-row gap-2" : "flex-col gap-1")}>
+                    <Calculator aria-hidden className="size-4 shrink-0" style={{ color: tintaE(lienzo.acento) }} />
                     <output className="max-w-full truncate tabular-nums text-white" style={{ fontSize: Math.max(16, lado * 0.22), fontWeight: 300 }} aria-label={`Resultado: ${principal}`}>{principal}</output>
                 </div>
             </RaizE>

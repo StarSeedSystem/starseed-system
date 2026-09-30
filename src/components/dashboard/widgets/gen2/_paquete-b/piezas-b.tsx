@@ -13,6 +13,7 @@ import type { LucideIcon } from "lucide-react";
 import { FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMarcoUnificado } from "@/components/dashboard/kit/contexto-marco";
+import { useElementSize } from "@/components/dashboard/kit/use-element-size";
 import type { BaseTamano } from "@/components/dashboard/kit/contexto-marco";
 import { claseDesdePx, dispositivoActual, type ClaseDispositivo, type ClaseTamano } from "@/lib/widgets/forma/tamanos";
 import { useNivelRender, type NivelRender } from "@/lib/widgets/forma/nivel-dispositivo";
@@ -21,6 +22,95 @@ import { disenoDe, mezclar } from "@/components/widgets-libres/familias/comun";
 import estilos from "./paquete-b.module.css";
 
 export { estilos as estilosB };
+
+// ── Micro: glifo + cifra que caben en una tesela de 108×65 o 178×46 ──────────
+
+/**
+ * (Pulido 0930) El dato de una tesela micro del paquete. Antes se apilaban glifo (30-40 px), cifra
+ * (20-22 px) y rótulo (9 px): 70 px en una tesela de 65. Ahora, si la tesela es más ancha que
+ * alta, glifo a la izquierda y cifra + rótulo a su derecha; el glifo se mide por el alto y el
+ * rótulo se retira si no cabe (sigue en el nombre accesible y en el tooltip).
+ */
+export function MicroB({ glifo, cifra, rotulo, extra, anchoExtra = 40, etiqueta, colorCifra = "#fff", onClick, className }: {
+    /** Dibuja el glifo al lado (px) que le toque. */
+    glifo?: (lado: number) => React.ReactNode;
+    cifra?: string;
+    rotulo?: string;
+    /** Un distintivo más (p. ej. la variación): solo si cabe. */
+    extra?: React.ReactNode;
+    /** Ancho aproximado del distintivo (px) para decidir si cabe. */
+    anchoExtra?: number;
+    /** Lectura completa (aria-label y tooltip). */
+    etiqueta: string;
+    colorCifra?: string;
+    /** Si hay acción, la tesela entera es el botón. */
+    onClick?: () => void;
+    className?: string;
+}) {
+    const { ref, size } = useElementSize<HTMLDivElement>();
+    const ancho = size.width || 108, alto = size.height || 65;
+    const fila = ancho >= alto * 1.15 || alto < 60;
+    const util = ancho - 14;
+    const anchoCifra = (t: number) => (cifra ? cifra.length * t * 0.6 : 0);
+    const anchoRotulo = rotulo ? rotulo.length * 9 * 0.74 : 0;
+    let lado = 0, tam = 22, conRotulo = !!rotulo, conExtra = !!extra;
+    if (fila) {
+        lado = glifo ? Math.max(18, Math.min(34, alto - 18)) : 0;
+        tam = Math.max(14, Math.min(22, Math.round(alto * 0.34)));
+        // Con glifo: [glifo] [cifra / rótulo]. Sin glifo: [cifra] [rótulo / distintivo].
+        const lateral = () => Math.max(conRotulo ? anchoRotulo : 0, conExtra ? anchoExtra : 0);
+        const total = (t: number) => glifo
+            ? lado + 8 + Math.max(anchoCifra(t), conRotulo ? anchoRotulo : 0)
+            : anchoCifra(t) + (conRotulo || conExtra ? 8 + lateral() : 0);
+        if (glifo) conExtra = false;
+        const ajustar = () => { while (tam > 14 && total(tam) > util) tam -= 1; };
+        ajustar();
+        if (total(tam) > util && conRotulo) { conRotulo = false; tam = Math.max(14, Math.min(22, Math.round(alto * 0.34))); ajustar(); }
+        if (total(tam) > util && conExtra) { conExtra = false; ajustar(); }
+        const altoTexto = (glifo ? (cifra ? tam : 0) + (conRotulo ? 13 : 0) : Math.max(tam, (conRotulo ? 13 : 0) + (conExtra ? 16 : 0)));
+        if (altoTexto > alto - 12) { conExtra = false; if (glifo) conRotulo = conRotulo && (cifra ? tam : 0) + 13 <= alto - 12; }
+    } else {
+        tam = Math.max(14, Math.min(22, Math.floor(util / Math.max(2, (cifra?.length ?? 1) * 0.6))));
+        conRotulo = conRotulo && anchoRotulo <= util;
+        conExtra = conExtra && alto >= 96;
+        lado = glifo ? Math.max(18, Math.min(40, alto - 14 - (cifra ? tam + 2 : 0) - (conRotulo ? 13 : 0) - (conExtra ? 18 : 0))) : 0;
+    }
+    const textoCifra = cifra && <span className="whitespace-nowrap font-light tabular-nums leading-none" style={{ fontSize: tam, color: colorCifra }}>{cifra}</span>;
+    const textoRotulo = conRotulo && <span className="whitespace-nowrap text-[9px] font-semibold uppercase leading-[11px] tracking-[0.1em] text-white/55">{rotulo}</span>;
+    const interior = glifo || !fila ? (
+        <>
+            {glifo && <span aria-hidden className="grid shrink-0 place-items-center">{glifo(lado)}</span>}
+            {(cifra || conRotulo || conExtra) && (
+                <span className={cn("flex min-w-0 flex-col gap-0.5", fila ? "items-start" : "items-center")}>
+                    {textoCifra}{textoRotulo}{conExtra && extra}
+                </span>
+            )}
+        </>
+    ) : (
+        <>
+            {textoCifra}
+            {(conRotulo || conExtra) && <span className="flex min-w-0 flex-col items-start gap-0.5">{textoRotulo}{conExtra && extra}</span>}
+        </>
+    );
+    const clases = cn("flex h-full w-full min-w-0 items-center justify-center overflow-hidden px-[7px] text-center", fila ? "flex-row gap-2" : "flex-col gap-0.5", className);
+    return (
+        <div ref={ref} className="h-full w-full min-w-0" data-micro-b={fila ? "fila" : "pila"}>
+            {onClick ? (
+                <button type="button" onClick={onClick} aria-label={etiqueta} title={etiqueta}
+                    className={cn(clases, estilos.foco, "cursor-pointer rounded-[14px] transition-transform duration-200 active:scale-95 motion-reduce:transition-none")}>{interior}</button>
+            ) : (
+                <div role="img" aria-label={etiqueta} title={etiqueta} className={clases}>{interior}</div>
+            )}
+        </div>
+    );
+}
+
+/** Un glifo micro (anillo, cristal…) medido por su tesela: nunca más grande que ella. */
+export function GlifoMicroB({ maximo = 76, children }: { maximo?: number; children: (lado: number) => React.ReactNode }) {
+    const { ref, size } = useElementSize<HTMLDivElement>();
+    const lado = size.width && size.height ? Math.max(24, Math.min(maximo, Math.min(size.width, size.height) - 10)) : maximo;
+    return <div ref={ref} className="grid h-full w-full place-items-center overflow-hidden">{children(lado)}</div>;
+}
 
 // ── Lienzo: tamaño, dispositivo y acento ────────────────────────────────────
 

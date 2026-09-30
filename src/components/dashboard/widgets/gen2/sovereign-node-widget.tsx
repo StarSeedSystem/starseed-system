@@ -28,7 +28,7 @@ import { useCurrentUid } from "@/lib/widget-data/os-live";
 import { cn } from "@/lib/utils";
 import { useDatoCompartido } from "./_paquete-b/cache-compartida";
 import { calidadRed, escucharNodo, gb, medirNodo, usoAlmacen, type MedidaNodo } from "./_paquete-b/datos-nodo";
-import { AccionB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
+import { AccionB, GlifoMicroB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
 const FAMILIA = { acento: "#94a3b8", acento2: "#23d5ab" };
 const ALMACEN = "#23d5ab";
@@ -110,7 +110,8 @@ function Composicion({ m, neuronas, lienzo }: { m: MedidaNodo; neuronas: Neurona
     const frase = `${enLinea} de ${total} ${total === 1 ? "neurona" : "neuronas"} en línea${m.enLinea ? "" : " · este dispositivo sin conexión"}`;
     const cristal = (lado: number) => <Cristal m={m} lado={lado} enLinea={enLinea} total={total} lienzo={lienzo} etiqueta={frase} />;
 
-    if (b === "micro") return <div className="grid h-full place-items-center">{cristal(76)}</div>;
+    // (Pulido 0930) El cristal se mide por la tesela: a 76 px fijos se salía de una de 65 de alto.
+    if (b === "micro") return <GlifoMicroB>{(l) => cristal(l)}</GlifoMicroB>;
 
     const cifras = (vertical: boolean) => <Cifras m={m} vertical={vertical} />;
     const acciones = (
