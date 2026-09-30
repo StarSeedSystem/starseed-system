@@ -94,7 +94,7 @@ function Contenido({ info }: { info: InfoMarco }) {
     const kpTxt = kpAhora !== null && <p className="text-[12px] text-white/75">Kp de este momento: <b className={s.cifra} style={{ color: colorKp(kpAhora) }}>{kpAhora.toFixed(1).replace('.', ',')}</b></p>;
     if (clase === 'panoramico') {
         return (
-            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'minmax(9rem,auto) minmax(0,1fr)' }}>
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'minmax(9rem,1fr) minmax(0,1.4fr)' }}>
                 <div className="min-w-0 space-y-1">{cabecera}{cifra(30)}{variTxt}</div>
                 {traza(Math.max(60, (info.alto || 130) - 20))}
             </div>

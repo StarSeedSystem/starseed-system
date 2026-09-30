@@ -78,7 +78,7 @@ function Cuerpo({ info, a, c, d, prox, id, cabecera, sello }: CtxMagnitud) {
     }
     if (clase === 'panoramico') {
         return (
-            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(9rem,auto) minmax(0,1fr)' }}>
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(9rem,1fr) minmax(0,1.2fr)' }}>
                 <Gota humedad={a.humedad} lado={Math.min(118, (info.alto || 130) - 16)} id={id} />
                 <div className="min-w-0 space-y-1">{cabecera('Humedad')}<Datos columnas={1} filas={filas.slice(0, 2)} /></div>
                 {barras(12)}

@@ -21,6 +21,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { MapPin, LocateFixed, Calendar, Users, Building2, ArrowUpRight, Map as MapIcon, Loader2, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
@@ -316,13 +317,15 @@ export function MapWidget() {
     // l / torre
     return (
         <RaizE {...raiz}>
-            <div className="flex h-full min-h-0 flex-col gap-1.5 p-1">
+            // El mapa conserva su mínimo y, si no cabe todo, se retiran la lista y luego los filtros
+            // (antes el mapa, sin sitio, se montaba sobre «Cerca de ti»).
+            <PilaAjustable niveles={2} className="gap-1.5 p-1">
                 {cabecera}
-                {filtros}
-                <div className="flex min-h-0 flex-[3] flex-col">{mapaEl}</div>
-                <div className="min-h-0 flex-[2]">{lista(clase === 'torre' ? 8 : 3)}</div>
+                <Prescindible nivel={2}><div className="shrink-0">{filtros}</div></Prescindible>
+                <div className="flex min-h-[120px] flex-[3] flex-col">{mapaEl}</div>
+                <Prescindible nivel={1}><div className="min-h-[72px] flex-[2] overflow-hidden">{lista(clase === 'torre' ? 8 : 3)}</div></Prescindible>
                 {pie}
-            </div>
+            </PilaAjustable>
         </RaizE>
     );
 }

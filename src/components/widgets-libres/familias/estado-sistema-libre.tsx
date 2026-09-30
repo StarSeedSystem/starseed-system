@@ -194,9 +194,11 @@ function FilaSenal({ d, conDetalle, conBarra, tactil, onArreglar, ocupado }: {
                 )}
                 {d.arreglo && (
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        {/* En una columna estrecha el botón parte su texto por palabras en vez de salirse. */}
                         {d.arreglo.accion === "entrar"
-                            ? <Accion color={color} href="/login" grande={tactil}>{d.arreglo.etiqueta}</Accion>
+                            ? <Accion color={color} href="/login" grande={tactil} className="max-w-full !whitespace-normal text-center leading-tight">{d.arreglo.etiqueta}</Accion>
                             : <Accion color={color} grande={tactil} onClick={() => onArreglar(d.arreglo!.accion)} disabled={!!d.arreglo.bloqueado || ocupado === d.arreglo.accion}
+                                className="max-w-full !whitespace-normal text-center leading-tight"
                                 title={d.arreglo.bloqueado ?? d.detalle}>{ocupado === d.arreglo.accion ? "Un momento…" : d.arreglo.etiqueta}</Accion>}
                         {d.arreglo.bloqueado && conDetalle && <span className="text-[11px] text-white/50">{d.arreglo.bloqueado}</span>}
                     </div>

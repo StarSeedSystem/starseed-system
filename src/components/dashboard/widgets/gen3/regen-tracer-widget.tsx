@@ -92,12 +92,12 @@ function Cuerpo({ size, lista, cargando, fallo, recargar, sinLugar }: { size: El
     else if (conDato.length === 0) {
         contenido = <WidgetEmptyState icon={Recycle} title="Aún no hay ciclos que medir" message={sinLugar ? "Elige tu lugar en el Clima y comparte recursos o dones para empezar." : "Comparte un recurso común u ofrece un don para empezar."} actionLabel={sinLugar ? "Elegir lugar" : "Ofrecer un don"} actionHref={sinLugar ? "/clima" : enlaceComponer("#don ")} accent={lienzo.acento} />;
     } else {
-        contenido = <Composicion lista={lista} lienzo={lienzo} />;
+        contenido = <Composicion lista={lista} lienzo={lienzo} ancho={size.width} />;
     }
     return <RaizB ref={ref} lienzo={lienzo} visible={visible}>{contenido}</RaizB>;
 }
 
-function Composicion({ lista, lienzo }: { lista: Ciclo[]; lienzo: LienzoB }) {
+function Composicion({ lista, lienzo, ancho = 0 }: { lista: Ciclo[]; lienzo: LienzoB; ancho?: number }) {
     const b = lienzo.base;
     const frase = lista.map((c) => `${c.nombre}: ${c.valor === null ? "sin dato" : `${ENT.format(c.valor)} ${c.unidad}`}`).join("; ");
     const circulo = (lado: number) => <Circulo lista={lista} lado={lado} lienzo={lienzo} etiqueta={frase} />;
@@ -126,13 +126,18 @@ function Composicion({ lista, lienzo }: { lista: Ciclo[]; lienzo: LienzoB }) {
     if (lienzo.clase === "panoramico") return <div className="grid h-full min-h-0 items-center gap-4" style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }}>{circulo(110)}{cifras(4, false)}</div>;
     if (b === "m" && lienzo.clase !== "torre") return <div className="flex h-full min-h-0 items-center gap-3">{circulo(116)}<div className="min-w-0 flex-1">{cifras(2, false)}</div></div>;
     if (lienzo.clase === "torre") return <div className="flex h-full min-h-0 flex-col items-center gap-3">{circulo(130)}{cifras(1, true)}</div>;
+    // Cada acción cabe en su columna solo si la columna mide ~150 px; si no, los botones iban uno
+    // encima del otro («Ajustar en el Clima» × «Ajustar en el Clima»). En estrecho: cifras sin
+    // botones y una sola acción bajo el círculo.
+    const lado = b === "xl" ? (lienzo.tv ? 200 : 170) : 130;
+    const conDetalle = ancho <= 0 || (ancho - lado - 16) / 2 >= 150;
     return (
         <div className="grid h-full min-h-0 gap-4" style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }}>
             <div className="flex flex-col items-center gap-2">
-                {circulo(b === "xl" ? (lienzo.tv ? 200 : 170) : 130)}
-                <RotuloB>Cada ciclo con su fuente</RotuloB>
+                {circulo(lado)}
+                {conDetalle ? <RotuloB>Cada ciclo con su fuente</RotuloB> : <AccionB href="/clima" color={lienzo.acento} tactil={lienzo.tactil}>Ajustar en el Clima</AccionB>}
             </div>
-            {cifras(2, true)}
+            {cifras(2, conDetalle)}
         </div>
     );
 }

@@ -67,7 +67,7 @@ function Cuerpo({ info, a, c, d, hoy, ahora, cabecera, sello }: CtxMagnitud) {
     );
     if (clase === 'panoramico') {
         return (
-            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(10rem,auto) minmax(0,1fr)' }}>
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(10rem,1fr) minmax(0,1.2fr)' }}>
                 <ArcoUV uv={a.uv} lado={Math.min(150, ((info.alto || 130) - 10) * 1.5)} />
                 <div className="min-w-0 space-y-1">{cabecera('Índice UV')}{bloque(Math.max(0, (info.alto || 130) - 60))}</div>
                 {curva}

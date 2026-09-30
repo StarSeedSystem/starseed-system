@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import Link from "next/link";
 import { CloudRain, MessageCircle, Orbit, Radio, Sun, Telescope, type LucideIcon } from "lucide-react";
 import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
@@ -218,7 +219,15 @@ export function OraclePredictWidget() {
             acciones={l.base === "l" ? aurora(true) : undefined}>
             <div className="flex h-full min-h-0 items-center gap-4">
                 <Orbe D={D} ps={ps} l={l} />
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto">{lista(ps.slice(0, n), false)}{l.base === "l" && nota}</div>
+                {/* Lo que no cabe se retira (la nota, luego las últimas preguntas) en vez de cortarse. */}
+                <PilaAjustable niveles={n} className="min-w-0 flex-1">
+                    <div className="my-auto flex min-w-0 flex-col gap-2">
+                        <ul className="flex min-w-0 flex-col gap-2.5" aria-label="Probabilidades">
+                            {ps.slice(0, n).map((p, i, arr) => i < 2 ? fila(p, false) : <Prescindible key={i} nivel={arr.length - i + 1}>{fila(p, false)}</Prescindible>)}
+                        </ul>
+                        {l.base === "l" && <Prescindible nivel={1}>{nota}</Prescindible>}
+                    </div>
+                </PilaAjustable>
             </div>
         </Lienzo>
     );

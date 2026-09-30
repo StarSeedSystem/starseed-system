@@ -87,7 +87,7 @@ function Cuerpo({ info, a, c, d, prox, cabecera, sello }: CtxMagnitud) {
     }
     if (clase === 'panoramico') {
         return (
-            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(9rem,auto) minmax(0,1fr)' }}>
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(9rem,1fr) minmax(0,1.2fr)' }}>
                 <BrujulaViento dir={a.dirViento} kmh={a.viento} rachas={a.rachas} u={u} lado={Math.min(118, (info.alto || 130) - 16)} color={colorViento(a.viento ?? 0)} />
                 <div className="min-w-0 space-y-1">{cabecera('Viento')}<Datos columnas={1} filas={detalle.slice(0, 2)} /></div>
                 {barras(12)}

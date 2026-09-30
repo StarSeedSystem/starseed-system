@@ -270,7 +270,7 @@ function Contenido({ info }: { info: InfoMarco }) {
             <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: "minmax(12rem,1.1fr) minmax(10rem,0.9fr) minmax(0,1.2fr)" }}>
                 <div className="min-w-0 space-y-1.5">{cabecera}<div className="line-clamp-2">{titularEl(12)}</div></div>
                 {escalasEl(true)}
-                {rk && <BarrasKp pasadas={rk.pasadas.slice(-6)} previstas={rk.previstas.slice(0, 6)} hora={fmt.soloHora} alto={Math.max(36, (info.alto || 130) - 70)} />}
+                {rk && <BarrasKp pasadas={rk.pasadas.slice(-6)} previstas={rk.previstas.slice(0, 6)} hora={fmt.soloHora} alto={Math.max(36, (info.alto || 130) - 60)} leyenda={(info.alto || 0) >= 200} />}
             </div>
         );
     }
@@ -300,8 +300,8 @@ function Contenido({ info }: { info: InfoMarco }) {
     // las barras de Kp si no caben (antes se cortaban R/S/G y la cifra de Kp por abajo).
     const resumen = (
         <>
-            <div className="shrink-0">{titularEl(14)}</div>
-            <div className="shrink-0">{escalasEl()}</div>
+            <div className="line-clamp-3 shrink-0">{titularEl(14)}</div>
+            <div className="shrink-0">{escalasEl((info.ancho || 0) > 0 && (info.ancho || 0) < 340)}</div>
             <Prescindible nivel={3}>
                 <div className="flex shrink-0 items-center gap-3">
                     <MedidorKp kp={kpAhora} lado={base === "xl" ? 130 : 104} />

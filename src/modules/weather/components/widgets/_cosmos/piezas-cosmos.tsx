@@ -58,7 +58,7 @@ export function MedidorKp({ kp, lado, conTexto = true }: { kp: number | null; la
 
 // ── Barras de Kp ──────────────────────────────────────────────────────
 
-export function BarrasKp({ pasadas, previstas, hora, alto = 70 }: { pasadas: PuntoKp[]; previstas: PuntoKp[]; hora: (t: number) => string; alto?: number }) {
+export function BarrasKp({ pasadas, previstas, hora, alto = 70, leyenda = true }: { pasadas: PuntoKp[]; previstas: PuntoKp[]; hora: (t: number) => string; alto?: number; /** Sin leyenda en huecos bajos (panorámico): los colores ya se explican en su ficha. */ leyenda?: boolean }) {
     const { ref: refFig, size: medida } = useElementSize<HTMLElement>();
     const todas = [...pasadas, ...previstas];
     if (!todas.length) return null;
@@ -81,11 +81,11 @@ export function BarrasKp({ pasadas, previstas, hora, alto = 70 }: { pasadas: Pun
             <div className="flex w-full justify-between gap-1 text-[10px] leading-tight text-white/50" aria-hidden>
                 {rotulos.map((i) => <span key={`e${todas[i].t}-${i}`} className={`${s.cifra} whitespace-nowrap`}>{hora(todas[i].t)}</span>)}
             </div>
-            <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-white/55">
+            {leyenda && <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-white/55">
                 <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm bg-emerald-400" aria-hidden />medido</span>
                 <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm ring-1 ring-emerald-400" aria-hidden />previsto</span>
                 <span className="inline-flex items-center gap-1"><span className="h-0 w-3 border-t border-dashed border-amber-300/70" aria-hidden />tormenta</span>
-            </figcaption>
+            </figcaption>}
         </figure>
     );
 }

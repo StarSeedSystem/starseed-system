@@ -17,6 +17,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import { CalendarHeart, Sparkles, X } from "lucide-react";
 import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 import { planetPositions } from "@/lib/astro";
@@ -38,6 +39,7 @@ function Rueda({ D, cuerpos, luna, l }: { D: number; cuerpos: Cuerpo[]; luna: Re
     const id = useIdSvg("zod");
     const c = D / 2, R = D * 0.47, Ri = D * 0.36, Rp = D * 0.28;
     const glifos = D >= 110;
+    const rotulados: { x: number; y: number }[] = [];
     // Separa cuerpos que caen casi en el mismo grado (dos órbitas para las etiquetas).
     const orden = [...cuerpos].sort((a, b) => a.longitude - b.longitude);
     let prev = -999, nivel = 0;
@@ -69,12 +71,17 @@ function Rueda({ D, cuerpos, luna, l }: { D: number; cuerpos: Cuerpo[]; luna: Re
             {puestos.map(({ p, r }) => {
                 const q = enRueda(p.longitude, r, c), borde = enRueda(p.longitude, Ri, c);
                 const col = COLOR_CUERPO[p.body] ?? "#fff";
+                // Dos astros casi juntos (Mercurio y Venus en conjunción) no rotulan uno encima del
+                // otro: el segundo se queda con su punto y su nombre va en el title de la rueda.
+                const fs = Math.max(8, D * 0.045);
+                const libre = glifos && !rotulados.some((o) => Math.hypot(o.x - q.x, o.y - q.y) < fs * 1.9);
+                if (libre) rotulados.push(q);
                 return (
                     <g key={p.body}>
                         <line x1={q.x} y1={q.y} x2={borde.x} y2={borde.y} stroke={col} strokeOpacity={0.35} />
                         <circle cx={q.x} cy={q.y} r={Math.max(2.5, D * (p.body === "Sol" || p.body === "Luna" ? 0.03 : 0.022))} fill={col}
                             className={p.body === "Sol" && l.animar ? "ss-respirar" : undefined} style={{ ["--ss-dur" as string]: "6s", transformBox: "fill-box", transformOrigin: "center" }} />
-                        {glifos && <text x={q.x} y={q.y - D * 0.04} textAnchor="middle" fill={col} style={{ fontSize: Math.max(8, D * 0.045) }}>{CORTO[p.body]}</text>}
+                        {libre && <text x={q.x} y={q.y - D * 0.04} textAnchor="middle" fill={col} style={{ fontSize: fs }}>{CORTO[p.body]}</text>}
                     </g>
                 );
             })}
@@ -207,7 +214,21 @@ export function EnergyMapWidget() {
             <Lienzo l={l} titulo="Mapa de Energía" subtitulo="El cielo de ahora" icono={Sparkles} etiqueta={etiqueta}>
                 <div className="flex h-full min-h-0 items-center gap-4">
                     <Rueda D={D} cuerpos={cuerpos} luna={luna} l={l} />
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">{listaCuerpos(Math.max(3, Math.floor(hb / 24) - 1), false)}{lineaLuna}</div>
+                    {(() => {
+                        // Filas que no quepan se retiran (la línea de la Luna primero, luego los astros
+                        // de abajo): antes «domingo, 25 de octubre» se cortaba por abajo.
+                        const n = Math.max(3, Math.floor(hb / 24) - 1);
+                        return (
+                            <PilaAjustable niveles={n + 1} className="min-w-0 flex-1">
+                                <div className="my-auto flex min-w-0 flex-col gap-1.5">
+                                    <ul className="flex min-w-0 flex-col gap-1.5" aria-label="El cielo de ahora">
+                                        {cuerpos.slice(0, n).map((p, i) => i < 2 ? fila(p, false) : <Prescindible key={p.body} nivel={n - i + 1}>{fila(p, false)}</Prescindible>)}
+                                    </ul>
+                                    <Prescindible nivel={1}>{lineaLuna}</Prescindible>
+                                </div>
+                            </PilaAjustable>
+                        );
+                    })()}
                     <div className="min-w-0 shrink-0" style={{ width: Math.min(260, l.ancho * 0.34) }}>{panelBio(Math.min(260, l.ancho * 0.34))}</div>
                 </div>
             </Lienzo>

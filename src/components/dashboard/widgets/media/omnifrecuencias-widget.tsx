@@ -246,10 +246,13 @@ export function OmnifrecuenciasWidget() {
         );
     }
 
+    // En «l» bajo, el aviso de uso pasa al botón «i» (como en «m»): fijo abajo no dejaba sitio a la
+    // lista y las categorías se montaban sobre él.
+    const notaFija = (base === 'l' || base === 'xl') && (!((lienzo.alto || 0) > 0) || (lienzo.alto || 0) >= 400);
     const cabecera = (
         <EncabezadoE lienzo={lienzo} icono={Waves} titulo="Omnifrecuencias" vivo={suena}
             acciones={<>
-                {base === 'm' && <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Info} etiqueta={verNota ? 'Ocultar aviso' : 'Ver aviso de uso'} aria-expanded={verNota} onClick={() => setVerNota((v) => !v)} />}
+                {(base === 'm' || !notaFija) && <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Info} etiqueta={verNota ? 'Ocultar aviso' : 'Ver aviso de uso'} aria-expanded={verNota} onClick={() => setVerNota((v) => !v)} />}
                 <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Maximize2} etiqueta="Abrir la app completa" onClick={abrirAppCompleta} />
             </>} />
     );
@@ -342,7 +345,7 @@ export function OmnifrecuenciasWidget() {
                     )}
                 </div>
                 {volumen}
-                <div className="shrink-0">{nota}</div>
+                {(notaFija || verNota) && <div className="shrink-0">{nota}</div>}
                 {errorEl}
             </div>
         </RaizE>

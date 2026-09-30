@@ -113,7 +113,7 @@ function Preguntar({ tactil, sugerencias, compacto }: { tactil: boolean; sugeren
                 <Prescindible nivel={1}>
                     <div className="flex flex-wrap gap-1.5">
                         {SUGERENCIAS.slice(0, sugerencias).map((s) => (
-                            <Accion key={s} icono={Sparkles} color={VIOLETA} grande={tactil} onClick={() => void enviar(s)}>{s}</Accion>
+                            <Accion key={s} icono={Sparkles} color={VIOLETA} grande={tactil} onClick={() => void enviar(s)} className="max-w-full !whitespace-normal text-left leading-tight">{s}</Accion>
                         ))}
                     </div>
                 </Prescindible>

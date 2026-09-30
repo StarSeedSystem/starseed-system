@@ -77,10 +77,10 @@ function Cuerpo(x: CtxMagnitud) {
     }
     if (clase === 'panoramico') {
         return (
-            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(0,1fr)' }}>
-                <div className="flex items-center gap-3">
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.3fr)' }}>
+                <div className="flex min-w-0 items-center gap-3">
                     <ArcoTermico temp={a.temp} sensacion={a.sensacion} u={u} lado={Math.min(110, (info.alto || 130) - 20)} />
-                    <div className="min-w-0">{cabecera('Temperatura')}<p className="text-[12px] text-white/70">Sensación {grados(a.sensacion, u)}</p>{frase && <p className="text-[11px] text-white/55">{frase}</p>}</div>
+                    <div className="min-w-0">{cabecera('Temperatura')}<p className="truncate text-[12px] text-white/70">Sensación {grados(a.sensacion, u)}</p>{frase && <p className="line-clamp-2 text-[11px] text-white/55" title={frase}>{frase}</p>}</div>
                 </div>
                 <GraficaHoras horas={prox} hora={d.fmt.hora} u={u} id={id} alto={Math.max(64, (info.alto || 130) - 26)} mostrarSensacion />
             </div>

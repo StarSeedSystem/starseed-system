@@ -114,7 +114,7 @@ function Contenido({ info }: { info: InfoMarco }) {
         return (
             <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(0,1.2fr) minmax(10rem,1fr)' }}>
                 <MedidorKp kp={v} lado={Math.min(120, (info.alto || 130) - 12)} />
-                {barras(8, Math.max(40, (info.alto || 130) - 60))}
+                <BarrasKp pasadas={r.pasadas.slice(-8)} previstas={r.previstas.slice(0, 8)} hora={fmt.soloHora} alto={Math.max(40, (info.alto || 130) - 50)} leyenda={(info.alto || 0) >= 200} />
                 <div className="min-w-0 space-y-1">{cabecera}{bloque}</div>
             </div>
         );
