@@ -14,6 +14,13 @@ describe("claseDesdePx", () => {
         expect(claseDesdePx(900, 300)).toBe("panoramico");
         expect(claseDesdePx(150, 400)).toBe("torre");
     });
+    it("una sola fila es micro por ancha que sea (móvil, escritorio y TV)", () => {
+        expect(claseDesdePx(178, 46)).toBe("micro");
+        expect(claseDesdePx(1140, 65)).toBe("micro");
+        expect(claseDesdePx(147, 77)).toBe("micro");
+        expect(claseDesdePx(60, 300)).toBe("micro");
+        expect(claseDesdePx(400, 90)).toBe("panoramico");
+    });
     it("tamaño cero es micro", () => {
         expect(claseDesdePx(0, 0)).toBe("micro");
     });

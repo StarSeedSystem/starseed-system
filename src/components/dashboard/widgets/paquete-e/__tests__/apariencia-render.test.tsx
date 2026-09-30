@@ -30,7 +30,7 @@ vi.mock("../../../apps/content/content-opener", () => ({
     useContentOpener: () => ({ open: (r: any) => h.abiertos.push(r), openMany: (rs: any[]) => h.abiertos.push(...rs), windowEl: null }),
 }));
 
-import { entornoNavegador, montarEn, TODAS } from "../pruebas-render";
+import { TODAS, dice, entornoNavegador, montarEn } from "../pruebas-render";
 import { paletaDeGuardado } from "../temas";
 import { ThemeSelectorWidget } from "../../theme-selector-widget";
 import { ThemeManagerWidget } from "../../theme-manager-widget";
@@ -73,7 +73,7 @@ describe("Selector de aspecto", () => {
 describe("Archivo de temas", () => {
     it.each(TODAS)("sin temas invita a guardar el actual en %s", (clase) => {
         montarEn(clase, <ThemeManagerWidget />);
-        expect(screen.getByText("Aún no has guardado ningún aspecto")).toBeTruthy();
+        expect(dice("Aún no has guardado ningún aspecto")).toBeTruthy();
     });
 
     it("aplica por id (no por nombre), ordena y borra con confirmación", () => {

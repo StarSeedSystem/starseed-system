@@ -44,6 +44,12 @@ export interface ContextoMarcoUnificado {
     /** true en panorámico (más ancho que alto). */
     horizontal: boolean;
     espaciado: EspaciadoMarco;
+    /**
+     * (Pulido 0930) La caja medida es claramente más ancha que alta, sea cual sea su clase. En
+     * «micro» decide la composición: glifo y cifra EN FILA (una tesela de 108×65 o de 178×46 no
+     * tiene alto para apilar nada). Opcional: fuera del marco unificado puede faltar.
+     */
+    apaisado?: boolean;
 }
 
 export const ContextoMarco = createContext<ContextoMarcoUnificado | null>(null);

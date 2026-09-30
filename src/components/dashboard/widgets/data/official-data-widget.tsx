@@ -32,7 +32,7 @@ import { COLOR_SEVERIDAD, nombreG, escalaG, severidadKp, textoCielo } from "@/mo
 import { useFuente, useUbicacionClima, useUnidades, type EstadoFuente } from "@/modules/weather/datos/hooks";
 import { iconoCielo, colorIcono } from "@/modules/weather/components/widgets/_clima/cielo";
 import { grados, velocidad } from "@/modules/weather/components/widgets/_clima/graficas";
-import { CargandoClima, ErrorClima, MarcoClima, MenuClima, RotuloClima, SelloFuente, estilosClima as s, type InfoMarco } from "@/modules/weather/components/widgets/_clima/piezas";
+import { CargandoClima, ErrorClima, MarcoClima, MenuClima, MicroDato, RotuloClima, SelloFuente, estilosClima as s, type InfoMarco } from "@/modules/weather/components/widgets/_clima/piezas";
 import { colorKp } from "@/modules/weather/components/widgets/_cosmos/piezas-cosmos";
 
 type IdFuente = "tiempo" | "espacio" | "sismos" | "noticias";
@@ -202,13 +202,8 @@ function CifraMicro({ id, info }: { id: IdFuente; info: InfoMarco }) {
         : id === "espacio" ? (kpV === null ? "…" : `Kp ${kpV.toFixed(0)}`)
         : id === "sismos" ? (sismos.datos ? String(sismos.datos.length) : "…")
         : noticias.datos ? String(noticias.datos.length) : "…";
-    return (
-        <div className="flex h-full flex-col items-center justify-center gap-0.5 p-1 text-center" role="img" aria-label={`${f.etiqueta}: ${cifra}`}>
-            <f.icono aria-hidden className="size-4" style={{ color: f.color }} />
-            <span className={`${s.cifra} text-[20px] font-light leading-none`}>{cifra}</span>
-            <span className="text-[9px] uppercase tracking-widest text-white/55">{f.etiqueta}</span>
-        </div>
-    );
+    // (Pulido 0930) Icono y cifra en fila (y la fuente debajo si cabe): apilados se salían de 65 px.
+    return <MicroDato info={info} etiqueta={`${f.etiqueta}: ${cifra}`} glifo={<f.icono style={{ color: f.color }} />} cifra={cifra} nota={f.etiqueta} maximo={22} />;
 }
 
 // ── Selector de fuente (lista vertical con nombre completo) ──────

@@ -143,7 +143,12 @@ function Contenido({ info }: { info: InfoMarco }) {
     const lado = (fr: number) => Math.max(90, Math.min(info.ancho || 300, info.alto || 300) * fr);
     const esfera = (l: number, tam: number) => <Esfera capas={base === 'micro' ? [] : capas} lado={l} centro={centro(tam)} altura={d.astro.altura} codigo={a.codigo} foco={foco} animar={info.animar && info.visible} etiqueta={etiqueta} />;
 
-    if (base === 'micro') return <div className="grid h-full place-items-center">{esfera(lado(0.9), 18)}</div>;
+    // (Pulido 0930) En micro la esfera se mide por la tesela (antes nunca bajaba de 90 px y en una
+    // de 46-65 de alto se salía por arriba y por abajo).
+    if (base === 'micro') {
+        const l = Math.max(34, Math.min(info.ancho || 64, info.alto || 64) - 10);
+        return <div className="grid h-full place-items-center overflow-hidden">{esfera(l, Math.min(18, Math.round(l * 0.34)))}</div>;
+    }
     if (base === 's') return <div className="grid h-full place-items-center p-1">{esfera(lado(0.92), lado(0.92) * 0.16)}</div>;
     if (clase === 'panoramico') {
         return (
@@ -155,12 +160,27 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     if (base === 'm' && clase !== 'torre') {
         const ancho = info.ancho >= info.alto * 1.25;
+        // (Pulido 0930) La esfera cede ancho a las capas y las capas que no quepan se retiran (antes
+        // «Aire», «Kp» y «Magnetosfera» quedaban 15-48 px bajo la tarjeta).
+        if (ancho) {
+            const t = Math.max(90, Math.min(lado(0.86), (info.alto || 150) - 24, (info.ancho || 300) * 0.45));
+            return (
+                <div className="flex h-full min-h-0 flex-row items-center gap-3 p-3">
+                    <div className="flex shrink-0 items-center justify-center">{esfera(t, 22)}</div>
+                    <PilaAjustable niveles={10} className="min-w-0 flex-1">
+                        <div className="my-auto min-w-0 space-y-1">{cabecera}<Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={false} columnas={1} fijas={2} /></div>
+                    </PilaAjustable>
+                </div>
+            );
+        }
         return (
-            <div className={`flex h-full gap-2 p-3 ${ancho ? 'flex-row items-center' : 'flex-col'}`}>
-                {!ancho && cabecera}
-                <div className={`flex ${ancho ? '' : 'min-h-0 flex-1'} items-center justify-center`}>{esfera(ancho ? lado(0.86) : lado(0.6), 22)}</div>
-                <div className="min-w-0 flex-1 space-y-1">{ancho && cabecera}<Leyenda capas={ancho ? capas : capas.slice(0, 4)} foco={foco} setFoco={setFoco} conNotas={false} columnas={ancho ? 1 : 2} /></div>
-            </div>
+            <PilaAjustable niveles={4} className="gap-2 p-3">
+                {cabecera}
+                <Encajar minimo={80} className="flex items-center justify-center">
+                    {({ ancho: a, alto: h }) => esfera(Math.max(80, Math.min(lado(0.6), a, h)), 22)}
+                </Encajar>
+                <div className="min-w-0 shrink-0"><Leyenda capas={capas.slice(0, 4)} foco={foco} setFoco={setFoco} conNotas={false} columnas={2} fijas={2} /></div>
+            </PilaAjustable>
         );
     }
     const avisos = avisosClima(c, d.aire.datos, d.fmt.hora, ahora);

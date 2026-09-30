@@ -102,39 +102,65 @@ export interface CabeceraMarcoProps {
     base: BaseTamano;
     horizontal?: boolean;
     espaciado: EspaciadoMarco;
+    /**
+     * (Pulido 0930) Tesela micro más ancha que alta: la cabecera se vuelve una columna estrecha
+     * a la izquierda (solo el icono y, si hay, el punto «en vivo») y el cuerpo ocupa el resto EN
+     * FILA. Así una tesela de 108×65 o 178×46 no gasta la mitad de su alto en la cabecera.
+     */
+    enFila?: boolean;
     className?: string;
 }
+
+/** ¿Este marco pide la composición micro en fila (glifo a la izquierda, dato a la derecha)? */
+export function microEnFila(ctx: Pick<ContextoMarcoUnificado, "base" | "apaisado"> | null | undefined): boolean {
+    return !!ctx && ctx.base === "micro" && ctx.apaisado === true;
+}
+
+/** Acolchado del cuerpo cuando la cabecera va en columna a su izquierda (ver `enFila`). */
+export const CUERPO_EN_FILA = "py-2 pl-1 pr-2.5";
 
 /**
  * Icono + título en Rotulo + acciones como pastillas fantasma. En «micro» solo queda el icono
  * (el título sigue ahí para lectores de pantalla); el subtítulo aparece de «m» en adelante.
  */
-export function CabeceraMarco({ titulo, subtitulo, icono: Icono, acciones, vivo, acento, base, horizontal, espaciado, className }: CabeceraMarcoProps) {
+export function CabeceraMarco({ titulo, subtitulo, icono: Icono, acciones, vivo, acento, base, horizontal, espaciado, enFila, className }: CabeceraMarcoProps) {
     const micro = base === "micro";
+    const columna = micro && !!enFila;
     const conSubtitulo = !!subtitulo && (base === "l" || base === "xl" || (base === "m" && !horizontal));
     const tinta = esHex(acento) ? mezclar(normalizarHex(acento), "#ffffff", 0.35) : "#ffffff";
+    const cajaIcono = Icono ? (
+        <span
+            aria-hidden
+            className={cn("grid shrink-0 place-items-center", React.isValidElement(Icono) && "[&>svg]:size-[55%]", espaciado.icono)}
+            style={{ background: conAlfa(acento, 0.12), boxShadow: `inset 0 0 0 1px ${conAlfa(acento, 0.4)}`, color: tinta }}
+        >
+            {React.isValidElement(Icono) ? Icono : <Icono className={espaciado.iconoSvg} strokeWidth={2} />}
+        </span>
+    ) : null;
     return (
-        <header data-cabecera-marco="" className={cn("relative z-10 flex shrink-0 items-center", espaciado.cabecera, className)}>
-            {Icono && (
-                <span
-                    aria-hidden
-                    className={cn("grid shrink-0 place-items-center", React.isValidElement(Icono) && "[&>svg]:size-[55%]", espaciado.icono)}
-                    style={{ background: conAlfa(acento, 0.12), boxShadow: `inset 0 0 0 1px ${conAlfa(acento, 0.4)}`, color: tinta }}
-                >
-                    {React.isValidElement(Icono) ? Icono : <Icono className={espaciado.iconoSvg} strokeWidth={2} />}
-                </span>
+        <header data-cabecera-marco="" className={cn("relative z-10 flex shrink-0 items-center", columna ? "flex-col justify-center gap-1 py-2 pl-2.5 pr-1.5" : espaciado.cabecera, className)}>
+            {/* (Pulido 0930) En micro el título no va en un «sr-only» (su texto sin partir salía de la
+                tesela y los detectores lo contaban): el propio icono es el encabezado, con nombre. */}
+            {micro ? (
+                <h3 aria-label={titulo} title={titulo} className="grid shrink-0 place-items-center">{cajaIcono}</h3>
+            ) : cajaIcono}
+            {!micro && (
+                <div className="min-w-0 flex-1">
+                    <h3 className="truncate leading-tight"><Rotulo>{titulo}</Rotulo></h3>
+                    {conSubtitulo && <p className="mt-0.5 truncate text-[12px] leading-tight text-white/55">{subtitulo}</p>}
+                </div>
             )}
-            <div className={cn("min-w-0 flex-1", micro && "sr-only")}>
-                <h3 className="truncate leading-tight"><Rotulo>{titulo}</Rotulo></h3>
-                {conSubtitulo && <p className="mt-0.5 truncate text-[12px] leading-tight text-white/55">{subtitulo}</p>}
-            </div>
-            {micro && <span aria-hidden className="flex-1" />}
-            {vivo && (
+            {micro && !columna && <span aria-hidden className="flex-1" />}
+            {vivo && (micro ? (
+                <span role="img" aria-label="En vivo" title="En vivo" className="inline-flex shrink-0 items-center">
+                    <span aria-hidden className={estilos.pulso} style={{ background: acento, color: acento }} />
+                </span>
+            ) : (
                 <span className="inline-flex shrink-0 items-center gap-1.5" title="En vivo">
                     <span aria-hidden className={estilos.pulso} style={{ background: acento, color: acento }} />
-                    {micro ? <span className="sr-only">En vivo</span> : <Rotulo color={tinta}>En vivo</Rotulo>}
+                    <Rotulo color={tinta}>En vivo</Rotulo>
                 </span>
-            )}
+            ))}
             {acciones && !micro && <div className={cn(estilos.acciones, "flex shrink-0 items-center gap-1")}>{acciones}</div>}
         </header>
     );
@@ -188,9 +214,10 @@ export function MarcoUnificado({
     const luz = esHex(acento) ? normalizarHex(acento) : ACENTO_POR_DEFECTO;
     const luz2 = esHex(acento2) ? normalizarHex(acento2) : ACENTO2_POR_DEFECTO;
 
+    const apaisado = size.width > size.height * 1.15;
     const ctx = React.useMemo<ContextoMarcoUnificado>(
-        () => ({ acento: luz, acento2: luz2, clase, base, horizontal, espaciado }),
-        [luz, luz2, clase, base, horizontal, espaciado],
+        () => ({ acento: luz, acento2: luz2, clase, base, horizontal, espaciado, apaisado }),
+        [luz, luz2, clase, base, horizontal, espaciado, apaisado],
     );
     const material = React.useMemo(
         () => estiloMaterial({ acento: luz, acento2: luz2, vivo: vidrioVivo, variante, intensidad }),
@@ -241,6 +268,7 @@ export function MarcoUnificado({
                             />
                         )}
                         <div
+                            data-cuerpo-marco=""
                             className={cn(
                                 estilos.cuerpo,
                                 !conCabecera && estilos.cuerpoPleno,

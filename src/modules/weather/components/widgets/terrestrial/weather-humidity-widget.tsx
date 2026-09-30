@@ -12,7 +12,7 @@ import { Droplets } from 'lucide-react';
 import { confortRocio } from '@/modules/weather/datos/interpretar';
 import { BarrasHoras, grados } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
-import { estilosClima as s } from '../_clima/piezas';
+import { MicroDato, estilosClima as s } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const COLOR = '#60a5fa';
@@ -62,10 +62,8 @@ function Cuerpo({ info, a, c, d, prox, id, cabecera, sello }: CtxMagnitud) {
 
     if (base === 'micro') {
         return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5" role="img" aria-label={`Humedad ${a.humedad === null ? 'sin dato' : `${Math.round(a.humedad)} %`}`}>
-                <Droplets aria-hidden className="size-5" style={{ color: COLOR }} />
-                <span className={`${s.cifra} text-[24px] font-light leading-none`}>{a.humedad === null ? '—' : `${Math.round(a.humedad)}%`}</span>
-            </div>
+            <MicroDato info={info} etiqueta={`Humedad ${a.humedad === null ? 'sin dato' : `${Math.round(a.humedad)} %`}`}
+                glifo={<Droplets style={{ color: COLOR }} />} cifra={a.humedad === null ? '—' : `${Math.round(a.humedad)}%`} />
         );
     }
     if (base === 's') {

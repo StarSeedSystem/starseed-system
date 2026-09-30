@@ -3,7 +3,7 @@
  * Fuerza la clase de tamaño con el mismo contexto que publica el MarcoUnificado.
  */
 import * as React from "react";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { ContextoMarco, type ContextoMarcoUnificado } from "@/components/dashboard/kit/contexto-marco";
 import { ESPACIADO_MARCO } from "@/components/widgets-libres/marco-unificado";
 import type { ClaseTamano } from "@/lib/widgets/forma/tamanos";
@@ -15,6 +15,14 @@ export function marcoDe(clase: ClaseTamano, acento = "#94a3b8"): ContextoMarcoUn
 
 export function montarEn(clase: ClaseTamano, nodo: React.ReactElement, acento?: string) {
     return render(<ContextoMarco.Provider value={marcoDe(clase, acento)}>{nodo}</ContextoMarco.Provider>);
+}
+
+/**
+ * (Pulido 0930) El texto se ve o, en una tesela micro (un glifo y como mucho una etiqueta), va
+ * entero en el nombre accesible de ese glifo. Devuelve el elemento que lo dice.
+ */
+export function dice(texto: string): HTMLElement {
+    return screen.queryByText(texto) ?? screen.getByLabelText(texto, { exact: false });
 }
 
 export function entornoNavegador() {

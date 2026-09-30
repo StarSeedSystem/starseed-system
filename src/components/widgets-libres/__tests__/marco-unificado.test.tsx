@@ -140,7 +140,7 @@ describe("MarcoUnificado", () => {
         expect(screen.getByRole("group").querySelector("[data-material-marco]")).toBeNull();
     });
 
-    it("con título pinta la cabecera común; en micro solo queda el icono (título para lectores)", () => {
+    it("con título pinta la cabecera común; en micro solo queda el icono, que es el encabezado con nombre", () => {
         h.medida = { width: 240, height: 240 };
         const { unmount } = render(
             <MarcoUnificado titulo="Clima" icono={Sun} acciones={<button type="button">Ver</button>} vivo>cuerpo</MarcoUnificado>,
@@ -151,7 +151,11 @@ describe("MarcoUnificado", () => {
         unmount();
         h.medida = { width: 90, height: 90 };
         render(<MarcoUnificado titulo="Clima" icono={Sun} acciones={<button type="button">Ver</button>}>cuerpo</MarcoUnificado>);
-        expect(screen.getByRole("heading", { name: "Clima" }).closest(".sr-only")).not.toBeNull();
+        // (Pulido 0930) Sin «sr-only»: su texto sin partir salía de la tesela. El nombre va en el icono.
+        const encabezado = screen.getByRole("heading", { name: "Clima" });
+        expect(encabezado.textContent).toBe("");
+        expect(encabezado.closest(".sr-only")).toBeNull();
+        expect(encabezado.querySelector("svg")).not.toBeNull();
         expect(screen.queryByRole("button", { name: "Ver" })).toBeNull();
     });
 });

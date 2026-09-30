@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { conAlfa, esHex, normalizarHex } from "@/components/widgets-libres/acentos-categoria";
 import { mezclar } from "@/components/widgets-libres/familias/comun";
 import { mensajeError } from "@/components/dashboard/calidad-widget";
+import { useMarcoUnificado } from "@/components/dashboard/kit/contexto-marco";
+import { accionDe, EstadoMicro, frase } from "@/components/dashboard/kit/estado-micro";
 
 /** El acento aclarado para texto sobre el vidrio. */
 export function tinta(color: string, t = 0.35): string {
@@ -112,6 +114,15 @@ export interface VacioProps {
 
 /** Estado vacío: qué falta y qué hacer, con la acción a un toque. */
 export function VacioHonesto({ icono: Icono, titulo, ayuda, color, accion, compacto, ilustracion, llenar = true }: VacioProps) {
+    // (Pulido 0930) En una tesela micro: un glifo (la acción, si la hay) y una etiqueta corta.
+    const marco = useMarcoUnificado();
+    if (marco?.base === "micro") {
+        const a = accionDe(accion);
+        return (
+            <EstadoMicro kit="vacio" icono={Icono} color={color} etiqueta={a?.etiqueta ?? titulo} descripcion={frase(titulo, ayuda)}
+                href={a?.href} onClick={a?.href ? undefined : a?.onClick} className={llenar ? undefined : "h-auto"} />
+        );
+    }
     return (
         <div role="status" className={cn("flex min-h-0 w-full flex-col items-center justify-center gap-2 px-1 text-center", llenar && "h-full")}>
             {ilustracion ?? <span aria-hidden className="ss-redondo grid shrink-0 place-items-center rounded-full"
@@ -128,10 +139,10 @@ export function VacioHonesto({ icono: Icono, titulo, ayuda, color, accion, compa
 /** Cargando: la silueta de lo que viene, sin girar nada (respeta movimiento reducido). */
 export function CargandoSilueta({ color, filas = 3, etiqueta = "Cargando…" }: { color: string; filas?: number; etiqueta?: string }) {
     return (
-        <div role="status" aria-live="polite" className="flex h-full w-full flex-col justify-center gap-2.5">
-            <span className="sr-only">{etiqueta}</span>
+        // El nombre accesible es la etiqueta (un sr-only se maquetaba fuera de las teselas micro).
+        <div role="status" aria-live="polite" aria-label={etiqueta} title={etiqueta} className="flex h-full w-full flex-col justify-center gap-2.5 overflow-hidden">
             {Array.from({ length: filas }, (_, i) => (
-                <span key={i} aria-hidden className="block h-2.5 rounded-full motion-safe:animate-pulse"
+                <span key={i} aria-hidden className="block h-2.5 shrink-0 rounded-full motion-safe:animate-pulse"
                     style={{ width: `${88 - i * 18}%`, background: conAlfa(color, 0.14 - i * 0.03) }} />
             ))}
         </div>
@@ -141,6 +152,14 @@ export function CargandoSilueta({ color, filas = 3, etiqueta = "Cargando…" }: 
 /** Error: mensaje humano (calidad-widget) y reintento si tiene sentido. */
 export function ErrorHonesto({ error, color, onReintentar, compacto }: { error: unknown; color: string; onReintentar?: () => void; compacto?: boolean }) {
     const m = mensajeError(error);
+    const marco = useMarcoUnificado();
+    if (marco?.base === "micro") {
+        const reintentar = m.reintentable ? onReintentar : undefined;
+        return (
+            <EstadoMicro kit="error" icono={reintentar ? RotateCw : AlertTriangle} color={reintentar ? color : "#fbbf24"} etiqueta={reintentar ? "Reintentar" : m.titulo}
+                descripcion={frase(m.titulo, m.detalle)} onClick={reintentar} />
+        );
+    }
     return (
         <div role="alert" className="flex h-full w-full flex-col items-center justify-center gap-2 text-center">
             <AlertTriangle aria-hidden className="size-5 text-amber-300" />

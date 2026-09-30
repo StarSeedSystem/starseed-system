@@ -25,6 +25,7 @@ import { colorSalud } from '@/components/widgets-libres/familias/comun';
 import { useLienzoE, px, type LienzoE } from './paquete-e/lienzo';
 import { CargandoE, EncabezadoE, EnlaceE, RaizE, SelloE, estilosE } from './paquete-e/piezas';
 import { nombreRuta, saludDe, useTelemetriaE, type Telemetria } from './paquete-e/telemetria';
+import { Encajar } from '@/components/dashboard/kit/pila-ajustable';
 
 const NUM = new Intl.NumberFormat('es-ES');
 const num = (n: number) => (n >= 1000 ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : NUM.format(n));
@@ -96,7 +97,18 @@ export function LiveDataWidget() {
     const IconoRed = t.red.enLinea ? Wifi : WifiOff;
 
     if (base === 'micro') {
-        return <RaizE {...raiz}><div className="m-auto flex flex-col items-center gap-1" title={salud.texto}><Semaforo color={color} lado={44} lienzo={lienzo} /><span className="text-[10px] text-white/70">{t.red.enLinea ? 'en línea' : 'sin red'}</span></div></RaizE>;
+        // (Pulido 0930) Semáforo y estado en fila si la tesela es apaisada; el semáforo se mide por el
+        // alto (a 44 px fijos, más la etiqueta, se salía 6 px de una tesela de 65).
+        const fila = lienzo.ancho >= lienzo.alto * 1.15 || lienzo.alto < 60;
+        const lado = Math.max(18, Math.min(fila ? 32 : 40, (lienzo.alto || 65) - (fila ? 18 : 34)));
+        return (
+            <RaizE {...raiz}>
+                <div className={cn('m-auto flex items-center', fila ? 'flex-row gap-1.5' : 'flex-col gap-1')} title={salud.texto}>
+                    <Semaforo color={color} lado={lado} lienzo={lienzo} />
+                    <span className="whitespace-nowrap text-[10px] leading-none text-white/70">{t.red.enLinea ? 'en línea' : 'sin red'}</span>
+                </div>
+            </RaizE>
+        );
     }
 
     if (base === 's') {
@@ -161,10 +173,14 @@ export function LiveDataWidget() {
     if (base === 'm' && clase !== 'torre') {
         return (
             <RaizE {...raiz}>
+                {/* (Pulido 0930) El medidor ocupa el alto que queda (antes, a 70 % del ancho, empujaba las
+                    cifras 12 px bajo la tarjeta). */}
                 <div className="flex h-full min-h-0 flex-col gap-2 p-1">
                     {cabecera}
-                    <div className="flex justify-center"><MedidorDia hoy={t.nube.hoy} presupuesto={t.nube.presupuesto} ancho={anchoMedidor} lienzo={lienzo} /></div>
-                    {cifras}
+                    <Encajar minimo={48} className="flex justify-center">
+                        {({ ancho, alto }) => <MedidorDia hoy={t.nube.hoy} presupuesto={t.nube.presupuesto} ancho={Math.max(96, Math.min(anchoMedidor, ancho, (alto - 16) * 2))} lienzo={lienzo} />}
+                    </Encajar>
+                    <div className="shrink-0">{cifras}</div>
                 </div>
             </RaizE>
         );

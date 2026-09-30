@@ -30,7 +30,7 @@ import {
     APROVECHAMIENTO_TEJADO, RENDIMIENTO_PANEL, aguaTejado, cargarCieloOikos, diaCorto, energiaPaneles,
     type CieloOikos, type DiaOikos,
 } from "./_paquete-b/datos-oikos";
-import { AccionB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
+import { AccionB, MicroB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
 const SOL = "#FFBF00";
@@ -195,13 +195,7 @@ function Composicion({ dias, lugar, lienzo }: { dias: DiaOikos[]; lugar: Lugar; 
     const lluviaHoy = DEC1.format(hoy.lluviaL);
 
     if (b === "micro") {
-        return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5 text-center" role="group" aria-label={`Hoy en ${lugar.nombre}: ${solHoy} kWh/m² de sol y ${lluviaHoy} L/m² de lluvia`}>
-                <GlifoSol lado={34} />
-                <span className="text-[20px] font-light tabular-nums leading-none text-white">{solHoy}</span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/55">kWh/m² hoy</span>
-            </div>
-        );
+        return <MicroB glifo={(l) => <GlifoSol lado={l} />} cifra={solHoy} rotulo="kWh/m² hoy" etiqueta={`Hoy en ${lugar.nombre}: ${solHoy} kWh/m² de sol y ${lluviaHoy} L/m² de lluvia`} />;
     }
 
     const lado = lienzo.tv ? 40 : b === "s" ? 28 : 34;

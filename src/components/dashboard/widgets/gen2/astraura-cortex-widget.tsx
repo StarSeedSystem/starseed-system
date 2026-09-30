@@ -29,7 +29,7 @@ import { cargarAgora, cargarDelegaciones, type DatosAgora, type DatosDelegacion 
 import { cargarMercado, type DatosMercado } from "./_paquete-b/datos-economia";
 import { cargarMerito, type DatosMerito } from "./_paquete-b/datos-merito";
 import { avisosCortex, type AvisoCortex, type TipoAviso } from "./_paquete-b/cortex";
-import { AccionB, RaizB, RotuloB, estilosB, tintaB, useAhoraB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
+import { AccionB, GlifoMicroB, RaizB, RotuloB, estilosB, tintaB, useAhoraB, useLienzoB, useVisibleB, type LienzoB } from "./_paquete-b/piezas-b";
 
 const FAMILIA = { acento: "#22d3ee", acento2: "#7c5cff" };
 const ICONO: Record<TipoAviso, LucideIcon> = { voto: Vote, delegacion: Network, mercado: Sprout, merito: Award };
@@ -139,7 +139,7 @@ function Composicion({ avisos, sistemas, lienzo, descartar }: { avisos: AvisoCor
         </ul>
     );
 
-    if (b === "micro") return <a href="/agent" aria-label={`${frase}. Hablar con Astraura`} className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}>{orbe(76)}</a>;
+    if (b === "micro") return <a href="/agent" aria-label={`${frase}. Hablar con Astraura`} className={cn(estilosB.foco, "grid h-full place-items-center rounded-[14px]")}><GlifoMicroB>{(l) => orbe(l)}</GlifoMicroB></a>;
     if (b === "s") {
         const a = avisos[0];
         return (

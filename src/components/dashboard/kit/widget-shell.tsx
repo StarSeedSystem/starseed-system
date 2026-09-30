@@ -25,7 +25,7 @@ import { useAppearance } from "@/context/appearance-context";
 import { useElementSize, type ElementSize } from "./use-element-size";
 import { useWidgetStyleOverride, TRINITY_TINTS } from "./widget-style-override";
 import { useMarcoUnificado, type ContextoMarcoUnificado } from "./contexto-marco";
-import { CabeceraMarco, espaciadoDe } from "@/components/widgets-libres/marco-unificado";
+import { CabeceraMarco, CUERPO_EN_FILA, espaciadoDe, microEnFila } from "@/components/widgets-libres/marco-unificado";
 import { Rotulo } from "@/components/widgets-libres/familias/comun";
 import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 
@@ -421,6 +421,8 @@ function CascaronUnificado({
 }: CascaronUnificadoProps) {
     const esp = compact ? espaciadoDe(marco.clase, true) : marco.espaciado;
     const micro = marco.base === "micro";
+    // (Pulido 0930) Micro apaisada: icono a la izquierda y cuerpo en fila (ver CabeceraMarco).
+    const enFila = !bare && microEnFila(marco);
     const ampliar = expandHref
         ? <a href={expandHref} target="_blank" rel="noopener" title="Abrir vista ampliada en una pestaña nueva" aria-label="Ampliar widget"><Maximize2 className="size-3.5" /></a>
         : onExpand
@@ -454,7 +456,7 @@ function CascaronUnificado({
             ref={refCaja}
             data-marco="unificado"
             data-widget-shell=""
-            className={cn("@container relative isolate flex h-full w-full min-h-0 flex-col rounded-[inherit] bg-transparent text-foreground tabular-nums", className)}
+            className={cn("@container relative isolate flex h-full w-full min-h-0 rounded-[inherit] bg-transparent text-foreground tabular-nums", enFila ? "flex-row" : "flex-col", className)}
         >
             {!bare && (
                 <CabeceraMarco
@@ -467,12 +469,13 @@ function CascaronUnificado({
                     base={marco.base}
                     horizontal={marco.horizontal}
                     espaciado={esp}
+                    enFila={enFila}
                 />
             )}
-            <div className={cn("relative z-10 min-h-0 flex-1 overflow-auto custom-scrollbar", esp.cuerpo, bare && "p-0", bodyClassName)}>
+            <div className={cn("relative z-10 min-h-0 min-w-0 flex-1 overflow-auto custom-scrollbar", esp.cuerpo, enFila && CUERPO_EN_FILA, bare && "p-0", bodyClassName)}>
                 {children}
             </div>
-            {(footer || chips) && (
+            {(footer || chips) && !enFila && (
                 <footer className={cn("relative z-10 shrink-0 space-y-1.5 border-t border-white/[0.06]", esp.pie)}>
                     {footer}
                     {chips}

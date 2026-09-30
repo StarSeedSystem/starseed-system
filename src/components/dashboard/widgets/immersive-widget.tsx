@@ -24,6 +24,7 @@ import { getApp } from '../apps/app-catalog';
 import type { StarseedApp } from '../apps/launcher-types';
 import { useLienzoE, px, type LienzoE } from './paquete-e/lienzo';
 import { EncabezadoE, EnlaceE, RaizE, SelloE, estilosE } from './paquete-e/piezas';
+import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const PORTALES = ['immersive', 'sala-xr', 'escena', 'mundo-avatares'] as const;
 type SoporteXR = { comprobando: boolean; vr: boolean; ar: boolean };
@@ -132,14 +133,16 @@ export function ImmersiveWidget() {
     const grande = base === 'l' || base === 'xl' || clase === 'torre';
     return (
         <RaizE {...raiz}>
-            <div className="flex h-full min-h-0 flex-col items-center gap-2 p-1">
+            {/* (Pulido 0930) La lista de lugares se desplaza dentro de su hueco (antes crecía y el marco
+                cortaba tres lugares por debajo); si no hay sitio ni para ella, cede el portal. */}
+            <PilaAjustable niveles={2} className="items-center gap-2 p-1">
                 {grande && <EncabezadoE lienzo={lienzo} icono={Orbit} titulo="Espacio inmersivo" detalle={textoXR} className="w-full" />}
-                {portal(base === 'xl' ? 150 : grande ? 116 : Math.max(76, Math.min(120, (lienzo.alto || 240) * 0.46)))}
+                <Prescindible nivel={2}><div className="shrink-0">{portal(base === 'xl' ? 150 : grande ? 116 : Math.max(76, Math.min(120, (lienzo.alto || 240) * 0.46)))}</div></Prescindible>
                 {!grande && <p className="text-center text-[12px] text-white/65">{textoXR}</p>}
-                {chipsXR}
-                <EnlaceE lienzo={lienzo} href="/immersive" variante="primario">Entrar al espacio</EnlaceE>
-                {grande && <div className="min-h-0 w-full flex-1">{lista(base === 'xl')}</div>}
-            </div>
+                {chipsXR && <Prescindible nivel={1}><div className="shrink-0">{chipsXR}</div></Prescindible>}
+                <div className="shrink-0"><EnlaceE lienzo={lienzo} href="/immersive" variante="primario">Entrar al espacio</EnlaceE></div>
+                {grande && <div className="flex min-h-[4.5rem] w-full flex-1 flex-col">{lista(base === 'xl')}</div>}
+            </PilaAjustable>
         </RaizE>
     );
 }

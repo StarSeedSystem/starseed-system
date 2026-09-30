@@ -608,12 +608,12 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
         return (
             <RaizE {...raizProps}>
                 <button type="button" onClick={() => setCajon(true)} aria-label={`${nombre}: ${coleccion.length} apps`} title={`${nombre} · ${coleccion.length} apps`}
-                    className="ss-redondo relative m-auto grid size-[72%] max-h-20 max-w-20 cursor-pointer place-items-center rounded-full outline-none transition-transform duration-200 hover:scale-105 focus-visible:ring-2"
+                    className="ss-redondo relative m-auto grid aspect-square h-[min(72%,calc(100%-16px))] max-h-20 cursor-pointer place-items-center rounded-full outline-none transition-transform duration-200 hover:scale-105 focus-visible:ring-2"
                     style={{ background: `radial-gradient(closest-side, ${conAlfa(lienzo.acento, 0.35)}, ${conAlfa(lienzo.acento, 0.06)})`, ["--tw-ring-color" as string]: lienzo.acento } as React.CSSProperties}>
                     <span className="grid grid-cols-2 gap-1" aria-hidden>
                         {ordenadas.slice(0, 4).map((a) => <span key={a.id} className="size-2.5 rounded-[4px]" style={{ background: a.accent, boxShadow: `0 0 6px ${conAlfa(a.accent, 0.7)}` }} />)}
                     </span>
-                    <span className="absolute -bottom-1 -right-1 rounded-full bg-black/60 px-1.5 text-[10px] font-semibold tabular-nums text-white/85">{coleccion.length}</span>
+                    <span className="absolute -right-3 bottom-0 rounded-full bg-black/60 px-1.5 text-[10px] font-semibold leading-[14px] tabular-nums text-white/85">{coleccion.length}</span>
                 </button>
                 {extras}
             </RaizE>

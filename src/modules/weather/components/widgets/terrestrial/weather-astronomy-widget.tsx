@@ -15,7 +15,7 @@ import { alturaSol, COLOR_ELEMENTO, faseLunar, horasDelSol, proximaFase, proximo
 import { formateadores, useReloj, useUbicacionClima } from '@/modules/weather/datos/hooks';
 import { LunaFase } from '../_clima/cielo';
 import { ArcoSolar } from '../_clima/graficas';
-import { LugarClima, MarcoClima, MenuClima, RotuloClima, SinUbicacion, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { LugarClima, MarcoClima, MenuClima, MicroDato, RotuloClima, SinUbicacion, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 /** Horas doradas del día: el Sol entre −4° y 6° (mañana y tarde), por barrido de 5 min. */
@@ -114,7 +114,8 @@ function Contenido({ info }: { info: InfoMarco }) {
     );
 
     if (base === 'micro') {
-        return <div className="flex h-full flex-col items-center justify-center gap-0.5">{luna(16)}<span className={`${s.cifra} text-[12px] text-white/80`}>{pct}%</span></div>;
+        // (Pulido 0930) Luna y porcentaje en fila: apilados rozaban el borde de una tesela de 65.
+        return <MicroDato info={info} etiqueta={`Luna ${cielo.fase.nombre.toLowerCase()}, iluminada al ${pct} %`} glifo={luna(18)} cifra={`${pct}%`} maximo={20} />;
     }
     if (base === 's') {
         return (

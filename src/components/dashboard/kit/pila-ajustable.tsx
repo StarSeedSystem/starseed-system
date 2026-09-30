@@ -54,7 +54,9 @@ export function PilaAjustable({ niveles = 3, clave, className, children, ...rest
         const revisar = () => {
             if (Math.abs(el.clientWidth - w) >= 1 || Math.abs(el.clientHeight - h) >= 1) {
                 w = el.clientWidth; h = el.clientHeight;
-                setCorte(0);
+                // Se empieza de cero; si ya estaba en cero no habrá repintado (React no repinta un
+                // estado igual) y nadie volvería a medir: se mide aquí mismo con lo que hay pintado.
+                setCorte((c) => (c === 0 ? (desbordaAlto(el) ? Math.min(niveles, 1) : 0) : 0));
                 return;
             }
             if (desbordaAlto(el)) setCorte((c) => Math.min(niveles, c + 1));

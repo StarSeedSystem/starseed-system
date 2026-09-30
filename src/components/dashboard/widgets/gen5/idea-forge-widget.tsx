@@ -22,6 +22,7 @@ import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 import { Lienzo, useIdSvg, useLienzo, type EstadoLienzo } from "./_catalogo/lienzo";
 import { Accion, Rot, tinta } from "./_catalogo/piezas";
 import { chispa, comoNota, diaDe, ideasDe, textoChispa, textoIdea, tituloDe, type Chispa } from "./idea-forge-partes";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 
 function Crisol({ c, D, l, conNombres }: { c: Chispa; D: number; l: EstadoLienzo; conNombres: boolean }) {
     const id = useIdSvg("crisol");
@@ -229,14 +230,16 @@ export function IdeaForgeWidget() {
                     </div>
                 </div>
             ) : (
-                <div className="flex h-full min-h-0 flex-col justify-center gap-2.5">
-                    <div className={`flex gap-3 ${l.ancho < 300 ? "flex-col items-center text-center" : "items-center"}`}>
-                        <Crisol c={c} D={Math.min(D, 110)} l={l} conNombres={false} />
+                // (Pulido 0930) Si la columna no cabe, cede primero la lista y luego el crisol (antes
+                // el aviso del bloc vacío quedaba 20-40 px bajo la tarjeta).
+                <PilaAjustable niveles={2} className="justify-center gap-2.5">
+                    <div className={`flex shrink-0 gap-3 ${l.ancho < 300 ? "flex-col items-center text-center" : "items-center"}`}>
+                        <Prescindible nivel={2}><Crisol c={c} D={Math.min(D, 110)} l={l} conNombres={false} /></Prescindible>
                         {puente}
                     </div>
-                    {campo}
-                    {grande ? listaIdeas(l.torre ? 3 : 2) : acciones}
-                </div>
+                    <div className="shrink-0">{campo}</div>
+                    {grande ? <Prescindible nivel={1}>{listaIdeas(l.torre ? 3 : 2)}</Prescindible> : <div className="shrink-0">{acciones}</div>}
+                </PilaAjustable>
             )}
         </Lienzo>
     );

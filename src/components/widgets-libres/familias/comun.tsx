@@ -4,7 +4,9 @@
  * que no rompen la hidratación y un «sin dato» honesto con la misma voz en todos.
  */
 import * as React from "react";
+import { CircleDashed, type LucideIcon } from "lucide-react";
 import type { ClaseTamano } from "@/lib/widgets/forma/tamanos";
+import { EstadoMicro } from "@/components/dashboard/kit/estado-micro";
 
 /** La hora viva, `null` hasta montar (el servidor no sabe qué hora es en tu neurona). */
 export function useAhora(intervaloMs = 1000): Date | null {
@@ -47,8 +49,28 @@ export function recortarPalabras(texto: string, max: number): string {
     return `${base}…`;
 }
 
-/** El dato que falta se dice, no se inventa. */
-export function SinDato({ texto = "sin dato", accion }: { texto?: string; accion?: React.ReactNode }) {
+/** Cómo se dice el «sin dato» en una tesela micro: un glifo (la acción, si la hay) y una palabra. */
+export interface SinDatoMicro {
+    icono?: LucideIcon;
+    /** Una palabra de 10 px junto al glifo (si cabe). */
+    etiqueta?: string;
+    href?: string;
+    onClick?: () => void;
+    color?: string;
+}
+
+/**
+ * El dato que falta se dice, no se inventa. (Pulido 0930) Con `micro`, en una tesela micro se
+ * dice con un glifo y como mucho una palabra; la frase entera va en title/aria-label (antes el
+ * texto partía en dos líneas y se salía de una tesela de 46-65 px).
+ */
+export function SinDato({ texto = "sin dato", accion, micro }: { texto?: string; accion?: React.ReactNode; micro?: SinDatoMicro | false }) {
+    if (micro) {
+        return (
+            <EstadoMicro kit="sin-dato" icono={micro.icono ?? CircleDashed} color={micro.color ?? "#94a3b8"} etiqueta={micro.etiqueta}
+                descripcion={texto} href={micro.href} onClick={micro.href ? undefined : micro.onClick} />
+        );
+    }
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center" role="status">
             <span className="text-xs font-medium text-white/70">{texto}</span>

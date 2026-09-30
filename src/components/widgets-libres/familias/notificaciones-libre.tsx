@@ -14,7 +14,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlarmClock, Check, CheckCheck, LogIn } from "lucide-react";
+import { AlarmClock, Bell, Check, CheckCheck, LogIn } from "lucide-react";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { createClient } from "@/utils/supabase/client";
 import { useMyNotifications, type NotificationRow } from "@/lib/widget-data/os-live";
@@ -143,8 +143,8 @@ export function NotificacionesLibre() {
                     const clase = forzada ?? medida;
                     const { base: b, horizontal } = disenoDe(clase);
                     const lado = Math.min(ancho, alto);
-                    if (needsAuth) return <SinDato texto="Entra para ver tus avisos" accion={b !== "micro" ? <Accion icono={LogIn} color="#7c5cff" href="/login" grande={tactil}>Entrar</Accion> : undefined} />;
-                    if (authPending || (loading && rows.length === 0)) return <SinDato texto="escuchando…" />;
+                    if (needsAuth) return <SinDato texto="Entra para ver tus avisos" micro={b === "micro" && { icono: LogIn, etiqueta: "Entrar", href: "/login", color: "#7c5cff" }} accion={b !== "micro" ? <Accion icono={LogIn} color="#7c5cff" href="/login" grande={tactil}>Entrar</Accion> : undefined} />;
+                    if (authPending || (loading && rows.length === 0)) return <SinDato texto="escuchando…" micro={b === "micro" && { icono: Bell, color: "#7c5cff" }} />;
 
                     // ── micro ──
                     if (b === "micro") {

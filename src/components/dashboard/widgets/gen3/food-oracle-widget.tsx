@@ -27,7 +27,7 @@ import { useDatoCompartido, type ResultadoDato } from "../gen2/_paquete-b/cache-
 import { cargarSiembra, consejos, resumenSemana, type DiaSiembra, type Veredicto } from "../gen2/_paquete-b/datos-siembra";
 import { diaCorto } from "../gen2/_paquete-b/datos-oikos";
 import { useLugarB, type LugarB } from "../gen2/_paquete-b/lugar";
-import { AccionB, PestanasB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
+import { AccionB, MicroB, PestanasB, RaizB, RotuloB, estilosB, tintaB, useLienzoB, useVisibleB, type LienzoB } from "../gen2/_paquete-b/piezas-b";
 
 const FAMILIA = { acento: "#10b981", acento2: "#7c5cff" };
 export const COLOR_VEREDICTO: Record<Veredicto, string> = { ahora: "#10b981", casi: "#f59e0b", esperar: "#64748b" };
@@ -86,13 +86,7 @@ function Composicion({ dias, lienzo }: { dias: DiaSiembra[]; lienzo: LienzoB }) 
     const frase = `Esta semana puedes sembrar ${ya.length} ${ya.length === 1 ? "cultivo" : "cultivos"}${ya.length ? `: ${ya.slice(0, 3).map((c) => c.cultivo.nombre).join(", ")}` : ""}. Suelo a ${s.sueloMedio === null ? "sin dato" : `${DEC.format(s.sueloMedio)} °C`}${s.diaHelada ? `, helada el ${diaCorto(s.diaHelada)}` : ", sin heladas"}.`;
 
     if (b === "micro") {
-        return (
-            <div className="flex h-full flex-col items-center justify-center gap-0.5 text-center" role="img" aria-label={frase} title={frase}>
-                <Brote lado={40} lienzo={lienzo} />
-                <span className="text-[20px] font-light tabular-nums leading-none text-white">{ya.length}</span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/55">para sembrar</span>
-            </div>
-        );
+        return <MicroB glifo={(l) => <Brote lado={l} lienzo={lienzo} />} cifra={String(ya.length)} rotulo="para sembrar" etiqueta={frase} />;
     }
     const condiciones = (vertical: boolean) => (
         <dl className={cn("grid gap-2", vertical ? "grid-cols-1" : "grid-cols-3")} aria-label="Condiciones de la semana">

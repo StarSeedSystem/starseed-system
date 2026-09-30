@@ -31,7 +31,7 @@ const toggleLearningStep = vi.fn(async (_t: string, id: string) => (h.rutas["top
 vi.mock("@/lib/education/progress", () => ({ toggleLearningStep: (...a: any[]) => (toggleLearningStep as any)(...a), addLearningStep: vi.fn(async () => []) }));
 vi.mock("@/lib/os-social", () => ({ fetchPages: async () => { if (h.fallo) throw new Error("sin red"); return h.paginas; }, fetchGroups: async () => [], fetchEvents: async () => [] }));
 
-import { entornoNavegador, montarEn, TODAS } from "../pruebas-render";
+import { dice, entornoNavegador, montarEn, TODAS } from "../pruebas-render";
 import { _vaciarCacheE } from "../cache";
 import { ActiveProjectsWidget } from "../../active-projects-widget";
 import { LearningPathWidget } from "../../learning-path-widget";
@@ -51,7 +51,19 @@ async function montar(clase: any, nodo: React.ReactElement) {
 describe("Génesis activa (proyectos del estudio)", () => {
     it.each(TODAS)("sin proyectos invita a crear en %s", async (clase) => {
         await montar(clase, <ActiveProjectsWidget />);
-        expect(screen.getByText("Aún no tienes proyectos")).toBeTruthy();
+        expect(dice("Aún no tienes proyectos")).toBeTruthy();
+    });
+
+    it("en micro el vacío es UN glifo: la acción, con el texto entero en su nombre", async () => {
+        h.uid = null;
+        await montar("micro", <ActiveProjectsWidget />);
+        const entrar = screen.getByRole("link", { name: /^Entrar: Entra para ver tus proyectos/ });
+        expect(entrar.getAttribute("href")).toBe("/login");
+        expect(entrar.getAttribute("title")).toMatch(/Tus proyectos y tareas viajan con tu cuenta/);
+        // Nada de título + ayuda + pastilla apilados: solo la etiqueta corta.
+        expect(screen.queryByText("Entra para ver tus proyectos")).toBeNull();
+        expect(screen.queryByText("Tus proyectos y tareas viajan con tu cuenta.")).toBeNull();
+        expect(screen.getByText("Entrar")).toBeTruthy();
     });
 
     it("sin sesión pide entrar", async () => {
@@ -97,7 +109,7 @@ describe("Génesis activa (proyectos del estudio)", () => {
 describe("Ruta de aprendizaje (education:progress)", () => {
     it.each(TODAS)("sin rutas lo dice en %s", async (clase) => {
         await montar(clase, <LearningPathWidget />);
-        expect(screen.getByText("Todavía no sigues ningún camino")).toBeTruthy();
+        expect(dice("Todavía no sigues ningún camino")).toBeTruthy();
     });
 
     it("pinta el sendero y marca el siguiente paso", async () => {
@@ -115,7 +127,7 @@ describe("Proyectos de la red (os_pages)", () => {
     it.each(TODAS)("sin proyectos invita a crear el primero en %s", async (clase) => {
         h.paginas = [{ id: "x", slug: "c", name: "Comunidad", kind: "comunidad", description: "", tags: [], accent: "#fff", memberCount: 3 }];
         await montar(clase, <CollabProjectsWidget />);
-        expect(screen.getByText("La red aún no tiene proyectos publicados")).toBeTruthy();
+        expect(dice("La red aún no tiene proyectos publicados")).toBeTruthy();
     });
 
     it("cuenta, ordena por gente y enlaza a la página del proyecto", async () => {

@@ -167,14 +167,107 @@ export function SelloFuente({ fuente, en, antiguaMs = 2 * 3_600_000, className =
     );
 }
 
+// ── Dato micro ────────────────────────────────────────────────────────
+
+export interface MicroDatoProps {
+    /** Caja medida del cuerpo (0 hasta medir). */
+    info: Pick<InfoMarco, "ancho" | "alto">;
+    /** Lectura completa para lectores de pantalla y tooltip. */
+    etiqueta: string;
+    /** Glifo (aria-hidden) que identifica la magnitud. */
+    glifo?: React.ReactNode;
+    /** Rótulo corto en versalitas cuando no hay glifo («Kp», «UV», «Aire»). */
+    rotulo?: string;
+    cifra: string;
+    unidad?: string;
+    color?: string;
+    /** Peso de la cifra (por defecto «light»). */
+    peso?: "extralight" | "light" | "semibold";
+    /** Distintivo extra (p. ej. «G1»): solo si cabe. */
+    extra?: React.ReactNode;
+    /** Tamaño máximo de la cifra (px). */
+    maximo?: number;
+    /** Nota de 9 px bajo la cifra (p. ej. la fuente): solo si cabe de alto y de ancho. */
+    nota?: string;
+}
+
+/**
+ * Ancho aproximado (px) de un texto. Con `factor` se usa una media fija (versalitas espaciadas ≈
+ * 0,78 em); sin él, carácter a carácter (un «%» es el doble de ancho que una coma).
+ */
+function anchoTexto(t: string, px: number, factor?: number): number {
+    if (factor !== undefined) return t.length * px * factor;
+    let em = 0;
+    for (const c of t) em += c === "%" ? 0.9 : c === "°" || c === "′" ? 0.42 : c === "," || c === "." || c === ":" ? 0.3 : c === " " ? 0.28 : /[0-9]/.test(c) ? 0.62 : c === c.toUpperCase() && c !== c.toLowerCase() ? 0.7 : 0.58;
+    return em * px;
+}
+
+/**
+ * (Pulido 0930) El dato de una tesela micro, que ya no se apila: en una tesela más ancha que alta
+ * (108×65, 178×46, 147×77) glifo y cifra van EN FILA y la cifra se dimensiona por el alto; si no
+ * cabe a lo ancho, baja de tamaño y después suelta la unidad (que sigue en el nombre accesible).
+ * Con una caja más alta que ancha se apila, con la cifra dimensionada por el ancho.
+ */
+export function MicroDato({ info, etiqueta, glifo, rotulo, cifra, unidad, color, peso = "light", extra, maximo = 28, nota }: MicroDatoProps) {
+    const ancho = info.ancho || 108, alto = info.alto || 65;
+    const util = ancho - 14; // 7 px de aire a cada lado
+    const cabeza = glifo ? 20 : rotulo ? anchoTexto(rotulo, 9, 0.8) : 0;
+    const altoCabeza = glifo ? 20 : rotulo ? 10 : 0;
+    const anchoUnidad = unidad ? 3 + anchoTexto(unidad, 9, 0.62) : 0;
+    const enFila = (t: number, u: boolean, e: boolean) => cabeza + (cabeza ? 6 : 0) + anchoTexto(cifra, t) + (u ? anchoUnidad : 0) + (e ? 26 : 0);
+    let fila = ancho >= alto * 1.15 || alto < 60;
+    let tam = Math.max(14, Math.min(maximo, Math.round(alto * 0.4)));
+    let conUnidad = !!unidad;
+    let conExtra = !!extra;
+    if (fila) {
+        if (enFila(tam, conUnidad, conExtra) > util) conExtra = false;
+        while (tam > 14 && enFila(tam, conUnidad, conExtra) > util) tam -= 1;
+        // No cabe en fila ni a 14 px: con alto de sobra se apila; si no, se suelta la unidad.
+        if (enFila(tam, conUnidad, conExtra) > util) {
+            if (alto >= 52) fila = false;
+            else conUnidad = false;
+        }
+    }
+    if (!fila) {
+        conExtra = conExtra && alto >= 90;
+        const porAlto = alto - 12 - altoCabeza - (altoCabeza ? 4 : 0);
+        const emCifra = Math.max(0.6, anchoTexto(cifra, 1));
+        if ((util - (conUnidad ? anchoUnidad : 0)) / emCifra < 14 && conUnidad) conUnidad = false;
+        tam = Math.max(12, Math.min(maximo, Math.round(porAlto), Math.floor((util - (conUnidad ? anchoUnidad : 0)) / emCifra)));
+    }
+    const anchoNota = nota ? anchoTexto(nota, 9, 0.78) : 0;
+    const conNota = !!nota && (fila
+        ? alto - 16 >= tam + 13 && anchoNota <= util - (cabeza ? cabeza + 6 : 0)
+        : alto - 12 >= altoCabeza + (altoCabeza ? 4 : 0) + tam + 13 && anchoNota <= util);
+    const cabecera = glifo
+        ? <span aria-hidden className="grid size-5 shrink-0 place-items-center [&>svg]:size-5">{glifo}</span>
+        : rotulo ? <span aria-hidden className="shrink-0 text-[9px] font-semibold uppercase leading-none tracking-widest text-white/60">{rotulo}</span> : null;
+    const pesoCls = peso === "extralight" ? "font-extralight" : peso === "semibold" ? "font-semibold" : "font-light";
+    return (
+        <div role="img" aria-label={etiqueta} title={etiqueta} data-micro-dato={fila ? "fila" : "pila"}
+            className={`flex h-full w-full min-w-0 items-center justify-center overflow-hidden px-[7px] ${fila ? "flex-row gap-1.5" : "flex-col gap-1"}`}>
+            {cabecera}
+            <span className={`flex min-w-0 flex-col ${fila ? "items-start" : "items-center"}`}>
+                <span className="flex min-w-0 items-baseline gap-[3px] whitespace-nowrap">
+                    <span className={`${s.cifra} ${pesoCls} leading-none`} style={{ fontSize: tam, color }}>{cifra}</span>
+                    {conUnidad && unidad && <span className="text-[9px] leading-none text-white/60">{unidad}</span>}
+                </span>
+                {conNota && <span aria-hidden className="mt-0.5 whitespace-nowrap text-[9px] uppercase leading-[11px] tracking-widest text-white/55">{nota}</span>}
+            </span>
+            {conExtra && extra}
+        </div>
+    );
+}
+
 // ── Estados honestos ──────────────────────────────────────────────────
 
 export function CargandoClima({ texto = "Leyendo el cielo…", base }: { texto?: string; base: BaseTamano }) {
     return (
-        <div role="status" aria-live="polite" className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
-            <span aria-hidden className={`${s.respira} block rounded-full`} style={{ width: base === "micro" ? 18 : 34, height: base === "micro" ? 18 : 34, background: "radial-gradient(circle, rgba(255,255,255,.55), rgba(255,255,255,0) 70%)" }} />
-            {base !== "micro" && <span className="text-[12px] font-medium text-white/70">{texto}</span>}
-            {base === "micro" && <span className="sr-only">{texto}</span>}
+        // En micro el texto va en el nombre accesible (no en un sr-only que se maqueta fuera).
+        <div role="status" aria-live="polite" aria-label={base === "micro" ? texto : undefined} title={base === "micro" ? texto : undefined}
+            className="flex h-full w-full flex-col items-center justify-center gap-2 overflow-hidden px-3 text-center">
+            <span aria-hidden className={`${s.respira} block shrink-0 rounded-full`} style={{ width: base === "micro" ? 18 : 34, height: base === "micro" ? 18 : 34, background: "radial-gradient(circle, rgba(255,255,255,.55), rgba(255,255,255,0) 70%)" }} />
+            {base !== "micro" && <span className="line-clamp-2 text-[12px] font-medium text-white/70">{texto}</span>}
         </div>
     );
 }
