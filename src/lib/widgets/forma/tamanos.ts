@@ -13,12 +13,18 @@ export type ClaseDispositivo = "movil" | "tablet" | "escritorio" | "tv" | "xr";
 export const PX_COLUMNA = 95;
 export const PX_FILA = 65;
 
+/** Por debajo de este lado (px) la tesela es «micro» aunque sea muy alargada. */
+export const LADO_MICRO_SIEMPRE = 80;
+
 export function claseDesdePx(w: number, h: number): ClaseTamano {
     if (!(w > 0) || !(h > 0)) return "micro";
+    const lado = Math.min(w, h);
+    // (Pulido 0930) Una tesela de una sola fila (móvil 46 px, escritorio 65, TV 77) no tiene alto
+    // para nada más que un dato, por ancha que sea: es «micro» (glifo + cifra), no panorámico.
+    if (lado < LADO_MICRO_SIEMPRE) return "micro";
     const relacion = w / h;
     if (relacion > 2.2) return "panoramico";
     if (relacion < 0.55) return "torre";
-    const lado = Math.min(w, h);
     if (lado < 110) return "micro";
     if (lado < 180) return "s";
     if (lado < 280) return "m";

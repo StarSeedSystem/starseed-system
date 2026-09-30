@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { SeriesPoint, Trend } from "@/lib/widget-data/types";
 import { useMarcoUnificado } from "./contexto-marco";
 import { Alterna, PilaAjustable, Prescindible } from "./pila-ajustable";
+import { EstadoMicro, frase } from "./estado-micro";
 import { conAlfa, esHex, normalizarHex } from "@/components/widgets-libres/acentos-categoria";
 import { mezclar } from "@/components/widgets-libres/familias/comun";
 
@@ -356,6 +357,14 @@ export function WidgetEmptyState({
 }) {
     const marco = useMarcoUnificado();
     const accent = accentProp ?? marco?.acento ?? PRIMARIO;
+    // (Pulido 0930) En micro: un glifo (la acción, si la hay) y una etiqueta de 10 px; el texto
+    // entero va en title/aria-label. Antes el vacío completo se salía 50-100 px de la tesela.
+    if (marco?.base === "micro") {
+        return (
+            <EstadoMicro kit="vacio" icono={Icon} color={accent} etiqueta={actionLabel ?? title}
+                descripcion={frase(title, message)} href={actionLabel ? actionHref : undefined} onClick={actionLabel && !actionHref ? onAction : undefined} />
+        );
+    }
     if (marco) {
         const pildora = "inline-flex cursor-pointer items-center gap-1.5 rounded-full ss-redondo px-3 py-1 text-[11px] font-semibold text-white transition-transform duration-200 hover:scale-105 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
         // (Pulido 0929) En una tarjeta pequeña el vacío ya no se sube sobre la cabecera: se centra
@@ -403,6 +412,12 @@ export function WidgetEmptyState({
 // ── WidgetErrorState — error honesto (nunca falla en silencio) ──────
 export function WidgetErrorState({ message = "No se pudo cargar este widget.", onRetry }: { message?: string; onRetry?: () => void }) {
     const marco = useMarcoUnificado();
+    if (marco?.base === "micro") {
+        return (
+            <EstadoMicro kit="error" icono={onRetry ? RotateCw : AlertOctagon} color="#dc143c" etiqueta={onRetry ? "Reintentar" : "Sin datos"}
+                descripcion={frase(message, onRetry ? "Toca para reintentar" : null)} onClick={onRetry} />
+        );
+    }
     if (marco) {
         const carmesi = "#dc143c";
         return (
