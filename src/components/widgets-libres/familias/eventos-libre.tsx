@@ -187,21 +187,30 @@ export function EventosLibre() {
                 {({ clase: medida, ancho, alto }) => {
                     const clase = forzada ?? medida;
                     const { base: b, horizontal } = disenoDe(clase);
-                    if (!ahoraD || (loading && rows.length === 0)) return <SinDato texto="buscando eventos…" />;
+                    if (!ahoraD || (loading && rows.length === 0)) return <SinDato texto="buscando eventos…" micro={b === "micro" && { icono: CalendarDays, color: "#38bdf8" }} />;
                     const hoyTxt = ahoraD.toLocaleDateString("es-ES", { weekday: "long" });
 
                     // ── micro ──
                     if (b === "micro") {
                         const lado = Math.min(ancho, alto);
+                        // (Pulido 0930) En una tesela apaisada, cifra y rótulo en fila (apilados rozaban el borde).
+                        const fila = ancho >= alto * 1.15;
+                        // Fila: alineadas por la línea base DENTRO de un grupo centrado (un items-baseline
+                        // en la propia caja la pegaba arriba).
+                        const grupo = fila ? "flex items-baseline gap-1.5" : "flex flex-col items-center gap-0.5";
                         return sig ? (
-                            <Link href={`/evento/${sig.slug}`} aria-label={etiqueta} className="flex h-full cursor-pointer flex-col items-center justify-center gap-0.5 text-center">
-                                <span className="tabular-nums text-white" style={{ fontSize: lado * 0.26 * k, fontWeight: 300, lineHeight: 1 }}>{sig.enCurso ? "ya" : cuentaCorta(sig.inicio.getTime() - ahora)}</span>
-                                <span className="max-w-full truncate px-1 text-[10px] font-semibold uppercase tracking-wide text-sky-200/80">{sig.enCurso ? "en curso" : "próximo"}</span>
+                            <Link href={`/evento/${sig.slug}`} aria-label={etiqueta} className="flex h-full cursor-pointer items-center justify-center text-center">
+                                <span className={grupo}>
+                                    <span className="tabular-nums text-white" style={{ fontSize: lado * 0.26 * k, fontWeight: 300, lineHeight: 1 }}>{sig.enCurso ? "ya" : cuentaCorta(sig.inicio.getTime() - ahora)}</span>
+                                    <span className="max-w-full truncate px-1 text-[10px] font-semibold uppercase tracking-wide text-sky-200/80">{sig.enCurso ? "en curso" : "próximo"}</span>
+                                </span>
                             </Link>
                         ) : (
-                            <div className="flex h-full flex-col items-center justify-center" aria-label={`Hoy, ${hoyTxt} ${ahoraD.getDate()}: sin eventos próximos`}>
-                                <span className="tabular-nums text-white" style={{ fontSize: lado * 0.34 * k, fontWeight: 250, lineHeight: 1 }}>{ahoraD.getDate()}</span>
-                                <span className="text-[10px] font-semibold uppercase tracking-wide text-white/55">{hoyTxt.slice(0, 3)}</span>
+                            <div role="img" className="flex h-full items-center justify-center" aria-label={`Hoy, ${hoyTxt} ${ahoraD.getDate()}: sin eventos próximos`}>
+                                <span className={grupo}>
+                                    <span className="tabular-nums text-white" style={{ fontSize: lado * 0.34 * k, fontWeight: 250, lineHeight: 1 }}>{ahoraD.getDate()}</span>
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-white/55">{hoyTxt.slice(0, 3)}</span>
+                                </span>
                             </div>
                         );
                     }

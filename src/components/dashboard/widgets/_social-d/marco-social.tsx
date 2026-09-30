@@ -14,7 +14,8 @@
 import * as React from "react";
 import { LogIn, Sparkles, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CabeceraMarco, ESPACIADO_MARCO } from "@/components/widgets-libres/marco-unificado";
+import { CabeceraMarco, CUERPO_EN_FILA, ESPACIADO_MARCO, microEnFila } from "@/components/widgets-libres/marco-unificado";
+import { useMarcoUnificado } from "@/components/dashboard/kit/contexto-marco";
 import { WidgetEmptyState, WidgetErrorState } from "@/components/dashboard/kit";
 import { mensajeError, mensajeVacio } from "@/components/dashboard/calidad-widget";
 import { useNivelRender } from "@/lib/widgets/forma/nivel-dispositivo";
@@ -69,9 +70,12 @@ export function MarcoSocial(p: MarcoSocialProps) {
     const acciones = typeof p.acciones === "function" ? p.acciones(t) : p.acciones;
     const pie = typeof p.pie === "function" ? p.pie(t) : p.pie;
 
+    // (Pulido 0930) Micro apaisada con cabecera: icono en columna a la izquierda y cuerpo en fila.
+    const marcoU = useMarcoUnificado();
+    const enFila = !sinCabecera && t.enMarco && microEnFila(marcoU);
     const cabecera = sinCabecera ? null : t.enMarco ? (
         <CabeceraMarco titulo={p.titulo} subtitulo={subtitulo} icono={p.icono} acciones={p.estado === "listo" ? acciones : undefined}
-            vivo={p.vivo && p.estado === "listo"} acento={t.acento} base={t.base} horizontal={t.horizontal} espaciado={esp} />
+            vivo={p.vivo && p.estado === "listo"} acento={t.acento} base={t.base} horizontal={t.horizontal} espaciado={esp} enFila={enFila} />
     ) : (
         <header className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-2.5">
             <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-[9px]" style={{ background: `${t.acento}1f`, boxShadow: `inset 0 0 0 1px ${t.acento}66` }}>
@@ -122,12 +126,13 @@ export function MarcoSocial(p: MarcoSocialProps) {
             className={cn(
                 estilos.raiz,
                 "overflow-hidden text-white",
+                enFila && "!flex-row",
                 !t.enMarco && "rounded-2xl border border-white/10 bg-[rgba(12,14,34,.62)] backdrop-blur-xl",
             )}
             style={{ ["--social-acento" as string]: t.acento, ["--social-acento-2" as string]: t.acento2 } as React.CSSProperties}
         >
             {cabecera}
-            <div ref={ref} className={cn(estilos.cuerpo, !p.sangre && (sinCabecera ? "p-2" : t.enMarco ? esp.cuerpo : "px-3 pb-3"))}>
+            <div ref={ref} className={cn(estilos.cuerpo, !p.sangre && (sinCabecera ? "p-2" : enFila ? CUERPO_EN_FILA : t.enMarco ? esp.cuerpo : "px-3 pb-3"))}>
                 {cuerpo}
             </div>
             {pie && p.estado === "listo" && !micro && <footer className={cn("relative shrink-0", t.enMarco ? esp.pie : "px-3 pb-2.5 pt-1.5")}>{pie}</footer>}

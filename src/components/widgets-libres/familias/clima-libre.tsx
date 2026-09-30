@@ -11,7 +11,7 @@
  * La ubicación de fábrica se marca «por defecto» y se ofrece «Usar mi ubicación».
  */
 import * as React from "react";
-import { Droplets, MapPin, RefreshCw, Sun as SolIcono, Wind } from "lucide-react";
+import { CloudSun, Droplets, MapPin, RefreshCw, Sun as SolIcono, Wind } from "lucide-react";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { WeatherLocationProvider, useWeatherLocationOpcional } from "@/modules/weather/context/weather-location-context";
 import { MOCK_WEATHER_DATA } from "@/lib/weather-mock";
@@ -220,9 +220,9 @@ function ClimaInterno({ widgetId }: { widgetId: string }) {
                     const clase = forzada ?? medida;
                     const { base: b, horizontal } = disenoDe(clase);
                     const lado = Math.min(ancho, alto);
-                    if (!inst) return <SinDato texto="leyendo el cielo…" />;
+                    if (!inst) return <SinDato texto="leyendo el cielo…" micro={b === "micro" && { icono: CloudSun, color: "#23d5ab" }} />;
                     if (temp === null || !cielo) {
-                        return <SinDato texto="sin dato del clima" accion={b !== "micro" ? <Accion icono={RefreshCw} color="#23d5ab" grande={tactil} onClick={recargar} disabled={recargando}>Reintentar</Accion> : undefined} />;
+                        return <SinDato texto="sin dato del clima" micro={b === "micro" && { icono: RefreshCw, etiqueta: "Reintentar", onClick: recargar, color: "#23d5ab" }} accion={b !== "micro" ? <Accion icono={RefreshCw} color="#23d5ab" grande={tactil} onClick={recargar} disabled={recargando}>Reintentar</Accion> : undefined} />;
                     }
 
                     // ── micro ──

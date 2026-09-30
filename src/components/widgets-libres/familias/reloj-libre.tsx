@@ -218,8 +218,9 @@ export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWid
 
                     // ── micro: la hora y la Luna ──
                     if (b === "micro") {
+                        // (Pulido 0930) Apaisada: hora y Luna en fila (apiladas rozaban el borde de 46 px).
                         return (
-                            <div className="flex h-full flex-col items-center justify-center gap-1" data-diseno="micro">
+                            <div className={`flex h-full items-center justify-center ${ancho >= alto * 1.15 ? "flex-row gap-2" : "flex-col gap-1"}`} data-diseno="micro">
                                 <span className="font-extralight tabular-nums tracking-tight text-white" style={{ fontSize: lado * 0.3 * k, lineHeight: 1 }}>{t.hhmm}</span>
                                 <svg width={lado * 0.22} height={lado * 0.22} viewBox="-12 -12 24 24" aria-hidden><LunaSVG r={10} fase={cielo.luna} id={`m${id}`} halo={false} /></svg>
                             </div>

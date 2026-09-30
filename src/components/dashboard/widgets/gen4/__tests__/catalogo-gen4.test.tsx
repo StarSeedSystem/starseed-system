@@ -230,7 +230,8 @@ describe("Mentoría Híbrida", () => {
     it("mientras la libreta carga, lo dice", () => {
         contactos.listo = false;
         pintar(<MentorMatchWidget />, "m");
-        expect(screen.getByText("Cargando tu libreta…")).toBeTruthy();
+        // El aviso de carga es el nombre del estado (sin un «sr-only» que se maquetaba fuera).
+        expect(screen.getByRole("status", { name: "Cargando tu libreta…" })).toBeTruthy();
     });
 });
 

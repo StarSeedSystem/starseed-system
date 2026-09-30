@@ -7,8 +7,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import type { LucideIcon } from "lucide-react";
+import { AlertOctagon, RotateCw, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { accionDe, EstadoMicro, frase } from "@/components/dashboard/kit/estado-micro";
 import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 import { mezclar } from "@/components/widgets-libres/familias/comun";
 import type { LienzoE } from "./lienzo";
@@ -200,6 +201,14 @@ export function VacioE({
     compacto?: boolean;
 }) {
     const tinta = tintaE(lienzo.acento);
+    // (Pulido 0930) En micro: un glifo (la acción de los hijos, si la hay) y una etiqueta corta.
+    if (lienzo.base === "micro") {
+        const accion = accionDe(children);
+        return (
+            <EstadoMicro kit="vacio" icono={Icono} color={lienzo.acento} etiqueta={accion?.etiqueta ?? titulo}
+                descripcion={frase(titulo, texto)} href={accion?.href} onClick={accion?.href ? undefined : accion?.onClick} />
+        );
+    }
     return (
         <div role="status" className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 px-2 text-center">
             <span aria-hidden className="relative grid place-items-center" style={{ width: compacto ? 36 : 48, height: compacto ? 36 : 48 }}>
@@ -214,6 +223,12 @@ export function VacioE({
 }
 
 export function ErrorE({ lienzo, texto = "No se pudo cargar.", onReintentar }: { lienzo: LienzoE; texto?: string; onReintentar?: () => void }) {
+    if (lienzo.base === "micro") {
+        return (
+            <EstadoMicro kit="error" icono={onReintentar ? RotateCw : AlertOctagon} color="#f43f5e" etiqueta={onReintentar ? "Reintentar" : "Sin datos"}
+                descripcion={frase(texto, onReintentar ? "Toca para reintentar" : null)} onClick={onReintentar} />
+        );
+    }
     return (
         <div role="alert" className="flex h-full w-full flex-col items-center justify-center gap-2 px-2 text-center">
             <p className="max-w-[30ch] text-[12px] font-medium text-rose-200/90">{texto}</p>
@@ -225,11 +240,11 @@ export function ErrorE({ lienzo, texto = "No se pudo cargar.", onReintentar }: {
 /** Esqueleto de carga: líneas que brillan (se quedan quietas en «ligero»). */
 export function CargandoE({ filas = 3, etiqueta = "Cargando…" }: { filas?: number; etiqueta?: string }) {
     return (
-        <div role="status" aria-label={etiqueta} className="flex h-full w-full flex-col justify-center gap-2 px-1">
+        // El nombre accesible ya es la etiqueta: sin un sr-only duplicado que se maqueta fuera.
+        <div role="status" aria-label={etiqueta} title={etiqueta} className="flex h-full w-full flex-col justify-center gap-2 overflow-hidden px-1">
             {Array.from({ length: filas }, (_, i) => (
-                <span key={i} className={cn("block h-3 rounded-full", estilos.brillo)} style={{ width: `${90 - i * 18}%` }} />
+                <span key={i} className={cn("block h-3 shrink-0 rounded-full", estilos.brillo)} style={{ width: `${90 - i * 18}%` }} />
             ))}
-            <span className="sr-only">{etiqueta}</span>
         </div>
     );
 }
