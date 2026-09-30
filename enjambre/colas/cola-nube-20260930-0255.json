@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20260930",
+ "tareas": [
+  {
+   "id": "SP09299",
+   "ola": "suenos-ola1",
+   "titulo": "Reemplazar catch vacíos por helper con telemetría",
+   "archivos": [
+    "src/lib/astraura/neuron-persona-systems.ts",
+    "src/ai/astraura/router.ts",
+    "src/ai/astraura/user-context.ts"
+   ],
+   "prompt": "ORIGEN: sueño profundo SA092929 (astraura × pruebas-fiabilidad) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/astraura--pruebas-fiabilidad.md`.\n\nHALLAZGO: Reescribir catch{} con telemetría y estado de error visible — Bloques catch{} repetidos en neuron-persona-systems (605, 624, 734), router (284, 541, 564, 631), user-context (197, 537), free-sources-sync (161, 171, 355, 458, 491, 496) y media-gen tragan cuota llena, modo privado y errores de disco/red. El usuario cree haber guardado y la UI muestra éxito falso.\nCITA: src/lib/astraura/neuron-persona-systems.ts:605 · impacto 4 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Centralizar en un helper `safePersist(key, fn)` que log, emita evento de diagnóstico y devuelva {ok, reason}. Reemplazar los catch{} identificados en los tres archivos; primero los tres de neuron-persona-systems (605, 624, 734).\nCONSEJO DE JEV: alta · 0.63 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/lib/astraura/neuron-persona-systems.ts, src/ai/astraura/router.ts, src/ai/astraura/user-context.ts, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "depende": [],
+   "aprobacion": true,
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
