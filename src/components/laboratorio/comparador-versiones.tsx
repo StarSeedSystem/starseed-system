@@ -62,6 +62,23 @@ interface EstadoEjecucion {
   resultado: ResultadoBanco | null;
 }
 
+// Icono de acierto/fallo con texto accesible: el resultado no se comunica
+// solo con color (daltónicos y lectores de pantalla), así que lleva
+// aria-label y un texto «acierto»/«fallo» visible.
+function IndicadorAcierto({ acierto }: { acierto: boolean }) {
+  const Icono = acierto ? CheckCircle2 : XCircle;
+  const color = acierto ? "text-emerald-400" : "text-red-400";
+  const etiqueta = acierto ? "acierto" : "fallo";
+  return (
+    <span role="img" aria-label={etiqueta} className="inline-flex items-center gap-1">
+      <Icono aria-hidden="true" className={`mt-0.5 h-4 w-4 shrink-0 ${color}`} />
+      <span className={`text-[10px] font-medium uppercase tracking-wide ${color}`}>
+        {etiqueta}
+      </span>
+    </span>
+  );
+}
+
 export function ComparadorVersiones({ genomaId }: ComparadorVersionesProps) {
   const confirm = useConfirm();
 
@@ -352,22 +369,14 @@ export function ComparadorVersiones({ genomaId }: ComparadorVersionesProps) {
                         <TableCell className="font-medium">{nombre}</TableCell>
                         <TableCell>
                           <span className="flex items-start gap-1.5">
-                            {a.acierto ? (
-                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                            ) : (
-                              <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-                            )}
+                            <IndicadorAcierto acierto={a.acierto} />
                             <span className="text-xs">{a.salida}</span>
                           </span>
                         </TableCell>
                         <TableCell>
                           {b ? (
                             <span className="flex items-start gap-1.5">
-                              {b.acierto ? (
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                              ) : (
-                                <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-                              )}
+                              <IndicadorAcierto acierto={b.acierto} />
                               <span className="text-xs">{b.salida}</span>
                             </span>
                           ) : (
