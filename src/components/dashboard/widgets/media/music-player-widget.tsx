@@ -184,7 +184,8 @@ export function MusicPlayerWidget() {
                     {grande && <VolumenE lienzo={lienzo} volumen={state.volume} onCambio={setVolume} />}
                     {base === 'm' && clase !== 'torre' && !pista && <div className="flex justify-center">{botonAbrir}</div>}
                 </div>
-                {(grande || clase === 'torre') && <div className="min-h-0 min-w-0 flex-1">{colaEl(base === 'xl' ? 14 : 8)}</div>}
+                {/* (Pulido 0930) Caja flexible: la cola se desplaza dentro en vez de crecer bajo la tarjeta. */}
+                {(grande || clase === 'torre') && <div className="flex min-h-0 min-w-0 flex-1 flex-col">{colaEl(base === 'xl' ? 14 : 8)}</div>}
             </PilaAjustable>
             {entradaArchivo}
         </RaizE>

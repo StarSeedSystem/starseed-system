@@ -229,7 +229,8 @@ export function EnergyMapWidget() {
                             </PilaAjustable>
                         );
                     })()}
-                    <div className="min-w-0 shrink-0" style={{ width: Math.min(260, l.ancho * 0.34) }}>{panelBio(Math.min(260, l.ancho * 0.34))}</div>
+                    {/* El panel del biorritmo se desplaza dentro de su columna si no cabe de alto. */}
+                    <div className="max-h-full min-w-0 shrink-0 overflow-y-auto [scrollbar-width:thin]" style={{ width: Math.min(260, l.ancho * 0.34) }}>{panelBio(Math.min(260, l.ancho * 0.34))}</div>
                 </div>
             </Lienzo>
         );
@@ -263,11 +264,21 @@ export function EnergyMapWidget() {
     }
 
     const D = Math.max(90, Math.min(hb - 8, l.ancho * 0.42));
+    // (Pulido 0930) Como en panorámico: las filas que no quepan se retiran (la Luna primero, luego
+    // los astros de abajo). Antes «domingo, 25 de octubre» quedaba 15 px bajo la tarjeta.
+    const n = l.base === "l" ? 7 : 4;
     return (
         <Lienzo l={l} titulo="Mapa de Energía" subtitulo={l.ancho >= 300 ? "El cielo de ahora" : undefined} icono={Sparkles} etiqueta={etiqueta}>
             <div className="flex h-full min-h-0 items-center gap-4">
                 <Rueda D={D} cuerpos={cuerpos} luna={luna} l={l} />
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">{listaCuerpos(l.base === "l" ? 7 : 4, false)}{lineaLuna}</div>
+                <PilaAjustable niveles={n + 1} className="min-w-0 flex-1">
+                    <div className="my-auto flex min-w-0 flex-col gap-2">
+                        <ul className="flex min-w-0 flex-col gap-1.5" aria-label="El cielo de ahora">
+                            {cuerpos.slice(0, n).map((p, i) => i < 2 ? fila(p, false) : <Prescindible key={p.body} nivel={n - i + 1}>{fila(p, false)}</Prescindible>)}
+                        </ul>
+                        <Prescindible nivel={1}>{lineaLuna}</Prescindible>
+                    </div>
+                </PilaAjustable>
             </div>
         </Lienzo>
     );

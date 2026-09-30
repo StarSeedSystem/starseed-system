@@ -160,12 +160,27 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     if (base === 'm' && clase !== 'torre') {
         const ancho = info.ancho >= info.alto * 1.25;
+        // (Pulido 0930) La esfera cede ancho a las capas y las capas que no quepan se retiran (antes
+        // «Aire», «Kp» y «Magnetosfera» quedaban 15-48 px bajo la tarjeta).
+        if (ancho) {
+            const t = Math.max(90, Math.min(lado(0.86), (info.alto || 150) - 24, (info.ancho || 300) * 0.45));
+            return (
+                <div className="flex h-full min-h-0 flex-row items-center gap-3 p-3">
+                    <div className="flex shrink-0 items-center justify-center">{esfera(t, 22)}</div>
+                    <PilaAjustable niveles={10} className="min-w-0 flex-1">
+                        <div className="my-auto min-w-0 space-y-1">{cabecera}<Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={false} columnas={1} fijas={2} /></div>
+                    </PilaAjustable>
+                </div>
+            );
+        }
         return (
-            <div className={`flex h-full gap-2 p-3 ${ancho ? 'flex-row items-center' : 'flex-col'}`}>
-                {!ancho && cabecera}
-                <div className={`flex ${ancho ? '' : 'min-h-0 flex-1'} items-center justify-center`}>{esfera(ancho ? lado(0.86) : lado(0.6), 22)}</div>
-                <div className="min-w-0 flex-1 space-y-1">{ancho && cabecera}<Leyenda capas={ancho ? capas : capas.slice(0, 4)} foco={foco} setFoco={setFoco} conNotas={false} columnas={ancho ? 1 : 2} /></div>
-            </div>
+            <PilaAjustable niveles={4} className="gap-2 p-3">
+                {cabecera}
+                <Encajar minimo={80} className="flex items-center justify-center">
+                    {({ ancho: a, alto: h }) => esfera(Math.max(80, Math.min(lado(0.6), a, h)), 22)}
+                </Encajar>
+                <div className="min-w-0 shrink-0"><Leyenda capas={capas.slice(0, 4)} foco={foco} setFoco={setFoco} conNotas={false} columnas={2} fijas={2} /></div>
+            </PilaAjustable>
         );
     }
     const avisos = avisosClima(c, d.aire.datos, d.fmt.hora, ahora);

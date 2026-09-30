@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { Alterna, Encajar, PilaAjustable, Prescindible, desbordaAlto } from "../pila-ajustable";
 
@@ -53,6 +53,36 @@ describe("PilaAjustable", () => {
         const caja = screen.getByRole("status");
         expect(caja.getAttribute("data-kit")).toBe("vacio");
         expect(caja.getAttribute("data-pila-ajustable")).toBe("0");
+    });
+});
+
+describe("PilaAjustable con ResizeObserver", () => {
+    it("si la caja cambia de tamaño estando en cero y ya no cabe, retira el primer nivel (no se queda cortada)", () => {
+        const g = globalThis as { ResizeObserver?: unknown };
+        const original = g.ResizeObserver;
+        let avisar: () => void = () => {};
+        g.ResizeObserver = class { constructor(cb: () => void) { avisar = cb; } observe() {} unobserve() {} disconnect() {} };
+        try {
+            render(
+                <PilaAjustable niveles={2} data-testid="pila">
+                    <p>foco</p>
+                    <Prescindible nivel={1}><p>sugerencias</p></Prescindible>
+                </PilaAjustable>,
+            );
+            const caja = screen.getByTestId("pila");
+            // La caja encoge (llega la maqueta real) y el contenido ya no cabe: antes se ponía a
+            // cero —ya lo estaba—, React no repintaba y nadie volvía a medir.
+            Object.defineProperty(caja, "clientWidth", { configurable: true, value: 260 });
+            Object.defineProperty(caja, "clientHeight", { configurable: true, value: 191 });
+            // Con las sugerencias no cabe (206 > 191); sin ellas, sí.
+            Object.defineProperty(caja, "scrollHeight", { configurable: true, get: () => (caja.textContent?.includes("sugerencias") ? 206 : 180) });
+            act(() => avisar());
+            expect(caja.getAttribute("data-pila-ajustable")).toBe("1");
+            expect(screen.queryByText("sugerencias")).toBeNull();
+            expect(screen.getByText("foco")).toBeTruthy();
+        } finally {
+            g.ResizeObserver = original;
+        }
     });
 });
 

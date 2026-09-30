@@ -19,6 +19,7 @@ import { useFuente } from '@/modules/weather/datos/hooks';
 import { MarcoClima, MicroDato, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
 import { COLOR_CLASE, colorKp, EspectroSchumann } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos } from '../_cosmos/marco-cosmos';
+import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const OBSERVATORIO = 'https://sosrff.tsu.ru/';
 
@@ -75,11 +76,12 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
-                {cabecera}<EspectroSchumann alto={110} />{nota}{medidos}
-                <p className="text-[12px] text-white/70">{explicarKp(kpAhora)}</p>
-                <div className="mt-auto space-y-1">{enlace}<SelloFuente fuente="NOAA SWPC (Kp y rayos X)" en={kp.en} /></div>
-            </div>
+            <PilaAjustable niveles={4} className="gap-3 p-3.5">
+                {cabecera}<div className="shrink-0"><EspectroSchumann alto={110} /></div>
+                <Prescindible nivel={3}>{nota}</Prescindible><Prescindible nivel={4}>{medidos}</Prescindible>
+                <Prescindible nivel={1}><p className="text-[12px] text-white/70">{explicarKp(kpAhora)}</p></Prescindible>
+                <Prescindible nivel={2}><div className="mt-auto shrink-0 space-y-1">{enlace}<SelloFuente fuente="NOAA SWPC (Kp y rayos X)" en={kp.en} /></div></Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
@@ -92,23 +94,29 @@ function Contenido({ info }: { info: InfoMarco }) {
             </div>
         );
     }
+    // (Pulido 0930) Si no cabe, se retiran por orden la explicación larga, el pie con la fuente, la
+    // nota y lo medido: antes el pie quedaba 27-50 px por debajo de la tarjeta.
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <PilaAjustable niveles={4} className="gap-3 p-4">
             {cabecera}
-            <EspectroSchumann alto={base === 'xl' ? 120 : 96} />
-            {nota}
-            <div>
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55">Lo que sí se mide ahora</p>
-                {medidos}
-            </div>
-            {base === 'xl' && (
-                <div className="space-y-1 text-[12px] leading-snug text-white/70">
-                    <p>La Tierra y la ionosfera forman una cavidad que resuena con los ~50 relámpagos por segundo del planeta. Su fundamental ronda los 7,83 Hz y varía unas décimas con el día y la noche.</p>
-                    <p>Las tormentas geomagnéticas (Kp alto) y las llamaradas (rayos X) alteran la ionosfera y, con ella, la intensidad y la anchura de los picos.</p>
+            <div className="shrink-0"><EspectroSchumann alto={base === 'xl' ? 120 : 96} /></div>
+            <Prescindible nivel={3}>{nota}</Prescindible>
+            <Prescindible nivel={4}>
+                <div className="shrink-0">
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55">Lo que sí se mide ahora</p>
+                    {medidos}
                 </div>
+            </Prescindible>
+            {base === 'xl' && (
+                <Prescindible nivel={1}>
+                    <div className="space-y-1 text-[12px] leading-snug text-white/70">
+                        <p>La Tierra y la ionosfera forman una cavidad que resuena con los ~50 relámpagos por segundo del planeta. Su fundamental ronda los 7,83 Hz y varía unas décimas con el día y la noche.</p>
+                        <p>Las tormentas geomagnéticas (Kp alto) y las llamaradas (rayos X) alteran la ionosfera y, con ella, la intensidad y la anchura de los picos.</p>
+                    </div>
+                </Prescindible>
             )}
-            <div className="mt-auto space-y-1">{enlace}<SelloFuente fuente="NOAA SWPC (Kp y rayos X)" en={kp.en} /></div>
-        </div>
+            <Prescindible nivel={2}><div className="mt-auto shrink-0 space-y-1">{enlace}<SelloFuente fuente="NOAA SWPC (Kp y rayos X)" en={kp.en} /></div></Prescindible>
+        </PilaAjustable>
     );
 }
 

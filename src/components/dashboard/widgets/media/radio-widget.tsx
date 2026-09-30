@@ -26,6 +26,7 @@ import { RADIO_STATIONS } from '@/components/dashboard/apps/media/media-catalog'
 import { useLienzoE, px, type LienzoE } from '../paquete-e/lienzo';
 import { BotonE, EncabezadoE, RaizE, estilosE } from '../paquete-e/piezas';
 import { EqE, TransporteE, VolumenE } from '../paquete-e/medios';
+import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const CLAVE_ULTIMA = 'starseed.radio.ultima.v1';
 
@@ -190,15 +191,17 @@ export function RadioWidget() {
     const grande = base === 'l' || base === 'xl' || clase === 'torre';
     return (
         <RaizE {...raiz}>
-            <div className="flex h-full min-h-0 flex-col items-center gap-2 p-1">
-                {grande && <EncabezadoE lienzo={lienzo} icono={RadioIcon} titulo="Radio en vivo" vivo={suena} className="w-full" detalle="SomaFM · emisoras libres" />}
-                <Dial ancho={anchoDial} alto={altoDial} indice={indice} suena={suena} lienzo={lienzo} onElegir={(i) => sintonizar(RADIO_STATIONS[i])} conMarcas={!grande} />
-                {cabecera}
+            {/* (Pulido 0930) La lista de emisoras se desplaza DENTRO de su hueco (antes crecía y el marco
+                cortaba cinco emisoras por debajo); si ni así cabe, se retiran volumen, cabecera y dial. */}
+            <PilaAjustable niveles={3} className="items-center gap-2 p-1">
+                {grande && <Prescindible nivel={2}><EncabezadoE lienzo={lienzo} icono={RadioIcon} titulo="Radio en vivo" vivo={suena} className="w-full" detalle="SomaFM · emisoras libres" /></Prescindible>}
+                <Prescindible nivel={3}><div className="shrink-0"><Dial ancho={anchoDial} alto={altoDial} indice={indice} suena={suena} lienzo={lienzo} onElegir={(i) => sintonizar(RADIO_STATIONS[i])} conMarcas={!grande} /></div></Prescindible>
+                <div className="w-full shrink-0">{cabecera}</div>
                 {reintento}
-                <TransporteE lienzo={lienzo} suena={suena} cargando={sintonizando} hayPista onAnterior={() => mover(-1)} onAlternar={alternar} onSiguiente={() => mover(1)} grande={grande} />
-                {grande && <VolumenE lienzo={lienzo} volumen={state.volume} onCambio={setVolume} className="w-full" />}
-                {grande && <div className="min-h-0 w-full flex-1">{lista(false)}</div>}
-            </div>
+                <div className="shrink-0"><TransporteE lienzo={lienzo} suena={suena} cargando={sintonizando} hayPista onAnterior={() => mover(-1)} onAlternar={alternar} onSiguiente={() => mover(1)} grande={grande} /></div>
+                {grande && <Prescindible nivel={1}><VolumenE lienzo={lienzo} volumen={state.volume} onCambio={setVolume} className="w-full shrink-0" /></Prescindible>}
+                {grande && <div className="flex min-h-[5.5rem] w-full flex-1 flex-col">{lista(false)}</div>}
+            </PilaAjustable>
         </RaizE>
     );
 }

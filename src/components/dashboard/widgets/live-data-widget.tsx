@@ -25,6 +25,7 @@ import { colorSalud } from '@/components/widgets-libres/familias/comun';
 import { useLienzoE, px, type LienzoE } from './paquete-e/lienzo';
 import { CargandoE, EncabezadoE, EnlaceE, RaizE, SelloE, estilosE } from './paquete-e/piezas';
 import { nombreRuta, saludDe, useTelemetriaE, type Telemetria } from './paquete-e/telemetria';
+import { Encajar } from '@/components/dashboard/kit/pila-ajustable';
 
 const NUM = new Intl.NumberFormat('es-ES');
 const num = (n: number) => (n >= 1000 ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : NUM.format(n));
@@ -172,10 +173,14 @@ export function LiveDataWidget() {
     if (base === 'm' && clase !== 'torre') {
         return (
             <RaizE {...raiz}>
+                {/* (Pulido 0930) El medidor ocupa el alto que queda (antes, a 70 % del ancho, empujaba las
+                    cifras 12 px bajo la tarjeta). */}
                 <div className="flex h-full min-h-0 flex-col gap-2 p-1">
                     {cabecera}
-                    <div className="flex justify-center"><MedidorDia hoy={t.nube.hoy} presupuesto={t.nube.presupuesto} ancho={anchoMedidor} lienzo={lienzo} /></div>
-                    {cifras}
+                    <Encajar minimo={48} className="flex justify-center">
+                        {({ ancho, alto }) => <MedidorDia hoy={t.nube.hoy} presupuesto={t.nube.presupuesto} ancho={Math.max(96, Math.min(anchoMedidor, ancho, (alto - 16) * 2))} lienzo={lienzo} />}
+                    </Encajar>
+                    <div className="shrink-0">{cifras}</div>
                 </div>
             </RaizE>
         );
