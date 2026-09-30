@@ -38,7 +38,14 @@ export interface MarcaPlantilla {
 }
 
 /** Un tablero con los campos aditivos de las pestañas (viajan en el mismo JSON sincronizado). */
-export type TableroMarcado = Dashboard & { plantilla?: MarcaPlantilla; icono?: string; acento?: string; ambiente?: "auto" | "apagado" };
+export type TableroMarcado = Dashboard & {
+    plantilla?: MarcaPlantilla;
+    icono?: string;
+    acento?: string;
+    ambiente?: "auto" | "apagado";
+    /** (2026-09-30) Creada por la persona (nueva, duplicada o importada): nunca cuenta como la de fábrica. */
+    origen?: "persona";
+};
 
 export interface Dependencias {
     uuid: () => string;
@@ -178,9 +185,10 @@ export function estadoPestana(d: TableroMarcado, widgets: readonly WidgetHuella[
 
 /** La pestaña que representa a una plantilla: la marcada con ella o, si no, la gen11 de su categoría. */
 export function localizarPredeterminada(dashboards: readonly TableroMarcado[], t: Pick<DefaultDashboardTemplate, "categoryId" | "name">): TableroMarcado | undefined {
-    const marcada = dashboards.find((d) => d.plantilla?.cat === t.categoryId);
+    const candidatas = dashboards.filter((d) => d.origen !== "persona");
+    const marcada = candidatas.find((d) => d.plantilla?.cat === t.categoryId);
     if (marcada) return marcada;
-    const sinMarca = dashboards.filter((d) => !d.plantilla && d.category === t.categoryId);
+    const sinMarca = candidatas.filter((d) => !d.plantilla && d.category === t.categoryId);
     const nombres = new Set([t.name, LEGADO_GEN11[t.categoryId]?.nombre].filter(Boolean));
     return sinMarca.find((d) => nombres.has(d.name)) ?? sinMarca[0];
 }
