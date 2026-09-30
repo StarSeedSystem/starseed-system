@@ -57,6 +57,26 @@ function fmt(valor: unknown): string {
   return JSON.stringify(valor);
 }
 
+// Etiqueta accesible del resultado de una salida: el texto «acierto»/«fallo»
+// acompaña al color, para que daltónicos y lectores de pantalla también
+// perciban el resultado de la comparativa. El `role="img"` con `aria-label`
+// da nombre accesible al conjunto (el icono queda decorativo y el texto
+// interno no se anuncia dos veces).
+function EtiquetaAcierto({ acierto }: { acierto: boolean }) {
+  const Icono = acierto ? CheckCircle2 : XCircle;
+  const color = acierto ? "text-emerald-400" : "text-red-400";
+  return (
+    <span
+      role="img"
+      aria-label={acierto ? "acierto" : "fallo"}
+      className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${color}`}
+    >
+      <Icono aria-hidden="true" className="h-4 w-4 shrink-0" />
+      {acierto ? "acierto" : "fallo"}
+    </span>
+  );
+}
+
 interface EstadoEjecucion {
   versionId: string;
   resultado: ResultadoBanco | null;
@@ -352,22 +372,14 @@ export function ComparadorVersiones({ genomaId }: ComparadorVersionesProps) {
                         <TableCell className="font-medium">{nombre}</TableCell>
                         <TableCell>
                           <span className="flex items-start gap-1.5">
-                            {a.acierto ? (
-                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                            ) : (
-                              <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-                            )}
+                            <EtiquetaAcierto acierto={a.acierto} />
                             <span className="text-xs">{a.salida}</span>
                           </span>
                         </TableCell>
                         <TableCell>
                           {b ? (
                             <span className="flex items-start gap-1.5">
-                              {b.acierto ? (
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                              ) : (
-                                <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-                              )}
+                              <EtiquetaAcierto acierto={b.acierto} />
                               <span className="text-xs">{b.salida}</span>
                             </span>
                           ) : (
