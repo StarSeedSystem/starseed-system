@@ -328,11 +328,12 @@ export function MenuClima({ info, ruta, rutaEtiqueta = "Abrir el tiempo", alActu
 /** Lugar + aviso honesto si es la ubicación por defecto. */
 export function LugarClima({ nombre, elegida, className = "" }: { nombre: string; elegida: boolean; className?: string }) {
     return (
-        <span className={`flex min-w-0 items-center gap-1 text-[12px] text-white/75 ${className}`} title={elegida ? nombre : `${nombre} (ubicación por defecto: cámbiala en el menú)`}>
+        <span className={`flex min-w-0 flex-wrap items-center gap-x-1 text-[12px] text-white/75 ${className}`} title={elegida ? nombre : `${nombre} (ubicación por defecto: cámbiala en el menú)`}>
             <MapPin aria-hidden className="size-3 shrink-0 opacity-70" />
-            <span className="min-w-[3ch] truncate">{nombre}</span>
-            {/* El aviso también cede si no hay sitio (antes, fijo, se salía y pisaba el nombre). */}
-            {!elegida && <span className="min-w-0 shrink-[4] truncate text-[10px] uppercase tracking-wider text-amber-200/80">· por defecto</span>}
+            <span className="min-w-0 max-w-[calc(100%-1rem)] truncate">{nombre}</span>
+            {/* Si no cabe junto al nombre, el aviso baja a su propia línea entero (antes, fijo, se
+                salía de la cabecera y pisaba el nombre). */}
+            {!elegida && <span className="shrink-0 whitespace-nowrap text-[10px] uppercase tracking-wider text-amber-200/80">· por defecto</span>}
         </span>
     );
 }

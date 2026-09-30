@@ -270,7 +270,7 @@ function Contenido({ info }: { info: InfoMarco }) {
             <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: "minmax(12rem,1.1fr) minmax(10rem,0.9fr) minmax(0,1.2fr)" }}>
                 <div className="min-w-0 space-y-1.5">{cabecera}<div className="line-clamp-2">{titularEl(12)}</div></div>
                 {escalasEl(true)}
-                {rk && <BarrasKp pasadas={rk.pasadas.slice(-6)} previstas={rk.previstas.slice(0, 6)} hora={fmt.soloHora} alto={Math.max(36, (info.alto || 130) - 60)} leyenda={(info.alto || 0) >= 200} />}
+                {rk && <BarrasKp pasadas={rk.pasadas.slice(-6)} previstas={rk.previstas.slice(0, 6)} hora={fmt.soloHora} alto={Math.max(36, (info.alto || 130) - 60)} leyenda={(info.alto || 0) >= 240} />}
             </div>
         );
     }

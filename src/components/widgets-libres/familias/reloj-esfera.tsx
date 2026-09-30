@@ -51,6 +51,15 @@ export const CartaCeleste = React.memo(function CartaCeleste({ lado, cielo, id, 
     const dibujo = colocarGlifos(astros.map((p) => ({ clave: p.clave, lon: p.lon })), sep);
     const signoSol = cielo.signos.sol.nombre;
 
+    // Cajas de los rótulos de los ejes (AC a la izquierda, DC a la derecha, MC donde toque): un glifo
+    // que caiga encima se dibuja más adentro (medido: «AC» × «♄», «DC» × «☿» según el día).
+    const fsEje = Math.max(9, R * 0.05);
+    const cajasEje: [number, number, number, number][] = conLugar ? [
+        [-rInt + 6, -5 - fsEje, -rInt + 6 + fsEje * 1.5, -3],
+        [rInt - 6 - fsEje * 1.5, -5 - fsEje, rInt - 6, -3],
+        ...(cielo.medioCielo !== null ? [(() => { const [mx, my] = punto(cielo.medioCielo, rInt - 10); return [mx - fsEje * 0.8, my - fsEje * 0.6, mx + fsEje * 0.8, my + fsEje * 0.6] as [number, number, number, number]; })()] : []),
+    ] : [];
+    const chocaEje = (x: number, y: number, h: number) => cajasEje.some(([x0, y0, x1, y1]) => x + h > x0 && x - h < x1 && y + h > y0 && y - h < y1);
     const sector = (i: number) => {
         const a = i * 30, b = a + 30;
         const [x1, y1] = punto(a, rExt), [x2, y2] = punto(b, rExt), [x3, y3] = punto(b, rInt), [x4, y4] = punto(a, rInt);
@@ -144,10 +153,8 @@ export const CartaCeleste = React.memo(function CartaCeleste({ lado, cielo, id, 
                 // Un astro pegado a un eje (AC, DC, MC) se dibuja un poco más adentro: su glifo ya no
                 // pisa el rótulo del eje (medido: «AC» × «♄» con Saturno junto al ascendente).
                 const lonDib = dibujo[p.clave] ?? p.lon;
-                const ejes = conLugar ? [ref, ref + 180, ...(cielo.medioCielo !== null ? [cielo.medioCielo] : [])] : [];
-                const margenEje = ((fsGlifo * 1.25) / rPlan) * (180 / Math.PI);
-                const junto = ejes.some((e) => Math.abs((((lonDib - e) % 360) + 540) % 360 - 180) < margenEje);
-                const [gx, gy] = punto(lonDib, junto ? rPlan - fsGlifo * 1.05 : rPlan);
+                let [gx, gy] = punto(lonDib, rPlan);
+                for (let paso = 1; paso <= 2 && chocaEje(gx, gy, fsGlifo * 0.6); paso++) [gx, gy] = punto(lonDib, rPlan - fsGlifo * 1.1 * paso);
                 return (
                     <g key={p.clave}>
                         <title>{`${p.nombre} en ${p.signo.nombre} ${p.grado}°${p.retrogrado ? " (retrógrado)" : ""}`}</title>
