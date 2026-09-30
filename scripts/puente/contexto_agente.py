@@ -136,6 +136,13 @@ PROTOCOLO = [
     "5. Coste ≈ $0,00002 por decisión, con techo diario (`decidir.py uso`). Si calla («medio: regla»), sigues con tu regla: nunca esperes a Jev.",
 ]
 
+PROTOCOLO_COMPACTO = (
+    "Tu regla primero. En la duda: `python3 scripts/puente/decidir.py si-no --estado '<json breve>' "
+    "--pregunta \"¿…?\" --regla <lo que harías sin Jev> --quien <tú>` (también `elegir --opciones a,b` y "
+    "`puntuar --niveles …`). Sigue a Jev solo con p ≥ 0,8 (≤ 0,2 para el no); si calla, tu regla. "
+    "Anota «jev: p=…» junto a la decisión."
+)
+
 ORDEN = {
     "escritor": ("reglas", "protocolo", "herramientas", "area", "relevo"),
     "revisor": ("reglas", "area", "protocolo", "herramientas"),
@@ -228,15 +235,17 @@ def area_de_texto(texto, raices):
 # ─────────────────────────────── secciones ───────────────────────────────
 
 def seccion_reglas(rol, compacto=False):
+    """Las del rol primero y las de todos después: si el tope corta, corta lo común."""
     lineas = ["## Reglas permanentes (mandan sobre tu criterio)"]
-    for _id, roles, regla, fuente in REGLAS:
-        if _para(roles, rol):
-            lineas.append("- %s" % regla if compacto else "- %s _(%s)_" % (regla, fuente))
+    propias = [r for r in REGLAS if r[1] is not TODOS and _para(r[1], rol)]
+    comunes = [r for r in REGLAS if r[1] is TODOS]
+    for _id, roles, regla, fuente in propias + comunes:
+        lineas.append("- %s" % regla if compacto else "- %s _(%s)_" % (regla, fuente))
     return "\n".join(lineas)
 
 
-def seccion_protocolo(rol):
-    lineas = ["## Cómo se decide (protocolo Jev)"] + list(PROTOCOLO)
+def seccion_protocolo(rol, compacto=False):
+    lineas = ["## Cómo se decide (protocolo Jev)"] + ([PROTOCOLO_COMPACTO] if compacto else list(PROTOCOLO))
     if rol == "analista":
         # Al analista le llega hecho: el orquestador ya pasa sus observaciones por Jev.
         lineas = ["## Cómo se decide (protocolo Jev)",
@@ -252,6 +261,8 @@ def seccion_herramientas(rol, existe, compacto=False):
             continue
         if archivo and not existe(archivo):
             continue  # honestidad: no se ofrece lo que no está
+        if compacto and _id == "decidir":
+            continue  # en compacto la orden ya va en el protocolo
         lineas.append("- `%s`" % orden if compacto else "- `%s` — %s" % (orden, para))
     return "\n".join(lineas) if len(lineas) > 1 else ""
 
@@ -317,7 +328,7 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
         cabecera += "\nTAREA: " + " ".join(str(tarea).split())[:300]
     piezas = {
         "reglas": lambda: seccion_reglas(rol, compacto),
-        "protocolo": lambda: seccion_protocolo(rol),
+        "protocolo": lambda: seccion_protocolo(rol, compacto),
         "herramientas": lambda: seccion_herramientas(rol, existe, compacto),
         "area": lambda: seccion_area(area, areas, raices, existe),
         "relevo": lambda: seccion_relevo(leer(RELEVO)),
