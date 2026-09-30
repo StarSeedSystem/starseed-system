@@ -359,7 +359,7 @@ export function EntidadFederativaToolkit({
                 <span style={{ color: ac }} className="font-semibold">
                   Cómo solicitar mediación.
                 </span>{" "}
-                Cualquier ciudadana o ciudadano puede abrir un proceso restaurativo desde su perfil. El Círculo de Paz asignará facilitadoras en un plazo máximo de 72 horas. La participación es voluntaria para la parte requirente e invitada, aunque el rechazo reiterado puede ser considerado en el registro de conducta comunitaria.
+                Cualquier ciudadana o ciudadano puede abrir un proceso restaurativo desde su perfil. El Círculo de Paz asignará facilitadoras en un plazo máximo de 72 horas. La participación es voluntaria para la parte requirente e invitada. Rechazar la mediación es un derecho y no genera consecuencias ni registros de conducta.
               </div>
             </div>
           </ToolSection>
