@@ -132,20 +132,43 @@ function normalize(row: Record<string, unknown>): StoreItem {
 /* Lectura: catálogo de la Tienda                                      */
 /* ------------------------------------------------------------------ */
 
+export interface StorePagination {
+    offset?: number;
+    limit?: number;
+}
+
+const STORE_PAGE_LIMIT = 100;
+
+function integerInRange(
+    value: number | undefined,
+    fallback: number,
+    min: number,
+    max: number,
+): number {
+    if (value === undefined || !Number.isFinite(value)) return fallback;
+    return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
 /**
  * Lista los items compartidos de la Tienda, ordenados por descargas y
- * valoración descendente. Opcionalmente filtra por categoría.
+ * valoración descendente. Opcionalmente filtra por categoría y página.
  * Never-throw: devuelve [] ante cualquier fallo.
  */
-export async function listStoreItems(category?: string): Promise<StoreItem[]> {
+export async function listStoreItems(
+    category?: string,
+    pagination: StorePagination = {},
+): Promise<StoreItem[]> {
     try {
+        const offset = integerInRange(pagination.offset, 0, 0, Number.MAX_SAFE_INTEGER);
+        const limit = integerInRange(pagination.limit, STORE_PAGE_LIMIT, 1, STORE_PAGE_LIMIT);
         const sb = createClient();
         let q = sb
             .from("store_items")
             .select("*")
             .eq("shared", true)
             .order("downloads", { ascending: false })
-            .order("rating", { ascending: false });
+            .order("rating", { ascending: false })
+            .range(offset, offset + limit - 1);
         if (category) q = q.eq("category", category);
         const { data } = await q;
         return ((data as Record<string, unknown>[]) || []).map(normalize);
