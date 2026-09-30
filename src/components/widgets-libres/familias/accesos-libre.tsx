@@ -23,6 +23,7 @@ import {
     type EstadoAccesos,
 } from "./accesos-partes";
 import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useJSONLocal } from "./inicio-piezas";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 
 const TURQUESA = "#23d5ab";
 const VIOLETA = "#7c5cff";
@@ -86,7 +87,7 @@ export function AccesosLibre() {
         <Cuenta key={a.href + a.label} a={a} tam={tam} conNombre={conNombre} onAbrir={abrir} editando={editando} fijado={hrefsFijados.has(a.href)} onFijar={fijar} />
     );
     const entrar = !signedIn && ready ? (
-        <Accion icono={LogIn} color={VIOLETA} href="/login" grande={tactil}>Entra para tus accesos</Accion>
+        <Accion icono={LogIn} color={VIOLETA} href="/login" grande={tactil} className="max-w-full !whitespace-normal text-center leading-tight">Entra para tus accesos</Accion>
     ) : null;
     const accionesCrear = acciones.map((a) => <Accion key={a.label} icono={a.icon} color={a.color} href={a.href} grande={tactil} onClick={() => abrir(a)}>{a.label}</Accion>);
     const listaRecientes = (max: number, conCuando = true) => recientes.length === 0 ? (
@@ -222,8 +223,10 @@ export function AccesosLibre() {
                 const tam = Math.min(54, (ancho - 24) / cols - 30) * k;
                 const filasRejilla = Math.max(1, Math.floor((alto - 150) / (tam + 34)));
                 return (
-                    <div className="flex h-full w-full flex-col gap-3 px-4 py-3" data-diseno={`${b}-${editando ? "editar" : "normal"}`}>
-                        <div className="flex items-center justify-between gap-2">
+                    // Lo que no cabe se retira por niveles (las acciones de crear, luego recientes y
+                    // sugeridos, luego «Más apps») en vez de salirse: este widget no tiene marco que recorte.
+                    <PilaAjustable niveles={3} className="gap-3 px-4 py-3" data-diseno={`${b}-${editando ? "editar" : "normal"}`}>
+                        <div className="flex shrink-0 items-center justify-between gap-2">
                             <Rotulo>{editando ? "Elige tus fijados" : consulta ? `Resultados: ${universo.length}` : "Fijados"}</Rotulo>
                             <div className="flex items-center gap-2">
                                 {buscar && (
@@ -240,19 +243,22 @@ export function AccesosLibre() {
                                 </Accion>
                             </div>
                         </div>
-                        <div className="grid place-items-center gap-x-1 gap-y-2.5" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+                        <div className="grid shrink-0 place-items-center gap-x-1 gap-y-2.5" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
                             {universo.slice(0, editando || consulta ? cols * (filasRejilla + 1) : cols * filasRejilla).map((a) => cuenta(a, tam))}
                         </div>
                         {!editando && !consulta && b === "xl" && alto - (tam + 34) * filasRejilla - 260 >= tam && (
-                            <div className="flex min-w-0 flex-col gap-1.5">
+                            <Prescindible nivel={3}>
+                            <div className="flex min-w-0 shrink-0 flex-col gap-1.5">
                                 <Rotulo>Más apps</Rotulo>
                                 <div className="grid place-items-center gap-x-1" style={{ gridTemplateColumns: `repeat(${cols + 1}, minmax(0, 1fr))` }}>
                                     {accesos.filter((a) => !hrefsFijados.has(a.href)).slice(0, cols + 1).map((a) => cuenta(a, tam * 0.78))}
                                 </div>
                             </div>
+                            </Prescindible>
                         )}
                         {!editando && !consulta && (
-                            <div className="grid min-h-0 grid-cols-2 gap-4">
+                            <Prescindible nivel={2}>
+                            <div className="grid shrink-0 grid-cols-2 gap-4">
                                 <div className="flex min-w-0 flex-col gap-1.5"><Rotulo>Recientes</Rotulo>{listaRecientes(b === "xl" ? 4 : 3)}</div>
                                 <div className="flex min-w-0 flex-col gap-1.5">
                                     <Rotulo>{sugeridos.length ? "Sueles abrir" : "Crear"}</Rotulo>
@@ -263,11 +269,12 @@ export function AccesosLibre() {
                                     </div>
                                 </div>
                             </div>
+                            </Prescindible>
                         )}
                         {!editando && (entrar || (sugeridos.length > 0 && accionesCrear.length > 0)) && (
-                            <div className="mt-auto flex flex-wrap items-center gap-2">{entrar}{sugeridos.length > 0 && accionesCrear}</div>
+                            <div className="mt-auto flex shrink-0 flex-wrap items-center gap-2">{entrar}{sugeridos.length > 0 && <Prescindible nivel={1}>{accionesCrear}</Prescindible>}</div>
                         )}
-                    </div>
+                    </PilaAjustable>
                 );
             }}
         </WidgetLibre>

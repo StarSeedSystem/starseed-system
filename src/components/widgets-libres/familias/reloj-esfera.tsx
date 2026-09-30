@@ -141,7 +141,13 @@ export const CartaCeleste = React.memo(function CartaCeleste({ lado, cielo, id, 
             {/* los astros: muesca en su longitud real, glifo donde quepa */}
             {astros.map((p) => {
                 const [t1x, t1y] = punto(p.lon, rInt), [t2x, t2y] = punto(p.lon, rInt - 6);
-                const [gx, gy] = punto(dibujo[p.clave] ?? p.lon, rPlan);
+                // Un astro pegado a un eje (AC, DC, MC) se dibuja un poco más adentro: su glifo ya no
+                // pisa el rótulo del eje (medido: «AC» × «♄» con Saturno junto al ascendente).
+                const lonDib = dibujo[p.clave] ?? p.lon;
+                const ejes = conLugar ? [ref, ref + 180, ...(cielo.medioCielo !== null ? [cielo.medioCielo] : [])] : [];
+                const margenEje = ((fsGlifo * 1.25) / rPlan) * (180 / Math.PI);
+                const junto = ejes.some((e) => Math.abs((((lonDib - e) % 360) + 540) % 360 - 180) < margenEje);
+                const [gx, gy] = punto(lonDib, junto ? rPlan - fsGlifo * 1.05 : rPlan);
                 return (
                     <g key={p.clave}>
                         <title>{`${p.nombre} en ${p.signo.nombre} ${p.grado}°${p.retrogrado ? " (retrógrado)" : ""}`}</title>
