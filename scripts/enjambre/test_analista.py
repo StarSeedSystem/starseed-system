@@ -465,6 +465,182 @@ class Piezas(unittest.TestCase):
         self.assertFalse(A.es_analisis({"tipo": "codigo"}))
 
 
+class ConsejoFalso(object):
+    """Un decidir.py de mentira: lotes y elecciones programados, y las confirmaciones anotadas."""
+
+    def __init__(self, lotes=None, eleccion=None):
+        self.lotes = list(lotes or [])
+        self.eleccion = eleccion
+        self.llamadas_lote, self.llamadas_elegir, self.confirmadas = [], [], []
+
+    def lote(self, estado, preguntas, quien=None, dominio=""):
+        self.llamadas_lote.append((estado, preguntas, quien))
+        r = self.lotes.pop(0) if self.lotes else None
+        return r(estado, preguntas) if callable(r) else r
+
+    def elegir(self, estado, pregunta, opciones, regla=None, quien=None, dominio=""):
+        self.llamadas_elegir.append((estado, opciones, regla))
+        r = self.eleccion(estado, opciones) if callable(self.eleccion) else self.eleccion
+        return r or {"respuesta": regla, "medio": "regla"}
+
+    def confirmar(self, exp, acierto, nota=""):
+        self.confirmadas.append((exp, acierto))
+
+    def consejo(self, **kw):
+        return A.ConsejoJev(lote=self.lote, elegir=self.elegir, confirmar=self.confirmar,
+                            estado=kw.pop("estado", None) or A.EstadoJev(), reloj=kw.pop("reloj", time.time), **kw)
+
+
+def obs_de(ps):
+    return [{"lente": "rendimiento-consumo", "archivo": "src/lib/voz/motor.ts", "linea": 10 + i, "tipo": "mejora",
+             "texto": "observación %d" % i, "impacto": 3, "esfuerzo": 2, "confianza": 0.6} for i in range(len(ps))]
+
+
+def respuestas_lote(ps, valores=None):
+    def r(estado, preguntas):
+        fuera = {}
+        for o in estado["observaciones"]:
+            k = o["i"]
+            n = int(o["texto"].split()[-1])
+            fuera["a%d" % k] = {"respuesta": "sí" if ps[n] >= 0.5 else "no", "p": ps[n]}
+            if valores:
+                fuera["v%d" % k] = {"respuesta": "alto", "valor": valores[n]}
+        return {"respuestas": fuera, "medio": "openrouter", "experiencia": "e1"}
+    return r
+
+
+class JevEnLosSuenos(Entorno):
+    """El protocolo común: Jev tría las observaciones y elige modelo en la zona de duda; si
+    calla (sin motor, sin crédito), todo sigue igual que antes."""
+
+    def test_el_triaje_cae_el_ruido_y_ordena_por_peso(self):
+        ps = [0.9, 0.1, 0.05, 0.8, 0.6, 0.2]
+        falso = ConsejoFalso([respuestas_lote(ps, [3, 0, 0, 1, 2, 0])])
+        quedan, info = A.triar(tarea(), obs_de(ps), falso.consejo())
+        self.assertEqual(sorted(o["texto"] for o in quedan), ["observación 0", "observación 3", "observación 4"])
+        self.assertEqual((info["caidas"], info["respondidas"], info["lotes"]), (3, 6, 1))
+        self.assertEqual(len(falso.llamadas_lote), 1)                    # un lote = una llamada
+        self.assertEqual(len(falso.llamadas_lote[0][1]), 12)             # sí/no + valor por observación
+        prompt = A.prompt_reduce(tarea(), quedan, 1)
+        self.assertLess(prompt.index("observación 0"), prompt.index("observación 3"))
+        self.assertIn('"p_jev": 0.9', prompt)
+        self.assertIn("prioriza las altas", prompt)
+
+    def test_nunca_cae_mas_del_sesenta_por_ciento(self):
+        ps = [0.01] * 5
+        quedan, info = A.triar(tarea(), obs_de(ps), ConsejoFalso([respuestas_lote(ps)]).consejo())
+        self.assertEqual((len(quedan), info["caidas"]), (2, 3))
+
+    def test_en_lotes_de_ocho_y_con_presupuesto(self):
+        ps = [0.9] * 20
+        falso = ConsejoFalso([respuestas_lote(ps)] * 5)
+        quedan, info = A.triar(tarea(), obs_de(ps), falso.consejo(tope_triaje=2))
+        self.assertEqual(len(falso.llamadas_lote), 2)     # 20 observaciones, tope de 2 llamadas
+        self.assertEqual((len(quedan), info["respondidas"]), (20, 16))
+
+    def test_jev_en_silencio_pasa_todo_y_el_circuito_se_abre(self):
+        estado = A.EstadoJev()
+        falso = ConsejoFalso([{"respuestas": {}, "medio": "regla"}] * 10)
+        ps = [0.9] * 4
+        for _ in range(3):
+            quedan, info = A.triar(tarea(), obs_de(ps), falso.consejo(estado=estado, reloj=lambda: 100.0))
+            self.assertEqual((len(quedan), info["caidas"], info["respondidas"]), (4, 0, 0))
+        self.assertEqual(len(falso.llamadas_lote), 3)
+        A.triar(tarea(), obs_de(ps), falso.consejo(estado=estado, reloj=lambda: 200.0))
+        self.assertEqual(len(falso.llamadas_lote), 3)      # circuito abierto: ni se pregunta
+        A.triar(tarea(), obs_de(ps), falso.consejo(estado=estado, reloj=lambda: 100.0 + A.JEV_PAUSA_S + 1))
+        self.assertEqual(len(falso.llamadas_lote), 4)      # pasada la pausa, vuelve a preguntar
+
+    def test_sobre_el_techo_la_pila_real_calla_y_no_gasta(self):
+        """decidir.py + jev.py de verdad, con el gasto de hoy por encima del techo diario."""
+        import decidir as DEC
+        import experiencias as EXP
+        import jev as J
+        viejos = {(J, "USO"): J.USO, (J, "CACHE"): J.CACHE, (J, "_local"): J._local,
+                  (J, "decidir_con_laya"): J.decidir_con_laya, (J, "activo"): J.activo,
+                  (J, "_transporte_real"): J._transporte_real, (J, "TRANSPORTE"): J.TRANSPORTE,
+                  (DEC, "JEV"): DEC.JEV, (DEC, "EXP"): DEC.EXP, (EXP, "RUTA"): EXP.RUTA, (EXP, "COPIA_DIR"): EXP.COPIA_DIR}
+        red = []
+        try:
+            J.USO, J.CACHE = os.path.join(self.dir, "uso.json"), os.path.join(self.dir, "cache.json")
+            EXP.RUTA, EXP.COPIA_DIR = os.path.join(self.dir, "exp.jsonl"), os.path.join(self.dir, "copia")
+            with open(J.USO, "w") as f:
+                json.dump({"dias": {time.strftime("%Y-%m-%d"): {"llamadas": 1, "coste_usd": J.PRESUPUESTO_DIA_USD + 0.01}}}, f)
+            J._local = lambda: None
+            J.decidir_con_laya = lambda *a, **k: None
+            J.activo = lambda: True
+            J.TRANSPORTE = None
+            J._transporte_real = lambda cuerpo: red.append(cuerpo) or {"answers": {}}
+            DEC.JEV, DEC.EXP = J, EXP
+            ps = [0.9] * 5
+            consejo = A.ConsejoJev(lote=DEC.consultar_lote, confirmar=DEC.confirmar, estado=A.EstadoJev())
+            quedan, info = A.triar(tarea(), obs_de(ps), consejo)
+        finally:
+            for (obj, attr), v in viejos.items():
+                setattr(obj, attr, v)
+        self.assertEqual(red, [])                          # ni una llamada de pago
+        self.assertEqual((len(quedan), info["respondidas"], info["caidas"]), (5, 0, 0))
+
+    def test_la_sintesis_elige_con_jev_y_cierra_el_ciclo(self):
+        elegido = "xkiro/qwen/qwen3.8-max:free"
+
+        def eleccion(estado, opciones):
+            if elegido in opciones and estado["sueño"]["rol"] == "sintesis":
+                return {"respuesta": elegido, "confianza": 0.9, "medio": "local", "experiencia": "exp-ruta"}
+            return None
+
+        falso = ConsejoFalso(eleccion=eleccion)
+        flota = Flota()
+        inf = self.correr(tarea(), flota, consejo=falso.consejo())
+        reduce = [c for c in flota.llamadas if c[2] == "reduce"]
+        self.assertEqual(reduce[0][0], "xkiro")            # la regla por turnos habría ido a nim
+        self.assertIn(("exp-ruta", True), falso.confirmadas)
+        self.assertIn(["síntesis", elegido, 0.9], inf["jev"]["rutas"])
+        self.assertTrue(any("Jev elige" in l for l in self.log))
+        estado_visto = [e for e, _, _ in falso.llamadas_elegir if e["sueño"]["rol"] == "sintesis"][0]
+        self.assertEqual(set(estado_visto["candidatos"][0]), {"id", "ok", "fallos", "forma"})
+
+    def test_jev_ocupado_no_cuenta_como_silencio(self):
+        estado = A.EstadoJev()
+        falso = ConsejoFalso(eleccion=lambda e, ops: {"respuesta": ops[0], "medio": "regla", "ocupado": True})
+        consejo = falso.consejo(estado=estado)
+        for _ in range(5):
+            self.assertIsNone(consejo.ruta({}, "¿?", ["a/x", "b/y"], regla="a/x"))
+        self.assertEqual((estado.silencios, estado.llamadas, consejo.quedan["ruta"]), (0, 0, A.TOPE_JEV_RUTA))
+
+    def test_con_poca_confianza_manda_el_turno(self):
+        falso = ConsejoFalso(eleccion=lambda e, ops: {"respuesta": ops[1], "confianza": 0.3, "medio": "local"})
+        flota = Flota()
+        self.correr(tarea(), flota, consejo=falso.consejo())
+        self.assertEqual([c for c in flota.llamadas if c[2] == "reduce"][0][0], "nim")
+
+    def test_contexto_comun_en_la_sintesis_y_consejo_en_el_informe(self):
+        prompts = []
+
+        class Grabadora(Flota):
+            def __call__(self, prov, modelo, prompt, timeout=120, max_tokens=2500):
+                prompts.append(prompt)
+                return Flota.__call__(self, prov, modelo, prompt, timeout, max_tokens)
+
+        vistos = {}
+        de_acuerdo = ConsejoFalso(eleccion=lambda e, ops: {"respuesta": ops[0], "confianza": 0.9, "medio": "local"})
+        inf = self.correr(tarea(), Grabadora(), consejo=de_acuerdo.consejo(),
+                          contexto=lambda **kw: vistos.update(kw) or "REGLA-DE-LA-CASA gsk_" + "x" * 20)
+        sintesis = [p for p in prompts if "sintetizador" in p][0]
+        self.assertIn("CONTEXTO COMÚN DE LOS AGENTES", sintesis)
+        self.assertIn("REGLA-DE-LA-CASA", sintesis)
+        self.assertNotIn("gsk_xxxx", sintesis)
+        self.assertEqual((vistos["rol"], vistos["area"]), ("analista", "voz"))
+        self.assertTrue(inf["jev"]["contexto"])
+        md = open(os.path.join(self.dir, "starseed_memory_root", "dream", "profundo", "2026-09-29",
+                               "voz--rendimiento-consumo.md"), encoding="utf-8").read()
+        self.assertIn("Consejo de Jev", md)
+
+    def test_sin_consejero_todo_como_antes(self):
+        inf = self.correr(tarea(), Flota())
+        self.assertNotIn("jev", inf)
+
+
 class Orquestador(unittest.TestCase):
     """La rama temprana del orquestador: una tarea de análisis no crea worktree ni puertas,
     y `informe` es un estado terminal distinto de `sin_cambios`."""
@@ -527,8 +703,17 @@ class Orquestador(unittest.TestCase):
             E.worktree, E._analista.ejecutar = viejo_wt, viejo_ej
         self.assertEqual(llamado["t"]["id"], "SA09299")
         for k in ("evento", "set_estado", "latir", "disponible", "raiz", "log", "paso_local",
-                  "flota", "cupo_libre", "refrescar"):
+                  "flota", "cupo_libre", "refrescar", "consejo", "contexto"):
             self.assertIn(k, llamado["kw"])
+
+    def test_el_orquestador_da_consejero_y_contexto_comun(self):
+        E = self.E
+        consejo = E._consejo_jev_analisis()
+        self.assertIsInstance(consejo, E._analista.ConsejoJev)
+        self.assertIs(consejo.estado, E._analista.JEV_SESION)   # circuito de la sesión, compartido
+        texto = E._contexto_agente("analista", "mando", max_chars=1400, excluir=("herramientas",))
+        self.assertIn("Contexto común · rol analista", texto)
+        self.assertLessEqual(len(texto), 1400)
 
     def test_la_flota_viva_del_orquestador(self):
         E = self.E

@@ -2939,7 +2939,8 @@ def _consejero_jev_aprobacion():
 
 
 def revisar(tid, titulo, diff, impacto="", alcance=""):
-    prompt = (
+    comun = _contexto_agente("revisor", max_chars=900, excluir=("area", "herramientas", "protocolo"))
+    prompt = (comun + "\n\n" if comun else "") + (
         (
             "Eres revisor senior de StarSeed OS (Next.js 15, React 19, TypeScript estricto, Supabase). Revisa este diff de la tarea «%s». "
             "Responde en español, máximo 220 palabras, con: **Riesgos reales** (numerados, solo los que de verdad rompan algo o abran un agujero), "
@@ -2975,6 +2976,14 @@ def revisar(tid, titulo, diff, impacto="", alcance=""):
     candidatos, saltados = candidatos_revision()
     if saltados:
         evento("aviso", tid, "revisores saltados: %s" % ", ".join(saltados))
+    # (2026-09-30) Sin «último que respondió», Jev elige quién revisa primero (zona de duda).
+    _ce = _consejo_enjambre()
+    if _ce is not None:
+        candidatos, _nota_rev = _ce.ordenar_revisores(
+            candidatos, _revisor_ultimo_ok(), _consultar_jev(), titulo
+        )
+        if _nota_rev:
+            evento("aviso", tid, _nota_rev)
     intentos = 0
     for prov, modelo in candidatos:
         t_llamada = time.time()
@@ -4320,6 +4329,9 @@ def contexto_inteligente(t):
             "ÚLTIMA REVISIÓN DE ESTOS ARCHIVOS (no repitas lo que ya se señaló):\n"
             + rev
         )
+    # (2026-09-30) El contexto COMÚN de todos los agentes (reglas del rol, protocolo Jev con
+    # `decidir.py`, herramientas), compacto: el área y el relevo ya van arriba.
+    L.append(_contexto_agente("escritor", max_chars=2200, excluir=("area", "relevo")))
     return "\n\n".join(x for x in L if x)
 
 
@@ -5749,6 +5761,61 @@ def _refrescar_flota():
     return _flota_analisis(forzar=True)
 
 
+def _contexto_agente(rol, area=None, tarea="", max_chars=6000, excluir=()):
+    """(2026-09-30) El contexto COMÚN de los agentes (`scripts/puente/contexto_agente.py`):
+    reglas permanentes del rol, protocolo Jev, herramientas y área. "" si no está."""
+    try:
+        import contexto_agente as _ctx
+
+        return _ctx.texto(rol, area, tarea, max_chars, raiz=ROOT, excluir=tuple(excluir))
+    except Exception:
+        return ""
+
+
+def _decidir():
+    """La puerta común de decisión (`scripts/puente/decidir.py`), o None si no está."""
+    try:
+        import decidir as _dec
+
+        return _dec
+    except Exception:
+        return None
+
+
+def _consejo_enjambre():
+    """(2026-09-30) Jev en la zona de duda del enjambre de código (`consejo_enjambre.py`)."""
+    try:
+        import consejo_enjambre as _ce
+
+        return _ce
+    except Exception:
+        return None
+
+
+def _consultar_jev():
+    dec = _decidir()
+    return dec.consultar if dec is not None else None
+
+
+def _consejo_jev_analisis():
+    """(2026-09-30) Jev de consejero para UN sueño: triaje de observaciones y elección de
+    modelo, sobre decidir.py (BitNet local → Laya → OpenRouter con techo). None sin él."""
+    if _analista is None or not hasattr(_analista, "ConsejoJev"):
+        return None
+    dec = _decidir()
+    if dec is None:
+        return None
+
+    def elegir(estado, pregunta, opciones, regla=None, quien=None, dominio=""):
+        # Camino caliente (antes de una llamada a la flota): no se espera detrás de un lote de
+        # triaje de otro sueño más de 3 s; si Jev está ocupado, manda el turno.
+        return dec.consultar("elegir", estado, pregunta, opciones=opciones, regla=regla, quien=quien,
+                             dominio=dominio, espera_turno=3.0)
+
+    return _analista.ConsejoJev(lote=dec.consultar_lote, elegir=elegir, confirmar=dec.confirmar,
+                                estado=_analista.JEV_SESION)
+
+
 def _ejecutar_analisis(t):
     """(2026-09-29) Rama de los sueños profundos: todo lo hace `analista.ejecutar`, con las
     herramientas de ESTE orquestador (llamar_llm con cupos y rotación de claves, salud de
@@ -5787,6 +5854,8 @@ def _ejecutar_analisis(t):
         flota=_flota_analisis,
         cupo_libre=_cupo_libre,
         refrescar=_refrescar_flota,
+        consejo=_consejo_jev_analisis(),
+        contexto=lambda **kw: _contexto_agente(excluir=("herramientas",), **kw),
     )
 
 
@@ -5896,6 +5965,16 @@ def ejecutar(t, intento=1):
             "empiezo por otro modelo: %s ya falló aquí antes"
             % ", ".join(x.split("/")[-1] for x in fallidos[:3]),
         )
+    # (2026-09-30) Zona de duda tras un fallo previo: entre los sanos, Jev elige cuál va
+    # primero; el orden de arriba es la regla y el respaldo (consejo_enjambre.py).
+    _ce = _consejo_enjambre()
+    if _ce is not None and fallidos and tid not in REASIGNADOS:
+        base, _nota_jev, _ = _ce.ordenar_escritores(t, base, fallidos, _consultar_jev())
+        if _nota_jev:
+            evento("reenrutado", tid, _nota_jev)
+    probados_sin_cambios, salidas_sin_cambios = [], []
+    nota_sin_cambios = ""
+    exp_sin_cambios = None
     # Los modelos de proveedores caídos NO se descartan: se apartan y se espera a que vuelvan.
     # (El 2026-09-04, VZ2: xkiro sin cuota diaria y nim con «too many requests» → la tarea se
     # dio por fallida en 2 segundos sin que ningún modelo llegara a intentarlo.)
@@ -6132,6 +6211,19 @@ def ejecutar(t, intento=1):
             "sin cambios con %s (%d/%d) → sigo con otro proveedor"
             % (modelo, intentos_reales, TOPE_INTENTOS_ESCRITURA),
         )
+        # (2026-09-30) ¿Otro intento sería en balde? Tras 2 sin cambios de proveedores
+        # distintos, Jev puede aceptar «sin cambios» ya (p ≥ 0,85); si calla, se sigue.
+        probados_sin_cambios.append(modelo)
+        salidas_sin_cambios.append((out or "")[-600:])
+        if _ce is not None and pendientes and intentos_reales < TOPE_INTENTOS_ESCRITURA:
+            _parar, _nota_parar, exp_sin_cambios = _ce.parar_sin_cambios(
+                t, intentos_reales, probados_sin_cambios, pendientes,
+                salidas_sin_cambios, _consultar_jev(),
+            )
+            if _parar:
+                nota_sin_cambios = _nota_parar
+                evento("aviso", tid, _nota_parar)
+                break
     # Sin cambios y SIN ningún intento real porque todo estaba caído/saturado: esperar a que
     # vuelva algún proveedor (hasta ESPERA_PROVEEDOR_S) en vez de dar la tarea por perdida.
     while (
@@ -6365,7 +6457,8 @@ def ejecutar(t, intento=1):
             estado="sin_cambios",
             modelo="-",
             segundos=int(time.time() - t0),
-            nota="",
+            nota=nota_sin_cambios,
+            **({"jev_experiencia": exp_sin_cambios} if nota_sin_cambios and exp_sin_cambios else {}),
         )
         evento("sin_cambios", tid, "ningún modelo tocó archivos")
         limpiar_worktree(tid)

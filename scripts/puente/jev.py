@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 import urllib.request
 
@@ -92,7 +93,10 @@ def _leer(ruta, por_defecto):
 def _escribir(ruta, datos):
     try:
         os.makedirs(os.path.dirname(ruta) or ".", exist_ok=True)
-        tmp = ruta + ".tmp"
+        # (2026-09-30) Temporal ÚNICO por proceso e hilo: con los sueños preguntando a la vez
+        # desde varios hilos (y los supervisores desde la terminal), un «.tmp» compartido podía
+        # mezclar dos escrituras y dejar jev-uso.json ilegible, y con él el techo a cero.
+        tmp = "%s.%d.%d.tmp" % (ruta, os.getpid(), threading.get_ident())
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(datos, f, ensure_ascii=False)
         os.replace(tmp, ruta)
@@ -394,16 +398,19 @@ def _intenta_openrouter(estado, preguntas, t0, quien=None):
     return respuestas, r
 
 
-def decidir(estado, preguntas, usar_cache=True, medio=None):
+def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     """{nombre: respuesta, 'medio', 'ms'} de Jev, o None si ningún medio responde.
 
     Local y OpenRouter son dos intentos en secuencia, no un si/sino: si el local está
     disponible se intenta; si devuelve None o lanza, se sigue a OpenRouter igual que si
     no hubiera local. `medio='local'` o `medio='openrouter'` fuerza uno solo.
+    `quien` (2026-09-30, puerta común `decidir.py`) nombra al agente que pregunta cuando
+    la pila no lo dice (un subagente por terminal, un analista del enjambre…). Una
+    respuesta servida de la caché lleva `cache: True`.
     """
     if not preguntas:
         return None
-    quien = _quien()
+    quien = (str(quien)[:40] if quien else None) or _quien()
     tipos = [(q or {}).get("type") for q in preguntas.values() if isinstance(q, dict)]
     h = _huella(estado, preguntas)
     cache = _leer(CACHE, {}) if usar_cache else {}
@@ -415,6 +422,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None):
             res = dict(respuestas)
             res["medio"] = entrada.get("medio")
             res["ms"] = entrada.get("ms")
+            res["cache"] = True
             return res
     t0 = time.time()
     jl = _local()

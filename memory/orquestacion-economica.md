@@ -712,3 +712,33 @@ de 8 modelos → sin pausa (el ritmo es el cupo por minuto de cada proveedor), f
 informe de pasarelas + rotación + revisores, y reparto por turnos entre todos. De paso, «dictionary
 changed size during iteration» (progreso y latidos tocados por cinco hilos) → RLock y copias atómicas.
 Regla: **una flota gratuita se reparte por turnos entre TODOS los proveedores vivos; nunca una lista fija.**
+
+## 17. Protocolo común de los agentes: un mismo contexto y Jev en todos (regla permanente · 2026-09-30)
+
+**Qué pidió Alex.** «Que se usen más las habilidades, herramientas y conectores del Puente de Mando,
+como el uso de Jev en todos los agentes y subagentes, con el mismo workflow y contextos de memorias y
+entendimientos completos y las mejores decisiones.» SOP: `architecture/protocolo-comun-agentes.md`.
+
+**Regla.** Todo agente carga **el mismo contexto de su rol** y decide la duda por **la misma puerta**:
+- `python3 scripts/puente/contexto_agente.py --rol escritor|revisor|analista|supervisor|subagente
+  [--area X] [--tarea "…"] [--max N]`: reglas permanentes con su fuente, protocolo Jev, herramientas
+  con su orden exacta, área (areas.ts) y relevo. Lo reciben solos el escritor (`contexto_inteligente`,
+  2.200 compacto), el revisor (`revisar`, 900) y el analista (síntesis, 1.400); el supervisor y los
+  subagentes lo piden como primera orden.
+- `python3 scripts/puente/decidir.py si-no|elegir|puntuar --estado … --pregunta … --regla … --quien …`:
+  Jev (BitNet local → Laya → OpenRouter con techo) con la regla de quien pregunta como respaldo.
+  Umbral 0,8 para seguirle; puede vetar, nunca convierte un «no» en «sí»; si calla, manda la regla.
+  Cada consulta es una **experiencia** con `quien`; `decidir.py confirmar <exp> --acierto si|no` cierra
+  el ciclo (calibración y aprendizaje colectivo). `decidir.py uso`: gasto del día frente al techo.
+
+**Dónde decide ya** (además de la tabla de la §9): triaje de las observaciones de cada sueño y
+elección de modelo en su síntesis/contraste (`analista.py`), qué modelo reintenta una tarea de código
+que ya falló, aceptar «sin cambios» tras 2 intentos de proveedores distintos solo con p ≥ 0,85 y qué
+revisor va primero sin «último que respondió» (`consejo_enjambre.py`), y la segunda opinión anotada del
+supervisor Claude al relanzar y en cada hallazgo (`supervisor_suenos.md`). Los fallos de PROVEEDOR
+(429, 5xx, retirado) siguen en la regla: la señal es inequívoca.
+
+**Coste.** ≤ 10 llamadas por sueño (≈ $0,0001 cada una por OpenRouter; gratis en local): una sesión de
+84 sueños cabe de sobra en 0,20 $/día. Con el motor local congelado (enjambre escribiendo) Jev es
+OpenRouter con techo o nada; tras 3 silencios seguidos los sueños no preguntan en 10 min.
+
