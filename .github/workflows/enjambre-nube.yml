@@ -85,7 +85,14 @@ jobs:
       - name: Dependencias y orquestador
         run: |
           npm ci --no-audit --no-fund --loglevel=error
-          npm install -g opencode-ai@latest --no-audit --no-fund --loglevel=error
+          # (2026-09-30) Versión FIJA, no @latest: con latest un build deja de ser
+          # reproducible y una release rota del orquestador tumba la nube entera sin
+          # cambio propio. 1.18.33 fue la última `@latest` instalada con run en verde
+          # (run 36687585277, 2026-09-30). Para subirla: probar la nueva versión UN día
+          # con un run manual corto; si queda en verde, subir el número aquí y anotar
+          # el run que la validó. Para darla de baja ante una release rota, basta
+          # volver al número anterior.
+          npm install -g opencode-ai@1.18.33 --no-audit --no-fund --loglevel=error
           # El contexto `runner` no existe en el `env:` de un job (GitHub tumba el archivo
           # entero al validarlo: run 35547727552, 0 s, 0 jobs). $RUNNER_TEMP sí existe aquí.
           export STARSEED_WT="$RUNNER_TEMP/starseed-wt"
