@@ -35,7 +35,7 @@ preparar_repo() {
   git fetch -q origin main && git reset -q --hard origin/main
   if [ ! -x node_modules/.bin/tsc ]; then
     log "npm ci"
-    npm ci --no-audit --no-fund --loglevel=error >> "$LOG" 2>&1 || log "npm ci con avisos"
+    npm ci --no-audit --no-fund --loglevel=error >> "$LOG" 2>&1 || { log "npm ci falló; dependencias no instaladas"; return 1; }
   fi
   bash scripts/enjambre/instalar.sh >> "$LOG" 2>&1 || true
   mkdir -p "$STARSEED_WT" starseed_memory_root/olas
