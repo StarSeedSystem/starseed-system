@@ -285,6 +285,7 @@ function PestanhaPruebas({
 }) {
   const [resultado, setResultado] = React.useState<ResultadoBanco | null>(null);
   const [corriendo, setCorriendo] = React.useState(false);
+  const [fallo, setFallo] = React.useState<string | null>(null);
 
   const version = versiones.find((v) => v.id === versionId) ?? null;
 
@@ -292,10 +293,17 @@ function PestanhaPruebas({
     if (!version) return;
     setCorriendo(true);
     setResultado(null);
-    // Pequeña pausa para dar sensación de ejecución y dejar respirar a la UI.
-    await new Promise((r) => setTimeout(r, 250));
-    setResultado(ejecutarBanco(version.instantanea));
-    setCorriendo(false);
+    setFallo(null);
+    try {
+      // Pequeña pausa para dar sensación de ejecución y dejar respirar a la UI.
+      await new Promise((r) => setTimeout(r, 250));
+      setResultado(ejecutarBanco(version.instantanea));
+    } catch (e) {
+      // El banco no debe dejar el botón bloqueado para siempre: se avisa y se libera.
+      setFallo(e instanceof Error ? e.message : "error desconocido");
+    } finally {
+      setCorriendo(false);
+    }
   }, [version]);
 
   return (
@@ -337,6 +345,12 @@ function PestanhaPruebas({
           {versiones.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Aún no hay versiones guardadas. Crea una con «Nueva versión» en la barra superior.
+            </p>
+          ) : null}
+
+          {fallo ? (
+            <p className="text-sm text-destructive" role="alert">
+              El lote falló: {fallo}. Comprueba la versión y vuelve a lanzarlo.
             </p>
           ) : null}
         </CardContent>
