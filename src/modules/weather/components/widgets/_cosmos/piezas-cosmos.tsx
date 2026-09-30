@@ -46,8 +46,8 @@ export function MedidorKp({ kp, lado, conTexto = true }: { kp: number | null; la
                 })()}
             </svg>
             {conTexto && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className={`${s.cifra} font-light leading-none`} style={{ fontSize: lado * 0.26, color: kp === null ? undefined : colorKp(kp) }}>{kp === null ? "—" : kp.toFixed(1).replace(".", ",")}</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pt-[8%]">
+                    <span className={`${s.cifra} font-light leading-none`} style={{ fontSize: lado * 0.23, color: kp === null ? undefined : colorKp(kp) }}>{kp === null ? "—" : kp.toFixed(1).replace(".", ",")}</span>
                     <span className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-white/60">Kp</span>
                 </div>
             )}
@@ -102,29 +102,37 @@ export function GraficaRayos({ serie, llamaradas = [], hora, alto = 90, id }: { 
     const visibles = llamaradas.filter((l) => (l.maximo ?? l.inicio) >= t0 && (l.maximo ?? l.inicio) <= t1);
     const max = serie.reduce((m, p) => (p.flujo > m.flujo ? p : m), serie[0]);
     return (
-        <figure className="relative w-full" style={{ height: alto }} role="img" aria-label={`Rayos X de las últimas ${Math.round((t1 - t0) / 3_600_000)} horas; pico a las ${hora(max.t)}`}>
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-y-0 left-0 h-[84%] w-[90%] overflow-visible" aria-hidden>
-                <defs>
-                    <linearGradient id={`rx-${id}`} x1="0" y1="1" x2="0" y2="0">
-                        <stop offset="0%" stopColor={COLOR_CLASE.A} /><stop offset="30%" stopColor={COLOR_CLASE.B} /><stop offset="50%" stopColor={COLOR_CLASE.C} />
-                        <stop offset="70%" stopColor={COLOR_CLASE.M} /><stop offset="90%" stopColor={COLOR_CLASE.X} />
-                    </linearGradient>
-                </defs>
-                {[-7, -6, -5, -4].map((e) => <line key={e} x1={0} x2={W} y1={yLog(10 ** e, H)} y2={yLog(10 ** e, H)} stroke="#fff" strokeOpacity={0.12} strokeDasharray="1 1.5" vectorEffect="non-scaling-stroke" />)}
-                <path d={`${d} L${W} ${H} L0 ${H} Z`} fill={`url(#rx-${id})`} opacity={0.18} />
-                <path d={d} fill="none" stroke={`url(#rx-${id})`} strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-            </svg>
-            {visibles.map((l) => {
-                const t = l.maximo ?? l.inicio;
-                const letra = l.clase[0];
-                return <span key={`${l.inicio}`} className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-[#0c0f24]" style={{ left: `${x(t) * 0.9}%`, top: `${(yLog(l.flujo ?? 1e-6, H) / H) * 84}%`, background: COLOR_CLASE[letra] }} title={`Llamarada ${l.clase} a las ${hora(t)}`} />;
-            })}
-            <div className="absolute inset-y-0 right-0 h-[84%] w-[9%]" aria-hidden>
-                {(["X", "M", "C", "B", "A"] as const).map((c, i) => (
-                    <span key={c} className="absolute right-0 -translate-y-1/2 text-[10px] font-semibold" style={{ top: `${(yLog(10 ** (-4 - i) * 3, H) / H) * 100}%`, color: COLOR_CLASE[c] }}>{c}</span>
-                ))}
+        // Gráfica, escala de clases y horas en cajas propias: las letras X·M·C·B·A se aclaran
+        // (una sí, una no) si no hay 11 px entre ellas, y la fila de horas ya no se corta abajo.
+        <figure className="flex w-full shrink-0 flex-col gap-1" style={{ height: alto }} role="img" aria-label={`Rayos X de las últimas ${Math.round((t1 - t0) / 3_600_000)} horas; pico a las ${hora(max.t)}`}>
+            <div className="flex min-h-0 flex-1 gap-1">
+                <div className="relative min-w-0 flex-1">
+                    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
+                        <defs>
+                            <linearGradient id={`rx-${id}`} x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor={COLOR_CLASE.A} /><stop offset="30%" stopColor={COLOR_CLASE.B} /><stop offset="50%" stopColor={COLOR_CLASE.C} />
+                                <stop offset="70%" stopColor={COLOR_CLASE.M} /><stop offset="90%" stopColor={COLOR_CLASE.X} />
+                            </linearGradient>
+                        </defs>
+                        {[-7, -6, -5, -4].map((e) => <line key={e} x1={0} x2={W} y1={yLog(10 ** e, H)} y2={yLog(10 ** e, H)} stroke="#fff" strokeOpacity={0.12} strokeDasharray="1 1.5" vectorEffect="non-scaling-stroke" />)}
+                        <path d={`${d} L${W} ${H} L0 ${H} Z`} fill={`url(#rx-${id})`} opacity={0.18} />
+                        <path d={d} fill="none" stroke={`url(#rx-${id})`} strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+                    </svg>
+                    {visibles.map((l) => {
+                        const t = l.maximo ?? l.inicio;
+                        const letra = l.clase[0];
+                        return <span key={`${l.inicio}`} className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-[#0c0f24]" style={{ left: `${x(t)}%`, top: `${(yLog(l.flujo ?? 1e-6, H) / H) * 100}%`, background: COLOR_CLASE[letra] }} title={`Llamarada ${l.clase} a las ${hora(t)}`} />;
+                    })}
+                </div>
+                <div className="relative w-3 shrink-0" aria-hidden>
+                    {(["X", "M", "C", "B", "A"] as const).map((c, i) => {
+                        const paso = ((alto - 16) * (yLog(3e-5, H) - yLog(3e-4, H))) / H;
+                        if (paso < 11 && i % 2 === 1) return null;
+                        return <span key={c} className="absolute right-0 -translate-y-1/2 text-[10px] font-semibold leading-none" style={{ top: `${(yLog(10 ** (-4 - i) * 3, H) / H) * 100}%`, color: COLOR_CLASE[c] }}>{c}</span>;
+                    })}
+                </div>
             </div>
-            <div className="absolute inset-x-0 bottom-0 flex h-[14%] w-[90%] justify-between text-[10px] text-white/50" aria-hidden>
+            <div className="flex shrink-0 justify-between pr-4 text-[10px] leading-none text-white/50" aria-hidden>
                 <span className={s.cifra}>{hora(t0)}</span><span className={s.cifra}>{hora(t0 + (t1 - t0) / 2)}</span><span>ahora</span>
             </div>
         </figure>
@@ -167,7 +175,7 @@ export function FlujoViento({ velocidad, densidad, bz, animar, alto = 90 }: { ve
     const colorBz = bz === null ? "#94a3b8" : bz <= -10 ? "#f43f5e" : bz <= -5 ? "#fb923c" : bz < 0 ? "#facc15" : "#34d399";
     const etiqueta = `Viento solar ${velocidad === null ? "sin lectura" : `a ${Math.round(velocidad)} km/s`}${densidad === null ? "" : `, ${densidad.toFixed(1)} protones por cm³`}${bz === null ? "" : `; Bz ${bz.toFixed(1)} nT ${abierta ? "(puerta abierta)" : "(puerta cerrada)"}`}`;
     return (
-        <figure className="relative w-full" style={{ height: alto }} role="img" aria-label={etiqueta}>
+        <figure className="relative w-full shrink-0" style={{ height: alto }} role="img" aria-label={etiqueta}>
             <svg viewBox="0 0 200 80" preserveAspectRatio="xMidYMid meet" className="absolute inset-0 h-full w-full" aria-hidden>
                 <defs>
                     <radialGradient id="fv-sol"><stop offset="0%" stopColor="#fffbe8" /><stop offset="35%" stopColor="#ffd27a" /><stop offset="70%" stopColor="#ff8a3d" stopOpacity={0.5} /><stop offset="100%" stopColor="#ff8a3d" stopOpacity={0} /></radialGradient>
@@ -184,8 +192,8 @@ export function FlujoViento({ velocidad, densidad, bz, animar, alto = 90 }: { ve
                 <path d="M172 14 Q156 40 172 66" fill="none" stroke={colorBz} strokeWidth={1} opacity={0.4} />
                 <circle cx={184} cy={40} r={9} fill="url(#fv-tierra)" />
             </svg>
-            <span className="absolute bottom-0 left-1 text-[10px] text-white/55">Sol</span>
-            <span className="absolute bottom-0 right-1 text-[10px] text-white/55">Tierra</span>
+            {alto >= 44 && <span className="absolute bottom-0 left-1 text-[10px] leading-none text-white/55">Sol</span>}
+            {alto >= 44 && <span className="absolute bottom-0 right-1 text-[10px] leading-none text-white/55">Tierra</span>}
         </figure>
     );
 }
@@ -234,15 +242,22 @@ export function TrazaCampo({ serie, hora, alto = 80, color = "#a78bfa", id }: { 
     const xy = pts.map((p) => [((p.t - t0) / Math.max(1, t1 - t0)) * W, H - 3 - (((p.hp as number) - min) / Math.max(1, max - min)) * (H - 6)] as [number, number]);
     const d = trazoSuave(xy);
     return (
-        <figure className="relative w-full" style={{ height: alto }} role="img" aria-label={`Componente Hp del campo magnético de ${hora(t0)} a ${hora(t1)}: entre ${Math.round(min)} y ${Math.round(max)} nT`}>
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-[82%] w-full" aria-hidden>
-                <defs><linearGradient id={`tc-${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity={0.3} /><stop offset="100%" stopColor={color} stopOpacity={0} /></linearGradient></defs>
-                <path d={`${d} L${W} ${H} L0 ${H} Z`} fill={`url(#tc-${id})`} />
-                <path d={d} fill="none" stroke={color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
-            </svg>
-            <span className={`${s.cifra} absolute right-0 top-0 text-[10px] text-white/55`}>{Math.round(max)} nT</span>
-            <span className={`${s.cifra} absolute bottom-[18%] right-0 text-[10px] text-white/55`}>{Math.round(min)} nT</span>
-            <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-white/50" aria-hidden><span className={s.cifra}>{hora(t0)}</span><span>ahora</span></div>
+        // Escala en su propia columna y horas en su propia fila: ni «118 nT» pisa a «90 nT» ni la
+        // mínima a «ahora», por baja que sea la traza. Si no caben dos cifras, va el rango en una.
+        <figure className="flex w-full shrink-0 flex-col gap-1" style={{ height: alto }} role="img" aria-label={`Componente Hp del campo magnético de ${hora(t0)} a ${hora(t1)}: entre ${Math.round(min)} y ${Math.round(max)} nT`}>
+            <div className="flex min-h-0 flex-1 gap-1.5">
+                <div className="relative min-w-0 flex-1">
+                    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+                        <defs><linearGradient id={`tc-${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity={0.3} /><stop offset="100%" stopColor={color} stopOpacity={0} /></linearGradient></defs>
+                        <path d={`${d} L${W} ${H} L0 ${H} Z`} fill={`url(#tc-${id})`} />
+                        <path d={d} fill="none" stroke={color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
+                    </svg>
+                </div>
+                <div className={`${s.cifra} flex shrink-0 flex-col ${alto >= 48 ? "justify-between" : "justify-center"} text-right text-[10px] leading-none text-white/55`} aria-hidden>
+                    {alto >= 48 ? <><span>{Math.round(max)} nT</span><span>{Math.round(min)} nT</span></> : <span>{Math.round(min)}–{Math.round(max)} nT</span>}
+                </div>
+            </div>
+            <div className="flex shrink-0 justify-between text-[10px] leading-none text-white/50" aria-hidden><span className={s.cifra}>{hora(t0)}</span><span>ahora</span></div>
         </figure>
     );
 }
@@ -257,16 +272,17 @@ export function EspectroSchumann({ alto = 90, agitacion = 0 }: { alto?: number; 
     const pts = Array.from({ length: 121 }, (_, i) => { const f = (i / 120) * fMax; return [(f / fMax) * W, H - 2 - (y(f) / 1.15) * (H - 8)] as [number, number]; });
     const d = trazoSuave(pts);
     return (
-        <figure className="relative w-full" style={{ height: alto }} role="img" aria-label={`Espectro de referencia de la resonancia Schumann: picos en ${MODOS_SCHUMANN.map((m) => String(m).replace(".", ",")).join(", ")} Hz`}>
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-[80%] w-full" aria-hidden>
+        <figure className="relative w-full shrink-0" style={{ height: alto }} role="img" aria-label={`Espectro de referencia de la resonancia Schumann: picos en ${MODOS_SCHUMANN.map((m) => String(m).replace(".", ",")).join(", ")} Hz`}>
+            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-x-0 top-[12px] h-[calc(100%-26px)] w-full" aria-hidden>
                 <defs><linearGradient id="sch-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#f472b6" /><stop offset="50%" stopColor="#a78bfa" /><stop offset="100%" stopColor="#38bdf8" /></linearGradient></defs>
                 <path d={`${d} L${W} ${H} L0 ${H} Z`} fill="url(#sch-g)" opacity={0.15} />
                 <path d={d} fill="none" stroke="url(#sch-g)" strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
             </svg>
             {MODOS_SCHUMANN.map((m) => (
-                <span key={m} className={`${s.cifra} absolute top-0 -translate-x-1/2 text-[10px] text-white/70`} style={{ left: `${(m / fMax) * 100}%` }}>{String(m).replace(".", ",")}</span>
+                <span key={m} className={`${s.cifra} absolute top-0 -translate-x-1/2 text-[10px] leading-none text-white/70`} style={{ left: `${(m / fMax) * 100}%` }}>{String(m).replace(".", ",")}</span>
             ))}
-            <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-white/45" aria-hidden><span>0 Hz</span><span>20 Hz</span><span>40 Hz</span></div>
+            {/* La escala de frecuencias bajo la curva (antes la curva la tachaba). */}
+            <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] leading-none text-white/45" aria-hidden><span>0 Hz</span><span>20 Hz</span><span>40 Hz</span></div>
         </figure>
     );
 }
@@ -296,9 +312,10 @@ export function GraficaPlasma({ serie, hora, alto = 90, id }: { serie: { t: numb
     const x = (t: number) => ((t - t0) / Math.max(1, t1 - t0)) * W;
     const d = trazoSuave(pts.map((p) => [x(p.t), H - 2 - (((p.velocidad as number) - vMin) / (vMax - vMin)) * (H - 6)] as [number, number]));
     return (
-        <figure className="relative w-full" style={{ height: alto }} role="img"
+        <figure className="flex w-full shrink-0 flex-col gap-1" style={{ height: alto }} role="img"
             aria-label={`Viento solar de las últimas 24 horas: de ${Math.round(Math.min(...vs))} a ${Math.round(Math.max(...vs))} km/s`}>
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-[82%] w-full" aria-hidden>
+            <div className="relative min-h-0 flex-1">
+            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
                 <defs><linearGradient id={`gp-${id}`} x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stopColor="#34d399" /><stop offset="45%" stopColor="#facc15" /><stop offset="100%" stopColor="#f43f5e" /></linearGradient></defs>
                 {serie.map((p) => p.densidad !== null && (
                     <rect key={p.t} x={x(p.t) - 0.6} width={1.2} y={H - (p.densidad / nMax) * H * 0.5} height={(p.densidad / nMax) * H * 0.5} fill="#7dd3fc" opacity={0.3} />
@@ -306,8 +323,10 @@ export function GraficaPlasma({ serie, hora, alto = 90, id }: { serie: { t: numb
                 <line x1={0} x2={W} y1={H - 2 - ((500 - vMin) / (vMax - vMin)) * (H - 6)} y2={H - 2 - ((500 - vMin) / (vMax - vMin)) * (H - 6)} stroke="#fff" strokeOpacity={0.15} strokeDasharray="1 1.5" vectorEffect="non-scaling-stroke" />
                 <path d={d} fill="none" stroke={`url(#gp-${id})`} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
             </svg>
-            <span className="absolute right-0 top-0 text-[10px] text-white/50">km/s</span>
-            <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-white/50" aria-hidden><span className={s.cifra}>{hora(t0)}</span><span className="text-sky-300/70">densidad</span><span>ahora</span></div>
+            <span className="absolute right-0 top-0 text-[10px] leading-none text-white/50">km/s</span>
+            </div>
+            {/* Horas y leyenda en su propia fila: antes, sobre la gráfica, se pisaban al encoger. */}
+            <div className="flex shrink-0 justify-between gap-2 text-[10px] leading-none text-white/50" aria-hidden><span className={s.cifra}>{hora(t0)}</span><span className="text-sky-300/70">densidad</span><span>ahora</span></div>
         </figure>
     );
 }

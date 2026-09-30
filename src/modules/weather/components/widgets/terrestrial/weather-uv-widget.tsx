@@ -13,6 +13,7 @@ import { nivelUv, ventanaProteccion } from '@/modules/weather/datos/interpretar'
 import { ArcoUV, BarrasHoras } from '../_clima/graficas';
 import { WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
 import { estilosClima as s } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 function colorUv(v: number) {
     return nivelUv(v)?.color ?? '#4ade80';
@@ -51,12 +52,14 @@ function Cuerpo({ info, a, c, d, hoy, ahora, cabecera, sello }: CtxMagnitud) {
             </div>
         );
     }
-    const bloque = (
+    // El texto se recorta por líneas (con el texto entero en el title) y la ventana solo aparece si
+    // hay alto para ella: en una tarjeta baja ya no se sale por arriba sobre la cabecera.
+    const bloque = (altoLibre = 999) => (
         <div className="min-w-0 flex-1 space-y-1.5">
-            <p className="text-[15px] font-semibold" style={{ color: n?.color }}>{n?.texto ?? 'Sin dato'}</p>
-            <p className="text-[12px] text-white/75">{deNoche ? textoNoche : n?.consejo}</p>
-            {!deNoche && <p className="text-[12px] text-white/65">{textoVentana}</p>}
-            {alerta && <p role="note" className="inline-flex rounded-full bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-medium text-rose-100 ring-1 ring-rose-400/40">UV muy alto: evita el sol del mediodía</p>}
+            <p className="truncate text-[15px] font-semibold" style={{ color: n?.color }} title={n?.texto}>{n?.texto ?? 'Sin dato'}</p>
+            <p className={`${altoLibre >= 110 ? 'line-clamp-3' : 'line-clamp-2'} text-[12px] text-white/75`} title={deNoche ? textoNoche : n?.consejo}>{deNoche ? textoNoche : n?.consejo}</p>
+            {!deNoche && altoLibre >= 110 && <p className="line-clamp-2 text-[12px] text-white/65" title={textoVentana}>{textoVentana}</p>}
+            {alerta && altoLibre >= 140 && <p role="note" className="inline-flex rounded-full bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-medium text-rose-100 ring-1 ring-rose-400/40">UV muy alto: evita el sol del mediodía</p>}
         </div>
     );
     const curva = (
@@ -66,42 +69,53 @@ function Cuerpo({ info, a, c, d, hoy, ahora, cabecera, sello }: CtxMagnitud) {
         return (
             <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(10rem,auto) minmax(0,1fr)' }}>
                 <ArcoUV uv={a.uv} lado={Math.min(150, ((info.alto || 130) - 10) * 1.5)} />
-                <div className="min-w-0 space-y-1">{cabecera('Índice UV')}{bloque}</div>
+                <div className="min-w-0 space-y-1">{cabecera('Índice UV')}{bloque(Math.max(0, (info.alto || 130) - 60))}</div>
                 {curva}
             </div>
         );
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
+            <PilaAjustable className="gap-3 p-3.5">
                 {cabecera('Índice UV')}
-                <div className="flex justify-center"><ArcoUV uv={a.uv} lado={Math.min(170, (info.ancho || 170) - 20)} /></div>
-                {bloque}
-                <div className="mt-auto">{curva}</div>
-                {sello}
-            </div>
+                <Encajar minimo={60} className="flex items-center justify-center">
+                    {({ ancho, alto }) => <ArcoUV uv={a.uv} lado={Math.max(80, Math.min(170, ancho, alto / 0.62))} />}
+                </Encajar>
+                <Prescindible nivel={2}>{bloque()}</Prescindible>
+                <Prescindible nivel={1}>{curva}</Prescindible>
+                <Prescindible nivel={1}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera('Índice UV')}
-                <div className="flex min-h-0 flex-1 items-center gap-3">
-                    <ArcoUV uv={a.uv} lado={Math.min(130, lado)} />
-                    {bloque}
-                </div>
-            </div>
+                <Encajar minimo={56} className="flex items-center gap-3">
+                    {({ ancho, alto }) => (
+                        <>
+                            <ArcoUV uv={a.uv} lado={Math.max(72, Math.min(130, lado, ancho * 0.45, alto / 0.62))} />
+                            {bloque(alto)}
+                        </>
+                    )}
+                </Encajar>
+            </PilaAjustable>
         );
     }
     const dias = c.dias.slice(0, base === 'xl' ? 5 : 3);
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <PilaAjustable className="gap-3 p-4">
             {cabecera('Índice UV')}
-            <div className="flex items-center gap-4">
-                <ArcoUV uv={a.uv} lado={base === 'xl' ? 190 : 150} />
-                {bloque}
-            </div>
-            {curva}
+            <Encajar minimo={80} className="flex items-center gap-4">
+                {({ ancho, alto }) => (
+                    <>
+                        <ArcoUV uv={a.uv} lado={Math.max(90, Math.min(base === 'xl' ? 190 : 150, ancho * 0.45, alto / 0.62))} />
+                        {bloque(alto)}
+                    </>
+                )}
+            </Encajar>
+            <Prescindible nivel={2}>{curva}</Prescindible>
+            <Prescindible nivel={1}>
             <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0,1fr))` }} aria-label="UV máximo por día">
                 {dias.map((dd, i) => {
                     const nd = nivelUv(dd.uvMax);
@@ -114,8 +128,9 @@ function Cuerpo({ info, a, c, d, hoy, ahora, cabecera, sello }: CtxMagnitud) {
                     );
                 })}
             </ul>
-            <div className="mt-auto">{sello}</div>
-        </div>
+            </Prescindible>
+            <Prescindible nivel={1}>{sello}</Prescindible>
+        </PilaAjustable>
     );
 }
 

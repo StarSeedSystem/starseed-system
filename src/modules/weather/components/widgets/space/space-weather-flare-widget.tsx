@@ -17,6 +17,7 @@ import { fuenteEscalas, fuenteSol } from '@/modules/weather/datos/noaa';
 import { claseRayos, escalaR, explicarLlamarada, probabilidadCombinada } from '@/modules/weather/datos/interpretar';
 import { formateadores, useFuente } from '@/modules/weather/datos/hooks';
 import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { COLOR_CLASE, GraficaRayos, LineaLlamaradas, PildoraSeveridad } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
 
@@ -84,11 +85,12 @@ function Contenido({ info }: { info: InfoMarco }) {
             </div>
         );
     }
+    const explicacion = explicarLlamarada(cl?.letra ?? null);
     const bloque = (
         <div className="min-w-0 flex-1 space-y-1.5">
-            <p className="text-[12px] leading-snug text-white/80">{explicarLlamarada(cl?.letra ?? null)}</p>
+            <p className="line-clamp-3 text-[12px] leading-snug text-white/80" title={explicacion}>{explicacion}</p>
             <PildoraSeveridad severidad={r >= 3 ? 'fuerte' : r >= 1 ? 'moderada' : 'calma'}>{efecto}</PildoraSeveridad>
-            {ult24.length > 0 && <p className="text-[11px] text-amber-100/90">{ult24.length} llamarada{ult24.length > 1 ? 's' : ''} M o X en 24 h (la mayor, {ult24.reduce((m, l) => ((l.flujo ?? 0) > (m.flujo ?? 0) ? l : m)).clase})</p>}
+            {ult24.length > 0 && <Prescindible nivel={2}><p className="text-[11px] text-amber-100/90">{ult24.length} llamarada{ult24.length > 1 ? 's' : ''} M o X en 24 h (la mayor, {ult24.reduce((m, l) => ((l.flujo ?? 0) > (m.flujo ?? 0) ? l : m)).clase})</p></Prescindible>}
         </div>
     );
     if (clase === 'panoramico') {
@@ -102,34 +104,35 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
+            <PilaAjustable className="gap-3 p-3.5">
                 {cabecera}
-                <div className="flex justify-center">{insignia(36)}</div>
+                <div className="flex shrink-0 justify-center">{insignia(36)}</div>
                 {bloque}
-                <GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={100} id={id} />
-                {probs}
-                <div className="mt-auto">{sello}</div>
-            </div>
+                <Prescindible nivel={1}><Encajar minimo={56}>{({ alto }) => <GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={Math.min(120, alto)} id={id} />}</Encajar></Prescindible>
+                <Prescindible nivel={1}>{probs}</Prescindible>
+                <Prescindible nivel={1}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            // La gráfica ocupa el alto que queda (antes, fija, se cortaba por abajo con sus horas).
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera}
-                <div className="flex items-center gap-3">{insignia(26)}{bloque}</div>
-                <div className="min-h-0 flex-1"><GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={Math.max(56, (info.alto || 240) - 170)} id={id} /></div>
-            </div>
+                <div className="flex shrink-0 items-center gap-3">{insignia(26)}{bloque}</div>
+                <Prescindible nivel={1}><Encajar minimo={52}>{({ alto }) => <GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={alto} id={id} />}</Encajar></Prescindible>
+            </PilaAjustable>
         );
     }
     const regiones = d.regiones.lista.slice(0, 3);
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <PilaAjustable className="gap-3 p-4">
             {cabecera}
-            <div className="flex items-center gap-4">{insignia(base === 'xl' ? 40 : 32)}{bloque}</div>
-            <GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={base === 'xl' ? 110 : 88} id={id} />
-            <LineaLlamaradas llamaradas={d.llamaradas} ahora={ahora} dia={dia} />
-            {probs}
-            {base === 'xl' && regiones.length > 0 && (
+            <div className="flex shrink-0 items-center gap-4">{insignia(base === 'xl' ? 40 : 32)}{bloque}</div>
+            <Prescindible nivel={3}><Encajar minimo={64}>{({ alto }) => <GraficaRayos serie={d.rayos} llamaradas={d.llamaradas} hora={fmt.hora} alto={Math.min(base === 'xl' ? 130 : 110, alto)} id={id} />}</Encajar></Prescindible>
+            <Prescindible nivel={2}><LineaLlamaradas llamaradas={d.llamaradas} ahora={ahora} dia={dia} /></Prescindible>
+            <Prescindible nivel={2}>{probs}</Prescindible>
+            {base === 'xl' && regiones.length > 0 && (<Prescindible nivel={1}>
                 <ul className="space-y-1" aria-label="Regiones activas de hoy">
                     {regiones.map((x) => (
                         <li key={x.numero} className="flex items-center gap-2 text-[12px]" title={`Región ${x.numero} en ${x.ubicacion}: ${x.manchas ?? '?'} manchas, clase magnética ${x.claseMagnetica ?? '?'}`}>
@@ -140,12 +143,12 @@ function Contenido({ info }: { info: InfoMarco }) {
                         </li>
                     ))}
                 </ul>
-            )}
+            </Prescindible>)}
             {base === 'xl' && escalas.datos && escalas.datos.dias.length > 0 && (
-                <p className="text-[11px] text-white/60">Previsión de apagones R1-R2: {escalas.datos.dias.map((x) => `${x.probRMenor ?? '—'} %`).join(' · ')} (hoy, mañana, pasado)</p>
+                <Prescindible nivel={1}><p className="text-[11px] text-white/60">Previsión de apagones R1-R2: {escalas.datos.dias.map((x) => `${x.probRMenor ?? '—'} %`).join(' · ')} (hoy, mañana, pasado)</p></Prescindible>
             )}
-            <div className="mt-auto">{sello}</div>
-        </div>
+            <Prescindible nivel={1}>{sello}</Prescindible>
+        </PilaAjustable>
     );
 }
 

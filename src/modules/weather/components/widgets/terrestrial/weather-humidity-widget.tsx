@@ -13,6 +13,7 @@ import { confortRocio } from '@/modules/weather/datos/interpretar';
 import { BarrasHoras, grados } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
 import { estilosClima as s } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const COLOR = '#60a5fa';
 
@@ -86,38 +87,51 @@ function Cuerpo({ info, a, c, d, prox, id, cabecera, sello }: CtxMagnitud) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
+            <PilaAjustable className="gap-3 p-3.5">
                 {cabecera('Humedad')}
-                <div className="flex justify-center"><Gota humedad={a.humedad} lado={Math.min(160, (info.ancho || 160) - 20)} id={id} /></div>
-                <Datos columnas={1} filas={filas} />
-                <div className="mt-auto">{barras(8)}</div>
-                {sello}
-            </div>
+                <Encajar minimo={72} className="flex items-center justify-center">
+                    {({ ancho, alto }) => <Gota humedad={a.humedad} lado={Math.max(56, Math.min(160, alto, ancho / 0.8))} id={id} />}
+                </Encajar>
+                <Prescindible nivel={2}><Datos columnas={1} filas={filas} /></Prescindible>
+                <Prescindible nivel={1}>{barras(8)}</Prescindible>
+                <Prescindible nivel={1}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
+        // La gota se dibuja del alto que queda libre (antes, fija, se montaba sobre la cabecera en
+        // las tarjetas bajas); si no llega a 64 px se retiran antes las barras de horas.
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera('Humedad')}
-                <div className="flex min-h-0 flex-1 items-center gap-3">
-                    <Gota humedad={a.humedad} lado={Math.min(118, lado)} id={id} />
-                    <div className="min-w-0 flex-1"><Datos columnas={1} filas={filas.slice(0, 2)} /></div>
-                </div>
-                {barras(8)}
-            </div>
+                <Encajar minimo={64} className="flex items-center gap-3">
+                    {({ ancho, alto }) => (
+                        <>
+                            <Gota humedad={a.humedad} lado={Math.max(56, Math.min(118, lado, alto, (ancho * 0.5) / 0.8))} id={id} />
+                            <div className="min-w-0 flex-1"><Datos columnas={1} filas={filas.slice(0, alto >= 78 ? 2 : 1)} /></div>
+                        </>
+                    )}
+                </Encajar>
+                <Prescindible nivel={1}>{barras(8)}</Prescindible>
+            </PilaAjustable>
         );
     }
     const dias = c.dias.slice(0, base === 'xl' ? 5 : 3);
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <PilaAjustable className="gap-3 p-4">
             {cabecera('Humedad')}
-            <div className="flex items-center gap-4">
-                <Gota humedad={a.humedad} lado={base === 'xl' ? 170 : 130} id={id} />
-                <div className="min-w-0 flex-1 space-y-2">
-                    <Datos columnas={1} filas={filas} />
-                </div>
-            </div>
-            {barras(24)}
+            <Encajar minimo={84} className="flex items-center gap-4">
+                {({ ancho, alto }) => (
+                    <>
+                        <Gota humedad={a.humedad} lado={Math.max(64, Math.min(base === 'xl' ? 170 : 130, alto, (ancho * 0.5) / 0.8))} id={id} />
+                        <div className="min-w-0 flex-1 space-y-2">
+                            <Datos columnas={1} filas={filas.slice(0, alto >= 120 ? 3 : alto >= 78 ? 2 : 1)} />
+                        </div>
+                    </>
+                )}
+            </Encajar>
+            <Prescindible nivel={2}>{barras(24)}</Prescindible>
+            <Prescindible nivel={1}>
             <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0,1fr))` }} aria-label="Lluvia por día">
                 {dias.map((dd, i) => (
                     <li key={dd.t} className="min-w-0 rounded-xl bg-white/[0.05] px-2 py-1.5 text-center">
@@ -127,8 +141,9 @@ function Cuerpo({ info, a, c, d, prox, id, cabecera, sello }: CtxMagnitud) {
                     </li>
                 ))}
             </ul>
-            <div className="mt-auto">{sello}</div>
-        </div>
+            </Prescindible>
+            <Prescindible nivel={1}>{sello}</Prescindible>
+        </PilaAjustable>
     );
 }
 

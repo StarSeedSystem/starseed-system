@@ -84,7 +84,7 @@ describe("Reloj celeste en s/m/l", () => {
         expect(diseno(container)).toMatch(t === "l" ? /^l-carta/ : new RegExp(`^${t}`));
         expect(screen.getAllByText(/^\d{2}:\d{2}$/).length).toBeGreaterThan(0);
         expect(screen.getByRole("group").getAttribute("aria-label")).toMatch(/Sol en .*Luna en/);
-        if (t === "l") expect(screen.getByText(/Sol en .* \d+°/, { selector: ".sr-only" })).toBeTruthy();
+        if (t === "l") expect(screen.getByRole("img", { name: /Sol en .* \d+°/ })).toBeTruthy();
     });
     it("con la ubicación de fábrica se dice y se ofrece la propia; sin ubicación, no hay ascendente", () => {
         enMarco(<RelojLibre />, "l");
@@ -92,7 +92,7 @@ describe("Reloj celeste en s/m/l", () => {
         cleanup();
         ubicacion = null;
         enMarco(<RelojLibre />, "l");
-        expect(screen.getByText(/Sin ubicación: sin ascendente/)).toBeTruthy();
+        expect(screen.getByRole("img", { name: /Sin ubicación: sin ascendente/ })).toBeTruthy();
         ubicacion = { location: { lat: 40.4, lon: -3.7, name: "Madrid" }, requestGeolocation: vi.fn(async () => {}) };
     });
 });

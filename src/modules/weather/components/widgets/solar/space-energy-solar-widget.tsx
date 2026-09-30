@@ -16,6 +16,7 @@ import { fuenteKp, fuentePlasma, fuenteSol, fuenteVientoResumen, resumirKp } fro
 import { COLOR_SEVERIDAD, explicarViento, severidadViento } from '@/modules/weather/datos/interpretar';
 import { formateadores, useFuente } from '@/modules/weather/datos/hooks';
 import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { FlujoViento, GraficaPlasma } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
 
@@ -92,41 +93,45 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
-                {cabecera}{flujo(110)}{cifras}
-                <p className="text-[12px] leading-snug text-white/75">{frase}</p>
-                {plasma.datos && <GraficaPlasma serie={plasma.datos.serie} hora={fmt.hora} alto={90} id={id} />}
-                <div className="mt-auto">{sello}</div>
-            </div>
+            <PilaAjustable className="gap-3 p-3.5">
+                {cabecera}
+                <Encajar minimo={56}>{({ alto }) => flujo(Math.min(120, alto))}</Encajar>
+                {cifras}
+                <Prescindible nivel={2}><p className="line-clamp-3 text-[12px] leading-snug text-white/75" title={frase}>{frase}</p></Prescindible>
+                {plasma.datos && <Prescindible nivel={1}><GraficaPlasma serie={plasma.datos.serie} hora={fmt.hora} alto={90} id={id} /></Prescindible>}
+                <Prescindible nivel={1}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            // El dibujo Sol → Tierra toma el alto que queda (antes, fijo, «Sol» se montaba sobre
+            // «Velocidad»); si no cabe ni a 40 px, se retira antes la frase.
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera}
-                <div className="min-h-0 flex-1">{flujo(Math.max(56, Math.min(96, (info.alto || 240) - 150)))}</div>
+                <Encajar minimo={40}>{({ alto }) => flujo(Math.min(96, alto))}</Encajar>
                 {cifras}
-                <p className="line-clamp-2 text-[11px] leading-snug text-white/70" title={frase}>{frase}</p>
-            </div>
+                <Prescindible nivel={1}><p className="line-clamp-2 shrink-0 text-[11px] leading-snug text-white/70" title={frase}>{frase}</p></Prescindible>
+            </PilaAjustable>
         );
     }
     const rk = kp.datos ? resumirKp(kp.datos, Date.now()) : null;
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <PilaAjustable className="gap-3 p-4">
             {cabecera}
-            {flujo(base === 'xl' ? 120 : 96)}
+            <Encajar minimo={56}>{({ alto }) => flujo(Math.min(base === 'xl' ? 120 : 96, alto))}</Encajar>
             {cifras}
-            <p className="text-[12px] leading-snug text-white/75">{frase}</p>
-            {plasma.datos ? <GraficaPlasma serie={plasma.datos.serie} hora={fmt.hora} alto={base === 'xl' ? 100 : 80} id={id} /> : <p className="text-[11px] text-white/55">{plasma.error ? 'Sin la serie de 24 h de la sonda.' : 'Leyendo 24 h de plasma…'}</p>}
-            {base === 'xl' && (
+            <Prescindible nivel={3}><p className="line-clamp-3 shrink-0 text-[12px] leading-snug text-white/75" title={frase}>{frase}</p></Prescindible>
+            <Prescindible nivel={2}>{plasma.datos ? <GraficaPlasma serie={plasma.datos.serie} hora={fmt.hora} alto={base === 'xl' ? 100 : 80} id={id} /> : <p className="text-[11px] text-white/55">{plasma.error ? 'Sin la serie de 24 h de la sonda.' : 'Leyendo 24 h de plasma…'}</p>}</Prescindible>
+            {base === 'xl' && (<Prescindible nivel={1}>
                 <div className="grid grid-cols-3 gap-2">
                     <Cifra t="Temperatura" v={pa?.temperatura == null ? '—' : Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 }).format(pa.temperatura)} u="K" />
                     <Cifra t="Campo total" v={r.bt === null ? '—' : r.bt.toFixed(1).replace('.', ',')} u="nT" />
                     <Cifra t="Flujo F10.7" v={sol.datos?.f107.flujo == null ? '—' : String(Math.round(sol.datos.f107.flujo))} u="sfu" nota={rk?.actual ? `Kp ${rk.actual.kp.toFixed(1).replace('.', ',')}` : undefined} />
                 </div>
-            )}
-            <div className="mt-auto">{sello}</div>
-        </div>
+            </Prescindible>)}
+            <Prescindible nivel={1}>{sello}</Prescindible>
+        </PilaAjustable>
     );
 }
 

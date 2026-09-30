@@ -23,6 +23,7 @@ import { useFuente } from '@/modules/weather/datos/hooks';
 import { paletaCielo } from '../_clima/cielo';
 import { grados, velocidad } from '../_clima/graficas';
 import { CargandoClima, ErrorClima, LugarClima, MarcoClima, MenuClima, RotuloClima, SelloFuente, SinUbicacion, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { useDatosClima } from '../_clima/use-clima';
 
 interface Capa { id: string; nombre: string; valor: string; nota: string; fraccion: number | null; color: string; rumbo?: number | null }
@@ -86,7 +87,7 @@ function Leyenda({ capas, foco, setFoco, conNotas, columnas = 1 }: { capas: Capa
                         onMouseEnter={() => setFoco(c.id)} onMouseLeave={() => setFoco(null)} onFocus={() => setFoco(c.id)} onBlur={() => setFoco(null)}
                         aria-label={`${c.nombre}: ${c.valor}${c.nota ? `, ${c.nota}` : ''}`}>
                         <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: c.fraccion === null ? 'transparent' : c.color, boxShadow: `inset 0 0 0 1.5px ${c.color}` }} />
-                        <span className="w-[4.6rem] shrink-0 truncate text-[12px] text-white/70">{c.nombre}</span>
+                        <span className={`${conNotas ? 'w-[4.6rem] shrink-0' : 'min-w-0 flex-1'} truncate text-[12px] text-white/70`} title={c.nombre}>{c.nombre}</span>
                         <span className={`${s.cifra} shrink-0 text-[13px] font-semibold`}>{c.valor}</span>
                         {conNotas && <span className="min-w-0 truncate text-[11px] text-white/50" title={c.nota}>{c.nota}</span>}
                     </button>
@@ -161,24 +162,50 @@ function Contenido({ info }: { info: InfoMarco }) {
         );
     }
     const avisos = avisosClima(c, d.aire.datos, d.fmt.hora, ahora);
-    const tamEsfera = clase === 'torre' ? Math.min((info.ancho || 280) - 24, 260) : base === 'xl' ? Math.min(300, (info.alto || 440) * 0.62) : Math.min(230, lado(0.62));
-    return (
-        <div className="flex h-full flex-col gap-3 p-4">
-            {cabecera}
-            <div className="flex justify-center">{esfera(tamEsfera, tamEsfera * 0.13)}</div>
-            <Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={base === 'xl' || clase === 'torre' || (info.ancho || 0) > 330} columnas={base === 'xl' && (info.ancho || 0) > 620 ? 2 : 1} />
-            {base === 'xl' && (
-                <div className="space-y-1.5 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/[0.06]">
-                    {avisos.slice(0, 2).map((av) => <p key={av.id} role="note" className="text-[12px] text-amber-100">{av.texto}</p>)}
-                    <p className="text-[12px] text-white/75">{explicarKp(kp)}</p>
-                    <Link href="/atmosphere" className={`${s.foco} inline-flex cursor-pointer text-[12px] font-semibold text-sky-300 hover:underline`}>Ver el clima espacial</Link>
-                </div>
-            )}
-            <div className="mt-auto flex flex-wrap gap-x-3">
-                <SelloFuente fuente="Open-Meteo" en={d.clima.en} />
-                {kpDatos.en && <SelloFuente fuente="NOAA SWPC" en={kpDatos.en} />}
-            </div>
+    const xl = base === 'xl';
+    const extra = xl && (
+        <div className="space-y-1.5 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/[0.06]">
+            {avisos.slice(0, 2).map((av) => <p key={av.id} role="note" className="line-clamp-2 text-[12px] text-amber-100" title={av.texto}>{av.texto}</p>)}
+            <p className="line-clamp-3 text-[12px] text-white/75" title={explicarKp(kp)}>{explicarKp(kp)}</p>
+            <Link href="/atmosphere" className={`${s.foco} inline-flex cursor-pointer text-[12px] font-semibold text-sky-300 hover:underline`}>Ver el clima espacial</Link>
         </div>
+    );
+    const sellos = (
+        <div className="flex shrink-0 flex-wrap gap-x-3">
+            <SelloFuente fuente="Open-Meteo" en={d.clima.en} />
+            {kpDatos.en && <SelloFuente fuente="NOAA SWPC" en={kpDatos.en} />}
+        </div>
+    );
+    // Tarjeta apaisada (el héroe 6×6 de Astronomía): esfera a la izquierda y capas a la derecha.
+    // Antes todo iba en columna y las capas de abajo («Viento», «UV»…) quedaban cortadas.
+    if (clase !== 'torre' && (info.ancho || 0) >= (info.alto || 0) * 1.15) {
+        return (
+            <PilaAjustable className="gap-3 p-4">
+                {cabecera}
+                <div className="flex min-h-0 flex-1 gap-4">
+                    <Encajar minimo={110} className="flex max-w-[58%] items-center justify-center">
+                        {({ ancho, alto }) => { const t = Math.max(100, Math.min(xl ? 320 : 250, ancho, alto)); return esfera(t, t * 0.13); }}
+                    </Encajar>
+                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 overflow-hidden">
+                        <Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={(info.ancho || 0) > 480} columnas={1} />
+                        <Prescindible nivel={2}>{extra}</Prescindible>
+                    </div>
+                </div>
+                <Prescindible nivel={1}>{sellos}</Prescindible>
+            </PilaAjustable>
+        );
+    }
+    const dosColumnas = (info.ancho || 0) >= 300 && clase !== 'torre';
+    return (
+        <PilaAjustable className="gap-3 p-4">
+            {cabecera}
+            <Encajar minimo={110} className="flex items-center justify-center">
+                {({ ancho, alto }) => { const t = Math.max(100, Math.min(clase === 'torre' ? 260 : xl ? 300 : 230, ancho, alto)); return esfera(t, t * 0.13); }}
+            </Encajar>
+            <div className="shrink-0"><Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={xl || clase === 'torre' || (info.ancho || 0) > 330} columnas={dosColumnas ? 2 : 1} /></div>
+            <Prescindible nivel={2}>{extra}</Prescindible>
+            <Prescindible nivel={1}>{sellos}</Prescindible>
+        </PilaAjustable>
     );
 }
 
