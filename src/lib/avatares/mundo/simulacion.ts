@@ -231,6 +231,45 @@ export function avanzar(estado: EstadoMundo, pasos: number = 1): EstadoMundo {
   return nuevoEstado;
 }
 
+/* ─────────────── Decisión de avance por tick (pausa · pestaña oculta) ─────────────── */
+
+export interface SenalesTick {
+  /** El usuario pausó la simulación: manda sobre todo lo demás. */
+  pausado: boolean;
+  /** La pestaña está oculta: no se avanza, se acumula (tope 4). */
+  pestañaOculta: boolean;
+  /** Pasos ya acumulados en ticks anteriores con la pestaña oculta. */
+  pasosPendientes: number;
+}
+
+export interface DecisionTick {
+  /** Pasos a avanzar en este tick (0 = el mundo queda como está). */
+  pasos: number;
+  /** Pasos pendientes DESPUÉS de aplicar esta decisión. */
+  pasosPendientes: number;
+}
+
+// Tope de pasos acumulables con la pestaña oculta: al volver se avanza de a 1
+// para no congelar el navegador en ráfaga.
+const TOPE_PENDIENTES = 4;
+
+/**
+ * Decide cuántos pasos avanza la simulación en un tick del temporizador.
+ *  · `pausado` detiene el mundo DE VERDAD: no avanza y no acumula nada,
+ *    aunque la pestaña esté oculta (el botón Pausar no es decorativo).
+ *  · Pestaña oculta (sin pausa): no avanza y acumula 1 paso, hasta el tope.
+ *  · Pestaña visible (sin pausa): avanza exactamente 1 paso y consume lo acumulado.
+ */
+export function pasosParaTick(s: SenalesTick): DecisionTick {
+  if (s.pausado) {
+    return { pasos: 0, pasosPendientes: s.pasosPendientes };
+  }
+  if (s.pestañaOculta) {
+    return { pasos: 0, pasosPendientes: Math.min(s.pasosPendientes + 1, TOPE_PENDIENTES) };
+  }
+  return { pasos: 1, pasosPendientes: 0 };
+}
+
 const MUNDO_STORAGE_KEY = 'starseed.mundo.avatares.v1';
 
 export function guardarMundo(estado: EstadoMundo): void {

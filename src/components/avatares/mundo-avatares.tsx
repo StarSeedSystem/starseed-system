@@ -55,6 +55,7 @@ import { CronicaMundo } from "./cronica-mundo";
 import {
     mundoInicial,
     avanzar,
+    pasosParaTick,
     type EstadoMundo,
     type HabitanteMundo,
 } from "@/lib/avatares/mundo/simulacion";
@@ -667,8 +668,9 @@ export function MundoAvatares({
         update?: () => void;
     } | null>(null);
 
-    /* Avance de la simulación: setInterval que se limpia al desmontar y se
-     * pausa cuando la pestaña está oculta (regla del área). */
+    /* Avance de la simulación: setInterval que se limpia al desmontar, no
+     * avanza con la pestaña oculta (regla del área) ni con la simulación en
+     * pausa: `pasosParaTick` es quien decide, y con `pausado` devuelve 0. */
     useEffect(() => {
         if (typeof window === "undefined") return;
         let vivo = true;
@@ -679,15 +681,18 @@ export function MundoAvatares({
             if (temporizador !== null) clearInterval(temporizador);
             temporizador = setInterval(() => {
                 if (!vivo) return;
-                if (typeof document !== "undefined" && document.hidden) {
-                    pasosPendientes = Math.min(pasosPendientes + 1, 4);
-                    return;
-                }
-                // Si se acumuló mientras la pestaña estaba oculta, avanza en
-                // bloque solo 1 para no congelar el navegador al volver.
-                const saltos = pasosPendientes > 0 ? 1 : 1;
-                pasosPendientes = 0;
-                setEstado((prev) => avanzar(prev, saltos));
+                // La decisión vive en `pasosParaTick` (módulo puro): con
+                // `pausado` el mundo NO avanza, aunque el temporizador siga
+                // vivo; con la pestaña oculta se acumula hasta un tope.
+                const { pasos, pasosPendientes: pendientes } = pasosParaTick({
+                    pausado,
+                    pestañaOculta:
+                        typeof document !== "undefined" && document.hidden,
+                    pasosPendientes,
+                });
+                pasosPendientes = pendientes;
+                if (pasos === 0) return;
+                setEstado((prev) => avanzar(prev, pasos));
             }, msPorTick(velocidad));
         };
 
