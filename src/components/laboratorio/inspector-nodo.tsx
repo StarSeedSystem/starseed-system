@@ -119,6 +119,9 @@ export function InspectorNodo({ genoma, nodoId, onCambiar }: InspectorNodoProps)
   const confirm = useConfirm();
   const prompt = usePrompt();
   const confirmadoRef = React.useRef<Set<string>>(new Set());
+  // Vista previa local del slider: el arrastre se ve aquí y solo al soltar
+  // se aplica el parámetro (evita confirmaciones y onCambiar en cascada).
+  const [vistaPrevia, setVistaPrevia] = React.useState<Record<string, number>>({});
 
   const nodo = nodoId ? genoma.nodos.find((n) => n.id === nodoId) : undefined;
 
