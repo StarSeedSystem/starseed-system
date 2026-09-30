@@ -179,8 +179,12 @@ export function MapWidget() {
     const nombreLugar = loc?.name ?? 'Sin ubicación';
     const raiz = { lienzo, refRaiz: ref, etiqueta: `Mapa: ${nombreLugar}${porDefecto ? ' (ubicación por defecto)' : ''}, ${enRadio.length} lugares de la red a menos de ${RADIO_CERCA_KM} km`, tipo: 'MAP_LOCATION' } as const;
 
-    const botonUbic = ubic ? <BotonE lienzo={lienzo} variante={porDefecto ? 'primario' : 'fantasma'} compacto icono={pidiendo ? Loader2 : LocateFixed} disabled={pidiendo} onClick={() => void usarMiUbicacion()}>{porDefecto ? 'Usar mi ubicación' : 'Recentrar'}</BotonE> : null;
-    const selloUbic = porDefecto ? <SelloE title="Aún no elegiste ubicación: el OS usa una por defecto">ubicación por defecto</SelloE> : null;
+    // En tarjetas estrechas las acciones de la cabecera pasan a icono (con su nombre en aria-label
+    // y tooltip) y el sello se acorta: antes «Usar mi ubicación» y «Mapa» se salían por la derecha.
+    const estrechaCab = (lienzo.ancho || 0) > 0 && (lienzo.ancho || 0) < (horizontal ? 620 : 460);
+    const textoUbic = porDefecto ? 'Usar mi ubicación' : 'Recentrar';
+    const botonUbic = ubic ? <BotonE lienzo={lienzo} variante={porDefecto ? 'primario' : 'fantasma'} compacto icono={pidiendo ? Loader2 : LocateFixed} disabled={pidiendo} onClick={() => void usarMiUbicacion()} etiqueta={textoUbic} title={textoUbic}>{estrechaCab ? undefined : textoUbic}</BotonE> : null;
+    const selloUbic = porDefecto ? <SelloE title="Aún no elegiste ubicación: el OS usa una por defecto">{estrechaCab ? 'por defecto' : 'ubicación por defecto'}</SelloE> : null;
 
     // ── micro / s: sin mapa, el dato ──
     if (!conMapa) {
@@ -275,7 +279,7 @@ export function MapWidget() {
 
     const cabecera = (
         <EncabezadoE lienzo={lienzo} icono={MapPin} titulo={nombreLugar} detalle={puntos ? `${enRadio.length} cerca` : undefined}
-            acciones={<>{selloUbic}{botonUbic}<EnlaceE lienzo={lienzo} href={RUTA_MAPA} compacto variante="fantasma" icono={MapIcon}>Mapa</EnlaceE></>} />
+            acciones={<>{selloUbic}{botonUbic}<EnlaceE lienzo={lienzo} href={RUTA_MAPA} compacto variante="fantasma" icono={MapIcon} aria-label="Abrir el mapa completo" title="Abrir el mapa completo">{estrechaCab ? null : 'Mapa'}</EnlaceE></>} />
     );
     const pie = <>{avisoUbic && <p role="alert" className="text-[11px] text-amber-200">{avisoUbic}</p>}{error && !puntos && <p className="text-[11px] text-white/50">No se pudieron leer los lugares de la red. <button type="button" className="cursor-pointer underline" onClick={recargar}>Reintentar</button></p>}</>;
 

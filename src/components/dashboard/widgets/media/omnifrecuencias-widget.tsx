@@ -22,6 +22,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { Waves, Play, Square, Plus, Save, FolderOpen, Trash2, Maximize2, Headphones, Info, Sliders } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
@@ -220,20 +221,26 @@ export function OmnifrecuenciasWidget() {
                 <div className="flex h-full min-h-0 items-center gap-3 px-1">
                     <Resonador lado={Math.max(56, Math.min(110, (lienzo.alto || 120) - 12))} hz={hzActual} nombre={nombreActual} suena={suena} lienzo={lienzo} onAlternar={alternarPrincipal} />
                     <div className="flex w-44 shrink-0 flex-col gap-1.5"><p className="truncate text-[13px] font-semibold text-white" title={nombreActual}>{nombreActual}</p>{volumen}</div>
-                    <ul className={cn('flex min-w-0 flex-1 gap-1.5 overflow-x-auto', estilosE.desliza)} aria-label="Frecuencias destacadas">
-                        {FEATURED_FREQUENCIES.map((f) => {
+                    {/* Sin tira con desplazamiento lateral: las frecuencias se reparten en filas y las que
+                        no caben se retiran (la app completa las tiene todas). */}
+                    <PilaAjustable niveles={FEATURED_FREQUENCIES.length} className="min-w-0 flex-1">
+                    <ul className="my-auto flex min-w-0 flex-wrap gap-1.5" aria-label="Frecuencias destacadas">
+                        {FEATURED_FREQUENCIES.map((f, i) => {
                             const activa = ultimaId === f.id && suena;
                             return (
-                                <li key={f.id} className="shrink-0">
+                                <Prescindible key={f.id} nivel={i < 2 ? 0 : FEATURED_FREQUENCIES.length - i}>
+                                <li className="shrink-0">
                                     <button type="button" onClick={() => tocar(f.id)} aria-pressed={activa} aria-label={activa ? `Detener ${f.name}` : `Reproducir ${f.name}`} title={f.name}
                                         className="ss-redondo inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold transition-colors"
                                         style={activa ? { background: conAlfa(lienzo.acento, 0.25), boxShadow: `inset 0 0 0 1px ${conAlfa(lienzo.acento, 0.6)}`, color: '#fff' } : { background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.8)' }}>
                                         <span className="tabular-nums">{hzTexto(f)} Hz</span>
                                     </button>
                                 </li>
+                                </Prescindible>
                             );
                         })}
                     </ul>
+                    </PilaAjustable>
                 </div>
             </RaizE>
         );
@@ -264,7 +271,7 @@ export function OmnifrecuenciasWidget() {
                     {cabecera}
                     {(verNota || clase === 'torre') && nota}
                     {foco(clase === 'torre' ? 96 : Math.max(64, Math.min(96, (lienzo.alto || 240) * 0.32)))}
-                    <div className="min-h-0 flex-1">{lista()}</div>
+                    <div className="flex min-h-0 flex-1 flex-col">{lista()}</div>
                     {volumen}
                     {errorEl}
                 </div>
@@ -284,12 +291,12 @@ export function OmnifrecuenciasWidget() {
                 </div>
                 <PestanasE lienzo={lienzo} etiqueta="Modo del estudio" valor={pestana} onCambio={setPestana}
                     opciones={[{ id: 'play', etiqueta: 'Frecuencias' }, { id: 'gen', etiqueta: 'Generador', cuenta: hayMezcla ? oscillators.length : undefined }, { id: 'presets', etiqueta: 'Presets', cuenta: fs.presets.length || undefined }]} />
-                <div className="min-h-0 flex-1">
+                <div className="flex min-h-0 flex-1 flex-col">
                     {pestana === 'play' && (
                         <div className="flex h-full min-h-0 flex-col gap-1.5">
                             <PestanasE lienzo={lienzo} etiqueta="Filtrar por categoría" valor={filtro} onCambio={setFiltro}
                                 opciones={FILTROS.map((id) => ({ id, etiqueta: CATEGORIES.find((c) => c.id === id)?.label ?? id }))} />
-                            <div className="min-h-0 flex-1">{lista()}</div>
+                            <div className="flex min-h-0 flex-1 flex-col">{lista()}</div>
                         </div>
                     )}
                     {pestana === 'gen' && (
@@ -335,7 +342,7 @@ export function OmnifrecuenciasWidget() {
                     )}
                 </div>
                 {volumen}
-                {nota}
+                <div className="shrink-0">{nota}</div>
                 {errorEl}
             </div>
         </RaizE>

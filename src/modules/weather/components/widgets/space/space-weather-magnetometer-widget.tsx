@@ -64,7 +64,7 @@ function Contenido({ info }: { info: InfoMarco }) {
         <div className="min-w-0">
             <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55">Hp</span>
             <span className={`${s.cifra} block font-extralight leading-none`} style={{ fontSize: tam, color: info.acento }}>{hpTxt}<span className="ml-1 text-[12px] text-white/60">nT</span></span>
-            {tendTxt && <span className="block text-[11px] text-white/60">{tendTxt}</span>}
+            {tendTxt && <span className="mt-1 block text-[11px] text-white/60">{tendTxt}</span>}
         </div>
     );
     const traza = (alto: number) => <TrazaCampo serie={m.serie} hora={fmt.hora} alto={alto} id={id} color={info.acento} />;

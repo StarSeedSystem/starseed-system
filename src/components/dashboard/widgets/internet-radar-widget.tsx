@@ -310,9 +310,11 @@ function ListaBandas({ t, bandas, aplicando, onObjetivo }: { t: TamanoSocial; ba
                 const m = bandaDe(b.id);
                 return (
                     <li key={b.id} className={cn(estilos.fila, 'px-2 py-1.5')} style={b.active ? { background: conAlfa(m.color, 0.07) } : undefined}>
-                        <div className="flex items-center gap-2">
+                        {/* El nombre de la banda se parte en líneas (sin elipsis) y el estado baja si no cabe:
+                            antes «Radio LoRa · malla P2P» se recortaba debajo de «en espera». */}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                             <m.icono className="size-4 shrink-0" style={{ color: b.active ? m.color : 'rgba(255,255,255,.4)' }} aria-hidden />
-                            <span className={cn('min-w-0 flex-1 truncate text-[12.5px] font-semibold', b.active ? 'text-white' : 'text-white/60')}>{b.label}</span>
+                            <span className={cn('min-w-0 flex-1 basis-[7rem] text-[12.5px] font-semibold leading-snug', b.active ? 'text-white' : 'text-white/60')}>{b.label}</span>
                             <span className="inline-flex shrink-0 items-center gap-1.5 text-[10.5px] font-semibold" style={{ color: b.active ? m.color : 'rgba(255,255,255,.45)' }}>
                                 <Punto color={b.active ? m.color : 'rgba(255,255,255,.3)'} tam={6} />{b.active ? 'activa' : 'en espera'}
                             </span>
@@ -336,6 +338,10 @@ function ListaBandas({ t, bandas, aplicando, onObjetivo }: { t: TamanoSocial; ba
 /** Panorámico: las bandas como un mosaico de antenas (una columna cada una). */
 function MosaicoBandas({ t, bandas, aplicando, onObjetivo }: { t: TamanoSocial; bandas: BandStatus[]; aplicando: boolean; onObjetivo: (o: 'auto' | 'distancia' | 'velocidad') => void }) {
     const bajo = t.alto < 160;
+    // Lo que cabe en tres líneas de la tesela (≈ 6 px por letra a 11 px), cortado por palabras: el
+    // line-clamp ya no tiene que partir «inicia sesión pa…» a media palabra.
+    const anchoTesela = (t.ancho - (bandas.length - 1) * 8) / Math.max(1, bandas.length) - 16;
+    const presupuestoDetalle = Math.max(24, Math.min(90, Math.floor((Math.max(40, anchoTesela) / 6.2) * (t.alto < 230 ? 2 : 3) * 0.85)));
     return (
         <ul className="grid h-full min-h-0 gap-2" style={{ gridTemplateColumns: `repeat(${bandas.length}, minmax(0,1fr))` }} aria-label="Bandas y antenas">
             {bandas.map((b) => {
@@ -348,7 +354,7 @@ function MosaicoBandas({ t, bandas, aplicando, onObjetivo }: { t: TamanoSocial; 
                             <span className={cn('truncate text-[12px] font-semibold', b.active ? 'text-white' : 'text-white/55')}>{m.corto}</span>
                         </span>
                         <span className="text-[10.5px] font-semibold" style={{ color: b.active ? m.color : 'rgba(255,255,255,.45)' }}>{b.active ? 'activa' : 'en espera'}</span>
-                        {!bajo && <span className="line-clamp-3 text-[11px] leading-snug text-white/55">{recortar(b.detail, 90)}</span>}
+                        {!bajo && <span className="line-clamp-3 text-[11px] leading-snug text-white/55">{recortar(b.detail, presupuestoDetalle)}</span>}
                         {!bajo && b.metrics[0] && <span className="mt-auto truncate text-[10.5px] tabular-nums text-white/70" title={`${b.metrics[0].key}: ${b.metrics[0].value}`}>{b.metrics[0].value}</span>}
                         {!bajo && b.id === 'lora' && b.active && t.alto > 230 && <ControlLoRa t={t} aplicando={aplicando} onObjetivo={onObjetivo} />}
                     </li>

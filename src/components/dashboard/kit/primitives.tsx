@@ -14,6 +14,7 @@ import { ArrowUpRight, ArrowDownRight, Minus, Inbox, AlertOctagon, RotateCw, typ
 import { cn } from "@/lib/utils";
 import type { SeriesPoint, Trend } from "@/lib/widget-data/types";
 import { useMarcoUnificado } from "./contexto-marco";
+import { Alterna, PilaAjustable, Prescindible } from "./pila-ajustable";
 import { conAlfa, esHex, normalizarHex } from "@/components/widgets-libres/acentos-categoria";
 import { mezclar } from "@/components/widgets-libres/familias/comun";
 
@@ -357,19 +358,28 @@ export function WidgetEmptyState({
     const accent = accentProp ?? marco?.acento ?? PRIMARIO;
     if (marco) {
         const pildora = "inline-flex cursor-pointer items-center gap-1.5 rounded-full ss-redondo px-3 py-1 text-[11px] font-semibold text-white transition-transform duration-200 hover:scale-105 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
+        // (Pulido 0929) En una tarjeta pequeña el vacío ya no se sube sobre la cabecera: se centra
+        // con márgenes automáticos (si no cabe, crece hacia abajo) y retira primero el icono y
+        // luego la ayuda; el título y la acción se quedan siempre, sin cortar palabras.
         return (
-            <div data-kit="vacio" role="status" className="flex h-full flex-col items-center justify-center gap-3 px-3 text-center">
-                <span className="grid size-11 place-items-center rounded-[14px]" style={fantasma(accent)}>
-                    <Icon className="size-5" style={{ color: tinta(accent) }} strokeWidth={1.5} />
-                </span>
-                <div>
-                    <p className="text-[14px] font-semibold text-white/90">{title}</p>
-                    {message && <p className="mt-0.5 text-[12px] text-white/60">{message}</p>}
+            <PilaAjustable data-kit="vacio" role="status" niveles={3} className="items-center px-3 py-2 text-center">
+                <div className="my-auto flex w-full min-w-0 flex-col items-center gap-2.5">
+                    <Prescindible nivel={1}>
+                        <span className="grid size-11 shrink-0 place-items-center rounded-[14px]" style={fantasma(accent)}>
+                            <Icon className="size-5" style={{ color: tinta(accent) }} strokeWidth={1.5} />
+                        </span>
+                    </Prescindible>
+                    <div className="min-w-0 max-w-full">
+                        <Alterna nivel={3} corto={<p className="line-clamp-1 text-[13px] font-semibold leading-snug text-white/90" title={title}>{title}</p>}>
+                            <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-white/90" title={title}>{title}</p>
+                        </Alterna>
+                        {message && <Prescindible nivel={2}><p className="mt-0.5 line-clamp-3 text-[12px] leading-snug text-white/60" title={message}>{message}</p></Prescindible>}
+                    </div>
+                    {actionLabel && (actionHref
+                        ? <a href={actionHref} className={`${pildora} shrink-0`} style={{ ...fantasma(accent), outlineColor: accent }}>{actionLabel}</a>
+                        : <button type="button" onClick={onAction} className={`${pildora} shrink-0`} style={{ ...fantasma(accent), outlineColor: accent }}>{actionLabel}</button>)}
                 </div>
-                {actionLabel && (actionHref
-                    ? <a href={actionHref} className={pildora} style={{ ...fantasma(accent), outlineColor: accent }}>{actionLabel}</a>
-                    : <button type="button" onClick={onAction} className={pildora} style={{ ...fantasma(accent), outlineColor: accent }}>{actionLabel}</button>)}
-            </div>
+            </PilaAjustable>
         );
     }
     const actionCls = "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-wider transition-colors cursor-pointer hover:brightness-110";
@@ -396,11 +406,11 @@ export function WidgetErrorState({ message = "No se pudo cargar este widget.", o
     if (marco) {
         const carmesi = "#dc143c";
         return (
-            <div data-kit="error" role="status" className="flex h-full flex-col items-center justify-center gap-2.5 px-3 text-center">
-                <span className="grid size-11 place-items-center rounded-[14px]" style={fantasma(carmesi)}>
+            <div data-kit="error" role="status" className="flex h-full flex-col items-center justify-center gap-2.5 overflow-hidden px-3 text-center">
+                <span className="grid size-11 shrink-0 place-items-center rounded-[14px]" style={fantasma(carmesi)}>
                     <AlertOctagon className="size-5" style={{ color: tinta(carmesi) }} strokeWidth={1.5} />
                 </span>
-                <p className="text-[12px] text-white/65">{message}</p>
+                <p className="line-clamp-3 text-[12px] text-white/65" title={message}>{message}</p>
                 {onRetry && (
                     <button type="button" onClick={onRetry} className="inline-flex cursor-pointer items-center gap-1.5 rounded-full ss-redondo px-3 py-1 text-[11px] font-semibold text-white transition-transform duration-200 hover:scale-105 motion-reduce:transition-none" style={fantasma(carmesi)}>
                         <RotateCw className="size-3" /> Reintentar

@@ -26,6 +26,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import { Activity, Clock, Satellite, Sparkles, Wind, Zap, type LucideIcon } from "lucide-react";
 import type { SpaceMetric, SpaceWeatherSnapshot } from "../../apps/data-sources/space-weather-sources";
 import { fuenteAurora, fuenteEscalas, fuenteKp, fuentePlasma, fuenteSol, fuenteVientoResumen, resumirKp } from "@/modules/weather/datos/noaa";
@@ -285,27 +286,31 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     if (base === "m") {
         return (
-            <div className="flex h-full flex-col gap-2.5 p-3.5">
+            <PilaAjustable niveles={1} className="gap-2.5 p-3.5">
                 {cabecera}
-                <div className="line-clamp-3">{titularEl(13)}</div>
-                {escalasEl()}
-                {datos}
-            </div>
+                <div className="line-clamp-3 shrink-0">{titularEl(13)}</div>
+                <div className="shrink-0">{escalasEl()}</div>
+                <Prescindible nivel={1}>{datos}</Prescindible>
+            </PilaAjustable>
         );
     }
 
     // l → pestañas · xl → panel completo
+    // Resumen por piezas: dentro de una pila ajustable se retiran la previsión de 3 días y luego
+    // las barras de Kp si no caben (antes se cortaban R/S/G y la cifra de Kp por abajo).
     const resumen = (
-        <div className="flex flex-col gap-3">
-            {titularEl(14)}
-            {escalasEl()}
-            <div className="flex items-center gap-3">
-                <MedidorKp kp={kpAhora} lado={base === "xl" ? 130 : 104} />
-                <p className="min-w-0 flex-1 text-[12px] leading-snug text-white/75">{explicarKp(kpAhora)}</p>
-            </div>
-            {rk && <BarrasKp pasadas={rk.pasadas} previstas={rk.previstas.slice(0, 8)} hora={fmt.soloHora} alto={base === "xl" ? 70 : 56} />}
-            {previsionDias}
-        </div>
+        <>
+            <div className="shrink-0">{titularEl(14)}</div>
+            <div className="shrink-0">{escalasEl()}</div>
+            <Prescindible nivel={3}>
+                <div className="flex shrink-0 items-center gap-3">
+                    <MedidorKp kp={kpAhora} lado={base === "xl" ? 130 : 104} />
+                    <p className="line-clamp-4 min-w-0 flex-1 text-[12px] leading-snug text-white/75" title={explicarKp(kpAhora)}>{explicarKp(kpAhora)}</p>
+                </div>
+            </Prescindible>
+            {rk && <Prescindible nivel={2}><BarrasKp pasadas={rk.pasadas} previstas={rk.previstas.slice(0, 8)} hora={fmt.soloHora} alto={base === "xl" ? 70 : 56} /></Prescindible>}
+            {previsionDias && <Prescindible nivel={1}><div className="shrink-0">{previsionDias}</div></Prescindible>}
+        </>
     );
     const vientoEl = (
         <div className="flex flex-col gap-3">
@@ -315,7 +320,7 @@ function Contenido({ info }: { info: InfoMarco }) {
                 <Dato t="Bz" v={v?.bz == null ? "—" : v.bz.toFixed(1).replace(".", ",")} u="nT" color={v?.bz == null ? undefined : v.bz < 0 ? "#fb923c" : "#34d399"} />
                 <Dato t="Bt" v={v?.bt == null ? "—" : v.bt.toFixed(1).replace(".", ",")} u="nT" />
             </div>
-            <p className="text-[12px] leading-snug text-white/75">{explicarViento(v?.velocidad ?? null, v?.bz ?? null)}</p>
+            <Prescindible nivel={1}><p className="line-clamp-3 text-[12px] leading-snug text-white/75">{explicarViento(v?.velocidad ?? null, v?.bz ?? null)}</p></Prescindible>
         </div>
     );
     const radiacion = sol.datos ? (
@@ -324,9 +329,9 @@ function Contenido({ info }: { info: InfoMarco }) {
                 <PildoraSeveridad severidad={cl?.severidad ?? "calma"}>Rayos X {cl?.etiqueta ?? "—"}</PildoraSeveridad>
                 <PildoraSeveridad severidad={sevDeEscala(e.s)}>Protones S{e.s ?? "—"}</PildoraSeveridad>
             </div>
-            <p className="text-[12px] leading-snug text-white/75">{explicarLlamarada(cl?.letra ?? null)}</p>
-            <GraficaRayos serie={sol.datos.rayos} llamaradas={sol.datos.llamaradas} hora={fmt.hora} alto={base === "xl" ? 100 : 84} id={id} />
-            <LineaLlamaradas llamaradas={sol.datos.llamaradas} ahora={ahora} dia={dia} />
+            <p className="line-clamp-3 text-[12px] leading-snug text-white/75">{explicarLlamarada(cl?.letra ?? null)}</p>
+            <Prescindible nivel={2}><GraficaRayos serie={sol.datos.rayos} llamaradas={sol.datos.llamaradas} hora={fmt.hora} alto={base === "xl" ? 100 : 84} id={id} /></Prescindible>
+            <Prescindible nivel={1}><LineaLlamaradas llamaradas={sol.datos.llamaradas} ahora={ahora} dia={dia} /></Prescindible>
         </div>
     ) : sol.error ? <ErrorClima mensaje="GOES no respondió" onReintentar={sol.refrescar} /> : <CargandoClima base={base} texto="Mirando el Sol en rayos X…" />;
 
@@ -334,7 +339,7 @@ function Contenido({ info }: { info: InfoMarco }) {
         return (
             <div className="grid h-full gap-4 p-5" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gridTemplateRows: "auto minmax(0,1fr) auto" }}>
                 <div className="col-span-2">{cabecera}</div>
-                <div className="min-h-0 space-y-3 overflow-hidden">{resumen}</div>
+                <PilaAjustable niveles={3} className="gap-3">{resumen}</PilaAjustable>
                 <div className="min-h-0 space-y-4 overflow-hidden">{vientoEl}{radiacion}{auroraEl(96)}</div>
                 <div className="col-span-2">{sello}</div>
             </div>
@@ -352,12 +357,12 @@ function Contenido({ info }: { info: InfoMarco }) {
                     </button>
                 ))}
             </div>
-            <div role="tabpanel" className="min-h-0 flex-1 overflow-hidden">
+            <PilaAjustable role="tabpanel" niveles={3} clave={pestana} className="min-h-0 flex-1 gap-3">
                 {pestana === "resumen" && resumen}
                 {pestana === "viento" && vientoEl}
                 {pestana === "radiacion" && radiacion}
                 {pestana === "aurora" && <div className="space-y-3">{auroraEl(120)}{rk?.maxPrevisto && <p className="text-[12px] text-white/70">Máximo previsto: Kp {rk.maxPrevisto.kp.toFixed(1).replace(".", ",")} ({nombreG(escalaG(rk.maxPrevisto.kp))}) {dia(rk.maxPrevisto.t)} {fmt.hora(rk.maxPrevisto.t)}.</p>}</div>}
-            </div>
+            </PilaAjustable>
             {sello}
         </div>
     );

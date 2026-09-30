@@ -78,11 +78,12 @@ function Esfera({ capas, lado, centro, altura, codigo, foco, animar, etiqueta }:
     );
 }
 
-function Leyenda({ capas, foco, setFoco, conNotas, columnas = 1 }: { capas: Capa[]; foco: string | null; setFoco: (id: string | null) => void; conNotas: boolean; columnas?: number }) {
+function Leyenda({ capas, foco, setFoco, conNotas, columnas = 1, fijas }: { capas: Capa[]; foco: string | null; setFoco: (id: string | null) => void; conNotas: boolean; columnas?: number; /** Dentro de una pila: las capas a partir de esta se retiran (las últimas primero) si no caben. */ fijas?: number }) {
     return (
         <ul className="grid gap-x-3 gap-y-1" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0,1fr))` }} aria-label="Capas de la esfera">
-            {capas.map((c) => (
-                <li key={c.id}>
+            {capas.map((c, i) => (
+                <Prescindible key={c.id} nivel={fijas === undefined || i < fijas ? 0 : 2 + capas.length - 1 - i}>
+                <li>
                     <button type="button" className={`${s.foco} flex w-full cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-left transition-colors duration-150 hover:bg-white/[0.06]`}
                         onMouseEnter={() => setFoco(c.id)} onMouseLeave={() => setFoco(null)} onFocus={() => setFoco(c.id)} onBlur={() => setFoco(null)}
                         aria-label={`${c.nombre}: ${c.valor}${c.nota ? `, ${c.nota}` : ''}`}>
@@ -92,6 +93,7 @@ function Leyenda({ capas, foco, setFoco, conNotas, columnas = 1 }: { capas: Capa
                         {conNotas && <span className="min-w-0 truncate text-[11px] text-white/50" title={c.nota}>{c.nota}</span>}
                     </button>
                 </li>
+                </Prescindible>
             ))}
         </ul>
     );
@@ -197,13 +199,13 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     const dosColumnas = (info.ancho || 0) >= 300 && clase !== 'torre';
     return (
-        <PilaAjustable className="gap-3 p-4">
+        <PilaAjustable niveles={8} className="gap-3 p-4">
             {cabecera}
             <Encajar minimo={110} className="flex items-center justify-center">
                 {({ ancho, alto }) => { const t = Math.max(100, Math.min(clase === 'torre' ? 260 : xl ? 300 : 230, ancho, alto)); return esfera(t, t * 0.13); }}
             </Encajar>
-            <div className="shrink-0"><Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={xl || clase === 'torre' || (info.ancho || 0) > 330} columnas={dosColumnas ? 2 : 1} /></div>
-            <Prescindible nivel={2}>{extra}</Prescindible>
+            <div className="shrink-0"><Leyenda capas={capas} foco={foco} setFoco={setFoco} conNotas={xl || clase === 'torre' || (info.ancho || 0) > 330} columnas={dosColumnas ? 2 : 1} fijas={dosColumnas ? 4 : 3} /></div>
+            <Prescindible nivel={1}>{extra}</Prescindible>
             <Prescindible nivel={1}>{sellos}</Prescindible>
         </PilaAjustable>
     );

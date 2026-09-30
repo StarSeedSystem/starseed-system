@@ -9,7 +9,8 @@
 import * as React from "react";
 import type { Llamarada, PuntoKp, PuntoCampo, PuntoRayos, DatosAurora } from "@/modules/weather/datos/noaa";
 import { COLOR_SEVERIDAD, escalaG, MODOS_SCHUMANN, nombreG, severidadKp, type Severidad } from "@/modules/weather/datos/interpretar";
-import { trazoSuave } from "../_clima/graficas";
+import { indicesEtiquetas, trazoSuave } from "../_clima/graficas";
+import { useElementSize } from "@/components/dashboard/kit/use-element-size";
 import s from "../_clima/clima.module.css";
 
 export const COLOR_G = ["#34d399", "#facc15", "#fb923c", "#f43f5e", "#e11d48", "#d946ef"];
@@ -58,11 +59,12 @@ export function MedidorKp({ kp, lado, conTexto = true }: { kp: number | null; la
 // ── Barras de Kp ──────────────────────────────────────────────────────
 
 export function BarrasKp({ pasadas, previstas, hora, alto = 70 }: { pasadas: PuntoKp[]; previstas: PuntoKp[]; hora: (t: number) => string; alto?: number }) {
+    const { ref: refFig, size: medida } = useElementSize<HTMLElement>();
     const todas = [...pasadas, ...previstas];
     if (!todas.length) return null;
-    const paso = Math.max(1, Math.round(todas.length / 6));
+    const rotulos = indicesEtiquetas(todas.length, medida.width, 6, 40);
     return (
-        <figure className="flex w-full flex-col gap-1" role="img" aria-label={`Kp de las últimas ${pasadas.length * 3} horas y previsión de ${previstas.length * 3} horas; máximo previsto ${previstas.length ? Math.max(...previstas.map((p) => p.kp)).toFixed(1) : "—"}`}>
+        <figure ref={refFig} className="flex w-full shrink-0 flex-col gap-1" role="img" aria-label={`Kp de las últimas ${pasadas.length * 3} horas y previsión de ${previstas.length * 3} horas; máximo previsto ${previstas.length ? Math.max(...previstas.map((p) => p.kp)).toFixed(1) : "—"}`}>
             <div className="relative flex w-full items-end gap-[3px]" style={{ height: alto }} aria-hidden>
                 <span className="absolute inset-x-0 border-t border-dashed border-amber-300/40" style={{ bottom: `${(5 / 9) * 100}%` }} title="Umbral de tormenta G1" />
                 {todas.map((p, i) => (
@@ -75,12 +77,11 @@ export function BarrasKp({ pasadas, previstas, hora, alto = 70 }: { pasadas: Pun
                         }} />
                 ))}
             </div>
-            <div className="relative h-3.5 w-full" aria-hidden>
-                {todas.map((p, i) => i % paso === 0 && (
-                    <span key={`e${p.t}`} className={`${s.cifra} absolute -translate-x-1/2 whitespace-nowrap text-[10px] text-white/50`} style={{ left: `${Math.min(94, Math.max(6, ((i + 0.5) / todas.length) * 100))}%` }}>{hora(p.t)}</span>
-                ))}
+            {/* Horas en fila flex (nunca se pisan) y leyenda que se parte en líneas si no cabe. */}
+            <div className="flex w-full justify-between gap-1 text-[10px] leading-tight text-white/50" aria-hidden>
+                {rotulos.map((i) => <span key={`e${todas[i].t}-${i}`} className={`${s.cifra} whitespace-nowrap`}>{hora(todas[i].t)}</span>)}
             </div>
-            <figcaption className="flex items-center gap-3 text-[10px] text-white/55">
+            <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-white/55">
                 <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm bg-emerald-400" aria-hidden />medido</span>
                 <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm ring-1 ring-emerald-400" aria-hidden />previsto</span>
                 <span className="inline-flex items-center gap-1"><span className="h-0 w-3 border-t border-dashed border-amber-300/70" aria-hidden />tormenta</span>

@@ -81,10 +81,10 @@ export function PilaAjustable({ niveles = 3, clave, className, children, ...rest
     );
 }
 
-/** Pieza que se retira cuando no cabe (nivel 1 = la primera en irse). */
+/** Pieza que se retira cuando no cabe (nivel 1 = la primera en irse; 0 o menos = nunca). */
 export function Prescindible({ nivel = 1, children }: { nivel?: number; children: React.ReactNode }) {
     const corte = React.useContext(ContextoCorte);
-    return nivel <= corte ? null : <>{children}</>;
+    return nivel > 0 && nivel <= corte ? null : <>{children}</>;
 }
 
 /** ¿Se está mostrando el nivel `nivel`? (para variar una pieza en vez de quitarla). */
@@ -125,4 +125,10 @@ export function Encajar({ minimo = 0, className, children, porDefecto = { ancho:
             {children(caja.alto > 0 && caja.ancho > 0 ? caja : porDefecto)}
         </div>
     );
+}
+
+/** Muestra `children` mientras quepa y, cuando la pila retira el nivel `nivel`, la versión `corto`. */
+export function Alterna({ nivel, corto, children }: { nivel: number; corto: React.ReactNode; children: React.ReactNode }) {
+    const corte = React.useContext(ContextoCorte);
+    return <>{nivel <= corte ? corto : children}</>;
 }

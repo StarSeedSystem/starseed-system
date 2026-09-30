@@ -12,8 +12,22 @@ import { colorTemperatura, nivelUv, rumbo, type NivelAire } from "@/modules/weat
 import { aTemp, aViento, ETIQUETA_VIENTO, type Unidades } from "@/modules/weather/datos/hooks";
 import { colorIcono, iconoCielo, LunaFase } from "./cielo";
 import s from "./clima.module.css";
+import { useElementSize } from "@/components/dashboard/kit/use-element-size";
 
 const r0 = (v: number) => Math.round(v);
+
+/**
+ * Qué horas se rotulan bajo una gráfica de `n` puntos que mide `ancho` px: tantas como quepan
+ * a `minPx` cada una (entre 2 y `max`), repartidas de extremo a extremo. Sin medida aún, `max`.
+ * Las etiquetas van en una fila flex «justify-between»: nunca se pisan, por estrecha que sea.
+ */
+export function indicesEtiquetas(n: number, ancho: number, max = 6, minPx = 46): number[] {
+    if (n <= 0) return [];
+    if (n === 1) return [0];
+    const k = Math.max(2, Math.min(max, n, ancho > 0 ? Math.floor(ancho / minPx) : max));
+    const idx = Array.from({ length: k }, (_, i) => Math.round((i * (n - 1)) / (k - 1)));
+    return idx.filter((v, i) => idx.indexOf(v) === i);
+}
 
 export function grados(c: number | null, u: Unidades): string {
     return c === null ? "—" : `${r0(aTemp(c, u.temp))}°`;
@@ -44,6 +58,7 @@ export function trazoSuave(pts: [number, number][]): string {
 export function GraficaHoras({ horas, hora, u, color = "#fde047", etiquetas = 6, alto = 88, mostrarSensacion = false, id }: {
     horas: HoraClima[]; hora: (t: number) => string; u: Unidades; color?: string; etiquetas?: number; alto?: number; mostrarSensacion?: boolean; id: string;
 }) {
+    const { ref: refFig, size: medida } = useElementSize<HTMLElement>();
     const validas = horas.filter((h) => h.temp !== null);
     if (validas.length < 2) return null;
     const temps = validas.map((h) => h.temp as number);
@@ -58,10 +73,10 @@ export function GraficaHoras({ horas, hora, u, color = "#fde047", etiquetas = 6,
     const d = trazoSuave(pts);
     const iMax = temps.indexOf(max === Math.max(...temps) ? max : Math.max(...temps));
     const iMin = temps.indexOf(Math.min(...temps));
-    const paso = Math.max(1, Math.round(validas.length / etiquetas));
+    const rotulos = indicesEtiquetas(validas.length, medida.width, etiquetas);
     const resumen = `Temperatura de ${hora(validas[0].t)} a ${hora(validas[validas.length - 1].t)}: mínima ${grados(Math.min(...temps), u)} y máxima ${grados(Math.max(...temps), u)}`;
     return (
-        <figure className="relative w-full shrink-0" style={{ height: alto }} aria-label={resumen} role="img">
+        <figure ref={refFig} className="relative w-full shrink-0" style={{ height: alto }} aria-label={resumen} role="img">
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-[78%] w-full overflow-visible" aria-hidden>
                 <defs>
                     <linearGradient id={`gh-${id}`} x1="0" y1="0" x2="0" y2="1">
@@ -86,11 +101,9 @@ export function GraficaHoras({ horas, hora, u, color = "#fde047", etiquetas = 6,
                     {grados(temps[i], u)}
                 </span>
             ))}
-            <div className="absolute inset-x-0 bottom-0 flex h-[20%] items-end">
-                {validas.map((h, i) => i % paso === 0 && (
-                    <span key={`t${h.t}`} className={`${s.cifra} absolute -translate-x-1/2 whitespace-nowrap text-[10px] text-white/55`} style={{ left: `${Math.min(96, Math.max(4, x(i)))}%` }}>
-                        {i === 0 ? "Ahora" : hora(h.t)}
-                    </span>
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 text-[10px] leading-none text-white/55">
+                {rotulos.map((i) => (
+                    <span key={`t${validas[i].t}`} className={`${s.cifra} whitespace-nowrap`}>{i === 0 ? "Ahora" : hora(validas[i].t)}</span>
                 ))}
             </div>
         </figure>
@@ -371,20 +384,21 @@ export function BarrasHoras({ horas, valor, color, hora, formato, maximo, etique
 }) {
     const vals = horas.map(valor);
     const nums = vals.filter((v): v is number => v !== null);
+    const { ref: refFig, size: medida } = useElementSize<HTMLElement>();
+    const rotulos = indicesEtiquetas(horas.length, medida.width, 6, 30);
     if (!nums.length) return null;
     const tope = maximo ?? Math.max(1, ...nums);
-    const paso = Math.max(1, Math.round(horas.length / 6));
     return (
-        <figure className="flex w-full shrink-0 flex-col gap-1" aria-label={etiqueta} role="img">
+        <figure ref={refFig} className="flex w-full shrink-0 flex-col gap-1" aria-label={etiqueta} role="img">
             <div className="flex h-14 w-full items-end gap-[2px]" aria-hidden>
                 {vals.map((v, i) => (
                     <span key={horas[i].t} className="flex-1 rounded-t-[3px]" style={{ height: `${v === null ? 0 : Math.max(4, (v / tope) * 100)}%`, background: v === null ? "transparent" : color(v), opacity: i === 0 ? 1 : 0.8 }}
                         title={v === null ? undefined : `${i === 0 ? "Ahora" : hora(horas[i].t)}: ${formato(v)}`} />
                 ))}
             </div>
-            <div className="relative h-3.5 w-full" aria-hidden>
-                {horas.map((h, i) => i % paso === 0 && (
-                    <span key={h.t} className={`${s.cifra} absolute -translate-x-1/2 whitespace-nowrap text-[10px] text-white/50`} style={{ left: `${Math.min(95, Math.max(5, ((i + 0.5) / horas.length) * 100))}%` }}>{i === 0 ? "Ahora" : hora(h.t).slice(0, 2)}</span>
+            <div className="flex w-full justify-between gap-1 text-[10px] leading-tight text-white/50" aria-hidden>
+                {rotulos.map((i) => (
+                    <span key={horas[i].t} className={`${s.cifra} whitespace-nowrap`}>{i === 0 ? "Ahora" : hora(horas[i].t).slice(0, 2)}</span>
                 ))}
             </div>
         </figure>

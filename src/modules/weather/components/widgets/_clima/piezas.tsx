@@ -330,8 +330,9 @@ export function LugarClima({ nombre, elegida, className = "" }: { nombre: string
     return (
         <span className={`flex min-w-0 items-center gap-1 text-[12px] text-white/75 ${className}`} title={elegida ? nombre : `${nombre} (ubicación por defecto: cámbiala en el menú)`}>
             <MapPin aria-hidden className="size-3 shrink-0 opacity-70" />
-            <span className="truncate">{nombre}</span>
-            {!elegida && <span className="shrink-0 text-[10px] uppercase tracking-wider text-amber-200/80">· por defecto</span>}
+            <span className="min-w-[3ch] truncate">{nombre}</span>
+            {/* El aviso también cede si no hay sitio (antes, fijo, se salía y pisaba el nombre). */}
+            {!elegida && <span className="min-w-0 shrink-[4] truncate text-[10px] uppercase tracking-wider text-amber-200/80">· por defecto</span>}
         </span>
     );
 }

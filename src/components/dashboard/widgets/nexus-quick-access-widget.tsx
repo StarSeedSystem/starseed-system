@@ -26,6 +26,8 @@ import { readAuroraChatEntries, AURORA_CHATLOG_CHANGE_EVENT, AURORA_CHATLOG_KEY,
 import { openAurora } from '@/lib/aurora/open-aurora';
 import { useLienzoE, px, type LienzoE } from './paquete-e/lienzo';
 import { BotonE, EncabezadoE, EnlaceE, RaizE, estilosE, tintaE } from './paquete-e/piezas';
+import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
+import { recortarPalabras } from '@/components/widgets-libres/familias/comun';
 
 const INTENCIONES: { id: string; etiqueta: string; icono: typeof Sparkles; prompt: string }[] = [
     { id: 'dia', etiqueta: 'Resume mi día', icono: NotebookPen, prompt: 'Resume lo que hemos hablado hoy y dime qué me queda pendiente.' },
@@ -124,7 +126,7 @@ export function NexusQuickAccessWidget() {
     const ultima = entradas === null ? null : ultimaRespuesta ? (
         <div className="min-w-0">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50">Última respuesta</span>
-            <p className="line-clamp-3 text-white/80" style={{ fontSize: px(lienzo, 13) }} title={ultimaRespuesta.text}>{ultimaRespuesta.text}</p>
+            <p className="line-clamp-3 text-white/80" style={{ fontSize: px(lienzo, 13) }} title={ultimaRespuesta.text}>{recortarPalabras(ultimaRespuesta.text, 140)}</p>
         </div>
     ) : (
         <p className="text-[12px] text-white/55">Vacío todavía: saluda a Aurora y la conversación quedará aquí.</p>
@@ -182,15 +184,15 @@ export function NexusQuickAccessWidget() {
     if (base === 'm' && clase !== 'torre') {
         return (
             <RaizE {...raiz}>
-                <div className="flex h-full min-h-0 flex-col gap-2 p-1">
+                <PilaAjustable niveles={1} className="gap-2 p-1">
                     {cabecera}
-                    <div className="flex min-w-0 items-center gap-3">
-                        <Orbe lado={Math.max(56, Math.min(80, (lienzo.alto || 240) * 0.3))} lienzo={lienzo} onTocar={() => void enviar('')} etiqueta="Abrir Aurora" />
+                    <div className="flex min-w-0 shrink-0 items-center gap-3">
+                        <Prescindible nivel={1}><Orbe lado={Math.max(56, Math.min(80, (lienzo.alto || 240) * 0.3))} lienzo={lienzo} onTocar={() => void enviar('')} etiqueta="Abrir Aurora" /></Prescindible>
                         <div className="min-w-0 flex-1">{ultima}</div>
                     </div>
-                    <div className="mt-auto">{campo}</div>
+                    <div className="mt-auto shrink-0">{campo}</div>
                     {avisoEl}
-                </div>
+                </PilaAjustable>
             </RaizE>
         );
     }
@@ -198,29 +200,33 @@ export function NexusQuickAccessWidget() {
     const recientes = lista.slice(-6);
     return (
         <RaizE {...raiz}>
-            <div className={cn('flex h-full min-h-0 flex-col gap-2.5 p-1', estilosE.desliza)}>
+            // Lo que no cabe se retira (las áreas, los últimos intercambios, las intenciones) en vez de
+            // quedar debajo, tapado: la última respuesta y el campo para preguntar se quedan siempre.
+            <PilaAjustable niveles={3} className={cn('gap-2.5 p-1', estilosE.desliza)}>
                 {cabecera}
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 shrink-0 items-center gap-3">
                     <Orbe lado={base === 'xl' ? 104 : 84} lienzo={lienzo} onTocar={() => void enviar('')} etiqueta="Abrir Aurora" />
                     <div className="min-w-0 flex-1">{ultima}</div>
                 </div>
-                {campo}
+                <div className="shrink-0">{campo}</div>
                 {avisoEl}
-                {intenciones}
+                <Prescindible nivel={3}><div className="shrink-0">{intenciones}</div></Prescindible>
                 {base === 'xl' && recientes.length > 0 && (
-                    <section aria-label="Últimos intercambios" className="flex min-h-0 flex-col gap-1">
+                    <Prescindible nivel={2}>
+                    <section aria-label="Últimos intercambios" className="flex min-h-0 shrink-0 flex-col gap-1">
                         <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50">Últimos intercambios</span>
                         <ol className="flex flex-col gap-1">
                             {recientes.map((e, i) => (
                                 <li key={`${e.ts}-${i}`} className={cn('max-w-[88%] rounded-2xl px-3 py-1.5 text-[12px] leading-snug', e.role === 'user' ? 'self-end bg-white/[0.08] text-white/85' : 'self-start text-white/80')} style={e.role === 'aurora' ? { background: conAlfa(lienzo.acento, 0.1) } : undefined}>
-                                    <span className="line-clamp-2">{e.text}</span>
+                                    <span className="line-clamp-2" title={e.text}>{recortarPalabras(e.text, 110)}</span>
                                 </li>
                             ))}
                         </ol>
                     </section>
+                    </Prescindible>
                 )}
-                {(base === 'xl' || clase === 'torre') && areas}
-            </div>
+                {(base === 'xl' || clase === 'torre') && <Prescindible nivel={1}><div className="shrink-0">{areas}</div></Prescindible>}
+            </PilaAjustable>
         </RaizE>
     );
 }

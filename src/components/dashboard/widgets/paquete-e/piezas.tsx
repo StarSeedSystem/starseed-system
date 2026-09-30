@@ -75,11 +75,13 @@ export function EncabezadoE({
 }) {
     const tinta = tintaE(lienzo.acento);
     return (
-        <header className={cn("relative z-10 flex min-w-0 shrink-0 items-center gap-2", className)}>
+        // (Pulido 0929) Si las acciones no caben junto al título, bajan a otra línea (flex-wrap) en
+        // vez de salirse de la tarjeta; el título nunca se queda en cero.
+        <header className={cn("relative z-10 flex min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1", className)}>
             {Icono && (
                 <Icono aria-hidden className={lienzo.tv ? "size-5 shrink-0" : "size-4 shrink-0"} style={{ color: tinta, filter: `drop-shadow(0 0 6px ${conAlfa(lienzo.acento, 0.6)})` }} strokeWidth={2} />
             )}
-            <h3 className="min-w-0 truncate font-semibold uppercase tracking-[0.14em] text-white/70" style={{ fontSize: lienzo.tv ? 13 : 11 }} title={titulo}>
+            <h3 className="min-w-[4.5rem] max-w-full flex-1 basis-0 truncate font-semibold uppercase tracking-[0.14em] text-white/70" style={{ fontSize: lienzo.tv ? 13 : 11 }} title={titulo}>
                 {titulo}
             </h3>
             {vivo && (
@@ -88,9 +90,8 @@ export function EncabezadoE({
                     <span className="sr-only">En vivo</span>
                 </span>
             )}
-            {detalle && <span className="min-w-0 truncate text-[11px] text-white/50">{detalle}</span>}
-            <span className="flex-1" />
-            {acciones && <div className="flex shrink-0 items-center gap-1">{acciones}</div>}
+            {detalle && <span className="min-w-0 max-w-[45%] truncate text-[11px] text-white/50" title={typeof detalle === "string" ? detalle : undefined}>{detalle}</span>}
+            {acciones && <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">{acciones}</div>}
         </header>
     );
 }

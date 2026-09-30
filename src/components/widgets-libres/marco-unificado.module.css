@@ -115,6 +115,17 @@
   border-radius: inherit !important;
 }
 
+/* ── Centrado «seguro» (pulido 0929) ──
+   Muchos cuerpos centran su columna (justify-center) o su fila (items-center). Cuando lo que llevan
+   no cabe, el centrado normal lo desborda por ARRIBA y por abajo: por arriba se montaba sobre la
+   cabecera («Cuernavaca, Morelos» sobre «88 %», el vacío sobre el título). Con `safe`, si no cabe
+   se alinea al principio y el sobrante solo puede ir hacia abajo. Sin desborde se ve igual.
+   Se respeta a quien declara su propia alineación por tamaño (`sm:justify-…`, `md:items-…`). */
+.cuerpo :global(.justify-center:not([class*=":justify-"])) { justify-content: safe center; }
+.cuerpo :global(.items-center:not([class*=":items-"])) { align-items: safe center; }
+.cuerpo :global(.place-items-center:not([class*=":place-items-"])) { place-items: safe center; }
+.cuerpo :global(.content-center:not([class*=":content-"])) { align-content: safe center; }
+
 /* ── Escala tipográfica común (la de Rotulo/Pildora) sin reescribir los 96 widgets ── */
 .cuerpo :global([class~="font-black"]),
 .cuerpo :global([class~="font-extrabold"]) {
