@@ -200,8 +200,7 @@ export function NexusQuickAccessWidget() {
     const recientes = lista.slice(-6);
     return (
         <RaizE {...raiz}>
-            // Lo que no cabe se retira (las áreas, los últimos intercambios, las intenciones) en vez de
-            // quedar debajo, tapado: la última respuesta y el campo para preguntar se quedan siempre.
+            {/* Lo que no cabe se retira (las áreas, los últimos intercambios, las intenciones) en vez de quedar debajo, tapado: la última respuesta y el campo para preguntar se quedan siempre. */}
             <PilaAjustable niveles={3} className={cn('gap-2.5 p-1', estilosE.desliza)}>
                 {cabecera}
                 <div className="flex min-w-0 shrink-0 items-center gap-3">

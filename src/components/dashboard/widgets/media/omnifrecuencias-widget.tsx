@@ -296,11 +296,12 @@ export function OmnifrecuenciasWidget() {
                     opciones={[{ id: 'play', etiqueta: 'Frecuencias' }, { id: 'gen', etiqueta: 'Generador', cuenta: hayMezcla ? oscillators.length : undefined }, { id: 'presets', etiqueta: 'Presets', cuenta: fs.presets.length || undefined }]} />
                 <div className="flex min-h-0 flex-1 flex-col">
                     {pestana === 'play' && (
-                        <div className="flex h-full min-h-0 flex-col gap-1.5">
-                            <PestanasE lienzo={lienzo} etiqueta="Filtrar por categoría" valor={filtro} onCambio={setFiltro}
-                                opciones={FILTROS.map((id) => ({ id, etiqueta: CATEGORIES.find((c) => c.id === id)?.label ?? id }))} />
-                            <div className="flex min-h-0 flex-1 flex-col">{lista()}</div>
-                        </div>
+                        // Sin sitio, las categorías se retiran antes que la lista (antes «Sinergias» se cortaba).
+                        <PilaAjustable niveles={1} className="gap-1.5">
+                            <Prescindible nivel={1}><div className="shrink-0"><PestanasE lienzo={lienzo} etiqueta="Filtrar por categoría" valor={filtro} onCambio={setFiltro}
+                                opciones={FILTROS.map((id) => ({ id, etiqueta: CATEGORIES.find((c) => c.id === id)?.label ?? id }))} /></div></Prescindible>
+                            <div className="flex min-h-[72px] flex-1 flex-col">{lista()}</div>
+                        </PilaAjustable>
                     )}
                     {pestana === 'gen' && (
                         <div className={cn('flex h-full min-h-0 flex-col gap-2', estilosE.desliza)}>

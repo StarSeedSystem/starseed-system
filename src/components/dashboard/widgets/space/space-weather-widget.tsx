@@ -300,7 +300,7 @@ function Contenido({ info }: { info: InfoMarco }) {
     // las barras de Kp si no caben (antes se cortaban R/S/G y la cifra de Kp por abajo).
     const resumen = (
         <>
-            <div className="line-clamp-3 shrink-0">{titularEl(14)}</div>
+            <div className={`${base === "l" ? "line-clamp-2" : "line-clamp-3"} shrink-0`}>{titularEl(base === "l" ? 13 : 14)}</div>
             <div className="shrink-0">{escalasEl((info.ancho || 0) > 0 && (info.ancho || 0) < 340)}</div>
             <Prescindible nivel={3}>
                 <div className="flex shrink-0 items-center gap-3">
@@ -346,9 +346,9 @@ function Contenido({ info }: { info: InfoMarco }) {
         );
     }
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <PilaAjustable niveles={1} className="gap-3 p-4">
             {cabecera}
-            <div role="tablist" aria-label="Paneles del clima espacial" className="grid grid-cols-4 gap-1 rounded-2xl bg-white/[0.05] p-1">
+            <div role="tablist" aria-label="Paneles del clima espacial" className="grid shrink-0 grid-cols-4 gap-1 rounded-2xl bg-white/[0.05] p-1">
                 {PESTANAS.map((p) => (
                     <button key={p.id} type="button" role="tab" aria-selected={pestana === p.id} onClick={() => setPestana(p.id)}
                         className={`${s.foco} ss-redondo flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-xl px-1.5 text-[12px] font-semibold transition-colors duration-150 ${info.tactil ? "min-h-11" : "min-h-8"} ${pestana === p.id ? "bg-white/15 text-white" : "text-white/60 hover:text-white"}`}>
@@ -363,8 +363,8 @@ function Contenido({ info }: { info: InfoMarco }) {
                 {pestana === "radiacion" && radiacion}
                 {pestana === "aurora" && <div className="space-y-3">{auroraEl(120)}{rk?.maxPrevisto && <p className="text-[12px] text-white/70">Máximo previsto: Kp {rk.maxPrevisto.kp.toFixed(1).replace(".", ",")} ({nombreG(escalaG(rk.maxPrevisto.kp))}) {dia(rk.maxPrevisto.t)} {fmt.hora(rk.maxPrevisto.t)}.</p>}</div>}
             </PilaAjustable>
-            {sello}
-        </div>
+            <Prescindible nivel={1}>{sello}</Prescindible>
+        </PilaAjustable>
     );
 }
 

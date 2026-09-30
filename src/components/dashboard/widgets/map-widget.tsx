@@ -317,8 +317,7 @@ export function MapWidget() {
     // l / torre
     return (
         <RaizE {...raiz}>
-            // El mapa conserva su mínimo y, si no cabe todo, se retiran la lista y luego los filtros
-            // (antes el mapa, sin sitio, se montaba sobre «Cerca de ti»).
+            {/* El mapa conserva su mínimo y, si no cabe todo, se retiran la lista y luego los filtros (antes el mapa, sin sitio, se montaba sobre «Cerca de ti»). */}
             <PilaAjustable niveles={2} className="gap-1.5 p-1">
                 {cabecera}
                 <Prescindible nivel={2}><div className="shrink-0">{filtros}</div></Prescindible>
