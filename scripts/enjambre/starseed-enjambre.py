@@ -5807,8 +5807,10 @@ def _consejo_jev_analisis():
         return None
 
     def elegir(estado, pregunta, opciones, regla=None, quien=None, dominio=""):
+        # Camino caliente (antes de una llamada a la flota): no se espera detrás de un lote de
+        # triaje de otro sueño más de 3 s; si Jev está ocupado, manda el turno.
         return dec.consultar("elegir", estado, pregunta, opciones=opciones, regla=regla, quien=quien,
-                             dominio=dominio)
+                             dominio=dominio, espera_turno=3.0)
 
     return _analista.ConsejoJev(lote=dec.consultar_lote, elegir=elegir, confirmar=dec.confirmar,
                                 estado=_analista.JEV_SESION)

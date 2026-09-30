@@ -103,6 +103,21 @@ class SiNo(Base):
         self.assertEqual((d["respuesta"], d["medio"]), ("no", "cache"))
 
 
+class Turno(Base):
+    def test_el_camino_caliente_no_espera_detras_de_otra_pregunta(self):
+        doble = JevDoble({"q": {"choice": "b", "confidence": 0.9}, "medio": "local"})
+        self.parchear(D, "JEV", doble)
+        D._TURNO.acquire()           # otro hilo está en medio de un lote largo
+        try:
+            d = D.consultar("elegir", {}, "¿?", opciones="a,b", regla="a", espera_turno=0.05)
+        finally:
+            D._TURNO.release()
+        self.assertEqual((d["respuesta"], d["medio"], d.get("ocupado")), ("a", "regla", True))
+        self.assertEqual((doble.llamadas, d["experiencia"], self.experiencias()), ([], None, []))
+        d = D.consultar("elegir", {}, "¿?", opciones="a,b", regla="a", espera_turno=0.05)
+        self.assertEqual(d["respuesta"], "b")        # libre: contesta Jev
+
+
 class ElegirYPuntuar(Base):
     def test_elegir_devuelve_una_de_las_opciones(self):
         self.parchear(D, "JEV", JevDoble({"q": {"choice": "nim", "probabilities": {"groq": 0.2, "nim": 0.8},

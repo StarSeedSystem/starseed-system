@@ -1122,6 +1122,8 @@ class ConsejoJev(object):
             r = self._elegir(estado, pregunta, opciones, regla=regla, quien=self.quien, dominio=dominio)
         except Exception:
             r = None
+        if isinstance(r, dict) and r.get("ocupado"):
+            return None  # Jev atendía otra pregunta: manda el turno, sin gastar ni contar silencio
         hablo = isinstance(r, dict) and r.get("medio") not in (None, "regla") and r.get("respuesta") in opciones
         self._gastar("ruta", r, hablo)
         if not hablo:

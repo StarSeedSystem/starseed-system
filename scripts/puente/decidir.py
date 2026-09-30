@@ -232,12 +232,25 @@ def respaldo(tipo, regla=None, opciones=None, niveles=None):
 _TURNO = threading.Lock()
 
 
-def _llamar_jev(j, estado, preguntas, quien):
-    with _TURNO:
+class Ocupado(Exception):
+    """El turno de Jev no llegó a tiempo (otra pregunta larga en curso en este proceso)."""
+
+
+def _llamar_jev(j, estado, preguntas, quien, espera=None):
+    """Una pregunta a Jev con el turno del proceso. `espera` (s) acota cuánto se aguarda el
+    turno: quien está en el camino caliente (elegir modelo antes de una llamada) no se queda
+    detrás de un lote de triaje; sin turno a tiempo, `Ocupado` y manda la regla."""
+    if espera is None:
+        _TURNO.acquire()
+    elif not _TURNO.acquire(timeout=max(0.0, float(espera))):
+        raise Ocupado()
+    try:
         try:
             return j.decidir(estado, preguntas, quien=quien)
         except TypeError:  # un jev.py anterior a `quien`
             return j.decidir(estado, preguntas)
+    finally:
+        _TURNO.release()
 
 
 def _medio(r):
@@ -264,9 +277,11 @@ def _anotar(capa, tipo_exp, estado, pregunta, salida, confianza, ms, opciones, d
 
 
 def consultar(tipo, estado, pregunta, opciones=None, niveles=None, quien=None, regla=None,
-              dominio="", anotar=True):
+              dominio="", anotar=True, espera_turno=None):
     """UNA decisión tipada. Devuelve {tipo, respuesta, p, probs, confianza, medio, ms, quien,
-    regla, experiencia[, valor]}. Nunca lanza por Jev: sin él, responde la regla."""
+    regla, experiencia[, valor]}. Nunca lanza por Jev: sin él, responde la regla. Con
+    `espera_turno` (s), si otra pregunta ocupa a Jev más de eso, responde la regla sin anotar
+    experiencia (`ocupado: True`)."""
     if tipo not in TIPOS:
         raise ValueError("tipo desconocido: %s (si-no | elegir | puntuar)" % tipo)
     if tipo == "elegir" and len(_opciones(opciones)) < 2:
@@ -277,10 +292,13 @@ def consultar(tipo, estado, pregunta, opciones=None, niveles=None, quien=None, r
     estado = recortar_estado(estado if isinstance(estado, dict) else {"estado": estado})
     t0 = time.time()
     r = None
+    ocupado = False
     j = None if apagado() else _jev()
     if j is not None:
         try:
-            r = _llamar_jev(j, estado, {"q": pregunta_jev(tipo, pregunta, opciones, niveles)}, quien)
+            r = _llamar_jev(j, estado, {"q": pregunta_jev(tipo, pregunta, opciones, niveles)}, quien, espera_turno)
+        except Ocupado:
+            ocupado = True
         except Exception:
             r = None
     ans = interpretar(tipo, (r or {}).get("q"), opciones, niveles) if isinstance(r, dict) else None
@@ -290,7 +308,9 @@ def consultar(tipo, estado, pregunta, opciones=None, niveles=None, quien=None, r
     ms = round((time.time() - t0) * 1000, 1)
     fuera = dict(ans, tipo=tipo, pregunta=sanear(str(pregunta))[:300], medio=medio, ms=ms, quien=quien,
                  regla=(str(regla) if regla not in (None, "") else None), experiencia=None)
-    if anotar:
+    if ocupado:
+        fuera["ocupado"] = True
+    if anotar and not ocupado:
         salida = {k: fuera.get(k) for k in ("respuesta", "p", "probs", "medio", "valor") if fuera.get(k) is not None}
         fuera["experiencia"] = _anotar("regla" if medio == "regla" else "jev", TIPO_EXPERIENCIA[tipo], estado,
                                        fuera["pregunta"], salida, fuera.get("confianza"), ms,

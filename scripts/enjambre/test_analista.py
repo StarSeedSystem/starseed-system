@@ -600,6 +600,14 @@ class JevEnLosSuenos(Entorno):
         estado_visto = [e for e, _, _ in falso.llamadas_elegir if e["sueño"]["rol"] == "sintesis"][0]
         self.assertEqual(set(estado_visto["candidatos"][0]), {"id", "ok", "fallos", "forma"})
 
+    def test_jev_ocupado_no_cuenta_como_silencio(self):
+        estado = A.EstadoJev()
+        falso = ConsejoFalso(eleccion=lambda e, ops: {"respuesta": ops[0], "medio": "regla", "ocupado": True})
+        consejo = falso.consejo(estado=estado)
+        for _ in range(5):
+            self.assertIsNone(consejo.ruta({}, "¿?", ["a/x", "b/y"], regla="a/x"))
+        self.assertEqual((estado.silencios, estado.llamadas, consejo.quedan["ruta"]), (0, 0, A.TOPE_JEV_RUTA))
+
     def test_con_poca_confianza_manda_el_turno(self):
         falso = ConsejoFalso(eleccion=lambda e, ops: {"respuesta": ops[1], "confianza": 0.3, "medio": "local"})
         flota = Flota()
