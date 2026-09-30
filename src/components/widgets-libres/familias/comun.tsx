@@ -33,6 +33,20 @@ export function Rotulo({ children, color, className = "" }: { children: React.Re
     );
 }
 
+/**
+ * Acorta un texto largo a `max` caracteres SIN cortar palabras («…» al final). Para mensajes que
+ * además llevan line-clamp: así no queda texto oculto maquetado bajo los controles. El texto
+ * entero va siempre en el `title` (o aria-label) del elemento.
+ */
+export function recortarPalabras(texto: string, max: number): string {
+    const t = (texto ?? "").replace(/\s+/g, " ").trim();
+    if (t.length <= max) return t;
+    const corte = t.slice(0, max + 1);
+    const espacio = corte.lastIndexOf(" ");
+    const base = (espacio > max * 0.6 ? corte.slice(0, espacio) : t.slice(0, max)).replace(/[\s,.;:·(—–-]+$/u, "");
+    return `${base}…`;
+}
+
 /** El dato que falta se dice, no se inventa. */
 export function SinDato({ texto = "sin dato", accion }: { texto?: string; accion?: React.ReactNode }) {
     return (

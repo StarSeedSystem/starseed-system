@@ -17,7 +17,8 @@ import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { readAuroraChatEntries, AURORA_CHATLOG_CHANGE_EVENT, AURORA_CHATLOG_KEY, type AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import { getAuroraBridge, openAurora } from "@/lib/aurora/open-aurora";
-import { Rotulo, disenoDe } from "./comun";
+import { Rotulo, disenoDe, recortarPalabras } from "./comun";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas";
 
 const VIOLETA = "#7c5cff";
@@ -109,11 +110,13 @@ function Preguntar({ tactil, sugerencias, compacto }: { tactil: boolean; sugeren
                 </span>
             )}
             {!!sugerencias && estado !== "sin-aurora" && (
-                <div className="flex flex-wrap gap-1.5">
-                    {SUGERENCIAS.slice(0, sugerencias).map((s) => (
-                        <Accion key={s} icono={Sparkles} color={VIOLETA} grande={tactil} onClick={() => void enviar(s)}>{s}</Accion>
-                    ))}
-                </div>
+                <Prescindible nivel={1}>
+                    <div className="flex flex-wrap gap-1.5">
+                        {SUGERENCIAS.slice(0, sugerencias).map((s) => (
+                            <Accion key={s} icono={Sparkles} color={VIOLETA} grande={tactil} onClick={() => void enviar(s)} className="max-w-full !whitespace-normal text-left leading-tight">{s}</Accion>
+                        ))}
+                    </div>
+                </Prescindible>
             )}
         </div>
     );
@@ -140,8 +143,10 @@ export function AstrauraLibre() {
     React.useEffect(() => setAhora(Date.now()), [entradas]);
     const vivaAhora = estado !== "calma" ? estado : ultima && ahora - ultima.ts < 60_000 ? "hablando" : "calma";
 
-    const frase = (clases: string) => ultima
-        ? <p className={clases} title={ultima.text}>{ultima.text}</p>
+    // El mensaje se acorta por palabras (además del line-clamp) con el texto entero en el title:
+    // un fallo largo de «probé 8 fuentes…» ya no deja líneas ocultas bajo las sugerencias.
+    const frase = (clases: string, max = 150) => ultima
+        ? <p className={clases} title={ultima.text}>{recortarPalabras(ultima.text, max)}</p>
         : <p className="text-[12.5px] text-white/65">{entradas === null ? "…" : "Aún no habéis hablado."}</p>;
     const botonVoz = voz ? (
         <Accion icono={estado === "escuchando" ? MicOff : Mic} color={TURQUESA} grande={tactil} onClick={estado === "escuchando" ? callar : escuchar}
@@ -154,12 +159,16 @@ export function AstrauraLibre() {
         if (!vista.length) return <p className="text-[12.5px] text-white/60">Aún no habéis hablado. Pregúntale lo que quieras.</p>;
         return (
             <ol className="flex min-w-0 flex-col gap-1.5" aria-label="Última conversación">
-                {vista.map((e, i) => (
-                    <li key={`${e.ts}-${i}`} className={`min-w-0 text-[12.5px] leading-snug ${e.role === "user" ? "text-white/60" : "text-white/90"}`}>
-                        <p className="line-clamp-2" title={e.text}>{e.role === "user" ? `Tú: ${e.text}` : e.text}</p>
-                        {e.role === "aurora" && i === vista.length - 1 && <span className="text-[10.5px] text-violet-200/70">{haceCuanto(e.ts, ahora || Date.now())}</span>}
-                    </li>
-                ))}
+                {vista.map((e, i) => {
+                    const item = (
+                        <li key={`${e.ts}-${i}`} className={`min-w-0 text-[12.5px] leading-snug ${e.role === "user" ? "text-white/60" : "text-white/90"}`}>
+                            <p className="line-clamp-2" title={e.text}>{recortarPalabras(e.role === "user" ? `Tú: ${e.text}` : e.text, 110)}</p>
+                            {e.role === "aurora" && i === vista.length - 1 && <span className="text-[10.5px] text-violet-200/70">{haceCuanto(e.ts, ahora || Date.now())}</span>}
+                        </li>
+                    );
+                    // Si no cabe, se retiran primero las sugerencias (nivel 1) y luego los turnos más viejos.
+                    return i === vista.length - 1 ? item : <Prescindible key={`${e.ts}-${i}`} nivel={2 + i}>{item}</Prescindible>;
+                })}
             </ol>
         );
     };
@@ -178,7 +187,7 @@ export function AstrauraLibre() {
                         return (
                             <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-center" data-diseno="s">
                                 <Orbe tam={lado * 0.42} estado={vivaAhora} onClick={abrirChat} />
-                                {frase("line-clamp-2 text-[12.5px] leading-snug text-white/90")}
+                                {frase("line-clamp-2 text-[12.5px] leading-snug text-white/90", 90)}
                             </div>
                         );
                     }
@@ -187,7 +196,7 @@ export function AstrauraLibre() {
                         return (
                             <div className="flex h-full w-full items-center gap-4 px-3" data-diseno="panoramico">
                                 <Orbe tam={Math.min(alto * 0.72, 110)} estado={vivaAhora} onClick={abrirChat} />
-                                <div className="min-w-0 flex-1">{frase("line-clamp-2 text-[13px] leading-snug text-white/90")}</div>
+                                <div className="min-w-0 flex-1">{frase("line-clamp-2 text-[13px] leading-snug text-white/90", 110)}</div>
                                 <div className="w-[40%] min-w-[200px] max-w-[340px]"><Preguntar tactil={tactil} compacto /></div>
                             </div>
                         );
@@ -198,7 +207,9 @@ export function AstrauraLibre() {
                             <div className="flex h-full w-full flex-col items-center gap-3 px-3 py-3" data-diseno="torre">
                                 <Orbe tam={Math.min(ancho * 0.55, 120)} estado={vivaAhora} onClick={abrirChat} />
                                 <Rotulo color="#c4b5fd">{TEXTO_VOZ[vivaAhora]}</Rotulo>
-                                <div className="min-h-0 w-full flex-1 overflow-hidden">{hiloNodo(Math.max(1, Math.floor((alto - 260) / 90)))}</div>
+                                <PilaAjustable niveles={8} className="min-h-0 w-full flex-1">
+                                    <div className="mt-auto">{hiloNodo(Math.max(1, Math.floor((alto - 260) / 90)))}</div>
+                                </PilaAjustable>
                                 <Preguntar tactil={tactil} compacto />
                             </div>
                         );
@@ -218,11 +229,13 @@ export function AstrauraLibre() {
                             );
                         }
                         return (
-                            <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center" data-diseno="m">
-                                <Orbe tam={Math.min(lado * 0.34, 110) * k} estado={vivaAhora} onClick={abrirChat} />
-                                {frase("line-clamp-3 text-[13px] leading-snug text-white/90")}
-                                <Preguntar tactil={tactil} compacto />
-                            </div>
+                            <PilaAjustable niveles={1} className="items-center px-3 text-center" data-diseno="m">
+                                <div className="my-auto flex w-full min-w-0 flex-col items-center gap-2">
+                                    <Prescindible nivel={1}><Orbe tam={Math.min(lado * 0.34, 110) * k} estado={vivaAhora} onClick={abrirChat} /></Prescindible>
+                                    {frase("line-clamp-3 text-[13px] leading-snug text-white/90", 140)}
+                                    <Preguntar tactil={tactil} compacto />
+                                </div>
+                            </PilaAjustable>
                         );
                     }
 
@@ -238,10 +251,12 @@ export function AstrauraLibre() {
                                     <Accion icono={MessageCircle} color={VIOLETA} grande={tactil} onClick={abrirChat} aria-label="Abrir el chat de Astraura">Chat</Accion>
                                 </div>
                             </div>
-                            <div className="flex min-w-0 flex-1 flex-col gap-2.5 self-stretch justify-center">
-                                {hiloNodo(b === "xl" ? 3 : alto >= 340 ? 2 : 1)}
-                                <Preguntar tactil={tactil} sugerencias={b === "xl" ? 3 : alto >= 300 ? 2 : 0} />
-                            </div>
+                            <PilaAjustable niveles={8} className="min-w-0 flex-1 self-stretch">
+                                <div className="my-auto flex min-w-0 flex-col gap-2.5">
+                                    {hiloNodo(b === "xl" ? 3 : alto >= 340 ? 2 : 1)}
+                                    <Preguntar tactil={tactil} sugerencias={b === "xl" ? 3 : alto >= 300 ? 2 : 0} />
+                                </div>
+                            </PilaAjustable>
                         </div>
                     );
                 }}

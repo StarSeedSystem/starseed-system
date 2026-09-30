@@ -16,6 +16,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import {
     AppWindow, BookmarkPlus, Bot, Brain, BrainCircuit, Check, Compass, Eye, EyeOff, FlaskConical, Gem, Globe, Layers, LayoutGrid,
     Leaf, Orbit, Package, Palette, PenSquare, Radio, RotateCcw, Shuffle, Sparkles, Wand2, Workflow, Zap, type LucideIcon,
@@ -192,7 +193,7 @@ export function SerendipityLensWidget() {
         <div className="min-w-0">
             <Rot color={tinta(h.color, 0.25)} className="whitespace-normal">{h.tipo} · {h.origen === "app" ? "del lanzador" : "de la Biblioteca"}</Rot>
             <p className="mt-0.5 truncate text-[16px] font-medium leading-tight text-white" title={h.titulo}>{h.titulo}</p>
-            <p className={`mt-1 text-[12px] leading-snug text-white/65 ${l.base === "xl" ? "line-clamp-4" : "line-clamp-2"}`} title={h.descripcion}>{h.descripcion}</p>
+            <Prescindible nivel={3}><p className={`mt-1 text-[12px] leading-snug text-white/65 ${l.base === "xl" ? "line-clamp-4" : "line-clamp-2"}`} title={h.descripcion}>{h.descripcion}</p></Prescindible>
         </div>
     );
     const acciones = h && (
@@ -229,12 +230,14 @@ export function SerendipityLensWidget() {
             {cuerpo ?? (
                 <div className={`flex h-full min-h-0 gap-4 ${fila ? "flex-row items-center" : "flex-col items-center justify-center"}`}>
                     <Lente D={D} h={h} l={l} />
-                    <div className={`flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-2.5 ${fila ? "" : "w-full"}`}>
-                        {ficha}
-                        {acciones}
-                        {rareza}
-                        {lineaCielo}
-                    </div>
+                    <PilaAjustable niveles={3} className={`min-h-0 min-w-0 flex-1 ${fila ? "" : "w-full"}`}>
+                        <div className="my-auto flex min-w-0 flex-col gap-2.5">
+                            {ficha}
+                            {acciones}
+                            <Prescindible nivel={2}>{rareza}</Prescindible>
+                            <Prescindible nivel={1}>{lineaCielo}</Prescindible>
+                        </div>
+                    </PilaAjustable>
                 </div>
             )}
         </Lienzo>

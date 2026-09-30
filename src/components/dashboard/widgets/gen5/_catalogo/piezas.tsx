@@ -52,21 +52,26 @@ export function Accion({ children, color, href, onClick, icono: Icono, alto = 30
         "text-[12px] leading-none whitespace-nowrap",
         className,
     );
+    // Solo icono: el nombre va en aria-label y en el tooltip, sin texto oculto en el DOM (un
+    // «sr-only» sin ajuste de línea asomaba fuera de la tarjeta en la esquina y los detectores
+    // de desbordes lo contaban como texto que se sale).
+    const nombre = etiqueta ?? (typeof children === "string" ? children : undefined);
     const contenido = (
         <>
             {Icono && <Icono aria-hidden className="size-3.5 shrink-0" strokeWidth={2.2} />}
-            {soloIcono ? <span className="sr-only">{children}</span> : children}
+            {soloIcono ? null : children}
         </>
     );
+    const tooltip = title ?? (soloIcono ? nombre : undefined);
     if (href) {
         return (
-            <Link href={href} className={clases} style={estilo} aria-label={etiqueta} title={title}>
+            <Link href={href} className={clases} style={estilo} aria-label={soloIcono ? nombre : etiqueta} title={tooltip}>
                 {contenido}
             </Link>
         );
     }
     return (
-        <button type={type} onClick={onClick} disabled={disabled} className={clases} style={estilo} aria-label={etiqueta} title={title} aria-pressed={pulsado}>
+        <button type={type} onClick={onClick} disabled={disabled} className={clases} style={estilo} aria-label={soloIcono ? nombre : etiqueta} title={tooltip} aria-pressed={pulsado}>
             {contenido}
         </button>
     );

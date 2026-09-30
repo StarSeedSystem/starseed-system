@@ -18,6 +18,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from 'react';
+import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { Music, FolderOpen, X, Radio as RadioIcon, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaPlayer, type MediaTrack } from '@/components/dashboard/apps/media/media-engine';
@@ -169,20 +170,22 @@ export function MusicPlayerWidget() {
 
     return (
         <RaizE {...raiz}>
-            <div className={cn('flex h-full min-h-0 gap-4 p-1', alLado ? 'flex-row' : 'flex-col gap-2.5')}>
-                <div className={cn('flex min-h-0 min-w-0 flex-col gap-2.5', alLado ? 'w-[46%] shrink-0 justify-center' : '')}>
-                    {grande && !alLado && <EncabezadoE lienzo={lienzo} icono={esRadio ? RadioIcon : Music} titulo={esRadio ? 'Radio' : 'Reproductor'} vivo={esRadio && state.playing} />}
+            {/* Si la columna no cabe, se retiran la onda y luego la cabecera: «Abrir audio» (la acción
+                cuando no suena nada) ya no se corta por abajo. */}
+            <PilaAjustable niveles={2} className={cn('gap-4 p-1', alLado ? '!flex-row' : 'gap-2.5')}>
+                <div className={cn('flex min-w-0 flex-col gap-2.5', alLado ? 'min-h-0 w-[46%] shrink-0 justify-center' : 'shrink-0')}>
+                    {grande && !alLado && <Prescindible nivel={2}><EncabezadoE lienzo={lienzo} icono={esRadio ? RadioIcon : Music} titulo={esRadio ? 'Radio' : 'Reproductor'} vivo={esRadio && state.playing} /></Prescindible>}
                     <div className={cn('flex min-w-0 gap-3', base === 'xl' ? 'flex-col items-center text-center' : 'items-center')}>
                         <PortadaE id={pista?.id ?? 'nada'} arte={pista?.art} lado={ladoPortada} suena={state.playing} lienzo={lienzo} radio={esRadio} />
                         <div className="flex min-w-0 flex-1 flex-col gap-1">{info(base === 'xl' ? 17 : 15)}{reintento}</div>
                     </div>
-                    {onda(base === 'm' ? 22 : 28)}
+                    <Prescindible nivel={1}>{onda(base === 'm' ? 22 : 28)}</Prescindible>
                     <TransporteE lienzo={lienzo} suena={state.playing} cargando={cargando} hayPista={!!pista} onAnterior={prev} onAlternar={alternar} onSiguiente={next} grande={grande} />
                     {grande && <VolumenE lienzo={lienzo} volumen={state.volume} onCambio={setVolume} />}
                     {base === 'm' && clase !== 'torre' && !pista && <div className="flex justify-center">{botonAbrir}</div>}
                 </div>
                 {(grande || clase === 'torre') && <div className="min-h-0 min-w-0 flex-1">{colaEl(base === 'xl' ? 14 : 8)}</div>}
-            </div>
+            </PilaAjustable>
             {entradaArchivo}
         </RaizE>
     );

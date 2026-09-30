@@ -18,6 +18,7 @@ import { fuenteKp, fuenteMagnetometro, resumirKp } from '@/modules/weather/datos
 import { explicarKp } from '@/modules/weather/datos/interpretar';
 import { formateadores, useFuente } from '@/modules/weather/datos/hooks';
 import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { colorKp, TrazaCampo } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
 
@@ -63,7 +64,7 @@ function Contenido({ info }: { info: InfoMarco }) {
         <div className="min-w-0">
             <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55">Hp</span>
             <span className={`${s.cifra} block font-extralight leading-none`} style={{ fontSize: tam, color: info.acento }}>{hpTxt}<span className="ml-1 text-[12px] text-white/60">nT</span></span>
-            {tendTxt && <span className="block text-[11px] text-white/60">{tendTxt}</span>}
+            {tendTxt && <span className="mt-1 block text-[11px] text-white/60">{tendTxt}</span>}
         </div>
     );
     const traza = (alto: number) => <TrazaCampo serie={m.serie} hora={fmt.hora} alto={alto} id={id} color={info.acento} />;
@@ -93,7 +94,7 @@ function Contenido({ info }: { info: InfoMarco }) {
     const kpTxt = kpAhora !== null && <p className="text-[12px] text-white/75">Kp de este momento: <b className={s.cifra} style={{ color: colorKp(kpAhora) }}>{kpAhora.toFixed(1).replace('.', ',')}</b></p>;
     if (clase === 'panoramico') {
         return (
-            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'minmax(9rem,auto) minmax(0,1fr)' }}>
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'minmax(9rem,1fr) minmax(0,1.4fr)' }}>
                 <div className="min-w-0 space-y-1">{cabecera}{cifra(30)}{variTxt}</div>
                 {traza(Math.max(60, (info.alto || 130) - 20))}
             </div>
@@ -101,35 +102,41 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
-                {cabecera}{cifra(36)}{variTxt}{traza(110)}{componentes}{kpTxt}
-                <div className="mt-auto">{sello}</div>
-            </div>
+            <PilaAjustable className="gap-3 p-3.5">
+                {cabecera}{cifra(36)}{variTxt}
+                <Encajar minimo={56}>{({ alto }) => traza(Math.min(140, alto))}</Encajar>
+                <Prescindible nivel={2}>{componentes}</Prescindible>
+                <Prescindible nivel={1}>{kpTxt}</Prescindible>
+                <Prescindible nivel={1}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera}
-                <div className="flex items-end justify-between gap-2">{cifra(30)}{variTxt}</div>
-                <div className="min-h-0 flex-1">{traza(Math.max(56, (info.alto || 240) - 140))}</div>
-            </div>
+                <div className="flex shrink-0 items-end justify-between gap-2">{cifra(30)}<Prescindible nivel={2}>{variTxt}</Prescindible></div>
+                <Prescindible nivel={1}><Encajar minimo={44}>{({ alto }) => traza(alto)}</Encajar></Prescindible>
+            </PilaAjustable>
         );
     }
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        // La traza toma el alto libre y lo demás se retira si no cabe (antes Hp/He/Hn se cortaban).
+        <PilaAjustable className="gap-3 p-4">
             {cabecera}
-            <div className="flex items-end justify-between gap-3">{cifra(base === 'xl' ? 44 : 36)}<div className="text-right">{variTxt}{kpTxt}</div></div>
-            {traza(base === 'xl' ? 130 : 100)}
-            {componentes}
+            <div className="flex shrink-0 items-end justify-between gap-3">{cifra(base === 'xl' ? 44 : 36)}<div className="min-w-0 text-right">{variTxt}{kpTxt}</div></div>
+            <Encajar minimo={60}>{({ alto }) => traza(Math.min(base === 'xl' ? 160 : 130, alto))}</Encajar>
+            <Prescindible nivel={2}>{componentes}</Prescindible>
             {base === 'xl' && (
-                <div className="space-y-1 text-[12px] leading-snug text-white/70">
-                    <p>Hp es la componente paralela al eje de rotación de la Tierra, medida en la órbita del satélite. Cae cuando el viento solar aprieta la magnetosfera o cuando llega una subtormenta.</p>
-                    <p>{explicarKp(kpAhora)}</p>
+                <Prescindible nivel={1}>
+                <div className="shrink-0 space-y-1 text-[12px] leading-snug text-white/70">
+                    <p className="line-clamp-3">Hp es la componente paralela al eje de rotación de la Tierra, medida en la órbita del satélite. Cae cuando el viento solar aprieta la magnetosfera o cuando llega una subtormenta.</p>
+                    <p className="line-clamp-2">{explicarKp(kpAhora)}</p>
                 </div>
+                </Prescindible>
             )}
-            <div className="mt-auto">{sello}</div>
-        </div>
+            <Prescindible nivel={1}>{sello}</Prescindible>
+        </PilaAjustable>
     );
 }
 

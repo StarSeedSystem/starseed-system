@@ -17,6 +17,8 @@ describe("Exocórtex (Nexus IA)", () => {
     it.each(TODAS)("se pinta en %s", (clase) => {
         const { container } = montarEn(clase, <NexusQuickAccessWidget />, "#22d3ee");
         expect(container.querySelector("[data-widget-e='NEXUS_QUICK_ACCESS']")?.getAttribute("data-clase")).toBe(clase);
+        // Ningún comentario del código se cuela como texto en la tarjeta (pulido 0929).
+        expect(container.textContent ?? "").not.toMatch(/\/\/|\/\*/);
     });
 
     it("sin conversaciones lo dice y manda la pregunta a la Aurora global", async () => {

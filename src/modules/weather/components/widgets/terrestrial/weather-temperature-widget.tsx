@@ -15,6 +15,7 @@ import { aTemp, type Unidades } from '@/modules/weather/datos/hooks';
 import { FilaDias, GraficaHoras, grados, LineaDia, RangoHoy } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
 import { estilosClima as s } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const MIN = -10, MAX = 45;
 
@@ -76,10 +77,10 @@ function Cuerpo(x: CtxMagnitud) {
     }
     if (clase === 'panoramico') {
         return (
-            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(0,1fr)' }}>
-                <div className="flex items-center gap-3">
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.3fr)' }}>
+                <div className="flex min-w-0 items-center gap-3">
                     <ArcoTermico temp={a.temp} sensacion={a.sensacion} u={u} lado={Math.min(110, (info.alto || 130) - 20)} />
-                    <div className="min-w-0">{cabecera('Temperatura')}<p className="text-[12px] text-white/70">Sensación {grados(a.sensacion, u)}</p>{frase && <p className="text-[11px] text-white/55">{frase}</p>}</div>
+                    <div className="min-w-0">{cabecera('Temperatura')}<p className="truncate text-[12px] text-white/70">Sensación {grados(a.sensacion, u)}</p>{frase && <p className="line-clamp-2 text-[11px] text-white/55" title={frase}>{frase}</p>}</div>
                 </div>
                 <GraficaHoras horas={prox} hora={d.fmt.hora} u={u} id={id} alto={Math.max(64, (info.alto || 130) - 26)} mostrarSensacion />
             </div>
@@ -87,38 +88,44 @@ function Cuerpo(x: CtxMagnitud) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
+            <PilaAjustable className="gap-3 p-3.5">
                 {cabecera('Temperatura')}
-                <div className="flex justify-center"><ArcoTermico temp={a.temp} sensacion={a.sensacion} u={u} lado={Math.min(150, (info.ancho || 160) - 30)} /></div>
-                <p className="text-center text-[12px] text-white/70">Sensación {grados(a.sensacion, u)}{frase ? ` · ${frase}` : ''}</p>
-                <div className="min-h-0 flex-1 overflow-hidden"><LineaDia horas={prox.slice(0, 12)} hora={d.fmt.hora} u={u} orto={hoy?.orto ?? null} ocaso={hoy?.ocaso ?? null} /></div>
-                {sello}
-            </div>
+                <Encajar minimo={72} className="flex items-center justify-center">
+                    {({ ancho, alto }) => <ArcoTermico temp={a.temp} sensacion={a.sensacion} u={u} lado={Math.max(64, Math.min(150, ancho - 6, alto))} />}
+                </Encajar>
+                <p className="line-clamp-2 shrink-0 text-center text-[12px] text-white/70">Sensación {grados(a.sensacion, u)}{frase ? ` · ${frase}` : ''}</p>
+                <Prescindible nivel={1}><div className="shrink-0 overflow-hidden"><LineaDia horas={prox.slice(0, 8)} hora={d.fmt.hora} u={u} orto={hoy?.orto ?? null} ocaso={hoy?.ocaso ?? null} /></div></Prescindible>
+                <Prescindible nivel={1}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera('Temperatura')}
-                <div className="flex min-h-0 flex-1 items-center gap-3">
-                    <ArcoTermico temp={a.temp} sensacion={a.sensacion} u={u} lado={Math.min(118, lado)} />
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                        <p className="text-[13px]">Sensación <span className={`${s.cifra} font-semibold`}>{grados(a.sensacion, u)}</span></p>
-                        {frase && <p className="text-[11px] text-white/60">{frase}</p>}
-                        {hoy && <RangoHoy min={hoy.min} max={hoy.max} ahora={a.temp} u={u} />}
-                    </div>
-                </div>
-                <GraficaHoras horas={prox.slice(0, 12)} hora={d.fmt.hora} u={u} id={id} alto={58} etiquetas={4} />
-            </div>
+                <Encajar minimo={64} className="flex items-center gap-3">
+                    {({ ancho, alto }) => (
+                        <>
+                            <ArcoTermico temp={a.temp} sensacion={a.sensacion} u={u} lado={Math.max(56, Math.min(118, lado, alto, ancho * 0.45))} />
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                                <p className="truncate text-[13px]">Sensación <span className={`${s.cifra} font-semibold`}>{grados(a.sensacion, u)}</span></p>
+                                {frase && alto >= 84 && <p className="line-clamp-2 text-[11px] text-white/60" title={frase}>{frase}</p>}
+                                {hoy && <RangoHoy min={hoy.min} max={hoy.max} ahora={a.temp} u={u} />}
+                            </div>
+                        </>
+                    )}
+                </Encajar>
+                <Prescindible nivel={1}><GraficaHoras horas={prox.slice(0, 12)} hora={d.fmt.hora} u={u} id={id} alto={58} etiquetas={4} /></Prescindible>
+            </PilaAjustable>
         );
     }
     const confort = confortRocio(a.rocio);
     const nDias = base === 'xl' ? 5 : info.alto > 0 ? Math.max(2, Math.min(4, Math.floor((info.alto - 290) / 26))) : 3;
     return (
-        <div className="flex h-full flex-col gap-2.5 p-4">
+        <PilaAjustable className="gap-2.5 p-4">
             {cabecera('Temperatura')}
-            <div className="flex items-center gap-4">
-                <ArcoTermico temp={a.temp} sensacion={a.sensacion} u={u} lado={base === 'xl' ? 150 : 118} />
+            <div className="flex shrink-0 items-center gap-4">
+                <ArcoTermico temp={a.temp} sensacion={a.sensacion} u={u} lado={Math.min(base === 'xl' ? 150 : 118, Math.max(72, (info.ancho || 300) * 0.4))} />
                 <div className="min-w-0 flex-1 space-y-2">
                     <p className="text-[14px]">Sensación <span className={`${s.cifra} font-semibold`}>{grados(a.sensacion, u)}</span></p>
                     {frase && <p className="text-[12px] text-white/65">{frase}</p>}
@@ -132,10 +139,10 @@ function Cuerpo(x: CtxMagnitud) {
                     )}
                 </div>
             </div>
-            <GraficaHoras horas={prox} hora={d.fmt.hora} u={u} id={id} alto={base === 'xl' ? 100 : 80} mostrarSensacion />
-            <div className="min-h-0 flex-1 overflow-hidden"><FilaDias dias={c.dias.slice(0, nDias)} dia={d.fmt.dia} u={u} ahoraTemp={a.temp} compacta /></div>
-            {sello}
-        </div>
+            <Prescindible nivel={3}><GraficaHoras horas={prox} hora={d.fmt.hora} u={u} id={id} alto={base === 'xl' ? 100 : 80} mostrarSensacion /></Prescindible>
+            <Prescindible nivel={2}><div className="min-h-0 shrink-0 overflow-hidden"><FilaDias dias={c.dias.slice(0, nDias)} dia={d.fmt.dia} u={u} ahoraTemp={a.temp} compacta /></div></Prescindible>
+            <Prescindible nivel={1}><div className="mt-auto">{sello}</div></Prescindible>
+        </PilaAjustable>
     );
 }
 

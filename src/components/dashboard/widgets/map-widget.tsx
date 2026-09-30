@@ -21,6 +21,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { MapPin, LocateFixed, Calendar, Users, Building2, ArrowUpRight, Map as MapIcon, Loader2, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
@@ -179,8 +180,12 @@ export function MapWidget() {
     const nombreLugar = loc?.name ?? 'Sin ubicación';
     const raiz = { lienzo, refRaiz: ref, etiqueta: `Mapa: ${nombreLugar}${porDefecto ? ' (ubicación por defecto)' : ''}, ${enRadio.length} lugares de la red a menos de ${RADIO_CERCA_KM} km`, tipo: 'MAP_LOCATION' } as const;
 
-    const botonUbic = ubic ? <BotonE lienzo={lienzo} variante={porDefecto ? 'primario' : 'fantasma'} compacto icono={pidiendo ? Loader2 : LocateFixed} disabled={pidiendo} onClick={() => void usarMiUbicacion()}>{porDefecto ? 'Usar mi ubicación' : 'Recentrar'}</BotonE> : null;
-    const selloUbic = porDefecto ? <SelloE title="Aún no elegiste ubicación: el OS usa una por defecto">ubicación por defecto</SelloE> : null;
+    // En tarjetas estrechas las acciones de la cabecera pasan a icono (con su nombre en aria-label
+    // y tooltip) y el sello se acorta: antes «Usar mi ubicación» y «Mapa» se salían por la derecha.
+    const estrechaCab = (lienzo.ancho || 0) > 0 && (lienzo.ancho || 0) < (horizontal ? 620 : 460);
+    const textoUbic = porDefecto ? 'Usar mi ubicación' : 'Recentrar';
+    const botonUbic = ubic ? <BotonE lienzo={lienzo} variante={porDefecto ? 'primario' : 'fantasma'} compacto icono={pidiendo ? Loader2 : LocateFixed} disabled={pidiendo} onClick={() => void usarMiUbicacion()} etiqueta={textoUbic} title={textoUbic}>{estrechaCab ? undefined : textoUbic}</BotonE> : null;
+    const selloUbic = porDefecto ? <SelloE title="Aún no elegiste ubicación: el OS usa una por defecto">{estrechaCab ? 'por defecto' : 'ubicación por defecto'}</SelloE> : null;
 
     // ── micro / s: sin mapa, el dato ──
     if (!conMapa) {
@@ -275,7 +280,7 @@ export function MapWidget() {
 
     const cabecera = (
         <EncabezadoE lienzo={lienzo} icono={MapPin} titulo={nombreLugar} detalle={puntos ? `${enRadio.length} cerca` : undefined}
-            acciones={<>{selloUbic}{botonUbic}<EnlaceE lienzo={lienzo} href={RUTA_MAPA} compacto variante="fantasma" icono={MapIcon}>Mapa</EnlaceE></>} />
+            acciones={<>{selloUbic}{botonUbic}<EnlaceE lienzo={lienzo} href={RUTA_MAPA} compacto variante="fantasma" icono={MapIcon} aria-label="Abrir el mapa completo" title="Abrir el mapa completo">{estrechaCab ? null : 'Mapa'}</EnlaceE></>} />
     );
     const pie = <>{avisoUbic && <p role="alert" className="text-[11px] text-amber-200">{avisoUbic}</p>}{error && !puntos && <p className="text-[11px] text-white/50">No se pudieron leer los lugares de la red. <button type="button" className="cursor-pointer underline" onClick={recargar}>Reintentar</button></p>}</>;
 
@@ -312,13 +317,14 @@ export function MapWidget() {
     // l / torre
     return (
         <RaizE {...raiz}>
-            <div className="flex h-full min-h-0 flex-col gap-1.5 p-1">
+            {/* El mapa conserva su mínimo y, si no cabe todo, se retiran la lista y luego los filtros (antes el mapa, sin sitio, se montaba sobre «Cerca de ti»). */}
+            <PilaAjustable niveles={2} className="gap-1.5 p-1">
                 {cabecera}
-                {filtros}
-                <div className="flex min-h-0 flex-[3] flex-col">{mapaEl}</div>
-                <div className="min-h-0 flex-[2]">{lista(clase === 'torre' ? 8 : 3)}</div>
+                <Prescindible nivel={2}><div className="shrink-0">{filtros}</div></Prescindible>
+                <div className="flex min-h-[120px] flex-[3] flex-col">{mapaEl}</div>
+                <Prescindible nivel={1}><div className="min-h-[72px] flex-[2] overflow-hidden">{lista(clase === 'torre' ? 8 : 3)}</div></Prescindible>
                 {pie}
-            </div>
+            </PilaAjustable>
         </RaizE>
     );
 }

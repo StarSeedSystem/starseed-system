@@ -20,6 +20,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { Alterna, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { SlidersHorizontal, Music, Radio as RadioIcon, AudioWaveform, Speaker, Waves, Square, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
@@ -125,7 +126,7 @@ export function MediaControlWidget() {
             ...RADIO_STATIONS.slice(0, 3).map((t) => ({ t, cola: RADIO_STATIONS, radio: true })),
         ].slice(0, max);
         return (
-            <section aria-label="Fuentes rápidas" className="flex min-h-0 min-w-0 flex-col gap-1">
+            <section aria-label="Fuentes rápidas" className="flex min-w-0 shrink-0 flex-col gap-1">
                 <div className="flex items-center gap-2"><span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Fuentes</span><SelloE title="Pistas SoundHelix para probar; las emisoras son reales">pistas de demostración</SelloE></div>
                 <ul className={cn('flex min-h-0 flex-col gap-0.5', estilosE.desliza)}>
                     {lista.map(({ t, cola, radio }) => {
@@ -231,8 +232,8 @@ export function MediaControlWidget() {
                 <div className="flex h-full min-h-0 flex-col gap-2 p-1">
                     <EncabezadoE lienzo={lienzo} icono={SlidersHorizontal} titulo="Control de medios" vivo={esRadio && state.playing} />
                     <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
-                        <div className="flex min-h-0 flex-col gap-3">{sonando}{frecuencias}</div>
-                        <div className="flex min-h-0 flex-col gap-3">{fuentes(7)}{salida}</div>
+                        <PilaAjustable niveles={1} className="gap-3">{sonando}<Prescindible nivel={1}>{frecuencias}</Prescindible></PilaAjustable>
+                        <PilaAjustable niveles={2} className="gap-3"><Alterna nivel={2} corto={fuentes(4)}>{fuentes(7)}</Alterna><Prescindible nivel={1}>{salida}</Prescindible></PilaAjustable>
                     </div>
                 </div>
             </RaizE>
@@ -242,13 +243,15 @@ export function MediaControlWidget() {
     // l y torre.
     return (
         <RaizE {...raiz}>
-            <div className={cn('flex h-full min-h-0 flex-col gap-2.5 p-1', estilosE.desliza)}>
+            {/* Antes todo encogía dentro de un scroll y «Fuentes» quedaba en cero, bajo «Salida»: ahora
+                cada bloque conserva su alto y lo que no cabe se retira (salida, fuentes, frecuencias). */}
+            <PilaAjustable niveles={4} className="gap-2.5 p-1">
                 <EncabezadoE lienzo={lienzo} icono={SlidersHorizontal} titulo="Control de medios" vivo={esRadio && state.playing} />
-                {sonando}
-                {frecuencias}
-                {fuentes(clase === 'torre' ? 7 : 4)}
-                {salida}
-            </div>
+                <div className="shrink-0">{sonando}</div>
+                <Prescindible nivel={4}>{frecuencias}</Prescindible>
+                <Prescindible nivel={3}><Alterna nivel={2} corto={fuentes(2)}>{fuentes(clase === 'torre' ? 7 : 4)}</Alterna></Prescindible>
+                <Prescindible nivel={1}>{salida}</Prescindible>
+            </PilaAjustable>
         </RaizE>
     );
 }

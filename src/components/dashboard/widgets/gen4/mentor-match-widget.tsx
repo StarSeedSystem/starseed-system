@@ -17,6 +17,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import Link from "next/link";
 import { Compass, GraduationCap, MessageCircle, Sparkles, UserPlus } from "lucide-react";
 import { useContactos } from "@/lib/contactos/store";
@@ -215,10 +216,13 @@ export function MentorMatchWidget() {
         <Lienzo l={l} titulo="Mentoría Híbrida" subtitulo={`${mentores.length} persona${mentores.length === 1 ? "" : "s"} · Aurora ${ia.activa ? "mentora" : "en su modo"}`} icono={Compass} etiqueta={etiqueta}>
             <div className={`flex h-full min-h-0 gap-4 ${fila ? "flex-row items-center" : "flex-col items-center"}`} style={{ justifyContent: "safe center" }}>
                 <Rosa D={D} mentores={mentores} ia={ia.activa} l={l} />
-                <div className={`flex min-h-0 min-w-0 flex-col justify-center gap-2.5 ${fila ? "flex-1" : "w-full"}`}>
-                    {vacio || lista}
-                    {lineaIA}
-                </div>
+                {/* Si no cabe, se retira antes la ayuda del vacío o la lista que la mentora IA. */}
+                <PilaAjustable niveles={1} className={`min-h-0 min-w-0 ${fila ? "flex-1" : "w-full flex-1"}`}>
+                    <div className="my-auto flex min-w-0 flex-col gap-2.5">
+                        <Prescindible nivel={1}>{vacio || lista}</Prescindible>
+                        {lineaIA}
+                    </div>
+                </PilaAjustable>
             </div>
         </Lienzo>
     );

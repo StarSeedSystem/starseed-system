@@ -67,6 +67,8 @@ describe("Mapa", () => {
     it.each(TODAS)("se pinta en %s", async (clase) => {
         const { container } = await montar(clase);
         expect(container.querySelector("[data-widget-e='MAP_LOCATION']")?.getAttribute("data-clase")).toBe(clase);
+        // Ningún comentario del código se cuela como texto en la tarjeta (pulido 0929).
+        expect(container.textContent ?? "").not.toMatch(/\/\/|\/\*/);
     });
 
     it("dice que la ubicación es por defecto y la pide con un toque", async () => {

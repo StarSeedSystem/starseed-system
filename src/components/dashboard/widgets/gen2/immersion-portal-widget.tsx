@@ -22,6 +22,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import Link from "next/link";
 import { Orbit, Glasses, Network, Box, Smile, Check, Minus, type LucideIcon } from "lucide-react";
 import { WidgetShell, useMarcoUnificado, type ElementSize } from "../../kit";
@@ -108,7 +109,7 @@ function Cuerpo({ size, c, ultimo, marcar }: { size: ElementSize; c: Capacidades
                 <span className="min-w-0 flex-1">
                     <span className={cn("block font-semibold leading-snug text-white/90 line-clamp-1", lienzo.tv ? "text-[16px]" : "text-[13px]")}>{p.nombre}</span>
                     {conTexto === "todo" && <span className="block text-[11px] leading-snug text-white/55 line-clamp-2">{p.para}</span>}
-                    <span className="block text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: tintaB(p.color, 0.35) }}>{modoPortal(p, c)}</span>
+                    <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: tintaB(p.color, 0.35) }} title={modoPortal(p, c)}>{modoPortal(p, c)}</span>
                 </span>
             )}
         </Link>
@@ -124,9 +125,9 @@ function Cuerpo({ size, c, ultimo, marcar }: { size: ElementSize; c: Capacidades
     } else if (b === "s") {
         contenido = (
             <Link href={primero.ruta} onClick={() => marcar(primero.id)} aria-label={`${primero.nombre}: ${primero.para}`} className={cn(estilosB.foco, "flex h-full flex-col items-center justify-center gap-1.5 rounded-[16px] text-center")}>
-                <Puerta p={primero} lado={84} lienzo={lienzo} />
-                <span className="text-[13px] font-semibold text-white">{primero.nombre}</span>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: tintaB(primero.color, 0.35) }}>{modoPortal(primero, c)}</span>
+                <Puerta p={primero} lado={Math.max(44, Math.min(84, (size.height || 160) - (size.height >= 150 ? 64 : 40)))} lienzo={lienzo} />
+                <span className="line-clamp-1 text-[13px] font-semibold text-white">{primero.nombre}</span>
+                {size.height >= 150 && <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: tintaB(primero.color, 0.35) }}>{modoPortal(primero, c)}</span>}
             </Link>
         );
     } else if (lienzo.clase === "panoramico") {
@@ -146,13 +147,17 @@ function Cuerpo({ size, c, ultimo, marcar }: { size: ElementSize; c: Capacidades
     } else if (b === "m" && lienzo.clase !== "torre") {
         contenido = <div className="flex h-full min-h-0 flex-col gap-1">{orden.slice(0, 3).map((p) => puerta(p, 40, "nombre"))}</div>;
     } else if (lienzo.clase === "torre") {
-        contenido = <div className="flex h-full min-h-0 flex-col gap-1">{orden.map((p) => puerta(p, 44, "todo"))}</div>;
+        contenido = <PilaAjustable niveles={PORTALES.length} className="gap-1">{orden.map((p, i) => i === 0 ? puerta(p, 44, "todo") : <Prescindible key={p.id} nivel={orden.length - i}>{puerta(p, 44, "todo")}</Prescindible>)}</PilaAjustable>;
     } else if (b === "l") {
         contenido = (
-            <div className="flex h-full min-h-0 flex-col gap-2">
-                <div className="grid min-h-0 grid-cols-2 gap-1">{orden.slice(0, 4).map((p) => puerta(p, 46, "todo"))}</div>
-                <div className="mt-auto"><FichaCapacidades c={c} /></div>
-            </div>
+            // Dos columnas con descripción solo si hay ancho; lo que no cabe se retira (la ficha del
+            // dispositivo, luego los últimos portales) en vez de montarse sobre «Este dispositivo».
+            <PilaAjustable niveles={3} className="gap-2">
+                <div className={cn("grid shrink-0 gap-1", size.width >= 440 ? "grid-cols-2" : "grid-cols-1")}>
+                    {orden.slice(0, 4).map((p, i) => i < 2 ? puerta(p, 46, size.width >= 440 ? "todo" : "nombre") : <Prescindible key={p.id} nivel={i === 3 ? 2 : 3}>{puerta(p, 46, size.width >= 440 ? "todo" : "nombre")}</Prescindible>)}
+                </div>
+                <Prescindible nivel={1}><div className="mt-auto shrink-0"><FichaCapacidades c={c} /></div></Prescindible>
+            </PilaAjustable>
         );
     } else {
         contenido = (
@@ -164,10 +169,10 @@ function Cuerpo({ size, c, ultimo, marcar }: { size: ElementSize; c: Capacidades
                     <span className="text-[18px] font-semibold text-white">{primero.nombre}</span>
                     <span className="max-w-[26ch] text-[12px] text-white/60">{primero.para}</span>
                 </Link>
-                <div className="flex min-h-0 flex-col gap-2 border-l border-white/[0.08] pl-4">
-                    <div className="flex min-h-0 flex-col gap-0.5">{orden.slice(1).map((p) => puerta(p, 40, "todo"))}</div>
-                    <div className="mt-auto"><FichaCapacidades c={c} /></div>
-                </div>
+                <PilaAjustable niveles={4} className="gap-2 border-l border-white/[0.08] pl-4">
+                    <div className="flex shrink-0 flex-col gap-0.5">{orden.slice(1).map((p, i, arr) => i === 0 ? puerta(p, 40, "todo") : <Prescindible key={p.id} nivel={arr.length - i + 1}>{puerta(p, 40, "todo")}</Prescindible>)}</div>
+                    <Prescindible nivel={1}><div className="mt-auto shrink-0"><FichaCapacidades c={c} /></div></Prescindible>
+                </PilaAjustable>
             </div>
         );
     }

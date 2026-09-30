@@ -15,6 +15,7 @@ import type { AireReal } from '@/modules/weather/datos/open-meteo';
 import { MedidorAire } from '../_clima/graficas';
 import { WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
 import { estilosClima as s } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const CONTAMINANTES: { clave: 'pm25' | 'pm10' | 'no2' | 'o3' | 'so2'; nombre: string; guia: number }[] = [
     { clave: 'pm25', nombre: 'PM2,5', guia: GUIA_OMS.pm25 },
@@ -109,38 +110,51 @@ function Cuerpo({ info, aire, d, cabecera, sello }: CtxMagnitud) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
+            <PilaAjustable className="gap-3 p-3.5">
                 {cabecera('Calidad del aire')}
-                <div className="flex justify-center"><MedidorAire nivel={n} lado={Math.min(160, (info.ancho || 160) - 20)} /></div>
-                {consejo}
-                <Contaminantes aire={aire} n={5} />
-                <div className="mt-auto space-y-2"><Polen aire={aire} />{sello}</div>
-            </div>
+                <Encajar minimo={72} className="flex items-center justify-center">
+                    {({ ancho, alto }) => <MedidorAire nivel={n} lado={Math.max(64, Math.min(160, ancho, alto))} />}
+                </Encajar>
+                <Prescindible nivel={2}>{consejo}</Prescindible>
+                <Prescindible nivel={2}><Contaminantes aire={aire} n={5} /></Prescindible>
+                <Prescindible nivel={1}><Polen aire={aire} /></Prescindible>
+                <Prescindible nivel={1}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera('Calidad del aire')}
-                <div className="flex min-h-0 flex-1 items-center gap-3">
-                    <MedidorAire nivel={n} lado={Math.min(118, lado)} />
-                    <div className="min-w-0 flex-1 space-y-1.5">{consejo}{escala}</div>
-                </div>
-                <Contaminantes aire={aire} n={2} />
-            </div>
+                <Encajar minimo={64} className="flex items-center gap-3">
+                    {({ ancho, alto }) => (
+                        <>
+                            <MedidorAire nivel={n} lado={Math.max(56, Math.min(118, lado, alto, ancho * 0.45))} />
+                            <div className="min-w-0 flex-1 space-y-1.5">{n && <p className="line-clamp-3 text-[12px] text-white/75" title={n.consejo}>{n.consejo}</p>}{alto >= 90 && escala}</div>
+                        </>
+                    )}
+                </Encajar>
+                <Prescindible nivel={1}><Contaminantes aire={aire} n={2} /></Prescindible>
+            </PilaAjustable>
         );
     }
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        // Antes el polen y el sello se cortaban por abajo en las tarjetas «l» bajas: ahora se retiran
+        // (primero el sello y el polen, luego la previsión) y el medidor se ajusta al alto libre.
+        <PilaAjustable className="gap-3 p-4">
             {cabecera('Calidad del aire')}
-            <div className="flex items-center gap-4">
-                <MedidorAire nivel={n} lado={base === 'xl' ? 170 : 132} />
-                <div className="min-w-0 flex-1 space-y-2">{consejo}{escala}<Contaminantes aire={aire} n={base === 'xl' ? 5 : 3} /></div>
-            </div>
-            <Prevision aire={aire} hora={d.fmt.hora} />
-            <Polen aire={aire} />
-            <div className="mt-auto">{sello}</div>
-        </div>
+            <Encajar minimo={96} className="flex items-center gap-4">
+                {({ ancho, alto }) => (
+                    <>
+                        <MedidorAire nivel={n} lado={Math.max(80, Math.min(base === 'xl' ? 170 : 132, alto, ancho * 0.4))} />
+                        <div className="min-w-0 flex-1 space-y-2">{consejo}{escala}<Contaminantes aire={aire} n={base === 'xl' && alto >= 170 ? 5 : alto >= 110 ? 3 : 2} /></div>
+                    </>
+                )}
+            </Encajar>
+            <Prescindible nivel={2}><Prevision aire={aire} hora={d.fmt.hora} /></Prescindible>
+            <Prescindible nivel={1}><Polen aire={aire} /></Prescindible>
+            <Prescindible nivel={1}>{sello}</Prescindible>
+        </PilaAjustable>
     );
 }
 

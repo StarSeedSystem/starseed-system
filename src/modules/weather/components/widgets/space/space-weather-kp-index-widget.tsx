@@ -19,6 +19,7 @@ import { fuenteAurora, fuenteEscalas, fuenteKp, resumirKp, type PuntoKp } from '
 import { escalaG, explicarKp, latitudGeomagnetica, lineaAuroraKp, nombreG, severidadKp } from '@/modules/weather/datos/interpretar';
 import { formateadores, useFuente, useUbicacionClima } from '@/modules/weather/datos/hooks';
 import { MarcoClima, SelloFuente, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 import { BarrasKp, colorKp, MedidorKp, OvaloAurora, PildoraSeveridad } from '../_cosmos/piezas-cosmos';
 import { CabeceraCosmos, estadoCosmos } from '../_cosmos/marco-cosmos';
 
@@ -113,44 +114,45 @@ function Contenido({ info }: { info: InfoMarco }) {
         return (
             <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(0,1.2fr) minmax(10rem,1fr)' }}>
                 <MedidorKp kp={v} lado={Math.min(120, (info.alto || 130) - 12)} />
-                {barras(8, Math.max(40, (info.alto || 130) - 60))}
+                <BarrasKp pasadas={r.pasadas.slice(-8)} previstas={r.previstas.slice(0, 8)} hora={fmt.soloHora} alto={Math.max(40, (info.alto || 130) - 50)} leyenda={(info.alto || 0) >= 240} />
                 <div className="min-w-0 space-y-1">{cabecera}{bloque}</div>
             </div>
         );
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
+            <PilaAjustable niveles={3} className="gap-3 p-3.5">
                 {cabecera}
-                <div className="flex justify-center"><MedidorKp kp={v} lado={Math.min(160, (info.ancho || 160) - 24)} /></div>
-                {bloque}
-                {diasTira}
-                <div className="mt-auto space-y-2">{barras(6, 56)}{sello}</div>
-            </div>
+                <Encajar minimo={72} className="flex items-center justify-center">{({ ancho, alto }) => <MedidorKp kp={v} lado={Math.max(64, Math.min(160, ancho, alto))} />}</Encajar>
+                <div className="shrink-0">{bloque}</div>
+                <Prescindible nivel={2}>{diasTira}</Prescindible>
+                <Prescindible nivel={1}>{barras(6, 56)}</Prescindible>
+                <Prescindible nivel={3}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera}
-                <div className="flex min-h-0 flex-1 items-center gap-3">
-                    <MedidorKp kp={v} lado={Math.min(118, lado(0.56))} />
-                    {bloque}
-                </div>
-            </div>
+                <Encajar minimo={60} className="flex items-center gap-3">
+                    {({ ancho, alto }) => <><MedidorKp kp={v} lado={Math.max(56, Math.min(118, lado(0.56), alto, ancho * 0.45))} />{bloque}</>}
+                </Encajar>
+            </PilaAjustable>
         );
     }
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        // Lo secundario se retira por niveles si no cabe (antes la leyenda de las barras se cortaba).
+        <PilaAjustable niveles={4} className="gap-3 p-4">
             {cabecera}
-            <div className="flex items-center gap-4">
-                <MedidorKp kp={v} lado={base === 'xl' ? 150 : 124} />
+            <div className="flex shrink-0 items-center gap-4">
+                <MedidorKp kp={v} lado={Math.min(base === 'xl' ? 150 : 124, Math.max(80, (info.ancho || 300) * 0.38))} />
                 {bloque}
             </div>
-            {barras(8, base === 'xl' ? 80 : 64)}
-            {diasTira}
-            {base === 'l' && frAurora && <p className="text-[11px] text-white/60">{frAurora} <span className="text-white/40">(según Kp)</span></p>}
-            {base === 'xl' && ubicacion && (
+            <Prescindible nivel={4}>{barras(8, base === 'xl' ? 80 : 64)}</Prescindible>
+            <Prescindible nivel={3}>{diasTira}</Prescindible>
+            {base === 'l' && frAurora && <Prescindible nivel={2}><p className="shrink-0 text-[11px] text-white/60">{frAurora} <span className="text-white/40">(según Kp)</span></p></Prescindible>}
+            {base === 'xl' && ubicacion && (<Prescindible nivel={2}>
                 <div className="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/[0.06]">
                     {aurora.datos && <OvaloAurora aurora={aurora.datos} lat={ubicacion.lat} lon={ubicacion.lon} lado={104} />}
                     <div className="min-w-0 flex-1 space-y-1 text-[12px]">
@@ -158,15 +160,15 @@ function Contenido({ info }: { info: InfoMarco }) {
                         {aurora.datos ? (
                             <p className="text-white/75">Probabilidad encima: <b className={s.cifra}>{aurora.datos.sobreTi ?? 0} %</b> · en el horizonte: <b className={s.cifra}>{aurora.datos.horizonte ?? 0} %</b></p>
                         ) : <p className="text-white/55">{aurora.error ? 'OVATION no respondió' : 'Leyendo el óvalo OVATION…'}</p>}
-                        {frAurora && <p className="text-white/55">{frAurora}</p>}
+                        {frAurora && <p className="line-clamp-2 text-white/55" title={frAurora}>{frAurora}</p>}
                     </div>
                 </div>
-            )}
+            </Prescindible>)}
             {escalas.datos?.ultimas24?.g != null && escalas.datos.ultimas24.g > 0 && (
-                <p className="text-[11px] text-amber-100/90">En las últimas 24 h hubo tormenta G{escalas.datos.ultimas24.g}.</p>
+                <Prescindible nivel={1}><p className="text-[11px] text-amber-100/90">En las últimas 24 h hubo tormenta G{escalas.datos.ultimas24.g}.</p></Prescindible>
             )}
-            <div className="mt-auto flex flex-wrap gap-x-3">{sello}{aurora.en && <SelloFuente fuente="OVATION" en={aurora.en} />}</div>
-        </div>
+            <Prescindible nivel={1}><div className="mt-auto flex flex-wrap gap-x-3">{sello}{aurora.en && <SelloFuente fuente="OVATION" en={aurora.en} />}</div></Prescindible>
+        </PilaAjustable>
     );
 }
 

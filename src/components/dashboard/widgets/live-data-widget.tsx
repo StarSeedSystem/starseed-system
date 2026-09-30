@@ -48,11 +48,12 @@ function MedidorDia({ hoy, presupuesto, ancho, lienzo }: { hoy: number; presupue
     };
     const color = pct >= 1 ? '#dc143c' : pct >= 0.7 ? '#ffbf00' : lienzo.acento;
     return (
-        <svg width={ancho} height={ancho / 2 + 10} viewBox={`0 0 ${ancho} ${ancho / 2 + 10}`} role="img" aria-label={`Peticiones a la nube hoy: ${hoy} de ${presupuesto}`} className="block max-w-full">
+        <svg width={ancho} height={ancho / 2 + 16} viewBox={`0 0 ${ancho} ${ancho / 2 + 16}`} role="img" aria-label={`Peticiones a la nube hoy: ${hoy} de ${presupuesto}`} className="block max-w-full">
             <path d={`M${arco(0)} A${r} ${r} 0 0 1 ${arco(1)}`} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth={8} strokeLinecap="round" />
             {pct > 0 && <path d={`M${arco(0)} A${r} ${r} 0 0 1 ${arco(pct)}`} fill="none" stroke={color} strokeWidth={8} strokeLinecap="round" style={{ filter: `drop-shadow(0 0 6px ${conAlfa(color, 0.7)})`, transition: 'all 600ms ease' }} />}
-            <text x={cx} y={cy - 6} textAnchor="middle" fill="#fff" fontSize={Math.max(16, ancho * 0.16)} fontWeight={250}>{Math.round(pct * 100)} %</text>
-            <text x={cx} y={cy + 8} textAnchor="middle" fill="rgba(255,255,255,.55)" fontSize={10}>{num(hoy)} / {num(presupuesto)} hoy</text>
+            {/* Cifra y leyenda con aire entre ambas (antes la leyenda rozaba el «%»). */}
+            <text x={cx} y={cy - 9} textAnchor="middle" fill="#fff" fontSize={Math.max(16, ancho * 0.15)} fontWeight={250}>{Math.round(pct * 100)} %</text>
+            <text x={cx} y={cy + 13} textAnchor="middle" fill="rgba(255,255,255,.55)" fontSize={10}>{num(hoy)} / {num(presupuesto)} hoy</text>
         </svg>
     );
 }

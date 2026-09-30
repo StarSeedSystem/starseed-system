@@ -16,6 +16,7 @@ import { formateadores, useReloj, useUbicacionClima } from '@/modules/weather/da
 import { LunaFase } from '../_clima/cielo';
 import { ArcoSolar } from '../_clima/graficas';
 import { LugarClima, MarcoClima, MenuClima, RotuloClima, SinUbicacion, estilosClima as s, type InfoMarco } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 /** Horas doradas del día: el Sol entre −4° y 6° (mañana y tarde), por barrido de 5 min. */
 export function horasDoradas(dia: Date, lat: number, lon: number): { manana: [number, number] | null; tarde: [number, number] | null } {
@@ -136,48 +137,59 @@ function Contenido({ info }: { info: InfoMarco }) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
+            <PilaAjustable className="gap-3 p-3.5">
                 {cabecera}
-                {arco(90)}
-                {ortoOcaso}{datoLuz}
-                <div className="flex items-center gap-3">{luna(22)}{faseTxt}</div>
-                {signos}{proximas}
-            </div>
+                <Encajar minimo={60}>{({ alto }) => arco(Math.min(110, alto))}</Encajar>
+                {ortoOcaso}
+                <Prescindible nivel={3}>{datoLuz}</Prescindible>
+                <div className="flex shrink-0 items-center gap-3">{luna(22)}{faseTxt}</div>
+                <Prescindible nivel={2}>{signos}</Prescindible>
+                <Prescindible nivel={1}>{proximas}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera}
-                <div className="min-h-0 flex-1">{arco(Math.max(64, (info.alto || 240) - 150))}</div>
-                <div className="flex items-center gap-3">
+                <Encajar minimo={48}>{({ alto }) => arco(Math.min(140, alto))}</Encajar>
+                <div className="flex shrink-0 items-center gap-3">
                     {luna(15)}
-                    <div className="min-w-0 flex-1">{faseTxt}{datoLuz}</div>
+                    <div className="min-w-0 flex-1">{faseTxt}<Prescindible nivel={1}>{datoLuz}</Prescindible></div>
                 </div>
-            </div>
+            </PilaAjustable>
         );
     }
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        // Arco y Luna se ajustan al alto libre; lo secundario (las lunas de la semana, el pie, las
+        // próximas fases, la hora dorada) se retira por ese orden si no cabe: antes la fila de
+        // lunas se cortaba por abajo en la tarjeta «xl» de Astronomía.
+        <PilaAjustable niveles={4} className="gap-3 p-4">
             {cabecera}
-            <div className="grid items-center gap-3" style={{ gridTemplateColumns: 'minmax(0,1.5fr) auto' }}>
-                {arco(base === 'xl' ? 120 : 96)}
-                {luna(base === 'xl' ? 30 : 22)}
-            </div>
-            <div className="space-y-1">{ortoOcaso}{datoLuz}{doradas}{faseTxt}{signos}</div>
-            {proximas}
+            <Encajar minimo={72}>
+                {({ alto }) => (
+                    <div className="grid h-full items-center gap-3" style={{ gridTemplateColumns: 'minmax(0,1.5fr) auto' }}>
+                        {arco(Math.min(base === 'xl' ? 150 : 120, alto))}
+                        {luna(Math.max(14, Math.min(base === 'xl' ? 30 : 22, (alto - 8) / 2.8)))}
+                    </div>
+                )}
+            </Encajar>
+            <div className="shrink-0 space-y-1">{ortoOcaso}<Prescindible nivel={4}>{datoLuz}</Prescindible><Prescindible nivel={3}>{doradas}</Prescindible>{faseTxt}<Prescindible nivel={4}>{signos}</Prescindible></div>
+            <Prescindible nivel={2}>{proximas}</Prescindible>
             {base === 'xl' && (
-                <ol className="grid grid-cols-7 gap-1" aria-label="La Luna de las próximas dos semanas">
-                    {lento.lunas.map(({ t, f }, i) => (
+                <Prescindible nivel={1}>
+                <ol className="grid shrink-0 grid-cols-7 gap-1" aria-label="La Luna de los próximos siete días">
+                    {lento.lunas.slice(0, 7).map(({ t, f }, i) => (
                         <li key={t} className="flex flex-col items-center gap-0.5" title={`${fmt.diaLargo(t)}: ${f.nombre}, ${Math.round(f.iluminada * 100)} %`}>
                             <svg viewBox="-9 -9 18 18" width={20} height={20} aria-hidden><LunaFase r={7} fase={f} id={`${id}d${i}`} /></svg>
                             <span className="text-[9px] capitalize text-white/55">{i === 0 ? 'hoy' : fmt.dia(t - 43_200_000)}</span>
                         </li>
                     ))}
                 </ol>
+                </Prescindible>
             )}
-            <p className="mt-auto text-[10px] text-white/45">Calculado en tu dispositivo · próximo cambio de signo del Sol: {lento.signo.signo.nombre}, {fmt.diaLargo(lento.signo.fecha.getTime())}</p>
-        </div>
+            <Prescindible nivel={1}><p className="shrink-0 text-[10px] text-white/45">Calculado en tu dispositivo · próximo cambio de signo del Sol: {lento.signo.signo.nombre}, {fmt.diaLargo(lento.signo.fecha.getTime())}</p></Prescindible>
+        </PilaAjustable>
     );
 }
 

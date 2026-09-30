@@ -16,6 +16,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import { AlertTriangle, CheckCircle2, Info, ScanSearch, ShieldCheck, XCircle, type LucideIcon } from "lucide-react";
 import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 import { colorSalud } from "@/components/widgets-libres/familias/comun";
@@ -82,10 +83,11 @@ function FilaCheck({ c, l, onHacer, conDetalle, apilar }: { c: Comprobacion; l: 
         : <Accion color={color} alto={Math.min(l.toque, 30)} onClick={() => onHacer(c.accion!.hacer!)} icono={c.accion.hacer === "escanear" ? ScanSearch : undefined} etiqueta={`${c.accion.texto}: ${c.titulo}`}>{c.accion.texto}</Accion>);
     return (
         <li className="flex min-w-0 items-start gap-2">
-            <Icono aria-hidden className="mt-0.5 size-4 shrink-0" style={{ color: tinta(color, 0.15) }} />
+            {/* El estado lo dice el icono (role=img), no un «sr-only» pegado al título. */}
+            <Icono role="img" aria-label={c.estado === "bien" ? "Bien" : c.estado === "mal" ? "Falla" : c.estado === "atencion" ? "Atención" : "Sugerencia"} className="mt-0.5 size-4 shrink-0" style={{ color: tinta(color, 0.15) }} />
             <div className="min-w-0 flex-1">
                 <p className={`text-[12.5px] font-medium leading-snug text-white/90 ${apilar ? "line-clamp-2" : "truncate"}`} title={c.titulo}>
-                    <span className="sr-only">{c.estado === "bien" ? "Bien: " : c.estado === "mal" ? "Falla: " : c.estado === "atencion" ? "Atención: " : "Sugerencia: "}</span>{c.titulo}
+                    {c.titulo}
                 </p>
                 {conDetalle && <p className="line-clamp-2 text-[11.5px] leading-snug text-white/55" title={c.detalle}>{c.detalle}</p>}
                 {apilar && accion && <div className="mt-1">{accion}</div>}
@@ -169,8 +171,10 @@ export function CryptoShieldWidget() {
     const conDetalle = l.base === "xl" || (l.horizontal && l.alto >= 220);
 
     const lista = (
-        <ul className={`flex min-h-0 min-w-0 flex-col ${conDetalle ? "gap-2" : "gap-1.5"}`} aria-label="Comprobaciones de seguridad de este dispositivo">
-            {visibles.map((c) => <FilaCheck key={c.id} c={c} l={l} onHacer={hacer} conDetalle={conDetalle} apilar={apilar} />)}
+        <ul className={`flex min-w-0 flex-col ${conDetalle ? "gap-2" : "gap-1.5"}`} aria-label="Comprobaciones de seguridad de este dispositivo">
+            {visibles.map((c, i) => i === 0
+                ? <FilaCheck key={c.id} c={c} l={l} onHacer={hacer} conDetalle={conDetalle} apilar={apilar} />
+                : <Prescindible key={c.id} nivel={visibles.length - i + 1}><FilaCheck c={c} l={l} onHacer={hacer} conDetalle={conDetalle} apilar={apilar} /></Prescindible>)}
         </ul>
     );
     const pie = (
@@ -186,12 +190,16 @@ export function CryptoShieldWidget() {
                 <div className="flex shrink-0 flex-col items-center gap-1">
                     <Escudo ancho={anchoEscudo} cs={cs} l={l} cifra={cifra} sub={resumen} />
                 </div>
-                <div className={`flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-2.5 ${fila ? "" : "w-full"}`}>
-                    {!grande && !l.horizontal && pendientes.length === 0 && <Rot color={tinta(colorSalud("bien"))}>Todo en orden</Rot>}
-                    {lista}
-                    {error && <p role="alert" className="text-[11px] text-amber-200">{error}</p>}
-                    {grande && pie}
-                </div>
+                {/* Las comprobaciones que no caben se retiran (las de abajo primero, antes los enlaces)
+                    en vez de encoger la lista y montar «Protegerlos» sobre «Ajustes». */}
+                <PilaAjustable niveles={visibles.length + 1} className={`min-h-0 min-w-0 flex-1 ${fila ? "" : "w-full"}`}>
+                    <div className="my-auto flex min-w-0 flex-col gap-2.5">
+                        {!grande && !l.horizontal && pendientes.length === 0 && <Rot color={tinta(colorSalud("bien"))}>Todo en orden</Rot>}
+                        {lista}
+                        {error && <p role="alert" className="text-[11px] text-amber-200">{error}</p>}
+                        {grande && <Prescindible nivel={1}>{pie}</Prescindible>}
+                    </div>
+                </PilaAjustable>
             </div>
         </Lienzo>
     );

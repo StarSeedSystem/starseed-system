@@ -15,6 +15,7 @@ import { aViento, ETIQUETA_VIENTO, type Unidades } from '@/modules/weather/datos
 import { BarrasHoras, BrujulaViento, velocidad } from '../_clima/graficas';
 import { Datos, WidgetMagnitud, type CtxMagnitud } from '../_clima/magnitud';
 import { estilosClima as s } from '../_clima/piezas';
+import { Encajar, PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
 
 const COLOR = '#5eead4';
 
@@ -86,7 +87,7 @@ function Cuerpo({ info, a, c, d, prox, cabecera, sello }: CtxMagnitud) {
     }
     if (clase === 'panoramico') {
         return (
-            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(9rem,auto) minmax(0,1fr)' }}>
+            <div className="grid h-full items-center gap-4 px-4 py-2" style={{ gridTemplateColumns: 'auto minmax(9rem,1fr) minmax(0,1.2fr)' }}>
                 <BrujulaViento dir={a.dirViento} kmh={a.viento} rachas={a.rachas} u={u} lado={Math.min(118, (info.alto || 130) - 16)} color={colorViento(a.viento ?? 0)} />
                 <div className="min-w-0 space-y-1">{cabecera('Viento')}<Datos columnas={1} filas={detalle.slice(0, 2)} /></div>
                 {barras(12)}
@@ -95,39 +96,52 @@ function Cuerpo({ info, a, c, d, prox, cabecera, sello }: CtxMagnitud) {
     }
     if (clase === 'torre') {
         return (
-            <div className="flex h-full flex-col gap-3 p-3.5">
+            <PilaAjustable className="gap-3 p-3.5">
                 {cabecera('Viento')}
-                <div className="flex justify-center"><BrujulaViento dir={a.dirViento} kmh={a.viento} rachas={a.rachas} u={u} lado={Math.min(150, (info.ancho || 160) - 24)} color={colorViento(a.viento ?? 0)} /></div>
-                <Datos columnas={3} filas={detalle} />
-                <div className="min-h-0 flex-1 overflow-hidden"><Horas horas={prox.slice(0, 10)} hora={d.fmt.hora} u={u} /></div>
-                {sello}
-            </div>
+                <Encajar minimo={72} className="flex items-center justify-center">
+                    {({ ancho, alto }) => <BrujulaViento dir={a.dirViento} kmh={a.viento} rachas={a.rachas} u={u} lado={Math.max(64, Math.min(150, alto, ancho))} color={colorViento(a.viento ?? 0)} />}
+                </Encajar>
+                <Prescindible nivel={2}><Datos columnas={3} filas={detalle} /></Prescindible>
+                <Prescindible nivel={1}><div className="shrink-0 overflow-hidden"><Horas horas={prox.slice(0, 6)} hora={d.fmt.hora} u={u} /></div></Prescindible>
+                <Prescindible nivel={1}>{sello}</Prescindible>
+            </PilaAjustable>
         );
     }
     if (base === 'm') {
         return (
-            <div className="flex h-full flex-col gap-2 p-3.5">
+            // La brújula se dibuja del alto libre (fija, se montaba sobre la cabecera: «Cuernavaca,
+            // Morelos» pisaba «Rachas»); en tarjetas bajas se retiran antes las barras de horas.
+            <PilaAjustable className="gap-2 p-3.5">
                 {cabecera('Viento')}
-                <div className="flex min-h-0 flex-1 items-center gap-3">
-                    <BrujulaViento dir={a.dirViento} kmh={a.viento} rachas={a.rachas} u={u} lado={Math.min(120, lado)} color={colorViento(a.viento ?? 0)} />
-                    <div className="min-w-0 flex-1"><Datos columnas={1} filas={detalle} /></div>
-                </div>
-                {barras(8)}
-            </div>
+                <Encajar minimo={64} className="flex items-center gap-3">
+                    {({ ancho, alto }) => (
+                        <>
+                            <BrujulaViento dir={a.dirViento} kmh={a.viento} rachas={a.rachas} u={u} lado={Math.max(56, Math.min(120, lado, alto, ancho * 0.5))} color={colorViento(a.viento ?? 0)} />
+                            <div className="min-w-0 flex-1"><Datos columnas={1} filas={detalle.slice(0, alto >= 120 ? 3 : alto >= 78 ? 2 : 1)} /></div>
+                        </>
+                    )}
+                </Encajar>
+                <Prescindible nivel={1}>{barras(8)}</Prescindible>
+            </PilaAjustable>
         );
     }
     const diasMax = c.dias.slice(0, base === 'xl' ? 5 : 3);
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <PilaAjustable className="gap-3 p-4">
             {cabecera('Viento')}
-            <div className="flex items-center gap-4">
-                <BrujulaViento dir={a.dirViento} kmh={a.viento} rachas={a.rachas} u={u} lado={base === 'xl' ? 160 : 124} color={colorViento(a.viento ?? 0)} />
-                <div className="min-w-0 flex-1 space-y-2">
-                    <Datos columnas={base === 'xl' ? 3 : 1} filas={detalle} />
-                    {bf && <p className="text-[12px] text-white/70">{EN_LA_CALLE[bf.fuerza]}</p>}
-                </div>
-            </div>
-            {barras(24)}
+            <Encajar minimo={90} className="flex items-center gap-4">
+                {({ ancho, alto }) => (
+                    <>
+                        <BrujulaViento dir={a.dirViento} kmh={a.viento} rachas={a.rachas} u={u} lado={Math.max(72, Math.min(base === 'xl' ? 160 : 124, alto, ancho * 0.45))} color={colorViento(a.viento ?? 0)} />
+                        <div className="min-w-0 flex-1 space-y-2">
+                            <Datos columnas={base === 'xl' && ancho >= 460 ? 3 : 1} filas={base === 'xl' && ancho >= 460 ? detalle : detalle.slice(0, alto >= 120 ? 3 : alto >= 78 ? 2 : 1)} />
+                            {bf && alto >= 150 && <p className="text-[12px] text-white/70">{EN_LA_CALLE[bf.fuerza]}</p>}
+                        </div>
+                    </>
+                )}
+            </Encajar>
+            <Prescindible nivel={2}>{barras(24)}</Prescindible>
+            <Prescindible nivel={1}>
             <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(${diasMax.length}, minmax(0,1fr))` }} aria-label="Viento máximo por día">
                 {diasMax.map((dd, i) => (
                     <li key={dd.t} className="min-w-0 rounded-xl bg-white/[0.05] px-2 py-1.5 text-center" title={`Rachas de hasta ${velocidad(dd.rachasMax, u)}`}>
@@ -137,8 +151,9 @@ function Cuerpo({ info, a, c, d, prox, cabecera, sello }: CtxMagnitud) {
                     </li>
                 ))}
             </ul>
-            <div className="mt-auto">{sello}</div>
-        </div>
+            </Prescindible>
+            <Prescindible nivel={1}>{sello}</Prescindible>
+        </PilaAjustable>
     );
 }
 

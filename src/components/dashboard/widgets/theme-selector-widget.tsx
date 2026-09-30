@@ -99,6 +99,8 @@ export function ThemeSelectorWidget() {
     const columnas = base === "m" ? 2 : 4;
     const anchoVentana = lienzo.ancho > 0 ? Math.max(64, Math.min(base === "xl" ? 170 : 140, Math.floor((lienzo.ancho - 16 - 8 * (columnas - 1)) / columnas) - 8)) : 96;
 
+    // Ancho de cada orbe con su nombre en la franja (4 por fila, menos el deshacer si está).
+    const anchoOrbe = lienzo.ancho > 0 ? (lienzo.ancho - (previo ? 268 : 0) - 16) / IDENTIDADES.length - 8 : 96;
     const botonIdentidad = (x: Identidad, modo: "orbe" | "ventana" | "fila") => {
         const activa = x.id === identidad.id;
         const ancho = modo === "ventana" ? anchoVentana : 0;
@@ -116,7 +118,10 @@ export function ThemeSelectorWidget() {
                             <span className="block truncate text-[11px] text-white/50">{x.lema}</span>
                         </span>
                     ) : base !== "s" && (
-                        <span className={cn("max-w-full truncate", activa ? "font-semibold text-white" : "text-white/75")} style={{ fontSize: px(lienzo, 12) }}>{x.nombre}</span>
+                        // El nombre entero si cabe; si no, el corto (Omni, Audio…): sin elipsis que corte.
+                        <span className={cn("max-w-full truncate", activa ? "font-semibold text-white" : "text-white/75")} style={{ fontSize: px(lienzo, 12) }}>
+                            {(modo === "ventana" ? anchoVentana : anchoOrbe) >= x.nombre.length * 7 + 6 ? x.nombre : x.corto ?? x.nombre}
+                        </span>
                     )}
                     {base === "xl" && modo === "ventana" && <span className="line-clamp-2 text-center text-[11px] leading-snug text-white/50">{x.lema}</span>}
                 </button>

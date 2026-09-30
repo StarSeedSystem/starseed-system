@@ -74,7 +74,7 @@ function VistaTiempo({ info, compacta }: { info: InfoMarco; compacta: boolean })
         <div className="flex min-w-0 flex-col gap-1.5">
             <div className="flex items-center gap-2">
                 <Icono aria-hidden className="size-6 shrink-0" style={{ color: colorIcono(a.codigo, a.esDia) }} />
-                <span className={`${s.cifra} text-[30px] font-extralight leading-none`}>{grados(a.temp, u)}</span>
+                <span className={`${s.cifra} text-[30px] font-extralight leading-tight`}>{grados(a.temp, u)}</span>
                 <span className="min-w-0 truncate text-[12px] text-white/75" title={textoCielo(a.codigo, a.esDia)}>{textoCielo(a.codigo, a.esDia)}</span>
             </div>
             <p className="truncate text-[11px] text-white/60" title={ubicacion.nombre}>{ubicacion.nombre}</p>
@@ -103,7 +103,7 @@ function VistaEspacio({ info, compacta }: { info: InfoMarco; compacta: boolean }
         <div className="flex min-w-0 flex-col gap-1.5">
             <div className="flex items-baseline gap-2">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Kp</span>
-                <span className={`${s.cifra} text-[30px] font-extralight leading-none`} style={{ color: v === null ? undefined : colorKp(v) }}>{v === null ? "—" : v.toFixed(1).replace(".", ",")}</span>
+                <span className={`${s.cifra} text-[30px] font-extralight leading-tight`} style={{ color: v === null ? undefined : colorKp(v) }}>{v === null ? "—" : v.toFixed(1).replace(".", ",")}</span>
                 <span className="truncate text-[12px]" style={{ color: COLOR_SEVERIDAD[severidadKp(v)] }}>{nombreG(g)}</span>
             </div>
             {!compacta && a && (
@@ -141,7 +141,7 @@ function VistaSismos({ info, compacta, n }: { info: InfoMarco; compacta: boolean
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
             <div className="flex items-baseline gap-2">
-                <span className={`${s.cifra} text-[30px] font-extralight leading-none`}>{lista.length}</span>
+                <span className={`${s.cifra} text-[30px] font-extralight leading-tight`}>{lista.length}</span>
                 <span className="text-[12px] text-white/70">sismos 4,5+ en 24 h</span>
             </div>
             <ul className="flex flex-col gap-1" aria-label="Sismos destacados">

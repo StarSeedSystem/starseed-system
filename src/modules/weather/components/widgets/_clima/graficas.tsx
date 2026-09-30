@@ -12,8 +12,22 @@ import { colorTemperatura, nivelUv, rumbo, type NivelAire } from "@/modules/weat
 import { aTemp, aViento, ETIQUETA_VIENTO, type Unidades } from "@/modules/weather/datos/hooks";
 import { colorIcono, iconoCielo, LunaFase } from "./cielo";
 import s from "./clima.module.css";
+import { useElementSize } from "@/components/dashboard/kit/use-element-size";
 
 const r0 = (v: number) => Math.round(v);
+
+/**
+ * Qué horas se rotulan bajo una gráfica de `n` puntos que mide `ancho` px: tantas como quepan
+ * a `minPx` cada una (entre 2 y `max`), repartidas de extremo a extremo. Sin medida aún, `max`.
+ * Las etiquetas van en una fila flex «justify-between»: nunca se pisan, por estrecha que sea.
+ */
+export function indicesEtiquetas(n: number, ancho: number, max = 6, minPx = 46): number[] {
+    if (n <= 0) return [];
+    if (n === 1) return [0];
+    const k = Math.max(2, Math.min(max, n, ancho > 0 ? Math.floor(ancho / minPx) : max));
+    const idx = Array.from({ length: k }, (_, i) => Math.round((i * (n - 1)) / (k - 1)));
+    return idx.filter((v, i) => idx.indexOf(v) === i);
+}
 
 export function grados(c: number | null, u: Unidades): string {
     return c === null ? "—" : `${r0(aTemp(c, u.temp))}°`;
@@ -44,22 +58,25 @@ export function trazoSuave(pts: [number, number][]): string {
 export function GraficaHoras({ horas, hora, u, color = "#fde047", etiquetas = 6, alto = 88, mostrarSensacion = false, id }: {
     horas: HoraClima[]; hora: (t: number) => string; u: Unidades; color?: string; etiquetas?: number; alto?: number; mostrarSensacion?: boolean; id: string;
 }) {
+    const { ref: refFig, size: medida } = useElementSize<HTMLElement>();
     const validas = horas.filter((h) => h.temp !== null);
     if (validas.length < 2) return null;
     const temps = validas.map((h) => h.temp as number);
     const sens = mostrarSensacion ? validas.map((h) => h.sensacion ?? (h.temp as number)) : [];
     const min = Math.min(...temps, ...(sens.length ? sens : temps)), max = Math.max(...temps, ...(sens.length ? sens : temps));
-    const W = 100, H = 40, pad = 5;
-    const y = (v: number) => H - pad - ((v - min) / Math.max(1, max - min)) * (H - pad * 2);
+    // Holgura arriba y abajo para las cifras de máxima y mínima: la de mínima va DEBAJO de su punto
+    // y no puede bajar hasta la fila de horas (antes «13°» pisaba «20:00»).
+    const W = 100, H = 40, padAr = 9, padAb = 12;
+    const y = (v: number) => H - padAb - ((v - min) / Math.max(1, max - min)) * (H - padAb - padAr);
     const x = (i: number) => (i / (validas.length - 1)) * W;
     const pts = temps.map((v, i) => [x(i), y(v)] as [number, number]);
     const d = trazoSuave(pts);
     const iMax = temps.indexOf(max === Math.max(...temps) ? max : Math.max(...temps));
     const iMin = temps.indexOf(Math.min(...temps));
-    const paso = Math.max(1, Math.round(validas.length / etiquetas));
+    const rotulos = indicesEtiquetas(validas.length, medida.width, etiquetas);
     const resumen = `Temperatura de ${hora(validas[0].t)} a ${hora(validas[validas.length - 1].t)}: mínima ${grados(Math.min(...temps), u)} y máxima ${grados(Math.max(...temps), u)}`;
     return (
-        <figure className="relative w-full" style={{ height: alto }} aria-label={resumen} role="img">
+        <figure ref={refFig} className="relative w-full shrink-0" style={{ height: alto }} aria-label={resumen} role="img">
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-[78%] w-full overflow-visible" aria-hidden>
                 <defs>
                     <linearGradient id={`gh-${id}`} x1="0" y1="0" x2="0" y2="1">
@@ -80,15 +97,13 @@ export function GraficaHoras({ horas, hora, u, color = "#fde047", etiquetas = 6,
                 <path d={d} fill="none" stroke={`url(#gl-${id})`} strokeWidth={2} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
             {[iMax, iMin].filter((v, i, a) => a.indexOf(v) === i).map((i) => (
-                <span key={`m${i}`} className={`${s.cifra} absolute -translate-x-1/2 text-[11px] font-semibold`} style={{ left: `${Math.min(94, Math.max(6, x(i)))}%`, top: `calc(${(y(temps[i]) / H) * 78}% - ${i === iMax ? 16 : -4}px)` }}>
+                <span key={`m${i}`} className={`${s.cifra} absolute -translate-x-1/2 text-[11px] font-semibold`} style={{ left: `${Math.min(94, Math.max(6, x(i)))}%`, top: i === iMax ? `max(0px, calc(${(y(temps[i]) / H) * 78}% - 16px))` : `min(calc(${(y(temps[i]) / H) * 78}% + 3px), calc(100% - 31px))` }}>
                     {grados(temps[i], u)}
                 </span>
             ))}
-            <div className="absolute inset-x-0 bottom-0 flex h-[20%] items-end">
-                {validas.map((h, i) => i % paso === 0 && (
-                    <span key={`t${h.t}`} className={`${s.cifra} absolute -translate-x-1/2 whitespace-nowrap text-[10px] text-white/55`} style={{ left: `${Math.min(96, Math.max(4, x(i)))}%` }}>
-                        {i === 0 ? "Ahora" : hora(h.t)}
-                    </span>
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 text-[10px] leading-none text-white/55">
+                {rotulos.map((i) => (
+                    <span key={`t${validas[i].t}`} className={`${s.cifra} whitespace-nowrap`}>{i === 0 ? "Ahora" : hora(validas[i].t)}</span>
                 ))}
             </div>
         </figure>
@@ -311,7 +326,8 @@ export function ArcoSolar({ orto, ocaso, ahora, fase, hora, alto = 90, id, conLu
     const luz = dia ? Math.round((ocaso - orto) / 60_000) : null;
     const etiqueta = dia ? `Sale el sol a las ${hora(orto)} y se pone a las ${hora(ocaso)}; ${Math.floor((luz as number) / 60)} h ${(luz as number) % 60} min de luz` : "Sin horas de sol para hoy";
     return (
-        <figure className="relative w-full" style={{ height: alto }} role="img" aria-label={etiqueta}>
+        <figure className="relative flex w-full shrink-0 flex-col items-center" style={{ height: alto }} role="img" aria-label={etiqueta}>
+            <div className="relative min-h-0 w-full flex-1" style={{ maxWidth: Math.max(80, (alto - 16) * (W / H)) }}>
             <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" aria-hidden>
                 <defs>
                     <linearGradient id={`as-${id}`} x1="0" y1="0" x2="1" y2="0">
@@ -334,11 +350,13 @@ export function ArcoSolar({ orto, ocaso, ahora, fase, hora, alto = 90, id, conLu
                 )}
                 {conLuna && fase && !deDia && <LunaFase r={9} fase={fase} id={`${id}l`} x={W / 2} y={30} />}
             </svg>
+            </div>
+            {/* Orto y ocaso en su propia fila bajo el arco: nunca se pisan, por estrecho que sea. */}
             {dia && (
-                <>
-                    <span className={`${s.cifra} absolute bottom-0 left-[4%] text-[11px] text-amber-200/90`}>{hora(orto)}</span>
-                    <span className={`${s.cifra} absolute bottom-0 right-[4%] text-[11px] text-rose-200/90`}>{hora(ocaso)}</span>
-                </>
+                <div className="flex w-full shrink-0 flex-wrap justify-between gap-x-2 px-[3%] pt-0.5 text-[11px] leading-tight" style={{ maxWidth: Math.max(80, (alto - 16) * (W / H)) }}>
+                    <span className={`${s.cifra} text-amber-200/90`}>{hora(orto)}</span>
+                    <span className={`${s.cifra} text-rose-200/90`}>{hora(ocaso)}</span>
+                </div>
             )}
         </figure>
     );
@@ -366,20 +384,21 @@ export function BarrasHoras({ horas, valor, color, hora, formato, maximo, etique
 }) {
     const vals = horas.map(valor);
     const nums = vals.filter((v): v is number => v !== null);
+    const { ref: refFig, size: medida } = useElementSize<HTMLElement>();
+    const rotulos = indicesEtiquetas(horas.length, medida.width, 6, 30);
     if (!nums.length) return null;
     const tope = maximo ?? Math.max(1, ...nums);
-    const paso = Math.max(1, Math.round(horas.length / 6));
     return (
-        <figure className="flex w-full flex-col gap-1" aria-label={etiqueta} role="img">
+        <figure ref={refFig} className="flex w-full shrink-0 flex-col gap-1" aria-label={etiqueta} role="img">
             <div className="flex h-14 w-full items-end gap-[2px]" aria-hidden>
                 {vals.map((v, i) => (
                     <span key={horas[i].t} className="flex-1 rounded-t-[3px]" style={{ height: `${v === null ? 0 : Math.max(4, (v / tope) * 100)}%`, background: v === null ? "transparent" : color(v), opacity: i === 0 ? 1 : 0.8 }}
                         title={v === null ? undefined : `${i === 0 ? "Ahora" : hora(horas[i].t)}: ${formato(v)}`} />
                 ))}
             </div>
-            <div className="relative h-3.5 w-full" aria-hidden>
-                {horas.map((h, i) => i % paso === 0 && (
-                    <span key={h.t} className={`${s.cifra} absolute -translate-x-1/2 whitespace-nowrap text-[10px] text-white/50`} style={{ left: `${Math.min(95, Math.max(5, ((i + 0.5) / horas.length) * 100))}%` }}>{i === 0 ? "Ahora" : hora(h.t).slice(0, 2)}</span>
+            <div className="flex w-full justify-between gap-1 text-[10px] leading-tight text-white/50" aria-hidden>
+                {rotulos.map((i) => (
+                    <span key={horas[i].t} className={`${s.cifra} whitespace-nowrap`}>{i === 0 ? "Ahora" : hora(horas[i].t).slice(0, 2)}</span>
                 ))}
             </div>
         </figure>

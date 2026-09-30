@@ -21,9 +21,10 @@ import { listNeurons } from "@/lib/neurons/neurons";
 import { avisoConsumoServidor, leerAvisoConsumo, leerContadores, suscribirConsumo } from "@/lib/consumo/guardian";
 import { useFreno } from "@/lib/consumo/freno";
 import { PERF_CHANGED_EVENT, getPerfMode, setPerfMode } from "@/lib/perf/device-tier";
-import { Rotulo, disenoDe } from "./comun";
+import { disenoDe } from "./comun";
 import { COLOR_NIVEL, diagnosticar, porGravedad, saludGeneral, titular, type Arreglo, type Diagnostico, type Senales } from "./estado-partes";
 import { Accion, escalaTipo, esTactil, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 
 export { saludDe } from "./estado-partes";
 
@@ -193,9 +194,11 @@ function FilaSenal({ d, conDetalle, conBarra, tactil, onArreglar, ocupado }: {
                 )}
                 {d.arreglo && (
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        {/* En una columna estrecha el botón parte su texto por palabras en vez de salirse. */}
                         {d.arreglo.accion === "entrar"
-                            ? <Accion color={color} href="/login" grande={tactil}>{d.arreglo.etiqueta}</Accion>
+                            ? <Accion color={color} href="/login" grande={tactil} className="max-w-full !whitespace-normal text-center leading-tight">{d.arreglo.etiqueta}</Accion>
                             : <Accion color={color} grande={tactil} onClick={() => onArreglar(d.arreglo!.accion)} disabled={!!d.arreglo.bloqueado || ocupado === d.arreglo.accion}
+                                className="max-w-full !whitespace-normal text-center leading-tight"
                                 title={d.arreglo.bloqueado ?? d.detalle}>{ocupado === d.arreglo.accion ? "Un momento…" : d.arreglo.etiqueta}</Accion>}
                         {d.arreglo.bloqueado && conDetalle && <span className="text-[11px] text-white/50">{d.arreglo.bloqueado}</span>}
                     </div>
@@ -301,23 +304,38 @@ export function EstadoSistemaLibre() {
                         const apaisado = ancho >= alto * 1.3;
                         const conAccion = graves.slice(0, 3).some((d) => d.arreglo);
                         const filas = clase === "torre" ? Math.max(3, Math.floor((alto - lado * 0.6 - 60) / 34)) : apaisado ? Math.max(3, Math.floor((alto - (conAccion ? 60 : 24)) / 36)) : conAccion ? 2 : 3;
-                        const cuerpo = <ul className="flex min-w-0 flex-col gap-2">{graves.slice(0, filas).map((d) => fila(d, { detalle: false, barra: apaisado }))}</ul>;
+                        // Las filas que no caben se retiran enteras (de la última a la primera) en vez de
+                        // salirse de la tarjeta: este widget no tiene marco que las recorte.
+                        const lista = graves.slice(0, filas);
+                        const cuerpo = (
+                            <PilaAjustable niveles={Math.max(1, lista.length - 1)} className="min-h-0 flex-1">
+                                <ul className="my-auto flex min-w-0 flex-col gap-2">
+                                    {lista.map((d, i) => i === 0 ? fila(d, { detalle: false, barra: apaisado }) : <Prescindible key={d.clave} nivel={lista.length - i}>{fila(d, { detalle: false, barra: apaisado })}</Prescindible>)}
+                                </ul>
+                            </PilaAjustable>
+                        );
                         if (apaisado) {
                             return (
                                 <div className="flex h-full w-full items-center gap-4 px-3" data-diseno="m-fila">
                                     <div className="flex shrink-0 flex-col items-center gap-1.5">
                                         <AnilloSalud d={diag} tam={Math.min(alto * 0.56, 130) * k} general={general} conPalabra />
                                     </div>
-                                    <div className="flex min-w-0 flex-1 flex-col gap-2"><Rotulo>{frase}</Rotulo>{cuerpo}</div>
+                                    <div className="flex h-full min-w-0 flex-1 flex-col gap-2 py-3"><span className="line-clamp-2 shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60" title={frase}>{frase}</span>{cuerpo}</div>
                                 </div>
                             );
                         }
+                        // Todo en una pila: se retiran primero las filas de abajo y, si aún no cabe la
+                        // primera con su botón, el anillo (antes «Sincronizar ahora» quedaba cortado).
                         return (
-                            <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3" data-diseno={clase === "torre" ? "torre" : "m"}>
-                                <AnilloSalud d={diag} tam={Math.min(lado * (clase === "torre" ? 0.5 : 0.32), 110) * k} general={general} conPalabra={false} />
-                                <span className="text-center text-[12.5px] font-medium text-white/90">{frase}</span>
-                                <div className="w-full">{cuerpo}</div>
-                            </div>
+                            <PilaAjustable niveles={lista.length + 1} className="items-center gap-2 px-3 py-3" data-diseno={clase === "torre" ? "torre" : "m"}>
+                                <div className="my-auto flex w-full flex-col items-center gap-2">
+                                    <Prescindible nivel={lista.length}><AnilloSalud d={diag} tam={Math.min(lado * (clase === "torre" ? 0.5 : 0.32), 110) * k} general={general} conPalabra={false} /></Prescindible>
+                                    <span className="line-clamp-2 shrink-0 text-center text-[12.5px] font-medium text-white/90" title={frase}>{frase}</span>
+                                    <ul className="flex w-full min-w-0 flex-col gap-2">
+                                        {lista.map((d, i) => i === 0 ? fila(d, { detalle: false, barra: apaisado }) : <Prescindible key={d.clave} nivel={lista.length - i}>{fila(d, { detalle: false, barra: apaisado })}</Prescindible>)}
+                                    </ul>
+                                </div>
+                            </PilaAjustable>
                         );
                     }
 
@@ -328,12 +346,19 @@ export function EstadoSistemaLibre() {
                         <div className="flex h-full w-full items-center gap-5 px-4 py-3" data-diseno={`${b}-completo`}>
                             <div className="flex shrink-0 flex-col items-center gap-2" style={{ width: tam + 12 }}>
                                 <AnilloSalud d={diag} tam={tam} general={general} conPalabra />
-                                <span className="text-center text-[12.5px] font-medium leading-tight text-white/90">{frase}</span>
+                                <span className="line-clamp-3 text-center text-[12.5px] font-medium leading-tight text-white/90" title={frase}>{frase}</span>
                                 <Link href="/servidores" className="cursor-pointer text-[11px] text-white/50 underline-offset-4 hover:text-white hover:underline">Cuenta y servidores</Link>
                             </div>
-                            <ul className={`grid min-w-0 flex-1 gap-x-5 gap-y-2.5 ${dos ? "grid-cols-2" : "grid-cols-1"}`}>
-                                {graves.slice(0, dos ? 8 : Math.max(3, Math.floor((alto - 20) / 48))).map((d) => fila(d, { detalle: true, barra: true }))}
-                            </ul>
+                            {(() => {
+                                const lista = graves.slice(0, dos ? 8 : Math.max(3, Math.floor((alto - 20) / 48)));
+                                return (
+                                    <PilaAjustable niveles={Math.max(1, lista.length - 1)} className="min-w-0 flex-1">
+                                        <ul className={`my-auto grid min-w-0 gap-x-5 gap-y-2.5 ${dos ? "grid-cols-2" : "grid-cols-1"}`}>
+                                            {lista.map((d, i) => i === 0 ? fila(d, { detalle: true, barra: true }) : <Prescindible key={d.clave} nivel={lista.length - i}>{fila(d, { detalle: true, barra: true })}</Prescindible>)}
+                                        </ul>
+                                    </PilaAjustable>
+                                );
+                            })()}
                         </div>
                     );
                 }}

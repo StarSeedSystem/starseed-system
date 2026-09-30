@@ -27,6 +27,7 @@ import { conAlfa } from "@/components/widgets-libres/acentos-categoria";
 import { Lienzo, useIdSvg, useLienzo, type EstadoLienzo } from "./_catalogo/lienzo";
 import { Accion, Rot, tinta } from "./_catalogo/piezas";
 import { useLugar } from "./_catalogo/meteo";
+import { Alterna, Encajar, PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import {
     PRESETS_DESCANSO, PRESETS_ENFOQUE, duracionTexto, entradasDeHoy, horaDecimal, minutosCortos, minutosHoy, minutosPorDia,
     progreso, racha, reloj, restante, useFlujo, type EntradaFlujo, type SesionFlujo,
@@ -354,7 +355,7 @@ export function FlowDirectorWidget() {
             {lineaTarea}
             {sesion
                 ? <div className="flex items-center gap-1.5">{botonPrincipal(true)}{botonParar}</div>
-                : (l.base === "l" && !estrecho) || l.base === "xl" || disposicion === "pano" ? presets : controlCorto}
+                : (l.base === "l" && !estrecho) || l.base === "xl" || disposicion === "pano" ? <Alterna nivel={3} corto={controlCorto}>{presets}</Alterna> : controlCorto}
         </>
     );
 
@@ -365,35 +366,43 @@ export function FlowDirectorWidget() {
             ? Math.max(96, Math.min(l.alto - cab - pad * 2, l.ancho * (l.base === "xl" ? 0.5 : 0.44)))
             : Math.max(96, Math.min(l.ancho - pad * 2, l.alto - cab - (estrecho ? 150 : 128)));
     const alta = l.torre && l.alto >= 380;
-    const dial = <DialFlujo D={D} sesion={sesion} ahora={ahora} hoy={hoy} sol={sol} conDia={grande || alta || disposicion !== "columna"} l={l} etiquetaCentro={centro} subCentro={sub} />;
+    const dialDe = (d: number) => <DialFlujo D={d} sesion={sesion} ahora={ahora} hoy={hoy} sol={sol} conDia={grande || alta || disposicion !== "columna"} l={l} etiquetaCentro={centro} subCentro={sub} />;
+    const dial = dialDe(D);
 
     return (
         <Lienzo l={l} titulo="Director de Flujo" subtitulo={subtitulo} icono={Timer} etiqueta={etiqueta} vivo={corriendo && !estrecho}>
             {disposicion === "pano" ? (
                 <div className="flex h-full min-h-0 items-center gap-5">
                     {dial}
-                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-2.5">{accionesSesion}{sinBloques}</div>
+                    <PilaAjustable niveles={3} className="min-w-0 flex-1">
+                        <div className="my-auto flex min-w-0 flex-col gap-2.5">{accionesSesion}<Prescindible nivel={1}>{sinBloques}</Prescindible></div>
+                    </PilaAjustable>
                     <div className="flex w-[34%] min-w-0 flex-col justify-center gap-3">{estadisticas}{luz}</div>
                 </div>
             ) : disposicion === "fila" ? (
                 <div className="flex h-full min-h-0 items-center gap-4">
                     {dial}
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-2.5">
-                        {accionesSesion}
-                        {l.base === "xl" && estadisticas}
-                        {sinBloques}
-                        {luz}
-                        {l.base === "xl" && semana}
-                    </div>
+                    {/* Lo secundario se retira si no cabe (la semana, el aviso, la luz) en vez de salirse. */}
+                    <PilaAjustable niveles={3} className="min-w-0 flex-1">
+                        <div className="my-auto flex min-w-0 flex-col gap-2.5">
+                            {accionesSesion}
+                            {l.base === "xl" && <Prescindible nivel={2}>{estadisticas}</Prescindible>}
+                            <Prescindible nivel={1}>{sinBloques}</Prescindible>
+                            <Prescindible nivel={2}>{luz}</Prescindible>
+                            {l.base === "xl" && <Prescindible nivel={1}>{semana}</Prescindible>}
+                        </div>
+                    </PilaAjustable>
                 </div>
             ) : (
-                <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3">
-                    {dial}
-                    <div className="flex w-full min-w-0 flex-col gap-2">
+                // El dial toma el alto que dejan las acciones (antes, fijo, empujaba «51 min · de luz»
+                // fuera de la tarjeta); si ni así cabe, se retira la luz y los bloques pasan a su versión corta.
+                <PilaAjustable niveles={3} className="items-center gap-3">
+                    <Encajar minimo={96} className="flex w-full items-center justify-center">{({ ancho, alto }) => dialDe(Math.max(96, Math.min(ancho, alto)))}</Encajar>
+                    <div className="flex w-full min-w-0 shrink-0 flex-col gap-2">
                         {accionesSesion}
-                        {(grande || alta) && luz}
+                        {(grande || alta) && <Prescindible nivel={1}>{luz}</Prescindible>}
                     </div>
-                </div>
+                </PilaAjustable>
             )}
         </Lienzo>
     );

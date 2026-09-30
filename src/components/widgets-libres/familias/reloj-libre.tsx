@@ -331,9 +331,12 @@ export function RelojLibre({ widget, onUpdateSettings }: { widget?: DashboardWid
                     );
                     const rueda = (
                         <div className="relative shrink-0" style={{ width: carta, height: carta }}>
-                            <CartaCeleste lado={carta} cielo={cielo} id={id} detalle={detalle} vivo={vivo} />
+                            {/* La descripción va en aria-label (role=img), no en un «sr-only» sin ajuste de
+                                línea: su caja invisible asomaba sobre «Usar mi ubicación». */}
+                            <div role="img" aria-label={describirCarta(cielo)} className="absolute inset-0">
+                                <CartaCeleste lado={carta} cielo={cielo} id={id} detalle={detalle} vivo={vivo} />
+                            </div>
                             {centro}
-                            <span className="sr-only">{describirCarta(cielo)}</span>
                         </div>
                     );
                     const acciones = <>{alternar}<BotonUbicacion cielo={cielo} grande={tactil} /></>;

@@ -11,13 +11,13 @@ import type { AppearanceConfig, OsThemeId } from "@/context/appearance-context";
 /** [fondo, tarjeta, primario, acento] */
 export type Paleta = [string, string, string, string];
 
-export interface Identidad { id: OsThemeId; nombre: string; lema: string; oscuro: Paleta; claro: Paleta; serif?: boolean }
+export interface Identidad { id: OsThemeId; nombre: string; /** Nombre corto para rótulos estrechos (el completo va en aria-label/title). */ corto?: string; lema: string; oscuro: Paleta; claro: Paleta; serif?: boolean }
 
 export const IDENTIDADES: Identidad[] = [
-    { id: "default", nombre: "Aurora StarSeed", lema: "Nebulosa violeta y cian: la identidad original.", oscuro: ["#0a0118", "#160b30", "#c084fc", "#22d3ee"], claro: ["#f6f3fb", "#fdfcff", "#9333ea", "#0f766e"] },
-    { id: "cafe", nombre: "StarSeed Café", lema: "Verde noche y oro fundido, con serif Fraunces.", oscuro: ["#0d130e", "#141b14", "#e9c46a", "#9fe870"], claro: ["#fdf7ea", "#fefbf2", "#c05c3b", "#3f7a2a"], serif: true },
-    { id: "omnifrecuencias", nombre: "Omnifrecuencias", lema: "Holograma cian y violeta sobre negro profundo.", oscuro: ["#030712", "#0a1626", "#22d3ee", "#a855f7"], claro: ["#eef9fc", "#fbfeff", "#0891b2", "#7c3aed"] },
-    { id: "audiomorphic", nombre: "Audiomorphic", lema: "Geometría sagrada: violeta y oro, ceremonial.", oscuro: ["#08040f", "#150b24", "#a855f7", "#d4af37"], claro: ["#f6f1fd", "#fdfbff", "#7c3aed", "#b8860b"] },
+    { id: "default", nombre: "Aurora StarSeed", corto: "Aurora", lema: "Nebulosa violeta y cian: la identidad original.", oscuro: ["#0a0118", "#160b30", "#c084fc", "#22d3ee"], claro: ["#f6f3fb", "#fdfcff", "#9333ea", "#0f766e"] },
+    { id: "cafe", nombre: "StarSeed Café", corto: "Café", lema: "Verde noche y oro fundido, con serif Fraunces.", oscuro: ["#0d130e", "#141b14", "#e9c46a", "#9fe870"], claro: ["#fdf7ea", "#fefbf2", "#c05c3b", "#3f7a2a"], serif: true },
+    { id: "omnifrecuencias", nombre: "Omnifrecuencias", corto: "Omni", lema: "Holograma cian y violeta sobre negro profundo.", oscuro: ["#030712", "#0a1626", "#22d3ee", "#a855f7"], claro: ["#eef9fc", "#fbfeff", "#0891b2", "#7c3aed"] },
+    { id: "audiomorphic", nombre: "Audiomorphic", corto: "Audio", lema: "Geometría sagrada: violeta y oro, ceremonial.", oscuro: ["#08040f", "#150b24", "#a855f7", "#d4af37"], claro: ["#f6f1fd", "#fdfbff", "#7c3aed", "#b8860b"] },
 ];
 
 export interface Atmosfera { id: string; nombre: string; paleta: Paleta; clara?: boolean }

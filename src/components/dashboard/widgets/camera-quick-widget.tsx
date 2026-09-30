@@ -17,6 +17,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useEffect, useId, useState } from "react";
+import { PilaAjustable, Prescindible } from "@/components/dashboard/kit/pila-ajustable";
 import Link from "next/link";
 import { Camera, Images, SwitchCamera, Timer, Grid3x3, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -163,14 +164,16 @@ export function CameraQuickWidget() {
     const grande = base === "l" || base === "xl" || clase === "torre";
     return (
         <RaizE {...raiz}>
-            <div className="flex h-full min-h-0 flex-col items-center gap-2 p-1">
+            {/* Lo que no cabe se retira (los extras, luego cámara/resolución, luego el estado) en vez
+                de cortarse por abajo. */}
+            <PilaAjustable niveles={3} className="items-center gap-2 p-1">
                 {grande && <EncabezadoE lienzo={lienzo} icono={Camera} titulo="Cámara" className="w-full" acciones={<EnlaceE lienzo={lienzo} href="/galeria" compacto variante="fantasma" icono={Images}>Galería</EnlaceE>} />}
-                {objetivo(base === "xl" ? 150 : grande ? 116 : Math.max(72, Math.min(110, (lienzo.alto || 240) * 0.42)))}
-                {estadoEl}
-                {acciones}
-                <div className="flex flex-wrap items-center justify-center gap-1.5">{frontal}{resolucion}</div>
-                {grande && extras}
-            </div>
+                <div className="shrink-0">{objetivo(base === "xl" ? 150 : grande ? 116 : Math.max(72, Math.min(110, (lienzo.alto || 240) * 0.42)))}</div>
+                <Prescindible nivel={3}>{estadoEl}</Prescindible>
+                <div className="shrink-0">{acciones}</div>
+                <Prescindible nivel={2}><div className="flex shrink-0 flex-wrap items-center justify-center gap-1.5">{frontal}{resolucion}</div></Prescindible>
+                {grande && <Prescindible nivel={1}>{extras}</Prescindible>}
+            </PilaAjustable>
         </RaizE>
     );
 }
