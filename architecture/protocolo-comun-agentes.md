@@ -73,7 +73,9 @@ Por debajo es la pirámide de `jev.py`: BitNet local (gratis) → Laya → OpenR
 `~typesafe/jev-latest` (≈ $0,00002 por decisión, techo 0,20 $/día y 2 $/mes) → la regla. La
 caché de 6 h hace que la misma pregunta no se pague dos veces («medio: cache»). En un mismo
 proceso las preguntas van de una en una (el motor local atiende de una en una y `jev.py` guarda
-caché y contabilidad en archivos, ahora con temporales únicos por hilo). `consultar_lote` hace
+caché y contabilidad en archivos, ahora con temporales únicos por hilo); quien está en el camino
+caliente (elegir modelo justo antes de llamar a la flota) espera ese turno como mucho 3 s y, si no
+llega, manda la regla sin anotar experiencia ni contar silencio (`ocupado`). `consultar_lote` hace
 varias preguntas sobre el mismo estado en UNA llamada (el estado se paga una vez).
 
 ## 3. Dónde decide hoy Jev (además de la §9 de la orquestación)
