@@ -1,0 +1,115 @@
+{
+ "ola": "nube-20260930",
+ "tareas": [
+  {
+   "id": "SP092910",
+   "ola": "suenos-ola1",
+   "titulo": "Hacer que `pausado` detenga el tick de simulación",
+   "archivos": [
+    "src/components/avatares/mundo-avatares.tsx"
+   ],
+   "prompt": "ORIGEN: sueño profundo SA092917 (avatares × pruebas-fiabilidad) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/avatares--pruebas-fiabilidad.md`.\n\nHALLAZGO: Corregir pausa que no detiene la simulación del mundo — El efecto depende de `pausado` pero el setInterval nunca lo comprueba: pausar solo reinicia el temporizador. La función Pausar es un verde que no hace nada; el usuario cree que detuvo el mundo y la simulación sigue corriendo.\nCITA: src/components/avatares/mundo-avatares.tsx:711 · impacto 4 · esfuerzo 1 · confianza 0.95\nPROPUESTA: Comprobar `pausado` dentro del callback del intervalo (o no crear el intervalo cuando pausado es true) y añadir una prueba de conducta que verifique que el estado no avanza mientras está pausado.\nCONSEJO DE JEV: alta · 0.87 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/avatares/mundo-avatares.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "depende": [],
+   "aprobacion": true,
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "SP092911",
+   "ola": "suenos-ola1",
+   "titulo": "try/finally en lanzar de laboratorio-astraura",
+   "archivos": [
+    "src/components/laboratorio/laboratorio-astraura.tsx"
+   ],
+   "prompt": "ORIGEN: sueño profundo SA092923 (laboratorio × pruebas-fiabilidad) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/laboratorio--pruebas-fiabilidad.md`.\n\nHALLAZGO: Envolver lanzar() en try/finally para no bloquear el botón — Sin try/catch, una excepción de ejecutarBanco deja corriendo en true para siempre y el botón queda deshabilitado permanentemente, sin aviso al usuario.\nCITA: src/components/laboratorio/laboratorio-astraura.tsx:291 · impacto 4 · esfuerzo 1 · confianza 0.95\nPROPUESTA: Mismo patrón: try/catch con feedback de error y finally que restaure corriendo a false.\nCONSEJO DE JEV: alta · 0.86 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/laboratorio/laboratorio-astraura.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "depende": [],
+   "aprobacion": true,
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "SP092914",
+   "ola": "suenos-ola1",
+   "titulo": "Usar onValueCommit en el slider de parámetros",
+   "archivos": [
+    "src/components/laboratorio/inspector-nodo.tsx"
+   ],
+   "prompt": "ORIGEN: sueño profundo SA092920 (laboratorio × ux-accesibilidad-diseno) del 2026-09-29, verificado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/laboratorio--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Cambiar slider a onValueCommit para evitar confirmaciones en cascada — onValueChange dispara aplicarParametro en cada tick del arrastre: en capas fundamentales abre la confirmación al primer movimiento y genera decenas de onCambiar, rompiendo el flujo y saturando estado.\nCITA: src/components/laboratorio/inspector-nodo.tsx:304 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Sustituir onValueChange por onValueCommit para aplicar el parámetro solo al soltar; opcionalmente mantener vista previa local del valor durante el arrastre sin propagar cambios.\nCONSEJO DE JEV: alta · 0.78 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/laboratorio/inspector-nodo.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "depende": [],
+   "aprobacion": true,
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "SP092912",
+   "ola": "Sueños profundos 2026-09-29 · propuesta",
+   "titulo": "Fallar duro si npm ci falla en entrypoint",
+   "archivos": [
+    "deploy/hf-space/entrypoint.sh"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092959 (nube × pruebas-fiabilidad) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/nube--pruebas-fiabilidad.md`.\n\nHALLAZGO: Tratar el fallo de npm ci como error, no como aviso — `npm ci ... || log \"npm ci con avisos\"` convierte un fallo de instalación en aviso; el orquestador corre con dependencias rotas y falla después sin causa clara.\nCITA: deploy/hf-space/entrypoint.sh:38 · impacto 4 · esfuerzo 1 · confianza 0.95\nPROPUESTA: Quitar el `|| log` de npm ci y añadir `set -e` (o comprobación explícita con exit 1) para que el contenedor falle rápido y visiblemente.\nCONSEJO DE JEV: alta · 0.89 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO deploy/hf-space/entrypoint.sh, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092959",
+    "area": "nube",
+    "lente": "pruebas-fiabilidad",
+    "clave": "tratar el fallo de npm ci como error no como aviso"
+   },
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "SP09294",
+   "ola": "Sueños profundos 2026-09-29 · propuesta",
+   "titulo": "Exportar solo las claves necesarias por agente",
+   "archivos": [
+    ".github/workflows/enjambre-nube.yml"
+   ],
+   "depende": [],
+   "prompt": "🔒 PRIVADO · solo en la Mac: no lo repartas a la nube ni lo cuentes fuera.\n\nORIGEN: sueño profundo SA092958 (nube × seguridad-privacidad) del 2026-09-29, ajustado por claude-sonnet-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/nube--seguridad-privacidad.md`.\n\nHALLAZGO: Limitar exportación de claves a agentes de terceros — `set -a; . ~/.starseed/env` exporta las 13 claves a todos los procesos hijos, incluidos agentes opencode; una clave en un log de agente acaba en artefacto público.\nCITA: .github/workflows/enjambre-nube.yml:127 · impacto 3 · esfuerzo 3 · confianza 0.51\nPROPUESTA: Sustituir `set -a` por export selectivo de las variables que cada paso necesita, y añadir filtro de enmascarado en logs.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO .github/workflows/enjambre-nube.yml, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092958",
+    "area": "nube",
+    "lente": "seguridad-privacidad",
+    "clave": "limitar exportación de claves a agentes de terceros"
+   },
+   "importancia": "capacidad",
+   "privado": true,
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "SP092913",
+   "ola": "Sueños profundos 2026-09-29 · propuesta",
+   "titulo": "Añadir role=status y temporizador al aviso de guardado",
+   "archivos": [
+    "src/components/laboratorio/laboratorio-astraura.tsx"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092920 (laboratorio × ux-accesibilidad-diseno) del 2026-09-29, verificado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/laboratorio--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Anunciar el aviso «Guardado» con aria-live y auto-ocultarlo — El aviso «Guardado» no usa aria-live ni role=status y nunca desaparece: los lectores de pantalla no lo anuncian y queda permanentemente visible, confundiendo el estado real de la interfaz.\nCITA: src/components/laboratorio/laboratorio-astraura.tsx:555 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Envolver el aviso en un div con role=\"status\" aria-live=\"polite\" y ocultarlo tras ~3 s con un useEffect + setTimeout, limpiando el timer al desmontar.\nCONSEJO DE JEV: alta · 0.85 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/laboratorio/laboratorio-astraura.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092920",
+    "area": "laboratorio",
+    "lente": "ux-accesibilidad-diseno",
+    "clave": "anunciar el aviso guardado con aria live y auto ocultarlo"
+   },
+   "modelo": "llm7/minimax-m2.7"
+  },
+  {
+   "id": "SP092915",
+   "ola": "Sueños profundos 2026-09-29 · propuesta",
+   "titulo": "Añadir etiqueta textual y aria-label a resultados",
+   "archivos": [
+    "src/components/laboratorio/comparador-versiones.tsx"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092920 (laboratorio × ux-accesibilidad-diseno) del 2026-09-29, verificado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/laboratorio--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Añadir texto accesible a acierto/fallo, no solo color — Acierto/fallo se comunica solo con color (emerald-400/red-400) e icono sin alternativa: usuarios daltónicos y lectores de pantalla no perciben el resultado de la comparativa.\nCITA: src/components/laboratorio/comparador-versiones.tsx:356 · impacto 3 · esfuerzo 1 · confianza 0.95\nPROPUESTA: Añadir texto visible «acierto»/«fallo» (o sr-only con aria-label en el icono) junto al indicador de color en cada fila de resultado.\nCONSEJO DE JEV: alta · 0.90 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/laboratorio/comparador-versiones.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092920",
+    "area": "laboratorio",
+    "lente": "ux-accesibilidad-diseno",
+    "clave": "añadir texto accesible a acierto fallo no solo color"
+   },
+   "modelo": "llm7/minimax-m2.7"
+  }
+ ]
+}
