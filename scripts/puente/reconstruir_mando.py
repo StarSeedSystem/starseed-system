@@ -772,6 +772,114 @@ def _reiniciar_mando_sin_cerrojo() -> None:
           flush=True)
 
 
+# ── Frenos de máquina (2026-10-03) ───────────────────────────────────────────────────────
+#: Regla dura del proyecto: NUNCA `next build` con el enjambre vivo. El turno de
+#: `con-turno.py` solo ordena las compilaciones entre sí; un orquestador con agentes
+#: escribiendo no compila, pero ocupa la RAM de una Mac de 8 GB. El 09-30 esta build y el
+#: enjambre juntos llevaron el swap a 12,8 GB. Con el enjambre vivo se espera: la pantalla
+#: sigue sirviendo lo que ya hay, y una build hecha en la nube se instala sin compilar aquí.
+PATRON_ORQUESTADOR = re.compile(r"^[^ ]*[Pp]ython[0-9.]*( +-[A-Za-z]+)* +[^ ]*starseed-enjambre\.py( |$)")
+PATRON_AGENTE = re.compile(r"(^|[ /])opencode +run( |$)")
+#: Con más swap que esto ya en uso, la build (que suma ~3,5 GB) se come el disco.
+MAXIMO_SWAP_GB = float(os.environ.get("STARSEED_RECONSTRUIR_MAX_SWAP_GB", "4.0"))
+
+
+def motivo_enjambre(lineas_ps):
+    """PURA: por qué no compilar según `ps -axo args=` (orquestador o agentes vivos), o None.
+
+    Solo cuenta un orquestador cuando la orden EMPIEZA por python ejecutando el script: el
+    texto de un prompt que nombra `starseed-enjambre.py` no es un orquestador."""
+    orq = agentes = 0
+    for linea in lineas_ps or []:
+        l = (linea or "").strip()
+        if PATRON_ORQUESTADOR.match(l):
+            orq += 1
+        elif PATRON_AGENTE.search(l):
+            agentes += 1
+    if not orq and not agentes:
+        return None
+    partes = []
+    if orq:
+        partes.append("%d orquestador%s" % (orq, "" if orq == 1 else "es"))
+    if agentes:
+        partes.append("%d agente%s escribiendo" % (agentes, "" if agentes == 1 else "s"))
+    return "el enjambre está vivo (%s): nunca next build con el enjambre vivo" % " y ".join(partes)
+
+
+def swap_usado_gb(texto):
+    """PURA: GB de swap en uso a partir de `sysctl -n vm.swapusage`, o None si no se entiende."""
+    m = re.search(r"used\s*=\s*([\d.]+)([KMG])", texto or "")
+    if not m:
+        return None
+    try:
+        n = float(m.group(1))
+    except ValueError:
+        return None
+    return n / {"K": 1024 * 1024, "M": 1024, "G": 1}[m.group(2)]
+
+
+def version_mayor(version):
+    """PURA: '15.5.21' → 15; '^16.3.8' → 16; ilegible → None."""
+    m = re.search(r"(\d+)", str(version or ""))
+    return int(m.group(1)) if m else None
+
+
+def motivo_dependencias(instalada, bloqueada):
+    """PURA: motivo si el `next` de node_modules no es el del package-lock (o None).
+
+    (2026-10-03) Un intento de subir a Next 16 a mano dejó node_modules en 16.3.8 (instalado
+    con pnpm) y package-lock en 15.5: el Mando no arrancaba («Could not find a production
+    build») y compilar con esa mezcla solo podía dar una pantalla distinta de la del repo.
+    Se para y se dice el arreglo: reinstalar lo que dice el lock."""
+    if not instalada or not bloqueada:
+        return None
+    if version_mayor(instalada) != version_mayor(bloqueada):
+        return ("node_modules trae next %s y package-lock pide %s: no compilo con esa mezcla "
+                "(arreglo: npm ci --include=dev)" % (instalada, bloqueada))
+    return None
+
+
+def _version_next(raiz=RAIZ):
+    instalada = bloqueada = None
+    try:
+        with open(os.path.join(raiz, "node_modules", "next", "package.json"), encoding="utf-8") as f:
+            instalada = json.load(f).get("version")
+    except Exception:
+        pass
+    try:
+        with open(os.path.join(raiz, "package-lock.json"), encoding="utf-8") as f:
+            bloqueada = (json.load(f).get("packages", {}).get("node_modules/next") or {}).get("version")
+    except Exception:
+        pass
+    return instalada, bloqueada
+
+
+def freno_de_maquina(forzar=False, raiz=RAIZ):
+    """Motivo para NO compilar ahora (enjambre vivo, mezcla de dependencias o swap alto), o None.
+    `forzar` salta el freno de swap, nunca los otros dos."""
+    try:
+        lineas = subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True,
+                                timeout=20).stdout.splitlines()
+    except Exception:
+        lineas = []
+    motivo = motivo_enjambre(lineas)
+    if motivo:
+        return motivo
+    motivo = motivo_dependencias(*_version_next(raiz))
+    if motivo:
+        return motivo
+    if forzar:
+        return None
+    try:
+        swap = swap_usado_gb(subprocess.run(["sysctl", "-n", "vm.swapusage"], capture_output=True,
+                                            text=True, timeout=5).stdout)
+    except Exception:
+        swap = None
+    if swap is not None and swap > MAXIMO_SWAP_GB:
+        return "hay %.1f GB de swap en uso (tope %.1f): la build lo llevaría al disco" % (swap, MAXIMO_SWAP_GB)
+    return None
+
+
 def conversando(ruta=os.path.expanduser("~/.starseed/conversacion.json")) -> bool:
     """¿Hay una conversación en curso con Astraura (concesión de `voz_rt.py`)?"""
     try:
@@ -861,6 +969,13 @@ def una_pasada(forzar: bool = False) -> bool:
                             mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
     if forzar:
         hazlo, motivo = True, "compilación pedida a mano"
+    if hazlo:
+        freno = freno_de_maquina(forzar=forzar)
+        if freno:
+            print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, freno), flush=True)
+            _guardar(dict(_leer_estado(), estado="esperando-maquina", freno=freno,
+                          visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+            return False
     if hazlo and not forzar and conversando():
         # (2026-09-22) Una build se come 3-4 GB de RAM en esta Mac: en plena conversación
         # con Astraura dejaría a la voz y a BitNet sin memoria. Se espera a que acabe.

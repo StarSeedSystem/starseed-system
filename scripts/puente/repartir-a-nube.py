@@ -32,7 +32,7 @@ except ImportError:  # pragma: no cover
         return list(tareas or [])
 
 
-from vigilante_logica import es_cola_fuente
+from vigilante_logica import es_cola_de_codigo
 
 RAIZ = os.environ.get("STARSEED_ROOT", "/Users/alex/Documents/starseed-os-main")
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -76,7 +76,7 @@ def colas_fuente():
     vivos = [
         n
         for n in os.listdir(OLAS)
-        if es_cola_fuente(n) and not n.startswith("cola-nube-")
+        if es_cola_de_codigo(n) and not n.startswith("cola-nube-")
     ]
     vivos.sort(key=lambda n: os.path.getmtime(os.path.join(OLAS, n)), reverse=True)
     salida = []

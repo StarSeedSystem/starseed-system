@@ -203,3 +203,27 @@ class DependenciaYaEnMain(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ColasDeCodigo(unittest.TestCase):
+    """(2026-10-03) Los sueños nunca alimentan al orquestador de código ni a la nube."""
+
+    def test_la_cola_de_suenos_no_es_de_codigo(self):
+        from vigilante_logica import es_cola_de_codigo
+
+        self.assertFalse(es_cola_de_codigo("cola-suenos-2026-09-29.json"))
+
+    def test_la_propuesta_de_suenos_no_es_de_codigo(self):
+        from vigilante_logica import es_cola_de_codigo
+
+        self.assertFalse(es_cola_de_codigo("cola-suenos-propuesta-2026-09-29.json"))
+
+    def test_una_cola_normal_si_lo_es(self):
+        from vigilante_logica import es_cola_de_codigo
+
+        self.assertTrue(es_cola_de_codigo("cola-412-widgets.json"))
+
+    def test_las_copias_auto_siguen_fuera(self):
+        from vigilante_logica import es_cola_de_codigo
+
+        self.assertFalse(es_cola_de_codigo("cola-auto-1001-182357.json"))

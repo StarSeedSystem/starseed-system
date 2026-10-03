@@ -69,6 +69,19 @@ def es_cola_fuente(nombre):
     )
 
 
+def es_cola_de_codigo(nombre):
+    """Cola fuente que puede alimentar al orquestador de CÓDIGO (Mac o nube).
+
+    (2026-10-03) Los sueños quedan fuera SIEMPRE, no solo en `seleccionar_pendientes`:
+    `repartir-a-nube.py` leía `es_cola_fuente` a secas y mandó la propuesta de los sueños
+    (SP09294, SP092914…) a la nube, donde fallaron tres veces cada una; y un vigilante
+    arrancado antes del filtro metió 84 análisis SA en `cola-auto-1001-*`. La cola de sueños
+    la corre `suenos.py` y la propuesta espera a una persona: ninguna de las dos es demanda
+    para quien escribe código.
+    """
+    return es_cola_fuente(nombre) and not nombre.startswith(PREFIJO_SUENOS)
+
+
 def ultima_salida(lineas, tope=200):
     """Del registro del orquestador saca (codigo_exit, motivo) de la ÚLTIMA línea
     `__EXIT__=N`. El motivo es la última línea no vacía anterior. Si no hay
@@ -125,7 +138,7 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
         return integradas[dep]
 
     for nombre, tareas in colas:
-        if not es_cola_fuente(nombre) or nombre.startswith(PREFIJO_SUENOS):
+        if not es_cola_de_codigo(nombre):
             continue
         for tarea in tareas:
             if not isinstance(tarea, dict) or not tarea.get("id"):

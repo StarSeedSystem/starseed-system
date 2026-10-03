@@ -36,7 +36,7 @@ from vigilante_logica import (
     decidir_relanzamiento,
     aplicar_correcciones,
     ids_colisionados,
-    es_cola_fuente,
+    es_cola_de_codigo,
     seleccionar_pendientes,
     ultima_salida,
 )
@@ -321,7 +321,7 @@ def _pendientes_sin_correcciones():
         asuntos = []
     colas = []
     for f in sorted(os.listdir(OLAS), reverse=True):  # las colas nuevas primero
-        if not es_cola_fuente(f):
+        if not es_cola_de_codigo(f):
             continue
         try:
             d = json.load(open(os.path.join(OLAS, f), encoding="utf-8"))

@@ -725,3 +725,58 @@ class LiberarPuerto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FrenosDeMaquina(unittest.TestCase):
+    """(2026-10-03) Nunca next build con el enjambre vivo, con la mezcla de Next 15/16 ni con el swap lleno."""
+
+    def test_orquestador_vivo_frena(self):
+        lineas = ["/opt/homebrew/bin/python3 -u /Users/alex/.local/bin/starseed-enjambre.py "
+                  "starseed_memory_root/olas/cola-412.json 3"]
+        self.assertIn("1 orquestador", R.motivo_enjambre(lineas))
+
+    def test_orquestador_del_framework_de_python_frena(self):
+        lineas = ["/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/"
+                  "Resources/Python.app/Contents/MacOS/Python /Users/alex/.local/bin/starseed-enjambre.py cola.json"]
+        self.assertIsNotNone(R.motivo_enjambre(lineas))
+
+    def test_agentes_escribiendo_frenan(self):
+        lineas = ["/Users/alex/.opencode/bin/opencode run --model xkiro/qwen3-coder-plus hola",
+                  "node /opt/homebrew/bin/opencode run algo"]
+        self.assertIn("2 agentes escribiendo", R.motivo_enjambre(lineas))
+
+    def test_un_prompt_que_nombra_el_script_no_es_un_orquestador(self):
+        lineas = ["/usr/bin/less mira starseed-enjambre.py antes de tocar nada",
+                  "vim scripts/enjambre/starseed-enjambre.py"]
+        self.assertIsNone(R.motivo_enjambre(lineas))
+
+    def test_maquina_libre_no_frena(self):
+        self.assertIsNone(R.motivo_enjambre(["/usr/sbin/cfprefsd agent", "", None]))
+
+    def test_swap_en_megas(self):
+        texto = "total = 3072.00M  used = 1832.69M  free = 1239.31M  (encrypted)"
+        self.assertAlmostEqual(R.swap_usado_gb(texto), 1832.69 / 1024, places=3)
+
+    def test_swap_en_gigas_y_basura(self):
+        self.assertAlmostEqual(R.swap_usado_gb("used = 5.25G"), 5.25)
+        self.assertIsNone(R.swap_usado_gb("sin datos"))
+
+    def test_mezcla_de_next_frena_y_dice_el_arreglo(self):
+        motivo = R.motivo_dependencias("16.3.8", "15.5.21")
+        self.assertIn("npm ci --include=dev", motivo)
+
+    def test_mismo_next_mayor_no_frena(self):
+        self.assertIsNone(R.motivo_dependencias("15.5.21", "15.5.21"))
+        self.assertIsNone(R.motivo_dependencias(None, "15.5.21"))
+
+    def test_una_pasada_con_enjambre_vivo_no_compila(self):
+        with mock.patch.object(R, "_entradas", return_value=[("src/a.ts", 1, 1)]), \
+             mock.patch.object(R, "_leer_estado", return_value={}), \
+             mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
+             mock.patch.object(R, "mtime_del_build", return_value=None), \
+             mock.patch.object(R, "freno_de_maquina", return_value="el enjambre está vivo"), \
+             mock.patch.object(R, "_guardar") as guardar, \
+             mock.patch.object(R, "reconstruir") as reconstruir:
+            self.assertFalse(R.una_pasada(forzar=True))
+        reconstruir.assert_not_called()
+        self.assertEqual(guardar.call_args[0][0]["estado"], "esperando-maquina")

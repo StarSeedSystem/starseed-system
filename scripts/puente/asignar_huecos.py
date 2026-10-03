@@ -352,7 +352,7 @@ def _asuntos_git():
 
 
 def _colas_fuente():
-    from vigilante_logica import es_cola_fuente
+    from vigilante_logica import es_cola_de_codigo
 
     colas = []
     try:
@@ -360,7 +360,7 @@ def _colas_fuente():
     except OSError:
         nombres = []
     for f in nombres:
-        if not es_cola_fuente(f):
+        if not es_cola_de_codigo(f):
             continue
         d = _leer_json(os.path.join(OLAS, f), None)
         if d is None:
