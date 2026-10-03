@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { isSafeHttpUrl } from "@/lib/library/url-utils";
 import {
   X,
   ExternalLink,
@@ -335,9 +336,11 @@ export function AssetPreviewModal({
                     preload="none"
                     className="h-24 rounded-lg border border-white/10 bg-black"
                   >
-                    <a href={v} target="_blank" rel="noopener noreferrer">
-                      <VideoIcon className="w-4 h-4" /> Ver vídeo
-                    </a>
+                    {isSafeHttpUrl(v) && (
+                      <a href={v} target="_blank" rel="noopener noreferrer">
+                        <VideoIcon className="w-4 h-4" /> Ver vídeo
+                      </a>
+                    )}
                   </video>
                 ))}
               </div>
@@ -488,7 +491,8 @@ export function AssetPreviewModal({
           >
             <Download className="w-3.5 h-3.5" /> Descargar
           </Button>
-          {view.externalUrl && (
+          {/* Solo URLs http(s): un externalUrl con javascript:/data: no se abre. */}
+          {isSafeHttpUrl(view.externalUrl) && (
             <Button
               size="sm"
               variant="outline"
@@ -500,7 +504,7 @@ export function AssetPreviewModal({
               <ExternalLink className="w-3.5 h-3.5" /> Abrir externo
             </Button>
           )}
-          {view.repoUrl && (
+          {isSafeHttpUrl(view.repoUrl) && (
             <Button
               size="sm"
               variant="outline"
@@ -964,7 +968,7 @@ function VersionsTab({
                     <p className="text-xs text-gray-400">{b.note}</p>
                   )}
                 </div>
-                {b.url && (
+                {isSafeHttpUrl(b.url) && (
                   <button
                     onClick={() => window.open(b.url, "_blank", "noopener")}
                     className="text-muted-foreground hover:text-white cursor-pointer shrink-0"
