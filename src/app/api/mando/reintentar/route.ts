@@ -7,12 +7,11 @@
  * Añade las reintentadas a la cola VIVA del orquestador o crea cola-reintentos-<fecha>.json.
  */
 
-import { execFile } from "node:child_process";
 import { readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
+import { orquestadoresVivos } from "@/lib/mando/procesos-orquestador";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import {
     ejecutarReintentoInteligente,
@@ -22,7 +21,6 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const execFileAsync = promisify(execFile);
 
 async function resolverRutaOlas(): Promise<string> {
     const raiz = raizDelProyecto();
@@ -94,17 +92,10 @@ export async function POST(peticion: Request): Promise<Response> {
 
         if (resultado.reencoladas.length > 0) {
             let rutaColaViva: string | null = null;
-            try {
-                const { stdout } = await execFileAsync("pgrep", ["-af", "starseed-enjambre.py"], { timeout: 3000 });
-                const lineas = stdout.split("\n").filter((l) => l.includes("starseed-enjambre.py") && !l.includes("pgrep"));
-                for (const l of lineas) {
-                    const coincide = l.match(/(?:starseed_memory_root\/olas\/|olas\/)?(cola-[^\s]+\.json)/);
-                    if (coincide?.[1]) {
-                        rutaColaViva = path.join(dirOlas, path.basename(coincide[1]));
-                        break;
-                    }
-                }
-            } catch {}
+            // (2026-10-03) `ps`, no `pgrep -af`: en macOS pgrep solo imprime PIDs y esto
+            // no encontraba nunca la cola viva. Ver src/lib/mando/procesos-orquestador.ts.
+            const viva = (await orquestadoresVivos()).find((p) => p.cola);
+            if (viva) rutaColaViva = path.join(dirOlas, viva.cola);
 
             if (rutaColaViva) {
                 const actualRaw = await leerTexto(rutaColaViva);

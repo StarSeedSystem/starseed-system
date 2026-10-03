@@ -17,6 +17,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { limpiarRegenerables, medirDisco, medirRegenerables } from "@/lib/mando/almacenamiento";
+import { orquestadoresVivos } from "@/lib/mando/procesos-orquestador";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export type RepoPublicable = "os" | "astraura";
@@ -220,12 +221,10 @@ async function git(cwd: string, args: string[], topeMs = 10000): Promise<string>
 
 /** Cierto si el enjambre está escribiendo (un solo agente toca el working tree a la vez). */
 async function enjambreVivo(): Promise<boolean> {
-    try {
-        const { stdout } = await execFileAsync("pgrep", ["-f", "starseed-enjambre.py"], { timeout: 5000, windowsHide: true });
-        return stdout.trim().length > 0;
-    } catch {
-        return false; // pgrep devuelve 1 cuando no hay coincidencias
-    }
+    // (2026-10-03) Con `pgrep -f` cualquier proceso cuyo texto nombrara el script (el prompt
+    // de un agente, un editor abierto en él) bloqueaba la publicación. Solo cuenta python
+    // ejecutándolo: ver src/lib/mando/procesos-orquestador.ts.
+    return (await orquestadoresVivos()).length > 0;
 }
 
 /** `git@github.com:X/Y.git` → `https://github.com/X/Y` (y https tal cual, sin .git). */

@@ -17,13 +17,13 @@
  */
 
 import { createHmac } from "node:crypto";
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
 import { openSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { orquestadoresDeCola, orquestadoresVivos } from "@/lib/mando/procesos-orquestador";
 import { filasRecientes } from "@/lib/mando/bus-remoto";
 import {
     clasificar,
@@ -717,17 +717,11 @@ export async function lanzarEnNube(nombre: string, tareas: TareaCola[], workers:
     }
 }
 
-const execFileAsync = promisify(execFile);
-
 /** Detiene el orquestador de una cola en esta máquina (SIGTERM a los python3 con esa cola). */
 export async function detenerAqui(nombre: string): Promise<{ ok: boolean; detenidos: number; error?: string }> {
     try {
-        const { stdout } = await execFileAsync("pgrep", ["-af", "starseed-enjambre.py"], { timeout: 5000, windowsHide: true });
-        const pids = stdout
-            .split("\n")
-            .filter((l) => l.includes(`cola-${nombre}.json`) && !l.includes("pgrep"))
-            .map((l) => Number.parseInt(l.trim().split(/\s+/)[0] ?? "", 10))
-            .filter((n) => Number.isFinite(n) && n > 1);
+        // (2026-10-03) `ps`, no `pgrep -af`: en macOS pgrep solo da PIDs. Ver procesos-orquestador.ts.
+        const pids = orquestadoresDeCola(await orquestadoresVivos(), nombre).map((p) => p.pid);
         for (const pid of pids) {
             try { process.kill(pid, "SIGTERM"); } catch { /* ya no está */ }
         }
@@ -821,12 +815,9 @@ async function controlEnNube(nombre: string, tarea: string, orden: OrdenControl)
 }
 
 async function orquestadorAqui(nombre: string): Promise<boolean> {
-    try {
-        const { stdout } = await execFileAsync("pgrep", ["-af", "starseed-enjambre.py"], { timeout: 5000, windowsHide: true });
-        return stdout.split("\n").some((l) => l.includes(`cola-${nombre}.json`) && !l.includes("pgrep"));
-    } catch {
-        return false;
-    }
+    // (2026-10-03) Con `pgrep -af` esto daba SIEMPRE falso en la Mac (pgrep de macOS no imprime
+    // la orden) y «Aprobar e integrar» respondía «el orquestador ya no está» con él esperando.
+    return orquestadoresDeCola(await orquestadoresVivos(), nombre).length > 0;
 }
 
 export interface PeticionReasignar {
