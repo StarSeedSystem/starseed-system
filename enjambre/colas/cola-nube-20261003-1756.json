@@ -1,0 +1,84 @@
+{
+ "ola": "nube-20261003",
+ "tareas": [
+  {
+   "id": "SP092916",
+   "ola": "Sueños profundos 2026-09-29 · ola2",
+   "titulo": "Fallo de cupo = sin cupo, con registro",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092971 (mando × pruebas-fiabilidad) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/mando--pruebas-fiabilidad.md`.\n\nHALLAZGO: Evitar que fallo de cupo se trate como cupo disponible — except Exception: pass tras puede_escribir() sigue como si hubiera cupo: repite el bug de las cinco tareas sin_cambios. El fallo debe registrar y asumir sin cupo.\nCITA: scripts/enjambre/starseed-enjambre.py:278 · impacto 4 · esfuerzo 1 · confianza 1.00\nPROPUESTA: En el except de puede_escribir registrar el error y devolver False (prudente) en vez de continuar.\nCONSEJO DE JEV: alta · 0.80 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO scripts/enjambre/starseed-enjambre.py, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\nVerificación del supervisor Claude: hallazgo revisado contra el código el 2026-10-03. Decide la zona de duda con `python3 scripts/puente/decidir.py` (Jev) y anota «jev: p=…».",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092971",
+    "area": "mando",
+    "lente": "pruebas-fiabilidad",
+    "clave": "evitar que fallo de cupo se trate como cupo disponible"
+   }
+  },
+  {
+   "id": "SP092918",
+   "ola": "Sueños profundos 2026-09-29 · ola2",
+   "titulo": "Preflight de binarios y circuit breaker en el orquestador",
+   "archivos": [
+    "scripts/puente/contexto_agente.py"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092965 (memoria × pruebas-fiabilidad) del 2026-09-29, ajustado por claude-sonnet-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/memoria--pruebas-fiabilidad.md`.\n\nHALLAZGO: Añadir chequeo previo de binarios antes de lanzar olas — 17 tareas mueren por '[Errno 2] opencode' y el orquestador sigue lanzando olas idénticas sin circuit breaker. Un chequeo previo del binario y pausa tras N fallos idénticos habría ahorrado dos olas completas.\nCITA: memory/aprendizaje-olas.md:186 · impacto 4 · esfuerzo 1 · confianza 0.81\nPROPUESTA: Verificar existencia de binarios requeridos antes de lanzar la ola; si una tarea falla 3 veces con el mismo error, pausarla y escalar en vez de reintentar.\nCONSEJO DE JEV: alta · 0.72 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO scripts/puente/contexto_agente.py, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\nVerificación del supervisor Claude: hallazgo revisado contra el código el 2026-10-03. Decide la zona de duda con `python3 scripts/puente/decidir.py` (Jev) y anota «jev: p=…».",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092965",
+    "area": "memoria",
+    "lente": "pruebas-fiabilidad",
+    "clave": "añadir chequeo previo de binarios antes de lanzar olas"
+   }
+  },
+  {
+   "id": "CC1003A",
+   "ola": "Ola 1003 · capas por entidad y local preferente",
+   "titulo": "Capas de conciencia por personalidad y agente: módulo puro con precedencia",
+   "archivos": [
+    "src/lib/astraura/capas-entidad.ts",
+    "src/lib/astraura/__tests__/capas-entidad.test.ts"
+   ],
+   "depende": [],
+   "aprobacion": false,
+   "prompt": "Implementa el CONTRATO de §19 en `src/lib/astraura/capas-entidad.ts` (módulo PURO, sin window ni localStorage). Importa tipos de `@/lib/astraura/capas-conciencia`.\nExporta exactamente:\n- `type CampoCapa = \"activo\" | \"local\" | \"mesh\" | \"nube\" | \"colectiva\" | \"contextoPersonal\"`; `CAMPOS_CAPA: readonly CampoCapa[]` en ese orden.\n- `type CapasAjustables = Record<CampoCapa, boolean>`; `CAPAS_ENTIDAD_DEFECTO` = todo `true` (encendidas e interconectadas por defecto).\n- `ETIQUETA_CAMPO: Record<CampoCapa, { nombre: string; descripcion: string }>` en español (p. ej. contextoPersonal → «Contexto personal» · «Sabe quién eres: cómo llamarte, intereses, tono e idioma»; colectiva → «Conciencia colectiva» · «Comparte lo aprendido con las demás personalidades y agentes»).\n- `type AmbitoCapas = \"personalidad\" | \"agente\"`; `interface AjustesCapasEntidad { personalidades: Record<string, Partial<CapasAjustables>>; agentes: Record<string, Partial<CapasAjustables>> }`; `AJUSTES_VACIOS`.\n- `CLAVE_CAPAS_ENTIDAD = \"starseed.astraura.capas-entidad.v1\"`; `EVENTO_CAPAS_ENTIDAD = \"starseed:astraura-capas-entidad\"`.\n- `leerAjustesCapasEntidad(raw: unknown): AjustesCapasEntidad` — defensiva: ignora ids vacíos, campos desconocidos y valores no booleanos; nunca lanza.\n- `capasDeCuenta(pref: PreferenciaCapas, contextoPersonal: boolean): CapasAjustables` (activo, local, mesh, nube, colectiva desde `pref`).\n- `type Procedencia = \"agente\" | \"personalidad\" | \"cuenta\"`; `resolverCapasEntidad(cuenta: CapasAjustables, ajustes: AjustesCapasEntidad, quien: { personalidadId?: string; agenteId?: string }): { efectivas: CapasAjustables; procedencia: Record<CampoCapa, Procedencia> }` con precedencia agente › personalidad › cuenta, campo a campo, solo booleanos explícitos.\n- `fijarCapa(ajustes, ambito, id, campo, valor: boolean | null): AjustesCapasEntidad` — PURA, devuelve copia; `null` = «volver a auto» (borra el override y la entrada si queda vacía).\n- `aPreferenciaCapas(base: PreferenciaCapas, efectivas: CapasAjustables): PreferenciaCapas` — conserva `nivelador` y `especifico` de `base`.\nPruebas: defecto todo encendido; precedencia (agente gana a personalidad, personalidad a cuenta, campo a campo); procedencia correcta; `fijarCapa` con null limpia; `leerAjustesCapasEntidad` con basura ({}, null, números, campos raros) no lanza; `aPreferenciaCapas` conserva el nivelador.\n\nREGLAS DE LA CASA: lee primero `architecture/astraura-158-sistema-primario.md` §15 y §19 (el contrato manda). Toca SOLO los archivos declarados, ≤ 120 líneas cambiadas por archivo; no reformatees lo que no cambias. Textos de la interfaz en español (es-ES), cálidos y sin abreviar. Pruebas con vitest importando describe/it/expect de «vitest»; solo funciones puras o componentes con testing-library (sin vi.mock de módulos de Node). Zona de duda: `python3 scripts/puente/decidir.py si-no …` (Jev) y anota «jev: p=…» en el commit. Si algo del contrato ya existe, no lo dupliques: reutilízalo."
+  },
+  {
+   "id": "LP1003",
+   "ola": "Ola 1003 · capas por entidad y local preferente",
+   "titulo": "Local preferente: empujón a fuentes locales y OmniRoute apagado por defecto (con migración)",
+   "archivos": [
+    "src/ai/astraura/local-primero.ts",
+    "src/ai/astraura/__tests__/local-primero.test.ts",
+    "src/ai/astraura/router.ts"
+   ],
+   "depende": [],
+   "aprobacion": false,
+   "importancia": "capacidad",
+   "prompt": "Decisión de Alex (2026-10-03): «que sea preferente el uso local». Implementa §19 «Local preferente».\n\n1) NUEVO `src/ai/astraura/local-primero.ts` (puro, sin imports de router): `export const EMPUJON_LOCAL = 4;` y `export function localPrimeroDelta(o: { tier: string; sourceId: string; difficulty: number; needsVision: boolean; strongThreshold: number; preferirLocal: boolean }): { delta: number; note?: string }` → 0 si `!preferirLocal`, si `tier !== \"local\"`, si el id empieza por `astraura-158` (esas ya tienen `local158PriorityDelta`), si `needsVision` o si `difficulty >= strongThreshold`; en otro caso `{ delta: EMPUJON_LOCAL, note: \"local primero\" }`. También `export function migrarLocalPrimero(p: Record<string, unknown>): Record<string, unknown>`: si `p.migracionLocal !== 1` devuelve una copia con `omniRoute: { ...(p.omniRoute as object ?? {}), enabled: false }` y `migracionLocal: 1`; si ya es 1 la devuelve igual.\n2) `src/ai/astraura/router.ts`: en `IntelligenceSettings` añade `preferirLocal: boolean` (JSDoc corto) y `migracionLocal?: number`; en `DEFAULT_INTELLIGENCE` pon `preferirLocal: true` y CAMBIA `omniRoute.enabled` a `false` (su documentación ya dice opt-in). En `getIntelligenceSettings()`, aplica `migrarLocalPrimero` al objeto leído ANTES de `mergeIntelligence` (si el resultado cambió, NO hace falta guardarlo: se guarda en el próximo `saveIntelligenceSettings`). En `rankCandidates`, junto al bloque de `prioridadLocal158`, suma `localPrimeroDelta({ tier: a.source.tier, sourceId: a.source.id, difficulty: profile.difficulty, needsVision: profile.needsVision, strongThreshold, preferirLocal: prefs.preferirLocal !== false })` y añade su nota a `reason` si `!fromUser`.\n3) Pruebas en `src/ai/astraura/__tests__/local-primero.test.ts`: casos de `localPrimeroDelta` (local normal = 4; nube = 0; 1.58 = 0; visión = 0; difícil = 0; preferirLocal false = 0) y de `migrarLocalPrimero` (apaga omniRoute una vez, conserva endpoint, idempotente con migracionLocal 1).\nNO toques el relevo entre fuentes gratuitas ni `allowConfiguredPaid`.\n\nREGLAS DE LA CASA: lee primero `architecture/astraura-158-sistema-primario.md` §15 y §19 (el contrato manda). Toca SOLO los archivos declarados, ≤ 120 líneas cambiadas por archivo; no reformatees lo que no cambias. Textos de la interfaz en español (es-ES), cálidos y sin abreviar. Pruebas con vitest importando describe/it/expect de «vitest»; solo funciones puras o componentes con testing-library (sin vi.mock de módulos de Node). Zona de duda: `python3 scripts/puente/decidir.py si-no …` (Jev) y anota «jev: p=…» en el commit. Si algo del contrato ya existe, no lo dupliques: reutilízalo."
+  },
+  {
+   "id": "SP092925",
+   "ola": "Sueños profundos 2026-09-29 · ola2",
+   "titulo": "Etiquetar campos de búsqueda y formularios de gobernanza",
+   "archivos": [
+    "src/app/(app)/hub/discover-section.tsx",
+    "src/components/governance/proposal-composer.tsx",
+    "src/components/governance/mediation-section.tsx"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092980 (gobernanza × ux-accesibilidad-diseno) del 2026-09-29, verificado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/gobernanza--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Añadir etiquetas accesibles a inputs y selects sin label — Inputs de búsqueda, selects del composer y formularios de mediación dependen solo del placeholder, que desaparece al escribir y no es anunciado como etiqueta. Lectores de pantalla pierden el propósito del campo en flujos clave de gobernanza.\nCITA: src/app/(app)/hub/discover-section.tsx:339 · impacto 3 · esfuerzo 1 · confianza 0.81\nPROPUESTA: Añadir aria-label o <label htmlFor> a input de búsqueda (discover-section:339), selects del composer (509, 545, 570, 733) e inputs de mediación (168).\nCONSEJO DE JEV: alta · 0.88 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/app/(app)/hub/discover-section.tsx, src/components/governance/proposal-composer.tsx, src/components/governance/mediation-section.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\nVerificación del supervisor Claude: hallazgo revisado contra el código el 2026-10-03. Decide la zona de duda con `python3 scripts/puente/decidir.py` (Jev) y anota «jev: p=…».",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092980",
+    "area": "gobernanza",
+    "lente": "ux-accesibilidad-diseno",
+    "clave": "añadir etiquetas accesibles a inputs y selects sin label"
+   }
+  }
+ ]
+}
