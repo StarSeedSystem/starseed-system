@@ -1002,3 +1002,21 @@ tabla de rutas es la que cargó al arrancar. **Regla:** `reiniciar_mando()` llam
 y se para. Síntoma para reconocerlo: una ruta que existe en `.next/server/app` da 404 con
 `x-nextjs-cache: HIT`; `lsof -iTCP:9002 -sTCP:LISTEN` + `ps -o lstart=` enseña un proceso más
 viejo que la instalación.
+
+### 7. Subir Next de versión «a mano» tumba el Mando entero (2026-10-03)
+
+Hermes no podía abrir el Mando: `/tmp/starseed-mando.log` repetía «Could not find a production
+build in the '.next' directory» con **Next.js 16.3.8**. Alguien había empezado a subir el OS a
+Next 16 sin terminar: `package.json` con `"next": "16.3.8"`, `package-lock.json` BORRADO, un
+`pnpm-lock.yaml` nuevo, `node_modules` instalado con pnpm, `tsconfig.json` reescrito por Next 16
+(`jsx: react-jsx`, `.next/dev/types`) y, de paso, `almacenamiento.ts` con código metido dentro de
+comentarios (`\n` literales). El build de Next 15 ya no servía con el `node_modules` de Next 16 y el
+de Next 16 nunca llegó a existir. El intento quedó guardado en `.transfer/intento-next16-2026-10-03/`.
+
+**Reglas:** subir Next (o React) de versión MAYOR es una ola propia, con su rama y las tres puertas
+en la nube — nunca un cambio suelto en el árbol de la Mac; el gestor de paquetes es **npm** (el
+lock es `package-lock.json`); y para volver a lo que dice el lock: `npm ci --include=dev`.
+`reconstruir_mando.py` ya no compila si el `next` de `node_modules` no es el del lock, ni con el
+enjambre vivo (orquestador o `opencode run`), ni con más de 4 GB de swap en uso. Síntoma para
+reconocerlo: `node -e "console.log(require('next/package.json').version)"` no coincide con
+`node_modules/next` dentro de `package-lock.json`.

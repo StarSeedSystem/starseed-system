@@ -2923,3 +2923,19 @@
 
 **Lo que quedó fuera, una por una:**
 - `JF2b` — no escribió nada
+
+## 2026-09-30 → 2026-10-02 · bucle auto de los sueños (281 olas, condensadas aquí)
+
+**Lo que pasó.** Un vigilante arrancado antes del filtro de sueños relanzó la cola de los sueños
+profundos como 281 olas `auto-*`: 268 con 20 análisis SA y 12 con los 84, todas «0 integradas»
+porque cada informe ya estaba escrito. Solo `auto-0930-042942` hizo trabajo real: integró 4 tareas
+de la ola1 (SP09292, SP09293, SP092910, SP092911) con nvidia/moonshotai/kimi-k3, sin fallar una.
+Cada ola dejó su commit «chore(memoria)»: 281 commits de ruido que no se publicaron; esta entrada
+los sustituye (la copia completa queda en la rama de respaldo de la Mac).
+
+**Arreglo (2026-10-03).** `es_cola_de_codigo()` deja `cola-suenos-*` fuera del vigilante, de
+`repartir-a-nube.py` y de `asignar_huecos.py`; el vigilante se reinició para cargar el código nuevo.
+
+**Lo que se aprende.** Un análisis cerrado («informe») no es demanda. Y un proceso de larga vida
+no ve los arreglos del repo hasta que se reinicia: tras cambiar `scripts/puente/`, se recargan los
+servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).

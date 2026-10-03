@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-09-28 00:38:50 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-01 18:24:46 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,19 +12,38 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Mando | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-27 · lo que el análisis nocturno encontró |
+| Ola arriba | reintentos-2026-09-22 |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 21 |
-| HEAD | `33ca87cb chore(memoria): aprendizaje de la ola auto-0928-000743` |
-| Sin publicar | 16 commits |
-| Árbol | limpio |
+| En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 13 |
+| HEAD | `12b2c50c chore(memoria): aprendizaje de la ola auto-1001-182357` |
+| Sin publicar | 224 commits |
+| Árbol | 1 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-0928-000743.json`, hace 7s)
+## Quién escribe ahora (latido de `cola-auto-1001-182357.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `JF2b` | hecho | apinex/free/deepseek-v4-pro-0813 | 4 min | 235 s | 148915 |
+| `SA092920` | hecho |  | 0 min | 16 s | 27322 |
+| `SA09292` | hecho |  | 0 min | 16 s | 26799 |
+| `SA092921` | hecho |  | 0 min | 16 s | 26101 |
+| `SA092916` | hecho |  | 0 min | 19 s | 26371 |
+| `SA092917` | hecho |  | 0 min | 19 s | 25445 |
+| `SA092914` | hecho |  | 0 min | 19 s | 27949 |
+| `SA092918` | hecho |  | 0 min | 19 s | 25193 |
+| `SA092919` | hecho |  | 0 min | 19 s | 26333 |
+| `SA092915` | hecho |  | 0 min | 19 s | 26848 |
+| `SA092912` | hecho |  | 0 min | 22 s | 26272 |
+| `SA092913` | hecho |  | 0 min | 22 s | 26858 |
+| `SA092911` | hecho |  | 0 min | 22 s | 26428 |
+| `SA092960` | hecho |  | 0 min | 25 s | 24298 |
+| `SA092959` | hecho |  | 0 min | 25 s | 24386 |
+| `SA09291` | hecho |  | 0 min | 25 s | 25868 |
+| `SA092910` | hecho |  | 0 min | 25 s | 24828 |
+| `SA092956` | hecho |  | 0 min | 25 s | 27139 |
+| `SA092955` | hecho |  | 0 min | 25 s | 27293 |
+| `SA092958` | hecho |  | 0 min | 25 s | 25344 |
+| `SA092957` | hecho |  | 0 min | 25 s | 25737 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
