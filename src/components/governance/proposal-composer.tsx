@@ -382,6 +382,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
             placeholder="Describe la idea a proponer…"
+            aria-label="Describe la idea a proponer"
             className="h-9 border-white/15 bg-black/30 text-sm text-white placeholder:text-white/30"
           />
           <Button
@@ -474,6 +475,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                   value={o.label}
                   onChange={(e) => updateOption(o.id, e.target.value)}
                   placeholder={`Opción ${i + 1}`}
+                  aria-label={`Opción ${i + 1}`}
                   className="h-8 bg-white/5 text-xs"
                 />
                 <Button
@@ -509,6 +511,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                 <select
                   value={a.type}
                   onChange={(e) => updateAttachment(i, { type: e.target.value as AttachmentType })}
+                  aria-label={`Tipo de adjunto ${i + 1}`}
                   className="h-8 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
                 >
                   {ATTACH_TYPES.map((t) => (
@@ -520,6 +523,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                 <Input
                   value={a.value}
                   onChange={(e) => updateAttachment(i, { value: e.target.value })}
+                  aria-label={`Contenido del adjunto ${i + 1}`}
                   placeholder={a.type === "text" ? "Texto…" : a.type === "post" ? "ID de publicación" : "URL / referencia"}
                   className="h-8 flex-1 bg-white/5 text-xs"
                 />
@@ -548,6 +552,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
             setCommandType(e.target.value);
             setCommandPayload({});
           }}
+          aria-label="Tipo de comando a ejecutar si se aprueba"
           className="h-8 w-full rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
         >
           {COMMAND_TYPES.map((c) => (
@@ -564,12 +569,14 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                 value={commandPayload[f.key] ?? ""}
                 onChange={(e) => setCommandPayload((prev) => ({ ...prev, [f.key]: e.target.value }))}
                 placeholder={f.label + (f.placeholder ? ` (${f.placeholder})` : "")}
+                aria-label={f.label}
                 className="min-h-[56px] border-white/10 bg-black/40 text-xs"
               />
             ) : f.type === "select" ? (
               <select
                 value={commandPayload[f.key] ?? ""}
                 onChange={(e) => setCommandPayload((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                aria-label={f.label}
                 className="h-8 w-full rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
               >
                 <option value="">{f.label}…</option>
@@ -585,6 +592,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                 value={commandPayload[f.key] ?? ""}
                 onChange={(e) => setCommandPayload((prev) => ({ ...prev, [f.key]: e.target.value }))}
                 placeholder={f.label + (f.placeholder ? ` (${f.placeholder})` : "")}
+                aria-label={f.label}
                 className="h-8 bg-white/5 text-xs"
               />
             )}
@@ -733,6 +741,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                   <select
                     value={t.scope}
                     onChange={(e) => updateReachTarget(i, { scope: e.target.value })}
+                    aria-label={`Tipo de ámbito ${i + 1}`}
                     className="h-8 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
                   >
                     <option value="community">Comunidad</option>
@@ -742,6 +751,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                   <Input
                     value={t.scopeRef}
                     onChange={(e) => updateReachTarget(i, { scopeRef: e.target.value })}
+                    aria-label={`ID o slug del ámbito ${i + 1}`}
                     placeholder="ID / slug del ámbito"
                     className="h-8 flex-1 bg-white/5 text-xs"
                   />
