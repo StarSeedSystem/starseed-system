@@ -1315,18 +1315,36 @@ def merito_escritores(progreso):
     return m
 
 
+#: Lo que vale un escritor sin historia: por detrás de los probados que escriben, por delante
+#: de los que fallan casi siempre. Así un modelo nuevo tiene su oportunidad sin encabezar.
+MERITO_SIN_HISTORIA = 0.3
+
+
+def cota_wilson(aciertos, intentos, z=1.96):
+    """PURA: cota inferior de Wilson de la tasa de acierto. Con pocas muestras es prudente:
+    2 de 2 no gana a 57 de 88 (medido: con la tasa suavizada simple llm7, 2/2, encabezaba)."""
+    if intentos <= 0:
+        return None
+    p = aciertos / float(intentos)
+    z2 = z * z
+    centro = p + z2 / (2.0 * intentos)
+    margen = z * ((p * (1 - p) / intentos + z2 / (4.0 * intentos * intentos)) ** 0.5)
+    return max(0.0, (centro - margen) / (1 + z2 / intentos))
+
+
 def orden_por_merito(modelos, progreso, tid, cabeza=None):
-    """PURA: los modelos por tasa de acierto suavizada (aciertos+1)/(intentos+2) —uno sin
-    historia vale 0,5: entra por delante de los que fallan y por detrás de los probados—.
-    Los `cabeza` mejores rotan según el id de la tarea para repartir la carga entre ellos;
-    el resto va por mérito. Empates: el orden de MODELOS (que guarda las notas humanas)."""
+    """PURA: los modelos por la cota inferior de Wilson de su tasa de acierto (un intento
+    fallido cuenta, aunque luego otro modelo sacara la tarea); uno sin historia vale
+    MERITO_SIN_HISTORIA. Los `cabeza` mejores rotan según el id de la tarea para repartir la
+    carga; el resto va por mérito. Empates: el orden de MODELOS (guarda las notas humanas)."""
     cabeza = MERITO_CABEZA if cabeza is None else cabeza
     tabla = merito_escritores(progreso)
     pos = {m: i for i, m in enumerate(modelos)}
 
     def tasa(mo):
         ok, mal = tabla.get(mo, (0, 0))
-        return (ok + 1.0) / (ok + mal + 2.0)
+        cota = cota_wilson(ok, ok + mal)
+        return MERITO_SIN_HISTORIA if cota is None else cota
 
     ordenados = sorted(modelos, key=lambda mo: (-tasa(mo), pos[mo]))
     n = max(1, min(int(cabeza or 1), len(ordenados))) if ordenados else 0

@@ -51,7 +51,7 @@ class Merito(unittest.TestCase):
 class Orden(unittest.TestCase):
     def test_sin_cabeza_manda_el_merito_y_lo_nuevo_va_entre_medias(self):
         orden = enjambre.orden_por_merito([MALO, NUEVO, MEDIO, BUENO], PROGRESO, "T1", cabeza=1)
-        # BUENO 5/6 · MEDIO 2/4=0,5 · NUEVO 1/2=0,5 (empate: manda el orden original) · MALO 1/5
+        # Cota de Wilson: BUENO 4/4 → 0,51 · NUEVO sin historia → 0,3 · MEDIO 1/2 → 0,09 · MALO 0/3 → 0
         self.assertEqual(orden, [BUENO, NUEVO, MEDIO, MALO])
 
     def test_la_cabeza_rota_por_tarea_y_el_malo_nunca_encabeza(self):
@@ -72,6 +72,20 @@ class Orden(unittest.TestCase):
         for tid in ("a", "bb", "ccc"):
             orden = enjambre.orden_por_merito(modelos, PROGRESO, tid)
             self.assertEqual(sorted(orden), sorted(modelos))
+
+
+class Wilson(unittest.TestCase):
+    def test_pocas_muestras_no_ganan_a_muchas(self):
+        # Medido el 2026-10-03: llm7 con 2/2 encabezaba a gemini con 57/88.
+        self.assertLess(enjambre.cota_wilson(2, 2), enjambre.cota_wilson(57, 88))
+
+    def test_sin_intentos_no_hay_cota(self):
+        self.assertIsNone(enjambre.cota_wilson(0, 0))
+
+    def test_cota_entre_cero_y_la_tasa(self):
+        c = enjambre.cota_wilson(115, 251)
+        self.assertGreater(c, 0.3)
+        self.assertLess(c, 115 / 251)
 
 
 class Pago(unittest.TestCase):

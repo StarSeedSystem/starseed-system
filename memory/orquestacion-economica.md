@@ -752,10 +752,13 @@ nvidia/deepseek-v4-pro 39/6, tokenrouter/glm-5.3 15/1 … y apinex **2/1 tras 31
 intentos**, llm7 caído desde el 09-09. La rotación por hash del id ponía a la cabeza, una de cada
 tres veces, un modelo que casi nunca escribe, y cada intento fallido cuesta 12-25 min de la tarea.
 
-- **Mérito** (`orden_por_merito` en `starseed-enjambre.py`): tasa (aciertos+1)/(intentos+2), donde
-  un fallo es un estado malo con ese modelo o cada aparición en `modelos_fallidos`. La carga se
-  reparte entre los `STARSEED_MERITO_CABEZA` (3) mejores; un modelo sin historia vale 0,5 y entra
-  por detrás de los probados. Tras un fallo, Jev sigue eligiendo entre los sanos (§17).
+- **Mérito** (`orden_por_merito` en `starseed-enjambre.py`): cota inferior de Wilson de la tasa de
+  acierto POR INTENTO (un fallo es un estado malo con ese modelo o cada aparición en
+  `modelos_fallidos`; así cuentan también los cuelgues). Medido así: gemini-3.6-flash 57/88,
+  kimi-k3 115/251, deepseek-v4-flash 72/155. La cota y no la tasa simple porque con
+  (aciertos+1)/(intentos+2) llm7 —2 de 2— encabezaba a gemini. La carga se reparte entre los
+  `STARSEED_MERITO_CABEZA` (3) mejores; un modelo sin historia vale 0,3 (por delante de los que
+  casi nunca escriben). Tras un fallo, Jev sigue eligiendo entre los sanos (§17).
 - **Nada que cobre por token** sin permiso: `xai`, `deepseek` directo, `anthropic` y `openai` salen
   de la rotación salvo `STARSEED_PAGO=1` (sus claves viven en `~/.hermes/.env` para Hermes, y el
   orquestador las lee). Codex se queda: va por suscripción y cupo, no por token.
