@@ -27,7 +27,9 @@ class Elegir(unittest.TestCase):
     def test_candidata_es_la_que_fallo_y_no_esta_en_main_ni_en_la_ola_actual(self):
         r = elegir(COLAS, PROG, MAIN, ola_actual="317")
         self.assertEqual([t["id"] for t in r], ["A1"])
-        self.assertEqual(r[0]["modelo"], MODELO_NUBE)
+        # (2026-10-03) Sin modelo clavado: la nube usa su rotación por mérito.
+        self.assertNotIn("modelo", r[0])
+        self.assertEqual(MODELO_NUBE, "")
 
     def test_ola_actual_nunca_se_reparte(self):
         prog = {"A1": {"estado": "integrada"}, "A2": {"estado": "en_curso"}, "B1": {}}
@@ -351,3 +353,17 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
         p = self._p(RM3={"estado": "reasignada", "medio": "nube"})
         R.devolver_a_pendiente(p, ["RM3"], "20260922")
         self.assertEqual(p["RM3"]["estado"], "reasignada")
+
+
+class Privadas(unittest.TestCase):
+    """(2026-10-03) Lo privado de los sueños no sale de la Mac."""
+
+    def test_una_tarea_privada_no_se_reparte(self):
+        colas = [("cola-ola2.json", [
+            {"id": "P1", "ola": "x", "privado": True},
+            {"id": "P2", "ola": "x", "prompt": "🔒 PRIVADO · solo en la Mac: …"},
+            {"id": "P3", "ola": "x", "prompt": "ORIGEN: sueño público"},
+        ])]
+        r = elegir(colas, {}, [], ola_actual="")
+        self.assertEqual([t["id"] for t in r], ["P3"])
+

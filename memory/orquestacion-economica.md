@@ -742,3 +742,32 @@ supervisor Claude al relanzar y en cada hallazgo (`supervisor_suenos.md`). Los f
 84 sueños cabe de sobra en 0,20 $/día. Con el motor local congelado (enjambre escribiendo) Jev es
 OpenRouter con techo o nada; tras 3 silencios seguidos los sueños no preguntan en 10 min.
 
+
+## 18. Rotación por mérito, nada de pago por defecto y la nube sin modelo clavado (regla permanente · 2026-10-03)
+
+Medido en `progreso.json` (736 tareas, 15-09 → 03-10), integradas/fallidas por escritor:
+nvidia/moonshotai/kimi-k3 **115/9** (37 desde el 20-09), nvidia/deepseek-v4-flash 72/3,
+google/gemini-3.6-flash **57/10** (52 recientes), codex/gpt-5.6-sol 39/4 (suscripción),
+nvidia/deepseek-v4-pro 39/6, tokenrouter/glm-5.3 15/1 … y apinex **2/1 tras 313 eventos de
+intentos**, llm7 caído desde el 09-09. La rotación por hash del id ponía a la cabeza, una de cada
+tres veces, un modelo que casi nunca escribe, y cada intento fallido cuesta 12-25 min de la tarea.
+
+- **Mérito** (`orden_por_merito` en `starseed-enjambre.py`): tasa (aciertos+1)/(intentos+2), donde
+  un fallo es un estado malo con ese modelo o cada aparición en `modelos_fallidos`. La carga se
+  reparte entre los `STARSEED_MERITO_CABEZA` (3) mejores; un modelo sin historia vale 0,5 y entra
+  por detrás de los probados. Tras un fallo, Jev sigue eligiendo entre los sanos (§17).
+- **Nada que cobre por token** sin permiso: `xai`, `deepseek` directo, `anthropic` y `openai` salen
+  de la rotación salvo `STARSEED_PAGO=1` (sus claves viven en `~/.hermes/.env` para Hermes, y el
+  orquestador las lee). Codex se queda: va por suscripción y cupo, no por token.
+- **La nube (GitHub Actions) ya no recibe un modelo clavado.** `repartir_nube.MODELO_NUBE` era
+  `llm7/minimax-m2.7` —caído— y cada tarea de la nube gastaba su primer intento en él (6+ min en
+  el run 36712114201). Vacío: la nube rota entre la cabeza de `MODELOS` (gemini-3.6-flash, kimi-k3,
+  deepseek-v4-pro), que se reordenó con estos datos porque allí no hay `progreso.json`.
+- **Lo privado no sale de la Mac**: `repartir_nube.es_privada()` (tarea con `privado: true` o prompt
+  «🔒 PRIVADO») — SP09294 se había mandado a la nube tres veces.
+
+Quién gasta qué (para el informe de uso): el enjambre escribe con APIs gratuitas (NIM, Gemini AI
+Studio, xKiro, tokenrouter, OpenRouter `:free`, Groq solo revisor) y Codex por suscripción; Jev
+gasta céntimos de OpenRouter con techo 0,20 $/día (`decidir.py uso`); el crédito de Claude solo lo
+gastan las sesiones de Claude (esta y las tareas programadas, §14); GitHub Actions es gratis en el
+repo público. Los directores en Python y los vigilantes no gastan nada.

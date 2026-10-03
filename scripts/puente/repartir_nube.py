@@ -13,7 +13,11 @@ import re
 
 from vigilante_logica import id_en_asuntos
 
-MODELO_NUBE = "llm7/minimax-m2.7"
+#: (2026-10-03) Antes se clavaba «llm7/minimax-m2.7» a TODA tarea de la nube: llm7 está
+#: caído desde el 09-09 y la tarea gastaba su primer intento (6+ min, medido en el run
+#: 36712114201) en un modelo que no escribía. Vacío = sin modelo clavado: el orquestador de
+#: la nube usa su rotación por mérito (cabeza: gemini-3.6-flash, kimi-k3, deepseek-v4-pro).
+MODELO_NUBE = ""
 #: (2026-09-22) «pendiente» FALTABA, y era el último candado de la nube. Con solo estados
 #: de fallo aquí, a los contenedores solo podía ir lo que YA se había roto en la Mac:
 #: trabajo nuevo, jamás. Medido esta noche, con doce huecos libres: la Mac cogió W1,
@@ -86,6 +90,16 @@ def envios_por_tarea(colas_nube):
         for tid in set(str(i) for i in ids or []):
             cuenta[tid] = cuenta.get(tid, 0) + 1
     return cuenta
+
+
+def es_privada(tarea):
+    """PURA. (2026-10-03) Lo marcado privado (lente seguridad-privacidad de los sueños) no
+    sale de la Mac: SP09294 se repartió a la nube tres veces porque aquí nadie lo miraba."""
+    if not isinstance(tarea, dict):
+        return False
+    if tarea.get("privado"):
+        return True
+    return str(tarea.get("prompt") or "").lstrip().startswith("🔒 PRIVADO")
 
 
 def _n_archivos(tarea):
@@ -177,9 +191,12 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
                 continue
             if (envios or {}).get(tid, 0) >= max_envios:
                 continue
+            if es_privada(tarea):
+                continue
             vistas.add(tid)
             candidata = dict(tarea)
-            candidata["modelo"] = MODELO_NUBE
+            if MODELO_NUBE:
+                candidata["modelo"] = MODELO_NUBE
             # (2026-09-24) Aquí TODAS sus dependencias están ya en main (si no, no se
             # elegiría), pero la nube arranca sin el progreso de la Mac: p318I está
             # integrada desde el 13 y allí salía «(?)», y la tarea se bloqueaba en cada run.

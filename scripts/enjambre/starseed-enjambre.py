@@ -159,6 +159,12 @@ MODELOS = [
     # GEMINI_API_KEY en ~/.starseed/env). Tiene cupo diario: al 429 el renovador lo
     # aparta («google» en el informe) y la rotación sigue sola.
     "google/gemini-3.6-flash",
+    # (2026-10-03) Medido en progreso.json: kimi-k3 integró 115 tareas con 9 fallos (37
+    # desde el 20-09: ya no se cuelga) y deepseek-v4-pro 39 con 6. Suben a la cabeza; en
+    # la Mac el orden fino lo pone `orden_por_merito`, pero la nube no tiene progreso.json
+    # y arranca con este orden tal cual (rota entre los tres primeros).
+    "nvidia/moonshotai/kimi-k3",
+    "nvidia/deepseek-ai/deepseek-v4-pro-0813",
     # NIM medido hoy con 16 tokens: nemotron-3-super 0,7 s · nemotron-3.5-lightning
     # 0,9 s · glm-5.3 10,8 s. kimi-k3 y deepseek-v4-flash-0731 NO contestaron en 40 s:
     # son los «estancado 731 s… COLGADO» del log de hoy, y cada colgado cuesta 12 min.
@@ -201,7 +207,6 @@ MODELOS = [
     # tokenrouter glm-5.3-free, y rápido (era uno de los revisores; ahora también escribe).
     "tokenrouter/z-ai/glm-5.3-free",
     "xkiro/qwen/qwen3.8-max:free",
-    "nvidia/deepseek-ai/deepseek-v4-pro-0813",
     "xkiro/deepseek/deepseek-v4-pro",
     "xkiro/mistralai/devstral-medium",
     # llm7/gpt-oss también escribió en la prueba, pero con calidad baja: solo entra en la
@@ -209,7 +214,6 @@ MODELOS = [
     "llm7/gpt-oss",
     # (2026-09-19) Los dos de NIM que hoy se cuelgan sin emitir nada. Siguen aquí por
     # si NIM los recupera, pero al final: que un colgado no se coma el primer intento.
-    "nvidia/moonshotai/kimi-k3",
     "nvidia/deepseek-ai/deepseek-v4-flash-0731",
 ]
 
@@ -1277,11 +1281,78 @@ def hay_alguna_clave():
     return bool(escritores_de_pasarelas())
 
 
+# ── Rotación por MÉRITO (2026-10-03) ──────────────────────────────────────────────────
+#: Medido en progreso.json (736 tareas): kimi-k3 de NIM integró 115 con 9 fallos, gemini
+#: 3.6 flash 57/10, codex 39/4… y apinex 2/1 tras 313 eventos de intentos. La rotación por
+#: hash del id ponía a la cabeza, una de cada tres veces, un modelo que casi nunca escribe,
+#: y cada intento fallido cuesta 12-25 min de la tarea. Ahora manda la tasa de acierto
+#: suavizada; la carga se reparte solo entre los MEJORES (cabeza), y lo de pago no entra.
+MERITO_CABEZA = int(os.environ.get("STARSEED_MERITO_CABEZA", "3") or 3)
+#: Proveedores que cobran por token con la tarjeta de Alex: fuera de la rotación salvo
+#: STARSEED_PAGO=1. (codex va por suscripción y cupo, no por token: se queda.)
+PROVEEDORES_DE_PAGO = ("xai", "deepseek", "anthropic", "openai")
+_ESTADOS_MAL = ("sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "bloqueada", "rechazada")
+
+
+def merito_escritores(progreso):
+    """PURA: {modelo: [aciertos, fallos]} a partir de progreso.json. Un acierto es una tarea
+    integrada por ese modelo; un fallo, una tarea que terminó mal con él o cada vez que
+    figura en `modelos_fallidos` (lo intentó y no sirvió, aunque luego otro la sacara)."""
+    m = {}
+    for v in (progreso or {}).values():
+        if not isinstance(v, dict):
+            continue
+        modelo = v.get("modelo")
+        if isinstance(modelo, str) and "/" in modelo:
+            par = m.setdefault(modelo, [0, 0])
+            if v.get("estado") in ("commit", "integrada"):
+                par[0] += 1
+            elif v.get("estado") in _ESTADOS_MAL:
+                par[1] += 1
+        for f in v.get("modelos_fallidos") or []:
+            if isinstance(f, str) and "/" in f:
+                m.setdefault(f, [0, 0])[1] += 1
+    return m
+
+
+def orden_por_merito(modelos, progreso, tid, cabeza=None):
+    """PURA: los modelos por tasa de acierto suavizada (aciertos+1)/(intentos+2) —uno sin
+    historia vale 0,5: entra por delante de los que fallan y por detrás de los probados—.
+    Los `cabeza` mejores rotan según el id de la tarea para repartir la carga entre ellos;
+    el resto va por mérito. Empates: el orden de MODELOS (que guarda las notas humanas)."""
+    cabeza = MERITO_CABEZA if cabeza is None else cabeza
+    tabla = merito_escritores(progreso)
+    pos = {m: i for i, m in enumerate(modelos)}
+
+    def tasa(mo):
+        ok, mal = tabla.get(mo, (0, 0))
+        return (ok + 1.0) / (ok + mal + 2.0)
+
+    ordenados = sorted(modelos, key=lambda mo: (-tasa(mo), pos[mo]))
+    n = max(1, min(int(cabeza or 1), len(ordenados))) if ordenados else 0
+    if n <= 1:
+        return ordenados
+    i = sum(ord(c) for c in str(tid)) % n
+    top = ordenados[:n]
+    return top[i:] + top[:i] + ordenados[n:]
+
+
+def sin_pago(modelos):
+    """Quita los proveedores que cobran por token, salvo `STARSEED_PAGO=1`."""
+    if os.environ.get("STARSEED_PAGO", "").strip() == "1":
+        return list(modelos)
+    return [m for m in modelos if proveedor_de(m) not in PROVEEDORES_DE_PAGO]
+
+
 def modelos_para(tid):
-    """Rota la lista según el id de la tarea: reparte la carga entre proveedores. Los
-    escritores de pasarelas (y FreeTheAi si hay clave) van siempre al final."""
-    i = sum(ord(c) for c in tid) % len(MODELOS)
-    rotados = MODELOS[i:] + MODELOS[:i] + escritores_de_pasarelas()
+    """Ordena los escritores por MÉRITO medido (ver `orden_por_merito`) y reparte la carga
+    entre los mejores. Los escritores de pasarelas (y FreeTheAi si hay clave) van siempre
+    al final; los de pago, fuera salvo STARSEED_PAGO=1."""
+    try:
+        progreso = PROG
+    except NameError:
+        progreso = {}
+    rotados = sin_pago(orden_por_merito(list(MODELOS), progreso, tid)) + escritores_de_pasarelas()
     if not hay_alguna_clave():
         # En orden de MODELOS, no en el rotado: llm7/gpt-oss solo sirve para Markdown,
         # asi que minimax-m2.7 debe ir SIEMPRE delante de el.
