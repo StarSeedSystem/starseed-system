@@ -726,3 +726,41 @@ campo nuevo está ausente) y `use-estado-capas.test.tsx` (`rutaUsaMalla`).
   pero ese caso concreto no se ejercitó con timing real.
 - No se ejecutó `next build` (regla del área) ni se hizo commit/push (worktree de trabajo, otro
   agente integra).
+
+## 19. Capas de conciencia por personalidad y agente · local preferente (Ola 1003 · 2026-10-03)
+
+Decisiones de Alex sobre la ola2 de los sueños (2026-10-03):
+
+> «el 1 creo que es irrelevante porque para eso están las capas de conciencia de cada
+> personalidad y agente, y esas capas deben poder configurarse y apagarse si se desea, pero
+> deben estar **encendidas e interconectadas por defecto**; mejora esos ajustes. Para el 2 sí
+> se aprueba, para que sea **preferente el uso local**. Y el 3 sí.»
+
+- **No** se apaga el contexto personal por defecto. Pasa a ser una capa más
+  (`contextoPersonal`) junto a `activo`, `local`, `mesh`, `nube` y `colectiva`.
+- **Contrato** (`src/lib/astraura/capas-entidad.ts`, puro):
+  - Todas las capas están encendidas por defecto (`CAPAS_ENTIDAD_DEFECTO`).
+  - Cada **personalidad** y cada **agente** puede fijar cualquiera de ellas o volver a «auto».
+  - Precedencia: **agente › personalidad › cuenta**. `resolverCapasEntidad()` devuelve las
+    capas efectivas y de dónde sale cada una.
+  - Se guarda en `starseed.astraura.capas-entidad.v1` (evento `starseed:astraura-capas-entidad`),
+    que viaja con la cuenta (`SYNCED_KEYS` y `realtime-sync.ts`).
+  - La cuenta sigue siendo lo de §15 más `user-context` (`enabled`).
+- **Enrutador:**
+  - Las capas efectivas de la personalidad activa y del agente de la petición sustituyen a las
+    de la cuenta al quitar fuentes 1.58 y al decidir el primario.
+  - El contexto personal se inyecta solo si `contextoPersonal` efectivo está encendido.
+- **Local preferente** (`src/ai/astraura/local-primero.ts`):
+  - Las fuentes `tier: "local"` listas (Ollama, WebLLM, Chrome AI…) suman un empujón propio en
+    tareas normales. No suman en tareas difíciles ni de visión, y están por debajo del override
+    manual y de «usar mi cuenta».
+  - El campo `preferirLocal` viene encendido por defecto.
+  - OmniRoute (un proxy local que reenvía a más de 40 proveedores en la nube) pasa a estar
+    **apagado por defecto**, como ya decía su documentación (opt-in). Se aplica una migración
+    única (`migracionLocal: 1`) a los ajustes ya guardados.
+  - El relevo automático entre fuentes gratuitas NO se toca: Aurora sigue respondiendo siempre.
+- **Interfaz:** en `PanelCapas`, «Por personalidad y agente» (`capas-por-entidad.tsx`). Se elige
+  una personalidad o un agente, y cada capa ofrece Auto / Encendida / Apagada, con su procedencia
+  y «Volver a auto».
+- **Retirado:** `.github/workflows/desktop-release.yml` (proyecto Tauri retirado el 2026-09-24).
+  Sigue en el historial de git; el oficial es `native-build.yml`.
