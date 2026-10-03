@@ -57,6 +57,25 @@ function fmt(valor: unknown): string {
   return JSON.stringify(valor);
 }
 
+/**
+ * Salida de una prueba con su veredicto. El color y el icono no bastan (lector de pantalla,
+ * daltonismo): el icono se oculta a la tecnología asistiva y el veredicto va como texto
+ * («acierto»/«fallo»), solo para lectores para no ensanchar la tabla en pantallas pequeñas.
+ */
+function SalidaConVeredicto({ acierto, salida }: { acierto: boolean; salida: string }) {
+  const Icono = acierto ? CheckCircle2 : XCircle;
+  return (
+    <span className="flex items-start gap-1.5">
+      <Icono
+        aria-hidden="true"
+        className={`mt-0.5 h-4 w-4 shrink-0 ${acierto ? "text-emerald-400" : "text-red-400"}`}
+      />
+      <span className="sr-only">{acierto ? "acierto" : "fallo"}: </span>
+      <span className="text-xs">{salida}</span>
+    </span>
+  );
+}
+
 interface EstadoEjecucion {
   versionId: string;
   resultado: ResultadoBanco | null;
@@ -370,25 +389,11 @@ export function ComparadorVersiones({ genomaId }: ComparadorVersionesProps) {
                       >
                         <TableCell className="font-medium">{nombre}</TableCell>
                         <TableCell>
-                          <span className="flex items-start gap-1.5">
-                            {a.acierto ? (
-                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                            ) : (
-                              <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-                            )}
-                            <span className="text-xs">{a.salida}</span>
-                          </span>
+                          <SalidaConVeredicto acierto={a.acierto} salida={a.salida} />
                         </TableCell>
                         <TableCell>
                           {b ? (
-                            <span className="flex items-start gap-1.5">
-                              {b.acierto ? (
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                              ) : (
-                                <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-                              )}
-                              <span className="text-xs">{b.salida}</span>
-                            </span>
+                            <SalidaConVeredicto acierto={b.acierto} salida={b.salida} />
                           ) : (
                             <span className="text-xs text-muted-foreground">Sin ejecutar</span>
                           )}

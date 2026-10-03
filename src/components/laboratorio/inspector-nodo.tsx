@@ -109,6 +109,61 @@ function actualizarEnlaces(
   };
 }
 
+interface DeslizadorParametroProps {
+  clave: string;
+  valor: number;
+  defecto: number | string | boolean;
+  /** Aplica el valor al genoma; resuelve `false` si no se aplicó (p. ej. se canceló la confirmación). */
+  onAplicar: (clave: string, valor: number) => Promise<boolean>;
+}
+
+/**
+ * Deslizador numérico de un parámetro. Mientras se arrastra solo se mueve un valor LOCAL de
+ * previsualización; el parámetro se aplica una única vez al soltar (`onValueCommit`). Así una
+ * capa fundamental pide su confirmación una sola vez y `onCambiar` no se dispara en cada tick.
+ */
+function DeslizadorParametro({ clave, valor, defecto, onAplicar }: DeslizadorParametroProps) {
+  const [previa, setPrevia] = React.useState(valor);
+  const valorRef = React.useRef(valor);
+
+  // Sigue al valor externo (restablecer, cambio de nodo/versión, edición desde otro sitio).
+  React.useEffect(() => {
+    valorRef.current = valor;
+    setPrevia(valor);
+  }, [valor]);
+
+  // El rango sale del valor CONFIRMADO, no de la previa: así no se mueve bajo el dedo al arrastrar.
+  const { min, max, step } = rangoSensato(clave, valor);
+
+  const soltar = React.useCallback(
+    (v: number[]) => {
+      void onAplicar(clave, v[0]).then((aplicado) => {
+        // Cancelado: el valor externo no cambia y el efecto no lo repone; se devuelve el deslizador a él.
+        if (!aplicado) setPrevia(valorRef.current);
+      });
+    },
+    [clave, onAplicar],
+  );
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Defecto: {String(defecto)}</span>
+        <span className="font-medium text-foreground">{previa}</span>
+      </div>
+      <Slider
+        value={[previa]}
+        min={min}
+        max={max}
+        step={step}
+        onValueChange={(v) => setPrevia(v[0])}
+        onValueCommit={soltar}
+        aria-label={`Alterar valor numérico de ${clave}`}
+      />
+    </div>
+  );
+}
+
 export interface InspectorNodoProps {
   genoma: Genoma;
   nodoId: string | null;
@@ -123,8 +178,8 @@ export function InspectorNodo({ genoma, nodoId, onCambiar }: InspectorNodoProps)
   const nodo = nodoId ? genoma.nodos.find((n) => n.id === nodoId) : undefined;
 
   const aplicarParametro = React.useCallback(
-    async (clave: string, valor: number | string | boolean) => {
-      if (!nodo) return;
+    async (clave: string, valor: number | string | boolean): Promise<boolean> => {
+      if (!nodo) return false;
       const capa = CAPAS[nodo.capa];
       const requierenConfirmacion = capa.mutabilidad < 0.2;
       if (requierenConfirmacion && !confirmadoRef.current.has(nodo.id)) {
@@ -137,10 +192,11 @@ export function InspectorNodo({ genoma, nodoId, onCambiar }: InspectorNodoProps)
           cancelText: "Cancelar",
           destructive: true,
         });
-        if (!ok) return;
+        if (!ok) return false;
         confirmadoRef.current.add(nodo.id);
       }
       onCambiar(actualizarParametro(genoma, nodo.id, clave, valor));
+      return true;
     },
     [confirm, genoma, nodo, onCambiar],
   );
@@ -291,20 +347,12 @@ export function InspectorNodo({ genoma, nodoId, onCambiar }: InspectorNodoProps)
                       />
                     </div>
                   ) : typeof valor === "number" ? (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Defecto: {defecto}</span>
-                        <span className="font-medium text-foreground">{valor}</span>
-                      </div>
-                      <Slider
-                        value={[valor]}
-                        min={rangoSensato(clave, valor).min}
-                        max={rangoSensato(clave, valor).max}
-                        step={rangoSensato(clave, valor).step}
-                        onValueChange={(v) => void aplicarParametro(clave, v[0])}
-                        aria-label={`Alterar valor numérico de ${clave}`}
-                      />
-                    </div>
+                    <DeslizadorParametro
+                      clave={clave}
+                      valor={valor}
+                      defecto={defecto}
+                      onAplicar={aplicarParametro}
+                    />
                   ) : (
                     <Input
                       value={String(valor)}

@@ -285,6 +285,7 @@ function PestanhaPruebas({
 }) {
   const [resultado, setResultado] = React.useState<ResultadoBanco | null>(null);
   const [corriendo, setCorriendo] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const version = versiones.find((v) => v.id === versionId) ?? null;
 
@@ -292,10 +293,20 @@ function PestanhaPruebas({
     if (!version) return;
     setCorriendo(true);
     setResultado(null);
-    // Pequeña pausa para dar sensación de ejecución y dejar respirar a la UI.
-    await new Promise((r) => setTimeout(r, 250));
-    setResultado(ejecutarBanco(version.instantanea));
-    setCorriendo(false);
+    setError(null);
+    try {
+      // Pequeña pausa para dar sensación de ejecución y dejar respirar a la UI.
+      await new Promise((r) => setTimeout(r, 250));
+      setResultado(ejecutarBanco(version.instantanea));
+    } catch (causa) {
+      setError(
+        causa instanceof Error
+          ? `El banco falló: ${causa.message}`
+          : "El banco falló por una causa desconocida.",
+      );
+    } finally {
+      setCorriendo(false);
+    }
   }, [version]);
 
   return (
@@ -333,6 +344,15 @@ function PestanhaPruebas({
               {corriendo ? "Ejecutando…" : "Lanzar el lote"}
             </Button>
           </div>
+
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {error} Revisa la instantánea de la versión y vuelve a lanzarlo.
+            </p>
+          ) : null}
 
           {versiones.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -457,6 +477,14 @@ export function LaboratorioAstraura() {
     setVersionId((prev) => (vs.some((v) => v.id === prev) ? prev : (vs[vs.length - 1]?.id ?? "")));
   }, [genomaId]);
 
+  // El aviso «Guardado» se retira solo a los 3 s. Guardar de nuevo cambia `guardadoEn`:
+  // el efecto limpia el temporizador anterior y arranca otro; al desmontar también se limpia.
+  React.useEffect(() => {
+    if (guardadoEn === 0) return;
+    const temporizador = setTimeout(() => setGuardadoEn(0), 3000);
+    return () => clearTimeout(temporizador);
+  }, [guardadoEn]);
+
   const guardar = React.useCallback(() => {
     if (!genomaActivo) return;
     guardarGenoma(genomaActivo);
@@ -552,15 +580,23 @@ export function LaboratorioAstraura() {
         </Button>
       </div>
 
-      {guardadoEn > 0 ? (
-        <span
-          key={guardadoEn}
-          className="self-end text-xs text-emerald-500"
-          style={{ animation: "appear 0.5s ease" }}
-        >
-          Guardado
-        </span>
-      ) : null}
+      {/* Región viva SIEMPRE montada (si nace con el texto, los lectores de pantalla no lo anuncian);
+          vacía queda fuera del flujo (empty:sr-only) para no añadir hueco a la barra. */}
+      <span
+        role="status"
+        aria-live="polite"
+        className="self-end text-xs text-emerald-500 empty:sr-only"
+      >
+        {guardadoEn > 0 ? (
+          <span
+            key={guardadoEn}
+            className="inline-block"
+            style={{ animation: "appear 0.5s ease" }}
+          >
+            Guardado
+          </span>
+        ) : null}
+      </span>
     </div>
   );
 
