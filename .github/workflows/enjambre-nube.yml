@@ -174,7 +174,12 @@ jobs:
           n=$(git log --oneline "${{ github.sha }}..HEAD" | wc -l)
           echo "commits por entregar: $n"
           if [ "$n" = "0" ]; then
+            # (2026-09-30, SP09293) Antes esto era solo un ::warning y el job terminaba en
+            # verde sin haber hecho nada: el patrón «verde que no hizo nada», peor que un
+            # rojo porque nadie investiga. Ahora el paso FALLA; el warning queda de contexto.
             echo "::warning::el enjambre no dejó ningún commit; mira enjambre-nube-gh.log en los artefactos"
+            echo "::error::cero commits: job que termina en verde sin trabajo"
+            exit 1
           fi
 
       - name: Entregar (rama nube/<run>, nunca main)
@@ -193,12 +198,80 @@ jobs:
           # tsc por un error, y todo ese trabajo se iba a la basura: en la Mac esa rama se
           # conserva y se repara, aqui moria con la maquina. Se empujan tambien, con su
           # nombre bajo el run, para que la Mac pueda recogerlas y arreglarlas.
+          # (2026-09-30) El push puede fallar (red, carrera con otro run); con `|| continue`
+          # el trabajo del agente se perdia en silencio con el runner efimero. Se reintenta
+          # hasta 3 veces con fetch previo; si agota, el paso falla y la rama perdida queda
+          # registrada en el resumen del job.
+          PERDIDAS=""
           for rama in $(git for-each-ref --format='%(refname:short)' 'refs/heads/ola/*'); do
             c=$(git log --oneline "${{ github.sha }}..$rama" | wc -l)
             [ "$c" -gt 0 ] || continue
-            git push -q origin "$rama:refs/heads/nube/${{ github.run_id }}/$rama" || continue
-            echo "rama conservada: nube/${{ github.run_id }}/$rama ($c commit(s))"
+            ok=0
+            for intento in 1 2 3; do
+              git fetch -q origin || true
+              if git push -q origin "$rama:refs/heads/nube/${{ github.run_id }}/$rama"; then
+                ok=1
+                break
+              fi
+              echo "::warning::push de $rama fallo (intento $intento/3)"
+              sleep 5
+            done
+            if [ "$ok" = "1" ]; then
+              echo "rama conservada: nube/${{ github.run_id }}/$rama ($c commit(s))"
+            else
+              echo "::error::rama perdida: $rama ($c commit(s)) no se pudo empujar tras 3 intentos"
+              PERDIDAS="$PERDIDAS $rama"
+            fi
           done
+          if [ -n "$PERDIDAS" ]; then
+            echo "### Ramas ola perdidas (push agotado)" >> "$GITHUB_STEP_SUMMARY"
+            for r in $PERDIDAS; do echo "- \`$r\`" >> "$GITHUB_STEP_SUMMARY"; done
+            exit 1
+          fi
+
+      # (2026-10-03, SP09294) GitHub enmascara los secretos en el registro del JOB, pero NO en
+      # los artefactos: el log de `tee` y los JSON de olas se suben tal cual y quedan 7 días
+      # descargables. Los agentes (opencode) necesitan las claves de proveedor en su entorno
+      # —las lee `{env:…}` de opencode.json—, así que exportar menos no cierra nada; lo que
+      # se cierra es la salida: cualquier valor de clave que un agente haya escrito se tacha
+      # aquí, antes de subir el rastro. Solo se tachan valores; nunca se imprimen.
+      - name: Tachar claves del rastro
+        if: always()
+        run: |
+          python3 - "$RUNNER_TEMP/enjambre-nube-gh.log" <<'PY'
+          import glob, os, shlex, sys
+          valores = []
+          try:
+              with open(os.path.expanduser("~/.starseed/env"), encoding="utf-8") as f:
+                  for linea in f:
+                      nombre, _, crudo = linea.strip().partition("=")
+                      if not nombre.endswith("_KEY") or not crudo:
+                          continue
+                      try:
+                          valor = shlex.split(crudo)[0]
+                      except (ValueError, IndexError):
+                          continue
+                      if len(valor) >= 8:
+                          valores.append(valor.encode())
+          except OSError:
+              pass
+          rutas = sys.argv[1:] + glob.glob("starseed_memory_root/olas/*.json") + glob.glob("starseed_memory_root/olas/*.jsonl")
+          tachados = 0
+          for ruta in rutas:
+              try:
+                  with open(ruta, "rb") as f:
+                      datos = f.read()
+              except OSError:
+                  continue
+              nuevo = datos
+              for v in valores:
+                  nuevo = nuevo.replace(v, b"***")
+              if nuevo != datos:
+                  tachados += 1
+                  with open(ruta, "wb") as f:
+                      f.write(nuevo)
+          print("archivos del rastro con alguna clave tachada: %d" % tachados)
+          PY
 
       - name: Rastro (log, latidos, progreso)
         if: always()
