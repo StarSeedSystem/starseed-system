@@ -651,7 +651,7 @@ export default function HubPage() {
                             <button
                                 key={stat.id}
                                 className={cn(
-                                    "select-none outline-none focus:outline-none transition-all duration-300 w-full group",
+                                    "select-none cursor-pointer rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 transition-all duration-300 w-full group",
                                     selectedStat === stat.id ? "scale-[0.98]" : "hover:scale-[1.02]"
                                 )}
                                 onClick={() => setSelectedStat(selectedStat === stat.id ? null : stat.id as any)}
