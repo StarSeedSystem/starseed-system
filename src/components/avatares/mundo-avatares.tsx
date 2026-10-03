@@ -618,6 +618,8 @@ export interface MundoAvataresProps {
     personalidades?: PersonalityProfile[];
     /** Estado inicial opcional (reanudar una simulación guardada). */
     estadoInicial?: EstadoMundo;
+    /** Si el mundo arranca en pausa (por defecto, corriendo). */
+    pausadoInicial?: boolean;
 }
 
 /** Velocidad (1x, 2x, 4x) y motivos por tick, derivado del tiempo base. */
@@ -628,6 +630,7 @@ function msPorTick(v: number): number {
 export function MundoAvatares({
     personalidades: personalidadesProp,
     estadoInicial,
+    pausadoInicial = false,
 }: MundoAvataresProps) {
     const [caps, setCaps] = useState<Capacidades3D>({
         webgl: false,
@@ -659,7 +662,7 @@ export function MundoAvatares({
         return mundoInicial(inicial);
     });
 
-    const [pausado, setPausado] = useState(false);
+    const [pausado, setPausado] = useState(pausadoInicial);
     const [velocidad, setVelocidad] = useState(1);
     const [centradoId, setCentradoId] = useState<string | null>(null);
     const controlsRef = useRef<{
@@ -671,6 +674,8 @@ export function MundoAvatares({
      * pausa cuando la pestaña está oculta (regla del área). */
     useEffect(() => {
         if (typeof window === "undefined") return;
+        /* Pausa real: sin intervalo no hay tick; `avanzar` no se llama. */
+        if (pausado) return;
         let vivo = true;
         let temporizador: ReturnType<typeof setInterval> | null = null;
         let pasosPendientes = 0;
