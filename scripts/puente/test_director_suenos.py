@@ -84,6 +84,29 @@ class Consolidar(unittest.TestCase):
         self.assertEqual(len(c["ranking"]), 1)
         self.assertEqual(sorted(c["ranking"][0]["lentes"]), ["arquitectura-deuda", "pruebas-fiabilidad"])
 
+    def test_la_segunda_consolidacion_no_reusa_ids(self):
+        # (2026-10-03) La 2.ª consolidación del 29-09 volvía a numerar SP09291… y chocaba
+        # con la ola1 ya integrada.
+        c = S.consolidar(self.informes, self.veredictos)
+        cola = S.cola_propuesta(c, "2026-09-29", tope=3, ocupados={"SP09291", "SP09292", "SP09294"})
+        ids = [t["id"] for t in cola]
+        self.assertTrue(ids)
+        self.assertFalse({"SP09291", "SP09292", "SP09294"} & set(ids))
+        self.assertEqual(ids[0], "SP09293")
+
+    def test_ids_existentes_lee_colas_y_progreso(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "cola-1.json"), "w", encoding="utf-8") as f:
+                json.dump([{"id": "A1"}, {"id": "A2"}], f)
+            with open(os.path.join(d, "cola-2.json"), "w", encoding="utf-8") as f:
+                json.dump({"tareas": [{"id": "B1"}]}, f)
+            with open(os.path.join(d, "progreso.json"), "w", encoding="utf-8") as f:
+                json.dump({"C1": {"estado": "commit"}}, f)
+            with open(os.path.join(d, "roto.json"), "w", encoding="utf-8") as f:
+                f.write("{no es json")
+            self.assertEqual(S.ids_existentes(d), {"A1", "A2", "B1", "C1"})
+
     def test_cola_propuesta(self):
         c = S.consolidar(self.informes, self.veredictos, encargadas={S.D.clave("Quitar código muerto")})
         cola = S.cola_propuesta(c, "2026-09-29", tope=10)

@@ -511,11 +511,26 @@ def render_informe(c, sesion, planificadas=None, cola_nombre=None, n_cola=0, top
     return "\n".join(lin)
 
 
-def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA):
+def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA, ocupados=()):
     """Tareas para el enjambre: las primeras `tope` del ranking que no estén ya encargadas,
-    ≤ 3 archivos, con visto bueno humano. PURA."""
+    ≤ 3 archivos, con visto bueno humano. PURA.
+
+    (2026-10-03) `ocupados`: ids que ya existen (colas y progreso). La segunda consolidación
+    de la misma sesión volvía a numerar desde SP09291 y chocaba con la ola1 YA integrada: el
+    vigilante las habría saltado («ids que otra ola ya integró») y `id_en_asuntos` las habría
+    dado por hechas al ver «SP09292» en un commit. Ahora la numeración sigue donde quedó."""
     mmdd = sesion.replace("-", "")[4:8]
+    ocupados = set(ocupados or ())
     fuera = []
+    siguiente = [0]
+
+    def nuevo_id():
+        while True:
+            siguiente[0] += 1
+            tid = "SP%s%d" % (mmdd, siguiente[0])
+            if tid not in ocupados:
+                ocupados.add(tid)
+                return tid
     for u in c["ranking"]:
         if len(fuera) >= tope:
             break
@@ -545,7 +560,7 @@ def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA):
             prop.get("cambio") or prop.get("titulo") or u["titulo"], _texto_jev(u), ", ".join(archivos),
         )
         t = {
-            "id": "SP%s%d" % (mmdd, len(fuera) + 1),
+            "id": nuevo_id(),
             "ola": "Sueños profundos %s · propuesta" % sesion,
             "titulo": _celda(prop.get("titulo") or u["titulo"], 200),
             "archivos": archivos,
@@ -662,6 +677,30 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
 _POR_DEFECTO = object()
 
 
+def ids_existentes(dir_olas):
+    """Ids de tarea que ya existen en las colas de `dir_olas` y en su progreso.json."""
+    ids = set()
+    try:
+        nombres = os.listdir(dir_olas)
+    except OSError:
+        return ids
+    for n in nombres:
+        if not n.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(dir_olas, n), encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if n == "progreso.json" and isinstance(d, dict):
+            ids.update(str(k) for k in d)
+            continue
+        tareas = d.get("tareas", []) if isinstance(d, dict) else d
+        if isinstance(tareas, list):
+            ids.update(str(t["id"]) for t in tareas if isinstance(t, dict) and t.get("id"))
+    return ids
+
+
 def ejecutar(dir_sesion, dir_olas, sesion, tope=TOPE_PROPUESTA, seco=False, memoria=None,
              planificadas=None, telegram=False, decir=None, consejero=_POR_DEFECTO, bus=_POR_DEFECTO):
     """Consolida una sesión y escribe INFORME.md + la cola propuesta. Devuelve un resumen.
@@ -675,7 +714,7 @@ def ejecutar(dir_sesion, dir_olas, sesion, tope=TOPE_PROPUESTA, seco=False, memo
     if bus is _POR_DEFECTO:
         bus = publicar_en_bus
     c = consolidar(informes, veredictos, ya_encargadas(memoria), consejero)
-    cola = cola_propuesta(c, sesion, tope)
+    cola = cola_propuesta(c, sesion, tope, ids_existentes(dir_olas))
     nombre_cola = "cola-suenos-propuesta-%s.json" % sesion
     texto = render_informe(c, sesion, planificadas, nombre_cola if cola else None, len(cola), tope)
     resumen = resumen_corto(c, sesion, len(cola))
