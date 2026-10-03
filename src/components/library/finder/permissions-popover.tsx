@@ -212,6 +212,12 @@ export function PermissionsPopover({ open, onOpenChange, title, acl, onSave }: P
             await onSave(next);
             toast.success("Permisos actualizados");
             onOpenChange(false);
+        } catch (e) {
+            // El guardado falló: se avisa con el motivo y el diálogo se queda
+            // abierto con las listas tal cual (estado editable), para reintentar.
+            toast.error("No se pudo guardar los permisos", {
+                description: e instanceof Error ? e.message : "Error desconocido al guardar.",
+            });
         } finally {
             setSaving(false);
         }
