@@ -332,6 +332,8 @@ export function AssetPreviewModal({
                     key={i}
                     src={v}
                     controls
+                    // Sin preload="none" cada vídeo empieza a descargarse al montar el modal.
+                    preload="none"
                     className="h-24 rounded-lg border border-white/10 bg-black"
                   >
                     <a href={v} target="_blank" rel="noopener noreferrer">

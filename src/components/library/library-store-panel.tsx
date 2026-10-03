@@ -438,6 +438,8 @@ export function LibraryStorePanel({ onOpenDetail }: LibraryStorePanelProps) {
                       src={coverFor(item)}
                       alt={item.title}
                       fill
+                      // Cuadrícula responsive de 1–5 columnas: sin sizes se sirve el tamaño completo.
+                      sizes="(max-width: 639px) 100vw, (max-width: 767px) 50vw, (max-width: 1023px) 33vw, (max-width: 1279px) 25vw, 20vw"
                       className="object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     {item.verified && (
