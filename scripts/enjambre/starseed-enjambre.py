@@ -276,11 +276,28 @@ def codex_disponible() -> bool:
     # desde la primera; lo que faltaba era guardárselo. Codex vive en
     # `pasarelas.SIEMPRE`, así que el filtro que aparta a las pasarelas medidas como
     # mudas no lo mira nunca, y cada tarea volvía a elegirlo.
+    # (2026-10-03, SP092916 · SA092971) Fallo de cupo = sin cupo, con registro. El
+    # «except: pass» seguía como si hubiera cuota: el mismo hueco por el que las cinco
+    # tareas de arriba se vaciaron contra un Codex agotado que nadie apartaba. Si ni
+    # siquiera se puede CONSULTAR el cupo, no se da el turno: se registra el aviso y
+    # se devuelve False (prudente). Sin anotar(): un fallo de lectura no es evidencia
+    # de agotamiento y no merece 3 h fuera de la rotación (jev: p=0,14 al «no»). El
+    # registro va blindado para no abrir aquí la excepción que esta función promete
+    # no dejar escapar jamás.
     try:
         if not _cupo_codex.puede_escribir():
             return False
-    except Exception:
-        pass
+    except Exception as exc:
+        try:
+            evento(
+                "aviso",
+                "",
+                "cupo de Codex ilegible (%s), se asume sin cupo"
+                % type(exc).__name__,
+            )
+        except Exception:
+            pass
+        return False
     if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in (
         "0",
         "no",
