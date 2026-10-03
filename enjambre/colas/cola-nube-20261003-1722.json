@@ -1,0 +1,77 @@
+{
+ "ola": "nube-20261003",
+ "tareas": [
+  {
+   "id": "SP092916",
+   "ola": "Sueños profundos 2026-09-29 · ola2",
+   "titulo": "Fallo de cupo = sin cupo, con registro",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092971 (mando × pruebas-fiabilidad) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/mando--pruebas-fiabilidad.md`.\n\nHALLAZGO: Evitar que fallo de cupo se trate como cupo disponible — except Exception: pass tras puede_escribir() sigue como si hubiera cupo: repite el bug de las cinco tareas sin_cambios. El fallo debe registrar y asumir sin cupo.\nCITA: scripts/enjambre/starseed-enjambre.py:278 · impacto 4 · esfuerzo 1 · confianza 1.00\nPROPUESTA: En el except de puede_escribir registrar el error y devolver False (prudente) en vez de continuar.\nCONSEJO DE JEV: alta · 0.80 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO scripts/enjambre/starseed-enjambre.py, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\nVerificación del supervisor Claude: hallazgo revisado contra el código el 2026-10-03. Decide la zona de duda con `python3 scripts/puente/decidir.py` (Jev) y anota «jev: p=…».",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092971",
+    "area": "mando",
+    "lente": "pruebas-fiabilidad",
+    "clave": "evitar que fallo de cupo se trate como cupo disponible"
+   }
+  },
+  {
+   "id": "SP092918",
+   "ola": "Sueños profundos 2026-09-29 · ola2",
+   "titulo": "Preflight de binarios y circuit breaker en el orquestador",
+   "archivos": [
+    "scripts/puente/contexto_agente.py"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092965 (memoria × pruebas-fiabilidad) del 2026-09-29, ajustado por claude-sonnet-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/memoria--pruebas-fiabilidad.md`.\n\nHALLAZGO: Añadir chequeo previo de binarios antes de lanzar olas — 17 tareas mueren por '[Errno 2] opencode' y el orquestador sigue lanzando olas idénticas sin circuit breaker. Un chequeo previo del binario y pausa tras N fallos idénticos habría ahorrado dos olas completas.\nCITA: memory/aprendizaje-olas.md:186 · impacto 4 · esfuerzo 1 · confianza 0.81\nPROPUESTA: Verificar existencia de binarios requeridos antes de lanzar la ola; si una tarea falla 3 veces con el mismo error, pausarla y escalar en vez de reintentar.\nCONSEJO DE JEV: alta · 0.72 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO scripts/puente/contexto_agente.py, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\nVerificación del supervisor Claude: hallazgo revisado contra el código el 2026-10-03. Decide la zona de duda con `python3 scripts/puente/decidir.py` (Jev) y anota «jev: p=…».",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092965",
+    "area": "memoria",
+    "lente": "pruebas-fiabilidad",
+    "clave": "añadir chequeo previo de binarios antes de lanzar olas"
+   }
+  },
+  {
+   "id": "SP092923",
+   "ola": "Sueños profundos 2026-09-29 · ola2",
+   "titulo": "Corregir sizes y preload en medios de Biblioteca",
+   "archivos": [
+    "src/components/library/library-store-panel.tsx",
+    "src/components/library/app-file-page.tsx",
+    "src/components/library/AssetPreviewModal.tsx"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092945 (biblioteca × rendimiento-consumo) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/biblioteca--rendimiento-consumo.md`.\n\nHALLAZGO: Añadir sizes a imágenes fill y preload='none' a vídeos — Image con fill sin sizes sirve la imagen a tamaño completo en cuadrículas de 5 columnas (también app-file-page.tsx:523); vídeos sin preload='none' descargan al montar (AssetPreviewModal.tsx:331). Infla egreso y RAM.\nCITA: src/components/library/library-store-panel.tsx:437 · impacto 4 · esfuerzo 1 · confianza 0.77\nPROPUESTA: Añadir sizes apropiado (p.ej. '(max-width:768px) 50vw, 256px') a los Image con fill y preload='none' a los <video> del modal.\nCONSEJO DE JEV: alta · 0.86 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/library/library-store-panel.tsx, src/components/library/app-file-page.tsx, src/components/library/AssetPreviewModal.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\nVerificación del supervisor Claude: hallazgo revisado contra el código el 2026-10-03. Decide la zona de duda con `python3 scripts/puente/decidir.py` (Jev) y anota «jev: p=…».",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092945",
+    "area": "biblioteca",
+    "lente": "rendimiento-consumo",
+    "clave": "añadir sizes a imágenes fill y preload none a vídeos"
+   }
+  },
+  {
+   "id": "SP092925",
+   "ola": "Sueños profundos 2026-09-29 · ola2",
+   "titulo": "Etiquetar campos de búsqueda y formularios de gobernanza",
+   "archivos": [
+    "src/app/(app)/hub/discover-section.tsx",
+    "src/components/governance/proposal-composer.tsx",
+    "src/components/governance/mediation-section.tsx"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: sueño profundo SA092980 (gobernanza × ux-accesibilidad-diseno) del 2026-09-29, verificado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/gobernanza--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Añadir etiquetas accesibles a inputs y selects sin label — Inputs de búsqueda, selects del composer y formularios de mediación dependen solo del placeholder, que desaparece al escribir y no es anunciado como etiqueta. Lectores de pantalla pierden el propósito del campo en flujos clave de gobernanza.\nCITA: src/app/(app)/hub/discover-section.tsx:339 · impacto 3 · esfuerzo 1 · confianza 0.81\nPROPUESTA: Añadir aria-label o <label htmlFor> a input de búsqueda (discover-section:339), selects del composer (509, 545, 570, 733) e inputs de mediación (168).\nCONSEJO DE JEV: alta · 0.88 (openrouter)\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/app/(app)/hub/discover-section.tsx, src/components/governance/proposal-composer.tsx, src/components/governance/mediation-section.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\nVerificación del supervisor Claude: hallazgo revisado contra el código el 2026-10-03. Decide la zona de duda con `python3 scripts/puente/decidir.py` (Jev) y anota «jev: p=…».",
+   "aprobacion": true,
+   "origen": {
+    "sueno": "SA092980",
+    "area": "gobernanza",
+    "lente": "ux-accesibilidad-diseno",
+    "clave": "añadir etiquetas accesibles a inputs y selects sin label"
+   }
+  }
+ ]
+}
