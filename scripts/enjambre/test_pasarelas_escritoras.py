@@ -83,6 +83,12 @@ class EscritoresPasarelasTest(unittest.TestCase):
     @pytest.fixture(autouse=True)
     def _env(self, monkeypatch, sin_freetheai):
         monkeypatch.setattr(enjambre, "PASARELAS", dict(GROQ))
+        # (2026-10-03) Hermético: en la Mac `STARSEED_PASARELA_GROQ_SOLO_REVISOR=1` mete a
+        # groq en PASARELAS_SOLO_REVISOR al importar, y `modelos_para` ordena por el mérito
+        # del progreso.json REAL. Las dos pruebas fallaban allí (no en la nube) y tumbaban la
+        # puerta de toda tarea que tocara el orquestador (SP092916, SP092918).
+        monkeypatch.setattr(enjambre, "PASARELAS_SOLO_REVISOR", set())
+        monkeypatch.setattr(enjambre, "PROG", {}, raising=False)
 
     def test_devuelve_los_modelos_de_la_pasarela(self):
         self.assertEqual(
