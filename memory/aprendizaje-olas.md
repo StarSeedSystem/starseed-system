@@ -3158,3 +3158,18 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 **Lo que quedó fuera, una por una:**
 - `CDL1004` — la revisión lo rechazó: rechazada automáticamente por claude-supervisor (sin revisión humana); rama ola/CDL1004 conservada
 - `HG1004B` — no escribió nada
+
+## 2026-10-04 06:33 · auto-1004-055633
+
+**Lo que se pidió.** ni un fallo ni un cierre eliminan trabajo del agente
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (CDN1004, CDO1004). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- nvidia/moonshotai/kimi-k3 integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `CDN1004` — no escribió nada
+- `CDO1004` — no escribió nada
