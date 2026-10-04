@@ -3067,3 +3067,19 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `CDA1004` — otra cosa: reasignada a la nube 20261003
 - `CDC1004` — otra cosa: reasignada a la nube 20261003
 - `CDF1004` — otra cosa: reasignada a la nube 20261003
+
+## 2026-10-04 00:52 · auto-1003-234147
+
+**Lo que se pidió.** vitest
+
+**Resultado.** 1 de 6 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — pruebas en rojo (SP092916, SP092918, CDA1004, CDC1004). Es 67 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `SP092916` — pruebas en rojo: ERROR: test_carpeta_destino_se_crea_si_falta (test_repartir_nube.RepartoScript.test_carpeta_destino_se_crea_si_falta)
+- `SP092918` — pruebas en rojo: vitest falla (rama conservada)
+- `CDA1004` — pruebas en rojo: vitest falla (rama conservada)
+- `CDC1004` — pruebas en rojo: vitest falla (rama conservada)
+- `CDF1004` — no escribió nada
