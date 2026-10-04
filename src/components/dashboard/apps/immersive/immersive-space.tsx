@@ -297,23 +297,29 @@ function AppPortal({
 // ════════════════════════════════════════════════════════════════
 // Suelo reflejante sutil (procomún visual del espacio)
 // ════════════════════════════════════════════════════════════════
-function ReflectiveFloor() {
+function ReflectiveFloor({ reduced }: { reduced: boolean }) {
     return (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.4, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
-            <MeshReflectorMaterial
-                blur={[300, 80]}
-                resolution={1024}
-                mixBlur={1}
-                mixStrength={28}
-                roughness={0.85}
-                depthScale={1.1}
-                minDepthThreshold={0.4}
-                maxDepthThreshold={1.4}
-                color="#070a14"
-                metalness={0.6}
-                mirror={0.45}
-            />
+            {reduced ? (
+                // Modo reduced: material plano, sin el segundo pase de render
+                // del reflector (el mayor coste GPU de la escena en 8 GB).
+                <meshStandardMaterial color="#070a14" metalness={0.6} roughness={0.85} />
+            ) : (
+                <MeshReflectorMaterial
+                    blur={[300, 80]}
+                    resolution={512}
+                    mixBlur={1}
+                    mixStrength={28}
+                    roughness={0.85}
+                    depthScale={1.1}
+                    minDepthThreshold={0.4}
+                    maxDepthThreshold={1.4}
+                    color="#070a14"
+                    metalness={0.6}
+                    mirror={0.45}
+                />
+            )}
         </mesh>
     );
 }
@@ -407,9 +413,9 @@ function Scene({
             {/* Portales de apps */}
             <PortalRing portals={portals} reduced={reduced} onOpen={onOpen} />
 
-            {/* Suelo reflejante */}
+            {/* Suelo reflejante (plano y barato si prefers-reduced-motion) */}
             <Suspense fallback={null}>
-                <ReflectiveFloor />
+                <ReflectiveFloor reduced={reduced} />
             </Suspense>
 
             {/* Exploración en 2D (sin XR): orbitar/zoom */}

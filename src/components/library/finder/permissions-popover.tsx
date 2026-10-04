@@ -212,6 +212,9 @@ export function PermissionsPopover({ open, onOpenChange, title, acl, onSave }: P
             await onSave(next);
             toast.success("Permisos actualizados");
             onOpenChange(false);
+        } catch (err) {
+            const motivo = err instanceof Error && err.message ? err.message : "No se pudieron guardar los permisos";
+            toast.error(motivo);
         } finally {
             setSaving(false);
         }

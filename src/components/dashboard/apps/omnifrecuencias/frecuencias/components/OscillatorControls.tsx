@@ -126,7 +126,7 @@ const OscillatorControls: React.FC<Props> = ({ osc, update, remove, analyser }) 
               type="checkbox"
               checked={osc.isIndependent}
               onChange={(e) => update(osc.id, { isIndependent: e.target.checked })}
-              className="hidden"
+              className="sr-only"
             />
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors">
               Onda Independiente
@@ -363,7 +363,7 @@ const OscillatorControls: React.FC<Props> = ({ osc, update, remove, analyser }) 
                     update(osc.id, { transition: { ...osc.transition, enabled } });
                   }
                 }}
-                className="hidden"
+                className="sr-only"
               />
               <span className="text-[10px] text-slate-300 uppercase font-bold tracking-widest group-hover:text-cyan-200 transition-colors">Activar</span>
             </label>

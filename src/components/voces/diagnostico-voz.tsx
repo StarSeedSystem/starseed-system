@@ -34,11 +34,13 @@ interface PasoVisible {
 }
 
 /**
- * Texto plano del informe que se copia: fecha, navegador y cada paso con su
+ * Texto plano del informe que se copia: fecha, soporte WebAudio y cada paso con su
  * resultado, tiempo, detalle y error exacto. Independiente del render para
  * que «Copiar informe» no dependa del DOM.
  */
 function informeTexto(pasos: PasoDiagnostico[]): string {
+    const soportaWebAudio = typeof window !== "undefined"
+        && ("AudioContext" in window || "webkitAudioContext" in window);
     const linea = pasos
         .map((p) => {
             const estado = p.estado === "ok" ? "OK" : p.estado === "fallo" ? "FALLO" : "OMITIDO";
@@ -48,7 +50,7 @@ function informeTexto(pasos: PasoDiagnostico[]): string {
         .join("\n");
     return [
         `Diagnóstico de voz StarSeed — ${new Date().toLocaleString()}`,
-        `Navegador: ${typeof navigator !== "undefined" ? navigator.userAgent : "desconocido"}`,
+        `Soporte WebAudio: ${soportaWebAudio ? "sí" : "no"}`,
         "",
         linea,
         "",
@@ -87,7 +89,7 @@ function iconoEstado(paso: PasoVisible): React.ReactNode {
  * Botón + panel de diagnóstico. El botón abre/cierra el panel; al abrirlo se
  * lanza `diagnosticarVoz` una sola vez (nunca dos a la vez: ref `enCurso`) y
  * cada paso se pinta en vivo en cuanto `onPaso` lo entrega. «Copiar informe»
- * genera el texto plano con fecha, navegador y todos los pasos.
+ * genera el texto plano con fecha, soporte WebAudio y todos los pasos.
  */
 export function DiagnosticoVoz({ timbre }: { timbre: Timbre }) {
     const [abierto, setAbierto] = useState(false);
@@ -184,6 +186,10 @@ export function DiagnosticoVoz({ timbre }: { timbre: Timbre }) {
                         </ul>
                         {!enCurso && pasos.length > 0 && (
                             <div className="flex flex-wrap items-center gap-2 border-t pt-2">
+                                <p className="w-full text-xs text-muted-foreground">
+                                    El informe contiene fecha, soporte WebAudio, resultados, tiempos,
+                                    detalles, errores y consejo. No incluye navegador, versión, sistema ni arquitectura.
+                                </p>
                                 <span className="text-xs text-muted-foreground">
                                     Consejo: {consejoFinal(pasos.map((p) => p.paso)).nivelRecomendado}
                                 </span>

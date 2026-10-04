@@ -103,6 +103,13 @@ function shortId(id: string): string {
     return id.length > 12 ? `${id.slice(0, 8)}…` : id;
 }
 
+/** Conserva solo la inicial y el dominio; nunca devuelve el correo completo. */
+export function maskInviteEmail(email: string): string {
+    const [local, domain] = email.trim().split("@");
+    if (!local || !domain) return "***";
+    return `${local[0]}***@${domain}`;
+}
+
 /* ──────────────────────── Selector de rol gradual ──────────────────────── */
 
 function RolePicker({
@@ -606,7 +613,7 @@ export function ProfileAccessManager({
                                         <p className="truncate text-xs font-semibold">
                                             {entry.displayName ||
                                                 (entry.inviteHandle ? `@${entry.inviteHandle}` : "") ||
-                                                entry.inviteEmail ||
+                                                (entry.inviteEmail ? maskInviteEmail(entry.inviteEmail) : "") ||
                                                 shortId(entry.granteeUserId ?? entry.id)}
                                         </p>
                                         <p className="truncate text-[10px] text-muted-foreground">
