@@ -697,6 +697,7 @@ class NoSeCompilaConAstrauraEnUso(unittest.TestCase):
                 mock.patch.object(R, "mtime_del_build", return_value=0), \
                 mock.patch.object(R, "conversando", return_value=False), \
                 mock.patch.object(R, "uso_de_astraura", return_value="uso"), \
+                mock.patch.object(R, "freno_de_maquina", return_value=None), \
                 mock.patch.object(R, "_guardar"), \
                 mock.patch.object(R, "reconstruir") as rec:
             self.assertFalse(R.una_pasada())
@@ -708,6 +709,9 @@ class ElSilencioDeAstrauraNoBloqueaParaSiempre(unittest.TestCase):
     5 h sin reconstruirse. El uso medido bloquea; el silencio, como mucho 90 min."""
 
     def _pasada(self, estado, uso):
+        # (2026-10-04) Sin parchear el freno, en la Mac —donde la puerta corre CON el
+        # orquestador vivo— una_pasada salía en «esperando-maquina» y estas pruebas fallaban
+        # solo allí: tumbaron la puerta de toda tarea de Python (SP092916, SP092918, CDC1004).
         guardados = []
         with mock.patch.object(R, "_entradas", return_value=[]), \
                 mock.patch.object(R, "huella_de", return_value="bbb"), \
@@ -718,6 +722,7 @@ class ElSilencioDeAstrauraNoBloqueaParaSiempre(unittest.TestCase):
                 mock.patch.object(R, "uso_de_astraura", return_value=uso), \
                 mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
                 mock.patch.object(R, "espacio_libre_gb", return_value=50.0), \
+                mock.patch.object(R, "freno_de_maquina", return_value=None), \
                 mock.patch.object(R, "_guardar", side_effect=guardados.append), \
                 mock.patch.object(R, "reconstruir") as rec:
             hecho = R.una_pasada()
