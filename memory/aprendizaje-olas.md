@@ -3023,3 +3023,17 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 **Lo que quedó fuera, una por una:**
 - `SP092916` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092918` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-03 22:04 · auto-1003-212343
+
+**Lo que se pidió.** vitest
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — pruebas en rojo (SP092916, SP092918). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `CC1003C` — no escribió nada
+- `SP092916` — pruebas en rojo: vitest falla (rama conservada)
+- `SP092918` — pruebas en rojo: vitest falla (rama conservada)
