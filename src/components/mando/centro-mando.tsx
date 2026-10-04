@@ -59,6 +59,12 @@ import { AjustesDirector } from "@/components/mando/ajustes-director";
 // la pestaña (dos barreras: el chunk no baja y el render no se ejecuta hasta que
 // el usuario la pide, y el resto del Mando arranca igual de ligero que antes).
 import dynamic from "next/dynamic";
+// Ola 1004 · CDL1004: el «Chat Director» carga diferido (sin SSR) como las
+// pestañas pesadas: sondea el feed cada 10 s y no debe encarecer el arranque.
+const ChatDirector = dynamic(
+    () => import("@/components/mando/chat-director").then((m) => m.ChatDirector),
+    { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando el chat del director…</p> },
+);
 const OficinaMando = dynamic(
     () => import("@/components/mando/oficina-mando").then((m) => m.OficinaMando),
     {
@@ -1545,6 +1551,8 @@ export function CentroMando() {
                         comentario: «la navegación no constituye una verificación». Tenía razón:
                         cambiar de pestaña no comprueba nada. Ahora el botón verifica los
                         procesos de verdad y deja el reporte escrito. */}
+                    {/* Ola 1004: el chat del director va justo encima del pulso. */}
+                    <ChatDirector />
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <h2 className="text-sm font-semibold text-white/70">Pulso del trabajo</h2>
                         <VerificarProcesos />
