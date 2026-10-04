@@ -52,6 +52,7 @@ import {
 } from "@/lib/mando/integradas";
 import { fundirTitulosArchivados, parsearIndice } from "@/lib/mando/indice-colas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -498,13 +499,24 @@ async function enviosALaNube(): Promise<Record<string, number>> {
 }
 
 async function reunir(): Promise<Partial<DatosMedidores>> {
+    const inicio = Date.now();
+    const tiempos: Record<string, number> = {};
+    // Cada fuente se cronometra: si el total pasa de 5 s se dice cuál fue la lenta.
+    const midiendo = <T>(fuente: string, p: Promise<T>): Promise<T> =>
+        p.then((v) => {
+            tiempos[fuente] = Date.now() - inicio;
+            return v;
+        }).catch((e) => {
+            tiempos[fuente] = Date.now() - inicio;
+            throw e;
+        });
     const [progreso, colas, bus, latidosMac, vivo, commitsGit] = await Promise.all([
-        leerEntradas(),
-        leerColas().catch(() => []),
-        leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] })),
-        leerLatidos().catch(() => []),
-        enjambreEnMarcha().catch(() => false),
-        leerCommitsDeOlas().catch(() => new Map()),
+        midiendo("progreso", leerEntradas()),
+        midiendo("colas", leerColas().catch(() => [])),
+        midiendo("bus", leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] }))),
+        midiendo("latidos", leerLatidos().catch(() => [])),
+        midiendo("enjambre", enjambreEnMarcha().catch(() => false)),
+        midiendo("commitsOlas", leerCommitsDeOlas().catch(() => new Map())),
     ]);
     // La pausa del Mando vive fuera de git, en la config del director.
     let pausado = false;
@@ -534,7 +546,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     }
 
     // Commits que esta rama tiene y el remoto no.
-    const salida = await git(["log", "@{upstream}..HEAD", "--format=%H%x1f%s%x1f%cI"]);
+    const salida = await midiendo("git", git(["log", "@{upstream}..HEAD", "--format=%H%x1f%s%x1f%cI"]));
     const commitsSinPublicar = salida
         .split("\n")
         .filter(Boolean)
@@ -551,7 +563,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     // de `chore(memoria)`—, asi que recortarla equivale a olvidar meses de trabajo. Sin
     // tope: son 2.311 lineas, unos 150 KB, que git entrega en milisegundos. Una ventana
     // que solo ve lo reciente convierte trabajo terminado en trabajo pendiente.
-    const asuntosDeMain = await git(["log", "main", "--format=%s"]);
+    const asuntosDeMain = await midiendo("asuntosMain", git(["log", "main", "--format=%s"]));
     const ejecutables = ejecutablesDeColas(colas, progreso, asuntosDeMain);
 
     // Latidos: los de ESTA Mac mandan sobre los del bus para la misma tarea, y los de la
@@ -612,15 +624,15 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     for (const t of colas) {
         if (t.id && t.archivos?.length && !declarados[t.id]) declarados[t.id] = t.archivos;
     }
-    const envios = await enviosALaNube().catch(() => ({}) as Record<string, number>);
+    const envios = await midiendo("enviosNube", enviosALaNube()).catch(() => ({}) as Record<string, number>);
     const [obras, historiales, agentesNube, contenedores, proveedores, tokens, olasNube] = await Promise.all([
-        leerObras(idsVivas).catch(() => ({})),
-        leerHistoriales(idsVivas).catch(() => ({})),
-        leerAgentesDeLaNube().catch(() => []),
-        leerContenedores().catch(() => null),
-        leerProveedores().catch(() => []),
-        leerTokens().catch(() => null),
-        leerOlasDeLaNube().catch(() => []),
+        midiendo("obras", leerObras(idsVivas).catch(() => ({}))),
+        midiendo("historiales", leerHistoriales(idsVivas).catch(() => ({}))),
+        midiendo("agentesNube", leerAgentesDeLaNube().catch(() => [])),
+        midiendo("contenedores", leerContenedores().catch(() => null)),
+        midiendo("proveedores", leerProveedores().catch(() => [])),
+        midiendo("tokens", leerTokens().catch(() => null)),
+        midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
     ]);
 
     // (2026-09-23) Las olas en marcha, de la Mac y de la nube, con sus tareas. Y el encargo
@@ -648,6 +660,18 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
                 envios,
             );
         }
+    }
+
+    // Si tardó más de 5 s, se dice QUÉ fuente lo hizo (las tres más lentas): así el log
+    // del Mando explica las esperas en vez de solo registrar «heap out of memory».
+    const total = Date.now() - inicio;
+    if (total > 5_000) {
+        const lentas = Object.fromEntries(
+            Object.entries(tiempos)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3),
+        );
+        console.warn("[medidores] reunir lenta", total, lentas);
     }
 
     return {
@@ -684,22 +708,14 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
 }
 
 /**
- * (2026-09-27, medido) El pulso de trabajo pide DIEZ medidores a la vez cada vuelta y cada
- * petición llamaba a `reunir()` entero (git, colas, progreso, latidos, bus…): diez lecturas
- * iguales en paralelo. Con la Mac cargada, un medidor tardaba 47 s. Las peticiones que llegan
- * juntas comparten ahora UNA reunión, válida 4 s: la cifra no envejece y la Mac hace una
- * décima parte del trabajo.
+ * (2026-10-04, medido en la Mac) Antes había UNA promesa compartida válida 4 s CONTADOS
+ * DESDE QUE EMPEZABA: con `reunir()` tardando más de eso, cada tanda de diez peticiones
+ * arrancaba otra reunión encima de la anterior hasta matar el proceso por memoria, y los
+ * medidores salían en 0. Ahora el turno vive en `reunion-compartida` (puro y probado):
+ * una sola reunión en marcha, resultado fresco 15 s, y espera con tope de 6 s tras la
+ * cual se enseña la última cifra buena con `obsoleto` — nunca más un cero por impaciencia.
  */
-let reunionCompartida: { t: number; promesa: Promise<Partial<DatosMedidores>> } | null = null;
-const REUNION_VALIDA_MS = 4_000;
-
-function reunirCompartido(): Promise<Partial<DatosMedidores>> {
-    const ahora = Date.now();
-    if (reunionCompartida && ahora - reunionCompartida.t < REUNION_VALIDA_MS) return reunionCompartida.promesa;
-    const promesa = reunir().catch(() => ({}) as Partial<DatosMedidores>);
-    reunionCompartida = { t: ahora, promesa };
-    return promesa;
-}
+const reunion = crearReunionCompartida(reunir);
 
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
@@ -714,14 +730,22 @@ export async function GET(peticion: Request): Promise<Response> {
         );
     }
     // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
-    const datos: Partial<DatosMedidores> = { ...(await reunirCompartido().catch(() => ({}))) };
+    const turno = await reunion.obtener();
+    const datos: Partial<DatosMedidores> = turno.datos ?? {};
+    // De CUÁNDO es la cifra y si está obsoleta: el panel la enseña con su edad en vez de 0.
+    const datosDe = turno.t > 0 ? new Date(turno.t).toISOString() : null;
     if (clave === "integradas") {
         // Los ids que existen de verdad: sin este filtro, «mando: …» contaría como tarea.
         const conocidas = new Set([...Object.keys(datos.progreso ?? {}), ...Object.keys(datos.titulos ?? {})]);
         datos.integradas = await leerIntegradas(conocidas).catch(() => null);
     }
     return Response.json(
-        { detalle: detalleDeMedidor(clave, datos), generadoEn: new Date().toISOString() },
+        {
+            detalle: detalleDeMedidor(clave, datos),
+            generadoEn: new Date().toISOString(),
+            datosDe,
+            obsoleto: turno.obsoleto,
+        },
         { headers: { "Cache-Control": "no-store" } },
     );
 }
@@ -755,7 +779,7 @@ export async function POST(peticion: Request): Promise<Response> {
         // Una rancia («en curso» sin ningún agente que lata por ella) vuelve a pendiente antes
         // de asignarse; una que SÍ tiene agente no se toca: nada en marcha se interrumpe.
         if (accion === "asignar-tarea") {
-            const datosVivos = await reunir().catch(() => ({}) as Partial<DatosMedidores>);
+            const datosVivos = (await reunion.obtener()).datos ?? {};
             const late = (datosVivos.latidos ?? []).some((l) => l.tarea === id);
             const entradas = JSON.parse(await readFile(PROGRESO, "utf8").catch(() => "{}")) as Record<string, Entrada>;
             if (entradas[id]?.estado === "en_curso") {
@@ -793,7 +817,7 @@ export async function POST(peticion: Request): Promise<Response> {
     }
 
     if (accion === "comprobar-agente") {
-        const datosVivos = await reunir().catch(() => ({}) as Partial<DatosMedidores>);
+        const datosVivos = (await reunion.obtener()).datos ?? {};
         const latido = (datosVivos.latidos ?? []).find((l) => l.tarea === id);
         const libres = (datosVivos.proveedores ?? []).filter((p) => /^(vivo|ok|disponible|activo|libre|listo)$/i.test(p.estado)).length;
         return Response.json({ ok: true, resumen: veredictoDeAgente(latido, libres) });
@@ -930,7 +954,7 @@ export async function POST(peticion: Request): Promise<Response> {
         if (!id) {
             return Response.json({ error: "Falta la tarea a la que aplicarlo." }, { status: 400 });
         }
-        const datosAuto = await reunir().catch(() => ({}));
+        const datosAuto = (await reunion.obtener()).datos ?? {};
         const filaAuto = detalleDeMedidor(clave as ClaveMedidor, datosAuto).filas.find((f) => f.id === id);
         const auto = filaAuto ? cambioAutomatico(filaAuto) : null;
         if (!auto) {
