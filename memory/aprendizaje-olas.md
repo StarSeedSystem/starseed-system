@@ -3052,3 +3052,18 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `SP092916` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092918` — pruebas en rojo: vitest falla (rama conservada)
 - `CC1003F` — otra cosa: reasignada a la nube 20261003
+
+## 2026-10-03 23:30 · auto-1003-231425
+
+**Lo que se pidió.** motor/modelo
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (CDA1004, CDC1004, CDF1004). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CDA1004` — otra cosa: reasignada a la nube 20261003
+- `CDC1004` — otra cosa: reasignada a la nube 20261003
+- `CDF1004` — otra cosa: reasignada a la nube 20261003
