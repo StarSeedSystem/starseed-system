@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-    recommendations,
+    recommendationPage,
     type OsProfile, type SocialGroupHit, type UserRecommendation,
 } from "@/lib/social/os-profiles";
 // (Adenda 67 · P4-5) Búsqueda UNIFICADA: usa Typesense si el usuario lo tiene
@@ -239,8 +239,8 @@ export function UserRecommendationsStrip() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        void recommendations().then((r) => {
-            setRecs(r);
+        void recommendationPage().then(({ items }) => {
+            setRecs(items);
             setLoading(false);
         });
     }, []);

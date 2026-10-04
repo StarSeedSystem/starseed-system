@@ -4,6 +4,7 @@
 La puerta contaba las líneas «error TS»; con tsc reventando por memoria no había ninguna y la
 tarea pasaba con «0 errores». Así entró CC1003F con 4 errores de tipos en su prueba.
 """
+import contextlib
 import importlib.util
 import os
 import sys
@@ -41,6 +42,11 @@ class PuertaTsc(unittest.TestCase):
 
         with mock.patch.object(enjambre, "repo_es_python", return_value=False), \
                 mock.patch.object(enjambre, "sh", side_effect=falso_sh), \
+                mock.patch.object(
+                    enjambre,
+                    "cerrojo",
+                    side_effect=lambda *_args, **_kwargs: contextlib.nullcontext(),
+                ), \
                 mock.patch.object(enjambre.time, "sleep"):
             return enjambre.tsc("/tmp/wt", None), llamadas
 

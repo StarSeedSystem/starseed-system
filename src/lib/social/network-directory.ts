@@ -33,7 +33,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { getCurrentUserId } from "@/lib/os-social";
 import { searchUsers as searchUsersUnified } from "@/lib/search/unified-search";
-import { recommendations } from "@/lib/social/os-profiles";
+import { recommendationPage } from "@/lib/social/os-profiles";
 
 /* ─────────────────────────────── Tipos ─────────────────────────────────── */
 
@@ -383,7 +383,7 @@ export async function searchNetworkProfiles(q: string, limit = NETWORK_PAGE_SIZE
 export async function suggestedProfiles(limit = 12): Promise<SuggestedProfile[]> {
     if (!isClient()) return [];
     try {
-        const recs = await recommendations(clampLimit(limit));
+        const { items: recs } = await recommendationPage({ limit: clampLimit(limit) });
         return recs.map((r) => ({
             userId: r.userId,
             username: (r.username || "").replace(/^@+/, "") || r.userId.slice(0, 8),

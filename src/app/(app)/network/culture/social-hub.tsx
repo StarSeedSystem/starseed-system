@@ -40,7 +40,7 @@ import {
     type FeedAlgorithmId, type FeedWeights,
 } from "@/lib/feed/feed-algorithms";
 import {
-    recommendations,
+    recommendationPage,
     type OsProfile, type SocialGroupHit, type UserRecommendation,
 } from "@/lib/social/os-profiles";
 // (Adenda 67 · P4-5) Búsqueda UNIFICADA con Typesense-primero y fallback
@@ -472,9 +472,9 @@ function ExplorarTab() {
 
     useEffect(() => {
         let alive = true;
-        void recommendations().then((r) => {
+        void recommendationPage().then(({ items }) => {
             if (alive) {
-                setRecs(r);
+                setRecs(items);
                 setRecsLoaded(true);
             }
         });
