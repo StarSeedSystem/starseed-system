@@ -54,6 +54,10 @@ import { skillsSystemPrompt, skillsRoutingBias, activeCapabilities } from "./ski
 // caracteres: el backend BitNet tiene un contexto pequeño). Función pura,
 // ver `local-158-context.ts`.
 import { buildLocal158CompactContext } from "./local-158-context";
+// (Ola 1003 · §19 «Local preferente», decisión de Alex 2026-10-03) empujón
+// aditivo a las fuentes LOCALES genéricas del catálogo y migración de una sola
+// vez que apaga OmniRoute por defecto. Capa pura: sin I/O ni imports del router.
+import { localPrimeroDelta, migrarLocalPrimero } from "./local-primero";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
@@ -158,6 +162,14 @@ export interface IntelligenceSettings extends CamposCapas {
    */
   prioridadLocal158: boolean;
   /**
+   * (Ola 1003 · §19 «Local preferente») prefiere fuentes locales cuando la
+   * tarea lo permite: empujón aditivo a las fuentes de tier "local" (ver
+   * `localPrimeroDelta`), retirado en tareas difíciles o de visión.
+   */
+  preferirLocal: boolean;
+  /** Marca de la migración única «local primero» (1 = ya aplicada, no repetir). */
+  migracionLocal?: number;
+  /**
    * THE HUGGING BAY (jul-2026): descubrimiento inteligente de modelos reales
    * (licencia, confianza, comando de instalación local). Aditivo: nunca
    * descarga ni activa nada por su cuenta, solo sugiere/registra candidatos.
@@ -221,6 +233,9 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
   difficultyRouting: true,
   strongThreshold: 0.6,
   prioridadLocal158: true,
+  // (Ola 1003 · §19) local preferente: el empujón a las fuentes locales va
+  // ENCENDIDO por defecto («que sea preferente el uso local», Alex 2026-10-03).
+  preferirLocal: true,
   huggingBay: {
     enabled: true,
     autoSuggest: true,
@@ -229,7 +244,10 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
     hostedOnly: false,
   },
   omniRoute: {
-    enabled: true,
+    // (Ola 1003 · §19) opt-in real, como siempre documentó su JSDoc: exige que
+    // el usuario ya lo tenga corriendo. La migración `migracionLocal` apaga el
+    // `enabled: true` heredado de los ajustes guardados antes de esta ola.
+    enabled: false,
     endpoint: "http://localhost:20128",
     compressionHint: false,
   },
@@ -269,7 +287,11 @@ export function getIntelligenceSettings(): IntelligenceSettings {
   try {
     const raw = window.localStorage.getItem(INTELLIGENCE_KEY);
     if (!raw) return { ...DEFAULT_INTELLIGENCE };
-    const p = JSON.parse(raw);
+    // (Ola 1003 · §19) Migración «local primero» ANTES del merge: apaga el
+    // OmniRoute de los ajustes guardados una sola vez (la marca `migracionLocal`
+    // lo hace idempotente). No se persiste aquí: el próximo
+    // `saveIntelligenceSettings` —que vuelve a pasar por aquí— ya lo guarda.
+    const p = migrarLocalPrimero(JSON.parse(raw));
     return mergeIntelligence(DEFAULT_INTELLIGENCE, p);
   } catch {
     return { ...DEFAULT_INTELLIGENCE };
@@ -612,6 +634,24 @@ export function rankCandidates(
           local158Priority = true;
           if (boost.note && !fromUser) reason = `${reason} · ${boost.note}`;
         }
+      }
+      // LOCAL PRIMERO (Ola 1003 · §19, decisión de Alex 2026-10-03): empujón
+      // aditivo genérico a las fuentes de tier "local" del catálogo (Ollama,
+      // LM Studio…). Las 1.58 quedan fuera (ya tienen su boost justo arriba),
+      // y el empujón se retira solo en tareas de visión o difíciles — igual
+      // que el de 1.58, nunca revierte la cesión a la nube fuerte. Puro:
+      // ver `local-primero.ts`.
+      const empujonLocal = localPrimeroDelta({
+        tier: a.source.tier,
+        sourceId: a.source.id,
+        difficulty: profile.difficulty,
+        needsVision: profile.needsVision,
+        strongThreshold,
+        preferirLocal: prefs.preferirLocal !== false,
+      });
+      if (empujonLocal.delta) {
+        score += empujonLocal.delta;
+        if (empujonLocal.note && !fromUser) reason = `${reason} · ${empujonLocal.note}`;
       }
       // NUDGE por CLASE DE ACCESO (preferencias unificadas de modelo): sesgo
       // aditivo pequeño [0..4] según el orden que el usuario prefiere por clase
