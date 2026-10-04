@@ -4,8 +4,14 @@
 
 Cada 5 s revisa `director_chat.leer()` y atiende las entregas pendientes:
 claude-mac y chatgpt ejecutan la orden local, telegram solo envía (no
-responde) y los canales de bandeja (claude-cowork, antigravity, ide,
-terminal) no reciben nada: su copia ya está en `bandeja/<canal>.jsonl`.
+responde) y los canales de bandeja (antigravity, ide, terminal) no reciben
+nada: su copia ya está en `bandeja/<canal>.jsonl`.
+
+(2026-10-04, Alex: «debe contestarla cualquier modelo seleccionado del director
+inmediatamente sin esperar nada programado».) claude-cowork contesta AL MOMENTO
+con el mismo motor que claude-mac: Claude Code de esta Mac, Opus 5.5 con la
+suscripción de Alex, solo lectura del repo y el mismo tope diario. Su copia en
+`bandeja/claude-cowork.jsonl` se queda: la sesión de Cowork la retoma en su revisión.
 Con `--una-vez` hace una pasada y sale; con `--uso` publica el informe.
 """
 
@@ -23,7 +29,7 @@ import director_chat
 import motores_director
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
-CANALES_ACTIVOS = ("claude-mac", "hermes", "chatgpt", "telegram")
+CANALES_ACTIVOS = ("claude-mac", "claude-cowork", "hermes", "chatgpt", "telegram")
 PAUSA_SEGUNDOS = 5
 INFORME_CADA_SEGUNDOS = 3 * 3600
 TOPE_OPUS = int(os.environ.get("STARSEED_DIRECTOR_TOPE_OPUS", "40"))
@@ -145,11 +151,11 @@ def _publicar_respuesta(mensaje, canal, texto, modelo, uso, raiz=None):
     director_chat.entrega(mensaje["id"], canal, "respondido", raiz=raiz)
 
 
-def _entregar_claude_mac(mensaje, estado, modelo_pedido, raiz=None):
+def _entregar_claude_mac(mensaje, estado, modelo_pedido, raiz=None, canal="claude-mac"):
     if not _opus_disponible(estado):
         _fallo(
             mensaje,
-            "claude-mac",
+            canal,
             "Tope de Opus del día (%d) alcanzado" % TOPE_OPUS,
             raiz=raiz,
         )
@@ -172,14 +178,14 @@ def _entregar_claude_mac(mensaje, estado, modelo_pedido, raiz=None):
     )
     segundos = round(time.time() - inicio, 1)
     if "Credit balance is too low" in salida:
-        _fallo(mensaje, "claude-mac", AVISO_SALDO, raiz=raiz)
+        _fallo(mensaje, canal, AVISO_SALDO, raiz=raiz)
         return
     lectura = motores_director.leer_claude(salida)
     if lectura.get("sesion"):
         estado["sesion_claude"] = lectura["sesion"]
     if rc != 0 and not lectura.get("texto"):
         detalle = (lectura.get("error") or salida or "sin salida")[:300]
-        _fallo(mensaje, "claude-mac", director_chat.tachar(detalle), raiz=raiz)
+        _fallo(mensaje, canal, director_chat.tachar(detalle), raiz=raiz)
         return
     _registrar_opus(estado)
     uso = {
@@ -188,8 +194,11 @@ def _entregar_claude_mac(mensaje, estado, modelo_pedido, raiz=None):
         "segundos": segundos,
         "coste": lectura["coste"],
     }
+    if canal != "claude-mac":
+        # La dirección (claude-cowork) contesta con este mismo motor: se dice por dónde fue.
+        uso["via"] = "claude-code-mac"
     _publicar_respuesta(
-        mensaje, "claude-mac", lectura["texto"], "claude-mac/" + modelo, uso, raiz
+        mensaje, canal, lectura["texto"], "%s/%s" % (canal, modelo), uso, raiz
     )
 
 
@@ -278,12 +287,13 @@ def _entregar_telegram(mensaje, raiz=None):
 
 def atender(mensaje, canal, estado, raiz=None):
     try:
-        if canal == "claude-mac":
+        if canal in ("claude-mac", "claude-cowork"):
             _entregar_claude_mac(
                 mensaje,
                 estado,
-                mensaje.get("modelo") or "claude-mac/claude-opus-5-5",
+                mensaje.get("modelo") or "%s/claude-opus-5-5" % canal,
                 raiz=raiz,
+                canal=canal,
             )
         elif canal == "hermes":
             _entregar_hermes(

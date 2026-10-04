@@ -80,6 +80,14 @@ describe("CANALES", () => {
     });
 });
 
+describe("claude-cowork contesta al momento (2026-10-04)", () => {
+    it("es «inmediata» y aun así guarda copia en su bandeja", () => {
+        expect(CANALES.find((c) => c.id === "claude-cowork")?.respuesta).toBe("inmediata");
+        expect(canalesQueEsperan(["claude-cowork"])).toEqual(["claude-cowork"]);
+        expect(motorDe("claude-cowork/claude-opus-5-5")).toBe("claude-cowork");
+    });
+});
+
 describe("canalesQueEsperan", () => {
     it("deja solo los que responden en revisión o por archivo", () => {
         const pedidos: CanalId[] = ["mando", "claude-cowork", "telegram", "terminal"];

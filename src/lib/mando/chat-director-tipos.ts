@@ -68,7 +68,7 @@ export interface CanalDirector {
 /** Los nueve canales del chat, en el orden del contrato. */
 export const CANALES: readonly CanalDirector[] = [
     { id: "mando", nombre: "Este chat (Puente de Mando)", descripcion: "El chat principal, donde Alex dirige a todos los agentes a la vez.", respuesta: "ninguna" },
-    { id: "claude-cowork", nombre: "Claude Opus 5.5 · dirección (Cowork)", descripcion: "La dirección en la nube: responde en su revisión y hasta entonces queda en su bandeja.", respuesta: "en-revision" },
+    { id: "claude-cowork", nombre: "Claude Opus 5.5 · dirección (Cowork)", descripcion: "La dirección (Opus 5.5): contesta al momento con Claude Code en esta Mac y la sesión de Cowork lo retoma en su revisión.", respuesta: "inmediata" },
     { id: "claude-mac", nombre: "Claude Opus 5.5 · Mac (Claude Code)", descripcion: "Claude Code en esta Mac: contesta al momento en su propio chat.", respuesta: "inmediata" },
     { id: "hermes", nombre: "Hermes", descripcion: "El agente de la casa, siempre despierto: contesta al momento.", respuesta: "inmediata" },
     { id: "telegram", nombre: "Telegram (tu móvil)", descripcion: "Llega al móvil de Alex para leerlo donde esté; nadie contesta desde aquí.", respuesta: "ninguna" },
@@ -113,7 +113,10 @@ export function canalesQueEsperan(canales: readonly CanalId[]): CanalId[] {
     const fuera: CanalId[] = [];
     for (const id of canales) {
         const canal = CANALES.find((c) => c.id === id);
-        if (!canal || (canal.respuesta !== "en-revision" && canal.respuesta !== "archivo")) continue;
+        // (2026-10-04) claude-cowork contesta al momento (el cartero lo atiende con Claude Code
+        // en la Mac), pero su copia sigue yendo a su bandeja: la sesión de Cowork la retoma.
+        const guardaCopia = canal?.id === "claude-cowork";
+        if (!canal || (!guardaCopia && canal.respuesta !== "en-revision" && canal.respuesta !== "archivo")) continue;
         if (!fuera.includes(id)) fuera.push(id);
     }
     return fuera;
