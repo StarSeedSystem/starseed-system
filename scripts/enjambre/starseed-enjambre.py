@@ -339,6 +339,36 @@ def fallo_de_proveedor(salida):
     return next((x for x in PISTAS_PROVEEDOR if x in b), None)
 
 
+#: (2026-10-03) apinex pasó modelos «free/» a suscripción: opencode contesta
+#: «Error: This model is currently available only with a subscription» en 1-2 s, el intento
+#: contaba como «sin cambios» del modelo (uno de los 5 de la tarea) y Jev lo volvía a elegir
+#: para reintentar en otras tareas (CC1003A, LP1003 y SP092916 en diez minutos).
+PISTAS_DE_PAGO = (
+    "available only with a subscription",
+    "buy a subscription",
+    "requires a subscription",
+    "subscription required",
+    "requires a paid plan",
+)
+_ANSI = re.compile(r"(?:\x1b)?\[[0-9;]*m")
+
+
+def exige_pago(salida):
+    """PURA: la línea de error de la API si el proveedor exige pagar por ESTE modelo, o "".
+
+    Solo cuenta en una línea de error de la API (como `debe_retirar`): la salida de una
+    herramienta del agente puede hablar de suscripciones sin que el modelo pida nada. Los
+    colores ANSI de opencode van delante de «Error:» y se quitan antes de mirar."""
+    for linea in (salida or "").splitlines():
+        l = _ANSI.sub("", linea).strip()
+        bajo = l.lower()
+        if any(p in bajo for p in PISTAS_DE_PAGO) and (
+            l.startswith(("Error", "AI_APICallError", '{"error"')) or "HTTP Error" in l
+        ):
+            return l[:160]
+    return ""
+
+
 CATALOGOS = {
     "nvidia": (
         "https://integrate.api.nvidia.com/v1/models",
@@ -348,6 +378,27 @@ CATALOGOS = {
     "apinex": ("https://apinex.bond/v1/models", ("STARSEED_PASARELA_APINEX_KEY",)),
     "anthropic": ("https://api.anthropic.com/v1/models", ("ANTHROPIC_API_KEY",)),
 }
+
+def apartar_si_pide_pago(tid, modelo, salida):
+    """Si el proveedor pide suscripción para `modelo`: fuera de la rotación de esta corrida
+    (MUERTOS), anotado como fallido en la tarea (baja su mérito) y SIN gastar intento.
+    Devuelve True si lo apartó."""
+    linea = exige_pago(salida)
+    if not linea:
+        return False
+    MUERTOS.add(modelo)
+    try:
+        _anotar_fallido(tid, modelo)
+    except Exception:
+        pass
+    evento(
+        "proveedor",
+        tid,
+        "%s pide suscripción de pago (%s) → fuera de la rotación, sin gastar intento"
+        % (modelo, linea[:100]),
+    )
+    return True
+
 
 _CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
 _ANTHROPIC_ORDENADOS = []
@@ -6228,6 +6279,8 @@ def ejecutar(t, intento=1):
                 "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
                 "(las demás tareas ya no lo intentan)" % minutos,
             )
+        if apartar_si_pide_pago(tid, modelo, out):
+            continue
         pista = fallo_de_proveedor(out)
         # (2026-09-08, Ola 286 · G3) Rechazo por FORMATO de opencode: el proveedor acepta la
         # llamada como revisor (HTTP directo) pero su adaptador reenvía un campo que rechaza
@@ -6432,6 +6485,8 @@ def ejecutar(t, intento=1):
             if reaccion == "red":
                 return
             if reaccion in ("pasarela", "cuota"):
+                continue
+            if apartar_si_pide_pago(tid, modelo, out):
                 continue
             pista = fallo_de_proveedor(out)
             if error_de_formato(out) and proveedor_de(modelo) in PASARELAS:

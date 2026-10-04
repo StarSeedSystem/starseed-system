@@ -768,6 +768,14 @@ tres veces, un modelo que casi nunca escribe, y cada intento fallido cuesta 12-2
   deepseek-v4-pro), que se reordenó con estos datos porque allí no hay `progreso.json`.
 - **Lo privado no sale de la Mac**: `repartir_nube.es_privada()` (tarea con `privado: true` o prompt
   «🔒 PRIVADO») — SP09294 se había mandado a la nube tres veces.
+- **Un modelo que pide suscripción sale solo** (2026-10-03): apinex pasó sus `free/` a pago y
+  opencode contesta «available only with a subscription» en 1-2 s. `exige_pago()` lo lee en la
+  línea de error de la API (no en la salida de una herramienta) y `apartar_si_pide_pago()` lo
+  saca de la corrida sin gastar intento y baja su mérito; antes Jev lo elegía para reintentar.
+- **Ni un proceso huérfano** (2026-10-03, tras reiniciar la Mac): el LSP de opencode (`tsserver`
+  ~2 GB) sobrevivía a su motor cuando este acababa bien; `recoger_grupo()` mata el grupo al
+  terminar. Y la build del reconstructor **cede a mitad** si el enjambre arranca después de ella
+  (`RC_CEDIDA`): el freno de máquina se mira también durante, no solo al empezar.
 
 Quién gasta qué (para el informe de uso): el enjambre escribe con APIs gratuitas (NIM, Gemini AI
 Studio, xKiro, tokenrouter, OpenRouter `:free`, Groq solo revisor) y Codex por suscripción; Jev
