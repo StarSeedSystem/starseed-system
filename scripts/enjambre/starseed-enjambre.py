@@ -288,8 +288,8 @@ def codex_disponible() -> bool:
         evento(
             "aviso",
             "",
-            "no pude consultar el cupo de Codex (%s): lo doy por agotado"
-            % type(exc).__name__,
+            "no pude consultar el cupo de Codex (%s: %s): lo doy por agotado"
+            % (type(exc).__name__, str(exc)[:120]),
         )
         return False
     if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in (
