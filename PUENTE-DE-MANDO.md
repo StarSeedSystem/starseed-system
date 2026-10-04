@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-04 04:17:32 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-04 05:20:01 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,20 +16,18 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 27 |
-| HEAD | `6f111468 chore(memoria): aprendizaje de la ola auto-1004-025838` |
-| Sin publicar | 19 commits |
+| HEAD | `38f31e32 chore(memoria): aprendizaje de la ola auto-1004-041915` |
+| Sin publicar | 25 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1004-025838.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-1004-041915.json`, hace 6s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CDI1004` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 39 s | 101739 |
-| `CDE1004` | hecho | nvidia/moonshotai/kimi-k3 | 7 min | 429 s | 135170 |
-| `CDG1004` | hecho | nvidia/moonshotai/kimi-k3 | 17 min | 1038 s | 93855 |
-| `CDF1004` | hecho | nvidia/moonshotai/kimi-k3 | 34 min | 2064 s | 287560 |
-| `CDD1004` | hecho | nvidia/moonshotai/kimi-k3 | 46 min | 2737 s | 72097 |
-| `CDK1004` | hecho | nvidia/z-ai/glm-5.3 | 67 min | 3992 s | 20634 |
+| `HG1004A` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 33 s | 46047 |
+| `CDL1004` | hecho | nvidia/z-ai/glm-5.3 | 25 min | 1475 s | 16771 |
+| `HG1004B` | hecho | nvidia/z-ai/glm-5.3 | 27 min | 1633 s | 773 |
+| `CDK1004` | hecho | nvidia/moonshotai/kimi-k3 | 37 min | 2232 s | 111707 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
