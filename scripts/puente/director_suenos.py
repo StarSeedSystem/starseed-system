@@ -83,24 +83,40 @@ _NUM = {
 
 # ─────────────────────────────── lectura (impura, con ruta) ───────────────────────────────
 
+
 def _hallazgos_de_md(texto):
     """Plan B: hallazgos de un informe que solo existe en .md (formato del Dream)."""
     fuera, vistas = [], set()
     for nombre, lineas in D.secciones(texto).items():
-        seccion = "riesgo" if "riesgo" in nombre else "idea" if "idea" in nombre else "mejora"
+        seccion = (
+            "riesgo" if "riesgo" in nombre else "idea" if "idea" in nombre else "mejora"
+        )
         for titulo, cuerpo in D.puntos(lineas):
             k = D.clave(titulo)
             if not k or k in vistas:
                 continue
             vistas.add(k)
             cita = _CITA.search(cuerpo)
-            h = {"clave": k, "titulo": titulo, "seccion": seccion, "detalle": cuerpo[:600],
-                 "archivo": cita.group(1) if cita else "", "linea": int(cita.group(2)) if cita else 0,
-                 "impacto": 2, "esfuerzo": 3, "confianza": 0.5, "propuesta": {"titulo": titulo, "archivos": [], "cambio": ""}}
+            h = {
+                "clave": k,
+                "titulo": titulo,
+                "seccion": seccion,
+                "detalle": cuerpo[:600],
+                "archivo": cita.group(1) if cita else "",
+                "linea": int(cita.group(2)) if cita else 0,
+                "impacto": 2,
+                "esfuerzo": 3,
+                "confianza": 0.5,
+                "propuesta": {"titulo": titulo, "archivos": [], "cambio": ""},
+            }
             for campo, patron in _NUM.items():
                 m = patron.search(cuerpo)
                 if m:
-                    h[campo] = float(m.group(1).replace(",", ".")) if campo == "confianza" else int(m.group(1))
+                    h[campo] = (
+                        float(m.group(1).replace(",", "."))
+                        if campo == "confianza"
+                        else int(m.group(1))
+                    )
             if cita:
                 h["propuesta"]["archivos"] = [cita.group(1)]
             fuera.append(h)
@@ -134,8 +150,16 @@ def leer_informes(dir_sesion):
         except OSError:
             continue
         m = re.search(r"Tarea\s+([A-Za-z][A-Za-z0-9]{0,8})", texto)
-        fuera.append({"id": m.group(1) if m else n[:-3], "area": area, "lente": lente,
-                      "privado": "PRIVADO" in texto[:2000], "hallazgos": _hallazgos_de_md(texto), "desde_md": True})
+        fuera.append(
+            {
+                "id": m.group(1) if m else n[:-3],
+                "area": area,
+                "lente": lente,
+                "privado": "PRIVADO" in texto[:2000],
+                "hallazgos": _hallazgos_de_md(texto),
+                "desde_md": True,
+            }
+        )
     return fuera
 
 
@@ -144,7 +168,10 @@ def leer_veredictos(dir_sesion):
     los ajustes se acumulan (el último valor de cada campo gana) y los rechazos se suman."""
     fuera = {}
     try:
-        lineas = open(os.path.join(dir_sesion, "verificaciones.jsonl"), encoding="utf-8").read().splitlines()
+        with open(
+            os.path.join(dir_sesion, "verificaciones.jsonl"), encoding="utf-8"
+        ) as f:
+            lineas = f.read().splitlines()
     except OSError:
         return fuera
     for l in lineas:
@@ -156,7 +183,9 @@ def leer_veredictos(dir_sesion):
         estado = str(d.get("estado") or "")
         if not tid or estado not in ESTADOS_VEREDICTO:
             continue
-        v = fuera.setdefault(tid, {"estado": estado, "ajustes": {}, "rechazados": set(), "notas": []})
+        v = fuera.setdefault(
+            tid, {"estado": estado, "ajustes": {}, "rechazados": set(), "notas": []}
+        )
         v["estado"] = estado
         v["por"] = d.get("por") or v.get("por") or ""
         v["t"] = d.get("t") or ""
@@ -169,7 +198,12 @@ def leer_veredictos(dir_sesion):
                 continue
             if isinstance(cambios, dict):
                 v["ajustes"].setdefault(i, {}).update(
-                    {c: cambios[c] for c in ("impacto", "esfuerzo", "confianza") if c in cambios})
+                    {
+                        c: cambios[c]
+                        for c in ("impacto", "esfuerzo", "confianza")
+                        if c in cambios
+                    }
+                )
         for i in d.get("rechazados") or []:
             try:
                 v["rechazados"].add(int(i))
@@ -193,13 +227,19 @@ def anotar_encargadas(claves, ruta=MEMORIA_ENCARGADAS):
         todas = ya_encargadas(ruta) | set(claves or [])
         tmp = ruta + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"claves": sorted(todas), "t": time.strftime("%Y-%m-%d %H:%M:%S")}, f, ensure_ascii=False, indent=2)
+            json.dump(
+                {"claves": sorted(todas), "t": time.strftime("%Y-%m-%d %H:%M:%S")},
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
         os.replace(tmp, ruta)
     except OSError:
         pass
 
 
 # ─────────────────────────────── núcleo puro ───────────────────────────────
+
 
 def _num(v, defecto):
     try:
@@ -212,35 +252,65 @@ def es_de_capacidad(h):
     if _prio is None:
         return False
     try:
-        return bool(_prio.es_de_capacidad({"archivos": (h.get("propuesta") or {}).get("archivos") or [h.get("archivo")]}))
+        return bool(
+            _prio.es_de_capacidad(
+                {
+                    "archivos": (h.get("propuesta") or {}).get("archivos")
+                    or [h.get("archivo")]
+                }
+            )
+        )
     except Exception:
         return False
 
 
 def puntuar(h):
     """verificación × impacto/esfuerzo × confianza."""
-    peso = PESO_VERIFICACION.get(h.get("verificacion"), PESO_VERIFICACION["sin_verificar"])
-    return round(peso * _num(h.get("impacto"), 1) / max(1.0, _num(h.get("esfuerzo"), 5)) * _num(h.get("confianza"), 0), 4)
+    peso = PESO_VERIFICACION.get(
+        h.get("verificacion"), PESO_VERIFICACION["sin_verificar"]
+    )
+    return round(
+        peso
+        * _num(h.get("impacto"), 1)
+        / max(1.0, _num(h.get("esfuerzo"), 5))
+        * _num(h.get("confianza"), 0),
+        4,
+    )
 
 
 def _mismo(a, b):
     if a.get("clave") and a.get("clave") == b.get("clave"):
         return True
-    return bool(a.get("archivo")) and a.get("archivo") == b.get("archivo") and \
-        abs(int(_num(a.get("linea"), 0)) - int(_num(b.get("linea"), 0))) <= 3
+    return (
+        bool(a.get("archivo"))
+        and a.get("archivo") == b.get("archivo")
+        and abs(int(_num(a.get("linea"), 0)) - int(_num(b.get("linea"), 0))) <= 3
+    )
 
 
 def consolidar(informes, veredictos, encargadas=(), consejero=None, tope_jev=JEV_MAX):
     """El ranking de la sesión. PURA (el consejero entra por parámetro; None = solo la regla).
     Devuelve {ranking, por_area, riesgos, cuentas}."""
     encargadas = set(encargadas or ())
-    cuentas = {"informes": len(informes), "hallazgos": 0, "rechazados": 0, "duplicados": 0,
-               "verificados": 0, "ajustados": 0, "rechazados_informe": 0, "sin_verificar": 0}
+    cuentas = {
+        "informes": len(informes),
+        "hallazgos": 0,
+        "rechazados": 0,
+        "duplicados": 0,
+        "verificados": 0,
+        "ajustados": 0,
+        "rechazados_informe": 0,
+        "sin_verificar": 0,
+    }
     items = []
     for inf in informes:
         v = veredictos.get(inf.get("id")) or {}
         est_inf = v.get("estado") or "sin_verificar"
-        clave_cuenta = {"verificado": "verificados", "ajustado": "ajustados", "rechazado": "rechazados_informe"}.get(est_inf, "sin_verificar")
+        clave_cuenta = {
+            "verificado": "verificados",
+            "ajustado": "ajustados",
+            "rechazado": "rechazados_informe",
+        }.get(est_inf, "sin_verificar")
         cuentas[clave_cuenta] += 1
         for i, h in enumerate(inf.get("hallazgos") or [], 1):
             cuentas["hallazgos"] += 1
@@ -257,11 +327,17 @@ def consolidar(informes, veredictos, encargadas=(), consejero=None, tope_jev=JEV
                 x["verificacion"] = est_inf
             else:
                 x["verificacion"] = "sin_verificar"
-            x.update({
-                "tarea": inf.get("id"), "indice": i, "area": inf.get("area"), "lente": inf.get("lente"),
-                "privado": bool(inf.get("privado")), "por": v.get("por") or "",
-                "clave": x.get("clave") or D.clave(x.get("titulo")),
-            })
+            x.update(
+                {
+                    "tarea": inf.get("id"),
+                    "indice": i,
+                    "area": inf.get("area"),
+                    "lente": inf.get("lente"),
+                    "privado": bool(inf.get("privado")),
+                    "por": v.get("por") or "",
+                    "clave": x.get("clave") or D.clave(x.get("titulo")),
+                }
+            )
             x["areas"] = [x["area"]]
             x["lentes"] = [x["lente"]]
             x["apariciones"] = 1
@@ -287,18 +363,39 @@ def consolidar(informes, veredictos, encargadas=(), consejero=None, tope_jev=JEV
         u["capacidad"] = es_de_capacidad(u)
         u["ya_encargada"] = u["clave"] in encargadas
         u["puntuacion"] = puntuar(u)
-    unicos.sort(key=lambda u: (not u["capacidad"], -u["puntuacion"], u["tarea"] or "", u["indice"]))
+    unicos.sort(
+        key=lambda u: (
+            not u["capacidad"],
+            -u["puntuacion"],
+            u["tarea"] or "",
+            u["indice"],
+        )
+    )
     cuentas["jev"] = aconsejar(unicos, consejero, tope_jev)
-    unicos.sort(key=lambda u: (not u["capacidad"], not u["accionable"], -u["puntuacion"], u["tarea"] or "", u["indice"]))
+    unicos.sort(
+        key=lambda u: (
+            not u["capacidad"],
+            not u["accionable"],
+            -u["puntuacion"],
+            u["tarea"] or "",
+            u["indice"],
+        )
+    )
     por_area = {}
     for u in unicos:
         por_area.setdefault(u["area"], []).append(u)
     riesgos = [u for u in unicos if u.get("seccion") == "riesgo"]
     cuentas["unicos"] = len(unicos)
-    return {"ranking": unicos, "por_area": por_area, "riesgos": riesgos, "cuentas": cuentas}
+    return {
+        "ranking": unicos,
+        "por_area": por_area,
+        "riesgos": riesgos,
+        "cuentas": cuentas,
+    }
 
 
 # ─────────────────────────────── Jev de consejero ───────────────────────────────
+
 
 def regla_consejo(u):
     """La regla determinista de siempre: accionable si trae archivos donde hacerlo y su cita
@@ -307,11 +404,22 @@ def regla_consejo(u):
     por puntuación (la capacidad siempre alta)."""
     prop = u.get("propuesta") or {}
     dice_que_hacer = u.get("seccion") != "idea" or bool(
-        D.es_accionable(u.get("titulo"), "%s %s" % (u.get("detalle") or "", prop.get("titulo") or "")))
-    accionable = dice_que_hacer and bool(prop.get("archivos") or u.get("archivo")) \
+        D.es_accionable(
+            u.get("titulo"),
+            "%s %s" % (u.get("detalle") or "", prop.get("titulo") or ""),
+        )
+    )
+    accionable = (
+        dice_que_hacer
+        and bool(prop.get("archivos") or u.get("archivo"))
         and u.get("cita_valida", True) is not False
+    )
     p = _num(u.get("puntuacion"), 0)
-    prioridad = "alta" if (u.get("capacidad") or p >= 1.5) else ("media" if p >= 0.6 else "baja")
+    prioridad = (
+        "alta"
+        if (u.get("capacidad") or p >= 1.5)
+        else ("media" if p >= 0.6 else "baja")
+    )
     return {"accionable": accionable, "prioridad": prioridad}
 
 
@@ -321,24 +429,40 @@ def estado_para_jev(u):
     return {
         "que": "hallazgo de un sueño profundo (análisis de código) de StarSeed OS",
         "reglas": "una tarea del enjambre toca como mucho 3 archivos y 120 líneas por archivo, pasa tsc y "
-                  "vitest, y no se encarga lo que ya está hecho ni lo que no se puede comprobar",
+        "vitest, y no se encarga lo que ya está hecho ni lo que no se puede comprobar",
         "hallazgo": {
-            "titulo": u.get("titulo"), "seccion": u.get("seccion"), "detalle": str(u.get("detalle") or "")[:400],
-            "cita": "%s:%s" % (u.get("archivo"), u.get("linea")), "area": u.get("area"), "lente": u.get("lente"),
-            "impacto": u.get("impacto"), "esfuerzo": u.get("esfuerzo"), "confianza": u.get("confianza"),
-            "verificacion": u.get("verificacion"), "repetido_en_areas": len(u.get("areas") or []),
-            "propuesta": {"titulo": prop.get("titulo"), "archivos": list(prop.get("archivos") or [])[:3]},
+            "titulo": u.get("titulo"),
+            "seccion": u.get("seccion"),
+            "detalle": str(u.get("detalle") or "")[:400],
+            "cita": "%s:%s" % (u.get("archivo"), u.get("linea")),
+            "area": u.get("area"),
+            "lente": u.get("lente"),
+            "impacto": u.get("impacto"),
+            "esfuerzo": u.get("esfuerzo"),
+            "confianza": u.get("confianza"),
+            "verificacion": u.get("verificacion"),
+            "repetido_en_areas": len(u.get("areas") or []),
+            "propuesta": {
+                "titulo": prop.get("titulo"),
+                "archivos": list(prop.get("archivos") or [])[:3],
+            },
         },
     }
 
 
 PREGUNTAS_JEV = [
-    {"id": "accionable", "type": "noul",
-     "question": "¿Puede el enjambre convertir este hallazgo en una tarea concreta y verificable de ≤3 archivos "
-                 "que mejore StarSeed OS, sin que sea trabajo inventado o ya hecho?"},
-    {"id": "prioridad", "type": "choice",
-     "question": "¿Qué prioridad tiene para las próximas olas, pensando en impacto real por esfuerzo?",
-     "options": list(PRIORIDADES)},
+    {
+        "id": "accionable",
+        "type": "noul",
+        "question": "¿Puede el enjambre convertir este hallazgo en una tarea concreta y verificable de ≤3 archivos "
+        "que mejore StarSeed OS, sin que sea trabajo inventado o ya hecho?",
+    },
+    {
+        "id": "prioridad",
+        "type": "choice",
+        "question": "¿Qué prioridad tiene para las próximas olas, pensando en impacto real por esfuerzo?",
+        "options": list(PRIORIDADES),
+    },
 ]
 
 
@@ -410,11 +534,22 @@ def aconsejar(ranking, consejero, tope=JEV_MAX):
             if veto:
                 accionable = False
                 cuenta["vetados"] += 1
-            if c.get("prioridad") in PRIORIDADES and _num(c.get("confianza"), 0) >= CONFIANZA_JEV:
+            if (
+                c.get("prioridad") in PRIORIDADES
+                and _num(c.get("confianza"), 0) >= CONFIANZA_JEV
+            ):
                 prioridad = c["prioridad"]
-                u["puntuacion"] = round(_num(u.get("puntuacion"), 0) * FACTOR_PRIORIDAD[prioridad], 4)
-            u["jev"] = {"p_accionable": p, "prioridad": c.get("prioridad"), "confianza": c.get("confianza"),
-                        "medio": medio, "veto": veto, "regla": base}
+                u["puntuacion"] = round(
+                    _num(u.get("puntuacion"), 0) * FACTOR_PRIORIDAD[prioridad], 4
+                )
+            u["jev"] = {
+                "p_accionable": p,
+                "prioridad": c.get("prioridad"),
+                "confianza": c.get("confianza"),
+                "medio": medio,
+                "veto": veto,
+                "regla": base,
+            }
         else:
             cuenta["regla"] += 1
             u["jev"] = {"medio": "regla", "regla": base}
@@ -426,10 +561,17 @@ def aconsejar(ranking, consejero, tope=JEV_MAX):
 def _texto_jev(u):
     j = u.get("jev") or {}
     if j.get("medio") == "regla" or not j:
-        return "regla: %s%s" % (u.get("prioridad", "—"), "" if u.get("accionable", True) else " · no accionable")
+        return "regla: %s%s" % (
+            u.get("prioridad", "—"),
+            "" if u.get("accionable", True) else " · no accionable",
+        )
     p = j.get("p_accionable")
-    return "%s%s (%s)%s" % (u.get("prioridad", "—"), (" · %.2f" % p) if p is not None else "", j.get("medio"),
-                            " · VETO" if j.get("veto") else "")
+    return "%s%s (%s)%s" % (
+        u.get("prioridad", "—"),
+        (" · %.2f" % p) if p is not None else "",
+        j.get("medio"),
+        " · VETO" if j.get("veto") else "",
+    )
 
 
 def _celda(s, n=90):
@@ -450,64 +592,156 @@ def render_informe(c, sesion, planificadas=None, cola_nombre=None, n_cola=0, top
     total = planificadas if planificadas is not None else k["informes"]
     verificados = k["verificados"] + k["ajustados"] + k["rechazados_informe"]
     lin = [
-        "# 🌌 Sueños profundos — INFORME (%s)" % sesion, "",
+        "# 🌌 Sueños profundos — INFORME (%s)" % sesion,
+        "",
         "> %d informes de %d planificados · %d revisados por un supervisor Claude (%d verificados, %d ajustados, "
         "%d rechazados) · %d hallazgos únicos (%d duplicados fundidos, %d rechazados) · generado %s"
-        % (k["informes"], total, verificados, k["verificados"], k["ajustados"], k["rechazados_informe"],
-           k["unicos"], k["duplicados"], k["rechazados"], time.strftime("%Y-%m-%d %H:%M")),
-        "", "## Resumen ejecutivo", "",
+        % (
+            k["informes"],
+            total,
+            verificados,
+            k["verificados"],
+            k["ajustados"],
+            k["rechazados_informe"],
+            k["unicos"],
+            k["duplicados"],
+            k["rechazados"],
+            time.strftime("%Y-%m-%d %H:%M"),
+        ),
+        "",
+        "## Resumen ejecutivo",
+        "",
     ]
     areas = sorted(c["por_area"])
     lentes = sorted({l for u in rk for l in u["lentes"]})
-    lin.append("- **Áreas soñadas:** %s. **Lentes:** %s." % (", ".join(areas) or "—", ", ".join(lentes) or "—"))
+    lin.append(
+        "- **Áreas soñadas:** %s. **Lentes:** %s."
+        % (", ".join(areas) or "—", ", ".join(lentes) or "—")
+    )
     if rk:
-        lin.append("- **Lo que más pesa:** " + "; ".join(
-            "%s (%s)" % (_celda(u["titulo"], 70), u["area"]) for u in rk[:3]))
+        lin.append(
+            "- **Lo que más pesa:** "
+            + "; ".join(
+                "%s (%s)" % (_celda(u["titulo"], 70), u["area"]) for u in rk[:3]
+            )
+        )
     cap = [u for u in rk if u["capacidad"]]
-    lin.append("- **Tramo de capacidad** (sube el techo: más agentes o mejores modelos): %d recomendación(es), van primero." % len(cap))
-    lin.append("- **Verificación:** %d de %d informes revisados por Claude; lo no verificado pesa 0,4 frente a 1 en el orden."
-               % (verificados, k["informes"]))
+    lin.append(
+        "- **Tramo de capacidad** (sube el techo: más agentes o mejores modelos): %d recomendación(es), van primero."
+        % len(cap)
+    )
+    lin.append(
+        "- **Verificación:** %d de %d informes revisados por Claude; lo no verificado pesa 0,4 frente a 1 en el orden."
+        % (verificados, k["informes"])
+    )
     jv = k.get("jev") or {}
-    medios = ", ".join("%s %d" % (m, n) for m, n in sorted((jv.get("por_medio") or {}).items())) or "ninguno"
-    lin.append("- **Consejero Jev:** %d consultas (%s), %d vetadas por no accionables; %d por la regla determinista."
-               % (jv.get("consultas", 0), medios, jv.get("vetados", 0), jv.get("regla", 0)))
+    medios = (
+        ", ".join(
+            "%s %d" % (m, n) for m, n in sorted((jv.get("por_medio") or {}).items())
+        )
+        or "ninguno"
+    )
+    lin.append(
+        "- **Consejero Jev:** %d consultas (%s), %d vetadas por no accionables; %d por la regla determinista."
+        % (jv.get("consultas", 0), medios, jv.get("vetados", 0), jv.get("regla", 0))
+    )
     riesgos_priv = sum(1 for u in c["riesgos"] if u["privado"])
-    lin.append("- **Riesgos:** %d (%d privados, solo en esta Mac)." % (len(c["riesgos"]), riesgos_priv))
+    lin.append(
+        "- **Riesgos:** %d (%d privados, solo en esta Mac)."
+        % (len(c["riesgos"]), riesgos_priv)
+    )
     if cola_nombre:
-        lin.append("- **Cola propuesta:** `starseed_memory_root/olas/%s` · %d tareas con visto bueno humano (`aprobacion: true`). "
-                   "**No se ha lanzado**: ábrela en el Diseñador de olas." % (cola_nombre, n_cola))
-    lin += ["", "## Top %d recomendaciones" % tope, "",
-            "| # | Recomendación | Área × lente | Cita | I | E | Conf. | Verificación | Jev | Tarea |",
-            "|---|---|---|---|---|---|---|---|---|---|"]
+        lin.append(
+            "- **Cola propuesta:** `starseed_memory_root/olas/%s` · %d tareas con visto bueno humano (`aprobacion: true`). "
+            "**No se ha lanzado**: ábrela en el Diseñador de olas."
+            % (cola_nombre, n_cola)
+        )
+    lin += [
+        "",
+        "## Top %d recomendaciones" % tope,
+        "",
+        "| # | Recomendación | Área × lente | Cita | I | E | Conf. | Verificación | Jev | Tarea |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
     for i, u in enumerate(rk[:tope], 1):
-        marcas = ("⚡ " if u["capacidad"] else "") + ("🔒 " if u["privado"] else "") + ("↺ " if u["ya_encargada"] else "")
-        lin.append("| %d | %s%s | %s × %s%s | `%s:%s` | %s | %s | %.2f | %s | %s | %s |" % (
-            i, marcas, _celda(u["titulo"]), u["area"], u["lente"],
-            (" (+%d)" % (u["apariciones"] - 1)) if u["apariciones"] > 1 else "",
-            _celda(u.get("archivo"), 60), u.get("linea", 0), int(_num(u.get("impacto"), 0)),
-            int(_num(u.get("esfuerzo"), 0)), _num(u.get("confianza"), 0), _texto_verif(u), _texto_jev(u),
-            _celda((u.get("propuesta") or {}).get("titulo"), 60) if u.get("accionable", True) else "— (no accionable)"))
+        marcas = (
+            ("⚡ " if u["capacidad"] else "")
+            + ("🔒 " if u["privado"] else "")
+            + ("↺ " if u["ya_encargada"] else "")
+        )
+        lin.append(
+            "| %d | %s%s | %s × %s%s | `%s:%s` | %s | %s | %.2f | %s | %s | %s |"
+            % (
+                i,
+                marcas,
+                _celda(u["titulo"]),
+                u["area"],
+                u["lente"],
+                (" (+%d)" % (u["apariciones"] - 1)) if u["apariciones"] > 1 else "",
+                _celda(u.get("archivo"), 60),
+                u.get("linea", 0),
+                int(_num(u.get("impacto"), 0)),
+                int(_num(u.get("esfuerzo"), 0)),
+                _num(u.get("confianza"), 0),
+                _texto_verif(u),
+                _texto_jev(u),
+                _celda((u.get("propuesta") or {}).get("titulo"), 60)
+                if u.get("accionable", True)
+                else "— (no accionable)",
+            )
+        )
     if not rk:
         lin.append("| — | Nada que recomendar todavía | | | | | | | | |")
-    lin += ["", "⚡ capacidad · 🔒 privado (solo en esta Mac) · ↺ ya propuesta en otra sesión · (+n) repetida en otras áreas/lentes", "",
-            "## Por área", ""]
+    lin += [
+        "",
+        "⚡ capacidad · 🔒 privado (solo en esta Mac) · ↺ ya propuesta en otra sesión · (+n) repetida en otras áreas/lentes",
+        "",
+        "## Por área",
+        "",
+    ]
     for area in areas:
         lin += ["### %s" % area, ""]
         for i, u in enumerate(c["por_area"][area][:5], 1):
-            lin.append("%d. **%s** — `%s:%s` · %s · impacto %s · esfuerzo %s · confianza %.2f · %s. %s" % (
-                i, u["titulo"], u.get("archivo"), u.get("linea", 0), u["lente"], int(_num(u.get("impacto"), 0)),
-                int(_num(u.get("esfuerzo"), 0)), _num(u.get("confianza"), 0), _texto_verif(u),
-                _celda(u.get("detalle"), 240)))
+            lin.append(
+                "%d. **%s** — `%s:%s` · %s · impacto %s · esfuerzo %s · confianza %.2f · %s. %s"
+                % (
+                    i,
+                    u["titulo"],
+                    u.get("archivo"),
+                    u.get("linea", 0),
+                    u["lente"],
+                    int(_num(u.get("impacto"), 0)),
+                    int(_num(u.get("esfuerzo"), 0)),
+                    _num(u.get("confianza"), 0),
+                    _texto_verif(u),
+                    _celda(u.get("detalle"), 240),
+                )
+            )
         lin.append("")
     lin += ["## Riesgos", ""]
-    lin += ["%d. %s**%s** — `%s:%s` · %s × %s · %s" % (
-        i, "🔒 " if u["privado"] else "", u["titulo"], u.get("archivo"), u.get("linea", 0), u["area"], u["lente"],
-        _celda(u.get("detalle"), 240)) for i, u in enumerate(c["riesgos"], 1)] or ["_Ninguno._"]
-    lin += ["", "## Cómo seguir", "",
-            "- Estado y verificación: `python3 scripts/puente/suenos.py estado` · `python3 scripts/puente/suenos.py por-verificar`.",
-            "- Veredicto de un informe: `python3 scripts/puente/suenos.py veredicto <tarea> --estado verificado|ajustado|rechazado --nota \"…\" --por claude-<modelo>`.",
-            "- La cola propuesta se abre en el Mando (Procesos → Sueños profundos → «Abrir en Diseñador»); se lanza a mano y cada tarea espera tu visto bueno antes de integrarse.",
-            ""]
+    lin += [
+        "%d. %s**%s** — `%s:%s` · %s × %s · %s"
+        % (
+            i,
+            "🔒 " if u["privado"] else "",
+            u["titulo"],
+            u.get("archivo"),
+            u.get("linea", 0),
+            u["area"],
+            u["lente"],
+            _celda(u.get("detalle"), 240),
+        )
+        for i, u in enumerate(c["riesgos"], 1)
+    ] or ["_Ninguno._"]
+    lin += [
+        "",
+        "## Cómo seguir",
+        "",
+        "- Estado y verificación: `python3 scripts/puente/suenos.py estado` · `python3 scripts/puente/suenos.py por-verificar`.",
+        '- Veredicto de un informe: `python3 scripts/puente/suenos.py veredicto <tarea> --estado verificado|ajustado|rechazado --nota "…" --por claude-<modelo>`.',
+        "- La cola propuesta se abre en el Mando (Procesos → Sueños profundos → «Abrir en Diseñador»); se lanza a mano y cada tarea espera tu visto bueno antes de integrarse.",
+        "",
+    ]
     return "\n".join(lin)
 
 
@@ -531,6 +765,7 @@ def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA, ocupados=()):
             if tid not in ocupados:
                 ocupados.add(tid)
                 return tid
+
     for u in c["ranking"]:
         if len(fuera) >= tope:
             break
@@ -542,7 +777,11 @@ def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA, ocupados=()):
             continue
         verif = _texto_verif(u)
         prompt = (
-            ("🔒 PRIVADO · solo en la Mac: no lo repartas a la nube ni lo cuentes fuera.\n\n" if u["privado"] else "")
+            (
+                "🔒 PRIVADO · solo en la Mac: no lo repartas a la nube ni lo cuentes fuera.\n\n"
+                if u["privado"]
+                else ""
+            )
             + "ORIGEN: sueño profundo %s (%s × %s) del %s, %s. Informe: "
             "`starseed_memory_root/dream/profundo/%s/%s--%s.md`.\n\n"
             "HALLAZGO: %s — %s\nCITA: %s:%s · impacto %s · esfuerzo %s · confianza %.2f\n"
@@ -554,10 +793,24 @@ def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA, ocupados=()):
             "y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba "
             "falla se arregla el código, no la prueba; integrado no es aplicado."
         ) % (
-            u["tarea"], u["area"], u["lente"], sesion, verif, sesion, u["area"], u["lente"],
-            u["titulo"], u.get("detalle") or "", u.get("archivo"), u.get("linea", 0),
-            int(_num(u.get("impacto"), 0)), int(_num(u.get("esfuerzo"), 0)), _num(u.get("confianza"), 0),
-            prop.get("cambio") or prop.get("titulo") or u["titulo"], _texto_jev(u), ", ".join(archivos),
+            u["tarea"],
+            u["area"],
+            u["lente"],
+            sesion,
+            verif,
+            sesion,
+            u["area"],
+            u["lente"],
+            u["titulo"],
+            u.get("detalle") or "",
+            u.get("archivo"),
+            u.get("linea", 0),
+            int(_num(u.get("impacto"), 0)),
+            int(_num(u.get("esfuerzo"), 0)),
+            _num(u.get("confianza"), 0),
+            prop.get("cambio") or prop.get("titulo") or u["titulo"],
+            _texto_jev(u),
+            ", ".join(archivos),
         )
         t = {
             "id": nuevo_id(),
@@ -567,7 +820,12 @@ def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA, ocupados=()):
             "depende": [],
             "prompt": prompt[:11500],
             "aprobacion": True,
-            "origen": {"sueno": u["tarea"], "area": u["area"], "lente": u["lente"], "clave": u["clave"]},
+            "origen": {
+                "sueno": u["tarea"],
+                "area": u["area"],
+                "lente": u["lente"],
+                "clave": u["clave"],
+            },
         }
         if u["capacidad"]:
             t["importancia"] = "capacidad"
@@ -582,13 +840,23 @@ def resumen_corto(c, sesion, n_cola=0):
     k = c["cuentas"]
     publicos = [u for u in c["ranking"] if not u["privado"]][:3]
     top = "; ".join("%s (%s)" % (_celda(u["titulo"], 60), u["area"]) for u in publicos)
-    return ("Sueños profundos %s: %d informes, %d hallazgos únicos (%d verificados/ajustados por Claude), "
-            "%d riesgos, %d propuestas en cola (sin lanzar).%s"
-            % (sesion, k["informes"], k["unicos"], k["verificados"] + k["ajustados"], len(c["riesgos"]), n_cola,
-               (" Primero: " + top) if top else ""))
+    return (
+        "Sueños profundos %s: %d informes, %d hallazgos únicos (%d verificados/ajustados por Claude), "
+        "%d riesgos, %d propuestas en cola (sin lanzar).%s"
+        % (
+            sesion,
+            k["informes"],
+            k["unicos"],
+            k["verificados"] + k["ajustados"],
+            len(c["riesgos"]),
+            n_cola,
+            (" Primero: " + top) if top else "",
+        )
+    )
 
 
 # ─────────────────────────────── escribir y anunciar ───────────────────────────────
+
 
 def _escribir(ruta, texto):
     os.makedirs(os.path.dirname(ruta), exist_ok=True)
@@ -599,8 +867,12 @@ def _escribir(ruta, texto):
 
 
 def _hermes():
-    for c in (shutil.which("hermes"), os.path.expanduser("~/.local/bin/hermes"),
-              os.path.expanduser("~/.hermes/bin/hermes"), "/opt/homebrew/bin/hermes"):
+    for c in (
+        shutil.which("hermes"),
+        os.path.expanduser("~/.local/bin/hermes"),
+        os.path.expanduser("~/.hermes/bin/hermes"),
+        "/opt/homebrew/bin/hermes",
+    ):
         if c and os.path.exists(c):
             return c
     return None
@@ -610,12 +882,16 @@ def _leer_env(clave, rutas=(".env.local", "~/.starseed/env", "~/.hermes/.env")):
     """Valor de una variable del entorno o de los archivos de entorno. Nunca se imprime."""
     if os.environ.get(clave):
         return os.environ[clave]
-    raiz = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
+    raiz = os.environ.get("STARSEED_ROOT") or os.path.dirname(
+        os.path.dirname(DIRECTORIO)
+    )
     for r in rutas:
         ruta = os.path.expanduser(r if r.startswith("~") else os.path.join(raiz, r))
         try:
             for linea in open(ruta, encoding="utf-8"):
-                m = re.match(r"^\s*(?:export\s+)?%s=(.+?)\s*$" % re.escape(clave), linea)
+                m = re.match(
+                    r"^\s*(?:export\s+)?%s=(.+?)\s*$" % re.escape(clave), linea
+                )
                 if m:
                     return m.group(1).strip().strip('"').strip("'")
         except OSError:
@@ -631,12 +907,28 @@ def publicar_en_bus(texto, datos, tipo="informe"):
     if not url or not clave:
         return False
     import urllib.request  # noqa: E402
-    cuerpo = json.dumps({"quien": "director-suenos", "tipo": tipo, "tarea": "", "texto": texto[:1500],
-                         "datos": dict(datos or {}, categoria="ola", donde="mac", medio="suenos")},
-                        ensure_ascii=False).encode()
-    req = urllib.request.Request(url + "/rest/v1/relevo_eventos", data=cuerpo, method="POST", headers={
-        "apikey": clave, "Authorization": "Bearer " + clave, "Content-Type": "application/json",
-        "Prefer": "return=minimal"})
+
+    cuerpo = json.dumps(
+        {
+            "quien": "director-suenos",
+            "tipo": tipo,
+            "tarea": "",
+            "texto": texto[:1500],
+            "datos": dict(datos or {}, categoria="ola", donde="mac", medio="suenos"),
+        },
+        ensure_ascii=False,
+    ).encode()
+    req = urllib.request.Request(
+        url + "/rest/v1/relevo_eventos",
+        data=cuerpo,
+        method="POST",
+        headers={
+            "apikey": clave,
+            "Authorization": "Bearer " + clave,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+    )
     try:
         urllib.request.urlopen(req, timeout=10).read()
         return True
@@ -651,6 +943,7 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
     try:
         if decir is None:
             import puente  # noqa: E402
+
             decir = puente.decir
         decir(texto, "suenos", "hecho")
         hecho["canal"] = True
@@ -666,8 +959,19 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
         if h:
             try:
                 # La forma comprobada el 2026-09-20 (CLAUDE.md): destino, asunto y cuerpo.
-                r = subprocess.run([h, "send", "-t", DESTINO_TELEGRAM, "-s", "Sueños profundos · StarSeed OS",
-                                    texto[:1200]], timeout=40, capture_output=True)
+                r = subprocess.run(
+                    [
+                        h,
+                        "send",
+                        "-t",
+                        DESTINO_TELEGRAM,
+                        "-s",
+                        "Sueños profundos · StarSeed OS",
+                        texto[:1200],
+                    ],
+                    timeout=40,
+                    capture_output=True,
+                )
                 hecho["telegram"] = r.returncode == 0
             except Exception:
                 pass
@@ -697,12 +1001,25 @@ def ids_existentes(dir_olas):
             continue
         tareas = d.get("tareas", []) if isinstance(d, dict) else d
         if isinstance(tareas, list):
-            ids.update(str(t["id"]) for t in tareas if isinstance(t, dict) and t.get("id"))
+            ids.update(
+                str(t["id"]) for t in tareas if isinstance(t, dict) and t.get("id")
+            )
     return ids
 
 
-def ejecutar(dir_sesion, dir_olas, sesion, tope=TOPE_PROPUESTA, seco=False, memoria=None,
-             planificadas=None, telegram=False, decir=None, consejero=_POR_DEFECTO, bus=_POR_DEFECTO):
+def ejecutar(
+    dir_sesion,
+    dir_olas,
+    sesion,
+    tope=TOPE_PROPUESTA,
+    seco=False,
+    memoria=None,
+    planificadas=None,
+    telegram=False,
+    decir=None,
+    consejero=_POR_DEFECTO,
+    bus=_POR_DEFECTO,
+):
     """Consolida una sesión y escribe INFORME.md + la cola propuesta. Devuelve un resumen.
     `consejero` y `bus` se pueden inyectar (pruebas); por defecto, Jev y el bus de verdad.
     `memoria` se resuelve al llamar (MEMORIA_ENCARGADAS), no al importar: así se puede cambiar."""
@@ -716,28 +1033,75 @@ def ejecutar(dir_sesion, dir_olas, sesion, tope=TOPE_PROPUESTA, seco=False, memo
     c = consolidar(informes, veredictos, ya_encargadas(memoria), consejero)
     cola = cola_propuesta(c, sesion, tope, ids_existentes(dir_olas))
     nombre_cola = "cola-suenos-propuesta-%s.json" % sesion
-    texto = render_informe(c, sesion, planificadas, nombre_cola if cola else None, len(cola), tope)
+    texto = render_informe(
+        c, sesion, planificadas, nombre_cola if cola else None, len(cola), tope
+    )
     resumen = resumen_corto(c, sesion, len(cola))
     # Rutas RELATIVAS al repositorio: esto lo enseña el Mando, que nunca devuelve rutas del disco.
-    fuera = {"sesion": sesion, "cuentas": c["cuentas"], "propuestas": len(cola), "resumen": resumen,
-             "informe": "starseed_memory_root/dream/profundo/%s/INFORME.md" % sesion,
-             "cola": ("starseed_memory_root/olas/%s" % nombre_cola) if cola else "",
-             "generado": time.strftime("%Y-%m-%d %H:%M:%S"),
-             "top": [dict({k: u.get(k) for k in ("titulo", "area", "lente", "archivo", "linea", "impacto", "esfuerzo",
-                                                  "confianza", "verificacion", "por", "capacidad", "privado", "puntuacion",
-                                                  "tarea", "apariciones", "ya_encargada", "seccion", "accionable",
-                                                  "prioridad")},
-                          propuesta=(u.get("propuesta") or {}).get("titulo") or "", jev=_texto_jev(u))
-                     for u in c["ranking"][:max(tope, 30)]]}
+    fuera = {
+        "sesion": sesion,
+        "cuentas": c["cuentas"],
+        "propuestas": len(cola),
+        "resumen": resumen,
+        "informe": "starseed_memory_root/dream/profundo/%s/INFORME.md" % sesion,
+        "cola": ("starseed_memory_root/olas/%s" % nombre_cola) if cola else "",
+        "generado": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "top": [
+            dict(
+                {
+                    k: u.get(k)
+                    for k in (
+                        "titulo",
+                        "area",
+                        "lente",
+                        "archivo",
+                        "linea",
+                        "impacto",
+                        "esfuerzo",
+                        "confianza",
+                        "verificacion",
+                        "por",
+                        "capacidad",
+                        "privado",
+                        "puntuacion",
+                        "tarea",
+                        "apariciones",
+                        "ya_encargada",
+                        "seccion",
+                        "accionable",
+                        "prioridad",
+                    )
+                },
+                propuesta=(u.get("propuesta") or {}).get("titulo") or "",
+                jev=_texto_jev(u),
+            )
+            for u in c["ranking"][: max(tope, 30)]
+        ],
+    }
     if seco:
         fuera["seco"] = True
         return fuera
     _escribir(os.path.join(dir_sesion, "INFORME.md"), texto)
     # Lo que lee el panel del Mando (Procesos → Sueños profundos): el ranking ya hecho.
-    _escribir(os.path.join(dir_sesion, "consolidado.json"), json.dumps(fuera, ensure_ascii=False, indent=1))
+    _escribir(
+        os.path.join(dir_sesion, "consolidado.json"),
+        json.dumps(fuera, ensure_ascii=False, indent=1),
+    )
     if cola:
-        _escribir(os.path.join(dir_olas, nombre_cola), json.dumps(cola, ensure_ascii=False, indent=2) + "\n")
+        _escribir(
+            os.path.join(dir_olas, nombre_cola),
+            json.dumps(cola, ensure_ascii=False, indent=2) + "\n",
+        )
         anotar_encargadas([t["origen"]["clave"] for t in cola], memoria)
-    fuera["anuncio"] = anunciar(resumen, telegram=telegram, decir=decir, bus=bus,
-                                datos_bus={"sesion": sesion, "propuestas": len(cola), "cola": nombre_cola if cola else ""})
+    fuera["anuncio"] = anunciar(
+        resumen,
+        telegram=telegram,
+        decir=decir,
+        bus=bus,
+        datos_bus={
+            "sesion": sesion,
+            "propuestas": len(cola),
+            "cola": nombre_cola if cola else "",
+        },
+    )
     return fuera

@@ -119,6 +119,11 @@ class RepartoScript(unittest.TestCase):
         m.asuntos_main = lambda r: []
         m.validar_raiz = lambda r: None
         m.puente.decir = lambda *a, **k: None
+        import repartir_nube as RN
+
+        pausa_real = RN.nube_pausada
+        RN.nube_pausada = lambda *a, **k: None
+        self.addCleanup(setattr, RN, "nube_pausada", pausa_real)
         sys.argv = ["repartir-a-nube.py"]
         m.main()
         salidas = os.listdir(m.DESTINO_DIR)
@@ -141,29 +146,56 @@ class RepartoScript(unittest.TestCase):
 class LasMismasTresVecesYVeces(unittest.TestCase):
     """(2026-09-24, medido) CU3br, p318Jb y p318Jc, 22 envíos seguidos a la nube."""
 
-    ASUNTOS = ["Ola 318 · Director de verdad · p318I: la pestaña Director monta ControlDirectores"]
+    ASUNTOS = [
+        "Ola 318 · Director de verdad · p318I: la pestaña Director monta ControlDirectores"
+    ]
 
     def test_las_dependencias_ya_en_main_no_viajan_a_la_nube(self):
-        colas = [("cola-reintentos.json", [{"id": "p318Jb", "ola": "Ola 318", "depende": ["p318I"], "archivos": ["a.ts"]}])]
+        colas = [
+            (
+                "cola-reintentos.json",
+                [
+                    {
+                        "id": "p318Jb",
+                        "ola": "Ola 318",
+                        "depende": ["p318I"],
+                        "archivos": ["a.ts"],
+                    }
+                ],
+            )
+        ]
         elegidas = elegir(colas, {}, self.ASUNTOS, "364")
         self.assertEqual([t["id"] for t in elegidas], ["p318Jb"])
         self.assertEqual(elegidas[0]["depende"], [])
         self.assertEqual(elegidas[0]["dependencias_ya_en_main"], ["p318I"])
 
     def test_tras_tres_envios_no_se_vuelve_a_mandar(self):
-        colas = [("cola-362.json", [{"id": "CU3br", "ola": "362", "archivos": ["a.ts"]}])]
+        colas = [
+            ("cola-362.json", [{"id": "CU3br", "ola": "362", "archivos": ["a.ts"]}])
+        ]
         self.assertEqual(elegir(colas, {}, [], "364", envios={"CU3br": 3}), [])
         self.assertEqual(len(elegir(colas, {}, [], "364", envios={"CU3br": 2})), 1)
 
     def test_contar_envios(self):
-        colas_nube = [("cola-nube-1.json", ["CU3br", "p318Jb"]), ("cola-nube-2.json", ["CU3br", "CU3br"])]
+        colas_nube = [
+            ("cola-nube-1.json", ["CU3br", "p318Jb"]),
+            ("cola-nube-2.json", ["CU3br", "CU3br"]),
+        ]
         self.assertEqual(R.envios_por_tarea(colas_nube), {"CU3br": 2, "p318Jb": 1})
 
     def test_devolver_bloquea_tras_el_tope_y_dice_lo_que_dijo_la_nube(self):
-        prog = {"CU3br": {"estado": "reasignada", "medio": "nube"}, "X": {"estado": "reasignada", "medio": "nube"}}
+        prog = {
+            "CU3br": {"estado": "reasignada", "medio": "nube"},
+            "X": {"estado": "reasignada", "medio": "nube"},
+        }
         nuevo = R.devolver_a_pendiente(
-            prog, ["CU3br", "X"], "20260924", envios={"CU3br": 22, "X": 1},
-            veredictos={"CU3br": ("rechazada", "no toco ninguno de los archivos declarados")},
+            prog,
+            ["CU3br", "X"],
+            "20260924",
+            envios={"CU3br": 22, "X": 1},
+            veredictos={
+                "CU3br": ("rechazada", "no toco ninguno de los archivos declarados")
+            },
         )
         self.assertEqual(nuevo["CU3br"]["estado"], "bloqueada")
         self.assertIn("22 veces", nuevo["CU3br"]["nota"])
@@ -359,11 +391,20 @@ class Privadas(unittest.TestCase):
     """(2026-10-03) Lo privado de los sueños no sale de la Mac."""
 
     def test_una_tarea_privada_no_se_reparte(self):
-        colas = [("cola-ola2.json", [
-            {"id": "P1", "ola": "x", "privado": True},
-            {"id": "P2", "ola": "x", "prompt": "🔒 PRIVADO · solo en la Mac: …"},
-            {"id": "P3", "ola": "x", "prompt": "ORIGEN: sueño público"},
-        ])]
+        colas = [
+            (
+                "cola-ola2.json",
+                [
+                    {"id": "P1", "ola": "x", "privado": True},
+                    {
+                        "id": "P2",
+                        "ola": "x",
+                        "prompt": "🔒 PRIVADO · solo en la Mac: …",
+                    },
+                    {"id": "P3", "ola": "x", "prompt": "ORIGEN: sueño público"},
+                ],
+            )
+        ]
         r = elegir(colas, {}, [], ola_actual="")
         self.assertEqual([t["id"] for t in r], ["P3"])
 
@@ -373,23 +414,27 @@ class PausaDeLaNube(unittest.TestCase):
 
     def test_sin_hasta_vale_hasta_que_se_quite(self):
         import repartir_nube as RNp
+
         self.assertEqual(RNp.motivo_pausa({"motivo": "cero commits"}), "cero commits")
 
     def test_con_hasta_pasado_ya_no_vale(self):
         import time
         import repartir_nube as RNp
+
         ayer = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - 86400))
         self.assertIsNone(RNp.motivo_pausa({"motivo": "x", "hasta": ayer}))
 
     def test_con_hasta_futuro_vale(self):
         import time
         import repartir_nube as RNp
+
         manana = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + 86400))
         self.assertEqual(RNp.motivo_pausa({"motivo": "x", "hasta": manana}), "x")
 
     def test_archivo_ausente_o_roto_no_pausa(self):
         import os, tempfile
         import repartir_nube as RNp
+
         d = tempfile.mkdtemp()
         self.assertIsNone(RNp.nube_pausada(os.path.join(d, "no-existe.json")))
         roto = os.path.join(d, "roto.json")
@@ -397,4 +442,3 @@ class PausaDeLaNube(unittest.TestCase):
             f.write("{")
         self.assertIsNone(RNp.nube_pausada(roto))
         self.assertIsNone(RNp.motivo_pausa(["no", "es", "dict"]))
-
