@@ -576,6 +576,63 @@ class LaBuildSeParaAntesDeLlenarElDisco(unittest.TestCase):
         self.assertGreater(R.MINIMO_LIBRE_GB, R.MINIMO_DURANTE_GB)
 
 
+class LaBuildCedeSiElEnjambreArrancaAMitad(unittest.TestCase):
+    """(2026-10-03, tras un reinicio) La build empezó 6 s antes que el orquestador y siguió
+    con tres agentes encima: swap 6,9 GB y 2,1 GB de disco. El freno se mira DURANTE."""
+
+    def test_si_vigilar_da_motivo_se_para_y_sale_cedida(self):
+        import time
+        t0 = time.time()
+        rc, salida, por_disco = R.compilar_vigilando_disco(
+            ["sleep", "30"], minimo_gb=1.5, cada_s=0.05, medir=lambda: 50.0,
+            vigilar=lambda: "el enjambre está vivo (1 orquestador)", cada_vigilar_s=0.1)
+        self.assertEqual(rc, R.RC_CEDIDA)
+        self.assertFalse(por_disco)
+        self.assertIn("CEDIDA: el enjambre está vivo", salida)
+        self.assertLess(time.time() - t0, 5)
+
+    def test_sin_motivo_termina_normal(self):
+        rc, salida, _ = R.compilar_vigilando_disco(
+            ["sh", "-c", "sleep 0.3; echo hecho"], minimo_gb=1.5, cada_s=0.05,
+            medir=lambda: 50.0, vigilar=lambda: None, cada_vigilar_s=0.05)
+        self.assertEqual(rc, 0)
+        self.assertIn("hecho", salida)
+
+    def test_un_vigilante_que_revienta_no_para_la_build(self):
+        def roto():
+            raise OSError("ps no responde")
+        rc, _, _ = R.compilar_vigilando_disco(
+            ["sh", "-c", "sleep 0.3"], minimo_gb=1.5, cada_s=0.05, medir=lambda: 50.0,
+            vigilar=roto, cada_vigilar_s=0.05)
+        self.assertEqual(rc, 0)
+
+    def test_reconstruir_anota_esperando_maquina_y_no_un_fallo(self):
+        guardados = []
+        previo = {"build_servido": "SERVIDO123", "huella_construida": "aaa", "ok": True}
+        with mock.patch.object(R, "_leer_estado", return_value=dict(previo)), \
+                mock.patch.object(R, "_guardar", side_effect=lambda d, *a, **k: guardados.append(dict(d))), \
+                mock.patch.object(R, "preparar_dist_de_build"), \
+                mock.patch.object(R, "liberar_lo_propio", return_value=[]) as recoger, \
+                mock.patch.object(R, "marcar_listo") as listo, \
+                mock.patch.object(R, "reiniciar_mando") as reinicio, \
+                mock.patch.object(R, "compilar_vigilando_disco",
+                                  return_value=(R.RC_CEDIDA, "…\nCEDIDA: el enjambre está vivo (1 orquestador)", False)):
+            datos = R.reconstruir("bbb")
+        final = guardados[-1]
+        self.assertEqual(final["estado"], "esperando-maquina")
+        self.assertIn("enjambre", final["freno"])
+        self.assertIs(final["ok"], True, "ceder no es fallar: no se marca ok=False")
+        self.assertIsNone(final["huella_intentada"])
+        self.assertEqual(final["build_servido"], "SERVIDO123")
+        self.assertEqual(datos["estado"], "esperando-maquina")
+        recoger.assert_called_once()
+        listo.assert_not_called()
+        reinicio.assert_not_called()
+        # La siguiente pasada no espera «por fallo»: vuelve a decidir con el freno.
+        hazlo, motivo = R.decidir("bbb", final, ahora=10 ** 10, mas_nuevas=3)
+        self.assertTrue(hazlo, motivo)
+
+
 class NoSeCompilaEnPlenaConversacion(unittest.TestCase):
     def test_lee_la_concesion(self):
         import json, tempfile, time

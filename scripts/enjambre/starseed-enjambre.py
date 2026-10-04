@@ -339,6 +339,36 @@ def fallo_de_proveedor(salida):
     return next((x for x in PISTAS_PROVEEDOR if x in b), None)
 
 
+#: (2026-10-03) apinex pasó modelos «free/» a suscripción: opencode contesta
+#: «Error: This model is currently available only with a subscription» en 1-2 s, el intento
+#: contaba como «sin cambios» del modelo (uno de los 5 de la tarea) y Jev lo volvía a elegir
+#: para reintentar en otras tareas (CC1003A, LP1003 y SP092916 en diez minutos).
+PISTAS_DE_PAGO = (
+    "available only with a subscription",
+    "buy a subscription",
+    "requires a subscription",
+    "subscription required",
+    "requires a paid plan",
+)
+_ANSI = re.compile(r"(?:\x1b)?\[[0-9;]*m")
+
+
+def exige_pago(salida):
+    """PURA: la línea de error de la API si el proveedor exige pagar por ESTE modelo, o "".
+
+    Solo cuenta en una línea de error de la API (como `debe_retirar`): la salida de una
+    herramienta del agente puede hablar de suscripciones sin que el modelo pida nada. Los
+    colores ANSI de opencode van delante de «Error:» y se quitan antes de mirar."""
+    for linea in (salida or "").splitlines():
+        l = _ANSI.sub("", linea).strip()
+        bajo = l.lower()
+        if any(p in bajo for p in PISTAS_DE_PAGO) and (
+            l.startswith(("Error", "AI_APICallError", '{"error"')) or "HTTP Error" in l
+        ):
+            return l[:160]
+    return ""
+
+
 CATALOGOS = {
     "nvidia": (
         "https://integrate.api.nvidia.com/v1/models",
@@ -348,6 +378,27 @@ CATALOGOS = {
     "apinex": ("https://apinex.bond/v1/models", ("STARSEED_PASARELA_APINEX_KEY",)),
     "anthropic": ("https://api.anthropic.com/v1/models", ("ANTHROPIC_API_KEY",)),
 }
+
+def apartar_si_pide_pago(tid, modelo, salida):
+    """Si el proveedor pide suscripción para `modelo`: fuera de la rotación de esta corrida
+    (MUERTOS), anotado como fallido en la tarea (baja su mérito) y SIN gastar intento.
+    Devuelve True si lo apartó."""
+    linea = exige_pago(salida)
+    if not linea:
+        return False
+    MUERTOS.add(modelo)
+    try:
+        _anotar_fallido(tid, modelo)
+    except Exception:
+        pass
+    evento(
+        "proveedor",
+        tid,
+        "%s pide suscripción de pago (%s) → fuera de la rotación, sin gastar intento"
+        % (modelo, linea[:100]),
+    )
+    return True
+
 
 _CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
 _ANTHROPIC_ORDENADOS = []
@@ -1315,18 +1366,36 @@ def merito_escritores(progreso):
     return m
 
 
+#: Lo que vale un escritor sin historia: por detrás de los probados que escriben, por delante
+#: de los que fallan casi siempre. Así un modelo nuevo tiene su oportunidad sin encabezar.
+MERITO_SIN_HISTORIA = 0.3
+
+
+def cota_wilson(aciertos, intentos, z=1.96):
+    """PURA: cota inferior de Wilson de la tasa de acierto. Con pocas muestras es prudente:
+    2 de 2 no gana a 57 de 88 (medido: con la tasa suavizada simple llm7, 2/2, encabezaba)."""
+    if intentos <= 0:
+        return None
+    p = aciertos / float(intentos)
+    z2 = z * z
+    centro = p + z2 / (2.0 * intentos)
+    margen = z * ((p * (1 - p) / intentos + z2 / (4.0 * intentos * intentos)) ** 0.5)
+    return max(0.0, (centro - margen) / (1 + z2 / intentos))
+
+
 def orden_por_merito(modelos, progreso, tid, cabeza=None):
-    """PURA: los modelos por tasa de acierto suavizada (aciertos+1)/(intentos+2) —uno sin
-    historia vale 0,5: entra por delante de los que fallan y por detrás de los probados—.
-    Los `cabeza` mejores rotan según el id de la tarea para repartir la carga entre ellos;
-    el resto va por mérito. Empates: el orden de MODELOS (que guarda las notas humanas)."""
+    """PURA: los modelos por la cota inferior de Wilson de su tasa de acierto (un intento
+    fallido cuenta, aunque luego otro modelo sacara la tarea); uno sin historia vale
+    MERITO_SIN_HISTORIA. Los `cabeza` mejores rotan según el id de la tarea para repartir la
+    carga; el resto va por mérito. Empates: el orden de MODELOS (guarda las notas humanas)."""
     cabeza = MERITO_CABEZA if cabeza is None else cabeza
     tabla = merito_escritores(progreso)
     pos = {m: i for i, m in enumerate(modelos)}
 
     def tasa(mo):
         ok, mal = tabla.get(mo, (0, 0))
-        return (ok + 1.0) / (ok + mal + 2.0)
+        cota = cota_wilson(ok, ok + mal)
+        return MERITO_SIN_HISTORIA if cota is None else cota
 
     ordenados = sorted(modelos, key=lambda mo: (-tasa(mo), pos[mo]))
     n = max(1, min(int(cabeza or 1), len(ordenados))) if ordenados else 0
@@ -2026,16 +2095,38 @@ def _claves_que_viajan():
 
 def matar_grupo(proceso):
     """Mata el grupo de procesos entero de `proceso` (él y todos sus descendientes que no
-    se hayan ido a otro grupo). Nunca lanza. Si el grupo ya no existe, mata al proceso."""
+    se hayan ido a otro grupo). Nunca lanza. Si el grupo ya no existe, mata al proceso.
+
+    Todos los hijos del enjambre se lanzan con `start_new_session=True`, así que su grupo
+    es su propio pid: si el jefe ya murió (`getpgid` falla) se mata el grupo por ese número,
+    que sigue vivo mientras quede un nieto dentro."""
     if proceso is None:
         return
     try:
         os.killpg(os.getpgid(proceso.pid), signal.SIGKILL)
+        return
     except (ProcessLookupError, PermissionError, OSError):
-        try:
-            proceso.kill()
-        except Exception:
-            pass
+        pass
+    recoger_grupo(proceso)
+    try:
+        proceso.kill()
+    except Exception:
+        pass
+
+
+def recoger_grupo(proceso):
+    """Mata lo que quede del grupo de un hijo YA TERMINADO (pgid == su pid). Nunca lanza.
+
+    (2026-10-03) opencode acababa bien y su LSP —un `tsserver` de ~2 GB y su
+    `typingsInstaller`— quedaba adoptado por init en el mismo grupo: tras el reinicio de la
+    Mac, 2 GB huérfanos del worktree de CC1003A con el swap en 6,9 GB. `matar_grupo` solo
+    corría al cortar por tiempo; al terminar bien nadie recogía a los nietos."""
+    if proceso is None:
+        return
+    try:
+        os.killpg(proceso.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
 
 
 def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
@@ -3191,6 +3282,8 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 pass
             rc = 124
         finally:
+            # Termine como termine, el LSP del motor (tsserver ~2 GB) no le sobrevive.
+            recoger_grupo(p)
             if tid:
                 with PROCESOS_LOCK:
                     PROCESOS.pop(tid, None)
@@ -3353,6 +3446,8 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 pass
             rc = 124
         finally:
+            # Termine como termine, el LSP del motor (tsserver ~2 GB) no le sobrevive.
+            recoger_grupo(p)
             if tid:
                 with PROCESOS_LOCK:
                     PROCESOS.pop(tid, None)
@@ -6184,6 +6279,8 @@ def ejecutar(t, intento=1):
                 "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
                 "(las demás tareas ya no lo intentan)" % minutos,
             )
+        if apartar_si_pide_pago(tid, modelo, out):
+            continue
         pista = fallo_de_proveedor(out)
         # (2026-09-08, Ola 286 · G3) Rechazo por FORMATO de opencode: el proveedor acepta la
         # llamada como revisor (HTTP directo) pero su adaptador reenvía un campo que rechaza
@@ -6388,6 +6485,8 @@ def ejecutar(t, intento=1):
             if reaccion == "red":
                 return
             if reaccion in ("pasarela", "cuota"):
+                continue
+            if apartar_si_pide_pago(tid, modelo, out):
                 continue
             pista = fallo_de_proveedor(out)
             if error_de_formato(out) and proveedor_de(modelo) in PASARELAS:

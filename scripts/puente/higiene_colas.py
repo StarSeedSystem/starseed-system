@@ -8,6 +8,13 @@ MUEVE a `starseed_memory_root/colas-fuente/`.
 
   python3 scripts/puente/higiene_colas.py            # mueve
   python3 scripts/puente/higiene_colas.py --simular  # solo lista
+
+(2026-10-03) Nadie lo llamaba y, con el orquestador vivo, no movía ninguna `cola-auto-*`
+—y el orquestador casi siempre está vivo—. Se juntaron 727 copias (25 MB) y 633 latidos en
+`olas/`: el Mando las leía TODAS en cada petición (`leerColasCompletas`) y su servidor murió
+por «JavaScript heap out of memory» a los 19 min. Ahora solo se quedan la cola que corre un
+orquestador vivo y las de menos de 24 h; sus `latidos-` se van con ellas; y el vigilante lo
+pasa cada hora.
 """
 import json, os, re, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,7 +23,9 @@ from vigilante_logica import es_cola_fuente, id_en_asuntos  # noqa: E402
 # Cierre humano o irreversible del orquestador: ya no sostiene la cola.
 ESTADOS_CERRADOS = {"commit", "sustituida", "rechazada", "bloqueante"}
 VIEJO = 24 * 3600  # una copia cola-auto-* con más de 24 h es historia
-RE = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
+#: El mismo patrón que `procesos-orquestador.ts` y `reconstruir_mando.py`: solo cuenta una
+#: orden que EMPIEZA por python ejecutando el script (el prompt de un agente que lo nombra, no).
+RE = re.compile(r"^[^ ]*[Pp]ython[0-9.]*( +-[A-Za-z]+)* +[^ ]*starseed-enjambre\.py( |$)")
 
 
 def tarea_cerrada(tarea, progreso, asuntos_main):
@@ -30,8 +39,22 @@ def tarea_cerrada(tarea, progreso, asuntos_main):
 
 
 def orquestador_vivo(procesos):
-    """¿Hay un starseed-enjambre.py corriendo? Recibe la salida de `ps -eo args`."""
-    return any(RE.match(l) for l in procesos)
+    """¿Hay un starseed-enjambre.py corriendo? Recibe la salida de `ps -axo args=`."""
+    return any(RE.match((l or "").strip()) for l in procesos)
+
+
+def colas_vivas(procesos):
+    """PURA: nombres `cola-….json` que corre algún orquestador vivo (de `ps -axo args=`)."""
+    vivas = set()
+    for linea in procesos or []:
+        l = (linea or "").strip()
+        if not RE.match(l):
+            continue
+        for tok in l.split():
+            base = tok.rsplit("/", 1)[-1]
+            if base.startswith("cola-") and base.endswith(".json"):
+                vivas.add(base)
+    return vivas
 
 
 def colas_cerradas(colas, progreso, asuntos_main):
@@ -49,14 +72,31 @@ def colas_cerradas(colas, progreso, asuntos_main):
     return moviles
 
 
-def colas_auto_viejas(olas, ahora=None, vivo=True):
-    """Copias cola-auto-* con más de 24 h; si el orquestador vive, ninguna sale."""
-    if vivo:
+def colas_auto_viejas(olas, ahora=None, vivo=True, vivas=None):
+    """Copias cola-auto-* con más de 24 h.
+
+    Con `vivas` (las colas que corre un orquestador vivo) solo se quedan esas y las
+    recientes. Sin `vivas` se mantiene la regla antigua: si el orquestador vive, ninguna."""
+    if vivas is None and vivo:
         return []
+    vivas = set(vivas or ())
     ahora = time.time() if ahora is None else ahora
-    return [f for f in os.listdir(olas)
-            if f.startswith("cola-auto-") and f.endswith(".json")
-            and ahora - os.path.getmtime(os.path.join(olas, f)) > VIEJO]
+    return sorted(f for f in os.listdir(olas)
+                  if f.startswith("cola-auto-") and f.endswith(".json")
+                  and f not in vivas
+                  and ahora - os.path.getmtime(os.path.join(olas, f)) > VIEJO)
+
+
+def latidos_de(colas, olas, vivas=()):
+    """Los `latidos-<cola>.json` de las colas que se van (nunca los de una cola viva)."""
+    fuera = []
+    for nombre in colas:
+        if nombre in vivas:
+            continue
+        lat = "latidos-" + nombre
+        if os.path.isfile(os.path.join(olas, lat)):
+            fuera.append(lat)
+    return fuera
 
 
 def _leer(nombre, olas):
@@ -69,38 +109,88 @@ def _leer(nombre, olas):
         return None
 
 
-def main():
-    """Mueve (nunca borra) las colas muertas a colas-fuente/ y lo dice al canal."""
-    raiz = os.environ.get("STARSEED_ROOT", "/Users/alex/Documents/starseed-os-main")
+def indice_de(colas):
+    """PURA: id → {titulo, ola, cola} de las colas archivadas (sin prompts).
+
+    `colas` es [(nombre, tareas)]. Si un id sale en varias, gana la de nombre mayor (las
+    copias `cola-auto-MMDD-HHMMSS` ordenan por fecha). El Mando lo funde en sus títulos para
+    que las tareas de colas archivadas sigan «conocidas» (`indice-colas.ts`)."""
+    tareas = {}
+    for nombre, lista in sorted(colas, key=lambda c: c[0]):
+        if not isinstance(lista, list):
+            continue
+        for t in lista:
+            if not isinstance(t, dict) or not t.get("id"):
+                continue
+            e = {"titulo": str(t.get("titulo") or "")[:200], "cola": nombre}
+            if t.get("ola"):
+                e["ola"] = str(t["ola"])[:80]
+            tareas[str(t["id"])] = e
+    return {"version": 1, "tareas": tareas}
+
+
+def escribir_indice(destino):
+    """Rehace `colas-fuente/indice.json` con todas las colas archivadas (escritura atómica)."""
+    nombres = sorted(f for f in os.listdir(destino) if f.startswith("cola-") and f.endswith(".json"))
+    indice = indice_de([(f, _leer(f, destino)) for f in nombres])
+    ruta = os.path.join(destino, "indice.json")
+    tmp = ruta + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(indice, f, ensure_ascii=False)
+    os.replace(tmp, ruta)
+    return len(indice["tareas"])
+
+
+def higiene(raiz=None, simular=False, decir=True):
+    """Mueve (nunca borra) colas muertas y sus latidos a colas-fuente/. Devuelve los nombres."""
+    raiz = raiz or os.environ.get("STARSEED_ROOT", "/Users/alex/Documents/starseed-os-main")
     olas = os.path.join(raiz, "starseed_memory_root", "olas")
     destino = os.path.join(raiz, "starseed_memory_root", "colas-fuente")
     p = _leer("progreso.json", olas)
     progreso = p if isinstance(p, dict) else {}
     asuntos = subprocess.run(["git", "log", "main", "--format=%s"], cwd=raiz,
                              capture_output=True, text=True).stdout.splitlines()
-    procesos = subprocess.run(["ps", "-eo", "args"], capture_output=True,
+    # `-axo args=` y nunca `-E`: el entorno lleva secretos.
+    procesos = subprocess.run(["ps", "-axo", "args="], capture_output=True,
                               text=True).stdout.splitlines()
+    vivas = colas_vivas(procesos)
     nombres = [f for f in os.listdir(olas) if f.startswith("cola-") and f.endswith(".json")]
     colas = [(f, _leer(f, olas)) for f in sorted(nombres)]
-    salida = colas_cerradas(colas, progreso, asuntos) + colas_auto_viejas(olas, vivo=orquestador_vivo(procesos))
-    if "--simular" in sys.argv:
-        print("\n".join(salida) or "nada que mover")
-        return
+    salen = [c for c in colas_cerradas(colas, progreso, asuntos) if c not in vivas]
+    salen += colas_auto_viejas(olas, vivas=vivas)
+    salida = salen + latidos_de(salen, olas, vivas)
+    if simular:
+        return salida
     os.makedirs(destino, exist_ok=True)
-    movidas = 0
+    movidas = []
     for nombre in salida:
         try:
             os.replace(os.path.join(olas, nombre), os.path.join(destino, nombre))
-            movidas += 1
+            movidas.append(nombre)
         except OSError as e:
             print("no pude mover %s: %s" % (nombre, e))
-    texto = "higiene: %d colas movidas a colas-fuente/" % movidas
-    try:
-        import puente
-        puente.decir(texto, quien="higiene", tipo="hecho")
-    except Exception:
-        pass
-    print(texto)
+    if movidas or not os.path.isfile(os.path.join(destino, "indice.json")):
+        try:
+            escribir_indice(destino)
+        except OSError as e:
+            print("no pude escribir el índice: %s" % e)
+    if movidas and decir:
+        texto = "higiene: %d archivos de colas movidos a colas-fuente/" % len(movidas)
+        try:
+            import puente
+            puente.decir(texto, quien="higiene", tipo="hecho")
+        except Exception:
+            pass
+    return movidas
+
+
+def main():
+    simular = "--simular" in sys.argv
+    salida = higiene(simular=simular)
+    if simular:
+        print("\n".join(salida) or "nada que mover")
+    else:
+        print("higiene: %d archivos de colas movidos a colas-fuente/" % len(salida))
 
 
 if __name__ == "__main__":

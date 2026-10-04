@@ -50,6 +50,7 @@ import {
     ubicarDefiniciones,
     type Definicion,
 } from "@/lib/mando/integradas";
+import { fundirTitulosArchivados, parsearIndice } from "@/lib/mando/indice-colas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export const runtime = "nodejs";
@@ -516,11 +517,21 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         pausado = false;
     }
 
-    const titulos: Record<string, string> = {};
+    let titulos: Record<string, string> = {};
     for (const t of colas) titulos[t.id] = t.titulo;
     // (2026-09-25) Agentes externos (Claude en Cowork, subagentes, Hermes): su título viene
     // en el propio latido porque no salen de ninguna cola.
     for (const l of latidosMac) if (l.titulo && !titulos[l.tarea]) titulos[l.tarea] = l.titulo;
+    // (2026-10-03) Colas archivadas por la higiene: su índice (pequeño, sin prompts) rellena
+    // títulos e ids conocidos, para que «Integradas» no baje al mover colas de `olas/`.
+    try {
+        const indice = parsearIndice(
+            JSON.parse(await readFile(path.join(RAÍZ, "starseed_memory_root", "colas-fuente", "indice.json"), "utf8")),
+        );
+        titulos = fundirTitulosArchivados(titulos, indice);
+    } catch {
+        /* sin índice: como antes */
+    }
 
     // Commits que esta rama tiene y el remoto no.
     const salida = await git(["log", "@{upstream}..HEAD", "--format=%H%x1f%s%x1f%cI"]);

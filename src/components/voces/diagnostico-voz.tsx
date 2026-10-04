@@ -39,7 +39,6 @@ interface PasoVisible {
  * que «Copiar informe» no dependa del DOM.
  */
 function informeTexto(pasos: PasoDiagnostico[]): string {
-    // jev: p=0,47 «no» sin umbral de veto; se aplica la regla «sí» (SA092910).
     const soportaWebAudio = typeof window !== "undefined"
         && ("AudioContext" in window || "webkitAudioContext" in window);
     const linea = pasos

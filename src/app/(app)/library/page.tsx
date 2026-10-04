@@ -120,7 +120,7 @@ import { samplePages } from "@/data/sample-entities";
 // ── Interconexión aditiva (Módulo 8) ──
 import { useSavedLibrary, type SavedResource } from "@/lib/library-store";
 // Solo URLs http(s)/internas en aperturas: bloquea javascript: y data:
-import { isSafeHttpUrl, safeHttpUrl } from "@/lib/library/url-utils";
+import { safeHttpUrl } from "@/lib/library/url-utils";
 import { emitAttach, openComposer } from "@/lib/share/bridge";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
@@ -811,11 +811,12 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
     }
     // Recurso con enlace real: abrir (nueva pestaña si es URL externa/storage).
     // Puerta de seguridad: solo http(s) o rutas internas del OS.
-    if (isSafeHttpUrl(folder.href)) {
-      if (/^https?:\/\//i.test(folder.href)) {
-        window.open(folder.href, "_blank", "noopener,noreferrer");
+    const destino = safeHttpUrl(folder.href);
+    if (destino) {
+      if (/^https?:\/\//i.test(destino)) {
+        window.open(destino, "_blank", "noopener,noreferrer");
       } else {
-        window.location.assign(folder.href);
+        window.location.assign(destino);
       }
     }
   };

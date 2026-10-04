@@ -105,7 +105,6 @@ function shortId(id: string): string {
 
 /** Conserva solo la inicial y el dominio; nunca devuelve el correo completo. */
 export function maskInviteEmail(email: string): string {
-    // jev: p=no disponible (silencio); prevalece la regla conservadora de privacidad.
     const [local, domain] = email.trim().split("@");
     if (!local || !domain) return "***";
     return `${local[0]}***@${domain}`;

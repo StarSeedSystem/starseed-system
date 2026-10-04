@@ -21,7 +21,8 @@ export function isSafeHttpUrl(raw: string | null | undefined): boolean {
   const url = raw.trim();
   if (!url || CONTROL_RE.test(url)) return false;
   // Ruta interna del OS: válida salvo protocolo-relativo ("//evil.com").
-  if (url.startsWith("/")) return !url.startsWith("//");
+  // «/\\evil.com» lo tratan los navegadores como «//evil.com»: también fuera.
+  if (url.startsWith("/")) return !url.startsWith("//") && !url.startsWith("/\\");
   try {
     const parsed = new URL(url);
     return parsed.protocol === "http:" || parsed.protocol === "https:";

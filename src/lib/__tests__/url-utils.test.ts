@@ -31,6 +31,12 @@ describe("isSafeHttpUrl", () => {
     expect(isSafeHttpUrl(" https://con-espacios.com ")).toBe(true);
   });
 
+  it("rechaza la barra invertida que el navegador lee como protocolo-relativo", () => {
+    expect(isSafeHttpUrl("/\\evil.com")).toBe(false);
+    expect(isSafeHttpUrl("/\\\\evil.com/x")).toBe(false);
+    expect(isSafeHttpUrl("/biblioteca/archivo")).toBe(true);
+  });
+
   it("rechaza vacíos, anclas y relativos sin barra inicial", () => {
     expect(isSafeHttpUrl("")).toBe(false);
     expect(isSafeHttpUrl("   ")).toBe(false);

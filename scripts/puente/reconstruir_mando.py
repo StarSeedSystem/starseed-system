@@ -172,13 +172,24 @@ def hay_sitio_para_compilar(libre_gb, minimo_gb=MINIMO_LIBRE_GB) -> bool:
     return libre_gb >= minimo_gb
 
 
+#: Código de salida de una build que CEDIÓ la máquina (no falló): EX_TEMPFAIL de sysexits.
+RC_CEDIDA = 75
+
+
 def compilar_vigilando_disco(orden, env=None, cwd=RAIZ, timeout=3600,
-                             minimo_gb=None, cada_s=3.0, medir=None):
+                             minimo_gb=None, cada_s=3.0, medir=None,
+                             vigilar=None, cada_vigilar_s=30.0):
     """Corre la build y la PARA si el disco baja de `minimo_gb`.
 
     Devuelve (rc, salida_recortada, parada_por_disco). Se mata el GRUPO entero: `npx` lanza
     `next build` y este sus trabajadores, y matar solo al primero dejaba vivo al que llena
     el disco (visto hoy: un `next build` de 4,2 GB sobrevivió al kill de su padre).
+
+    `vigilar` (opcional) devuelve un motivo para CEDER la máquina o None; se mira cada
+    `cada_vigilar_s`. Si da motivo, la build se para y sale con `RC_CEDIDA`: no es un fallo
+    del código. (2026-10-03, tras un reinicio: el reconstructor arrancó la build 6 s antes
+    de que el vigilante relanzara el enjambre; el freno solo miraba al empezar y la build
+    siguió con tres agentes encima: swap 6,9 GB y 2,1 GB de disco libre.)
     """
     import signal
     import tempfile
@@ -189,6 +200,8 @@ def compilar_vigilando_disco(orden, env=None, cwd=RAIZ, timeout=3600,
         p = subprocess.Popen(orden, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
                              start_new_session=True)
         empezo = time.time()
+        vigilado = empezo
+        cedida = None
         while p.poll() is None:
             libre = medir()
             if libre is not None and libre < minimo:
@@ -197,6 +210,15 @@ def compilar_vigilando_disco(orden, env=None, cwd=RAIZ, timeout=3600,
             if time.time() - empezo > timeout:
                 parada = "tiempo"
                 break
+            if vigilar is not None and time.time() - vigilado >= cada_vigilar_s:
+                vigilado = time.time()
+                try:
+                    cedida = vigilar()
+                except Exception:
+                    cedida = None
+                if cedida:
+                    parada = "cedida"
+                    break
             time.sleep(cada_s)
         if parada:
             try:
@@ -211,6 +233,8 @@ def compilar_vigilando_disco(orden, env=None, cwd=RAIZ, timeout=3600,
                    "se paró antes de llenarlo y lo que se sirve no se tocó" % minimo), True
     if parada == "tiempo":
         return 124, salida + "\nse pasó de %d s sin terminar" % timeout, False
+    if parada == "cedida":
+        return RC_CEDIDA, salida + "\nCEDIDA: %s" % cedida, False
     return p.returncode, salida, False
 
 
@@ -496,7 +520,20 @@ def reconstruir(huella_actual) -> dict:
             # (2026-09-25) 40 min se quedaba corto: con el swap alto la build tardó 37,6 min
             # una vez y la siguiente murió a los 40:02 sin terminar. Mismo techo que publicar.py.
             env=entorno, timeout=60 * 60,
+            # (2026-10-03) El freno se mira también DURANTE la build: si el enjambre arranca
+            # a mitad, la build cede (la pantalla sigue con lo que ya servía).
+            vigilar=lambda: motivo_enjambre(_lineas_ps()),
         )
+        if rc == RC_CEDIDA:
+            motivo = salida.rsplit("CEDIDA: ", 1)[-1].strip() or "el enjambre arrancó"
+            print("[%s] build cedida a mitad: %s" % (time.strftime("%H:%M"), motivo), flush=True)
+            liberar_lo_propio()
+            # No es un fallo del código: sin `ok=False` ni huella intentada, la siguiente
+            # pasada vuelve a decidir con el freno de siempre.
+            datos = dict(_leer_estado(), estado="esperando-maquina", freno=motivo,
+                         huella_intentada=None, visto=time.strftime("%Y-%m-%d %H:%M:%S"))
+            _guardar(datos)
+            return datos
         ok = rc == 0
         if por_disco:
             liberar_lo_propio()
@@ -854,15 +891,19 @@ def _version_next(raiz=RAIZ):
     return instalada, bloqueada
 
 
+def _lineas_ps():
+    """Órdenes vivas (`ps -axo args=`; nunca `-E`, que imprime el entorno con secretos)."""
+    try:
+        return subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True,
+                              timeout=20).stdout.splitlines()
+    except Exception:
+        return []
+
+
 def freno_de_maquina(forzar=False, raiz=RAIZ):
     """Motivo para NO compilar ahora (enjambre vivo, mezcla de dependencias o swap alto), o None.
     `forzar` salta el freno de swap, nunca los otros dos."""
-    try:
-        lineas = subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True,
-                                timeout=20).stdout.splitlines()
-    except Exception:
-        lineas = []
-    motivo = motivo_enjambre(lineas)
+    motivo = motivo_enjambre(_lineas_ps())
     if motivo:
         return motivo
     motivo = motivo_dependencias(*_version_next(raiz))
