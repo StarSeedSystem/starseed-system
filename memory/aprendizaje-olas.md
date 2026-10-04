@@ -3320,3 +3320,19 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 **Lo que quedó fuera, una por una:**
 - `CP1004A` — pruebas en rojo: vitest falla (rama conservada)
 - `DR1004-1` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-04 14:39 · auto-1004-141110
+
+**Lo que se pidió.** … se colgó y fue cortado → siguiente modelo, sin gastar intento
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (DR1004-1, LC1004B, LC1004A). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CP1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `DR1004-1` — no escribió nada
+- `LC1004B` — no escribió nada
+- `LC1004A` — no escribió nada
