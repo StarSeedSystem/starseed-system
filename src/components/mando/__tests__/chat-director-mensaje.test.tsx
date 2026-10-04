@@ -85,4 +85,67 @@ describe("MensajeDelDirector", () => {
     const fallo = screen.getByText(/Hermes: fallo en la entrega/);
     expect(fallo).toHaveClass("text-rose-400");
   });
+
+  it("preselecciona modeloPorDefecto aunque no esté en el catálogo y «Responder» lo manda", () => {
+    let llamada: { id: string; modelo: string } | null = null;
+    const sinPreferido = MODELOS.filter((m) => m.id !== "claude-cowork/claude-opus-5-5");
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje()}
+        modelos={sinPreferido}
+        modeloPorDefecto="claude-cowork/claude-opus-5-5"
+        onResponder={(id, modelo) => { llamada = { id, modelo }; }}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("Responder con")).toHaveValue("claude-cowork/claude-opus-5-5");
+    fireEvent.click(screen.getByRole("button", { name: /Responder/ }));
+    expect(llamada).toEqual({ id: "md-1-aaaa", modelo: "claude-cowork/claude-opus-5-5" });
+  });
+
+  it("sigue al modeloPorDefecto mientras no se toque el selector", () => {
+    const { rerender } = render(
+      <MensajeDelDirector
+        mensaje={mensaje()}
+        modelos={MODELOS}
+        modeloPorDefecto="hermes/predeterminado"
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("Responder con")).toHaveValue("hermes/predeterminado");
+    rerender(
+      <MensajeDelDirector
+        mensaje={mensaje()}
+        modelos={MODELOS}
+        modeloPorDefecto="nim/minimax"
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("Responder con")).toHaveValue("nim/minimax");
+  });
+
+  it("tras elegir a mano, ya no pisa la elección aunque cambie modeloPorDefecto", () => {
+    const { rerender } = render(
+      <MensajeDelDirector
+        mensaje={mensaje()}
+        modelos={MODELOS}
+        modeloPorDefecto="claude-cowork/claude-opus-5-5"
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Responder con"), { target: { value: "hermes/predeterminado" } });
+    rerender(
+      <MensajeDelDirector
+        mensaje={mensaje()}
+        modelos={MODELOS}
+        modeloPorDefecto="nim/minimax"
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("Responder con")).toHaveValue("hermes/predeterminado");
+  });
 });

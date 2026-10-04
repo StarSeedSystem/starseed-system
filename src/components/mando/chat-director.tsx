@@ -15,6 +15,7 @@ import { ChevronDown, ChevronRight, MessagesSquare } from "lucide-react";
 
 import { filtrarFeed, fusionarFeed, type FiltroFeed } from "@/lib/mando/chat-director-feed";
 import {
+    MODELO_DIRECTOR_DEFECTO,
     MOTORES_DIRECTOR,
     type CanalId,
     type EstadoEntrega,
@@ -24,6 +25,7 @@ import { MensajeDelDirector } from "@/components/mando/chat-director-mensaje";
 import { CompositorDirector, type ModeloOpcion } from "@/components/mando/chat-director-compositor";
 
 const CLAVE_PLEGADO = "starseed.mando.director.plegado";
+const CLAVE_MODELO = "starseed.mando.director.modelo";
 const INTERVALO_MS = 10_000;
 
 const FILTROS: { id: FiltroFeed; etiqueta: string }[] = [
@@ -46,6 +48,16 @@ function plegadoInicial(): boolean {
             && window.localStorage.getItem(CLAVE_PLEGADO) === "1";
     } catch {
         return false;
+    }
+}
+
+/** Último modelo elegido por Alex en el compositor, si quedó guardado y no está vacío. */
+function modeloGuardado(): string {
+    try {
+        if (typeof window === "undefined") return "";
+        return window.localStorage.getItem(CLAVE_MODELO)?.trim() ?? "";
+    } catch {
+        return "";
     }
 }
 
@@ -131,6 +143,16 @@ export function ChatDirector() {
 
     const visibles = useMemo(() => filtrarFeed(mensajes, filtro), [mensajes, filtro]);
 
+    // El «Responder con» de cada mensaje arranca con lo último que usó Alex:
+    // su elección guardada, si no el último modelo del feed, si no el de defecto.
+    const modeloPreferido = modeloGuardado()
+        || (ultimoModelo.trim() !== "" ? ultimoModelo : "")
+        || MODELO_DIRECTOR_DEFECTO;
+    const modelosConMotores = useMemo(() => [
+        ...MOTORES_DIRECTOR.map((m) => ({ id: m.id, nombre: m.nombre })),
+        ...modelos,
+    ], [modelos]);
+
     useEffect(() => {
         const nodo = listaRef.current;
         if (nodo) nodo.scrollTop = nodo.scrollHeight;
@@ -195,7 +217,8 @@ export function ChatDirector() {
                                     key={m.id}
                                     mensaje={m}
                                     entregas={entregas[m.id]}
-                                    modelos={modelos}
+                                    modelos={modelosConMotores}
+                                    modeloPorDefecto={modeloPreferido}
                                     onResponder={(id, modelo) => void publicar({ accion: "responder", respondeA: id, modelo })}
                                     onReenviar={(id, canales) => void publicar({ accion: "reenviar", reenviar: id, canales })}
                                 />

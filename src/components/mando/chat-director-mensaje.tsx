@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Send, Reply } from "lucide-react";
 import {
   CANALES,
+  MODELO_DIRECTOR_DEFECTO,
   type CanalId,
   type EstadoEntrega,
   type MensajeDirector,
@@ -16,6 +17,8 @@ export interface MensajeDelDirectorProps {
   mensaje: MensajeDirector;
   entregas?: Partial<Record<CanalId, EstadoEntrega>>;
   modelos: { id: string; nombre: string }[];
+  /** Último modelo del director preseleccionado (lo que Alex usó por última vez). */
+  modeloPorDefecto?: string;
   onResponder: (id: string, modelo: string) => void;
   onReenviar: (id: string, canales: CanalId[]) => void;
 }
@@ -48,8 +51,17 @@ function lineaEntrega(canal: CanalId, estado: EstadoEntrega): { texto: string; r
 }
 
 /** Tarjeta de un mensaje del Chat Director con sus acciones y entregas. */
-export function MensajeDelDirector({ mensaje, entregas, modelos, onResponder, onReenviar }: MensajeDelDirectorProps) {
-  const [modelo, setModelo] = useState(mensaje.modelo ?? modelos[0]?.id ?? "");
+export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefecto, onResponder, onReenviar }: MensajeDelDirectorProps) {
+  const inicial = modeloPorDefecto && modeloPorDefecto.trim() !== "" ? modeloPorDefecto : MODELO_DIRECTOR_DEFECTO;
+  const [modelo, setModelo] = useState(inicial);
+  // Mientras Alex no haya tocado el selector, el valor sigue al `modeloPorDefecto`
+  // (el catálogo y el último modelo llegan después del montaje).
+  const tocadoRef = useRef(false);
+  useEffect(() => {
+    if (!tocadoRef.current && modeloPorDefecto && modeloPorDefecto.trim() !== "") {
+      setModelo(modeloPorDefecto);
+    }
+  }, [modeloPorDefecto]);
   const [canales, setCanales] = useState<CanalId[]>(mensaje.canales ?? []);
   const papel = rolDeDirector(mensaje.de, mensaje.tipo);
   const nombreCanal = CANALES.find((c) => c.id === mensaje.canal)?.nombre ?? mensaje.canal;
@@ -89,17 +101,20 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, onResponder, on
       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-zinc-800 pt-2">
         <select
           value={modelo}
-          onChange={(e) => setModelo(e.target.value)}
+          onChange={(e) => { tocadoRef.current = true; setModelo(e.target.value); }}
           aria-label="Responder con"
           className="cursor-pointer rounded-lg border border-violet-500/30 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-400/60"
         >
+          {modelo && !modelos.some((m) => m.id === modelo) ? (
+            <option value={modelo}>{modelo}</option>
+          ) : null}
           {modelos.map((m) => (
             <option key={m.id} value={m.id}>{m.nombre}</option>
           ))}
         </select>
         <button
           type="button"
-          onClick={() => onResponder(mensaje.id, modelo)}
+          onClick={() => { if (modelo && modelo.trim() !== "") onResponder(mensaje.id, modelo); }}
           className="cursor-pointer flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs text-white transition-colors duration-200 hover:bg-violet-500"
         >
           <Reply className="h-3.5 w-3.5" />
