@@ -42,6 +42,12 @@ from vigilante_logica import (
 )
 import cerrojos_git
 import config_director
+import higiene_colas
+
+#: (2026-10-03) Cada hora, las copias `cola-auto-*` viejas y sus latidos salen de `olas/`
+#: (se MUEVEN a colas-fuente/). Se habían juntado 727: el Mando las leía todas en cada
+#: petición y su servidor murió por falta de memoria.
+HIGIENE_CADA_S = int(os.environ.get("STARSEED_HIGIENE_S", "3600"))
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -647,10 +653,19 @@ def main():
     )
     callado_desde = None
     pausa_avisada = 0.0
+    higiene_hecha = 0.0
     while True:
         try:
             hay = orquestador_vivo()
             barrer_cerrojos()
+            if time.time() - higiene_hecha >= HIGIENE_CADA_S:
+                higiene_hecha = time.time()
+                try:
+                    movidas = higiene_colas.higiene(raiz=RAIZ)
+                    if movidas:
+                        print("higiene: %d archivos a colas-fuente/" % len(movidas), flush=True)
+                except Exception as e:  # noqa: BLE001
+                    print("higiene: %s: %s" % (type(e).__name__, e), flush=True)
             if hay:
                 try:
                     matar_colgados()

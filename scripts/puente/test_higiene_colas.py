@@ -11,7 +11,7 @@ DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
-from higiene_colas import colas_auto_viejas, colas_cerradas  # noqa: E402
+from higiene_colas import colas_auto_viejas, colas_cerradas, colas_vivas, latidos_de, orquestador_vivo  # noqa: E402
 
 MAIN = ["Ola 315 · zN1: higiene de colas integrada"]
 
@@ -73,6 +73,46 @@ class ColasAutoViejasTest(unittest.TestCase):
     def test_auto_reciente_no_sale(self):
         self._tocar("cola-auto-hoy.json", time.time() - 3600)
         self.assertEqual(colas_auto_viejas(self.olas, vivo=False), [])
+
+
+    def test_con_vivas_solo_se_queda_la_viva_y_las_recientes(self):
+        # (2026-10-03) 727 copias acumuladas: con el orquestador vivo no salía ninguna.
+        self._tocar("cola-auto-0901.json", time.time() - 30 * 3600)
+        self._tocar("cola-auto-0902.json", time.time() - 29 * 3600)
+        self._tocar("cola-auto-hoy.json", time.time() - 3600)
+        self.assertEqual(
+            colas_auto_viejas(self.olas, vivas={"cola-auto-0902.json"}),
+            ["cola-auto-0901.json"],
+        )
+
+    def test_los_latidos_se_van_con_su_cola_pero_no_los_de_la_viva(self):
+        self._tocar("latidos-cola-auto-0901.json", time.time() - 30 * 3600)
+        self._tocar("latidos-cola-auto-0902.json", time.time() - 30 * 3600)
+        self.assertEqual(
+            latidos_de(["cola-auto-0901.json", "cola-auto-0902.json", "cola-auto-sin.json"],
+                       self.olas, vivas={"cola-auto-0902.json"}),
+            ["latidos-cola-auto-0901.json"],
+        )
+
+
+class ColasVivasTest(unittest.TestCase):
+    PS = [
+        "/opt/homebrew/bin/python3 -u /Users/alex/.local/bin/starseed-enjambre.py "
+        "/Users/alex/Documents/starseed-os-main/starseed_memory_root/olas/cola-auto-1003-190915.json --workers 3",
+        "/Users/alex/.opencode/bin/opencode run arregla starseed-enjambre.py cola-falsa.json",
+        "python3 /x/starseed-enjambre.py cola-suenos-ola1.json",
+    ]
+
+    def test_solo_las_que_corre_un_orquestador(self):
+        self.assertEqual(colas_vivas(self.PS), {"cola-auto-1003-190915.json", "cola-suenos-ola1.json"})
+
+    def test_el_prompt_de_un_agente_no_es_un_orquestador(self):
+        self.assertFalse(orquestador_vivo([self.PS[1]]))
+        self.assertTrue(orquestador_vivo([self.PS[0]]))
+
+    def test_vacio(self):
+        self.assertEqual(colas_vivas([]), set())
+        self.assertEqual(colas_vivas(None), set())
 
 
 if __name__ == "__main__":
