@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261003",
+ "tareas": [
+  {
+   "id": "CC1003C",
+   "ola": "Ola 1003 · capas por entidad y local preferente",
+   "titulo": "Enrutador: capas efectivas de la personalidad y el agente, y contexto personal por capa",
+   "archivos": [
+    "src/ai/astraura/router.ts",
+    "src/ai/astraura/__tests__/router-capas-entidad.test.ts"
+   ],
+   "depende": [],
+   "aprobacion": true,
+   "prompt": "Cablea §19 en `src/ai/astraura/router.ts` usando `resolverCapasEntidad`, `capasDeCuenta`, `aPreferenciaCapas` (de `@/lib/astraura/capas-entidad`) y `ajustesCapasEntidadGuardados` (de `@/lib/astraura/use-capas-entidad`):\n1) Añade y EXPORTA una función pura `capasEfectivasPara(prefs: IntelligenceSettings, contextoPersonalCuenta: boolean, ajustes: AjustesCapasEntidad, quien: { personalidadId?: string; agenteId?: string })` que devuelve `{ preferencia: PreferenciaCapas; contextoPersonal: boolean }` (cuenta = `capasDeCuenta(leerPreferenciaCapas(prefs), contextoPersonalCuenta)`).\n2) En la ruta principal, donde ya existen `persona` y `req.agentId`: calcula una vez `const capasEf = capasEfectivasPara(prefs, getUserContextSettings().enabled, ajustesCapasEntidadGuardados(), { personalidadId: persona?.id, agenteId: req.agentId })`.\n   · El contexto de usuario se construye solo si `capasEf.contextoPersonal` (sustituye a `ucSettings.enabled` en ese `if`, conservando `ucSettings.defaultLevel`).\n   · `apagado158` usa `!capasEf.preferencia.activo` en vez de `!leerPreferenciaCapas(prefs).activo`.\n   · Pasa a `rankCandidates` una opción nueva `capas?: PreferenciaCapas` (añádela a `RankCandidatesOptions`) y dentro usa `const capas = opts?.capas ?? leerPreferenciaCapas(prefs)` para `fuentesApagadas`. Sin la opción, comportamiento IDÉNTICO al de hoy.\n3) Pruebas en `src/ai/astraura/__tests__/router-capas-entidad.test.ts` SOLO de `capasEfectivasPara` (sin red): sin ajustes = la cuenta; un agente con `contextoPersonal:false` lo apaga solo para él; una personalidad con `activo:false` apaga el 1.58 y el agente puede volver a encenderlo.\nMira cómo están hechas `src/ai/astraura/__tests__/router-capas.test.ts` para importar el router en pruebas.\n\nREGLAS DE LA CASA: lee primero `architecture/astraura-158-sistema-primario.md` §15 y §19 (el contrato manda). Toca SOLO los archivos declarados, ≤ 120 líneas cambiadas por archivo; no reformatees lo que no cambias. Textos de la interfaz en español (es-ES), cálidos y sin abreviar. Pruebas con vitest importando describe/it/expect de «vitest»; solo funciones puras o componentes con testing-library (sin vi.mock de módulos de Node). Zona de duda: `python3 scripts/puente/decidir.py si-no …` (Jev) y anota «jev: p=…» en el commit. Si algo del contrato ya existe, no lo dupliques: reutilízalo.",
+   "dependencias_ya_en_main": [
+    "CC1003B",
+    "LP1003",
+    "LP1003R"
+   ]
+  }
+ ]
+}
