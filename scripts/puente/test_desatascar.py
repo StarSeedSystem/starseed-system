@@ -17,18 +17,39 @@ def _hace(minutos, ahora):
 
 class TestArbolSucio(unittest.TestCase):
     def test_estorbo_sin_seguimiento(self):
-        e, t = d.clasificar_sucio(["?? error.log", "?? x.new", "?? .DS_Store"])
+        e, p, t = d.clasificar_sucio(["?? error.log", "?? x.new", "?? .DS_Store"])
         self.assertEqual(e, ["error.log", "x.new", ".DS_Store"])
+        self.assertEqual(p, [])
         self.assertEqual(t, [])
 
     def test_trabajo_nunca_se_aparta(self):
-        e, t = d.clasificar_sucio([" M src/a.ts", "?? src/nuevo.ts", "UU src/c.ts", "A  src/d.ts"])
+        e, p, t = d.clasificar_sucio(
+            [" M src/a.ts", "?? src/nuevo.ts", "UU src/c.ts", "A  src/d.ts"]
+        )
         self.assertEqual(e, [])
+        self.assertEqual(p, [])
         self.assertEqual(len(t), 4)
 
     def test_lineas_basura_se_ignoran(self):
-        e, t = d.clasificar_sucio(["", "  ", None, "??"])
-        self.assertEqual((e, t), ([], []))
+        e, p, t = d.clasificar_sucio(["", "  ", None, "??"])
+        self.assertEqual((e, p, t), ([], [], []))
+
+    def test_puente_de_mando_es_propia_no_trabajo(self):
+        """Lo que el enjambre regenera solo no es trabajo de nadie (2026-10-04)."""
+        e, p, t = d.clasificar_sucio([" M PUENTE-DE-MANDO.md"])
+        self.assertEqual(e, [])
+        self.assertEqual(p, ["PUENTE-DE-MANDO.md"])
+        self.assertEqual(t, [])
+
+    def test_src_modificado_es_trabajo(self):
+        e, p, t = d.clasificar_sucio([" M src/x.ts"])
+        self.assertEqual((e, p), ([], []))
+        self.assertEqual(t, ["src/x.ts"])
+
+    def test_orig_sin_seguimiento_es_estorbo(self):
+        e, p, t = d.clasificar_sucio(["?? foo.orig"])
+        self.assertEqual(e, ["foo.orig"])
+        self.assertEqual((p, t), ([], []))
 
 
 class TestPuertas(unittest.TestCase):
@@ -36,7 +57,13 @@ class TestPuertas(unittest.TestCase):
         self.ahora = time.time()
 
     def test_bloqueante_madura_se_rechaza(self):
-        p = {"A": {"estado": "esperando_aprobacion", "revisor": "bloqueante", "t": _hace(60, self.ahora)}}
+        p = {
+            "A": {
+                "estado": "esperando_aprobacion",
+                "revisor": "bloqueante",
+                "t": _hace(60, self.ahora),
+            }
+        }
         self.assertEqual([x[0] for x in d.puertas_a_rechazar(p, self.ahora)], ["A"])
 
     def test_alcance_incompleto_ya_no_se_rechaza_solo_por_eso(self):
@@ -46,30 +73,60 @@ class TestPuertas(unittest.TestCase):
         costo 2 h 30 min de agentes en una sola noche. Ahora se integra lo hecho
         y lo que falta sale como tarea de seguimiento.
         """
-        p = {"C": {"estado": "esperando_aprobacion", "revisor": "respondio",
-                   "faltan": ["x.py"], "t": _hace(60, self.ahora)}}
+        p = {
+            "C": {
+                "estado": "esperando_aprobacion",
+                "revisor": "respondio",
+                "faltan": ["x.py"],
+                "t": _hace(60, self.ahora),
+            }
+        }
         self.assertEqual(d.puertas_a_rechazar(p, self.ahora), [])
         _, parciales = d.clasificar_puertas(p, self.ahora, {"C": ["x.py", "y.py"]})
         self.assertEqual([x[0] for x in parciales], ["C"])
 
     def test_alcance_vacio_del_todo_si_se_rechaza(self):
         """No tocar NINGUN archivo declarado es otra cosa: hizo otro trabajo."""
-        p = {"C": {"estado": "esperando_aprobacion", "revisor": "respondio",
-                   "faltan": ["x.py"], "t": _hace(60, self.ahora)}}
+        p = {
+            "C": {
+                "estado": "esperando_aprobacion",
+                "revisor": "respondio",
+                "faltan": ["x.py"],
+                "t": _hace(60, self.ahora),
+            }
+        }
         rech, _ = d.clasificar_puertas(p, self.ahora, {"C": ["x.py"]})
         self.assertEqual([x[0] for x in rech], ["C"])
 
     def test_puerta_en_verde_no_se_toca(self):
-        p = {"B": {"estado": "esperando_aprobacion", "revisor": "respondio",
-                   "motivo_vb": "pedido por la cola", "t": _hace(60, self.ahora)}}
+        p = {
+            "B": {
+                "estado": "esperando_aprobacion",
+                "revisor": "respondio",
+                "motivo_vb": "pedido por la cola",
+                "t": _hace(60, self.ahora),
+            }
+        }
         self.assertEqual(d.puertas_a_rechazar(p, self.ahora), [])
 
     def test_recien_llegada_no_se_toca(self):
-        p = {"D": {"estado": "esperando_aprobacion", "revisor": "bloqueante", "t": _hace(1, self.ahora)}}
+        p = {
+            "D": {
+                "estado": "esperando_aprobacion",
+                "revisor": "bloqueante",
+                "t": _hace(1, self.ahora),
+            }
+        }
         self.assertEqual(d.puertas_a_rechazar(p, self.ahora), [])
 
     def test_otros_estados_no_entran(self):
-        p = {"E": {"estado": "pendiente", "revisor": "bloqueante", "t": _hace(60, self.ahora)}}
+        p = {
+            "E": {
+                "estado": "pendiente",
+                "revisor": "bloqueante",
+                "t": _hace(60, self.ahora),
+            }
+        }
         self.assertEqual(d.puertas_a_rechazar(p, self.ahora), [])
 
 
@@ -92,33 +149,78 @@ class TestOrquestadorAtascado(unittest.TestCase):
 class TestColgados(unittest.TestCase):
     def test_recien_arrancado_no_se_mata(self):
         ahora = 100000.0
-        self.assertEqual(d.colgados_a_matar([{"pid": 9, "ultimo_byte": ahora - 60}], ahora), [])
+        self.assertEqual(
+            d.colgados_a_matar([{"pid": 9, "ultimo_byte": ahora - 60}], ahora), []
+        )
 
     def test_media_hora_sin_bytes_se_mata(self):
         ahora = 100000.0
-        self.assertEqual(d.colgados_a_matar([{"pid": 9, "ultimo_byte": ahora - 3600}], ahora), [9])
+        self.assertEqual(
+            d.colgados_a_matar([{"pid": 9, "ultimo_byte": ahora - 3600}], ahora), [9]
+        )
 
     def test_pid_invalido_y_propio_nunca(self):
         ahora = 100000.0
-        procesos = [{"pid": 1, "ultimo_byte": 1}, {"pid": 0, "ultimo_byte": 1},
-                    {"pid": 7, "ultimo_byte": 1, "propio": True}]
+        procesos = [
+            {"pid": 1, "ultimo_byte": 1},
+            {"pid": 0, "ultimo_byte": 1},
+            {"pid": 7, "ultimo_byte": 1, "propio": True},
+        ]
         self.assertEqual(d.colgados_a_matar(procesos, ahora), [])
 
     def test_sin_ultimo_byte_cae_a_inicio(self):
         ahora = 100000.0
-        self.assertEqual(d.colgados_a_matar([{"pid": 5, "ultimo_byte": 0, "inicio": ahora - 7200}], ahora), [5])
+        self.assertEqual(
+            d.colgados_a_matar(
+                [{"pid": 5, "ultimo_byte": 0, "inicio": ahora - 7200}], ahora
+            ),
+            [5],
+        )
 
 
 class TestRelojDeAvance(unittest.TestCase):
     def test_cuenta_desde_que_deja_de_cambiar(self):
         import tempfile
+
         ruta = os.path.join(tempfile.mkdtemp(), "estado.json")
         ahora = 100000.0
         p = {"A": {"estado": "commit"}}
         self.assertEqual(d.minutos_sin_integrar(p, ahora, ruta), 0.0)
-        self.assertAlmostEqual(d.minutos_sin_integrar(p, ahora + 600, ruta), 10.0, places=1)
+        self.assertAlmostEqual(
+            d.minutos_sin_integrar(p, ahora + 600, ruta), 10.0, places=1
+        )
         p["B"] = {"estado": "commit"}
         self.assertEqual(d.minutos_sin_integrar(p, ahora + 900, ruta), 0.0)
+
+
+class TestAvisoTrabajoSinRuido(unittest.TestCase):
+    """La frase de trabajo se dice como mucho una vez por hora (2026-10-04)."""
+
+    def setUp(self):
+        import tempfile
+
+        self.raiz = tempfile.mkdtemp()
+
+    def test_no_se_repite_dentro_de_la_hora(self):
+        frase = "el árbol tiene trabajo sin commitear y NO lo toco: src/x.ts"
+        ahora = 1_000_000.0
+        self.assertTrue(d._conviene_avisar_trabajo(self.raiz, frase, ahora))
+        self.assertFalse(d._conviene_avisar_trabajo(self.raiz, frase, ahora + 600))
+
+    def test_cambia_el_conjunto_y_avisa_enseguida(self):
+        ahora = 1_000_000.0
+        self.assertTrue(
+            d._conviene_avisar_trabajo(self.raiz, "trabajo: src/a.ts", ahora)
+        )
+        self.assertTrue(
+            d._conviene_avisar_trabajo(self.raiz, "trabajo: src/b.ts", ahora + 60)
+        )
+
+    def test_pasada_la_hora_se_repite(self):
+        frase = "trabajo: src/x.ts"
+        ahora = 1_000_000.0
+        d._conviene_avisar_trabajo(self.raiz, frase, ahora)
+        self.assertTrue(d._conviene_avisar_trabajo(self.raiz, frase, ahora + 3700))
 
 
 if __name__ == "__main__":

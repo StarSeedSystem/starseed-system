@@ -36,6 +36,8 @@ import shutil
 import subprocess
 import time
 
+from arbol_de_trabajo import PROPIAS
+
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser(
     "~/Documents/starseed-os-main"
 )
@@ -47,14 +49,19 @@ ESTADOS_CERRADOS = {"commit", "hecho"}
 
 # ---------------------------------------------------------------- decisiones puras
 
-def clasificar_sucio(lineas):
-    """Separa el árbol sucio en («estorbo», «trabajo»).
 
-    Estorbo = sin seguimiento (`??`) Y con pinta de residuo. Todo lo demás es
-    trabajo de alguien. Ante la duda, trabajo: apartar lo de otro es peor que
-    no arrancar.
+def clasificar_sucio(lineas):
+    """Separa el árbol sucio en («estorbo», «propias», «trabajo»).
+
+    Estorbo = sin seguimiento (`??`) Y con pinta de residuo. Propias = rutas
+    que el propio enjambre regenera (PROPIAS de arbol_de_trabajo): no son
+    trabajo de nadie y no se nombran como tal. Todo lo demás es trabajo de
+    alguien. Ante la duda, trabajo: apartar lo de otro es peor que no arrancar.
+
+    Devuelve (estorbo, propias, trabajo).
     """
-    estorbo, trabajo = [], []
+    conocidas = set(PROPIAS)
+    estorbo, propias, trabajo = [], [], []
     for linea in lineas:
         if not linea or len(linea) < 4:
             continue
@@ -62,11 +69,15 @@ def clasificar_sucio(lineas):
         if not ruta:
             continue
         base = os.path.basename(ruta)
-        if marca == "??" and (ruta.endswith(SUFIJOS_ESTORBO) or base in NOMBRES_ESTORBO):
+        if ruta in conocidas:
+            propias.append(ruta)
+        elif marca == "??" and (
+            ruta.endswith(SUFIJOS_ESTORBO) or base in NOMBRES_ESTORBO
+        ):
             estorbo.append(ruta)
         else:
             trabajo.append(ruta)
-    return estorbo, trabajo
+    return estorbo, propias, trabajo
 
 
 def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
@@ -158,9 +169,10 @@ def seguimiento_de(tid, entrada, tarea, faltan):
         % (tid, (" (sha %s)" % sha) if sha else "", ", ".join(faltan), titulo)
     )
     if base.get("prompt"):
-        encargo += "\n\n--- encargo original, como contexto ---\n%s" % str(
-            base["prompt"]
-        )[:2000]
+        encargo += (
+            "\n\n--- encargo original, como contexto ---\n%s"
+            % str(base["prompt"])[:2000]
+        )
     base.update(
         {
             "id": nid,
@@ -201,7 +213,11 @@ def _minutos(t, ahora):
         return max(0.0, (ahora - t) / 60.0)
     if isinstance(t, str) and t.strip():
         try:
-            return max(0.0, (ahora - time.mktime(time.strptime(t.strip(), "%Y-%m-%d %H:%M:%S"))) / 60.0)
+            return max(
+                0.0,
+                (ahora - time.mktime(time.strptime(t.strip(), "%Y-%m-%d %H:%M:%S")))
+                / 60.0,
+            )
         except Exception:
             return 0.0
     return 0.0
@@ -209,20 +225,27 @@ def _minutos(t, ahora):
 
 # ---------------------------------------------------------------- acciones
 
+
 def limpiar_arbol(raiz, ahora=None):
     """Aparta (NUNCA borra) los estorbos que impiden arrancar. Devuelve frases."""
     try:
         salida = subprocess.run(
-            ["git", "status", "--porcelain"], cwd=raiz,
-            capture_output=True, text=True, timeout=30,
+            ["git", "status", "--porcelain"],
+            cwd=raiz,
+            capture_output=True,
+            text=True,
+            timeout=30,
         ).stdout.splitlines()
     except Exception as e:
         return ["no pude mirar el árbol: %s" % type(e).__name__]
-    estorbo, trabajo = clasificar_sucio(salida)
+    estorbo, _propias, trabajo = clasificar_sucio(salida)
     frases = []
     if estorbo:
         destino = os.path.join(
-            raiz, "starseed_memory_root", "olas", "_apartado",
+            raiz,
+            "starseed_memory_root",
+            "olas",
+            "_apartado",
             time.strftime("%Y%m%d", time.localtime(ahora or time.time())),
         )
         os.makedirs(destino, exist_ok=True)
@@ -236,12 +259,47 @@ def limpiar_arbol(raiz, ahora=None):
             except Exception:
                 pass
         if movidos:
-            frases.append("aparto %d estorbo(s) que impedían arrancar: %s (en olas/_apartado/)"
-                          % (len(movidos), ", ".join(movidos[:5])))
+            frases.append(
+                "aparto %d estorbo(s) que impedían arrancar: %s (en olas/_apartado/)"
+                % (len(movidos), ", ".join(movidos[:5]))
+            )
     if trabajo:
-        frases.append("el árbol tiene trabajo sin commitear y NO lo toco: %s"
-                      % ", ".join(trabajo[:5]))
+        frase = "el árbol tiene trabajo sin commitear y NO lo toco: %s" % ", ".join(
+            trabajo[:5]
+        )
+        if _conviene_avisar_trabajo(raiz, frase, ahora or time.time()):
+            frases.append(frase)
     return frases
+
+
+PAUSA_AVISO_TRABAJO_S = 3600
+
+
+def _ruta_estado_trabajo(raiz):
+    return os.path.join(raiz, "starseed_memory_root", "mando", "desatascar-estado.json")
+
+
+def _conviene_avisar_trabajo(raiz, frase, ahora):
+    """Una vez por hora con el mismo conjunto de rutas; si cambia, enseguida.
+
+    El director publicaba la misma línea cada 3 minutos y llenaba el Chat
+    Director de ruido (medido 2026-10-04). Se guarda la última frase y su hora
+    y no se repite antes de 3600 s si no ha cambiado.
+    """
+    ruta = _ruta_estado_trabajo(raiz)
+    previo = {}
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            previo = json.load(fh)
+    except Exception:
+        previo = {}
+    if (
+        previo.get("frase") == frase
+        and ahora - float(previo.get("t") or 0) < PAUSA_AVISO_TRABAJO_S
+    ):
+        return False
+    _guardar_estado(ruta, {"frase": frase, "t": ahora})
+    return True
 
 
 def minutos_sin_integrar(progreso, ahora, ruta_estado):
@@ -251,11 +309,15 @@ def minutos_sin_integrar(progreso, ahora, ruta_estado):
     tareas están en `commit` y se recuerda cuándo cambió ese número. Si no
     cambia, el reloj corre: eso es exactamente «no avanza».
     """
-    n = sum(1 for v in (progreso or {}).values()
-            if isinstance(v, dict) and v.get("estado") in ESTADOS_CERRADOS)
+    n = sum(
+        1
+        for v in (progreso or {}).values()
+        if isinstance(v, dict) and v.get("estado") in ESTADOS_CERRADOS
+    )
     previo = {}
     try:
         import json
+
         with open(ruta_estado, encoding="utf-8") as fh:
             previo = json.load(fh)
     except Exception:
@@ -269,6 +331,7 @@ def minutos_sin_integrar(progreso, ahora, ruta_estado):
 def _guardar_estado(ruta, datos):
     try:
         import json
+
         os.makedirs(os.path.dirname(ruta), exist_ok=True)
         tmp = ruta + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
@@ -292,7 +355,7 @@ def clave_de_lineas(lineas, nombre):
         izquierda, _, valor = linea.partition("=")
         izquierda = izquierda.strip()
         if izquierda.startswith("export "):
-            izquierda = izquierda[len("export "):].strip()
+            izquierda = izquierda[len("export ") :].strip()
         if izquierda != nombre:
             continue
         valor = valor.strip()
@@ -371,13 +434,17 @@ def rechazar_puertas(puertas, binario="starseed-puente", avisar=avisar_por_teleg
     frases = []
     for tid, motivo in puertas:
         try:
-            r = subprocess.run([binario, "rechazar", tid],
-                               capture_output=True, text=True, timeout=30)
+            r = subprocess.run(
+                [binario, "rechazar", tid], capture_output=True, text=True, timeout=30
+            )
             ok = r.returncode == 0
         except Exception:
             ok = False
-        frases.append("rechazo %s solo (%s)" % (tid, motivo) if ok
-                      else "no pude rechazar %s (%s)" % (tid, motivo))
+        frases.append(
+            "rechazo %s solo (%s)" % (tid, motivo)
+            if ok
+            else "no pude rechazar %s (%s)" % (tid, motivo)
+        )
         try:
             if avisar and not avisar(aviso_de_rechazo(tid, motivo, ok)):
                 frases.append("(a %s no pude avisarte por Telegram)" % tid)
@@ -463,8 +530,9 @@ def aprobar_con_seguimiento(
 def trabajadores_opencode(ahora):
     """Lista de {pid, tarea, ultimo_byte} de los `opencode run` vivos."""
     try:
-        salida = subprocess.run(["ps", "-eo", "pid,etime,args"],
-                                capture_output=True, text=True, timeout=20).stdout
+        salida = subprocess.run(
+            ["ps", "-eo", "pid,etime,args"], capture_output=True, text=True, timeout=20
+        ).stdout
     except Exception:
         return []
     fuera = []
@@ -494,7 +562,9 @@ def matar_colgados(procesos, ahora, tope_s=1800):
         tarea = next((p.get("tarea") for p in procesos if p.get("pid") == pid), "?")
         try:
             os.kill(pid, 15)
-            frases.append("mato el trabajador de %s: media hora sin escribir un byte" % tarea)
+            frases.append(
+                "mato el trabajador de %s: media hora sin escribir un byte" % tarea
+            )
         except Exception:
             pass
     return frases
@@ -504,9 +574,11 @@ def despertar_vigilante():
     """Corta la pausa de 10 min del vigilante cuando la causa ya no está."""
     try:
         uid = os.getuid()
-        subprocess.run(["launchctl", "kickstart", "-k",
-                        "gui/%d/com.starseed.vigilante" % uid],
-                       capture_output=True, timeout=20)
+        subprocess.run(
+            ["launchctl", "kickstart", "-k", "gui/%d/com.starseed.vigilante" % uid],
+            capture_output=True,
+            timeout=20,
+        )
         return True
     except Exception:
         return False
@@ -516,7 +588,8 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
     """Una pasada completa. Devuelve las frases para el canal."""
     ahora = ahora or time.time()
     ruta_estado = ruta_estado or os.path.join(
-        os.path.expanduser("~"), ".starseed", "desatascar-estado.json")
+        os.path.expanduser("~"), ".starseed", "desatascar-estado.json"
+    )
     frases = []
 
     procesos = trabajadores_opencode(ahora)
@@ -538,9 +611,7 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
     # puerta con alcance incompleto y el desatascador no la miraba porque el
     # reloj del atasco se había reiniciado con un commit mío.)
     tareas_conocidas = _tareas_de_las_colas()
-    declarados = {
-        i: list(t.get("archivos") or []) for i, t in tareas_conocidas.items()
-    }
+    declarados = {i: list(t.get("archivos") or []) for i, t in tareas_conocidas.items()}
     puertas, parciales = clasificar_puertas(progreso, ahora, declarados)
     if puertas:
         frases += rechazar_puertas(puertas)
@@ -551,5 +622,7 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
 
     atascado, razon = orquestador_atascado(vivo, len(procesos), quieto)
     if atascado and not puertas and not parciales:
-        frases.append("ATASCO: orquestador %s y no hay nada que yo pueda resolver solo" % razon)
+        frases.append(
+            "ATASCO: orquestador %s y no hay nada que yo pueda resolver solo" % razon
+        )
     return frases
