@@ -64,6 +64,25 @@ class ApartarSiPidePago(unittest.TestCase):
         self.assertEqual(eventos[0][0], "proveedor")
         self.assertIn("sin gastar intento", eventos[0][2])
 
+    def test_dos_modelos_del_mismo_proveedor_lo_apartan_horas(self):
+        marcados = []
+        enjambre.PIDEN_PAGO.clear()
+        otro = "apinex/free/gemini-3.8-flash"
+        try:
+            with mock.patch.object(enjambre, "evento"), \
+                    mock.patch.object(enjambre, "_anotar_fallido"), \
+                    mock.patch.object(enjambre, "sin_cupo", return_value=False), \
+                    mock.patch.object(enjambre, "marcar_sin_cupo", side_effect=lambda *a, **k: marcados.append(a)):
+                enjambre.apartar_si_pide_pago("CDA1004", "apinex/free/qwen-3.8-max", SALIDA_APINEX)
+                self.assertEqual(marcados, [], "con un solo modelo no se aparta el proveedor")
+                enjambre.apartar_si_pide_pago("CDA1004", otro, SALIDA_APINEX)
+            self.assertEqual(len(marcados), 1)
+            self.assertEqual(marcados[0][0], "apinex")
+            self.assertEqual(marcados[0][2], enjambre.HORAS_PAGO)
+        finally:
+            enjambre.MUERTOS.discard(otro)
+            enjambre.PIDEN_PAGO.clear()
+
     def test_sin_pista_no_toca_nada(self):
         with mock.patch.object(enjambre, "evento") as ev, \
                 mock.patch.object(enjambre, "_anotar_fallido") as anotar:

@@ -397,7 +397,28 @@ def apartar_si_pide_pago(tid, modelo, salida):
         "%s pide suscripción de pago (%s) → fuera de la rotación, sin gastar intento"
         % (modelo, linea[:100]),
     )
+    # (2026-10-04) Con DOS modelos del mismo proveedor pidiendo pago, el proveedor entero
+    # sale HORAS_PAGO horas para TODAS las olas (archivo de salud compartido): esa noche
+    # CDA1004 y CDF1004 gastaron sus intentos en seis modelos de apinex seguidos.
+    prov = proveedor_de(modelo)
+    PIDEN_PAGO.setdefault(prov, set()).add(modelo)
+    if len(PIDEN_PAGO[prov]) >= 2 and not sin_cupo(prov):
+        try:
+            marcar_sin_cupo(prov, "%d modelos piden suscripción de pago" % len(PIDEN_PAGO[prov]), HORAS_PAGO)
+        except Exception:
+            pass
+        evento(
+            "proveedor_caido",
+            tid,
+            "%s: %d modelos piden suscripción → fuera %d h para todas las olas"
+            % (prov, len(PIDEN_PAGO[prov]), HORAS_PAGO),
+        )
     return True
+
+
+#: Modelos que han pedido pago en esta corrida, por proveedor (ver apartar_si_pide_pago).
+PIDEN_PAGO = {}
+HORAS_PAGO = int(os.environ.get("STARSEED_HORAS_PAGO", "6"))
 
 
 _CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
