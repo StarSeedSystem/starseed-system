@@ -8,10 +8,11 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Cloud, Cpu, Layers, RadioTower, Sparkles, Users, type LucideIcon } from "lucide-react";
+import { ChevronDown, Cloud, Cpu, Layers, RadioTower, Sparkles, Users, type LucideIcon } from "lucide-react";
 
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { CapasPorEntidad } from "@/components/astraura/capas/capas-por-entidad";
 import { getUnifiedCatalog } from "@/ai/astraura/unified-intelligence";
 import { CAPAS, destinoNivelador, ETIQUETA_CAPA, ETIQUETA_ESTADO, type CapaConciencia, type EstadoCapa } from "@/lib/astraura/capas-conciencia";
 import { useEstadoCapas } from "@/lib/astraura/use-estado-capas";
@@ -71,6 +72,11 @@ export function PanelCapas({ compacto = false }: { compacto?: boolean }) {
     const [nivel, setNivel] = useState(preferencia.nivelador);
     useEffect(() => setNivel(preferencia.nivelador), [preferencia.nivelador]);
     const destino = destinoNivelador(nivel);
+
+    // Bloque plegable «Por personalidad y agente» (Ola 1003 · §19): cerrado por
+    // defecto (jev: p=0,44 · zona de duda), así no duplica los textos de capas
+    // del listado y queda a un toque de distancia.
+    const [verPorEntidad, setVerPorEntidad] = useState(false);
 
     const fuentes = useMemo(() => {
         if (destino !== "especifico") return [];
@@ -174,6 +180,19 @@ export function PanelCapas({ compacto = false }: { compacto?: boolean }) {
                         ))}
                     </select>
                 )}
+            </div>
+
+            <div className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                <button
+                    type="button"
+                    aria-expanded={verPorEntidad}
+                    onClick={() => setVerPorEntidad((v) => !v)}
+                    className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 text-left text-xs font-medium text-white/80 transition-colors duration-200 hover:text-white"
+                >
+                    <span>Por personalidad y agente</span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200", verPorEntidad && "rotate-180")} />
+                </button>
+                {verPorEntidad && <CapasPorEntidad compacto={compacto} />}
             </div>
 
             {!maestro && <p className="text-[11px] text-white/60">Se usa el enrutador automático con las APIs y modelos gratuitos de la red (los mismos del enjambre).</p>}
