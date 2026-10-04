@@ -3187,3 +3187,17 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 **Lo que quedó fuera, una por una:**
 - `CDN1004` — no escribió nada
 - `CDO1004` — no escribió nada
+
+## 2026-10-04 07:13 · auto-1004-065103
+
+**Lo que se pidió.** Acceso total al disco
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (CDO1004, CDP1004). Es 67 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CDO1004` — no escribió nada
+- `CDP1004` — no escribió nada
