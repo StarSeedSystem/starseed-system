@@ -218,6 +218,8 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     // Sistemas por neurona×personalidad (Adenda 149, neuron-persona-store.ts): refresco en vivo del panel.
     "starseed.astraura.neuron-persona.v1": ["starseed:astraura-neuron-persona"],
     "starseed.astraura.usercontext.v1": ["starseed:astraura-usercontext"],
+    // Capas de conciencia por entidad (Ola 1003, use-capas-entidad.ts): refresco en vivo.
+    "starseed.astraura.capas-entidad.v1": ["starseed:astraura-capas-entidad"],
     "starseed.astraura.installed-models.v1": ["starseed:astraura-installed-models"],
     "starseed.astraura.huggingbay-candidates.v1": ["starseed:astraura-huggingbay-candidates"],
     "starseed.astraura.webaccess.v1": ["starseed:astraura-suggestions"],
