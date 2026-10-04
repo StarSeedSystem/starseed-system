@@ -85,6 +85,32 @@ export interface UserRecommendation extends OsProfile {
     score: number;
 }
 
+/** Paginación de candidatos procedentes de membresías compartidas. */
+export interface RecommendationPageOptions {
+    /** Máximo de recomendaciones devueltas. */
+    limit?: number;
+    /** Desplazamiento opaco devuelto por la página anterior. */
+    cursor?: number;
+    /** Filas de membresía leídas por petición (máximo 100). */
+    pageSize?: number;
+}
+
+export interface UserRecommendationPage {
+    items: UserRecommendation[];
+    /** Indica si quedan filas de membresía candidatas por consultar. */
+    hasMore: boolean;
+    /** Cursor para la siguiente página; null cuando se agotaron las filas. */
+    nextCursor: number | null;
+}
+
+interface MembershipRow {
+    user_id: string;
+    group_slug: string;
+}
+
+const SHARED_MEMBERSHIP_PAGE_SIZE = 100;
+// jev: p=sin respuesta; se aplica la regla: paginar candidatos, no grupos propios.
+
 /* ────────────────────────────── Helpers ────────────────────────────────── */
 
 function isClient(): boolean {
@@ -437,16 +463,26 @@ export async function searchGroups(q: string, limit = 12): Promise<SocialGroupHi
 /**
  * Recomienda usuarios "honestos y simples": personas que comparten al menos
  * una etiqueta de perfil O pertenecen a un grupo (os_memberships) en común
- * con el usuario actual. Sin sesión devuelve []. Nunca lanza.
+ * con el usuario actual. Pagina las membresías candidatas y expone `hasMore`;
+ * sin sesión devuelve una página vacía. Nunca lanza.
  *
  * Heurística (transparente, sin IA de red):
  *   +2 por cada grupo compartido (os_memberships.group_slug en común)
  *   +1 por cada tag de perfil compartido
  * Se ordena por score desc y se recorta a `limit`.
  */
-export async function recommendations(limit = 8): Promise<UserRecommendation[]> {
+export async function recommendationPage(
+    options: RecommendationPageOptions = {},
+): Promise<UserRecommendationPage> {
+    const limit = Math.max(1, Math.floor(options.limit ?? 8));
+    const cursor = Math.max(0, Math.floor(options.cursor ?? 0));
+    const pageSize = Math.min(
+        SHARED_MEMBERSHIP_PAGE_SIZE,
+        Math.max(1, Math.floor(options.pageSize ?? SHARED_MEMBERSHIP_PAGE_SIZE)),
+    );
+    const emptyPage: UserRecommendationPage = { items: [], hasMore: false, nextCursor: null };
     const me = await getCurrentUser();
-    if (!me) return [];
+    if (!me) return emptyPage;
     const supabase = createClient();
 
     try {
@@ -456,17 +492,19 @@ export async function recommendations(limit = 8): Promise<UserRecommendation[]> 
         ]);
 
         const myTags: string[] = Array.isArray(myProfileRes.data?.tags) ? myProfileRes.data!.tags : [];
-        const myGroupSlugs: string[] = ((myMembershipsRes.data as { group_slug: string }[]) || []).map(
-            (r) => r.group_slug,
-        );
+        // No se limita: recortarla perdería señales si la persona pertenece a >100 grupos.
+        const myGroupSlugs = Array.from(new Set(
+            ((myMembershipsRes.data as { group_slug: string }[]) || []).map((r) => r.group_slug),
+        ));
 
         if (!myTags.length && !myGroupSlugs.length) {
             // Sin señales propias: no inventamos "por qué" — devolvemos [] honestamente
             // (la UI puede mostrar "añade etiquetas a tu perfil para recibir sugerencias").
-            return [];
+            return emptyPage;
         }
 
         const scoreByUser = new Map<string, { score: number; reasons: Set<string> }>();
+        let hasMore = false;
 
         // Señal 1: compañeros de grupo (os_memberships con el mismo group_slug).
         if (myGroupSlugs.length) {
@@ -475,8 +513,14 @@ export async function recommendations(limit = 8): Promise<UserRecommendation[]> 
                     .from("os_memberships")
                     .select("user_id, group_slug")
                     .in("group_slug", myGroupSlugs)
-                    .neq("user_id", me.id);
-                for (const row of (data as { user_id: string; group_slug: string }[]) || []) {
+                    .neq("user_id", me.id)
+                    .order("group_slug", { ascending: true })
+                    .order("user_id", { ascending: true })
+                    // Una fila centinela permite calcular hasMore sin COUNT adicional.
+                    .range(cursor, cursor + pageSize);
+                const rows = ((data as MembershipRow[]) || []).slice(0, pageSize);
+                hasMore = ((data as MembershipRow[]) || []).length > pageSize;
+                for (const row of rows) {
                     const entry = scoreByUser.get(row.user_id) ?? { score: 0, reasons: new Set<string>() };
                     entry.score += 2;
                     entry.reasons.add(`Comparte el grupo «${row.group_slug}» contigo`);
@@ -509,7 +553,8 @@ export async function recommendations(limit = 8): Promise<UserRecommendation[]> 
             }
         }
 
-        if (!scoreByUser.size) return [];
+        const nextCursor = hasMore ? cursor + pageSize : null;
+        if (!scoreByUser.size) return { items: [], hasMore, nextCursor };
 
         const topIds = Array.from(scoreByUser.entries())
             .sort((a, b) => b[1].score - a[1].score)
@@ -519,7 +564,7 @@ export async function recommendations(limit = 8): Promise<UserRecommendation[]> 
         const { data: profilesData } = await supabase.from("os_profiles").select("*").in("user_id", topIds);
         const profiles = ((profilesData as ProfileRow[]) || []).map(normalizeProfile);
 
-        return profiles
+        const items = profiles
             .map((p) => {
                 const entry = scoreByUser.get(p.userId)!;
                 return {
@@ -529,7 +574,13 @@ export async function recommendations(limit = 8): Promise<UserRecommendation[]> 
                 } as UserRecommendation;
             })
             .sort((a, b) => b.score - a.score);
+        return { items, hasMore, nextCursor };
     } catch {
-        return [];
+        return emptyPage;
     }
+}
+
+/** Compatibilidad para consumidores que solo necesitan la primera página. */
+export async function recommendations(limit = 8): Promise<UserRecommendation[]> {
+    return (await recommendationPage({ limit })).items;
 }
