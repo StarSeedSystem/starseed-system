@@ -3083,3 +3083,18 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `CDA1004` — pruebas en rojo: vitest falla (rama conservada)
 - `CDC1004` — pruebas en rojo: vitest falla (rama conservada)
 - `CDF1004` — no escribió nada
+
+## 2026-10-04 01:26 · auto-1004-005521
+
+**Lo que se pidió.** motor/modelo
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (CDF1004, CDH1004). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CDA1004` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CDA1004 conservada
+- `CDF1004` — no escribió nada
+- `CDH1004` — no escribió nada
