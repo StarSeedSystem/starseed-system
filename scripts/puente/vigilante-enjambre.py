@@ -43,6 +43,7 @@ from vigilante_logica import (
 import cerrojos_git
 import config_director
 import higiene_colas
+import higiene_worktrees
 
 #: (2026-10-03) Cada hora, las copias `cola-auto-*` viejas y sus latidos salen de `olas/`
 #: (se MUEVEN a colas-fuente/). Se habían juntado 727: el Mando las leía todas en cada
@@ -663,9 +664,25 @@ def main():
                 try:
                     movidas = higiene_colas.higiene(raiz=RAIZ)
                     if movidas:
-                        print("higiene: %d archivos a colas-fuente/" % len(movidas), flush=True)
+                        print(
+                            "higiene: %d archivos a colas-fuente/" % len(movidas),
+                            flush=True,
+                        )
                 except Exception as e:  # noqa: BLE001
                     print("higiene: %s: %s" % (type(e).__name__, e), flush=True)
+                try:
+                    _wt = os.environ.get("STARSEED_WT") or os.path.join(
+                        os.path.dirname(RAIZ), "starseed-wt"
+                    )
+                    podados = higiene_worktrees.podar(RAIZ, _wt)
+                    if podados:
+                        print(
+                            "higiene: %d worktrees podados" % len(podados), flush=True
+                        )
+                except Exception as e:  # noqa: BLE001
+                    print(
+                        "higiene worktrees: %s: %s" % (type(e).__name__, e), flush=True
+                    )
             if hay:
                 try:
                     matar_colgados()
