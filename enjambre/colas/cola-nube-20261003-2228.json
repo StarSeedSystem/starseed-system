@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261003",
+ "tareas": [
+  {
+   "id": "CC1003F",
+   "ola": "Ola 1003 · capas por entidad y local preferente",
+   "titulo": "Capas por entidad: si el cálculo falla, el contexto personal vuelve al ajuste de la cuenta (nunca encendido a la fuerza)",
+   "archivos": [
+    "src/ai/astraura/router.ts",
+    "src/ai/astraura/__tests__/router-capas-entidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Privacidad (§19, consentimiento del usuario). En `src/ai/astraura/router.ts`, dentro de `astrauraChat`, el bloque `try { capasEf = capasEfectivasPara(...) } catch { capasEf = { preferencia: leerPreferenciaCapas(prefs), contextoPersonal: true }; }` degrada mal: si el cálculo falla y el usuario tiene el contexto personal APAGADO en la cuenta, se le inyectaría igualmente. Cambia el `catch` para que `contextoPersonal` sea el ajuste de la cuenta: `(() => { try { return getUserContextSettings().enabled; } catch { return false; } })()` (si ni eso se puede leer, `false`). No cambies nada más del enrutador.\nPara poder probarlo sin montar `astrauraChat`, saca esa degradación a una función pura exportada en router.ts: `export function capasEfectivasSeguras(calcular: () => { preferencia: PreferenciaCapas; contextoPersonal: boolean }, respaldo: () => PreferenciaCapas, contextoCuenta: () => boolean)` que devuelve `calcular()` y, si lanza, `{ preferencia: respaldo(), contextoPersonal: <contextoCuenta() o false si lanza> }`; y úsala en `astrauraChat`.\nAñade a `src/ai/astraura/__tests__/router-capas-entidad.test.ts` (sin borrar lo que hay): si `calcular` lanza y la cuenta tiene el contexto apagado → `contextoPersonal` false; si la cuenta lo tiene encendido → true; si también lanza `contextoCuenta` → false; sin fallo devuelve lo calculado.\n\nREGLAS DE LA CASA: lee primero `architecture/astraura-158-sistema-primario.md` §15 y §19 (el contrato manda). Toca SOLO los archivos declarados, ≤ 120 líneas cambiadas por archivo; no reformatees lo que no cambias. Textos de la interfaz en español (es-ES), cálidos y sin abreviar. Pruebas con vitest importando describe/it/expect de «vitest»; solo funciones puras o componentes con testing-library (sin vi.mock de módulos de Node). Zona de duda: `python3 scripts/puente/decidir.py si-no …` (Jev) y anota «jev: p=…» en el commit. Si algo del contrato ya existe, no lo dupliques: reutilízalo.",
+   "dependencias_ya_en_main": [
+    "CC1003C"
+   ]
+  }
+ ]
+}
