@@ -3098,3 +3098,19 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `CDA1004` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CDA1004 conservada
 - `CDF1004` — no escribió nada
 - `CDH1004` — no escribió nada
+
+## 2026-10-04 02:37 · auto-1004-012843
+
+**Lo que se pidió.** motor/modelo
+
+**Resultado.** 4 de 8 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (CDF1004, CDD1004). Es 25 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CDF1004` — no escribió nada
+- `SP092918` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `CDD1004` — no escribió nada
+- `CDK1004` — otra cosa
