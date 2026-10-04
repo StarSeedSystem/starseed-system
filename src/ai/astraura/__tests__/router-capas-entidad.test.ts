@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { capasEfectivasPara, capasEfectivasSeguras, DEFAULT_INTELLIGENCE } from "@/ai/astraura/router";
 import { AJUSTES_VACIOS, fijarCapa, type AjustesCapasEntidad } from "@/lib/astraura/capas-entidad";
+import { leerPreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 
 const prefs = { ...DEFAULT_INTELLIGENCE };
 
@@ -42,8 +43,10 @@ describe("capasEfectivasPara (Ola 1003 · §19)", () => {
 });
 
 describe("capasEfectivasSeguras (Ola 1003 · §19 · degradación con consentimiento)", () => {
-    const calculado = { preferencia: { activo: true, capas: { cuenta: true } }, contextoPersonal: false };
-    const respaldo = () => ({ activo: false, capas: { cuenta: false } });
+    // Preferencias COMPLETAS (con nivelador y específico): tsc no deja pasar un objeto a medias.
+    const base = leerPreferenciaCapas(prefs);
+    const calculado = { preferencia: { ...base, activo: true }, contextoPersonal: false };
+    const respaldo = () => ({ ...base, activo: false });
     const lanza = () => { throw new Error("fallo al calcular"); };
 
     it("sin fallo devuelve exactamente lo calculado", () => {
