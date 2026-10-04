@@ -273,14 +273,24 @@ def modelos_utiles(modelos, informe, siempre=SIEMPRE):
     la lista vacía, se devuelve la original — es mejor intentarlo con todos que no
     tener a nadie.
     """
-    estados, extra = {}, {}
+    estados, extra, sondeado = {}, {}, {}
     for fila in (informe or {}).get("pasarelas", []) or []:
         estados[fila.get("clave")] = fila.get("estado")
         extra[fila.get("clave")] = [str(x) for x in (fila.get("modelos_extra") or []) if x]
+        if fila.get("modelo"):
+            sondeado[fila.get("clave")] = "%s/%s" % (fila.get("clave"), fila.get("modelo"))
+    # (2026-10-04) «modelo_fuera» es del MODELO sondeado, no de la pasarela (lo dice su
+    # explicación: «otros de la pasarela sí»). Tratarlo como de la pasarela entera sacó de
+    # la rotación los cinco escritores de OpenRouter porque la sonda usaba uno retirado
+    # (nex-n2.5-pro:free), con cohere/qwen/nemotron :free escribiendo con herramientas en 1 s.
+    def _vale(p, m):
+        e = estados.get(p)
+        return e in UTILIZABLES or (e == MODELO_FUERA and bool(sondeado.get(p)) and m != sondeado[p])
+
     utiles, apartados = [], []
     for m in modelos or []:
         p = pasarela_de(m)
-        if p in siempre or p not in estados or estados[p] in UTILIZABLES:
+        if p in siempre or p not in estados or _vale(p, m):
             utiles.append(m)
         else:
             apartados.append((m, estados[p]))
@@ -289,11 +299,10 @@ def modelos_utiles(modelos, informe, siempre=SIEMPRE):
     # de la lista fija, solo si la pasarela escribe. Así la rotación se actualiza sola
     # cuando OpenRouter estrena o retira gratuitos, sin tocar código.
     for clave, ids in extra.items():
-        if estados.get(clave) in UTILIZABLES:
-            for mid in ids:
-                completo = "%s/%s" % (clave, mid)
-                if completo not in utiles:
-                    utiles.append(completo)
+        for mid in ids:
+            completo = "%s/%s" % (clave, mid)
+            if _vale(clave, completo) and completo not in utiles:
+                utiles.append(completo)
     if not utiles:
         return list(modelos or []), []
     return utiles, apartados

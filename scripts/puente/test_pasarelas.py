@@ -183,6 +183,30 @@ class TestFichajeDiario(unittest.TestCase):
         self.assertEqual(apartados, [("apinex/free/glm-5.3-flash", P.FICHAJE)])
 
 
+class TestModeloFueraEsDelModelo(unittest.TestCase):
+    """(2026-10-04) Una sonda con un modelo retirado no aparta al resto de la pasarela."""
+
+    def test_solo_sale_el_modelo_sondeado(self):
+        modelos = ["openrouter/nex-agi/nex-n2.5-pro:free", "openrouter/cohere/north-mini-code:free",
+                   "groq/openai/gpt-oss-20b"]
+        inf = {"pasarelas": [
+            {"clave": "openrouter", "modelo": "nex-agi/nex-n2.5-pro:free", "estado": P.MODELO_FUERA,
+             "modelos_extra": ["qwen/qwen3.8-27b:free", "nex-agi/nex-n2.5-pro:free"]},
+            {"clave": "groq", "modelo": "openai/gpt-oss-20b", "estado": P.ESCRIBE},
+        ]}
+        utiles, apartados = P.modelos_utiles(modelos, inf)
+        self.assertEqual(apartados, [("openrouter/nex-agi/nex-n2.5-pro:free", P.MODELO_FUERA)])
+        self.assertIn("openrouter/cohere/north-mini-code:free", utiles)
+        self.assertIn("openrouter/qwen/qwen3.8-27b:free", utiles)
+        self.assertNotIn("openrouter/nex-agi/nex-n2.5-pro:free", utiles)
+
+    def test_sin_modelo_sondeado_sigue_saliendo_entera(self):
+        inf = {"pasarelas": [{"clave": "openrouter", "estado": P.MODELO_FUERA},
+                             {"clave": "groq", "estado": P.ESCRIBE}]}
+        utiles, apartados = P.modelos_utiles(["openrouter/x:free", "groq/y"], inf)
+        self.assertEqual(utiles, ["groq/y"])
+
+
 class TestSaldoNoEsClave(unittest.TestCase):
     """Un 403 por créditos gastados NO es una clave inválida.
 
