@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-04 06:47:04 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-04 07:13:44 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 27 |
-| HEAD | `31a08307 chore(memoria): aprendizaje de la ola auto-1004-063551` |
-| Sin publicar | 7 commits |
+| HEAD | `9e58f8b8 chore(memoria): aprendizaje de la ola auto-1004-065103` |
+| Sin publicar | 10 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1004-063551.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1004-065103.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CDN1004` | hecho | nvidia/z-ai/glm-5.3 | 1 min | 30 s | 3562 |
-| `CDO1004` | hecho | nvidia/z-ai/glm-5.3 | 2 min | 142 s | 5340 |
+| `CDP1004` | hecho | nvidia/z-ai/glm-5.3 | 0 min | 29 s | 1249 |
+| `CDO1004` | hecho | nvidia/z-ai/glm-5.3 | 8 min | 496 s | 7683 |
+| `CDN1004` | hecho | nvidia/moonshotai/kimi-k3 | 11 min | 684 s | 98909 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
