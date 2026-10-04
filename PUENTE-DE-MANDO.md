@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-03 22:04:26 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-03 22:28:53 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,18 +16,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 25 |
-| HEAD | `02dfb367 chore(memoria): aprendizaje de la ola auto-1003-212343` |
-| Sin publicar | 3 commits |
+| HEAD | `645409e7 chore(memoria): aprendizaje de la ola auto-1003-220620` |
+| Sin publicar | 7 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1003-212343.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-1003-220620.json`, hace 7s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CC1003D` | hecho | nvidia/moonshotai/kimi-k3 | 2 min | 106 s | 57452 |
-| `SP092918` | hecho | apinex/free/glm-5.3-flash | 23 min | 1357 s | 706723 |
-| `SP092916` | hecho | apinex/free/qwen-3.8-max | 32 min | 1939 s | 454229 |
-| `CC1003C` | hecho | apinex/free/muse-spark-1.3 | 33 min | 1978 s | 6660 |
+| `CC1003C` | hecho | nvidia/moonshotai/kimi-k3 | 2 min | 123 s | 55957 |
+| `SP092918` | hecho | apinex/free/qwen-3.8-max | 11 min | 659 s | 797957 |
+| `SP092916` | hecho | apinex/free/qwen-3.8-max | 12 min | 711 s | 544893 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
