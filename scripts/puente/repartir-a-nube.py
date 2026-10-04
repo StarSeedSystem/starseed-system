@@ -108,6 +108,14 @@ def main():
     ap.add_argument("--publicar", action="store_true")
     args = ap.parse_args()
 
+    # (2026-10-04) Con la nube en pausa nadie reparte: ni el director de la nube ni el vigía.
+    # «0 tareas» es justo lo que el vigía mira para no desplegar.
+    from repartir_nube import nube_pausada
+    pausa = nube_pausada()
+    if pausa:
+        print("[reparto] nube en pausa (%s): 0 tareas" % pausa)
+        return
+
     validar_raiz(RAIZ)
     colas = colas_fuente()
     progreso = {}

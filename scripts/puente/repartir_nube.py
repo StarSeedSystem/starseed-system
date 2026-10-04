@@ -9,7 +9,10 @@ el estado ya declaró agotado (`fallo*`) o innecesario (`sin_cambios`) y lo que
 nunca se tocó: eso es justo lo que la nube puede hacer gratis con LLM7.
 """
 
+import json
+import os
 import re
+import time
 
 from vigilante_logica import id_en_asuntos
 
@@ -277,3 +280,36 @@ def marcar(progreso, ids, fecha):
             estado="reasignada", medio="nube", nota="reasignada a la nube %s" % fecha
         )
     return p
+
+
+#: (2026-10-04) Interruptor de la nube. Siete corridas seguidas de GitHub Actions acabaron
+#: con «cero commits» mientras el reparto les quitaba las tareas a la Mac (CDA1004, CDC1004,
+#: CDF1004) y CC1003F quedó bloqueada tras tres envíos. Apagar el servicio launchd no basta:
+#: el vigía de medidores también despliega la nube, y un reinicio vuelve a cargar el servicio.
+#: Con este archivo NADIE reparte: {"motivo": "...", "hasta": "AAAA-MM-DD HH:MM:SS" | null}.
+PAUSA_NUBE = os.path.expanduser("~/.starseed/nube-pausada.json")
+
+
+def motivo_pausa(datos, ahora_local=None):
+    """PURA: el motivo de la pausa si sigue vigente (sin `hasta` = hasta que se quite), o None."""
+    if not isinstance(datos, dict):
+        return None
+    hasta = str(datos.get("hasta") or "").strip()
+    if hasta:
+        try:
+            limite = time.strptime(hasta, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return None
+        if limite <= (ahora_local or time.localtime()):
+            return None
+    return str(datos.get("motivo") or "pausada a mano").strip()
+
+
+def nube_pausada(ruta=PAUSA_NUBE):
+    """Motivo de la pausa de la nube, o None si se puede repartir. Nunca lanza."""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return motivo_pausa(json.load(f))
+    except (OSError, ValueError):
+        return None
+

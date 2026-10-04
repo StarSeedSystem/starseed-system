@@ -367,3 +367,34 @@ class Privadas(unittest.TestCase):
         r = elegir(colas, {}, [], ola_actual="")
         self.assertEqual([t["id"] for t in r], ["P3"])
 
+
+class PausaDeLaNube(unittest.TestCase):
+    """(2026-10-04) Siete corridas con cero commits: con la pausa nadie reparte."""
+
+    def test_sin_hasta_vale_hasta_que_se_quite(self):
+        import repartir_nube as RNp
+        self.assertEqual(RNp.motivo_pausa({"motivo": "cero commits"}), "cero commits")
+
+    def test_con_hasta_pasado_ya_no_vale(self):
+        import time
+        import repartir_nube as RNp
+        ayer = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - 86400))
+        self.assertIsNone(RNp.motivo_pausa({"motivo": "x", "hasta": ayer}))
+
+    def test_con_hasta_futuro_vale(self):
+        import time
+        import repartir_nube as RNp
+        manana = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + 86400))
+        self.assertEqual(RNp.motivo_pausa({"motivo": "x", "hasta": manana}), "x")
+
+    def test_archivo_ausente_o_roto_no_pausa(self):
+        import os, tempfile
+        import repartir_nube as RNp
+        d = tempfile.mkdtemp()
+        self.assertIsNone(RNp.nube_pausada(os.path.join(d, "no-existe.json")))
+        roto = os.path.join(d, "roto.json")
+        with open(roto, "w") as f:
+            f.write("{")
+        self.assertIsNone(RNp.nube_pausada(roto))
+        self.assertIsNone(RNp.motivo_pausa(["no", "es", "dict"]))
+
