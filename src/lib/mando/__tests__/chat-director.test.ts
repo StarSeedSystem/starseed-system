@@ -150,4 +150,15 @@ describe("leerFeedDirector: fusión", () => {
         const feed = await leerFeedDirector({ desde: "2026-10-04T08:30:00Z", limite: 1 });
         expect(feed.mensajes.map((m) => m.id)).toEqual(["md-12-abcd"]);
     });
+
+    it("con `desde` conserva ultimoModelo aunque lo nuevo no traiga respuesta del director", async () => {
+        await publicarMensaje({
+            ...mensajeBase(), id: "md-20-abcd", t: "2026-10-04T08:00:00Z", tipo: "respuesta",
+            rol: "director", modelo: "hermes/x",
+        });
+        await publicarMensaje({ ...mensajeBase(), id: "md-21-abcd", t: "2026-10-04T09:00:00Z" });
+        const feed = await leerFeedDirector({ desde: "2026-10-04T08:00:00Z" });
+        expect(feed.mensajes.map((m) => m.id)).toEqual(["md-21-abcd"]);
+        expect(feed.ultimoModelo).toBe("hermes/x");
+    });
 });

@@ -117,7 +117,7 @@ export async function leerFeedDirector(
     return {
         mensajes: filtrados.slice(-limite),
         entregas,
-        ultimoModelo: ultimoModeloDirector(filtrados),
+        ultimoModelo: ultimoModeloDirector(fusion),
     };
 }
 

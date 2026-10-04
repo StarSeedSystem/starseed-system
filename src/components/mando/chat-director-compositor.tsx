@@ -55,9 +55,16 @@ export function CompositorDirector({ modelos, ultimoModelo, enviando = false, on
   }, [modelos]);
 
   const disponibles = useMemo(() => grupos.flatMap(([, lista]) => lista.map((m) => m.id)), [grupos]);
-  const [modelo, setModelo] = useState<string>(() => modeloInicial(leerGuardado(), ultimoModelo, disponibles));
+  // Un solo cálculo del modelo inicial para el modelo y sus canales: lo guardado por Alex manda
+  // aunque el catálogo aún no haya llegado (revisión de CDP1004).
+  const [inicial] = useState<string>(() => {
+    const guardado = leerGuardado();
+    if (guardado && guardado.trim() !== "") return guardado;
+    return modeloInicial(guardado, ultimoModelo, disponibles);
+  });
+  const [modelo, setModelo] = useState<string>(inicial);
   const [canales, setCanales] = useState<CanalId[]>(() => {
-    const c = motorDe(modeloInicial(leerGuardado(), ultimoModelo, disponibles));
+    const c = motorDe(inicial);
     return c === "api" ? [] : [c];
   });
   const [texto, setTexto] = useState("");
@@ -101,6 +108,9 @@ export function CompositorDirector({ modelos, ultimoModelo, enviando = false, on
           onChange={(e) => cambiarModelo(e.target.value)}
           className="cursor-pointer rounded-lg border border-violet-500/30 bg-zinc-900 px-2.5 py-1.5 text-xs text-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-400/60"
         >
+          {!disponibles.includes(modelo) && modelo.trim() !== "" && (
+            <option value={modelo}>{modelo}</option>
+          )}
           {grupos.map(([grupo, lista]) => (
             <optgroup key={grupo} label={grupo}>
               {lista.map((m) => (
