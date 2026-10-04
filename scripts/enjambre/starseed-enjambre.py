@@ -279,8 +279,17 @@ def codex_disponible() -> bool:
     try:
         if not _cupo_codex.puede_escribir():
             return False
-    except Exception:
-        pass
+    except Exception as e:
+        # (2026-10-03, SP092916) Un fallo al leer el cupo NO es cupo disponible: el
+        # `pass` anterior repetía el bug de las cinco tareas `sin_cambios`. Se
+        # registra y se asume sin cupo (prudente).
+        try:
+            evento(
+                "aviso", "", "cupo_codex.puede_escribir falló, asumo sin cupo: %s" % e
+            )
+        except Exception:
+            pass
+        return False
     if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in (
         "0",
         "no",
@@ -379,6 +388,7 @@ CATALOGOS = {
     "anthropic": ("https://api.anthropic.com/v1/models", ("ANTHROPIC_API_KEY",)),
 }
 
+
 def apartar_si_pide_pago(tid, modelo, salida):
     """Si el proveedor pide suscripción para `modelo`: fuera de la rotación de esta corrida
     (MUERTOS), anotado como fallido en la tarea (baja su mérito) y SIN gastar intento.
@@ -404,7 +414,11 @@ def apartar_si_pide_pago(tid, modelo, salida):
     PIDEN_PAGO.setdefault(prov, set()).add(modelo)
     if len(PIDEN_PAGO[prov]) >= 2 and not sin_cupo(prov):
         try:
-            marcar_sin_cupo(prov, "%d modelos piden suscripción de pago" % len(PIDEN_PAGO[prov]), HORAS_PAGO)
+            marcar_sin_cupo(
+                prov,
+                "%d modelos piden suscripción de pago" % len(PIDEN_PAGO[prov]),
+                HORAS_PAGO,
+            )
         except Exception:
             pass
         evento(
@@ -1363,7 +1377,14 @@ MERITO_CABEZA = int(os.environ.get("STARSEED_MERITO_CABEZA", "3") or 3)
 #: Proveedores que cobran por token con la tarjeta de Alex: fuera de la rotación salvo
 #: STARSEED_PAGO=1. (codex va por suscripción y cupo, no por token: se queda.)
 PROVEEDORES_DE_PAGO = ("xai", "deepseek", "anthropic", "openai")
-_ESTADOS_MAL = ("sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "bloqueada", "rechazada")
+_ESTADOS_MAL = (
+    "sin_cambios",
+    "fallo",
+    "fallo_tsc",
+    "fallo_tests",
+    "bloqueada",
+    "rechazada",
+)
 
 
 def merito_escritores(progreso):
@@ -1442,7 +1463,10 @@ def modelos_para(tid):
         progreso = PROG
     except NameError:
         progreso = {}
-    rotados = sin_pago(orden_por_merito(list(MODELOS), progreso, tid)) + escritores_de_pasarelas()
+    rotados = (
+        sin_pago(orden_por_merito(list(MODELOS), progreso, tid))
+        + escritores_de_pasarelas()
+    )
     if not hay_alguna_clave():
         # En orden de MODELOS, no en el rotado: llm7/gpt-oss solo sirve para Markdown,
         # asi que minimax-m2.7 debe ir SIEMPRE delante de el.
@@ -2702,7 +2726,9 @@ MODO_JSON = {"groq", "openrouter", "gemini", "nim"}
 _SIN_MODO_JSON = set()
 
 
-def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500, json_mode=False):
+def llamar_llm(
+    proveedor, modelo, prompt, timeout=120, max_tokens=2500, json_mode=False
+):
     """Una llamada de chat con ROTACIÓN DE CLAVE integrada (2026-09-07, Ola 271, P9B):
 
     la clave sale de la capa por medio (`clave_activa`); ante HTTP 402, contenido que sea
@@ -2716,11 +2742,15 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500, json_mod
     diez hallazgos con propuesta y no cabe en 2500; los revisores siguen con 2500.
     `json_mode` (2026-09-29): pide la respuesta en JSON a quien sabe darla (MODO_JSON)."""
     max_tokens = max(256, min(8000, int(max_tokens or 2500)))
-    modo_json = [bool(json_mode) and proveedor in MODO_JSON and proveedor not in _SIN_MODO_JSON]
+    modo_json = [
+        bool(json_mode) and proveedor in MODO_JSON and proveedor not in _SIN_MODO_JSON
+    ]
     if proveedor not in CUPOS:
         # Un proveedor sin cupo declarado (p. ej. una pasarela que no está en esta máquina)
         # no se llama: sin esto era un KeyError que se contaba como fallo del modelo.
-        raise RuntimeError("sin clave %s (sin cupo declarado en esta máquina)" % proveedor)
+        raise RuntimeError(
+            "sin clave %s (sin cupo declarado en esta máquina)" % proveedor
+        )
     CUPOS[proveedor].esperar()
 
     def _peticion(kay):
@@ -2745,7 +2775,12 @@ def llamar_llm(proveedor, modelo, prompt, timeout=120, max_tokens=2500, json_mod
             )
             cuerpo = {
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": min(max_tokens, 8000) if max_tokens != 2500 else 1200},
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": min(max_tokens, 8000)
+                    if max_tokens != 2500
+                    else 1200,
+                },
             }
             if modo_json[0]:
                 cuerpo["generationConfig"]["responseMimeType"] = "application/json"
@@ -3122,36 +3157,41 @@ def _consejero_jev_aprobacion():
 
 
 def revisar(tid, titulo, diff, impacto="", alcance=""):
-    comun = _contexto_agente("revisor", max_chars=900, excluir=("area", "herramientas", "protocolo"))
-    prompt = (comun + "\n\n" if comun else "") + (
-        (
-            "Eres revisor senior de StarSeed OS (Next.js 15, React 19, TypeScript estricto, Supabase). Revisa este diff de la tarea «%s». "
-            "Responde en español, máximo 220 palabras, con: **Riesgos reales** (numerados, solo los que de verdad rompan algo o abran un agujero), "
-            "**Probar a mano en localhost** (3-4 pasos concretos) y **Seguimiento:** «no» si se puede fusionar tal cual, o «sí, bloqueante — <qué>» "
-            "si NO debe fusionarse sin corregir. Sé exigente pero justo: estilo o nombres no son bloqueantes.\n\n"
-            "IMPORTANTE sobre el formato: el diff puede llegar TRUNCADO, ves UN SOLO commit y no el "
-            "repositorio entero. Los archivos que este commit importa y no aparecen aquí YA EXISTEN en "
-            "main: los creó otra tarea de la misma ola, y el commit no habría llegado a ti sin compilar. "
-            "NO marques «bloqueante» por falta de contexto, por no poder confirmar que compila o por pedir el diff completo: "
-            "el commit ya pasó tsc y vitest antes de llegarte. Marca «bloqueante» SOLO por un defecto que veas en el código mostrado "
-            "y que rompa el comportamiento, la seguridad o los datos. Si tu duda es de contexto, dila como riesgo y pon «Seguimiento: no».\n\n"
-            + (
-                "RADIO DE IMPACTO según el grafo del código (GitNexus): %s\nMira con más cuidado los flujos listados: son los que este diff toca.\n\n"
-                % impacto
-                if impacto
-                else ""
+    comun = _contexto_agente(
+        "revisor", max_chars=900, excluir=("area", "herramientas", "protocolo")
+    )
+    prompt = (
+        (comun + "\n\n" if comun else "")
+        + (
+            (
+                "Eres revisor senior de StarSeed OS (Next.js 15, React 19, TypeScript estricto, Supabase). Revisa este diff de la tarea «%s». "
+                "Responde en español, máximo 220 palabras, con: **Riesgos reales** (numerados, solo los que de verdad rompan algo o abran un agujero), "
+                "**Probar a mano en localhost** (3-4 pasos concretos) y **Seguimiento:** «no» si se puede fusionar tal cual, o «sí, bloqueante — <qué>» "
+                "si NO debe fusionarse sin corregir. Sé exigente pero justo: estilo o nombres no son bloqueantes.\n\n"
+                "IMPORTANTE sobre el formato: el diff puede llegar TRUNCADO, ves UN SOLO commit y no el "
+                "repositorio entero. Los archivos que este commit importa y no aparecen aquí YA EXISTEN en "
+                "main: los creó otra tarea de la misma ola, y el commit no habría llegado a ti sin compilar. "
+                "NO marques «bloqueante» por falta de contexto, por no poder confirmar que compila o por pedir el diff completo: "
+                "el commit ya pasó tsc y vitest antes de llegarte. Marca «bloqueante» SOLO por un defecto que veas en el código mostrado "
+                "y que rompa el comportamiento, la seguridad o los datos. Si tu duda es de contexto, dila como riesgo y pon «Seguimiento: no».\n\n"
+                + (
+                    "RADIO DE IMPACTO según el grafo del código (GitNexus): %s\nMira con más cuidado los flujos listados: son los que este diff toca.\n\n"
+                    % impacto
+                    if impacto
+                    else ""
+                )
+                # Puerta de alcance (Ola 259, E2): si la pasada de compleción no bastó, el
+                # revisor lo sabe y decide si el enunciado exigía de verdad esos archivos.
+                + (
+                    "ALCANCE: %s. Si el enunciado exigía esos cambios, marca BLOQUEANTE y di qué falta.\n\n"
+                    % alcance
+                    if alcance
+                    else ""
+                )
+                + "```diff\n%s\n```"
             )
-            # Puerta de alcance (Ola 259, E2): si la pasada de compleción no bastó, el
-            # revisor lo sabe y decide si el enunciado exigía de verdad esos archivos.
-            + (
-                "ALCANCE: %s. Si el enunciado exigía esos cambios, marca BLOQUEANTE y di qué falta.\n\n"
-                % alcance
-                if alcance
-                else ""
-            )
-            + "```diff\n%s\n```"
+            % (titulo, diff[:22000])
         )
-        % (titulo, diff[:22000])
     )
     # Solo se intentan revisores vivos, con cupo y atemperados; el último que respondió va
     # primero. El 2026-09-06 xkiro (429) y aihubmix (cuota) se intentaban en cada revisión
@@ -5571,12 +5611,18 @@ def foto_enjambre(vivas_txt):
             bytes_log = os.path.getsize(os.path.join(LOGS, tid + ".log"))
         except Exception:
             bytes_log = 0
-        tk = tokens.get(tid) or (d.get("tokens") if isinstance(d.get("tokens"), dict) else {})
+        tk = tokens.get(tid) or (
+            d.get("tokens") if isinstance(d.get("tokens"), dict) else {}
+        )
         tareas.append(
             {
                 "id": tid,
                 "fase": d.get("fase"),
-                **({"tipo": "analisis", "subfase": str(d.get("subfase") or "")[:80]} if d.get("tipo") == "analisis" else {}),
+                **(
+                    {"tipo": "analisis", "subfase": str(d.get("subfase") or "")[:80]}
+                    if d.get("tipo") == "analisis"
+                    else {}
+                ),
                 "modelo": modelo,
                 "proveedor": proveedor_de(modelo) if modelo else "",
                 "ventana": CONTEXTO_DE.get(
@@ -5625,7 +5671,11 @@ def foto_enjambre(vivas_txt):
         # «completando» pinta como «escribiendo» en el Mando: es una escritura de alcance.
         # «analizando» (2026-09-29): un sueño profundo también es un agente trabajando.
         "agentesActivos": len(
-            [t for t in tareas if t["fase"] in ("escribiendo", "completando", "analizando")]
+            [
+                t
+                for t in tareas
+                if t["fase"] in ("escribiendo", "completando", "analizando")
+            ]
         ),
         "proveedores": {
             p: {
@@ -5638,7 +5688,9 @@ def foto_enjambre(vivas_txt):
         "medios": list(medios_vivos.values()),
         "arriendos": list((registro.get("arriendos") or {}).values()),
         "memoriaMb": memoria_libre_mb(),
-        "integradas": sum(1 for v in list(PROG.values()) if v.get("estado") == "commit"),
+        "integradas": sum(
+            1 for v in list(PROG.values()) if v.get("estado") == "commit"
+        ),
         "resumen": vivas_txt,
     }
 
@@ -5884,7 +5936,13 @@ def _paso_local(tid, nombre, **datos):
     try:
         os.makedirs(PASOS_DIR, exist_ok=True)
         with open(os.path.join(PASOS_DIR, tid + ".jsonl"), "a", encoding="utf-8") as f:
-            f.write(json.dumps({"t": ahora(), "tarea": tid, "paso": nombre, **datos}, ensure_ascii=False) + "\n")
+            f.write(
+                json.dumps(
+                    {"t": ahora(), "tarea": tid, "paso": nombre, **datos},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
     except Exception:
         pass
 
@@ -5948,7 +6006,11 @@ def _renovar_pasarelas_si_viejo(maximo_s=15 * 60, cada_s=10 * 60):
     except OSError:
         viejo = True
     with _LOCK_FLOTA:
-        if not viejo or _FLOTA_AN["renovando"] or time.time() - _FLOTA_AN["renovado"] < cada_s:
+        if (
+            not viejo
+            or _FLOTA_AN["renovando"]
+            or time.time() - _FLOTA_AN["renovado"] < cada_s
+        ):
             return False
         _FLOTA_AN["renovando"] = True
         _FLOTA_AN["renovado"] = time.time()
@@ -5956,8 +6018,12 @@ def _renovar_pasarelas_si_viejo(maximo_s=15 * 60, cada_s=10 * 60):
 
     def correr():
         try:
-            subprocess.run([sys.executable, guion, "--segundos", "20"], cwd=ROOT,
-                           capture_output=True, timeout=240)
+            subprocess.run(
+                [sys.executable, guion, "--segundos", "20"],
+                cwd=ROOT,
+                capture_output=True,
+                timeout=240,
+            )
         except Exception:
             pass
         finally:
@@ -5984,7 +6050,9 @@ def _contexto_agente(rol, area=None, tarea="", max_chars=6000, excluir=()):
     try:
         import contexto_agente as _ctx
 
-        return _ctx.texto(rol, area, tarea, max_chars, raiz=ROOT, excluir=tuple(excluir))
+        return _ctx.texto(
+            rol, area, tarea, max_chars, raiz=ROOT, excluir=tuple(excluir)
+        )
     except Exception:
         return ""
 
@@ -6026,11 +6094,23 @@ def _consejo_jev_analisis():
     def elegir(estado, pregunta, opciones, regla=None, quien=None, dominio=""):
         # Camino caliente (antes de una llamada a la flota): no se espera detrás de un lote de
         # triaje de otro sueño más de 3 s; si Jev está ocupado, manda el turno.
-        return dec.consultar("elegir", estado, pregunta, opciones=opciones, regla=regla, quien=quien,
-                             dominio=dominio, espera_turno=3.0)
+        return dec.consultar(
+            "elegir",
+            estado,
+            pregunta,
+            opciones=opciones,
+            regla=regla,
+            quien=quien,
+            dominio=dominio,
+            espera_turno=3.0,
+        )
 
-    return _analista.ConsejoJev(lote=dec.consultar_lote, elegir=elegir, confirmar=dec.confirmar,
-                                estado=_analista.JEV_SESION)
+    return _analista.ConsejoJev(
+        lote=dec.consultar_lote,
+        elegir=elegir,
+        confirmar=dec.confirmar,
+        estado=_analista.JEV_SESION,
+    )
 
 
 def _ejecutar_analisis(t):
@@ -6050,8 +6130,16 @@ def _ejecutar_analisis(t):
             pass
 
     if _analista is None:
-        set_estado(tid, estado="fallo", nota="falta analista.py junto al orquestador (instalar.sh)")
-        evento("fallo", tid, "tarea de análisis sin analista.py instalado: bash scripts/enjambre/instalar.sh")
+        set_estado(
+            tid,
+            estado="fallo",
+            nota="falta analista.py junto al orquestador (instalar.sh)",
+        )
+        evento(
+            "fallo",
+            tid,
+            "tarea de análisis sin analista.py instalado: bash scripts/enjambre/instalar.sh",
+        )
         return None
     return _analista.ejecutar(
         t,
@@ -6436,8 +6524,12 @@ def ejecutar(t, intento=1):
         salidas_sin_cambios.append((out or "")[-600:])
         if _ce is not None and pendientes and intentos_reales < TOPE_INTENTOS_ESCRITURA:
             _parar, _nota_parar, exp_sin_cambios = _ce.parar_sin_cambios(
-                t, intentos_reales, probados_sin_cambios, pendientes,
-                salidas_sin_cambios, _consultar_jev(),
+                t,
+                intentos_reales,
+                probados_sin_cambios,
+                pendientes,
+                salidas_sin_cambios,
+                _consultar_jev(),
             )
             if _parar:
                 nota_sin_cambios = _nota_parar
@@ -6679,7 +6771,11 @@ def ejecutar(t, intento=1):
             modelo="-",
             segundos=int(time.time() - t0),
             nota=nota_sin_cambios,
-            **({"jev_experiencia": exp_sin_cambios} if nota_sin_cambios and exp_sin_cambios else {}),
+            **(
+                {"jev_experiencia": exp_sin_cambios}
+                if nota_sin_cambios and exp_sin_cambios
+                else {}
+            ),
         )
         evento("sin_cambios", tid, "ningún modelo tocó archivos")
         limpiar_worktree(tid)
@@ -7378,7 +7474,9 @@ def ejecutar_seguro(t):
         estado_final = PROG.get(t["id"], {}).get("estado")
         if not perdido:
             try:
-                cerrar_arriendo(t["id"], estado_final in ("commit", "informe"), time.time() - inicio)
+                cerrar_arriendo(
+                    t["id"], estado_final in ("commit", "informe"), time.time() - inicio
+                )
             except Exception:
                 pass
         else:
@@ -7619,7 +7717,9 @@ ESTADOS_TERMINADOS = (
 
 
 def _es_analisis(t):
-    return isinstance(t, dict) and str(t.get("tipo") or "").strip().lower() == "analisis"
+    return (
+        isinstance(t, dict) and str(t.get("tipo") or "").strip().lower() == "analisis"
+    )
 
 
 _TOPE_AN = {"leido": 0.0, "tope": None}
@@ -7672,7 +7772,9 @@ def main():
     if sucio.strip() and solo_analisis:
         # Los sueños solo LEEN el repositorio: un árbol con cambios de Alex no les estorba y
         # no hay nada que recoger ni que integrar.
-        print("árbol de main con cambios, pero la cola es solo de análisis: sigo sin tocarlo")
+        print(
+            "árbol de main con cambios, pero la cola es solo de análisis: sigo sin tocarlo"
+        )
     elif sucio.strip():
         mias, ajenas = _reparto_del_arbol(sucio)
         if ajenas:
@@ -7745,14 +7847,20 @@ def main():
                     "ola": t.get("ola", ""),
                     "titulo": t.get("titulo", "")[:200],
                     "depende": list(t.get("depende") or t.get("dependencias") or []),
-                    "archivos": [] if _es_analisis(t) else list(t.get("archivos") or [])[:12],
+                    "archivos": []
+                    if _es_analisis(t)
+                    else list(t.get("archivos") or [])[:12],
                     # El prompt también viaja: así la OTRA máquina puede relanzar o corregir la
                     # cola desde su Diseñador de olas sin tener el archivo. Los sueños no: su
                     # plan se rehace con `suenos.py` y 84 prompts serían tráfico sin uso (§15).
                     "prompt": "" if _es_analisis(t) else (t.get("prompt") or "")[:6000],
                     **({"modelo": t["modelo"]} if t.get("modelo") else {}),
                     **(
-                        {"tipo": "analisis", "area": t.get("area", ""), "lente": t.get("lente", "")}
+                        {
+                            "tipo": "analisis",
+                            "area": t.get("area", ""),
+                            "lente": t.get("lente", ""),
+                        }
                         if _es_analisis(t)
                         else {}
                     ),
@@ -7804,7 +7912,9 @@ def main():
         )
         # Solo se consulta la cola cuando hay un trabajador libre y toca elegir.
         # Si cambió, se fusiona sin tocar lo que ya corre; si no, ni se abre.
-        if estado_cola is not None and (n_codigo < tope or n_analisis < max(1, tope_an)):
+        if estado_cola is not None and (
+            n_codigo < tope or n_analisis < max(1, tope_an)
+        ):
             estado_cola, releida = releer_cola_si_cambio(sys.argv[1], estado_cola)
             if releida:
                 ocupadas = set(activos) | hechas
@@ -7947,7 +8057,9 @@ def main():
     FIN.set()
     # verificación final en main — salvo que la tanda solo haya LEÍDO (sueños profundos):
     # tsc + vitest en la Mac de 8 GB por nada es el tipo de verde que no hizo nada (§12.1).
-    solo_analisis = bool(TAREAS_POR_ID) and all(_es_analisis(x) for x in TAREAS_POR_ID.values())
+    solo_analisis = bool(TAREAS_POR_ID) and all(
+        _es_analisis(x) for x in TAREAS_POR_ID.values()
+    )
     if solo_analisis:
         errs, rcv = [], 0
     else:

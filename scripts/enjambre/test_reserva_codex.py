@@ -15,6 +15,7 @@ flota gratuita tardaba veinte minutos por archivo.
 Ahora manda lo que de verdad importa —que el binario exista y que la sesión
 guardada sea la de ChatGPT— y `STARSEED_CODEX_ESCRITOR=0` lo apaga a mano.
 """
+
 import os
 import unittest
 from unittest import mock
@@ -24,14 +25,22 @@ from test_progreso_irreversible import enjambre
 
 class ReservaCodexTest(unittest.TestCase):
     def test_con_binario_y_sesion_de_chatgpt_esta_disponible_sin_tocar_nada(self):
-        with patch.dict(os.environ, {}, clear=True), patch.object(
-            enjambre, "ruta_codex", return_value="/Users/alex/.local/bin/codex"
-        ), patch("builtins.open", mock.mock_open(read_data='{"auth_mode": "chatgpt"}')):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(
+                enjambre, "ruta_codex", return_value="/Users/alex/.local/bin/codex"
+            ),
+            patch(
+                "builtins.open", mock.mock_open(read_data='{"auth_mode": "chatgpt"}')
+            ),
+        ):
             self.assertTrue(enjambre.codex_disponible())
 
     def test_el_interruptor_en_cero_lo_apaga(self):
         for apagado in ("0", "no", "false", "FALSE", " 0 "):
-            with patch.dict(os.environ, {"STARSEED_CODEX_ESCRITOR": apagado}, clear=True):
+            with patch.dict(
+                os.environ, {"STARSEED_CODEX_ESCRITOR": apagado}, clear=True
+            ):
                 self.assertFalse(enjambre.codex_disponible(), apagado)
 
     def test_apagado_tampoco_ejecuta_una_peticion_directa(self):
@@ -42,18 +51,44 @@ class ReservaCodexTest(unittest.TestCase):
 
     def test_sin_binario_no_esta_disponible_aunque_no_se_apague(self):
         # En la nube no hay `codex`: ahí sigue sin existir, diga lo que diga el entorno.
-        with patch.dict(os.environ, {}, clear=True), patch.object(
-            enjambre, "ruta_codex", return_value=None
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(enjambre, "ruta_codex", return_value=None),
         ):
             self.assertFalse(enjambre.codex_disponible())
 
     def test_una_sesion_que_no_sea_de_chatgpt_no_vale(self):
         # Con `auth_mode: apikey` se gastarían créditos de la API de pago, que es
         # justo lo que esta integración evita.
-        with patch.dict(os.environ, {}, clear=True), patch.object(
-            enjambre, "ruta_codex", return_value="/Users/alex/.local/bin/codex"
-        ), patch("builtins.open", mock.mock_open(read_data='{"auth_mode": "apikey"}')):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(
+                enjambre, "ruta_codex", return_value="/Users/alex/.local/bin/codex"
+            ),
+            patch("builtins.open", mock.mock_open(read_data='{"auth_mode": "apikey"}')),
+        ):
             self.assertFalse(enjambre.codex_disponible())
+
+    def test_un_fallo_al_leer_el_cupo_no_es_cupo_disponible(self):
+        # (2026-10-03, SP092916) Antes: el `except Exception: pass` seguía como si
+        # hubiera cupo y Codex se volvía a elegir aunque estuviera agotado — el bug
+        # de las cinco tareas `sin_cambios`. Ahora registra y asume sin cupo.
+        avisos = []
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(
+                enjambre._cupo_codex,
+                "puede_escribir",
+                side_effect=RuntimeError("cupo ilegible"),
+            ),
+            patch.object(
+                enjambre, "evento", side_effect=lambda *a, **k: avisos.append(a)
+            ),
+        ):
+            self.assertFalse(enjambre.codex_disponible())
+        self.assertTrue(avisos, "el fallo no quedó registrado")
+        self.assertIn("sin cupo", avisos[0][2])
+        self.assertIn("cupo ilegible", avisos[0][2])
 
 
 if __name__ == "__main__":
