@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261003",
+ "tareas": [
+  {
+   "id": "LP1003R",
+   "ola": "Ola 1003 · capas por entidad y local preferente",
+   "titulo": "Local preferente: cablear el empujón local y la migración en el router, con sus pruebas",
+   "archivos": [
+    "src/ai/astraura/router.ts",
+    "src/ai/astraura/__tests__/local-primero.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Decisión de Alex (2026-10-03): «que sea preferente el uso local». Termina §19 «Local preferente». `src/ai/astraura/local-primero.ts` YA EXISTE en main (LP1003): exporta `EMPUJON_LOCAL`, `localPrimeroDelta` y `migrarLocalPrimero`. NO lo reescribas ni lo dupliques: impórtalo.\n\n1) `src/ai/astraura/router.ts`: en `IntelligenceSettings` añade `preferirLocal: boolean` (JSDoc corto: «prefiere fuentes locales cuando la tarea lo permite») y `migracionLocal?: number`; en `DEFAULT_INTELLIGENCE` pon `preferirLocal: true` y CAMBIA `omniRoute.enabled` a `false` (su documentación ya dice opt-in). En `getIntelligenceSettings()`, aplica `migrarLocalPrimero` al objeto leído ANTES de `mergeIntelligence` (no hace falta guardarlo: se guarda en el próximo `saveIntelligenceSettings`). En `rankCandidates`, junto al bloque de `prioridadLocal158`, suma `localPrimeroDelta({ tier: a.source.tier, sourceId: a.source.id, difficulty: profile.difficulty, needsVision: profile.needsVision, strongThreshold, preferirLocal: prefs.preferirLocal !== false })` y añade su nota a `reason` si `!fromUser`.\n2) NUEVO `src/ai/astraura/__tests__/local-primero.test.ts`: casos de `localPrimeroDelta` (local normal = 4; nube = 0; 1.58 = 0; visión = 0; difícil = 0; preferirLocal false = 0) y de `migrarLocalPrimero` (apaga omniRoute una vez, conserva endpoint, idempotente con migracionLocal 1).\nNO toques el relevo entre fuentes gratuitas ni `allowConfiguredPaid`. La tarea NO está hecha hasta que `rankCandidates` llame a `localPrimeroDelta` y `getIntelligenceSettings` a `migrarLocalPrimero`.\n\nREGLAS DE LA CASA: lee primero `architecture/astraura-158-sistema-primario.md` §15 y §19 (el contrato manda). Toca SOLO los archivos declarados, ≤ 120 líneas cambiadas por archivo; no reformatees lo que no cambias. Textos de la interfaz en español (es-ES), cálidos y sin abreviar. Pruebas con vitest importando describe/it/expect de «vitest»; solo funciones puras o componentes con testing-library (sin vi.mock de módulos de Node). Zona de duda: `python3 scripts/puente/decidir.py si-no …` (Jev) y anota «jev: p=…» en el commit. Si algo del contrato ya existe, no lo dupliques: reutilízalo.",
+   "dependencias_ya_en_main": [
+    "LP1003"
+   ]
+  }
+ ]
+}
