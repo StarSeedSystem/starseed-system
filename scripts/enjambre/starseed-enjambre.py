@@ -279,8 +279,19 @@ def codex_disponible() -> bool:
     try:
         if not _cupo_codex.puede_escribir():
             return False
-    except Exception:
-        pass
+    except Exception as exc:
+        # (2026-10-03, SP092916) Un fallo al consultar el cupo NO es «cupo disponible».
+        # Con `pass` se seguía como si lo hubiera y se repetía el bug de las cinco
+        # tareas `sin_cambios`: la suscripción agotada seguía en la rotación y cada
+        # tarea volvía a salir vacía. Se registra y se asume SIN cupo, lo prudente:
+        # perder un turno es más barato que quemar una ola de intentos vacíos.
+        evento(
+            "aviso",
+            "",
+            "no pude consultar el cupo de Codex (%s): lo doy por agotado"
+            % type(exc).__name__,
+        )
+        return False
     if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in (
         "0",
         "no",
