@@ -13,6 +13,11 @@ import argparse, os, shutil, subprocess, sys
 RAIZ = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MCP = os.path.join(RAIZ, "scripts", "puente", "mcp_director.py")
 NOMBRE = "starseed-director"
+PY = os.environ.get("STARSEED_PY3") or (
+    "/opt/homebrew/bin/python3"
+    if os.path.exists("/opt/homebrew/bin/python3")
+    else sys.executable
+)
 CODEX_TOML = os.path.expanduser("~/.codex/config.toml")
 HERMES_YAML = os.path.expanduser("~/.hermes/config.yaml")
 
@@ -39,7 +44,10 @@ def anexar_si_falta(ruta, marca, bloque, aplicar):
         return "mostrado"
     texto = open(ruta, encoding="utf-8").read()
     if marca in texto:
-        print("  %s ya registrado en %s" % (NOMBRE, ruta))
+        if PY not in texto and '"python3"' in texto:
+            print("  %s ya estaba (con python3 a secas: cámbialo a %s)" % (NOMBRE, PY))
+        else:
+            print("  %s ya registrado en %s" % (NOMBRE, ruta))
         return "ya"
     if not aplicar:
         print("  añadiría a %s:\n%s" % (ruta, bloque))
@@ -61,12 +69,12 @@ def claude_code(aplicar):
         )
     except FileNotFoundError:
         print("  `claude` no está en el PATH: ejecuta a mano:")
-        print("  claude mcp add --scope user %s -- python3 %s" % (NOMBRE, MCP))
+        print("  claude mcp add --scope user %s -- %s %s" % (NOMBRE, PY, MCP))
         return "mostrado"
     if NOMBRE in (lista.stdout + lista.stderr):
         print("  Claude Code ya tiene %s" % NOMBRE)
         return "ya"
-    orden = ["claude", "mcp", "add", "--scope", "user", NOMBRE, "--", "python3", MCP]
+    orden = ["claude", "mcp", "add", "--scope", "user", NOMBRE, "--", PY, MCP]
     if not aplicar:
         print("  ejecutaría: %s" % " ".join(orden))
         return "mostrado"
@@ -80,8 +88,9 @@ def claude_code(aplicar):
 
 def codex(aplicar):
     """Codex: tabla [mcp_servers.starseed-director] en ~/.codex/config.toml."""
-    bloque = '\n[mcp_servers.%s]\ncommand = "python3"\nargs = [%s]\n' % (
+    bloque = "\n[mcp_servers.%s]\ncommand = %s\nargs = [%s]\n" % (
         NOMBRE,
+        _toml_str(PY),
         _toml_str(MCP),
     )
     return anexar_si_falta(CODEX_TOML, "mcp_servers.%s]" % NOMBRE, bloque, aplicar)
@@ -93,13 +102,19 @@ def _toml_str(s):
 
 def hermes(aplicar):
     """Hermes: entrada en mcp_servers de ~/.hermes/config.yaml (texto plano)."""
-    bloque = "  %s:\n    command: python3\n    args:\n      - %s\n" % (NOMBRE, MCP)
+    bloque = "  %s:\n    command: %s\n    args:\n      - %s\n" % (NOMBRE, PY, MCP)
     if not os.path.exists(HERMES_YAML):
         print("  no existe %s: añade a mano:\nmcp_servers:\n%s" % (HERMES_YAML, bloque))
         return "mostrado"
     texto = open(HERMES_YAML, encoding="utf-8").read()
     if NOMBRE in texto:
-        print("  Hermes ya tiene %s" % NOMBRE)
+        if PY not in texto and "command: python3" in texto:
+            print(
+                "  Hermes ya tiene %s (con python3 a secas: cámbialo a %s)"
+                % (NOMBRE, PY)
+            )
+        else:
+            print("  Hermes ya tiene %s" % NOMBRE)
         return "ya"
     lineas = texto.splitlines(keepends=True)
     indice = next(
@@ -123,8 +138,8 @@ def hermes(aplicar):
 
 def bloque_json():
     return (
-        '{\n  "mcpServers": {\n    "%s": {\n      "command": "python3",\n'
-        '      "args": [%s]\n    }\n  }\n}' % (NOMBRE, _toml_str(MCP))
+        '{\n  "mcpServers": {\n    "%s": {\n      "command": %s,\n'
+        '      "args": [%s]\n    }\n  }\n}' % (NOMBRE, _toml_str(PY), _toml_str(MCP))
     )
 
 
