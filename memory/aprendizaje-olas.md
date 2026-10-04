@@ -3300,3 +3300,13 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `CP1004A` — pruebas en rojo: vitest falla (rama conservada)
 - `DR1004-1` — otra cosa: ningún proveedor respondió (todos caídos)
 - `VG1004C` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-04 13:09 · auto-1004-124254
+
+**Lo que se pidió.** … se colgó y fue cortado → siguiente modelo, sin gastar intento
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CP1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `DR1004-1` — no escribió nada
