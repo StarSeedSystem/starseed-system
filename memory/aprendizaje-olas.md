@@ -3285,3 +3285,18 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `VG1004A` — otra cosa: ningún proveedor respondió (todos caídos)
 - `VG1004B` — otra cosa: ningún proveedor respondió (todos caídos)
 - `DR1004-1` — no escribió nada
+
+## 2026-10-04 12:41 · auto-1004-113256
+
+**Lo que se pidió.** … se colgó y fue cortado → siguiente modelo, sin gastar intento
+
+**Resultado.** 2 de 5 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (DR1004-1, VG1004C). Es 40 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CP1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `DR1004-1` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VG1004C` — otra cosa: ningún proveedor respondió (todos caídos)
