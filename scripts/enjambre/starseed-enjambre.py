@@ -435,6 +435,121 @@ PIDEN_PAGO = {}
 HORAS_PAGO = int(os.environ.get("STARSEED_HORAS_PAGO", "6"))
 
 
+# ── apartado por cuelgues repetidos (2026-10-04, Ola 1004C) ─────────────────
+# gemini-3.6-flash se colgó 45 veces en dos días sin escribir ni una: cada cuelgue
+# costaba ~300 s y la siguiente tarea lo volvía a elegir, porque MUERTOS vive solo en
+# memoria y el orquestador se relanza a menudo. La racha de cuelgues se guarda en
+# disco y a la COLGADOS_MAX seguida el modelo sale de la rotación HORAS_COLGADO horas.
+COLGADOS_MAX = int(os.environ.get("STARSEED_COLGADOS_MAX", "3"))
+HORAS_COLGADO = int(os.environ.get("STARSEED_HORAS_COLGADO", "6"))
+ARCHIVO_COLGADOS = os.path.expanduser("~/.starseed/colgados.json")
+
+
+def contar_colgado(datos, modelo, ahora):
+    """PURA: suma un cuelgue seguido sin escribir a `datos[modelo]`. Si el último
+    cuelgue tiene más de 24 h, la racha está fría y la cuenta empieza de 1."""
+    ent = datos.get(modelo) or {}
+    seguidos = int(ent.get("seguidos") or 0)
+    ultimo = float(ent.get("ultimo") or 0)
+    if ahora - ultimo > 24 * 3600:
+        seguidos = 0
+    datos[modelo] = {"seguidos": seguidos + 1, "ultimo": ahora}
+    return datos
+
+
+def anotar_escritura(datos, modelo):
+    """PURA: un éxito de escritura rompe la racha de cuelgues del modelo."""
+    ent = datos.get(modelo) or {}
+    datos[modelo] = {"seguidos": 0, "ultimo": float(ent.get("ultimo") or 0)}
+    return datos
+
+
+def _colgados_leer():
+    try:
+        d = json.load(open(ARCHIVO_COLGADOS, encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _colgados_guardar(d):
+    try:
+        os.makedirs(os.path.dirname(ARCHIVO_COLGADOS), exist_ok=True)
+        tmp = ARCHIVO_COLGADOS + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, ARCHIVO_COLGADOS)
+    except Exception:
+        pass
+
+
+def apartar_si_se_cuelga(tid, modelo):
+    """El vigilante cortó a `modelo` por no escribir: cuenta la racha (persistente) y,
+    a la COLGADOS_MAX seguida, fuera de la rotación. Con DOS modelos distintos del
+    mismo proveedor ya en racha, el proveedor entero sale HORAS_COLGADO horas.
+    Devuelve True si apartó el modelo. Nunca lanza."""
+    try:
+        datos = contar_colgado(_colgados_leer(), modelo, time.time())
+        _colgados_guardar(datos)
+    except Exception:
+        return False
+    if int((datos.get(modelo) or {}).get("seguidos") or 0) < COLGADOS_MAX:
+        return False
+    MUERTOS.add(modelo)
+    evento(
+        "proveedor",
+        tid,
+        "%s se colgó %d veces seguidas sin escribir → fuera de la rotación"
+        % (modelo, COLGADOS_MAX),
+    )
+    prov = proveedor_de(modelo)
+    en_racha = [
+        m
+        for m, e in datos.items()
+        if proveedor_de(m) == prov
+        and int((e or {}).get("seguidos") or 0) >= COLGADOS_MAX
+    ]
+    if len(en_racha) >= 2 and not sin_cupo(prov):
+        try:
+            marcar_sin_cupo(
+                prov,
+                "modelos colgados sin escribir: " + ", ".join(en_racha)[:150],
+                HORAS_COLGADO,
+            )
+        except Exception:
+            pass
+        evento(
+            "proveedor_caido",
+            tid,
+            "%s: %d modelos colgados sin escribir → fuera %d h para todas las olas"
+            % (prov, len(en_racha), HORAS_COLGADO),
+        )
+    return True
+
+
+def anotar_escritura_ok(modelo):
+    """El modelo escribió con éxito: rompe su racha de cuelgues en el archivo."""
+    try:
+        _colgados_guardar(anotar_escritura(_colgados_leer(), modelo))
+    except Exception:
+        pass
+
+
+def apartar_colgados_al_arrancar():
+    """Al construir la rotación: los modelos con racha viva (seguidos >= COLGADOS_MAX
+    y último cuelgue dentro de HORAS_COLGADO) entran directamente en MUERTOS."""
+    limite = time.time() - HORAS_COLGADO * 3600
+    for m, e in _colgados_leer().items():
+        try:
+            if (
+                int((e or {}).get("seguidos") or 0) >= COLGADOS_MAX
+                and float((e or {}).get("ultimo") or 0) > limite
+            ):
+                MUERTOS.add(m)
+        except Exception:
+            pass
+
+
 _CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
 _ANTHROPIC_ORDENADOS = []
 
@@ -664,6 +779,13 @@ def validar_modelos():
     for m in fuera:
         MUERTOS.add(m)
         MODELOS.remove(m)
+    # (2026-10-04, Ola 1004C) Modelos con racha viva de cuelgues sin escribir (en
+    # ~/.starseed/colgados.json) entran directamente en MUERTOS: la rotación filtra
+    # por MUERTOS al construir `base` para cada tarea.
+    try:
+        apartar_colgados_al_arrancar()
+    except Exception:
+        pass
     if fuera:
         evento(
             "aviso",
@@ -3599,7 +3721,10 @@ def tsc(cwd, log):
             if "memoria" in motivo:
                 env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=3584")
             time.sleep(30)
-    return rc, ["%s (%s): la puerta no da el visto bueno sin un tsc completo" % (TSC_SIN_TERMINAR, motivo)]
+    return rc, [
+        "%s (%s): la puerta no da el visto bueno sin un tsc completo"
+        % (TSC_SIN_TERMINAR, motivo)
+    ]
 
 
 #: (2026-10-04) Un tsc que MUERE no es un tsc limpio. La puerta contaba las líneas «error TS»
@@ -6384,12 +6509,17 @@ def ejecutar(t, intento=1):
                 archivos_cambiados=len(st.strip().splitlines()),
                 log_kb=escrito_kb,
             )
+            anotar_escritura_ok(modelo)
             break
         if tid in CORTADOS:
             # Lo cortó el vigilante por no escribir: el modelo no ha decidido «no hay nada que
             # hacer», se ha colgado. Eso NO puede gastar uno de los dos intentos de la tarea.
             CORTADOS.discard(tid)
             _anotar_fallido(tid, modelo)
+            try:
+                apartar_si_se_cuelga(tid, modelo)
+            except Exception:
+                pass
             evento(
                 "reenrutado",
                 tid,
@@ -6611,10 +6741,15 @@ def ejecutar(t, intento=1):
                     archivos_cambiados=len(st.strip().splitlines()),
                     log_kb=escrito_kb,
                 )
+                anotar_escritura_ok(modelo)
                 break
             if tid in CORTADOS:
                 CORTADOS.discard(tid)
                 _anotar_fallido(tid, modelo)
+                try:
+                    apartar_si_se_cuelga(tid, modelo)
+                except Exception:
+                    pass
                 evento(
                     "reenrutado",
                     tid,
