@@ -223,5 +223,43 @@ class TestAvisoTrabajoSinRuido(unittest.TestCase):
         self.assertTrue(d._conviene_avisar_trabajo(self.raiz, frase, ahora + 3700))
 
 
+class TestRechazoVaAlChatDirector(unittest.TestCase):
+    """(2026-10-04) El rechazo firma como desatascador y llega a claude-cowork."""
+
+    def setUp(self):
+        import unittest.mock as m
+
+        self._run = m.patch("subprocess.run")
+        self._pub = m.patch.object(d.director_chat, "publicar")
+        self.run = self._run.start()
+        self.pub = self._pub.start()
+        self.addCleanup(self._run.stop)
+        self.addCleanup(self._pub.stop)
+
+    def test_rechazo_firma_desatascador_y_publica_en_bandeja(self):
+        self.run.return_value = type("R", (), {"returncode": 0})()
+        frases = d.rechazar_puertas([("HG1004A", "revisión bloqueante confirmada")])
+        self.assertEqual(
+            self.run.call_args.kwargs["env"]["STARSEED_IDE"], "desatascador"
+        )
+        self.assertEqual(self.pub.call_count, 1)
+        kw = self.pub.call_args.kwargs
+        self.assertEqual(kw["de"], "desatascador")
+        self.assertEqual(kw["canales"], ["claude-cowork"])
+        self.assertEqual(kw["tarea"], "HG1004A")
+        self.assertTrue(any("rechazo HG1004A" in f for f in frases))
+
+    def test_si_publicar_lanza_el_rechazo_se_mantiene(self):
+        self.run.return_value = type("R", (), {"returncode": 0})()
+        self.pub.side_effect = RuntimeError("sin chat")
+        frases = d.rechazar_puertas([("CDQ1004", "motivo")])
+        self.assertTrue(any("rechazo CDQ1004" in f for f in frases))
+
+    def test_rechazo_fallido_no_publica_nada(self):
+        self.run.return_value = type("R", (), {"returncode": 1})()
+        d.rechazar_puertas([("X1", "motivo")])
+        self.assertEqual(self.pub.call_count, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

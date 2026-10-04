@@ -38,6 +38,8 @@ import time
 
 from arbol_de_trabajo import PROPIAS
 
+import director_chat
+
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser(
     "~/Documents/starseed-os-main"
 )
@@ -435,7 +437,11 @@ def rechazar_puertas(puertas, binario="starseed-puente", avisar=avisar_por_teleg
     for tid, motivo in puertas:
         try:
             r = subprocess.run(
-                [binario, "rechazar", tid], capture_output=True, text=True, timeout=30
+                [binario, "rechazar", tid],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=dict(os.environ, STARSEED_IDE="desatascador"),
             )
             ok = r.returncode == 0
         except Exception:
@@ -445,6 +451,20 @@ def rechazar_puertas(puertas, binario="starseed-puente", avisar=avisar_por_teleg
             if ok
             else "no pude rechazar %s (%s)" % (tid, motivo)
         )
+        if ok:
+            texto = aviso_de_rechazo(tid, motivo, ok)
+            try:
+                director_chat.publicar(
+                    texto,
+                    de="desatascador",
+                    rol="sistema",
+                    tipo="aviso",
+                    canal="mando",
+                    canales=["claude-cowork"],
+                    tarea=tid,
+                )
+            except Exception:
+                pass
         try:
             if avisar and not avisar(aviso_de_rechazo(tid, motivo, ok)):
                 frases.append("(a %s no pude avisarte por Telegram)" % tid)
