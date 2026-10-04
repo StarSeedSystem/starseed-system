@@ -20,6 +20,7 @@ import { lstat, mkdir, open, readdir, readFile, realpath, stat, writeFile } from
 import os from "node:os";
 import path from "node:path";
 
+import { hayBuildDeNext } from "@/lib/mando/build-en-marcha";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const execFileAsync = promisify(execFile);
@@ -708,10 +709,12 @@ async function estadoEspejoAutomatico(): Promise<{ activo: boolean; proximo: str
  */
 export async function limpiarRegenerables(ids: string[]): Promise<{ ok: boolean; limpiados: string[]; detalle: string }> {
     try {
-        await execFileAsync("pgrep", ["-f", "next build"], { timeout: 3000 });
-        return { ok: false, limpiados: [], detalle: "Hay una build de Next en marcha: la limpieza espera a que termine." };
+        const { stdout } = await execFileAsync("ps", ["-axo", "args="], { timeout: 3000 });
+        if (hayBuildDeNext(stdout.split("\n"))) {
+            return { ok: false, limpiados: [], detalle: "Hay una build de Next en marcha: la limpieza espera a que termine." };
+        }
     } catch {
-        // pgrep no encontró nada (código 1): se puede limpiar.
+        // `ps` falló: como cuando pgrep no encontraba nada, se puede limpiar.
     }
     const blanca = new Map(candidatosRegenerables(raizDelProyecto()).filter((c) => c.seguro).map((c) => [c.id, c.ruta]));
     // 2026-09-07 (A3): los registros de olas no son una carpeta entera sino
