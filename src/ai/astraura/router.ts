@@ -54,6 +54,8 @@ import { skillsSystemPrompt, skillsRoutingBias, activeCapabilities } from "./ski
 // caracteres: el backend BitNet tiene un contexto pequeño). Función pura,
 // ver `local-158-context.ts`.
 import { buildLocal158CompactContext } from "./local-158-context";
+// (Ola 1003 · §19) Local preferente: empujón al tier local + migración OmniRoute.
+import { localPrimeroDelta, migrarLocalPrimero } from "./local-primero";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
@@ -158,6 +160,14 @@ export interface IntelligenceSettings extends CamposCapas {
    */
   prioridadLocal158: boolean;
   /**
+   * LOCAL PREFERENTE (§19 · Ola 1003): cuando está ON (por defecto), el ranking
+   * suma un empujón aditivo a CUALQUIER fuente de tier local en tareas normales
+   * (`localPrimeroDelta`). No duplica el boost de las fuentes `astraura-158*`.
+   */
+  preferirLocal: boolean;
+  /** Marca interna de la migración «local preferente» (apaga OmniRoute una vez). */
+  migracionLocal?: number;
+  /**
    * THE HUGGING BAY (jul-2026): descubrimiento inteligente de modelos reales
    * (licencia, confianza, comando de instalación local). Aditivo: nunca
    * descarga ni activa nada por su cuenta, solo sugiere/registra candidatos.
@@ -221,6 +231,7 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
   difficultyRouting: true,
   strongThreshold: 0.6,
   prioridadLocal158: true,
+  preferirLocal: true,
   huggingBay: {
     enabled: true,
     autoSuggest: true,
@@ -229,7 +240,7 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
     hostedOnly: false,
   },
   omniRoute: {
-    enabled: true,
+    enabled: false,
     endpoint: "http://localhost:20128",
     compressionHint: false,
   },
@@ -269,7 +280,8 @@ export function getIntelligenceSettings(): IntelligenceSettings {
   try {
     const raw = window.localStorage.getItem(INTELLIGENCE_KEY);
     if (!raw) return { ...DEFAULT_INTELLIGENCE };
-    const p = JSON.parse(raw);
+    // Migración única «local preferente» (§19): apaga OmniRoute una sola vez.
+    const p = migrarLocalPrimero(JSON.parse(raw));
     return mergeIntelligence(DEFAULT_INTELLIGENCE, p);
   } catch {
     return { ...DEFAULT_INTELLIGENCE };
@@ -613,6 +625,19 @@ export function rankCandidates(
           if (boost.note && !fromUser) reason = `${reason} · ${boost.note}`;
         }
       }
+      // LOCAL PREFERENTE (§19 · Ola 1003): empujón aditivo a CUALQUIER fuente
+      // de tier local en tareas normales (las `astraura-158*` devuelven 0 para
+      // no duplicar su boost propio). Con `preferirLocal` apagado, delta 0.
+      const empujon = localPrimeroDelta({
+        tier: a.source.tier,
+        sourceId: a.source.id,
+        difficulty: profile.difficulty,
+        needsVision: profile.needsVision,
+        strongThreshold,
+        preferirLocal: prefs.preferirLocal !== false,
+      });
+      if (empujon.delta) score += empujon.delta;
+      if (empujon.note && !fromUser) reason = `${reason} · ${empujon.note}`;
       // NUDGE por CLASE DE ACCESO (preferencias unificadas de modelo): sesgo
       // aditivo pequeño [0..4] según el orden que el usuario prefiere por clase
       // (local/starseed/api-free/api-external), sembrado por el dispositivo y,
