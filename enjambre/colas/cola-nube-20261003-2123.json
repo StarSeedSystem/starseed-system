@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261003",
+ "tareas": [
+  {
+   "id": "CC1003C",
+   "ola": "Ola 1003 · capas por entidad y local preferente",
+   "titulo": "Enrutador: capas efectivas de la personalidad y el agente, y contexto personal por capa",
+   "archivos": [
+    "src/ai/astraura/router.ts",
+    "src/ai/astraura/__tests__/router-capas-entidad.test.ts"
+   ],
+   "depende": [],
+   "aprobacion": true,
+   "prompt": "Cablea §19 en `src/ai/astraura/router.ts` usando `resolverCapasEntidad`, `capasDeCuenta`, `aPreferenciaCapas` (de `@/lib/astraura/capas-entidad`) y `ajustesCapasEntidadGuardados` (de `@/lib/astraura/use-capas-entidad`):\n1) Añade y EXPORTA una función pura `capasEfectivasPara(prefs: IntelligenceSettings, contextoPersonalCuenta: boolean, ajustes: AjustesCapasEntidad, quien: { personalidadId?: string; agenteId?: string })` que devuelve `{ preferencia: PreferenciaCapas; contextoPersonal: boolean }` (cuenta = `capasDeCuenta(leerPreferenciaCapas(prefs), contextoPersonalCuenta)`).\n2) En la ruta principal, donde ya existen `persona` y `req.agentId`: calcula una vez `const capasEf = capasEfectivasPara(prefs, getUserContextSettings().enabled, ajustesCapasEntidadGuardados(), { personalidadId: persona?.id, agenteId: req.agentId })`.\n   · El contexto de usuario se construye solo si `capasEf.contextoPersonal` (sustituye a `ucSettings.enabled` en ese `if`, conservando `ucSettings.defaultLevel`).\n   · `apagado158` usa `!capasEf.preferencia.activo` en vez de `!leerPreferenciaCapas(prefs).activo`.\n   · Pasa a `rankCandidates` una opción nueva `capas?: PreferenciaCapas` (añádela a `RankCandidatesOptions`) y dentro usa `const capas = opts?.capas ?? leerPreferenciaCapas(prefs)` para `fuentesApagadas`. Sin la opción, comportamiento IDÉNTICO al de hoy.\n3) Pruebas en `src/ai/astraura/__tests__/router-capas-entidad.test.ts` SOLO de `capasEfectivasPara` (sin red): sin ajustes = la cuenta; un agente con `contextoPersonal:false` lo apaga solo para él; una personalidad con `activo:false` apaga el 1.58 y el agente puede volver a encenderlo.\nMira cómo están hechas `src/ai/astraura/__tests__/router-capas.test.ts` para importar el router en pruebas.\n\nREGLAS DE LA CASA: lee primero `architecture/astraura-158-sistema-primario.md` §15 y §19 (el contrato manda). Toca SOLO los archivos declarados, ≤ 120 líneas cambiadas por archivo; no reformatees lo que no cambias. Textos de la interfaz en español (es-ES), cálidos y sin abreviar. Pruebas con vitest importando describe/it/expect de «vitest»; solo funciones puras o componentes con testing-library (sin vi.mock de módulos de Node). Zona de duda: `python3 scripts/puente/decidir.py si-no …` (Jev) y anota «jev: p=…» en el commit. Si algo del contrato ya existe, no lo dupliques: reutilízalo.",
+   "dependencias_ya_en_main": [
+    "CC1003B",
+    "LP1003",
+    "LP1003R"
+   ]
+  },
+  {
+   "id": "CC1003D",
+   "ola": "Ola 1003 · capas por entidad y local preferente",
+   "titulo": "Ajustes: «Por personalidad y agente» en el panel de capas de conciencia",
+   "archivos": [
+    "src/components/astraura/capas/capas-por-entidad.tsx",
+    "src/components/astraura/capas/panel-capas.tsx",
+    "src/components/astraura/capas/__tests__/capas-por-entidad.test.tsx"
+   ],
+   "depende": [],
+   "aprobacion": true,
+   "prompt": "Mejora los ajustes de las capas (§19 · Interfaz). Crea `src/components/astraura/capas/capas-por-entidad.tsx` (\"use client\"), `export function CapasPorEntidad({ compacto }: { compacto?: boolean })`:\n- Un selector (shadcn `Select`) con dos grupos: «Personalidades» (`listPersonalityProfiles()` de `@/lib/aurora/personalities`, por `id`/`name`) y «Agentes» (`listAgents()` de `@/lib/agents/store`, por `id`/`name`). Sin ninguno → texto amable «Aún no hay personalidades ni agentes propios».\n- Para la elegida, una fila por campo de `CAMPOS_CAPA` con `ETIQUETA_CAMPO` (nombre + descripción en una línea, sin cortar palabras) y un control de tres estados en lista vertical o grupo de botones con texto completo: «Auto (hereda: Encendida/Apagada)», «Encendida», «Apagada». El estado efectivo y su procedencia salen de `resolverCapasEntidad(capasDeCuenta(preferenciaCapasGuardada(), getUserContextSettings().enabled), ajustes, quien)`; los ajustes, de `useAjustesCapasEntidad()`; los cambios, de `fijarCapaGuardada` (Auto = `null`).\n- Botón «Volver a auto en todo» para la entidad elegida. Cada botón con `cursor-pointer`, transiciones de 150-200 ms y `aria-pressed`; si es redondo o píldora, añade la clase `ss-redondo`. Objetivos táctiles de 44 px.\n- Recuerda en una línea que todo está encendido por defecto y que lo que no fijes sigue a la cuenta.\nEn `panel-capas.tsx`, monta `<CapasPorEntidad compacto={compacto} />` bajo el nivelador, dentro de un bloque plegable titulado «Por personalidad y agente» (cerrado por defecto en `compacto`). No cambies nada más del panel.\nPrueba con testing-library: renderiza con un almacén vacío y comprueba el texto amable; y con una personalidad sembrada en localStorage (`starseed.aurora.personalities.v1`), que aparecen las 6 capas y que pulsar «Apagada» en «Contexto personal» guarda el override en `starseed.astraura.capas-entidad.v1`.\n\nREGLAS DE LA CASA: lee primero `architecture/astraura-158-sistema-primario.md` §15 y §19 (el contrato manda). Toca SOLO los archivos declarados, ≤ 120 líneas cambiadas por archivo; no reformatees lo que no cambias. Textos de la interfaz en español (es-ES), cálidos y sin abreviar. Pruebas con vitest importando describe/it/expect de «vitest»; solo funciones puras o componentes con testing-library (sin vi.mock de módulos de Node). Zona de duda: `python3 scripts/puente/decidir.py si-no …` (Jev) y anota «jev: p=…» en el commit. Si algo del contrato ya existe, no lo dupliques: reutilízalo.",
+   "dependencias_ya_en_main": [
+    "CC1003B"
+   ]
+  }
+ ]
+}
