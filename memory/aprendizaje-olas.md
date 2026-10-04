@@ -3009,3 +3009,17 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 **Lo que quedó fuera, una por una:**
 - `SP092916` — pruebas en rojo: vitest falla (rama conservada)
 - `SP092918` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-03 21:08 · auto-1003-205927
+
+**Lo que se pidió.** jev: p=…
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — pruebas en rojo (SP092916, SP092918). Es 100 % de la ola.
+- apinex/free/qwen-3.8-max no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `SP092916` — pruebas en rojo: vitest falla (rama conservada)
+- `SP092918` — pruebas en rojo: vitest falla (rama conservada)
