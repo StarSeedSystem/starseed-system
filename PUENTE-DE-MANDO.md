@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-01 18:24:46 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-03 20:15:16 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,35 +15,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | reintentos-2026-09-22 |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 13 |
-| HEAD | `12b2c50c chore(memoria): aprendizaje de la ola auto-1001-182357` |
-| Sin publicar | 224 commits |
-| Árbol | 1 archivos sin commitear |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 25 |
+| HEAD | `4e481f14 chore(memoria): aprendizaje de la ola auto-1003-190915` |
+| Sin publicar | 25 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1001-182357.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1003-190915.json`, hace 6s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `SA092920` | hecho |  | 0 min | 16 s | 27322 |
-| `SA09292` | hecho |  | 0 min | 16 s | 26799 |
-| `SA092921` | hecho |  | 0 min | 16 s | 26101 |
-| `SA092916` | hecho |  | 0 min | 19 s | 26371 |
-| `SA092917` | hecho |  | 0 min | 19 s | 25445 |
-| `SA092914` | hecho |  | 0 min | 19 s | 27949 |
-| `SA092918` | hecho |  | 0 min | 19 s | 25193 |
-| `SA092919` | hecho |  | 0 min | 19 s | 26333 |
-| `SA092915` | hecho |  | 0 min | 19 s | 26848 |
-| `SA092912` | hecho |  | 0 min | 22 s | 26272 |
-| `SA092913` | hecho |  | 0 min | 22 s | 26858 |
-| `SA092911` | hecho |  | 0 min | 22 s | 26428 |
-| `SA092960` | hecho |  | 0 min | 25 s | 24298 |
-| `SA092959` | hecho |  | 0 min | 25 s | 24386 |
-| `SA09291` | hecho |  | 0 min | 25 s | 25868 |
-| `SA092910` | hecho |  | 0 min | 25 s | 24828 |
-| `SA092956` | hecho |  | 0 min | 25 s | 27139 |
-| `SA092955` | hecho |  | 0 min | 25 s | 27293 |
-| `SA092958` | hecho |  | 0 min | 25 s | 25344 |
-| `SA092957` | hecho |  | 0 min | 25 s | 25737 |
+| `CC1003B` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 82 s | 40601 |
+| `LP1003R` | hecho | nvidia/z-ai/glm-5.3 | 11 min | 665 s | 56983 |
+| `CC1003A` | hecho | apinex/free/glm-5.3-flash | 25 min | 1477 s | 58510 |
+| `LP1003` | hecho | apinex/free/qwen-3.8-max | 37 min | 2203 s | 31790 |
+| `SP092918` | hecho | apinex/free/qwen-3.8-max | 37 min | 2241 s | 196153 |
+| `SP092916` | hecho | apinex/free/qwen-3.8-max | 38 min | 2275 s | 119728 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
