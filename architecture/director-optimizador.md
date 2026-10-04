@@ -76,8 +76,22 @@ Fuentes, todas opcionales (si una falta, su métrica sale `null` con el motivo):
   propone `probar_modelo` (entra al final de la rotación como experimento).
 - **R6 · Puerta cuello de botella.** Si una fase de puerta ocupa más del 50 % del tiempo y su p90
   pasa de 15 min, hallazgo `aviso` con acción `proponer_tarea` (la tarea la escribe §7).
-- **R7 · Nube.** Con la nube en pausa, `listas ≥ 2 × vivos` y los escritores locales con
-  `tasa < 0.15`, hallazgo `aviso` que propone a ALEX reactivar la nube. Nunca la reactiva solo.
+- **R7 · Nube en pausa por una persona.** Si `nube-pausada.json` tiene un `quien` distinto de
+  `director-optimizador`, el optimizador NO la reanuda: con `listas ≥ 2 × vivos`, da un hallazgo
+  `aviso` que pide reanudarla. Solo gestiona las pausas que puso él (R9).
+- **R9 · Nube (contenedores de GitHub Actions; Alex, 2026-10-04: «prioriza el optimizador para que haya
+  más procesos y agentes activos simultáneos en más contenedores en la nube»).** La nube es la
+  forma de pasar de 3 agentes (techo de la Mac de 8 GB) a 3 + 12. El optimizador la gestiona como
+  un experimento escalonado, medido por *commits entregados por run*:
+  - Si hay `listas > vivos`, `contenedores_libres > 0`, la nube no está en pausa y los runs de las
+    últimas 6 h entregaron ≥ 1 commit de media, o todavía no hay runs, propone
+    `lanzar_nube` con un tope de tareas de 2 × agentes por job.
+  - Escalera: empieza con 1 job. Solo se sube a 2 y después a 3 jobs simultáneos cuando el último
+    escalón entregó ≥ 1 commit por run.
+  - Con 2 runs seguidos de cero commits, propone `pausar_nube` con el motivo medido. Pasadas
+    6 h, propone `reanudar_nube` para un solo job de prueba.
+  - `traer_nube` (las ramas `nube/<run>` con commits) NO lo hace solo: lo propone en el informe
+    para que el supervisor revise e integre.
 - **R8 · Coste.** Si `opus_semana_pct ≥ 60`, `jev_dia_usd ≥ 80 %` del tope o `supabase_pct_dia ≥
   70`, hallazgo `rojo`, y el optimizador deja de usar el modelo de pago en §7 ese día.
 
@@ -101,14 +115,16 @@ día ya lleva `max_cambios_dia` (12) cambios.
 |---|---|---|
 | `subir_trabajadores` / `bajar_trabajadores` | `director-config.json → trabajadores`, con `config_director` | 1 ≤ n ≤ `maximo_por_hardware`; el gobernador sigue mandando por RAM |
 | `subir_en_rotacion` / `bajar_en_rotacion` / `probar_modelo` | `~/.starseed/rotacion-optimizada.json` | como mucho 3 modelos apartados a la vez; caducan a las 12 h |
+| `lanzar_nube` | `python3 scripts/puente/nube-gh.py lanzar --tope <2×agentes> --trabajadores <agentes_por_job>` | según la escalera de R9; nunca más de `contenedores.json → agentes_libres`; como mucho `max_runs_nube_dia` (12) al día |
+| `pausar_nube` / `reanudar_nube` | `~/.starseed/nube-pausada.json` (`{motivo, desde, hasta, quien: "director-optimizador"}`; para reanudar se renombra a `nube-pausada.json.bak-<fecha>`, nunca se borra) | solo con la evidencia de R9 en el motivo |
 
 `~/.starseed/rotacion-optimizada.json` = `{t, delante: [modelo…], detras: [modelo…], probar:
 [modelo…], caduca: ISO}`. El orquestador (§9) lo lee al construir la rotación de cada tarea:
 `delante` primero, `detras` al final y `probar` justo antes de `detras`. Si el archivo caducó o está
 roto, se ignora.
 
-Nunca toca credenciales, claves, `git push`, la nube, servicios de launchd, Supabase ni datos de
-nadie. Nunca borra nada.
+Nunca toca credenciales, claves, `git push`, servicios de launchd, Supabase ni datos de nadie, y
+nunca integra ramas de la nube en `main`: eso lo revisa el supervisor. Nunca borra nada.
 
 ## 6. Experimentos (`scripts/puente/optimizador_experimentos.py`)
 
@@ -151,5 +167,5 @@ en `canal.jsonl` para que el Mando lo cuente vivo.
 - `scripts/enjambre/starseed-enjambre.py`: aplica `rotacion-optimizada.json` al construir `base`.
 - `config_director.py` y `director-config.ts` (espejos): bloque `optimizador: {activo: true, modo:
   "actuar"|"proponer", intervalo_s: 600, max_cambios_dia: 12, max_tareas_dia: 6,
-  enfriamiento_min: 60}`. Con `modo: "proponer"` no escribe perillas, solo informa.
+  enfriamiento_min: 60, max_runs_nube_dia: 12}`. Con `modo: "proponer"` no escribe perillas, solo informa.
 - `src/lib/mando/director-datos.ts`: `"optimizador"` entra en `DIRECTORES`.
