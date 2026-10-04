@@ -93,6 +93,10 @@ REGLAS = [
     ("entrega", ("supervisor", "subagente"),
      "A Alex: enlace o comando exacto, explicando QUÉ, POR QUÉ y CÓMO; cada respuesta termina con el informe de uso.",
      "CLAUDE.md · Regla permanente de entrega"),
+    ("preflight-binarios", ("supervisor", "subagente"),
+     "Antes de lanzar una ola verifica que existen los binarios que usa (p. ej. `command -v opencode`); "
+     "si una tarea falla 3 veces con el mismo error, paúsala y escala en el canal en vez de reintentar.",
+     "memory/aprendizaje-olas.md · 2026-09-16 21:17"),
 ]
 
 # ─────────────────────────────── herramientas ───────────────────────────────
