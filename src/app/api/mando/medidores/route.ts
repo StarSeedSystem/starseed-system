@@ -731,7 +731,8 @@ export async function GET(peticion: Request): Promise<Response> {
     }
     // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
     const turno = await reunion.obtener();
-    const datos: Partial<DatosMedidores> = turno.datos ?? {};
+    // Copia: `integradas` se añade abajo y no puede quedarse pegada al resultado compartido.
+    const datos: Partial<DatosMedidores> = { ...(turno.datos ?? {}) };
     // De CUÁNDO es la cifra y si está obsoleta: el panel la enseña con su edad en vez de 0.
     const datosDe = turno.t > 0 ? new Date(turno.t).toISOString() : null;
     if (clave === "integradas") {
