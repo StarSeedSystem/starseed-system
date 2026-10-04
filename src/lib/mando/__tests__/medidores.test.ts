@@ -13,6 +13,7 @@ import {
     agruparPorTarea,
     dependenciasQueFaltan,
     detalleDeMedidor,
+    resumenTokensConLatidos,
     ejecutablesDeColas,
     idEnAsuntos,
     medidoresVisibles,
@@ -648,6 +649,65 @@ describe("medidor de tokens por segundo", () => {
         const d = detalleDeMedidor("tokens", { tokens: quieto });
         expect(d.filas.find((f) => f.id === "jev")?.estado).toBe("en reposo");
     });
+
+    // (TPS1004A) Cuando la media del último minuto es 0, el resumen dice POR QUÉ es 0.
+    it("tokens > 0 sigue como hoy: la media del minuto manda", () => {
+        const d = detalleDeMedidor("tokens", { tokens });
+        expect(d.resumen).toMatch(/^30\.0 tok\/s de media en 1 min/);
+    });
+
+    it("0 tok/s con latidos vivos en 'escribiendo' nombra el motor sin contador", () => {
+        const cero = {
+            ahora: { fuentes: {}, total: 0, segundos: 5 },
+            un_minuto: { fuentes: {}, total: 0, segundos: 60 },
+        };
+        const d = detalleDeMedidor("tokens", {
+            tokens: cero,
+            latidos: [
+                { tarea: "T1", fase: "escribiendo", modelo: "opencode/x", minutos: 4, donde: "mac", proveedor: "opencode" },
+            ],
+        });
+        expect(d.resumen).toContain("escribiendo con motores sin contador");
+        expect(d.resumen).toContain("codex/pasarelas");
+    });
+
+    it("0 tok/s con latidos vivos en otras fases nombra cada fase", () => {
+        const cero = {
+            ahora: { fuentes: {}, total: 0, segundos: 5 },
+            un_minuto: { fuentes: {}, total: 0, segundos: 60 },
+        };
+        const d = detalleDeMedidor("tokens", {
+            tokens: cero,
+            latidos: [
+                { tarea: "T1", fase: "tsc", modelo: "n/m", minutos: 3, donde: "mac" },
+                { tarea: "T2", fase: "tests", modelo: "n/m", minutos: 2, donde: "mac" },
+                { tarea: "T2", fase: "tests", modelo: "n/m", minutos: 1, donde: "mac" },
+            ],
+        });
+        expect(d.resumen).toContain("0 tok/s ahora: nadie está escribiendo");
+        expect(d.resumen).toContain("2 en tests");
+        expect(d.resumen).toContain("1 en tsc");
+    });
+
+    it("0 tok/s sin latidos vivos dice que no hay agentes trabajando", () => {
+        const cero = {
+            ahora: { fuentes: {}, total: 0, segundos: 5 },
+            un_minuto: { fuentes: {}, total: 0, segundos: 60 },
+        };
+        const d = detalleDeMedidor("tokens", { tokens: cero, latidos: [] });
+        expect(d.resumen).toBe("0 tok/s: no hay agentes trabajando");
+    });
+
+    it("resumenTokensConLatidos es puro y cuenta en orden descendente", () => {
+        const r = resumenTokensConLatidos([
+            { tarea: "A", fase: "tests", modelo: "x", minutos: 1, donde: "mac" },
+            { tarea: "B", fase: "tsc", modelo: "x", minutos: 2, donde: "mac" },
+            { tarea: "C", fase: "tests", modelo: "x", minutos: 3, donde: "mac" },
+        ]);
+        expect(r.sinLatidos).toBe(false);
+        expect(r.escribiendo).toBe(0);
+        expect(r.texto).toBe("2 en tests, 1 en tsc");
+    });
 });
 
 
@@ -745,9 +805,9 @@ describe("medidor de tokens con agentes sin contador", () => {
         expect(codex?.estado).toBe("no publica tokens");
     });
 
-    it("sin frase en el archivo, se sigue calculando", () => {
+    it("sin frase en el archivo y media 0: dice que no hay agentes trabajando", () => {
         const d = detalleDeMedidor("tokens", { tokens: { ...tokens, resumen: undefined } } as never);
-        expect(d.resumen).toContain("tok/s de media en 1 min");
+        expect(d.resumen).toBe("0 tok/s: no hay agentes trabajando");
     });
 });
 

@@ -1365,6 +1365,23 @@ const vacios: DatosMedidores = {
     proveedores: [],
 };
 
+/** Cuenta por fase de los latidos vivos; ordena más → menos. Puro. */
+export function resumenTokensConLatidos(latidos?: DatosMedidores["latidos"]): { texto: string; escribiendo: number; sinLatidos: boolean } {
+    const vivos = latidos ?? [];
+    const sinLatidos = vivos.length === 0;
+    const porFase = new Map<string, number>();
+    for (const l of vivos) {
+        const fase = (l.fase ?? "").toLowerCase();
+        if (!fase) continue;
+        porFase.set(fase, (porFase.get(fase) ?? 0) + 1);
+    }
+    const orden = [...porFase.entries()].sort((a, b) => b[1] - a[1]);
+    const partes = orden.map(([f, n]) => `${n} en ${f}`);
+    const texto = partes.join(", ");
+    const escribiendo = porFase.get("escribiendo") ?? 0;
+    return { texto, escribiendo, sinLatidos };
+}
+
 /** El detalle completo de un medidor: filas, porqués y acciones. */
 export function detalleDeMedidor(
     clave: ClaveMedidor,
@@ -1919,6 +1936,13 @@ export function detalleDeMedidor(
                 ? "el medidor de tokens no está escribiendo: ¿corre com.starseed.tokens?"
                 : tk.resumen
                   ? tk.resumen
+                  : media === 0
+                  ? (() => {
+                        const r = resumenTokensConLatidos(d.latidos);
+                        if (r.sinLatidos) return "0 tok/s: no hay agentes trabajando";
+                        if (r.escribiendo > 0) return `0 tok/s: ${r.escribiendo} escribiendo con motores sin contador (codex/pasarelas)`;
+                        return `0 tok/s ahora: nadie está escribiendo — ${r.texto || "ninguno en fase conocida"}`;
+                      })()
                   : media === undefined || media === null
                   ? total === undefined || total === null
                       ? "aún no hay dos muestras: una tasa necesita dos"
