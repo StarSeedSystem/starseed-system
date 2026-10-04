@@ -3,8 +3,9 @@
  * resuelve cuenta → personalidad → agente. Función pura, sin red ni disco.
  */
 import { describe, expect, it } from "vitest";
-import { capasEfectivasPara, DEFAULT_INTELLIGENCE } from "@/ai/astraura/router";
+import { capasEfectivasPara, capasEfectivasSeguras, DEFAULT_INTELLIGENCE } from "@/ai/astraura/router";
 import { AJUSTES_VACIOS, fijarCapa, type AjustesCapasEntidad } from "@/lib/astraura/capas-entidad";
+import { leerPreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 
 const prefs = { ...DEFAULT_INTELLIGENCE };
 
@@ -38,5 +39,36 @@ describe("capasEfectivasPara (Ola 1003 · §19)", () => {
         ajustes = fijarCapa(ajustes, "agente", "ag-1", "activo", true);
         const conAgente = capasEfectivasPara(prefs, true, ajustes, { personalidadId: "aurora", agenteId: "ag-1" });
         expect(conAgente.preferencia.activo).toBe(true);
+    });
+});
+
+describe("capasEfectivasSeguras (Ola 1003 · CC1003F · §19 privacidad)", () => {
+    const respaldo = () => leerPreferenciaCapas(prefs);
+    const calculada = { preferencia: respaldo(), contextoPersonal: true };
+    const falla = (): never => {
+        throw new Error("cálculo roto");
+    };
+
+    it("sin fallo devuelve exactamente lo calculado", () => {
+        const r = capasEfectivasSeguras(() => calculada, respaldo, () => false);
+        expect(r).toBe(calculada);
+    });
+
+    it("si calcular lanza y la cuenta tiene el contexto apagado → contextoPersonal false", () => {
+        const r = capasEfectivasSeguras(falla, respaldo, () => false);
+        expect(r.contextoPersonal).toBe(false);
+        expect(r.preferencia).toEqual(respaldo());
+    });
+
+    it("si calcular lanza y la cuenta tiene el contexto encendido → contextoPersonal true", () => {
+        const r = capasEfectivasSeguras(falla, respaldo, () => true);
+        expect(r.contextoPersonal).toBe(true);
+    });
+
+    it("si también lanza contextoCuenta → contextoPersonal false (privacidad primero)", () => {
+        const r = capasEfectivasSeguras(falla, respaldo, () => {
+            throw new Error("sin cuenta");
+        });
+        expect(r.contextoPersonal).toBe(false);
     });
 });
