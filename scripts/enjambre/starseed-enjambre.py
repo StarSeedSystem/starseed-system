@@ -3540,16 +3540,46 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
-    with SEM_PESADO, cerrojo("pesado"):
-        rc, out = sh(
-            "npx tsc --noEmit --skipLibCheck",
-            cwd=cwd,
-            timeout=900,
-            env=ENV_TSC,
-            log=log,
-        )
-    errores = [l for l in out.splitlines() if "error TS" in l]
-    return rc, errores
+    env = ENV_TSC
+    for intento in range(2):
+        with SEM_PESADO, cerrojo("pesado"):
+            rc, out = sh(
+                "npx tsc --noEmit --skipLibCheck",
+                cwd=cwd,
+                timeout=900,
+                env=env,
+                log=log,
+            )
+        errores = [l for l in out.splitlines() if "error TS" in l]
+        motivo = tsc_sin_terminar(rc, out, errores)
+        if not motivo:
+            return rc, errores
+        if intento == 0:
+            # Una segunda vuelta con más montón si fue la memoria, tras dejar respirar a la Mac.
+            if "memoria" in motivo:
+                env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=3584")
+            time.sleep(30)
+    return rc, ["%s (%s): la puerta no da el visto bueno sin un tsc completo" % (TSC_SIN_TERMINAR, motivo)]
+
+
+#: (2026-10-04) Un tsc que MUERE no es un tsc limpio. La puerta contaba las líneas «error TS»
+#: y, si tsc reventaba por memoria («JavaScript heap out of memory», heap 2560 MB con la Mac en
+#: swap), no había ninguna: «0 errores». Así entró CC1003F con 4 errores de tipos en su prueba.
+TSC_SIN_TERMINAR = "tsc no terminó"
+
+
+def tsc_sin_terminar(rc, salida, errores):
+    """PURA: el motivo si tsc acabó mal SIN listar errores (memoria, tiempo, aborto), o None."""
+    if rc == 0 or errores:
+        return None
+    s = salida or ""
+    if "heap out of memory" in s or "Allocation failed" in s:
+        return "sin memoria"
+    if s.startswith("TIMEOUT"):
+        return "se pasó de tiempo"
+    if "Abort trap" in s or "Killed" in s:
+        return "abortado"
+    return "salió con rc=%s sin listar errores" % rc
 
 
 def _puerta_cableado(tid, t, wt, log, modelo_ok):
@@ -6704,7 +6734,9 @@ def ejecutar(t, intento=1):
     latir(tid, "tsc", modelo=modelo_ok)
     rc, errs = tsc(wt, log)
     errores_antes = len(errs)
-    if errs:
+    # Un tsc que no terminó no se «repara» escribiendo código: se para con su motivo.
+    tsc_roto = bool(errs) and str(errs[0]).startswith(TSC_SIN_TERMINAR)
+    if errs and not tsc_roto:
         evento("aviso", tid, "%d errores tsc → reparación" % len(errs))
         latir(tid, "escribiendo", modelo=modelo_ok)
         escribir(
@@ -6730,12 +6762,14 @@ def ejecutar(t, intento=1):
             estado="fallo_tsc",
             modelo=modelo_ok,
             segundos=int(time.time() - t0),
-            nota="%d errores tsc (rama ola/%s conservada)" % (len(errs), tid),
+            nota=(errs[0][:150] if tsc_roto else "%d errores tsc" % len(errs))
+            + " (rama ola/%s conservada)" % tid,
         )
         evento(
             "fallo",
             tid,
-            "tsc sigue con %d errores; rama ola/%s conservada" % (len(errs), tid),
+            (errs[0][:150] if tsc_roto else "tsc sigue con %d errores" % len(errs))
+            + "; rama ola/%s conservada" % tid,
         )
         limpiar_worktree(tid, borrar_rama=False)
         return
