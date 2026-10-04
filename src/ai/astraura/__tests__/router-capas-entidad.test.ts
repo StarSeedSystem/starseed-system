@@ -3,7 +3,7 @@
  * resuelve cuenta → personalidad → agente. Función pura, sin red ni disco.
  */
 import { describe, expect, it } from "vitest";
-import { capasEfectivasPara, DEFAULT_INTELLIGENCE } from "@/ai/astraura/router";
+import { capasEfectivasPara, capasEfectivasSeguras, DEFAULT_INTELLIGENCE } from "@/ai/astraura/router";
 import { AJUSTES_VACIOS, fijarCapa, type AjustesCapasEntidad } from "@/lib/astraura/capas-entidad";
 
 const prefs = { ...DEFAULT_INTELLIGENCE };
@@ -38,5 +38,32 @@ describe("capasEfectivasPara (Ola 1003 · §19)", () => {
         ajustes = fijarCapa(ajustes, "agente", "ag-1", "activo", true);
         const conAgente = capasEfectivasPara(prefs, true, ajustes, { personalidadId: "aurora", agenteId: "ag-1" });
         expect(conAgente.preferencia.activo).toBe(true);
+    });
+});
+
+describe("capasEfectivasSeguras (Ola 1003 · §19 · degradación con consentimiento)", () => {
+    const calculado = { preferencia: { activo: true, capas: { cuenta: true } }, contextoPersonal: false };
+    const respaldo = () => ({ activo: false, capas: { cuenta: false } });
+    const lanza = () => { throw new Error("fallo al calcular"); };
+
+    it("sin fallo devuelve exactamente lo calculado", () => {
+        expect(capasEfectivasSeguras(() => calculado, respaldo, () => true)).toBe(calculado);
+    });
+
+    it("si calcular lanza y la cuenta tiene el contexto apagado, no se enciende a la fuerza", () => {
+        const r = capasEfectivasSeguras(lanza, respaldo, () => false);
+        expect(r.preferencia).toEqual(respaldo());
+        expect(r.contextoPersonal).toBe(false);
+    });
+
+    it("si calcular lanza y la cuenta lo tiene encendido, se respeta", () => {
+        const r = capasEfectivasSeguras(lanza, respaldo, () => true);
+        expect(r.contextoPersonal).toBe(true);
+    });
+
+    it("si también falla leer la cuenta, lo seguro es apagado", () => {
+        const r = capasEfectivasSeguras(lanza, respaldo, () => { throw new Error("sin cuenta"); });
+        expect(r.contextoPersonal).toBe(false);
+        expect(r.preferencia).toEqual(respaldo());
     });
 });

@@ -546,6 +546,29 @@ export function capasEfectivasPara(
   return { preferencia: aPreferenciaCapas(base, efectivas), contextoPersonal: efectivas.contextoPersonal };
 }
 
+/**
+ * (Ola 1003 · §19) Cálculo de capas CON DEGRADACIÓN SEGURA: devuelve
+ * `calcular()` y, si lanza, degrada a la preferencia de la cuenta SIN
+ * encender el contexto personal a la fuerza — el consentimiento del usuario
+ * manda incluso en el fallo (si ni el ajuste de la cuenta se puede leer,
+ * `contextoPersonal` queda en `false`). Pura: fácil de probar.
+ */
+export function capasEfectivasSeguras(
+  calcular: () => { preferencia: PreferenciaCapas; contextoPersonal: boolean },
+  respaldo: () => PreferenciaCapas,
+  contextoCuenta: () => boolean,
+): { preferencia: PreferenciaCapas; contextoPersonal: boolean } {
+  try {
+    return calcular();
+  } catch {
+    let contextoPersonal = false;
+    try {
+      contextoPersonal = contextoCuenta();
+    } catch { /* si ni la cuenta se puede leer, lo más seguro es apagado */ }
+    return { preferencia: respaldo(), contextoPersonal };
+  }
+}
+
 /** Opciones aditivas del ranking (Adenda 149 · Ola 3). Omitirlas = como antes. */
 export interface RankCandidatesOptions {
   /**
@@ -1398,16 +1421,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   } catch { /* defensivo: sin personalidad, Aurora sigue igual */ }
   // (Ola 1003 · §19) Capas EFECTIVAS de esta petición: cuenta → personalidad →
   // agente. Se calcula UNA vez con los ajustes guardados por entidad; si algo
-  // falla, se degrada a la preferencia de la cuenta, exactamente como antes.
-  let capasEf: { preferencia: PreferenciaCapas; contextoPersonal: boolean };
-  try {
-    capasEf = capasEfectivasPara(prefs, getUserContextSettings().enabled, ajustesCapasEntidadGuardados(), {
+  // falla, se degrada a la preferencia de la cuenta respetando el ajuste de
+  // contexto personal de la cuenta (nunca encendido a la fuerza, §19).
+  const capasEf = capasEfectivasSeguras(
+    () => capasEfectivasPara(prefs, getUserContextSettings().enabled, ajustesCapasEntidadGuardados(), {
       personalidadId: persona?.id,
       agenteId: req.agentId,
-    });
-  } catch {
-    capasEf = { preferencia: leerPreferenciaCapas(prefs), contextoPersonal: true };
-  }
+    }),
+    () => leerPreferenciaCapas(prefs),
+    () => getUserContextSettings().enabled,
+  );
   let ctxText = "";
   try {
     const provLine = await activeProvidersLine().catch(() => "");
