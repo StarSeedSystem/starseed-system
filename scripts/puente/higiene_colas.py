@@ -109,6 +109,38 @@ def _leer(nombre, olas):
         return None
 
 
+def indice_de(colas):
+    """PURA: id → {titulo, ola, cola} de las colas archivadas (sin prompts).
+
+    `colas` es [(nombre, tareas)]. Si un id sale en varias, gana la de nombre mayor (las
+    copias `cola-auto-MMDD-HHMMSS` ordenan por fecha). El Mando lo funde en sus títulos para
+    que las tareas de colas archivadas sigan «conocidas» (`indice-colas.ts`)."""
+    tareas = {}
+    for nombre, lista in sorted(colas, key=lambda c: c[0]):
+        if not isinstance(lista, list):
+            continue
+        for t in lista:
+            if not isinstance(t, dict) or not t.get("id"):
+                continue
+            e = {"titulo": str(t.get("titulo") or "")[:200], "cola": nombre}
+            if t.get("ola"):
+                e["ola"] = str(t["ola"])[:80]
+            tareas[str(t["id"])] = e
+    return {"version": 1, "tareas": tareas}
+
+
+def escribir_indice(destino):
+    """Rehace `colas-fuente/indice.json` con todas las colas archivadas (escritura atómica)."""
+    nombres = sorted(f for f in os.listdir(destino) if f.startswith("cola-") and f.endswith(".json"))
+    indice = indice_de([(f, _leer(f, destino)) for f in nombres])
+    ruta = os.path.join(destino, "indice.json")
+    tmp = ruta + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(indice, f, ensure_ascii=False)
+    os.replace(tmp, ruta)
+    return len(indice["tareas"])
+
+
 def higiene(raiz=None, simular=False, decir=True):
     """Mueve (nunca borra) colas muertas y sus latidos a colas-fuente/. Devuelve los nombres."""
     raiz = raiz or os.environ.get("STARSEED_ROOT", "/Users/alex/Documents/starseed-os-main")
@@ -137,6 +169,11 @@ def higiene(raiz=None, simular=False, decir=True):
             movidas.append(nombre)
         except OSError as e:
             print("no pude mover %s: %s" % (nombre, e))
+    if movidas or not os.path.isfile(os.path.join(destino, "indice.json")):
+        try:
+            escribir_indice(destino)
+        except OSError as e:
+            print("no pude escribir el índice: %s" % e)
     if movidas and decir:
         texto = "higiene: %d archivos de colas movidos a colas-fuente/" % len(movidas)
         try:

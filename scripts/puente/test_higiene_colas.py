@@ -11,7 +11,7 @@ DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
-from higiene_colas import colas_auto_viejas, colas_cerradas, colas_vivas, latidos_de, orquestador_vivo  # noqa: E402
+from higiene_colas import colas_auto_viejas, colas_cerradas, colas_vivas, escribir_indice, indice_de, latidos_de, orquestador_vivo  # noqa: E402
 
 MAIN = ["Ola 315 · zN1: higiene de colas integrada"]
 
@@ -113,6 +113,34 @@ class ColasVivasTest(unittest.TestCase):
     def test_vacio(self):
         self.assertEqual(colas_vivas([]), set())
         self.assertEqual(colas_vivas(None), set())
+
+
+
+class IndiceTest(unittest.TestCase):
+    """(2026-10-03) Al archivar colas, «Integradas» bajó de 467 a 458: el índice lo evita."""
+
+    def test_id_titulo_ola_y_cola_sin_prompt(self):
+        i = indice_de([("cola-313.json", [{"id": "L8a", "titulo": "Lab", "ola": "Ola 311", "prompt": "x" * 9000}])])
+        self.assertEqual(i["tareas"]["L8a"], {"titulo": "Lab", "cola": "cola-313.json", "ola": "Ola 311"})
+        self.assertNotIn("prompt", i["tareas"]["L8a"])
+
+    def test_gana_la_copia_mas_reciente_y_lo_raro_se_ignora(self):
+        i = indice_de([
+            ("cola-auto-1002-100000.json", [{"id": "A", "titulo": "nuevo"}]),
+            ("cola-auto-0930-100000.json", [{"id": "A", "titulo": "viejo"}, {"sin": "id"}, 3]),
+            ("cola-rota.json", None),
+        ])
+        self.assertEqual(i["tareas"]["A"]["titulo"], "nuevo")
+        self.assertEqual(len(i["tareas"]), 1)
+
+    def test_escribe_el_indice_en_disco(self):
+        import json
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "cola-1.json"), "w") as f:
+            json.dump({"tareas": [{"id": "W2", "titulo": "Crónica"}]}, f)
+        self.assertEqual(escribir_indice(d), 1)
+        with open(os.path.join(d, "indice.json")) as f:
+            self.assertEqual(json.load(f)["tareas"]["W2"]["titulo"], "Crónica")
 
 
 if __name__ == "__main__":
