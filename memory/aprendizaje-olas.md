@@ -3123,3 +3123,13 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 
 **Lo que quedó fuera, una por una:**
 - `CDK1004` — no escribió nada
+
+## 2026-10-04 04:17 · auto-1004-025838
+
+**Lo que se pidió.** motor/modelo
+
+**Resultado.** 4 de 6 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CDK1004` — no escribió nada
+- `CDE1004` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CDE1004 conservada
