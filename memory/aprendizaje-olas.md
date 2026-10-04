@@ -2939,3 +2939,17 @@ los sustituye (la copia completa queda en la rama de respaldo de la Mac).
 **Lo que se aprende.** Un análisis cerrado («informe») no es demanda. Y un proceso de larga vida
 no ve los arreglos del repo hasta que se reinicia: tras cambiar `scripts/puente/`, se recargan los
 servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
+
+## 2026-10-03 20:15 · auto-1003-190915
+
+**Lo que se pidió.** que sea preferente el uso local
+
+**Resultado.** 3 de 6 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — pruebas en rojo (SP092916, SP092918). Es 33 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `SP092916` — pruebas en rojo: vitest falla (rama conservada)
+- `SP092918` — pruebas en rojo: vitest falla (rama conservada)
+- `CC1003B` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CC1003B conservada
