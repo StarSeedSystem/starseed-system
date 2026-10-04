@@ -3133,3 +3133,18 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 **Lo que quedó fuera, una por una:**
 - `CDK1004` — no escribió nada
 - `CDE1004` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CDE1004 conservada
+
+## 2026-10-04 05:20 · auto-1004-041915
+
+**Lo que se pidió.** motor/modelo
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (HG1004B, CDL1004). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `HG1004A` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/HG1004A conservada
+- `HG1004B` — no escribió nada
+- `CDL1004` — no escribió nada
