@@ -3114,3 +3114,12 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `SP092918` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
 - `CDD1004` — no escribió nada
 - `CDK1004` — otra cosa
+
+## 2026-10-04 02:54 · auto-1004-023856
+
+**Lo que se pidió.** motor/modelo
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CDK1004` — no escribió nada
