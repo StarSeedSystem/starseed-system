@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-04 09:35:14 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-04 10:37:35 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,18 +16,18 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 27 |
-| HEAD | `e18456cf chore(memoria): aprendizaje de la ola auto-1004-091509` |
-| Sin publicar | 3 commits |
+| HEAD | `f4ea74b1 chore(memoria): aprendizaje de la ola auto-1004-093625` |
+| Sin publicar | 1 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1004-091509.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1004-093625.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DR1004-1` | hecho | nvidia/z-ai/glm-5.3 | 1 min | 30 s | 38630 |
-| `CP1004A` | hecho | nvidia/z-ai/glm-5.3 | 8 min | 468 s | 12809 |
-| `VG1004B` | hecho | nvidia/z-ai/glm-5.3 | 12 min | 723 s | 21867 |
-| `VG1004A` | hecho | nvidia/z-ai/glm-5.3 | 14 min | 870 s | 2233 |
+| `DR1004-1` | hecho | nvidia/z-ai/glm-5.3 | 1 min | 33 s | 77873 |
+| `VG1004A` | hecho | - | 16 min | 936 s | 2233 |
+| `VG1004B` | hecho | - | 16 min | 938 s | 21867 |
+| `CP1004A` | hecho | - | 16 min | 938 s | 12809 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
