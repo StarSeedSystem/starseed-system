@@ -22,7 +22,7 @@ Telegram se enteran de por qué arrancó o por qué está callado.
   python3 scripts/puente/vigilante-enjambre.py
 """
 
-import datetime, importlib.util, json, os, shutil, subprocess, sys, time
+import datetime, importlib.util, json, os, re, shutil, subprocess, sys, time
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
@@ -445,38 +445,69 @@ def _segundos_etime(etexto):
         return 0
 
 
-def _worktree_de_args(args):
-    """La ruta absoluta del worktree dentro de la línea de órdenes, si aparece
-    (el prompt de cada agente empieza nombrando su raíz)."""
+_ID_WORKTREE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _base_worktrees():
+    """La carpeta que contiene los worktrees del enjambre: STARSEED_WT si
+    está puesta; si no, `starseed-wt` junto a RAIZ."""
+    return os.environ.get("STARSEED_WT") or os.path.join(
+        os.path.dirname(RAIZ), "starseed-wt"
+    )
+
+
+def _worktree_de_args(args, base=None):
+    """La ruta absoluta del worktree dentro de la línea de órdenes, SOLO si es
+    exactamente `<base>/<id>` (un nivel, id de [A-Za-z0-9_-]+). El prompt nombra
+    su raíz, pero también puede nombrar `/`, `/Users` o un CloudStorage colgado:
+    recorrerlos enteros atascaba al vigilante en un opendir del núcleo durante
+    media hora (medido el 2026-10-04)."""
+    base_real = os.path.realpath(base or _base_worktrees())
     for token in args.split():
         ruta = token.strip("`\"'.,:;")
-        if ruta.startswith("/") and os.path.isdir(ruta):
-            return ruta
+        if not ruta.startswith("/"):
+            continue
+        ruta_real = os.path.realpath(ruta)
+        if os.path.dirname(ruta_real) != base_real:
+            continue
+        ident = os.path.basename(ruta_real)
+        if _ID_WORKTREE.match(ident) and os.path.isdir(ruta_real):
+            return ruta_real
     return ""
 
 
-def _ultimo_byte_de(ruta, pid=None):
+_REBOSADAS = (".git", "node_modules", ".next", ".next-build", "venv", ".gitnexus")
+
+
+def _ultimo_byte_de(ruta, pid=None, tope_s=5.0, tope_entradas=20000):
     """La mtime MÁS RECIENTE de todo lo que cuelga de `ruta`, recorrida
-    recursivamente (saltando .git y node_modules), igual que `_firma_trabajo`
-    del orquestador mide el trabajo real. La mtime del DIRECTORIO raíz no sirve:
-    solo cambia al crear o borrar entradas en él, no al escribir dentro de
-    subcarpetas, y fiarse de ella mataba trabajadores sanos que llevaban media
-    hora editando `src/lib/x.ts` (objeción de revisión de 2026-09-14)."""
+    recursivamente con tope de tiempo y de entradas (saltando .git,
+    node_modules, .next, .next-build, venv y .gitnexus, y sin seguir enlaces),
+    igual que `_firma_trabajo` del orquestador mide el trabajo real. La mtime
+    del DIRECTORIO raíz no sirve: solo cambia al crear o borrar entradas en él,
+    no al escribir dentro de subcarpetas, y fiarse de ella mataba trabajadores
+    sanos que llevaban media hora editando `src/lib/x.ts` (objeción de revisión
+    de 2026-09-14)."""
     try:
         if os.path.isfile(ruta):
             return os.path.getmtime(ruta)
     except OSError:
         return 0
     mas_reciente = 0.0
-    for base, carpetas, archivos in os.walk(ruta):
-        carpetas[:] = [c for c in carpetas if c not in (".git", "node_modules")]
+    limite = time.monotonic() + tope_s
+    vistas = 0
+    for base, carpetas, archivos in os.walk(ruta, followlinks=False):
+        carpetas[:] = [c for c in carpetas if c not in _REBOSADAS]
         for nombre in carpetas + archivos:
+            vistas += 1
             try:
                 m = os.path.getmtime(os.path.join(base, nombre))
             except OSError:
                 continue
             if m > mas_reciente:
                 mas_reciente = m
+        if vistas >= tope_entradas or time.monotonic() >= limite:
+            break
     # Si tenemos PID, consultar lsof para no perder escrituras a archivos o logs abiertos
     if pid is not None:
         try:
