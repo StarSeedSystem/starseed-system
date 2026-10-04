@@ -509,6 +509,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                 <select
                   value={a.type}
                   onChange={(e) => updateAttachment(i, { type: e.target.value as AttachmentType })}
+                  aria-label={`Tipo de adjunto ${i + 1}`}
                   className="h-8 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
                 >
                   {ATTACH_TYPES.map((t) => (
@@ -548,6 +549,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
             setCommandType(e.target.value);
             setCommandPayload({});
           }}
+          aria-label="Comando a ejecutar si se aprueba"
           className="h-8 w-full rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
         >
           {COMMAND_TYPES.map((c) => (
@@ -570,6 +572,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
               <select
                 value={commandPayload[f.key] ?? ""}
                 onChange={(e) => setCommandPayload((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                aria-label={f.label}
                 className="h-8 w-full rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
               >
                 <option value="">{f.label}…</option>
@@ -733,6 +736,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
                   <select
                     value={t.scope}
                     onChange={(e) => updateReachTarget(i, { scope: e.target.value })}
+                    aria-label={`Tipo de ámbito ${i + 1}`}
                     className="h-8 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
                   >
                     <option value="community">Comunidad</option>
