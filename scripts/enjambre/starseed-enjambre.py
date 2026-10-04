@@ -2044,16 +2044,38 @@ def _claves_que_viajan():
 
 def matar_grupo(proceso):
     """Mata el grupo de procesos entero de `proceso` (él y todos sus descendientes que no
-    se hayan ido a otro grupo). Nunca lanza. Si el grupo ya no existe, mata al proceso."""
+    se hayan ido a otro grupo). Nunca lanza. Si el grupo ya no existe, mata al proceso.
+
+    Todos los hijos del enjambre se lanzan con `start_new_session=True`, así que su grupo
+    es su propio pid: si el jefe ya murió (`getpgid` falla) se mata el grupo por ese número,
+    que sigue vivo mientras quede un nieto dentro."""
     if proceso is None:
         return
     try:
         os.killpg(os.getpgid(proceso.pid), signal.SIGKILL)
+        return
     except (ProcessLookupError, PermissionError, OSError):
-        try:
-            proceso.kill()
-        except Exception:
-            pass
+        pass
+    recoger_grupo(proceso)
+    try:
+        proceso.kill()
+    except Exception:
+        pass
+
+
+def recoger_grupo(proceso):
+    """Mata lo que quede del grupo de un hijo YA TERMINADO (pgid == su pid). Nunca lanza.
+
+    (2026-10-03) opencode acababa bien y su LSP —un `tsserver` de ~2 GB y su
+    `typingsInstaller`— quedaba adoptado por init en el mismo grupo: tras el reinicio de la
+    Mac, 2 GB huérfanos del worktree de CC1003A con el swap en 6,9 GB. `matar_grupo` solo
+    corría al cortar por tiempo; al terminar bien nadie recogía a los nietos."""
+    if proceso is None:
+        return
+    try:
+        os.killpg(proceso.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
 
 
 def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
@@ -3209,6 +3231,8 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 pass
             rc = 124
         finally:
+            # Termine como termine, el LSP del motor (tsserver ~2 GB) no le sobrevive.
+            recoger_grupo(p)
             if tid:
                 with PROCESOS_LOCK:
                     PROCESOS.pop(tid, None)
@@ -3371,6 +3395,8 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 pass
             rc = 124
         finally:
+            # Termine como termine, el LSP del motor (tsserver ~2 GB) no le sobrevive.
+            recoger_grupo(p)
             if tid:
                 with PROCESOS_LOCK:
                     PROCESOS.pop(tid, None)

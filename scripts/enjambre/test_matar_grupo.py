@@ -63,5 +63,49 @@ class MatarGrupoTest(unittest.TestCase):
         enjambre.matar_grupo(p)  # ya terminó: no lanza
 
 
+    def test_recoger_grupo_mata_al_nieto_de_un_hijo_que_acabo_bien(self):
+        """(2026-10-03) opencode acaba bien y su tsserver (LSP, ~2 GB) quedaba adoptado por
+        init. Aquí el «motor» deja un nieto en segundo plano y sale con 0."""
+        marca = os.path.join(os.path.dirname(RUTA), ".lsp-%d" % os.getpid())
+        p = subprocess.Popen(["sh", "-c", "sleep 30 & echo $! > %s; exit 0" % marca],
+                             start_new_session=True)
+        self.assertEqual(p.wait(timeout=10), 0)
+        try:
+            with open(marca) as f:
+                nieto = int(f.read().strip())
+        finally:
+            try:
+                os.remove(marca)
+            except OSError:
+                pass
+        self.assertTrue(_vivo(nieto), "la prueba necesita un nieto vivo tras acabar el hijo")
+        enjambre.recoger_grupo(p)
+        time.sleep(0.5)
+        self.assertFalse(_vivo(nieto), "el LSP del motor sobrevivió a su opencode")
+
+    def test_matar_grupo_con_el_jefe_muerto_recoge_igual(self):
+        marca = os.path.join(os.path.dirname(RUTA), ".jefe-%d" % os.getpid())
+        p = subprocess.Popen(["sh", "-c", "sleep 30 & echo $! > %s; exit 0" % marca],
+                             start_new_session=True)
+        p.wait(timeout=10)
+        try:
+            with open(marca) as f:
+                nieto = int(f.read().strip())
+        finally:
+            try:
+                os.remove(marca)
+            except OSError:
+                pass
+        enjambre.matar_grupo(p)
+        time.sleep(0.5)
+        self.assertFalse(_vivo(nieto))
+
+    def test_recoger_grupo_nunca_lanza(self):
+        enjambre.recoger_grupo(None)
+        p = subprocess.Popen(["true"], start_new_session=True)
+        p.wait()
+        enjambre.recoger_grupo(p)
+
+
 if __name__ == "__main__":
     unittest.main()
