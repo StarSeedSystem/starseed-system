@@ -340,6 +340,7 @@ export function HubDiscoverSection({ focus }: { focus: 'paginas' | 'grupos' }) {
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Buscar por nombre o etiqueta…"
+                        aria-label="Buscar comunidades, grupos y eventos por nombre o etiqueta"
                         className="w-full h-9 rounded-xl border border-white/10 bg-black/20 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                     />
                 </div>

@@ -168,18 +168,21 @@ export function MediationSection({ entityKind, slug, accent, name }: MediationSe
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                aria-label="Título del caso"
                 placeholder="Título del caso"
                 className="h-9 text-sm"
               />
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                aria-label="Descripción del conflicto"
                 placeholder="Describe el conflicto…"
                 className="min-h-[72px] text-sm"
               />
               <Input
                 value={participants}
                 onChange={(e) => setParticipants(e.target.value)}
+                aria-label="Partes implicadas, separadas por coma"
                 placeholder="Partes implicadas (separadas por coma)"
                 className="h-9 text-sm"
               />
