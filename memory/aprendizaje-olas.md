@@ -3220,3 +3220,20 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `CDP1004` — otra cosa: ningún proveedor respondió (todos caídos)
 - `VG1004A` — no escribió nada
 - `VG1004B` — no escribió nada
+
+## 2026-10-04 09:13 · auto-1004-082640
+
+**Lo que se pidió.** … se colgó y fue cortado → siguiente modelo, sin gastar intento
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (VG1004A, VG1004B, DR1004-1). Es 60 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CP1004A` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VG1004A` — no escribió nada
+- `VG1004B` — no escribió nada
+- `DR1004-1` — no escribió nada
+- `CDP1004` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CDP1004 conservada
