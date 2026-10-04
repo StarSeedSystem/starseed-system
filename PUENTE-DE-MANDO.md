@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-04 14:39:27 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-04 16:20:27 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,19 +15,26 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | reintentos-2026-09-22 |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 27 |
-| HEAD | `053d06fb chore(memoria): aprendizaje de la ola auto-1004-141110` |
-| Sin publicar | 7 commits |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 28 |
+| HEAD | `4f35cc63 chore(memoria): aprendizaje de la ola auto-1004-144132` |
+| Sin publicar | 5 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1004-141110.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-1004-144132.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `LC1004A` | hecho | nvidia/z-ai/glm-5.3 | 1 min | 33 s | 1136 |
-| `LC1004B` | hecho | nvidia/z-ai/glm-5.3 | 1 min | 55 s | 4653 |
-| `CP1004A` | hecho | nvidia/moonshotai/kimi-k3 | 5 min | 313 s | 347929 |
-| `DR1004-1` | hecho | nvidia/moonshotai/kimi-k3 | 22 min | 1298 s | 126764 |
+| `TPS1004A` | hecho | nvidia/z-ai/glm-5.3 | 1 min | 45 s | 1015 |
+| `SB1004B` | hecho | nvidia/z-ai/glm-5.3 | 5 min | 277 s | 2101 |
+| `HG1004H` | hecho | nvidia/z-ai/glm-5.3 | 6 min | 339 s | 8736 |
+| `SB1004A` | hecho | nvidia/z-ai/glm-5.3 | 6 min | 360 s | 843 |
+| `CDV1004A` | hecho | nvidia/z-ai/glm-5.3 | 10 min | 594 s | 881 |
+| `MDR1004A` | hecho | nvidia/moonshotai/kimi-k3 | 11 min | 667 s | 108301 |
+| `SP092922b` | hecho | codex/gpt-5.6-sol | 11 min | 681 s | 841987 |
+| `CDV1004B` | hecho | nvidia/z-ai/glm-5.3 | 16 min | 942 s | 1209 |
+| `CDI1004A` | hecho | nvidia/z-ai/glm-5.3 | 25 min | 1482 s | 1111 |
+| `LC1004A` | hecho | nvidia/moonshotai/kimi-k3 | 30 min | 1812 s | 78907 |
+| `LC1004B` | hecho | nvidia/moonshotai/kimi-k3 | 41 min | 2447 s | 50262 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
