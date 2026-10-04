@@ -99,5 +99,92 @@ class TestEstadoEnDisco(unittest.TestCase):
         self.assertEqual(C.TOPE_OPUS + 1, estado["opus_hoy"])
 
 
+class TestResumenJev(unittest.TestCase):
+    def test_datos_completos(self):
+        datos = {
+            "llamadas": 7,
+            "coste_usd": 0.0012,
+            "tope_dia_usd": 0.05,
+            "mes_usd": 0.01,
+            "tope_mes_usd": 1.0,
+        }
+        self.assertEqual(
+            "Jev: 7 llamadas hoy · 0.0012 $ de 0.0500 $ del día "
+            "(0.0100 $ en el mes de 1.0000 $)",
+            C.resumen_jev(datos),
+        )
+
+    def test_sin_datos(self):
+        self.assertEqual("Jev: sin datos", C.resumen_jev({}))
+        self.assertEqual("Jev: sin datos", C.resumen_jev(None))
+        self.assertEqual("Jev: sin datos", C.resumen_jev("texto"))
+
+    def test_forma_rara(self):
+        self.assertEqual("Jev: sin datos", C.resumen_jev({"llamadas": "siete"}))
+        self.assertEqual("Jev: sin datos", C.resumen_jev({"llamadas": 1}))
+
+
+class TestResumenConsumo(unittest.TestCase):
+    def test_datos_completos(self):
+        datos = {
+            "supabase": {
+                "peticiones_hora": 12,
+                "top": [{"ruta": "/api/mando/estado", "n": 5}],
+            }
+        }
+        self.assertEqual(
+            "Supabase: 12 peticiones en la última hora "
+            "(más pedida: /api/mando/estado ×5)",
+            C.resumen_consumo(datos),
+        )
+
+    def test_sin_top(self):
+        datos = {"supabase": {"peticiones_hora": 3}}
+        self.assertEqual(
+            "Supabase: 3 peticiones en la última hora", C.resumen_consumo(datos)
+        )
+
+    def test_sin_datos(self):
+        self.assertEqual("Supabase: sin datos", C.resumen_consumo({}))
+        self.assertEqual("Supabase: sin datos", C.resumen_consumo({"supabase": []}))
+
+    def test_forma_rara(self):
+        datos = {"supabase": {"peticiones_hora": "muchas"}}
+        self.assertEqual("Supabase: sin datos", C.resumen_consumo(datos))
+
+
+class TestResumenOpus(unittest.TestCase):
+    def test_datos_completos(self):
+        datos = {"llamadas": 4, "tokens": {"entrada": 1200, "salida": 300}}
+        self.assertEqual(
+            "Opus de los directores: 4 llamadas, 1200 tokens de entrada y 300 de salida",
+            C.resumen_opus(datos),
+        )
+
+    def test_solo_llamadas(self):
+        self.assertEqual(
+            "Opus de los directores: 2 llamadas", C.resumen_opus({"llamadas": 2})
+        )
+
+    def test_sin_datos(self):
+        self.assertEqual("Opus de los directores: sin datos", C.resumen_opus({}))
+        self.assertEqual("Opus de los directores: sin datos", C.resumen_opus(None))
+
+    def test_forma_rara(self):
+        self.assertEqual(
+            "Opus de los directores: sin datos",
+            C.resumen_opus({"result": "ok", "total_usd": 1.5}),
+        )
+
+
+class TestTextoInformeUso(unittest.TestCase):
+    def test_no_es_un_volcado_json(self):
+        texto = C.texto_informe_uso({"opus_hoy": 1})
+        self.assertNotIn("{", texto)
+        self.assertNotIn('"hoy"', texto)
+        for linea in texto.splitlines():
+            self.assertLessEqual(len(linea), 200)
+
+
 if __name__ == "__main__":
     unittest.main()

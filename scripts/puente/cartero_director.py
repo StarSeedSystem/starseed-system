@@ -301,25 +301,88 @@ def atender(mensaje, canal, estado, raiz=None):
         estado["atendidos"].append("%s|%s" % (mensaje["id"], canal))
 
 
-def _resumen_json(ruta):
+def _cargar_json(ruta):
+    """Lee un dict JSON de disco; cualquier fallo o forma rara devuelve {} (pura de lectura)."""
     try:
         datos = json.loads(Path(ruta).expanduser().read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return "%s: sin datos" % ruta
-    return "%s: %s" % (ruta, json.dumps(datos, ensure_ascii=False)[:400])
+        return {}
+    return datos if isinstance(datos, dict) else {}
+
+
+def resumen_jev(datos):
+    """Una línea legible del gasto de Jev (pura)."""
+    if not isinstance(datos, dict):
+        return "Jev: sin datos"
+    try:
+        llamadas = int(datos["llamadas"])
+        coste = float(datos["coste_usd"])
+        tope_dia = float(datos["tope_dia_usd"])
+        mes = float(datos["mes_usd"])
+        tope_mes = float(datos["tope_mes_usd"])
+    except (KeyError, TypeError, ValueError):
+        return "Jev: sin datos"
+    return (
+        "Jev: %d llamadas hoy · %.4f $ de %.4f $ del día "
+        "(%.4f $ en el mes de %.4f $)" % (llamadas, coste, tope_dia, mes, tope_mes)
+    )
+
+
+def resumen_consumo(datos):
+    """Una línea legible del consumo de Supabase (pura)."""
+    sup = datos.get("supabase") if isinstance(datos, dict) else None
+    if not isinstance(sup, dict) or not isinstance(sup.get("peticiones_hora"), int):
+        return "Supabase: sin datos"
+    linea = "Supabase: %d peticiones en la última hora" % sup["peticiones_hora"]
+    top = sup.get("top")
+    if isinstance(top, list) and top and isinstance(top[0], dict):
+        ruta = top[0].get("ruta")
+        n = top[0].get("n", top[0].get("veces"))
+        if ruta and n is not None:
+            linea += " (más pedida: %s ×%s)" % (ruta, n)
+    return linea
+
+
+def resumen_opus(datos):
+    """Una línea legible del uso de Opus de los directores (pura)."""
+    if not isinstance(datos, dict) or not datos:
+        return "Opus de los directores: sin datos"
+    partes = []
+    if isinstance(datos.get("llamadas"), int):
+        partes.append("%d llamadas" % datos["llamadas"])
+    tokens = datos.get("tokens")
+    if isinstance(tokens, dict):
+        entrada = tokens.get("entrada")
+        salida = tokens.get("salida")
+        if isinstance(entrada, int) and isinstance(salida, int):
+            partes.append("%d tokens de entrada y %d de salida" % (entrada, salida))
+        elif isinstance(entrada, int):
+            partes.append("%d tokens de entrada" % entrada)
+    elif isinstance(datos.get("tokens_dia"), int):
+        partes.append("%d tokens hoy" % datos["tokens_dia"])
+    if not partes:
+        return "Opus de los directores: sin datos"
+    return "Opus de los directores: " + ", ".join(partes)
 
 
 def texto_informe_uso(estado):
     partes = []
+    jev = {}
     rc, salida = motores_director.correr(
         ["python3", "scripts/puente/decidir.py", "uso", "--json"],
         cwd=str(RAIZ),
         segundos=30,
     )
     if rc == 0 and salida.strip():
-        partes.append("Jev: " + salida.strip()[:400])
-    partes.append(_resumen_json("~/.starseed/consumo.json"))
-    partes.append(_resumen_json("~/.starseed/opus-director-uso.json"))
+        try:
+            datos_jev = json.loads(salida.strip())
+        except json.JSONDecodeError:
+            datos_jev = {}
+        if isinstance(datos_jev, dict):
+            jev = datos_jev
+    partes.append(resumen_jev(jev))
+    partes.append(resumen_consumo(_cargar_json("~/.starseed/consumo.json")))
+    partes.append(resumen_opus(_cargar_json("~/.starseed/opus-director-uso.json")))
     partes.append("Opus del día: %d de %d" % (estado.get("opus_hoy", 0), TOPE_OPUS))
     motores = {}
     for r in director_chat.leer(limite=200):
@@ -328,7 +391,7 @@ def texto_informe_uso(estado):
             motores[modelo] = motores.get(modelo, 0) + 1
     lineas = ["%s: %d" % (m, n) for m, n in sorted(motores.items())]
     partes.append("Llamadas a motores hoy: " + (", ".join(lineas) or "ninguna"))
-    return "\n".join(partes)
+    return "\n".join(p[:200] for p in partes)
 
 
 def publicar_informe_uso(estado, raiz=None):
