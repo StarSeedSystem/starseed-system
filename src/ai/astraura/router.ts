@@ -102,7 +102,16 @@ import {
   leerPreferenciaCapas,
   sesgoNivelador,
   type CamposCapas,
+  type PreferenciaCapas,
 } from "@/lib/astraura/capas-conciencia";
+// (Ola 1003 · §19) Capas por entidad: cuenta → personalidad → agente.
+import {
+  aPreferenciaCapas,
+  capasDeCuenta,
+  resolverCapasEntidad,
+} from "@/lib/astraura/capas-entidad";
+import { ajustesCapasEntidadGuardados } from "@/lib/astraura/use-capas-entidad";
+import type { AjustesCapasEntidad } from "@/lib/astraura/capas-entidad";
 // (Ola 223) Caché LRU de respuestas repetidas (cuota-cero para prompts idénticos).
 import { claveCache, esCacheElegible, leerCache, guardarCache } from "./cache-respuestas";
 // Capacidades de red (Trinidad de razonamiento: reflejo con Needle · deliberación con BitNet)
@@ -519,6 +528,24 @@ export function local158PriorityDelta(
   return { delta: 3, note: "Astraura 1.58 (nube StarSeed) primero (prioridad local)" };
 }
 
+/**
+ * (Ola 1003 · §19) Capas EFECTIVAS para esta petición: parte de la cuenta
+ * (preferencia guardada + interruptor de contexto personal) y aplica los
+ * ajustes por entidad guardados (la personalidad manda sobre la cuenta y el
+ * agente sobre ambos). Pura y sin efectos: fácil de probar.
+ */
+export function capasEfectivasPara(
+  prefs: IntelligenceSettings,
+  contextoPersonalCuenta: boolean,
+  ajustes: AjustesCapasEntidad,
+  quien: { personalidadId?: string; agenteId?: string },
+): { preferencia: PreferenciaCapas; contextoPersonal: boolean } {
+  const base = leerPreferenciaCapas(prefs);
+  const cuenta = capasDeCuenta(base, contextoPersonalCuenta);
+  const { efectivas } = resolverCapasEntidad(cuenta, ajustes, quien);
+  return { preferencia: aPreferenciaCapas(base, efectivas), contextoPersonal: efectivas.contextoPersonal };
+}
+
 /** Opciones aditivas del ranking (Adenda 149 · Ola 3). Omitirlas = como antes. */
 export interface RankCandidatesOptions {
   /**
@@ -527,6 +554,12 @@ export interface RankCandidatesOptions {
    * gasta dinero · `true`/`null`/ausente = sin opinión, manda la cuenta.
    */
   personaAllowsPaid?: boolean | null;
+  /**
+   * (Ola 1003 · §19) Capas EFECTIVAS ya resueltas por entidad (cuenta →
+   * personalidad → agente). Sin esta opción, comportamiento idéntico al de
+   * siempre (`leerPreferenciaCapas(prefs)`).
+   */
+  capas?: PreferenciaCapas;
 }
 
 export function rankCandidates(
@@ -584,7 +617,7 @@ export function rankCandidates(
   // (Ola 365) Capas de conciencia de Astraura 1.58: el interruptor general y las capas
   // local/nube apagan esas fuentes como si estuvieran deshabilitadas, y el nivelador suma
   // un sesgo (−12..+14) hacia el enrutador libre, un modelo específico o las capas 1.58.
-  const capas = leerPreferenciaCapas(prefs);
+  const capas = opts?.capas ?? leerPreferenciaCapas(prefs);
   const apagadas158 = new Set(fuentesApagadas(capas));
 
   for (const a of avail) {
@@ -1363,6 +1396,18 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     persona = resolvePersonalityForContext({ section, chatId: req.chatId, brainId: req.brainId });
     if (persona) personaText = compilePersonalityPrompt(persona);
   } catch { /* defensivo: sin personalidad, Aurora sigue igual */ }
+  // (Ola 1003 · §19) Capas EFECTIVAS de esta petición: cuenta → personalidad →
+  // agente. Se calcula UNA vez con los ajustes guardados por entidad; si algo
+  // falla, se degrada a la preferencia de la cuenta, exactamente como antes.
+  let capasEf: { preferencia: PreferenciaCapas; contextoPersonal: boolean };
+  try {
+    capasEf = capasEfectivasPara(prefs, getUserContextSettings().enabled, ajustesCapasEntidadGuardados(), {
+      personalidadId: persona?.id,
+      agenteId: req.agentId,
+    });
+  } catch {
+    capasEf = { preferencia: leerPreferenciaCapas(prefs), contextoPersonal: true };
+  }
   let ctxText = "";
   try {
     const provLine = await activeProvidersLine().catch(() => "");
@@ -1385,7 +1430,9 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   let userCtxText = "";
   try {
     const ucSettings = getUserContextSettings();
-    if (ucSettings.enabled) {
+    // (Ola 1003 · §19) manda la capa EFECTIVA de contexto personal (cuenta →
+    // personalidad → agente), que puede apagarlo solo para esta entidad.
+    if (capasEf.contextoPersonal) {
       userCtxText = await withTimeout(buildUserContext(ucSettings.defaultLevel), 3500, "contexto de usuario").catch(() => "");
     }
   } catch { /* defensivo: Aurora sigue funcionando sin contexto */ }
@@ -1494,6 +1541,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // queda EXACTAMENTE como antes.
   const candidatesRankeados = rankCandidates(profile, avail, prefs, {
     personaAllowsPaid: personaAllowsPaid(persona),
+    capas: capasEf.preferencia,
   });
   // (Ola 368) Una petición que llegó POR LA MALLA nunca debe volver a salir
   // por ella: sin esto, A pide a B, B no tiene el modelo y se lo reenvía a la
@@ -1580,7 +1628,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       const choice = resolved.choice;
       // (Ola 365) Con el modo 1.58 apagado en el interruptor general, un primario «1.58»
       // no se aplica (ni en exclusivo): manda el enrutador automático con fuentes libres.
-      const apagado158 = choice.modo === "astraura-158" && !leerPreferenciaCapas(prefs).activo;
+      const apagado158 = choice.modo === "astraura-158" && !capasEf.preferencia.activo;
       if (apagado158) {
         /* sin primario: la cadena del ranking (ya sin fuentes 1.58) queda tal cual */
       } else if (choice.modo === "astraura-158") {
