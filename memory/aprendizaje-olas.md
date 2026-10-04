@@ -3336,3 +3336,22 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `DR1004-1` — no escribió nada
 - `LC1004B` — no escribió nada
 - `LC1004A` — no escribió nada
+
+## 2026-10-04 16:20 · auto-1004-144132
+
+**Lo que se pidió.** en el puente las listas para trabajar y los tokens por segundo aparecen en 0, al reintentar las bloqueadas no se procesa la lista
+
+**Resultado.** 3 de 11 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (CDV1004B, CDV1004A, SB1004A, HG1004H, SB1004B, TPS1004A). Es 55 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `CDV1004B` — no escribió nada
+- `CDV1004A` — no escribió nada
+- `LC1004B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/LC1004B conservada)
+- `LC1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `SB1004A` — no escribió nada
+- `HG1004H` — no escribió nada
+- `SB1004B` — no escribió nada
+- `TPS1004A` — no escribió nada
