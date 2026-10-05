@@ -56,7 +56,23 @@ class TestPuertas(unittest.TestCase):
     def setUp(self):
         self.ahora = time.time()
 
-    def test_bloqueante_madura_se_rechaza(self):
+    def test_bloqueante_madura_ya_no_se_rechaza(self):
+        """(2026-10-05) Una bloqueante no es basura: es un cambio pedido."""
+        p = {
+            "A": {
+                "estado": "esperando_aprobacion",
+                "revisor": "bloqueante",
+                "objecion": "falta manejar el caso vacío",
+                "t": _hace(60, self.ahora),
+            }
+        }
+        rech, _, bloqueantes = d.clasificar_puertas(p, self.ahora)
+        self.assertEqual(rech, [])
+        self.assertEqual(
+            bloqueantes, [("A", "falta manejar el caso vacío")]
+        )
+
+    def test_bloqueante_sin_objecion_lleva_texto_generico(self):
         p = {
             "A": {
                 "estado": "esperando_aprobacion",
@@ -64,7 +80,8 @@ class TestPuertas(unittest.TestCase):
                 "t": _hace(60, self.ahora),
             }
         }
-        self.assertEqual([x[0] for x in d.puertas_a_rechazar(p, self.ahora)], ["A"])
+        _, _, bloqueantes = d.clasificar_puertas(p, self.ahora)
+        self.assertEqual(bloqueantes, [("A", "revisión bloqueante confirmada")])
 
     def test_alcance_incompleto_ya_no_se_rechaza_solo_por_eso(self):
         """(2026-09-21) Cambio de politica: ver test_alcance_parcial.py.
@@ -82,7 +99,7 @@ class TestPuertas(unittest.TestCase):
             }
         }
         self.assertEqual(d.puertas_a_rechazar(p, self.ahora), [])
-        _, parciales = d.clasificar_puertas(p, self.ahora, {"C": ["x.py", "y.py"]})
+        _, parciales, _ = d.clasificar_puertas(p, self.ahora, {"C": ["x.py", "y.py"]})
         self.assertEqual([x[0] for x in parciales], ["C"])
 
     def test_alcance_vacio_del_todo_si_se_rechaza(self):
@@ -95,7 +112,7 @@ class TestPuertas(unittest.TestCase):
                 "t": _hace(60, self.ahora),
             }
         }
-        rech, _ = d.clasificar_puertas(p, self.ahora, {"C": ["x.py"]})
+        rech, _, _ = d.clasificar_puertas(p, self.ahora, {"C": ["x.py"]})
         self.assertEqual([x[0] for x in rech], ["C"])
 
     def test_puerta_en_verde_no_se_toca(self):
@@ -259,6 +276,64 @@ class TestRechazoVaAlChatDirector(unittest.TestCase):
         self.run.return_value = type("R", (), {"returncode": 1})()
         d.rechazar_puertas([("X1", "motivo")])
         self.assertEqual(self.pub.call_count, 0)
+
+
+class TestRepararBloqueantes(unittest.TestCase):
+    """(2026-10-05) Reparar primero; escalar solo al tercer intento."""
+
+    def setUp(self):
+        import tempfile
+        import unittest.mock as m
+
+        self.raiz = tempfile.mkdtemp()
+        self._pub = m.patch.object(d.director_chat, "publicar")
+        self.pub = self._pub.start()
+        self.addCleanup(self._pub.stop)
+
+    def test_primera_objecion_pide_reparacion(self):
+        llamadas = []
+        frases = d.reparar_bloqueantes(
+            [("BLQ1005D", "falta manejar el caso vacío")],
+            raiz=self.raiz,
+            enviar=lambda tid: llamadas.append(tid) or True,
+        )
+        self.assertEqual(llamadas, ["BLQ1005D"])
+        self.assertTrue(any("reparación automática de BLQ1005D" in f for f in frases))
+        self.assertIn("objeción del revisor", frases[0])
+        self.assertEqual(self.pub.call_count, 1)
+        self.assertIn("Reparación automática", self.pub.call_args.args[0])
+
+    def test_tercera_objecion_escala_sin_rechazar(self):
+        d.intentos_reparacion(self.raiz, "X9", incrementar=True)
+        d.intentos_reparacion(self.raiz, "X9", incrementar=True)
+        llamadas = []
+        frases = d.reparar_bloqueantes(
+            [("X9", "misma objeción")],
+            raiz=self.raiz,
+            enviar=lambda tid: llamadas.append(tid) or True,
+        )
+        self.assertEqual(llamadas, [])
+        self.assertTrue(any("escalo X9" in f for f in frases))
+        self.assertIn("Escalado", self.pub.call_args.args[0])
+        self.assertIn("No se rechaza", self.pub.call_args.args[0])
+
+    def test_mando_caido_deja_peticion_en_archivo(self):
+        import json as js
+
+        frases = d.reparar_bloqueantes(
+            [("BLQ1005D", "objeción X")], raiz=self.raiz, enviar=lambda tid: False
+        )
+        self.assertTrue(any("pendiente en archivo" in f for f in frases))
+        with open(d._ruta_reparaciones_pendientes(self.raiz), encoding="utf-8") as fh:
+            lineas = [js.loads(x) for x in fh if x.strip()]
+        self.assertEqual(len(lineas), 1)
+        self.assertEqual(lineas[0]["tarea"], "BLQ1005D")
+        self.assertTrue(lineas[0]["automatico"])
+
+    def test_accion_bloqueante_es_pura(self):
+        self.assertEqual(d.accion_bloqueante(1), "reparar")
+        self.assertEqual(d.accion_bloqueante(2), "reparar")
+        self.assertEqual(d.accion_bloqueante(3), "escalar")
 
 
 if __name__ == "__main__":

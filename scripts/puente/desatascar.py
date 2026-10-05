@@ -110,17 +110,22 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
     no se puede saber si tocó algo, y entonces se es prudente: se aprueba con
     seguimiento en vez de tirar el trabajo.
 
-    Devuelve ([(id, motivo)], [(id, motivo, faltan)]).
+    (2026-10-05) La revisión bloqueante ya NO se rechaza: se repara (ver
+    `architecture/bloqueadas-reparacion.md` §4). Casi todo lo rechazado podía
+    ser útil con cambios coherentes; rechazar es la excepción, no la regla.
+
+    Devuelve ([(id, motivo)], [(id, motivo, faltan)], [(id, objecion)]).
     """
     declarados_por_id = declarados_por_id or {}
-    a_rechazar, a_aprobar = [], []
+    a_rechazar, a_aprobar, bloqueantes = [], [], []
     for tid, e in sorted((progreso or {}).items()):
         if not isinstance(e, dict) or e.get("estado") != "esperando_aprobacion":
             continue
         if _minutos(e.get("t"), ahora) < tope_min:
             continue
         if e.get("revisor") == "bloqueante":
-            a_rechazar.append((tid, "revisión bloqueante confirmada"))
+            objecion = str(e.get("objecion") or e.get("motivo") or "")
+            bloqueantes.append((tid, objecion or "revisión bloqueante confirmada"))
             continue
         faltan = [str(x) for x in (e.get("faltan") or [])]
         if not faltan:
@@ -142,12 +147,91 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
         else:
             motivo = "alcance parcial: falta %s" % resumen
         a_aprobar.append((tid, motivo, faltan))
-    return a_rechazar, a_aprobar
+    return a_rechazar, a_aprobar, bloqueantes
 
 
 def puertas_a_rechazar(progreso, ahora, tope_min=6):
     """Solo las que hay que tirar. Ver `clasificar_puertas`."""
     return clasificar_puertas(progreso, ahora, None, tope_min)[0]
+
+
+# --------------------------------------------------- reparación de bloqueadas
+
+URL_REINTENTAR = "http://127.0.0.1:9002/api/mando/reintentar"
+TOPE_INTENTOS_REPARACION = 3
+
+
+def accion_bloqueante(intentos):
+    """PURA: reparar hasta `TOPE_INTENTOS_REPARACION`; luego escalar, nunca rechazar."""
+    return "escalar" if intentos >= TOPE_INTENTOS_REPARACION else "reparar"
+
+
+def post_reintentar(tid, url=URL_REINTENTAR, timeout=15):
+    """Pide al Mando la reparación automática. Devuelve True/False, nunca lanza."""
+    try:
+        import urllib.request
+
+        datos = json.dumps({"ids": [tid], "automatico": True}).encode("utf-8")
+        peticion = urllib.request.Request(
+            url,
+            data=datos,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(peticion, timeout=timeout) as r:
+            return 200 <= r.status < 300
+    except Exception:
+        return False
+
+
+def _ruta_reparaciones_estado(raiz):
+    return os.path.join(
+        raiz, "starseed_memory_root", "mando", "desatascar-reparaciones.json"
+    )
+
+
+def _ruta_reparaciones_pendientes(raiz):
+    return os.path.join(
+        raiz, "starseed_memory_root", "mando", "reparaciones-pendientes.jsonl"
+    )
+
+
+def intentos_reparacion(raiz, tid, incrementar=False):
+    """Veces que el desatascador ya pidió reparar `tid` (cadena de intentos)."""
+    ruta = _ruta_reparaciones_estado(raiz)
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            datos = json.load(fh)
+    except Exception:
+        datos = {}
+    n = int(datos.get(tid) or 0)
+    if incrementar:
+        n += 1
+        datos[tid] = n
+        _guardar_estado(ruta, datos)
+    return n
+
+
+def registrar_reparacion_pendiente(raiz, tid, objecion, ahora=None):
+    """El Mando no respondió: la petición queda escrita para el director."""
+    ruta = _ruta_reparaciones_pendientes(raiz)
+    try:
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "a", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps(
+                    {
+                        "tarea": tid,
+                        "objecion": objecion,
+                        "automatico": True,
+                        "t": ahora or time.time(),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+        return True
+    except OSError:
+        return False
 
 
 def seguimiento_de(tid, entrada, tarea, faltan):
@@ -425,6 +509,62 @@ def avisar_por_telegram(texto):
         return False
 
 
+def reparar_bloqueantes(
+    bloqueantes, raiz=None, enviar=post_reintentar, ahora=None,
+):
+    """Una revisión bloqueante no se rechaza: se repara con la objeción como cambio.
+
+    (2026-10-05, `architecture/bloqueadas-reparacion.md` §4) Llama a
+    `POST /api/mando/reintentar` con `{ids:[tid], automatico:true}`. Si el
+    Mando no responde, la petición queda en `reparaciones-pendientes.jsonl`
+    para que la levante el director. Solo al tercer intento con objeción de la
+    misma cadena marca `escalar` — nunca `rechazada`. El aviso va al Chat
+    Director en una línea.
+    """
+    raiz = raiz or RAIZ
+    frases = []
+    for tid, objecion in bloqueantes:
+        intentos = intentos_reparacion(raiz, tid, incrementar=True)
+        accion = accion_bloqueante(intentos)
+        if accion == "escalar":
+            frases.append(
+                "escalo %s al director: tercer intento con objeción de la misma cadena"
+                % tid
+            )
+            texto = (
+                "*Escalado · %s*\nTercer intento con objeción de la misma cadena. "
+                "No se rechaza: la decide el director.\n\n%s" % (tid, objecion)
+            )
+        else:
+            ok = enviar(tid) if enviar else False
+            if ok:
+                frases.append(
+                    "reparación automática de %s con la objeción del revisor" % tid
+                )
+            else:
+                registrar_reparacion_pendiente(raiz, tid, objecion, ahora)
+                frases.append(
+                    "reparación de %s pendiente en archivo: el Mando no responde" % tid
+                )
+            texto = (
+                "*Reparación automática · %s*\n%s"
+                % (tid, objecion)
+            )
+        try:
+            director_chat.publicar(
+                texto,
+                de="desatascador",
+                rol="sistema",
+                tipo="aviso",
+                canal="mando",
+                canales=["claude-cowork"],
+                tarea=tid,
+            )
+        except Exception:
+            pass
+    return frases
+
+
 def rechazar_puertas(puertas, binario="starseed-puente", avisar=avisar_por_telegram):
     """Ejecuta el veredicto que ya estaba dado. NUNCA aprueba.
 
@@ -632,7 +772,9 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
     # reloj del atasco se había reiniciado con un commit mío.)
     tareas_conocidas = _tareas_de_las_colas()
     declarados = {i: list(t.get("archivos") or []) for i, t in tareas_conocidas.items()}
-    puertas, parciales = clasificar_puertas(progreso, ahora, declarados)
+    puertas, parciales, bloqueantes = clasificar_puertas(progreso, ahora, declarados)
+    if bloqueantes:
+        frases += reparar_bloqueantes(bloqueantes, raiz=raiz, ahora=ahora)
     if puertas:
         frases += rechazar_puertas(puertas)
     if parciales:
@@ -641,7 +783,7 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
         )
 
     atascado, razon = orquestador_atascado(vivo, len(procesos), quieto)
-    if atascado and not puertas and not parciales:
+    if atascado and not puertas and not parciales and not bloqueantes:
         frases.append(
             "ATASCO: orquestador %s y no hay nada que yo pueda resolver solo" % razon
         )
