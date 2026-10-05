@@ -99,7 +99,10 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
     todos los archivos declarados. Tirar código verde y útil para volver a
     pedirlo entero es la peor economía posible. Desde hoy:
 
-      · revisión bloqueante           → rechazar (hay un defecto de verdad)
+      · revisión bloqueante           → (2026-10-05) REPARAR con la objeción
+                                        como cambio, no rechazar; solo al
+                                        tercer intento se escala (ver §4 del
+                                        contrato y `reparar_puertas`)
       · no tocó NINGÚN archivo suyo   → rechazar (hizo otra cosa)
       · tocó algunos pero no todos    → APROBAR e integrar lo verde, y el resto
                                         sale como tarea de seguimiento, pequeña
@@ -148,6 +151,126 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
 def puertas_a_rechazar(progreso, ahora, tope_min=6):
     """Solo las que hay que tirar. Ver `clasificar_puertas`."""
     return clasificar_puertas(progreso, ahora, None, tope_min)[0]
+
+
+# ---------------------------------------------------------------- reparar primero
+#
+# (2026-10-05, contrato `architecture/bloqueadas-reparacion.md` §4) Una revisión
+# bloqueante confirmada YA NO se rechaza: su objeción es información y se
+# convierte en el cambio del siguiente intento vía `POST /api/mando/reintentar`.
+# Solo al tercer intento con objeción de la misma cadena de sucesores se marca
+# `escalar` (nunca `rechazada`). Si el Mando no responde, la petición queda en
+# `mando/reparaciones-pendientes.jsonl` para que el director la recoja.
+
+MOTIVO_BLOQUEANTE = "revisión bloqueante confirmada"
+URL_REINTENTAR = os.environ.get(
+    "STARSEED_URL_REINTENTAR", "http://127.0.0.1:9002/api/mando/reintentar"
+)
+MAX_INTENTOS_REPARACION = 3
+
+
+def intentos_con_objecion(tid, progreso):
+    """Cuántos intentos de la cadena de sucesores (`X`, `Xb`, `Xc`…) ya tienen
+    objeción del revisor. PURA: decide reparar frente a escalar."""
+    base = str(tid).rstrip("abcdefghijklmnopqrstuvwxyz")
+    n = 0
+    for clave, entrada in (progreso or {}).items():
+        if not isinstance(entrada, dict):
+            continue
+        if str(clave).startswith(base) and entrada.get("revisor") == "bloqueante":
+            n += 1
+    return max(1, n)
+
+
+def _post_json(url, carga):
+    """Cliente HTTP por defecto (urllib, sin dependencias). Devuelve True/False."""
+    import urllib.request
+
+    datos = json.dumps(carga).encode("utf-8")
+    peticion = urllib.request.Request(
+        url, data=datos, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(peticion, timeout=10) as r:
+            return 200 <= r.status < 300
+    except Exception:
+        return False
+
+
+def pedir_reparacion(tid, escalar=False, url=URL_REINTENTAR, http=None):
+    """Pide al Mando la reparación automática. Devuelve True si acusó recibo."""
+    enviar = http or _post_json
+    try:
+        return bool(enviar(url, {"ids": [tid], "automatico": True, "escalar": escalar}))
+    except Exception:
+        return False
+
+
+def guardar_reparacion_pendiente(tid, motivo, escalar, raiz=None):
+    """Deja la petición en disco para el director cuando el Mando no responde."""
+    raiz = raiz or RAIZ
+    ruta = os.path.join(
+        raiz, "starseed_memory_root", "mando", "reparaciones-pendientes.jsonl"
+    )
+    linea = {
+        "t": time.time(),
+        "id": tid,
+        "motivo": motivo,
+        "escalar": bool(escalar),
+    }
+    try:
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(linea, ensure_ascii=False) + "\n")
+        return ruta
+    except OSError:
+        return None
+
+
+def reparar_puertas(puertas, progreso=None, raiz=None, url=URL_REINTENTAR,
+                    http=None, publicar=None):
+    """Repara en vez de rechazar: la objeción del revisor como cambio.
+
+    Cada aviso va al Chat Director en una línea, en el momento, sin esperar al
+    parte horario (contrato §4). Avisar es un extra: nunca lanza.
+    """
+    decir = publicar
+    if decir is None:
+        def decir(texto, tid):
+            try:
+                director_chat.publicar(
+                    texto, de="desatascador", rol="sistema", tipo="aviso",
+                    canal="mando", canales=["claude-cowork"], tarea=tid,
+                )
+            except Exception:
+                pass
+
+    frases = []
+    for tid, motivo in puertas:
+        escalar = intentos_con_objecion(tid, progreso) >= MAX_INTENTOS_REPARACION
+        ok = pedir_reparacion(tid, escalar=escalar, url=url, http=http)
+        if not ok:
+            ruta = guardar_reparacion_pendiente(tid, motivo, escalar, raiz)
+            frases.append(
+                "Mando sin responder: dejo la reparación de %s en %s"
+                % (tid, ruta or "reparaciones-pendientes.jsonl")
+            )
+        if escalar:
+            texto = "*Escalado · %s*\nTercer intento con objeción del revisor: %s" % (
+                tid, motivo)
+            frases.append("escalo %s (tercer intento con objeción)" % tid)
+        else:
+            texto = (
+                "*Reparación automática · %s*\n"
+                "reparación automática de %s con la objeción del revisor: %s"
+                % (tid, tid, motivo)
+            )
+            frases.append("reparación automática de %s (%s)" % (tid, motivo))
+        try:
+            decir(texto, tid)
+        except Exception:
+            pass
+    return frases
 
 
 def seguimiento_de(tid, entrada, tarea, faltan):
@@ -633,8 +756,14 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
     tareas_conocidas = _tareas_de_las_colas()
     declarados = {i: list(t.get("archivos") or []) for i, t in tareas_conocidas.items()}
     puertas, parciales = clasificar_puertas(progreso, ahora, declarados)
-    if puertas:
-        frases += rechazar_puertas(puertas)
+    # (2026-10-05) La objeción del revisor se repara, no se rechaza: solo se
+    # sigue rechazando lo que no tocó NINGÚN archivo propio.
+    a_reparar = [p for p in puertas if p[1] == MOTIVO_BLOQUEANTE]
+    a_rechazar = [p for p in puertas if p[1] != MOTIVO_BLOQUEANTE]
+    if a_reparar:
+        frases += reparar_puertas(a_reparar, progreso=progreso)
+    if a_rechazar:
+        frases += rechazar_puertas(a_rechazar)
     if parciales:
         frases += aprobar_con_seguimiento(
             parciales, progreso=progreso, tareas=tareas_conocidas
