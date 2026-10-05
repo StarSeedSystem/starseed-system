@@ -508,9 +508,24 @@ class OmniAudioEngine {
         return hasChanges ? next : prev;
       });
 
-      this.rafId = requestAnimationFrame(loop);
+      this.siguienteFotograma(loop);
     };
 
+    this.siguienteFotograma(loop);
+  }
+
+  /**
+   * Pide el siguiente fotograma solo si el entorno aún sabe darlo. Sin `requestAnimationFrame`
+   * (servidor, o un entorno de pruebas ya desmontado) el bucle se detiene limpio y vuelve a
+   * poder arrancar, en vez de lanzar un ReferenceError fuera de todo `try`.
+   */
+  private siguienteFotograma(loop: FrameRequestCallback): void {
+    if (typeof requestAnimationFrame !== 'function') {
+      this.loopRunning = false;
+      this.lastTime = 0;
+      this.rafId = 0;
+      return;
+    }
     this.rafId = requestAnimationFrame(loop);
   }
 }

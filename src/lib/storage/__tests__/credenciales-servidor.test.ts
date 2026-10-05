@@ -8,6 +8,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+// Hermético (2026-10-05): el módulo lee `.env.local` del directorio de trabajo como respaldo de
+// `process.env`. En el Mac ese archivo tiene la clave de servicio REAL, así que «falla CERRADO sin
+// SUPABASE_SERVICE_ROLE_KEY» nunca podía fallar cerrado y tumbaba la puerta de vitest de cada
+// publicación. Aquí `.env.local` no existe: solo cuenta lo que cada prueba pone en `process.env`.
+vi.mock("node:fs", async (importOriginal) => {
+  const real = await importOriginal<typeof import("node:fs")>();
+  const readFileSync = ((ruta: Parameters<typeof real.readFileSync>[0], ...resto: unknown[]) => {
+    if (String(ruta).endsWith(".env.local")) {
+      throw Object.assign(new Error("ENOENT: .env.local fuera de las pruebas"), { code: "ENOENT" });
+    }
+    return (real.readFileSync as (...a: unknown[]) => unknown)(ruta, ...resto);
+  }) as typeof real.readFileSync;
+  return { ...real, default: { ...real, readFileSync }, readFileSync };
+});
+
 /** Cliente Supabase mínimo que simula `storage_credentials` en memoria. */
 function crearSupabaseFalso() {
   const filas = new Map<string, Record<string, unknown>>();

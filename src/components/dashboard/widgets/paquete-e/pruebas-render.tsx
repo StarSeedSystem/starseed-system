@@ -48,7 +48,12 @@ export function entornoNavegador() {
         resume() { return Promise.resolve(); } suspend() { return Promise.resolve(); } close() { return Promise.resolve(); }
     }
     g.AudioContext = ContextoAudio; g.webkitAudioContext = ContextoAudio;
-    g.requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(() => cb(0), 16) as unknown as number;
+    // (2026-10-05) El fotograma solo se entrega si el entorno sigue vivo: un bucle de animación
+    // (el motor de audio compartido, por ejemplo) que sobrevive al desmontaje ya no llama a
+    // `requestAnimationFrame` después de que jsdom se desmonte, que era el «ReferenceError:
+    // requestAnimationFrame is not defined» que tumbaba la puerta de vitest al publicar.
+    g.requestAnimationFrame = (cb: FrameRequestCallback) =>
+        setTimeout(() => { if (typeof (globalThis as any).requestAnimationFrame === "function") cb(0); }, 16) as unknown as number;
     g.cancelAnimationFrame = (id: number) => clearTimeout(id);
 }
 
