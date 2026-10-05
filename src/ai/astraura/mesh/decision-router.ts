@@ -25,22 +25,43 @@ import {
   WIFI_RECOVER_PROBES,
   WIFI_RECOVER_SCORE,
 } from "./constants";
+import {
+  actualizaResiliencia,
+  puntuacionHibrida,
+  type EstadoResiliencia,
+} from "./camr/metrica";
 import { getConnectivitySettings } from "./connectivity";
 // Adenda 149 · puerta de antenas por personalidad (pestaña «Señales»).
 import { preferredRouteFor } from "./persona-antenna-gate";
 import { getMeshState, pushRouteDecision } from "./store";
 import type { PreferredRoute } from "./connectivity";
+import type { ClaseTrafico, Medicion } from "./camr/tipos";
 import type { MeshRules, RouteDecision, TrafficClass } from "./types";
 
 /* ── Histéresis (memoria mínima del router) ────────────────────────────────── */
 
 let usingMeshFallback = false;
 let wifiRecoverStreak = 0;
+let resilienciaWifi: EstadoResiliencia = { ema: 0, n: 0 };
+let resilienciaMesh: EstadoResiliencia = { ema: 0, n: 0 };
+let ultimaMedicionWifi = -1;
+let ultimaMedicionMesh = -1;
+
+const CLASE_CAMR: Record<TrafficClass, ClaseTrafico> = {
+  P0: "control-critico",
+  P1: "mensajes",
+  P2: "tiempo-real",
+  P3: "masivo",
+};
 
 /** Solo pruebas: resetea la histéresis. */
 export function _resetRouterHysteresis(): void {
   usingMeshFallback = false;
   wifiRecoverStreak = 0;
+  resilienciaWifi = { ema: 0, n: 0 };
+  resilienciaMesh = { ema: 0, n: 0 };
+  ultimaMedicionWifi = -1;
+  ultimaMedicionMesh = -1;
 }
 
 /**
@@ -85,8 +106,53 @@ export interface DecideRouteInput {
  */
 export function decideRoute(input: DecideRouteInput): RouteDecision {
   const s = getMeshState();
-  const wifiScore = s.wifiHealth.score;
-  const meshScore = s.meshHealth.score;
+  const online = s.nodes.filter((n) => !n.isSelf && n.presence === "online");
+  const snrs = online.map((n) => n.snr).filter((v): v is number => typeof v === "number");
+  const capacidadWifiKbps = 100_000;
+  const capacidadMeshKbps = 21.88;
+  const medicionWifi: Medicion = {
+    rssiDbm: null,
+    snrDb: null,
+    ber: null,
+    ruidoDbm: null,
+    latenciaMs: s.wifiHealth.latencyMs ?? null,
+    perdida: s.wifiHealth.loss ?? null,
+    tiempoAireUsado: null,
+    vecinos: s.wifiHealth.score > 0 ? 1 : 0,
+    anchoBandaKbps: capacidadWifiKbps * s.wifiHealth.score,
+    at: s.wifiHealth.at,
+  };
+  const utilizacionMesh = s.self?.channelUtilization ?? null;
+  const medicionMesh: Medicion = {
+    rssiDbm: null,
+    snrDb: snrs.length ? snrs.reduce((a, b) => a + b, 0) / snrs.length : null,
+    ber: null,
+    ruidoDbm: null,
+    latenciaMs: s.meshHealth.latencyMs ?? null,
+    perdida: s.meshHealth.loss ?? (s.meshHealth.at > 0 ? 1 - s.meshHealth.score : null),
+    tiempoAireUsado: utilizacionMesh === null ? null : utilizacionMesh / 100,
+    vecinos: online.length,
+    anchoBandaKbps:
+      utilizacionMesh === null
+        ? capacidadMeshKbps * s.meshHealth.score
+        : capacidadMeshKbps * Math.max(0, 1 - utilizacionMesh / 100),
+    at: s.meshHealth.at,
+  };
+  if (medicionWifi.at > 0 && medicionWifi.at !== ultimaMedicionWifi) {
+    resilienciaWifi = actualizaResiliencia(resilienciaWifi, medicionWifi);
+    ultimaMedicionWifi = medicionWifi.at;
+  }
+  if (medicionMesh.at > 0 && medicionMesh.at !== ultimaMedicionMesh) {
+    resilienciaMesh = actualizaResiliencia(resilienciaMesh, medicionMesh);
+    ultimaMedicionMesh = medicionMesh.at;
+  }
+  const claseCamr = CLASE_CAMR[input.cls];
+  const wifiScore = s.wifiHealth.at > 0
+    ? puntuacionHibrida(medicionWifi, capacidadWifiKbps, claseCamr, resilienciaWifi)
+    : s.wifiHealth.score;
+  const meshScore = s.meshHealth.at > 0
+    ? puntuacionHibrida(medicionMesh, capacidadMeshKbps, claseCamr, resilienciaMesh)
+    : s.meshHealth.score;
   const meshReady = s.status === "ready" || s.status === "degraded";
   const rules = input.neuronRules ?? null;
   const airtime = input.airtimeAvailable ?? true;
