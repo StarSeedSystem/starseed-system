@@ -251,7 +251,7 @@ describe("resumenDirectores", () => {
     expect(vigilante).toMatchObject({ vivo: false, ultimaSalida: -15 });
     expect(telegram).toMatchObject({ vivo: true, pid: 456 });
     expect(telegram?.ultimaSalida).toBeUndefined();
-    expect(r).toHaveLength(7);
+    expect(r).toHaveLength(8);
   });
 
   it("acepta hora ISO y milisegundos", () => {
@@ -265,6 +265,21 @@ describe("resumenDirectores", () => {
       { quien: "eco", texto: "ms", hora: (AHORA - 5) * 1000 },
     ], AHORA);
     expect(r2.find((d) => d.nombre === "eco")?.hace).toBe(5);
+  });
+
+  it("el optimizador cuenta vivo por proceso o por mensaje firmado director-optimizador", () => {
+    const conServicio = resumenDirectores("77\t0\tcom.starseed.optimizador", [], AHORA);
+    const optServicio = conServicio.find((d) => d.nombre === "optimizador");
+    expect(optServicio).toMatchObject({ vivo: true, pid: 77 });
+    const conCanal = resumenDirectores("", [
+      { quien: "director-optimizador", texto: "midiendo", hora: AHORA - 20 },
+    ], AHORA);
+    const optCanal = conCanal.find((d) => d.nombre === "optimizador");
+    expect(optCanal).toMatchObject({ vivo: false, ultimoMensaje: "midiendo", hace: 20 });
+    const sinNada = resumenDirectores("", [
+      { quien: "eco", texto: "otro", hora: AHORA - 5 },
+    ], AHORA);
+    expect(sinNada.find((d) => d.nombre === "optimizador")?.vivo).toBe(false);
   });
 
   it("sin proceso ni mensajes: vivo false, sin opcionales", () => {
