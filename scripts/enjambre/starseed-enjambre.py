@@ -4573,6 +4573,18 @@ AREAS_CONTEXTO = [
         ["CLAUDE.md"],
         "Regla dorada §11: una ruta nueva NO es accesible hasta registrarla en dock-config, app-catalog y packages.",
     ),
+    (
+        ("diseno", "diseño", "ui", "interfaz", "pantalla", "componente", "estilo",
+         "tema", "widget", "css", "tailwind", "responsive", "móvil", "animación",
+         "grafico", "cartel", "presentacion", "portada", "identidad"),
+        "diseno",
+        [
+            "memory/diseno/identidades.md",
+            "memory/diseno/armonia.md",
+            "memory/diseno/referencias.md",
+        ],
+        "Estética coherente basada en patrones armónicos y geometría sagrada (φ, Fibonacci, vesica piscis, flor de la vida, metatrón, sólidos platónicos, espiral áurea). Identidad gráfica por contexto y verificación en todas las pantallas, tamaños y sistemas (móvil, tablet, escritorio, plegable, TV).",
+    ),
 ]
 
 
