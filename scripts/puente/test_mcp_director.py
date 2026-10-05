@@ -15,6 +15,7 @@ _CARPETA = Path(__file__).resolve().parent
 sys.path.insert(0, str(_CARPETA))
 
 import director_chat
+import produccion_candidatos as pc
 
 _espec = importlib.util.spec_from_file_location(
     "mcp_director_bajo_prueba", _CARPETA / "mcp_director.py"
@@ -100,6 +101,12 @@ class PruebasAtender(unittest.TestCase):
                 "director_decir",
                 "director_bandeja",
                 "director_responder",
+                "produccion_estado",
+                "produccion_candidatos",
+                "produccion_historial",
+                "produccion_vetar",
+                "produccion_pausar",
+                "produccion_reanudar",
             ],
         )
 
@@ -174,6 +181,139 @@ class PruebasAtender(unittest.TestCase):
     def test_metodo_desconocido(self):
         r = mcp_director.atender(self._p("no/existe"))
         self.assertEqual(r["error"]["code"], -32601)
+
+
+class PruebasProduccion(unittest.TestCase):
+    """Herramientas produccion_* con rutas temporales (HOME y STARSEED_ROOT)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._home = os.environ.get("HOME")
+        self._raiz = os.environ.get("STARSEED_ROOT")
+        os.environ["HOME"] = self.tmp.name
+        os.environ["STARSEED_ROOT"] = self.tmp.name
+
+    def tearDown(self):
+        for var, valor in (("HOME", self._home), ("STARSEED_ROOT", self._raiz)):
+            if valor is None:
+                os.environ.pop(var, None)
+            else:
+                os.environ[var] = valor
+        self.tmp.cleanup()
+
+    def _p(self, metodo, params=None, ident=1):
+        peticion = {"jsonrpc": "2.0", "id": ident, "method": metodo}
+        if params is not None:
+            peticion["params"] = params
+        return peticion
+
+    def _call(self, nombre, argumentos):
+        r = mcp_director.atender(
+            self._p("tools/call", {"name": nombre, "arguments": argumentos})
+        )
+        assert "error" not in r, r.get("error")
+        self.assertNotIn("isError", r["result"], r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def _fallo(self, nombre, argumentos):
+        r = mcp_director.atender(
+            self._p("tools/call", {"name": nombre, "arguments": argumentos})
+        )
+        assert "error" not in r, r.get("error")
+        self.assertTrue(r["result"]["isError"])
+        return r["result"]["content"][0]["text"]
+
+    def _ruta_estado(self):
+        return (
+            Path(self.tmp.name)
+            / "starseed_memory_root"
+            / "mando"
+            / "produccion-estado.json"
+        )
+
+    def test_estado_sin_archivo_devuelve_estado_vacio(self):
+        texto = self._call("produccion_estado", {})
+        datos = json.loads(texto)
+        self.assertEqual(datos, mcp_director.ESTADO_VACIO)
+
+    def test_estado_lee_archivo(self):
+        ruta = self._ruta_estado()
+        ruta.parent.mkdir(parents=True)
+        ruta.write_text(
+            json.dumps({"lote": "abc123", "paso": "puertas"}), encoding="utf-8"
+        )
+        datos = json.loads(self._call("produccion_estado", {}))
+        self.assertEqual(datos["lote"], "abc123")
+        self.assertEqual(datos["paso"], "puertas")
+
+    def test_candidatos_sin_repo_devuelve_mensaje(self):
+        self.assertIn("No hay candidatos", self._call("produccion_candidatos", {}))
+
+    def test_historial_sin_archivo(self):
+        self.assertIn(
+            "Sin historial", self._call("produccion_historial", {})
+        )
+
+    def test_historial_devuelve_ultimas_lineas(self):
+        carpeta = Path(self.tmp.name) / ".starseed" / "produccion"
+        carpeta.mkdir(parents=True)
+        with open(carpeta / "historial.jsonl", "w", encoding="utf-8") as f:
+            for i in range(5):
+                f.write(json.dumps({"paso": i}) + "\n")
+        texto = self._call("produccion_historial", {"limite": 2})
+        lineas = texto.strip().splitlines()
+        self.assertEqual(len(lineas), 2)
+        self.assertIn('"paso": 3', lineas[0])
+        self.assertIn('"paso": 4', lineas[1])
+
+    def test_vetar_escribe_veto(self):
+        texto = self._call(
+            "produccion_vetar",
+            {"sha": "abc123", "quien": "alex", "motivo": "riesgo alto"},
+        )
+        self.assertIn("Vetado abc123", texto)
+        vetos = pc.cargar_vetos(
+            os.path.join(self.tmp.name, ".starseed", "produccion", "vetos.json")
+        )
+        self.assertEqual(vetos["abc123"]["quien"], "alex")
+        self.assertEqual(vetos["abc123"]["motivo"], "riesgo alto")
+
+    def test_vetar_sin_sha_ni_tid_falla(self):
+        self.assertIn(
+            "sha o tid",
+            self._fallo(
+                "produccion_vetar", {"quien": "alex", "motivo": "motivo"}
+            ),
+        )
+
+    def test_escrituras_exigen_quien_y_motivo(self):
+        for nombre in ("produccion_vetar", "produccion_pausar", "produccion_reanudar"):
+            with self.subTest(herramienta=nombre):
+                self.assertIn(
+                    "obligatorios", self._fallo(nombre, {"sha": "abc123"})
+                )
+
+    def test_pausar_y_reanudar(self):
+        ruta = Path(self.tmp.name) / ".starseed" / "produccion-pausada.json"
+        texto = self._call(
+            "produccion_pausar", {"quien": "hermes", "motivo": "mantenimiento"}
+        )
+        self.assertIn("Producción pausada", texto)
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        self.assertEqual(datos["quien"], "hermes")
+        self.assertEqual(datos["motivo"], "mantenimiento")
+        self.assertIn("desde", datos)
+        texto = self._call(
+            "produccion_reanudar", {"quien": "alex", "motivo": "listo"}
+        )
+        self.assertIn("Producción reanudada", texto)
+        self.assertFalse(ruta.exists())
+        self.assertIn(
+            "en marcha",
+            self._call(
+                "produccion_reanudar", {"quien": "alex", "motivo": "otra vez"}
+            ),
+        )
 
 
 class PruebaProcesoReal(unittest.TestCase):
