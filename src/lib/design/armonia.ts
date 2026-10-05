@@ -40,3 +40,42 @@ export function contieneTokensArmonia(cssText: string, configText: string): {
     clavesConservadas: clavesCssConservadas && clavesConfigConservadas,
   };
 }
+
+export interface PasoPhi {
+  nombre: string;
+  exponente: number;
+  min: number;
+  max: number;
+}
+
+/* Extrae los pasos --fs-phi-<n> con su clamp(min, ..., max) en rem */
+export function extraerEscalaPhi(cssText: string): PasoPhi[] {
+  const re = /--fs-phi-(-?\d+):\s*clamp\(\s*([\d.]+)rem\s*,[^,]+,\s*([\d.]+)rem\s*\)/g;
+  const pasos: PasoPhi[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(cssText)) !== null) {
+    pasos.push({
+      nombre: `--fs-phi-${m[1]}`,
+      exponente: Number.parseInt(m[1], 10),
+      min: Number.parseFloat(m[2]),
+      max: Number.parseFloat(m[3]),
+    });
+  }
+  return pasos.sort((a, b) => a.exponente - b.exponente);
+}
+
+/* Comprueba mínimo ≤ máximo en cada paso y razón ≈ φ entre máximos consecutivos */
+export function verificarEscalaPhi(cssText: string, tolerancia = 0.01): {
+  minimosCoherentes: boolean;
+  razonPhi: boolean;
+  pasos: PasoPhi[];
+} {
+  const pasos = extraerEscalaPhi(cssText);
+  const minimosCoherentes = pasos.every((p) => p.min <= p.max);
+  const razonPhi = pasos.every((p, i) => {
+    if (i === 0) return true;
+    const razon = p.max / pasos[i - 1].max;
+    return Math.abs(razon - 1.618) <= tolerancia;
+  });
+  return { minimosCoherentes, razonPhi, pasos };
+}

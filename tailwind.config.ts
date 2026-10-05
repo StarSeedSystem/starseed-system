@@ -114,6 +114,7 @@ export default {
       fontSize: {
         'phi--2': 'var(--fs-phi--2)',
         'phi--1': 'var(--fs-phi--1)',
+        'phi-0': 'var(--fs-phi-0)',
         'phi-1': 'var(--fs-phi-1)',
         'phi-2': 'var(--fs-phi-2)',
         'phi-3': 'var(--fs-phi-3)',

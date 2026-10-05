@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { leerArchivo, contieneTokensArmonia } from "../armonia";
+import { leerArchivo, contieneTokensArmonia, verificarEscalaPhi } from "../armonia";
 
 /* DIS1005C — armonía: escala tipográfica φ y espaciado Fibonacci como tokens */
 
@@ -25,5 +25,14 @@ describe("tokens de armonía", () => {
       expect(css).toContain(`--fib-${i}:`);
       expect(config).toContain(`fib-${i}`);
     }
+  });
+
+  /* DIS1005P — los clamp de --fs-phi-* deben tener mínimo ≤ máximo y razón φ */
+  it("toda la escala --fs-phi-* tiene mínimo ≤ máximo y razón ≈ 1.618 entre máximos", () => {
+    const css = leerArchivo("src/app/globals.css");
+    const r = verificarEscalaPhi(css);
+    expect(r.pasos.length).toBeGreaterThanOrEqual(6);
+    expect(r.minimosCoherentes).toBe(true);
+    expect(r.razonPhi).toBe(true);
   });
 });
