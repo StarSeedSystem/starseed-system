@@ -1,8 +1,7 @@
-"""Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas.
+"""Presupuesto multiventana: reserva, ritmo y cuotas desconocidas explícitas.
 
-Módulo puro: sin IO ni dependencias externas. Decide si un coste estimado cabe
-en todas las ventanas de cuota observadas, aplicando reserva de seguridad y un
-ritmo que reparte el consumo a lo largo de cada ventana.
+Módulo puro (sin IO ni dependencias) que decide si un coste estimado cabe en
+todas las ventanas de cuota observadas.
 """
 
 from __future__ import annotations
@@ -25,24 +24,28 @@ def _es_finito(valor: object) -> bool:
     )
 
 
+def _no_verificado() -> dict:
+    return {
+        "permitido": False,
+        "motivos": [MOTIVO_NO_VERIFICADO],
+        "reintentar_en": None,
+    }
+
+
 def _validar_ventana(v: dict, ahora: float, antiguedad_max: float) -> str | None:
     """None si la ventana es válida; motivo de rechazo en caso contrario."""
-    if not isinstance(v, dict):
+    if not isinstance(v, dict) or not isinstance(v.get("unidad"), str):
         return MOTIVO_DATOS_INVALIDOS
-    if not isinstance(v.get("unidad"), str) or not v["unidad"]:
+    if not v["unidad"]:
         return MOTIVO_DATOS_INVALIDOS
-    for clave in ("limite", "usado", "inicio", "reinicio", "observado"):
-        if not _es_finito(v.get(clave)):
-            return MOTIVO_DATOS_INVALIDOS
     reservado = v.get("reservado", 0.0)
-    if not _es_finito(reservado):
+    claves = ("limite", "usado", "inicio", "reinicio", "observado")
+    if any(not _es_finito(v.get(c)) for c in claves) or not _es_finito(reservado):
         return MOTIVO_DATOS_INVALIDOS
     if v["limite"] <= 0 or v["usado"] < 0 or reservado < 0:
         return MOTIVO_DATOS_INVALIDOS
-    # La ventana debe tener duración positiva para repartir el ritmo.
-    if v["reinicio"] <= v["inicio"]:
+    if v["reinicio"] <= v["inicio"]:  # duración positiva para repartir ritmo
         return MOTIVO_DATOS_INVALIDOS
-    # Coherencia temporal: nada de fotos del futuro ni ventanas ya vencidas.
     if v["observado"] < v["inicio"] or v["observado"] > ahora:
         return MOTIVO_DATOS_INVALIDOS
     if ahora >= v["reinicio"]:
@@ -60,10 +63,7 @@ def decidir_presupuesto(
     antiguedad_max: float = 900.0,
     rafaga: float = 0.05,
 ) -> dict:
-    """Decide si el coste estimado cabe en TODAS las ventanas observadas.
-
-    Devuelve {"permitido": bool, "motivos": list[str], "reintentar_en": float|None}.
-    """
+    """Decide si el coste estimado cabe en TODAS las ventanas observadas."""
     motivos: list[str] = []
     reintentar_en: float | None = None
 
@@ -73,20 +73,12 @@ def decidir_presupuesto(
         or not isinstance(costes, dict)
         or not _es_finito(ahora)
     ):
-        return {
-            "permitido": False,
-            "motivos": [MOTIVO_NO_VERIFICADO],
-            "reintentar_en": None,
-        }
+        return _no_verificado()
 
     # Costes: cada estimación debe ser finita y no negativa; falta => no verificado.
-    for unidad, coste in costes.items():
+    for coste in costes.values():
         if not _es_finito(coste) or coste < 0:
-            return {
-                "permitido": False,
-                "motivos": [MOTIVO_NO_VERIFICADO],
-                "reintentar_en": None,
-            }
+            return _no_verificado()
 
     for v in ventanas:
         motivo = _validar_ventana(v, ahora, antiguedad_max)
@@ -119,7 +111,7 @@ def decidir_presupuesto(
                 reintentar_en = float(v["reinicio"])
             continue
 
-        if coste == 0:
+        if coste == 0:  # sin consumo nuevo, el ritmo no aplica
             continue
 
         tramo = v["reinicio"] - v["inicio"]
@@ -128,8 +120,7 @@ def decidir_presupuesto(
             if MOTIVO_RITMO not in motivos:
                 motivos.append(MOTIVO_RITMO)
             # Instante exacto en que el ritmo permitiría este total.
-            objetivo = total / techo - rafaga
-            instante = v["inicio"] + objetivo * tramo
+            instante = v["inicio"] + (total / techo - rafaga) * tramo
             instante = min(instante, float(v["reinicio"]))
             if reintentar_en is None or instante < reintentar_en:
                 reintentar_en = instante
