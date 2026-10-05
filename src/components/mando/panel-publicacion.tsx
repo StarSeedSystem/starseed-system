@@ -21,6 +21,7 @@ import { CircleDashed, RefreshCw, Ruler } from "lucide-react";
 import type { DiarioPublicacion } from "@/lib/mando/publicador-tipos";
 import type { EstadoPublicacion } from "@/lib/mando/publicacion";
 import { PublicarAhora } from "@/components/mando/publicar-ahora";
+import { PanelProduccion } from "@/components/mando/panel-produccion";
 
 /** Clase del semáforo según el estado de la comprobación. */
 function claseSemaforo(estado: "desconocido" | "ok" | "falla"): string {
@@ -204,6 +205,9 @@ export function PanelPublicacion() {
                     </ul>
                 )}
             </div>
+
+            {/* Tarjeta del director de producción (PRD1005I) */}
+            <PanelProduccion />
 
         </section>
     );
