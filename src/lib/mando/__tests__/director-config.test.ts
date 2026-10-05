@@ -29,6 +29,19 @@ describe("DEFAULTS", () => {
                 max_capturas_tarea: 14,
                 intervalo_s: 120,
             },
+            produccion: {
+                activo: true,
+                modo: "seco",
+                intervalo_s: 120,
+                ventana_min: 20,
+                max_publicaciones_dia: 24,
+                expres_alex: true,
+                umbral_jev: 0.7,
+                umbral_diseno: 75,
+                migraciones: "aditivas",
+                max_tags_nativos_semana: 1,
+                revertir_auto: true,
+            },
         });
     });
 });
@@ -236,5 +249,110 @@ describe("fusionar", () => {
     it("un diseno que no es objeto conserva la base intacta", () => {
         const r = fusionar(DEFAULTS, { diseno: "no" });
         expect(r.diseno).toEqual(DEFAULTS.diseno);
+    });
+});
+
+describe("produccion (§7)", () => {
+    it("trae los valores por defecto del contrato", () => {
+        const r = validar({});
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.valor.produccion).toEqual({
+            activo: true,
+            modo: "seco",
+            intervalo_s: 120,
+            ventana_min: 20,
+            max_publicaciones_dia: 24,
+            expres_alex: true,
+            umbral_jev: 0.7,
+            umbral_diseno: 75,
+            migraciones: "aditivas",
+            max_tags_nativos_semana: 1,
+            revertir_auto: true,
+        });
+    });
+
+    it("acepta un bloque produccion completo y válido en los bordes", () => {
+        const r = validar({
+            produccion: {
+                activo: false, modo: "auto", intervalo_s: 30, ventana_min: 240,
+                max_publicaciones_dia: 100, expres_alex: false, umbral_jev: 0.99,
+                umbral_diseno: 100, migraciones: "ninguna", max_tags_nativos_semana: 7,
+                revertir_auto: false,
+            },
+        });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.valor.produccion.modo).toBe("auto");
+            expect(r.valor.produccion.umbral_jev).toBe(0.99);
+            expect(r.valor.produccion.migraciones).toBe("ninguna");
+        }
+    });
+
+    it("rechaza modo y migraciones fuera de los conjuntos válidos", () => {
+        for (const malo of ["publicar", "", 3, null]) {
+            const r = validar({ produccion: { modo: malo } });
+            expect(r.ok).toBe(false);
+            if (!r.ok) expect(r.errores).toContain("'produccion.modo' debe ser 'seco', 'canario' o 'auto'");
+        }
+        const m = validar({ produccion: { migraciones: "destructivas" } });
+        expect(m.ok).toBe(false);
+        if (!m.ok) expect(m.errores).toContain("'produccion.migraciones' debe ser 'aditivas' o 'ninguna'");
+    });
+
+    it("rechaza rangos enteros fuera de sus márgenes", () => {
+        const casos: [string, [number, number]][] = [
+            ["intervalo_s", [30, 3600]],
+            ["ventana_min", [0, 240]],
+            ["max_publicaciones_dia", [0, 100]],
+            ["umbral_diseno", [0, 100]],
+            ["max_tags_nativos_semana", [0, 7]],
+        ];
+        for (const [k, [minV, maxV]] of casos) {
+            const r = validar({ produccion: { [k]: maxV + 1 } });
+            expect(r.ok).toBe(false);
+            if (!r.ok) {
+                expect(r.errores).toContain(`'produccion.${k}' debe ser entero entre ${minV} y ${maxV}`);
+            }
+        }
+    });
+
+    it("rechaza umbral_jev fuera de 0.5..0.99 o que no sea número", () => {
+        for (const malo of [0.49, 1.0, "0.7", true, null]) {
+            const r = validar({ produccion: { umbral_jev: malo } });
+            expect(r.ok).toBe(false);
+            if (!r.ok) {
+                expect(r.errores).toContain("'produccion.umbral_jev' debe ser un número entre 0.5 y 0.99");
+            }
+        }
+    });
+
+    it("rechaza booleanos que no son booleanos", () => {
+        const r = validar({ produccion: { activo: 1, expres_alex: "sí", revertir_auto: 0 } });
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+            expect(r.errores).toContain("'produccion.activo' debe ser un booleano");
+            expect(r.errores).toContain("'produccion.expres_alex' debe ser un booleano");
+            expect(r.errores).toContain("'produccion.revertir_auto' debe ser un booleano");
+        }
+    });
+
+    it("un bloque que no es objeto da error claro", () => {
+        const r = validar({ produccion: 42 });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.errores).toContain("'produccion' debe ser un objeto");
+    });
+
+    it("fusión válida parcial conserva el resto", () => {
+        const r = fusionar(DEFAULTS, { produccion: { modo: "canario", intervalo_s: 300 } });
+        expect(r.produccion.modo).toBe("canario");
+        expect(r.produccion.intervalo_s).toBe(300);
+        expect(r.produccion.ventana_min).toBe(20);
+        expect(r.produccion.activo).toBe(true);
+    });
+
+    it("un produccion que no es objeto conserva la base intacta", () => {
+        const r = fusionar(DEFAULTS, { produccion: "no" });
+        expect(r.produccion).toEqual(DEFAULTS.produccion);
     });
 });

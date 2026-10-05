@@ -32,6 +32,20 @@ export interface DisenoConfig {
     intervalo_s: number;
 }
 
+export interface ProduccionConfig {
+    activo: boolean;
+    modo: "seco" | "canario" | "auto";
+    intervalo_s: number;
+    ventana_min: number;
+    max_publicaciones_dia: number;
+    expres_alex: boolean;
+    umbral_jev: number;
+    umbral_diseno: number;
+    migraciones: "aditivas" | "ninguna";
+    max_tags_nativos_semana: number;
+    revertir_auto: boolean;
+}
+
 export interface ConfigDirector {
     espera_aprobacion_min: number;
     intervalo_s: number;
@@ -44,6 +58,7 @@ export interface ConfigDirector {
     disco_min_gb: number;
     optimizador: OptimizadorConfig;
     diseno: DisenoConfig;
+    produccion: ProduccionConfig;
 }
 
 // idéntico a config_director.py; si cambias uno, cambia el otro
@@ -72,6 +87,19 @@ export const DEFAULTS: ConfigDirector = {
         juez_visual: true,
         max_capturas_tarea: 14,
         intervalo_s: 120,
+    },
+    produccion: {
+        activo: true,
+        modo: "seco",
+        intervalo_s: 120,
+        ventana_min: 20,
+        max_publicaciones_dia: 24,
+        expres_alex: true,
+        umbral_jev: 0.7,
+        umbral_diseno: 75,
+        migraciones: "aditivas",
+        max_tags_nativos_semana: 1,
+        revertir_auto: true,
     },
 };
 
@@ -142,6 +170,45 @@ function erroresDiseno(v: unknown): string[] {
     return errores;
 }
 
+const RANGOS_PRODUCCION: Record<string, [number, number]> = {
+    intervalo_s: [30, 3600],
+    ventana_min: [0, 240],
+    max_publicaciones_dia: [0, 100],
+    umbral_diseno: [0, 100],
+    max_tags_nativos_semana: [0, 7],
+};
+const MODOS_PRODUCCION = ["seco", "canario", "auto"] as const;
+const MIGRACIONES_PRODUCCION = ["aditivas", "ninguna"] as const;
+
+function erroresProduccion(v: unknown): string[] {
+    if (!esObjeto(v)) return ["'produccion' debe ser un objeto"];
+    const errores: string[] = [];
+    for (const k of ["activo", "expres_alex", "revertir_auto"] as const) {
+        if (k in v && typeof v[k] !== "boolean") {
+            errores.push(`'produccion.${k}' debe ser un booleano`);
+        }
+    }
+    if ("modo" in v && !(MODOS_PRODUCCION as readonly unknown[]).includes(v.modo)) {
+        errores.push("'produccion.modo' debe ser 'seco', 'canario' o 'auto'");
+    }
+    if ("migraciones" in v && !(MIGRACIONES_PRODUCCION as readonly unknown[]).includes(v.migraciones)) {
+        errores.push("'produccion.migraciones' debe ser 'aditivas' o 'ninguna'");
+    }
+    for (const [k, [minV, maxV]] of Object.entries(RANGOS_PRODUCCION)) {
+        const v2 = v[k];
+        if (k in v && !(typeof v2 === "number" && Number.isFinite(v2) && Number.isInteger(v2) && v2 >= minV && v2 <= maxV)) {
+            errores.push(`'produccion.${k}' debe ser entero entre ${minV} y ${maxV}`);
+        }
+    }
+    if ("umbral_jev" in v) {
+        const j = v.umbral_jev;
+        if (!(typeof j === "number" && Number.isFinite(j) && j >= 0.5 && j <= 0.99)) {
+            errores.push("'produccion.umbral_jev' debe ser un número entre 0.5 y 0.99");
+        }
+    }
+    return errores;
+}
+
 /**
  * Valida solo las claves presentes en `entrada` (como `validar(d)` en Python)
  * y, si no hay errores, fusiona lo recibido sobre `DEFAULTS` (como
@@ -163,6 +230,7 @@ export function validar(entrada: unknown): { ok: true; valor: ConfigDirector } |
     if ("escalada" in entrada) errores.push(...erroresEscalada(entrada.escalada));
     if ("optimizador" in entrada) errores.push(...erroresOptimizador(entrada.optimizador));
     if ("diseno" in entrada) errores.push(...erroresDiseno(entrada.diseno));
+    if ("produccion" in entrada) errores.push(...erroresProduccion(entrada.produccion));
 
     if (errores.length > 0) return { ok: false, errores };
     return { ok: true, valor: fusionar(DEFAULTS, entrada) };
@@ -212,6 +280,30 @@ function fusionarEscalada(base: EscaladaConfig, parcial: unknown): EscaladaConfi
     };
 }
 
+function fusionarProduccion(base: ProduccionConfig, parcial: unknown): ProduccionConfig {
+    const obj = esObjeto(parcial) ? parcial : {};
+    const resultado: ProduccionConfig = { ...base };
+    for (const k of ["activo", "expres_alex", "revertir_auto"] as const) {
+        if (typeof obj[k] === "boolean") resultado[k] = obj[k];
+    }
+    if (typeof obj.modo === "string" && (MODOS_PRODUCCION as readonly string[]).includes(obj.modo)) {
+        resultado.modo = obj.modo as ProduccionConfig["modo"];
+    }
+    if (typeof obj.migraciones === "string" && (MIGRACIONES_PRODUCCION as readonly string[]).includes(obj.migraciones)) {
+        resultado.migraciones = obj.migraciones as ProduccionConfig["migraciones"];
+    }
+    if (typeof obj.umbral_jev === "number" && Number.isFinite(obj.umbral_jev) && obj.umbral_jev >= 0.5 && obj.umbral_jev <= 0.99) {
+        resultado.umbral_jev = obj.umbral_jev;
+    }
+    for (const [k, [minV, maxV]] of Object.entries(RANGOS_PRODUCCION)) {
+        const v = obj[k];
+        if (typeof v === "number" && Number.isFinite(v) && Number.isInteger(v) && v >= minV && v <= maxV) {
+            (resultado as unknown as Record<string, number>)[k] = v;
+        }
+    }
+    return resultado;
+}
+
 /**
  * Fusión superficial: cada campo de `parcial` reemplaza al de `base` solo si
  * tiene el tipo correcto; si no, se conserva el de `base` (que puede ser
@@ -231,5 +323,6 @@ export function fusionar(base: ConfigDirector, parcial: unknown): ConfigDirector
         disco_min_gb: esEnteroNoNegativo(obj.disco_min_gb) ? obj.disco_min_gb : base.disco_min_gb,
         optimizador: fusionarOptimizador(base.optimizador, obj.optimizador),
         diseno: fusionarDiseno(base.diseno, obj.diseno),
+        produccion: fusionarProduccion(base.produccion, obj.produccion),
     };
 }

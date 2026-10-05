@@ -78,6 +78,19 @@ DEFAULTS = {
         "max_capturas_tarea": 14,
         "intervalo_s": 120,
     },
+    "produccion": {
+        "activo": True,
+        "modo": "seco",
+        "intervalo_s": 120,
+        "ventana_min": 20,
+        "max_publicaciones_dia": 24,
+        "expres_alex": True,
+        "umbral_jev": 0.7,
+        "umbral_diseno": 75,
+        "migraciones": "aditivas",
+        "max_tags_nativos_semana": 1,
+        "revertir_auto": True,
+    },
 }
 
 RANGOS_DISENO = {
@@ -85,6 +98,16 @@ RANGOS_DISENO = {
     "max_capturas_tarea": (1, 60),
     "intervalo_s": (30, 3600),
 }
+
+RANGOS_PRODUCCION = {
+    "intervalo_s": (30, 3600),
+    "ventana_min": (0, 240),
+    "max_publicaciones_dia": (0, 100),
+    "umbral_diseno": (0, 100),
+    "max_tags_nativos_semana": (0, 7),
+}
+MODOS_PRODUCCION = ("seco", "canario", "auto")
+MIGRACIONES_PRODUCCION = ("aditivas", "ninguna")
 
 CLAVES_ENTERO = {
     "espera_aprobacion_min",
@@ -152,6 +175,31 @@ def validar(d):
             errores.extend(_validar_optimizador(v))
         elif k == "diseno":
             errores.extend(_validar_diseno(v))
+        elif k == "produccion":
+            errores.extend(_validar_produccion(v))
+    return errores
+
+
+def _validar_produccion(pr):
+    errores = []
+    if not isinstance(pr, dict):
+        return ["'produccion' debe ser un objeto"]
+    for k in ("activo", "expres_alex", "revertir_auto"):
+        if k in pr and not isinstance(pr[k], bool):
+            errores.append("'produccion.%s' debe ser un booleano" % k)
+    if "modo" in pr and pr["modo"] not in MODOS_PRODUCCION:
+        errores.append("'produccion.modo' debe ser 'seco', 'canario' o 'auto'")
+    if "migraciones" in pr and pr["migraciones"] not in MIGRACIONES_PRODUCCION:
+        errores.append("'produccion.migraciones' debe ser 'aditivas' o 'ninguna'")
+    for k, (min_v, max_v) in RANGOS_PRODUCCION.items():
+        if k in pr and not (isinstance(pr[k], int) and not isinstance(pr[k], bool) and min_v <= pr[k] <= max_v):
+            errores.append("'produccion.%s' debe ser entero entre %d y %d" % (k, min_v, max_v))
+    if "umbral_jev" in pr and not (
+        isinstance(pr["umbral_jev"], (int, float))
+        and not isinstance(pr["umbral_jev"], bool)
+        and 0.5 <= pr["umbral_jev"] <= 0.99
+    ):
+        errores.append("'produccion.umbral_jev' debe ser un número entre 0.5 y 0.99")
     return errores
 
 
@@ -303,4 +351,39 @@ def cargar(ruta=None):
                 else:
                     avisos.append("'diseno.%s' inválido, se usa %s" % (k, dis_def[k]))
         cfg["diseno"] = dis
+    if isinstance(con.get("produccion"), dict):
+        pr_def = dict(DEFAULTS["produccion"])
+        pr = dict(pr_def)
+        p = con["produccion"]
+        for k in pr_def:
+            if k not in p:
+                continue
+            v = p.get(k)
+            if k in ("activo", "expres_alex", "revertir_auto"):
+                if isinstance(v, bool):
+                    pr[k] = v
+                else:
+                    avisos.append("'produccion.%s' inválido, se usa %s" % (k, pr_def[k]))
+            elif k == "modo":
+                if v in MODOS_PRODUCCION:
+                    pr[k] = v
+                else:
+                    avisos.append("'produccion.modo' inválido, se usa %s" % pr_def[k])
+            elif k == "migraciones":
+                if v in MIGRACIONES_PRODUCCION:
+                    pr[k] = v
+                else:
+                    avisos.append("'produccion.migraciones' inválido, se usa %s" % pr_def[k])
+            elif k == "umbral_jev":
+                if isinstance(v, (int, float)) and not isinstance(v, bool) and 0.5 <= v <= 0.99:
+                    pr[k] = v
+                else:
+                    avisos.append("'produccion.umbral_jev' inválido, se usa %s" % pr_def[k])
+            else:
+                min_v, max_v = RANGOS_PRODUCCION[k]
+                if isinstance(v, int) and not isinstance(v, bool) and min_v <= v <= max_v:
+                    pr[k] = v
+                else:
+                    avisos.append("'produccion.%s' inválido, se usa %s" % (k, pr_def[k]))
+        cfg["produccion"] = pr
     return cfg, avisos

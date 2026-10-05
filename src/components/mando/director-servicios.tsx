@@ -15,7 +15,7 @@ import { RotateCw } from "lucide-react";
 import type { ResumenDirector } from "@/lib/mando/director-datos";
 import { MarcoWidget } from "@/components/dashboard/kit/marco-widget";
 
-const NOMBRES_DIRECTORES = ["vigilante", "director", "guardia", "eco", "ecoides", "telegram", "mando"] as const;
+const NOMBRES_DIRECTORES = ["vigilante", "director", "guardia", "eco", "ecoides", "telegram", "mando", "optimizador", "diseno", "produccion"] as const;
 
 function textoHace(segundos?: number): string {
     if (segundos === undefined) return "";

@@ -251,7 +251,7 @@ describe("resumenDirectores", () => {
     expect(vigilante).toMatchObject({ vivo: false, ultimaSalida: -15 });
     expect(telegram).toMatchObject({ vivo: true, pid: 456 });
     expect(telegram?.ultimaSalida).toBeUndefined();
-    expect(r).toHaveLength(9);
+    expect(r).toHaveLength(10);
   });
 
   it("el director de diseño cuenta vivo por proceso y por mensaje firmado director-diseno", () => {
@@ -296,8 +296,21 @@ describe("resumenDirectores", () => {
     expect(sinNada.find((d) => d.nombre === "optimizador")?.vivo).toBe(false);
   });
 
-  it("sin proceso ni mensajes: vivo false, sin opcionales", () => {
-    const r = resumenDirectores("", [], AHORA);
+  it("produccion cuenta vivo por proceso y por mensaje firmado director-produccion", () => {
+    const conAmbos = resumenDirectores("88\t0\tcom.starseed.produccion", [
+      { quien: "director-produccion", texto: "publicando lote", hora: AHORA - 12 },
+    ], AHORA);
+    const produccion = conAmbos.find((d) => d.nombre === "produccion");
+    expect(produccion).toMatchObject({
+      vivo: true, pid: 88, ultimoMensaje: "publicando lote", hace: 12,
+    });
+    const sinNada = resumenDirectores("", [
+      { quien: "eco", texto: "otro", hora: AHORA - 5 },
+    ], AHORA);
+    expect(sinNada.find((d) => d.nombre === "produccion")?.vivo).toBe(false);
+  });
+
+  it("sin proceso ni mensajes: vivo false, sin opcionales", () => {    const r = resumenDirectores("", [], AHORA);
     expect(r.every((d) => d.vivo === false)).toBe(true);
     expect(r[0].ultimoMensaje).toBeUndefined();
   });

@@ -320,5 +320,117 @@ class DisenoConfigurable(unittest.TestCase):
         self.assertEqual(validar(DEFAULTS), [])
 
 
+class ProduccionConfigurable(unittest.TestCase):
+    """El bloque produccion (§7 del contrato) se valida, carga y conserva."""
+
+    DEFECTO = {
+        "activo": True,
+        "modo": "seco",
+        "intervalo_s": 120,
+        "ventana_min": 20,
+        "max_publicaciones_dia": 24,
+        "expres_alex": True,
+        "umbral_jev": 0.7,
+        "umbral_diseno": 75,
+        "migraciones": "aditivas",
+        "max_tags_nativos_semana": 1,
+        "revertir_auto": True,
+    }
+
+    def test_defecto_completo(self):
+        cfg, avisos = cargar(_tmp({}))
+        self.assertEqual(cfg["produccion"], self.DEFECTO)
+        self.assertEqual(avisos, [])
+
+    def test_valido_completo(self):
+        cfg, avisos = cargar(_tmp({"produccion": {
+            "activo": False,
+            "modo": "auto",
+            "intervalo_s": 30,
+            "ventana_min": 240,
+            "max_publicaciones_dia": 100,
+            "expres_alex": False,
+            "umbral_jev": 0.99,
+            "umbral_diseno": 100,
+            "migraciones": "ninguna",
+            "max_tags_nativos_semana": 7,
+            "revertir_auto": False,
+        }}))
+        self.assertEqual(cfg["produccion"]["modo"], "auto")
+        self.assertEqual(cfg["produccion"]["ventana_min"], 240)
+        self.assertEqual(cfg["produccion"]["umbral_jev"], 0.99)
+        self.assertEqual(cfg["produccion"]["migraciones"], "ninguna")
+        self.assertEqual(avisos, [])
+
+    def test_modo_invalido_se_descarta(self):
+        for malo in ("publicar", "", 3, None):
+            cfg, avisos = cargar(_tmp({"produccion": {"modo": malo}}))
+            self.assertEqual(cfg["produccion"]["modo"], "seco")
+            self.assertTrue(any("modo" in a for a in avisos), malo)
+        cfg, _ = cargar(_tmp({"produccion": {"modo": "canario"}}))
+        self.assertEqual(cfg["produccion"]["modo"], "canario")
+
+    def test_migraciones_invalidas_se_descartan(self):
+        for malo in ("destructivas", "", 0, None):
+            cfg, avisos = cargar(_tmp({"produccion": {"migraciones": malo}}))
+            self.assertEqual(cfg["produccion"]["migraciones"], "aditivas")
+            self.assertTrue(any("migraciones" in a for a in avisos), malo)
+
+    def test_rangos_enteros_se_descartan_fuera(self):
+        casos = [
+            ("intervalo_s", (29, 3601), 120),
+            ("ventana_min", (-1, 241), 20),
+            ("max_publicaciones_dia", (-1, 101), 24),
+            ("umbral_diseno", (-1, 101), 75),
+            ("max_tags_nativos_semana", (-1, 8), 1),
+        ]
+        for k, malos, defecto in casos:
+            for malo in malos:
+                cfg, avisos = cargar(_tmp({"produccion": {k: malo}}))
+                self.assertEqual(cfg["produccion"][k], defecto)
+                self.assertTrue(any(k in a for a in avisos), (k, malo))
+
+    def test_umbral_jev_fuera_se_descarta(self):
+        for malo in (0.49, 1.0, "0.7", True, None):
+            cfg, avisos = cargar(_tmp({"produccion": {"umbral_jev": malo}}))
+            self.assertEqual(cfg["produccion"]["umbral_jev"], 0.7)
+            self.assertTrue(any("umbral_jev" in a for a in avisos), malo)
+        cfg, _ = cargar(_tmp({"produccion": {"umbral_jev": 0.5}}))
+        self.assertEqual(cfg["produccion"]["umbral_jev"], 0.5)
+
+    def test_booleanos_invalidos_se_descartan(self):
+        cfg, avisos = cargar(_tmp({"produccion": {"activo": 1, "expres_alex": "sí", "revertir_auto": 0}}))
+        self.assertEqual(cfg["produccion"]["activo"], True)
+        self.assertEqual(cfg["produccion"]["expres_alex"], True)
+        self.assertEqual(cfg["produccion"]["revertir_auto"], True)
+        self.assertTrue(any("activo" in a for a in avisos))
+
+    def test_valido_parcial_conserva_el_resto(self):
+        cfg, avisos = cargar(_tmp({"produccion": {"modo": "canario"}}))
+        self.assertEqual(cfg["produccion"]["modo"], "canario")
+        self.assertEqual(cfg["produccion"]["ventana_min"], 20)
+        self.assertEqual(cfg["produccion"]["max_publicaciones_dia"], 24)
+        self.assertEqual(avisos, [])
+
+    def test_validar_avisa_de_bloque_invalido(self):
+        errores = validar({"produccion": {
+            "modo": "publicar", "intervalo_s": 10, "ventana_min": 300,
+            "max_publicaciones_dia": 200, "umbral_jev": 0.1,
+            "umbral_diseno": 120, "migraciones": "destructivas",
+            "max_tags_nativos_semana": 9, "expres_alex": "sí",
+        }})
+        for campo in ("modo", "intervalo_s", "ventana_min", "max_publicaciones_dia",
+                      "umbral_jev", "umbral_diseno", "migraciones",
+                      "max_tags_nativos_semana", "expres_alex"):
+            self.assertTrue(any("produccion.%s" % campo in e for e in errores), campo)
+
+    def test_validar_bloque_no_objeto(self):
+        errores = validar({"produccion": 42})
+        self.assertIn("'produccion' debe ser un objeto", errores)
+
+    def test_defaults_son_validos(self):
+        self.assertEqual(validar(DEFAULTS), [])
+
+
 if __name__ == "__main__":
     unittest.main()
