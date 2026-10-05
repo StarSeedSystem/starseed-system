@@ -134,7 +134,8 @@ def decidir_presupuesto(
             if reintentar_en is None or instante < reintentar_en:
                 reintentar_en = instante
 
-    if motivos == [MOTIVO_DATOS_INVALIDOS]:
+    # Datos inválidos no tienen instante de reintento: requieren nueva lectura.
+    if MOTIVO_DATOS_INVALIDOS in motivos:
         reintentar_en = None
     return {
         "permitido": not motivos,
