@@ -24,7 +24,7 @@ Tiempos configurables:
   · STARSEED_COLGADO_S — sin crecer en bytes reales del worktree se considera colgado (300 s).
 """
 
-import hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
+import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
 import contextlib, fcntl
 
@@ -646,6 +646,84 @@ def debe_retirar(modelo, salida, catalogo=None):
 MODELOS_TODOS = []
 #: Sello del último informe de pasarelas aplicado a la rotación.
 ROTACION = {"sello": ""}
+RUTA_ROTACION_OPTIMIZADA = os.path.expanduser(
+    "~/.starseed/rotacion-optimizada.json"
+)
+_ROTACION_OPTIMIZADA_CACHE = {"ruta": "", "leida": None, "datos": {}}
+
+
+def _instante_rotacion(valor):
+    """Convierte epoch, datetime o ISO a epoch; None indica un dato roto."""
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return float(valor)
+    if isinstance(valor, datetime.datetime):
+        return valor.timestamp()
+    if not isinstance(valor, str) or not valor.strip():
+        return None
+    try:
+        texto = valor.strip().replace("Z", "+00:00")
+        return datetime.datetime.fromisoformat(texto).timestamp()
+    except (ValueError, OverflowError):
+        return None
+
+
+def aplicar_rotacion_optimizada(base, datos, ahora):
+    """PURA: aplica una rotación vigente sin mutar la lista recibida."""
+    if not isinstance(base, list) or not isinstance(datos, dict):
+        return base
+    claves = ("delante", "detras", "probar")
+    if any(
+        not isinstance(datos.get(clave), list)
+        or any(not isinstance(m, str) for m in datos.get(clave, []))
+        for clave in claves
+    ):
+        return base
+    caduca = _instante_rotacion(datos.get("caduca"))
+    instante = _instante_rotacion(ahora)
+    if caduca is None or instante is None or caduca <= instante:
+        return base
+
+    def unicos(modelos):
+        salida = []
+        for modelo in modelos:
+            if modelo not in salida:
+                salida.append(modelo)
+        return salida
+
+    delante = unicos([m for m in datos["delante"] if m in base])
+    detras = unicos([m for m in datos["detras"] if m in base and m not in delante])
+    probar = unicos(
+        [m for m in datos["probar"] if m not in delante and m not in detras]
+    )
+    movidos = delante + probar + detras
+    centro = [m for m in base if m not in movidos]
+    return delante + centro + probar + detras
+
+
+def anteponer_modelo_pedido(base, pedido):
+    """El modelo pedido expresamente conserva la precedencia absoluta."""
+    if not isinstance(pedido, str) or not pedido:
+        return base
+    return [pedido] + [modelo for modelo in base if modelo != pedido]
+
+
+def leer_rotacion_optimizada(instante=None):
+    """Lee la perilla del optimizador como mucho una vez cada 60 segundos."""
+    instante = time.time() if instante is None else float(instante)
+    cache = _ROTACION_OPTIMIZADA_CACHE
+    if (
+        cache["ruta"] == RUTA_ROTACION_OPTIMIZADA
+        and cache["leida"] is not None
+        and instante - cache["leida"] < 60
+    ):
+        return cache["datos"]
+    try:
+        with open(RUTA_ROTACION_OPTIMIZADA, encoding="utf-8") as archivo:
+            datos = json.load(archivo)
+    except (OSError, ValueError):
+        datos = {}
+    cache.update(ruta=RUTA_ROTACION_OPTIMIZADA, leida=instante, datos=datos)
+    return datos
 
 
 def refrescar_rotacion():
@@ -6433,6 +6511,23 @@ def ejecutar(t, intento=1):
         and apto_para_tarea(m, t)
     ]
     base = priorizar_modelos_del_arriendo(tid, base)
+    instante_rotacion = time.time()
+    datos_rotacion = leer_rotacion_optimizada(instante_rotacion)
+    if isinstance(datos_rotacion, dict) and isinstance(
+        datos_rotacion.get("probar"), list
+    ):
+        # La función de orden es pura: la aptitud y la salud viva se resuelven aquí.
+        datos_rotacion = dict(datos_rotacion)
+        datos_rotacion["probar"] = [
+            m
+            for m in datos_rotacion["probar"]
+            if isinstance(m, str)
+            and "/" in m
+            and m not in MUERTOS
+            and proveedor_vivo(proveedor_de(m))
+            and apto_para_tarea(m, t)
+        ]
+    base = aplicar_rotacion_optimizada(base, datos_rotacion, instante_rotacion)
     if fallidos:
         # Los que ya se colgaron o no tocaron nada en esta tarea, al final de la cola.
         base = [m for m in base if m not in fallidos] + [
@@ -6475,11 +6570,7 @@ def ejecutar(t, intento=1):
             apartados = [m for m in apartados if m != t["modelo"]]
         elif t["modelo"] not in apartados:
             apartados.append(t["modelo"])
-    modelos = (
-        ([t["modelo"]] + [m for m in base if m != t.get("modelo")])
-        if t.get("modelo")
-        else base
-    )
+    modelos = anteponer_modelo_pedido(base, t.get("modelo"))
     # Los escritores de la rotación también deben EXISTIR en opencode.json (Ola 261: llm7 no
     # estaba declarado en la Mac y sus modelos morían en silencio dentro de la rotación).
     for m in modelos:
