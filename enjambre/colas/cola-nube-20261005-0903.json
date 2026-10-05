@@ -1,0 +1,64 @@
+{
+ "ola": "nube-20261005",
+ "tareas": [
+  {
+   "id": "DR0927-1",
+   "ola": "Ola Dream 2026-09-27 · lo que el análisis nocturno encontró",
+   "titulo": "Publicar los 8 commits sin push y cerrar la Ola 376 (RDV24)",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-09-27.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Publicar los 8 commits sin push y cerrar la Ola 376 (RDV24) — HEAD `ae0da2c0`, 2 commits sin push según relevo y 8 según el último informe de ola (`starseed_memory_root/olas/progreso.md`). La RDV24 (etiqueta deslizante del Dock Trinity, reasignada a nube 20260926) quedó 0/1 integrada; el commit `26cce896` ya la implementa. Impacto alto / esfuerzo bajo: `tsc` + `vitest`, push, verificar Vercel Ready.\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "DR0927-2",
+   "ola": "Ola Dream 2026-09-27 · lo que el análisis nocturno encontró",
+   "titulo": "Rotar el token `gho_` incrustado en el remoto de `astraura`",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-09-27.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Rotar el token `gho_` incrustado en el remoto de `astraura` — (tarea abierta en tasks) y revisar la cuota 402 de Supabase `nxstilnyidvkqeosofuh` (respaldo) — ambas puestas en tasks abiertas, de bajo esfuerzo y alto riesgo latente (credencial viva en el árbol de git remoto). Impacto alto (higiene) / esfuerzo bajo. (Sin tocar secretos: solo orquestar la rotación vía `gh auth`/credential helper.)\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "DR0919-1",
+   "ola": "Ola Dream 2026-09-19 · lo que el análisis nocturno encontró",
+   "titulo": "Cerrar el pendiente `#1` de IA: recompilar BitNet tras el parche ReLU²",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-09-19.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Cerrar el pendiente `#1` de IA: recompilar BitNet tras el parche ReLU² — (`backend/scripts/check_bitnet_patch.sh` + `cmake --build`). Sin esto, el motor 1.58 sigue generando con el grafo sin compilado. **Impacto: alto / Esfuerzo: bajo-medio**.\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "p314Acs",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas · lo que faltó: scripts/enjambre/presupuesto.py",
+   "archivos": [
+    "scripts/enjambre/presupuesto.py"
+   ],
+   "prompt": "SEGUIMIENTO de p314Ac, que ya está integrada (sha 32135a82429a). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/enjambre/presupuesto.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas\n\n--- encargo original, como contexto ---\nÚnica tarea: módulo Python PURO NUEVO presupuesto.py y unittest test_presupuesto.py, ≤120 líneas cadauno, sin IO ni libs externas. API decidir_presupuesto(ventanas, costes, ahora, reserva=0.2, antiguedad_max=900, rafaga=0.05)->dict {permitido:bool,motivos:list[str],reintentar_en:float|None}. ventanas lista dict: unidad(str), limite(float), usado(float), reservado(float, default0), inicio(epoch), reinicio(epoch), observado(epoch). costes dict por unidad con estimación NO negativa; falta de coste o ventanas => no_verificado, deniega. Solo admite finitos, no bool, limite>0, inicio<=observado<=ahora<reinicio, usado/reservado>=0; foto caducada o ventana vencida deniega y requiere nueva lectura (no supone reset). Reserva: usado+reservado+coste <= limite*(1-reserva). Ritmo: usado+reservado+coste <= limite*(1-reserva)*min(1, (ahora-inicio)/(reinicio-inicio)+rafaga), distribuye consumo a lo largo de cada ventana, breve ráfaga configurable. Todas las ventanas deben permitir; unidades distintas tienen costes distintos. Si denegación solo ritmo, calcula instante exacto en que puede intentarse; reserva agotada => reinicio; datos inválidos => None. No mutar entrada. Pruebas dos ventanas (horaria permite semanal bloquea), crédito adicional0 no ilimitado, costeausente, datosviejos/NaN/Infinity/futuros, reserva y reservas en vuelo, ráfaga inicial, hora calculada, limitesexactos. No guardar credenciales ni inventar precios ni saldo. NO cablear, no editar otros archivos, NO build ni deps; correr unittest propio. Leer architecture/puente-economico-verificable.md. Otro modelo de dirección revisa y cablea.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — la función puede lanzar `KeyError` (y potencialmente `ZeroDivisionError`) cuando la ventana no incluye `reservado` o tiene duración 0. Se necesita corregir el acceso a `v[\"reservado\"]` (usar `v.get(\"reservado\", 0.0)`) y validar que `reinicio > inicio`. Después de esos cambios",
+   "depende": [],
+   "estado": "bloqueante",
+   "nota": "director: escalada agotada tras 8 intentos (libre×8): requiere una persona",
+   "motivo": "",
+   "modelo": "nvidia/moonshotai/kimi-k3",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "p318Jc",
+   "ola": "Ola 318 · Director de verdad: la pestaña Director del Mando enseña datos reales y sus ajustes mandan",
+   "titulo": "Fidelidad de datos de la pestaña Director: última salida como código, dependencias con nombre, proveedores sin cupo por fecha en texto, sin claves falsas e integradas de hoy de verdad",
+   "archivos": [
+    "src/lib/mando/director-datos.ts",
+    "src/lib/mando/director-fuentes.ts",
+    "src/lib/mando/__tests__/director-datos.test.ts"
+   ],
+   "prompt": "Lee AGENTS.md. Verificado el 2026-09-13 18:00 UTC en localhost:9002/mando → Director (ya con ControlDirectores montado): cinco mentiras de datos. (1) Cada director enseña «Última salida: 31/12/1969, 18:00:00»: `ultimaSalida` es el CÓDIGO de salida de `launchctl list` (0, -15…), no una fecha → en `resumenDirectores` exponer `ultimaSalida` como número y en el texto de la tarjeta (lo pinta director-servicios.tsx; si hace falta tocarlo cuenta como 4.º archivo, ≤10 líneas) mostrar «salida 0» / «salida −15 (señal)». (2) Todas las bloqueadas dicen «espera dependencia sin nombre»: `ProgresoEntrada.depende_de` no existe en progreso.json; la dependencia está en la `nota` («dependencia no integrada: p318C2 (pendiente)») y en el campo `depende` de la tarea en las colas fuente → `resumenPendientes` debe leer ambas (regex sobre la nota y `depende` de `leerColasFuente`). (3) apinex aparece «vivo» aunque ~/.starseed/salud-proveedores.json dice `estado: 'caido'` y `sin_cupo_hasta: '2026-09-14 04:57:36'`: `SaludProveedor.sin_cupo_hasta` admite string 'YYYY-MM-DD HH:MM:SS' o epoch; `resumenProveedores` parsea ambos y marca `vivo=false` si estado es 'caido' O sin_cupo_hasta es futuro; `sinCupoHasta` se devuelve como epoch. (4) Aparece un proveedor «claves» (clave superior del JSON de salud que no es proveedor): ignorar entradas sin campo `estado`. (5) «integradas hoy: 171» cuenta todos los `commit` de progreso.json: contar solo entradas con `t` de hoy (hora local) o, si falta `t`, no contarlas. Tests puros para los cinco puntos en director-datos.test.ts. Sin `any`; español con acentos. Máximo 120 líneas cambiadas.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — faltan los cambios en `director-fuentes.ts` y los tests en `director-datos.test.ts` exigidos por la tarea; además hay que unificar el criterio local/UTC entre `aEpoch` y `esHoyLocal`.\n\nRiesgos reales:\n1. **Bloqueante de alcance**: el enunciado exigía tocar `src/lib/mando/director-fuentes.ts` y `src/lib/mando/__tests__/director-datos.test.ts`, y el diff no los toca. Sin la fuente, no hay garantía de que los datos reales (código de salida, `depende`, `sin_cupo_hasta` como texto, `t` de integradas) lleguen con esos campos; y sin tests no hay red para `esHoyLocal`/`aEpoch`/`dependeDeNota`.\n2. `aEpoch` trata cadenas sin `T`/`Z` como UTC (`...Z`), mientras `esHoyLocal` las parsea como hora local. Mismo dato, dos interpretaciones distintas: un `sin_cupo_hasta` en formato \"YYYY-MM-DD HH:MM:SS\" local se desplaza según la zona del servidor, pudiendo marcar un proveedor como sin cupo (o vivo) incorrectamente. Inconsistencia real de datos.\n3. `integradasHoy` ahora exige `estado === \"commit\"` y `t` de hoy; si el progreso guarda integradas con otro estado o sin `t`, el contador cae a 0 silenciosamente. Plausible, pero depende de la fuente no mostrada.\n4. `textoSalida` ya no muestra fecha: si el dato de origen sigue siendo epoch en algunos servicios, se mostrará un número enorme como \"código\". Menor, pero verificable a mano.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "rechazada",
+   "nota": "rechazada desde el Mando; rama ola/p318J conservada",
+   "motivo": "",
+   "modelo": "nvidia/deepseek-ai/deepseek-v4-pro-0813",
+   "dependencias_ya_en_main": [
+    "p318I"
+   ]
+  }
+ ]
+}
