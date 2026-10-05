@@ -110,8 +110,14 @@ jobs:
           # y «alcance · tocados=1», y acabó «no toco ninguno»). Causa, no el cwd: el agente
           # sí escribió en SU worktree ($STARSEED_WT), lo que no existía era la referencia
           # contra la que se mide el trabajo. Se crea aquí la rama local.
-          git fetch -q origin "+refs/heads/main:refs/heads/main" \
-            || git branch -f main origin/main
+          # (2026-10-04, 21:10, Claude) La rama local `main` NO puede ser `origin/main`: la cola
+          # nace de la `main` de la Mac, que va por delante de origin (lo no publicado). Con
+          # main = origin/main, cada rama nueva salía «N commits por delante» (los de la Mac),
+          # el orquestador la tomaba por trabajo previo («reanudada… salto a tsc»), ningún
+          # agente escribía y todos los runs acababan en «cero commits» (37253708138 y los
+          # cinco siguientes). El runner trabaja como la Mac: en `main`, que ES el commit de
+          # la cola; las ramas `ola/*` nacen de ahí e integran por ff sobre `main`.
+          git checkout -q -B main HEAD
           git rev-parse --verify main
 
       - name: Estado de la Mac que viajó con la cola
