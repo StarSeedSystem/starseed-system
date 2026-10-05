@@ -177,8 +177,9 @@
     --fib-9: 5.5625rem; /* 89px */
     --fib-10: 9rem;     /* 144px */
 
-    --fs-phi--2: clamp(0.64rem, 0.3vw + 0.2rem, 0.382rem);
-    --fs-phi--1: clamp(0.8rem, 0.35vw + 0.35rem, 0.618rem);
+    /* Pasos negativos: 1/φ² y 1/φ de la cadena de máximos (…→0.618→1→1.618→…) */
+    --fs-phi--2: clamp(0.5rem, 0.2vw + 0.35rem, 0.618rem);
+    --fs-phi--1: clamp(0.625rem, 0.3vw + 0.5rem, 1rem);
     --fs-phi-1: clamp(1.25rem, 0.5vw + 0.9rem, 1.618rem);
     --fs-phi-2: clamp(1.5625rem, 0.7vw + 1.4rem, 2.618rem);
     --fs-phi-3: clamp(1.953125rem, 1vw + 2.5rem, 4.236rem);
