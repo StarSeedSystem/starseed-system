@@ -4326,3 +4326,33 @@ consentimiento explícito de ambos lados y un canal P2P directo y cifrado.
   driver de Drive con backoff, y la lógica pura de merge). No había pruebas previas en esas
   carpetas que pudieran romperse.
 - No se hizo commit/push ni `next build` (regla del área; worktree de trabajo, otro agente integra).
+
+---
+
+## 2026-10-05 — PRD1005C Director de producción: `version.json` + `produccion_medios.py`
+**Sesión por:** Claude (Cowork) · Tarea PRD1005C
+**Resumen ejecutivo:** `scripts/gen-version.mjs` añade `sha` y `rama`; `scripts/puente/produccion_medios.py` (y `produccion_medios_impl.py`) implementan las 8 clases de medio con `publicar`, `confirmar`, `revertir`; `test_produccion_medios.py` cubre funciones puras (`web_publicar`, `web_confirmar`, `astraura_publicar`).
+
+### Hecho
+- `scripts/gen-version.mjs`: `sha` (`VERCEL_GIT_COMMIT_SHA` → `git rev-parse HEAD` → `null`) y `rama` (`git rev-parse --abbrev-ref HEAD`) en `public/version.json`, sin quitar `build` ni `at`.
+- `scripts/puente/produccion_medios.py`: 8 clases (`Web`, `Mando`, `ServiciosMac`, `Supabase`, `Hermes`, `Nativo`, `Repo`, `Astraura`) con las tres puertas. Web confirma con sondeo a `starseed-os.vercel.app/version.json` (tope 15 min, espera creciente); revertir web usa `git revert` + push y, si `VERCEL_TOKEN`, promueve antes. Modo seco no escribe ni empuja. Astraura devuelve «en pausa».
+- `scripts/puente/produccion_medios_impl.py`: funciones auxiliares puras para reducir el archivo principal a ≤120 líneas.
+- `scripts/puente/test_produccion_medios.py`: 4 tests con `unittest`, solo funciones puras, sin red ni disco real, sin `vi.mock`, sin importar `route.ts`.
+
+### Verificado
+- `node scripts/gen-version.mjs` → `public/version.json` con `sha` y `rama`.
+- `cat public/version.json` confirma los campos nuevos.
+- `python3 -m unittest scripts.puente.test_produccion_medios -v` → **4 tests, todos en verde**.
+- `python3 -c "import ast; ast.parse(...)"` → sintaxis OK de los 3 archivos nuevos.
+- `bash scripts/enjambre/tsc-turno.sh` no ejecutado (esta tarea es Python, no TypeScript).
+
+### Pendiente / Próximos pasos
+- Integrar en `main` (no hecho: no hay `git commit` ni `push`).
+- Probar los métodos `publicar` y `revertir` con un ejecutor inyectado real (`subprocess.run` con `seco=True`) en un entorno con `VERCEL_TOKEN` y `SUPABASE_ACCESS_TOKEN`.
+- Verificar la confirmación real de web (`https://starseed-os.vercel.app/version.json`) con el `sha` del commit integrado.
+- Comprobar que `register-sw.tsx` sigue leyendo `build` sin romperse con los nuevos campos.
+
+### Notas / aprendizajes
+- `produccion_medios_impl.py` extrae la lógica pura del archivo principal para cumplir la regla de ≤120 líneas por archivo.
+- `scripts/puente/produccion_medios.py` usa `subprocess.run` inyectado (`self.ejecutor`) para que sea comprobable sin lanzar procesos reales.
+- La regla del contrato (§8 — lo que sigue siendo de Alex): migraciones destructivas, credenciales y redes sociales siguen fuera del alcance automático.
