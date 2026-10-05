@@ -105,6 +105,12 @@ SERVICIOS = {
     # ninguno miraba el TABLERO. Esa noche el orquestador estuvo 123 minutos parado en una
     # puerta de aprobación y los medidores lo enseñaban sin que nadie los leyera.
     "vigia": ([PY3, P("vigia_medidores.py")], "/tmp/starseed-vigia.log", True),
+    # (2026-10-05) Pantalla siempre encendida (Ola 1005P, PA1005C): mantiene un
+    # `caffeinate -dim` ligado a su propio proceso y declara al usuario activo cada 50 s,
+    # según ~/.starseed/pantalla.json (encendida por defecto). El Mando lo lee con
+    # `launchctl list com.starseed.pantalla` (pantalla-config.ts). Instalado a mano esa
+    # noche y vivo; aquí queda para que una reinstalación lo vuelva a poner.
+    "pantalla": ([PY3, P("mantener_pantalla.py")], "/tmp/starseed-pantalla.log", True),
     # (2026-10-04) Chat Director (Ola 1004): el cartero lee chat.jsonl y entrega
     # cada mensaje a los canales pedidos (claude-mac, hermes, telegram, chatgpt,
     # bandejas). `director_chat.py` tacha las claves antes de escribir.
