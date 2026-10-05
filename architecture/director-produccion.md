@@ -276,9 +276,9 @@ cupo del mes.
 | ntfy (tema fijo) | Propio (servicio público gratuito) | Aviso de versión a los clientes | — | Siempre activo |
 | Telegram / Hermes | Propio | Avisos importantes | — | Ya configurado |
 | n8n en Hugging Face Space | Externo gratuito, nuestro | Redes (borrador que Alex aprueba), Drive, cualquier integración de n8n | Ninguno de pago; se duerme sin uso | `N8N_HF_URL` en el entorno |
-| n8n Cloud | Externo | Lo mismo que n8n | 1.000 ejecuciones de la prueba | `N8N_CLOUD_URL` en el entorno |
-| Dify Cloud (Sandbox) | Externo | Apps y flujos de IA, RAG | 200 créditos de mensajes; 5.000 llamadas a la API al mes | `DIFY_URL` y `DIFY_CLAVE` en el entorno |
-| Zapier | Externo | Integraciones sin servidor | Las tareas del plan de la cuenta | `ZAPIER_WEBHOOK_URL` en el entorno |
+| n8n Cloud | Externo | Lo mismo que n8n (solo webhooks: su API no está disponible en la prueba) | 1.000 ejecuciones y 14 días desde que se crea la cuenta | `N8N_CLOUD_URL` en el entorno; los flujos se importan pegándolos una vez en su lienzo |
+| Dify Cloud (Sandbox) | Externo | Apps y flujos de IA, RAG (base de conocimiento por su API) | 200 créditos de mensajes; 5.000 llamadas a la API al mes | `DIFY_URL` y `DIFY_CLAVE` en el entorno |
+| Zapier | Externo | Integraciones sin servidor | El plan gratuito NO incluye webhooks (son de pago): inactivo como puente; sigue como conector de Claude | `ZAPIER_WEBHOOK_URL` solo si algún día hay plan con webhooks |
 
 **Enrutado** (`scripts/puente/produccion_puentes.py`, puro y con estado en
 `~/.starseed/produccion/puentes.json`):
@@ -304,9 +304,16 @@ cupo del mes.
   el disco del Space gratuito no es persistente.
 - Las credenciales de cada servicio (Drive, redes) van como secretos del Space, nunca en el repo.
 - Los webhooks de n8n verifican la firma HMAC de §9.
+- El Space es **privado**: las peticiones llevan el `HF_TOKEN` como autorización. Si fuera público,
+  cualquiera podría reclamar la cuenta propietaria de n8n.
+- `arranque.sh` importa por la CLI de n8n los flujos y las credenciales (desde los secretos del
+  Space, con `N8N_ENCRYPTION_KEY` fija) y **activa los flujos por la CLI**. Los webhooks no necesitan
+  que nadie entre a la interfaz ni un usuario propietario.
 
 **Mando.** La tarjeta de Producción muestra cada puente con su estado, el cupo usado y el último
 uso, y permite apartarlo o activarlo a mano.
+
+**Vincular cuentas:** `python3 scripts/puente/vincular_cuentas.py` (o abrir `.transfer/vincular-cuentas.command`) abre cada página en el navegador, lee la clave del portapapeles sin mostrarla, la valida y la guarda en `~/.starseed/env`. La prueba de n8n Cloud queda pendiente hasta que los flujos estén listos, para no gastar sus 14 días.
 
 **Lo que es de Alex:**
 - crear las cuentas que falten (prueba de n8n Cloud, Dify Sandbox);
