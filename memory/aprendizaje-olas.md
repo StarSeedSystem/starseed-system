@@ -3530,3 +3530,37 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `SB1004A` — pruebas en rojo: vitest falla (rama conservada)
 - `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
 - `PRD1005L` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-05 16:36 · auto-1005-150718
+
+**Lo que se pidió.** no tocaste tus archivos
+
+**Resultado.** 1 de 20 integradas. 19 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 10 tareas se fueron por lo mismo — pruebas en rojo (CAMR1005A, BLQ1005A, PRD1005T, PRD1005D, LC1004B, CDV1004Cs). Es 50 % de la ola.
+- 5 tareas se fueron por lo mismo — no escribió nada (PRD1005S, p314Acs, BLQ1005C, DR0927-2, DR1003-1). Es 25 % de la ola.
+- 4 tareas se fueron por lo mismo — otra cosa (DR0927-1, DR0929-1, BLQ1005E, PA1005D). Es 20 % de la ola.
+- sin modelo anotado no integró ninguna de sus 9 tareas.
+- codex/gpt-5.6-sol no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005T` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005D` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005S` — no escribió nada
+- `LC1004B` — pruebas en rojo: vitest falla (rama conservada)
+- `CDV1004Cs` — pruebas en rojo: vitest falla (rama conservada)
+- `p314Acs` — no escribió nada
+- `BLQ1005C` — no escribió nada
+- `DR0927-1` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DR0927-2` — no escribió nada
+- `DR0929-1` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DR1003-1` — no escribió nada
+- `FLU1005H` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005E` — otra cosa: ningún proveedor respondió (todos caídos)
+- `SB1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005L` — pruebas en rojo: vitest falla (rama conservada)
+- `PA1005D` — otra cosa: dependencia(s) que no llegarán quitadas desde el Mando: PA1005A
