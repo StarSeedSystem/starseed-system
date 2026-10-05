@@ -28,11 +28,19 @@ def _parada(minutos, **extra):
 
 
 class TestClasificarPuertas(unittest.TestCase):
-    def test_revision_bloqueante_se_rechaza(self):
-        prog = {"X1": _parada(10, revisor="bloqueante")}
-        rech, aprob = D.clasificar_puertas(prog, AHORA, {"X1": ["a.ts"]})
-        self.assertEqual([t for t, _ in rech], ["X1"])
-        self.assertEqual(aprob, [])
+    def test_revision_bloqueante_se_repara_no_se_rechaza(self):
+        """(2026-10-05) Una objeción del revisor se convierte en reparación."""
+        prog = {"X1": _parada(10, revisor="bloqueante", objecion="cambia esto")}
+        rech, aprob, rep, esc = D.clasificar_puertas(prog, AHORA, {"X1": ["a.ts"]})
+        self.assertEqual((rech, aprob, esc), ([], [], []))
+        self.assertEqual([t for t, _ in rep], ["X1"])
+        self.assertIn("cambia esto", rep[0][1])
+
+    def test_revision_bloqueante_al_tercer_intento_escala(self):
+        prog = {"X1c": _parada(10, revisor="bloqueante")}
+        rech, aprob, rep, esc = D.clasificar_puertas(prog, AHORA, {})
+        self.assertEqual((rech, aprob, rep), ([], [], []))
+        self.assertEqual([t for t, _ in esc], ["X1c"])
 
     def test_ne1c_falta_uno_de_tres_se_integra(self):
         prog = {
@@ -47,37 +55,42 @@ class TestClasificarPuertas(unittest.TestCase):
                 "src/components/mando/centro-mando.tsx",
             ]
         }
-        rech, aprob = D.clasificar_puertas(prog, AHORA, declarados)
-        self.assertEqual(rech, [])
+        rech, aprob, rep, esc = D.clasificar_puertas(prog, AHORA, declarados)
+        self.assertEqual((rech, rep, esc), ([], [], []))
         self.assertEqual([t for t, _, _ in aprob], ["NE1c"])
         self.assertIn("2 de 3", aprob[0][1])
 
     def test_no_toco_ninguno_se_rechaza(self):
         prog = {"Z9": _parada(10, revisor="respondio", faltan=["a.ts", "b.ts"])}
-        rech, aprob = D.clasificar_puertas(prog, AHORA, {"Z9": ["a.ts", "b.ts"]})
+        rech, aprob, rep, esc = D.clasificar_puertas(prog, AHORA, {"Z9": ["a.ts", "b.ts"]})
         self.assertEqual([t for t, _ in rech], ["Z9"])
-        self.assertEqual(aprob, [])
+        self.assertEqual((aprob, rep, esc), ([], [], []))
 
     def test_sin_saber_los_declarados_no_se_tira_el_trabajo(self):
         """Ante la duda, integrar lo verde: rehacerlo cuesta una hora de agente."""
         prog = {"Q1": _parada(10, revisor="respondio", faltan=["a.ts"])}
-        rech, aprob = D.clasificar_puertas(prog, AHORA, {})
-        self.assertEqual(rech, [])
+        rech, aprob, rep, esc = D.clasificar_puertas(prog, AHORA, {})
+        self.assertEqual((rech, rep, esc), ([], [], []))
         self.assertEqual([t for t, _, _ in aprob], ["Q1"])
 
     def test_verde_y_completa_no_se_toca(self):
         prog = {"V1": _parada(120, revisor="respondio")}
-        rech, aprob = D.clasificar_puertas(prog, AHORA, {"V1": ["a.ts"]})
-        self.assertEqual((rech, aprob), ([], []))
+        self.assertEqual(
+            D.clasificar_puertas(prog, AHORA, {"V1": ["a.ts"]}), ([], [], [], [])
+        )
 
     def test_antes_del_tope_no_se_toca(self):
         prog = {"T1": _parada(2, revisor="bloqueante")}
         self.assertEqual(D.clasificar_puertas(prog, AHORA, {})[0], [])
 
     def test_puertas_a_rechazar_sigue_funcionando(self):
-        """La firma vieja no se rompe: el vigilante la sigue llamando."""
+        """La firma vieja no se rompe: el vigilante la sigue llamando.
+
+        Una revisión bloqueante ya no entra ahí: va a `puertas_a_reparar`.
+        """
         prog = {"X1": _parada(10, revisor="bloqueante")}
-        self.assertEqual([t for t, _ in D.puertas_a_rechazar(prog, AHORA)], ["X1"])
+        self.assertEqual(D.puertas_a_rechazar(prog, AHORA), [])
+        self.assertEqual([t for t, _ in D.puertas_a_reparar(prog, AHORA)], ["X1"])
 
 
 class TestSeguimiento(unittest.TestCase):
