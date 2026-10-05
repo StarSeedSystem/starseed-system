@@ -163,6 +163,26 @@
     --trinity-rose: hsl(var(--trinity-rose-hsl));
     --trinity-indigo-hsl: 240 80% 62%;
     --trinity-indigo: hsl(var(--trinity-indigo-hsl));
+
+    /* ---- TOKENS DE ARMONÍA (Ola 1005D) ---- */
+    --phi: 1.618;
+    --fib-1: 0.125rem;  /* 2px */
+    --fib-2: 0.1875rem; /* 3px */
+    --fib-3: 0.3125rem; /* 5px */
+    --fib-4: 0.5rem;    /* 8px */
+    --fib-5: 0.8125rem; /* 13px */
+    --fib-6: 1.3125rem; /* 21px */
+    --fib-7: 2.125rem;  /* 34px */
+    --fib-8: 3.4375rem; /* 55px */
+    --fib-9: 5.5625rem; /* 89px */
+    --fib-10: 9rem;     /* 144px */
+
+    --fs-phi--2: clamp(0.64rem, 0.3vw + 0.2rem, 0.382rem);
+    --fs-phi--1: clamp(0.8rem, 0.35vw + 0.35rem, 0.618rem);
+    --fs-phi-1: clamp(1.25rem, 0.5vw + 0.9rem, 1.618rem);
+    --fs-phi-2: clamp(1.5625rem, 0.7vw + 1.4rem, 2.618rem);
+    --fs-phi-3: clamp(1.953125rem, 1vw + 2.5rem, 4.236rem);
+    --fs-phi-4: clamp(2.44140625rem, 1.3vw + 3.5rem, 6.854rem);
   }
 
   /* ═══════════════════════════════════════════════════════════

@@ -99,6 +99,26 @@ export default {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      spacing: {
+        'fib-1': 'var(--fib-1)',
+        'fib-2': 'var(--fib-2)',
+        'fib-3': 'var(--fib-3)',
+        'fib-4': 'var(--fib-4)',
+        'fib-5': 'var(--fib-5)',
+        'fib-6': 'var(--fib-6)',
+        'fib-7': 'var(--fib-7)',
+        'fib-8': 'var(--fib-8)',
+        'fib-9': 'var(--fib-9)',
+        'fib-10': 'var(--fib-10)',
+      },
+      fontSize: {
+        'phi--2': 'var(--fs-phi--2)',
+        'phi--1': 'var(--fs-phi--1)',
+        'phi-1': 'var(--fs-phi-1)',
+        'phi-2': 'var(--fs-phi-2)',
+        'phi-3': 'var(--fs-phi-3)',
+        'phi-4': 'var(--fs-phi-4)',
+      },
       keyframes: {
         'accordion-down': {
           from: {
