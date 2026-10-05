@@ -3417,3 +3417,74 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `FLU1005E` — otra cosa: excepción: [Errno 28] No space left on device: '/tmp/enj-msg-salvavidas-FLU1005E.txt'
 - `DIS1005K` — otra cosa: excepción: [Errno 28] No space left on device: '/Users/alex/Documents/starseed-os-main/starseed_memory_root/olas/progreso.json'
 - `DIS1005N` — no escribió nada
+
+## 2026-10-05 11:56 · auto-1005-045033
+
+**Lo que se pidió.** no tocaste tus archivos
+
+**Resultado.** 9 de 62 integradas. 53 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 22 tareas se fueron por lo mismo — la revisión lo rechazó (OPT1004E, RM3, RM4, PRD1005M, DIS1005D, CU3r). Es 35 % de la ola.
+- 14 tareas se fueron por lo mismo — no escribió nada (BLQ1005Ac, BLQ1005A, PRD1005N, FLU1005B, PRD1005S, p318Jc). Es 23 % de la ola.
+- 9 tareas se fueron por lo mismo — pruebas en rojo (CAMR1005A, PRD1005T, PRD1005D, LC1004B, CDV1004Cs, SB1004A). Es 15 % de la ola.
+- 7 tareas se fueron por lo mismo — otra cosa (p323Bc, p324Ac, p324Gc, JV8c, PA1005D, BLQ1005B). Es 11 % de la ola.
+- sin modelo anotado no integró ninguna de sus 17 tareas.
+- google/gemini-3.6-flash no integró ninguna de sus 9 tareas.
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 4 tareas.
+- openrouter/thinkingmachines/inkling-small:free no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005Ac` — no escribió nada
+- `BLQ1005A` — no escribió nada
+- `PRD1005T` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005D` — pruebas en rojo: vitest falla (rama conservada)
+- `LC1004B` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005N` — no escribió nada
+- `CDV1004Cs` — pruebas en rojo: vitest falla (rama conservada)
+- `OPT1004E` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/OPT1004E conservada
+- `SB1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005L` — pruebas en rojo: vitest falla (rama conservada)
+- `LC1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `RM3` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `RM4` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `PRD1005M` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/PRD1005M conservada
+- `FLU1005B` — no escribió nada
+- `DIS1005D` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/DIS1005D conservada
+- `CU3r` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CU3r conservada
+- `PRD1005S` — no escribió nada
+- `PA1005A` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/PA1005A conservada
+- `AGR2b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AGR2b conservada
+- `AGR2c` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `X5c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/X5c conservada
+- `QW5c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/QW5c conservada
+- `p323Bc` — otra cosa: lo que pedía ya está en main: src/app/api/mando/reportes/route.ts · revisado por Claude el 2026-09-28 02:12
+- `p324Ac` — otra cosa: lo que pedía ya está en main: src/lib/mando/medidores.ts · revisado por Claude el 2026-09-28 02:12
+- `p324Gc` — otra cosa: lo que pedía ya está en main: src/components/mando/mando-cristal.css · revisado por Claude el 2026-09-28 02:12
+- `DIS1005M` — la revisión lo rechazó: rechazada desde el Mando; rama ola/DIS1005M conservada
+- `JV8c` — otra cosa: lo que pedía ya está en main: src/app/api/jev/systemone/route.ts · revisado por Claude el 2026-09-28 02:12
+- `p318Jc` — no escribió nada
+- `p314Acs` — no escribió nada
+- `DR0919-1` — no escribió nada
+- `DR0927-1` — no escribió nada
+- `DR0927-2` — no escribió nada
+- `DR0929-1` — no escribió nada
+- `DR1003-1` — no escribió nada
+- `R6b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/R6b conservada
+- `R6c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/R6c conservada
+- `R7b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/R7b conservada
+- `R7c` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `TK2c` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `p316Gc` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/p316Gc conservada
+- `p316Ic` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `p316Mb` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/p316Mb conservada
+- `p316Mc` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/p316Mc conservada
+- `PRD1005Tbs` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/PRD1005Tbs conservada
+- `PA1005D` — otra cosa: ningún proveedor respondió (todos caídos)
+- `FLU1005H` — no escribió nada
+- `BLQ1005B` — otra cosa: ningún proveedor respondió (todos caídos)
+- `BLQ1005C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `BLQ1005E` — no escribió nada
+- `DIS1005E` — conflicto al integrar: ff falló: s, a git process may have crashed in this repository earlier: remove the file manually to continue.
