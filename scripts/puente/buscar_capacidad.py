@@ -50,6 +50,8 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 ESTADO = os.path.expanduser("~/.starseed/buscar-capacidad.json")
+SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
+LATIDOS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 REGISTRO = "/tmp/starseed-capacidad.log"
 WORKFLOW = "enjambre-nube.yml"
 
@@ -192,6 +194,50 @@ def texto_medio(m):
     return "%s: %s%s" % (nombre, estado, (" · " + detalle) if detalle else "")
 
 
+#: Claves de `salud-proveedores.json` que no son proveedores.
+NO_PROVEEDORES = ("claves", "ultimo_revisor_ok")
+
+
+def texto_modelos(salud, ahora_txt, esperando=0):
+    """PURA: la línea de los MODELOS. (2026-10-05, 13:35) Con la nube recién lanzada, los tres
+    agentes de la Mac estaban «sin pasarela libre»: más huecos no suman nada si los modelos
+    no contestan, y el botón tiene que decirlo en vez de contar solo sitios.
+    `ahora_txt`: «AAAA-MM-DD HH:MM:SS» (se compara como texto, igual que lo escribe el
+    orquestador)."""
+    con_cupo, sin_cupo, caidos = [], [], []
+    for nombre, v in sorted((salud or {}).items()):
+        if nombre in NO_PROVEEDORES or not isinstance(v, dict):
+            continue
+        hasta = str(v.get("sin_cupo_hasta") or "")
+        if str(v.get("estado") or "") in ("caido", "caído"):
+            caidos.append(nombre)
+        elif hasta and hasta > ahora_txt:
+            sin_cupo.append("%s hasta las %s" % (nombre, hasta[11:16]))
+        else:
+            con_cupo.append(nombre)
+    partes = ["Modelos: %d proveedor(es) con cupo%s" % (len(con_cupo), " (%s)" % ", ".join(con_cupo) if con_cupo else "")]
+    if sin_cupo:
+        partes.append("%d sin cupo (%s)" % (len(sin_cupo), ", ".join(sin_cupo)))
+    if caidos:
+        partes.append("%d caído(s) (%s)" % (len(caidos), ", ".join(caidos)))
+    if esperando:
+        partes.append("%d agente(s) de la Mac esperando pasarela: ahora el límite son los modelos, no los huecos" % esperando)
+    return " · ".join(partes)
+
+
+def esperando_pasarela(latidos, ahora, frescura_s=180):
+    """PURA: cuántas tareas de la Mac esperan modelo. `latidos`: [(mtime, datos)] de los
+    `latidos-cola-auto-*.json`; solo cuentan los frescos."""
+    n = 0
+    for mtime, d in latidos or []:
+        if ahora - float(mtime or 0) > frescura_s or not isinstance(d, dict):
+            continue
+        for v in (d.get("tareas") or {}).values():
+            if isinstance(v, dict) and str(v.get("fase") or "").lower().startswith("esperando"):
+                n += 1
+    return n
+
+
 def resumen(lineas, sumados):
     """PURA: el texto entero que enseña el medidor (una línea por medio)."""
     cabeza = ("Busqué en todos los medios · %d agente(s) más en camino" % sumados if sumados
@@ -255,6 +301,18 @@ def reunir_nube(ahora):
     return salida
 
 
+def _leer_latidos():
+    import glob
+
+    salida = []
+    for f in glob.glob(os.path.join(LATIDOS, "latidos-cola-auto-*.json")):
+        try:
+            salida.append((os.path.getmtime(f), _leer_json(f, {})))
+        except OSError:
+            continue
+    return salida
+
+
 def _otros_medios():
     try:
         import medios_disponibles
@@ -312,6 +370,13 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             lineas.append(texto_mac(estado_mac, decision, hechas_mac))
         except Exception as e:
             lineas.append("%s: no pude mirarla (%s: %s)" % (NOMBRES["mac"], type(e).__name__, e))
+
+        # 1b · Modelos: sin modelos que contesten, un hueco no es capacidad.
+        try:
+            lineas.append(texto_modelos(_leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"),
+                                        esperando_pasarela(_leer_latidos(), ahora)))
+        except Exception:
+            pass
 
         # 2 · Nube
         nube = reunir_nube(ahora)

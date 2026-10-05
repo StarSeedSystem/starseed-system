@@ -138,6 +138,39 @@ class Textos(unittest.TestCase):
         self.assertIn("\n· a", B.resumen(["a"], 0))
 
 
+class Modelos(unittest.TestCase):
+    SALUD = {
+        "nim": {"estado": "vivo", "sin_cupo_hasta": "2026-10-05 13:40:00"},
+        "xkiro": {"estado": "vivo", "sin_cupo_hasta": "2026-09-29 17:07:11"},
+        "llm7": {"estado": "caido"},
+        "groq": {"estado": "vivo"},
+        "claves": {"x": 1},
+        "ultimo_revisor_ok": "2026-10-05",
+    }
+
+    def test_separa_con_cupo_sin_cupo_y_caidos(self):
+        t = B.texto_modelos(self.SALUD, "2026-10-05 13:35:00")
+        self.assertIn("2 proveedor(es) con cupo (groq, xkiro)", t)
+        self.assertIn("1 sin cupo (nim hasta las 13:40)", t)
+        self.assertIn("1 caído(s) (llm7)", t)
+        self.assertNotIn("claves", t)
+
+    def test_cuando_esperan_pasarela_lo_dice(self):
+        t = B.texto_modelos(self.SALUD, "2026-10-05 13:35:00", esperando=3)
+        self.assertIn("3 agente(s) de la Mac esperando pasarela", t)
+        self.assertIn("el límite son los modelos", t)
+
+    def test_cupo_vencido_vuelve_a_contar(self):
+        self.assertIn("3 proveedor(es) con cupo", B.texto_modelos(self.SALUD, "2026-10-05 13:41:00"))
+
+    def test_esperando_pasarela_solo_latidos_frescos(self):
+        fresco = {"tareas": {"A": {"fase": "esperando proveedor"}, "B": {"fase": "escribiendo"},
+                             "C": {"fase": "esperando cupo"}}}
+        viejo = {"tareas": {"D": {"fase": "esperando proveedor"}}}
+        self.assertEqual(B.esperando_pasarela([(AHORA - 30, fresco), (AHORA - 900, viejo)], AHORA), 2)
+        self.assertEqual(B.esperando_pasarela(None, AHORA), 0)
+
+
 def _tarea(tid, **kw):
     t = {"id": tid, "ola": "Ola 900 · prueba", "archivos": ["a.ts"]}
     t.update(kw)
