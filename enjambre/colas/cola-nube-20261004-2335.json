@@ -1,0 +1,77 @@
+{
+ "ola": "nube-20261004",
+ "tareas": [
+  {
+   "id": "LC1004Bc",
+   "ola": "Ola 1004L · Límites del plan de Claude en el Mando",
+   "depende": [],
+   "titulo": "Límites de Claude: lógica PURA en TypeScript (`limites-claude.ts`) con su prueba",
+   "archivos": [
+    "src/lib/mando/limites-claude.ts",
+    "src/lib/mando/__tests__/limites-claude.test.ts"
+   ],
+   "prompt": "CONTRATO (Ola 1004L, petición de Alex 2026-10-04): en «Consumo y créditos» del Puente de Mando se QUITA el «Crédito de Claude en la nube» (los 250 $ de sesiones en la nube) y se pone lo que queda de los LÍMITES DEL PLAN de Claude: la ventana de sesión (se reinicia cada ~5 h) y la semanal (todos los modelos; y la semanal de un modelo concreto si claude.ai la enseña — hoy «Fable»), medido y actualizado solo, con la PREVISIÓN de las tareas programadas para no superar nunca los límites. No hay API pública: la dirección (la sesión de Claude en Cowork) lee claude.ai → Ajustes → Uso en cada revisión programada y lo guarda con `python3 scripts/puente/limites_claude.py declarar …`. Archivo: `~/.starseed/limites-claude.json` = {\"lecturas\": [{\"t\": ISO, \"sesion_pct\": 0-100, \"sesion_reinicio\": ISO, \"semana_pct\": 0-100, \"semana_reinicio\": ISO, \"modelo_nombre\": texto|null, \"modelo_pct\": 0-100|null, \"modelo_reinicio\": ISO|null, \"fuente\": texto}] (las últimas 200, la más nueva al final), \"programadas\": {\"t\": ISO, \"lista\": [{\"nombre\": texto, \"proxima\": ISO, \"cada_min\": entero|null}]}, \"umbral_pct\": 90}. COSTE POR REVISIÓN = mediana de los aumentos positivos de `*_pct` entre lecturas CONSECUTIVAS de la MISMA ventana (mismo `*_reinicio`); null si no hay dos lecturas así. DISPAROS antes de un reinicio = por cada programada: 1 si `proxima` ∈ (ahora, reinicio] más, si `cada_min`>0, floor((reinicio − proxima)/cada_min). PROYECCIÓN al reinicio = pct + disparos × coste (null sin coste). Si `reinicio` ya pasó, la ventana vale 0 % y se marca `reiniciada: true`. TONO: «peligro» si pct ≥ umbral o proyección > 100; «aviso» si pct ≥ 60 o proyección ≥ umbral; si no «ok»; lectura de hace más de 120 min → `desactualizada: true` (y como mínimo «aviso»). RECOMENDACIÓN (texto o null): si la proyección de la sesión o la semana supera el umbral, «Espacia las revisiones: caben N hasta el reinicio de <ventana>» con N = max(0, floor((umbral − pct)/coste)).\nQUÉ HACER: `src/lib/mando/limites-claude.ts` PURO (sin `node:*`, sin `Date.now()` dentro: `ahora` entra como número): tipos `LecturaLimites`, `ProgramadaClaude`, `ConfigLimitesClaude` (forma del archivo), `VentanaClaude` {pct, queda, reinicio, minutosParaReinicio, coste: number|null, proyeccion: number|null, reiniciada, tono: \"ok\"|\"aviso\"|\"peligro\"}, `EstadoLimitesClaude` {sesion: VentanaClaude|null, semana: VentanaClaude|null, modelo: VentanaClaude|null, modeloNombre: string|null, lecturaEn: string|null, lecturaHaceMin: number|null, desactualizada, programadasEnSesion, programadasEnSemana, recomendacion: string|null, tono}; funciones `costePorRevision(lecturas, campo)`, `disparosAntes(lista, ahora, hasta)`, `estadoLimitesClaude(cfg: unknown, ahora: number)` (acepta basura: objeto vacío o null → todo null y tono «aviso» con recomendación «Sin lectura todavía: la dirección la toma en su próxima revisión»), `resumenLimitesClaude(e)` → «sesión 34 % · semana 61 % · reinicia en 2 h 10 min · proyección 72 %» (o «sin lectura»), y `export const ENLACE_USO_CLAUDE = \"https://claude.ai/settings/usage\"`. Mismas reglas exactas del contrato que el CLI de Python.\nTest NUEVO `src/lib/mando/__tests__/limites-claude.test.ts` (vitest) con los mismos casos que el contrato (coste mediana, otra ventana no cuenta, disparos con cada_min, reinicio pasado, proyección y tonos, desactualizada, entrada basura, formato del resumen).\nPuertas: tsc sin errores y vitest del test nuevo en verde. Toca SOLO los dos archivos declarados.\n\nREAPERTURA (Claude, 2026-10-04 22:25): empieza desde main (no desde la rama vieja, que iba 48 commits por detrás). Revisión de Claude (21:10): tsc pasó de 1 a 21 errores en tu rama. Ponte al día con main, ejecuta `npx tsc --noEmit` y arregla los errores de `src/lib/mando/limites-claude.ts` y su prueba (no toques otros archivos). Las exportaciones `costePorRevision`, `disparosAntes`, `estadoLimitesClaude` y `resumenLimitesClaude` quedaron sin usar: o las usa la prueba, o sobran.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "id": "PRD1005L",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · herramientas MCP del director en `mcp_director.py` (estado, candidatos, historial, vetar, pausar, reanudar)",
+   "archivos": [
+    "scripts/puente/mcp_director.py",
+    "scripts/puente/test_mcp_director.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005L): §9, fila MCP. Añade a `HERRAMIENTAS` de `mcp_director.py`, con el mismo estilo (`_s`, `_esquema`, sin dependencias): `produccion_estado` (lee `starseed_memory_root/mando/produccion-estado.json`; si no existe, un estado vacío coherente), `produccion_candidatos` (usa `produccion_candidatos.candidatos` y `elegible`), `produccion_historial` (últimas N líneas de `~/.starseed/produccion/historial.jsonl`), `produccion_vetar` (sha o tid, motivo y quién; escribe con la función de vetos de PRD1005A), `produccion_pausar` y `produccion_reanudar` (crean o borran `~/.starseed/produccion-pausada.json` con {desde, quien, motivo}). Las de escritura exigen `quien` y `motivo`. No toques las herramientas del Chat Director. Pruebas JSON-RPC (`tools/list` y `tools/call`) con rutas temporales.",
+   "dependencias_ya_en_main": [
+    "PRD1005A"
+   ]
+  },
+  {
+   "id": "PRD1005Q",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · los 9 repos en la Biblioteca del OS como «Herramientas de producción», con estado y licencia",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/__tests__/herramientas-produccion.test.ts"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005Q): §9, «Biblioteca». Añade la categoría «Herramientas de producción» con el mismo formato que usó DIS1005I para «Herramientas de diseño»: Temporal, MCP servers, LlamaIndex, CrewAI, Genkit (enlaza `github.com/genkit-ai/genkit`), n8n, Dify, Flowise y LangServe, cada uno con enlace, descripción breve en español, licencia de la tabla de §9, cómo lo usa el director y estado (Flowise y LangServe marcados «archivado · solo referencia»). Si un id ya existe en `packages.ts`, no lo dupliques: amplía su ficha. Prueba de que están los 9, sin ids duplicados.",
+   "dependencias_ya_en_main": [
+    "DIS1005I"
+   ]
+  },
+  {
+   "id": "PRD1005P",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · puerta de evaluaciones de IA (conjunto dorado; patrón de evaluadores de Genkit)",
+   "archivos": [
+    "scripts/puente/produccion_evals.py",
+    "scripts/puente/test_produccion_evals.py",
+    "memory/produccion/evals/casos.jsonl"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005P): §9, «Evaluaciones de IA». (a) `toca_ia(archivos)` detecta prompts y skills: `scripts/hermes/skills/**`, `**/prompts/**`, reglas y preguntas de Jev (`jev*.py`, `decidir.py`), `contexto_agente.py` y los archivos de Astraura y Aurora que encuentres en el repo. (b) `casos.jsonl` con 12 casos iniciales (entrada, componente, propiedades esperadas comprobables: contiene/no contiene, JSON válido con claves, longitud máxima, idioma español, sin claves ni rutas privadas), sacados de usos reales del repo. (c) `evaluar(componente, version, llamar=…)` corre los casos de ese componente y devuelve aprobados y fallos por caso. `comparar(actual, publicada)`: bloquea si aprueba menos casos que la versión publicada o si falla alguno marcado `critico`. Evaluadores deterministas primero; un juez con modelo gratuito solo para la propiedad `juicio` y nunca decisivo él solo. Pruebas con un `llamar` falso."
+  },
+  {
+   "id": "OPT1004E",
+   "ola": "Ola 1004O · Director optimizador: analista perfeccionista de todo el proceso",
+   "depende": [],
+   "titulo": "Director optimizador · el bucle: medir → reglas → Jev/Laya → perillas → experimentos → informe, y su servicio launchd (§1, §4, §8, §9)",
+   "archivos": [
+    "scripts/puente/director-optimizador.py",
+    "scripts/puente/test_director_optimizador.py",
+    "scripts/puente/instalar-servicios.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-optimizador.md` (léelo ENTERO antes de empezar; es la fuente de verdad y lo que no esté ahí no se inventa). Petición de Alex (2026-10-04): un director optimizador que mida todo el proceso, decida con Jev/Laya, ajuste solo perillas seguras y reversibles, verifique cada cambio con experimentos y use varios modelos gratuitos con autoenrutado.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, si una prueba falla se arregla el código y no la prueba. Pruebas con `unittest` y dobles simples, sin red ni archivos reales (todo a rutas temporales); claves SOLO de `os.environ`, jamás en archivos, logs ni pruebas.\n\nTU TAREA (OPT1004E): las §1, §4, §8 y §9, juntando los módulos de OPT1004A/B/C/D y la configuración de OPT1004G. El ciclo es `ciclo(ahora, deps) -> resumen`, con `deps` inyectable: cargar fuentes, `decidir.consultar_lote`, escribir perillas, experimentos, panel, `director_chat.publicar` y `puente.decir`. Reglas: una sola llamada a `consultar_lote` por ciclo con `quien=\"director-optimizador\"` y `dominio=\"optimizacion\"`; se aplica si la regla dice sí y `p(no) < 0.8`; en `modo=\"proponer\"` o con `--seco` no se escribe ninguna perilla ni se publica (se imprime); perillas solo de la lista blanca de la §5, con `config_director` para `trabajadores`, `~/.starseed/rotacion-optimizada.json` para la rotación, `nube-gh.py lanzar` (por subproceso con tope de tiempo de 300 s; el rc distinto de 0 no cuenta como lanzado) para `lanzar_nube`, y `nube-pausada.json` para pausar o reanudar (reanudar = renombrar a `.bak-<fecha>`, nunca borrar); los experimentos se abren y cierran según la §6, y el deshacer escribe `antes`; el análisis profundo con el panel, una vez por hora (marca en `~/.starseed/optimizador/estado.json`); el informe horario según la §8, y el latido `quien=\"director-optimizador\"` en el canal en cada ciclo. `main()` admite `--una-vez`, `--seco` e `--intervalo`. En `instalar-servicios.py` añade el servicio `optimizador`, envuelto con `lanzador-tcc.py` como los demás que leen `~/Documents`, con `StandardErrorPath` `/tmp/starseed-optimizador.log`. Pruebas con dependencias falsas: (1) en `--seco` no escribe nada; (2) R1 + Jev a favor → escribe `trabajadores` y abre el experimento; (3) Jev frena (p(no)=0.9) → no escribe; (4) un experimento que empeora → deshace y llama a confirmar con acierto=no; (5) el informe no se publica dos veces en la misma hora. Corre `STARSEED_ROOT=$PWD python3 -m unittest discover -s scripts/puente -p 'test_*.py'`.",
+   "dependencias_ya_en_main": [
+    "OPT1004A",
+    "OPT1004B",
+    "OPT1004C",
+    "OPT1004D",
+    "OPT1004G",
+    "OPT1004I"
+   ]
+  }
+ ]
+}
