@@ -1020,3 +1020,16 @@ lock es `package-lock.json`); y para volver a lo que dice el lock: `npm ci --inc
 enjambre vivo (orquestador o `opencode run`), ni con más de 4 GB de swap en uso. Síntoma para
 reconocerlo: `node -e "console.log(require('next/package.json').version)"` no coincide con
 `node_modules/next` dentro de `package-lock.json`.
+
+### 8. Sondeos que se apilan dejan la pestaña sin recursos (2026-10-05)
+
+Alex: «no carga el puente de mando». El servidor respondía (`/mando` 200 en 0,5 s), pero la
+pestaña llevaba horas abierta y Chrome contestaba `net::ERR_INSUFFICIENT_RESOURCES` a todo: más de
+35.000 peticiones descartadas y cada pastilla en «—». Treinta y un paneles sondean con
+`setInterval` sin mirar si su lectura anterior volvió; con la Mac cargada un medidor tarda hasta
+46 s (`reunir lenta` en `/tmp/starseed-mando.log`), las vueltas se apilan y el servidor va más
+lento con cada una. **Regla:** las lecturas del Mando pasan por `src/lib/mando/guardia-fetch.ts`
+(instalada al cargar `centro-mando.tsx`): una lectura GET idéntica en vuelo se comparte y una
+colgada se corta a los 45 s. Un sondeo nuevo no necesita hacer nada; uno que use POST para leer
+sí. Síntoma para reconocerlo: medidores en «—» con el servidor sano y `ERR_INSUFFICIENT_RESOURCES`
+en la consola; recargar la pestaña lo alivia, la guardia lo evita.

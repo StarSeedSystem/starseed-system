@@ -119,6 +119,7 @@ import {
 // Solo el tipo viaja al cliente: `neurona.ts` es código de servidor (sonda la
 // máquina) y un import de valor metería `node:child_process` en el bundle web.
 import type { SaludNeurona } from "@/lib/mando/neurona";
+import { instalarGuardiaFetchMando } from "@/lib/mando/guardia-fetch";
 // Ídem para el almacenamiento: solo el tipo y los helpers puros de tono/texto
 // (que no dependen de `node:*`) cruzan al cliente; las sondas quedan en servidor.
 import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
@@ -722,6 +723,11 @@ function PanelMedidorJev({ datos, alCerrar }: { datos: RespuestaJev; alCerrar: (
         </section>
     );
 }
+
+// (2026-10-05) Antes de que ningún panel lea: las lecturas iguales en vuelo se comparten y las
+// colgadas se cortan a los 45 s. Sin esto, una pestaña abierta horas con la Mac cargada se quedaba
+// sin recursos (`ERR_INSUFFICIENT_RESOURCES`) y el Mando entero en «—». Ver `guardia-fetch.ts`.
+instalarGuardiaFetchMando();
 
 export function CentroMando() {
     // La consola ocupa la pantalla entera y no necesita el cromo del OS: al declararse

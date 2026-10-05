@@ -51,6 +51,12 @@ export default defineConfig({
     // 86 minutos en una tarea inventada.
     env: {
       NODE_ENV: "test",
+      // (2026-10-05) Las pruebas corren en UTC en TODAS las máquinas. Con la hora de la Mac
+      // (America/Mexico_City), `2026-09-01T00:00Z` es aún 31 de agosto y dos pruebas de
+      // agrupar por mes (mensajería y contactos) caían solo allí, tumbando la publicación,
+      // mientras el contenedor y la nube, en UTC, las daban por buenas. Una prueba no puede
+      // depender del reloj de pared de quien la corre.
+      TZ: "UTC",
       // Ver el comentario de arriba: ninguna prueba puede tocar las colas del enjambre.
       STARSEED_ROOT: raizDePruebas,
     },
