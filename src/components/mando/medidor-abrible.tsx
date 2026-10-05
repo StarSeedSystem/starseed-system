@@ -746,7 +746,8 @@ export function PanelMedidor({
                     data-testid="respuesta-accion"
                     className="mc-centrado mt-2 flex items-center justify-center gap-2 rounded-md border border-cyan-300/25 bg-cyan-400/10 px-2 py-1 text-[10px] text-cyan-100"
                 >
-                    <span>{respuesta}</span>
+                    {/* (2026-10-05) «Buscar más capacidad» contesta una línea por medio. */}
+                    <span className="whitespace-pre-line text-left">{respuesta}</span>
                     <button
                         type="button"
                         onClick={() => setRespuesta(null)}

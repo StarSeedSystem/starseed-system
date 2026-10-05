@@ -55,6 +55,24 @@ describe("botones de asignar", () => {
     });
 });
 
+describe("«Buscar más capacidad en todos los medios» (2026-10-05)", () => {
+    // Alex: «agrega un botón en el medidor de agentes y de tareas en curso para buscar desde
+    // ahí si hay más espacios para más tareas o agentes disponibles simultáneamente».
+    it("es el PRIMER botón de Agentes y de Tareas en curso", () => {
+        for (const clave of ["agentes", "en-curso"] as const) {
+            const d = detalleDeMedidor(clave, { latidos: [latido], progreso: { LY1: { estado: "en_curso" } } });
+            expect(d.acciones[0]?.clase).toBe("buscar-capacidad");
+            expect(d.acciones[0]?.destructiva).toBe(false);
+            expect(d.acciones[0]?.texto).toMatch(/todos los medios/);
+        }
+    });
+
+    it("también sale con el medidor vacío: es justo cuando más falta", () => {
+        expect(detalleDeMedidor("agentes", { latidos: [] }).acciones[0]?.clase).toBe("buscar-capacidad");
+        expect(detalleDeMedidor("en-curso", { latidos: [], progreso: {} }).acciones[0]?.clase).toBe("buscar-capacidad");
+    });
+});
+
 describe("veredictoDeAgente", () => {
     it("sin latido lo llama estado rancio", () => {
         expect(veredictoDeAgente(undefined, 3)).toMatch(/rancio/);

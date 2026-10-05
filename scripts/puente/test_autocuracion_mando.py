@@ -59,6 +59,15 @@ class Llenado(unittest.TestCase):
         self.assertFalse(A.decidir_llenado({"puede": True, "huecos": 1, "meter": ["X"]}, 1000, 1000 - 60)[0])
 
 
+class Busqueda(unittest.TestCase):
+    def test_primera_vez_toca(self):
+        self.assertTrue(A.decidir_busqueda(1000, None)[0])
+
+    def test_como_mucho_cada_media_hora(self):
+        self.assertFalse(A.decidir_busqueda(10_000, 10_000 - 600)[0])
+        self.assertTrue(A.decidir_busqueda(10_000, 10_000 - A.BUSQUEDA_MINIMA_S)[0])
+
+
 class PublicacionEnMarcha(unittest.TestCase):
     def test_solo_cuenta_si_compila_o_empuja(self):
         corriendo_build = {"estado": "corriendo", "pasos": [{"clave": "build", "estado": "corriendo"}]}
@@ -76,6 +85,7 @@ class Revisar(unittest.TestCase):
         A.ESTADO = os.path.join(self.tmp, "autocuracion.json")
         A.PUBLICACION = os.path.join(self.tmp, "publicacion.json")
         self.avisos, self.reinicios, self.limpiezas = [], [], []
+        self.resultado_busqueda = {"sumados": 0, "hechas": []}
 
     def tearDown(self):
         A.ESTADO, A.PUBLICACION = self._estado, self._pub
@@ -84,8 +94,10 @@ class Revisar(unittest.TestCase):
         it = iter(sondas)
         self.aplicadas = getattr(self, "aplicadas", [])
         decision = decision or {"puede": False}
+        self.busquedas = getattr(self, "busquedas", [])
         return A.revisar(
             asignar_fn=lambda: (decision, lambda: self.aplicadas.append(1) or ["cola viva actualizada"]),
+            buscar_fn=lambda: self.busquedas.append(ahora) or self.resultado_busqueda,
             ahora=ahora, sondear_fn=lambda: next(it), reiniciar_fn=lambda: self.reinicios.append(1),
             limpiar_fn=lambda ids: (self.limpiezas.append(ids) or {"ok": True, "limpiados": list(ids)}),
             libre_fn=lambda: libre, avisar_fn=self.avisos.append, dormir=lambda s: None)
@@ -120,6 +132,32 @@ class RevisarLlenado(Revisar):
     def test_con_el_mando_caido_no_toca_la_cola(self):
         self._revisar([False, False, False], 20.0, decision={"puede": True, "huecos": 2, "meter": ["PA1005D"]})
         self.assertEqual(self.aplicadas, [])
+
+
+class RevisarBusqueda(Revisar):
+    def test_busca_capacidad_cada_media_hora_con_el_mando_vivo(self):
+        self._revisar([True], 20.0, ahora=100_000)
+        self._revisar([True], 20.0, ahora=100_000 + 600)
+        self.assertEqual(self.busquedas, [100_000])
+        self._revisar([True], 20.0, ahora=100_000 + A.BUSQUEDA_MINIMA_S)
+        self.assertEqual(len(self.busquedas), 2)
+
+    def test_con_el_mando_caido_no_busca(self):
+        self._revisar([False, False, False], 20.0)
+        self.assertEqual(self.busquedas, [])
+
+    def test_lo_que_suma_queda_en_los_hechos(self):
+        self.resultado_busqueda = {"sumados": 3, "hechas": ["lanzando 1 job(s) de 3 agente(s)"]}
+        e = self._revisar([True], 20.0)
+        self.assertTrue(any("capacidad fuera de la Mac" in h for h in e["hechos"]))
+
+    def test_un_fallo_buscando_no_tumba_la_pasada(self):
+        self.resultado_busqueda = None
+        e = A.revisar(ahora=1, sondear_fn=lambda: True, reiniciar_fn=lambda: None, limpiar_fn=lambda ids: {},
+                      libre_fn=lambda: 20.0, avisar_fn=self.avisos.append, dormir=lambda s: None,
+                      asignar_fn=lambda: ({"puede": False}, lambda: []),
+                      buscar_fn=lambda: (_ for _ in ()).throw(RuntimeError("gh caído")))
+        self.assertTrue(any("no pude buscar capacidad" in h for h in e["hechos"]))
 
 
 if __name__ == "__main__":

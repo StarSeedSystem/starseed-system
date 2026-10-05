@@ -816,6 +816,33 @@ export async function POST(peticion: Request): Promise<Response> {
         }
     }
 
+    // (2026-10-05) «Buscar más capacidad en todos los medios»: Mac, nube y el resto, de una
+    // vez. La decisión vive en `scripts/puente/buscar_capacidad.py` (pura y probada); los jobs
+    // de la nube salen en segundo plano, así que esto contesta en segundos con el plan.
+    if (accion === "buscar-capacidad") {
+        try {
+            const { stdout } = await correr(
+                "python3",
+                ["scripts/puente/buscar_capacidad.py", "buscar", "--aplicar", "--json", "--origen", "boton"],
+                { cwd: RAÍZ, timeout: 150_000, windowsHide: true },
+            );
+            const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as {
+                resumen?: string;
+                sumados?: number;
+                hechas?: string[];
+            };
+            return Response.json({
+                ok: true,
+                resumen: r.resumen || "Busqué en todos los medios.",
+                sumados: r.sumados ?? 0,
+                hechas: r.hechas ?? [],
+            });
+        } catch (e) {
+            const msj = e instanceof Error ? e.message : String(e);
+            return Response.json({ error: `No pude buscar más capacidad: ${msj.slice(0, 300)}` }, { status: 500 });
+        }
+    }
+
     if (accion === "comprobar-agente") {
         const datosVivos = (await reunion.obtener()).datos ?? {};
         const latido = (datosVivos.latidos ?? []).find((l) => l.tarea === id);

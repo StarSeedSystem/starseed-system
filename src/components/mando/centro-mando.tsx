@@ -1101,6 +1101,8 @@ export function CentroMando() {
                     accion.clase === "desplegar-nube" ||
                     // (2026-09-23) Comprobar/asignar trabajo: la frase del servidor dice qué hizo y por qué.
                     accion.clase === "asignar-huecos" ||
+                    // (2026-10-05) Una línea por medio: lo que sumó y por qué no más.
+                    accion.clase === "buscar-capacidad" ||
                     accion.clase === "asignar-tarea" ||
                     accion.clase === "comprobar-asignacion" ||
                     accion.clase === "comprobar-agente"

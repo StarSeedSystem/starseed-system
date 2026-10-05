@@ -58,6 +58,12 @@ export type ClaseAccion =
     // (huecos = tope vivo − ocupados; nunca se salta el tope del gobernador ni se lanza un
     // orquestador desde aquí: si no hay tanda, se despierta al vigilante).
     | "asignar-huecos"
+    // (2026-10-05) Alex: «de nuevo solo hay 3 activos, agrega un botón en el medidor de agentes
+    // y de tareas en curso para buscar desde ahí si hay más espacios… sin que te tenga que
+    // decir cada vez». Una pasada por TODOS los medios: llena la Mac, reabre en la nube lo que
+    // solo agotó sus envíos con los proveedores saturados y lanza los jobs que quepan, y dice
+    // medio por medio qué sumó y por qué no más (`scripts/puente/buscar_capacidad.py`).
+    | "buscar-capacidad"
     | "asignar-tarea"
     | "comprobar-asignacion"
     | "comprobar-agente";
@@ -236,6 +242,13 @@ export function libresDeContenedores(inv: DatosMedidores["contenedores"]): numbe
 
 /** (2026-09-23) Los dos botones generales de «¿cabe más trabajo?»: uno comprueba sin tocar
  *  nada y el otro, si cabe, mete las listas en la tanda viva (o despierta al vigilante). */
+/** (2026-10-05) «Buscar más capacidad»: el primer botón de Agentes y de Tareas en curso. */
+export const ACCION_BUSCAR_CAPACIDAD: AccionMedidor = {
+    clase: "buscar-capacidad",
+    texto: "Buscar más capacidad en todos los medios",
+    destructiva: false,
+};
+
 export const ACCIONES_ASIGNAR: AccionMedidor[] = [
     { clase: "asignar-huecos", texto: "Buscar y asignar trabajo ahora", destructiva: false },
     { clase: "comprobar-asignacion", texto: "Comprobar si cabe más", destructiva: false },
@@ -1675,6 +1688,7 @@ export function detalleDeMedidor(
                 // Van en esta ventana y no solo en la de contenedores porque es aquí donde
                 // se mira cuando faltan agentes.
                 acciones: [
+                    ACCION_BUSCAR_CAPACIDAD,
                     ...ACCIONES_ASIGNAR,
                     { clase: "sondear-contenedores", texto: "Buscar contenedores en la nube", destructiva: false },
                     ...(libresDeContenedores(d.contenedores) > 0
@@ -1771,7 +1785,7 @@ export function detalleDeMedidor(
                           }`,
                 filas: todas,
                 porcentajeMedio: medio,
-                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
+                acciones: [ACCION_BUSCAR_CAPACIDAD, ...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ninguna tarea en curso ahora mismo.",
             };
         }

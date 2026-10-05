@@ -23,6 +23,11 @@ arreglar desde la máquina (lo de la pestaña lo arregla `src/lib/mando/autocura
    «Reintentar con cambio automático» del Mando) estaba preparada sin que nadie la aplicara.
    Ahora, si hay huecos libres y tareas que meter, se aplica sola (como mucho cada 5 min) y se
    avisa. `decidir` ya respeta la pausa, la conversación de voz y el disco.
+4. **Más capacidad fuera de la Mac.** (12:40, Alex: «de nuevo solo hay 3 activos… sin que te
+   tenga que decir cada vez desde aquí».) Cada 30 min se hace lo mismo que el botón «Buscar
+   más capacidad» del Mando (`buscar_capacidad.buscar`), sin sondear los medios lentos: si la
+   nube tiene sitio y trabajo que pueda coger —también el que solo agotó sus envíos con los
+   proveedores saturados—, se lanza. Si suma agentes, lo dice en el Chat Director.
 
 Todo lo que hace queda en `~/.starseed/autocuracion-mando.json` y en el Chat Director.
 Las decisiones son funciones PURAS (`decidir_reinicio`, `ids_a_limpiar`) con sus pruebas.
@@ -48,6 +53,7 @@ TOPE_SONDA_S = 15
 REINICIO_MINIMO_S = 10 * 60
 LIMPIEZA_MINIMA_S = 60 * 60
 LLENADO_MINIMO_S = 5 * 60
+BUSQUEDA_MINIMA_S = 30 * 60
 DISCO_AVISO_GB = 6.0
 DISCO_CRITICO_GB = 3.0
 
@@ -108,6 +114,13 @@ def decidir_llenado(decision, ahora, ultimo_llenado, minimo_s=LLENADO_MINIMO_S):
     if ultimo_llenado and ahora - ultimo_llenado < minimo_s:
         return False, "ya llené los huecos hace %d s" % int(ahora - ultimo_llenado)
     return True, "%d trabajador(es) libre(s): meto %s" % (huecos, ", ".join(meter))
+
+
+def decidir_busqueda(ahora, ultima_busqueda, minimo_s=BUSQUEDA_MINIMA_S):
+    """PURA. ¿Toca buscar capacidad fuera de la Mac? Devuelve (sí/no, por qué)."""
+    if ultima_busqueda and ahora - ultima_busqueda < minimo_s:
+        return False, "busqué capacidad hace %d min" % int((ahora - ultima_busqueda) // 60)
+    return True, "toca buscar más capacidad"
 
 
 # ── la máquina ──────────────────────────────────────────────────────────────────
@@ -207,8 +220,18 @@ def _asignar():
     return decision, (lambda: asignar_huecos.aplicar(estado, decision))
 
 
+def _buscar():
+    """El botón «Buscar más capacidad» sin los sondeos lentos ni la Mac (de ella ya se ocupa
+    el llenado de arriba). Avisa él mismo en el Chat Director si suma agentes."""
+    if DIRECTORIO not in sys.path:
+        sys.path.insert(0, DIRECTORIO)
+    import buscar_capacidad
+    return buscar_capacidad.buscar(aplicar=True, sondear_medios=False, mac=False, origen="autocuracion")
+
+
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
-            libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar):
+            libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
+            buscar_fn=_buscar):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO)."""
     ahora = ahora if ahora is not None else time.time()
     estado = _leer_json(ESTADO, {}) if ESTADO else {}
@@ -256,6 +279,18 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
                 avisar_fn("Autocuración: %s (%s)." % (porque_ll, "; ".join(hechas)[:400]))
         except Exception as e:
             hechos.append("no pude llenar los huecos: %s: %s" % (type(e).__name__, e))
+
+    # Más capacidad fuera de la Mac (la nube), como el botón del Mando, cada 30 min.
+    if any(sondas):
+        toca, _porque_b = decidir_busqueda(ahora, estado.get("ultima_busqueda"))
+        if toca:
+            estado["ultima_busqueda"] = ahora
+            try:
+                r = buscar_fn() or {}
+                if r.get("sumados"):
+                    hechos.append("capacidad fuera de la Mac: %s" % "; ".join(r.get("hechas") or [])[:300])
+            except Exception as e:
+                hechos.append("no pude buscar capacidad: %s: %s" % (type(e).__name__, e))
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),

@@ -127,10 +127,11 @@ def main():
     # (prompt y dependencias quitadas) se hornea DENTRO de la cola que se le manda.
     colas = [(nombre, aplicar_a_todas(tareas, progreso)) for nombre, tareas in colas]
     # (2026-09-24) Lo que ya se mandó 3 veces sin integrarse no se vuelve a mandar.
-    from repartir_nube import envios_por_tarea, leer_colas_nube
-    import time as _time
+    # (2026-10-05) Menos las reaperturas del botón «Buscar más capacidad» (`buscar_capacidad.py`):
+    # una tarea que agotó sus envíos con los proveedores saturados recupera uno.
+    from repartir_nube import envios_vigentes
 
-    envios = envios_por_tarea(leer_colas_nube(DESTINO_DIR, _time.time()))
+    envios = envios_vigentes(DESTINO_DIR)
     elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope, envios=envios)
     ahora = datetime.datetime.now()
     fecha = ahora.strftime("%Y%m%d")

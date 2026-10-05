@@ -158,6 +158,44 @@ def numero_ola(texto):
     return int(m.group(1)) if m else None
 
 
+#: (2026-10-05) Por qué una tarea NO va a la nube, en el orden en que se comprueba. El botón
+#: «Buscar más capacidad» del Mando enseña este recuento en vez de un «0 tareas» sin explicar.
+MOTIVOS_FUERA = (
+    ("ola-actual", "son de la ola que corre en la Mac"),
+    ("estado", "no están pendientes ni fallidas"),
+    ("en-main", "ya están en main"),
+    ("grande", "piden más de %d archivos y se quedan en la Mac, donde hay revisor" % MAX_ARCHIVOS_NUBE),
+    ("espera", "esperan a otra tarea"),
+    ("agotada", "ya se mandaron %d veces sin integrarse" % MAX_ENVIOS_NUBE),
+    ("privada", "son privadas y no salen de la Mac"),
+)
+
+
+def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
+                 max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE):
+    """PURA. None si la nube puede coger esta tarea; si no, la clave de MOTIVOS_FUERA del
+    primer filtro que la deja fuera. Es EL filtro de `elegir`: los dos no pueden discrepar."""
+    tid = str(tarea.get("id"))
+    n_ola = numero_ola(str(tarea.get("ola") or ""))
+    if n_ola_actual is not None and n_ola is not None and n_ola == n_ola_actual:
+        return "ola-actual"
+    entrada = (progreso or {}).get(tid)
+    estado = entrada.get("estado") if isinstance(entrada, dict) else None
+    if estado not in ESTADOS_REPARTIBLES:
+        return "estado"
+    if id_en_asuntos(tid, asuntos_main):
+        return "en-main"
+    if _n_archivos(tarea) > max_archivos:
+        return "grande"
+    if dependencias_pendientes(tarea, progreso, asuntos_main):
+        return "espera"
+    if (envios or {}).get(tid, 0) >= max_envios:
+        return "agotada"
+    if es_privada(tarea):
+        return "privada"
+    return None
+
+
 def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_ARCHIVOS_NUBE,
            envios=None, max_envios=MAX_ENVIOS_NUBE):
     """Hasta `tope` candidatas, deduplicadas, con modelo nube y ordenadas por tamano.
@@ -167,7 +205,7 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
     solo ve `origin/main` y no puede saber si la dependencia esta hecha en la Mac.
     Entre las que quedan van primero las de un solo archivo, que son las que de
     verdad llegan a commit. Si no queda ninguna, la nube no recibe nada ese ciclo
-    — que es lo correcto, no un fallo.
+    — que es lo correcto, no un fallo. El filtro entero vive en `motivo_fuera`.
     """
     salida, vistas = [], set()
     n_actual = numero_ola(str(ola_actual)) if ola_actual else None
@@ -178,23 +216,7 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
             tid = str(tarea["id"])
             if tid in vistas:
                 continue
-            ola = str(tarea.get("ola") or "")
-            n_ola = numero_ola(ola)
-            if n_actual is not None and n_ola is not None and n_ola == n_actual:
-                continue
-            entrada = progreso.get(tid)
-            estado = entrada.get("estado") if isinstance(entrada, dict) else None
-            if estado not in ESTADOS_REPARTIBLES:
-                continue
-            if id_en_asuntos(tid, asuntos_main):
-                continue
-            if _n_archivos(tarea) > max_archivos:
-                continue
-            if dependencias_pendientes(tarea, progreso, asuntos_main):
-                continue
-            if (envios or {}).get(tid, 0) >= max_envios:
-                continue
-            if es_privada(tarea):
+            if motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos, max_envios):
                 continue
             vistas.add(tid)
             candidata = dict(tarea)
@@ -214,6 +236,100 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
     # que ya calcularon los directores). Solo se reordena por tamano.
     salida.sort(key=_n_archivos)
     return salida[:tope]
+
+
+def clasificar(colas, progreso, asuntos_main, ola_actual, envios=None,
+               max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE):
+    """PURA. {"elegibles": [ids], <motivo>: [ids], ...} del trabajo que queda, en el orden de
+    las colas. No cuenta lo cerrado ni lo que ya está en main (no es trabajo pendiente).
+
+    Una «agotada» que con la cuenta a cero seguiría fuera por otra razón (privada, por
+    ejemplo) sale con ESA razón: reabrirla no la llevaría a la nube."""
+    elegidas = {str(t["id"]) for t in elegir(colas, progreso, asuntos_main, ola_actual, tope=10 ** 6,
+                                              max_archivos=max_archivos, envios=envios,
+                                              max_envios=max_envios)}
+    n_actual = numero_ola(str(ola_actual)) if ola_actual else None
+    salida, vistas = {"elegibles": []}, set()
+    for _nombre, tareas in colas:
+        for tarea in tareas:
+            if not isinstance(tarea, dict) or not tarea.get("id"):
+                continue
+            tid = str(tarea["id"])
+            if tid in vistas:
+                continue
+            vistas.add(tid)
+            if tid in elegidas:
+                salida["elegibles"].append(tid)
+                continue
+            motivo = motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos, max_envios)
+            if motivo == "agotada":
+                motivo = motivo_fuera(tarea, progreso, asuntos_main, n_actual, {}, max_archivos,
+                                      max_envios) or "agotada"
+            if motivo in (None, "estado", "en-main"):
+                continue
+            salida.setdefault(motivo, []).append(tid)
+    return salida
+
+
+#: (2026-10-05) SEGUNDA OPORTUNIDAD EN LA NUBE. Medido a las 12:58: 12 tareas listas, la Mac
+#: llena (3 de 3) y la nube con CERO elegibles, 16 de ellas solo por «tres envíos sin
+#: integrarse». Y esos envíos no fallaron por la tarea: el run 37336355273 pasó DR0929-1 por
+#: siete modelos y todos contestaron «saturado (429)» o «apartado por cuota». Reabrir una
+#: tarea le devuelve UN envío (se descuenta de su cuenta); la historia de las colas no se toca
+#: y el tope sigue mandando. {id: [marcas de tiempo]}.
+REAPERTURAS_NUBE = os.path.expanduser("~/.starseed/nube-reaperturas.json")
+#: Como la cuenta de envíos: lo de hace más de dos días ya no cuenta.
+DIAS_REAPERTURAS = 2
+
+
+def reaperturas_vigentes(datos, ahora_ts, dias=DIAS_REAPERTURAS):
+    """PURA: {id: [ts, ...]} con solo las reaperturas de los últimos `dias` días."""
+    limite = ahora_ts - dias * 86400
+    salida = {}
+    for tid, marcas in (datos or {}).items() if isinstance(datos, dict) else []:
+        vivas = sorted(float(m) for m in (marcas or []) if isinstance(m, (int, float)) and m >= limite)
+        if vivas:
+            salida[str(tid)] = vivas
+    return salida
+
+
+def envios_efectivos(envios, reaperturas):
+    """PURA: los envíos que cuentan contra MAX_ENVIOS_NUBE, una reapertura menos cada vez."""
+    return {tid: max(0, int(n) - len((reaperturas or {}).get(tid) or []))
+            for tid, n in (envios or {}).items()}
+
+
+def leer_reaperturas(ahora_ts=None, ruta=None, dias=DIAS_REAPERTURAS):
+    """Reaperturas vigentes del disco. Nunca lanza: sin archivo, ninguna."""
+    try:
+        with open(ruta or REAPERTURAS_NUBE, encoding="utf-8") as f:
+            datos = json.load(f)
+    except (OSError, ValueError):
+        datos = {}
+    return reaperturas_vigentes(datos, time.time() if ahora_ts is None else ahora_ts, dias)
+
+
+def anotar_reaperturas(ids, ahora_ts=None, ruta=None):
+    """Anota una reapertura para cada id (escritura atómica). Devuelve las vigentes."""
+    ahora_ts = time.time() if ahora_ts is None else ahora_ts
+    ruta = ruta or REAPERTURAS_NUBE
+    datos = leer_reaperturas(ahora_ts, ruta)
+    for tid in ids or []:
+        datos.setdefault(str(tid), []).append(ahora_ts)
+    os.makedirs(os.path.dirname(ruta) or ".", exist_ok=True)
+    tmp = "%s.tmp-%d" % (ruta, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+    return datos
+
+
+def envios_vigentes(carpeta_colas, ahora_ts=None, ruta_reaperturas=None):
+    """Lo que cuenta de verdad contra el tope: envíos de los dos últimos días menos las
+    reaperturas. Lo usan el reparto y el director de la nube, para que no discrepen."""
+    ahora_ts = time.time() if ahora_ts is None else ahora_ts
+    return envios_efectivos(envios_por_tarea(leer_colas_nube(carpeta_colas, ahora_ts)),
+                            leer_reaperturas(ahora_ts, ruta_reaperturas))
 
 
 def reclamar_varadas(progreso, runs_en_marcha):

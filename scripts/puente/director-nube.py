@@ -212,7 +212,8 @@ def reclamar_varadas_de_la_nube(runs_vivos):
         return []
     # (2026-09-24) Con cuántas veces se mandó y con lo que dijo la nube: si ya van tres,
     # a «Bloqueadas» con el motivo, no otra vez a «pendiente» (y otra vez a la nube).
-    envios = RN.envios_por_tarea(RN.leer_colas_nube(os.path.join(RAIZ, "enjambre", "colas"), time.time()))
+    # (2026-10-05) Con las reaperturas descontadas: la misma cuenta que usa el reparto.
+    envios = RN.envios_vigentes(os.path.join(RAIZ, "enjambre", "colas"), time.time())
     nuevas = RN.devolver_a_pendiente(tareas, ids, time.strftime("%Y%m%d"),
                                      envios=envios, veredictos=veredictos_del_ultimo_run(ids))
     if isinstance(progreso, dict) and "tareas" in progreso:

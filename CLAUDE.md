@@ -377,7 +377,12 @@ suyas a un tercero o cambia la configuración de sus cuentas.
 un número de agentes hay que SONDEAR todos los medios (`scripts/puente/medios_disponibles.py`) y
 ENCENDER los que estén en `usable`, que son medios apagados, no medios trabajando. Y decir siempre
 el número con su desglose por medio y con cuántas tareas quedan en cola: más agentes que tareas no
-es capacidad, es ruido. BitNet
+es capacidad, es ruido. **Desde el Mando es un botón** (2026-10-05): «Buscar más capacidad en todos
+los medios», el primero de los medidores Agentes y Tareas en curso (`scripts/puente/buscar_capacidad.py`):
+llena la Mac hasta su tope, reabre en la nube lo que solo agotó sus tres envíos con los proveedores
+saturados (`~/.starseed/nube-reaperturas.json`: una reapertura devuelve un envío, como mucho dos por
+tarea en dos días y nunca dejando a la Mac sin trabajo para su tope), lanza hasta 2 jobs de GitHub
+Actions y dice medio por medio qué sumó y por qué no más. La autocuración lo repite cada 30 min. BitNet
 vive en cualquier medio con `scripts/nodo-bitnet.sh` (repo de Astraura), que mide RAM/núcleos y
 elige hilos/contexto/slots solo.
 En esta flota, **AIHubMix** (`AIHUBMIX_API_KEY`, 412 modelos con 54 gratuitos) es el **revisor
