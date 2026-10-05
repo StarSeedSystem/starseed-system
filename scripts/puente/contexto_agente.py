@@ -99,6 +99,40 @@ REGLAS = [
      "memory/aprendizaje-olas.md · 2026-09-16 21:17"),
 ]
 
+# ─────────────────────────── reglas de diseño (solo interfaz) ───────────────────────────
+# Contrato `architecture/director-diseno.md` §6: entran solo cuando la tarea es de interfaz
+# (`_es_interfaz`) y solo a escritor y revisor. Fuentes en memory/diseno/.
+ROLES_DISENO = ("escritor", "revisor")
+REGLAS_DISENO = [
+    ("identidad-diseno", ROLES_DISENO,
+     "Interfaz: la identidad del área manda; tokens antes que hex sueltos.",
+     "memory/diseno/identidades.md"),
+    ("armonia", ROLES_DISENO,
+     "Interfaz: escala tipográfica φ (1,25 en móvil) y espaciado Fibonacci; un solo foco visual por vista; geometría sagrada como estructura, nunca tapando contenido.",
+     "memory/diseno/armonia.md"),
+    ("accesible", ROLES_DISENO,
+     "Interfaz: contraste ≥ 4,5:1, dianas ≥ 44 px y motion seguro (`motion-safe`, respeta prefers-reduced-motion); nada de texto cortado ni elementos pegados en 360 px.",
+     "memory/diseno/armonia.md"),
+    ("matriz", ROLES_DISENO,
+     "Interfaz: antes de terminar, comprueba la matriz de pantallas (360/430 px, tablet, escritorio, TV y plegable 280 px) en táctil y puntero.",
+     "memory/diseno/referencias.md"),
+]
+
+
+def _es_interfaz(tarea):
+    """True si la tarea toca interfaz. Usa `diseno_brief.es_de_interfaz` si se puede importar;
+    si no, la regla de rutas: extensiones o palabras de interfaz en el texto. PURA."""
+    t = (tarea or "").lower()
+    archivos = re.findall(r"[\wáéíóú./\-]+\.(?:tsx|css|mdx)", t)
+    try:
+        import diseno_brief as _db
+
+        return bool(_db.es_de_interfaz({"titulo": tarea or "", "archivos": archivos}))
+    except Exception:
+        pass
+    return bool(archivos) or any(p in t for p in ("tailwind.config", ".theme.", "widget", "fondo", "icono", "tema"))
+
+
 # ─────────────────────────────── herramientas ───────────────────────────────
 # (id, roles, orden exacta, para qué, archivo del repo que la respalda o None si es de la Mac).
 HERRAMIENTAS = [
@@ -238,10 +272,13 @@ def area_de_texto(texto, raices):
 
 # ─────────────────────────────── secciones ───────────────────────────────
 
-def seccion_reglas(rol, compacto=False):
-    """Las del rol primero y las de todos después: si el tope corta, corta lo común."""
+def seccion_reglas(rol, compacto=False, es_interfaz=False):
+    """Las del rol primero y las de todos después: si el tope corta, corta lo común.
+    Las de diseño solo entran en tareas de interfaz (`es_interfaz`)."""
     lineas = ["## Reglas permanentes (mandan sobre tu criterio)"]
     propias = [r for r in REGLAS if r[1] is not TODOS and _para(r[1], rol)]
+    if es_interfaz:
+        propias += [r for r in REGLAS_DISENO if _para(r[1], rol)]
     comunes = [r for r in REGLAS if r[1] is TODOS]
     for _id, roles, regla, fuente in propias + comunes:
         lineas.append("- %s" % regla if compacto else "- %s _(%s)_" % (regla, fuente))
@@ -326,12 +363,13 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
     area = area or area_de_texto(tarea, raices)
     max_chars = max(400, int(max_chars or MAX_POR_DEFECTO))
     compacto = max_chars < COMPACTO_BAJO
+    es_interfaz = _es_interfaz(tarea)
     cabecera = "# Contexto común · rol %s%s\n_El mismo para todos los agentes (scripts/puente/contexto_agente.py)._" % (
         rol, (" · área %s" % area) if area else "")
     if tarea:
         cabecera += "\nTAREA: " + " ".join(str(tarea).split())[:300]
     piezas = {
-        "reglas": lambda: seccion_reglas(rol, compacto),
+        "reglas": lambda: seccion_reglas(rol, compacto, es_interfaz),
         "protocolo": lambda: seccion_protocolo(rol, compacto),
         "herramientas": lambda: seccion_herramientas(rol, existe, compacto),
         "area": lambda: seccion_area(area, areas, raices, existe),

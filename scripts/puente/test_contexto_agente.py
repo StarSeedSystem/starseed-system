@@ -149,11 +149,43 @@ class Cli(unittest.TestCase):
         self.assertEqual(C.texto("escritor", raiz="/no/existe")[:18], "# Contexto común ·")
 
 
+class Diseno(unittest.TestCase):
+    """Las reglas de diseño solo entran en tareas de interfaz (director-diseno.md §6)."""
+
+    def test_escritor_con_tarea_tsx_lleva_reglas_de_diseno(self):
+        t = construir("escritor", tarea="Toca src/components/mando/panel.tsx")["texto"]
+        self.assertIn("tokens antes que hex", t)
+        self.assertIn("Fibonacci", t)
+        self.assertIn("motion", t)
+        self.assertIn("matriz de pantallas", t)
+
+    def test_tarea_py_no_lleva_reglas_de_diseno(self):
+        t = construir("escritor", tarea="Arregla scripts/puente/colas.py")["texto"]
+        self.assertNotIn("tokens antes que hex", t)
+        self.assertNotIn("matriz de pantallas", t)
+
+    def test_otros_roles_no_llevan_reglas_de_diseno(self):
+        t = construir("supervisor", tarea="Revisa src/app/panel.tsx")["texto"]
+        self.assertNotIn("tokens antes que hex", t)
+
+    def test_revisor_con_900_recibe_reglas_recortadas_sin_romper(self):
+        d = construir("revisor", tarea="Revisa src/components/mando/panel.tsx", max_chars=900)
+        self.assertLessEqual(d["caracteres"], 900)
+        self.assertIn("## Reglas permanentes", d["texto"])
+        self.assertIn("reglas", d["secciones"] + d["recortadas"])
+
+    def test_es_interfaz(self):
+        self.assertTrue(C._es_interfaz("Nuevo widget en src/a/b.tsx"))
+        self.assertTrue(C._es_interfaz("Icono de la app"))
+        self.assertFalse(C._es_interfaz("Migra la tabla relevo_eventos"))
+        self.assertFalse(C._es_interfaz(""))
+
+
 class Deriva(unittest.TestCase):
     """Ninguna regla habla en nombre de un documento que ya no existe."""
 
     def test_las_fuentes_y_los_guiones_existen(self):
-        for _id, _roles, _regla, fuente in C.REGLAS:
+        for _id, _roles, _regla, fuente in list(C.REGLAS) + list(C.REGLAS_DISENO):
             self.assertTrue(os.path.exists(os.path.join(RAIZ, C._ruta_de_fuente(fuente))), fuente)
         for _id, _roles, _orden, _para, archivo in C.HERRAMIENTAS:
             if archivo:
