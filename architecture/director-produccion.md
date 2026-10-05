@@ -92,6 +92,8 @@ para que Alex la publique con un toque.
      tiempo más de 1,5× peor avisa.
    - **Diseño**: si el lote toca interfaz, el director de diseño puntúa sobre la vista previa.
    - **Servicios Python**: arranque `--una-vez --seco` cuando el servicio lo admita.
+   - **Evaluaciones de IA** (§9): si el lote toca prompts, skills o reglas de IA, el conjunto dorado no
+     puede empeorar.
 5. **Publicar.** Fast-forward `git push origin <sha>:main`, nunca force. Se publica **por lotes** en
    una ventana (`ventana_min`). Las peticiones directas de Alex van por el **carril exprés**: sin
    esperar la ventana, con las mismas puertas.
@@ -182,3 +184,76 @@ medio) y se la entrega al optimizador como métrica.
 - Publicar en redes sociales.
 - Reactivar BitNet, la voz y Astraura 1.58.
 - Quitar una puerta de este contrato.
+
+## 9. Habilidades: los repos que usa y cómo (añadido el 2026-10-05)
+
+Petición de Alex: incluir Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores
+MCP y LlamaIndex como habilidades del director. El estado se comprobó en GitHub el 2026-10-05. Regla
+común: el Mac tiene 8 GB, así que nada de esto corre como servidor en el Mac. Se adopta el **patrón** con
+lo que ya tenemos y la librería o el servidor solo cuando un experimento demuestre que mejora sin cargarlo.
+
+| Repo | Qué es | Estado | Cómo lo usa el director |
+|---|---|---|---|
+| **Temporal** (`temporalio/temporal`, MIT) | Motor de flujos durables | Activo | **Ejecución durable** del bucle (ver abajo). El servidor (`temporal server start-dev`) solo como opción en la nube. |
+| **MCP** (`modelcontextprotocol/servers`) | Servidores de referencia del protocolo | Activo | `mcp_director.py` (nuestro servidor MCP, sin dependencias) suma herramientas de producción: `produccion_estado`, `produccion_candidatos`, `produccion_historial`, `produccion_vetar`, `produccion_pausar` y `produccion_reanudar`. Claude, Hermes, Codex y cualquier IDE consultan y frenan producción por el mismo canal. Los servidores `git`, `fetch` y `time` sirven de modelo. |
+| **LlamaIndex** (`run-llama/llama_index`, MIT) | Indexar y recuperar documentos | Activo | **Memoria del proyecto para la puerta 3** (ver abajo). |
+| **CrewAI** (`crewAIInc/crewAI`, MIT) | Equipos de agentes por roles | Activo | **El panel de respaldo** de la puerta 3 como equipo por roles (ver abajo). |
+| **Firebase Genkit** (ahora `genkit-ai/genkit`, Apache-2.0) | Flujos de IA, trazas y evaluaciones | Activo | **Puerta de evaluaciones de IA** (ver abajo). Nada de desplegar en Firebase ni Cloud Run: la facturación de Google Cloud está desactivada. |
+| **n8n** (`n8n-io/n8n`, licencia de uso sostenible) | Automatización con cientos de integraciones | Activo | Puente hacia medios sin conector propio, por **webhooks firmados** (ver abajo). Necesita una instancia fuera del Mac; hasta que exista, los webhooks quedan apagados. |
+| **Dify** (`langgenius/dify`, licencia propia basada en Apache con condiciones) | Plataforma de apps y flujos de IA con RAG | Activo | Medio opcional «apps de IA» en §2: si StarSeed publica un agente o flujo en Dify, el director lo versiona y publica por su API con las mismas puertas. Apagado hasta que haya instancia y clave en el entorno. |
+| **Flowise** (`FlowiseAI/Flowise`) | Constructor visual de agentes | **Archivado** en GitHub (último cambio 2026-08-13) | Solo como referencia en la Biblioteca; no se adopta mientras siga archivado. |
+| **LangServe** (`langchain-ai/langserve`) | Publicar cadenas como API REST | **Archivado**; su README recomienda LangGraph Platform | Solo el patrón: cada servicio de IA en Python expone `/invoke`, `/stream` y `/playground`. Para lo nuevo, LangGraph (ya en la Biblioteca de diseño). |
+
+**Ejecución durable (Temporal).** `director-produccion.py` trata cada lote como un flujo con pasos
+(actividades) idempotentes:
+
+- El estado del lote se persiste **antes y después** de cada paso en `produccion-estado.json` y en
+  `historial.jsonl`.
+- Cada paso tiene reintentos con espera creciente y un tope.
+- Las esperas largas (CI, vista previa, sondeo de 15 min) son **temporizadores persistidos** con su
+  hora de vencimiento, nunca un `sleep` en memoria.
+- Si el servicio se reinicia, **retoma el lote en el paso donde quedó** y no repite un push ya hecho:
+  lo comprueba contra `origin`.
+- La reversión es la **compensación** (patrón saga): cada paso que publica registra cómo deshacerse.
+
+**Memoria del proyecto (LlamaIndex).** `produccion_memoria.py` indexa `architecture/`, `memory/`,
+`CLAUDE.md`, `AGENTS.md`, los informes de tareas (`olas/pasos/`), el historial de producción y los
+incidentes.
+
+- Por cada candidata recupera los 5 pasajes más relevantes y los añade a su paquete de contexto, sin
+  pasar de 6 KB.
+- No usa red ni servidor: el índice va en disco y busca por coincidencia de palabras clave (BM25).
+- Usa LlamaIndex si está instalado. Si no, un BM25 en Python puro con la misma interfaz.
+- Los embeddings son opcionales y solo por pasarela gratuita.
+
+**Panel de respaldo (CrewAI).** Cuando Jev no responde, decide un equipo de cuatro roles, cada uno con
+un modelo gratuito distinto de la flota:
+
+- responsable de lanzamiento: propósito y coherencia;
+- QA: pruebas y regresión;
+- seguridad: secretos, datos y permisos;
+- SRE: medios y reversión.
+
+Decide por mayoría, y seguridad tiene veto. Se reutilizan las pasarelas de `decidir.py` y, si existe,
+`optimizador_panel.py`.
+
+**Evaluaciones de IA (Genkit).** Si el lote toca prompts, skills de Hermes, reglas de Jev, Astraura o
+Aurora, la puerta 4 ejecuta un **conjunto dorado** de casos de `memory/produccion/evals/`:
+
+- cada caso es una entrada con las propiedades que debe cumplir la salida;
+- se ejecuta con modelos gratuitos y se compara con la versión publicada;
+- si empeora, el lote no pasa.
+
+Se adopta el patrón de evaluadores de Genkit. Genkit mismo (JS) solo si cabe sin coste en CI.
+
+**Webhooks (n8n, Dify).** `produccion_webhooks.py` emite eventos firmados con HMAC:
+
+- `produccion.publicada`
+- `produccion.revertida`
+- `produccion.pieza_lista` (la pieza verificada para redes, que Alex aprueba)
+
+Van a las URLs que haya en el entorno: `N8N_WEBHOOK_URL`, `DIFY_WEBHOOK_URL` y la clave
+`PRODUCCION_WEBHOOK_SECRETO`, sin imprimirlas nunca. Si una URL no responde, no frena el ciclo.
+
+**Biblioteca.** Los 9 entran en la Biblioteca del OS como «Herramientas de producción», cada uno con
+su estado y su licencia.
