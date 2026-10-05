@@ -252,7 +252,7 @@ jobs:
               sleep 5
             done
             if [ "$ok" = "1" ]; then
-              echo "rama conservada: nube/${{ github.run_id }}/$rama ($c commit(s))"
+              echo "rama conservada: nube-ola/${{ github.run_id }}/$rama ($c commit(s))"
             else
               echo "::error::rama perdida: $rama ($c commit(s)) no se pudo empujar tras 3 intentos"
               PERDIDAS="$PERDIDAS $rama"
