@@ -3494,3 +3494,39 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 **Lo que se pidió.** top 3 accionables
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-10-05 15:05 · auto-1005-122431
+
+**Lo que se pidió.** no tocaste tus archivos
+
+**Resultado.** 0 de 20 integradas. 20 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 10 tareas se fueron por lo mismo — pruebas en rojo (CAMR1005A, BLQ1005A, PRD1005T, PRD1005D, LC1004B, CDV1004Cs). Es 50 % de la ola.
+- 5 tareas se fueron por lo mismo — otra cosa (BLQ1005C, DR0927-1, DR0927-2, DR0929-1, BLQ1005E). Es 25 % de la ola.
+- 4 tareas se fueron por lo mismo — no escribió nada (PRD1005S, BLQ1005B, p314Acs, DR1003-1). Es 20 % de la ola.
+- sin modelo anotado no integró ninguna de sus 9 tareas.
+- nvidia/moonshotai/kimi-k3 no integró ninguna de sus 5 tareas.
+- codex/gpt-5.6-sol no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005Ac` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/BLQ1005Ac conservada
+- `PRD1005T` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005D` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005S` — no escribió nada
+- `LC1004B` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005B` — no escribió nada
+- `CDV1004Cs` — pruebas en rojo: vitest falla (rama conservada)
+- `p314Acs` — no escribió nada
+- `BLQ1005C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DR0927-1` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DR0927-2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DR0929-1` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DR1003-1` — no escribió nada
+- `FLU1005H` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005E` — otra cosa: ningún proveedor respondió (todos caídos)
+- `SB1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005L` — pruebas en rojo: vitest falla (rama conservada)
