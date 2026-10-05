@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-05 04:49:16 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-05 11:56:24 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,19 +16,76 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 2 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 17 |
-| HEAD | `d110361a chore(memoria): aprendizaje de la ola auto-1005-033852` |
-| Sin publicar | 3 commits |
+| HEAD | `22630d16 chore(memoria): aprendizaje de la ola auto-1005-045033` |
+| Sin publicar | 38 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1005-033852.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-1005-045033.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `DIS1005N` | hecho | openrouter/google/gemma-4-31b-it:f | 0 min | 29 s | 1394 |
-| `PA1005D` | hecho | openrouter/google/gemma-4-31b-it:f | 4 min | 214 s | 52320 |
-| `DIS1005K` | hecho | nvidia/z-ai/glm-5.3 | 23 min | 1401 s | 20473 |
-| `FLU1005E` | hecho | nvidia/moonshotai/kimi-k3 | 23 min | 1401 s | 52458 |
-| `PA1005C` | hecho | nvidia/z-ai/glm-5.3 | 39 min | 2315 s | 155285 |
+| `DIS1005E` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 34 s | 178902 |
+| `BLQ1005C` | hecho | - | 11 min | 675 s | 5387 |
+| `BLQ1005B` | hecho | - | 30 min | 1819 s | 2988 |
+| `BLQ1005E` | hecho | nvidia/moonshotai/kimi-k3 | 46 min | 2768 s | 113 |
+| `BLQ1005D` | hecho | nvidia/moonshotai/kimi-k3 | 46 min | 2788 s | 127711 |
+| `PA1005D` | hecho | - | 62 min | 3724 s | 52320 |
+| `PRD1005I` | hecho | nvidia/moonshotai/kimi-k3 | 64 min | 3826 s | 112675 |
+| `FLU1005H` | hecho | nvidia/moonshotai/kimi-k3 | 86 min | 5188 s | 113 |
+| `p316Mc` | hecho | openrouter/cohere/north-mini-code: | 87 min | 5217 s | 362047 |
+| `p316Mb` | hecho | google/gemini-3.6-flash | 97 min | 5803 s | 231606 |
+| `PRD1005Tbs` | hecho | nvidia/moonshotai/kimi-k3 | 107 min | 6436 s | 177688 |
+| `p316Ic` | hecho | codex/gpt-5.6-sol | 109 min | 6565 s | 2243435 |
+| `p316Gc` | hecho | google/gemini-3.6-flash | 111 min | 6660 s | 297949 |
+| `DIS1005L` | hecho | nvidia/moonshotai/kimi-k3 | 120 min | 7200 s | 148328 |
+| `TK2c` | hecho | google/gemini-3.6-flash | 133 min | 7994 s | 1273424 |
+| `R6c` | hecho | openrouter/thinkingmachines/inklin | 137 min | 8223 s | 273542 |
+| `R6b` | hecho | openrouter/nvidia/nemotron-3-ultra | 138 min | 8283 s | 237911 |
+| `R7c` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 140 min | 8426 s | 318562 |
+| `R7b` | hecho | openrouter/thinkingmachines/inklin | 143 min | 8553 s | 282296 |
+| `DIS1005M` | hecho | - | 156 min | 9330 s | 130361 |
+| `JV8c` | hecho | openrouter/thinkingmachines/inklin | 165 min | 9919 s | 207862 |
+| `DR1003-1` | hecho | nvidia/moonshotai/kimi-k3 | 170 min | 10176 s | 621 |
+| `DR0929-1` | hecho | nvidia/moonshotai/kimi-k3 | 171 min | 10263 s | 4160 |
+| `DR0927-2` | hecho | nvidia/moonshotai/kimi-k3 | 174 min | 10411 s | 2809 |
+| `DR0927-1` | hecho | nvidia/moonshotai/kimi-k3 | 174 min | 10444 s | 327 |
+| `DR0919-1` | hecho | nvidia/moonshotai/kimi-k3 | 174 min | 10460 s | 96883 |
+| `p314Acs` | hecho | nvidia/moonshotai/kimi-k3 | 175 min | 10521 s | 7945 |
+| `p318Jc` | hecho | nvidia/moonshotai/kimi-k3 | 176 min | 10583 s | 453067 |
+| `p324Gc` | hecho | openrouter/dots-studio/dots-3-note | 179 min | 10711 s | 244064 |
+| `DIS1005P` | hecho | nvidia/moonshotai/kimi-k3 | 190 min | 11380 s | 32757 |
+| `p324Ac` | hecho | nvidia/moonshotai/kimi-k3 | 205 min | 12325 s | 681373 |
+| `AGR2b` | hecho | google/gemini-3.6-flash | 206 min | 12355 s | 216704 |
+| `X5c` | hecho | nvidia/moonshotai/kimi-k3 | 208 min | 12477 s | 226606 |
+| `p323Bc` | hecho | codex/gpt-5.6-sol | 209 min | 12527 s | 643962 |
+| `QW5c` | hecho | google/gemini-3.6-flash | 216 min | 12957 s | 253130 |
+| `CU3r` | hecho | google/gemini-3.6-flash | 219 min | 13152 s | 295607 |
+| `AGR2c` | hecho | google/gemini-3.6-flash | 226 min | 13551 s | 1732795 |
+| `PA1005A` | hecho | openrouter/thinkingmachines/inklin | 231 min | 13842 s | 430524 |
+| `RM3` | hecho | google/gemini-3.6-flash | 232 min | 13908 s | 1665178 |
+| `PRD1005S` | hecho | nvidia/moonshotai/kimi-k3 | 240 min | 14412 s | 113 |
+| `DIS1005D` | hecho | nvidia/moonshotai/kimi-k3 | 241 min | 14436 s | 233203 |
+| `RM4` | hecho | google/gemini-3.6-flash | 244 min | 14650 s | 1477659 |
+| `FLU1005B` | hecho | nvidia/moonshotai/kimi-k3 | 249 min | 14922 s | 113 |
+| `PRD1005M` | hecho | nvidia/moonshotai/kimi-k3 | 249 min | 14941 s | 204568 |
+| `PRD1005L` | hecho | nvidia/moonshotai/kimi-k3 | 252 min | 15100 s | 153397 |
+| `LC1004A` | hecho | codex/gpt-5.6-sol | 254 min | 15224 s | 801626 |
+| `BLQ1005Ad` | hecho | codex/gpt-5.6-sol | 280 min | 16799 s | 4164239 |
+| `OPT1004E` | hecho | nvidia/moonshotai/kimi-k3 | 288 min | 17270 s | 211351 |
+| `SB1004A` | hecho | nvidia/moonshotai/kimi-k3 | 289 min | 17352 s | 135239 |
+| `PA1005C` | hecho | nvidia/moonshotai/kimi-k3 | 300 min | 17971 s | 266472 |
+| `LC1004Bc` | hecho | nvidia/moonshotai/kimi-k3 | 320 min | 19170 s | 142721 |
+| `PRD1005Q` | hecho | nvidia/moonshotai/kimi-k3 | 320 min | 19220 s | 187721 |
+| `FLU1005C` | hecho | nvidia/moonshotai/kimi-k3 | 323 min | 19376 s | 142072 |
+| `CDV1004Cs` | hecho | nvidia/moonshotai/kimi-k3 | 346 min | 20783 s | 274921 |
+| `PRD1005F` | hecho | nvidia/moonshotai/kimi-k3 | 356 min | 21375 s | 153916 |
+| `LC1004B` | hecho | codex/gpt-5.6-sol | 362 min | 21727 s | 208261 |
+| `PRD1005N` | hecho | nvidia/moonshotai/kimi-k3 | 374 min | 22444 s | 17718 |
+| `PRD1005D` | hecho | nvidia/moonshotai/kimi-k3 | 375 min | 22479 s | 167804 |
+| `CAMR1005A` | hecho | nvidia/moonshotai/kimi-k3 | 398 min | 23892 s | 140556 |
+| `PRD1005T` | hecho | nvidia/moonshotai/kimi-k3 | 400 min | 24011 s | 209690 |
+| `BLQ1005A` | hecho | nvidia/moonshotai/kimi-k3 | 410 min | 24629 s | 85928 |
+| `BLQ1005Ac` | hecho | nvidia/moonshotai/kimi-k3 | 425 min | 25520 s | 13244 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
