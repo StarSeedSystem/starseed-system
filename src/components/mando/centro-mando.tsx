@@ -1075,6 +1075,28 @@ export function CentroMando() {
     const accionarMedidor = useCallback(
         async (clave: ClaveMedidor, accion: AccionMedidor, fila: FilaMedidor | undefined, texto: string) => {
             try {
+                // (Ola 1005Z · BLQ1005C) Las acciones de «Bloqueadas» van a la API ÚNICA
+                // `/api/mando/reintentar` ({ids?, cambio?, automatico?}), nunca a la ruta
+                // del medidor que escribía progreso.json por su cuenta.
+                if (clave === "bloqueadas" && (accion.clase === "reintentar" || accion.clase === "reintentar-auto" || accion.clase === "descartar")) {
+                    const r = await fetch("/api/mando/reintentar", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            ids: [accion.objetivo ?? fila?.id].filter(Boolean),
+                            cambio: accion.clase === "reintentar" ? texto : undefined,
+                            automatico: accion.clase !== "reintentar",
+                        }),
+                    });
+                    const d = (await r.json()) as {
+                        error?: string;
+                        resultados?: Array<{ texto?: string }>;
+                        reintentadas?: string[];
+                    };
+                    if (!r.ok || d.error) return d.error ?? `No se pudo (HTTP ${r.status}).`;
+                    void cargarMedidoresResumen(true);
+                    return d.resultados?.[0]?.texto ?? `${d.reintentadas?.join(", ") ?? fila?.id}: procesada.`;
+                }
                 const r = await fetch("/api/mando/medidores", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

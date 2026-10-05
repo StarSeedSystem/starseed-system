@@ -22,6 +22,7 @@ import { DisenadorOla } from "@/components/mando/disenador-ola";
 import { Switch } from "@/components/ui/switch";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 import type { ConfigEnjambre } from "@/lib/mando/ajustes-tipos";
+import { BloqueadasPanel, itemDesdeRamaTarea } from "@/components/mando/bloqueadas-panel";
 import { contarVeredictos } from "@/lib/mando/reintento-inteligente";
 
 import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
@@ -436,7 +437,7 @@ function ReasignarTarea({ tarea, estadosOla, onHecho }: { tarea: RamaTarea; esta
             </div>
             {terminada ? (
                 <p className="mt-1 text-[11px] text-white/50">
-                    La tarea ya terminó ({tonoEstado(tarea.estado).etiqueta}): reasignarla la vuelve a ejecutar desde cero en el servidor elegido.
+                    La tarea ya terminó ({tonoEstado(tarea.estado).etiqueta}): reasignarla NO la vuelve a ejecutar. Si falló, repárala con «Reparar ahora» en el panel de bloqueadas.
                 </p>
             ) : null}
             <div className="mt-2 flex flex-wrap items-end gap-3 text-xs">
@@ -1197,27 +1198,16 @@ export function SeccionBloqueadasReintentos({
                     {resultado.texto}
                 </p>
             ) : null}
-            <ul className="mt-3 space-y-2">
-                {elegibles.map((t) => (
-                    <li
-                        key={`bloq-${t.cola}-${t.id}`}
-                        className="rounded-lg border border-white/10 bg-black/30 p-2 text-xs"
-                    >
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => onVer(t.id)}
-                                className="cursor-pointer font-mono font-medium text-white hover:underline"
-                            >
-                                {t.id}
-                            </button>
-                            <span className="text-white/70">{t.titulo}</span>
-                            <span className="text-amber-300">{tonoEstado(t.estado).etiqueta}</span>
-                        </div>
-                        <BotonReintentoIndividual tarea={t} onHecho={onHecho} />
-                    </li>
-                ))}
-            </ul>
+            {/* La lista propia se retiró (Ola 1005Z · BLQ1005C): la ÚNICA lista de
+                bloqueadas es `BloqueadasPanel`, compartida con el medidor del pulso,
+                con el cambio automático editable y la API única `/api/mando/reintentar`. */}
+            <BloqueadasPanel
+                items={elegibles.map((t) =>
+                    itemDesdeRamaTarea(t, olas.flatMap((o) => o.tareas.map((x) => x.id)))
+                )}
+                alVer={onVer}
+                alHecho={onHecho}
+            />
         </section>
     );
 }

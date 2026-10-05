@@ -22,6 +22,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 
+import { BloqueadasPanel, itemDesdeFilaMedidor } from "@/components/mando/bloqueadas-panel";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 
 export type TonoMedidor = "normal" | "aviso" | "peligro" | "ok";
@@ -696,7 +697,20 @@ export function PanelMedidor({
                 </p>
             ) : null}
 
-            {datos ? (() => {
+            {datos ? (clave === "bloqueadas" ? (
+                // (Ola 1005Z · BLQ1005C) El medidor «Bloqueadas» ya no pinta la lista
+                // genérica: la ÚNICA lista de bloqueadas es `BloqueadasPanel`, con la
+                // causa, el cambio automático editable y los botones de reparar/escalar
+                // contra la API única `/api/mando/reintentar`.
+                datos.filas.length ? (
+                    <BloqueadasPanel
+                        items={datos.filas.map((f) => itemDesdeFilaMedidor(f, datos.filas.map((x) => x.id)))}
+                        alHecho={() => void cargar()}
+                    />
+                ) : (
+                    <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>
+                )
+            ) : (() => {
                 const operativas = datos.filas.filter((f) => !f.historica);
                 const historicas = datos.filas.filter((f) => f.historica);
 
@@ -730,9 +744,9 @@ export function PanelMedidor({
                         ) : null}
                     </>
                 );
-            })() : null}
+            })()) : null}
 
-            {datos?.acciones.length ? (
+            {datos?.acciones.length && clave !== "bloqueadas" ? (
                 <p className="mc-centrado mt-2.5 flex flex-wrap justify-center gap-1.5 border-t border-white/10 pt-2.5">
                     {datos.acciones.map((a) => (
                         <BotonAccion key={a.clase} accion={a} alAccionar={ejecutar} />
