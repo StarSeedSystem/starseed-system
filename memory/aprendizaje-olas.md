@@ -3355,3 +3355,47 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `HG1004H` — no escribió nada
 - `SB1004B` — no escribió nada
 - `TPS1004A` — no escribió nada
+
+## 2026-10-05 03:38 · auto-1004-162329
+
+**Lo que se pidió.** no tocaste tus archivos
+
+**Resultado.** 38 de 66 integradas. 28 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 13 tareas se fueron por lo mismo — no escribió nada (BLQ1005Ac, BLQ1005A, CAMR1005A, LC1004Bc, PRD1005T, SB1004A). Es 20 % de la ola.
+- 7 tareas se fueron por lo mismo — otra cosa (BLQ1005Ab, PA1005Cb, PA1005Ab, DIS1005Db, DIS1005Mb, PA1005C). Es 11 % de la ola.
+- 5 tareas se fueron por lo mismo — la revisión lo rechazó (DIS1005D, PA1005A, DIS1005M, PRD1005M, PRD1005Tbs). Es 8 % de la ola.
+- 2 tareas se fueron por lo mismo — pruebas en rojo (LC1004A, CDV1004Cs). Es 3 % de la ola.
+- sin modelo anotado no integró ninguna de sus 20 tareas.
+- codex/gpt-5.6-sol integró 6 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `BLQ1005Ac` — no escribió nada
+- `BLQ1005Ab` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba None)
+- `BLQ1005A` — no escribió nada
+- `CAMR1005A` — no escribió nada
+- `PA1005Cb` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba None)
+- `PA1005Ab` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba None)
+- `DIS1005Db` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba None)
+- `DIS1005Mb` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba None)
+- `LC1004Bc` — no escribió nada
+- `PRD1005T` — no escribió nada
+- `PA1005C` — otra cosa: red caída: $ opencode run --model xkiro/mistralai/devstral-medium · 2026-10-04 20:09:07 [0m[0m > build · mistralai/devstral-medium[0m$ [
+- `DIS1005D` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/DIS1005D conservada
+- `LC1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `PA1005A` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/PA1005A conservada
+- `LC1004B` — los tipos no compilan: 21 errores tsc (rama ola/LC1004B conservada)
+- `SB1004A` — no escribió nada
+- `CDV1004Cs` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005D` — no escribió nada
+- `DIS1005M` — la revisión lo rechazó: rechazada desde el Mando; rama ola/DIS1005M conservada
+- `PRD1005M` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/PRD1005M conservada
+- `PRD1005N` — no escribió nada
+- `PRD1005L` — no escribió nada
+- `OPT1004E` — no escribió nada
+- `PRD1005Q` — no escribió nada
+- `PRD1005F` — no escribió nada
+- `DIS1005Mc` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba fallo)
+- `FLU1005C` — no escribió nada
+- `PRD1005Tbs` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/PRD1005Tbs conservada
