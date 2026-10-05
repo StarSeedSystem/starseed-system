@@ -95,7 +95,9 @@ export async function POST(req: Request): Promise<Response> {
     });
 
     if (motor !== "api") {
-        await publicarEntrega(mensaje.id, motor, "pendiente");
+        if (!canalesQueEsperan(canales).includes(motor)) {
+            await publicarEntrega(mensaje.id, motor, "pendiente");
+        }
         return Response.json({ pendiente: true, mensaje });
     }
 
