@@ -32,14 +32,15 @@ describe("botones de asignar", () => {
         expect(d.filas[0].acciones.map((a) => a.clase)).toEqual(
             expect.arrayContaining(["asignar-tarea", "comprobar-asignacion"]),
         );
-        expect(d.acciones.map((a) => a.clase)).toEqual(expect.arrayContaining(["asignar-huecos", "comprobar-asignacion"]));
+        // (2026-10-05) El panel tiene UN botón general: «Buscar más capacidad en todos los medios».
+        expect(d.acciones.map((a) => a.clase)).toEqual(["buscar-capacidad", "ir-a"]);
     });
 
     it("Agentes: cada agente se comprueba por su TAREA, no por «proveedor · modelo»", () => {
         const d = detalleDeMedidor("agentes", { latidos: [latido] });
         const a = d.filas[0].acciones.find((x) => x.clase === "comprobar-agente");
         expect(a?.objetivo).toBe("LY1");
-        expect(d.acciones.map((x) => x.clase)).toContain("asignar-huecos");
+        expect(d.acciones.map((x) => x.clase)).toContain("buscar-capacidad");
     });
 
     it("En curso: las activas se comprueban; las rancias se pueden reasignar ya", () => {
@@ -51,15 +52,15 @@ describe("botones de asignar", () => {
         const rancia = d.filas.find((f) => f.id === "VZR1");
         expect(viva?.acciones.map((a) => a.clase)).toContain("comprobar-agente");
         expect(rancia?.acciones.map((a) => a.clase)).toContain("asignar-tarea");
-        expect(d.acciones.map((a) => a.clase)).toContain("asignar-huecos");
+        expect(d.acciones.map((a) => a.clase)).toContain("buscar-capacidad");
     });
 });
 
 describe("«Buscar más capacidad en todos los medios» (2026-10-05)", () => {
     // Alex: «agrega un botón en el medidor de agentes y de tareas en curso para buscar desde
     // ahí si hay más espacios para más tareas o agentes disponibles simultáneamente».
-    it("es el PRIMER botón de Agentes y de Tareas en curso", () => {
-        for (const clave of ["agentes", "en-curso"] as const) {
+    it("es el PRIMER botón de Agentes, Tareas en curso, Listas y Contenedores", () => {
+        for (const clave of ["agentes", "en-curso", "listas", "contenedores"] as const) {
             const d = detalleDeMedidor(clave, { latidos: [latido], progreso: { LY1: { estado: "en_curso" } } });
             expect(d.acciones[0]?.clase).toBe("buscar-capacidad");
             expect(d.acciones[0]?.destructiva).toBe(false);
@@ -70,6 +71,38 @@ describe("«Buscar más capacidad en todos los medios» (2026-10-05)", () => {
     it("también sale con el medidor vacío: es justo cuando más falta", () => {
         expect(detalleDeMedidor("agentes", { latidos: [] }).acciones[0]?.clase).toBe("buscar-capacidad");
         expect(detalleDeMedidor("en-curso", { latidos: [], progreso: {} }).acciones[0]?.clase).toBe("buscar-capacidad");
+    });
+});
+
+describe("un solo botón general, fusionado (2026-10-05)", () => {
+    // Alex: «son demasiados botones los de Buscar más capacidad en todos los medios, Buscar y
+    // asignar trabajo ahora, Comprobar si cabe más, Buscar contenedores en la nube, Desplegar
+    // más agentes en la nube… que sea solo uno fusionado funcional».
+    const VIEJOS = ["asignar-huecos", "comprobar-asignacion", "sondear-contenedores", "desplegar-nube"];
+
+    it("ningún panel general ofrece ya los cuatro botones viejos", () => {
+        const datos = {
+            latidos: [latido],
+            progreso: { LY1: { estado: "en_curso" } },
+            ejecutables: [{ id: "LY2", titulo: "Laya en Jev" }],
+            asuntosDeMain: "",
+            contenedores: {
+                contenedores: [],
+                resumen: { contenedores: 1, usables: 1, agentes_ahora: 0, agentes_libres: 8, agentes_tope: 8 },
+            },
+        };
+        for (const clave of ["agentes", "en-curso", "listas", "contenedores"] as const) {
+            const generales = detalleDeMedidor(clave, datos).acciones.filter((a) => a.clase !== "ir-a");
+            expect(generales.map((a) => a.clase)).toEqual(["buscar-capacidad"]);
+            expect(generales.some((a) => VIEJOS.includes(a.clase))).toBe(false);
+        }
+    });
+
+    it("las acciones POR FILA se quedan: son de una cosa concreta", () => {
+        const listas = detalleDeMedidor("listas", { ejecutables: [{ id: "LY2", titulo: "Laya" }], asuntosDeMain: "" });
+        expect(listas.filas[0].acciones.map((a) => a.clase)).toEqual(
+            expect.arrayContaining(["asignar-tarea", "comprobar-asignacion"]),
+        );
     });
 });
 

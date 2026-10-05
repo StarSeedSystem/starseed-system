@@ -171,6 +171,25 @@ class Modelos(unittest.TestCase):
         self.assertEqual(B.esperando_pasarela(None, AHORA), 0)
 
 
+class ContenedoresReusanElSondeo(unittest.TestCase):
+    """(2026-10-05) El botón fusionado mide los contenedores con el MISMO sondeo de medios."""
+
+    def test_inventario_con_medios_dados_no_vuelve_a_sondear(self):
+        import contenedores_nube as CN
+
+        llamadas = []
+        sondeo, vivos = CN._sondeo, CN._vivos_por_medio
+        CN._sondeo = lambda: llamadas.append(1) or []
+        CN._vivos_por_medio = lambda: {}
+        try:
+            d = CN.inventario([{"id": "nube-gh", "nombre": "GitHub Actions", "estado": "usable"},
+                               {"id": "mac", "estado": "listo"}])
+        finally:
+            CN._sondeo, CN._vivos_por_medio = sondeo, vivos
+        self.assertEqual(llamadas, [])
+        self.assertIn("nube-gh", [c["id"] for c in d["contenedores"]])
+
+
 def _tarea(tid, **kw):
     t = {"id": tid, "ola": "Ola 900 · prueba", "archivos": ["a.ts"]}
     t.update(kw)

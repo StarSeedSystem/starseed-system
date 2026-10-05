@@ -93,15 +93,19 @@ describe("medidor de contenedores", () => {
         expect(hf?.ficha?.find((x) => x.etiqueta === "Siguiente paso")?.valor).toContain("PRO");
     });
 
-    it("siempre se puede volver a buscar contenedores", () => {
+    // (2026-10-05) «Buscar contenedores» y «Desplegar en el que tenga más sitio» se fundieron en
+    // el único botón general «Buscar más capacidad en todos los medios», que vuelve a medir los
+    // contenedores y despliega donde quepa (scripts/puente/buscar_capacidad.py).
+    it("siempre se puede volver a medir: con el único botón general", () => {
         const d = detalleDeMedidor("contenedores", { contenedores: inventario });
-        expect(d.acciones.map((a) => a.clase)).toContain("sondear-contenedores");
+        expect(d.acciones.map((a) => a.clase)).toEqual(["buscar-capacidad", "ir-a"]);
     });
 
     it("sin medida no promete capacidad: lo dice y no ofrece desplegar", () => {
         const d = detalleDeMedidor("contenedores", { contenedores: null });
         expect(d.resumen).toContain("sin medir");
-        expect(d.acciones.map((a) => a.clase)).toContain("sondear-contenedores");
+        expect(d.resumen).toContain("Buscar más capacidad");
+        expect(d.acciones.map((a) => a.clase)).toContain("buscar-capacidad");
         expect(d.acciones.map((a) => a.clase)).not.toContain("desplegar-nube");
         expect(d.filas).toEqual([]);
     });
@@ -120,19 +124,12 @@ describe("medidor de contenedores", () => {
 describe("el botón que Alex pidió en la ventana de agentes", () => {
     const latidos = [{ tarea: "T1", fase: "escribiendo", modelo: "nim/kimi-k3", minutos: 2, donde: "mac" }];
 
-    it("la ventana de agentes puede buscar contenedores y desplegar si hay sitio", () => {
-        const d = detalleDeMedidor("agentes", { latidos, contenedores: inventario });
-        const clases = d.acciones.map((a) => a.clase);
-        expect(clases).toContain("sondear-contenedores");
-        expect(clases).toContain("desplegar-nube");
-        expect(d.acciones.find((a) => a.clase === "desplegar-nube")?.texto).toContain("8 libres");
-    });
-
-    it("sin sitio medido ofrece buscar, pero no desplegar", () => {
-        const d = detalleDeMedidor("agentes", { latidos, contenedores: null });
-        const clases = d.acciones.map((a) => a.clase);
-        expect(clases).toContain("sondear-contenedores");
-        expect(clases).not.toContain("desplegar-nube");
+    // (2026-10-05) Alex: «son demasiados botones… que sea solo uno fusionado funcional».
+    it("haya sitio medido o no, la ventana de agentes tiene UN botón general que lo hace todo", () => {
+        for (const contenedores of [inventario, null]) {
+            const clases = detalleDeMedidor("agentes", { latidos, contenedores }).acciones.map((a) => a.clase);
+            expect(clases).toEqual(["buscar-capacidad", "ir-a"]);
+        }
     });
 });
 

@@ -244,19 +244,26 @@ export function libresDeContenedores(inv: DatosMedidores["contenedores"]): numbe
     return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/** (2026-09-23) Los dos botones generales de «¿cabe más trabajo?»: uno comprueba sin tocar
- *  nada y el otro, si cabe, mete las listas en la tanda viva (o despierta al vigilante). */
-/** (2026-10-05) «Buscar más capacidad»: el primer botón de Agentes y de Tareas en curso. */
+/** (2026-10-05) «Buscar más capacidad en todos los medios» (`scripts/puente/buscar_capacidad.py`). */
 export const ACCION_BUSCAR_CAPACIDAD: AccionMedidor = {
     clase: "buscar-capacidad",
     texto: "Buscar más capacidad en todos los medios",
     destructiva: false,
 };
 
-export const ACCIONES_ASIGNAR: AccionMedidor[] = [
-    { clase: "asignar-huecos", texto: "Buscar y asignar trabajo ahora", destructiva: false },
-    { clase: "comprobar-asignacion", texto: "Comprobar si cabe más", destructiva: false },
-];
+/**
+ * El botón general de «¿cabe más trabajo?» de Agentes, Tareas en curso, Listas y Contenedores.
+ *
+ * (2026-10-05, 17:20) Alex: «son demasiados botones los de Buscar más capacidad en todos los
+ * medios, Buscar y asignar trabajo ahora, Comprobar si cabe más, Buscar contenedores en la
+ * nube, Desplegar más agentes en la nube… que sea solo uno fusionado funcional». Eran cinco
+ * caminos para la misma pregunta y ninguno la contestaba entera. Ahora es UNO: llena la Mac
+ * (lo de «asignar»), vuelve a medir los contenedores (lo de «buscar contenedores»), reabre y
+ * despliega en la nube (lo de «desplegar») y dice medio por medio qué sumó y por qué no más
+ * (lo de «comprobar»). Las acciones POR FILA (asignar esta tarea, comprobar este agente,
+ * desplegar en este contenedor) siguen: son de una cosa concreta, no de todo.
+ */
+export const ACCIONES_ASIGNAR: AccionMedidor[] = [ACCION_BUSCAR_CAPACIDAD];
 
 /**
  * (2026-09-23) Indicador de carga de «Sin publicar»: qué paso de la publicación va y cuánto
@@ -1717,21 +1724,8 @@ export function detalleDeMedidor(
                 // medios de contenedores disponibles de agentes en la nube manualmente».
                 // Van en esta ventana y no solo en la de contenedores porque es aquí donde
                 // se mira cuando faltan agentes.
-                acciones: [
-                    ACCION_BUSCAR_CAPACIDAD,
-                    ...ACCIONES_ASIGNAR,
-                    { clase: "sondear-contenedores", texto: "Buscar contenedores en la nube", destructiva: false },
-                    ...(libresDeContenedores(d.contenedores) > 0
-                        ? [
-                              {
-                                  clase: "desplegar-nube" as const,
-                                  texto: `Desplegar más agentes en la nube (${libresDeContenedores(d.contenedores)} libres)`,
-                                  destructiva: false,
-                              },
-                          ]
-                        : []),
-                    IR_A("Ver la ramificación", "procesos"),
-                ],
+                // (2026-10-05) Un solo botón general: ver ACCIONES_ASIGNAR.
+                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ningún agente está escribiendo ahora mismo.",
             };
         }
@@ -1815,7 +1809,7 @@ export function detalleDeMedidor(
                           }`,
                 filas: todas,
                 porcentajeMedio: medio,
-                acciones: [ACCION_BUSCAR_CAPACIDAD, ...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
+                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ninguna tarea en curso ahora mismo.",
             };
         }
@@ -2069,16 +2063,10 @@ export function detalleDeMedidor(
                 titulo: "Contenedores en la nube",
                 resumen: inv
                     ? `${r.agentes_ahora ?? 0} agente(s) trabajando · ${libres} libre(s) de ${tope} · ${r.usables ?? 0} de ${r.contenedores ?? 0} servicio(s) usable(s)${inv.generado ? ` · medido ${inv.generado}` : ""}`
-                    : "sin medir todavía: pulsa «Buscar contenedores ahora»",
+                    : "sin medir todavía: pulsa «Buscar más capacidad en todos los medios»",
                 filas,
-                acciones: [
-                    { clase: "sondear-contenedores", texto: "Buscar contenedores ahora", destructiva: false },
-                    ...(libres > 0
-                        ? [{ clase: "desplegar-nube" as const, texto: `Desplegar en el que tenga más sitio (${libres} libres)`, destructiva: false }]
-                        : []),
-                    IR_A("Ver la flota", "flota"),
-                ],
-                vacio: "Ningún contenedor medido aún. «Buscar contenedores ahora» sondea GitHub Actions, Hugging Face, Cloud Run y Colab.",
+                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la flota", "flota")],
+                vacio: "Ningún contenedor medido aún. «Buscar más capacidad en todos los medios» sondea GitHub Actions, Hugging Face, Cloud Run y Colab.",
             };
         }
 

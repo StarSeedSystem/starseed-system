@@ -13,8 +13,9 @@ ellas solo por haber agotado sus tres envíos, que no fallaron por la tarea sino
 proveedores gratuitos de la nube contestaban «saturado (429)»—. Nadie las reabría, así que
 la nube se quedaba quieta con trabajo de sobra.
 
-Una pasada (botón «Buscar más capacidad» de los medidores Agentes y Tareas en curso, y la
-autocuración del Mando cada 30 min):
+Una pasada (botón «Buscar más capacidad», el ÚNICO botón general de los medidores Agentes,
+Tareas en curso, Listas y Contenedores desde las 17:20 —Alex: «son demasiados botones… que
+sea solo uno fusionado funcional»—, y la autocuración del Mando cada 30 min):
 
 1. **Mac**: llena los trabajadores libres con `asignar_huecos` (la misma decisión que
    «Buscar y asignar»). Nunca pasa del tope del gobernador: más procesos en una Mac de 8 GB
@@ -25,7 +26,8 @@ autocuración del Mando cada 30 min):
    `REAPERTURAS_MAX` por tarea en dos días y separadas `REABRIR_ESPERA_S`), dejando siempre
    en la Mac trabajo para su tope entero. Luego lanza los jobs en segundo plano.
 3. **Los demás medios** (contenedor de Claude, Google Cloud, Hugging Face, Colab): sondeo de
-   `medios_disponibles` con lo que falta para encenderlos. Desde aquí no se encienden: o
+   `medios_disponibles` con lo que falta para encenderlos, y con ese mismo sondeo se vuelve a
+   medir el inventario de contenedores (`contenedores_nube`). Desde aquí no se encienden: o
    requieren a Alex o un medio que aún no existe, y se dice cuál.
 
 Las decisiones son PURAS (`plan_nube`, `puede_reabrir`, `texto_mac`, `texto_nube`,
@@ -314,14 +316,23 @@ def _leer_latidos():
 
 
 def _otros_medios():
+    """Sondea todos los medios UNA vez y, con lo mismo, vuelve a medir los contenedores de la
+    nube (lo que hacía el botón «Buscar contenedores», fusionado aquí el 2026-10-05): así el
+    medidor Contenedores y el director de la nube ven la medida nueva."""
     try:
         import medios_disponibles
 
-        return [m for m in medios_disponibles.sondear().get("medios") or []
-                if m.get("id") not in ("mac", "nube-gh")]
+        medios = medios_disponibles.sondear().get("medios") or []
     except Exception as e:
         return [{"id": "medios", "nombre": "Otros medios", "estado": "?",
                  "detalle": "no pude sondearlos (%s)" % type(e).__name__}]
+    try:
+        import contenedores_nube
+
+        contenedores_nube.escribir(contenedores_nube.inventario(medios))
+    except Exception:
+        pass
+    return [m for m in medios if m.get("id") not in ("mac", "nube-gh")]
 
 
 def _avisar(texto):

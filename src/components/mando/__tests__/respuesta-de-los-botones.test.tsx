@@ -20,7 +20,8 @@ const detalle: DetalleMedidor = {
     titulo: "Agentes trabajando",
     resumen: "1 agente · 1 medio(s)",
     filas: [],
-    acciones: [{ clase: "sondear-contenedores", texto: "Buscar contenedores en la nube", destructiva: false }],
+    // (2026-10-05) El único botón general del panel: «Buscar más capacidad en todos los medios».
+    acciones: [{ clase: "buscar-capacidad", texto: "Buscar más capacidad en todos los medios", destructiva: false }],
     vacio: "Ningún agente está escribiendo ahora mismo.",
 };
 
@@ -47,15 +48,18 @@ describe("la respuesta de un botón del panel", () => {
             <PanelMedidor
                 clave="agentes"
                 alCerrar={() => {}}
-                alAccionar={async () => "5 contenedor(es) · 12 libre(s) de 12"}
+                alAccionar={async () => "Busqué en todos los medios · 3 agente(s) más en camino\n· Mac: 3 de 3 trabajando\n· Nube (GitHub Actions): 12 libre(s) de 12"}
             />,
         );
 
-        await usuario.click(await screen.findByRole("button", { name: /Buscar contenedores/i }));
+        await usuario.click(await screen.findByRole("button", { name: /Buscar más capacidad/i }));
 
         // 1. Aparece.
         const dicho = await screen.findByTestId("respuesta-accion");
         expect(dicho.textContent).toContain("12 libre(s) de 12");
+        // Una línea por medio: el texto lleva sus saltos y se pinta con `whitespace-pre-line`.
+        expect(dicho.textContent).toContain("\n· Mac: 3 de 3");
+        expect(dicho.querySelector(".whitespace-pre-line")).not.toBeNull();
 
         // 2. Sobrevive a que el panel vuelva a leer el detalle: ESTO es lo que se rompía.
         //    `ejecutar` recarga justo después de accionar, así que si la recarga borrase el

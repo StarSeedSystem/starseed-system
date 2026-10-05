@@ -187,8 +187,12 @@ def _sondeo() -> list:
         return []
 
 
-def inventario() -> dict:
-    medios = [m for m in _sondeo() if str(m.get("id")) not in NO_SON_CONTENEDORES]
+def inventario(medios_sondeados=None) -> dict:
+    """`medios_sondeados`: el resultado de `medios_disponibles.sondear()` si ya se tiene
+    (2026-10-05: «Buscar más capacidad» sondea una vez y lo reusa, en vez de pagar dos veces
+    los ~40 s del sondeo)."""
+    origen = medios_sondeados if medios_sondeados is not None else _sondeo()
+    medios = [m for m in origen if str(m.get("id")) not in NO_SON_CONTENEDORES]
     vivos = _vivos_por_medio()
     conts = [contenedor(m, CATALOGO.get(str(m.get("id")), {}), vivos) for m in medios]
     # Los usables primero, y dentro de ellos los que tienen más sitio: así el director
