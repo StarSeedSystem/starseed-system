@@ -70,7 +70,7 @@ describe("MensajeDelDirector", () => {
     expect(enviado).toEqual({ id: "md-1-aaaa", canales: ["telegram", "terminal"] });
   });
 
-  it("pendiente en claude-cowork avisa de la próxima revisión", () => {
+  it("pendiente en claude-cowork avisa pendiente (canal inmediata, sin revisión pendiente)", () => {
     render(
       <MensajeDelDirector
         mensaje={mensaje()}
@@ -80,7 +80,7 @@ describe("MensajeDelDirector", () => {
         onReenviar={() => {}}
       />,
     );
-    expect(screen.getByText(/en la próxima revisión de Claude/)).toBeInTheDocument();
+    expect(screen.getByText(/Claude Opus 5\.5 · dirección \(Cowork\): pendiente/)).toBeInTheDocument();
     expect(screen.getByText(/Telegram \(tu móvil\): entregado/)).toBeInTheDocument();
     const fallo = screen.getByText(/Hermes: fallo en la entrega/);
     expect(fallo).toHaveClass("text-rose-400");
@@ -147,5 +147,85 @@ describe("MensajeDelDirector", () => {
       />,
     );
     expect(screen.getByLabelText("Responder con")).toHaveValue("hermes/predeterminado");
+  });
+
+  it("mensaje de alex tiene data-autor=alex, cabe con 'Tú' y botón 'Pedir respuesta'", () => {
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje({ rol: "alex", de: "alex", canal: "mando", texto: "Pregunta." })}
+        modelos={MODELOS}
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("mensaje-director")).toHaveAttribute("data-autor", "alex");
+    expect(screen.getByText("Tú")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pedir respuesta/ })).toBeInTheDocument();
+  });
+
+  it("mensaje del director no tiene data-autor=alex y mantiene 'Responder'", () => {
+    render(
+      <MensajeDelDirector mensaje={mensaje({ rol: "director", de: "claude-cowork" })} modelos={MODELOS} onResponder={() => {}} onReenviar={() => {}} />,
+    );
+    expect(screen.getByTestId("mensaje-director")).toHaveAttribute("data-autor", "director");
+    expect(screen.queryByText("Tú")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Responder/ })).toBeInTheDocument();
+  });
+
+  it("mensaje de alex con hermes pendiente muestra role=status con 'Hermes está respondiendo'", () => {
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje({ rol: "alex", de: "alex" })}
+        entregas={{ hermes: "pendiente" }}
+        modelos={MODELOS}
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    const status = screen.getByRole("status");
+    expect(status).toBeInTheDocument();
+    expect(status).toHaveTextContent("Hermes está respondiendo");
+  });
+
+  it("mensaje de alex con antigravity pendiente muestra 'En la bandeja de Antigravity'", () => {
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje({ rol: "alex", de: "alex" })}
+        entregas={{ antigravity: "pendiente" }}
+        modelos={MODELOS}
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    const status = screen.getByRole("status");
+    expect(status).toBeInTheDocument();
+    expect(status).toHaveTextContent("En la bandeja de Antigravity");
+  });
+
+  it("mensaje de alex con entrega respondido no muestra role=status", () => {
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje({ rol: "alex", de: "alex" })}
+        entregas={{ hermes: "respondido" }}
+        modelos={MODELOS}
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("mensaje de sistema es ámbar, compacto y sin barra de acciones", () => {
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje({ rol: "sistema", de: "sistema", texto: "Aviso." })}
+        modelos={MODELOS}
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("mensaje-director")).toHaveAttribute("data-autor", "sistema");
+    expect(screen.getByText("Aviso.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Responder/ })).not.toBeInTheDocument();
   });
 });
