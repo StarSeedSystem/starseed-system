@@ -437,7 +437,10 @@ def main():
     if not puerta(diario, "tsc", ["npx", "tsc", "--noEmit"], timeout=1800):
         diario.cerrar("fallo", motivo_de("tsc"))
         return 1
-    if not puerta(diario, "vitest", ["npx", "vitest", "run"], timeout=2400):
+    # (2026-10-05) Como mucho 3 hilos de prueba: con los 7 por defecto (núcleos − 1) y el
+    # enjambre vivo, la Mac de 8 GB se quedaba con ~100 MB libres y las pruebas de componentes
+    # caducaban por carga, no por código (ver vitest.setup-dom.ts).
+    if not puerta(diario, "vitest", ["npx", "vitest", "run", "--maxWorkers=3", "--minWorkers=1"], timeout=2400):
         diario.cerrar("fallo", motivo_de("vitest"))
         return 1
     if not puerta(
