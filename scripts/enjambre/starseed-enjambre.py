@@ -2683,6 +2683,45 @@ IMPORTANTES = {
     "estancado",
 }
 
+# (SB1004B) Eventos remotos al bus de Supabase (`relevo_eventos`): solo los
+# importantes (y los adicionales del contrato) van al bus; `latido` como mucho
+# cada 10 min; `STARSEED_EVENTOS_REMOTOS=todos` restaura el comportamiento
+# anterior (todo va). Ver `test_evento_remoto.py` y memoria del área.
+LATIDO_REMOTO_S = 600
+#: Lo IMPORTANTE va al bus salvo `estancado` (frecuente y local: así lo fija el contrato
+#: y su prueba), más los cambios de estado de una tarea.
+TIPOS_BUS = (set(IMPORTANTES) - {"estancado"}) | {
+    "commit", "rechazada", "inicio", "aprobacion", "detenida",
+}
+
+
+def debe_ir_al_bus(tipo, ahora, ultimo_latido_remoto):
+    """PURA: ¿este evento debe ir al bus remoto (`relevo_eventos`) y a Hermes?
+
+    - `STARSEED_EVENTOS_REMOTOS=todos` en el entorno → todo va (comportamiento
+      anterior; escrito en el comentario).
+    - `tipos` de `TIPOS_BUS` → sí; `latido` solo si pasaron >= 600 s desde el
+      último latido remoto; todo lo demás (`paso`, `aviso`, `estancado`,
+      `reenrutado`, `reasignado`, `sin_cambios`, `verificando`…) queda local.
+    """
+    if os.environ.get("STARSEED_EVENTOS_REMOTOS", "").strip().lower() == "todos":
+        return True
+    if tipo == "latido":
+        try:
+            def _a_float(ts):
+                if isinstance(ts, (int, float)):
+                    return float(ts)
+                if isinstance(ts, str) and len(ts) >= 19:
+                    return time.mktime(time.strptime(ts[:19], "%Y-%m-%d %H:%M:%S"))
+                return float(ts)
+            return (_a_float(ahora) - _a_float(ultimo_latido_remoto)) >= LATIDO_REMOTO_S
+        except (TypeError, ValueError, Exception):
+            return False
+    return tipo in TIPOS_BUS
+
+
+ULTIMO_LATIDO_REMOTO = 0.0
+
 
 def evento(tipo, tarea, texto, datos=None):
     fila = {
@@ -2703,7 +2742,15 @@ def evento(tipo, tarea, texto, datos=None):
         "[%s] %s %s · %s" % (fila["t"][11:], tipo, tarea or "-", texto[:160]),
         flush=True,
     )
-    if ANON:
+    global ULTIMO_LATIDO_REMOTO
+    # (revisión del supervisor) Se compara en segundos de reloj: `fila["t"]` es un texto
+    # «AAAA-MM-DD HH:MM:SS» y `float()` sobre él fallaba siempre, así que el último latido
+    # remoto se quedaba en 0 y TODOS los latidos seguían yendo a Supabase.
+    _ahora_s = time.time()
+    va_al_bus = debe_ir_al_bus(tipo, _ahora_s, ULTIMO_LATIDO_REMOTO)
+    if va_al_bus and tipo == "latido":
+        ULTIMO_LATIDO_REMOTO = _ahora_s
+    if ANON and va_al_bus:
         try:
             # La tabla no tiene columna de categoría: va dentro de `datos` para no migrar nada.
             cuerpo = json.dumps(
@@ -2736,7 +2783,9 @@ def evento(tipo, tarea, texto, datos=None):
             urllib.request.urlopen(req, timeout=10).read()
         except Exception:
             pass
-    if tipo in IMPORTANTES:
+    # (revisión del supervisor) Hermes/Telegram solo para lo IMPORTANTE, como antes: con
+    # `va_al_bus` le llegarían también cada commit, inicio, aprobación y un latido cada 10 min.
+    if va_al_bus and tipo in IMPORTANTES:
         try:
             subprocess.run(
                 [
