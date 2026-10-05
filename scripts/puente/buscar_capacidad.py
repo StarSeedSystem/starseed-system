@@ -157,7 +157,7 @@ def texto_mac(estado, decision, hechas):
     if (decision or {}).get("huecos"):
         return base + " · " + str((decision or {}).get("resumen") or "hay hueco").rstrip(".")
     return base + " · sin hueco: %s es el máximo de esta Mac%s" % (
-        tope if tope is not None else "su tope", " (%s)" % motivo if motivo else "")
+        tope if tope is not None else "su tope", " (gobernador: %s)" % motivo if motivo else "")
 
 
 def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True):
