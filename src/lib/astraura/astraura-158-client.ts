@@ -23,6 +23,7 @@
 import { settingsFor, thisDeviceId, astraura158EndpointOf } from "@/lib/neurons/neurons";
 import { ASTRAURA_158_PROXY_BASE } from "@/ai/astraura/free-catalog";
 import { bitnetTrasCaida as bitnetTrasCaidaModule } from "./elegir-nodo";
+import { DISCOVERY_SCAN_LIMITE_DEFECTO, discoveryScanPath, recortarDiscoveryScan } from "./discovery-scan";
 
 export type Astraura158Target = "local" | "nube";
 
@@ -1895,10 +1896,12 @@ export interface Astraura158DiscoveryScan {
 /**
  * El descubrimiento del ecosistema es GET en el backend soberano, y es CARO:
  * medido en vivo, 48 s y ~8,6 MB de respuesta (recorre el dispositivo entero).
- * Con `longTimeout` se abortaba siempre. 3 minutos.
+ * (Ola Dream 2026-10-05) Se pide ACOTADO con `?limite=` y se recorta en cliente
+ * por si un backend viejo ignora el parámetro. 3 minutos de margen.
  */
-export function runAstraura158DiscoveryScan(target: Astraura158Target) {
-  return call<Astraura158DiscoveryScan>(target, "/api/discovery/scan", { timeoutMs: 180_000 });
+export async function runAstraura158DiscoveryScan(target: Astraura158Target, limite = DISCOVERY_SCAN_LIMITE_DEFECTO) {
+  const r = await call<Astraura158DiscoveryScan>(target, discoveryScanPath(limite), { timeoutMs: 180_000 });
+  return r.ok ? { ...r, data: recortarDiscoveryScan(r.data, limite) } : r;
 }
 
 /**
