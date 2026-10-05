@@ -6,8 +6,8 @@ Lee ``~/.starseed/pantalla.json`` (``{activa, desde, quien}``; si falta o está
 roto, vale activa). Con el ajuste activo mantiene vivo un ``caffeinate -dim``
 y, cada 50 s, lanza ``caffeinate -u -t 60``: la aserción de usuario activo es
 la que impide el salvapantallas y el apagado por inactividad. Con el ajuste
-inactivo termina su propio ``caffeinate`` por PID (jamás ``pkill``, porque eso
-mataría también el de ``com.starseed.despierto``). En Linux no existe
+inactivo termina su propio ``caffeinate`` por PID (jamás matando por nombre,
+porque eso mataría también el de ``com.starseed.despierto``). En Linux no existe
 ``/usr/bin/caffeinate``: avisa una vez y espera sin hacer nada.
 
 Uso: ``mantener_pantalla.py [--una-vez]``
@@ -69,7 +69,9 @@ class Servicio:
     def __init__(self, ajuste=AJUSTE):
         self.ajuste = ajuste
         self.hijo = None
-        self.ultimo_u = 0.0
+        # El arranque ya vale como primer «usuario activo»: así el primer
+        # turno solo lanza el -dim y el -u -t 60 llega a los 50 s.
+        self.ultimo_u = time.time()
         self.seguir = True
         self._avisado_sin_caffeinate = False
 
