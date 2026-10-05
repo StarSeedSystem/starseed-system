@@ -1,0 +1,51 @@
+{
+  "name": "produccion.pieza_lista",
+  "nodes": [
+    {
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": { "path": "pieza-lista", "httpMethod": "POST", "responseMode": "lastNode" }
+    },
+    {
+      "name": "Verificar firma",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nfor (const item of $input.all()) {\n  const h = item.json.headers || {};\n  const f = h['x-starseed-firma'] || h['X-StarSeed-Firma'] || '';\n  const cuerpo = JSON.stringify(item.json.body ?? {});\n  const esperada = 'sha256=' + crypto.createHmac('sha256', process.env.PRODUCCION_WEBHOOK_SECRETO || '').update(cuerpo).digest('hex');\n  if (f !== esperada) return [];\n  item.json = item.json.body || {};\n}\nreturn $input.all();"
+      }
+    },
+    {
+      "name": "Crear borrador",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0],
+      "parameters": {
+        "jsCode": "const pieza = $json.pieza || $json;\nreturn [{ json: { estado: 'borrador', aprobacion_pendiente: 'Alex', pieza } }];"
+      }
+    },
+    {
+      "name": "Guardar borrador",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [660, 0],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "borrador", "name": "estado", "value": "={{ $json.estado }}", "type": "string" },
+            { "id": "pendiente", "name": "aprobacion_pendiente", "value": "={{ $json.aprobacion_pendiente }}", "type": "string" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Verificar firma", "type": "main", "index": 0 }]] },
+    "Verificar firma": { "main": [[{ "node": "Crear borrador", "type": "main", "index": 0 }]] },
+    "Crear borrador": { "main": [[{ "node": "Guardar borrador", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": {}
+}
