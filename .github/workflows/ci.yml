@@ -92,6 +92,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          # Caché npm también aquí: el paso de iconos usa npx y así reutiliza
+          # el almacén del job `verify` en vez de reinstalar (revisión X5c · pto. 3).
+          cache: npm
       - name: Generar iconos (OS)
         working-directory: native/src-tauri
         run: npx --yes @tauri-apps/cli@latest icon "../icons-src/os.json"
