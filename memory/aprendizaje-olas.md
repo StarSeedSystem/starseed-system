@@ -3399,3 +3399,21 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `DIS1005Mc` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba fallo)
 - `FLU1005C` — no escribió nada
 - `PRD1005Tbs` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/PRD1005Tbs conservada
+
+## 2026-10-05 04:49 · auto-1005-033852
+
+**Lo que se pidió.** en el puente de mando en la sección de los ajustes agrega un botón de una función de mantener la pantalla encendida de cualquier dispositivo donde se esté usando y evitar o apagar el modo de screen savers y de apagado por inactividad desde cualquier medio donde se use aunque esté en segundo plano (encendido por defecto)
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (PA1005C, PA1005D, DIS1005N). Es 60 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (FLU1005E, DIS1005K). Es 40 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `PA1005C` — no escribió nada
+- `PA1005D` — no escribió nada
+- `FLU1005E` — otra cosa: excepción: [Errno 28] No space left on device: '/tmp/enj-msg-salvavidas-FLU1005E.txt'
+- `DIS1005K` — otra cosa: excepción: [Errno 28] No space left on device: '/Users/alex/Documents/starseed-os-main/starseed_memory_root/olas/progreso.json'
+- `DIS1005N` — no escribió nada
