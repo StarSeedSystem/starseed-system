@@ -34,7 +34,17 @@ METRICAS_EJEMPLO = {
     "sin_usar": ["m3"],
     "memoria": {"swap_usado_mb": 400, "swap_total_mb": 2048, "ram_libre_mb": 1800},
     "coste": {"jev_dia_usd": 0.015, "opus_semana_pct": 25, "supabase_pct_dia": 30},
-    "nube": {"pausada": True, "motivo": "mantenimiento", "contenedores_libres": 2},
+    "nube": {
+        "pausada": True,
+        "motivo": "mantenimiento",
+        "quien_pausa": "claude-supervisor",
+        "pausada_desde": 1697400000,
+        "contenedores_libres": 2,
+        "agentes_por_job": 3,
+        "runs_vivos": 1,
+        "runs_6h": [{"commits": 0, "terminado": 1697400100}, {"commits": 1, "terminado": 1697400200}],
+        "lanzados_hoy": 3,
+    },
 }
 
 
@@ -256,25 +266,26 @@ def diagnosticar(m, config, historial_cambios, ahora):
                                 "proponer_tarea",
                             ))
 
-    # ── R7 · Nube ───────────────────────────────────────────────────────
+    # ── R7 · Nube en pausa por una persona ───────────────────────────────
     nube = m.get("nube", {})
     pausada = nube.get("pausada", False) if isinstance(nube, dict) else False
+    quien_pausa = nube.get("quien_pausa") if isinstance(nube, dict) else None
     contenedores_libres = nube.get("contenedores_libres", 0) if isinstance(nube, dict) else 0
     listas_r7 = listas if listas is not None else 0
     vivos_r7 = vivos if vivos is not None else 1
-    # "escritores locales con tasa < 0.15"
     tasas_locales = [
         datos.get("tasa", 1.0) for datos in (modelos.values() if isinstance(modelos, dict) else [])
         if isinstance(datos, dict)
     ]
     tasa_media_local = sum(tasas_locales) / max(1, len(tasas_locales)) if tasas_locales else 1.0
-    if (pausada and listas_r7 is not None and vivos_r7 > 0 and listas_r7 >= 2 * vivos_r7 and tasa_media_local < 0.15):
-        # R7 nunca devuelve una acción que reactive la nube: solo hallazgo.
+    # R7: si la nube está en pausa y no la puso el director-optimizador.
+    if (pausada and quien_pausa is not None and quien_pausa != "director-optimizador" and
+        listas_r7 is not None and vivos_r7 > 0 and listas_r7 >= 2 * vivos_r7 and tasa_media_local < 0.15):
         hallazgos.append(_hallazgo(
             "R7", "aviso",
             "Nube en pausa (%s), listas (%d) >= 2*vivos (%d), escritores locales tasa baja (%.2f). Proponer a Alex reactivar." % (str(nube.get("motivo", "")) or "", listas_r7, vivos_r7, tasa_media_local),
             "nube=%s, listas=%d, vivos=%d, tasa_media_local=%.2f" % (str(nube), listas_r7, vivos_r7, tasa_media_local),
-            None,  # nunca acción que reactive la nube
+            None,
         ))
 
     # ── R8 · Coste ──────────────────────────────────────────────────────
@@ -292,6 +303,144 @@ def diagnosticar(m, config, historial_cambios, ahora):
             "coste=%s" % str(coste),
             None,  # El contrato dice "el optimizador deja de usar el modelo de pago en §7 ese día" — acción interna, no en lista blanca de perillas
         ))
+
+    # ── R9 · Escalera de contenedores de la nube ─────────────────────────
+    nube_r9 = m.get("nube", {})
+    claves_requeridas = ["pausada", "quien_pausa", "pausada_desde",
+                        "contenedores_libres", "agentes_por_job",
+                        "runs_vivos", "runs_6h", "lanzados_hoy"]
+    faltantes = []
+    if isinstance(nube_r9, dict):
+        for c in claves_requeridas:
+            if c not in nube_r9:
+                faltantes.append(c)
+    else:
+        faltantes = claves_requeridas
+    max_runs_nube_dia = int(config.get("max_runs_nube_dia", 12))
+    if faltantes:
+        hallazgos.append(_hallazgo(
+            "R9", "aviso",
+            "Nube: faltan entradas nuevas (%s). No se puede gestionar la escalera." % ", ".join(faltantes),
+            "nube faltantes=%s" % ", ".join(faltantes),
+            None,
+        ))
+    else:
+        pausada_r9 = nube_r9.get("pausada", False)
+        quien_pausa_r9 = nube_r9.get("quien_pausa")
+        pausada_desde_r9 = nube_r9.get("pausada_desde")
+        contenedores_libres_r9 = nube_r9.get("contenedores_libres", 0)
+        agentes_por_job_r9 = nube_r9.get("agentes_por_job", 3)
+        runs_vivos_r9 = nube_r9.get("runs_vivos", 0)
+        runs_6h_r9 = nube_r9.get("runs_6h", [])
+        lanzados_hoy_r9 = nube_r9.get("lanzados_hoy", 0)
+        listas_r9 = listas if listas is not None else 0
+        vivos_r9 = vivos if vivos is not None else 0
+
+        # Reanudar solo si el director-optimizador pausó y pasaron >= 6 h.
+        if (pausada_r9 and quien_pausa_r9 == "director-optimizador" and
+            pausada_desde_r9 is not None and
+            (ahora - pausada_desde_r9) >= 6 * 3600 and runs_vivos_r9 == 0):
+            accion_r9 = "reanudar_nube"
+            if _es_accion_permitida(accion_r9, historial_cambios, ahora, config):
+                hallazgos.append(_hallazgo(
+                    "R9", "aviso",
+                    "Nube: reanudar (pausada por director-optimizador, pasaron >= 6h, runs_vivos=0).",
+                    "nube.pausada=%s, quien_pausa=%s, pausada_desde=%s, ahora=%s" % (pausada_r9, quien_pausa_r9, pausada_desde_r9, ahora),
+                    accion_r9,
+                ))
+            else:
+                hallazgos.append(_hallazgo(
+                    "R9", "aviso",
+                    "Nube: reanudar propuesta descartada por límite.",
+                    "nube.pausada=%s, quien_pausa=%s" % (pausada_r9, quien_pausa_r9),
+                    None,
+                ))
+        elif not pausada_r9:
+            # Lanzar escalera si hay trabajo pendiente, contenedores libres y no se superó el tope diario.
+            if (listas_r9 is not None and vivos_r9 is not None and listas_r9 > vivos_r9 and
+                contenedores_libres_r9 > 0 and lanzados_hoy_r9 < max_runs_nube_dia):
+                # Analizar runs_6h para la escalera y el enfriamiento.
+                if not isinstance(runs_6h_r9, list) or len(runs_6h_r9) == 0:
+                    # Sin runs previos → lanzar 1 job.
+                    accion_r9 = "lanzar_nube"
+                    if _es_accion_permitida(accion_r9, historial_cambios, ahora, config):
+                        hallazgos.append(_hallazgo(
+                            "R9", "info",
+                            "Nube: lanzar 1 job (sin runs previos, trabajo pendiente).",
+                            "nube.runs_6h vacío, listas=%d > vivos=%d" % (listas_r9, vivos_r9),
+                            accion_r9,
+                        ))
+                    else:
+                        hallazgos.append(_hallazgo(
+                            "R9", "info",
+                            "Nube: lanzar 1 job descartado por límite.",
+                            "nube.runs_6h vacío",
+                            None,
+                        ))
+                else:
+                    # Hay runs previos.
+                    ultimo_r9 = runs_6h_r9[-1] if isinstance(runs_6h_r9[-1], dict) else {}
+                    commits_ultimo_r9 = ultimo_r9.get("commits", 0)
+                    ultimos_2_r9 = runs_6h_r9[-2:] if len(runs_6h_r9) >= 2 else runs_6h_r9[-1:]
+                    commits_ultimos_2_r9 = [
+                        r.get("commits", 0) if isinstance(r, dict) else 0 for r in ultimos_2_r9
+                    ]
+                    todos_cero_2_r9 = (len(commits_ultimos_2_r9) >= 2 and
+                                        all(c == 0 for c in commits_ultimos_2_r9))
+                    if todos_cero_2_r9:
+                        accion_r9 = "pausar_nube"
+                        if _es_accion_permitida(accion_r9, historial_cambios, ahora, config):
+                            hallazgos.append(_hallazgo(
+                                "R9", "aviso",
+                                "Nube: pausar (2 runs seguidos con 0 commits: %s)." % commits_ultimos_2_r9,
+                                "nube.runs_6h últimos 2 commits=%s" % commits_ultimos_2_r9,
+                                accion_r9,
+                            ))
+                        else:
+                            hallazgos.append(_hallazgo(
+                                "R9", "aviso",
+                                "Nube: pausar propuesta descartada por límite.",
+                                "nube.runs_6h últimos 2 commits=%s" % commits_ultimos_2_r9,
+                                None,
+                            ))
+                    elif commits_ultimo_r9 >= 1:
+                        # Subir escalera según runs_vivos (1 → 2 → 3).
+                        if runs_vivos_r9 >= 3:
+                            accion_r9 = None
+                        else:
+                            accion_r9 = "lanzar_nube"
+                        if accion_r9:
+                            if _es_accion_permitida(accion_r9, historial_cambios, ahora, config):
+                                hallazgos.append(_hallazgo(
+                                    "R9", "info",
+                                    "Nube: lanzar escalera (último run >= 1 commit, runs_vivos=%d)." % runs_vivos_r9,
+                                    "nube.runs_6h[-1].commits=%d, runs_vivos=%d" % (commits_ultimo_r9, runs_vivos_r9),
+                                    accion_r9,
+                                ))
+                            else:
+                                hallazgos.append(_hallazgo(
+                                    "R9", "info",
+                                    "Nube: lanzar escalera descartado por límite.",
+                                    "nube.runs_6h[-1].commits=%d" % commits_ultimo_r9,
+                                    None,
+                                ))
+                    else:
+                        # Último run 0 commits pero no 2 seguidos → lanzar 1 job.
+                        accion_r9 = "lanzar_nube"
+                        if _es_accion_permitida(accion_r9, historial_cambios, ahora, config):
+                            hallazgos.append(_hallazgo(
+                                "R9", "info",
+                                "Nube: lanzar 1 job (último run 0 commits, sin 2 seguidos).",
+                                "nube.runs_6h[-1].commits=%d" % commits_ultimo_r9,
+                                accion_r9,
+                            ))
+                        else:
+                            hallazgos.append(_hallazgo(
+                                "R9", "info",
+                                "Nube: lanzar descartado por límite.",
+                                "nube.runs_6h[-1].commits=%d" % commits_ultimo_r9,
+                                None,
+                            ))
 
     # Orden: rojo primero, luego aviso, luego info. Si hay R2, debe ir antes que R1 (ya ocurre por gravedad).
     orden_gravedad = {"rojo": 0, "aviso": 1, "info": 2}

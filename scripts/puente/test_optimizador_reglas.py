@@ -122,7 +122,7 @@ class ReglasOptimizadorTest(unittest.TestCase):
         self.assertFalse(any(r6), "R6 no debe disparar sin cuello de botella")
 
     def test_r7_dispara_nube_pausada_solo_hallazgo(self):
-        hallazgos = _mod.diagnosticar(self._m(nube={"pausada": True, "motivo": "mantenimiento", "contenedores_libres": 2}, listas=6, trabajadores={"tope_gobernador": 2, "vivos": 2, "escribiendo": 0, "en_puerta": 0, "ociosos": 0}, modelos={"m1": {"intentos": 6, "tasa": 0.1, "sin_cambios": 5, "colgados": 0}}), {}, [], 1000)
+        hallazgos = _mod.diagnosticar(self._m(nube={"pausada": True, "motivo": "mantenimiento", "quien_pausa": "claude-supervisor", "contenedores_libres": 2}, listas=6, trabajadores={"tope_gobernador": 2, "vivos": 2, "escribiendo": 0, "en_puerta": 0, "ociosos": 0}, modelos={"m1": {"intentos": 6, "tasa": 0.1, "sin_cambios": 5, "colgados": 0}}), {}, [], 1000)
         r7 = [h for h in hallazgos if h["id"] == "R7"]
         self.assertTrue(any(r7), "R7 debe disparar con nube en pausa")
         self.assertIsNone(r7[0]["accion"], "R7 nunca debe devolver acción que reactive la nube")
@@ -142,6 +142,172 @@ class ReglasOptimizadorTest(unittest.TestCase):
         hallazgos = _mod.diagnosticar(self._m(coste={"jev_dia_usd": 0.01, "opus_semana_pct": 10, "supabase_pct_dia": 20}), {"tope_jev_dia_usd": 1.0}, [], 1000)
         r8 = [h for h in hallazgos if h["id"] == "R8"]
         self.assertFalse(any(r8), "R8 no debe disparar con coste bajo")
+
+    def test_r7_nunca_reanuda_con_claude_supervisor(self):
+        # Pausa puesta por alguien distinto del director-optimizador → solo hallazgo R7, nunca acción.
+        hallazgos = _mod.diagnosticar(
+            self._m(
+                nube={
+                    "pausada": True,
+                    "motivo": "mantenimiento",
+                    "quien_pausa": "claude-supervisor",
+                    "pausada_desde": 1697400000,
+                    "contenedores_libres": 2,
+                    "agentes_por_job": 3,
+                    "runs_vivos": 1,
+                    "runs_6h": [{"commits": 0, "terminado": 1697400100}],
+                    "lanzados_hoy": 1,
+                },
+                listas=6,
+                trabajadores={"tope_gobernador": 2, "vivos": 2, "escribiendo": 0, "en_puerta": 0, "ociosos": 0},
+                modelos={"m1": {"intentos": 6, "tasa": 0.1, "sin_cambios": 5, "colgados": 0}},
+            ),
+            {}, [], 1000
+        )
+        r7 = [h for h in hallazgos if h["id"] == "R7"]
+        self.assertTrue(any(r7), "R7 debe aparecer con pausa de claude-supervisor")
+        self.assertIsNone(r7[0]["accion"], "R7 nunca debe devolver acción que reactive la nube")
+        # R9 no debe aparecer porque la nube está pausada con quien_pausa != director-optimizador.
+        r9 = [h for h in hallazgos if h["id"] == "R9"]
+        # No debe haber acción de reanudar porque quien_pausa != director-optimizador.
+        r9_acciones = [h.get("accion") for h in r9]
+        self.assertNotIn("reanudar_nube", r9_acciones, "R9 no debe proponer reanudar si quien_pausa != director-optimizador")
+
+    def test_r9_lanza_1_sin_runs(self):
+        hallazgos = _mod.diagnosticar(
+            self._m(
+                nube={
+                    "pausada": False,
+                    "quien_pausa": "",
+                    "pausada_desde": 0,
+                    "contenedores_libres": 2,
+                    "agentes_por_job": 3,
+                    "runs_vivos": 0,
+                    "runs_6h": [],
+                    "lanzados_hoy": 0,
+                },
+                listas=4,
+                trabajadores={"tope_gobernador": 3, "vivos": 2, "escribiendo": 1, "en_puerta": 0, "ociosos": 0},
+            ),
+            {"max_runs_nube_dia": 12},
+            [], 1000
+        )
+        r9 = [h for h in hallazgos if h["id"] == "R9"]
+        self.assertTrue(any(r9), "R9 debe aparecer sin runs previos")
+        acciones_r9 = [h.get("accion") for h in r9]
+        self.assertIn("lanzar_nube", acciones_r9, "R9 debe proponer lanzar_nube sin runs previos")
+
+    def test_r9_escala_2_con_ultimo_run_1_commit(self):
+        hallazgos = _mod.diagnosticar(
+            self._m(
+                nube={
+                    "pausada": False,
+                    "quien_pausa": "",
+                    "pausada_desde": 0,
+                    "contenedores_libres": 2,
+                    "agentes_por_job": 3,
+                    "runs_vivos": 1,
+                    "runs_6h": [{"commits": 1, "terminado": 1697400200}],
+                    "lanzados_hoy": 1,
+                },
+                listas=5,
+                trabajadores={"tope_gobernador": 2, "vivos": 1, "escribiendo": 0, "en_puerta": 0, "ociosos": 0},
+            ),
+            {"max_runs_nube_dia": 12},
+            [], 1000
+        )
+        r9 = [h for h in hallazgos if h["id"] == "R9"]
+        acciones_r9 = [h.get("accion") for h in r9]
+        self.assertIn("lanzar_nube", acciones_r9, "R9 debe escalar con último run >= 1 commit")
+
+    def test_r9_pausa_2_runs_cero(self):
+        hallazgos = _mod.diagnosticar(
+            self._m(
+                nube={
+                    "pausada": False,
+                    "quien_pausa": "",
+                    "pausada_desde": 0,
+                    "contenedores_libres": 2,
+                    "agentes_por_job": 3,
+                    "runs_vivos": 1,
+                    "runs_6h": [{"commits": 0, "terminado": 1697400100}, {"commits": 0, "terminado": 1697400200}],
+                    "lanzados_hoy": 2,
+                },
+                listas=6,
+                trabajadores={"tope_gobernador": 2, "vivos": 2, "escribiendo": 0, "en_puerta": 0, "ociosos": 0},
+                modelos={"m1": {"intentos": 6, "tasa": 0.1, "sin_cambios": 5, "colgados": 0}},
+            ),
+            {"max_runs_nube_dia": 12},
+            [], 1000
+        )
+        r9 = [h for h in hallazgos if h["id"] == "R9"]
+        acciones_r9 = [h.get("accion") for h in r9]
+        self.assertIn("pausar_nube", acciones_r9, "R9 debe pausar con 2 runs a cero")
+
+    def test_r9_reanuda_solo_director_optimizador_6h(self):
+        # Reanudar solo con quien_pausa == director-optimizador y pasaron >= 6h.
+        hallazgos = _mod.diagnosticar(
+            self._m(
+                nube={
+                    "pausada": True,
+                    "quien_pausa": "director-optimizador",
+                    "pausada_desde": 1697396400,
+                    "contenedores_libres": 2,
+                    "agentes_por_job": 3,
+                    "runs_vivos": 0,
+                    "runs_6h": [{"commits": 0, "terminado": 1697400000}],
+                    "lanzados_hoy": 1,
+                },
+                listas=5,
+                trabajadores={"tope_gobernador": 2, "vivos": 2, "escribiendo": 0, "en_puerta": 0, "ociosos": 0},
+            ),
+            {"max_runs_nube_dia": 12},
+            [], 1697418000  # >= pausada_desde (1697396400) + 6*3600 (21600)
+        )
+        r9 = [h for h in hallazgos if h["id"] == "R9"]
+        acciones_r9 = [h.get("accion") for h in r9]
+        self.assertIn("reanudar_nube", acciones_r9, "R9 debe reanudar con director-optimizador y >= 6h")
+
+    def test_r9_sin_accion_tope_diario_lleno(self):
+        hallazgos = _mod.diagnosticar(
+            self._m(
+                nube={
+                    "pausada": False,
+                    "quien_pausa": "",
+                    "pausada_desde": 0,
+                    "contenedores_libres": 2,
+                    "agentes_por_job": 3,
+                    "runs_vivos": 1,
+                    "runs_6h": [{"commits": 1, "terminado": 1697400200}],
+                    "lanzados_hoy": 12,
+                },
+                listas=5,
+                trabajadores={"tope_gobernador": 2, "vivos": 2, "escribiendo": 0, "en_puerta": 0, "ociosos": 0},
+            ),
+            {"max_runs_nube_dia": 12},
+            [], 1000
+        )
+        r9 = [h for h in hallazgos if h["id"] == "R9"]
+        # Con tope diario lleno, no debe lanzar.
+        acciones_r9 = [h.get("accion") for h in r9]
+        self.assertNotIn("lanzar_nube", acciones_r9, "R9 no debe lanzar con tope diario lleno")
+        # No debe aparecer ninguna acción de R9 en este caso (ni pausar, porque runs no son 0).
+        acciones_r9_filtradas = [a for a in acciones_r9 if a is not None]
+        self.assertEqual(acciones_r9_filtradas, [], "R9 no debe proponer ninguna acción con tope diario lleno")
+
+    def test_r9_falta_entradas_falta_accion(self):
+        hallazgos = _mod.diagnosticar(
+            self._m(
+                nube={
+                    "pausada": False,
+                    "conteneres_libres": 2,
+                },
+            ),
+            {}, [], 1000
+        )
+        r9 = [h for h in hallazgos if h["id"] == "R9"]
+        self.assertTrue(any(r9), "R9 debe aparecer cuando faltan entradas nuevas")
+        self.assertIsNone(r9[0]["accion"], "R9 no debe tener acción si faltan datos")
 
     def test_accion_descartada_por_enfriamiento(self):
         # La misma perilla apareció hace 10 segundos (< 60 min de enfriamiento)
