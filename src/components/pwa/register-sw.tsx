@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+import { puedeRecargarSuave, suscribirseAvisoVersion } from "@/lib/pwa/aviso-version";
+
 /**
  * RegisterSW — registra el Service Worker `/sw-v7.js` para habilitar la instalación
  * (PWA) y un shell offline básico.
@@ -112,10 +114,13 @@ export function RegisterSW() {
     // en producción difiere del que arrancó esta pestaña hay versión nueva →
     // aplica la actualización (recarga, con el tope anti-bucle). Así una pestaña o
     // PWA ABIERTA recibe CADA despliegue sin depender de bumps manuales del SW.
+    // Además del sondeo de 5 min, el director de producción avisa por ntfy
+    // (puerta 7): el aviso NO se cree, solo dispara aquí la misma comprobación.
+    let checkBuild: () => Promise<void> = async () => {};
     let buildIv: ReturnType<typeof setInterval> | null = null;
     try {
       let initial: string | null = null;
-      const checkBuild = async () => {
+      checkBuild = async () => {
         if (cancelled || document.visibilityState !== "visible") return;
         try {
           const res = await fetch("/version.json", { cache: "no-store" });
@@ -123,12 +128,23 @@ export function RegisterSW() {
           const v = (await res.json())?.build as string | undefined;
           if (!v) return;
           if (initial === null) { initial = v; return; } // primera lectura: ancla
-          if (v !== initial) applyUpdate();
+          if (v === initial) return;
+          // Si la persona está escribiendo o hay algo sin guardar, no recargamos:
+          // avisamos al banner «Nueva versión» y ella decide cuándo aplicar.
+          if (!puedeRecargarSuave()) {
+            try { window.dispatchEvent(new Event("starseed:update-ready")); } catch { /* */ }
+            return;
+          }
+          applyUpdate();
         } catch { /* */ }
       };
       void checkBuild(); // fija el build inicial al arrancar
       buildIv = setInterval(() => { void checkBuild(); }, 5 * 60 * 1000);
     } catch { /* */ }
+
+    // Aviso en tiempo real por ntfy (tema fijo; sin confiar en su contenido).
+    let cierraAviso: () => void = () => {};
+    try { cierraAviso = suscribirseAvisoVersion(() => { void checkBuild(); }); } catch { /* */ }
 
     const onLoad = () => {
       if (!cancelled) register();
@@ -145,6 +161,7 @@ export function RegisterSW() {
       cancelled = true;
       window.removeEventListener("load", onLoad);
       if (buildIv) clearInterval(buildIv);
+      try { cierraAviso(); } catch { /* */ }
       try { navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange); } catch { /* */ }
     };
   }, []);
