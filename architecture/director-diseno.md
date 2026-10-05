@@ -171,3 +171,44 @@ Biblioteca los lista (`packages.ts`, sección «Herramientas de diseño»).
 - `instalar-servicios.py`: servicio `diseno` envuelto con `lanzador-tcc.py`.
 - Nunca toca claves, `git push`, Supabase ni datos de nadie. Las capturas viven en
   `starseed_memory_root/diseno/capturas/` y se podan a los 7 días.
+
+## 9. ADN de diseño (añadido el 2026-10-05)
+
+Método completo en `architecture/diseno-referencias/adn-diseno.md`. Cambia tres cosas del director:
+
+- **La memoria guarda ADN, no solo fichas.** Cada identidad de `identidades.md` (OS/Nexus, Mando,
+  Astraura, Café, Audiomorphic, Materia Viva) y cada resultado ganador de un bucle de diseño tiene su
+  carpeta `memory/diseno/adn/<slug>/` con `dna.json`, `PROMPT.md` (≤ 2 KB), `referencia/`,
+  `ejemplo/` y `check.py`. El ADN se **mide** (estilos calculados del DOM y píxeles de la captura),
+  no se describe.
+- **El brief inyecta `PROMPT.md` y la imagen, nunca `dna.json`.** La imagen de referencia va la
+  primera y con nombre; la autocomprobación, al final. Si una tarea toca dos identidades, cada zona
+  lleva su ADN: nunca se mezclan en uno.
+- **La verificación ejecuta el `check.py` de la identidad** además de las reglas generales de §4. Cada
+  prueba fallida resta y genera un arreglo concreto. Cuando una salida sale genérica, el aprendizaje
+  de §5 propone una **prohibición** nueva para ese ADN (no una regla positiva).
+
+El director mantiene el ADN vivo: tras cada reconstrucción, anota en `reconstruccion` las pasadas y
+los huecos encontrados, y cuando un diseño de la flota supera la nota con holgura y Alex lo aprueba,
+lo propone como **ADN nuevo** (comando `diseno_adn.py capturar <ruta>`), que es lo que convierte un
+buen resultado en una skill permanente.
+
+## 10. Movimiento: método RISE (añadido el 2026-10-05)
+
+Método completo en `architecture/diseno-referencias/movimiento-rise.md`. Toda tarea con animación
+(canvas, héroes, Audiomorphic, transiciones, vídeos y carruseles de redes, logos animados, carteles
+en movimiento) recibe en su brief una sección RISE:
+
+- **R:** el ADN de la identidad con su imagen, más las referencias de la tarea. Logos siempre desde
+  el archivo real del repo.
+- **I:** principio, medio y final con un solo cambio; duración; bucle sin costura.
+- **S:** cómo se ve y cómo se mueve (qué se mueve primero), con tokens de la identidad y formatos
+  16:9, 9:16 y 1:1 recompuestos, nunca recortados.
+- **E:** `render(t)` pura con semilla, textura real y revisión de los cuadros al 0/25/50/75/100 %.
+
+`scripts/puente/diseno_movimiento.mjs` (Playwright, sin dependencias nuevas) pide esos cinco cuadros
+por `window.__render(t)` o `?t=`, en los tres formatos, y mide las diez señales: costura del bucle
+(diferencia de píxeles entre 0 % y 100 %), luminancia plana, ocupación del escenario (80–95 %),
+interlineado y letras cortadas, palabra sola en una línea, movimiento lineal (velocidad constante
+entre cuadros intermedios), textura (varianza de grano) y respeto de `prefers-reduced-motion`. El
+resultado entra en la nota de §4 con el mismo umbral.
