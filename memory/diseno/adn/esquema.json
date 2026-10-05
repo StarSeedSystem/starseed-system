@@ -1,0 +1,19 @@
+{
+  "descripcion": "Esquema de memory/diseno/adn/<slug>/dna.json: el registro completo de un estilo. Nunca entra en un prompt. Se mide, no se describe; lo no medible se marca 'inferido'.",
+  "claves": {
+    "meta": "nombre, slug, fuentes, fecha, medio de origen y no_copiado (logos y fotos con licencia que NO se copian).",
+    "alma": "una_linea (<=160 caracteres), 3-5 adjetivos, linaje, distancia de lectura y energia 1-10 de densidad, variacion, contraste y calidez.",
+    "paleta": "lista de entradas con rol, hex, nombre descriptivo («ciruela polvorienta», nunca «accent-500»), cobertura en % (suma ~100) y comportamientos prohibidos.",
+    "tipo": "familias con fallback obligatorio, pesos, ratio_display_cuerpo, pasos, maximo de tamanos por cuadro, tracking, interlineado, caja y medida.",
+    "espacio": "rejilla, margenes y medianiles en %, alineacion, ritmo, donde esta el vacio y zonas seguras.",
+    "superficie": "textura, bordes, elevacion, tratamiento de imagen e iconografia.",
+    "firmas": "3-9 jugadas, cada una como proporcion, con cuando y como se usa mal.",
+    "jugada_rara": "que, como y por que; la ruptura unica del propio sistema.",
+    "arquetipos": "composiciones con nombre: id, funcion, anatomia y presupuesto de contenido.",
+    "movimiento": "curvas, duraciones, entradas, que nunca se mueve y alternativa con movimiento reducido (metodo RISE).",
+    "voz": "registro, longitud de frase, forma del titular y palabras prohibidas.",
+    "prohibiciones": ">=5, absolutas; superan en numero a las reglas positivas.",
+    "pruebas": ">=8, binarias y medibles: id, comprobacion, como se ve el fallo y auto (si un script la decide).",
+    "reconstruccion": "intentada, huecos encontrados y pasadas (2-3 suelen hacer falta)."
+  }
+}
