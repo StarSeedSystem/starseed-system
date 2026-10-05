@@ -1,0 +1,32 @@
+{
+ "ola": "nube-20261004",
+ "tareas": [
+  {
+   "id": "DIS1005P",
+   "ola": "Ola 1005D · Director de diseño: correcciones",
+   "depende": [],
+   "titulo": "Diseño · corregir la escala tipográfica φ negativa: clamp con mínimo mayor que el máximo en --fs-phi--1 y --fs-phi--2",
+   "archivos": [
+    "src/app/globals.css",
+    "tailwind.config.ts",
+    "src/lib/design/__tests__/armonia.test.ts"
+   ],
+   "prompt": "CONTRATO: `architecture/director-diseno.md` §2 (armonia.md: escala φ). Revisión de Claude (2026-10-04 23:55) tras verificar el build: en `src/app/globals.css`, `--fs-phi--2: clamp(0.64rem, …, 0.382rem)` y `--fs-phi--1: clamp(0.8rem, …, 0.618rem)` tienen el MÍNIMO MAYOR QUE EL MÁXIMO, así que CSS siempre da el mínimo y la escala no es φ. Corrige los pasos negativos para que sean 1/φ y 1/φ² de la base (≈0.618rem y ≈0.382rem como máximos coherentes con un mínimo menor, legibles: nunca por debajo de 0.625rem para texto), revisa lo mismo en `tailwind.config.ts` si repite esos valores, y añade en `armonia.test.ts` una prueba que lea globals.css y compruebe para TODOS los `--fs-phi-*` que mínimo ≤ máximo y que la razón entre pasos consecutivos del máximo es ≈1.618. Solo tus 3 archivos. Reglas de la casa: si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "FLU1005B",
+   "ola": "Ola 1005F · Flujos y conocimiento propios: replicar n8n y Dify en el Mando antes de que venzan sus pruebas",
+   "depende": [],
+   "titulo": "Flujos · nodos: HTTP, ntfy, Telegram, Chat Director, IA gratuita, conocimiento, condición, switch, fusión, set y expresiones seguras",
+   "archivos": [
+    "scripts/puente/flujos/nodos.py",
+    "scripts/puente/flujos/expresiones.py",
+    "scripts/puente/flujos/test_nodos.py"
+   ],
+   "prompt": "CONTRATO: `architecture/puente-propio-flujos.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. Petición de Alex (2026-10-05): aprovechar las pruebas gratuitas de n8n Cloud (vence el 2026-10-18) y Dify Sandbox para aprender y replicar su funcionamiento en nuestro propio Puente de Mando, sin depender de externos. Se aprende el DISEÑO; nunca se copia código con licencia restrictiva.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red (todo lo externo se inyecta). Claves SOLO de `os.environ`; un flujo guarda NOMBRES de variables, nunca valores. Sin dependencias nuevas.\n\nTU TAREA (FLU1005B): §3, nodos de acción. Cada nodo es una función `(params, items, ctx) -> items`, con todo lo externo en `ctx` (http, telegram, chat, llamar_modelo, conocimiento, env). Tipos: `http` (método, url, cabeceras, cuerpo; credencial como nombre de variable), `ntfy`, `telegram` (por `telegram-puente.py`), `chat_director` (por `director_chat.publicar`), `ia` (prompt con variables por las pasarelas gratuitas; con `tipado` usa `decidir.consultar_lote`), `conocimiento` (recuperar de una base de FLU1005E), `si`, `switch`, `fusion`, `set` y `esperar`. `expresiones.py`: plantillas `{{ $json.campo }}`, `{{ $nodo[\"X\"].json.y }}` y `{{ $ahora }}` resueltas con un intérprete propio de rutas y operadores básicos (==, !=, <, >, y, o, no, +), SIN `eval` ni `exec`. Pruebas por nodo con `ctx` falso y del intérprete, incluido que rechaza código.",
+   "dependencias_ya_en_main": [
+    "FLU1005A"
+   ]
+  }
+ ]
+}
