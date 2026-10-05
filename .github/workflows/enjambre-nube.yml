@@ -235,6 +235,8 @@ jobs:
           # el trabajo del agente se perdia en silencio con el runner efimero. Se reintenta
           # hasta 3 veces con fetch previo; si agota, el paso falla y la rama perdida queda
           # registrada en el resumen del job.
+          # (2026-10-04, Claude) `nube/<run>` ya es una rama: git no admite además `nube/<run>/…`
+          # («cannot lock ref», run 37258163569). Las ramas de tareas van a `nube-ola/<run>/…`.
           PERDIDAS=""
           for rama in $(git for-each-ref --format='%(refname:short)' 'refs/heads/ola/*'); do
             c=$(git log --oneline "${{ github.sha }}..$rama" | wc -l)
@@ -242,7 +244,7 @@ jobs:
             ok=0
             for intento in 1 2 3; do
               git fetch -q origin || true
-              if git push -q origin "$rama:refs/heads/nube/${{ github.run_id }}/$rama"; then
+              if git push -q origin "$rama:refs/heads/nube-ola/${{ github.run_id }}/$rama"; then
                 ok=1
                 break
               fi
