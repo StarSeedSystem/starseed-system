@@ -1184,7 +1184,7 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
       "Plataforma open-source de desarrollo de apps LLM: agentes, workflows, RAG y observabilidad en un solo lugar. Qué reemplaza: plataformas de apps LLM enterprise de pago. Instalar registra la skill «Plataforma de apps LLM» y abre su repo de referencia.",
     icon: "LayoutDashboard", tags: ["skill", "aurora", "agentes", "workflows", "rag", "plataforma", "oss"], version: "1.0.0",
     author: "langgenius", sourceRepoId: "starseed-ia-tools", free: true,
-    payload: { skillId: "llm-apps-platform", externalUrl: "https://github.com/langgenius/dify", note: "Plataforma open-source de desarrollo de apps LLM (agentes, workflows, RAG, observabilidad)." },
+    payload: { skillId: "llm-apps-platform", externalUrl: "https://github.com/langgenius/dify", categoria: "produccion", estado: "activo", licencia: "Licencia propia basada en Apache con condiciones", note: "Plataforma de apps LLM (agentes, workflows, RAG, observabilidad). Director de producción §9: medio opcional «apps de IA» — si StarSeed publica un agente en Dify, el director lo versiona por su API con las mismas puertas; apagado hasta que haya instancia y clave en el entorno." },
   },
   /* ══ SIETE REPOS MÁS — Marcadores, conocimiento, IoT y ciencia (jul-2026) ══
    * Mismo patrón honesto de §15-16: conocimiento + capacidad + paquete
@@ -1291,7 +1291,7 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
       "Construye chatflows/agentes conversacionales de forma visual (drag-and-drop) sobre LangChain. Qué reemplaza: constructores de chatbots de pago. Diferencia con Langflow (ya integrado, capacidad «flow-builder»): Langflow es un constructor GENERAL de flujos/agentes LLM sobre un grafo de nodos; Flowise está más centrado en chatflows conversacionales listos para incrustar (widget de chat). Son complementarios, no excluyentes — usa el que mejor calce con tu flujo. El conector real (predict de chatflow) YA existe en src/lib/integrations; instalar aquí solo registra la skill «Automatización de flujos» y abre su repo de referencia.",
     icon: "Workflow", tags: ["skill", "aurora", "agentes", "chatflows", "visual", "oss"], version: "1.0.0",
     author: "FlowiseAI", sourceRepoId: "starseed-ia-tools", free: true,
-    payload: { skillId: "flow-automation", externalUrl: "https://github.com/FlowiseAI/Flowise", note: "Chatflows/agentes visuales sobre LangChain (Apache-2.0 core). Complementa a Langflow (constructor general) — conector real ya existente en Ajustes → Integraciones." },
+    payload: { skillId: "flow-automation", externalUrl: "https://github.com/FlowiseAI/Flowise", categoria: "produccion", estado: "archivado · solo referencia", licencia: "Apache-2.0 (core)", note: "Archivado en GitHub (último cambio 2026-08-13): solo referencia en la Biblioteca, no se adopta mientras siga archivado (director de producción §9). Complementaba a Langflow (constructor general)." },
   },
   /* ── AnythingLLM · workspace RAG todo-en-uno ── */
   {
@@ -1631,6 +1631,77 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     icon: "Volume2", tags: ["skill", "aurora", "voz", "tts", "clonacion", "chatterbox", "omnivoice", "oss"], version: "1.0.0",
     author: "Resemble AI", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "aurora-voice-neural", externalUrl: "https://github.com/resemble-ai/chatterbox", note: "Motor por endpoint dentro de OmniVoice. Integración plena (registro en engine-registry.ts) prevista para la próxima ola — ver plan." },
+  },
+
+  /* ══ HERRAMIENTAS DE PRODUCCIÓN (architecture/director-produccion.md §9) ══
+   * Los 9 repos que usa el director de producción. Regla común de §9: el Mac
+   * tiene 8 GB — nada de esto corre como servidor en el Mac; se adopta el
+   * PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación
+   * perezosa con alternativa en Python puro). Instalar guarda el enlace y abre
+   * el GitHub de referencia. Dify y Flowise ya tenían ficha propia: se amplió
+   * con su categoría/estado/licencia (arriba), no se duplican. */
+  /* ── Temporal · motor de flujos durables ── */
+  {
+    id: "iatool-temporal", kind: "repo", name: "Temporal (flujos durables)",
+    description:
+      "Motor de flujos durables (MIT): cada lote del director de producción es un flujo con pasos idempotentes, estado persistido antes y después de cada paso, reintentos con espera creciente y temporizadores persistidos (nunca un sleep en memoria); si el servicio se reinicia, retoma el lote donde quedó. El servidor Temporal solo como opción en la nube. Instalar guarda el enlace y abre su repo.",
+    icon: "Timer", tags: ["produccion", "flujos", "durabilidad", "orquestacion"], version: "1.0.0",
+    author: "Temporal Technologies", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/temporalio/temporal", categoria: "produccion", estado: "activo", licencia: "MIT", note: "Ejecución durable del bucle (director-produccion §9). Servidor solo en la nube, nunca en el Mac (8 GB)." },
+  },
+  /* ── MCP servers · servidores de referencia del protocolo ── */
+  {
+    id: "iatool-mcp-servers", kind: "repo", name: "MCP servers (protocolo)",
+    description:
+      "Servidores de referencia del Model Context Protocol: sirven de modelo a mcp_director.py, el servidor MCP propio (sin dependencias) con herramientas de producción (produccion_estado, produccion_candidatos, produccion_historial, produccion_vetar, produccion_pausar y produccion_reanudar); así Claude, Hermes, Codex y cualquier IDE consultan y frenan la producción por el mismo canal. Instalar guarda el enlace y abre su repo.",
+    icon: "Network", tags: ["produccion", "mcp", "protocolo", "agentes"], version: "1.0.0",
+    author: "Anthropic · Model Context Protocol", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/modelcontextprotocol/servers", categoria: "produccion", estado: "activo", licencia: "MIT", note: "Referencia para mcp_director.py (herramientas produccion_*). Los servidores git, fetch y time sirven de modelo (§9)." },
+  },
+  /* ── LlamaIndex · indexar y recuperar documentos ── */
+  {
+    id: "iatool-llamaindex", kind: "repo", name: "LlamaIndex (memoria del proyecto)",
+    description:
+      "Indexar y recuperar documentos (MIT): la memoria del proyecto para la puerta 3 del director (produccion_memoria.py) indexa architecture/, memory/, informes de tareas e historial de producción, y recupera los 5 pasajes más relevantes por candidata sin pasar de 6 KB. Sin red ni servidor: BM25 en disco; usa LlamaIndex si está instalado y si no, un BM25 en Python puro con la misma interfaz. Instalar guarda el enlace y abre su repo.",
+    icon: "BookMarked", tags: ["produccion", "rag", "indice", "memoria"], version: "1.0.0",
+    author: "Run Llama", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/run-llama/llama_index", categoria: "produccion", estado: "activo", licencia: "MIT", note: "Memoria del proyecto para la puerta 3 (§9): BM25 en disco, librería opcional con alternativa en Python puro." },
+  },
+  /* ── CrewAI · equipos de agentes por roles ── */
+  {
+    id: "iatool-crewai", kind: "repo", name: "CrewAI (equipos por roles)",
+    description:
+      "Equipos de agentes por roles (MIT): el panel de respaldo de la puerta 3 cuando Jev no responde — un equipo de cuatro roles (lanzamiento, QA, seguridad y SRE), cada uno con un modelo gratuito distinto de la flota, que decide por mayoría con veto de seguridad. Reutiliza las pasarelas de decidir.py. Instalar guarda el enlace y abre su repo.",
+    icon: "UsersRound", tags: ["produccion", "agentes", "roles", "respaldo"], version: "1.0.0",
+    author: "CrewAI Inc", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/crewAIInc/crewAI", categoria: "produccion", estado: "activo", licencia: "MIT", note: "Panel de respaldo de la puerta 3 (§9): 4 roles con modelos gratuitos de la flota, mayoría con veto de seguridad." },
+  },
+  /* ── Firebase Genkit · flujos de IA, trazas y evaluaciones ── */
+  {
+    id: "iatool-genkit", kind: "repo", name: "Genkit (evaluaciones de IA)",
+    description:
+      "Flujos de IA, trazas y evaluaciones (Apache-2.0, antes Firebase Genkit): la puerta de evaluaciones de IA del director — si el lote toca prompts, skills o reglas de IA, la puerta 4 corre un conjunto dorado de casos y si empeora, el lote no pasa. Se adopta el patrón de evaluadores; Genkit mismo (JS) solo si cabe sin coste en CI. Nada de desplegar en Firebase ni Cloud Run: la facturación de Google Cloud está desactivada. Instalar guarda el enlace y abre su repo.",
+    icon: "Sparkles", tags: ["produccion", "evaluaciones", "ia", "trazas"], version: "1.0.0",
+    author: "Google · Genkit AI", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/genkit-ai/genkit", categoria: "produccion", estado: "activo", licencia: "Apache-2.0", note: "Puerta de evaluaciones de IA (§9): conjunto dorado en puerta 4. Patrón adoptado; sin desplegar en Firebase ni Cloud Run." },
+  },
+  /* ── n8n · automatización con integraciones por webhooks ── */
+  {
+    id: "iatool-n8n", kind: "repo", name: "n8n (automatización por webhooks)",
+    description:
+      "Automatización con cientos de integraciones (licencia de uso sostenible): puente del director hacia medios sin conector propio, por webhooks firmados con HMAC (produccion.publicada, produccion.revertida, produccion.pieza_lista) emitidos a las URLs del entorno. Necesita una instancia fuera del Mac (8 GB); hasta que exista, los webhooks quedan apagados. Instalar guarda el enlace y abre su repo.",
+    icon: "Workflow", tags: ["produccion", "automatizacion", "webhooks", "integraciones"], version: "1.0.0",
+    author: "n8n", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/n8n-io/n8n", categoria: "produccion", estado: "activo", licencia: "Licencia de uso sostenible", note: "Webhooks firmados HMAC hacia medios sin conector (§9). Requiere instancia fuera del Mac; apagado hasta entonces." },
+  },
+  /* ── LangServe · publicar cadenas como API REST (archivado) ── */
+  {
+    id: "iatool-langserve", kind: "repo", name: "LangServe (referencia)",
+    description:
+      "Publicar cadenas como API REST. Archivado en GitHub: su propio README recomienda LangGraph Platform. Se adopta solo el patrón: cada servicio de IA en Python expone /invoke, /stream y /playground. Para lo nuevo, LangGraph (ya en la Biblioteca de diseño). Instalar guarda el enlace y abre su repo.",
+    icon: "Archive", tags: ["produccion", "referencia", "archivado", "api-rest"], version: "1.0.0",
+    author: "LangChain", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/langchain-ai/langserve", categoria: "produccion", estado: "archivado · solo referencia", licencia: "MIT", note: "Archivado; su README recomienda LangGraph Platform. Solo el patrón /invoke + /stream + /playground (§9)." },
   },
 ];
 
