@@ -787,7 +787,83 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
       "Skill que mejora el gusto y la calidad de las interfaces que Aurora genera en el Canvas de Creación (nodo Horizon). Instalar la registra para tus cerebros y abre su repo de referencia.",
     icon: "Sparkles", tags: ["skill", "aurora", "ui", "horizon", "diseño"], version: "1.0.0",
     author: "Leonxlnx", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
-    payload: { skillId: "aurora-taste", externalUrl: "https://github.com/Leonxlnx/taste-skill", note: "Mejora la calidad de UI que genera Aurora (Horizon)" },
+    payload: { skillId: "aurora-taste", externalUrl: "https://github.com/Leonxlnx/taste-skill", note: "Mejora la calidad de UI que genera Aurora (Horizon)", categoria: "diseno" },
+  },
+  /* ══ HERRAMIENTAS DE DISEÑO (architecture/director-diseno.md §7) ══
+   * Los 9 repos que el director de diseño propone en sus briefs. Ninguno se
+   * instala en el repo sin una tarea propia: instalar guarda el enlace y abre
+   * el GitHub de referencia. Taste Skill (arriba) es el noveno de la lista. */
+  /* ── assistant-ui · chats e hilos (Chat Director, Astraura, mensajería) ── */
+  {
+    id: "iatool-assistant-ui", kind: "repo", name: "assistant-ui (chats e hilos)",
+    description:
+      "Componentes React para chats e hilos con streaming, referencia para el Chat Director, Astraura y la mensajería del OS. Instalar guarda el enlace y abre su repo.",
+    icon: "MessagesSquare", tags: ["diseno", "chat", "ui", "componentes", "react"], version: "1.0.0",
+    author: "assistant-ui", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/assistant-ui/assistant-ui", categoria: "diseno", note: "Chats e hilos: Chat Director, Astraura, mensajería" },
+  },
+  /* ── Tambo · interfaz generativa (componentes que elige un modelo) ── */
+  {
+    id: "iatool-tambo", kind: "repo", name: "Tambo (interfaz generativa)",
+    description:
+      "Interfaz generativa: componentes React que un modelo elige y compone según la conversación. Referencia para que Aurora proponga piezas de UI en el momento. Instalar guarda el enlace y abre su repo.",
+    icon: "Sparkles", tags: ["diseno", "ui-generativa", "componentes", "agentes"], version: "1.0.0",
+    author: "tambo-ai", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/tambo-ai/tambo", categoria: "diseno", note: "Interfaz generativa: componentes que elige un modelo" },
+  },
+  /* ── CopilotKit · copilotos dentro de la app ── */
+  {
+    id: "iatool-copilotkit", kind: "repo", name: "CopilotKit (copilotos en la app)",
+    description:
+      "Copilotos dentro de la aplicación y acciones del agente sobre la UI. Referencia para que los agentes de StarSeed operen la interfaz contigo. Instalar guarda el enlace y abre su repo.",
+    icon: "Bot", tags: ["diseno", "copiloto", "agentes", "ui", "acciones"], version: "1.0.0",
+    author: "CopilotKit", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/copilotkit/copilotkit", categoria: "diseno", note: "Copilotos dentro de la app y acciones del agente sobre la UI" },
+  },
+  /* ── Vercel AI SDK · streaming de modelos en la UI (ya en uso: no duplicar) ── */
+  {
+    id: "iatool-vercel-ai-sdk", kind: "repo", name: "Vercel AI SDK (streaming en UI)",
+    description:
+      "Streaming de modelos en la UI (helpers de React para chat y completados). Ya está en uso en el OS: esta ficha es solo referencia, no duplicar. Instalar guarda el enlace y abre su repo.",
+    icon: "Boxes", tags: ["diseno", "streaming", "sdk", "referencia"], version: "1.0.0",
+    author: "Vercel", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/vercel/ai", categoria: "diseno", note: "Streaming de modelos en la UI (ya en uso: no duplicar)" },
+  },
+  /* ── Mastra · agentes y flujos en TS del lado del front ── */
+  {
+    id: "iatool-mastra", kind: "repo", name: "Mastra (agentes TS en el front)",
+    description:
+      "Framework de agentes y flujos en TypeScript del lado del front. Referencia para los patrones de agentes de interfaz del OS. Instalar guarda el enlace y abre su repo.",
+    icon: "Workflow", tags: ["diseno", "agentes", "typescript", "front"], version: "1.0.0",
+    author: "mastra-ai", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/mastra-ai/mastra", categoria: "diseno", note: "Agentes y flujos en TS del lado del front" },
+  },
+  /* ── LangGraph.js · grafos de agentes con estado ── */
+  {
+    id: "iatool-langgraphjs", kind: "repo", name: "LangGraph.js (grafos de agentes)",
+    description:
+      "Grafos de agentes con estado en JavaScript/TypeScript. Referencia para los flujos con memoria de los agentes de interfaz. Instalar guarda el enlace y abre su repo.",
+    icon: "GitBranch", tags: ["diseno", "agentes", "grafos", "estado"], version: "1.0.0",
+    author: "LangChain", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/langchain-ai/langgraphjs", categoria: "diseno", note: "Grafos de agentes con estado" },
+  },
+  /* ── OpenDesign · espacio de diseño con agentes (piezas gráficas, carteles) ── */
+  {
+    id: "iatool-opendesign", kind: "repo", name: "OpenDesign (diseño con agentes)",
+    description:
+      "Espacio de diseño con agentes: piezas gráficas, carteles, presentaciones y motion desde el código. Referencia para el estudio de diseño del OS. Instalar guarda el enlace y abre su repo.",
+    icon: "Palette", tags: ["diseno", "agentes", "carteles", "grafica", "motion"], version: "1.0.0",
+    author: "nexu-io", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/nexu-io/open-design", variantUrl: "https://github.com/manalkaff/opendesign", categoria: "diseno", note: "Espacio de diseño con agentes (piezas gráficas, carteles)" },
+  },
+  /* ── UI-TARS · agente que ve y usa la interfaz (verificación de §4) ── */
+  {
+    id: "iatool-ui-tars", kind: "repo", name: "UI-TARS (agente que usa la UI)",
+    description:
+      "Agente que ve y usa la interfaz como una persona: sirve a la verificación visual del director de diseño (§4), recorriendo la pantalla en móvil y escritorio. Instalar guarda el enlace y abre su repo.",
+    icon: "MousePointerClick", tags: ["diseno", "agente", "vision", "verificacion", "ui"], version: "1.0.0",
+    author: "ByteDance", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/bytedance/UI-TARS", desktopUrl: "https://github.com/bytedance/UI-TARS-desktop", categoria: "diseno", note: "Agente que ve y usa la interfaz: verificación del §4" },
   },
   /* ── pm-skills · gestión de producto/proyecto para Aurora ── */
   {
