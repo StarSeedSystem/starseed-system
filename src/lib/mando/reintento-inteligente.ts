@@ -1,9 +1,4 @@
-/**
- * Lógica pura del Reintento Inteligente (Ola 341 · Mando · Tarea RI1)
- * Extrae objeciones del revisor, clasifica tareas para reintento/descarte/espera
- * y genera tareas reencoladas con objeciones dentro del prompt.
- */
-
+/** Reglas puras para reparar tareas bloqueadas sin repetir el fallo anterior. */
 export interface TareaAnalizar {
     id: string;
     ola?: string;
@@ -15,11 +10,20 @@ export interface TareaAnalizar {
     nota?: string;
     motivo?: string;
     modelo?: string;
-    [key: string]: unknown;
+    [clave: string]: unknown;
+}
+
+export interface FuentesCambio {
+    revisionesMd?: string;
+    eventos?: string;
+    pasos?: string;
+    log?: string;
+    tsc?: string;
+    faltantes?: string[];
 }
 
 export interface ClasificacionResultado {
-    accion: "reintentar" | "descartar" | "esperar";
+    accion: "reintentar" | "escalar" | "esperar" | "descartar";
     motivo: string;
 }
 
@@ -30,271 +34,193 @@ export interface TareaReencolada extends TareaAnalizar {
     depende: string[];
 }
 
-interface SeccionRevision {
-    encabezado: string;
-    lineas: string[];
-    texto: string;
+export interface ResultadoReintento {
+    id: string;
+    accion: "reintentada" | "escalada" | "esperando" | "descartada";
+    motivo: string;
+    sucesor?: string;
+    posicion?: number;
 }
 
-function partirSeccionesMd(md: string): SeccionRevision[] {
-    if (!md || !md.trim()) return [];
-    const lineas = md.split("\n");
-    const secciones: SeccionRevision[] = [];
-    let actualLineas: string[] = [];
-
-    for (const linea of lineas) {
-        if (/^#{1,3}\s+/.test(linea.trim())) {
-            if (actualLineas.length > 0) {
-                secciones.push({
-                    encabezado: actualLineas[0] ?? "",
-                    lineas: actualLineas,
-                    texto: actualLineas.join("\n"),
-                });
-            }
-            actualLineas = [linea];
-        } else {
-            actualLineas.push(linea);
-        }
-    }
-    if (actualLineas.length > 0) {
-        secciones.push({
-            encabezado: actualLineas[0] ?? "",
-            lineas: actualLineas,
-            texto: actualLineas.join("\n"),
-        });
-    }
-    return secciones;
-}
-
-export function objecionDe(revisionesMd: string, id: string): string | null {
-    if (!revisionesMd || !id) return null;
-    const secciones = partirSeccionesMd(revisionesMd);
-
-    const patronId = new RegExp(`(?:[·\\s]|^)${id}(?:[:·\\s]|$)`, "i");
-    const seccionesCoincidentes = secciones.filter((s) => patronId.test(s.encabezado));
-    if (seccionesCoincidentes.length === 0) return null;
-
-    const ultimaSeccion = seccionesCoincidentes[seccionesCoincidentes.length - 1];
-
-    const coincideSeguimiento = /Seguimiento[:：]\s*(.*)/i.exec(ultimaSeccion.texto);
-    if (!coincideSeguimiento) return null;
-
-    let textoSeguimiento = coincideSeguimiento[1].trim();
-    textoSeguimiento = textoSeguimiento.replace(/^[\*\s«"]+|[\*\s»"]+$/g, "").trim();
-
-    if (!/bloqueante/i.test(textoSeguimiento)) return null;
-
-    const seguimientoLimpio = `Seguimiento: ${textoSeguimiento}`;
-
-    const riesgos: string[] = [];
-    let enRiesgos = false;
-
-    for (const linea of ultimaSeccion.lineas) {
-        const lineaLimpia = linea.trim();
-        if (/Riesgos reales/i.test(lineaLimpia)) {
-            enRiesgos = true;
-            continue;
-        }
-        if (enRiesgos) {
-            if (/^(?:\*\*|#{1,3}\s+|Probar a mano|Seguimiento[:：])/i.test(lineaLimpia) && riesgos.length > 0) {
-                enRiesgos = false;
-                continue;
-            }
-            if (/^\d+[\.\)]\s+/.test(lineaLimpia)) {
-                riesgos.push(lineaLimpia);
-            }
-        }
-    }
-
-    if (riesgos.length > 0) {
-        return `${seguimientoLimpio}\n\nRiesgos reales:\n${riesgos.join("\n")}`;
-    }
-
-    return seguimientoLimpio;
-}
+const FALLOS = new Set([
+    "fallo", "fallo_motor", "fallo_tsc", "fallo_tests", "sin_cambios",
+    "interrumpida", "conflicto", "rechazada", "bloqueante", "bloqueada", "faltan",
+]);
+const DESCARTABLES = new Set(["sustituida", "reasignada", "duplicada", "descartada"]);
+const VIVOS = new Set(["", "pendiente", "en_curso", "escribiendo", "esperando"]);
 
 export function extraerIdsProgreso(progreso: unknown): string[] {
-    if (!progreso) return [];
-    if (Array.isArray(progreso)) {
-        return progreso
-            .map((item) => {
-                if (typeof item === "string") return item;
-                if (item && typeof item === "object" && "id" in item && typeof item.id === "string") {
-                    return item.id;
-                }
-                return "";
-            })
-            .filter(Boolean);
-    }
-    if (typeof progreso === "object") {
-        return Object.keys(progreso);
-    }
-    return [];
+    if (Array.isArray(progreso)) return progreso.flatMap((e) =>
+        typeof e === "string" ? [e] : e && typeof e === "object" && "id" in e && typeof e.id === "string" ? [e.id] : []);
+    return progreso && typeof progreso === "object" ? Object.keys(progreso) : [];
 }
 
 export function obtenerBaseId(id: string): string {
-    if (!id) return "";
-    const coincide = /^([A-Za-z0-9]+?)[a-z]{1,2}$/.exec(id);
-    if (coincide && coincide[1] && /[A-Z0-9]$/.test(coincide[1])) {
-        return coincide[1];
-    }
-    return id;
+    return /[A-Z0-9][b-z]$/.test(id) ? id.slice(0, -1) : id;
 }
 
-/**
- * Estados en los que la tarea no llegó a terminar por sí misma. Un `rechazada` NO está:
- * ahí alguien miró el trabajo y dijo que no, que es otra cosa.
- */
-const ESTADOS_DE_FALLO = new Set([
-    "fallo",
-    "fallo_tsc",
-    "fallo_tests",
-    "fallo_motor",
-    "interrumpida",
-    "conflicto",
-    "sin_cambios",
-]);
+function ordenId(id: string): number {
+    const base = obtenerBaseId(id);
+    return id === base ? 0 : Math.max(1, id.charCodeAt(id.length - 1) - 96);
+}
 
-/**
- * Huellas de que quien falló fue el MEDIO —la pasarela, el modelo, la red, la máquina— y
- * no lo que pedía la tarea. Están en minúsculas porque la nota se compara en minúsculas.
- */
-const HUELLAS_DEL_MEDIO: [string, string][] = [
-    ["ningún proveedor respondió", "ningún proveedor respondió"],
-    ["ningun proveedor respondio", "ningún proveedor respondió"],
-    ["does not exist", "el modelo ya no existe en la pasarela"],
-    ["ningún modelo", "sin modelo disponible"],
-    ["ningun modelo", "sin modelo disponible"],
-    ["red caída", "se cayó la red"],
-    ["red caida", "se cayó la red"],
-    ["network", "problema de red"],
-    ["connection", "problema de conexión"],
-    ["timeout", "se agotó el tiempo de espera"],
-    ["se colgó", "el modelo se colgó"],
-    ["se colgo", "el modelo se colgó"],
-    ["sin respuesta", "el proveedor no contestó"],
-    ["usage limit", "tope de uso del proveedor"],
-    ["sin cupo", "proveedor sin cupo"],
-    ["429", "el proveedor devolvió 429"],
-    ["402", "el proveedor devolvió 402"],
-    ["500", "el proveedor devolvió 500"],
-    ["503", "el proveedor devolvió 503"],
+function idsCadena(id: string, progreso: unknown): string[] {
+    const base = obtenerBaseId(id);
+    return [...new Set([...extraerIdsProgreso(progreso), id])]
+        .filter((x) => obtenerBaseId(x) === base)
+        .sort((a, b) => ordenId(a) - ordenId(b));
+}
+
+function numeroIntento(id: string, progreso: unknown): number {
+    return Math.max(idsCadena(id, progreso).length, ordenId(id), 1);
+}
+
+function entradaDe(progreso: unknown, id: string): Partial<TareaAnalizar> {
+    if (Array.isArray(progreso)) {
+        const e = progreso.find((x) => x && typeof x === "object" && "id" in x && x.id === id);
+        return (e as Partial<TareaAnalizar> | undefined) ?? {};
+    }
+    if (progreso && typeof progreso === "object") {
+        const e = (progreso as Record<string, unknown>)[id];
+        return e && typeof e === "object" ? e as Partial<TareaAnalizar> : {};
+    }
+    return {};
+}
+
+export function objecionDe(md: string, id: string): string | null {
+    if (!md.trim() || !id) return null;
+    const secciones = md.split(/(?=^#{1,3}\s)/m).filter((s) =>
+        new RegExp(`(?:^|[·\\s])${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[:·\\s]|$)`, "im").test(s));
+    const seccion = secciones.at(-1);
+    if (!seccion || !/Seguimiento[:：].*bloqueante/is.test(seccion)) return null;
+    const riesgos = seccion.match(/(?:\*\*)?Riesgos reales(?:\*\*)?\s*([\s\S]*?)(?=\n(?:\*\*)?Probar|\n(?:\*\*)?Seguimiento)/i)?.[1]?.trim();
+    const seguimiento = seccion.match(/Seguimiento[:：]\s*([^\n]+)/i)?.[0]?.replace(/\*\*|[«»]/g, "").trim();
+    return [riesgos ? `Riesgos reales:\n${riesgos}` : "", seguimiento ?? ""].filter(Boolean).join("\n\n") || null;
+}
+
+const HUELLAS_MEDIO: Array<[string, string]> = [
+    ["429", "el proveedor devolvió 429"], ["402", "el proveedor devolvió 402"],
+    ["timeout", "se agotó el tiempo de espera"], ["red ca", "se cayó la red"],
+    ["network", "problema de red"], ["connection", "problema de conexión"],
+    ["ningún proveedor", "ningún proveedor respondió"], ["ningun proveedor", "ningún proveedor respondió"],
+    ["does not exist", "el modelo ya no existe"], ["se colg", "el modelo se colgó"],
+    ["sin respuesta", "el proveedor no contestó"], ["usage limit", "tope de uso del proveedor"],
 ];
 
-/** PURA: ¿la tarea murió por culpa del medio y no de lo que pedía? */
-export function esFalloDelMedio(estado: string, nota: string): boolean {
-    if (!ESTADOS_DE_FALLO.has(String(estado || "").toLowerCase())) return false;
-    const n = String(nota || "").toLowerCase();
-    return HUELLAS_DEL_MEDIO.some(([huella]) => n.includes(huella));
-}
-
-/** PURA: la causa en castellano, para que el veredicto diga POR QUÉ vuelve a la cola. */
 export function causaDelMedio(nota: string): string {
-    const n = String(nota || "").toLowerCase();
-    for (const [huella, explicacion] of HUELLAS_DEL_MEDIO) {
-        if (n.includes(huella)) return explicacion;
-    }
-    return "falló el medio";
+    const n = nota.toLowerCase();
+    return HUELLAS_MEDIO.find(([huella]) => n.includes(huella))?.[1] ?? "falló el medio";
 }
 
-export function clasificar(
-    tarea: TareaAnalizar,
-    progreso: unknown,
-    revisionesMd: string
-): ClasificacionResultado {
-    const estado = (tarea.estado ?? "").toLowerCase();
-    const nota = (tarea.nota ?? tarea.motivo ?? "").toLowerCase();
+export function esFalloDelMedio(estado: string, nota: string): boolean {
+    return FALLOS.has(estado.toLowerCase()) && HUELLAS_MEDIO.some(([huella]) => nota.toLowerCase().includes(huella));
+}
 
-    // Regla 6: «sustituida», «reasignada» → descartar
-    if (estado === "sustituida" || estado === "reasignada") {
-        return { accion: "descartar", motivo: "ya vive con otro id" };
+function lineasUtiles(texto: string, patron: RegExp): string {
+    return texto.split("\n").filter((linea) => patron.test(linea)).slice(-40).join("\n").trim();
+}
+
+function eventoDe(texto: string, id: string): string {
+    return texto.split("\n").filter((linea) => linea.includes(id) && /revisi|bloque|rechaz/i.test(linea)).slice(-8).join("\n");
+}
+
+export function cambioAutomatico(tarea: TareaAnalizar, fuentes: FuentesCambio = {}): string {
+    const estado = String(tarea.estado ?? "").toLowerCase();
+    const nota = String(tarea.nota ?? tarea.motivo ?? "").trim();
+    if (estado === "rechazada" || estado === "bloqueante") {
+        const objecion = (objecionDe(fuentes.revisionesMd ?? "", tarea.id)
+            ?? eventoDe(fuentes.eventos ?? "", tarea.id))
+            || nota || "La revisión fue bloqueante.";
+        return `Corrige cada punto de esta objeción literal y añade una prueba para cada uno:\n${objecion}`;
     }
+    if (estado === "fallo_tests") {
+        const salida = lineasUtiles(`${fuentes.pasos ?? ""}\n${fuentes.log ?? ""}`, /test|fail|error|expected|received|×|✗/i);
+        return `Repara las pruebas que fallaron y conserva las que ya pasan:\n${salida || nota || "Fallo de pruebas sin salida legible."}`;
+    }
+    if (estado === "fallo_tsc") {
+        const salida = fuentes.tsc?.trim() || lineasUtiles(`${fuentes.pasos ?? ""}\n${fuentes.log ?? ""}`, /tsc|typescript|error ts\d+|type error/i);
+        return `Corrige todos los errores de TypeScript de los archivos declarados:\n${salida || nota || "Fallo de tsc sin salida legible."}`;
+    }
+    if (estado === "sin_cambios") {
+        const archivos = fuentes.faltantes?.length ? fuentes.faltantes : tarea.archivos ?? [];
+        return `Tu intento no tocó tus archivos declarados: ${archivos.join(", ") || "no constan"} no existen o no cambiaron. Créalos o modifícalos según el contrato.`;
+    }
+    if (estado === "faltan") {
+        return `Completa los archivos que faltan: ${(fuentes.faltantes ?? tarea.archivos ?? []).join(", ") || nota}.`;
+    }
+    if (estado === "interrumpida" || esFalloDelMedio(estado, nota)) {
+        return `Repite la misma tarea con otro proveedor; el intento anterior falló por el medio (${causaDelMedio(nota)}).`;
+    }
+    if (estado === "conflicto") return "Parte de main actual y rehace el cambio sobre él; no reutilices la rama antigua en conflicto.";
+    return nota || "Repara el fallo indicado, comprueba cada archivo declarado y añade las pruebas correspondientes.";
+}
 
-    // Regla 3: bloqueada por dependencia
-    if (
-        estado === "bloqueada" ||
-        nota.startsWith("dependencia no integrada") ||
-        nota.startsWith("esperando a que se integre")
-    ) {
+export function clasificar(tarea: TareaAnalizar, progreso: unknown, revisionesMd = ""): ClasificacionResultado {
+    const estado = String(tarea.estado ?? "").toLowerCase();
+    if (DESCARTABLES.has(estado)) return { accion: "descartar", motivo: "ya vive con otro id" };
+    if (numeroIntento(tarea.id, progreso) >= 3) return { accion: "escalar", motivo: "tercer intento fallido: escala al director, nunca se descarta" };
+    if (estado === "bloqueada") {
         return { accion: "esperar", motivo: "esperando a que se integre la dependencia" };
     }
-
-    // Regla 2: la causa fue del MEDIO, no de la tarea.
-    //
-    // (2026-09-22) Esta regla existía solo para `sin_cambios` y con cinco patrones, y por
-    // eso el enjambre «no se autocorregía». Medido en la ola viva: RM3 murió con «ningún
-    // proveedor respondió (does not exist)» —un id de modelo que ya no existe— y el
-    // veredicto fue «descartar: sin acción requerida», porque `fallo` no entraba en
-    // ninguna rama. p316Ic murió con «red caída» y acabó en «tres intentos: necesita una
-    // persona». Ninguna de las dos tenía nada que ver con la tarea: eran el medio.
-    //
-    // Ahora cubre todos los estados de fallo y va ANTES del recuento de intentos, que es
-    // lo que de verdad lo arregla: un corte de red no debe gastar uno de los tres intentos
-    // que separan a una tarea de necesitar a una persona.
-    if (esFalloDelMedio(estado, nota)) {
-        return { accion: "reintentar", motivo: "no era la tarea, era el medio: " + causaDelMedio(nota) };
+    if (FALLOS.has(estado)) {
+        const cambio = cambioAutomatico(tarea, { revisionesMd });
+        return { accion: "reintentar", motivo: cambio.split("\n")[0] ?? "reparación automática" };
     }
+    return { accion: "esperar", motivo: "no está en un estado de fallo o bloqueo" };
+}
 
-    // Conteo de intentos del mismo id
-    const idsProgreso = extraerIdsProgreso(progreso);
-    const baseId = obtenerBaseId(tarea.id);
-    const coincidenciaIds = new Set(
-        idsProgreso.filter((id) => obtenerBaseId(id) === baseId || id.startsWith(baseId))
-    );
-    coincidenciaIds.add(tarea.id);
-
-    // Regla 4: más de 3 intentos previos (>= 3 acumulados)
-    if (coincidenciaIds.size >= 3) {
-        return { accion: "descartar", motivo: "tres intentos: necesita una persona" };
-    }
-
-    // Regla 1 y 5: rechazada / bloqueante / fallo_tests
-    const esRechazo = ["rechazada", "bloqueante", "fallo_tests"].includes(estado);
-    if (esRechazo) {
-        const objecion = objecionDe(revisionesMd, tarea.id) ?? objecionDe(revisionesMd, baseId);
-        if (objecion) {
-            const primeraLinea = objecion.split("\n")[0] ?? objecion;
-            return { accion: "reintentar", motivo: primeraLinea };
-        }
-        return { accion: "descartar", motivo: "rechazo sin razón escrita: no hay cambio que hacer" };
-    }
-
-    return { accion: "descartar", motivo: "sin acción requerida" };
+export function elegirModelo(fallido: string, candidatos: string[], intentos: number): string | undefined {
+    const codex = "codex/gpt-5.6-sol";
+    const unicos = [...new Set([...candidatos, codex, "nim/kimi-k3", "google/gemini-3.6-flash"])]
+        .filter((modelo) => modelo && modelo !== fallido);
+    return intentos >= 1 && codex !== fallido ? codex : unicos[0];
 }
 
 export function reencolar(
     tarea: TareaAnalizar,
-    objecion: string,
-    progreso: unknown
+    cambio: string,
+    progreso: unknown,
+    candidatos: string[] = [],
 ): TareaReencolada {
-    const baseId = obtenerBaseId(tarea.id);
-    const idsExistentes = new Set(extraerIdsProgreso(progreso));
-    idsExistentes.add(tarea.id);
-
-    const sufijos = "bcdefghijklmnopqrstuvwxyz".split("");
-    let sufijoElegido = "b";
-
-    for (const suf of sufijos) {
-        const candidato = `${baseId}${suf}`;
-        if (!idsExistentes.has(candidato)) {
-            sufijoElegido = suf;
-            break;
-        }
-    }
-
-    const nuevoId = `${baseId}${sufijoElegido}`;
-    const promptOriginal = tarea.prompt ?? "";
-    const promptNuevo = `${promptOriginal}\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\n${objecion}\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.`;
-
+    const intentos = numeroIntento(tarea.id, progreso);
+    const base = obtenerBaseId(tarea.id);
+    const siguiente = String.fromCharCode(97 + intentos);
+    const promptBase = String(tarea.prompt ?? "").split(/\n+## REPARACIÓN\b/)[0]?.trimEnd() ?? "";
+    const modeloElegido = elegirModelo(String(tarea.modelo ?? ""), candidatos, intentos);
+    const { id: _id, prompt: _prompt, estado: _estado, nota: _nota, motivo: _motivo, modelo: _modelo, ...resto } = tarea;
+    void [_id, _prompt, _estado, _nota, _motivo, _modelo];
     return {
-        ...tarea,
-        id: nuevoId,
-        ola: tarea.ola ?? "",
-        titulo: tarea.titulo ?? "",
-        archivos: Array.isArray(tarea.archivos) ? [...tarea.archivos] : [],
-        depende: Array.isArray(tarea.depende) ? [...tarea.depende] : [],
-        prompt: promptNuevo,
+        ...resto,
+        id: `${base}${siguiente}`,
+        ola: String(tarea.ola ?? ""),
+        titulo: String(tarea.titulo ?? ""),
+        archivos: [...(tarea.archivos ?? [])],
+        depende: [...(tarea.depende ?? [])],
+        prompt: `${promptBase}\n\n## REPARACIÓN\n${cambio}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.`.trim(),
+        ...(modeloElegido ? { modelo: modeloElegido } : {}),
     };
+}
+
+export function ponerPrimera(actuales: TareaAnalizar[], nuevas: TareaAnalizar[]): TareaAnalizar[] {
+    const idsNuevos = new Set(nuevas.map((t) => t.id));
+    const vistos = new Set<string>();
+    return [...nuevas, ...actuales.filter((t) => !idsNuevos.has(t.id))].filter((t) => {
+        if (vistos.has(t.id)) return false;
+        vistos.add(t.id);
+        return true;
+    });
+}
+
+export function obtenerTareaAnalizar(id: string, progreso: unknown, colas: TareaAnalizar[] = []): TareaAnalizar {
+    const cola = colas.find((t) => t.id === id) ?? { id };
+    return { ...cola, ...entradaDe(progreso, id), id };
+}
+
+export function obtenerIdsElegibles(progreso: unknown, colas: TareaAnalizar[] = []): string[] {
+    return [...new Set([...extraerIdsProgreso(progreso), ...colas.map((t) => t.id)])].filter((id) => {
+        const estado = String(obtenerTareaAnalizar(id, progreso, colas).estado ?? "").toLowerCase();
+        return FALLOS.has(estado);
+    });
 }
 
 export interface EjecucionReintentoParams {
@@ -302,133 +228,71 @@ export interface EjecucionReintentoParams {
     progreso: unknown;
     revisionesMd: string;
     colasTareas?: TareaAnalizar[];
+    fuentes?: Record<string, FuentesCambio>;
+    cambio?: string;
+    modelos?: string[];
+    escalar?: boolean;
 }
 
 export interface EjecucionReintentoResultado {
+    resultados: ResultadoReintento[];
     reintentadas: string[];
+    escaladas: Array<{ id: string; motivo: string }>;
     descartadas: Array<{ id: string; motivo: string }>;
     esperando: Array<{ id: string; motivo: string }>;
     reencoladas: TareaReencolada[];
 }
 
-export function obtenerTareaAnalizar(
-    id: string,
-    progreso: unknown,
-    colasTareas?: TareaAnalizar[]
-): TareaAnalizar {
-    const enCola = colasTareas?.find((t) => t.id === id);
-    let enProgreso: Partial<TareaAnalizar> = {};
-    if (progreso && typeof progreso === "object") {
-        if (Array.isArray(progreso)) {
-            const hallada = progreso.find(
-                (item) => item && typeof item === "object" && "id" in item && (item as { id?: string }).id === id
-            );
-            if (hallada) enProgreso = hallada as Partial<TareaAnalizar>;
-        } else {
-            const hallada = (progreso as Record<string, Partial<TareaAnalizar>>)[id];
-            if (hallada && typeof hallada === "object") enProgreso = hallada;
+export function ejecutarReintentoInteligente(p: EjecucionReintentoParams): EjecucionReintentoResultado {
+    const colas = p.colasTareas ?? [];
+    const universo = [...extraerIdsProgreso(p.progreso), ...colas.map((t) => t.id)];
+    const ids = p.ids?.length ? p.ids : obtenerIdsElegibles(p.progreso, colas);
+    const resultados: ResultadoReintento[] = [], reencoladas: TareaReencolada[] = [];
+    const cadenasProcesadas = new Set<string>();
+    for (const pedido of ids) {
+        const base = obtenerBaseId(pedido);
+        if (cadenasProcesadas.has(base)) continue;
+        cadenasProcesadas.add(base);
+        const cadena = idsCadena(pedido, universo);
+        const ultimoId = cadena.at(-1) ?? pedido;
+        const tarea = obtenerTareaAnalizar(ultimoId, p.progreso, colas);
+        if (ultimoId !== pedido && VIVOS.has(String(tarea.estado ?? "").toLowerCase())) {
+            resultados.push({ id: pedido, accion: "esperando", motivo: `ya existe un sucesor vivo: ${ultimoId}` });
+            continue;
         }
+        const clasificacion = p.escalar ? { accion: "escalar" as const, motivo: "escalado pedido desde el Mando" }
+            : clasificar(tarea, universo, p.revisionesMd);
+        if (clasificacion.accion !== "reintentar") {
+            const accion = clasificacion.accion === "escalar" ? "escalada"
+                : clasificacion.accion === "descartar" ? "descartada" : "esperando";
+            resultados.push({ id: pedido, accion, motivo: clasificacion.motivo });
+            continue;
+        }
+        const fuentes = { revisionesMd: p.revisionesMd, ...(p.fuentes?.[ultimoId] ?? {}) };
+        const cambio = p.cambio?.trim() || cambioAutomatico(tarea, fuentes);
+        const nueva = reencolar(tarea, cambio, universo, p.modelos);
+        reencoladas.push(nueva);
+        universo.push(nueva.id);
+        resultados.push({ id: pedido, accion: "reintentada", motivo: cambio, sucesor: nueva.id });
     }
+    const por = (accion: ResultadoReintento["accion"]) => resultados.filter((r) => r.accion === accion);
     return {
-        id,
-        ola: (enProgreso.ola as string) ?? enCola?.ola ?? "",
-        titulo: (enProgreso.titulo as string) ?? enCola?.titulo ?? "",
-        archivos: Array.isArray(enProgreso.archivos) ? enProgreso.archivos : enCola?.archivos ?? [],
-        prompt: (enProgreso.prompt as string) ?? enCola?.prompt ?? "",
-        depende: Array.isArray(enProgreso.depende) ? enProgreso.depende : enCola?.depende ?? [],
-        estado: (enProgreso.estado as string) ?? enCola?.estado ?? "",
-        nota: (enProgreso.nota as string) ?? enCola?.nota ?? "",
-        motivo: (enProgreso.motivo as string) ?? enCola?.motivo ?? "",
-        modelo: (enProgreso.modelo as string) ?? enCola?.modelo ?? "",
+        resultados, reencoladas,
+        reintentadas: por("reintentada").flatMap((r) => r.sucesor ? [r.sucesor] : []),
+        escaladas: por("escalada").map(({ id, motivo }) => ({ id, motivo })),
+        descartadas: por("descartada").map(({ id, motivo }) => ({ id, motivo })),
+        esperando: por("esperando").map(({ id, motivo }) => ({ id, motivo })),
     };
 }
 
-export function obtenerIdsElegibles(progreso: unknown, colasTareas?: TareaAnalizar[]): string[] {
-    const idsProgreso = extraerIdsProgreso(progreso);
-    const idsCola = (colasTareas ?? []).map((t) => t.id);
-    const conjunto = new Set([...idsProgreso, ...idsCola]);
-    const estadosCompletados = new Set(["commit", "integrada", "hecha", "aprobada"]);
-
-    const resultado: string[] = [];
-    for (const id of Array.from(conjunto)) {
-        const tarea = obtenerTareaAnalizar(id, progreso, colasTareas);
-        const est = (tarea.estado ?? "").toLowerCase();
-        if (!estadosCompletados.has(est)) {
-            resultado.push(id);
-        }
-    }
-    return resultado;
+export function contarVeredictos(veredictos: Array<{ accion: string } | null | undefined>) {
+    const reintentarCount = veredictos.filter((v) => v?.accion === "reintentar" || v?.accion === "escalar").length;
+    const esperarCount = veredictos.filter((v) => v?.accion === "esperar").length;
+    const descartarCount = veredictos.length - reintentarCount - esperarCount;
+    return { reintentarCount, descartarCount, esperarCount,
+        resumenTexto: `${reintentarCount} se reintentan · ${descartarCount} se descartan · ${esperarCount} esperan` };
 }
 
-export function ejecutarReintentoInteligente(
-    params: EjecucionReintentoParams
-): EjecucionReintentoResultado {
-    const { progreso, revisionesMd, colasTareas } = params;
-    const idsAProcesar =
-        params.ids && params.ids.length > 0
-            ? params.ids
-            : obtenerIdsElegibles(progreso, colasTareas);
-
-    const reintentadas: string[] = [];
-    const descartadas: Array<{ id: string; motivo: string }> = [];
-    const esperando: Array<{ id: string; motivo: string }> = [];
-    const reencoladas: TareaReencolada[] = [];
-
-    for (const id of idsAProcesar) {
-        const tarea = obtenerTareaAnalizar(id, progreso, colasTareas);
-        const clas = clasificar(tarea, progreso, revisionesMd);
-
-        if (clas.accion === "reintentar") {
-            const baseId = obtenerBaseId(tarea.id);
-            const objecion =
-                objecionDe(revisionesMd, tarea.id) ??
-                objecionDe(revisionesMd, baseId) ??
-                clas.motivo ??
-                "Reintento inteligente pedido desde el Mando";
-
-            const nuevaTarea = reencolar(tarea, objecion, progreso);
-            reencoladas.push(nuevaTarea);
-            reintentadas.push(nuevaTarea.id);
-        } else if (clas.accion === "esperar") {
-            esperando.push({ id: tarea.id, motivo: clas.motivo });
-        } else {
-            descartadas.push({ id: tarea.id, motivo: clas.motivo });
-        }
-    }
-
-    return { reintentadas, descartadas, esperando, reencoladas };
-}
-
-export function resumenVeredictos(
-    tareas: TareaAnalizar[],
-    progreso: unknown,
-    revisionesMd: string
-): { reintentarCount: number; descartarCount: number; esperarCount: number; resumenTexto: string } {
+export function resumenVeredictos(tareas: TareaAnalizar[], progreso: unknown, revisionesMd: string) {
     return contarVeredictos(tareas.map((t) => clasificar(t, progreso, revisionesMd)));
-}
-
-/**
- * El mismo recuento, pero a partir de veredictos YA calculados.
- *
- * (2026-09-22) Existe porque el navegador no puede calcularlos: llamaba a
- * `resumenVeredictos(tareas, {}, "")` —sin progreso y sin revisiones— y el resumen decía
- * «0 se reintentan · 24 se descartan» de trabajos cuya objeción estaba escrita palabra por
- * palabra en `revisiones.md`. Ahora el servidor los calcula una vez y aquí solo se cuentan.
- */
-export function contarVeredictos(
-    veredictos: Array<{ accion: string } | null | undefined>
-): { reintentarCount: number; descartarCount: number; esperarCount: number; resumenTexto: string } {
-    let reintentarCount = 0;
-    let descartarCount = 0;
-    let esperarCount = 0;
-
-    for (const v of veredictos) {
-        const accion = v?.accion;
-        if (accion === "reintentar") reintentarCount++;
-        else if (accion === "esperar") esperarCount++;
-        else descartarCount++;
-    }
-
-    const resumenTexto = `${reintentarCount} se reintentan · ${descartarCount} se descartan · ${esperarCount} esperan`;
-    return { reintentarCount, descartarCount, esperarCount, resumenTexto };
 }
