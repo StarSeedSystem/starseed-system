@@ -15,6 +15,7 @@ import { ChevronDown, ChevronRight, MessagesSquare } from "lucide-react";
 
 import { filtrarFeed, fusionarFeed, type FiltroFeed } from "@/lib/mando/chat-director-feed";
 import {
+    CANALES,
     MODELO_DIRECTOR_DEFECTO,
     MOTORES_DIRECTOR,
     type CanalId,
@@ -26,7 +27,8 @@ import { CompositorDirector, type ModeloOpcion } from "@/components/mando/chat-d
 
 const CLAVE_PLEGADO = "starseed.mando.director.plegado";
 const CLAVE_MODELO = "starseed.mando.director.modelo";
-const INTERVALO_MS = 10_000;
+const INTERVALO_NORMAL_MS = 10_000;
+const INTERVALO_RESPUESTA_MS = 3_000;
 
 const FILTROS: { id: FiltroFeed; etiqueta: string }[] = [
     { id: "todo", etiqueta: "Todo" },
@@ -40,6 +42,26 @@ interface FeedRespuesta {
     mensajes?: MensajeDirector[];
     entregas?: Record<string, Partial<Record<CanalId, EstadoEntrega>>>;
     ultimoModelo?: string;
+}
+
+interface EnvioLocal {
+    mensaje: MensajeDirector;
+    iniciadoEnMs: number;
+    estado: "enviando" | "fallo";
+}
+
+function esRespuestaInmediata(canal: string): canal is CanalId {
+    return CANALES.some((opcion) => opcion.id === canal && opcion.respuesta === "inmediata");
+}
+
+function entregaEsperaRespuesta(estado: EstadoEntrega | undefined): boolean {
+    return estado === "pendiente" || estado === "entregado";
+}
+
+function feedConfirmaEnvio(local: EnvioLocal, nuevos: readonly MensajeDirector[]): boolean {
+    return nuevos.some((mensaje) => mensaje.rol === "alex"
+        && mensaje.texto === local.mensaje.texto
+        && Date.parse(mensaje.t) >= local.iniciadoEnMs);
 }
 
 function plegadoInicial(): boolean {
@@ -73,6 +95,7 @@ export function ChatDirector() {
     // último usado, y ese dato llega con el feed (montarlo antes fijaría el de defecto).
     const [cargado, setCargado] = useState(false);
     const [enviando, setEnviando] = useState(false);
+    const [envioLocal, setEnvioLocal] = useState<EnvioLocal | null>(null);
     const listaRef = useRef<HTMLDivElement | null>(null);
     // El último `t` vive en una referencia: si `cargar` dependiera de `mensajes`, cada lectura
     // crearía un `cargar` nuevo, el efecto lo relanzaría con lectura completa y el chat
@@ -89,6 +112,7 @@ export function ChatDirector() {
             const datos = (await res.json()) as FeedRespuesta;
             const nuevos = Array.isArray(datos.mensajes) ? datos.mensajes : [];
             setMensajes((previos) => (soloNuevos ? fusionarFeed(previos, nuevos) : fusionarFeed(nuevos)).slice(-500));
+            setEnvioLocal((local) => local && feedConfirmaEnvio(local, nuevos) ? null : local);
             if (datos.entregas) setEntregas(datos.entregas);
             if (typeof datos.ultimoModelo === "string") setUltimoModelo(datos.ultimoModelo);
             setCargado(true);
@@ -104,9 +128,19 @@ export function ChatDirector() {
 
     useEffect(() => {
         void cargar(false);
-        const id = setInterval(() => void cargar(true), INTERVALO_MS);
-        return () => clearInterval(id);
     }, [cargar]);
+
+    const esperaRespuestaInmediata = useMemo(() => mensajes.some((mensaje) => {
+        if (mensaje.rol !== "alex") return false;
+        return Object.entries(entregas[mensaje.id] ?? {}).some(([canal, estado]) =>
+            esRespuestaInmediata(canal) && entregaEsperaRespuesta(estado));
+    }), [entregas, mensajes]);
+
+    useEffect(() => {
+        const intervalo = esperaRespuestaInmediata ? INTERVALO_RESPUESTA_MS : INTERVALO_NORMAL_MS;
+        const id = window.setInterval(() => void cargar(true), intervalo);
+        return () => window.clearInterval(id);
+    }, [cargar, esperaRespuestaInmediata]);
 
     useEffect(() => {
         let vivo = true;
@@ -124,7 +158,6 @@ export function ChatDirector() {
     }, []);
 
     const publicar = useCallback(async (cuerpo: Record<string, unknown>) => {
-        setEnviando(true);
         try {
             const res = await fetch("/api/mando/director-chat", {
                 method: "POST",
@@ -135,6 +168,46 @@ export function ChatDirector() {
             else setAviso(null);
         } catch {
             setAviso("Sin conexión con el chat; se reintenta solo.");
+        } finally {
+            void cargar(true);
+        }
+    }, [cargar]);
+
+    const enviarMensaje = useCallback(async (
+        datos: { texto: string; modelo: string; canales: CanalId[] },
+        previo?: EnvioLocal,
+    ) => {
+        const iniciadoEnMs = Date.now();
+        const local: EnvioLocal = {
+            mensaje: previo?.mensaje ?? {
+                id: `local-${iniciadoEnMs}`,
+                t: new Date(iniciadoEnMs).toISOString(),
+                de: "alex",
+                rol: "alex",
+                tipo: "mensaje",
+                texto: datos.texto,
+                canal: "mando",
+                modelo: datos.modelo,
+                canales: datos.canales,
+            },
+            iniciadoEnMs,
+            estado: "enviando",
+        };
+        setEnvioLocal(local);
+        setEnviando(true);
+        try {
+            const res = await fetch("/api/mando/director-chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accion: "decir", ...datos }),
+            });
+            if (!res.ok) throw new Error("envío rechazado");
+            setAviso(null);
+        } catch {
+            setEnvioLocal((actual) => actual?.mensaje.id === local.mensaje.id
+                ? { ...actual, estado: "fallo" }
+                : actual);
+            setAviso("El mensaje no se envió; puedes reintentarlo.");
         } finally {
             setEnviando(false);
             void cargar(true);
@@ -152,11 +225,15 @@ export function ChatDirector() {
         ...MOTORES_DIRECTOR.map((m) => ({ id: m.id, nombre: m.nombre })),
         ...modelos,
     ], [modelos]);
+    const nombrePensando = envioLocal?.mensaje.modelo
+        ? modelosConMotores.find((modelo) => modelo.id === envioLocal.mensaje.modelo)?.nombre
+            ?? envioLocal.mensaje.modelo
+        : "La dirección";
 
     useEffect(() => {
         const nodo = listaRef.current;
         if (nodo) nodo.scrollTop = nodo.scrollHeight;
-    }, [visibles.length]);
+    }, [enviando, envioLocal, visibles.length]);
 
     const alternar = () => {
         setPlegado((p) => {
@@ -241,4 +318,3 @@ export function ChatDirector() {
         </section>
     );
 }
-
