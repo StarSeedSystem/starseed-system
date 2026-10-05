@@ -52,7 +52,12 @@ Riesgos reales:
         });
 
         expect(resultado.reintentadas).toContain("T1b");
-        expect(resultado.descartadas).toHaveLength(1);
+        // (2026-10-05) Desde BLQ1005Ad la pasada automática solo recorre lo que está en fallo o
+        // bloqueo (`obtenerIdsElegibles`): T2 «sustituida» ya vive con otro id y no hay nada que
+        // hacerle. Antes se «descartaba» de paso; ahora ni se toca. Descartar sigue siendo
+        // posible pidiéndolo por id (la prueba de arriba).
+        expect(resultado.descartadas).toHaveLength(0);
+        expect(resultado.resultados.map((r) => r.id)).not.toContain("T2");
         expect(resultado.esperando).toHaveLength(1);
     });
 

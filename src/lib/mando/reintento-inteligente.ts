@@ -158,6 +158,15 @@ export function cambioAutomatico(tarea: TareaAnalizar, fuentes: FuentesCambio = 
 export function clasificar(tarea: TareaAnalizar, progreso: unknown, revisionesMd = ""): ClasificacionResultado {
     const estado = String(tarea.estado ?? "").toLowerCase();
     if (DESCARTABLES.has(estado)) return { accion: "descartar", motivo: "ya vive con otro id" };
+    // (2026-10-05) Un fallo del MEDIO (429, red caída, ningún proveedor contestó) no gasta
+    // intento: es la regla del 2026-09-22 que la reescritura de BLQ1005Ad dejó caer. Sin ella,
+    // una tarea que solo se encontró los proveedores saturados escalaba al tercer id, y las
+    // pruebas de `veredicto-servidor` tumbaban la publicación. Un rechazo o un bloqueo NO
+    // entran aquí aunque su nota hable de «timeout»: ahí alguien miró el trabajo.
+    const nota = String(tarea.nota ?? tarea.motivo ?? "");
+    if (!["rechazada", "bloqueante", "bloqueada"].includes(estado) && esFalloDelMedio(estado, nota)) {
+        return { accion: "reintentar", motivo: `era el medio (${causaDelMedio(nota)}): vuelve a la cola sin gastar intento` };
+    }
     if (numeroIntento(tarea.id, progreso) >= 3) return { accion: "escalar", motivo: "tercer intento fallido: escala al director, nunca se descarta" };
     if (estado === "bloqueada") {
         return { accion: "esperar", motivo: "esperando a que se integre la dependencia" };

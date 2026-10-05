@@ -12,6 +12,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    cambioAutomatico,
     causaDelMedio,
     clasificar,
     contarVeredictos,
@@ -33,24 +34,29 @@ const REVISIONES = [
 ].join("\n");
 
 describe("el veredicto necesita la revisión escrita", () => {
-    it("con revisiones.md dice reintentar y cita la objeción", () => {
-        const v = clasificar(
-            { id: "p323Bc", ola: "323", titulo: "API de reportes", estado: "rechazada", nota: "", motivo: "", depende: [], archivos: [], modelo: "" },
-            {},
-            REVISIONES,
-        );
-        expect(v.accion).toBe("reintentar");
-        expect(v.motivo).toContain("bloqueante");
+    // (2026-10-05) Desde BLQ1005Ad («reparar en vez de rechazar») un rechazo ya no se descarta
+    // nunca: se repara con la objeción literal, y al tercer intento se escala. Lo que estas
+    // pruebas siguen protegiendo es lo de 2026-09-22: la reparación CITA la revisión escrita.
+    const rechazada = (id: string) => ({
+        id, ola: "323", titulo: "API de reportes", estado: "rechazada", nota: "", motivo: "", depende: [], archivos: [], modelo: "",
     });
 
-    it("sin revisiones.md la MISMA tarea se descarta: era la llamada del navegador", () => {
-        const v = clasificar(
-            { id: "p323Bc", ola: "323", titulo: "API de reportes", estado: "rechazada", nota: "", motivo: "", depende: [], archivos: [], modelo: "" },
-            {},
-            "",
-        );
-        expect(v.accion).toBe("descartar");
-        expect(v.motivo).toContain("sin razón escrita");
+    it("con revisiones.md se repara y el cambio cita la objeción", () => {
+        expect(clasificar(rechazada("p323B"), {}, REVISIONES).accion).toBe("reintentar");
+        // La revisión de REVISIONES es la de p323Bc: el cambio cita SU objeción literal.
+        const cambio = cambioAutomatico(rechazada("p323Bc"), { revisionesMd: REVISIONES });
+        expect(cambio).toContain("bloqueante");
+        expect(cambio).toContain("hard-code de `baseLocal`");
+    });
+
+    it("sin revisiones.md ya no se descarta: se repara con lo que haya", () => {
+        expect(clasificar(rechazada("p323B"), {}, "").accion).toBe("reintentar");
+        expect(cambioAutomatico(rechazada("p323B"), {})).toContain("La revisión fue bloqueante.");
+    });
+
+    it("al tercer intento (sufijo c) se escala, con o sin revisión, nunca se descarta", () => {
+        expect(clasificar(rechazada("p323Bc"), {}, REVISIONES).accion).toBe("escalar");
+        expect(clasificar(rechazada("p323Bc"), {}, "").accion).toBe("escalar");
     });
 });
 
@@ -103,16 +109,27 @@ describe("un fallo del MEDIO vuelve a la cola, no al cajón (2026-09-22)", () =>
     });
 
     it("un rechazo humano NO se cuela como fallo del medio", () => {
-        // Aquí alguien miró el trabajo y dijo que no: eso no lo arregla reintentar a ciegas.
+        // Aquí alguien miró el trabajo y dijo que no: se repara con su objeción (BLQ1005Ad), no
+        // se reintenta a ciegas como si hubiera sido la red.
         const v = clasificar(tarea("RM4", "rechazada", "no toco ninguno de los 2 archivos que declaraba"), {}, "");
-        expect(v.accion).toBe("descartar");
+        expect(v.accion).toBe("reintentar");
+        expect(v.motivo).not.toContain("era el medio");
+        const conTimeout = clasificar(tarea("RM4", "rechazada", "timeout del revisor y además no toca los archivos"), {}, "");
+        expect(conTimeout.motivo).not.toContain("era el medio");
     });
 
-    it("un fallo de la propia tarea sigue contando intentos", () => {
+    it("un fallo de la propia tarea sigue contando intentos: al tercero escala", () => {
         const progreso = { R7: {}, R7b: {}, R7c: {} };
         const v = clasificar(tarea("R7c", "fallo_tsc", "14 errores tsc"), progreso, "");
-        expect(v.accion).toBe("descartar");
-        expect(v.motivo).toContain("tres intentos");
+        expect(v.accion).toBe("escalar");
+        expect(v.motivo).toContain("tercer intento");
+    });
+
+    it("un fallo del medio en el tercer id tampoco escala: no gastó intento", () => {
+        const progreso = { R8: {}, R8b: {}, R8c: {} };
+        const v = clasificar(tarea("R8c", "fallo", "429 too many requests"), progreso, "");
+        expect(v.accion).toBe("reintentar");
+        expect(v.motivo).toContain("429");
     });
 
     it("la causa se nombra en castellano para que se entienda el porqué", () => {
