@@ -251,7 +251,21 @@ describe("resumenDirectores", () => {
     expect(vigilante).toMatchObject({ vivo: false, ultimaSalida: -15 });
     expect(telegram).toMatchObject({ vivo: true, pid: 456 });
     expect(telegram?.ultimaSalida).toBeUndefined();
-    expect(r).toHaveLength(8);
+    expect(r).toHaveLength(9);
+  });
+
+  it("el director de diseño cuenta vivo por proceso y por mensaje firmado director-diseno", () => {
+    const conAmbos = resumenDirectores("55\t0\tcom.starseed.diseno", [
+      { quien: "director-diseno", texto: "brief para DIS1005G", hora: AHORA - 15 },
+    ], AHORA);
+    const diseno = conAmbos.find((d) => d.nombre === "diseno");
+    expect(diseno).toMatchObject({
+      vivo: true, pid: 55, ultimoMensaje: "brief para DIS1005G", hace: 15,
+    });
+    const sinNada = resumenDirectores("", [
+      { quien: "eco", texto: "otro", hora: AHORA - 5 },
+    ], AHORA);
+    expect(sinNada.find((d) => d.nombre === "diseno")?.vivo).toBe(false);
   });
 
   it("acepta hora ISO y milisegundos", () => {

@@ -24,6 +24,14 @@ export interface OptimizadorConfig {
     max_runs_nube_dia: number;
 }
 
+export interface DisenoConfig {
+    activo: boolean;
+    umbral: number;
+    juez_visual: boolean;
+    max_capturas_tarea: number;
+    intervalo_s: number;
+}
+
 export interface ConfigDirector {
     espera_aprobacion_min: number;
     intervalo_s: number;
@@ -35,6 +43,7 @@ export interface ConfigDirector {
     aviso_checkin: boolean;
     disco_min_gb: number;
     optimizador: OptimizadorConfig;
+    diseno: DisenoConfig;
 }
 
 // idéntico a config_director.py; si cambias uno, cambia el otro
@@ -56,6 +65,13 @@ export const DEFAULTS: ConfigDirector = {
         max_tareas_dia: 6,
         enfriamiento_min: 60,
         max_runs_nube_dia: 12,
+    },
+    diseno: {
+        activo: true,
+        umbral: 75,
+        juez_visual: true,
+        max_capturas_tarea: 14,
+        intervalo_s: 120,
     },
 };
 
@@ -103,6 +119,29 @@ function erroresOptimizador(v: unknown): string[] {
     return errores;
 }
 
+const RANGOS_DISENO: Record<string, [number, number]> = {
+    umbral: [0, 100],
+    max_capturas_tarea: [1, 60],
+    intervalo_s: [30, 3600],
+};
+
+function erroresDiseno(v: unknown): string[] {
+    if (!esObjeto(v)) return ["'diseno' debe ser un objeto"];
+    const errores: string[] = [];
+    for (const k of ["activo", "juez_visual"] as const) {
+        if (k in v && typeof v[k as keyof typeof v] !== "boolean") {
+            errores.push(`'diseno.${k}' debe ser un booleano`);
+        }
+    }
+    for (const [k, [minV, maxV]] of Object.entries(RANGOS_DISENO)) {
+        const v2 = v[k];
+        if (k in v && !(typeof v2 === "number" && Number.isInteger(v2) && v2 >= minV && v2 <= maxV)) {
+            errores.push(`'diseno.${k}' debe ser entero entre ${minV} y ${maxV}`);
+        }
+    }
+    return errores;
+}
+
 /**
  * Valida solo las claves presentes en `entrada` (como `validar(d)` en Python)
  * y, si no hay errores, fusiona lo recibido sobre `DEFAULTS` (como
@@ -123,6 +162,7 @@ export function validar(entrada: unknown): { ok: true; valor: ConfigDirector } |
     }
     if ("escalada" in entrada) errores.push(...erroresEscalada(entrada.escalada));
     if ("optimizador" in entrada) errores.push(...erroresOptimizador(entrada.optimizador));
+    if ("diseno" in entrada) errores.push(...erroresDiseno(entrada.diseno));
 
     if (errores.length > 0) return { ok: false, errores };
     return { ok: true, valor: fusionar(DEFAULTS, entrada) };
@@ -144,6 +184,20 @@ function fusionarOptimizador(base: OptimizadorConfig, parcial: unknown): Optimiz
     for (const [k, [minV, maxV]] of Object.entries(rangos)) {
         if (k in obj && esEnteroNoNegativo(obj[k as keyof typeof obj]) && (obj[k as keyof typeof obj] as number) >= minV && (obj[k as keyof typeof obj] as number) <= maxV) {
             (resultado as unknown as Record<string, number>)[k] = obj[k as keyof typeof obj] as number;
+        }
+    }
+    return resultado;
+}
+
+function fusionarDiseno(base: DisenoConfig, parcial: unknown): DisenoConfig {
+    const obj = esObjeto(parcial) ? parcial : {};
+    const resultado: DisenoConfig = { ...base };
+    if (typeof obj.activo === "boolean") resultado.activo = obj.activo;
+    if (typeof obj.juez_visual === "boolean") resultado.juez_visual = obj.juez_visual;
+    for (const [k, [minV, maxV]] of Object.entries(RANGOS_DISENO)) {
+        const v = obj[k];
+        if (typeof v === "number" && Number.isInteger(v) && v >= minV && v <= maxV) {
+            (resultado as unknown as Record<string, number>)[k] = v;
         }
     }
     return resultado;
@@ -176,5 +230,6 @@ export function fusionar(base: ConfigDirector, parcial: unknown): ConfigDirector
         aviso_checkin: typeof obj.aviso_checkin === "boolean" ? obj.aviso_checkin : base.aviso_checkin,
         disco_min_gb: esEnteroNoNegativo(obj.disco_min_gb) ? obj.disco_min_gb : base.disco_min_gb,
         optimizador: fusionarOptimizador(base.optimizador, obj.optimizador),
+        diseno: fusionarDiseno(base.diseno, obj.diseno),
     };
 }

@@ -233,5 +233,92 @@ class OptimizadorConfigurable(unittest.TestCase):
         self.assertTrue(any("intervalo_s" in e for e in errores))
 
 
+class DisenoConfigurable(unittest.TestCase):
+    """El bloque diseno (§8 del contrato) se valida, carga y conserva."""
+
+    def test_defecto_completo(self):
+        cfg, avisos = cargar(_tmp({}))
+        self.assertEqual(cfg["diseno"], {
+            "activo": True,
+            "umbral": 75,
+            "juez_visual": True,
+            "max_capturas_tarea": 14,
+            "intervalo_s": 120,
+        })
+        self.assertEqual(avisos, [])
+
+    def test_valido_completo(self):
+        cfg, avisos = cargar(_tmp({
+            "diseno": {
+                "activo": False,
+                "umbral": 100,
+                "juez_visual": False,
+                "max_capturas_tarea": 60,
+                "intervalo_s": 3600,
+            }
+        }))
+        self.assertEqual(cfg["diseno"]["activo"], False)
+        self.assertEqual(cfg["diseno"]["umbral"], 100)
+        self.assertEqual(cfg["diseno"]["juez_visual"], False)
+        self.assertEqual(avisos, [])
+
+    def test_umbral_en_los_bordes(self):
+        cfg, _ = cargar(_tmp({"diseno": {"umbral": 0}}))
+        self.assertEqual(cfg["diseno"]["umbral"], 0)
+        cfg, _ = cargar(_tmp({"diseno": {"umbral": 100}}))
+        self.assertEqual(cfg["diseno"]["umbral"], 100)
+
+    def test_umbral_fuera_de_rango_se_descarta(self):
+        for malo in (-1, 101, 1.5, "75", True):
+            cfg, avisos = cargar(_tmp({"diseno": {"umbral": malo}}))
+            self.assertEqual(cfg["diseno"]["umbral"], 75)
+            self.assertTrue(any("umbral" in a for a in avisos), malo)
+
+    def test_max_capturas_fuera_de_rango_se_descarta(self):
+        for malo in (0, 61, -3, 2.5, "14"):
+            cfg, avisos = cargar(_tmp({"diseno": {"max_capturas_tarea": malo}}))
+            self.assertEqual(cfg["diseno"]["max_capturas_tarea"], 14)
+            self.assertTrue(any("max_capturas_tarea" in a for a in avisos), malo)
+
+    def test_intervalo_fuera_de_rango_se_descarta(self):
+        for malo in (29, 3601, 0):
+            cfg, avisos = cargar(_tmp({"diseno": {"intervalo_s": malo}}))
+            self.assertEqual(cfg["diseno"]["intervalo_s"], 120)
+            self.assertTrue(any("intervalo_s" in a for a in avisos), malo)
+        cfg, avisos = cargar(_tmp({"diseno": {"intervalo_s": 30}}))
+        self.assertEqual(cfg["diseno"]["intervalo_s"], 30)
+        self.assertEqual(avisos, [])
+
+    def test_booleanos_invalidos_se_descartan(self):
+        cfg, avisos = cargar(_tmp({"diseno": {"activo": 1, "juez_visual": "sí"}}))
+        self.assertEqual(cfg["diseno"]["activo"], True)
+        self.assertEqual(cfg["diseno"]["juez_visual"], True)
+        self.assertTrue(any("activo" in a for a in avisos))
+        self.assertTrue(any("juez_visual" in a for a in avisos))
+
+    def test_valido_parcial_conserva_el_resto(self):
+        cfg, avisos = cargar(_tmp({"diseno": {"umbral": 80}}))
+        self.assertEqual(cfg["diseno"]["umbral"], 80)
+        self.assertEqual(cfg["diseno"]["max_capturas_tarea"], 14)
+        self.assertEqual(cfg["diseno"]["intervalo_s"], 120)
+        self.assertEqual(avisos, [])
+
+    def test_validar_avisa_de_bloque_invalido(self):
+        errores = validar({
+            "diseno": {"umbral": 120, "max_capturas_tarea": 0, "intervalo_s": 10, "activo": "sí"}
+        })
+        self.assertTrue(any("diseno.umbral" in e for e in errores))
+        self.assertTrue(any("diseno.max_capturas_tarea" in e for e in errores))
+        self.assertTrue(any("diseno.intervalo_s" in e for e in errores))
+        self.assertTrue(any("diseno.activo" in e for e in errores))
+
+    def test_validar_bloque_no_objeto(self):
+        errores = validar({"diseno": 42})
+        self.assertIn("'diseno' debe ser un objeto", errores)
+
+    def test_defaults_son_validos(self):
+        self.assertEqual(validar(DEFAULTS), [])
+
+
 if __name__ == "__main__":
     unittest.main()

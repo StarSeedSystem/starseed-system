@@ -71,6 +71,19 @@ DEFAULTS = {
         "enfriamiento_min": 60,
         "max_runs_nube_dia": 12,
     },
+    "diseno": {
+        "activo": True,
+        "umbral": 75,
+        "juez_visual": True,
+        "max_capturas_tarea": 14,
+        "intervalo_s": 120,
+    },
+}
+
+RANGOS_DISENO = {
+    "umbral": (0, 100),
+    "max_capturas_tarea": (1, 60),
+    "intervalo_s": (30, 3600),
 }
 
 CLAVES_ENTERO = {
@@ -137,6 +150,21 @@ def validar(d):
             errores.extend(_validar_prioridad(v))
         elif k == "optimizador":
             errores.extend(_validar_optimizador(v))
+        elif k == "diseno":
+            errores.extend(_validar_diseno(v))
+    return errores
+
+
+def _validar_diseno(dis):
+    errores = []
+    if not isinstance(dis, dict):
+        return ["'diseno' debe ser un objeto"]
+    for k in ("activo", "juez_visual"):
+        if k in dis and not isinstance(dis[k], bool):
+            errores.append("'diseno.%s' debe ser un booleano" % k)
+    for k, (min_v, max_v) in RANGOS_DISENO.items():
+        if k in dis and not (isinstance(dis[k], int) and not isinstance(dis[k], bool) and min_v <= dis[k] <= max_v):
+            errores.append("'diseno.%s' debe ser entero entre %d y %d" % (k, min_v, max_v))
     return errores
 
 
@@ -255,4 +283,24 @@ def cargar(ruta=None):
                 else:
                     avisos.append("'optimizador.%s' inválido, se usa %s" % (k, op_def[k]))
         cfg["optimizador"] = op
+    if isinstance(con.get("diseno"), dict):
+        dis_def = dict(DEFAULTS["diseno"])
+        dis = dict(dis_def)
+        d = con["diseno"]
+        for k in dis_def:
+            if k not in d:
+                continue
+            if k in ("activo", "juez_visual"):
+                if isinstance(d.get(k), bool):
+                    dis[k] = d[k]
+                else:
+                    avisos.append("'diseno.%s' inválido, se usa %s" % (k, dis_def[k]))
+            else:
+                min_v, max_v = RANGOS_DISENO[k]
+                v = d.get(k)
+                if isinstance(v, int) and not isinstance(v, bool) and min_v <= v <= max_v:
+                    dis[k] = v
+                else:
+                    avisos.append("'diseno.%s' inválido, se usa %s" % (k, dis_def[k]))
+        cfg["diseno"] = dis
     return cfg, avisos

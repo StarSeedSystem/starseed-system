@@ -22,6 +22,13 @@ describe("DEFAULTS", () => {
                 enfriamiento_min: 60,
                 max_runs_nube_dia: 12,
             },
+            diseno: {
+                activo: true,
+                umbral: 75,
+                juez_visual: true,
+                max_capturas_tarea: 14,
+                intervalo_s: 120,
+            },
         });
     });
 });
@@ -124,6 +131,57 @@ describe("validar", () => {
             expect(r.valor.optimizador.intervalo_s).toBe(120);
         }
     });
+
+    it("acepta un bloque diseño completo y válido", () => {
+        const r = validar({ diseno: { activo: false, umbral: 100, juez_visual: false, max_capturas_tarea: 60, intervalo_s: 3600 } });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.valor.diseno.umbral).toBe(100);
+            expect(r.valor.diseno.intervalo_s).toBe(3600);
+        }
+    });
+
+    it("acepta los bordes del rango de diseno", () => {
+        const r = validar({ diseno: { umbral: 0, max_capturas_tarea: 1, intervalo_s: 30 } });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.valor.diseno.umbral).toBe(0);
+            expect(r.valor.diseno.max_capturas_tarea).toBe(1);
+            expect(r.valor.diseno.intervalo_s).toBe(30);
+        }
+    });
+
+    it("rechaza umbral de diseno fuera de 0..100 y ni siquiera entero", () => {
+        for (const malo of [-1, 101, 1.5, "75"]) {
+            const r = validar({ diseno: { umbral: malo } });
+            expect(r.ok).toBe(false);
+            if (!r.ok) expect(r.errores).toContain("'diseno.umbral' debe ser entero entre 0 y 100");
+        }
+    });
+
+    it("rechaza max_capturas_tarea e intervalo_s fuera de rango", () => {
+        const r = validar({ diseno: { max_capturas_tarea: 0, intervalo_s: 3601 } });
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+            expect(r.errores).toContain("'diseno.max_capturas_tarea' debe ser entero entre 1 y 60");
+            expect(r.errores).toContain("'diseno.intervalo_s' debe ser entero entre 30 y 3600");
+        }
+    });
+
+    it("rechaza activo/juez_visual que no sean booleanos", () => {
+        const r = validar({ diseno: { activo: 1, juez_visual: "sí" } });
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+            expect(r.errores).toContain("'diseno.activo' debe ser un booleano");
+            expect(r.errores).toContain("'diseno.juez_visual' debe ser un booleano");
+        }
+    });
+
+    it("rechaza un bloque diseno que no sea objeto", () => {
+        const r = validar({ diseno: 42 });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.errores).toContain("'diseno' debe ser un objeto");
+    });
 });
 
 describe("fusionar", () => {
@@ -164,5 +222,19 @@ describe("fusionar", () => {
         expect(guardado.optimizador.modo).toBe("actuar");
         expect(guardado.optimizador.intervalo_s).toBe(600);
         expect(guardado.optimizador.max_cambios_dia).toBe(12);
+    });
+
+    it("fusiona diseno parcial: lo válido entra, lo inválido conserva la base", () => {
+        const r = fusionar(DEFAULTS, { diseno: { umbral: 80, max_capturas_tarea: 0, intervalo_s: 300 } });
+        expect(r.diseno.umbral).toBe(80);
+        expect(r.diseno.max_capturas_tarea).toBe(14);
+        expect(r.diseno.intervalo_s).toBe(300);
+        expect(r.diseno.activo).toBe(true);
+        expect(r.diseno.juez_visual).toBe(true);
+    });
+
+    it("un diseno que no es objeto conserva la base intacta", () => {
+        const r = fusionar(DEFAULTS, { diseno: "no" });
+        expect(r.diseno).toEqual(DEFAULTS.diseno);
     });
 });

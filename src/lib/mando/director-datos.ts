@@ -205,11 +205,15 @@ export function resumenProveedores(
   });
 }
 
-const DIRECTORES = ["vigilante", "director", "guardia", "eco", "ecoides", "telegram", "mando", "optimizador"];
+const DIRECTORES = ["vigilante", "director", "guardia", "eco", "ecoides", "telegram", "mando", "optimizador", "diseno"];
 
 // Alias del `quien` del canal al nombre del director: el optimizador firma sus
-// mensajes como "director-optimizador" y su servicio es com.starseed.optimizador.
-const ALIAS_QUIEN: Record<string, string> = { "director-optimizador": "optimizador" };
+// mensajes como "director-optimizador" y su servicio es com.starseed.optimizador;
+// lo mismo pasa con diseno ("director-diseno" / com.starseed.diseno).
+const ALIAS_QUIEN: Record<string, string> = {
+  "director-optimizador": "optimizador",
+  "director-diseno": "diseno",
+};
 
 function segundosDesde(hora: number | string | undefined, ahora: number): number {
   const n = typeof hora === "string" ? Date.parse(hora) / 1000 : hora;
