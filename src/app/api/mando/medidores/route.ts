@@ -20,6 +20,7 @@ import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
+import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import {
     colaInteligente,
     enjambreEnMarcha,
@@ -32,10 +33,8 @@ import {
 } from "@/lib/mando/lector-local";
 import {
     TERMINALES,
-    cambioAutomatico,
     tituloDeRunNube,
     veredictoDeAgente,
-    dependenciasMuertas,
     detalleDeMedidor,
     ejecutablesDeColas,
     olasDeLaMac,
@@ -942,46 +941,35 @@ export async function POST(peticion: Request): Promise<Response> {
         });
     }
 
-    // (2026-09-23) «Reintentar con cambio automático» (Alex). El cambio NO se improvisa
-    // aquí: se calcula con `cambioAutomatico`, la MISMA función que decide si el botón se
-    // enseña, sobre la MISMA ficha que se ve en pantalla. Así lo que se manda es
-    // exactamente lo que el botón prometía. Si de la ficha no sale nada concreto, esto se
-    // niega y lo dice: reintentar sin cambio da el mismo resultado.
-    let accionEfectiva = accion;
-    let cambio = texto.trim();
-    let explicacionAuto = "";
-    let quitarAuto: string[] = [];
-    if (accion === "reintentar-auto") {
+    // El medidor usa la misma ruta que Ramificación: ahí viven la cadena de sucesores,
+    // las fuentes del cambio, la rotación de modelo, la prioridad y el cerrojo.
+    if (accion === "reintentar" || accion === "reintentar-auto") {
         if (!id) {
             return Response.json({ error: "Falta la tarea a la que aplicarlo." }, { status: 400 });
         }
-        const datosAuto = (await reunion.obtener()).datos ?? {};
-        const filaAuto = detalleDeMedidor(clave as ClaveMedidor, datosAuto).filas.find((f) => f.id === id);
-        const auto = filaAuto ? cambioAutomatico(filaAuto) : null;
-        if (!auto) {
-            return Response.json(
-                {
-                    error:
-                        "No hay cambio que deducir: lo que espera esta tarea sigue vivo, así que reintentar daría " +
-                        "exactamente lo mismo. Espera a que se integre, o usa «Reintentar con un cambio» y di qué cambiar.",
-                },
-                { status: 409 },
-            );
-        }
-        accionEfectiva = "reintentar";
-        cambio = auto;
-        explicacionAuto = auto;
-        // (2026-09-23) Y la dependencia muerta SALE de `depende`: el orquestador, el vigía y
-        // el reparto a la nube lo aplican con `scripts/enjambre/cambio_pedido.py`. Sin esto
-        // la tarea volvía a la cola… y se volvía a bloquear sola en la primera vuelta.
-        quitarAuto = filaAuto ? dependenciasMuertas(filaAuto) : [];
-    }
-
-    if (accionEfectiva === "reintentar" && !cambio) {
-        return Response.json(
-            { error: "Describe qué hay que cambiar: reintentar sin cambio da exactamente el mismo resultado." },
-            { status: 400 },
-        );
+        const reparacion = await reintentarTareas(new Request(peticion.url.replace(/\/medidores(?:\?.*)?$/, "/reintentar"), {
+            method: "POST",
+            headers: peticion.headers,
+            body: JSON.stringify({
+                ids: [id],
+                cambio: accion === "reintentar" ? texto : undefined,
+                automatico: accion === "reintentar-auto",
+            }),
+        }));
+        const resultado = await reparacion.json() as {
+            error?: string;
+            resultados?: Array<{ accion?: string; motivo?: string; sucesor?: string; texto?: string }>;
+            reintentadas?: string[];
+        };
+        if (!reparacion.ok) return Response.json(resultado, { status: reparacion.status });
+        const primero = resultado.resultados?.[0];
+        return Response.json({
+            ok: true,
+            tareas: resultado.reintentadas ?? [],
+            accion: primero?.accion ?? "esperando",
+            cambio: primero?.motivo,
+            resultados: resultado.resultados ?? [],
+        }, { headers: { "Cache-Control": "no-store" } });
     }
 
     const crudo = await readFile(PROGRESO, "utf8").catch(() => "{}");
@@ -1016,20 +1004,11 @@ export async function POST(peticion: Request): Promise<Response> {
     for (const t of objetivo) {
         const e = entradas[t];
         if (!e) continue;
-        if (accionEfectiva === "descartar" || accionEfectiva === "descartar-todas") {
+        if (accion === "descartar" || accion === "descartar-todas") {
             e.estado = "rechazada";
             e.nota = `descartada desde el medidor «${clave}» el ${ahora}`;
-        } else if (accionEfectiva === "reintentar") {
-            e.estado = "pendiente";
-            e.nota = `reintento pedido desde el Mando: ${cambio.slice(0, 400)}`;
-            e.cambio_pedido = cambio.slice(0, 2000);
-            if (quitarAuto.length) e.quitar_dependencias = quitarAuto;
-            // La rotación empieza de cero: si no, arrastra los modelos que fallaron con el
-            // prompt VIEJO, que es justo el que se acaba de cambiar.
-            delete e.modelos_fallidos;
-            delete e.escalada;
         } else {
-            return Response.json({ error: `Acción desconocida: ${accionEfectiva}` }, { status: 400 });
+            return Response.json({ error: `Acción desconocida: ${accion}` }, { status: 400 });
         }
         e.reconciliado = ahora;
         hechas.push(t);
@@ -1037,7 +1016,7 @@ export async function POST(peticion: Request): Promise<Response> {
 
     await guardar(entradas);
     return Response.json(
-        { ok: true, tareas: hechas, accion: accionEfectiva, cambio: explicacionAuto || undefined },
+        { ok: true, tareas: hechas, accion },
         { headers: { "Cache-Control": "no-store" } },
     );
 }

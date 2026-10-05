@@ -1089,6 +1089,7 @@ export function CentroMando() {
                     resumen?: string;
                     mensaje?: string;
                     cambio?: string;
+                    resultados?: Array<{ texto?: string }>;
                 };
                 if (!r.ok || d.error) return d.error ?? `No se pudo (HTTP ${r.status}).`;
                 const n = d.tareas?.length ?? 0;
@@ -1117,10 +1118,10 @@ export function CentroMando() {
                     return d.mensaje ?? "Publicación lanzada; su marcha se sigue en la pestaña «Publicar».";
                 }
                 if (accion.clase === "reintentar-auto") {
-                    return `${d.tareas?.join(", ")} vuelve a la cola con este cambio: ${d.cambio ?? "sin anotar"}`;
+                    return d.resultados?.[0]?.texto ?? `${d.tareas?.join(", ")} vuelve a la cola con este cambio: ${d.cambio ?? "sin anotar"}`;
                 }
                 return accion.clase === "reintentar"
-                    ? `${d.tareas?.join(", ")} vuelve a la cola con tu cambio anotado.`
+                    ? d.resultados?.[0]?.texto ?? `${d.tareas?.join(", ")} vuelve a la cola con tu cambio anotado.`
                     : `${n} tarea${n === 1 ? "" : "s"} descartada${n === 1 ? "" : "s"}: ${d.tareas?.join(", ")}`;
             } catch {
                 return "No se pudo hablar con la consola.";

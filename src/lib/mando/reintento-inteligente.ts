@@ -92,7 +92,7 @@ export function objecionDe(md: string, id: string): string | null {
     const secciones = md.split(/(?=^#{1,3}\s)/m).filter((s) =>
         new RegExp(`(?:^|[·\\s])${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[:·\\s]|$)`, "im").test(s));
     const seccion = secciones.at(-1);
-    if (!seccion || !/Seguimiento[:：].*bloqueante/is.test(seccion)) return null;
+    if (!seccion || !/Seguimiento[:：].*bloqueante/i.test(seccion)) return null;
     const riesgos = seccion.match(/(?:\*\*)?Riesgos reales(?:\*\*)?\s*([\s\S]*?)(?=\n(?:\*\*)?Probar|\n(?:\*\*)?Seguimiento)/i)?.[1]?.trim();
     const seguimiento = seccion.match(/Seguimiento[:：]\s*([^\n]+)/i)?.[0]?.replace(/\*\*|[«»]/g, "").trim();
     return [riesgos ? `Riesgos reales:\n${riesgos}` : "", seguimiento ?? ""].filter(Boolean).join("\n\n") || null;
