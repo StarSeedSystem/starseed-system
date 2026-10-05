@@ -261,6 +261,18 @@ def aplicar(problema: dict) -> str:
 
 
 def una_pasada(aplicar_remedios=True) -> dict:
+    # (2026-10-05) Primero, que el propio Mando esté vivo y con disco: si no responde se
+    # reinicia solo y si falta sitio se limpia lo regenerable (autocuracion_mando.py). Sin
+    # esto, todo lo de abajo leía «{}» de un Mando caído y nadie lo levantaba.
+    autocuracion = {}
+    if aplicar_remedios:
+        try:
+            import autocuracion_mando
+            autocuracion = autocuracion_mando.revisar()
+            for h in autocuracion.get("hechos") or []:
+                print("    autocuración: %s" % h, flush=True)
+        except Exception as e:
+            print("vigia-medidores: autocuración: %s: %s" % (type(e).__name__, e), flush=True)
     medidores = leer_medidores()
     problemas = diagnosticar(medidores)
     hechos = []
@@ -273,6 +285,7 @@ def una_pasada(aplicar_remedios=True) -> dict:
         "problemas": problemas,
         "hechos": hechos,
         "resumen": resumir(problemas),
+        "autocuracion": {k: autocuracion.get(k) for k in ("responde", "libre_gb", "hechos") if k in autocuracion},
     }
     try:
         os.makedirs(os.path.dirname(ESTADO), exist_ok=True)

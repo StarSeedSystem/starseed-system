@@ -484,8 +484,23 @@ def main():
             import reconstruir_mando as _rm
             libre = _rm.espacio_libre_gb()
             if not _rm.hay_sitio_para_compilar(libre):
-                aviso = ("no se publicó: quedan %.1f GB libres y la build necesita %.1f"
-                         % (libre, _rm.MINIMO_LIBRE_GB))
+                # (2026-10-05) Negarse sin hacer sitio primero no es autocuración: la
+                # publicación de las 01:41 cayó con 4,4 GB libres y, minutos después, el disco
+                # tenía 7,5. Se recoge lo propio y lo regenerable (lista blanca del Mando) y
+                # solo se rinde si aun así no llega.
+                hecho = ["recogido %s" % (", ".join(_rm.liberar_lo_propio()) or "nada propio")]
+                try:
+                    import autocuracion_mando as _ac
+                    libre, mas = _ac.liberar_disco(_rm.MINIMO_LIBRE_GB)
+                    hecho += mas
+                except Exception as e:
+                    hecho.append("no pude limpiar lo regenerable: %s" % e)
+                    libre = _rm.espacio_libre_gb()
+                diario.marcar("build", "corriendo", "hice sitio: %s; ahora %.1f GB libres"
+                              % ("; ".join(hecho), libre or 0))
+            if not _rm.hay_sitio_para_compilar(libre):
+                aviso = ("no se publicó: quedan %.1f GB libres y la build necesita %.1f, aun "
+                         "después de limpiar lo regenerable" % (libre, _rm.MINIMO_LIBRE_GB))
                 diario.marcar("build", "falla", aviso)
                 diario.cerrar("fallo", aviso)
                 return 1

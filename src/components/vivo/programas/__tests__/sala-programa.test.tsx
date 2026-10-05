@@ -357,7 +357,9 @@ describe("permisos y estados", () => {
         const ana = await abrir("ana");
         await clic(ana.q.getByRole("checkbox", { name: "Marcar como hecha: Traer bebidas" }));
         const lola = await abrir("lola", { soloLectura: true });
-        expect(lola.q.getByText(/solo para mirar/i)).toBeInTheDocument();
+        // (2026-10-05) La vista de solo lectura llega asíncrona: con la suite entera bajo carga
+        // un `getByText` síncrono la buscaba antes de tiempo. Se espera (5 s, vitest.setup-dom.ts).
+        expect(await lola.q.findByText(/solo para mirar/i)).toBeInTheDocument();
         expect(lola.q.getByText("Traer bebidas")).toBeInTheDocument();
         for (const c of lola.q.getAllByRole("checkbox")) expect(c).toBeDisabled();
         expect(lola.q.queryByLabelText("Nueva tarea en «Por hacer»")).toBeNull();

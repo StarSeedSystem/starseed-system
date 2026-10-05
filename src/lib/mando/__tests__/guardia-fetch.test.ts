@@ -84,3 +84,55 @@ describe("guardia de las lecturas del Mando", () => {
         expect(estaGuardado(crearFetchGuardado(f))).toBe(true);
     });
 });
+
+describe("guardia de las lecturas del Mando · tope, cola y salud", () => {
+    it("con muchas lecturas distintas, como mucho maxEnVuelo a la vez y el resto espera turno", async () => {
+        const { f, llamadas, pendientes } = fetchLento();
+        const g = crearFetchGuardado(f, { maxEnVuelo: 2, maxCola: 10 });
+        const vueltas = ["a", "b", "c", "d"].map((k) => g(`/api/mando/medidores?clave=${k}`));
+        expect(llamadas).toHaveBeenCalledTimes(2);
+        expect(g.salud()).toMatchObject({ enVuelo: 2, enCola: 2 });
+        pendientes[0]!.resolver(new Response("1"));
+        await vueltas[0];
+        await Promise.resolve();
+        expect(llamadas).toHaveBeenCalledTimes(3);
+    });
+
+    it("si la cola se llena, la lectura más vieja que esperaba se descarta y cuenta como fallo", async () => {
+        const { f } = fetchLento();
+        const g = crearFetchGuardado(f, { maxEnVuelo: 1, maxCola: 2 });
+        void g("/api/mando/uno");
+        const vieja = g("/api/mando/dos");
+        void g("/api/mando/tres");
+        void g("/api/mando/cuatro");
+        await expect(vieja).rejects.toMatchObject({ name: "AbortError" });
+        expect(g.salud()).toMatchObject({ enCola: 2, descartadas: 1 });
+        expect(g.salud().fallosSeguidos).toBeGreaterThanOrEqual(1);
+    });
+
+    it("lleva la salud: un éxito pone a cero los fallos seguidos y apunta la hora", async () => {
+        let t = 1000;
+        const f = vi.fn(async (input: RequestInfo | URL) =>
+            String(input).includes("mal") ? Promise.reject(new TypeError("Failed to fetch")) : new Response("ok"),
+        ) as unknown as typeof fetch;
+        const g = crearFetchGuardado(f, { ahora: () => t });
+        await expect(g("/api/mando/mal")).rejects.toBeInstanceOf(TypeError);
+        await expect(g("/api/mando/mal")).rejects.toBeInstanceOf(TypeError);
+        expect(g.salud().fallosSeguidos).toBe(2);
+        t = 5000;
+        await g("/api/mando/bien");
+        expect(g.salud()).toMatchObject({ fallosSeguidos: 0, ultimoExito: 5000 });
+    });
+
+    it("reiniciar suelta lo que está en vuelo y vacía la cola", async () => {
+        const { f, pendientes } = fetchLento();
+        const g = crearFetchGuardado(f, { maxEnVuelo: 1, maxCola: 5 });
+        const enVuelo = g("/api/mando/a");
+        const enCola = g("/api/mando/b");
+        g.reiniciar("prueba");
+        await expect(enVuelo).rejects.toBeDefined();
+        await expect(enCola).rejects.toMatchObject({ name: "AbortError" });
+        expect(pendientes[0]!.signal?.aborted).toBe(true);
+        expect(g.salud()).toMatchObject({ enCola: 0, fallosSeguidos: 0 });
+    });
+});

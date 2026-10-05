@@ -1021,15 +1021,24 @@ enjambre vivo (orquestador o `opencode run`), ni con más de 4 GB de swap en uso
 reconocerlo: `node -e "console.log(require('next/package.json').version)"` no coincide con
 `node_modules/next` dentro de `package-lock.json`.
 
-### 8. Sondeos que se apilan dejan la pestaña sin recursos (2026-10-05)
+### 8. Sondeos que se apilan dejan la pestaña sin recursos · el Mando se autorrepara (2026-10-05)
 
-Alex: «no carga el puente de mando». El servidor respondía (`/mando` 200 en 0,5 s), pero la
-pestaña llevaba horas abierta y Chrome contestaba `net::ERR_INSUFFICIENT_RESOURCES` a todo: más de
-35.000 peticiones descartadas y cada pastilla en «—». Treinta y un paneles sondean con
-`setInterval` sin mirar si su lectura anterior volvió; con la Mac cargada un medidor tarda hasta
-46 s (`reunir lenta` en `/tmp/starseed-mando.log`), las vueltas se apilan y el servidor va más
-lento con cada una. **Regla:** las lecturas del Mando pasan por `src/lib/mando/guardia-fetch.ts`
-(instalada al cargar `centro-mando.tsx`): una lectura GET idéntica en vuelo se comparte y una
-colgada se corta a los 45 s. Un sondeo nuevo no necesita hacer nada; uno que use POST para leer
-sí. Síntoma para reconocerlo: medidores en «—» con el servidor sano y `ERR_INSUFFICIENT_RESOURCES`
-en la consola; recargar la pestaña lo alivia, la guardia lo evita.
+Alex, dos veces en una noche: «no carga el puente de mando». El servidor respondía (`/mando` 200 en
+0,5 s), pero la pestaña llevaba horas abierta y Chrome contestaba `net::ERR_INSUFFICIENT_RESOURCES`
+a todo (más de 35.000 peticiones descartadas, cada pastilla en «—»): treinta y un paneles sondean
+con `setInterval` sin mirar si su lectura anterior volvió y, con la Mac cargada (medidores de hasta
+46 s, `reunir lenta` en `/tmp/starseed-mando.log`), las vueltas se apilaban. Y después: «eso
+debería el propio puente autorrepararse sin tener que pedírtelo». Tres capas, todas automáticas:
+
+- **Lecturas** (`src/lib/mando/guardia-fetch.ts`, instalada al cargar `centro-mando.tsx`): las GET
+  idénticas en vuelo se comparten, como mucho 4 distintas a la vez con una cola acotada (40; la más
+  vieja sobra), y las colgadas se cortan a los 45 s. Un sondeo nuevo no necesita hacer nada.
+- **Página** (`src/lib/mando/autocuracion-pagina.ts` + `aviso-autocuracion.tsx`): cada 15 s mira la
+  salud de las lecturas; si está atascada y el servidor responde, suelta lo atascado y, si no basta,
+  se recarga sola (máximo una vez cada 10 min). Lo dice en un aviso discreto.
+- **Servidor y disco** (`scripts/puente/autocuracion_mando.py`, en cada pasada del vigía de
+  medidores): si `/api/mando/latido` no responde a tres sondas, reinicia el Mando con
+  `reiniciar_mando()` (no durante una publicación que lo compila); por debajo de 6 GB limpia lo
+  regenerable con la lista blanca del Mando (la caché de Next solo por debajo de 3 GB). La
+  publicación hace sitio con lo mismo antes de rendirse por disco. Estado en
+  `~/.starseed/autocuracion-mando.json`; cada remedio, una línea en el Chat Director.
