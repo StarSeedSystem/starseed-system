@@ -1,0 +1,89 @@
+{
+ "ola": "nube-20261005",
+ "tareas": [
+  {
+   "id": "p314Acs",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas · lo que faltó: scripts/enjambre/presupuesto.py",
+   "archivos": [
+    "scripts/enjambre/presupuesto.py"
+   ],
+   "prompt": "SEGUIMIENTO de p314Ac, que ya está integrada (sha 32135a82429a). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/enjambre/presupuesto.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas\n\n--- encargo original, como contexto ---\nÚnica tarea: módulo Python PURO NUEVO presupuesto.py y unittest test_presupuesto.py, ≤120 líneas cadauno, sin IO ni libs externas. API decidir_presupuesto(ventanas, costes, ahora, reserva=0.2, antiguedad_max=900, rafaga=0.05)->dict {permitido:bool,motivos:list[str],reintentar_en:float|None}. ventanas lista dict: unidad(str), limite(float), usado(float), reservado(float, default0), inicio(epoch), reinicio(epoch), observado(epoch). costes dict por unidad con estimación NO negativa; falta de coste o ventanas => no_verificado, deniega. Solo admite finitos, no bool, limite>0, inicio<=observado<=ahora<reinicio, usado/reservado>=0; foto caducada o ventana vencida deniega y requiere nueva lectura (no supone reset). Reserva: usado+reservado+coste <= limite*(1-reserva). Ritmo: usado+reservado+coste <= limite*(1-reserva)*min(1, (ahora-inicio)/(reinicio-inicio)+rafaga), distribuye consumo a lo largo de cada ventana, breve ráfaga configurable. Todas las ventanas deben permitir; unidades distintas tienen costes distintos. Si denegación solo ritmo, calcula instante exacto en que puede intentarse; reserva agotada => reinicio; datos inválidos => None. No mutar entrada. Pruebas dos ventanas (horaria permite semanal bloquea), crédito adicional0 no ilimitado, costeausente, datosviejos/NaN/Infinity/futuros, reserva y reservas en vuelo, ráfaga inicial, hora calculada, limitesexactos. No guardar credenciales ni inventar precios ni saldo. NO cablear, no editar otros archivos, NO build ni deps; correr unittest propio. Leer architecture/puente-economico-verificable.md. Otro modelo de dirección revisa y cablea.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — la función puede lanzar `KeyError` (y potencialmente `ZeroDivisionError`) cuando la ventana no incluye `reservado` o tiene duración 0. Se necesita corregir el acceso a `v[\"reservado\"]` (usar `v.get(\"reservado\", 0.0)`) y validar que `reinicio > inicio`. Después de esos cambios",
+   "depende": [],
+   "estado": "bloqueante",
+   "nota": "director: escalada agotada tras 8 intentos (libre×8): requiere una persona",
+   "motivo": "",
+   "modelo": "nvidia/moonshotai/kimi-k3",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "PRD1005L",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · herramientas MCP del director en `mcp_director.py` (estado, candidatos, historial, vetar, pausar, reanudar)",
+   "archivos": [
+    "scripts/puente/mcp_director.py",
+    "scripts/puente/test_mcp_director.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005L): §9, fila MCP. Añade a `HERRAMIENTAS` de `mcp_director.py`, con el mismo estilo (`_s`, `_esquema`, sin dependencias): `produccion_estado` (lee `starseed_memory_root/mando/produccion-estado.json`; si no existe, un estado vacío coherente), `produccion_candidatos` (usa `produccion_candidatos.candidatos` y `elegible`), `produccion_historial` (últimas N líneas de `~/.starseed/produccion/historial.jsonl`), `produccion_vetar` (sha o tid, motivo y quién; escribe con la función de vetos de PRD1005A), `produccion_pausar` y `produccion_reanudar` (crean o borran `~/.starseed/produccion-pausada.json` con {desde, quien, motivo}). Las de escritura exigen `quien` y `motivo`. No toques las herramientas del Chat Director. Pruebas JSON-RPC (`tools/list` y `tools/call`) con rutas temporales.",
+   "dependencias_ya_en_main": [
+    "PRD1005A"
+   ]
+  },
+  {
+   "id": "PRD1005N",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · panel de respaldo por roles al estilo CrewAI (lanzamiento, QA, seguridad con veto, SRE)",
+   "archivos": [
+    "scripts/puente/produccion_panel.py",
+    "scripts/puente/test_produccion_panel.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005N): §9, «Panel de respaldo». Cuatro roles con su instrucción breve y una sola pregunta tipada (publicar sí/no, con motivo de una línea) sobre el paquete de contexto de la candidata. Cada rol usa un modelo gratuito DISTINTO de la flota: reutiliza el cliente de pasarelas que ya usan `decidir.py`/`jev.py` y, si existe `optimizador_panel.py`, su forma de elegir modelos. `decidir_panel(candidata, llamar=…)` → {publicar, votos, motivos}: mayoría de los que respondan (mínimo 3), y si seguridad dice no, no se publica. Tiempo máximo total 60 s; un rol que no responde no cuenta. Sin dependencias nuevas (CrewAI solo como patrón). Pruebas con un `llamar` falso: unanimidad, empate, veto de seguridad y roles caídos."
+  },
+  {
+   "id": "BLQ1005A",
+   "ola": "Ola 1005Z · Bloqueadas: una sola sección y reparación automática con los directores (reparar en vez de rechazar)",
+   "depende": [],
+   "titulo": "Bloqueadas · reintento inteligente que repara: cambio automático por tipo de fallo, otro modelo, sin duplicados y delante de la cola",
+   "archivos": [
+    "src/lib/mando/reintento-inteligente.ts",
+    "src/lib/mando/__tests__/reintento-inteligente.test.ts",
+    "src/app/api/mando/reintentar/route.ts"
+   ],
+   "modelo": "codex/gpt-5.6-sol",
+   "prompt": "CONTRATO: `architecture/bloqueadas-reparacion.md`. Léelo ENTERO antes de empezar: el diagnóstico de §1 está medido y es la fuente de verdad. Petición de Alex (2026-10-05): unificar las dos secciones de bloqueadas del Mando, hacer que los reintentos automáticos funcionen con los directores, y no rechazar lo que puede servir con cambios coherentes.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red. Sin dependencias nuevas.\n\nTU TAREA (BLQ1005A): §2 completo. En `reintento-inteligente.ts`: (1) `clasificar` con la tabla de §2 (repara por defecto; descarta solo lo de la lista de §2; al tercer intento de la cadena → `escalar`, nunca `descartar`). (2) `cambioAutomatico(tarea, fuentes)` construye el texto del cambio: objeción literal de `revisiones.md` (o del evento de revisión), salida de pruebas desde `olas/pasos/<id>.jsonl` y el log, errores de tsc, archivos que faltan o «no tocaste tus archivos». (3) `reencolar`: NO copia `estado`, `nota`, `motivo` ni `modelo`; elige un modelo distinto del que falló (lee `~/.starseed/optimizador/rotacion-optimizada.json` y la recomendación de diseño si existen; al segundo intento, `codex/gpt-5.6-sol`); sigue la cadena de sucesores (A→Ab→Ac) y actúa sobre el último; si ya hay un sucesor vivo, no crea otro y lo dice; pone la tarea la PRIMERA en la cola viva (mismo criterio que `asignar_huecos.reordenar_cola`) y anota `adelantar` en progreso con el cerrojo del orquestador. Añade al prompt una sección «REPARACIÓN» con el cambio, una sola vez (no duplicar bloques). (4) «todas las que sirvan» procesa solo estados de fallo o bloqueo. La ruta acepta `{ids?, cambio?, automatico?, escalar?}` y devuelve por id: reintentada como X (posición N), escalada, esperando o descartada con motivo. Pruebas de cada fila de la tabla, de la cadena de sucesores, de que no hereda modelo y de la posición en cola."
+  },
+  {
+   "id": "BLQ1005E",
+   "ola": "Ola 1005Z · Bloqueadas: una sola sección y reparación automática con los directores (reparar en vez de rechazar)",
+   "depende": [],
+   "titulo": "Bloqueadas · el director de orquestación repara de forma continua con Jev (tope por hora) y escala a Codex/Claude",
+   "archivos": [
+    "scripts/puente/director-orquestacion.py",
+    "scripts/puente/reparacion_logica.py",
+    "scripts/puente/test_reparacion_logica.py"
+   ],
+   "prompt": "CONTRATO: `architecture/bloqueadas-reparacion.md`. Léelo ENTERO antes de empezar: el diagnóstico de §1 está medido y es la fuente de verdad. Petición de Alex (2026-10-05): unificar las dos secciones de bloqueadas del Mando, hacer que los reintentos automáticos funcionen con los directores, y no rechazar lo que puede servir con cambios coherentes.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red. Sin dependencias nuevas.\n\nTU TAREA (BLQ1005E): §4, director. `reparacion_logica.py` (puro): de progreso más colas, las tareas en estado de fallo o bloqueo sin sucesor vivo; topes de 6 reparaciones por hora y 2 simultáneas por ola; preguntas para `decidir.consultar_lote` (`elegir`: reparar, escalar o esperar, con el contexto del fallo) y una regla de respaldo con la tabla de §2 si Jev no responde. En `director-orquestacion.py`, dentro de `revisar()` (cada 180 s): usar `reparacion_logica`, llamar a `/api/mando/reintentar` y consumir `mando/reparaciones-pendientes.jsonl`. `continuar_estancadas` ya no sale por haber orquestador vivo: actúa por tarea. Borra el código muerto `reintentar_sin_cambios`. Escalar = reintento con `escalar:true` (Codex) y, si vuelve a fallar, aviso al Chat Director para claude-cowork con el contexto completo. Una línea al Chat Director por reparación o escalado. Pruebas de la lógica pura y de un ciclo con todo inyectado.",
+   "dependencias_ya_en_main": [
+    "BLQ1005Ad"
+   ]
+  },
+  {
+   "id": "FLU1005B",
+   "ola": "Ola 1005F · Flujos y conocimiento propios: replicar n8n y Dify en el Mando antes de que venzan sus pruebas",
+   "depende": [],
+   "titulo": "Flujos · nodos: HTTP, ntfy, Telegram, Chat Director, IA gratuita, conocimiento, condición, switch, fusión, set y expresiones seguras",
+   "archivos": [
+    "scripts/puente/flujos/nodos.py",
+    "scripts/puente/flujos/expresiones.py",
+    "scripts/puente/flujos/test_nodos.py"
+   ],
+   "prompt": "CONTRATO: `architecture/puente-propio-flujos.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. Petición de Alex (2026-10-05): aprovechar las pruebas gratuitas de n8n Cloud (vence el 2026-10-18) y Dify Sandbox para aprender y replicar su funcionamiento en nuestro propio Puente de Mando, sin depender de externos. Se aprende el DISEÑO; nunca se copia código con licencia restrictiva.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red (todo lo externo se inyecta). Claves SOLO de `os.environ`; un flujo guarda NOMBRES de variables, nunca valores. Sin dependencias nuevas.\n\nTU TAREA (FLU1005B): §3, nodos de acción. Cada nodo es una función `(params, items, ctx) -> items`, con todo lo externo en `ctx` (http, telegram, chat, llamar_modelo, conocimiento, env). Tipos: `http` (método, url, cabeceras, cuerpo; credencial como nombre de variable), `ntfy`, `telegram` (por `telegram-puente.py`), `chat_director` (por `director_chat.publicar`), `ia` (prompt con variables por las pasarelas gratuitas; con `tipado` usa `decidir.consultar_lote`), `conocimiento` (recuperar de una base de FLU1005E), `si`, `switch`, `fusion`, `set` y `esperar`. `expresiones.py`: plantillas `{{ $json.campo }}`, `{{ $nodo[\"X\"].json.y }}` y `{{ $ahora }}` resueltas con un intérprete propio de rutas y operadores básicos (==, !=, <, >, y, o, no, +), SIN `eval` ni `exec`. Pruebas por nodo con `ctx` falso y del intérprete, incluido que rechaza código.",
+   "dependencias_ya_en_main": [
+    "FLU1005A"
+   ]
+  }
+ ]
+}
