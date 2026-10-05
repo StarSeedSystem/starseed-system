@@ -104,6 +104,8 @@
   `is_dm_member` security definer, realtime): DMs y grupos, adjuntos de cualquier formato,
   responder/editar/borrar, guardar en Biblioteca, búsqueda de usuarios del directorio
   **`os_profiles`** (perfil sembrado al iniciar sesión, `searchable` opt-out), estilo WhatsApp/Telegram.
+- Las recomendaciones del directorio recorren **todas** las membresías propias mediante
+  páginas ordenadas; nunca recortan las señales de afinidad a los primeros 100 grupos.
 - **Aurora opcional por hilo** (`threads.agent` jsonb): agente personalizado que responde en el
   chat como `kind='agent'` usando Astraura (gratis-primero).
 - **Servidores de apps** (`os_app_servers` + `os_app_server_members`): apps/juegos/entornos

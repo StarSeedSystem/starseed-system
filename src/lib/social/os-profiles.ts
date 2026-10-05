@@ -108,8 +108,35 @@ interface MembershipRow {
     group_slug: string;
 }
 
+interface OwnMembershipRow {
+    group_slug?: string | null;
+}
+
+type OwnMembershipPageReader = (
+    from: number,
+    to: number,
+) => Promise<readonly OwnMembershipRow[]>;
+
 const SHARED_MEMBERSHIP_PAGE_SIZE = 100;
-// jev: p=sin respuesta; se aplica la regla: paginar candidatos, no grupos propios.
+
+/** Reúne todos los grupos propios sin depender del máximo de filas de Supabase. */
+export async function collectAllOwnGroupSlugs(
+    readPage: OwnMembershipPageReader,
+    pageSize = SHARED_MEMBERSHIP_PAGE_SIZE,
+): Promise<string[]> {
+    const size = Number.isFinite(pageSize)
+        ? Math.max(1, Math.floor(pageSize))
+        : SHARED_MEMBERSHIP_PAGE_SIZE;
+    const slugs = new Set<string>();
+
+    for (let from = 0; ; from += size) {
+        const rows = await readPage(from, from + size - 1);
+        for (const row of rows) {
+            if (row.group_slug) slugs.add(row.group_slug);
+        }
+        if (rows.length < size) return Array.from(slugs);
+    }
+}
 
 /* ────────────────────────────── Helpers ────────────────────────────────── */
 
@@ -486,16 +513,21 @@ export async function recommendationPage(
     const supabase = createClient();
 
     try {
-        const [myProfileRes, myMembershipsRes] = await Promise.all([
+        const [myProfileRes, myGroupSlugs] = await Promise.all([
             supabase.from("os_profiles").select("tags").eq("user_id", me.id).maybeSingle(),
-            supabase.from("os_memberships").select("group_slug").eq("user_id", me.id),
+            collectAllOwnGroupSlugs(async (from, to) => {
+                const { data, error } = await supabase
+                    .from("os_memberships")
+                    .select("group_slug")
+                    .eq("user_id", me.id)
+                    .order("group_slug", { ascending: true })
+                    .range(from, to);
+                if (error) throw error;
+                return (data as OwnMembershipRow[] | null) ?? [];
+            }),
         ]);
 
         const myTags: string[] = Array.isArray(myProfileRes.data?.tags) ? myProfileRes.data!.tags : [];
-        // No se limita: recortarla perdería señales si la persona pertenece a >100 grupos.
-        const myGroupSlugs = Array.from(new Set(
-            ((myMembershipsRes.data as { group_slug: string }[]) || []).map((r) => r.group_slug),
-        ));
 
         if (!myTags.length && !myGroupSlugs.length) {
             // Sin señales propias: no inventamos "por qué" — devolvemos [] honestamente
