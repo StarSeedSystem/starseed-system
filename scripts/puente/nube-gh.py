@@ -50,6 +50,46 @@ SECRETOS = (
 ARCHIVOS_DE_ENTORNO = ("~/.starseed/env", "~/.hermes/.env")
 VARIABLES = ("STARSEED_PASARELA_GROQ_URL", "STARSEED_PASARELA_GROQ_MODELOS", "STARSEED_PASARELA_GROQ_RPM")
 
+# (2026-10-04, NUB1004A) Estado de la Mac que viaja con la cola para que la nube use la
+# MISMA rotación y salud de modelos. Medido el 2026-10-04: 4 runs seguidos con 0 commits
+# integrables porque el runner no tiene estos archivos y prueba la rotación entera en el
+# orden por defecto, con modelos sin cuota (gemini) o colgados (glm-5.3).
+ESTADO_PARA_NUBE = ("rotacion-optimizada.json", "pasarelas-informe.json", "salud-proveedores.json")
+#: Cualquier campo cuyo nombre contenga una de estas marcas NO sale de la Mac.
+MARCAS_SECRETO = ("clave", "key", "token", "secret")
+
+
+def _sin_secretos(datos):
+    """Copia de un JSON sin ningún campo cuyo nombre huela a clave (recursivo, puro)."""
+    if isinstance(datos, dict):
+        return {
+            k: _sin_secretos(v)
+            for k, v in datos.items()
+            if not any(m in str(k).lower() for m in MARCAS_SECRETO)
+        }
+    if isinstance(datos, list):
+        return [_sin_secretos(x) for x in datos]
+    return datos
+
+
+def preparar_estado_para_nube(home: str, destino: str) -> list[str]:
+    """Copia a `destino` los archivos de ESTADO_PARA_NUBE que existan en `<home>/.starseed`,
+    sin campos de clave. Pura salvo E/S en las rutas inyectadas; sin archivos, no falla.
+    Devuelve los nombres copiados."""
+    origen = os.path.join(home, ".starseed")
+    copiados = []
+    for nombre in ESTADO_PARA_NUBE:
+        try:
+            with open(os.path.join(origen, nombre), encoding="utf-8") as f:
+                datos = json.load(f)
+        except (OSError, ValueError):
+            continue
+        os.makedirs(destino, exist_ok=True)
+        with open(os.path.join(destino, nombre), "w", encoding="utf-8") as f:
+            json.dump(_sin_secretos(datos), f, ensure_ascii=False, indent=1)
+        copiados.append(nombre)
+    return copiados
+
 
 def _env() -> dict:
     salida = dict(os.environ)
@@ -114,6 +154,19 @@ def lanzar(args: list[str]) -> None:
         if not nuevas:
             sys.exit("el reparto no creó ninguna cola (¿no hay atraso?)")
         cola = "enjambre/colas/" + nuevas[-1]
+    # (2026-10-04, NUB1004A) Junto a la cola viaja el estado de la Mac (rotación y salud
+    # de modelos), saneado de campos con clave, en `enjambre/colas/estado-<cola>/`. Sin él
+    # el runner probaba la rotación entera por orden y perdía la hora con modelos sin cuota
+    # (gemini) o colgados (glm-5.3): 4 runs seguidos con 0 commits integrables.
+    nombre_cola = os.path.splitext(os.path.basename(cola))[0]
+    estado_rel = "enjambre/colas/estado-" + nombre_cola
+    copiados = preparar_estado_para_nube(
+        os.path.expanduser("~"), os.path.join(RAIZ, estado_rel)
+    )
+    if copiados:
+        print("estado de la Mac que viaja con la cola: %s" % ", ".join(copiados))
+    else:
+        print("sin estado de la Mac que subir (la nube usará la rotación por defecto)")
     # (2026-09-24) NI UN COMMIT EN MAIN POR REPARTO. Antes aquí se hacía `git add` +
     # `git commit` de la cola en main: 36 de los 40 commits sin publicar eran el mismo
     # reparto de 3 tareas repetido cada ~20 min. Ahora el commit es SUELTO (índice
@@ -125,7 +178,8 @@ def lanzar(args: list[str]) -> None:
 
     try:
         ref = commit_suelto_con_cola(
-            RAIZ, cola, "enjambre: reparto a la nube (GitHub Actions) · %s" % os.path.basename(cola)
+            RAIZ, cola, "enjambre: reparto a la nube (GitHub Actions) · %s" % os.path.basename(cola),
+            extras=((estado_rel,) if copiados else ()),
         )
     except RuntimeError as e:
         sys.exit("no pude preparar el commit de la cola: %s" % e)

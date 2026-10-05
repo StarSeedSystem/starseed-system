@@ -102,6 +102,33 @@ jobs:
           bash scripts/enjambre/instalar.sh
           git config user.email "enjambre-nube-gh@starseed.local"
           git config user.name "Enjambre StarSeed (nube-gh)"
+          # (2026-10-04, NUB1004A) En el runner NO existe la rama local `main`: el checkout
+          # es de la ref `colas/nube-*` y `origin/main` no satisface «main», así que los
+          # `git diff main...HEAD` del orquestador fallaban en silencio y la puerta «no tocó
+          # ninguno de los archivos declarados» veía CERO archivos aunque el agente hubiera
+          # escrito (run 37244680264: OPT1004D registró «escritura · archivos_cambiados=2»
+          # y «alcance · tocados=1», y acabó «no toco ninguno»). Causa, no el cwd: el agente
+          # sí escribió en SU worktree ($STARSEED_WT), lo que no existía era la referencia
+          # contra la que se mide el trabajo. Se crea aquí la rama local.
+          git fetch -q origin "+refs/heads/main:refs/heads/main" \
+            || git branch -f main origin/main
+          git rev-parse --verify main
+
+      - name: Estado de la Mac que viajó con la cola
+        run: |
+          base="$(basename "${{ inputs.cola }}" .json)"
+          src="enjambre/colas/estado-$base"
+          mkdir -p ~/.starseed
+          # (2026-10-04, NUB1004A) Copia rotación y salud de modelos que `nube-gh.py lanzar`
+          # subió saneadas con la cola. Sin ellas la nube probaba la rotación entera por
+          # orden y perdía cada run con modelos sin cuota (gemini) o colgados (glm-5.3).
+          if [ -d "$src" ]; then
+            cp "$src"/*.json ~/.starseed/
+            echo "estado copiado a ~/.starseed:"
+            ls -1 ~/.starseed/*.json | xargs -n1 basename
+          else
+            echo "esta cola no trae estado ($src): rotación por defecto"
+          fi
 
       - name: Claves (solo las presentes; nunca se imprimen)
         env:

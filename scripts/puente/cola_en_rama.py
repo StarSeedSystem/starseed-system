@@ -45,12 +45,14 @@ def que_traer(lineas_cherry, asuntos, merges=()):
     return salida
 
 
-def commit_suelto_con_cola(raiz: str, cola: str, mensaje: str) -> str:
-    """sha de un commit = árbol de HEAD + `cola` (ruta relativa a `raiz`), padre HEAD.
+def commit_suelto_con_cola(raiz: str, cola: str, mensaje: str, extras=()) -> str:
+    """sha de un commit = árbol de HEAD + `cola` + `extras` (rutas relativas a `raiz`),
+    padre HEAD.
 
     No mueve ninguna rama ni toca el índice real. Sirve aunque la cola esté ignorada
     por `.gitignore` (se añade con `-f` al índice temporal). Lanza RuntimeError con el
-    motivo si git falla.
+    motivo si git falla. `extras` viaja en el MISMO commit (2026-10-04, NUB1004A: la
+    carpeta `estado-<cola>/` con la rotación y la salud de modelos de la Mac).
     """
     carpeta = tempfile.mkdtemp(prefix="cola-nube-indice-")
     env = dict(os.environ, GIT_INDEX_FILE=os.path.join(carpeta, "index"))
@@ -67,7 +69,7 @@ def commit_suelto_con_cola(raiz: str, cola: str, mensaje: str) -> str:
 
     try:
         git("read-tree", "HEAD")
-        git("add", "-f", "--", cola)
+        git("add", "-f", "--", cola, *[str(e) for e in extras])
         arbol = git("write-tree")
         return git("commit-tree", arbol, "-p", "HEAD", "-m", mensaje)
     finally:

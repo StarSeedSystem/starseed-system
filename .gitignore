@@ -123,3 +123,6 @@ MENSAJES-DEL-DIRECTOR.md
 # colas/nube-* (scripts/puente/cola_en_rama.py); en main no entran: eran 36 de 40
 # commits sin publicar. Se quedan en disco para contar los envíos.
 enjambre/colas/cola-nube-*.json
+# (2026-10-04, NUB1004A) Estado de la Mac que viaja con cada cola en el mismo commit
+# suelto (scripts/puente/nube-gh.py preparar_estado_para_nube); queda en disco como rastro.
+enjambre/colas/estado-*/
