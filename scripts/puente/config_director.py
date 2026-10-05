@@ -62,6 +62,15 @@ DEFAULTS = {
     "pausado": False,
     "disco_min_gb": 5,
     "prioridad": dict(PESOS),
+    "optimizador": {
+        "activo": True,
+        "modo": "actuar",
+        "intervalo_s": 600,
+        "max_cambios_dia": 12,
+        "max_tareas_dia": 6,
+        "enfriamiento_min": 60,
+        "max_runs_nube_dia": 12,
+    },
 }
 
 CLAVES_ENTERO = {
@@ -126,6 +135,29 @@ def validar(d):
             errores.extend(_validar_escalada(v))
         elif k == "prioridad":
             errores.extend(_validar_prioridad(v))
+        elif k == "optimizador":
+            errores.extend(_validar_optimizador(v))
+    return errores
+
+
+def _validar_optimizador(op):
+    errores = []
+    if not isinstance(op, dict):
+        return ["'optimizador' debe ser un objeto"]
+    modos_validos = ("actuar", "proponer")
+    if "modo" in op and op["modo"] not in modos_validos:
+        errores.append("'optimizador.modo' debe ser 'actuar' o 'proponer'")
+    for k, min_v, max_v in [
+        ("intervalo_s", 120, 3600),
+        ("max_cambios_dia", 0, 48),
+        ("max_tareas_dia", 0, 20),
+        ("enfriamiento_min", 10, 1440),
+        ("max_runs_nube_dia", 0, 48),
+    ]:
+        if k in op and not (isinstance(op[k], int) and not isinstance(op[k], bool) and min_v <= op[k] <= max_v):
+            errores.append("'optimizador.%s' debe ser entero entre %d y %d" % (k, min_v, max_v))
+    if "activo" in op and not isinstance(op["activo"], bool):
+        errores.append("'optimizador.activo' debe ser un booleano")
     return errores
 
 
@@ -201,4 +233,26 @@ def cargar(ruta=None):
             else:
                 avisos.append("'prioridad.%s' no es un número, se usa %s" % (k, pri[k]))
         cfg["prioridad"] = pri
+    if isinstance(con.get("optimizador"), dict):
+        op_def = dict(DEFAULTS["optimizador"])
+        op = dict(op_def)
+        o = con["optimizador"]
+        for k in op_def:
+            if k == "modo":
+                if isinstance(o.get(k), str) and o[k] in ("actuar", "proponer"):
+                    op[k] = o[k]
+                else:
+                    avisos.append("'optimizador.modo' inválido, se usa %s" % op_def[k])
+            elif k == "activo":
+                if isinstance(o.get(k), bool):
+                    op[k] = o[k]
+                else:
+                    avisos.append("'optimizador.activo' inválido, se usa %s" % op_def[k])
+            elif k in ("intervalo_s", "max_cambios_dia", "max_tareas_dia", "enfriamiento_min", "max_runs_nube_dia"):
+                min_v, max_v = {"intervalo_s": (120, 3600), "max_cambios_dia": (0, 48), "max_tareas_dia": (0, 20), "enfriamiento_min": (10, 1440), "max_runs_nube_dia": (0, 48)}[k]
+                if isinstance(o.get(k), int) and not isinstance(o.get(k), bool) and min_v <= o.get(k) <= max_v:
+                    op[k] = o[k]
+                else:
+                    avisos.append("'optimizador.%s' inválido, se usa %s" % (k, op_def[k]))
+        cfg["optimizador"] = op
     return cfg, avisos

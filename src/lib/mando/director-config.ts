@@ -14,6 +14,16 @@ export interface EscaladaConfig {
     activa: boolean;
 }
 
+export interface OptimizadorConfig {
+    activo: boolean;
+    modo: "actuar" | "proponer";
+    intervalo_s: number;
+    max_cambios_dia: number;
+    max_tareas_dia: number;
+    enfriamiento_min: number;
+    max_runs_nube_dia: number;
+}
+
 export interface ConfigDirector {
     espera_aprobacion_min: number;
     intervalo_s: number;
@@ -24,6 +34,7 @@ export interface ConfigDirector {
     proveedores_apartados: string[];
     aviso_checkin: boolean;
     disco_min_gb: number;
+    optimizador: OptimizadorConfig;
 }
 
 // idéntico a config_director.py; si cambias uno, cambia el otro
@@ -37,6 +48,15 @@ export const DEFAULTS: ConfigDirector = {
     proveedores_apartados: [],
     aviso_checkin: true,
     disco_min_gb: 5,
+    optimizador: {
+        activo: true,
+        modo: "actuar",
+        intervalo_s: 600,
+        max_cambios_dia: 12,
+        max_tareas_dia: 6,
+        enfriamiento_min: 60,
+        max_runs_nube_dia: 12,
+    },
 };
 
 const CLAVES_ENTERO = [
@@ -63,6 +83,26 @@ function erroresEscalada(v: unknown): string[] {
     return errores;
 }
 
+function erroresOptimizador(v: unknown): string[] {
+    if (!esObjeto(v)) return ["'optimizador' debe ser un objeto"];
+    const errores: string[] = [];
+    if ("modo" in v && v.modo !== "actuar" && v.modo !== "proponer") errores.push("'optimizador.modo' debe ser 'actuar' o 'proponer'");
+    if ("activo" in v && typeof v.activo !== "boolean") errores.push("'optimizador.activo' debe ser un booleano");
+    const rangos: Record<string, [number, number]> = {
+        intervalo_s: [120, 3600],
+        max_cambios_dia: [0, 48],
+        max_tareas_dia: [0, 20],
+        enfriamiento_min: [10, 1440],
+        max_runs_nube_dia: [0, 48],
+    };
+    for (const [k, [minV, maxV]] of Object.entries(rangos)) {
+        if (k in v && !(esEnteroNoNegativo(v[k as keyof typeof v]) && v[k as keyof typeof v] as number >= minV && v[k as keyof typeof v] as number <= maxV)) {
+            errores.push(`'optimizador.${k}' debe ser entero entre ${minV} y ${maxV}`);
+        }
+    }
+    return errores;
+}
+
 /**
  * Valida solo las claves presentes en `entrada` (como `validar(d)` en Python)
  * y, si no hay errores, fusiona lo recibido sobre `DEFAULTS` (como
@@ -82,9 +122,31 @@ export function validar(entrada: unknown): { ok: true; valor: ConfigDirector } |
         errores.push("'aviso_checkin' debe ser un booleano");
     }
     if ("escalada" in entrada) errores.push(...erroresEscalada(entrada.escalada));
+    if ("optimizador" in entrada) errores.push(...erroresOptimizador(entrada.optimizador));
 
     if (errores.length > 0) return { ok: false, errores };
     return { ok: true, valor: fusionar(DEFAULTS, entrada) };
+}
+
+function fusionarOptimizador(base: OptimizadorConfig, parcial: unknown): OptimizadorConfig {
+    const obj = esObjeto(parcial) ? parcial : {};
+    const modosValidos: string[] = ["actuar", "proponer"];
+    const rangos: Record<string, [number, number]> = {
+        intervalo_s: [120, 3600],
+        max_cambios_dia: [0, 48],
+        max_tareas_dia: [0, 20],
+        enfriamiento_min: [10, 1440],
+        max_runs_nube_dia: [0, 48],
+    };
+    const resultado: OptimizadorConfig = { ...base };
+    if ("activo" in obj && typeof obj.activo === "boolean") resultado.activo = obj.activo;
+    if ("modo" in obj && typeof obj.modo === "string" && modosValidos.includes(obj.modo)) resultado.modo = obj.modo as "actuar" | "proponer";
+    for (const [k, [minV, maxV]] of Object.entries(rangos)) {
+        if (k in obj && esEnteroNoNegativo(obj[k as keyof typeof obj]) && (obj[k as keyof typeof obj] as number) >= minV && (obj[k as keyof typeof obj] as number) <= maxV) {
+            (resultado as unknown as Record<string, number>)[k] = obj[k as keyof typeof obj] as number;
+        }
+    }
+    return resultado;
 }
 
 function fusionarEscalada(base: EscaladaConfig, parcial: unknown): EscaladaConfig {
@@ -113,5 +175,6 @@ export function fusionar(base: ConfigDirector, parcial: unknown): ConfigDirector
         proveedores_apartados: esListaCadenas(obj.proveedores_apartados) ? obj.proveedores_apartados : base.proveedores_apartados.slice(),
         aviso_checkin: typeof obj.aviso_checkin === "boolean" ? obj.aviso_checkin : base.aviso_checkin,
         disco_min_gb: esEnteroNoNegativo(obj.disco_min_gb) ? obj.disco_min_gb : base.disco_min_gb,
+        optimizador: fusionarOptimizador(base.optimizador, obj.optimizador),
     };
 }

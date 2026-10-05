@@ -159,5 +159,79 @@ class PrioridadConfigurable(unittest.TestCase):
         self.assertEqual(validar(DEFAULTS), [])
 
 
+class OptimizadorConfigurable(unittest.TestCase):
+    """El bloque optimizador (§9 del contrato) se valida, carga y conserva."""
+
+    def test_defecto_completo(self):
+        cfg, avisos = cargar(_tmp({}))
+        self.assertEqual(cfg["optimizador"], DEFAULTS["optimizador"])
+        self.assertEqual(avisos, [])
+
+    def test_valido_completo(self):
+        cfg, avisos = cargar(_tmp({
+            "optimizador": {
+                "activo": False,
+                "modo": "proponer",
+                "intervalo_s": 120,
+                "max_cambios_dia": 0,
+                "max_tareas_dia": 20,
+                "enfriamiento_min": 1440,
+                "max_runs_nube_dia": 0,
+            }
+        }))
+        self.assertEqual(cfg["optimizador"]["activo"], False)
+        self.assertEqual(cfg["optimizador"]["modo"], "proponer")
+        self.assertEqual(cfg["optimizador"]["intervalo_s"], 120)
+        self.assertEqual(avisos, [])
+
+    def test_invalido_modo(self):
+        cfg, avisos = cargar(_tmp({"optimizador": {"modo": "detener"}}))
+        self.assertEqual(cfg["optimizador"]["modo"], "actuar")
+        self.assertTrue(any("modo" in a for a in avisos))
+
+    def test_invalido_intervalo_fuera_de_rango(self):
+        cfg, avisos = cargar(_tmp({"optimizador": {"intervalo_s": 50}}))
+        self.assertEqual(cfg["optimizador"]["intervalo_s"], 600)
+        self.assertTrue(any("intervalo_s" in a for a in avisos))
+
+    def test_invalido_max_cambios_negativo(self):
+        cfg, avisos = cargar(_tmp({"optimizador": {"max_cambios_dia": -1}}))
+        self.assertEqual(cfg["optimizador"]["max_cambios_dia"], 12)
+        self.assertTrue(any("max_cambios_dia" in a for a in avisos))
+
+    def test_invalido_max_tareas_muy_alto(self):
+        cfg, avisos = cargar(_tmp({"optimizador": {"max_tareas_dia": 99}}))
+        self.assertEqual(cfg["optimizador"]["max_tareas_dia"], 6)
+        self.assertTrue(any("max_tareas_dia" in a for a in avisos))
+
+    def test_invalido_enfriamiento_bajisimo(self):
+        cfg, avisos = cargar(_tmp({"optimizador": {"enfriamiento_min": 5}}))
+        self.assertEqual(cfg["optimizador"]["enfriamiento_min"], 60)
+        self.assertTrue(any("enfriamiento_min" in a for a in avisos))
+
+    def test_guardado_conserva_bloque(self):
+        # "guardado" = cargar con archivo que trae el bloque: conserva valores válidos.
+        cfg, avisos = cargar(_tmp({
+            "optimizador": {
+                "activo": True,
+                "modo": "actuar",
+                "intervalo_s": 300,
+            }
+        }))
+        self.assertEqual(cfg["optimizador"]["activo"], True)
+        self.assertEqual(cfg["optimizador"]["modo"], "actuar")
+        self.assertEqual(cfg["optimizador"]["intervalo_s"], 300)
+        # El resto queda con los valores por defecto del bloque.
+        self.assertEqual(cfg["optimizador"]["max_cambios_dia"], 12)
+        self.assertEqual(cfg["optimizador"]["max_tareas_dia"], 6)
+        self.assertEqual(cfg["optimizador"]["enfriamiento_min"], 60)
+        self.assertEqual(cfg["optimizador"]["max_runs_nube_dia"], 12)
+
+    def test_validar_rechaza_bloque_invalido(self):
+        errores = validar({"optimizador": {"modo": "detener", "intervalo_s": -5}})
+        self.assertTrue(any("modo" in e for e in errores))
+        self.assertTrue(any("intervalo_s" in e for e in errores))
+
+
 if __name__ == "__main__":
     unittest.main()

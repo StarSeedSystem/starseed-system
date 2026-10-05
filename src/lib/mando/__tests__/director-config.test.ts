@@ -13,6 +13,15 @@ describe("DEFAULTS", () => {
             proveedores_apartados: [],
             aviso_checkin: true,
             disco_min_gb: 5,
+            optimizador: {
+                activo: true,
+                modo: "actuar",
+                intervalo_s: 600,
+                max_cambios_dia: 12,
+                max_tareas_dia: 6,
+                enfriamiento_min: 60,
+                max_runs_nube_dia: 12,
+            },
         });
     });
 });
@@ -88,6 +97,33 @@ describe("validar", () => {
             expect(r.valor.escalada).toEqual({ tope_haiku_dia: 20, tope_sonnet_dia: 5, activa: false });
         }
     });
+
+    it("rechaza modo de optimizador que no sea 'actuar' ni 'proponer'", () => {
+        const r = validar({ optimizador: { modo: "detener" } });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.errores).toContain("'optimizador.modo' debe ser 'actuar' o 'proponer'");
+    });
+
+    it("rechaza intervalo_s fuera de rango", () => {
+        const r = validar({ optimizador: { intervalo_s: 50 } });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.errores[0]).toContain("intervalo_s");
+    });
+
+    it("rechaza max_cambios_dia negativo", () => {
+        const r = validar({ optimizador: { max_cambios_dia: -1 } });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.errores[0]).toContain("max_cambios_dia");
+    });
+
+    it("acepta un bloque optimizador completo y válido", () => {
+        const r = validar({ optimizador: { activo: false, modo: "proponer", intervalo_s: 120, max_cambios_dia: 0, max_tareas_dia: 20, enfriamiento_min: 1440, max_runs_nube_dia: 0 } });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.valor.optimizador.modo).toBe("proponer");
+            expect(r.valor.optimizador.intervalo_s).toBe(120);
+        }
+    });
 });
 
 describe("fusionar", () => {
@@ -113,5 +149,20 @@ describe("fusionar", () => {
         const resultado = fusionar(base, {});
         resultado.proveedores_apartados.push("b");
         expect(base.proveedores_apartados).toEqual(["a"]);
+    });
+
+    it("fusiona optimizador campo a campo sin pisar los demás", () => {
+        const resultado = fusionar(DEFAULTS, { optimizador: { modo: "proponer", intervalo_s: 300 } });
+        expect(resultado.optimizador.modo).toBe("proponer");
+        expect(resultado.optimizador.intervalo_s).toBe(300);
+        expect(resultado.optimizador.activo).toBe(true);
+    });
+
+    it("guardado conserva el bloque optimizador válido", () => {
+        const guardado = fusionar(DEFAULTS, { optimizador: { activo: false, modo: "actuar", intervalo_s: 600 } });
+        expect(guardado.optimizador.activo).toBe(false);
+        expect(guardado.optimizador.modo).toBe("actuar");
+        expect(guardado.optimizador.intervalo_s).toBe(600);
+        expect(guardado.optimizador.max_cambios_dia).toBe(12);
     });
 });
