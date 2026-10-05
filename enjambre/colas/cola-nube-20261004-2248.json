@@ -1,0 +1,107 @@
+{
+ "ola": "nube-20261004",
+ "tareas": [
+  {
+   "id": "LC1004Bc",
+   "ola": "Ola 1004L · Límites del plan de Claude en el Mando",
+   "depende": [],
+   "titulo": "Límites de Claude: lógica PURA en TypeScript (`limites-claude.ts`) con su prueba",
+   "archivos": [
+    "src/lib/mando/limites-claude.ts",
+    "src/lib/mando/__tests__/limites-claude.test.ts"
+   ],
+   "prompt": "CONTRATO (Ola 1004L, petición de Alex 2026-10-04): en «Consumo y créditos» del Puente de Mando se QUITA el «Crédito de Claude en la nube» (los 250 $ de sesiones en la nube) y se pone lo que queda de los LÍMITES DEL PLAN de Claude: la ventana de sesión (se reinicia cada ~5 h) y la semanal (todos los modelos; y la semanal de un modelo concreto si claude.ai la enseña — hoy «Fable»), medido y actualizado solo, con la PREVISIÓN de las tareas programadas para no superar nunca los límites. No hay API pública: la dirección (la sesión de Claude en Cowork) lee claude.ai → Ajustes → Uso en cada revisión programada y lo guarda con `python3 scripts/puente/limites_claude.py declarar …`. Archivo: `~/.starseed/limites-claude.json` = {\"lecturas\": [{\"t\": ISO, \"sesion_pct\": 0-100, \"sesion_reinicio\": ISO, \"semana_pct\": 0-100, \"semana_reinicio\": ISO, \"modelo_nombre\": texto|null, \"modelo_pct\": 0-100|null, \"modelo_reinicio\": ISO|null, \"fuente\": texto}] (las últimas 200, la más nueva al final), \"programadas\": {\"t\": ISO, \"lista\": [{\"nombre\": texto, \"proxima\": ISO, \"cada_min\": entero|null}]}, \"umbral_pct\": 90}. COSTE POR REVISIÓN = mediana de los aumentos positivos de `*_pct` entre lecturas CONSECUTIVAS de la MISMA ventana (mismo `*_reinicio`); null si no hay dos lecturas así. DISPAROS antes de un reinicio = por cada programada: 1 si `proxima` ∈ (ahora, reinicio] más, si `cada_min`>0, floor((reinicio − proxima)/cada_min). PROYECCIÓN al reinicio = pct + disparos × coste (null sin coste). Si `reinicio` ya pasó, la ventana vale 0 % y se marca `reiniciada: true`. TONO: «peligro» si pct ≥ umbral o proyección > 100; «aviso» si pct ≥ 60 o proyección ≥ umbral; si no «ok»; lectura de hace más de 120 min → `desactualizada: true` (y como mínimo «aviso»). RECOMENDACIÓN (texto o null): si la proyección de la sesión o la semana supera el umbral, «Espacia las revisiones: caben N hasta el reinicio de <ventana>» con N = max(0, floor((umbral − pct)/coste)).\nQUÉ HACER: `src/lib/mando/limites-claude.ts` PURO (sin `node:*`, sin `Date.now()` dentro: `ahora` entra como número): tipos `LecturaLimites`, `ProgramadaClaude`, `ConfigLimitesClaude` (forma del archivo), `VentanaClaude` {pct, queda, reinicio, minutosParaReinicio, coste: number|null, proyeccion: number|null, reiniciada, tono: \"ok\"|\"aviso\"|\"peligro\"}, `EstadoLimitesClaude` {sesion: VentanaClaude|null, semana: VentanaClaude|null, modelo: VentanaClaude|null, modeloNombre: string|null, lecturaEn: string|null, lecturaHaceMin: number|null, desactualizada, programadasEnSesion, programadasEnSemana, recomendacion: string|null, tono}; funciones `costePorRevision(lecturas, campo)`, `disparosAntes(lista, ahora, hasta)`, `estadoLimitesClaude(cfg: unknown, ahora: number)` (acepta basura: objeto vacío o null → todo null y tono «aviso» con recomendación «Sin lectura todavía: la dirección la toma en su próxima revisión»), `resumenLimitesClaude(e)` → «sesión 34 % · semana 61 % · reinicia en 2 h 10 min · proyección 72 %» (o «sin lectura»), y `export const ENLACE_USO_CLAUDE = \"https://claude.ai/settings/usage\"`. Mismas reglas exactas del contrato que el CLI de Python.\nTest NUEVO `src/lib/mando/__tests__/limites-claude.test.ts` (vitest) con los mismos casos que el contrato (coste mediana, otra ventana no cuenta, disparos con cada_min, reinicio pasado, proyección y tonos, desactualizada, entrada basura, formato del resumen).\nPuertas: tsc sin errores y vitest del test nuevo en verde. Toca SOLO los dos archivos declarados.\n\nREAPERTURA (Claude, 2026-10-04 22:25): empieza desde main (no desde la rama vieja, que iba 48 commits por detrás). Revisión de Claude (21:10): tsc pasó de 1 a 21 errores en tu rama. Ponte al día con main, ejecuta `npx tsc --noEmit` y arregla los errores de `src/lib/mando/limites-claude.ts` y su prueba (no toques otros archivos). Las exportaciones `costePorRevision`, `disparosAntes`, `estadoLimitesClaude` y `resumenLimitesClaude` quedaron sin usar: o las usa la prueba, o sobran.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "id": "PRD1005L",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · herramientas MCP del director en `mcp_director.py` (estado, candidatos, historial, vetar, pausar, reanudar)",
+   "archivos": [
+    "scripts/puente/mcp_director.py",
+    "scripts/puente/test_mcp_director.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005L): §9, fila MCP. Añade a `HERRAMIENTAS` de `mcp_director.py`, con el mismo estilo (`_s`, `_esquema`, sin dependencias): `produccion_estado` (lee `starseed_memory_root/mando/produccion-estado.json`; si no existe, un estado vacío coherente), `produccion_candidatos` (usa `produccion_candidatos.candidatos` y `elegible`), `produccion_historial` (últimas N líneas de `~/.starseed/produccion/historial.jsonl`), `produccion_vetar` (sha o tid, motivo y quién; escribe con la función de vetos de PRD1005A), `produccion_pausar` y `produccion_reanudar` (crean o borran `~/.starseed/produccion-pausada.json` con {desde, quien, motivo}). Las de escritura exigen `quien` y `motivo`. No toques las herramientas del Chat Director. Pruebas JSON-RPC (`tools/list` y `tools/call`) con rutas temporales.",
+   "dependencias_ya_en_main": [
+    "PRD1005A"
+   ]
+  },
+  {
+   "id": "PRD1005M",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · memoria del proyecto para la puerta de coherencia (índice BM25 en disco; LlamaIndex opcional)",
+   "archivos": [
+    "scripts/puente/produccion_memoria.py",
+    "scripts/puente/test_produccion_memoria.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005M): §9, «Memoria del proyecto». `indexar(raiz, fuentes=None)` trocea en pasajes de ~800 caracteres por encabezado de markdown o por línea JSON las fuentes de §9 (`architecture/**/*.md`, `memory/**/*.md`, `CLAUDE.md`, `AGENTS.md`, `starseed_memory_root/olas/pasos/*.jsonl` de los últimos 30 días, `~/.starseed/produccion/historial.jsonl`) y guarda el índice en `~/.starseed/produccion/indice/` (reconstruye solo lo que cambió por mtime). `recuperar(consulta, k=5, tope_bytes=2500)` devuelve pasajes con ruta y puntuación. Implementación: si `llama_index.core` y su retriever BM25 están instalados, se usan; si no, un BM25 en Python puro (k1 = 1,5, b = 0,75, tokenización que entiende español: minúsculas, sin tildes, sin palabras vacías) con la MISMA interfaz. Sin red. Pruebas de ranking con un corpus pequeño fabricado, de reconstrucción incremental y de tope de bytes."
+  },
+  {
+   "id": "PRD1005N",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · panel de respaldo por roles al estilo CrewAI (lanzamiento, QA, seguridad con veto, SRE)",
+   "archivos": [
+    "scripts/puente/produccion_panel.py",
+    "scripts/puente/test_produccion_panel.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005N): §9, «Panel de respaldo». Cuatro roles con su instrucción breve y una sola pregunta tipada (publicar sí/no, con motivo de una línea) sobre el paquete de contexto de la candidata. Cada rol usa un modelo gratuito DISTINTO de la flota: reutiliza el cliente de pasarelas que ya usan `decidir.py`/`jev.py` y, si existe `optimizador_panel.py`, su forma de elegir modelos. `decidir_panel(candidata, llamar=…)` → {publicar, votos, motivos}: mayoría de los que respondan (mínimo 3), y si seguridad dice no, no se publica. Tiempo máximo total 60 s; un rol que no responde no cuenta. Sin dependencias nuevas (CrewAI solo como patrón). Pruebas con un `llamar` falso: unanimidad, empate, veto de seguridad y roles caídos."
+  },
+  {
+   "id": "PRD1005O",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · webhooks firmados (HMAC) hacia n8n, Dify u otros: publicada, revertida, pieza lista",
+   "archivos": [
+    "scripts/puente/produccion_webhooks.py",
+    "scripts/puente/test_produccion_webhooks.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005O): §9, «Webhooks». `emitir(evento, datos, entorno=os.environ, http=…)` envía POST JSON {evento, sha, medios, tareas, momento, datos} a cada URL presente (`N8N_WEBHOOK_URL`, `DIFY_WEBHOOK_URL` y la lista `PRODUCCION_WEBHOOKS` separada por comas), con cabecera `X-StarSeed-Firma: sha256=<hmac>` calculada con `PRODUCCION_WEBHOOK_SECRETO`. Si no hay secreto, no envía nada y lo dice en el resultado. Timeout de 5 s por URL, un reintento, y nunca lanza: devuelve el resultado por URL. Nunca imprime URLs completas ni el secreto (solo el host). `verificar_firma(cuerpo, cabecera, secreto)` para el lado receptor. Pruebas con un cliente HTTP falso."
+  },
+  {
+   "id": "PRD1005Q",
+   "ola": "Ola 1005H · Producción: habilidades (Temporal, MCP, LlamaIndex, CrewAI, Genkit, n8n, Dify; Flowise y LangServe como referencia)",
+   "depende": [],
+   "titulo": "Producción · los 9 repos en la Biblioteca del OS como «Herramientas de producción», con estado y licencia",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/__tests__/herramientas-produccion.test.ts"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): incluir como habilidades del director de producción Dify, Temporal, LangServe, n8n, Firebase Genkit, Flowise, CrewAI, los servidores MCP y LlamaIndex. La regla de §9 manda: el Mac tiene 8 GB, se adopta el PATRÓN con lo que ya tenemos y la librería solo si es opcional (importación perezosa con alternativa en Python puro).\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen.\n\nTU TAREA (PRD1005Q): §9, «Biblioteca». Añade la categoría «Herramientas de producción» con el mismo formato que usó DIS1005I para «Herramientas de diseño»: Temporal, MCP servers, LlamaIndex, CrewAI, Genkit (enlaza `github.com/genkit-ai/genkit`), n8n, Dify, Flowise y LangServe, cada uno con enlace, descripción breve en español, licencia de la tabla de §9, cómo lo usa el director y estado (Flowise y LangServe marcados «archivado · solo referencia»). Si un id ya existe en `packages.ts`, no lo dupliques: amplía su ficha. Prueba de que están los 9, sin ids duplicados.",
+   "dependencias_ya_en_main": [
+    "DIS1005I"
+   ]
+  },
+  {
+   "id": "DIS1005L",
+   "ola": "Ola 1005N · Diseño: ADN de diseño (cada estilo, una skill permanente) y movimiento RISE",
+   "depende": [],
+   "titulo": "Diseño · el brief inyecta el PROMPT.md del ADN y su imagen (nunca dna.json) y una sección RISE en tareas con movimiento",
+   "archivos": [
+    "scripts/puente/diseno_brief.py",
+    "scripts/puente/test_diseno_brief.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-diseno.md` (§9 y §10) y sus referencias `architecture/diseno-referencias/adn-diseno.md` y `architecture/diseno-referencias/movimiento-rise.md`. Léelos ENTEROS antes de empezar: son la fuente de verdad. Petición de Alex (2026-10-05): que el director de diseño use el método ADN (medir, no describir; proporciones, cobertura, jugada rara, prohibiciones, pruebas que pueden fallar, reconstruir y comparar) y el método RISE para todo lo que se mueve.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen. Sin dependencias nuevas.\n\nTU TAREA (DIS1005L): §9 y §10 en el brief. Por identidad de la tarea: la ruta de la imagen de referencia PRIMERO y con nombre, después el `PROMPT.md` tal cual (≤ 2 KB); nunca el contenido de `dna.json`. Dos identidades → dos bloques separados, nunca mezclados. Si la tarea toca movimiento (canvas, animación, keyframes, `framer-motion`, Audiomorphic, vídeo, carrusel, logo animado; detecta por archivos y por texto de la tarea), añade la sección RISE con la línea E literal de `movimiento-rise.md` y el contrato técnico (render(t) pura con semilla, 16:9/9:16/1:1 recompuestos, `window.__render`, movimiento reducido). Si el ADN aún no existe, el brief sigue funcionando con la ficha de `identidades.md`. Pruebas de orden (imagen primero, autocomprobación última), de tope y de detección de movimiento.",
+   "dependencias_ya_en_main": [
+    "DIS1005B",
+    "DIS1005J"
+   ]
+  },
+  {
+   "id": "DIS1005H",
+   "ola": "Ola 1005D · Director de diseño: contexto completo, armonía y geometría sagrada, verificación en todas las pantallas",
+   "depende": [],
+   "titulo": "Orquestador · área de contexto «diseño» en AREAS_CONTEXTO (palabras de interfaz → memory/diseno)",
+   "archivos": [
+    "scripts/enjambre/starseed-enjambre.py",
+    "scripts/enjambre/test_area_diseno.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-diseno.md`. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-04): un director de diseño que mejore cada tarea y cada agente con el contexto completo, una estética coherente basada en patrones armónicos y geometría sagrada, la identidad de cada contexto, referencias profesionales y tendencias, para todas las pantallas, dispositivos y sistemas.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales; claves SOLO de `os.environ`.\n\nTU TAREA (DIS1005H): la última línea de la §6. Añade el área `diseno` a `AREAS_CONTEXTO` en `starseed-enjambre.py`, con las palabras de interfaz (diseño, ui, interfaz, pantalla, componente, estilo, tema, widget, css, tailwind, responsive, móvil, animación…) y los documentos `memory/diseno/identidades.md`, `armonia.md` y `referencias.md`, con el mismo formato que las áreas que ya hay. Prueba con importlib (como test_claves.py; `EVENTOS` a tmp y `ANON` a \"\"): una tarea «Rediseño del panel de ajustes» activa el área y una «arreglar el cerrojo del progreso» no. `python3 -m pytest -q scripts/enjambre` en verde.",
+   "dependencias_ya_en_main": [
+    "DIS1005A"
+   ]
+  }
+ ]
+}
