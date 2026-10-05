@@ -3564,3 +3564,12 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
 - `PRD1005L` — pruebas en rojo: vitest falla (rama conservada)
 - `PA1005D` — otra cosa: dependencia(s) que no llegarán quitadas desde el Mando: PA1005A
+
+## 2026-10-05 16:38 · auto-1005-163704
+
+**Lo que se pidió.** en el puente de mando en la sección de los ajustes agrega un botón de una función de mantener la pantalla encendida de cualquier dispositivo donde se esté usando y evitar o apagar el modo de screen savers y de apagado por inactividad desde cualquier medio donde se use aunque esté en segundo plano (encendido por defecto)
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `PA1005D` — no escribió nada
