@@ -4,7 +4,8 @@
     "deploymentEnabled": {
       "nube/**": false,
       "colas/**": false,
-      "ola/**": false
+      "ola/**": false,
+      "produccion/**": true
     }
   }
 }

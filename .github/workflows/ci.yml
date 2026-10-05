@@ -10,7 +10,10 @@ name: CI · verificación web
 
 on:
   push:
-    branches: [main]
+    # `main` + ramas `produccion/**`: el director de producción empuja el lote a
+    # `produccion/candidato` (§3.4 de architecture/director-produccion.md) y esta
+    # puerta corre tsc, tests y build ahí antes de promover a producción.
+    branches: [main, "produccion/**"]
   pull_request:
     branches: [main]
 
