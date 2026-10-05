@@ -202,6 +202,13 @@ export function estaGuardado(f: typeof fetch): f is FetchGuardado {
 }
 
 let fetchDeVerdad: typeof fetch | null = null;
+/**
+ * La guardia de ESTA página. Se guarda aquí y no se lee de `window.fetch` porque otros envuelven
+ * `fetch` después (el indicador de carga global, `indicador-carga-global.tsx`, pone su contador
+ * encima): la guardia sigue trabajando debajo, pero `window.fetch` ya no es ella. Medido el
+ * 2026-10-05 en el Mando instalado: la autocuración de la página no la encontraba y no actuaba.
+ */
+let instancia: FetchGuardado | null = null;
 
 /** El `fetch` sin guardia (para la sonda de la autocuración, que no debe hacer cola). */
 export function fetchSinGuardia(): typeof fetch {
@@ -209,8 +216,9 @@ export function fetchSinGuardia(): typeof fetch {
     return typeof window !== "undefined" ? window.fetch.bind(window) : fetch;
 }
 
-/** La guardia instalada en esta página, o null. */
+/** La guardia instalada en esta página (aunque otro envoltorio esté encima), o null. */
 export function guardiaInstalada(): FetchGuardado | null {
+    if (instancia) return instancia;
     if (typeof window === "undefined") return null;
     return estaGuardado(window.fetch) ? window.fetch : null;
 }
@@ -218,7 +226,10 @@ export function guardiaInstalada(): FetchGuardado | null {
 /** Instala la guardia en el `fetch` del navegador una sola vez. En el servidor no hace nada. */
 export function instalarGuardiaFetchMando(): void {
     if (typeof window === "undefined" || typeof window.fetch !== "function") return;
-    if (estaGuardado(window.fetch)) return;
+    if (instancia || estaGuardado(window.fetch)) return;
     fetchDeVerdad = window.fetch.bind(window);
-    window.fetch = crearFetchGuardado(fetchDeVerdad) as typeof fetch;
+    instancia = crearFetchGuardado(fetchDeVerdad);
+    window.fetch = instancia as typeof fetch;
+    // Para mirar su salud desde la consola o una sonda: `window.__starseedGuardiaMando.salud()`.
+    (window as unknown as Record<string, unknown>).__starseedGuardiaMando = instancia;
 }
