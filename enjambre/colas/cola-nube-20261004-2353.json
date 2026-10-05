@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261004",
+ "tareas": [
+  {
+   "id": "CAMR1005E",
+   "ola": "Ola 1005C · CAMR: enrutamiento cognitivo multiespectro (RNS, Meshtastic, 802.11s/Babel/BATMAN/Yggdrasil) con radio cognitiva legal y planificador comunitario",
+   "depende": [],
+   "titulo": "CAMR · agente local Python (127.0.0.1:4480): detecta RNS/Meshtastic/iw/batctl/babeld/yggdrasilctl, mide, aplica en seco o real y envía",
+   "archivos": [
+    "scripts/red/camr_agente.py",
+    "scripts/red/test_camr_agente.py",
+    "scripts/red/README-camr.md"
+   ],
+   "prompt": "CONTRATO: `architecture/camr-enrutamiento-cognitivo.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §0 lista lo que YA existe en `src/ai/astraura/mesh/` y `src/components/mesh/`: se reutiliza y se amplía, nunca se duplica. §5 (ley y licencias) es obligatorio en todo lo que toque radio. Petición de Alex (2026-10-05): módulo CAMR en el panel de señales y enrutamiento del OS.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni hardware (simulador y adaptadores falsos). Sin dependencias npm nuevas; en Python, librerías de radio solo con importación perezosa.\n\nTU TAREA (CAMR1005E): §4. Servidor HTTP con la biblioteca estándar, que solo escucha en 127.0.0.1. `GET /estado` (tecnologías disponibles y por qué no las otras), `GET /mediciones` (RNS: interfaces y estadísticas vía la librería RNS si está; RNode: frecuencia, ancho de banda, SF, CR y txpower; `iw dev … station dump` y `survey dump`; `batctl o/n`; estado de babeld; `yggdrasilctl getPeers`), `POST /aplicar` (`seco` por defecto: devuelve los comandos que ejecutaría; en real ejecuta SOLO comandos de una lista blanca con argumentos validados, nunca shell) y `POST /enviar`. Ejecutor de comandos inyectable; importación perezosa de `RNS` y `meshtastic`. README en español: instalación en Mac, Raspberry y OpenWrt, y el aviso legal de §5. Pruebas con ejecutor falso para cada tecnología."
+  },
+  {
+   "id": "BLQ1005A",
+   "ola": "Ola 1005Z · Bloqueadas: una sola sección y reparación automática con los directores (reparar en vez de rechazar)",
+   "depende": [],
+   "titulo": "Bloqueadas · reintento inteligente que repara: cambio automático por tipo de fallo, otro modelo, sin duplicados y delante de la cola",
+   "archivos": [
+    "src/lib/mando/reintento-inteligente.ts",
+    "src/lib/mando/__tests__/reintento-inteligente.test.ts",
+    "src/app/api/mando/reintentar/route.ts"
+   ],
+   "modelo": "codex/gpt-5.6-sol",
+   "prompt": "CONTRATO: `architecture/bloqueadas-reparacion.md`. Léelo ENTERO antes de empezar: el diagnóstico de §1 está medido y es la fuente de verdad. Petición de Alex (2026-10-05): unificar las dos secciones de bloqueadas del Mando, hacer que los reintentos automáticos funcionen con los directores, y no rechazar lo que puede servir con cambios coherentes.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red. Sin dependencias nuevas.\n\nTU TAREA (BLQ1005A): §2 completo. En `reintento-inteligente.ts`: (1) `clasificar` con la tabla de §2 (repara por defecto; descarta solo lo de la lista de §2; al tercer intento de la cadena → `escalar`, nunca `descartar`). (2) `cambioAutomatico(tarea, fuentes)` construye el texto del cambio: objeción literal de `revisiones.md` (o del evento de revisión), salida de pruebas desde `olas/pasos/<id>.jsonl` y el log, errores de tsc, archivos que faltan o «no tocaste tus archivos». (3) `reencolar`: NO copia `estado`, `nota`, `motivo` ni `modelo`; elige un modelo distinto del que falló (lee `~/.starseed/optimizador/rotacion-optimizada.json` y la recomendación de diseño si existen; al segundo intento, `codex/gpt-5.6-sol`); sigue la cadena de sucesores (A→Ab→Ac) y actúa sobre el último; si ya hay un sucesor vivo, no crea otro y lo dice; pone la tarea la PRIMERA en la cola viva (mismo criterio que `asignar_huecos.reordenar_cola`) y anota `adelantar` en progreso con el cerrojo del orquestador. Añade al prompt una sección «REPARACIÓN» con el cambio, una sola vez (no duplicar bloques). (4) «todas las que sirvan» procesa solo estados de fallo o bloqueo. La ruta acepta `{ids?, cambio?, automatico?, escalar?}` y devuelve por id: reintentada como X (posición N), escalada, esperando o descartada con motivo. Pruebas de cada fila de la tabla, de la cadena de sucesores, de que no hereda modelo y de la posición en cola."
+  }
+ ]
+}
