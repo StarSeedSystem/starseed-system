@@ -246,7 +246,7 @@ Aurora, la puerta 4 ejecuta un **conjunto dorado** de casos de `memory/produccio
 
 Se adopta el patrón de evaluadores de Genkit. Genkit mismo (JS) solo si cabe sin coste en CI.
 
-**Webhooks (n8n, Dify).** `produccion_webhooks.py` emite eventos firmados con HMAC:
+**Webhooks (n8n, Dify).** `produccion_webhooks.py` es el emisor que usa el enrutador de puentes de §10; emite eventos firmados con HMAC:
 
 - `produccion.publicada`
 - `produccion.revertida`
@@ -257,3 +257,60 @@ Van a las URLs que haya en el entorno: `N8N_WEBHOOK_URL`, `DIFY_WEBHOOK_URL` y l
 
 **Biblioteca.** Los 9 entran en la Biblioteca del OS como «Herramientas de producción», cada uno con
 su estado y su licencia.
+
+## 10. Puentes hacia medios externos con autoenrutado (decisión de Alex, 2026-10-05)
+
+> «Principalmente lo propio, para no depender de externos, pero aprovechando lo que tengamos
+> disponible, fusionando n8n en Hugging Face, n8n Cloud, Dify Cloud y Zapier, autoenrutándose
+> inteligentemente».
+
+**Regla de oro: lo propio primero y siempre de respaldo.** Ningún evento depende de un externo para
+llegar a Alex. Los externos solo **añaden** alcance (redes, Drive, apps de IA) cuando están sanos y
+dentro de su cupo gratuito. **Nunca** se pasa de un cupo gratuito: el puente se aparta al 90 % del
+cupo del mes.
+
+| Puente | Tipo | Capacidades | Cupo gratuito que vigila | Cómo se activa |
+|---|---|---|---|---|
+| Bandeja del Mando | Propio | Avisos, piezas para aprobar | — | Siempre activo |
+| Chat Director | Propio | Avisos, informes | — | Siempre activo |
+| ntfy (tema fijo) | Propio (servicio público gratuito) | Aviso de versión a los clientes | — | Siempre activo |
+| Telegram / Hermes | Propio | Avisos importantes | — | Ya configurado |
+| n8n en Hugging Face Space | Externo gratuito, nuestro | Redes (borrador que Alex aprueba), Drive, cualquier integración de n8n | Ninguno de pago; se duerme sin uso | `N8N_HF_URL` en el entorno |
+| n8n Cloud | Externo | Lo mismo que n8n | 1.000 ejecuciones de la prueba | `N8N_CLOUD_URL` en el entorno |
+| Dify Cloud (Sandbox) | Externo | Apps y flujos de IA, RAG | 200 créditos de mensajes; 5.000 llamadas a la API al mes | `DIFY_URL` y `DIFY_CLAVE` en el entorno |
+| Zapier | Externo | Integraciones sin servidor | Las tareas del plan de la cuenta | `ZAPIER_WEBHOOK_URL` en el entorno |
+
+**Enrutado** (`scripts/puente/produccion_puentes.py`, puro y con estado en
+`~/.starseed/produccion/puentes.json`):
+
+1. Cada evento (`publicada`, `revertida`, `pieza_lista`, `notas_version`, `app_ia`) declara la
+   **capacidad** que necesita.
+2. Los avisos van **siempre** por los puentes propios. Los externos solo se suman para capacidades
+   que lo propio no cubre.
+3. Entre los externos capaces se ordenan por: sano (último ok reciente, sin fallos seguidos), cupo
+   restante, latencia media y peso aprendido. Cada éxito sube el peso y cada fallo lo baja.
+4. Si el primero falla, se prueba el siguiente. Si no queda ninguno, la pieza va a la bandeja del
+   Mando con el motivo, de modo que nunca se pierde.
+5. Se cuenta cada uso contra su cupo, que se reinicia el día 1 o en la fecha del plan. Al 90 % el
+   puente se aparta solo y se avisa en el Chat Director.
+6. Un puente no configurado (sin URL en el entorno) **no existe** para el enrutador: no da error ni
+   reintenta.
+7. El n8n de Hugging Face se despierta con una petición de salud antes de usarlo, con un tope de
+   60 s. Si no despierta, se usa el siguiente.
+
+**n8n en Hugging Face** (`deploy/n8n-hf/`):
+- Un Space Docker con la imagen oficial de n8n Community.
+- Los flujos viven en el repo (`deploy/n8n-hf/flujos/*.json`) y se importan en cada arranque, porque
+  el disco del Space gratuito no es persistente.
+- Las credenciales de cada servicio (Drive, redes) van como secretos del Space, nunca en el repo.
+- Los webhooks de n8n verifican la firma HMAC de §9.
+
+**Mando.** La tarjeta de Producción muestra cada puente con su estado, el cupo usado y el último
+uso, y permite apartarlo o activarlo a mano.
+
+**Lo que es de Alex:**
+- crear las cuentas que falten (prueba de n8n Cloud, Dify Sandbox);
+- poner sus URLs y claves en `~/.starseed/env`;
+- dar los permisos de Drive y redes dentro de n8n.
+
+Todo lo demás lo montan la flota y Claude. Hasta que existan, el enrutador funciona solo con lo propio.
