@@ -56,15 +56,31 @@ class TestPuertas(unittest.TestCase):
     def setUp(self):
         self.ahora = time.time()
 
-    def test_bloqueante_madura_se_rechaza(self):
+    def test_bloqueante_madura_ya_no_se_rechaza_se_repara(self):
+        """(2026-10-05, §4) La objeción del revisor es el cambio del reintento."""
         p = {
             "A": {
                 "estado": "esperando_aprobacion",
                 "revisor": "bloqueante",
+                "objecion": "falta manejo de errores",
                 "t": _hace(60, self.ahora),
             }
         }
-        self.assertEqual([x[0] for x in d.puertas_a_rechazar(p, self.ahora)], ["A"])
+        self.assertEqual(d.puertas_a_rechazar(p, self.ahora), [])
+        _, _, reparar = d.clasificar_puertas(p, self.ahora)
+        self.assertEqual(reparar, [("A", "falta manejo de errores", 0)])
+
+    def test_bloqueante_al_tercer_intento_cuenta_intentos(self):
+        p = {
+            "A": {
+                "estado": "esperando_aprobacion",
+                "revisor": "bloqueante",
+                "intentos_bloqueante": 2,
+                "t": _hace(60, self.ahora),
+            }
+        }
+        _, _, reparar = d.clasificar_puertas(p, self.ahora)
+        self.assertEqual(reparar, [("A", "", 2)])
 
     def test_alcance_incompleto_ya_no_se_rechaza_solo_por_eso(self):
         """(2026-09-21) Cambio de politica: ver test_alcance_parcial.py.
@@ -82,7 +98,7 @@ class TestPuertas(unittest.TestCase):
             }
         }
         self.assertEqual(d.puertas_a_rechazar(p, self.ahora), [])
-        _, parciales = d.clasificar_puertas(p, self.ahora, {"C": ["x.py", "y.py"]})
+        _, parciales, _ = d.clasificar_puertas(p, self.ahora, {"C": ["x.py", "y.py"]})
         self.assertEqual([x[0] for x in parciales], ["C"])
 
     def test_alcance_vacio_del_todo_si_se_rechaza(self):
@@ -95,7 +111,7 @@ class TestPuertas(unittest.TestCase):
                 "t": _hace(60, self.ahora),
             }
         }
-        rech, _ = d.clasificar_puertas(p, self.ahora, {"C": ["x.py"]})
+        rech, _, _ = d.clasificar_puertas(p, self.ahora, {"C": ["x.py"]})
         self.assertEqual([x[0] for x in rech], ["C"])
 
     def test_puerta_en_verde_no_se_toca(self):

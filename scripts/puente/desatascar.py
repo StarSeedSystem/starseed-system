@@ -26,8 +26,15 @@ CUATRO PUERTAS EN VERDE, revisión sin pegas y un solo defecto: le faltan
 archivos de su alcance. Esa se integra y lo que falta sale como tarea de
 seguimiento. No es relajar el listón —el listón lo puso tsc, vitest, unittest y
 next build, y lo pasó—: es dejar de tirar código verde. Anoche costó 2 h 30 min
-de agentes (NE1c, R6b, R7b). Si la revisión pone una pega, o si el agente no
-tocó ninguno de sus archivos, se sigue rechazando.
+de agentes (NE1c, R6b, R7b). Si el agente no tocó ninguno de sus archivos, se
+sigue rechazando.
+
+(2026-10-05, bloqueadas-reparacion §4) Si la revisión pone una pega YA NO se
+rechaza: la objeción es el cambio de la reparación automática, que pide el
+Mando (`POST /api/mando/reintentar`, `{ids:[tid], automatico:true}`). Solo al
+tercer intento con objeción de la misma cadena se escala a un director. Si el
+Mando no responde, la petición queda en
+`starseed_memory_root/mando/reparaciones-pendientes.jsonl`.
 """
 
 import json
@@ -47,6 +54,9 @@ RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser(
 SUFIJOS_ESTORBO = (".log", ".new", ".tmp", ".orig", ".rej", ".bak", "~")
 NOMBRES_ESTORBO = {".DS_Store"}
 ESTADOS_CERRADOS = {"commit", "hecho"}
+# A partir del tercer intento con objeción se escala, nunca se rechaza.
+TOPE_INTENTOS_BLOQUEANTE = 2
+MANDO_BASE = "http://127.0.0.1:9002"
 
 
 # ---------------------------------------------------------------- decisiones puras
@@ -99,7 +109,9 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
     todos los archivos declarados. Tirar código verde y útil para volver a
     pedirlo entero es la peor economía posible. Desde hoy:
 
-      · revisión bloqueante           → rechazar (hay un defecto de verdad)
+      · revisión bloqueante           → reparar con la objeción como cambio
+                                        (2026-10-05, bloqueadas-reparacion §4);
+                                        al TERCER intento escalar, nunca rechazar
       · no tocó NINGÚN archivo suyo   → rechazar (hizo otra cosa)
       · tocó algunos pero no todos    → APROBAR e integrar lo verde, y el resto
                                         sale como tarea de seguimiento, pequeña
@@ -110,17 +122,19 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
     no se puede saber si tocó algo, y entonces se es prudente: se aprueba con
     seguimiento en vez de tirar el trabajo.
 
-    Devuelve ([(id, motivo)], [(id, motivo, faltan)]).
+    Devuelve ([(id, motivo)], [(id, motivo, faltan)],
+               [(id, objecion, intentos)]).
     """
     declarados_por_id = declarados_por_id or {}
-    a_rechazar, a_aprobar = [], []
+    a_rechazar, a_aprobar, a_reparar = [], [], []
     for tid, e in sorted((progreso or {}).items()):
         if not isinstance(e, dict) or e.get("estado") != "esperando_aprobacion":
             continue
         if _minutos(e.get("t"), ahora) < tope_min:
             continue
         if e.get("revisor") == "bloqueante":
-            a_rechazar.append((tid, "revisión bloqueante confirmada"))
+            objecion = str(e.get("objecion") or e.get("motivo") or "").strip()
+            a_reparar.append((tid, objecion, _intentos_bloqueante(e)))
             continue
         faltan = [str(x) for x in (e.get("faltan") or [])]
         if not faltan:
@@ -142,12 +156,24 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
         else:
             motivo = "alcance parcial: falta %s" % resumen
         a_aprobar.append((tid, motivo, faltan))
-    return a_rechazar, a_aprobar
+    return a_rechazar, a_aprobar, a_reparar
 
 
 def puertas_a_rechazar(progreso, ahora, tope_min=6):
     """Solo las que hay que tirar. Ver `clasificar_puertas`."""
     return clasificar_puertas(progreso, ahora, None, tope_min)[0]
+
+
+def _intentos_bloqueante(e):
+    """Cuántos intentos con objeción de la misma cadena lleva la puerta."""
+    for clave in ("intentos_bloqueante", "intentos"):
+        try:
+            n = int((e or {}).get(clave) or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n > 0:
+            return n
+    return 0
 
 
 def seguimiento_de(tid, entrada, tarea, faltan):
@@ -473,6 +499,89 @@ def rechazar_puertas(puertas, binario="starseed-puente", avisar=avisar_por_teleg
     return frases
 
 
+def aviso_de_reparacion(tid, escalar=False):
+    """El texto que el desatascador manda al Chat Director. PURA."""
+    if escalar:
+        return (
+            "Escalado de %s: tercer intento con objeción de la misma cadena. "
+            "La decide un director, no se rechaza." % tid
+        )
+    return "Reparación automática de %s con la objeción del revisor." % tid
+
+
+def _http_post_json(url, datos):
+    """Cliente HTTP por defecto: POST JSON. Devuelve True si respondió 2xx."""
+    import json as _json
+    import urllib.request as _url
+
+    cuerpo = _json.dumps(datos, ensure_ascii=False).encode("utf-8")
+    peticion = _url.Request(
+        url, data=cuerpo, headers={"Content-Type": "application/json"}
+    )
+    with _url.urlopen(peticion, timeout=20) as r:
+        return 200 <= r.status < 300
+
+
+def _ruta_reparaciones_pendientes(raiz):
+    return os.path.join(
+        raiz or RAIZ, "starseed_memory_root", "mando", "reparaciones-pendientes.jsonl"
+    )
+
+
+def _pendir_reparacion(raiz, peticion):
+    """Deja la petición por escrito para el director si el Mando no responde."""
+    ruta = _ruta_reparaciones_pendientes(raiz)
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(peticion, ensure_ascii=False) + "\n")
+
+
+def reparar_puertas(puertas, raiz=None, base=MANDO_BASE, http=None):
+    """Repara revisiones bloqueantes en vez de rechazarlas.
+
+    (2026-10-05, bloqueadas-reparacion §4) Una objeción es un cambio, no un
+    descarte: va `POST /api/mando/reintentar` con `{ids:[tid], automatico:true}`.
+    Al tercer intento con objeción de la misma cadena se marca `escalar`
+    (nunca `rechazada`). Si el Mando está caído, la petición queda en
+    `reparaciones-pendientes.jsonl` para el director. `http` es inyectable.
+    """
+    http = http or _http_post_json
+    frases = []
+    for tid, objecion, intentos in puertas:
+        escalar = intentos >= TOPE_INTENTOS_BLOQUEANTE
+        peticion = {"ids": [tid], "automatico": True}
+        if escalar:
+            peticion["escalar"] = True
+        ok = False
+        try:
+            ok = bool(http("%s/api/mando/reintentar" % base, peticion))
+        except Exception:
+            ok = False
+        if not ok:
+            peticion["tid"] = tid
+            peticion["objecion"] = objecion
+            _pendir_reparacion(raiz, peticion)
+            frases.append(
+                "Mando caído: reparación de %s queda en pendientes para el director"
+                % tid
+            )
+            continue
+        frases.append(aviso_de_reparacion(tid, escalar))
+        try:
+            director_chat.publicar(
+                aviso_de_reparacion(tid, escalar),
+                de="desatascador",
+                rol="sistema",
+                tipo="aviso",
+                canal="mando",
+                canales=["claude-cowork"],
+                tarea=tid,
+            )
+        except Exception:
+            pass
+    return frases
+
+
 def _tareas_de_las_colas(olas=None):
     """{id: tarea} de todas las colas. Para saber qué archivos declaró cada una."""
     olas = olas or os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -632,16 +741,18 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
     # reloj del atasco se había reiniciado con un commit mío.)
     tareas_conocidas = _tareas_de_las_colas()
     declarados = {i: list(t.get("archivos") or []) for i, t in tareas_conocidas.items()}
-    puertas, parciales = clasificar_puertas(progreso, ahora, declarados)
+    puertas, parciales, reparar = clasificar_puertas(progreso, ahora, declarados)
     if puertas:
         frases += rechazar_puertas(puertas)
+    if reparar:
+        frases += reparar_puertas(reparar, raiz=raiz)
     if parciales:
         frases += aprobar_con_seguimiento(
             parciales, progreso=progreso, tareas=tareas_conocidas
         )
 
     atascado, razon = orquestador_atascado(vivo, len(procesos), quieto)
-    if atascado and not puertas and not parciales:
+    if atascado and not puertas and not parciales and not reparar:
         frases.append(
             "ATASCO: orquestador %s y no hay nada que yo pueda resolver solo" % razon
         )
