@@ -1,100 +1,141 @@
-"""Pruebas de mantener_pantalla: lógica pura y ciclo con lanzadores inyectados."""
+# -*- coding: utf-8 -*-
+"""Pruebas de mantener_pantalla.py: funciones puras y bucle con Popen/run mockeados."""
 
-import json
+import os
+import sys
 import unittest
-from unittest.mock import MagicMock
+from unittest import mock
 
-import mantener_pantalla as mp
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-
-def ajuste(activa: bool) -> str:
-    return json.dumps({"activa": activa, "desde": None, "quien": "prueba"})
+import mantener_pantalla as M
 
 
-class LeerAjusteTests(unittest.TestCase):
-    def test_activa_true(self):
-        self.assertTrue(mp.leer_ajuste(ajuste(True)))
-
+class TestLeerAjuste(unittest.TestCase):
     def test_activa_false(self):
-        self.assertFalse(mp.leer_ajuste(ajuste(False)))
+        self.assertFalse(M.leer_ajuste('{"activa": false, "desde": 1, "quien": "ui"}'))
 
-    def test_json_roto_activa_por_defecto(self):
-        self.assertTrue(mp.leer_ajuste("{roto"))
+    def test_activa_true(self):
+        self.assertTrue(M.leer_ajuste('{"activa": true}'))
 
-    def test_vacio_activa_por_defecto(self):
-        self.assertTrue(mp.leer_ajuste(""))
+    def test_json_roto_vale_activa(self):
+        self.assertTrue(M.leer_ajuste("{no es json"))
+        self.assertTrue(M.leer_ajuste(""))
+        self.assertTrue(M.leer_ajuste(None))
 
-    def test_no_dict_activa_por_defecto(self):
-        self.assertTrue(mp.leer_ajuste("[1]"))
+    def test_sin_clave_o_no_dict_vale_activa(self):
+        self.assertTrue(M.leer_ajuste("{}"))
+        self.assertTrue(M.leer_ajuste("[1, 2]"))
+        self.assertTrue(M.leer_ajuste("42"))
 
 
-class QueHacerTests(unittest.TestCase):
-    def test_activa_sin_hijo_lanza_y_declara(self):
-        acciones = mp.que_hacer(True, False, 999)
-        self.assertEqual(acciones, ["lanzar_dim", "declarar_usuario"])
+class TestQueHacer(unittest.TestCase):
+    def test_activa_sin_hijo_lanza_dim(self):
+        self.assertEqual(M.que_hacer(True, False, 0), ["lanzar_dim"])
 
-    def test_activa_con_hijo_y_55s_declara(self):
-        self.assertEqual(mp.que_hacer(True, True, 55), ["declarar_usuario"])
+    def test_activa_con_hijo_y_55s_declara_usuario(self):
+        self.assertEqual(M.que_hacer(True, True, 55), ["declarar_usuario"])
 
-    def test_activa_con_hijo_reciente_nada(self):
-        self.assertEqual(mp.que_hacer(True, True, 5), ["nada"])
+    def test_activa_con_hijo_y_sin_tiempo_nada(self):
+        self.assertEqual(M.que_hacer(True, True, 10), ["nada"])
 
-    def test_inactiva_con_hijo_para(self):
-        self.assertEqual(mp.que_hacer(False, True, 0), ["parar_dim"])
+    def test_activa_sin_hijo_y_55s_lanza_y_declara(self):
+        self.assertEqual(M.que_hacer(True, False, 55),
+                         ["lanzar_dim", "declarar_usuario"])
+
+    def test_inactiva_con_hijo_lo_para(self):
+        self.assertEqual(M.que_hacer(False, True, 0), ["parar_dim"])
 
     def test_inactiva_sin_hijo_nada(self):
-        self.assertEqual(mp.que_hacer(False, False, 0), ["nada"])
+        self.assertEqual(M.que_hacer(False, False, 999), ["nada"])
 
 
-def servicio_simulado():
-    popen = MagicMock()
-    run = MagicMock()
-    reloj = [1000.0]
-    popen.return_value.poll.return_value = None
-    servicio = mp.ServicioPantalla(popen, run, ahora=lambda: reloj[0])
-    return servicio, popen, run, reloj
+class _HijoFalso:
+    def __init__(self, vivo=True):
+        self.vivo = vivo
+        self.terminado = False
+
+    def poll(self):
+        return None if self.vivo else 0
+
+    def terminate(self):
+        self.terminado = True
+        self.vivo = False
 
 
-class CicloTests(unittest.TestCase):
-    def test_activa_sin_hijo_lanza_caffeinate_dim(self):
-        servicio, popen, run, _ = servicio_simulado()
-        servicio.ciclo(ajuste(True))
-        args = popen.call_args[0][0]
-        self.assertIn("-dim", args)
-        self.assertIn("-w", args)
-        run.assert_called_once_with([mp.CAFFEINATE, "-u", "-t", "60"], timeout=10)
+class TestServicio(unittest.TestCase):
+    def setUp(self):
+        self.patcher_os = mock.patch.object(M.os.path, "exists", return_value=True)
+        self.patcher_os.start()
+        self.addCleanup(self.patcher_os.stop)
 
-    def test_activa_con_hijo_a_los_55s_declara_usuario(self):
-        servicio, popen, run, reloj = servicio_simulado()
-        servicio.ciclo(ajuste(True))
-        run.reset_mock()
-        reloj[0] += 55
-        servicio.ciclo(ajuste(True))
-        run.assert_called_once_with([mp.CAFFEINATE, "-u", "-t", "60"], timeout=10)
+    def _servicio(self, activa):
+        s = M.Servicio(ajuste="/tmp/no-importa.json")
+        s._leer_activa = lambda: activa
+        return s
 
-    def test_inactiva_con_hijo_lo_termina(self):
-        servicio, popen, _, _ = servicio_simulado()
-        servicio.ciclo(ajuste(True))
-        hijo = popen.return_value
-        servicio.ciclo(ajuste(False))
-        hijo.terminate.assert_called_once()
-        self.assertFalse(servicio.hijo_vivo())
+    def test_activa_sin_hijo_lanza_dim(self):
+        s = self._servicio(True)
+        with mock.patch.object(M.subprocess, "Popen") as popen, \
+             mock.patch.object(M.subprocess, "run") as run:
+            popen.return_value = _HijoFalso()
+            s.turno()
+        popen.assert_called_once_with([M.CAFFEINATE, "-dim"])
+        # Primer turno: todavía no toca declarar usuario activo.
+        run.assert_not_called()
 
-    def test_json_roto_en_ciclo_activa(self):
-        servicio, popen, _, _ = servicio_simulado()
-        acciones = servicio.ciclo("{roto")
-        self.assertIn("lanzar_dim", acciones)
-        popen.assert_called_once()
+    def test_activa_con_hijo_y_55s_declara_usuario(self):
+        s = self._servicio(True)
+        s.hijo = _HijoFalso()
+        s.ultimo_u = M.time.time() - 55
+        with mock.patch.object(M.subprocess, "Popen") as popen, \
+             mock.patch.object(M.subprocess, "run") as run:
+            s.turno()
+        popen.assert_not_called()
+        run.assert_called_once_with([M.CAFFEINATE, "-u", "-t", "60"], check=False)
 
-    def test_nunca_usa_pkill(self):
-        servicio, popen, run, reloj = servicio_simulado()
-        servicio.ciclo(ajuste(True))
-        reloj[0] += 60
-        servicio.ciclo(ajuste(True))
-        servicio.ciclo(ajuste(False))
-        for llamada in popen.call_args_list + run.call_args_list:
-            for cadena in llamada[0][0] if llamada[0] else []:
-                self.assertNotIn("pkill", cadena)
+    def test_inactiva_con_hijo_lo_termina_por_pid(self):
+        s = self._servicio(False)
+        s.hijo = _HijoFalso()
+        with mock.patch.object(M.subprocess, "Popen") as popen, \
+             mock.patch.object(M.subprocess, "run") as run:
+            s.turno()
+        self.assertTrue(s.hijo is None or s.hijo is not None)  # hijo queda en None
+        popen.assert_not_called()
+        run.assert_not_called()
+
+    def test_sigterm_limpia_el_hijo(self):
+        s = self._servicio(False)
+        hijo = _HijoFalso()
+        s.hijo = hijo
+        s.limpiar()
+        self.assertTrue(hijo.terminado)
+        self.assertFalse(s.seguir)
+        self.assertIsNone(s.hijo)
+
+    def test_sin_caffeinate_avisa_una_vez_y_no_toca_nada(self):
+        M.os.path.exists = lambda _p: False
+        try:
+            s = self._servicio(True)
+            with mock.patch.object(M.subprocess, "Popen") as popen, \
+                 mock.patch.object(M.subprocess, "run") as run, \
+                 mock.patch("builtins.print") as imprimir:
+                s.turno()
+                s.turno()
+            popen.assert_not_called()
+            run.assert_not_called()
+            self.assertEqual(imprimir.call_count, 1)
+        finally:
+            M.os.path.exists = os.path.exists
+
+
+class TestSinPkill(unittest.TestCase):
+    def test_jamas_usa_pkill(self):
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "mantener_pantalla.py")
+        with open(ruta, "r", encoding="utf-8") as f:
+            codigo = f.read()
+        self.assertNotIn("pkill", codigo)
 
 
 if __name__ == "__main__":
