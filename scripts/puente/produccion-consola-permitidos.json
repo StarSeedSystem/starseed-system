@@ -1,0 +1,10 @@
+{
+  "descripcion": "Patrones de errores de consola permitidos en el humo de producción. Solo errores ajenos a la app (extensiones del navegador). Se versiona; una propuesta nueva entra solo si es ajena (§6).",
+  "permitidos": [
+    "chrome-extension://",
+    "moz-extension://",
+    "safari-extension://",
+    "extensions::",
+    "net::ERR_BLOCKED_BY_CLIENT"
+  ]
+}
