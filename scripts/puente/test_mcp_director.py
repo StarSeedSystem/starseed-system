@@ -90,7 +90,7 @@ class PruebasAtender(unittest.TestCase):
         r = mcp_director.atender(self._p("ping"))
         self.assertEqual(r, {"jsonrpc": "2.0", "id": 1, "result": {}})
 
-    def test_tools_list_cuatro_herramientas(self):
+    def test_tools_list_diez_herramientas(self):
         r = mcp_director.atender(self._p("tools/list"))
         nombres = [h["name"] for h in r["result"]["tools"]]
         self.assertEqual(
@@ -100,6 +100,12 @@ class PruebasAtender(unittest.TestCase):
                 "director_decir",
                 "director_bandeja",
                 "director_responder",
+                "produccion_estado",
+                "produccion_candidatos",
+                "produccion_historial",
+                "produccion_vetar",
+                "produccion_pausar",
+                "produccion_reanudar",
             ],
         )
 
@@ -174,6 +180,160 @@ class PruebasAtender(unittest.TestCase):
     def test_metodo_desconocido(self):
         r = mcp_director.atender(self._p("no/existe"))
         self.assertEqual(r["error"]["code"], -32601)
+
+
+class PruebasProduccion(unittest.TestCase):
+    """Herramientas de producción (§9, fila MCP) con rutas temporales."""
+
+    _VARS = (
+        "STARSEED_PRODUCCION_ESTADO",
+        "STARSEED_PRODUCCION_HISTORIAL",
+        "STARSEED_PRODUCCION_VETOS",
+        "STARSEED_PRODUCCION_PAUSA",
+        "STARSEED_PRODUCCION_RAIZ",
+        "STARSEED_PRODUCCION_CANDIDATOS",
+    )
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = self.tmp.name
+        self.rutas = {
+            "STARSEED_PRODUCCION_ESTADO": os.path.join(d, "estado.json"),
+            "STARSEED_PRODUCCION_HISTORIAL": os.path.join(d, "historial.jsonl"),
+            "STARSEED_PRODUCCION_VETOS": os.path.join(d, "vetos", "vetos.json"),
+            "STARSEED_PRODUCCION_PAUSA": os.path.join(d, "pausada.json"),
+            "STARSEED_PRODUCCION_RAIZ": os.path.join(d, "repo"),
+        }
+        os.makedirs(self.rutas["STARSEED_PRODUCCION_RAIZ"])
+        self._guardadas = {v: os.environ.get(v) for v in self._VARS}
+        for v, r in self.rutas.items():
+            os.environ[v] = r
+
+    def tearDown(self):
+        for v in self._VARS:
+            if self._guardadas[v] is None:
+                os.environ.pop(v, None)
+            else:
+                os.environ[v] = self._guardadas[v]
+        self.tmp.cleanup()
+
+    def _p(self, metodo, params=None, ident=1):
+        peticion = {"jsonrpc": "2.0", "id": ident, "method": metodo}
+        if params is not None:
+            peticion["params"] = params
+        return peticion
+
+    def _call(self, nombre, argumentos):
+        r = mcp_director.atender(
+            self._p("tools/call", {"name": nombre, "arguments": argumentos})
+        )
+        assert "error" not in r, r.get("error")
+        return r["result"]
+
+    def _texto(self, nombre, argumentos):
+        r = self._call(nombre, argumentos)
+        self.assertNotIn("isError", r, r)
+        return r["content"][0]["text"]
+
+    def _error(self, nombre, argumentos):
+        r = self._call(nombre, argumentos)
+        self.assertTrue(r.get("isError"), r)
+        return r["content"][0]["text"]
+
+    def test_estado_vacio_sin_archivo(self):
+        datos = json.loads(self._texto("produccion_estado", {}))
+        self.assertEqual(datos["candidatos"], [])
+        self.assertEqual(datos["medios"], {})
+        self.assertFalse(datos["pausada"])
+
+    def test_estado_lee_archivo_y_marca_pausa(self):
+        with open(self.rutas["STARSEED_PRODUCCION_ESTADO"], "w") as f:
+            json.dump({"lote": {"sha": "abc"}, "medios": {"web": "abc"}}, f)
+        self._texto(
+            "produccion_pausar", {"quien": "alex", "motivo": "despliegue manual"}
+        )
+        datos = json.loads(self._texto("produccion_estado", {}))
+        self.assertEqual(datos["lote"], {"sha": "abc"})
+        self.assertTrue(datos["pausada"])
+
+    def test_pausar_escribe_quien_motivo_y_reanudar_borra(self):
+        ruta = self.rutas["STARSEED_PRODUCCION_PAUSA"]
+        texto = self._texto(
+            "produccion_pausar", {"quien": "jev", "motivo": "riesgo alto"}
+        )
+        self.assertIn("pausada por jev", texto)
+        with open(ruta, encoding="utf-8") as f:
+            pausa = json.load(f)
+        self.assertEqual(pausa["quien"], "jev")
+        self.assertEqual(pausa["motivo"], "riesgo alto")
+        self.assertIn("desde", pausa)
+        self.assertIn(
+            "reanudada por alex",
+            self._texto(
+                "produccion_reanudar", {"quien": "alex", "motivo": "resuelto"}
+            ),
+        )
+        self.assertFalse(os.path.exists(ruta))
+        self.assertIn(
+            "no estaba pausada",
+            self._texto(
+                "produccion_reanudar", {"quien": "alex", "motivo": "resuelto"}
+            ),
+        )
+
+    def test_escritura_exige_quien_y_motivo(self):
+        for nombre in ("produccion_vetar", "produccion_pausar", "produccion_reanudar"):
+            with self.subTest(herramienta=nombre):
+                self.assertIn(
+                    "quien y motivo son obligatorios",
+                    self._error(nombre, {"clave": "abc", "quien": "", "motivo": "x"}),
+                )
+
+    def test_vetar_y_candidatos_lo_reflejan(self):
+        candidatas = [
+            {
+                "sha": "abc123def",
+                "asunto": "ola/x · integra xki2: salas",
+                "tarea": "xki2",
+                "archivos": [],
+                "medios": [],
+                "salvavidas": [],
+                "veredictos": {
+                    "revision": {"ok": True, "detalle": "ok"},
+                    "verificacion": {"ok": True, "detalle": "ok"},
+                    "diseno": {"nota": None, "toca_interfaz": False},
+                },
+            }
+        ]
+        ruta_cand = os.path.join(self.tmp.name, "candidatas.json")
+        with open(ruta_cand, "w") as f:
+            json.dump(candidatas, f)
+        os.environ["STARSEED_PRODUCCION_CANDIDATOS"] = ruta_cand
+        texto = self._texto("produccion_candidatos", {})
+        self.assertIn("xki2 [abc123de] elegible", texto)
+        self.assertIn(
+            "Vetado abc123def",
+            self._texto(
+                "produccion_vetar",
+                {"clave": "abc123def", "quien": "alex", "motivo": "no va"},
+            ),
+        )
+        with open(self.rutas["STARSEED_PRODUCCION_VETOS"], encoding="utf-8") as f:
+            self.assertIn("abc123def", json.load(f))
+        texto = self._texto("produccion_candidatos", {})
+        self.assertIn("bloqueada", texto)
+        self.assertIn("vetada por alex", texto)
+
+    def test_historial_sin_archivo_y_con_lineas(self):
+        self.assertIn("Sin historial", self._texto("produccion_historial", {}))
+        with open(self.rutas["STARSEED_PRODUCCION_HISTORIAL"], "w") as f:
+            f.write(json.dumps({"sha": "111", "resultado": "ok"}) + "\n")
+            f.write(json.dumps({"sha": "222", "resultado": "revertido"}) + "\n")
+            f.write("linea rota\n")
+        texto = self._texto("produccion_historial", {"limite": 2})
+        self.assertNotIn("111", texto)
+        self.assertIn("222", texto)
+        self.assertIn("linea rota", texto)
 
 
 class PruebaProcesoReal(unittest.TestCase):

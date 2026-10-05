@@ -1,17 +1,35 @@
 #!/usr/bin/env python3
-"""Servidor MCP del Chat Director: JSON-RPC 2.0 por stdio, sin dependencias."""
+"""Servidor MCP del Chat Director: JSON-RPC 2.0 por stdio, sin dependencias.
+
+Además de las herramientas del Chat Director, suma las de producción de
+`architecture/director-produccion.md` §9 (fila MCP): estado, candidatos,
+historial, vetar, pausar y reanudar.
+
+Las rutas se pueden inyectar con variables de entorno (útil en pruebas):
+STARSEED_PRODUCCION_ESTADO, STARSEED_PRODUCCION_HISTORIAL,
+STARSEED_PRODUCCION_VETOS, STARSEED_PRODUCCION_PAUSA,
+STARSEED_PRODUCCION_RAIZ (raíz del repo para `candidatos`) y
+STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
+"""
 
 import json
+import os
 import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import director_chat
+import produccion_candidatos as pc
 
 PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
-INSTRUCCIONES = "Lee y escribe en el Chat Director del Puente de Mando de StarSeed."
+INSTRUCCIONES = (
+    "Lee y escribe en el Chat Director del Puente de Mando de StarSeed, "
+    "y consulta, veta, pausa o reanuda la producción."
+)
 
 
 def _s(tipo, descripcion, **extra):
@@ -28,6 +46,8 @@ _P_CANAL = _s(
     "string", "Canal del chat (por defecto «ide»).", enum=list(director_chat.CANALES)
 )
 _P_MODELO = _s("string", "Motor/modelo que firma el mensaje («motor/modelo»).")
+_P_QUIEN = _s("string", "Quién firma la acción (director o persona). Obligatorio.")
+_P_MOTIVO = _s("string", "Motivo de la acción; queda registrado. Obligatorio.")
 
 
 def _esquema(propiedades, requeridos):
@@ -70,6 +90,23 @@ ESQUEMAS = {
         },
         ["id", "texto", "de", "canal"],
     ),
+    "produccion_estado": _esquema({}, []),
+    "produccion_candidatos": _esquema({"limite": _P_LIMITE}, []),
+    "produccion_historial": _esquema({"limite": _P_LIMITE}, []),
+    "produccion_vetar": _esquema(
+        {
+            "clave": _s("string", "El `sha` del lote o el `tid` de la tarea a vetar."),
+            "quien": _P_QUIEN,
+            "motivo": _P_MOTIVO,
+        },
+        ["clave", "quien", "motivo"],
+    ),
+    "produccion_pausar": _esquema(
+        {"quien": _P_QUIEN, "motivo": _P_MOTIVO}, ["quien", "motivo"]
+    ),
+    "produccion_reanudar": _esquema(
+        {"quien": _P_QUIEN, "motivo": _P_MOTIVO}, ["quien", "motivo"]
+    ),
 }
 
 _HERR = [
@@ -77,6 +114,12 @@ _HERR = [
     ("director_decir", "Publica un mensaje en el chat."),
     ("director_bandeja", "Lista los mensajes pendientes de un canal."),
     ("director_responder", "Responde a un mensaje y marca la entrega."),
+    ("produccion_estado", "Estado del director de producción (y si está pausado)."),
+    ("produccion_candidatos", "Candidatas a publicar y su elegibilidad (puerta 1)."),
+    ("produccion_historial", "Últimas entradas del historial de producción."),
+    ("produccion_vetar", "Veta un sha o una tarea con motivo."),
+    ("produccion_pausar", "Pausa la publicación (las puertas siguen corriendo)."),
+    ("produccion_reanudar", "Quita la pausa de producción."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -106,9 +149,180 @@ def _listar(registros, vacio):
     return "\n".join(lineas) if lineas else vacio
 
 
+# --- Producción: rutas inyectables y helpers (§9, fila MCP) ---
+
+_ESTADO_VACIO = {"lote": None, "candidatos": [], "medios": {}}
+
+
+def _raiz_repo():
+    return os.environ.get("STARSEED_PRODUCCION_RAIZ") or str(
+        Path(__file__).resolve().parents[2]
+    )
+
+
+def _ruta_estado():
+    return os.environ.get("STARSEED_PRODUCCION_ESTADO") or os.path.join(
+        _raiz_repo(), "starseed_memory_root", "mando", "produccion-estado.json"
+    )
+
+
+def _ruta_historial():
+    return os.environ.get("STARSEED_PRODUCCION_HISTORIAL") or os.path.expanduser(
+        "~/.starseed/produccion/historial.jsonl"
+    )
+
+
+def _ruta_vetos():
+    return os.environ.get("STARSEED_PRODUCCION_VETOS") or pc.RUTA_VETOS
+
+
+def _ruta_pausa():
+    return os.environ.get("STARSEED_PRODUCCION_PAUSA") or os.path.expanduser(
+        "~/.starseed/produccion-pausada.json"
+    )
+
+
+def _quien_motivo(args):
+    """Exige `quien` y `motivo` en las herramientas de escritura."""
+    quien = str(args.get("quien") or "").strip()
+    motivo = str(args.get("motivo") or "").strip()
+    if not quien or not motivo:
+        raise ValueError("quien y motivo son obligatorios")
+    return quien, motivo
+
+
+def _limite(args, defecto=20):
+    limite = args.get("limite")
+    limite = defecto if limite is None else int(limite)
+    if not 1 <= limite <= 200:
+        raise ValueError("limite fuera de rango (1-200): %d" % limite)
+    return limite
+
+
+def _estado():
+    datos = None
+    try:
+        with open(_ruta_estado(), encoding="utf-8") as f:
+            datos = json.load(f)
+    except Exception:
+        datos = None
+    if not isinstance(datos, dict):
+        datos = dict(_ESTADO_VACIO)
+    datos["pausada"] = os.path.exists(_ruta_pausa())
+    return json.dumps(datos, ensure_ascii=False, indent=2, sort_keys=True)
+
+
+def _candidatas():
+    """Candidatas: de un JSON inyectado si existe; si no, de git en la raíz."""
+    inyeccion = os.environ.get("STARSEED_PRODUCCION_CANDIDATOS")
+    if inyeccion:
+        try:
+            with open(inyeccion, encoding="utf-8") as f:
+                datos = json.load(f)
+            return [c for c in datos if isinstance(c, dict)]
+        except Exception:
+            return []
+    return pc.candidatos(_raiz_repo())
+
+
+def _candidatos(args):
+    limite = _limite(args)
+    vetos = pc.cargar_vetos(_ruta_vetos())
+    lineas = []
+    for c in _candidatas()[:limite]:
+        ok, motivos = pc.elegible(c, vetos=vetos)
+        estado = "elegible" if ok else "bloqueada: %s" % "; ".join(motivos)
+        lineas.append(
+            "%s [%s] %s — %s"
+            % (
+                c.get("tarea", "?"),
+                str(c.get("sha") or "")[:8],
+                estado,
+                str(c.get("asunto") or "")[:80],
+            )
+        )
+    return "\n".join(lineas) if lineas else "No hay candidatos pendientes."
+
+
+def _historial(args):
+    limite = _limite(args, defecto=10)
+    try:
+        with open(_ruta_historial(), encoding="utf-8") as f:
+            lineas = [l for l in f.read().splitlines() if l.strip()]
+    except OSError:
+        return "Sin historial todavía."
+    salida = []
+    for linea in lineas[-limite:]:
+        try:
+            d = json.loads(linea)
+            resumen = " ".join(
+                str(d[k]) for k in ("cuando", "fecha", "sha", "resultado") if d.get(k)
+            )
+            salida.append(resumen or linea[:160])
+        except (json.JSONDecodeError, AttributeError):
+            salida.append(linea[:160])
+    return "\n".join(salida) if salida else "Sin historial todavía."
+
+
+def _escribir_pausa(quien, motivo):
+    """Crea el interruptor de §4 con escritura atómica (tmp + replace)."""
+    ruta = _ruta_pausa()
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    datos = {
+        "desde": datetime.now().isoformat(timespec="seconds"),
+        "quien": quien,
+        "motivo": motivo,
+    }
+    fd, tmp = tempfile.mkstemp(prefix=".pausa-", dir=os.path.dirname(ruta))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        os.replace(tmp, ruta)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False
+    return True
+
+
+def _produccion(nombre, args):
+    if nombre == "produccion_estado":
+        return _estado()
+    if nombre == "produccion_candidatos":
+        return _candidatos(args)
+    if nombre == "produccion_historial":
+        return _historial(args)
+    if nombre == "produccion_vetar":
+        clave = str(args.get("clave") or "").strip()
+        quien, motivo = _quien_motivo(args)
+        if not clave:
+            raise ValueError("clave (sha o tarea) es obligatoria")
+        if not pc.vetar(clave, quien, motivo, ruta=_ruta_vetos()):
+            raise ValueError("no se pudo escribir el veto de %s" % clave)
+        return "Vetado %s por %s." % (clave, quien)
+    if nombre == "produccion_pausar":
+        quien, motivo = _quien_motivo(args)
+        if not _escribir_pausa(quien, motivo):
+            raise ValueError("no se pudo escribir el interruptor de pausa")
+        return "Producción pausada por %s: %s" % (quien, motivo)
+    if nombre == "produccion_reanudar":
+        quien, _motivo = _quien_motivo(args)
+        try:
+            os.unlink(_ruta_pausa())
+        except FileNotFoundError:
+            return "Producción no estaba pausada; se reanuda por %s." % quien
+        return "Producción reanudada por %s." % quien
+    raise ValueError("herramienta desconocida: %s" % nombre)
+
+
 def _llamar(nombre, args):
     """Ejecuta una herramienta y devuelve su texto; ValueError si falla."""
     args = args or {}
+    if nombre.startswith("produccion_"):
+        return _produccion(nombre, args)
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)
