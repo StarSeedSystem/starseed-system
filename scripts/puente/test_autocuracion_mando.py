@@ -43,6 +43,22 @@ class Disco(unittest.TestCase):
         self.assertIn("next-cache", A.ids_a_limpiar(2.0))
 
 
+class Llenado(unittest.TestCase):
+    def test_huecos_libres_con_tareas_desatascables_se_llenan(self):
+        si, porque = A.decidir_llenado({"puede": True, "huecos": 2, "meter": ["PA1005D", "FLU1005E"]}, 1000, None)
+        self.assertTrue(si)
+        self.assertIn("PA1005D", porque)
+
+    def test_sin_huecos_o_sin_nada_que_meter_no_toca(self):
+        self.assertFalse(A.decidir_llenado({"puede": True, "huecos": 0, "meter": ["X"]}, 1000, None)[0])
+        self.assertFalse(A.decidir_llenado({"puede": True, "huecos": 2, "meter": []}, 1000, None)[0])
+        self.assertFalse(A.decidir_llenado({"puede": False, "huecos": 2, "meter": ["X"]}, 1000, None)[0])
+        self.assertFalse(A.decidir_llenado(None, 1000, None)[0])
+
+    def test_como_mucho_cada_cinco_minutos(self):
+        self.assertFalse(A.decidir_llenado({"puede": True, "huecos": 1, "meter": ["X"]}, 1000, 1000 - 60)[0])
+
+
 class PublicacionEnMarcha(unittest.TestCase):
     def test_solo_cuenta_si_compila_o_empuja(self):
         corriendo_build = {"estado": "corriendo", "pasos": [{"clave": "build", "estado": "corriendo"}]}
@@ -64,9 +80,12 @@ class Revisar(unittest.TestCase):
     def tearDown(self):
         A.ESTADO, A.PUBLICACION = self._estado, self._pub
 
-    def _revisar(self, sondas, libre, ahora=100_000):
+    def _revisar(self, sondas, libre, ahora=100_000, decision=None):
         it = iter(sondas)
+        self.aplicadas = getattr(self, "aplicadas", [])
+        decision = decision or {"puede": False}
         return A.revisar(
+            asignar_fn=lambda: (decision, lambda: self.aplicadas.append(1) or ["cola viva actualizada"]),
             ahora=ahora, sondear_fn=lambda: next(it), reiniciar_fn=lambda: self.reinicios.append(1),
             limpiar_fn=lambda ids: (self.limpiezas.append(ids) or {"ok": True, "limpiados": list(ids)}),
             libre_fn=lambda: libre, avisar_fn=self.avisos.append, dormir=lambda s: None)
@@ -89,6 +108,18 @@ class Revisar(unittest.TestCase):
         self.assertEqual(len(self.limpiezas), 1)
         self._revisar([True], 4.0, ahora=100_000 + 3700)
         self.assertEqual(len(self.limpiezas), 2)
+
+
+class RevisarLlenado(Revisar):
+    def test_mete_trabajo_en_los_huecos_libres_y_lo_dice(self):
+        e = self._revisar([True], 20.0, decision={"puede": True, "huecos": 2, "meter": ["PA1005D"]})
+        self.assertEqual(self.aplicadas, [1])
+        self.assertTrue(any("capacidad" in h for h in e["hechos"]))
+        self.assertTrue(any("PA1005D" in a for a in self.avisos))
+
+    def test_con_el_mando_caido_no_toca_la_cola(self):
+        self._revisar([False, False, False], 20.0, decision={"puede": True, "huecos": 2, "meter": ["PA1005D"]})
+        self.assertEqual(self.aplicadas, [])
 
 
 if __name__ == "__main__":

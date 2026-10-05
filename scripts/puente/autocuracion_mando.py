@@ -17,6 +17,12 @@ arreglar desde la máquina (lo de la pestaña lo arregla `src/lib/mando/autocura
    cachés de npm, Playwright, registros de Drive y de olas viejas. La caché de builds de Next
    solo se toca por debajo de 3 GB, porque sin ella la siguiente compilación tarda mucho más.
    La publicación usa la misma función antes de rendirse por falta de sitio.
+3. **Trabajadores parados con trabajo desatascable.** (04:05, Alex: «aún no funciona, solo hay 1
+   agente».) Quedaba UN agente porque todo lo demás esperaba a dependencias rechazadas que no
+   llegarán nunca, y la decisión de desatascarlas (`asignar_huecos.decidir`, el botón
+   «Reintentar con cambio automático» del Mando) estaba preparada sin que nadie la aplicara.
+   Ahora, si hay huecos libres y tareas que meter, se aplica sola (como mucho cada 5 min) y se
+   avisa. `decidir` ya respeta la pausa, la conversación de voz y el disco.
 
 Todo lo que hace queda en `~/.starseed/autocuracion-mando.json` y en el Chat Director.
 Las decisiones son funciones PURAS (`decidir_reinicio`, `ids_a_limpiar`) con sus pruebas.
@@ -41,6 +47,7 @@ ESPERA_ENTRE_SONDAS_S = 5
 TOPE_SONDA_S = 15
 REINICIO_MINIMO_S = 10 * 60
 LIMPIEZA_MINIMA_S = 60 * 60
+LLENADO_MINIMO_S = 5 * 60
 DISCO_AVISO_GB = 6.0
 DISCO_CRITICO_GB = 3.0
 
@@ -88,6 +95,19 @@ def publicacion_en_marcha(datos):
         if paso.get("clave") in PASOS_QUE_LO_PARAN and paso.get("estado") == "corriendo":
             return True
     return False
+
+
+def decidir_llenado(decision, ahora, ultimo_llenado, minimo_s=LLENADO_MINIMO_S):
+    """PURA. ¿Se aplica la decisión de `asignar_huecos.decidir`? Devuelve (sí/no, por qué)."""
+    if not isinstance(decision, dict) or not decision.get("puede"):
+        return False, "nada que llenar"
+    meter = list(decision.get("meter") or [])
+    huecos = int(decision.get("huecos") or 0)
+    if not meter or huecos <= 0:
+        return False, "sin huecos libres o sin tareas que meter"
+    if ultimo_llenado and ahora - ultimo_llenado < minimo_s:
+        return False, "ya llené los huecos hace %d s" % int(ahora - ultimo_llenado)
+    return True, "%d trabajador(es) libre(s): meto %s" % (huecos, ", ".join(meter))
 
 
 # ── la máquina ──────────────────────────────────────────────────────────────────
@@ -177,8 +197,18 @@ def _reiniciar():
     reconstruir_mando.reiniciar_mando()
 
 
+def _asignar():
+    """(decisión, aplicar) de `asignar_huecos`: la misma lógica que el botón del Mando."""
+    if DIRECTORIO not in sys.path:
+        sys.path.insert(0, DIRECTORIO)
+    import asignar_huecos
+    estado = asignar_huecos.reunir()
+    decision = asignar_huecos.decidir(estado)
+    return decision, (lambda: asignar_huecos.aplicar(estado, decision))
+
+
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
-            libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep):
+            libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO)."""
     ahora = ahora if ahora is not None else time.time()
     estado = _leer_json(ESTADO, {}) if ESTADO else {}
@@ -213,6 +243,19 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
         hechos.append("disco con %.1f GB: limpiado %s" % (libre, ", ".join(limpiados) or (r.get("detalle") or "nada")))
         if limpiados:
             avisar_fn("Autocuración: quedaban %.1f GB libres y limpié lo regenerable (%s)." % (libre, ", ".join(limpiados)))
+
+    # Trabajadores parados con trabajo que se puede desatascar: se llenan solos.
+    if any(sondas):
+        try:
+            decision, aplicar = asignar_fn()
+            llenar, porque_ll = decidir_llenado(decision, ahora, estado.get("ultimo_llenado"))
+            if llenar:
+                hechas = aplicar() or []
+                estado["ultimo_llenado"] = ahora
+                hechos.append("capacidad: %s" % porque_ll)
+                avisar_fn("Autocuración: %s (%s)." % (porque_ll, "; ".join(hechas)[:400]))
+        except Exception as e:
+            hechos.append("no pude llenar los huecos: %s: %s" % (type(e).__name__, e))
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),
