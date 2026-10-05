@@ -1,0 +1,65 @@
+{
+ "ola": "nube-20261005",
+ "tareas": [
+  {
+   "id": "BLQ1005D",
+   "ola": "Ola 1005Z · Bloqueadas: una sola sección y reparación automática con los directores (reparar en vez de rechazar)",
+   "depende": [],
+   "titulo": "Bloqueadas · el desatascador repara en vez de rechazar (objeción como cambio) y escala al tercer intento",
+   "archivos": [
+    "scripts/puente/desatascar.py",
+    "scripts/puente/test_desatascar.py"
+   ],
+   "prompt": "CONTRATO: `architecture/bloqueadas-reparacion.md`. Léelo ENTERO antes de empezar: el diagnóstico de §1 está medido y es la fuente de verdad. Petición de Alex (2026-10-05): unificar las dos secciones de bloqueadas del Mando, hacer que los reintentos automáticos funcionen con los directores, y no rechazar lo que puede servir con cambios coherentes.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red. Sin dependencias nuevas.\n\nTU TAREA (BLQ1005D): §4, desatascador. Cuando una revisión bloqueante se confirma, en vez de rechazar en automático: llama a `POST http://127.0.0.1:9002/api/mando/reintentar` con `{ids:[tid], automatico:true}` (cliente HTTP inyectable). Si el Mando no responde, escribe la petición en `starseed_memory_root/mando/reparaciones-pendientes.jsonl` para el director. Solo al tercer intento con objeción de la misma cadena marca `escalar` (no `rechazada`). El aviso al Chat Director dice «reparación automática de X con la objeción del revisor». Pruebas: primera objeción → reparación; tercera → escalado; Mando caído → archivo pendiente.",
+   "dependencias_ya_en_main": [
+    "BLQ1005Ad"
+   ]
+  },
+  {
+   "id": "BLQ1005B",
+   "ola": "Ola 1005Z · Bloqueadas: una sola sección y reparación automática con los directores (reparar en vez de rechazar)",
+   "depende": [],
+   "titulo": "Bloqueadas · la ruta del medidor delega en /api/mando/reintentar y deja de escribir progreso.json a mano",
+   "archivos": [
+    "src/app/api/mando/medidores/route.ts",
+    "src/lib/mando/medidores.ts",
+    "src/lib/mando/__tests__/medidores-bloqueadas.test.ts"
+   ],
+   "prompt": "CONTRATO: `architecture/bloqueadas-reparacion.md`. Léelo ENTERO antes de empezar: el diagnóstico de §1 está medido y es la fuente de verdad. Petición de Alex (2026-10-05): unificar las dos secciones de bloqueadas del Mando, hacer que los reintentos automáticos funcionen con los directores, y no rechazar lo que puede servir con cambios coherentes.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red. Sin dependencias nuevas.\n\nTU TAREA (BLQ1005B): §1.1 y §3. En `medidores/route.ts`, las acciones de bloqueadas (reintentar, reintentar con cambio, reintentar con cambio automático, descartar) llaman a las funciones de BLQ1005A (importadas, no copiadas) y devuelven su resultado por id. Se acabó escribir `progreso.json` sin cerrojo y se acabó el `continue` silencioso: una tarea en cola que aún no arrancó responde «en cola, posición N». En `medidores.ts`: `accionesDeBloqueada` ofrece Reparar ahora, Reparar con mi cambio, Escalar a director y Descartar. `dependenciasMuertas` considera vivas las dependencias que están en cualquier cola aunque no tengan entrada en progreso. Pruebas de los tres casos (en progreso, solo en cola, inexistente de verdad).",
+   "dependencias_ya_en_main": [
+    "BLQ1005Ad"
+   ]
+  },
+  {
+   "id": "BLQ1005E",
+   "ola": "Ola 1005Z · Bloqueadas: una sola sección y reparación automática con los directores (reparar en vez de rechazar)",
+   "depende": [],
+   "titulo": "Bloqueadas · el director de orquestación repara de forma continua con Jev (tope por hora) y escala a Codex/Claude",
+   "archivos": [
+    "scripts/puente/director-orquestacion.py",
+    "scripts/puente/reparacion_logica.py",
+    "scripts/puente/test_reparacion_logica.py"
+   ],
+   "prompt": "CONTRATO: `architecture/bloqueadas-reparacion.md`. Léelo ENTERO antes de empezar: el diagnóstico de §1 está medido y es la fuente de verdad. Petición de Alex (2026-10-05): unificar las dos secciones de bloqueadas del Mando, hacer que los reintentos automáticos funcionen con los directores, y no rechazar lo que puede servir con cambios coherentes.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red. Sin dependencias nuevas.\n\nTU TAREA (BLQ1005E): §4, director. `reparacion_logica.py` (puro): de progreso más colas, las tareas en estado de fallo o bloqueo sin sucesor vivo; topes de 6 reparaciones por hora y 2 simultáneas por ola; preguntas para `decidir.consultar_lote` (`elegir`: reparar, escalar o esperar, con el contexto del fallo) y una regla de respaldo con la tabla de §2 si Jev no responde. En `director-orquestacion.py`, dentro de `revisar()` (cada 180 s): usar `reparacion_logica`, llamar a `/api/mando/reintentar` y consumir `mando/reparaciones-pendientes.jsonl`. `continuar_estancadas` ya no sale por haber orquestador vivo: actúa por tarea. Borra el código muerto `reintentar_sin_cambios`. Escalar = reintento con `escalar:true` (Codex) y, si vuelve a fallar, aviso al Chat Director para claude-cowork con el contexto completo. Una línea al Chat Director por reparación o escalado. Pruebas de la lógica pura y de un ciclo con todo inyectado.",
+   "dependencias_ya_en_main": [
+    "BLQ1005Ad"
+   ]
+  },
+  {
+   "id": "DIS1005E",
+   "ola": "Ola 1005D · Director de diseño: contexto completo, armonía y geometría sagrada, verificación en todas las pantallas",
+   "depende": [],
+   "titulo": "Director de diseño · el bucle: brief al entrar, verificación al integrar, aprendizaje, informe horario y servicio launchd",
+   "archivos": [
+    "scripts/puente/director-diseno.py",
+    "scripts/puente/test_director_diseno.py",
+    "scripts/puente/instalar-servicios.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-diseno.md`. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-04): un director de diseño que mejore cada tarea y cada agente con el contexto completo, una estética coherente basada en patrones armónicos y geometría sagrada, la identidad de cada contexto, referencias profesionales y tendencias, para todas las pantallas, dispositivos y sistemas.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales; claves SOLO de `os.environ`.\n\nTU TAREA (DIS1005E): las §1, §5 y §8. Usa `diseno_brief` (DIS1005B), `diseno_reglas` y `diseno_verificar.mjs` (DIS1005D) y el bloque `diseno` de la configuración (DIS1005G). El ciclo `ciclo(ahora, deps) -> resumen` tiene las dependencias inyectables: leer progreso y colas, `mensajes_agente.anotar`, lanzar la verificación por subproceso con tope de 300 s, el juez visual, `director_chat.publicar` y `puente.decir`. El brief se escribe UNA vez por tarea de interfaz en cuanto pasa a `en_curso`, con una marca en `~/.starseed/diseno/estado.json`. La verificación corre cuando una tarea de interfaz pasa a `commit`; las rutas salen de sus archivos con una tabla `RUTAS_POR_CARPETA` (p. ej. `src/components/mando/` → `/mando`) y, si no se deduce ninguna, se dice. Con nota < umbral, `anotar` al agente y al revisor los arreglos y aviso en el Chat Director. El aprendizaje va en `memory/diseno/aprendizajes.md` y `~/.starseed/diseno/pesos-modelos.json`, y la recomendación de rotación, en `~/.starseed/diseno/recomendacion-rotacion.json`. Cada lunes encola una tarea `DIST<AAMMDD>` de tendencias (§2), como mucho una por semana. El informe sale cada hora. Latido `quien=\"director-diseno\"` en cada ciclo. `--una-vez`, `--seco` (no escribe ni publica: imprime) e `--intervalo`. En `instalar-servicios.py`, el servicio `diseno` con `lanzador-tcc.py` y log `/tmp/starseed-diseno.log`. Pruebas con dependencias falsas: brief una sola vez; `commit` de una tarea `.tsx` → verificación y nota; nota baja → `anotar` y aviso; `--seco` no escribe; el lunes una sola tarea de tendencias.",
+   "dependencias_ya_en_main": [
+    "DIS1005B",
+    "DIS1005G"
+   ]
+  }
+ ]
+}
