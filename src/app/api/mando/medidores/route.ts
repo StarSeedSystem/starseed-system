@@ -13,7 +13,7 @@
  *      archivo a la vez y un volcado a medias lo dejaría ilegible.
  */
 import { execFile, spawn } from "node:child_process";
-import { readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -750,11 +750,31 @@ export async function GET(peticion: Request): Promise<Response> {
     );
 }
 
-async function guardar(entradas: Record<string, Entrada>): Promise<void> {
-    const texto = JSON.stringify(entradas, null, 1);
-    const temporal = `${PROGRESO}.tmp-${process.pid}`;
-    await writeFile(temporal, texto, "utf8");
-    await rename(temporal, PROGRESO);
+/**
+ * (2026-10-05, BLQ1005B) Se acabó escribir `progreso.json` sin el cerrojo del
+ * orquestador: antes esta ruta leía, modificaba y reescribía el archivo entero mientras el
+ * orquestador hacía lo mismo a ciegas con su copia en memoria, y ganaba el último. Ahora el
+ * cambio viaja como PARCHE y se aplica dentro del cerrojo fcntl
+ * (`~/.starseed/cerrojos/progreso.lock`), el mismo que usa `/api/mando/reintentar`:
+ * leer-modificar-escribir queda en una sola sección crítica.
+ */
+async function guardarParche(cambios: Record<string, Entrada>): Promise<void> {
+    const programa = [
+        "import fcntl,json,os,sys",
+        "p,l,u=sys.argv[1:4]",
+        "os.makedirs(os.path.dirname(l),exist_ok=True)",
+        "f=open(l,'a+')",
+        "fcntl.flock(f,fcntl.LOCK_EX)",
+        "try:\n d=json.load(open(p)) if os.path.exists(p) else {}\nexcept Exception:\n d={}",
+        "for i,e in json.loads(u).items():\n x=d.get(i) if isinstance(d.get(i),dict) else {}\n x.update(e)\n d[i]=x",
+        "t=p+'.tmp-'+str(os.getpid());json.dump(d,open(t,'w'),ensure_ascii=False,indent=1);os.replace(t,p)",
+        "fcntl.flock(f,fcntl.LOCK_UN);f.close()",
+    ].join("\n");
+    const cerrojo = path.join(os.homedir(), ".starseed", "cerrojos", "progreso.lock");
+    await correr("python3", ["-c", programa, PROGRESO, cerrojo, JSON.stringify(cambios)], {
+        cwd: RAÍZ,
+        timeout: 15_000,
+    });
 }
 
 export async function POST(peticion: Request): Promise<Response> {
@@ -791,7 +811,7 @@ export async function POST(peticion: Request): Promise<Response> {
                     .toISOString()
                     .slice(0, 16)
                     .replace("T", " ")}`;
-                await guardar(entradas);
+                await guardarParche({ [id]: { estado: entradas[id].estado, nota: entradas[id].nota } });
             }
         }
         const orden = accion === "comprobar-asignacion" ? "comprobar" : "asignar";
@@ -970,7 +990,7 @@ export async function POST(peticion: Request): Promise<Response> {
 
     // El medidor usa la misma ruta que Ramificación: ahí viven la cadena de sucesores,
     // las fuentes del cambio, la rotación de modelo, la prioridad y el cerrojo.
-    if (accion === "reintentar" || accion === "reintentar-auto") {
+    if (accion === "reintentar" || accion === "reintentar-auto" || accion === "escalar") {
         if (!id) {
             return Response.json({ error: "Falta la tarea a la que aplicarlo." }, { status: 400 });
         }
@@ -981,6 +1001,7 @@ export async function POST(peticion: Request): Promise<Response> {
                 ids: [id],
                 cambio: accion === "reintentar" ? texto : undefined,
                 automatico: accion === "reintentar-auto",
+                escalar: accion === "escalar",
             }),
         }));
         const resultado = await reparacion.json() as {
@@ -992,7 +1013,7 @@ export async function POST(peticion: Request): Promise<Response> {
         const primero = resultado.resultados?.[0];
         return Response.json({
             ok: true,
-            tareas: resultado.reintentadas ?? [],
+            tareas: resultado.reintentadas?.length ? resultado.reintentadas : [id],
             accion: primero?.accion ?? "esperando",
             cambio: primero?.motivo,
             resultados: resultado.resultados ?? [],
@@ -1027,23 +1048,63 @@ export async function POST(peticion: Request): Promise<Response> {
         );
     }
 
-    const hechas: string[] = [];
-    for (const t of objetivo) {
-        const e = entradas[t];
-        if (!e) continue;
-        if (accion === "descartar" || accion === "descartar-todas") {
-            e.estado = "rechazada";
-            e.nota = `descartada desde el medidor «${clave}» el ${ahora}`;
-        } else {
-            return Response.json({ error: `Acción desconocida: ${accion}` }, { status: 400 });
-        }
-        e.reconciliado = ahora;
-        hechas.push(t);
+    if (accion !== "descartar" && accion !== "descartar-todas") {
+        return Response.json({ error: `Acción desconocida: ${accion}` }, { status: 400 });
     }
 
-    await guardar(entradas);
+    // (2026-10-05, BLQ1005B) Se acabó el `continue` silencioso: una tarea sin entrada en
+    // progreso pero presente en alguna cola se descarta igual (la entrada nueva la respeta
+    // el vigilante: los estados no abiertos no se relanzan) y responde «en cola, posición
+    // N»; una que no está en NINGÚN sitio responde que no existe, nunca un ok falso.
+    const colas = await leerColas().catch(() => []);
+    const posicionEnCola = (tareaId: string): number | null => {
+        const tarea = colas.find((t) => t.id === tareaId);
+        if (!tarea) return null;
+        const pendientes = colas.filter(
+            (t) => t.cola === tarea.cola && !TERMINALES.has(entradas[t.id]?.estado ?? ""),
+        );
+        const indice = pendientes.findIndex((t) => t.id === tareaId);
+        return indice < 0 ? null : indice + 1;
+    };
+
+    const parche: Record<string, Entrada> = {};
+    const resultados: { id: string; accion: string; texto: string }[] = [];
+    const inexistentes: string[] = [];
+    for (const t of objetivo) {
+        const posicion = posicionEnCola(t);
+        if (!entradas[t] && posicion === null) {
+            inexistentes.push(t);
+            continue;
+        }
+        parche[t] = {
+            estado: "rechazada",
+            nota: `descartada desde el medidor «${clave}» el ${ahora}`,
+            reconciliado: ahora,
+        };
+        resultados.push({
+            id: t,
+            accion: "descartada",
+            texto: entradas[t]
+                ? `${t}: descartada`
+                : `${t}: descartada — estaba en cola, posición ${posicion}, aún sin arrancar`,
+        });
+    }
+    if (resultados.length === 0) {
+        return Response.json(
+            { error: `${inexistentes.join(", ")} no existe en el progreso ni en ninguna cola.` },
+            { status: 404 },
+        );
+    }
+
+    await guardarParche(parche);
     return Response.json(
-        { ok: true, tareas: hechas, accion },
+        {
+            ok: true,
+            tareas: resultados.map((r) => r.id),
+            accion,
+            resultados,
+            ...(inexistentes.length ? { aviso: `sin tocar, no existen en ningún sitio: ${inexistentes.join(", ")}` } : {}),
+        },
         { headers: { "Cache-Control": "no-store" } },
     );
 }

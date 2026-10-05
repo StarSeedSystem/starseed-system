@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detalleDeMedidor } from "@/lib/mando/medidores";
+import { accionesDeBloqueada, dependenciasMuertas, detalleDeMedidor } from "@/lib/mando/medidores";
 import { contarTrabajoReal, type FilaContable } from "@/lib/mando/conteo-operativo";
 
 describe("medidores - bloqueadas (coincidencia con fila operativa)", () => {
@@ -50,5 +50,67 @@ describe("medidores - bloqueadas (coincidencia con fila operativa)", () => {
 
         const b1 = d.filas.find((f) => f.id === "B1");
         expect(b1?.historica).toBe(false);
+    });
+});
+
+// (2026-10-05, BLQ1005B) Una dependencia está muerta solo si NO está en el progreso Y en
+// NINGUNA cola viva. «Solo en cola» significa que va a arrancar: darla por muerta mandaba
+// reparar bloqueos que se resuelven solos.
+describe("dependenciasMuertas: los tres casos", () => {
+    const esperaSolitaria = (dep: string) => ({
+        ficha: [
+            { etiqueta: "Espera a", valor: `${dep} — algo` },
+            { etiqueta: "↳ su estado", valor: "NO EXISTE: ninguna ola la ha ejecutado nunca" },
+        ],
+    });
+
+    it("dependencia en el progreso: se mira su estado, nunca la cola", () => {
+        const fila = {
+            ficha: [
+                { etiqueta: "Espera a", valor: "RM4 — algo" },
+                { etiqueta: "↳ su estado", valor: "escribiendo" },
+            ],
+        };
+        expect(dependenciasMuertas(fila, () => true)).toEqual([]);
+    });
+
+    it("dependencia SOLO en cola (sin entrada en progreso): está viva", () => {
+        expect(dependenciasMuertas(esperaSolitaria("RM4"), (id) => id === "RM4")).toEqual([]);
+    });
+
+    it("dependencia inexistente de verdad (ni progreso ni cola): está muerta", () => {
+        expect(dependenciasMuertas(esperaSolitaria("RM4"), () => false)).toEqual(["RM4"]);
+        expect(dependenciasMuertas(esperaSolitaria("RM4"))).toEqual(["RM4"]);
+    });
+});
+
+// (2026-10-05, BLQ1005B) Las cuatro acciones del contrato §3, en una sola sección.
+describe("accionesDeBloqueada (contrato §3)", () => {
+    it("Reparar ahora, Reparar con mi cambio, Escalar a director y Descartar", () => {
+        const acciones = accionesDeBloqueada({ estado: "bloqueada" });
+        expect(acciones.map((a) => a.texto)).toEqual([
+            "Reparar ahora",
+            "Reparar con mi cambio",
+            "Escalar a director",
+            "Descartar",
+        ]);
+        expect(acciones.find((a) => a.clase === "reintentar")?.pideTexto).toBeTruthy();
+        expect(acciones.find((a) => a.clase === "descartar")?.destructiva).toBe(true);
+    });
+
+    it("una tarea en el progreso y otra solo en la cola no se marcan como sin salida", () => {
+        const d = detalleDeMedidor("bloqueadas", {
+            progreso: { B1: { estado: "bloqueada", nota: "dependencia no integrada: R1, R2" } },
+            fila: [
+                { id: "B1", estado: "bloqueada", dependenciasPendientes: ["R1", "R2"] },
+                { id: "R1", estado: "pendiente", dependenciasPendientes: [] },
+                { id: "R2", estado: "pendiente", dependenciasPendientes: [] },
+            ],
+            latidos: [],
+        });
+        const b1 = d.filas.find((f) => f.id === "B1");
+        expect(b1?.estado).toBe("bloqueada");
+        expect(JSON.stringify(b1?.ficha)).toContain("en cola");
+        expect(JSON.stringify(b1?.ficha)).not.toContain("NO EXISTE");
     });
 });

@@ -42,10 +42,14 @@ export type ClaseAccion =
     | "descartar-todas"
     | "reintentar"
     // (2026-09-23) Alex: «en el medidor de bloqueadas falta la opción de reintentar con
-    // cambios automáticamente». El cambio NO se inventa: sale de la ficha de la tarea
-    // (qué dependencia espera y en qué estado está), y si de ahí no sale una instrucción
-    // concreta el botón no se ofrece.
+    // cambios automáticamente». (2026-10-05) El cambio automático lo calcula
+    // `reintento-inteligente.ts` del estado y la nota de la tarea (objeción de la revisión,
+    // pruebas en rojo, errores de tsc…), así que el botón se ofrece siempre que la tarea
+    // no sea terminal: «Reparar ahora».
     | "reintentar-auto"
+    // (2026-10-05) «Escalar a director»: la reparación pasa al director con otro modelo y
+    // todo el contexto del fallo. Nunca descarta sola; descartar es cosa de una persona.
+    | "escalar"
     | "publicar"
     | "ir-a"
     // (2026-09-22) Los contenedores de nube: volver a sondear todos los servicios, y
@@ -445,8 +449,15 @@ export function cambioAutomatico(fila: Pick<FilaMedidor, "estado" | "ficha">): s
  * Las dependencias de la ficha que NO van a llegar: no existen en ninguna ola o no se
  * integran solas. Son las que el reintento automático quita de `depende`: sin eso, el
  * orquestador volvía a bloquear la tarea en su primera vuelta por la misma razón. PURA.
+ *
+ * (2026-10-05, BLQ1005B) «NO EXISTE» ya no basta para darla por muerta: una dependencia
+ * que está en una cola viva (aunque aún no tenga entrada en progreso.json) VA a arrancar.
+ * `vivaEnCola` decide ese caso; sin ella se mantiene la lectura histórica.
  */
-export function dependenciasMuertas(fila: Pick<FilaMedidor, "ficha">): string[] {
+export function dependenciasMuertas(
+    fila: Pick<FilaMedidor, "ficha">,
+    vivaEnCola?: (id: string) => boolean,
+): string[] {
     const ficha = fila.ficha ?? [];
     const fuera: string[] = [];
     for (let i = 0; i < ficha.length; i += 1) {
@@ -454,23 +465,31 @@ export function dependenciasMuertas(fila: Pick<FilaMedidor, "ficha">): string[] 
         const dep = String(ficha[i].valor).split("—")[0].trim();
         const sig = ficha[i + 1];
         const estado = sig && sig.etiqueta === "↳ su estado" ? String(sig.valor) : "";
-        if (dep && dep !== "nada anotado" && /NO EXISTE|no se va a integrar sola/.test(estado)) fuera.push(dep);
+        if (!dep || dep === "nada anotado") continue;
+        const muerta =
+            /no se va a integrar sola/.test(estado) || (/NO EXISTE/.test(estado) && !vivaEnCola?.(dep));
+        if (muerta) fuera.push(dep);
     }
     return fuera;
 }
 
-/** Las acciones de una bloqueada: las de siempre, más el cambio automático si lo hay. */
+/**
+ * Las acciones de una bloqueada (2026-10-05, BLQ1005B, contrato bloqueadas-reparacion §3):
+ * Reparar ahora (el cambio sale del estado y la nota, BLQ1005A), Reparar con mi cambio
+ * (lo escribe la persona), Escalar a director y Descartar (a dos clics, es la excepción).
+ */
 export function accionesDeBloqueada(fila: Pick<FilaMedidor, "estado" | "ficha">): AccionMedidor[] {
-    const base = accionesDeTarea(fila.estado ?? "bloqueada");
-    if (!base.length) return base;
-    if (!cambioAutomatico(fila)) return base;
+    if (!fila.estado || TERMINALES.has(fila.estado) || fila.estado === "informe") return [];
     return [
-        ...base,
+        { clase: "reintentar-auto", texto: "Reparar ahora", destructiva: false },
         {
-            clase: "reintentar-auto",
-            texto: "Reintentar con cambio automático",
+            clase: "reintentar",
+            texto: "Reparar con mi cambio",
             destructiva: false,
+            pideTexto: "¿Qué hay que cambiar para que salga bien esta vez?",
         },
+        { clase: "escalar", texto: "Escalar a director", destructiva: false },
+        { clase: "descartar", texto: "Descartar", destructiva: true },
     ];
 }
 
@@ -1407,6 +1426,14 @@ export function detalleDeMedidor(
 
     switch (clave) {
         case "bloqueadas": {
+            // (2026-10-05, BLQ1005B) Una dependencia que está en CUALQUIER cola viva aunque
+            // aún no tenga entrada en progreso NO es un fantasma: va a arrancar. Se enseña
+            // como «en cola» en vez de «NO EXISTE», que era el diagnóstico que mandaba
+            // reparar bloqueos que se resuelven solos.
+            const vivaEnCola = (id: string) =>
+                Boolean(d.fila?.some((t) => t.id === id)) || d.ejecutables.some((t) => t.id === id);
+            const estadoDeBloqueadas = (id: string) =>
+                d.progreso[id]?.estado ?? (vivaEnCola(id) ? "en cola" : undefined);
             const idsBloqueadosOperativos = d.fila
                 ? obtenerIdsBloqueados(d.fila, d.latidos)
                 : null;
@@ -1426,7 +1453,7 @@ export function detalleDeMedidor(
                         const b =
                             v.estado === "bloqueante"
                                 ? null
-                                : fichaDeBloqueada(v.nota, estadoDe, titulo, v);
+                                : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v);
                         filasOperativas.push({
                             id,
                             titulo: titulo(id),
@@ -1434,7 +1461,7 @@ export function detalleDeMedidor(
                             porque:
                                 v.estado === "bloqueante"
                                     ? "agotó los reintentos gratuitos: necesita una persona"
-                                    : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDe)),
+                                    : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDeBloqueadas)),
                             desde: v.t,
                             ficha: b?.ficha,
                             historial: d.historiales?.[id]?.slice(0, 4),
@@ -1452,7 +1479,7 @@ export function detalleDeMedidor(
                             porque:
                                 v.estado === "bloqueante"
                                     ? "de ola cerrada · agotó reintentos"
-                                    : `de ola cerrada · ${porqueBloqueada(v.nota, estadoDe)}`,
+                                    : `de ola cerrada · ${porqueBloqueada(v.nota, estadoDeBloqueadas)}`,
                             desde: v.t,
                             acciones: accionesDeTarea(v.estado),
                             historica: true,
@@ -1468,7 +1495,7 @@ export function detalleDeMedidor(
                         // `dependenciaDeNota` entiende, para no tener DOS maneras de decir
                         // lo mismo (que es como llegamos a tres números distintos).
                         const b = pend.length
-                            ? fichaDeBloqueada(`dependencia no integrada: ${pend.join(", ")}`, estadoDe, titulo, {
+                            ? fichaDeBloqueada(`dependencia no integrada: ${pend.join(", ")}`, estadoDeBloqueadas, titulo, {
                                   estado: "bloqueada",
                               })
                             : null;
@@ -1495,7 +1522,7 @@ export function detalleDeMedidor(
                 // mismo; lo detectaron dos pruebas, no una revisión.
                 for (const [id, v] of todasBloqueadasProgreso) {
                     const b =
-                        v.estado === "bloqueante" ? null : fichaDeBloqueada(v.nota, estadoDe, titulo, v);
+                        v.estado === "bloqueante" ? null : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v);
                     filasOperativas.push({
                         id,
                         titulo: titulo(id),
@@ -1503,11 +1530,14 @@ export function detalleDeMedidor(
                         porque:
                             v.estado === "bloqueante"
                                 ? "agotó los reintentos gratuitos: necesita una persona"
-                                : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDe)),
+                                : (b?.veredicto ?? porqueBloqueada(v.nota, estadoDeBloqueadas)),
                         desde: v.t,
                         ficha: b?.ficha,
                         historial: d.historiales?.[id]?.slice(0, 4),
-                        acciones: accionesDeTarea(v.estado),
+                        acciones: accionesDeBloqueada({
+                            estado: b?.muerta ? "bloqueada sin salida" : v.estado,
+                            ficha: b?.ficha,
+                        }),
                         historica: false,
                     });
                 }

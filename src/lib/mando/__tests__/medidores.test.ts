@@ -753,25 +753,26 @@ describe("cambioAutomatico", () => {
 });
 
 describe("accionesDeBloqueada", () => {
-    it("ofrece el reintento automático solo donde hay algo que cambiar", () => {
-        const muerta = accionesDeBloqueada({
-            estado: "bloqueada sin salida",
-            ficha: [
-                { etiqueta: "Espera a", valor: "RM5 — algo" },
-                { etiqueta: "↳ su estado", valor: "NO EXISTE: ninguna ola la ha ejecutado nunca" },
-            ],
-        });
-        expect(muerta.map((a) => a.clase)).toEqual(["descartar", "reintentar", "reintentar-auto"]);
-        expect(muerta[2].pideTexto).toBeUndefined();
+    // (2026-10-05, BLQ1005B) Contrato bloqueadas-reparacion §3: siempre las cuatro
+    // acciones — el cambio automático ya no depende de la ficha, lo calcula
+    // `reintento-inteligente.ts` del estado y la nota de la tarea.
+    it("ofrece siempre Reparar ahora, Reparar con mi cambio, Escalar y Descartar", () => {
+        const espera = (dep: string, estado: string) => [
+            { etiqueta: "Espera a", valor: `${dep} — algo` },
+            { etiqueta: "↳ su estado", valor: estado },
+        ];
+        const clases = (fila: Parameters<typeof accionesDeBloqueada>[0]) =>
+            accionesDeBloqueada(fila).map((a) => a.clase);
 
-        const viva = accionesDeBloqueada({
-            estado: "bloqueada",
-            ficha: [
-                { etiqueta: "Espera a", valor: "B — algo" },
-                { etiqueta: "↳ su estado", valor: "escribiendo" },
-            ],
-        });
-        expect(viva.map((a) => a.clase)).toEqual(["descartar", "reintentar"]);
+        expect(clases({ estado: "bloqueada sin salida", ficha: espera("RM5", "NO EXISTE: ninguna ola la ha ejecutado nunca") }))
+            .toEqual(["reintentar-auto", "reintentar", "escalar", "descartar"]);
+        expect(clases({ estado: "bloqueada", ficha: espera("B", "escribiendo") }))
+            .toEqual(["reintentar-auto", "reintentar", "escalar", "descartar"]);
+        expect(clases({ estado: "bloqueada" }))
+            .toEqual(["reintentar-auto", "reintentar", "escalar", "descartar"]);
+        // Lo que ya está en main o es un informe no se toca desde un panel.
+        expect(clases({ estado: "commit" })).toEqual([]);
+        expect(clases({ estado: "informe" })).toEqual([]);
     });
 });
 
