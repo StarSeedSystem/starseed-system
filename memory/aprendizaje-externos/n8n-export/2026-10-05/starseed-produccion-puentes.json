@@ -1,0 +1,288 @@
+{
+ "name": "StarSeed · Producción (puentes)",
+ "nodes": [
+  {
+   "parameters": {
+    "content": "## StarSeed · Producción (puentes)\nRecibe los avisos del director de producción del Puente de Mando (contrato §10).\nCada webhook exige la cabecera X-StarSeed-Token (credencial «StarSeed producción»).\nLos datos quedan en Ejecuciones. Drive, Telegram y redes se añaden cuando Alex conecte esas cuentas.",
+    "height": 220,
+    "width": 520
+   },
+   "id": "nota-1",
+   "name": "Nota",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -40,
+    -260
+   ]
+  },
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "starseed-produccion-publicada",
+    "authentication": "headerAuth",
+    "options": {}
+   },
+   "id": "wh-publicada",
+   "name": "Webhook · Producción publicada",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    0,
+    0
+   ],
+   "webhookId": "starseed-produccion-publicada",
+   "credentials": {
+    "httpHeaderAuth": {
+     "name": "StarSeed producción"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "publicada-1",
+       "name": "evento",
+       "value": "publicada",
+       "type": "string"
+      },
+      {
+       "id": "publicada-2",
+       "name": "sha",
+       "value": "={{ $json.body.sha }}",
+       "type": "string"
+      },
+      {
+       "id": "publicada-3",
+       "name": "medios",
+       "value": "={{ $json.body.medios }}",
+       "type": "array"
+      },
+      {
+       "id": "publicada-4",
+       "name": "tareas",
+       "value": "={{ $json.body.tareas }}",
+       "type": "array"
+      },
+      {
+       "id": "publicada-5",
+       "name": "momento",
+       "value": "={{ $json.body.momento }}",
+       "type": "string"
+      },
+      {
+       "id": "publicada-6",
+       "name": "datos",
+       "value": "={{ $json.body.datos }}",
+       "type": "object"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "set-publicada",
+   "name": "Normalizar · Producción publicada",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    260,
+    0
+   ]
+  },
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "starseed-produccion-pieza-lista",
+    "authentication": "headerAuth",
+    "options": {}
+   },
+   "id": "wh-pieza-lista",
+   "name": "Webhook · Pieza lista para aprobar",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    0,
+    220
+   ],
+   "webhookId": "starseed-produccion-pieza-lista",
+   "credentials": {
+    "httpHeaderAuth": {
+     "name": "StarSeed producción"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "pieza-lista-1",
+       "name": "evento",
+       "value": "pieza-lista",
+       "type": "string"
+      },
+      {
+       "id": "pieza-lista-2",
+       "name": "sha",
+       "value": "={{ $json.body.sha }}",
+       "type": "string"
+      },
+      {
+       "id": "pieza-lista-3",
+       "name": "medios",
+       "value": "={{ $json.body.medios }}",
+       "type": "array"
+      },
+      {
+       "id": "pieza-lista-4",
+       "name": "tareas",
+       "value": "={{ $json.body.tareas }}",
+       "type": "array"
+      },
+      {
+       "id": "pieza-lista-5",
+       "name": "momento",
+       "value": "={{ $json.body.momento }}",
+       "type": "string"
+      },
+      {
+       "id": "pieza-lista-6",
+       "name": "datos",
+       "value": "={{ $json.body.datos }}",
+       "type": "object"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "set-pieza-lista",
+   "name": "Normalizar · Pieza lista para aprobar",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    260,
+    220
+   ]
+  },
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "starseed-produccion-revertida",
+    "authentication": "headerAuth",
+    "options": {}
+   },
+   "id": "wh-revertida",
+   "name": "Webhook · Producción revertida",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    0,
+    440
+   ],
+   "webhookId": "starseed-produccion-revertida",
+   "credentials": {
+    "httpHeaderAuth": {
+     "name": "StarSeed producción"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "revertida-1",
+       "name": "evento",
+       "value": "revertida",
+       "type": "string"
+      },
+      {
+       "id": "revertida-2",
+       "name": "sha",
+       "value": "={{ $json.body.sha }}",
+       "type": "string"
+      },
+      {
+       "id": "revertida-3",
+       "name": "medios",
+       "value": "={{ $json.body.medios }}",
+       "type": "array"
+      },
+      {
+       "id": "revertida-4",
+       "name": "tareas",
+       "value": "={{ $json.body.tareas }}",
+       "type": "array"
+      },
+      {
+       "id": "revertida-5",
+       "name": "momento",
+       "value": "={{ $json.body.momento }}",
+       "type": "string"
+      },
+      {
+       "id": "revertida-6",
+       "name": "datos",
+       "value": "={{ $json.body.datos }}",
+       "type": "object"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "set-revertida",
+   "name": "Normalizar · Producción revertida",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    260,
+    440
+   ]
+  }
+ ],
+ "connections": {
+  "Webhook · Producción publicada": {
+   "main": [
+    [
+     {
+      "node": "Normalizar · Producción publicada",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Webhook · Pieza lista para aprobar": {
+   "main": [
+    [
+     {
+      "node": "Normalizar · Pieza lista para aprobar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Webhook · Producción revertida": {
+   "main": [
+    [
+     {
+      "node": "Normalizar · Producción revertida",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "meta": {
+  "exportado_por": "claude-cowork",
+  "fecha": "2026-10-05",
+  "instancia": "n8n Cloud (prueba hasta 2026-10-18)",
+  "version_publicada": "v1 · tres entradas del director de producción",
+  "verificado": "200 con X-StarSeed-Token, 403 sin ella, en las 3 entradas",
+  "credenciales": "solo el nombre; el valor vive en n8n y en PRODUCCION_WEBHOOK_SECRETO de ~/.starseed/env"
+ }
+}
