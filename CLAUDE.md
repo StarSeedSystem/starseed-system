@@ -383,7 +383,16 @@ los medios», el único botón general de los medidores Agentes, Tareas en curso
 llena la Mac hasta su tope, vuelve a medir los contenedores, reabre en la nube lo que solo agotó sus tres envíos con los proveedores
 saturados (`~/.starseed/nube-reaperturas.json`: una reapertura devuelve un envío, como mucho dos por
 tarea en dos días y nunca dejando a la Mac sin trabajo para su tope), lanza hasta 2 jobs de GitHub
-Actions y dice medio por medio qué sumó y por qué no más. La autocuración lo repite cada 30 min. BitNet
+Actions y dice medio por medio qué sumó y por qué no más. La autocuración lo repite cada 30 min.
+**Lo que hace la nube llega a main solo** (2026-10-05, `scripts/puente/traer_nube.py`, cada 30 min
+desde la autocuración): lo integrado en una rama `nube/*` entra por cherry-pick con el cerrojo
+`integrar` tras pasar `tsc` y las pruebas relacionadas EN LA MAC (si no, se deshace con
+`reset --keep`); lo que quedó a medias se convierte en una tarea sucesora en
+`cola-reparar-nube.json` que continúa desde su rama y comprueba el propósito en el contexto de hoy;
+lo que repararlo sería contraproducente (ya en main, sustituido, propuesta de los sueños) se
+pregunta en el Chat Director. **Ninguna rama se borra sin la palabra de Alex** (Alex: «en vez de
+borrar ramas que se corrijan, arreglen y desarrollen… se pregunta antes de borrar»):
+`traer_nube.py borrar --ramas …` solo borra las que constan como superadas. BitNet
 vive en cualquier medio con `scripts/nodo-bitnet.sh` (repo de Astraura), que mide RAM/núcleos y
 elige hilos/contexto/slots solo.
 En esta flota, **AIHubMix** (`AIHUBMIX_API_KEY`, 412 modelos con 54 gratuitos) es el **revisor

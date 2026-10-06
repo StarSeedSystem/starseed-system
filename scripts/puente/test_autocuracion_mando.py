@@ -95,9 +95,11 @@ class Revisar(unittest.TestCase):
         self.aplicadas = getattr(self, "aplicadas", [])
         decision = decision or {"puede": False}
         self.busquedas = getattr(self, "busquedas", [])
+        self.traidas = getattr(self, "traidas", [])
         return A.revisar(
             asignar_fn=lambda: (decision, lambda: self.aplicadas.append(1) or ["cola viva actualizada"]),
             buscar_fn=lambda: self.busquedas.append(ahora) or self.resultado_busqueda,
+            traer_fn=lambda: self.traidas.append(ahora) or True,
             ahora=ahora, sondear_fn=lambda: next(it), reiniciar_fn=lambda: self.reinicios.append(1),
             limpiar_fn=lambda ids: (self.limpiezas.append(ids) or {"ok": True, "limpiados": list(ids)}),
             libre_fn=lambda: libre, avisar_fn=self.avisos.append, dormir=lambda s: None)
@@ -151,12 +153,23 @@ class RevisarBusqueda(Revisar):
         e = self._revisar([True], 20.0)
         self.assertTrue(any("capacidad fuera de la Mac" in h for h in e["hechos"]))
 
+    def test_trae_la_nube_cada_media_hora_y_no_con_el_mando_caido(self):
+        self._revisar([False, False, False], 20.0, ahora=100_000)
+        self.assertEqual(self.traidas, [])
+        self._revisar([True], 20.0, ahora=100_000)
+        self._revisar([True], 20.0, ahora=100_000 + 600)
+        self.assertEqual(self.traidas, [100_000])
+        e = self._revisar([True], 20.0, ahora=100_000 + A.TRAER_MINIMO_S)
+        self.assertEqual(len(self.traidas), 2)
+        self.assertTrue(any("traer la nube" in h for h in e["hechos"]))
+
     def test_un_fallo_buscando_no_tumba_la_pasada(self):
         self.resultado_busqueda = None
         e = A.revisar(ahora=1, sondear_fn=lambda: True, reiniciar_fn=lambda: None, limpiar_fn=lambda ids: {},
                       libre_fn=lambda: 20.0, avisar_fn=self.avisos.append, dormir=lambda s: None,
                       asignar_fn=lambda: ({"puede": False}, lambda: []),
-                      buscar_fn=lambda: (_ for _ in ()).throw(RuntimeError("gh caído")))
+                      buscar_fn=lambda: (_ for _ in ()).throw(RuntimeError("gh caído")),
+                      traer_fn=lambda: True)
         self.assertTrue(any("no pude buscar capacidad" in h for h in e["hechos"]))
 
 

@@ -28,6 +28,11 @@ arreglar desde la máquina (lo de la pestaña lo arregla `src/lib/mando/autocura
    más capacidad» del Mando (`buscar_capacidad.buscar`), sin sondear los medios lentos: si la
    nube tiene sitio y trabajo que pueda coger —también el que solo agotó sus envíos con los
    proveedores saturados—, se lanza. Si suma agentes, lo dice en el Chat Director.
+5. **Traer la nube.** (18:40, Alex: «trae la nube y en vez de borrar ramas que se corrijan,
+   arreglen y desarrollen… se pregunta antes de borrar».) Cada 30 min, en segundo plano,
+   `traer_nube.py revisar --aplicar`: lo que la nube integró entra en main tras pasar tsc y las
+   pruebas relacionadas en la Mac; lo que quedó a medias se convierte en una tarea que continúa
+   desde su rama; lo demás se pregunta en el Chat Director. Nunca borra una rama.
 
 Todo lo que hace queda en `~/.starseed/autocuracion-mando.json` y en el Chat Director.
 Las decisiones son funciones PURAS (`decidir_reinicio`, `ids_a_limpiar`) con sus pruebas.
@@ -54,6 +59,7 @@ REINICIO_MINIMO_S = 10 * 60
 LIMPIEZA_MINIMA_S = 60 * 60
 LLENADO_MINIMO_S = 5 * 60
 BUSQUEDA_MINIMA_S = 30 * 60
+TRAER_MINIMO_S = 30 * 60
 DISCO_AVISO_GB = 6.0
 DISCO_CRITICO_GB = 3.0
 
@@ -220,6 +226,18 @@ def _asignar():
     return decision, (lambda: asignar_huecos.aplicar(estado, decision))
 
 
+def _traer_en_fondo():
+    """`traer_nube.py revisar --aplicar` suelto: puede esperar el turno de tsc varios minutos y
+    el vigía no se puede quedar parado mientras. Una sola pasada a la vez (su propio cerrojo)."""
+    import subprocess
+
+    with open("/tmp/starseed-traer-nube.log", "a", encoding="utf-8") as log:
+        subprocess.Popen([sys.executable, os.path.join(DIRECTORIO, "traer_nube.py"), "revisar", "--aplicar"],
+                         cwd=RAIZ, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                         start_new_session=True)
+    return True
+
+
 def _buscar():
     """El botón «Buscar más capacidad» sin los sondeos lentos ni la Mac (de ella ya se ocupa
     el llenado de arriba). Avisa él mismo en el Chat Director si suma agentes."""
@@ -231,7 +249,7 @@ def _buscar():
 
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
-            buscar_fn=_buscar):
+            buscar_fn=_buscar, traer_fn=_traer_en_fondo):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO)."""
     ahora = ahora if ahora is not None else time.time()
     estado = _leer_json(ESTADO, {}) if ESTADO else {}
@@ -291,6 +309,17 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
                     hechos.append("capacidad fuera de la Mac: %s" % "; ".join(r.get("hechas") or [])[:300])
             except Exception as e:
                 hechos.append("no pude buscar capacidad: %s: %s" % (type(e).__name__, e))
+
+    # Traer a main lo que hizo la nube y reparar lo que dejó a medias (en segundo plano).
+    if any(sondas):
+        toca, _porque_t = decidir_busqueda(ahora, estado.get("ultimo_traer"), TRAER_MINIMO_S)
+        if toca:
+            estado["ultimo_traer"] = ahora
+            try:
+                traer_fn()
+                hechos.append("traer la nube: pasada lanzada en segundo plano")
+            except Exception as e:
+                hechos.append("no pude lanzar traer la nube: %s: %s" % (type(e).__name__, e))
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),
