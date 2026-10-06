@@ -1018,11 +1018,12 @@ export function CentroMando() {
             if (resCredito.status === "fulfilled" && resCredito.value.ok) {
                 const dataCred = (await resCredito.value.json()) as { detalle?: DetalleMedidor };
                 if (dataCred.detalle) {
-                    // Pastilla y ventana salen del MISMO resumen: «$250 de $250 · vence en 39 días…».
+                    // (Ola 1004L · LC1004E) Pastilla y ventana salen del MISMO resumen de
+                    // los límites del plan: «sesión 34 % · semana 61 % · reinicia en …».
                     const resumen = dataCred.detalle.resumen ?? "";
-                    const m = /^\$([\d.]+) de \$([\d.]+)/.exec(resumen);
-                    credito = m ? `$${m[1]} de $${m[2]}` : null;
-                    creditoResumen = resumen.split(" · ").slice(1, 3).join(" · ") || resumen || null;
+                    const m = /^sesión (\d+) % · semana (\d+) %/.exec(resumen);
+                    credito = m ? `${m[1]} % · ${m[2]} %` : "sin lectura";
+                    creditoResumen = (m ? resumen.slice(m[0].length).replace(/^ · /, "") : "") || null;
                     const estados = dataCred.detalle.filas.map((f) => f.estado);
                     creditoTono = estados.includes("peligro") ? "peligro" : estados.includes("aviso") || dataCred.detalle.aviso ? "aviso" : "ok";
                 }
@@ -1719,15 +1720,15 @@ export function CentroMando() {
                                 detalle: medidoresResumen?.contenedoresResumen ?? "sitio libre para más agentes",
                             },
                             {
-                                // (2026-09-27) Alex: «agrega un medidor en el pulso de trabajo de
-                                // lo que queda disponible de esos créditos». Crédito de sesiones
-                                // en la nube de Claude: lo declara él (no hay API) y VENCE, así
-                                // que el detalle dice también el ritmo para aprovecharlo.
+                                // (Ola 1004L · LC1004E) Antes era el crédito de la nube de
+                                // Claude; ahora (2026-10-04) enseña los LÍMITES DEL PLAN:
+                                // «sesión % · semana %» leídos a mano de claude.ai → Uso,
+                                // con el detalle en el resumen (reinicio y proyección).
                                 clave: "credito-claude" as const,
-                                titulo: "Crédito Claude nube",
+                                titulo: "Claude · límites",
                                 valor: medidoresResumen?.credito ?? "—",
                                 tono: medidoresResumen?.creditoTono ?? "normal",
-                                detalle: medidoresResumen?.creditoResumen ?? "saldo declarado de claude.ai → Uso",
+                                detalle: medidoresResumen?.creditoResumen ?? "límites del plan, de claude.ai → Uso",
                             },
                             {
                                 // (2026-09-22) Alex: «tokens por segundo en total sumando los

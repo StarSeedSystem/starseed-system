@@ -233,15 +233,17 @@ async function leerTokens(): Promise<DatosMedidores["tokens"]> {
 }
 
 /**
- * (2026-09-27) Lo que Alex declara de su crédito de Claude en la nube. Vive fuera del repo
- * (`~/.starseed/credito-claude-nube.json`, lo escribe `credito_claude_nube.py declarar`):
- * es un dato de su cuenta, no del proyecto. Sin archivo, el medidor lo dice.
+ * (Ola 1004L · LC1004E, 2026-10-06) Los límites del plan de Claude (sesión ≈5 h y semana)
+ * que la dirección lee a mano de claude.ai → Ajustes → Uso en cada revisión programada y
+ * guarda con `limites_claude.py declarar …`. Viven fuera del repo
+ * (`~/.starseed/limites-claude.json`) porque son un dato de su cuenta, no del proyecto.
+ * Tolerante: sin archivo o con JSON roto, null y el medidor lo dice.
  */
-async function leerCreditoClaude(): Promise<DatosMedidores["creditoClaude"]> {
+async function leerLimitesClaude(): Promise<DatosMedidores["limitesClaude"]> {
     try {
-        const crudo = await readFile(path.join(os.homedir(), ".starseed", "credito-claude-nube.json"), "utf8");
-        const d = JSON.parse(crudo) as NonNullable<DatosMedidores["creditoClaude"]>;
-        return d && typeof d === "object" && "restante_usd" in d ? d : null;
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "limites-claude.json"), "utf8");
+        const d: unknown = JSON.parse(crudo);
+        return d && typeof d === "object" ? d : null;
     } catch {
         return null;
     }
@@ -680,7 +682,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // toda la capacidad viva, no solo la de esta máquina.
         latidos: [...latidosDeAqui, ...agentesNube],
         contenedores,
-        creditoClaude: await leerCreditoClaude().catch(() => null),
+        limitesClaude: await leerLimitesClaude().catch(() => null),
         proveedores,
         tokens,
         commitsSinPublicar,
@@ -720,11 +722,12 @@ export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
     const clave = (new URL(peticion.url).searchParams.get("clave") ?? "ola-activa") as ClaveMedidor;
-    // (2026-09-27) El crédito de Claude solo necesita su propio archivo: no se reúne todo.
+    // (Ola 1004L · 2026-10-06) Los límites del plan de Claude solo necesitan su propio
+    // archivo: no se reúne todo. La clave sigue siendo «credito-claude» por compatibilidad.
     if (clave === "credito-claude") {
-        const creditoClaude = await leerCreditoClaude().catch(() => null);
+        const limitesClaude = await leerLimitesClaude().catch(() => null);
         return Response.json(
-            { detalle: detalleDeMedidor(clave, { creditoClaude }), generadoEn: new Date().toISOString() },
+            { detalle: detalleDeMedidor(clave, { limitesClaude }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
