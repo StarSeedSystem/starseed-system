@@ -3604,3 +3604,38 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `SB1004A` — pruebas en rojo: vitest falla (rama conservada)
 - `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
 - `PRD1005L` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-05 20:07 · auto-1005-182723
+
+**Lo que se pidió.** no tocaste tus archivos
+
+**Resultado.** 2 de 22 integradas. 20 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 8 tareas se fueron por lo mismo — pruebas en rojo (CAMR1005A, BLQ1005A, PRD1005T, PRD1005S, CDV1004Cs, p314Acs). Es 36 % de la ola.
+- 8 tareas se fueron por lo mismo — no escribió nada (PRD1005D, DR0927-1, DR0927-2, DR0929-1, BLQ1005E, LC1004Bd). Es 36 % de la ola.
+- 3 tareas se fueron por lo mismo — otra cosa (LC1004B, DR1003-1, SB1004A). Es 14 % de la ola.
+- sin modelo anotado no integró ninguna de sus 9 tareas.
+- codex/gpt-5.6-sol no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005T` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005D` — no escribió nada
+- `PRD1005S` — pruebas en rojo: vitest falla (rama conservada)
+- `LC1004B` — otra cosa: continúa como LC1004Bd desde la rama nube/37245946095/ola/LC1004B (traer_nube)
+- `CDV1004Cs` — pruebas en rojo: vitest falla (rama conservada)
+- `p314Acs` — pruebas en rojo: vitest falla (rama conservada)
+- `DR0927-1` — no escribió nada
+- `DR0927-2` — no escribió nada
+- `DR0929-1` — no escribió nada
+- `DR1003-1` — otra cosa: ningún proveedor respondió (todos caídos)
+- `FLU1005H` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005E` — no escribió nada
+- `SB1004A` — otra cosa: continúa como SB1004Ab desde la rama nube/37245946095/ola/SB1004A (traer_nube)
+- `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
+- `LC1004Bd` — no escribió nada
+- `LC1004Ad` — no escribió nada
+- `LC1004C` — los tipos no compilan: 13 errores tsc (rama ola/LC1004C conservada)
+- `LC1004E` — no escribió nada
