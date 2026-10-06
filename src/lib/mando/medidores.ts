@@ -16,6 +16,7 @@ import { resumenDeCambios, type ArchivoCambiado, type Ubicacion } from "@/lib/ma
 import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-operativo";
 
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
+import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -1083,6 +1084,11 @@ export interface DatosMedidores {
     /** (2026-09-27) Lo que Alex declara de su crédito de Claude en la nube (claude.ai →
      *  Ajustes → Uso) en `~/.starseed/credito-claude-nube.json`. No hay API: se dice así. */
     creditoClaude?: ConfigCreditoClaude | null;
+    /** (2026-10-04) Los LÍMITES DEL PLAN de Claude (sesión ~5 h, semanal y opcionalmente
+     *  modelo concreto) leídos desde `~/.starseed/limites-claude.json`. No hay API: la
+     *  dirección los toma manualmente desde claude.ai → Uso y los guarda con
+     *  `scripts/puente/limites_claude.py declarar …`. */
+    limitesClaude?: unknown;
     contenedores?: {
         generado?: string;
         contenedores: {
@@ -2071,66 +2077,89 @@ export function detalleDeMedidor(
         }
 
         case "credito-claude": {
-            // (2026-09-27) El saldo NO se puede leer por API: la fila dice de dónde sale
-            // cada cifra y cuándo se declaró, y el enlace lleva a la fuente exacta.
-            const cfg = d.creditoClaude;
+            // (2026-10-04) Los LÍMITES DEL PLAN de Claude (sesión ~5 h, semanal y opcionalmente
+            // modelo concreto) leídos desde ~/.starseed/limites-claude.json. No hay API: la
+            // dirección los toma manualmente desde claude.ai → Uso y los guarda con
+            // scripts/puente/limites_claude.py declarar …
+            const cfg = d.limitesClaude;
             if (!cfg) {
                 return {
                     clave,
-                    titulo: "Crédito de Claude en la nube",
-                    resumen: "sin declarar: corre `python3 scripts/puente/credito_claude_nube.py declarar --restante <USD>`",
+                    titulo: "Claude · límites del plan",
+                    resumen: "Sin lectura todavía: la dirección la toma de claude.ai → Uso en su próxima revisión.",
                     filas: [],
                     acciones: [],
-                    vacio: "Todavía no hay saldo declarado. Míralo en claude.ai → Ajustes → Uso.",
+                    vacio: "Sin lectura todavía: la dirección la toma de claude.ai → Uso en su próxima revisión.",
                 };
             }
-            const e = estadoCreditoClaude(cfg, Date.now());
-            const filas: FilaMedidor[] = [
-                {
-                    id: "credito",
-                    titulo: `Créditos de sesiones en la nube · $${e.restante} de $${e.total}`,
-                    estado: e.tono === "peligro" ? "peligro" : e.tono === "aviso" ? "aviso" : "al día",
-                    porque: e.dias > 0
-                        ? `Se aplica solo a las sesiones en la nube; al usarse o vencer vuelve el uso normal del plan. Para aprovecharlo entero: ≤ $${e.ritmoIdeal.toFixed(2)} al día durante ${e.dias} días.`
-                        : "Vencido: ya se aplica el uso normal del plan.",
+            const e = estadoLimitesClaude(cfg, Date.now());
+            const filas: FilaMedidor[] = [];
+            
+            // Sesión
+            if (e.sesion) {
+                filas.push({
+                    id: "sesion",
+                    titulo: "Sesión (~5 h)",
+                    estado: e.sesion.tono,
+                    porque: `${e.sesion.pct} % · ${e.sesion.reinicio}, con proyección ${e.sesion.proyeccion !== null ? Math.round(e.sesion.proyeccion) + " %" : "sin coste"}`,
                     enlace: ENLACE_USO_CLAUDE,
                     acciones: [],
                     ficha: [
-                        { etiqueta: "Queda", valor: `$${e.restante} de $${e.total} (${Math.round(e.fraccion * 100)} %)` },
-                        { etiqueta: "Vence", valor: e.vence },
-                        { etiqueta: "Días", valor: String(e.dias) },
-                        { etiqueta: "Ritmo ideal", valor: `≤ $${e.ritmoIdeal.toFixed(2)}/día` },
-                        { etiqueta: "Fuente", valor: "declarado por Alex (no hay API)", enlace: ENLACE_USO_CLAUDE },
-                        { etiqueta: "Declarado", valor: cfg.declarado_en, aviso: e.declaradoHaceDias > 3 },
+                        { etiqueta: "Usado", valor: `${e.sesion.pct} %` },
+                        { etiqueta: "Queda", valor: `${e.sesion.queda} %` },
+                        { etiqueta: "Reinicia", valor: e.sesion.reinicio },
+                        { etiqueta: "Coste por revisión", valor: e.sesion.coste !== null ? `≤ ${e.sesion.coste} %` : "sin coste" },
+                        { etiqueta: "Revisiones programadas antes del reinicio", valor: e.programadasEnSesion.toString() },
+                        { etiqueta: "Leído", valor: e.lecturaHaceMin !== null ? `${e.lecturaHaceMin} min` : "desconocido" },
                     ],
-                },
-            ];
-            if (e.semanal) {
+                });
+            }
+            
+            // Semana
+            if (e.semana) {
                 filas.push({
-                    id: "semanal",
-                    titulo: `Límites semanales del plan · todos los modelos ${e.semanal.todos ?? "?"} % · Fable ${e.semanal.fable ?? "?"} %`,
-                    estado: (e.semanal.todos ?? 0) >= 80 ? "aviso" : "al día",
-                    porque: `Se restablecen ${e.semanal.reinicio ?? "cada semana"}. Lo que no cubre el crédito sale de aquí.`,
+                    id: "semana",
+                    titulo: "Semana",
+                    estado: e.semana.tono,
+                    porque: `${e.semana.pct} % · ${e.semana.reinicio}`, 
                     enlace: ENLACE_USO_CLAUDE,
                     acciones: [],
+                    ficha: [
+                        { etiqueta: "Usado", valor: `${e.semana.pct} %` },
+                        { etiqueta: "Queda", valor: `${e.semana.queda} %` },
+                        { etiqueta: "Reinicia", valor: e.semana.reinicio },
+                        { etiqueta: "Coste por revisión", valor: e.semana.coste !== null ? `≤ ${e.semana.coste} %` : "sin coste" },
+                        { etiqueta: "Revisiones programadas antes del reinicio", valor: e.programadasEnSemana.toString() },
+                    ],
                 });
             }
-            for (const s of e.sesiones) {
+            
+            // Semana · <modeloNombre> si hay modelo
+            if (e.modelo && e.modeloNombre) {
                 filas.push({
-                    id: `sesion:${s.sesion}`,
-                    titulo: `Sesión ${s.sesion.slice(0, 8)} · ${s.modelo}`,
-                    estado: s.cacheLectura > 200_000_000 ? "aviso" : "al día",
-                    porque: `${Math.round(s.cacheLectura / 1e6)} M tokens releídos de caché · ${Math.round(s.salida / 1e3)} k de salida · ${s.t}`,
+                    id: "modelo",
+                    titulo: `Semana · ${e.modeloNombre}`,
+                    estado: e.modelo.tono,
+                    porque: `${e.modelo.pct} % · ${e.modelo.reinicio}`, 
+                    enlace: ENLACE_USO_CLAUDE,
                     acciones: [],
+                    ficha: [
+                        { etiqueta: "Usado", valor: `${e.modelo.pct} %` },
+                        { etiqueta: "Queda", valor: `${e.modelo.queda} %` },
+                        { etiqueta: "Reinicia", valor: e.modelo.reinicio },
+                        { etiqueta: "Coste por revisión", valor: e.modelo.coste !== null ? `≤ ${e.modelo.coste} %` : "sin coste" },
+                    ],
                 });
             }
+            
             return {
                 clave,
-                titulo: "Crédito de Claude en la nube",
-                resumen: resumenCreditoClaude(e),
+                titulo: "Claude · límites del plan",
+                resumen: resumenLimitesClaude(e),
                 filas,
                 acciones: [],
-                aviso: e.avisos.length ? e.avisos.join(" ") : undefined,
+                aviso: e.desactualizada || e.recomendacion ? (e.recomendacion || `Desactualizada: la lectura tiene más de 120 min`) : undefined,
+                vacio: undefined,
             };
         }
 
