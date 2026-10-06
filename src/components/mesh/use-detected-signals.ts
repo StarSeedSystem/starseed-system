@@ -38,6 +38,8 @@ import { fusionarRadar } from "@/ai/astraura/mesh/radar-fusion";
 import { senalesRadioLocal } from "@/ai/astraura/mesh/senales-radio-local";
 import { enriquecerConMalla } from "@/ai/astraura/mesh/senales-enlace-malla";
 import { obtenerRadioLocal, radioLocalEnCache } from "@/lib/network/radio-local-cliente";
+import { useRadarRemoto } from "@/lib/network/radar-remoto-store";
+import { senalesVistasPorOtras } from "@/lib/network/radar-por-malla";
 import type { RadioLocal } from "@/lib/mando/radio-local-tipos";
 import { listNeurons, NEURON_EVENT, type Neuron } from "@/lib/neurons/neurons";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
@@ -168,6 +170,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   // único (`MallaNeuronasMount`) — aquí no se arranca nada. Con sus filas se
   // enriquecen las señales `account` con el enlace P2P y la ficha reales.
   const malla = useMallaNeuronasEstado();
+  const radarRemoto = useRadarRemoto();
   const [neuronsState, setNeuronsState] = useState<NeuronsCache>(() => neuronsCache);
   const [serialPorts, setSerialPorts] = useState<SerialPortView[]>([]);
   const [serialProbed, setSerialProbed] = useState(false);
@@ -235,10 +238,21 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   const [radioLocal, setRadioLocal] = useState<RadioLocal | null>(() => radioLocalEnCache());
   useEffect(() => {
     let vivo = true;
-    const leer = () => void obtenerRadioLocal().then((r) => { if (vivo && r) setRadioLocal(r); });
+    const leer = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void obtenerRadioLocal().then((r) => { if (vivo && r) setRadioLocal(r); });
+    };
     leer();
     const t = setInterval(leer, 60_000);
-    return () => { vivo = false; clearInterval(t); };
+    const onVis = () => {
+      if (document.visibilityState === "visible") leer();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   /* Latido lento: refresca "hace X" y la calidad por frescura sin re-render loco. */
@@ -255,20 +269,24 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
     [ble.detections, tick],
   );
 
-  const signals = useMemo(
-    () =>
-      enriquecerConMalla(
-        fusionarRadar(
-          [
-            ...collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
-            ...senalesRadioLocal(radioLocal, now),
-          ],
-          now,
-        ),
-        malla.misDispositivos,
-      ),
+  const signals = useMemo(() => {
+    const base = [
+      ...collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
+      ...senalesRadioLocal(radioLocal, now),
+      ...senalesVistasPorOtras(radarRemoto, now),
+    ];
+    const fusionado = fusionarRadar(base, now);
+    const enriquecido = enriquecerConMalla(fusionado, malla.misDispositivos);
+    // Reordenar por calidad descendente, igual que collectDetectedSignals.
+    return enriquecido.sort((a, b) => {
+      const qa = a.quality == null ? -1 : a.quality;
+      const qb = b.quality == null ? -1 : b.quality;
+      if (qb !== qa) return qb - qa;
+      return a.id.localeCompare(b.id);
+    });
+  },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal, malla.misDispositivos],
+    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {
@@ -360,8 +378,16 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
       reason: "La web no da acceso a la antena celular ni a las celdas vecinas. Solo el tipo de conexión (2G–5G) cuando el sistema lo reporta.",
       fix: "Para antenas directas y múltiples radios simultáneos, usa la app nativa.",
     });
+    if (!radioLocal) {
+      out.push({
+        id: "radio-local",
+        label: "Radio nativa (Wi-Fi / Bluetooth del sistema)",
+        reason: "Wi-Fi y Bluetooth del sistema: el navegador no los expone; los lee el Mando local de la Mac y llegan aquí por la malla si esa neurona está vinculada.",
+        fix: "Abre esta página en la Mac (localhost:9002) o vincula esta neurona a la malla para recibir lo que oye su radio local.",
+      });
+    }
     return out;
-  }, [mesh.status, ble.support, ble.adapter, ble.scanning, ble.detections.length, serialProbed, serialPorts.length, neuronsProbed, neurons, beacons.length, accountRegistry]);
+  }, [mesh.status, ble.support, ble.adapter, ble.scanning, ble.detections.length, serialProbed, serialPorts.length, neuronsProbed, neurons, beacons.length, accountRegistry, radioLocal]);
 
   const refresh = useCallback(() => {
     loadNeurons();
