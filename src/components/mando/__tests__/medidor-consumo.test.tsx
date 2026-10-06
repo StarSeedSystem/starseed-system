@@ -40,16 +40,46 @@ function datos(extra: Partial<DatosConsumo["supabase"]> = {}): DatosConsumo {
         },
         jev: { usdHoy: 0.01, techo: 0.05, pct: 0.2, saldo: 9.5, saldoMin: 2, tono: "ok" },
         claude: {
-            restante: 180,
-            total: 250,
-            fraccion: 0.72,
-            declaradoEn: "2026-09-28T10:00:00Z",
-            vence: "2026-11-05T01:59:00-06:00",
-            dias: 37,
-            tono: "ok",
-            aviso: null,
-            comando: "python3 scripts/puente/credito_claude_nube.py declarar --restante <USD>",
+            sesion: {
+                pct: 34,
+                queda: 66,
+                reinicio: "2026-10-01T00:00:00Z",
+                minutosParaReinicio: 30,
+                coste: 5.2,
+                proyeccion: 34,
+                reiniciada: false,
+                tono: "aviso",
+            },
+            semana: {
+                pct: 61,
+                queda: 39,
+                reinicio: "2026-10-02T00:00:00Z",
+                minutosParaReinicio: 60,
+                coste: 3.1,
+                proyeccion: 61,
+                reiniciada: false,
+                tono: "ok",
+            },
+            modelo: {
+                pct: 45,
+                queda: 55,
+                reinicio: "2026-10-03T00:00:00Z",
+                minutosParaReinicio: 90,
+                coste: 2.0,
+                proyeccion: 45,
+                reiniciada: false,
+                tono: "aviso",
+            },
+            modeloNombre: "Fable",
+            lecturaEn: "2026-09-29T10:00:00Z",
+            lecturaHaceMin: 120,
+            desactualizada: false,
+            programadasEnSesion: 0,
+            programadasEnSemana: 0,
+            recomendacion: null,
+            tono: "aviso",
             enlace: "https://claude.ai/settings/usage",
+            comando: "python3 scripts/puente/limites_claude.py estado",
         },
     };
 }
@@ -97,13 +127,13 @@ describe("MedidorConsumo", () => {
 
         const jev = screen.getByRole("article", { name: "Jev y OpenRouter" });
         expect(within(jev).getByRole("progressbar", { name: "Gasto de hoy: $0.0100 / $0.05" })).toBeInTheDocument();
-        const claude = screen.getByRole("article", { name: "Crédito de Claude en la nube" });
-        expect(within(claude).getByText("$180.00 de $250.00")).toBeInTheDocument();
-        expect(within(claude).getByRole("link", { name: /Ver el saldo en claude.ai/ })).toHaveAttribute(
+        const claude = screen.getByRole("article", { name: "Límites del plan de Claude" });
+        expect(within(claude).getByText(/34 % ·/)).toBeInTheDocument();
+        expect(within(claude).getByRole("link", { name: /Ver el uso en claude.ai/ })).toHaveAttribute(
             "href",
             "https://claude.ai/settings/usage",
         );
-        expect(within(claude).getByText(/credito_claude_nube.py declarar/)).toBeInTheDocument();
+        expect(within(claude).getByText(/limites_claude.py estado/)).toBeInTheDocument();
     });
 
     it("avisa del freno remoto y del 402", async () => {

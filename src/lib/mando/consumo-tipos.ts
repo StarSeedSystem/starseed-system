@@ -15,10 +15,29 @@ export interface Presupuestos {
     supabase_peticiones_dia: number;
     supabase_mb_dia: number;
     supabase_mb_ciclo: number;
-    /** «AAAA-MM-DD» del inicio del ciclo de facturación, o null si no se sabe. */
+    /** "AAAA-MM-DD" del inicio del ciclo de facturación, o null si no se sabe. */
     ciclo_inicio: string | null;
     jev_usd_dia: number;
     openrouter_usd_min_saldo: number;
+}
+
+import type { EstadoLimitesClaude } from "@/lib/mando/limites-claude";
+
+/** Estado del límite de Claude — lo escribe `scripts/puente/limites_claude.py`. */
+export interface MedidorLimitesClaude {
+    readonly sesion: EstadoLimitesClaude["sesion"];
+    readonly semana: EstadoLimitesClaude["semana"];
+    readonly modelo: EstadoLimitesClaude["modelo"];
+    readonly modeloNombre: EstadoLimitesClaude["modeloNombre"];
+    readonly lecturaEn: EstadoLimitesClaude["lecturaEn"];
+    readonly lecturaHaceMin: EstadoLimitesClaude["lecturaHaceMin"];
+    readonly desactualizada: EstadoLimitesClaude["desactualizada"];
+    readonly programadasEnSesion: EstadoLimitesClaude["programadasEnSesion"];
+    readonly programadasEnSemana: EstadoLimitesClaude["programadasEnSemana"];
+    readonly recomendacion: EstadoLimitesClaude["recomendacion"];
+    readonly tono: EstadoLimitesClaude["tono"];
+    readonly enlace: string;
+    readonly comando: string;
 }
 
 /** Los valores del contrato «consumo» (5 GB / 30 días ≈ 166 MB/día: 150 deja margen). */
@@ -162,24 +181,10 @@ export interface MedidorJev {
     tono: TonoConsumo;
 }
 
-export interface MedidorClaudeNube {
-    restante: number | null;
-    total: number | null;
-    /** 0-1 de lo que QUEDA. */
-    fraccion: number | null;
-    declaradoEn: string | null;
-    vence: string | null;
-    dias: number | null;
-    tono: TonoConsumo;
-    aviso: string | null;
-    comando: string;
-    enlace: string;
-}
-
 export interface DatosConsumo {
     supabase: MedidorSupabase;
     jev: MedidorJev;
-    claude: MedidorClaudeNube;
+    claude: MedidorLimitesClaude;
     presupuestos: Presupuestos;
     generadoEn: string;
 }

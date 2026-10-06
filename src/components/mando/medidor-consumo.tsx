@@ -454,28 +454,45 @@ function FilaJev({ j }: { j: DatosConsumo["jev"] }) {
 function FilaClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) {
     return (
         <Tarjeta
-            etiqueta="Crédito de Claude en la nube"
+            etiqueta="Límites del plan de Claude"
             icono={<Sparkles className="h-4 w-4 text-cyan-200/80" aria-hidden />}
-            titulo="Claude nube"
+            titulo="Claude límites"
             estado={
                 <Estado
-                    texto={c.restante === null ? "Sin declarar" : c.tono === "peligro" ? "Cuidado" : c.tono === "aviso" ? "Aviso" : "Declarado"}
+                    texto={c.tono === "peligro" ? "Cuidado" : c.tono === "aviso" ? "Aviso" : "OK"}
                     tono={c.tono}
                 />
             }
         >
-            <Barra
-                etiqueta="Queda"
-                valor={c.restante === null ? "—" : `${usd(c.restante)} de ${usd(c.total)}`}
-                fraccion={c.fraccion}
-                tono={c.tono}
-                detalle={
-                    c.declaradoEn
-                        ? `declarado el ${fechaCorta(c.declaradoEn)} (${hace(c.declaradoEn, ahora)})${c.dias !== null ? ` · vence en ${c.dias} días` : ""}`
-                        : "No hay API del saldo: vale lo que declares."
-                }
-            />
-            {c.aviso ? <p className="text-[11px] leading-snug text-amber-200/85">{c.aviso}</p> : null}
+            <div className="grid gap-2.5 sm:grid-cols-2">
+                {c.sesion ? (
+                    <Barra
+                        etiqueta="Sesión"
+                        valor={`${Math.round(c.sesion.pct)} %${c.sesion.reinicio ? ` · ${fechaCorta(c.sesion.reinicio)}` : ""}`}
+                        fraccion={c.sesion.pct}
+                        tono={c.sesion.tono}
+                        detalle={`vence en ${c.sesion.minutosParaReinicio > 0 ? `${Math.floor(c.sesion.minutosParaReinicio / 60)} h ${c.sesion.minutosParaReinicio % 60} min` : "ya"}`}
+                    />
+                ) : null}
+                {c.semana ? (
+                    <Barra
+                        etiqueta="Semana"
+                        valor={`${Math.round(c.semana.pct)} %${c.semana.reinicio ? ` · ${fechaCorta(c.semana.reinicio)}` : ""}`}
+                        fraccion={c.semana.pct}
+                        tono={c.semana.tono}
+                        detalle={`vence en ${c.semana.minutosParaReinicio > 0 ? `${Math.floor(c.semana.minutosParaReinicio / 60)} h ${c.semana.minutosParaReinicio % 60} min` : "ya"}`}
+                    />
+                ) : null}
+                {c.modelo ? (
+                    <Barra
+                        etiqueta={c.modeloNombre || "Modelo"}
+                        valor={`${Math.round(c.modelo.pct)} %${c.modelo.reinicio ? ` · ${fechaCorta(c.modelo.reinicio)}` : ""}`}
+                        fraccion={c.modelo.pct}
+                        tono={c.modelo.tono}
+                        detalle={`vence en ${c.modelo.minutosParaReinicio > 0 ? `${Math.floor(c.modelo.minutosParaReinicio / 60)} h ${c.modelo.minutosParaReinicio % 60} min` : "ya"}`}
+                    />
+                ) : null}
+            </div>
             <div className="flex flex-col gap-1.5">
                 <a
                     href={c.enlace}
@@ -484,14 +501,19 @@ function FilaClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) 
                     className="mc-alzar inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-100"
                 >
                     <ExternalLink className="h-3 w-3" aria-hidden />
-                    Ver el saldo en claude.ai
+                    Ver el uso en claude.ai
                 </a>
                 <div className="flex items-center gap-1.5">
                     <code className="min-w-0 flex-1 break-all rounded-md border border-white/10 bg-black/40 px-2 py-1 font-mono text-[10.5px] text-white/70">
                         {c.comando}
                     </code>
-                    <Copiar texto={c.comando} etiqueta="Copiar el comando para declarar el saldo" />
+                    <Copiar texto={c.comando} etiqueta="Copiar el comando para ver límites" />
                 </div>
+                {c.recomendacion ? <p className="text-[11px] leading-snug text-amber-200/85">{c.recomendacion}</p> : null}
+                <p className="flex items-center gap-1 text-[11px] text-white/50">
+                    <ExternalLink className="h-3 w-3" aria-hidden />
+                    Lectura hace {c.lecturaHaceMin ?? "mucho"} {c.desactualizada ? "(desactualizada)" : ""} min
+                </p>
             </div>
         </Tarjeta>
     );
