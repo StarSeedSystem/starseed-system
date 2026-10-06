@@ -55,6 +55,7 @@ import { CronicaMundo } from "./cronica-mundo";
 import {
     mundoInicial,
     avanzar,
+    pasosParaTick,
     type EstadoMundo,
     type HabitanteMundo,
 } from "@/lib/avatares/mundo/simulacion";
@@ -684,15 +685,18 @@ export function MundoAvatares({
             if (temporizador !== null) clearInterval(temporizador);
             temporizador = setInterval(() => {
                 if (!vivo) return;
-                if (typeof document !== "undefined" && document.hidden) {
-                    pasosPendientes = Math.min(pasosPendientes + 1, 4);
-                    return;
+                /* La decisión de avance (pausa, pestaña oculta y tope de
+                 * acumulación) vive en `pasosParaTick`, pura y probada. La
+                 * pausa ni siquiera llega aquí: sin intervalo no hay tick. */
+                const r = pasosParaTick({
+                    pausado,
+                    pestañaOculta: typeof document !== "undefined" && document.hidden,
+                    pasosPendientes,
+                });
+                pasosPendientes = r.pasosPendientes;
+                if (r.pasos > 0) {
+                    setEstado((prev) => avanzar(prev, r.pasos));
                 }
-                // Si se acumuló mientras la pestaña estaba oculta, avanza en
-                // bloque solo 1 para no congelar el navegador al volver.
-                const saltos = pasosPendientes > 0 ? 1 : 1;
-                pasosPendientes = 0;
-                setEstado((prev) => avanzar(prev, saltos));
             }, msPorTick(velocidad));
         };
 
