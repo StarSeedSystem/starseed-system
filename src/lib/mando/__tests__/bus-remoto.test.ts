@@ -159,6 +159,41 @@ describe("nube en pausa", () => {
         expect(await nubeEnPausa(AHORA)).toBe(false);
     });
 
+    it("con JSON inválido cuenta como no pausada y sí pregunta", async () => {
+        const ruta = join(dirPausa, "nube-pausada.json");
+        await writeFile(ruta, "{ esto no es json", "utf8");
+        process.env.STARSEED_NUBE_PAUSADA = ruta;
+        expect(await nubeEnPausa(AHORA)).toBe(false);
+        respuestas = [
+            { status: 200, cuerpo: [fila(7, "commit", hace(0))] },
+            { status: 200, cuerpo: [] },
+            { status: 200, cuerpo: [] },
+        ];
+        await filasDelBus(AHORA);
+        expect(urls).toHaveLength(3);
+    });
+
+    it("si se levanta la pausa y caduca la caché de 60 s, vuelve a preguntar", async () => {
+        await conPausa({ hasta: null });
+        expect(await filasDelBus(AHORA)).toEqual([]);
+        expect(urls).toHaveLength(0);
+
+        rmSync(process.env.STARSEED_NUBE_PAUSADA as string, { force: true });
+        respuestas = [
+            { status: 200, cuerpo: [fila(20, "commit", hace(0))] },
+            { status: 200, cuerpo: [] },
+            { status: 200, cuerpo: [] },
+        ];
+        // Dentro de la caché de pausa todavía no pregunta…
+        await filasDelBus(AHORA + 30_000);
+        expect(urls).toHaveLength(0);
+        // …pero caducada la caché, vuelve a preguntar y limpia el motivo
+        const retomada = await filasDelBus(AHORA + 61_000);
+        expect(urls).toHaveLength(3);
+        expect(retomada.map((f) => f.id)).toEqual([20]);
+        expect(estadoBusRemoto(AHORA + 61_000).motivo).toBeNull();
+    });
+
     it("la pausa se cachea 60 s: quitar el archivo no se nota al instante", async () => {
         await conPausa({ hasta: null });
         expect(await nubeEnPausa(AHORA)).toBe(true);
