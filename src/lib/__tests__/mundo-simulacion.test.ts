@@ -202,6 +202,23 @@ describe('Simulación del mundo de avatares', () => {
       expect(alVolver.pasosPendientes).toBe(0);
     });
 
+    it('sin pausa y pestaña visible, cada tick avanza exactamente 1 paso', () => {
+      let estado = mundoInicial([{ id: 'pers1', nombre: 'Avatar 1' }]);
+
+      for (let i = 0; i < 3; i++) {
+        const { pasos, pasosPendientes } = pasosParaTick({
+          pausado: false,
+          pestañaOculta: false,
+          pasosPendientes: 0
+        });
+        expect(pasos).toBe(1);
+        expect(pasosPendientes).toBe(0);
+        estado = avanzar(estado, pasos);
+      }
+
+      expect(estado.tick).toBe(3);
+    });
+
     it('debeAvanzar es cierto solo sin pausa y con pestaña visible', () => {
       expect(debeAvanzar({ pausado: false, oculta: false })).toBe(true);
       expect(debeAvanzar({ pausado: true, oculta: false })).toBe(false);
