@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261005",
+ "tareas": [
+  {
+   "id": "PRD1005Ds",
+   "ola": "Ola 1005R · Director de producción: publica solo lo filtrado, prueba en todos los escenarios, confirma cada medio y propaga en vivo",
+   "depende": [],
+   "titulo": "Producción · pruebas profesionales en la vista previa: rutas tocadas + núcleo × 5 tamaños × claro/oscuro, regresión y presupuestos · lo que faltó: scripts/puente/produccion_pruebas.mjs",
+   "archivos": [
+    "scripts/puente/produccion_pruebas.mjs"
+   ],
+   "prompt": "SEGUIMIENTO de PRD1005D, que ya está integrada (sha 2bcccfcdda6e). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/produccion_pruebas.mjs.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Producción · pruebas profesionales en la vista previa: rutas tocadas + núcleo × 5 tamaños × claro/oscuro, regresión y presupuestos\n\n--- encargo original, como contexto ---\nCONTRATO: `architecture/director-produccion.md`. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): un director de producción que publique automáticamente lo que ya filtraron los demás directores, juzgue con Jev, Laya, memorias y el propósito de cada tarea si es coherente publicarla, lo pruebe en todos los escenarios, confirme que llegó a cada medio y lo propague en tiempo real.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen. Sin dependencias nuevas.\n\nTU TAREA (PRD1005D): puerta 4 de §3. (a) `produccion_rutas.py` (puro): de los archivos del lote a rutas, reutilizando el detector de `capturar_prueba.py` (impórtalo, no lo copies), más las de núcleo (`/`, `/escritorios`, `/nexus`, `/login`); presupuestos (TTFB 800 ms, LCP 2500 ms en escritorio y 4000 ms en móvil) y `comparar(actual, ultima_buena)` → bloqueos (ruta que daba <400 y ahora no) y avisos (>1,5× más lenta). (b) `produccion_pruebas.mjs` (Playwright ya instalado; en el Mac usa el Chromium del sistema si `PLAYWRIGHT_CHROMIUM` está definido): `--base <url> --rutas a,b --sha <sha> --salida <json>`; matriz 360×780, 430×932, 768×1024, 1280×800, 1920×1080 × claro/oscuro, más movimiento reducido en 430×932. Por combinación: status, errores de consola (filtrados con `produccion-consola-permitidos.json`, que empieza con solo extensiones de navegador), error de hidratación, desborde horizontal (`documentElement.scrollWidth > innerWidth + 1`), `version.json` con el sha, registro del SW, TTFB y LCP (PerformanceObserver). Capturas a `starseed_memory_root/produccion/capturas/<sha>/`. Concurrencia 3 páginas. Sale con código 1 si hay bloqueos.",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "PRD1005H",
+   "ola": "Ola 1005R · Director de producción: publica solo lo filtrado, prueba en todos los escenarios, confirma cada medio y propaga en vivo",
+   "depende": [],
+   "titulo": "Producción · el bucle del director: elegir, probar en vista previa, publicar por lotes, confirmar cada medio, propagar o revertir",
+   "archivos": [
+    "scripts/puente/director-produccion.py",
+    "scripts/puente/test_director_produccion.py"
+   ],
+   "modelo": "codex/gpt-5.6-sol",
+   "prompt": "CONTRATO: `architecture/director-produccion.md`. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): un director de producción que publique automáticamente lo que ya filtraron los demás directores, juzgue con Jev, Laya, memorias y el propósito de cada tarea si es coherente publicarla, lo pruebe en todos los escenarios, confirme que llegó a cada medio y lo propague en tiempo real.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen. Sin dependencias nuevas.\n\nTU TAREA (PRD1005H): el ciclo de §3 a §6 usando los módulos de PRD1005A–E (impórtalos). Opciones `--una-vez`, `--seco`, `--modo`. Por ciclo: interruptor (`~/.starseed/produccion-pausada.json` → solo informe), cerrojo compartido con `publicar.py` (si su diario dice `corriendo`, espera), candidatos → puertas 1–3 (una sola llamada a `decidir.consultar_lote`) → lote (ventana `ventana_min`; las tareas cuya petición viene de Alex por el Chat Director van por exprés) → push con force-with-lease SOLO a `produccion/candidato` → espera CI y la URL de vista previa por la API de deployments de GitHub (reutiliza el cliente de `nube-gh.py`) → `produccion_pruebas.mjs` + nota de diseño si toca interfaz → en `auto`, `git push origin <sha>:main` sin force → confirmar cada medio → `produccion_avisar` → informe al Chat Director (`director_chat.publicar --de director-produccion`) → `decidir.confirmar`. Si falla la confirmación: revertir, vetar el sha y devolver las tareas a `pendiente` con el informe como contexto, escribiendo `olas/progreso.json` con el mismo cerrojo (flock) que usa el enjambre (mira `director-orquestacion.reintentar_sin_cambios`). Topes de §4. Estado atómico en `starseed_memory_root/mando/produccion-estado.json` e historial en `~/.starseed/produccion/historial.jsonl` (§6). Nunca `next build` local. Pruebas: todo inyectado (git, red, procesos); casos seco, canario, auto feliz, secreto detectado, Jev dice no, Jev sin respuesta con panel, fallo de medio → reversión, pausa, cerrojo ocupado, tope diario.",
+   "dependencias_ya_en_main": [
+    "PRD1005A",
+    "PRD1005B",
+    "PRD1005C",
+    "PRD1005D",
+    "PRD1005E",
+    "PRD1005F",
+    "PRD1005G"
+   ]
+  }
+ ]
+}
