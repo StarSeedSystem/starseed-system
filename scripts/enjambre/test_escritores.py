@@ -110,6 +110,17 @@ class AsegurarModeloTest(unittest.TestCase):
         self.assertEqual(provs["llm7"]["options"]["apiKey"], "sin-clave")
         self.assertIn("gpt-oss", provs["llm7"]["models"])  # añade el modelo pedido
 
+    def test_apaga_el_tsserver_de_opencode_sin_pisar_lo_puesto_a_mano(self):
+        # (2026-10-06) ~2 GB por agente: con 8 GB la swap pasó de 10 GB y el disco bajó a 1 GB.
+        enjambre.asegurar_modelo_opencode("llm7/gpt-oss")
+        self.assertEqual(_leer_json(enjambre.RUTA_OPENCODE_CFG)["lsp"], {"typescript": {"disabled": True}})
+        cfg = _leer_json(enjambre.RUTA_OPENCODE_CFG)
+        cfg["lsp"] = {"typescript": {"disabled": False}}
+        with open(enjambre.RUTA_OPENCODE_CFG, "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+        enjambre.asegurar_modelo_opencode("llm7/minimax-m2.7")
+        self.assertEqual(_leer_json(enjambre.RUTA_OPENCODE_CFG)["lsp"], {"typescript": {"disabled": False}})
+
     def test_modelo_ya_declarado_no_reescribe(self):
         enjambre.asegurar_modelo_opencode("llm7/gpt-oss")
         self.assertTrue(enjambre.asegurar_modelo_opencode("llm7/gpt-oss"))

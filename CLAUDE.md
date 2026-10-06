@@ -1069,3 +1069,18 @@ debería el propio puente autorrepararse sin tener que pedírtelo». Tres capas,
   regenerable con la lista blanca del Mando (la caché de Next solo por debajo de 3 GB). La
   publicación hace sitio con lo mismo antes de rendirse por disco. Estado en
   `~/.starseed/autocuracion-mando.json`; cada remedio, una línea en el Chat Director.
+
+### 9. «Ningún agente trabaja» y «Buscar más capacidad» no lo arregla: el límite son los cupos (2026-10-06)
+
+Medido a las 14:47 (hora de la Mac): OpenRouter con su tope diario de modelos `:free` (429
+«free-models-per-day», 1.000/día), xKiro con su cupo diario (429; sus premium piden plan),
+Gemini sin cuota (429), NIM con kimi-k3 sin contestar y modelos retirados (410), Hugging Face
+sin crédito mensual (402), Codex con su límite semanal. Los cupos diarios vuelven a las 00:00
+UTC (18:00 en la Mac). opencode reintentaba esos 429/402 en silencio y cada modelo se
+«colgaba» 5 min; además cada agente levantaba un `tsserver` de ~2 GB y la swap llegó a 10 GB
+con el disco en 1 GB. Arreglos: **sonda de 1 token** antes de escribir
+(`scripts/enjambre/sonda_escritor.py`, `escritor_listo()`; cupo del día → proveedor sin cupo
+hasta las 00:00 UTC en la salud compartida), el botón **dice cuándo el límite son los
+modelos** y cuándo vuelve cada uno, y opencode va **sin LSP de TypeScript**
+(`"lsp": {"typescript": {"disabled": true}}`, que el orquestador pone si falta). Más huecos
+no son más trabajo si ningún modelo tiene cupo: lo que suma de verdad es otro proveedor.

@@ -5279,6 +5279,11 @@ def asegurar_modelo_opencode(modelo):
     if nombre in modelos and not refrescado:
         return True
     modelos[nombre] = {"name": nombre.split("/")[-1]}
+    # (2026-10-06) Sin servidor de lenguaje de TypeScript en opencode: cada agente levantaba
+    # un tsserver de ~2 GB sobre este repo y, con 8 GB, la swap pasaba de 10 GB y el disco
+    # bajaba a 1 GB. Las puertas ya pasan tsc por su turno (tsc-turno.sh). Respeta lo que
+    # haya puesto a mano en la configuración.
+    cfg.setdefault("lsp", {"typescript": {"disabled": True}})
     try:
         with cerrojo("opencode-cfg", espera_aviso=9999):
             temporal = "%s.%d.tmp" % (RUTA_OPENCODE_CFG, os.getpid())
