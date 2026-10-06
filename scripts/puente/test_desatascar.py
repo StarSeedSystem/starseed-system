@@ -330,6 +330,22 @@ class TestRepararBloqueantes(unittest.TestCase):
         self.assertEqual(lineas[0]["tarea"], "BLQ1005D")
         self.assertTrue(lineas[0]["automatico"])
 
+    def test_mando_caido_y_disco_no_escribible_aun_devuelve_frase(self):
+        """Si ni el Mando ni el archivo de pendientes responden, la frase sale
+        igual: un fallo de red o de disco no puede tumbar el desatasco."""
+        frases = d.reparar_bloqueantes(
+            [("X2", "objeción")],
+            raiz=os.path.join(self.raiz, "no", "existe\x00", "r"),
+            enviar=lambda tid: False,
+        )
+        self.assertTrue(any("pendiente en archivo" in f for f in frases))
+
+    def test_registrar_pendiente_con_ruta_imposible_devuelve_false(self):
+        ok = d.registrar_reparacion_pendiente(
+            os.path.join(self.raiz, "no", "existe\x00", "r"), "X2", "objeción"
+        )
+        self.assertFalse(ok)
+
     def test_avisar_fallando_no_tumba_la_reparacion(self):
         """Si el Chat Director está caído, la reparación sigue su curso."""
         self.pub.side_effect = RuntimeError("sin chat")
