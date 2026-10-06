@@ -1,3 +1,8 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -5,6 +10,7 @@ import {
     estadoBusRemoto,
     filasDelBus,
     filasRecientes,
+    nubeEnPausa,
     pausaPorEstado,
     reiniciarBusRemoto,
 } from "../bus-remoto";
@@ -18,9 +24,25 @@ function fila(id: number, tipo: string, t: string, datos: unknown = {}) {
 
 let urls: string[] = [];
 let respuestas: Array<{ status: number; cuerpo: unknown }> = [];
+let dirPausa = "";
 const fetchOriginal = globalThis.fetch;
 
+/** La nube NO pausada: la variable apunta a un archivo que no existe. */
+function sinPausa(): void {
+    process.env.STARSEED_NUBE_PAUSADA = join(dirPausa, "no-existe.json");
+}
+
+/** Escribe el archivo de pausa con el contenido dado y apunta la variable a él. */
+async function conPausa(contenido: Record<string, unknown>): Promise<string> {
+    const ruta = join(dirPausa, "nube-pausada.json");
+    await writeFile(ruta, JSON.stringify(contenido), "utf8");
+    process.env.STARSEED_NUBE_PAUSADA = ruta;
+    return ruta;
+}
+
 beforeEach(() => {
+    dirPausa = mkdtempSync(join(tmpdir(), "bus-remoto-"));
+    sinPausa();
     reiniciarBusRemoto();
     urls = [];
     respuestas = [];
@@ -35,10 +57,12 @@ beforeEach(() => {
 
 afterEach(() => {
     globalThis.fetch = fetchOriginal;
+    delete process.env.STARSEED_NUBE_PAUSADA;
+    rmSync(dirPausa, { recursive: true, force: true });
 });
 
 describe("bus remoto con dieta de tráfico", () => {
-    it("carga una vez (acotada) y después solo pide lo nuevo, cada ≥ 45 s", async () => {
+    it("carga una vez (acotada) y después solo pide lo nuevo, cada ≥ 180 s", async () => {
         respuestas = [
             { status: 200, cuerpo: [fila(10, "commit", hace(3600_000)), fila(9, "inicio", hace(7200_000))] },
             { status: 200, cuerpo: [fila(11, "arranque", hace(60_000), { cola: "cola-1", tareas: [] })] },
@@ -52,7 +76,7 @@ describe("bus remoto con dieta de tráfico", () => {
         expect(urls[2]).toContain("tipo=eq.latido");
 
         await filasDelBus(AHORA + 10_000);
-        expect(urls).toHaveLength(3); // dentro de los 45 s: ni una petición
+        expect(urls).toHaveLength(3); // dentro de los 180 s: ni una petición
 
         respuestas = [{ status: 200, cuerpo: [fila(13, "fallo", hace(0))] }];
         const luego = await filasDelBus(AHORA + REFRESCO_MS + 1);
@@ -93,5 +117,53 @@ describe("bus remoto con dieta de tráfico", () => {
         expect(pausaPorEstado(503)).toBe(5 * 60_000);
         expect(pausaPorEstado("red")).toBe(2 * 60_000);
         expect(pausaPorEstado(200)).toBe(0);
+    });
+});
+
+describe("nube en pausa", () => {
+    it("con pausa (hasta: null) no pregunta a Supabase y sirve lo que hay", async () => {
+        await conPausa({ hasta: null });
+        respuestas = [{ status: 200, cuerpo: [fila(10, "commit", hace(3600_000))] }];
+        expect(await filasDelBus(AHORA)).toEqual([]);
+        expect(urls).toHaveLength(0);
+        expect(estadoBusRemoto(AHORA).motivo).toBe("nube en pausa: el bus remoto no se consulta");
+        // ni aunque pase el refresco de 180 s
+        await filasDelBus(AHORA + REFRESCO_MS + 10_000);
+        expect(urls).toHaveLength(0);
+    });
+
+    it("con pausa con fecha futura tampoco pregunta", async () => {
+        await conPausa({ hasta: new Date(AHORA + 3600_000).toISOString() });
+        await filasDelBus(AHORA);
+        expect(urls).toHaveLength(0);
+        expect(await nubeEnPausa(AHORA)).toBe(true);
+    });
+
+    it("sin archivo, con fecha pasada o ilegible sí pregunta", async () => {
+        expect(await nubeEnPausa(AHORA)).toBe(false); // sin archivo
+        respuestas = [
+            { status: 200, cuerpo: [fila(10, "commit", hace(3600_000))] },
+            { status: 200, cuerpo: [] },
+            { status: 200, cuerpo: [] },
+        ];
+        const primera = await filasDelBus(AHORA);
+        expect(urls).toHaveLength(3);
+        expect(primera.map((f) => f.id)).toEqual([10]);
+
+        reiniciarBusRemoto();
+        await conPausa({ hasta: new Date(AHORA - 1000).toISOString() }); // fecha pasada
+        expect(await nubeEnPausa(AHORA)).toBe(false);
+
+        reiniciarBusRemoto();
+        await conPausa({ hasta: "no es una fecha" });
+        expect(await nubeEnPausa(AHORA)).toBe(false);
+    });
+
+    it("la pausa se cachea 60 s: quitar el archivo no se nota al instante", async () => {
+        await conPausa({ hasta: null });
+        expect(await nubeEnPausa(AHORA)).toBe(true);
+        rmSync(process.env.STARSEED_NUBE_PAUSADA as string, { force: true });
+        expect(await nubeEnPausa(AHORA + 30_000)).toBe(true); // dentro de la caché
+        expect(await nubeEnPausa(AHORA + 61_000)).toBe(false); // caché caducada
     });
 });

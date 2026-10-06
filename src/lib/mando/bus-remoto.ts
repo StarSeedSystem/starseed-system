@@ -11,14 +11,20 @@
  *
  * Aquí se lee UNA vez y luego solo lo nuevo:
  *   · carga inicial acotada (eventos ligeros 30 días, `arranque` 72 h, latidos 10 min);
- *   · después, cada ≥ 45 s y solo si alguien pregunta, las filas con `id` mayor que la
+ *   · después, cada ≥ 180 s y solo si alguien pregunta, las filas con `id` mayor que la
  *     última vista;
  *   · todas las rutas comparten la misma memoria (en `globalThis`) y la misma petición
  *     en curso;
  *   · si Supabase contesta 402 (restringido) se deja de preguntar 30 min; 429 o 5xx, 5 min;
  *     sin red, 2 min. Mientras tanto se sirve lo que hay en memoria.
+ *   · si la nube está en pausa (`~/.starseed/nube-pausada.json` con `hasta` null o fecha
+ *     futura, leído con caché de 60 s), no se pregunta a Supabase en absoluto.
  * Solo de servidor (usa `process.env` con la clave pública del proyecto).
  */
+
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export interface FilaBusRemoto {
     id: number;
@@ -38,7 +44,7 @@ export interface EstadoBusRemoto {
     peticiones: number;
 }
 
-export const REFRESCO_MS = 45_000;
+export const REFRESCO_MS = 180_000;
 const DIA_MS = 24 * 3600 * 1000;
 const MAX_FILAS = 4000;
 const SELECT = "select=id,t,quien,tipo,tarea,texto,datos";
@@ -74,6 +80,7 @@ function memoria(): Memoria {
 /** Solo para pruebas: olvida todo lo leído. */
 export function reiniciarBusRemoto(): void {
     (globalThis as unknown as Record<string, unknown>)[CLAVE_GLOBAL] = undefined;
+    reiniciarPausaNube();
 }
 
 function texto(v: unknown): string {
@@ -102,6 +109,37 @@ export function pausaPorEstado(estado: number | "red"): number {
     if (estado === 402) return 30 * 60_000;
     if (estado === 429 || estado >= 500) return 5 * 60_000;
     return 0;
+}
+
+const PAUSA_NUBE_CACHE_MS = 60_000;
+let pausaNubeCache: { ahora: number; pausada: boolean } = { ahora: 0, pausada: false };
+
+/** Solo para pruebas: olvida también la caché de la pausa de la nube. */
+export function reiniciarPausaNube(): void {
+    pausaNubeCache = { ahora: 0, pausada: false };
+}
+
+/** Ruta del archivo de pausa de la nube (permite pruebas vía `STRSEED_NUBE_PAUSADA`). */
+export function rutaNubePausada(): string {
+    return process.env.STARSEED_NUBE_PAUSADA ?? join(homedir(), ".starseed", "nube-pausada.json");
+}
+
+/**
+ * ¿La nube del enjambre está en pausa? El archivo existe y su `hasta` es null o fecha
+ * futura. Si no se puede leer, cuenta como «no pausada». Cacheado 60 s.
+ */
+export async function nubeEnPausa(ahora = Date.now()): Promise<boolean> {
+    if (ahora - pausaNubeCache.ahora < PAUSA_NUBE_CACHE_MS) return pausaNubeCache.pausada;
+    let pausada = false;
+    try {
+        const crudo = JSON.parse(await readFile(rutaNubePausada(), "utf8")) as { hasta?: unknown };
+        const hasta = typeof crudo.hasta === "string" ? Date.parse(crudo.hasta) : null;
+        pausada = hasta === null || (Number.isFinite(hasta) && hasta > ahora);
+    } catch {
+        pausada = false;
+    }
+    pausaNubeCache = { ahora, pausada };
+    return pausada;
 }
 
 async function pedir(m: Memoria, consulta: string, ahora: number): Promise<FilaBusRemoto[] | null> {
@@ -158,6 +196,10 @@ function podar(m: Memoria, ahora: number): void {
 }
 
 async function refrescar(m: Memoria, ahora: number): Promise<void> {
+    if (await nubeEnPausa(ahora)) {
+        m.motivo = "nube en pausa: el bus remoto no se consulta";
+        return;
+    }
     if (ahora < m.pausaHasta) return;
     if (m.ultimaCarga && ahora - m.ultimaCarga < REFRESCO_MS) return;
     if (m.maxId === 0) {
