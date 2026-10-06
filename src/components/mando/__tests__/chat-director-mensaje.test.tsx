@@ -158,16 +158,24 @@ describe("MensajeDelDirector", () => {
         onReenviar={() => {}}
       />,
     );
-    expect(screen.getByTestId("mensaje-director")).toHaveAttribute("data-autor", "alex");
+    const tarjeta = screen.getByTestId("mensaje-director");
+    expect(tarjeta).toHaveAttribute("data-autor", "alex");
+    expect(tarjeta).toHaveClass("self-end");
+    expect(tarjeta).toHaveClass("border-cyan-400/30");
     expect(screen.getByText("Tú")).toBeInTheDocument();
+    expect(screen.queryByText("supervisor")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Pedir respuesta/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Responder$/ })).not.toBeInTheDocument();
   });
 
   it("mensaje del director no tiene data-autor=alex y mantiene 'Responder'", () => {
     render(
       <MensajeDelDirector mensaje={mensaje({ rol: "director", de: "claude-cowork" })} modelos={MODELOS} onResponder={() => {}} onReenviar={() => {}} />,
     );
-    expect(screen.getByTestId("mensaje-director")).toHaveAttribute("data-autor", "director");
+    const tarjeta = screen.getByTestId("mensaje-director");
+    expect(tarjeta).toHaveAttribute("data-autor", "director");
+    expect(tarjeta).not.toHaveAttribute("data-autor", "alex");
+    expect(tarjeta).not.toHaveClass("self-end");
     expect(screen.queryByText("Tú")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Responder/ })).toBeInTheDocument();
   });
@@ -215,6 +223,20 @@ describe("MensajeDelDirector", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
+  it("mensaje de alex con entrega fallo no muestra role=status y la línea es roja", () => {
+    render(
+      <MensajeDelDirector
+        mensaje={mensaje({ rol: "alex", de: "alex", tipo: "mensaje" })}
+        entregas={{ hermes: "fallo" }}
+        modelos={MODELOS}
+        onResponder={() => {}}
+        onReenviar={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText(/fallo en la entrega/)).toHaveClass("text-rose-400");
+  });
+
   it("mensaje de sistema es ámbar, compacto y sin barra de acciones", () => {
     render(
       <MensajeDelDirector
@@ -224,8 +246,11 @@ describe("MensajeDelDirector", () => {
         onReenviar={() => {}}
       />,
     );
-    expect(screen.getByTestId("mensaje-director")).toHaveAttribute("data-autor", "sistema");
+    const tarjeta = screen.getByTestId("mensaje-director");
+    expect(tarjeta).toHaveAttribute("data-autor", "sistema");
+    expect(tarjeta).toHaveClass("border-amber-500/30");
     expect(screen.getByText("Aviso.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Responder con")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Responder/ })).not.toBeInTheDocument();
   });
 });
