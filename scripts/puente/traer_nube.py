@@ -27,6 +27,12 @@ Una pasada (`revisar`), automática desde la autocuración del Mando cada 30 min
    los sueños, que espera a una persona. Esas ramas NO se tocan ni se borran: se listan en el
    Chat Director con la pregunta, una vez. Borrar solo con `borrar --ramas …`, a mano y con la
    palabra de Alex (es un push al remoto).
+4. **Revisar las superadas** (2026-10-06, `revisar_ramas_nube.py`, permiso permanente de Alex:
+   «borra las demás… y las próximas también»): con `--aplicar`, después de traer y reparar,
+   cada rama superada sin revisar se mira frente a main; las pruebas que main no tiene se
+   rescatan como tarea (regla + Jev, que solo veta perder), la rama se ARCHIVA
+   (`refs/archivo/…` + paquete en `starseed_memory_root/archivo/`), se anota lo aprendido y
+   solo entonces se borra del remoto. `--sin-revision` lo salta.
 
 Decisiones PURAS (`tid_de_asunto`, `decidir`, `elegir_por_tarea`, `siguiente_id`,
 `tarea_reparacion`, `texto_informe`) con sus pruebas en `test_traer_nube.py`.
@@ -503,6 +509,13 @@ def main(argv):
         print(json.dumps(borrar(ramas), ensure_ascii=False))
         return 0
     r = revisar(aplicar="--aplicar" in argv)
+    if "--aplicar" in argv and "--sin-revision" not in argv and not r.get("ocupado"):
+        try:
+            import revisar_ramas_nube
+
+            r["revision"] = revisar_ramas_nube.revisar(aplicar=True)
+        except Exception as e:  # noqa: BLE001 — revisar nunca tumba la pasada de traer
+            r["revision"] = {"error": "%s: %s" % (type(e).__name__, e)}
     if "--json" in argv:
         print(json.dumps(r, ensure_ascii=False, indent=1))
     else:
@@ -510,6 +523,11 @@ def main(argv):
             print("%-9s %-12s %-44s %s" % (p["accion"], p["tid"], p["rama"], p["motivo"]))
         if r["texto"]:
             print("\n" + r["texto"])
+        rv = r.get("revision") or {}
+        for n in rv.get("notas") or []:
+            print("revisada  %-12s %-44s %s → %s" % (n["tarea"], n["rama"], n["decision"], n["motivo"]))
+        if rv.get("error"):
+            print("revisión de superadas: " + rv["error"])
     return 0
 
 

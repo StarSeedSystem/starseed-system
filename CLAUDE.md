@@ -384,6 +384,12 @@ llena la Mac hasta su tope, vuelve a medir los contenedores, reabre en la nube l
 saturados (`~/.starseed/nube-reaperturas.json`: una reapertura devuelve un envío, como mucho dos por
 tarea en dos días y nunca dejando a la Mac sin trabajo para su tope), lanza hasta 2 jobs de GitHub
 Actions y dice medio por medio qué sumó y por qué no más. La autocuración lo repite cada 30 min.
+**Ramas de la nube: nada se tira sin revisar** (2026-10-06, `memory/aprendizaje-ramas-nube.md`): en la misma pasada de
+30 min, `traer_nube.py` trae lo integrado, repara lo que quedó a medias y `revisar_ramas_nube.py` revisa lo que main ya
+superó —las pruebas que main no tiene pasan a una tarea de rescate (regla ≥ 3 casos; Jev solo veta perder, p ≥ 0,8)—,
+archiva en `refs/archivo/nube/…` + paquete en `starseed_memory_root/archivo/`, anota lo aprendido y solo entonces borra
+del remoto (permiso permanente de Alex). En el orquestador, **una rama reutilizada se pone al día con main antes de
+escribir** (`poner_al_dia`): sin eso las puertas corrían sobre un main de hace días (0 de 12 integradas el 2026-10-05).
 **Lo que hace la nube llega a main solo** (2026-10-05, `scripts/puente/traer_nube.py`, cada 30 min
 desde la autocuración): lo integrado en una rama `nube/*` entra por cherry-pick con el cerrojo
 `integrar` tras pasar `tsc` y las pruebas relacionadas EN LA MAC (si no, se deshace con

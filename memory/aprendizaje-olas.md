@@ -3722,3 +3722,15 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `FLU1005H` — pruebas en rojo: vitest falla (rama conservada)
 - `BLQ1005E` — pruebas en rojo: vitest falla (rama conservada)
 - `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
+
+
+## 2026-10-06 · nota humana (claude-cowork) · por qué auto-1005-211229 integró 0 de 12
+
+**Causa medida.** 9 de las 12 eran reintentos sobre ramas `ola/<id>` que el orquestador reutilizaba sin ponerlas al día:
+p314Acs iba 571 commits por detrás de main, PA1005C 162 y CDV1004Cs 164. Sus puertas corrían pruebas viejas
+(credenciales-servidor sin el mock, el contrato de veredicto anterior) que main ya había arreglado. No era el modelo
+ni la tarea. Arreglo: `poner_al_dia()` en el orquestador (rebase sobre main antes de escribir; si choca, se archiva el
+intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador del repo antes de lanzar.
+
+**Ramas de la nube.** 72 ramas revisadas con Jev: casi nunca traían código que main no tuviera, sí pruebas distintas
+(18 tareas de rescate y la cadena del radar compartido regenerada). Detalle y lecciones: `memory/aprendizaje-ramas-nube.md`.

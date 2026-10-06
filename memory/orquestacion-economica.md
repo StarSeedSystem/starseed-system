@@ -782,3 +782,17 @@ Studio, xKiro, tokenrouter, OpenRouter `:free`, Groq solo revisor) y Codex por s
 gasta céntimos de OpenRouter con techo 0,20 $/día (`decidir.py uso`); el crédito de Claude solo lo
 gastan las sesiones de Claude (esta y las tareas programadas, §14); GitHub Actions es gratis en el
 repo público. Los directores en Python y los vigilantes no gastan nada.
+
+## 19. Ramas de la nube y ramas reutilizadas: al día, revisadas y archivadas (regla permanente · 2026-10-06)
+
+- **Al día con main antes de escribir** (`poner_al_dia` en `starseed-enjambre.py`): `worktree()` reutiliza `ola/<id>`; ahora,
+  antes de escribir y de las puertas, se guarda lo pendiente, rebase sobre main y, si choca, el intento viejo se archiva en
+  `refs/archivo/ola/<id>/<sello>` y el agente arranca desde main con la lista de archivos que tocaba en su contexto. Medido:
+  la ola auto-1005-211229 integró 0 de 12 por ramas de 162–571 commits de atraso.
+- **El orquestador instalado no se queda atrás**: `lanzar-enjambre.sh` corre `instalar.sh` antes de lanzar si el repo trae una
+  versión versionada, más nueva y que parsea (si la instalada es más nueva, avisa y la respeta).
+- **Revisión de las superadas** (`revisar_ramas_nube.py`, en cada `traer_nube.py revisar --aplicar`): casos de prueba nuevos
+  frente a main → regla (≥ 3 → rescatar) → Jev (`dominio=ramas-nube`, solo veta perder con p ≥ 0,8) → tarea `RT<id>` en
+  `cola-rescate-nube.json`; archivo verificado (`refs/archivo/…` + `starseed_memory_root/archivo/ramas-nube-<fecha>.bundle`),
+  aprendizaje en `starseed_memory_root/archivo/aprendizaje-ramas-nube.jsonl` y borrado con `--force-with-lease`.
+  Lecciones y la revisión del 2026-10-06 (72 ramas → 18 tareas): `memory/aprendizaje-ramas-nube.md`.
