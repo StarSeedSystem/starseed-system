@@ -157,6 +157,12 @@ describe("nube en pausa", () => {
         reiniciarBusRemoto();
         await conPausa({ hasta: "no es una fecha" });
         expect(await nubeEnPausa(AHORA)).toBe(false);
+
+        reiniciarBusRemoto();
+        const ruta = join(dirPausa, "nube-pausada.json");
+        await writeFile(ruta, "{ json roto", "utf8");
+        process.env.STARSEED_NUBE_PAUSADA = ruta;
+        expect(await nubeEnPausa(AHORA)).toBe(false);
     });
 
     it("la pausa se cachea 60 s: quitar el archivo no se nota al instante", async () => {
