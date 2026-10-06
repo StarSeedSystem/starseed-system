@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261005",
+ "tareas": [
+  {
+   "id": "LC1004Ad",
+   "ola": "Ola 1004L · Límites del plan de Claude en el Mando",
+   "depende": [],
+   "titulo": "Límites de Claude: CLI `limites_claude.py` (declarar lecturas, programadas y estado) con su prueba",
+   "archivos": [
+    "scripts/puente/limites_claude.py",
+    "scripts/puente/test_limites_claude.py"
+   ],
+   "prompt": "CONTRATO (Ola 1004L, petición de Alex 2026-10-04): en «Consumo y créditos» del Puente de Mando se QUITA el «Crédito de Claude en la nube» (los 250 $ de sesiones en la nube) y se pone lo que queda de los LÍMITES DEL PLAN de Claude: la ventana de sesión (se reinicia cada ~5 h) y la semanal (todos los modelos; y la semanal de un modelo concreto si claude.ai la enseña — hoy «Fable»), medido y actualizado solo, con la PREVISIÓN de las tareas programadas para no superar nunca los límites. No hay API pública: la dirección (la sesión de Claude en Cowork) lee claude.ai → Ajustes → Uso en cada revisión programada y lo guarda con `python3 scripts/puente/limites_claude.py declarar …`. Archivo: `~/.starseed/limites-claude.json` = {\"lecturas\": [{\"t\": ISO, \"sesion_pct\": 0-100, \"sesion_reinicio\": ISO, \"semana_pct\": 0-100, \"semana_reinicio\": ISO, \"modelo_nombre\": texto|null, \"modelo_pct\": 0-100|null, \"modelo_reinicio\": ISO|null, \"fuente\": texto}] (las últimas 200, la más nueva al final), \"programadas\": {\"t\": ISO, \"lista\": [{\"nombre\": texto, \"proxima\": ISO, \"cada_min\": entero|null}]}, \"umbral_pct\": 90}. COSTE POR REVISIÓN = mediana de los aumentos positivos de `*_pct` entre lecturas CONSECUTIVAS de la MISMA ventana (mismo `*_reinicio`); null si no hay dos lecturas así. DISPAROS antes de un reinicio = por cada programada: 1 si `proxima` ∈ (ahora, reinicio] más, si `cada_min`>0, floor((reinicio − proxima)/cada_min). PROYECCIÓN al reinicio = pct + disparos × coste (null sin coste). Si `reinicio` ya pasó, la ventana vale 0 % y se marca `reiniciada: true`. TONO: «peligro» si pct ≥ umbral o proyección > 100; «aviso» si pct ≥ 60 o proyección ≥ umbral; si no «ok»; lectura de hace más de 120 min → `desactualizada: true` (y como mínimo «aviso»). RECOMENDACIÓN (texto o null): si la proyección de la sesión o la semana supera el umbral, «Espacia las revisiones: caben N hasta el reinicio de <ventana>» con N = max(0, floor((umbral − pct)/coste)).\nQUÉ HACER (Python 3, solo biblioteca estándar, ≤ 150 líneas):\n- `ARCHIVO = os.path.expanduser(os.environ.get(\"STARSEED_LIMITES_CLAUDE\", \"~/.starseed/limites-claude.json\"))`; lectura tolerante (archivo roto o ausente → {}); escritura atómica (`.tmp` + `os.replace`).\n- PURAS: `anadir_lectura(datos, lectura) -> dict` (valida 0 ≤ pct ≤ 100, fechas ISO parseables con `datetime.fromisoformat`, recorta a 200); `coste_por_revision(lecturas, campo)` con campo en (\"sesion\",\"semana\",\"modelo\"); `disparos_antes(lista, ahora, hasta)`; `estado(datos, ahora) -> dict` con, por ventana, {pct, queda, reinicio, minutos_para_reinicio, coste, proyeccion, reiniciada, tono}, más `lectura_hace_min`, `desactualizada`, `recomendacion` — exactamente las reglas del contrato.\n- CLI con argparse: `declarar --sesion N --sesion-reinicio ISO --semana N --semana-reinicio ISO [--modelo-nombre TEXTO --modelo N --modelo-reinicio ISO] [--fuente TEXTO]`; `programadas --json '<lista JSON>'` (reemplaza la lista y pone `t`); `estado` (imprime el JSON de `estado()`); `leer` (imprime el archivo).\n- Test NUEVO `scripts/puente/test_limites_claude.py` (unittest, archivo temporal vía `STARSEED_LIMITES_CLAUDE` o parcheando `ARCHIVO`): coste con tres lecturas de la misma ventana (10→14→20 → mediana 5), una lectura de otra ventana no cuenta; disparos con `cada_min`; reinicio pasado → 0 % y reiniciada; proyección que supera el umbral da tono «peligro»/«aviso» y la recomendación con N; lectura vieja → desactualizada; pct fuera de rango → ValueError.\nPuertas: `python3 -m unittest discover -s scripts/puente -p 'test_*.py'` en verde. Toca SOLO los dos archivos declarados.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/37245946095/ola/LC1004A`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/37245946095/ola/LC1004A:refs/remotes/origin/nube/37245946095/ola/LC1004A\"` y `git cherry-pick --no-commit 7a7c5cdd57d1`. Si hay conflictos, conserva lo que main tiene hoy y añade encima lo que la tarea pide.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/limites_claude.py, scripts/puente/test_limites_claude.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/37245946095/ola/LC1004A"
+  },
+  {
+   "id": "PRD1005H",
+   "ola": "Ola 1005R · Director de producción: publica solo lo filtrado, prueba en todos los escenarios, confirma cada medio y propaga en vivo",
+   "depende": [],
+   "titulo": "Producción · el bucle del director: elegir, probar en vista previa, publicar por lotes, confirmar cada medio, propagar o revertir",
+   "archivos": [
+    "scripts/puente/director-produccion.py",
+    "scripts/puente/test_director_produccion.py"
+   ],
+   "modelo": "codex/gpt-5.6-sol",
+   "prompt": "CONTRATO: `architecture/director-produccion.md`. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): un director de producción que publique automáticamente lo que ya filtraron los demás directores, juzgue con Jev, Laya, memorias y el propósito de cada tarea si es coherente publicarla, lo pruebe en todos los escenarios, confirme que llegó a cada medio y lo propague en tiempo real.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen. Sin dependencias nuevas.\n\nTU TAREA (PRD1005H): el ciclo de §3 a §6 usando los módulos de PRD1005A–E (impórtalos). Opciones `--una-vez`, `--seco`, `--modo`. Por ciclo: interruptor (`~/.starseed/produccion-pausada.json` → solo informe), cerrojo compartido con `publicar.py` (si su diario dice `corriendo`, espera), candidatos → puertas 1–3 (una sola llamada a `decidir.consultar_lote`) → lote (ventana `ventana_min`; las tareas cuya petición viene de Alex por el Chat Director van por exprés) → push con force-with-lease SOLO a `produccion/candidato` → espera CI y la URL de vista previa por la API de deployments de GitHub (reutiliza el cliente de `nube-gh.py`) → `produccion_pruebas.mjs` + nota de diseño si toca interfaz → en `auto`, `git push origin <sha>:main` sin force → confirmar cada medio → `produccion_avisar` → informe al Chat Director (`director_chat.publicar --de director-produccion`) → `decidir.confirmar`. Si falla la confirmación: revertir, vetar el sha y devolver las tareas a `pendiente` con el informe como contexto, escribiendo `olas/progreso.json` con el mismo cerrojo (flock) que usa el enjambre (mira `director-orquestacion.reintentar_sin_cambios`). Topes de §4. Estado atómico en `starseed_memory_root/mando/produccion-estado.json` e historial en `~/.starseed/produccion/historial.jsonl` (§6). Nunca `next build` local. Pruebas: todo inyectado (git, red, procesos); casos seco, canario, auto feliz, secreto detectado, Jev dice no, Jev sin respuesta con panel, fallo de medio → reversión, pausa, cerrojo ocupado, tope diario.",
+   "dependencias_ya_en_main": [
+    "PRD1005A",
+    "PRD1005B",
+    "PRD1005C",
+    "PRD1005D",
+    "PRD1005E",
+    "PRD1005F",
+    "PRD1005G"
+   ]
+  }
+ ]
+}
