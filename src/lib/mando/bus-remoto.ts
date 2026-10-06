@@ -133,8 +133,13 @@ export async function nubeEnPausa(ahora = Date.now()): Promise<boolean> {
     let pausada = false;
     try {
         const crudo = JSON.parse(await readFile(rutaNubePausada(), "utf8")) as { hasta?: unknown };
-        const hasta = typeof crudo.hasta === "string" ? Date.parse(crudo.hasta) : null;
-        pausada = hasta === null || (Number.isFinite(hasta) && hasta > ahora);
+        const hastaRaw = crudo.hasta;
+        if (hastaRaw === null) {
+            pausada = true;
+        } else if (typeof hastaRaw === "string") {
+            const ts = Date.parse(hastaRaw);
+            if (Number.isFinite(ts) && ts > ahora) pausada = true;
+        }
     } catch {
         pausada = false;
     }

@@ -165,6 +165,15 @@ describe("nube en pausa", () => {
         expect(await nubeEnPausa(AHORA)).toBe(false);
     });
 
+    it("archivo con objeto vacío no pausa", async () => {
+        await conPausa({});
+        expect(await nubeEnPausa(AHORA)).toBe(false);
+        respuestas = [{ status: 200, cuerpo: [fila(1, "commit", hace(0))] }];
+        const filas = await filasDelBus(AHORA);
+        expect(filas).toHaveLength(1);
+        expect(urls).toHaveLength(3);
+    });
+
     it("la pausa se cachea 60 s: quitar el archivo no se nota al instante", async () => {
         await conPausa({ hasta: null });
         expect(await nubeEnPausa(AHORA)).toBe(true);
