@@ -45,7 +45,8 @@ class MedidorDatos(unittest.TestCase):
         os.environ.pop("OPENROUTER_API_KEY", None)
 
     def uso(self):
-        return json.load(open(jev.USO))
+        with open(jev.USO) as f:
+            return json.load(f)
 
     def test_anota_quien_pregunta_y_la_habilidad(self):
         self.assertAlmostEqual(jev.si_no({"x": 1}, "¿vale?"), 0.8)

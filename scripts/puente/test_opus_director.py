@@ -41,7 +41,8 @@ class OpusDirector(unittest.TestCase):
         self.assertIn("1 consultas", od.resumen_uso(AHORA))
 
     def test_el_tope_del_dia_corta_sin_llamar(self):
-        json.dump({"por_dia": {"2026-09-25": od.TOPE_DIA}}, open(od.USO, "w"))
+        with open(od.USO, "w") as f:
+            json.dump({"por_dia": {"2026-09-25": od.TOPE_DIA}}, f)
         vistos = []
         self.assertIsNone(od.consultar("¿?", ahora=AHORA, correr=doble({"result": "x"}, vistos=vistos)))
         self.assertEqual(vistos, [])

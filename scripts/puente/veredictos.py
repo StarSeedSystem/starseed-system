@@ -43,7 +43,8 @@ def fichas():
         if "cola-auto-" in os.path.basename(f):
             continue
         try:
-            d = json.load(open(f, encoding="utf-8"))
+            with open(f, encoding="utf-8") as fh:
+                d = json.load(fh)
         except Exception:
             continue
         for t in (d if isinstance(d, list) else d.get("tareas", [])):
@@ -116,7 +117,8 @@ def preguntar_a_opus(tid, estado, nota, ficha, objecion, log, consultar=None, me
     """(veredicto, cambio, motivo, confianza) o None (sin Opus, sin cupo o respuesta rara)."""
     huella = "%s|%s|%s|%s" % (tid, estado, nota[:200], objecion[:200])
     try:
-        memo = json.load(open(memo_ruta, encoding="utf-8"))
+        with open(memo_ruta, encoding="utf-8") as f:
+            memo = json.load(f)
     except Exception:
         memo = {}
     if huella in memo:
@@ -199,7 +201,8 @@ def main():
     ap.add_argument("--sin-opus", action="store_true", help="no escalar dudas a Opus")
     args = ap.parse_args()
     try:
-        progreso = json.load(open(os.path.join(OLAS, "progreso.json"), encoding="utf-8"))
+        with open(os.path.join(OLAS, "progreso.json"), encoding="utf-8") as f:
+            progreso = json.load(f)
     except Exception:
         print("sin progreso.json"); return 1
     try:
@@ -213,7 +216,8 @@ def main():
     if not args.seco:
         ruta = os.path.join(OLAS, "veredictos.json")
         tmp = ruta + ".tmp"
-        json.dump({"t": time.strftime("%Y-%m-%d %H:%M:%S"), "veredictos": filas}, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"t": time.strftime("%Y-%m-%d %H:%M:%S"), "veredictos": filas}, f, ensure_ascii=False, indent=1)
         os.replace(tmp, ruta)
         print("→", ruta, "(%d)" % len(filas))
     try:

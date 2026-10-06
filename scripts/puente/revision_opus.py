@@ -61,7 +61,8 @@ def huella(estado):
 
 def _leer(ruta):
     try:
-        return json.load(open(ruta, encoding="utf-8"))
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
         return {}
 

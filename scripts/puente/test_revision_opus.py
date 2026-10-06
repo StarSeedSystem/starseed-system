@@ -28,7 +28,8 @@ class RevisionOpus(unittest.TestCase):
         self.assertIn("desbloquea", self.revisar(AHORA))
         self.assertEqual(self.latidos, ["empezar", "terminar"])
         self.assertEqual(len(self.dicho), 1)
-        self.assertEqual(json.load(open(ro.SALIDA))["modelo"], "claude-opus-5-5")
+        with open(ro.SALIDA) as f:
+            self.assertEqual(json.load(f)["modelo"], "claude-opus-5-5")
 
     def test_no_repite_antes_de_su_hora(self):
         self.revisar(AHORA)
