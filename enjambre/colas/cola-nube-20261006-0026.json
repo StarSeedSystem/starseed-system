@@ -1,0 +1,56 @@
+{
+ "ola": "nube-20261006",
+ "tareas": [
+  {
+   "id": "RSC1006Q",
+   "ola": "Ola 1006R · Rescate de las ramas de la nube (revisión con Jev, 2026-10-06)",
+   "depende": [],
+   "titulo": "Malla: cada neurona comparte lo que oye con las suyas (regenera RDV13)",
+   "archivos": [
+    "src/lib/network/malla-neuronas.ts"
+   ],
+   "prompt": "REGENERADA el 2026-10-06 en la revisión de las ramas de la nube (claude-cowork con Jev: Decisión: regenerar-cadena (la regla y Jev coinciden, p=0.58).). La Ola 375 «Radar veraz y completo» quedó a medias: RDV2, RDV5, RDV6, RDV7, RDV11/12 (radio nativa) y RDV21 están en main; el almacén (RDV8) y lo que lo usa (RDV13, RDV14 en su parte remota y RDV15) se dieron por huérfanos sin hacerse. Hoy nadie envía, guarda ni enseña lo que oyen tus otras neuronas. Antes de escribir, comprueba en main que sigue faltando; si ya existe, `NO APLICA: <motivo>`.\n\nRDV11 y RDV12 (radio nativa: `obtenerRadioLocal`, `senalesRadioLocal`) YA están en main.\n\nCONTEXTO: el motor de la malla (`src/lib/network/malla-neuronas.ts`) ya manda la ficha a cada peer conectado de la MISMA cuenta en su latido (bloque «4) heartbeat», con `mesh.sendToPeer(id, JSON.stringify({ t: MSG_FICHA, ficha }))`) y recibe mensajes en `onMessage` (donde guarda `fichas`). Piezas ya hechas: `construirResumenRadar`, `esMensajeRadar`, `huellaResumen`, `MSG_RADAR` (`src/lib/network/radar-por-malla.ts`); `recibirResumen`, `setResumenLocal` (`src/lib/network/radar-remoto-store.ts`); `obtenerRadioLocal` (`src/lib/network/radio-local-cliente.ts`); `senalesRadioLocal` (`src/ai/astraura/mesh/senales-radio-local.ts`); y `collectDetectedSignals`, `getBleScanState` (`src/ai/astraura/mesh/signals.ts`), `getMeshState` (`src/ai/astraura/mesh/store.ts`).\n\nHAZ (cambio quirúrgico):\n1. En el latido, como mucho cada 60 s: construye las señales LOCALES = `collectDetectedSignals({ mesh: getMeshState(), ble: <detecciones BLE de < 60 s de getBleScanState()>, includeExternal: true })` + `senalesRadioLocal(await obtenerRadioLocal(), Date.now())`; `construirResumenRadar(..., { neuronId: <id de neurona de este dispositivo>, nombre: <nombre de este dispositivo> })`; `setResumenLocal(r)`; envíalo con `{ t: MSG_RADAR, resumen }` a cada peer conectado SOLO si la huella cambió o pasaron 5 min desde el último envío. Nunca lances.\n2. En `onMessage`: si `esMensajeRadar(msg)` → `recibirResumen(msg.resumen, \"p2p\")`.\n3. Los imports nuevos son de módulos pequeños; este archivo ya se carga perezoso desde el montaje, así que no toca el layout raíz.\nEjecuta `npx vitest run src/lib/network` y que siga en verde.\n\nREGLAS DE ESTA OLA (valen para todas sus tareas):\n- Toca SOLO los archivos listados. Cada archivo nuevo ≤ 120 líneas; en archivos existentes, cambios quirúrgicos (no reescribas lo que no pide la tarea).\n- TypeScript estricto, sin dependencias nuevas, comentarios en español, sin emojis como iconos.\n- Datos HONESTOS: nada se inventa. Si un dato falta se dice «sin dato» o no se muestra; toda estimación se declara como estimación con su margen.\n- Privacidad: jamás incluyas direcciones MAC, claves, tokens, rutas del disco ni memorias. Las redes Wi-Fi ajenas y los Bluetooth ajenos se muestran en la propia neurona y en las neuronas de LA MISMA cuenta; nunca se suben a Supabase con nombre.\n- El layout raíz y `src/ai/providers/index.ts` NO importan nada nuevo de forma estática (regla de CLAUDE.md: lo que cuelga del layout raíz se carga perezoso).\n- Pruebas con vitest junto al código (`__tests__/`); ejecútalas con `npx vitest run <archivo>` antes de terminar.\n",
+   "origen": {
+    "revision": "ramas-nube-2026-10-06",
+    "regenera": "RDV13"
+   },
+   "dependencias_ya_en_main": [
+    "RSC1006P"
+   ]
+  },
+  {
+   "id": "RSC1006R",
+   "ola": "Ola 1006R · Rescate de las ramas de la nube (revisión con Jev, 2026-10-06)",
+   "depende": [],
+   "titulo": "Radar: suma lo que oyen tus otras neuronas (regenera la parte remota de RDV14)",
+   "archivos": [
+    "src/components/mesh/use-detected-signals.ts"
+   ],
+   "prompt": "REGENERADA el 2026-10-06 en la revisión de las ramas de la nube (claude-cowork con Jev: Decisión: regenerar-cadena (la regla y Jev coinciden, p=0.58).). La Ola 375 «Radar veraz y completo» quedó a medias: RDV2, RDV5, RDV6, RDV7, RDV11/12 (radio nativa) y RDV21 están en main; el almacén (RDV8) y lo que lo usa (RDV13, RDV14 en su parte remota y RDV15) se dieron por huérfanos sin hacerse. Hoy nadie envía, guarda ni enseña lo que oyen tus otras neuronas. Antes de escribir, comprueba en main que sigue faltando; si ya existe, `NO APLICA: <motivo>`.\n\nLa radio nativa YA está en el hook (main importa `obtenerRadioLocal` y `senalesRadioLocal`): haz solo lo que falte de los pasos de abajo, sobre todo `senalesVistasPorOtras(useRadarRemoto(), now)`.\n\nCONTEXTO: el hook `useDetectedSignals` (`src/components/mesh/use-detected-signals.ts`) ya aplica `fusionarRadar` y `enriquecerConMalla`. Faltan dos fuentes: la radio nativa de la Mac (`obtenerRadioLocal()` de `src/lib/network/radio-local-cliente.ts` + `senalesRadioLocal()` de `src/ai/astraura/mesh/senales-radio-local.ts`) y lo que oyen las otras neuronas (`useRadarRemoto()` de `src/lib/network/radar-remoto-store.ts` + `senalesVistasPorOtras()` de `src/lib/network/radar-por-malla.ts`).\n\nHAZ:\n1. Estado `radio` que se refresca al montar y cada 60 s solo con la pestaña visible (`document.visibilityState`), con `obtenerRadioLocal()`; en origen público no hace nada (la función ya devuelve null sin fetch).\n2. Añade `senalesRadioLocal(radio, now)` y `senalesVistasPorOtras(useRadarRemoto(), now)` a la lista, y reordena por calidad como `collectDetectedSignals`.\n3. En `unavailable`, cuando no haya radio nativa, añade UNA entrada honesta: «Wi-Fi y Bluetooth del sistema: el navegador no los expone; los lee el Mando local de la Mac y llegan aquí por la malla si esa neurona está vinculada». Sigue el formato de las entradas existentes.\nPruebas existentes del hook en verde.\n\nREGLAS DE ESTA OLA (valen para todas sus tareas):\n- Toca SOLO los archivos listados. Cada archivo nuevo ≤ 120 líneas; en archivos existentes, cambios quirúrgicos (no reescribas lo que no pide la tarea).\n- TypeScript estricto, sin dependencias nuevas, comentarios en español, sin emojis como iconos.\n- Datos HONESTOS: nada se inventa. Si un dato falta se dice «sin dato» o no se muestra; toda estimación se declara como estimación con su margen.\n- Privacidad: jamás incluyas direcciones MAC, claves, tokens, rutas del disco ni memorias. Las redes Wi-Fi ajenas y los Bluetooth ajenos se muestran en la propia neurona y en las neuronas de LA MISMA cuenta; nunca se suben a Supabase con nombre.\n- El layout raíz y `src/ai/providers/index.ts` NO importan nada nuevo de forma estática (regla de CLAUDE.md: lo que cuelga del layout raíz se carga perezoso).\n- Pruebas con vitest junto al código (`__tests__/`); ejecútalas con `npx vitest run <archivo>` antes de terminar.\n",
+   "origen": {
+    "revision": "ramas-nube-2026-10-06",
+    "regenera": "RDV14"
+   },
+   "dependencias_ya_en_main": [
+    "RSC1006P"
+   ]
+  },
+  {
+   "id": "RSC1006S",
+   "ola": "Ola 1006R · Rescate de las ramas de la nube (revisión con Jev, 2026-10-06)",
+   "depende": [],
+   "titulo": "Federación sin radio: resumen por Supabase solo si cambió (regenera RDV15)",
+   "archivos": [
+    "src/ai/astraura/mesh/federation.ts"
+   ],
+   "prompt": "REGENERADA el 2026-10-06 en la revisión de las ramas de la nube (claude-cowork con Jev: Decisión: regenerar-cadena (la regla y Jev coinciden, p=0.58).). La Ola 375 «Radar veraz y completo» quedó a medias: RDV2, RDV5, RDV6, RDV7, RDV11/12 (radio nativa) y RDV21 están en main; el almacén (RDV8) y lo que lo usa (RDV13, RDV14 en su parte remota y RDV15) se dieron por huérfanos sin hacerse. Hoy nadie envía, guarda ni enseña lo que oyen tus otras neuronas. Antes de escribir, comprueba en main que sigue faltando; si ya existe, `NO APLICA: <motivo>`.\n\nRegla de consumo vigente (CLAUDE.md, «Consumo de bases de datos»): pocos eventos y gruesos; respeta los mínimos de abajo y no añadas sondeos.\n\nCONTEXTO (medido 2026-09-27): `os_mesh_topology` tiene 0 filas porque `pushSnapshot()` en `src/ai/astraura/mesh/federation.ts` solo publica con la radio LoRa lista (`s.status` ready/degraded). Las neuronas sin radio nunca comparten nada por aquí. Supabase ya se agotó una vez por tráfico: esto debe ser AHORRADOR. El resumen local lo deja `getResumenLocal()` en `src/lib/network/radar-remoto-store.ts` (tipo `ResumenRadar` de `src/lib/network/radar-por-malla.ts`, con `huellaResumen`).\n\nHAZ (cambio quirúrgico):\n1. Si la radio NO está lista pero hay `getResumenLocal()` con ≥ 1 señal, publica una instantánea `{ v: 2, radio: false, resumen: <resumen con las redes Wi-Fi ajenas y los Bluetooth reducidos a recuentos: sin nombres, solo «N redes cercanas» / «N dispositivos Bluetooth»> }` y `online_count: 0`, SOLO si la huella cambió o pasaron 15 min, y nunca más de una vez cada 5 min. Con radio lista, todo sigue como está.\n2. En `pullSnapshots`: consulta solo con la pestaña visible; si una fila trae `snapshot.resumen` válido (`esMensajeRadar({ t: MSG_RADAR, resumen })`), llama a `recibirResumen(resumen, \"federacion\")`, SIN pisar uno más nuevo recibido por P2P (el almacén ya se queda con el más nuevo).\n3. Una fila con `snapshot.v === 2 && snapshot.radio === false` NO es una topología LoRa: NO la metas en `remoteTopologies` (el mapa 3D y el radar la pintarían como «0 nodos · ? (federada)», que sería falso); solo va a `recibirResumen`. Las filas con radio siguen exactamente como hoy.\nEjecuta `npx vitest run src/ai/astraura/mesh` y que siga en verde.\n\nREGLAS DE ESTA OLA (valen para todas sus tareas):\n- Toca SOLO los archivos listados. Cada archivo nuevo ≤ 120 líneas; en archivos existentes, cambios quirúrgicos (no reescribas lo que no pide la tarea).\n- TypeScript estricto, sin dependencias nuevas, comentarios en español, sin emojis como iconos.\n- Datos HONESTOS: nada se inventa. Si un dato falta se dice «sin dato» o no se muestra; toda estimación se declara como estimación con su margen.\n- Privacidad: jamás incluyas direcciones MAC, claves, tokens, rutas del disco ni memorias. Las redes Wi-Fi ajenas y los Bluetooth ajenos se muestran en la propia neurona y en las neuronas de LA MISMA cuenta; nunca se suben a Supabase con nombre.\n- El layout raíz y `src/ai/providers/index.ts` NO importan nada nuevo de forma estática (regla de CLAUDE.md: lo que cuelga del layout raíz se carga perezoso).\n- Pruebas con vitest junto al código (`__tests__/`); ejecútalas con `npx vitest run <archivo>` antes de terminar.\n",
+   "origen": {
+    "revision": "ramas-nube-2026-10-06",
+    "regenera": "RDV15"
+   },
+   "dependencias_ya_en_main": [
+    "RSC1006P"
+   ]
+  }
+ ]
+}
