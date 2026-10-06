@@ -243,11 +243,12 @@ def esperando_pasarela(latidos, ahora, frescura_s=180):
 #: Proveedores de pago (por token, con la tarjeta de Alex): no se sondean como escritores.
 DE_PAGO = ("xai", "deepseek", "anthropic", "openai")
 #: Proveedores de opencode que no escriben código del enjambre: revisores (groq, aihubmix,
-#: tokenrouter), solo Markdown (llm7), la neurona local de 0,5B y freellmapi «auto», que el
-#: 2026-10-06 devolvió las llamadas a herramientas como texto (opencode no las ejecuta).
+#: tokenrouter), solo Markdown (llm7) y la neurona local de 0,5B. FreeLLMAPI sí cuenta: el
+#: 2026-10-06 fue el único escritor vivo (RSC1006Ks), aunque a veces su «auto» devuelve las
+#: llamadas a herramientas como texto y la tarea sale «sin cambios».
 #: Hugging Face responde a una sonda corta, pero con el crédito mensual agotado opencode recibe
 #: 402 en las peticiones de verdad (medido el 2026-10-06): no cuenta como escritor.
-NO_ESCRITORES = ("groq", "aihubmix", "tokenrouter", "llm7", "neurona", "freellmapi", "huggingface")
+NO_ESCRITORES = ("groq", "aihubmix", "tokenrouter", "llm7", "neurona", "huggingface")
 #: Nombre del proveedor en la salud compartida cuando difiere del prefijo de opencode.
 SALUD_DE = {"nvidia": "nim"}
 
