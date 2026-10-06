@@ -122,6 +122,10 @@ import type { SaludNeurona } from "@/lib/mando/neurona";
 import { instalarGuardiaFetchMando } from "@/lib/mando/guardia-fetch";
 import { instalarAutocuracionPagina } from "@/lib/mando/autocuracion-pagina";
 import { AvisoAutocuracion } from "@/components/mando/aviso-autocuracion";
+import {
+    leerEstadoPantalla,
+    useMantenerPantalla,
+} from "@/components/mando/guardian-pantalla";
 // Ídem para el almacenamiento: solo el tipo y los helpers puros de tono/texto
 // (que no dependen de `node:*`) cruzan al cliente; las sondas quedan en servidor.
 import type { EstadoAlmacenamiento } from "@/lib/mando/almacenamiento";
@@ -134,6 +138,40 @@ import {
     type PeriodoJev,
     type RespuestaJev,
 } from "@/lib/mando/jev-medidor";
+
+/**
+ * Guardián de pantalla encendida (Ola 1005P · PA1005Ds): se monta UNA vez en
+ * el Centro de Mando y no pinta nada. Sondea `/api/mando/pantalla` cada 60 s
+ * y al recuperar el foco (si falla, conserva el último valor; por defecto
+ * activa) y, con el ajuste encendido, mantiene la Screen Wake Lock de este
+ * dispositivo. En la Mac, además, el servicio `com.starseed.pantalla` aguanta
+ * aunque esta ventana se cierre.
+ */
+function GuardianPantalla() {
+    const [activa, setActiva] = useState(true);
+    useMantenerPantalla(activa);
+    useEffect(() => {
+        let vivo = true;
+        const leer = async () => {
+            const estado = await leerEstadoPantalla();
+            if (vivo && estado) setActiva(estado.activa);
+        };
+        void leer();
+        const cada = window.setInterval(() => void leer(), 60_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void leer();
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        window.addEventListener("focus", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+            window.removeEventListener("focus", alVolver);
+        };
+    }, []);
+    return null;
+}
 
 const CLAVE_PESTANA = "starseed.mando.pestana";
 const CLAVE_REPORTES_VISTOS = "starseed.mando.reportes.visto";
@@ -1560,6 +1598,7 @@ export function CentroMando() {
         <VozMandoProvider control={controlVoz}>
         <div className="space-y-5">
             <AvisoAutocuracion />
+            <GuardianPantalla />
             {cargando ? (
                 <p className="flex items-center gap-2 text-sm text-white/60">
                     <CircleDashed className="h-4 w-4 animate-spin" aria-hidden />

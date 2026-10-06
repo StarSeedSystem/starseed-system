@@ -26,6 +26,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AjustesAccesos } from "@/components/mando/ajustes-accesos";
 import { PanelBitnetAjustes } from "@/components/mando/panel-bitnet-ajustes";
 import {
+    estadoMac,
+    guardarEstadoPantalla,
+    leerEstadoPantalla,
+    type EstadoPantallaMando,
+} from "@/components/mando/guardian-pantalla";
+import {
     AlertTriangle,
     ArrowDown,
     ArrowUp,
@@ -35,6 +41,8 @@ import {
     KeyRound,
     ListChecks,
     Loader2,
+    MonitorCheck,
+    MonitorOff,
     Plus,
     Save,
     ShieldCheck,
@@ -342,6 +350,92 @@ function unionModelos(
         for (const id of lista) set.add(id);
     }
     return Array.from(set);
+}
+
+/**
+ * Interruptor «Mantener la pantalla encendida» (Ola 1005P · PA1005Ds).
+ * Un único ajuste global (`~/.starseed/pantalla.json`, vía `/api/mando/pantalla`)
+ * gobierna el servicio `com.starseed.pantalla` de la Mac y la Screen Wake Lock
+ * de cualquier dispositivo con el Mando abierto. Encendido por defecto.
+ */
+function TarjetaPantalla() {
+    const [estado, setEstado] = useState<EstadoPantallaMando | null>(null);
+    const [ocupado, setOcupado] = useState(false);
+    const [aviso, setAviso] = useState<string | null>(null);
+
+    useEffect(() => {
+        let vivo = true;
+        void leerEstadoPantalla().then((e) => {
+            if (vivo && e) setEstado(e);
+        });
+        return () => {
+            vivo = false;
+        };
+    }, []);
+
+    const alCambiar = useCallback(async (activa: boolean) => {
+        setOcupado(true);
+        setAviso(null);
+        const siguiente = await guardarEstadoPantalla(activa);
+        setOcupado(false);
+        if (siguiente) {
+            setEstado(siguiente);
+        } else {
+            setAviso("No se pudo guardar el ajuste (la consola local no respondió).");
+        }
+    }, []);
+
+    const activa = estado?.activa ?? true;
+    return (
+        <article className="rounded-xl border border-white/10 bg-black/30 p-4">
+            <header className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+                        {activa ? (
+                            <MonitorCheck className="h-4 w-4 text-emerald-300" aria-hidden />
+                        ) : (
+                            <MonitorOff className="h-4 w-4 text-white/50" aria-hidden />
+                        )}
+                        Mantener la pantalla encendida
+                    </h3>
+                    <p className="mt-0.5 text-xs text-white/50">
+                        Un solo ajuste para la Mac y cualquier dispositivo con el Mando
+                        abierto. Encendido por defecto.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    {ocupado && <Loader2 className="h-4 w-4 animate-spin text-white/50" aria-hidden />}
+                    <Switch
+                        id="switch-pantalla"
+                        checked={activa}
+                        onCheckedChange={(v) => void alCambiar(v)}
+                        disabled={ocupado}
+                        aria-label="Mantener la pantalla encendida"
+                    />
+                </div>
+            </header>
+            <div className="mt-3 space-y-2 text-xs text-white/60">
+                <p>
+                    {activa
+                        ? "Pantalla encendida: la Mac no entra en reposo de pantalla ni salvapantallas."
+                        : "Pantalla normal: la Mac y los dispositivos se apagan solos por inactividad."}
+                </p>
+                <p className="text-white/50">
+                    {estado ? estadoMac(estado.mac) : "Mac: comprobando el servicio…"}
+                </p>
+                <p className="text-[11px] text-amber-200/80">
+                    Límite honesto: con la pestaña en segundo plano, el navegador de un
+                    móvil o tablet no permite mantener la pantalla; en la Mac sí, porque
+                    lo hace el servicio aunque esta ventana esté cerrada.
+                </p>
+                {aviso && (
+                    <p role="alert" className="text-red-300">
+                        {aviso}
+                    </p>
+                )}
+            </div>
+        </article>
+    );
 }
 
 /** Componente principal del panel. */
@@ -745,6 +839,8 @@ export function PanelAjustes() {
                     </p>
                 </article>
             </section>
+
+            <TarjetaPantalla />
 
             <article className="rounded-xl border border-white/10 bg-black/30 p-4">
                 <header className="flex flex-wrap items-center justify-between gap-2">
