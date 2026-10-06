@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-06 15:18:54 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-06 16:05:56 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,21 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 19 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 36 |
-| HEAD | `4e6a04fd chore(memoria): aprendizaje de la ola auto-1006-145649` |
-| Sin publicar | 25 commits |
+| HEAD | `61e3c8d2 chore(memoria): aprendizaje de la ola auto-1006-152114` |
+| Sin publicar | 39 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1006-145649.json`, hace 7s)
+## Quién escribe ahora (latido de `cola-auto-1006-152114.json`, hace 7s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RSC1006Ks` | hecho | freellmapi/auto | 1 min | 38 s | 149120 |
-| `RSC1006Ls` | hecho | freellmapi/auto | 21 min | 1284 s | 557 |
+| `DIS1005K` | hecho | freellmapi/auto | 1 min | 41 s | 144606 |
+| `RSC1006Es` | hecho | freellmapi/auto | 1 min | 80 s | 385 |
+| `RSC1006E` | hecho | freellmapi/auto | 2 min | 146 s | 104596 |
+| `FLU1005Es` | hecho | freellmapi/auto | 5 min | 276 s | 123336 |
+| `RSC1006Ls` | hecho | freellmapi/auto | 19 min | 1129 s | 75952 |
+| `RSC1006M` | hecho | freellmapi/auto | 29 min | 1748 s | 79361 |
+| `FLU1005E` | hecho | freellmapi/auto | 33 min | 1953 s | 169618 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
