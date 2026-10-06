@@ -84,7 +84,7 @@ describe("cicloActual (igual que la vigía)", () => {
 
 describe("derivarConsumo", () => {
     it("hoy contra el presupuesto, ciclo, top 3, bucle y 14 días", () => {
-        const d = derivarConsumo({ consumo: consumoBase(), historial: historialBase, presupuestos: null, credito: null }, AHORA);
+        const d = derivarConsumo({ consumo: consumoBase(), historial: historialBase, presupuestos: null, limites: null }, AHORA);
         const s = d.supabase;
         expect(s.nivel).toBe("ok");
         expect(s.fresco).toBe(true);
@@ -102,16 +102,19 @@ describe("derivarConsumo", () => {
         expect(s.ultimoBucle).toMatchObject({ ruta: "/rest/v1/os_mesh_relay", n: 2100 });
         expect(d.jev).toMatchObject({ usdHoy: 0.01, techo: 0.05, saldo: 9.5, tono: "ok" });
         expect(d.jev.pct).toBeCloseTo(0.2, 5);
+        expect(d.claude.sesion).toBeNull();
+        expect(d.claude.semana).toBeNull();
+        expect(d.claude.modelo).toBeNull();
     });
 
     it("los niveles salen de los presupuestos ACTUALES, no de los de la última vuelta", () => {
         const d = derivarConsumo(
-            { consumo: consumoBase(), historial: historialBase, presupuestos: { supabase_peticiones_dia: 15_000 }, credito: null },
+            { consumo: consumoBase(), historial: historialBase, presupuestos: { supabase_peticiones_dia: 15_000 }, limites: null },
             AHORA,
         );
         expect(d.supabase.nivel).toBe("aviso");
         const d2 = derivarConsumo(
-            { consumo: consumoBase(), historial: historialBase, presupuestos: { supabase_peticiones_dia: 12_000 }, credito: null },
+            { consumo: consumoBase(), historial: historialBase, presupuestos: { supabase_peticiones_dia: 12_000 }, limites: null },
             AHORA,
         );
         expect(d2.supabase.nivel).toBe("freno");
@@ -125,7 +128,7 @@ describe("derivarConsumo", () => {
                 }),
                 historial: historialBase,
                 presupuestos: null,
-                credito: null,
+                limites: null,
             },
             AHORA,
         );
@@ -137,45 +140,67 @@ describe("derivarConsumo", () => {
                 consumo: consumoBase({ freno: { activo: true, hasta: "2026-09-29T00:00:00Z" } }),
                 historial: historialBase,
                 presupuestos: null,
-                credito: null,
+                limites: null,
             },
             AHORA,
         );
         expect(vencido.supabase.freno.activo).toBe(false);
-        const r = derivarConsumo({ consumo: consumoBase({ restringido: true }), historial: null, presupuestos: null, credito: null }, AHORA);
+        const r = derivarConsumo({ consumo: consumoBase({ restringido: true }), historial: null, presupuestos: null, limites: null }, AHORA);
         expect(r.supabase.nivel).toBe("restringido");
-        const parado = derivarConsumo({ consumo: consumoBase({ t_utc: "2026-09-29T12:00:00Z" }), historial: null, presupuestos: null, credito: null }, AHORA);
+        const parado = derivarConsumo({ consumo: consumoBase({ t_utc: "2026-09-29T12:00:00Z" }), historial: null, presupuestos: null, limites: null }, AHORA);
         expect(parado.supabase.fresco).toBe(false);
     });
 
     it("sin nada medido lo dice (no inventa ceros como si fueran medidas)", () => {
-        const d = derivarConsumo({ consumo: null, historial: null, presupuestos: null, credito: null }, AHORA);
+        const d = derivarConsumo({ consumo: null, historial: null, presupuestos: null, limites: null }, AHORA);
         expect(d.supabase.nivel).toBe("sin-medir");
         expect(d.supabase.medidoEn).toBeNull();
         expect(d.supabase.historial.every((x) => x.peticiones === null)).toBe(true);
         expect(d.jev.usdHoy).toBeNull();
         expect(d.jev.tono).toBe("neutro");
-        expect(d.claude.restante).toBeNull();
-        expect(d.claude.comando).toContain("credito_claude_nube.py declarar");
+        expect(d.claude.sesion).toBeNull();
+        expect(d.claude.semana).toBeNull();
+        expect(d.claude.modelo).toBeNull();
+        expect(d.claude.comando).toContain("limites_claude.py estado");
+        expect(d.claude.tono).toBe("aviso");
     });
 
-    it("el crédito de Claude declarado: fracción, fecha y tono", () => {
+    it("el límite de Claude declarado: fracción, fecha y tono", () => {
         const d = derivarConsumo(
             {
                 consumo: null,
                 historial: null,
                 presupuestos: null,
-                credito: { total_usd: 250, restante_usd: 50, vence: "2026-11-05T01:59:00-06:00", declarado_en: "2026-09-29T10:00:00Z" },
+                limites: {
+                    lecturas: [{
+                        t: "2026-09-29T10:00:00Z",
+                        sesion_pct: 34,
+                        sesion_reinicio: "2026-10-01T00:00:00Z",
+                        semana_pct: 61,
+                        semana_reinicio: "2026-10-02T00:00:00Z",
+                        modelo_nombre: "Fable",
+                        modelo_pct: 45,
+                        modelo_reinicio: "2026-10-03T00:00:00Z",
+                        fuente: "claude.ai",
+                    }],
+                    programadas: { t: "2026-09-29T10:00:00Z", lista: [] },
+                    umbral_pct: 90,
+                },
             },
             AHORA,
         );
-        expect(d.claude).toMatchObject({ restante: 50, total: 250, declaradoEn: "2026-09-29T10:00:00Z", tono: "aviso" });
-        expect(d.claude.fraccion).toBeCloseTo(0.2, 5);
+        expect(d.claude.sesion).not.toBeNull();
+        expect(d.claude.semana).not.toBeNull();
+        expect(d.claude.modelo).not.toBeNull();
+        expect(d.claude.modeloNombre).toBe("Fable");
+        expect(d.claude.lecturaEn).toBe("2026-09-29T10:00:00Z");
+        expect(d.claude.tono).toBe("aviso");
         expect(d.claude.enlace).toBe("https://claude.ai/settings/usage");
+        expect(d.claude.comando).toBe("python3 scripts/puente/limites_claude.py estado");
     });
 
     it("saldo de OpenRouter bajo el mínimo es peligro", () => {
-        const d = derivarConsumo({ consumo: consumoBase({ jev: { coste_hoy: 0, saldo: 1.5 } }), historial: null, presupuestos: null, credito: null }, AHORA);
+        const d = derivarConsumo({ consumo: consumoBase({ jev: { coste_hoy: 0, saldo: 1.5 } }), historial: null, presupuestos: null, limites: null }, AHORA);
         expect(d.jev.tono).toBe("peligro");
     });
 });
@@ -204,10 +229,12 @@ describe("lectura y escritura en disco", () => {
         dir = mkdtempSync(path.join(os.tmpdir(), "consumo-"));
         writeFileSync(path.join(dir, "consumo.json"), JSON.stringify(consumoBase()));
         writeFileSync(path.join(dir, "consumo-historial.json"), JSON.stringify(historialBase));
-        writeFileSync(path.join(dir, "credito-claude-nube.json"), "{roto");
+        writeFileSync(path.join(dir, "limites-claude.json"), "{roto");
         const d = await leerDatosConsumo(AHORA, dir);
         expect(d.supabase.peticiones).toBe(12_345);
-        expect(d.claude.restante).toBeNull();
+        expect(d.claude.sesion).toBeNull();
+        expect(d.claude.semana).toBeNull();
+        expect(d.claude.modelo).toBeNull();
         expect(JSON.stringify(d)).not.toContain(dir);
 
         await guardarPresupuestos({ ...PRESUPUESTOS_POR_DEFECTO, supabase_mb_dia: 120 }, dir);

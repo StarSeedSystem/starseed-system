@@ -18,14 +18,14 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { ENLACE_USO_CLAUDE, estadoCreditoClaude, type ConfigCreditoClaude } from "@/lib/mando/credito-claude";
+import { ENLACE_USO_CLAUDE, estadoLimitesClaude, type ConfigLimitesClaude } from "@/lib/mando/limites-claude";
 import {
     normalizarPresupuestos,
     tonoPorPct,
     type DatosConsumo,
     type DiaHistorial,
-    type MedidorClaudeNube,
     type MedidorJev,
+    type MedidorLimitesClaude,
     type MedidorSupabase,
     type NivelSupabase,
     type Presupuestos,
@@ -82,6 +82,8 @@ function sumarMeses(iso: string, meses: number): string {
     const ultimo = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
     return new Date(Date.UTC(anio, mes, Math.min(d, ultimo))).toISOString().slice(0, 10);
 }
+
+const COMANDO_LIMITE_CLAUDE = "python3 scripts/puente/limites_claude.py estado";
 
 /**
  * El ciclo vigente (mismo cálculo que `ciclo_actual` de la vigía): mensual desde
@@ -209,41 +211,47 @@ function medidorJev(c: Obj, p: Presupuestos): MedidorJev {
     return { usdHoy, techo: p.jev_usd_dia, pct, saldo, saldoMin: p.openrouter_usd_min_saldo, tono };
 }
 
-const TONO_CREDITO: Record<string, TonoConsumo> = { ok: "ok", normal: "neutro", aviso: "aviso", peligro: "peligro" };
+const TONO_LIMITE: Record<string, TonoConsumo> = { ok: "ok", normal: "neutro", aviso: "aviso", peligro: "peligro" };
 
-function medidorClaude(credito: unknown, ahora: number): MedidorClaudeNube {
-    const base = { comando: COMANDO_CREDITO_CLAUDE, enlace: ENLACE_USO_CLAUDE };
-    const cfg = obj(credito);
-    if (!cfg || !("restante_usd" in cfg)) {
+function medidorClaude(limites: unknown, ahora: number): MedidorLimitesClaude {
+    const base = { comando: COMANDO_LIMITE_CLAUDE, enlace: ENLACE_USO_CLAUDE };
+    const cfg = obj(limites);
+    if (!cfg) {
         return {
             ...base,
-            restante: null,
-            total: null,
-            fraccion: null,
-            declaradoEn: null,
-            vence: null,
-            dias: null,
-            tono: "neutro",
-            aviso: "Sin declarar: dilo con el comando de abajo.",
+            sesion: null,
+            semana: null,
+            modelo: null,
+            modeloNombre: null,
+            lecturaEn: null,
+            lecturaHaceMin: null,
+            desactualizada: false,
+            programadasEnSesion: 0,
+            programadasEnSemana: 0,
+            recomendacion: null,
+            tono: "aviso",
         };
     }
-    const e = estadoCreditoClaude(cfg as unknown as ConfigCreditoClaude, ahora);
+    const e = estadoLimitesClaude(cfg as unknown as ConfigLimitesClaude, ahora);
     return {
         ...base,
-        restante: e.restante,
-        total: e.total,
-        fraccion: e.fraccion,
-        declaradoEn: typeof cfg.declarado_en === "string" && cfg.declarado_en ? cfg.declarado_en : null,
-        vence: typeof cfg.vence === "string" && cfg.vence ? cfg.vence : null,
-        dias: e.dias,
-        tono: TONO_CREDITO[e.tono] ?? "neutro",
-        aviso: e.avisos[0] ?? null,
+        sesion: e.sesion,
+        semana: e.semana,
+        modelo: e.modelo,
+        modeloNombre: e.modeloNombre,
+        lecturaEn: e.lecturaEn,
+        lecturaHaceMin: e.lecturaHaceMin,
+        desactualizada: e.desactualizada,
+        programadasEnSesion: e.programadasEnSesion,
+        programadasEnSemana: e.programadasEnSemana,
+        recomendacion: e.recomendacion,
+        tono: e.tono,
     };
 }
 
 /** PURA: los cuatro archivos (ya parseados, o null) → lo que ve el medidor. */
 export function derivarConsumo(
-    entrada: { consumo: unknown; historial: unknown; presupuestos: unknown; credito: unknown },
+    entrada: { consumo: unknown; historial: unknown; presupuestos: unknown; limites: unknown },
     ahora: number,
 ): DatosConsumo {
     const presupuestos = normalizarPresupuestos(entrada.presupuestos);
@@ -252,7 +260,7 @@ export function derivarConsumo(
     return {
         supabase: medidorSupabase(c, h, presupuestos, ahora),
         jev: medidorJev(c, presupuestos),
-        claude: medidorClaude(entrada.credito, ahora),
+        claude: medidorClaude(entrada.limites, ahora),
         presupuestos,
         generadoEn: new Date(ahora).toISOString(),
     };
@@ -267,13 +275,13 @@ async function leerJson(ruta: string): Promise<unknown> {
 }
 
 export async function leerDatosConsumo(ahora = Date.now(), dir = directorioDatos()): Promise<DatosConsumo> {
-    const [consumo, historial, presupuestos, credito] = await Promise.all([
+    const [consumo, historial, presupuestos, limites] = await Promise.all([
         leerJson(path.join(dir, "consumo.json")),
         leerJson(path.join(dir, "consumo-historial.json")),
         leerJson(path.join(dir, "presupuestos.json")),
-        leerJson(path.join(dir, "credito-claude-nube.json")),
+        leerJson(path.join(dir, "limites-claude.json")),
     ]);
-    return derivarConsumo({ consumo, historial, presupuestos, credito }, ahora);
+    return derivarConsumo({ consumo, historial, presupuestos, limites }, ahora);
 }
 
 /** Escribe a un temporal y renombra: la vigía puede estar leyéndolo a la vez. */
