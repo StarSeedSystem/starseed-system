@@ -29,6 +29,8 @@ import { getActiveModemPreset } from "./sync";
 import type { RemoteTopology } from "./types";
 import { uidActual } from "@/lib/consumo/usuario";
 import { crearBucle, falloDe, MINUTO_MS, type BucleFondo, type FalloConsulta } from "@/lib/network/bucle-fondo";
+import { getResumenLocal, recibirResumen } from "@/lib/network/radar-remoto-store";
+import { esMensajeRadar, huellaResumen, MSG_RADAR, type ResumenRadar, type SenalCompartida } from "@/lib/network/radar-por-malla";
 
 const DEVICE_ID_KEY = "starseed.mesh.device-id.v1";
 export const PUSH_INTERVAL_MS = 10 * MINUTO_MS;
@@ -37,6 +39,10 @@ export const PULL_INTERVAL_MS = 10 * MINUTO_MS;
 const PULL_EN_CALMA_MS = 30 * MINUTO_MS;
 /** Instantáneas más viejas que esto se ignoran al leer (neurona apagada). */
 const REMOTE_FRESH_MS = 10 * 60_000;
+/** Resumen sin radio: nunca más de un upsert cada 5 min… */
+export const RESUMEN_MIN_MS = 5 * MINUTO_MS;
+/** …y aunque nada cambie, se refresca a los 15 min (la fila remota caduca a los 10). */
+export const RESUMEN_MAX_MS = 15 * MINUTO_MS;
 
 let buclePush: BucleFondo | null = null;
 let buclePull: BucleFondo | null = null;
@@ -66,8 +72,7 @@ async function client() {
   }
 }
 
-async function ownerId(_supabase: NonNullable<Awaited<ReturnType<typeof client>>>): Promise<string | null> {
-  // Sin red (antes `getUser()` en cada push/pull).
+async function ownerId(_supabase: NonNullable<Awaited<ReturnType<typeof client>>>): Promise<string | null> {  // Sin red (antes `getUser()` en cada push/pull).
   try {
     return await uidActual();
   } catch {
