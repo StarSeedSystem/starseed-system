@@ -39,6 +39,9 @@ describe("capasEfectivasPara (Ola 1003 · §19)", () => {
         ajustes = fijarCapa(ajustes, "agente", "ag-1", "activo", true);
         const conAgente = capasEfectivasPara(prefs, true, ajustes, { personalidadId: "aurora", agenteId: "ag-1" });
         expect(conAgente.preferencia.activo).toBe(true);
+        // Sin ese agente, la personalidad sigue mandando y el 1.58 queda apagado.
+        const otroAgente = capasEfectivasPara(prefs, true, ajustes, { personalidadId: "aurora", agenteId: "ag-2" });
+        expect(otroAgente.preferencia.activo).toBe(false);
     });
 });
 

@@ -183,6 +183,15 @@ describe("fijarCapa", () => {
     fijarCapa(base, "personalidad", "p1", "mesh", true);
     expect(base.personalidades["p1"]?.mesh).toBeUndefined();
   });
+
+  it("null sobre la unica entrada elimina la entrada entera", () => {
+    const creado = fijarCapa(AJUSTES_VACIOS, "agente", "a1", "local", false);
+    expect(creado.agentes["a1"]).toEqual({ local: false });
+    const limpio = fijarCapa(creado, "agente", "a1", "local", null);
+    expect(limpio.agentes["a1"]).toBeUndefined();
+    // El creado sigue intacto: fijarCapa es pura.
+    expect(creado.agentes["a1"]).toEqual({ local: false });
+  });
 });
 
 describe("capasDeCuenta", () => {
