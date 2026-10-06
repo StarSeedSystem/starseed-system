@@ -463,6 +463,12 @@ Reglas del área:
   Regla: lo que cuelga del layout raíz o de `providers/index.ts` y no hace falta para pintar se
   carga perezoso. Después de publicar, mira el tiempo de compilación en `vercel inspect --logs`:
   si se multiplica, algo nuevo entró en el grafo común.
+- **Main quieto mientras se publica** (2026-10-05): `publicar.py` toma el cerrojo `integrar` (el
+  del orquestador y `commit-seguro.py`) desde el principio hasta el push. Si el enjambre integra un
+  cambio de `src/` durante las puertas, la build instalada deja de servir y la publicación intenta
+  compilar EN LA MAC, que ya no cabe (la build en frío pide más de 7 GB: dos publicaciones
+  cayeron así). Las tareas no fallan: esperan e integran al acabar el push. La build se hace en la
+  nube (swap de 6 GB en el contenedor) y se instala con `instalar_build.py` ANTES de publicar.
 - **Una ruta de Next solo exporta** `GET/POST/…/config/runtime/dynamic/maxDuration…`: cualquier
   otra función exportada rompe la comprobación de tipos de Next (`.next/types`, TS2344). Las
   funciones auxiliares van en `src/lib/…`.

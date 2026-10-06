@@ -29,6 +29,7 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 import atexit
+import fcntl
 
 import reventon as RV
 import turno_pesado as TP
@@ -59,6 +60,56 @@ def tomar_turno(diario):
     cm.__enter__()
     _TURNO["cm"] = cm
     atexit.register(soltar_turno)
+
+
+#: MAIN QUIETO MIENTRAS SE PUBLICA (2026-10-05).
+#: Dos publicaciones seguidas de esta tarde cayeron igual: mientras corrían las puertas
+#: (vitest tarda ~6 min) el enjambre integró en main un cambio de `src/`, la huella dejó de
+#: coincidir con la build ya instalada y la publicación se puso a compilar EN LA MAC, que con
+#: 8 GB ya no puede (12 GB de swap, 1 GB de disco libre: hubo que pararla a mano). Y lo que se
+#: empujaba era HEAD en el momento del push, con commits que ninguna puerta había visto.
+#: Ahora la publicación toma el MISMO cerrojo `integrar` que el orquestador y commit-seguro:
+#: ninguna tarea integra en main hasta que termina el push. Las tareas no fallan: esperan
+#: (el orquestador hace cola en ese cerrojo sin tope) y se integran justo después.
+CERROJO_INTEGRAR = os.path.expanduser("~/.starseed/cerrojos/integrar.lock")
+_INTEGRAR = {"f": None}
+
+
+def tomar_integracion(diario, espera_max_s=900, dormir=time.sleep, ruta=None):
+    """Toma el cerrojo `integrar`. Si una integración lo tiene, espera (avisando en el diario)
+    como mucho `espera_max_s`; pasado ese tiempo sigue SIN él y lo dice, para que una
+    integración colgada no deje la publicación esperando para siempre. Devuelve si lo tiene."""
+    ruta = ruta or CERROJO_INTEGRAR
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    f = open(ruta, "a")
+    t0 = time.time()
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _INTEGRAR["f"] = f
+            atexit.register(soltar_integracion)
+            return True
+        except BlockingIOError:
+            espera = time.time() - t0
+            if espera >= espera_max_s:
+                f.close()
+                return False
+            diario.marcar("rama", "corriendo",
+                          "esperando a que el enjambre termine de integrar en main (%d s)" % int(espera))
+            dormir(3)
+
+
+def soltar_integracion():
+    """Suelta el cerrojo `integrar` una sola vez (también lo suelta el sistema al salir)."""
+    f = _INTEGRAR.get("f")
+    if f is None:
+        return
+    _INTEGRAR["f"] = None
+    try:
+        fcntl.flock(f, fcntl.LOCK_UN)
+        f.close()
+    except Exception:
+        pass
 
 
 def soltar_turno():
@@ -389,6 +440,11 @@ def main():
     nota = " ".join(sys.argv[1:]).strip()
     diario = Diario(nota)
 
+    # 0 · main quieto hasta el push: ver CERROJO_INTEGRAR.
+    if not tomar_integracion(diario):
+        diario.marcar("rama", "corriendo",
+                      "una integración del enjambre no soltó main en 15 min: publico sin congelarlo")
+
     # 1 · rama y remoto. Publicar desde una rama que no es main, o con un rebase
     # a medias, es la forma más rápida de dejar el repo hecho un nudo.
     diario.marcar("rama", "corriendo")
@@ -547,6 +603,8 @@ def main():
             diario.cerrar("fallo", "no se publicó: el push fue rechazado")
             return 1
         diario.marcar("push", "ok", "%d commit(s) en origin/main" % len(shas))
+    # Empujado: el enjambre ya puede volver a integrar en main.
+    soltar_integracion()
 
     # 8 · el verificador mira cambio por cambio y lo dice por su nombre.
     diario.marcar("verificacion", "corriendo")
