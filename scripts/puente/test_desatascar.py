@@ -330,10 +330,46 @@ class TestRepararBloqueantes(unittest.TestCase):
         self.assertEqual(lineas[0]["tarea"], "BLQ1005D")
         self.assertTrue(lineas[0]["automatico"])
 
+    def test_avisar_fallando_no_tumba_la_reparacion(self):
+        """Si el Chat Director está caído, la reparación sigue su curso."""
+        self.pub.side_effect = RuntimeError("sin chat")
+        frases = d.reparar_bloqueantes(
+            [("X3", "objeción")],
+            raiz=self.raiz,
+            enviar=lambda tid: True,
+        )
+        self.assertTrue(any("reparación automática de X3" in f for f in frases))
+
     def test_accion_bloqueante_es_pura(self):
         self.assertEqual(d.accion_bloqueante(1), "reparar")
         self.assertEqual(d.accion_bloqueante(2), "reparar")
         self.assertEqual(d.accion_bloqueante(3), "escalar")
+
+
+class TestDesatascarDirigeBloqueantes(unittest.TestCase):
+    """Una puerta bloqueante va a reparación, nunca al rechazo (2026-10-05)."""
+
+    def test_bloqueantes_a_reparacion_no_a_rechazo(self):
+        import tempfile
+        import unittest.mock as m
+
+        ahora = time.time()
+        p = {
+            "A": {
+                "estado": "esperando_aprobacion",
+                "revisor": "bloqueante",
+                "t": _hace(60, ahora),
+            }
+        }
+        ruta_estado = os.path.join(tempfile.mkdtemp(), "estado.json")
+        with m.patch.object(d, "trabajadores_opencode", return_value=[]), m.patch.object(
+            d, "reparar_bloqueantes", return_value=["reparación automática de A"]
+        ) as rep, m.patch.object(d, "rechazar_puertas") as rech:
+            frases = d.desatascar("/tmp", True, 1, p, ahora=ahora,
+                                  ruta_estado=ruta_estado)
+        self.assertEqual(rep.call_count, 1)
+        self.assertEqual(rech.call_count, 0)
+        self.assertIn("reparación automática de A", frases)
 
 
 if __name__ == "__main__":
