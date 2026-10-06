@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /**
  * LÍMITES DEL PLAN DE CLAUDE (Ola 1004L · LC1004Bc) — módulo PURO
  * ─────────────────────────────────────────────────────────────────────────────
@@ -293,3 +294,458 @@ export function resumenLimitesClaude(e: EstadoLimitesClaude): string {
 }
 
 
+=======
+// Types for the limits of Claude plan
+
+export interface LecturaLimites {
+  t: string; // ISO timestamp
+  sesion_pct: number; // 0-100
+  sesion_reinicio: string; // ISO timestamp
+  semana_pct: number; // 0-100
+  semana_reinicio: string; // ISO timestamp
+  modelo_nombre: string | null;
+  modelo_pct: number | null; // 0-100
+  modelo_reinicio: string | null; // ISO timestamp
+  fuente: string;
+}
+
+export interface ProgramadaClaude {
+  nombre: string;
+  proxima: string; // ISO timestamp
+  cada_min: number | null; // minutes, null if not periodic
+}
+
+export interface ConfigLimitesClaude {
+  lecturas: LecturaLimites[];
+  programadas: {
+    t: string; // ISO timestamp of the config
+    lista: ProgramadaClaude[];
+  };
+  umbral_pct: number; // e.g., 90
+}
+
+export interface VentanaClaude {
+  pct: number; // current percentage
+  queda: number; // remaining percentage (100 - pct)
+  reinicio: string; // ISO timestamp of the next reset
+  minutosParaReinicio: number; // minutes until reinicio (can be negative if passed)
+  coste: number | null; // cost per revision (median of positive increases)
+  proyeccion: number | null; // projected percentage at reinicio
+  reiniciada: boolean; // true if the reinicio time has passed
+  tono: "ok" | "aviso" | "peligro";
+}
+
+export interface EstadoLimitesClaude {
+  sesion: VentanaClaude | null;
+  semana: VentanaClaude | null;
+  modelo: VentanaClaude | null;
+  modeloNombre: string | null;
+  lecturaEn: string | null; // ISO timestamp of the latest reading
+  lecturaHaceMin: number | null; // minutes since latest reading
+  desactualizada: boolean; // true if the latest reading is older than 120 min
+  programadasEnSesion: number; // number of scheduled tasks in the session window
+  programadasEnSemana: number; // number of scheduled tasks in the week window
+  recomendacion: string | null;
+  tono: "ok" | "aviso" | "peligro";
+}
+
+/**
+ * Calcula el coste por revisión para un campo dado (sesion_pct, semana_pct, modelo_pct)
+ * como la mediana de los aumentos positivos entre lecturas consecutivas de la misma ventana.
+ * @param lecturas Array de lecturas ordenadas por tiempo (de más antigua a más reciente)
+ * @param campo Nombre del campo en LecturaLimites (ej: "sesion_pct")
+ * @return Mediana de los aumentos positivos, o null si no hay al menos dos lecturas con aumento positivo
+ */
+export function costePorRevision(lecturas: LecturaLimites[], campo: keyof LecturaLimites): number | null {
+  if (!lecturas || lecturas.length < 2) {
+    return null;
+  }
+
+  // Map from campo to the corresponding reinicio field
+  const reinicioFieldMap: Record<string, keyof LecturaLimites> = {
+    sesion_pct: 'sesion_reinicio',
+    semana_pct: 'semana_reinicio',
+    modelo_pct: 'modelo_reinicio',
+  };
+
+  const reinicioField = reinicioFieldMap[campo];
+  if (!reinicioField) {
+    return null;
+  }
+
+  // Group lectures by the reinicio field value (ISO string)
+  const groups: Record<string, LecturaLimites[]> = {};
+  for (const lectura of lecturas) {
+    const reinicioValue = lectura[reinicioField];
+    if (reinicioValue === null) {
+      // Skip lectures with null reinicio for this campo
+      continue;
+    }
+    if (!groups[reinicioValue]) {
+      groups[reinicioValue] = [];
+    }
+    groups[reinicioValue].push(lectura);
+  }
+
+  const increases: number[] = [];
+
+  // For each group, sort by t (timestamp) and compute positive differences
+  for (const key in groups) {
+    const group = groups[key];
+    // Sort by t ascending
+    group.sort((a, b) => a.t.localeCompare(b.t));
+
+    for (let i = 1; i < group.length; i++) {
+      const prev = group[i - 1];
+      const curr = group[i];
+      const prevValue = prev[campo];
+      const currValue = curr[campo];
+      if (typeof prevValue === 'number' && typeof currValue === 'number') {
+        const diff = currValue - prevValue;
+        if (diff > 0) {
+          increases.push(diff);
+        }
+      }
+    }
+  }
+
+  if (increases.length === 0) {
+    return null;
+  }
+
+  // Sort the increases to compute median
+  increases.sort((a, b) => a - b);
+  const mid = Math.floor(increases.length / 2);
+  if (increases.length % 2 === 0) {
+    return (increases[mid - 1] + increases[mid]) / 2;
+  } else {
+    return increases[mid];
+  }
+}
+
+/**
+ * Calcula el número de disparos antes de un reinicio para una lista de tareas programadas.
+ * @param lista Array de tareas programadas
+ * @param ahora Timestamp actual en milliseconds
+ * @param hasta Timestamp del reinicio en milliseconds
+ * @return Número de disparos
+ */
+export function disparosAntes(lista: ProgramadaClaude[], ahora: number, hasta: number): number {
+  let total = 0;
+  for (const tarea of lista) {
+    const proximaMs = new Date(tarea.proxima).getTime();
+    // Check if proxima is in (ahora, hasta]
+    if (proximaMs > ahora && proximaMs <= hasta) {
+      total += 1; // The base shot
+    }
+    // Additional shots if cada_min is set and positive
+    if (tarea.cada_min !== null && tarea.cada_min > 0) {
+      const intervalMs = tarea.cada_min * 60 * 1000; // convert minutes to milliseconds
+      if (proximaMs <= hasta) {
+        // Number of additional intervals that fit between proxima and hasta
+        const additional = Math.floor((hasta - proximaMs) / intervalMs);
+        total += additional;
+      }
+    }
+  }
+  return total;
+}
+
+/**
+ * Calcula el estado de los límites de Claude a partir de la configuración y el timestamp actual.
+ * @param cfg Configuración (puede ser basura: objeto vacío o null)
+ * @param ahora Timestamp actual en milliseconds
+ * @return Estado calculado
+ */
+export function estadoLimitesClaude(cfg: unknown, ahora: number): EstadoLimitesClaude {
+  // Handle trash input
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) {
+    return {
+      sesion: null,
+      semana: null,
+      modelo: null,
+      modeloNombre: null,
+      lecturaEn: null,
+      lecturaHaceMin: null,
+      desactualizada: true,
+      programadasEnSesion: 0,
+      programadasEnSemana: 0,
+      recomendacion: "Sin lectura todavía: la dirección la toma en su próxima revisión",
+      tono: "aviso",
+    };
+  }
+
+  const config = cfg as ConfigLimitesClaude;
+  const lecturas = config.lecturas ?? [];
+  const programadas = config.programadas?.lista ?? [];
+  const umbral = config.umbral_pct ?? 90;
+
+  // If there are no lecturas, return the default state (like trash)
+  if (!lecturas || lecturas.length === 0) {
+    return {
+      sesion: null,
+      semana: null,
+      modelo: null,
+      modeloNombre: null,
+      lecturaEn: null,
+      lecturaHaceMin: null,
+      desactualizada: true,
+      programadasEnSesion: 0,
+      programadasEnSemana: 0,
+      recomendacion: "Sin lectura todavía: la dirección la toma en su próxima revisión",
+      tono: "aviso",
+    };
+  }
+
+  // Sort lecturas by t ascending (oldest first, newest last)
+  const sortedLecturas = [...lecturas].sort((a, b) => a.t.localeCompare(b.t));
+  const latestLectura = sortedLecturas[sortedLecturas.length - 1];
+  const latestTime = new Date(latestLectura.t).getTime();
+
+  // Determine if the latest lectura is desactualizada (older than 120 minutes)
+  const desactualizada = (ahora - latestTime) > 120 * 60 * 1000;
+
+   // Helper to get a ventana for a given campo
+    const getVentana = (campo: keyof LecturaLimites, reinicioField: keyof LecturaLimites): VentanaClaude | null => {
+      // Find the most recent lectura with a non-null value for the campo
+      let targetLectura: LecturaLimites | null = null;
+      for (let i = sortedLecturas.length - 1; i >= 0; i--) {
+        const lectura = sortedLecturas[i];
+        const value = lectura[campo];
+        if (value !== null && typeof value === 'number') {
+          targetLectura = lectura;
+          break;
+        }
+      }
+
+      if (!targetLectura) {
+        return null;
+      }
+
+      const pct = targetLectura[campo] as number;
+      const reinicioStr = targetLectura[reinicioField] as string;
+    const reinicioMs = new Date(reinicioStr).getTime();
+    const minutosParaReinicio = (reinicioMs - ahora) / 60000; // minutes, can be negative
+    let reiniciada = false;
+    let adjustedPct = pct;
+    let adjustedQueda = 100 - pct;
+
+    if (reinicioMs <= ahora) {
+      // Reinicio has passed
+      reiniciada = true;
+      adjustedPct = 0;
+      adjustedQueda = 100;
+      // minutosParaReinicio is already negative or zero
+    }
+
+    // Calculate coste for this campo
+    const coste = costePorRevision(sortedLecturas, campo);
+
+    // Calculate disparos for this window using the programmed tasks and the reinicio of this window
+    const disparos = disparosAntes(programadas, ahora, reinicioMs);
+
+    let proyeccion: number | null = null;
+    if (coste !== null) {
+      proyeccion = adjustedPct + disparos * coste;
+      // Clamp proyeccion to a reasonable range? Not specified, but we leave as is.
+    }
+
+    // Determine tono based on pct and proyeccion
+    let tono: 'ok' | 'aviso' | 'peligro' = 'ok';
+    if (adjustedPct >= umbral || (proyeccion !== null && proyeccion > 100)) {
+      tono = 'peligro';
+    } else if (adjustedPct >= 60 || (proyeccion !== null && proyeccion >= umbral)) {
+      tono = 'aviso';
+    }
+
+    return {
+      pct: adjustedPct,
+      queda: adjustedQueda,
+      reinicio: reinicioStr,
+      minutosParaReinicio,
+      coste,
+      proyeccion,
+      reiniciada,
+      tono,
+    };
+  };
+
+  // Get ventanas for sesion, semana, modelo
+  const sesionVentana = getVentana('sesion_pct', 'sesion_reinicio');
+  const semanaVentana = getVentana('semana_pct', 'semana_reinicio');
+  const modeloVentana = getVentana('modelo_pct', 'modelo_reinicio');
+
+  // Determine modeloNombre: the modelo_nombre from the most recent lectura with a non-null modelo_pct
+  let modeloNombre: string | null = null;
+  for (let i = sortedLecturas.length - 1; i >= 0; i--) {
+    const lectura = sortedLecturas[i];
+    if (lectura.modelo_nombre !== null) {
+      modeloNombre = lectura.modelo_nombre;
+      break;
+    }
+  }
+
+  // Calculate programadasEnSesion and programadasEnSemana using the same logic as disparosAntes
+  // But note: we already computed disparos for each window inside getVentana, but we didn't store them.
+  // We'll recompute or we can modify getVentana to return the disparos as well? Let's recompute for clarity.
+  const sessionReinicioMs = sesionVentana ? new Date(sesionVentana.reinicio).getTime() : 0;
+  const weekReinicioMs = semanaVentana ? new Date(semanaVentana.reinicio).getTime() : 0;
+  const programadasEnSesion = disparosAntes(programadas, ahora, sessionReinicioMs);
+  const programadasEnSemana = disparosAntes(programadas, ahora, weekReinicioMs);
+
+    // Determine recomendacion
+    let recomendacion: string | null = null;
+    // Check if session or week window's proyeccion exceeds umbral
+    const sessionExceeds = sesionVentana?.proyeccion !== null && sesionVentana.proyeccion > umbral;
+    const weekExceeds = semanaVentana?.proyeccion !== null && semanaVentana.proyeccion > umbral;
+    if (sessionExceeds || weekExceeds) {
+      // Choose the window to report: prefer session if it exceeds, else week
+      const targetWindow = sessionExceeds ? sesionVentana : semanaVentana;
+      if (targetWindow && targetWindow.coste !== null) {
+        const N = Math.max(0, Math.floor((umbral - targetWindow.pct) / targetWindow.coste));
+        const ventanaName = sessionExceeds ? 'sesión' : 'semana';
+        recomendacion = `Espacia las revisiones: caben ${N} hasta el reinicio de ${ventanaName}`;
+      }
+    }
+
+  // Adjust tono if desactualizada: at least aviso
+  let finalTono: 'ok' | 'aviso' | 'peligro' = 'ok';
+  if (sesionVentana) {
+    finalTono = sesionVentana.tono;
+  } else if (semanaVentana) {
+    finalTono = semanaVentana.tono;
+  } else if (modeloVentana) {
+    finalTono = modeloVentana.tono;
+  }
+  if (desactualizada && finalTono === 'ok') {
+    finalTono = 'aviso';
+  }
+
+  // Overall tono: we need to pick one tono for the estado. The contract doesn't specify how to combine.
+  // We'll use the worst tono among the three windows (peligro > aviso > ok)
+  let overallTono: 'ok' | 'aviso' | 'peligro' = 'ok';
+  const checkTono = (v: VentanaClaude | null) => {
+    if (!v) return;
+    if (v.tono === 'peligro') {
+      overallTono = 'peligro';
+    } else if (v.tono === 'aviso' && overallTono !== 'peligro') {
+      overallTono = 'aviso';
+    }
+  };
+  checkTono(sesionVentana);
+  checkTono(semanaVentana);
+  checkTono(modeloVentana);
+  if (desactualizada && overallTono === 'ok') {
+    overallTono = 'aviso';
+  }
+
+  return {
+    sesion: sesionVentana,
+    semana: semanaVentana,
+    modelo: modeloVentana,
+    modeloNombre,
+    lecturaEn: latestLectura.t,
+    lecturaHaceMin: Math.floor((ahora - latestTime) / 60000),
+    desactualizada,
+    programadasEnSesion,
+    programadasEnSemana,
+    recomendacion,
+    tono: overallTono,
+  };
+}
+
+/**
+ * Genera un resumen legible del estado de los límites de Claude.
+ * @param e Estado calculado
+ * @return String de resumen
+ */
+export function resumenLimitesClaude(e: EstadoLimitesClaude): string {
+  if (!e.sesion && !e.semana && !e.modelo) {
+    return 'sin lectura';
+  }
+
+  const parts: string[] = [];
+
+  if (e.sesion) {
+    const { pct, minutosParaReinicio, proyeccion } = e.sesion;
+    const horas = Math.floor(minutosParaReinicio / 60);
+    const minutos = Math.floor(minutosParaReinicio % 60);
+    const tiempoStr = `${horas} h ${minutos} min`;
+    parts.push(`sesión ${pct} %`);
+    if (proyeccion !== null) {
+      parts.push(`proyección ${Math.round(proyeccion)} %`);
+    } else {
+      parts.push(`reinicia en ${tiempoStr}`);
+    }
+  }
+
+  if (e.semana) {
+    const { pct, minutosParaReinicio, proyeccion } = e.semana;
+    const horas = Math.floor(minutosParaReinicio / 60);
+    const minutos = Math.floor(minutosParaReinicio % 60);
+    const tiempoStr = `${horas} h ${minutos} min`;
+    parts.push(`semana ${pct} %`);
+    if (proyeccion !== null) {
+      parts.push(`proyección ${Math.round(proyeccion)} %`);
+    } else {
+      parts.push(`reinicia en ${tiempoStr}`);
+    }
+  }
+
+  // We'll follow the example format: «sesión 34 % · semana 61 % · reinicia en 2 h 10 min · proyección 72 %»
+  // But note: the example includes both session and week pct, then the time to reinicio (which one?) and the proyeccion (which one?).
+  // The example seems to mix session and week. Let's re-examine the example from the contract:
+  // «sesión 34 % · semana 61 % · reinicia en 2 h 10 min · proyección 72 %»
+  // This suggests that the resumen shows both session and week pct, then the time to reinicio (probably for the session? or the earliest?) and a proyeccion (maybe for the session?).
+  // However, the contract says: `resumenLimitesClaude(e)` → «sesión 34 % · semana 61 % · reinicia en 2 h 10 min · proyección 72 %» (o «sin lectura»)
+  // It doesn't specify which window's reinicio and proyeccion are shown.
+
+  // We'll assume that the resumen shows:
+  // - session pct
+  // - week pct
+  // - time to reinicio for the session window (or the earliest reinicio?)
+  // - proyeccion for the session window (or the one that is relevant?)
+
+  // Given the ambiguity, we'll try to match the example by showing:
+  //   sesión <sesion_pct> % · semana <semana_pct> % · reinicia en <time_to_session_reinicio> · proyección <session_proyeccion> %
+
+  // But if session is null, we'll use week.
+
+  // Let's build the string as in the example: we always show session and week pct if available, then the time to reinicio for the session (if available, else week), and the proyeccion for the session (if available, else week).
+
+  // However, the example shows both pcts and then a single time and a single proyeccion.
+
+  // We'll implement as follows:
+  //   If session is available, use its reinicio and proyeccion for the latter parts.
+  //   Else, if week is available, use its reinicio and proyeccion.
+  //   Else, just show the pcts.
+
+  // But the example shows both pcts even when giving a single time and proyeccion.
+
+  // Let's do:
+  //   part1: sesión <pct> % (if session exists, else omit)
+  //   part2: semana <pct> % (if week exists, else omit)
+  //   part3: reinicia en <time> (if we have a reinicio to show)
+  //   part4: proyeccion <value> % (if we have a proyeccion to show)
+
+  // We'll choose to show the reinicio and proyeccion from the session window if available, otherwise from the week window.
+
+  const sessionOrWeek = e.sesion || e.semana;
+  if (sessionOrWeek) {
+    const ventana = e.sesion ? e.sesion : e.semana;
+    const horas = Math.floor(ventana.minutosParaReinicio / 60);
+    const minutos = Math.floor(ventana.minutosParaReinicio % 60);
+    const tiempoStr = `${horas} h ${minutos} min`;
+    parts.push(`reinicia en ${tiempoStr}`);
+    if (ventana.proyeccion !== null) {
+      parts.push(`proyección ${Math.round(ventana.proyeccion)} %`);
+    }
+  }
+
+  // Join the parts with ' · '
+  return parts.join(' · ');
+}
+
+// Enlace a la página de uso de Claude
+export const ENLACE_USO_CLAUDE = "https://claude.ai/settings/usage";
+>>>>>>> ff0277de (salvavidas · LC1004B: trabajo del agente antes de las puertas (tsc / vitest))
