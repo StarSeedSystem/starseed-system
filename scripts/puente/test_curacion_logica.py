@@ -73,3 +73,13 @@ class TestCuracionLogica(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InformesSueltos(unittest.TestCase):
+    """(2026-10-06) Un informe .md en la raíz no bloquea el arranque: va a `_apartado/`."""
+
+    def test_informes_de_la_raiz_son_estorbo(self):
+        g = clasificar_arbol_sucio(["?? informe_dream.md", "?? sugerencias-2026-10-06.md",
+                                    "?? docs/informe.md", "?? notas.md", " M CLAUDE.md"])
+        self.assertEqual(g["estorbo"], ["informe_dream.md", "sugerencias-2026-10-06.md"])
+        self.assertEqual(g["trabajo"], ["docs/informe.md", "notas.md", "CLAUDE.md"])

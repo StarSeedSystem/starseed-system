@@ -46,6 +46,18 @@ def colgados_a_matar(
 #     Diccionario con dos claves: 'estorbo' y 'trabajo', cada una con una lista de rutas
 
 
+def es_informe_suelto(ruta: str) -> bool:
+    """Un informe .md sin seguimiento EN LA RAÍZ del repo con nombre de informe o de sueño
+    (`informe_dream.md`, `sugerencias-….md`): lo deja un agente que escribió en su carpeta de
+    trabajo en vez de en `starseed_memory_root/dream/`. (2026-10-06) `informe_dream.md` (07:02)
+    contaba como «trabajo» y el vigilante no relanzaba el enjambre: seis horas parado. Va a
+    `_apartado/` (no se borra), como el resto del estorbo."""
+    if "/" in ruta or not ruta.lower().endswith(".md"):
+        return False
+    nombre = ruta.lower()
+    return nombre.startswith(("informe", "sugerencias")) or "dream" in nombre or "sueno" in nombre
+
+
 def clasificar_arbol_sucio(lineas_porcelain: List[str]) -> Dict[str, List[str]]:
     estorbo = []
     trabajo = []
@@ -57,6 +69,7 @@ def clasificar_arbol_sucio(lineas_porcelain: List[str]) -> Dict[str, List[str]]:
             if (
                 ruta.endswith((".new", ".tmp", ".orig", ".rej", ".bak", "~"))
                 or ruta == ".DS_Store"
+                or es_informe_suelto(ruta)
             ):
                 estorbo.append(ruta)
             else:
