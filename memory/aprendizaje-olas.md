@@ -3743,3 +3743,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `RSC1006Ls` — no escribió nada
+
+## 2026-10-06 16:05 · auto-1006-152114
+
+**Lo que se pidió.** archivar
+
+**Resultado.** 6 de 7 integradas. 1 tarea se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- freellmapi/auto integró 6 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `RSC1006Es` — no escribió nada
