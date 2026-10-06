@@ -265,7 +265,7 @@ if __name__ == "__main__":
 class EscritoresDelBoton(unittest.TestCase):
     """(2026-10-06) «Buscar más capacidad no lo arregla»: si ningún modelo tiene cupo, lo dice."""
 
-    def test_representantes_uno_por_proveedor_sin_pago_ni_revisores(self):
+    def test_representantes_por_proveedor_sin_pago_ni_revisores(self):
         cfg = {"provider": {
             "openrouter": {"models": {"a:free": {}, "b:free": {}}},
             "nvidia": {"models": {"moonshotai/kimi-k3": {}}},
@@ -274,7 +274,8 @@ class EscritoresDelBoton(unittest.TestCase):
             "freellmapi": {"models": {"auto": {}}},
             "vacio": {"models": {}},
         }}
-        self.assertEqual(B.representantes(cfg), {"nvidia": ["nvidia/moonshotai/kimi-k3"],
+        self.assertEqual(B.representantes(cfg), {"freellmapi": ["freellmapi/auto"],
+                                                  "nvidia": ["nvidia/moonshotai/kimi-k3"],
                                                   "openrouter": ["openrouter/a:free", "openrouter/b:free"]})
 
     def test_un_modelo_retirado_no_decide_por_el_proveedor(self):
