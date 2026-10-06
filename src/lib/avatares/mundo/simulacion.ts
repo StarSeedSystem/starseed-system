@@ -231,6 +231,39 @@ export function avanzar(estado: EstadoMundo, pasos: number = 1): EstadoMundo {
   return nuevoEstado;
 }
 
+/* Decisión de avance de un tick del temporizador, en forma pura para poder
+ * probarla: la pausa detiene el tick (0 pasos y nada que acumular); con la
+ * pestaña oculta no se avanza pero se acumula con tope, y al volver se
+ * descuenta el bloque acumulado avanzando 1 solo paso por tick. */
+export const TOPE_PASOS_PENDIENTES = 4;
+
+export interface EntradaTick {
+  pausado: boolean;
+  pestañaOculta: boolean;
+  pasosPendientes: number;
+}
+
+export function pasosParaTick(entrada: EntradaTick): { pasos: number; pasosPendientes: number } {
+  if (entrada.pausado) {
+    return { pasos: 0, pasosPendientes: 0 };
+  }
+  if (entrada.pestañaOculta) {
+    return {
+      pasos: 0,
+      pasosPendientes: Math.min(entrada.pasosPendientes + 1, TOPE_PASOS_PENDIENTES)
+    };
+  }
+  // Al volver con pasos pendientes se avanza 1 solo paso y se descarta el
+  // resto del bloque para no congelar el navegador con una ráfaga.
+  return { pasos: 1, pasosPendientes: 0 };
+}
+
+/* Azúcar mínima sobre `pasosParaTick`: ¿este pulso del temporizador debe
+ * avanzar la simulación? */
+export function debeAvanzar(entrada: { pausado: boolean; oculta: boolean }): boolean {
+  return !entrada.pausado && !entrada.oculta;
+}
+
 const MUNDO_STORAGE_KEY = 'starseed.mundo.avatares.v1';
 
 export function guardarMundo(estado: EstadoMundo): void {
