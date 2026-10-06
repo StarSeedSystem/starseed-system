@@ -668,7 +668,8 @@ def aprobar_con_seguimiento(
     if seguimientos:
         ruta = os.path.join(olas, "cola-seguimientos.json")
         try:
-            previas = json.load(open(ruta, encoding="utf-8"))
+            with open(ruta, encoding="utf-8") as f:
+                previas = json.load(f)
             if not isinstance(previas, list):
                 previas = []
         except Exception:

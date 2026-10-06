@@ -221,7 +221,8 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None):
 
 def _pasarelas():
     try:
-        return (json.load(open(INFORME, encoding="utf-8")) or {}).get("pasarelas") or []
+        with open(INFORME, encoding="utf-8") as f:
+            return (json.load(f) or {}).get("pasarelas") or []
     except Exception:
         return []
 

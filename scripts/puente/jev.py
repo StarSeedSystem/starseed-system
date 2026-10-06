@@ -344,6 +344,9 @@ def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
             )
             respuestas["motor"] = "laya-local"
             return respuestas
+    except urllib.error.HTTPError as e:
+        e.close()
+        return None
     except Exception:
         return None
 

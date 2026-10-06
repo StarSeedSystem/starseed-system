@@ -42,7 +42,8 @@ def anexar_si_falta(ruta, marca, bloque, aplicar):
     if not os.path.exists(ruta):
         print("  no existe %s: añade a mano:\n%s" % (ruta, bloque))
         return "mostrado"
-    texto = open(ruta, encoding="utf-8").read()
+    with open(ruta, encoding="utf-8") as f:
+        texto = f.read()
     if marca in texto:
         if PY not in texto and '"python3"' in texto:
             print("  %s ya estaba (con python3 a secas: cámbialo a %s)" % (NOMBRE, PY))

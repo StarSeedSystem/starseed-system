@@ -5,6 +5,6 @@
     "moz-extension://",
     "safari-extension://",
     "extensions::",
-    "net::ERR_BLOCKED_BY_CLIENT"
+    "devtools failed to load source map"
   ]
 }

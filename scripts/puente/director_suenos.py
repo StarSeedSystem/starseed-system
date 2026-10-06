@@ -146,7 +146,8 @@ def leer_informes(dir_sesion):
             continue
         area, _, lente = n[:-3].partition("--")
         try:
-            texto = open(os.path.join(dir_sesion, n), encoding="utf-8").read()
+            with open(os.path.join(dir_sesion, n), encoding="utf-8") as f:
+                texto = f.read()
         except OSError:
             continue
         m = re.search(r"Tarea\s+([A-Za-z][A-Za-z0-9]{0,8})", texto)
