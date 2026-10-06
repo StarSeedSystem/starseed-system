@@ -17,6 +17,7 @@ from scripts.puente.diseno_brief import (
     identidad_de,
     identidades_de,
     parsear_identidades,
+    slug_de,
 )
 
 IDENTIDADES_PRUEBA = {
@@ -166,6 +167,12 @@ class TestBriefAdn(unittest.TestCase):
         self.assertIn("## ADN — Café", texto)
         nombres = [n for n, _ in identidades_de(tarea, parsear_identidades(memoria["identidades"]))]
         self.assertEqual(set(nombres), {"Mando", "Café"})
+
+    def test_slug_de_normaliza(self):
+        self.assertEqual(slug_de("Café"), "cafe")
+        self.assertEqual(slug_de("Mando"), "mando")
+        self.assertEqual(slug_de("StarSeed OS/Nexus"), "starseed-os-nexus")
+        self.assertEqual(slug_de("Materia Viva"), "materia-viva")
 
     def test_parsear_no_fragmenta_subencabezados(self):
         texto = "## Materia Viva\nFicha.\n### Synthwave Horizon\nPreset uno.\n## Café\nOtra."
