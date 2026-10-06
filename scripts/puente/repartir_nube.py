@@ -171,6 +171,23 @@ MOTIVOS_FUERA = (
 )
 
 
+_SUCESOR = re.compile(r"[A-Z0-9][b-z]$")
+
+
+def base_cadena(tid):
+    """PURA: el id base de una cadena de reintentos o reparaciones (`RSC1006Qe` → `RSC1006Q`)."""
+    tid = str(tid or "")
+    return tid[:-1] if _SUCESOR.search(tid) else tid
+
+
+def envios_de_cadena(tid, envios):
+    """PURA: envíos a la nube de TODA la cadena de `tid`. (2026-10-06) Contarlos por id dejaba que
+    cada reparación (`Xb`, `Xc`…) estrenara tres envíos nuevos: RSC1006Q fue a la nube 5 veces
+    seguidas por el mismo fallo."""
+    base = base_cadena(tid)
+    return sum(int(n or 0) for k, n in (envios or {}).items() if base_cadena(k) == base)
+
+
 def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
                  max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE):
     """PURA. None si la nube puede coger esta tarea; si no, la clave de MOTIVOS_FUERA del
@@ -189,7 +206,7 @@ def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
         return "grande"
     if dependencias_pendientes(tarea, progreso, asuntos_main):
         return "espera"
-    if (envios or {}).get(tid, 0) >= max_envios:
+    if envios_de_cadena(tid, envios) >= max_envios:
         return "agotada"
     if es_privada(tarea):
         return "privada"

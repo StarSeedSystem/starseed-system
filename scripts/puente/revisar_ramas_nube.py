@@ -132,6 +132,27 @@ def id_rescate(tid, conocidos):
     return rid if rid not in conocidos else T.siguiente_id(rid, conocidos)
 
 
+CERRADOS = {"sustituida", "descartada", "duplicada", "commit", "hecho", "integrada", "rechazada", "informe"}
+
+
+def cadena_viva(tid, progreso):
+    """PURA: ids de la MISMA cadena (`X`, `Xb`, `Xc`…) que siguen abiertos. Si hay alguno, esa
+    tarea lleva el trabajo y rescatar pruebas de una rama vieja suya solo lo duplica (2026-10-06:
+    RTRSC1006Q, Qb, Qc y RTRSC1006S salieron de ramas viejas de RSC1006Q/S mientras RSC1006Qe y Se
+    seguían vivas)."""
+    if not tid:
+        return []
+    base = T.base_de(tid)
+    vivos = []
+    for k, v in (progreso or {}).items():
+        if k != base and T.base_de(k) != base:
+            continue
+        estado = v.get("estado") if isinstance(v, dict) else v
+        if estado not in CERRADOS:
+            vivos.append(k)
+    return sorted(vivos)
+
+
 def regla(n_casos, minimo=MIN_CASOS):
     return "rescatar" if n_casos >= minimo else "archivar"
 
@@ -240,13 +261,15 @@ def archivar(ramas, fecha=None):
     if archivadas:
         os.makedirs(ARCHIVO, exist_ok=True)
         paquete = os.path.join(ARCHIVO, "ramas-nube-%s.bundle" % (fecha or time.strftime("%Y-%m-%d")))
-        # `^main`: el paquete guarda solo lo que main no tiene (125 MB → unos pocos con 72 ramas);
-        # para recuperarlo hace falta un repo con main, que es cualquier clon del proyecto.
-        rc, salida = T._git(["bundle", "create", paquete] + ["refs/archivo/" + r for r in archivadas] + ["^main"],
-                            timeout=600)
+        # (2026-10-06) El paquete es ACUMULADO: todo `refs/archivo/nube/*`, no solo esta pasada.
+        # Con un nombre por día y solo las ramas de la pasada, la siguiente del mismo día pisaba
+        # el paquete de la revisión grande (72 ramas). `^main`: solo lo que main no tiene; para
+        # recuperarlo basta un clon con main. El archivo principal son las refs (verificadas
+        # arriba); el paquete es la copia portátil, así que si no se puede escribir (p. ej. todo
+        # ya está en main y el paquete saldría vacío) no se pierde la pasada.
+        rc, salida = T._git(["bundle", "create", paquete, "--glob=refs/archivo/nube", "^main"], timeout=600)
         if rc != 0:
-            fallidas += list(archivadas)
-            archivadas, paquete = {}, None
+            paquete = None
     return {"archivadas": archivadas, "fallidas": fallidas, "paquete": paquete}
 
 
@@ -332,9 +355,14 @@ def _revisar(aplicar, borrar):
         for s in filas:
             tid = s.get("tid") or ""
             n = sum(len(v) for v in casos.values())
-            base = regla(n)
-            d = _consultar_jev(tid, titulos_cola.get(tid, ""), casos, base) if (aplicar and n) else {}
-            final, motivo = con_jev(base, d)
+            vivos = cadena_viva(tid, progreso)
+            if vivos:
+                base, d = "archivar", {}
+                final, motivo = "archivar", "la cadena sigue viva en %s: ella lleva el trabajo" % ", ".join(vivos[:4])
+            else:
+                base = regla(n)
+                d = _consultar_jev(tid, titulos_cola.get(tid, ""), casos, base) if (aplicar and n) else {}
+                final, motivo = con_jev(base, d)
             rescate = None
             if final == "rescatar" and casos and tid:
                 rescate = id_rescate(tid, conocidos)

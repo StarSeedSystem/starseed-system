@@ -139,3 +139,13 @@ class Informe(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TopeDeReparaciones(unittest.TestCase):
+    """(2026-10-06) RSC1006Q → Qb → Qc → Qd → Qe en doce horas: la cadena tiene tope."""
+
+    def test_sucesores_de_la_cadena(self):
+        p = {"RSC1006Q": {}, "RSC1006Qb": {}, "RSC1006Qc": {}, "RSC1006R": {}, "RSC1006Qd": {}}
+        self.assertEqual(T.sucesores_en_cadena("RSC1006Qd", p), ["RSC1006Qb", "RSC1006Qc", "RSC1006Qd"])
+        self.assertEqual(T.sucesores_en_cadena("RSC1006R", p), [])
+        self.assertGreaterEqual(len(T.sucesores_en_cadena("RSC1006Q", p)), T.REPARACIONES_MAX)

@@ -151,6 +151,16 @@ def siguiente_id(tid, conocidos):
     return base + letra
 
 
+REPARACIONES_MAX = 3
+
+
+def sucesores_en_cadena(tid, progreso):
+    """PURA: los sucesores (`Xb`, `Xc`…) que ya existen en la cadena de `tid`, en orden."""
+    base = base_de(tid)
+    return sorted(k for k in (progreso or {}) if k != base and len(k) == len(base) + 1
+                  and k.startswith(base) and k[-1] in "bcdefghijklmnopqrstuvwxyz")
+
+
 def tarea_reparacion(original, nuevo_id, rama, shas, archivos, motivo):
     """PURA: la sucesora que continúa desde la rama de la nube."""
     t = {k: v for k, v in (original or {}).items()
@@ -462,6 +472,19 @@ def _revisar(aplicar, espera_integrar_s):
             entradas = [e for e in entradas if e["accion"] != "traer"]
         progreso = _progreso()
         for e in [x for x in entradas if x["accion"] == "reparar"]:
+            sucesores = sucesores_en_cadena(e["tid"], progreso)
+            if len(sucesores) >= REPARACIONES_MAX:
+                # (2026-10-06) Tope de la cadena: RSC1006Q pasó por Qb, Qc, Qd y Qe en doce horas,
+                # cada una con tres envíos nuevos a la nube que fallaba igual. Sin tope, un bucle.
+                _actualizar_progreso({e["tid"]: {
+                    "estado": "bloqueada",
+                    "nota": "la nube no la integra tras %d reparaciones encadenadas (%s): se queda para "
+                            "la Mac y su revisor; el último trabajo está en %s"
+                            % (len(sucesores), ", ".join(sucesores), e["rama"])}})
+                progreso = _progreso()
+                hechas_antes[e["clave"]] = {"accion": "tope", "t": time.strftime("%Y-%m-%d %H:%M:%S")}
+                esperando.append({"tid": e["tid"], "motivo": "tope de reparaciones: a Bloqueadas, en la Mac"})
+                continue
             nuevo = _crear_reparacion(e, e["motivo"], colas, progreso)
             progreso = _progreso()
             hechas_antes[e["clave"]] = {"accion": "reparada", "nuevo": nuevo, "t": time.strftime("%Y-%m-%d %H:%M:%S")}

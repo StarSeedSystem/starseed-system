@@ -442,3 +442,22 @@ class PausaDeLaNube(unittest.TestCase):
             f.write("{")
         self.assertIsNone(RNp.nube_pausada(roto))
         self.assertIsNone(RNp.motivo_pausa(["no", "es", "dict"]))
+
+
+class EnviosPorCadena(unittest.TestCase):
+    """(2026-10-06) Cada reparación (`Xb`, `Xc`…) no estrena tres envíos: cuenta la cadena entera."""
+
+    def test_base_y_suma_de_la_cadena(self):
+        self.assertEqual(R.base_cadena("RSC1006Qe"), "RSC1006Q")
+        self.assertEqual(R.base_cadena("RSC1006Q"), "RSC1006Q")
+        self.assertEqual(R.base_cadena("CU3br"), "CU3br")
+        envios = {"RSC1006Q": 1, "RSC1006Qb": 1, "RSC1006Qc": 1, "RSC1006S": 2}
+        self.assertEqual(R.envios_de_cadena("RSC1006Qd", envios), 3)
+        self.assertEqual(R.envios_de_cadena("RSC1006Sb", envios), 2)
+        self.assertEqual(R.envios_de_cadena("OTRA1", envios), 0)
+
+    def test_un_sucesor_no_vuelve_a_la_nube_si_la_cadena_agoto_sus_envios(self):
+        tarea = {"id": "RSC1006Qd", "ola": "Ola 1006R", "archivos": ["a.ts"], "prompt": "x"}
+        envios = {"RSC1006Q": 1, "RSC1006Qb": 1, "RSC1006Qc": 1}
+        self.assertEqual(R.motivo_fuera(tarea, {}, [], None, envios=envios), "agotada")
+        self.assertIsNone(R.motivo_fuera(tarea, {}, [], None, envios={"RSC1006Q": 1}))

@@ -87,6 +87,14 @@ class Puras(unittest.TestCase):
         self.assertIn("refs/archivo/nube/1/ola/X1", t["prompt"])
         self.assertIn("vi.mock", t["prompt"])
 
+    def test_cadena_viva(self):
+        p = {"RSC1006Q": {"estado": "sustituida"}, "RSC1006Qd": {"estado": "sustituida"},
+             "RSC1006Qe": {"estado": "reasignada"}, "OTRA1": {"estado": "pendiente"}}
+        self.assertEqual(R.cadena_viva("RSC1006Qd", p), ["RSC1006Qe"])
+        p["RSC1006Qe"]["estado"] = "commit"
+        self.assertEqual(R.cadena_viva("RSC1006Qd", p), [])
+        self.assertEqual(R.cadena_viva("", p), [])
+
     def test_id_rescate(self):
         self.assertEqual(R.id_rescate("OPT1004C", set()), "RTOPT1004C")
         self.assertEqual(R.id_rescate("LC1004Bd", set()), "RTLC1004B")
@@ -163,6 +171,20 @@ class ArchivarYBorrar(unittest.TestCase):
         b = R.borrar_archivadas(a["archivadas"])
         self.assertEqual(b["borradas"], [])
         self.assertEqual(self.remotas(), ["refs/heads/nube/1/ola/X1", "refs/heads/nube/2"])
+
+    def test_el_paquete_es_acumulado_entre_pasadas_del_mismo_dia(self):
+        R.archivar(["nube/1/ola/X1"], fecha="2026-10-06")
+        a = R.archivar(["nube/2"], fecha="2026-10-06")
+        cabezas = self.g(["bundle", "list-heads", a["paquete"]])
+        self.assertIn(self.shas["nube/1/ola/X1"], cabezas)
+        self.assertIn(self.shas["nube/2"], cabezas)
+
+    def test_un_paquete_vacio_no_impide_archivar(self):
+        # Una rama que ya está entera en main: la ref archiva, el paquete saldría vacío.
+        self.g(["push", "-q", "origin", "main:nube/3"])
+        a = R.archivar(["nube/3"])
+        self.assertIn("nube/3", a["archivadas"])
+        self.assertEqual(a["fallidas"], [])
 
     def test_rama_inexistente_no_se_archiva_ni_se_borra(self):
         a = R.archivar(["nube/9/ola/NADA"])
