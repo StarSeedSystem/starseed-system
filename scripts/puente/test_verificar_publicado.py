@@ -85,3 +85,27 @@ class PruebaImportadoresDeUnBarril(unittest.TestCase):
         with open(os.path.join(self.base, "src", "hooks", "otro.ts"), "w") as f:
             f.write("// los gestos del dock\nconst gestosActivos = 1;\n")
         self.assertEqual(VP.importadores_de(self.base, "src/lib/gestos/index.ts"), [])
+
+
+class PruebaImportadoresFueraDeSrc(unittest.TestCase):
+    """(2026-10-06) Un módulo de `integraciones-de-codigo/` lo importan sus vecinos: no es huérfano."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.base, True)
+        hooks = os.path.join(self.base, "integraciones-de-codigo", "mod", "hooks")
+        os.makedirs(hooks)
+        os.makedirs(os.path.join(self.base, "src"))
+        os.makedirs(os.path.join(self.base, "scripts"))
+        with open(os.path.join(hooks, "script-mac.ts"), "w") as f:
+            f.write("export const SCRIPT_MAC = 1\n")
+        with open(os.path.join(hooks, "mac.ts"), "w") as f:
+            f.write("import { SCRIPT_MAC } from './script-mac'\n")
+
+    def test_lo_importa_su_vecino(self):
+        usos = VP.importadores_de(self.base, "integraciones-de-codigo/mod/hooks/script-mac.ts")
+        self.assertEqual(usos, ["integraciones-de-codigo/mod/hooks/mac.ts"])
+
+    def test_sin_vecino_sigue_huerfano(self):
+        os.remove(os.path.join(self.base, "integraciones-de-codigo", "mod", "hooks", "mac.ts"))
+        self.assertEqual(VP.importadores_de(self.base, "integraciones-de-codigo/mod/hooks/script-mac.ts"), [])

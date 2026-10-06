@@ -45,7 +45,15 @@ def importadores_de(raiz, ruta):
     algo que sí se usa por una vía que este grep no ve.
     """
     base = os.path.splitext(os.path.basename(ruta))[0]
-    orden = ["grep", "-rl", "--binary-files=without-match", base, "src", "scripts"]
+    # (2026-10-06) Se busca también en la carpeta de primer nivel del propio archivo: el mod
+    # de Claude Code vive en `integraciones-de-codigo/` y `script-mac.ts`, que importan
+    # `mac.ts` y `register.tsx`, salía «nadie lo usa» y la publicación quedaba «con avisos».
+    carpetas = ["src", "scripts"]
+    raiz_propia = ruta.split("/", 1)[0] if "/" in ruta else ""
+    if raiz_propia and raiz_propia not in carpetas and not raiz_propia.startswith(".") \
+            and os.path.isdir(os.path.join(raiz, raiz_propia)):
+        carpetas.append(raiz_propia)
+    orden = ["grep", "-rl", "--binary-files=without-match", base, *carpetas]
     if base == "index":
         # (2026-09-25) Un `index.ts` se importa por su CARPETA (`@/lib/gestos`,
         # `../gestos`), nunca por «index»: sin esto todo barril salía «huérfano»
@@ -54,7 +62,7 @@ def importadores_de(raiz, ruta):
         if not carpeta:
             return []
         orden = ["grep", "-rlE", "--binary-files=without-match",
-                 "[\"'/]%s[\"']" % carpeta, "src", "scripts"]
+                 "[\"'/]%s[\"']" % carpeta, *carpetas]
     elif not base or base in ("route", "page", "layout"):
         return []
     try:
