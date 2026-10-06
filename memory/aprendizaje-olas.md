@@ -3667,3 +3667,31 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 - `BLQ1005E` — no escribió nada
 - `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
 - `PRD1005H` — no escribió nada
+
+## 2026-10-05 21:56 · auto-1005-211229
+
+**Lo que se pidió.** no tocaste tus archivos
+
+**Resultado.** 0 de 12 integradas. 12 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 9 tareas se fueron por lo mismo — pruebas en rojo (CAMR1005A, BLQ1005A, PRD1005T, PRD1005S, CDV1004Cs, p314Acs). Es 75 % de la ola.
+- 3 tareas se fueron por lo mismo — no escribió nada (DR0927-1, DR0927-2, DR0929-1). Es 25 % de la ola.
+- nvidia/moonshotai/kimi-k3 no integró ninguna de sus 4 tareas.
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 3 tareas.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+- codex/gpt-5.6-sol no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005T` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005S` — pruebas en rojo: vitest falla (rama conservada)
+- `CDV1004Cs` — pruebas en rojo: vitest falla (rama conservada)
+- `p314Acs` — pruebas en rojo: vitest falla (rama conservada)
+- `DR0927-1` — no escribió nada
+- `DR0927-2` — no escribió nada
+- `DR0929-1` — no escribió nada
+- `FLU1005H` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005E` — pruebas en rojo: vitest falla (rama conservada)
+- `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
