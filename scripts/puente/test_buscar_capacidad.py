@@ -297,6 +297,8 @@ class EscritoresDelBoton(unittest.TestCase):
         self.assertFalse(alguno)
         self.assertIn("NINGUNO", linea)
         self.assertIn("openrouter: cupo del día agotado (429) · vuelve hacia las 18:00", linea)
+        linea2, _ = B.texto_escritores([("apinex/x", False, "sin crédito (402)", 24)], ahora)
+        self.assertIn("vuelve mañana hacia las 15:00", linea2)
         self.assertNotIn("vuelve", linea.split("nvidia")[1])
         self.assertIn("el límite NO son los huecos", B.resumen([linea], 0, sin_escritores=True))
 

@@ -245,7 +245,9 @@ DE_PAGO = ("xai", "deepseek", "anthropic", "openai")
 #: Proveedores de opencode que no escriben código del enjambre: revisores (groq, aihubmix,
 #: tokenrouter), solo Markdown (llm7), la neurona local de 0,5B y freellmapi «auto», que el
 #: 2026-10-06 devolvió las llamadas a herramientas como texto (opencode no las ejecuta).
-NO_ESCRITORES = ("groq", "aihubmix", "tokenrouter", "llm7", "neurona", "freellmapi")
+#: Hugging Face responde a una sonda corta, pero con el crédito mensual agotado opencode recibe
+#: 402 en las peticiones de verdad (medido el 2026-10-06): no cuenta como escritor.
+NO_ESCRITORES = ("groq", "aihubmix", "tokenrouter", "llm7", "neurona", "freellmapi", "huggingface")
 #: Nombre del proveedor en la salud compartida cuando difiere del prefijo de opencode.
 SALUD_DE = {"nvidia": "nim"}
 
@@ -291,7 +293,9 @@ def texto_escritores(resultados, ahora=None):
     for m, apto, motivo, horas in resultados:
         if apto:
             continue
-        cuando = (" · vuelve hacia las %s" % time.strftime("%H:%M", time.localtime(ahora + horas * 3600))
+        vuelta = ahora + horas * 3600
+        dia = "" if time.strftime("%Y%m%d", time.localtime(vuelta)) == time.strftime("%Y%m%d", time.localtime(ahora)) else "mañana "
+        cuando = (" · vuelve %shacia las %s" % (dia, time.strftime("%H:%M", time.localtime(vuelta)))
                   if horas and horas >= 1 else "")
         no.append("%s: %s%s" % (m.split("/", 1)[0], motivo, cuando))
     if not resultados:

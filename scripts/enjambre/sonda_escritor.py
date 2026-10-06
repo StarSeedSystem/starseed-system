@@ -31,6 +31,8 @@ SIN_SONDA = ("codex",)
 _DIARIO = re.compile(r"per[- ]day|today|daily|del d[ií]a|free-models-per-day")
 _PAGO = re.compile(r"paid|premium|subscri|top up|wallet|deposit")
 _CREDITO = re.compile(r"payment required|credits|recharge|insufficient|balance")
+#: Sin saldo de la CUENTA (no del modelo): «depleted your monthly included credits».
+_SIN_SALDO = re.compile(r"depleted|credits|recharge|insufficient")
 
 
 def horas_hasta_medianoche_utc(ahora=None):
@@ -55,8 +57,9 @@ def clasificar(codigo, cuerpo, ahora=None):
         return True, "responde", 0, False
     if codigo in (404, 410) or "does not exist" in c or "has reached its end" in c:
         return False, "modelo retirado (%s)" % codigo, 0, True
-    if codigo == 403 and _PAGO.search(c):
-        return False, "modelo solo de pago (403)", 0, True
+    if codigo in (402, 403) and _PAGO.search(c) and not _SIN_SALDO.search(c):
+        # «this model is only available with a subscription», «premium model»: es del MODELO.
+        return False, "modelo solo de pago (%s)" % codigo, 0, True
     if codigo == 429:
         if _DIARIO.search(c) or "quota" in c:
             return False, "cupo del día agotado (429)", horas_hasta_medianoche_utc(ahora), False
