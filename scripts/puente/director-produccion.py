@@ -78,6 +78,64 @@ def obtener_progreso(tid, progreso):
     return progreso.get(tid) if progreso else {}
 
 
+def candidato_elegible(candidato, vetos):
+    """Determinar si un candidato es elegible para producción según §3.
+
+    Returns:
+        (bool, list) - (elegible, motivos)
+    """
+    motivos = []
+
+    sha = candidato.get("sha")
+    if sha and vetos.get(sha):
+        motivos.append(f"vetada por {vetos[sha]['quien']}: {vetos[sha]['motivo']}")
+        return False, motivos
+
+    veredictos = candidato.get("veredictos", {})
+    diseno = veredictos.get("diseno", {})
+    nota = diseno.get("nota", 0)
+
+    if nota < 75:
+        motivos.append(f"diseño bajo ({nota})")
+        return False, motivos
+
+    return True, []
+
+
+def actualizar_estado(lote, puertas, resultado, estado):
+    """Actualizar el archivo estado de producción."""
+    estado_actual = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "lote": {
+            "sha": lote.get("sha"),
+            "tareas": [lote.get("tarea")],
+            "medios": lote.get("medios", []),
+            "archivos": lote.get("archivos", []),
+            "puertas": puertas,
+            "resultado": resultado,
+        },
+        "estado": estado,
+    }
+
+    os.makedirs(STATE_DIR, exist_ok=True)
+    ruta = os.path.join(STATE_DIR, "produccion-estado.json")
+
+    with open(ruta, "w", encoding="utf-8") as f:
+        json.dump(estado_actual, f, ensure_ascii=False, indent=2)
+
+
+def escribir_informe(contenido, sha):
+    """Escribir un informe al historial de producción."""
+    historial_path = os.path.expanduser("~/.starseed/produccion")
+    os.makedirs(historial_path, exist_ok=True)
+
+    historial_file = os.path.join(historial_path, "historial.jsonl")
+    entrada = {"timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "sha": sha, "contenido": contenido}
+
+    with open(historial_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entrada, ensure_ascii=False) + "\n")
+
+
 def probar_candidato(candidato, config):
     """Probar un candidato para producción según §3 de director-produccion.md.
 
