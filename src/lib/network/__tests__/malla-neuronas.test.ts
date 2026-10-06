@@ -1,14 +1,20 @@
 /**
  * malla-neuronas — funciones puras (Ola 366). Sin DOM ni red: decisión de
  * auto-vínculo, clasificación de RAM, detección de origen local y el guard
- * del mensaje de "ficha".
+ * del mensaje de "ficha". (Ola 375 · RDV13) También el filtro de BLE fresco y
+ * la decisión de reenvío del resumen del radar compartido.
  */
 import { describe, expect, test } from "vitest";
+import type { BleDetection } from "@/ai/astraura/mesh/signals";
 import {
+  RADAR_LOCAL_CADA_MS,
+  RADAR_REENVIO_MS,
   claseRam,
   decidirAutovinculo,
+  deteccionesBleRecientes,
   esMensajeFicha,
   esOrigenLocal,
+  hayQueEnviarRadar,
   type NeuronaParaMalla,
   type PeerEstadoLite,
 } from "@/lib/network/malla-neuronas";
@@ -100,5 +106,61 @@ describe("esMensajeFicha", () => {
     expect(esMensajeFicha("texto")).toBe(false);
     expect(esMensajeFicha({ t: "malla:hb", at: 1 })).toBe(false);
     expect(esMensajeFicha({ t: "malla:ficha", ficha: { syncDeviceId: "s-1" } })).toBe(false);
+  });
+});
+
+describe("deteccionesBleRecientes (RDV13)", () => {
+  const ahora = 1_000_000_000;
+  const det = (id: string, at: number): BleDetection => ({
+    id,
+    name: id,
+    rssi: null,
+    txPower: null,
+    uuids: [],
+    at,
+    viaPicker: false,
+  });
+
+  test("solo cuenta lo oído hace menos de 60 s (nunca lo del futuro)", () => {
+    const dets = [
+      det("fresca", ahora - 10_000),
+      det("al-limite", ahora - 59_999),
+      det("caducada", ahora - 60_000),
+      det("muy-vieja", ahora - 120_000),
+      det("del-futuro", ahora + 5_000),
+    ];
+    expect(deteccionesBleRecientes(dets, ahora).map((d) => d.id)).toEqual(["fresca", "al-limite"]);
+  });
+
+  test("respeta una ventana distinta si se la dan", () => {
+    const dets = [det("a", ahora - 30_000), det("b", ahora - 90_000)];
+    expect(deteccionesBleRecientes(dets, ahora, 60_000).map((d) => d.id)).toEqual(["a"]);
+    expect(deteccionesBleRecientes(dets, ahora, 120_000).map((d) => d.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("hayQueEnviarRadar (RDV13)", () => {
+  const huella = "h-igual";
+
+  test("sin envío previo, siempre envía (primera vez)", () => {
+    expect(hayQueEnviarRadar(huella, null, 1_000)).toBe(true);
+  });
+
+  test("misma huella recién enviada, no vuelve a molestar el canal", () => {
+    expect(hayQueEnviarRadar(huella, { huella, at: 1_000 }, 1_000 + RADAR_LOCAL_CADA_MS)).toBe(false);
+  });
+
+  test("huella distinta envía aunque el último fuera hace un segundo", () => {
+    expect(hayQueEnviarRadar("h-nueva", { huella, at: 1_000 }, 1_001)).toBe(true);
+  });
+
+  test("misma huella se renueva a los 5 min exactos, ni un ms antes", () => {
+    const ultimo = { huella, at: 1_000 };
+    expect(hayQueEnviarRadar(huella, ultimo, 1_000 + RADAR_REENVIO_MS - 1)).toBe(false);
+    expect(hayQueEnviarRadar(huella, ultimo, 1_000 + RADAR_REENVIO_MS)).toBe(true);
+  });
+
+  test("un reenvío personalizado también caduca a su tiempo", () => {
+    expect(hayQueEnviarRadar(huella, { huella, at: 100 }, 100 + 10_000, 10_000)).toBe(true);
   });
 });
