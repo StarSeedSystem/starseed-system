@@ -248,6 +248,3 @@ describe("constantes", () => {
         expect(ENLACE_USO_CLAUDE).toBe("https://claude.ai/settings/usage");
     });
 });
-
-
-

@@ -1,4 +1,4 @@
-/**
+/***
  * LÍMITES DEL PLAN DE CLAUDE (Ola 1004L · LC1004Bc) — módulo PURO
  * ─────────────────────────────────────────────────────────────────────────────
  * Resume lo que queda de las ventanas de uso del plan de Claude (sesión de
@@ -132,7 +132,7 @@ export function costePorRevision(lecturas: LecturaLimites[], campo: CampoVentana
         const b = lecturas[i];
         if (a[k.reinicio] === null || a[k.reinicio] !== b[k.reinicio]) continue;
         const pa = a[k.pct];
-        const pb = b[k.pct];
+        const pb = b[k.pct];;
         if (pa === null || pb === null) continue;
         const d = pb - pa;
         if (d > 0) deltas.push(d);
@@ -291,5 +291,3 @@ export function resumenLimitesClaude(e: EstadoLimitesClaude): string {
     }
     return partes.join(" · ");
 }
-
-
