@@ -274,7 +274,19 @@ class EscritoresDelBoton(unittest.TestCase):
             "freellmapi": {"models": {"auto": {}}},
             "vacio": {"models": {}},
         }}
-        self.assertEqual(B.representantes(cfg), ["nvidia/moonshotai/kimi-k3", "openrouter/a:free"])
+        self.assertEqual(B.representantes(cfg), {"nvidia": ["nvidia/moonshotai/kimi-k3"],
+                                                  "openrouter": ["openrouter/a:free", "openrouter/b:free"]})
+
+    def test_un_modelo_retirado_no_decide_por_el_proveedor(self):
+        respuestas = {"p/viejo": (False, "modelo retirado (410)", 0, True),
+                      "p/pago": (False, "modelo solo de pago (403)", 0, True),
+                      "p/bueno": (True, "responde", 0, False),
+                      "q/a": (False, "cupo del día agotado (429)", 3.0, False),
+                      "q/b": (True, "responde", 0, False)}
+        self.assertEqual(B.veredicto_proveedor(["p/viejo", "p/pago", "p/bueno"], respuestas.get)[:2], ("p/bueno", True))
+        # Un cupo agotado es del proveedor: no se gasta otra sonda en el siguiente modelo.
+        self.assertEqual(B.veredicto_proveedor(["q/a", "q/b"], respuestas.get)[:2], ("q/a", False))
+        self.assertEqual(B.veredicto_proveedor(["p/viejo"], respuestas.get)[2], "modelo retirado (410)")
 
     def test_ninguno_puede(self):
         ahora = time.mktime((2026, 10, 6, 15, 0, 0, 0, 0, -1))

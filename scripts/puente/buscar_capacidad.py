@@ -250,16 +250,34 @@ NO_ESCRITORES = ("groq", "aihubmix", "tokenrouter", "llm7", "neurona", "freellma
 SALUD_DE = {"nvidia": "nim"}
 
 
-def representantes(cfg_opencode):
-    """PURA: un modelo por proveedor de opencode para sondear («prov/modelo»), sin los de pago."""
-    salida = []
+#: Modelos que se prueban por proveedor como mucho: si el primero está retirado o es de pago,
+#: no dice nada del proveedor (2026-10-06: el primero de nvidia, openrouter y apinex lo estaba).
+MODELOS_POR_PROVEEDOR = 4
+
+
+def representantes(cfg_opencode, maximo=MODELOS_POR_PROVEEDOR):
+    """PURA: {proveedor: [«prov/modelo», …]} para sondear, sin los de pago ni los que no escriben."""
+    salida = {}
     for prov, bloque in sorted(((cfg_opencode or {}).get("provider") or {}).items()):
         if prov in DE_PAGO or prov in NO_ESCRITORES or not isinstance(bloque, dict):
             continue
-        modelos = list((bloque.get("models") or {}).keys())
+        modelos = list((bloque.get("models") or {}).keys())[:maximo]
         if modelos:
-            salida.append("%s/%s" % (prov, modelos[0]))
+            salida[prov] = ["%s/%s" % (prov, m) for m in modelos]
     return salida
+
+
+def veredicto_proveedor(modelos, sondear):
+    """PURA salvo `sondear(modelo) → (apto, motivo, horas, muerto)`: prueba en orden hasta que
+    uno responde (puede) o falla por algo del PROVEEDOR (cupo, saturado, sin respuesta); un
+    modelo retirado o de pago no decide y se pasa al siguiente. → (modelo, apto, motivo, horas, muerto)."""
+    ultimo = None
+    for m in modelos:
+        apto, motivo, horas, muerto = sondear(m)
+        ultimo = (m, apto, motivo, horas, muerto)
+        if apto or not muerto:
+            return ultimo
+    return ultimo
 
 
 def texto_escritores(resultados, ahora=None):
@@ -385,9 +403,10 @@ def _sondear_escritores():
                     entorno.setdefault(k.replace("export ", "").strip(), v.strip().strip('"').strip("'"))
         except OSError:
             pass
-    modelos = representantes(cfg)
+    grupos = representantes(cfg)
     with ThreadPoolExecutor(8) as ex:
-        res = list(ex.map(lambda m: (m,) + tuple(SE.sondear(m, cfg, entorno)), modelos))
+        res = [r for r in ex.map(lambda ms: veredicto_proveedor(ms, lambda m: SE.sondear(m, cfg, entorno)),
+                                 grupos.values()) if r]
     salud = _leer_json(SALUD, {})
     cambio = False
     for m, apto, motivo, horas, muerto in res:
