@@ -8,6 +8,7 @@ import {
   estadoLimitesClaude,
   resumenLimitesClaude,
   EstadoLimitesClaude,
+  ENLACE_USO_CLAUDE,
 } from '../limites-claude';
 
 describe('limites-claude (pure logic)', () => {
@@ -510,6 +511,64 @@ describe('limites-claude (pure logic)', () => {
       // Also expect tono peligrosa because proyeccion > 100
       expect(result.sesion?.tono).toBe('peligro');
       expect(result.tono).toBe('peligro');
+    });
+  });
+
+  describe('rescatados de la nube que no duplican cobertura existente', () => {
+    // disparosAntes: cada_min <= 0 evita adicionales; la base sigue contando si está en (ahora, hasta]
+    it('cada_min <= 0 evita adicionales pero la base cuenta si está dentro', () => {
+      const ahora = Date.parse('2026-10-05T12:00:00Z');
+      const hasta = Date.parse('2026-10-05T18:00:00Z');
+      const lista: ProgramadaClaude[] = [
+        { nombre: 't', proxima: '2026-10-05T13:00:00Z', cada_min: 0 },
+      ];
+      expect(disparosAntes(lista, ahora, hasta)).toBe(1);
+    });
+
+    // disparosAntes: 0 cuando el reinicio ya pasó con lista no vacía
+    it('devuelve 0 cuando el reinicio ya pasó con lista no vacía', () => {
+      expect(disparosAntes([{ nombre: 't', proxima: '2026-10-05T13:00:00Z', cada_min: 10 }], Date.parse('2026-10-05T14:00:00Z'), Date.parse('2026-10-05T13:00:00Z'))).toBe(0);
+    });
+
+    // estadoLimitesClaude: peligro cuando pct >= umbral (caso explícito de pct >= umbral)
+    it('peligro cuando pct >= umbral', () => {
+      const lecturas: LecturaLimites[] = [{
+        t: '2026-01-01T00:00:00.000Z',
+        sesion_pct: 92,
+        sesion_reinicio: '2026-01-01T05:00:00.000Z',
+        semana_pct: 20,
+        semana_reinicio: '2026-01-08T00:00:00.000Z',
+        modelo_nombre: null,
+        modelo_pct: null,
+        modelo_reinicio: null,
+        fuente: 'test',
+      }];
+      const e = estadoLimitesClaude({ lecturas, programadas: { t: new Date().toISOString(), lista: [] }, umbral_pct: 90 }, 1_000_000_000_000);
+      expect(e.sesion?.tono).toBe('peligro');
+      expect(e.tono).toBe('peligro');
+    });
+
+    // expone modelo y modeloNombre de la última lectura
+    it('expone modelo y modeloNombre de la última lectura', () => {
+      const lecturas: LecturaLimites[] = [{
+        t: '2026-01-01T00:00:00.000Z',
+        sesion_pct: 20,
+        sesion_reinicio: '2026-01-01T05:00:00.000Z',
+        semana_pct: 30,
+        semana_reinicio: '2026-01-08T00:00:00.000Z',
+        modelo_nombre: 'Fable',
+        modelo_pct: 20,
+        modelo_reinicio: '2026-01-08T00:00:00.000Z',
+        fuente: 'test',
+      }];
+      const e = estadoLimitesClaude({ lecturas, programadas: { t: new Date().toISOString(), lista: [] }, umbral_pct: 90 }, 1_000_000_000_000);
+      expect(e.modeloNombre).toBe('Fable');
+      expect(e.modelo?.pct).toBe(20);
+    });
+
+    // ENLACE_USO_CLAUDE constante (no duplicada)
+    it('ENLACE_USO_CLAUDE apunta a Ajustes -> Uso', () => {
+      expect(ENLACE_USO_CLAUDE).toBe('https://claude.ai/settings/usage');
     });
   });
 
