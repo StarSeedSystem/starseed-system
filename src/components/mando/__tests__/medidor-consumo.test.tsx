@@ -76,7 +76,7 @@ function datos(extra: Partial<DatosConsumo["supabase"]> = {}): DatosConsumo {
             desactualizada: false,
             programadasEnSesion: 0,
             programadasEnSemana: 0,
-            recomendacion: null,
+            recomendacion: "Espacia las revisiones: caben 2 hasta el reinicio de sesión",
             tono: "aviso",
             enlace: "https://claude.ai/settings/usage",
             comando: "python3 scripts/puente/limites_claude.py estado",
@@ -128,11 +128,12 @@ describe("MedidorConsumo", () => {
         const jev = screen.getByRole("article", { name: "Jev y OpenRouter" });
         expect(within(jev).getByRole("progressbar", { name: "Gasto de hoy: $0.0100 / $0.05" })).toBeInTheDocument();
         const claude = screen.getByRole("article", { name: "Límites del plan de Claude" });
-        expect(within(claude).getByText(/34 % ·/)).toBeInTheDocument();
+        expect(within(claude).getByText("34 % usado · queda 66 %")).toBeInTheDocument();
         expect(within(claude).getByRole("link", { name: /Ver el uso en claude.ai/ })).toHaveAttribute(
             "href",
             "https://claude.ai/settings/usage",
         );
+        expect(within(claude).getByText(/Espacia las revisiones/)).toBeInTheDocument();
         expect(within(claude).getByText(/limites_claude.py estado/)).toBeInTheDocument();
     });
 

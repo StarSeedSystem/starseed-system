@@ -12,7 +12,9 @@
  *     contra 5 GB, estado (ok · aviso · freno · restringido 402), las 3 rutas que más piden,
  *     14 días de peticiones y el último bucle detectado.
  *   · Jev / OpenRouter — USD de hoy contra el techo y el saldo contra el mínimo.
- *   · Claude nube — lo que queda del crédito declarado, cuándo se declaró y cómo actualizarlo.
+ *   · Claude · límites del plan — ventana de sesión (~5 h), ventana semanal (todos los
+ *     modelos) y semanal del modelo concreto si se enseña; leído de `claude.ai → Uso`,
+ *     guardado con `scripts/puente/limites_claude.py declarar …`.
  * Y el formulario de presupuestos (POST a la misma ruta, solo local).
  *
  * Lo mide la vigía (`scripts/puente/vigia_consumo.py`, cada 15 min, sin tráfico del proyecto);
@@ -451,45 +453,50 @@ function FilaJev({ j }: { j: DatosConsumo["jev"] }) {
     );
 }
 
-function FilaClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) {
+function FilaLimitesClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) {
+    const estadoTexto = c.tono === "peligro" ? "Cuidado" : c.tono === "aviso" ? "Aviso" : c.tono === "ok" ? "Al día" : "Sin lectura";
+    const detalleSes = c.sesion
+        ? `reinicia en ${c.sesion.reiniciada ? "ya" : `${Math.floor(c.sesion.minutosParaReinicio / 60)} h ${c.sesion.minutosParaReinicio % 60} min`} · ${c.sesion.proyeccion !== null && c.sesion.coste !== null ? `previsión al reinicio ${Math.round(c.sesion.proyeccion)} % (${c.programadasEnSesion} revisiones programadas, ~${Math.round(c.sesion.coste)} % cada una)` : c.sesion.proyeccion !== null ? `previsión al reinicio ${Math.round(c.sesion.proyeccion)} %` : "previsión: sin datos todavía"}`
+        : null;
+    const detalleSem = c.semana
+        ? `reinicia en ${c.semana.reiniciada ? "ya" : `${Math.floor(c.semana.minutosParaReinicio / 60)} h ${c.semana.minutosParaReinicio % 60} min`} · ${c.semana.proyeccion !== null && c.semana.coste !== null ? `previsión al reinicio ${Math.round(c.semana.proyeccion)} % (${c.programadasEnSemana} revisiones programadas, ~${Math.round(c.semana.coste)} % cada una)` : c.semana.proyeccion !== null ? `previsión al reinicio ${Math.round(c.semana.proyeccion)} %` : "previsión: sin datos todavía"}`
+        : null;
+    const detalleMod = c.modelo
+        ? `reinicia en ${c.modelo.reiniciada ? "ya" : `${Math.floor(c.modelo.minutosParaReinicio / 60)} h ${c.modelo.minutosParaReinicio % 60} min`} · ${c.modelo.proyeccion !== null && c.modelo.coste !== null ? `previsión al reinicio ${Math.round(c.modelo.proyeccion)} % (${c.programadasEnSemana} revisiones programadas, ~${Math.round(c.modelo.coste)} % cada una)` : c.modelo.proyeccion !== null ? `previsión al reinicio ${Math.round(c.modelo.proyeccion)} %` : "previsión: sin datos todavía"}`
+        : null;
     return (
         <Tarjeta
             etiqueta="Límites del plan de Claude"
             icono={<Sparkles className="h-4 w-4 text-cyan-200/80" aria-hidden />}
-            titulo="Claude límites"
-            estado={
-                <Estado
-                    texto={c.tono === "peligro" ? "Cuidado" : c.tono === "aviso" ? "Aviso" : "OK"}
-                    tono={c.tono}
-                />
-            }
+            titulo="Claude · límites del plan"
+            estado={<Estado texto={estadoTexto} tono={c.tono} />}
         >
             <div className="grid gap-2.5 sm:grid-cols-2">
                 {c.sesion ? (
                     <Barra
-                        etiqueta="Sesión"
-                        valor={`${Math.round(c.sesion.pct)} %${c.sesion.reinicio ? ` · ${fechaCorta(c.sesion.reinicio)}` : ""}`}
-                        fraccion={c.sesion.pct}
+                        etiqueta="Sesión (≈5 h)"
+                        valor={`${Math.round(c.sesion.pct)} % usado · queda ${Math.round(100 - c.sesion.pct)} %`}
+                        fraccion={c.sesion.pct / 100}
                         tono={c.sesion.tono}
-                        detalle={`vence en ${c.sesion.minutosParaReinicio > 0 ? `${Math.floor(c.sesion.minutosParaReinicio / 60)} h ${c.sesion.minutosParaReinicio % 60} min` : "ya"}`}
+                        detalle={detalleSes}
                     />
                 ) : null}
                 {c.semana ? (
                     <Barra
                         etiqueta="Semana"
-                        valor={`${Math.round(c.semana.pct)} %${c.semana.reinicio ? ` · ${fechaCorta(c.semana.reinicio)}` : ""}`}
-                        fraccion={c.semana.pct}
+                        valor={`${Math.round(c.semana.pct)} % usado · queda ${Math.round(100 - c.semana.pct)} %`}
+                        fraccion={c.semana.pct / 100}
                         tono={c.semana.tono}
-                        detalle={`vence en ${c.semana.minutosParaReinicio > 0 ? `${Math.floor(c.semana.minutosParaReinicio / 60)} h ${c.semana.minutosParaReinicio % 60} min` : "ya"}`}
+                        detalle={detalleSem}
                     />
                 ) : null}
                 {c.modelo ? (
                     <Barra
-                        etiqueta={c.modeloNombre || "Modelo"}
-                        valor={`${Math.round(c.modelo.pct)} %${c.modelo.reinicio ? ` · ${fechaCorta(c.modelo.reinicio)}` : ""}`}
-                        fraccion={c.modelo.pct}
+                        etiqueta={`Semana · ${c.modeloNombre || "Modelo"}`}
+                        valor={`${Math.round(c.modelo.pct)} % usado · queda ${Math.round(100 - c.modelo.pct)} %`}
+                        fraccion={c.modelo.pct / 100}
                         tono={c.modelo.tono}
-                        detalle={`vence en ${c.modelo.minutosParaReinicio > 0 ? `${Math.floor(c.modelo.minutosParaReinicio / 60)} h ${c.modelo.minutosParaReinicio % 60} min` : "ya"}`}
+                        detalle={detalleMod}
                     />
                 ) : null}
             </div>
@@ -512,7 +519,7 @@ function FilaClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) 
                 {c.recomendacion ? <p className="text-[11px] leading-snug text-amber-200/85">{c.recomendacion}</p> : null}
                 <p className="flex items-center gap-1 text-[11px] text-white/50">
                     <ExternalLink className="h-3 w-3" aria-hidden />
-                    Lectura hace {c.lecturaHaceMin ?? "mucho"} {c.desactualizada ? "(desactualizada)" : ""} min
+                    Lectura hace {c.lecturaHaceMin ?? "mucho"} min de claude.ai → Uso{c.desactualizada ? <span className="text-amber-200/80"> (desactualizada)</span> : ""}
                 </p>
             </div>
         </Tarjeta>
@@ -738,7 +745,7 @@ export function MedidorConsumo() {
                 <div className="mt-3 grid gap-2.5 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)]">
                     <FilaSupabase s={datos.supabase} p={datos.presupuestos} ahora={ahora} />
                     <FilaJev j={datos.jev} />
-                    <FilaClaude c={datos.claude} ahora={ahora} />
+                    <FilaLimitesClaude c={datos.claude} ahora={ahora} />
                 </div>
             ) : cargando ? (
                 <p className="mt-3 flex items-center gap-2 text-[12px] text-white/50">
