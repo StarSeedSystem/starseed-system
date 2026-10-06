@@ -1,0 +1,32 @@
+{
+  "meta": {"nombre": "Audiomorphic", "slug": "audiomorphic", "fuentes": ["memory/diseno/identidades.md"], "fecha": "2026-10-06", "medio_origen": "http://127.0.0.1:9002", "no_copiado": []},
+  "alma": {"una_linea": "Visualizador de sonido con geometria sagrada", "adjetivos": ["lila", "dorado", "ritmico", "inmersivo"], "linaje": "Audiomorphic", "distancia_lectura": "0.5-1.5 m", "energia": {"densidad": 7, "variacion": 9, "contraste": 7, "calidez": 6}},
+  "paleta": [
+    {"rol": "lila", "hex": "#A855F7", "nombre": "violeta", "cobertura": 35, "prohibido": []},
+    {"rol": "oro", "hex": "#D4AF37", "nombre": "oro viejo", "cobertura": 15, "prohibido": []},
+    {"rol": "negro", "hex": "#08040f", "nombre": "negro profundo", "cobertura": 40, "prohibido": []},
+    {"rol": "acento", "hex": "#7C3AED", "nombre": "lila primario", "cobertura": 10, "prohibido": []}
+  ],
+  "tipo": {"familias": [
+    {"rol": "cuerpo", "nombre": "Inter", "fallback": "system-ui"}
+  ]},
+  "firmas": [
+    {"jugada": "halo dorado", "como": "radio 2rem"},
+    {"jugada": "geometrias nativas 20", "como": "1:1"},
+    {"jugada": "respuesta audio-reactiva", "como": "frecuencia"}
+  ],
+  "jugada_rara": {"que": "un trazo que cruza geometria sin romper simetria", "como": "1 vez", "por_que": "humaniza"},
+  "prohibiciones": ["VR AR nativo", "tapar controles", "hex sueltos", "ruido decorativo", "tipos locales no declarados"],
+  "pruebas": [
+    {"id": "p1", "comprobacion": "lila >30%", "auto": true},
+    {"id": "p2", "comprobacion": "oro <20%", "auto": true},
+    {"id": "p3", "comprobacion": "radio 0.875-2rem", "auto": true},
+    {"id": "p4", "comprobacion": "contraste >=4.5:1", "auto": true},
+    {"id": "p5", "comprobacion": "sin VR nativo", "auto": true},
+    {"id": "p6", "comprobacion": "controles visibles", "auto": true},
+    {"id": "p7", "comprobacion": "jugada rara 1 vez", "auto": false},
+    {"id": "p8", "comprobacion": "audio reactivo", "auto": false}
+  ],
+  "reconstruccion": {"intentada": false, "huecos": [], "pasadas": 0},
+  "inferido": ["espacio"]
+}

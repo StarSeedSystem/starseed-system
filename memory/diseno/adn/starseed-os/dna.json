@@ -1,0 +1,35 @@
+{
+  "meta": {"nombre": "StarSeed OS / Nexus", "slug": "starseed-os", "fuentes": ["memory/diseno/identidades.md"], "fecha": "2026-10-06", "medio_origen": "http://127.0.0.1:9002", "no_copiado": []},
+  "alma": {"una_linea": "Sistema operativo social con cristal liquido y Trinity cardinal", "adjetivos": ["translucido", "cardinal", "soberano"], "linaje": "Trinity Liquid Crystal", "distancia_lectura": "1-3 m", "energia": {"densidad": 6, "variacion": 7, "contraste": 8, "calidez": 5}},
+  "paleta": [
+    {"rol": "zenith", "hex": "#007FFF", "nombre": "azul electrico", "cobertura": 25, "prohibido": []},
+    {"rol": "horizonte", "hex": "#10B981", "nombre": "verde esmeralda", "cobertura": 25, "prohibido": []},
+    {"rol": "logica", "hex": "#FFBF00", "nombre": "ambar solar", "cobertura": 20, "prohibido": []},
+    {"rol": "anchor", "hex": "#DC143C", "nombre": "carmesí sistema", "cobertura": 10, "prohibido": []},
+    {"rol": "neutro", "hex": "#F8F9FA", "nombre": "nieve", "cobertura": 20, "prohibido": []}
+  ],
+  "tipo": {"familias": [
+    {"rol": "cuerpo", "nombre": "Inter", "fallback": "system-ui, sans-serif"},
+    {"rol": "titular", "nombre": "Rajdhani", "fallback": "Inter"},
+    {"rol": "codigo", "nombre": "JetBrains Mono", "fallback": "monospace"}
+  ]},
+  "firmas": [
+    {"jugada": "paneles cardinales entran desde perimetro", "como": "1:1.618"},
+    {"jugada": "acciones tipo pildora", "como": "radio>16px"},
+    {"jugada": "gradiente radial de acento", "como": "15% cobertura"}
+  ],
+  "jugada_rara": {"que": "linea de horizonte cruza Trinity sin intersectar centro", "como": "1:2", "por_que": "marca creacion"},
+  "prohibiciones": ["hex sueltos", "ruido decorativo", "controles en centro", "sombras multiples", "animar dimensiones"],
+  "pruebas": [
+    {"id": "p1", "comprobacion": "acento 20-30%", "auto": true},
+    {"id": "p2", "comprobacion": "max 3 tamanos", "auto": true},
+    {"id": "p3", "comprobacion": "proporcion titular/cuerpo >=6", "auto": true},
+    {"id": "p4", "comprobacion": "texto >=28px", "auto": true},
+    {"id": "p5", "comprobacion": "cuerpo <=65 chars", "auto": true},
+    {"id": "p6", "comprobacion": "jugada rara 1 vez", "auto": false},
+    {"id": "p7", "comprobacion": "contraste >=4.5:1", "auto": true},
+    {"id": "p8", "comprobacion": "dianas >=44px", "auto": true}
+  ],
+  "reconstruccion": {"intentada": false, "huecos": [], "pasadas": 0},
+  "inferido": ["espacio", "medida", "tracking", "interlineado"]
+}

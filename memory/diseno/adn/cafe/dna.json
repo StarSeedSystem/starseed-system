@@ -1,0 +1,34 @@
+{
+  "meta": {"nombre": "StarSeed Cafe", "slug": "cafe", "fuentes": ["memory/diseno/identidades.md"], "fecha": "2026-10-06", "medio_origen": "https://starseed-nexus.vercel.app", "no_copiado": []},
+  "alma": {"una_linea": "Cafeteria comunitaria con pergamino y terracota", "adjetivos": ["calido", "orgánico", "terracota", "hogareño"], "linaje": "StarSeed Cafe", "distancia_lectura": "0.3-0.8 m", "energia": {"densidad": 5, "variacion": 6, "contraste": 6, "calidez": 9}},
+  "paleta": [
+    {"rol": "fondo", "hex": "#FDF7EA", "nombre": "pergamino", "cobertura": 50, "prohibido": []},
+    {"rol": "tinta", "hex": "#3B2818", "nombre": "cafe oscuro", "cobertura": 25, "prohibido": []},
+    {"rol": "primario", "hex": "#C05C3B", "nombre": "terracota", "cobertura": 15, "prohibido": []},
+    {"rol": "acento", "hex": "#3F7A2A", "nombre": "musgo", "cobertura": 10, "prohibido": []}
+  ],
+  "tipo": {"familias": [
+    {"rol": "titular", "nombre": "Fraunces", "fallback": "Georgia, serif"},
+    {"rol": "etiqueta", "nombre": "Space Mono", "fallback": "monospace"},
+    {"rol": "cuerpo", "nombre": "Space Grotesk", "fallback": "sans-serif"}
+  ]},
+  "firmas": [
+    {"jugada": "pergamino cristal calido", "como": "opacidad 0.9"},
+    {"jugada": "botones oro fundido", "como": "radio 12px"},
+    {"jugada": "respiracion organica", "como": "220ms ease"}
+  ],
+  "jugada_rara": {"que": "curva organica del bosque dorado en borde inferior", "como": "1 vez", "por_que": "calidez sin saturar"},
+  "prohibiciones": ["terracota sobre crema", "dorado bajo contraste", "neon", "tipos sans frias", "hex sueltos"],
+  "pruebas": [
+    {"id": "p1", "comprobacion": "pergamino >40%", "auto": true},
+    {"id": "p2", "comprobacion": "terracota 10-20%", "auto": true},
+    {"id": "p3", "comprobacion": "Fraunces en titular", "auto": true},
+    {"id": "p4", "comprobacion": "contraste >=4.5:1", "auto": true},
+    {"id": "p5", "comprobacion": "radio botones 12px", "auto": true},
+    {"id": "p6", "comprobacion": "cuerpo <=65 chars", "auto": true},
+    {"id": "p7", "comprobacion": "jugada rara 1 vez", "auto": false},
+    {"id": "p8", "comprobacion": "sin neon", "auto": true}
+  ],
+  "reconstruccion": {"intentada": false, "huecos": [], "pasadas": 0},
+  "inferido": ["espacio"]
+}

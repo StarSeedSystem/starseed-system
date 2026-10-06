@@ -1,0 +1,32 @@
+{
+  "meta": {"nombre": "Puente de Mando", "slug": "mando", "fuentes": ["memory/diseno/identidades.md"], "fecha": "2026-10-06", "medio_origen": "http://127.0.0.1:9002/mando", "no_copiado": []},
+  "alma": {"una_linea": "Instrumento operativo de cristal con lectura inmediata", "adjetivos": ["cristalino", "operativo", "neon", "denso"], "linaje": "mando-cristal", "distancia_lectura": "0.5-1 m", "energia": {"densidad": 8, "variacion": 5, "contraste": 7, "calidez": 4}},
+  "paleta": [
+    {"rol": "cian", "hex": "#22D3EE", "nombre": "neon cian", "cobertura": 30, "prohibido": []},
+    {"rol": "violeta", "hex": "#A78BFA", "nombre": "neon violeta", "cobertura": 30, "prohibido": []},
+    {"rol": "ambar", "hex": "#FBBF24", "nombre": "neon ambar", "cobertura": 20, "prohibido": []},
+    {"rol": "fondo", "hex": "#020617", "nombre": "negro cristal", "cobertura": 20, "prohibido": []}
+  ],
+  "tipo": {"familias": [
+    {"rol": "cuerpo", "nombre": "Inter", "fallback": "system-ui, sans-serif"}
+  ]},
+  "firmas": [
+    {"jugada": "cristal blur 10px", "como": "transparencia 0.85"},
+    {"jugada": "radio 0.85rem", "como": "consistente"},
+    {"jugada": "pastillas y barras", "como": "alineacion rigida"}
+  ],
+  "jugada_rara": {"que": "una animacion infinita sutil en el borde", "como": "solo transform y opacity", "por_que": "presencia sin distraccion"},
+  "prohibiciones": ["WebGL", "perspectiva", "cinco sombras", "animar dimensiones", "hex sueltos"],
+  "pruebas": [
+    {"id": "p1", "comprobacion": "radio 0.85rem", "auto": true},
+    {"id": "p2", "comprobacion": "blur 10px", "auto": true},
+    {"id": "p3", "comprobacion": "animacion solo transform opacity", "auto": true},
+    {"id": "p4", "comprobacion": "sin WebGL", "auto": true},
+    {"id": "p5", "comprobacion": "contraste >=4.5:1", "auto": true},
+    {"id": "p6", "comprobacion": "dianas >=44px", "auto": true},
+    {"id": "p7", "comprobacion": "prefers-reduced-motion respeta", "auto": true},
+    {"id": "p8", "comprobacion": "no anima dimensiones", "auto": true}
+  ],
+  "reconstruccion": {"intentada": false, "huecos": [], "pasadas": 0},
+  "inferido": ["espacio", "medida"]
+}

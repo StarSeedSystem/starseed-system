@@ -1,0 +1,32 @@
+{
+  "meta": {"nombre": "Materia Viva", "slug": "materia-viva", "fuentes": ["memory/diseno/identidades.md"], "fecha": "2026-10-06", "medio_origen": "http://127.0.0.1:9002", "no_copiado": []},
+  "alma": {"una_linea": "Fondo organico para lienzos con crecimiento radial", "adjetivos": ["organico", "verde", "semilla", "vivo"], "linaje": "Materia Viva", "distancia_lectura": "0.5-2 m", "energia": {"densidad": 4, "variacion": 8, "contraste": 5, "calidez": 7}},
+  "paleta": [
+    {"rol": "acento", "hex": "#E9C46A", "nombre": "oro vivo", "cobertura": 15, "prohibido": []},
+    {"rol": "cristal", "hex": "#7FD8E8", "nombre": "cristal liquido", "cobertura": 20, "prohibido": []},
+    {"rol": "bosque", "hex": "#9FE870", "nombre": "bosque dorado", "cobertura": 20, "prohibido": []},
+    {"rol": "fondo", "hex": "#0d130e", "nombre": "verde negro", "cobertura": 45, "prohibido": []}
+  ],
+  "tipo": {"familias": [
+    {"rol": "cuerpo", "nombre": "Inter", "fallback": "system-ui"}
+  ]},
+  "firmas": [
+    {"jugada": "crecimiento radial", "como": "espiral aurea"},
+    {"jugada": "cristal organico", "como": "borde suave"},
+    {"jugada": "glow del acento", "como": "sutil"}
+  ],
+  "jugada_rara": {"que": "semilla que abre flor una vez", "como": "transicion", "por_que": "metamorfosis"},
+  "prohibiciones": ["shell opaco", "oro sobre Cafe claro", "neon", "hex sueltos", "ruido"],
+  "pruebas": [
+    {"id": "p1", "comprobacion": "fondo >40%", "auto": true},
+    {"id": "p2", "comprobacion": "oro <20%", "auto": true},
+    {"id": "p3", "comprobacion": "sin shell opaco", "auto": true},
+    {"id": "p4", "comprobacion": "contraste >=4.5:1", "auto": true},
+    {"id": "p5", "comprobacion": "crecimiento radial presente", "auto": false},
+    {"id": "p6", "comprobacion": "sin oro sobre Cafe", "auto": true},
+    {"id": "p7", "comprobacion": "jugada rara 1 vez", "auto": false},
+    {"id": "p8", "comprobacion": "glow sutil", "auto": false}
+  ],
+  "reconstruccion": {"intentada": false, "huecos": [], "pasadas": 0},
+  "inferido": ["espacio"]
+}
