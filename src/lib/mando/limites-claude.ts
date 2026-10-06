@@ -11,41 +11,39 @@
 export const ENLACE_USO_CLAUDE = "https://claude.ai/settings/usage";
 
 export interface LecturaLimites {
-    t: string;
-    sesion_pct: number;
-    sesion_reinicio: string;
-    semana_pct: number;
-    semana_reinicio: string;
+    t: string; // ISO timestamp
+    sesion_pct: number; // 0-100
+    sesion_reinicio: string; // ISO timestamp
+    semana_pct: number; // 0-100
+    semana_reinicio: string; // ISO timestamp
     modelo_nombre: string | null;
-    modelo_pct: number | null;
-    modelo_reinicio: string | null;
+    modelo_pct: number | null; // 0-100
+    modelo_reinicio: string | null; // ISO timestamp
     fuente: string;
 }
 
 export interface ProgramadaClaude {
     nombre: string;
-    proxima: string;
-    cada_min: number | null;
+    proxima: string; // ISO timestamp
+    cada_min: number | null; // minutes, null if not periodic
 }
 
 /** Forma del archivo `~/.starseed/limites-claude.json`. */
 export interface ConfigLimitesClaude {
     lecturas: LecturaLimites[];
     programadas: { t: string; lista: ProgramadaClaude[] };
-    umbral_pct: number;
+    umbral_pct: number; // e.g., 90
 }
 
-export type TonoLimites = "ok" | "aviso" | "peligro";
-
 export interface VentanaClaude {
-    pct: number;
-    queda: number;
-    reinicio: string;
-    minutosParaReinicio: number;
-    coste: number | null;
-    proyeccion: number | null;
-    reiniciada: boolean;
-    tono: TonoLimites;
+    pct: number; // current percentage
+    queda: number; // remaining percentage (100 - pct)
+    reinicio: string; // ISO timestamp of the next reset
+    minutosParaReinicio: number; // minutes until reinicio (can be negative if passed)
+    coste: number | null; // cost per revision (median of positive increases)
+    proyeccion: number | null; // projected percentage at reinicio
+    reiniciada: boolean; // true if the reinicio time has passed
+    tono: "ok" | "aviso" | "peligro";
 }
 
 export interface EstadoLimitesClaude {
@@ -53,39 +51,43 @@ export interface EstadoLimitesClaude {
     semana: VentanaClaude | null;
     modelo: VentanaClaude | null;
     modeloNombre: string | null;
-    lecturaEn: string | null;
-    lecturaHaceMin: number | null;
-    desactualizada: boolean;
-    programadasEnSesion: number;
-    programadasEnSemana: number;
+    lecturaEn: string | null; // ISO timestamp of the latest reading
+    lecturaHaceMin: number | null; // minutes since latest reading
+    desactualizada: boolean; // true if the latest reading is older than 120 min
+    programadasEnSesion: number; // number of scheduled tasks in the session window
+    programadasEnSemana: number; // number of scheduled tasks in the week window
     recomendacion: string | null;
-    tono: TonoLimites;
+    tono: "ok" | "aviso" | "peligro";
 }
 
-export type CampoVentana = "sesion" | "semana" | "modelo";
+export type TonoLimites = "ok" | "aviso" | "peligro";
 
 type ClavePct = "sesion_pct" | "semana_pct" | "modelo_pct";
 type ClaveReinicio = "sesion_reinicio" | "semana_reinicio" | "modelo_reinicio";
 
-const CLAVES: Record<CampoVentana, { pct: ClavePct; reinicio: ClaveReinicio }> = {
-    sesion: { pct: "sesion_pct", reinicio: "sesion_reinicio" },
-    semana: { pct: "semana_pct", reinicio: "semana_reinicio" },
-    modelo: { pct: "modelo_pct", reinicio: "modelo_reinicio" },
+const CLAVES_PCT: Record<string, ClaveReinicio> = {
+    sesion_pct: "sesion_reinicio",
+    semana_pct: "semana_reinicio",
+    modelo_pct: "modelo_reinicio",
 };
 
 function esObjeto(v: unknown): v is Record<string, unknown> {
     return typeof v === "object" && v !== null;
 }
+
 function numero(v: unknown): number | null {
     return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
+
 function texto(v: unknown): string | null {
     return typeof v === "string" && v.length > 0 ? v : null;
 }
+
 function msDe(iso: string): number | null {
     const ms = Date.parse(iso);
     return Number.isFinite(ms) ? ms : null;
 }
+
 function mediana(xs: number[]): number | null {
     if (xs.length === 0) return null;
     const s = [...xs].sort((a, b) => a - b);
@@ -120,20 +122,24 @@ function leerProgramada(v: unknown): ProgramadaClaude | null {
 }
 
 /**
- * Coste por revisión: mediana de los aumentos positivos de `*_pct` entre
- * lecturas CONSECUTIVAS de la misma ventana (mismo `*_reinicio`).
- * Null si no hay dos lecturas así.
+ * Coste por revisión: mediana de los aumentos positivos de `campo` entre
+ * lecturas CONSECUTIVAS de la misma ventana (mismo campo de reinicio asociado).
+ * Ordena las lecturas por `t` antes de iterar.
  */
-export function costePorRevision(lecturas: LecturaLimites[], campo: CampoVentana): number | null {
-    const k = CLAVES[campo];
+export function costePorRevision(lecturas: LecturaLimites[], campo: "sesion_pct" | "semana_pct" | "modelo_pct"): number | null {
+    const reinicioField = (CLAVES_PCT as Record<string, string>)[campo];
+    if (!reinicioField) return null;
+    const ordenadas = [...lecturas].sort((a, b) => a.t.localeCompare(b.t));
     const deltas: number[] = [];
-    for (let i = 1; i < lecturas.length; i++) {
-        const a = lecturas[i - 1];
-        const b = lecturas[i];
-        if (a[k.reinicio] === null || a[k.reinicio] !== b[k.reinicio]) continue;
-        const pa = a[k.pct];
-        const pb = b[k.pct];
-        if (pa === null || pb === null) continue;
+    for (let i = 1; i < ordenadas.length; i++) {
+        const a = ordenadas[i - 1];
+        const b = ordenadas[i];
+        const aRein = ((a as unknown) as Record<string, unknown>)[reinicioField];
+        const bRein = ((b as unknown) as Record<string, unknown>)[reinicioField];
+        if (aRein === null || aRein !== bRein) continue;
+        const pa = ((a as unknown) as Record<string, unknown>)[campo];
+        const pb = ((b as unknown) as Record<string, unknown>)[campo];
+        if (typeof pa !== "number" || typeof pb !== "number") continue;
         const d = pb - pa;
         if (d > 0) deltas.push(d);
     }
@@ -150,9 +156,13 @@ export function disparosAntes(lista: ProgramadaClaude[], ahora: number, hasta: n
     if (hasta <= ahora) return n;
     for (const p of lista) {
         const px = msDe(p.proxima);
-        if (px === null || px <= ahora || px > hasta) continue;
-        n += 1;
-        if (typeof p.cada_min === "number" && p.cada_min > 0) {
+        if (px === null) continue;
+        // Base shot: solo si proxima está en (ahora, hasta]
+        if (px > ahora && px <= hasta) {
+            n += 1;
+        }
+        // Additional shots: siempre que cada_min > 0 y proxima <= hasta
+        if (typeof p.cada_min === "number" && p.cada_min > 0 && px <= hasta) {
             n += Math.floor((hasta - px) / (p.cada_min * 60000));
         }
     }
@@ -181,7 +191,7 @@ function construirVentana(
         pct: efec,
         queda: Math.max(0, 100 - efec),
         reinicio: reinicioIso,
-        minutosParaReinicio: rMs === null ? 0 : Math.max(0, Math.round((rMs - ahora) / 60000)),
+        minutosParaReinicio: rMs === null ? 0 : Math.round((rMs - ahora) / 60000),
         coste,
         proyeccion,
         reiniciada,
@@ -212,14 +222,18 @@ export function estadoLimitesClaude(cfg: unknown, ahora: number): EstadoLimitesC
         .filter((l): l is LecturaLimites => l !== null);
     if (lecturas.length === 0) return vacio;
 
-    const ultima = lecturas[lecturas.length - 1];
-    const umbral = numero(cfg.umbral_pct) ?? 90;
-    const prog = esObjeto(cfg.programadas) && Array.isArray(cfg.programadas.lista)
-        ? cfg.programadas.lista.map(leerProgramada).filter((p): p is ProgramadaClaude => p !== null)
+    // Ordenar por t antes de seleccionar última lectura (mitiga lectura desordenada)
+    const ordenadas = [...lecturas].sort((a, b) => a.t.localeCompare(b.t));
+    const ultima = ordenadas[ordenadas.length - 1];
+    const umbral = numero((cfg as Record<string, unknown>).umbral_pct) ?? 90;
+    const progRaw = (cfg as Record<string, unknown>).programadas;
+    const prog: ProgramadaClaude[] = esObjeto(progRaw) && Array.isArray((progRaw as Record<string, unknown>).lista)
+        ? ((progRaw as Record<string, unknown>).lista as unknown[]).map(leerProgramada).filter((p): p is ProgramadaClaude => p !== null)
         : [];
 
     const tMs = msDe(ultima.t);
-    const lecturaHaceMin = tMs === null ? null : Math.round((ahora - tMs) / 60000);
+    const lecturaHaceMinRaw = tMs === null ? null : Math.round((ahora - tMs) / 60000);
+    const lecturaHaceMin = lecturaHaceMinRaw !== null ? Math.max(0, lecturaHaceMinRaw) : null;
     const desactualizada = lecturaHaceMin !== null && lecturaHaceMin > 120;
 
     const rSesionMs = msDe(ultima.sesion_reinicio);
@@ -229,11 +243,11 @@ export function estadoLimitesClaude(cfg: unknown, ahora: number): EstadoLimitesC
 
     const sesion = construirVentana(
         ultima.sesion_pct, ultima.sesion_reinicio, ahora, umbral,
-        costePorRevision(lecturas, "sesion"), dispSesion,
+        costePorRevision(ordenadas, "sesion_pct"), dispSesion,
     );
     const semana = construirVentana(
         ultima.semana_pct, ultima.semana_reinicio, ahora, umbral,
-        costePorRevision(lecturas, "semana"), dispSemana,
+        costePorRevision(ordenadas, "semana_pct"), dispSemana,
     );
     let modelo: VentanaClaude | null = null;
     if (ultima.modelo_nombre !== null && ultima.modelo_pct !== null && ultima.modelo_reinicio !== null) {
@@ -241,7 +255,7 @@ export function estadoLimitesClaude(cfg: unknown, ahora: number): EstadoLimitesC
         const dispModelo = rModeloMs === null ? 0 : disparosAntes(prog, ahora, rModeloMs);
         modelo = construirVentana(
             ultima.modelo_pct, ultima.modelo_reinicio, ahora, umbral,
-            costePorRevision(lecturas, "modelo"), dispModelo,
+            costePorRevision(ordenadas, "modelo_pct"), dispModelo,
         );
     }
 
@@ -291,5 +305,3 @@ export function resumenLimitesClaude(e: EstadoLimitesClaude): string {
     }
     return partes.join(" · ");
 }
-
-
