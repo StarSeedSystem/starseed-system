@@ -12,8 +12,12 @@
  *   · `listNeurons()`       → neuronas registradas de la cuenta (neuron_devices)
  *                             con sus capacidades PÚBLICAS y su latido.
  *   · `externalLink()`      → la portadora IP medida (router / datos).
- *   · Escaneo BLE           → SOLO tras un gesto del usuario (Web Bluetooth).
- *   · Web Serial            → puertos USB ya autorizados por el usuario.
+ *   · Escaneo BLE          → SOLO tras un gesto del usuario (Web Bluetooth).
+ *   · Web Serial           → puertos USB ya autorizados por el usuario.
+ *   · Radio nativa (Mac)   → Wi-Fi actual, redes cercanas y Bluetooth del
+ *                             sistema, leídos por el Mando local (RDV12).
+ *   · Radar por la malla   → resúmenes de lo que oyen tus OTRAS neuronas,
+ *                             compartidos por la malla P2P (RDV14).
  *
  * Lo que NO está disponible se declara en `unavailable` con su porqué, para que
  * la UI lo muestre en vez de fingir que no existe. SSR-safe: sin window devuelve
@@ -38,6 +42,8 @@ import { fusionarRadar } from "@/ai/astraura/mesh/radar-fusion";
 import { senalesRadioLocal } from "@/ai/astraura/mesh/senales-radio-local";
 import { enriquecerConMalla } from "@/ai/astraura/mesh/senales-enlace-malla";
 import { obtenerRadioLocal, radioLocalEnCache } from "@/lib/network/radio-local-cliente";
+import { senalesVistasPorOtras } from "@/lib/network/radar-por-malla";
+import { useRadarRemoto } from "@/lib/network/radar-remoto-store";
 import type { RadioLocal } from "@/lib/mando/radio-local-tipos";
 import { listNeurons, NEURON_EVENT, type Neuron } from "@/lib/neurons/neurons";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
@@ -160,6 +166,21 @@ function fetchNeurons(): Promise<void> {
   return neuronsInFlight;
 }
 
+/**
+ * (Ola 1006R · RDV14) Reordena la lista COMBINADA (locales + radio nativa +
+ * lo que oyen otras neuronas) igual que ordena `collectDetectedSignals`:
+ * mejor calidad primero, sin calidad al final y, a igualdad, por id
+ * (determinista). Pura: no muta la lista que recibe.
+ */
+export function ordenarSenalesPorCalidad(senales: DetectedSignal[]): DetectedSignal[] {
+  return [...senales].sort((a, b) => {
+    const qa = a.quality == null ? -1 : a.quality;
+    const qb = b.quality == null ? -1 : b.quality;
+    if (qb !== qa) return qb - qa;
+    return a.id.localeCompare(b.id);
+  });
+}
+
 export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSignalsResult {
   const accountRegistry = options?.accountRegistry !== false;
   const mesh = useMeshState();
@@ -168,6 +189,10 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   // único (`MallaNeuronasMount`) — aquí no se arranca nada. Con sus filas se
   // enriquecen las señales `account` con el enlace P2P y la ficha reales.
   const malla = useMallaNeuronasEstado();
+  // (Ola 1006R · RDV14) Radar remoto: resúmenes de lo que oyen las otras
+  // neuronas de la cuenta, compartidos por la malla P2P cifrada. El almacén
+  // caduca solo (> 5 min) y no hace red: solo lee lo que ya llegó.
+  const radarRemoto = useRadarRemoto();
   const [neuronsState, setNeuronsState] = useState<NeuronsCache>(() => neuronsCache);
   const [serialPorts, setSerialPorts] = useState<SerialPortView[]>([]);
   const [serialProbed, setSerialProbed] = useState(false);
@@ -231,11 +256,16 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   }, []);
 
   /* (Ola 375 · RDV12) Radio NATIVA de la Mac: Wi-Fi actual, redes cercanas y Bluetooth
-     que solo el sistema ve. Solo servido en localhost (en producción no pide nada). */
+     que solo el sistema ve. Solo servido en localhost (en producción no pide nada).
+     (Ola 1006R · RDV14) Se lee al montar y cada 60 s SOLO con la pestaña visible:
+     oculta, el Mando local no trabaja para nadie. */
   const [radioLocal, setRadioLocal] = useState<RadioLocal | null>(() => radioLocalEnCache());
   useEffect(() => {
     let vivo = true;
-    const leer = () => void obtenerRadioLocal().then((r) => { if (vivo && r) setRadioLocal(r); });
+    const leer = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void obtenerRadioLocal().then((r) => { if (vivo && r) setRadioLocal(r); });
+    };
     leer();
     const t = setInterval(leer, 60_000);
     return () => { vivo = false; clearInterval(t); };
@@ -258,17 +288,22 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   const signals = useMemo(
     () =>
       enriquecerConMalla(
-        fusionarRadar(
-          [
-            ...collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
-            ...senalesRadioLocal(radioLocal, now),
-          ],
-          now,
+        ordenarSenalesPorCalidad(
+          fusionarRadar(
+            [
+              ...collectDetectedSignals({ mesh, beacons, neurons, ble: freshBle, serialPorts, now }),
+              ...senalesRadioLocal(radioLocal, now),
+              // (RDV14) Lo que oyen las otras neuronas de la cuenta, tal cual lo
+              // compartió cada una: toda señal declara quién la oye de verdad.
+              ...senalesVistasPorOtras(radarRemoto, now),
+            ],
+            now,
+          ),
         ),
         malla.misDispositivos,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal, malla.misDispositivos],
+    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {
@@ -348,6 +383,16 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
         fix: "Comprueba que el internet público StarSeed está encendido en el panel de conectividad.",
       });
     }
+    // (RDV14) Sin radio nativa (origen público o Mando local apagado): el
+    // navegador no ve el Wi-Fi ni el Bluetooth del sistema, y eso no es un
+    // fallo — se declara de dónde saldría el dato.
+    if (!radioLocal) {
+      out.push({
+        id: "wifi-bt-sistema",
+        label: "Wi-Fi y Bluetooth del sistema",
+        reason: "El navegador no los expone; los lee el Mando local de la Mac y llegan aquí por la malla si esa neurona está vinculada.",
+      });
+    }
     // Wi-Fi: la plataforma NUNCA permite escanear redes cercanas. Se declara.
     out.push({
       id: "wifi-scan",
@@ -361,7 +406,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
       fix: "Para antenas directas y múltiples radios simultáneos, usa la app nativa.",
     });
     return out;
-  }, [mesh.status, ble.support, ble.adapter, ble.scanning, ble.detections.length, serialProbed, serialPorts.length, neuronsProbed, neurons, beacons.length, accountRegistry]);
+  }, [mesh.status, ble.support, ble.adapter, ble.scanning, ble.detections.length, serialProbed, serialPorts.length, neuronsProbed, neurons, beacons.length, accountRegistry, radioLocal]);
 
   const refresh = useCallback(() => {
     loadNeurons();
