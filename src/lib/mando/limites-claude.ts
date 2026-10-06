@@ -305,3 +305,4 @@ export function resumenLimitesClaude(e: EstadoLimitesClaude): string {
     }
     return partes.join(" · ");
 }
+
