@@ -180,10 +180,18 @@ def texto_informe(traidas, reparadas, superadas_nuevas, esperando):
         partes.append("A reparar desde su rama, como tarea sucesora: %s."
                       % ", ".join("%s → %s (%s)" % (r["tid"], r["nuevo"], r["motivo"]) for r in reparadas))
     if esperando:
+        unicas = {}
+        for e in esperando:
+            unicas.setdefault(e["tid"], e["motivo"])
         partes.append("Esperan a la próxima pasada: %s."
-                      % ", ".join("%s (%s)" % (e["tid"], e["motivo"]) for e in esperando))
+                      % ", ".join("%s (%s)" % kv for kv in unicas.items()))
     if superadas_nuevas:
-        lineas = ["- %s · %s: %s" % (s["rama"], s["tid"] or "?", s["motivo"]) for s in superadas_nuevas]
+        # Agrupadas por tarea y motivo: 60 ramas se leen como una veintena de líneas.
+        grupos = {}
+        for s in superadas_nuevas:
+            grupos.setdefault((s["tid"] or "?", s["motivo"]), []).append(s["rama"])
+        lineas = ["- %s · %s (%s)" % (tid, motivo, ", ".join(ramas) if len(ramas) <= 2 else "%d ramas: %s…" % (len(ramas), ramas[0]))
+                  for (tid, motivo), ramas in grupos.items()]
         partes.append("No las toco ni las borro: repararlas sería contraproducente. ¿Las borro del "
                       "remoto? (solo con tu palabra)\n" + "\n".join(lineas))
     return "\n".join(partes)

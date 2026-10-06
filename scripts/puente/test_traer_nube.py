@@ -114,6 +114,14 @@ class Informe(unittest.TestCase):
         self.assertIn("¿Las borro", t)
         self.assertIn("nube/1/ola/RDV8", t)
 
+    def test_agrupa_por_tarea_y_no_repite_esperas(self):
+        sup = [{"rama": "nube/%d/ola/SP092910" % i, "tid": "SP092910", "motivo": "ya figura hecha"} for i in range(3)]
+        t = T.texto_informe([{"tid": "X", "rama": "nube/9"}], [], sup,
+                            [{"tid": "SB1004A", "motivo": "en curso"}, {"tid": "SB1004A", "motivo": "en curso"}])
+        self.assertEqual(t.count("SP092910 ·"), 1)
+        self.assertIn("3 ramas", t)
+        self.assertEqual(t.count("SB1004A"), 1)
+
     def test_nada_nuevo_nada_que_decir(self):
         self.assertEqual(T.texto_informe([], [], [], []), "")
 
