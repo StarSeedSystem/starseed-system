@@ -27,6 +27,8 @@ import { getMeshPrivacy } from "./privacy";
 import { getMeshState, setMeshState } from "./store";
 import { getActiveModemPreset } from "./sync";
 import type { RemoteTopology } from "./types";
+import { getResumenLocal, recibirResumen, limpiarRadarRemoto } from "@/lib/network/radar-remoto-store";
+import { MSG_RADAR, esMensajeRadar, huellaResumen, type ResumenRadar } from "@/lib/network/radar-por-malla";
 import { uidActual } from "@/lib/consumo/usuario";
 import { crearBucle, falloDe, MINUTO_MS, type BucleFondo, type FalloConsulta } from "@/lib/network/bucle-fondo";
 
@@ -41,6 +43,51 @@ const REMOTE_FRESH_MS = 10 * 60_000;
 let buclePush: BucleFondo | null = null;
 let buclePull: BucleFondo | null = null;
 let started = false;
+
+/** Estado del resumen sin radio (`v: 2`) para evitar publicaciones repetidas. */
+let lastV2At = 0;
+let lastV2Huella = "";
+
+/** Construye el resumen reducido (`v: 2`) a partir del local: solo recuentos,
+ *  sin nombres de redes ni dispositivos. Si no hay señales locales, devuelve
+ *  un resumen vacío (que no pasará el umbral `>= 1 señal`). */
+function construirResumenV2(local: ResumenRadar): ResumenRadar {
+  const ahora = Date.now();
+  const wifiCount = local.senales.filter((s) => s.antenna === "ip").length;
+  const btCount = local.senales.filter((s) => s.antenna === "ble").length;
+  const senales: { id: string; antenna: string; label: string; signalType: string; quality: number | null; metrics: Array<{ label: string; value: string }>; lastHeard: number | null; distanceM: number | null }[] = [];
+  if (wifiCount > 0) {
+    senales.push({
+      id: "wifi:recuento",
+      antenna: "ip",
+      label: `${wifiCount} redes cercanas`,
+      signalType: "Wi-Fi",
+      quality: null,
+      metrics: [{ label: "Recuento", value: String(wifiCount) }],
+      lastHeard: null,
+      distanceM: null,
+    });
+  }
+  if (btCount > 0) {
+    senales.push({
+      id: "bluetooth:recuento",
+      antenna: "ble",
+      label: `${btCount} dispositivos Bluetooth`,
+      signalType: "Bluetooth",
+      quality: null,
+      metrics: [{ label: "Recuento", value: String(btCount) }],
+      lastHeard: null,
+      distanceM: null,
+    });
+  }
+  return {
+    v: 1,
+    neuronId: local.neuronId,
+    nombre: local.nombre,
+    at: ahora,
+    senales: senales as ResumenRadar["senales"],
+  };
+}
 
 /** Id estable de ESTE dispositivo (no PII; aleatorio, persistido local). */
 export function deviceId(): string {
@@ -79,8 +126,49 @@ async function ownerId(_supabase: NonNullable<Awaited<ReturnType<typeof client>>
 async function pushSnapshot(): Promise<FalloConsulta | null> {
   try {
     const s = getMeshState();
-    // Sin radio lista no hay nada que federar: cero peticiones.
-    if (s.status !== "ready" && s.status !== "degraded") return null;
+    // Si no hay radio lista, se publica solo un resumen reducido (`v: 2`) si
+    // hay señales locales y se cumplen los límites de frecuencia.
+    if (s.status !== "ready" && s.status !== "degraded") {
+      const localResumen = getResumenLocal();
+      if (localResumen && localResumen.senales.length >= 1) {
+        const resumenV2 = construirResumenV2(localResumen);
+        const huella = huellaResumen(resumenV2);
+        const ahoraMs = Date.now();
+        const cambioHuella = !lastV2Huella || huella !== lastV2Huella || resumenV2.at !== lastV2At;
+        const pasaron15Min = !lastV2At || (ahoraMs - lastV2At >= 15 * MINUTO_MS);
+        const pasaron5Min = !lastV2At || (ahoraMs - lastV2At >= 5 * MINUTO_MS);
+        if ((cambioHuella || pasaron15Min) && pasaron5Min) {
+          const privacy = getMeshPrivacy();
+          if (privacy.visibility !== "private") {
+            const supabase = await client();
+            if (supabase) {
+              const owner = await ownerId(supabase);
+              if (owner) {
+                const res = await supabase.from("os_mesh_topology").upsert(
+                  {
+                    owner_id: owner,
+                    device_id: deviceId(),
+                    device_label: privacy.shareName ? (localResumen.nombre || "Neurona") : "Neurona",
+                    snapshot: {
+                      v: 2,
+                      radio: false,
+                      resumen: resumenV2,
+                    },
+                    online_count: 0,
+                    updated_at: new Date().toISOString(),
+                  },
+                  { onConflict: "owner_id,device_id" },
+                );
+                lastV2At = ahoraMs;
+                lastV2Huella = huella;
+                return falloDe(res as { error?: unknown; status?: number });
+              }
+            }
+          }
+        }
+      }
+      return null;
+    }
     // PRIVACIDAD (Adenda 98): "private" = esta neurona NO publica nada a la
     // federación; nombres y posición solo viajan con opt-in explícito.
     const privacy = getMeshPrivacy();
@@ -157,11 +245,24 @@ async function pullSnapshots(): Promise<{ fallo: FalloConsulta | null; siguiente
       if (!devId || devId === me) continue; // no me federo a mí mismo
       const at = row.updated_at ? Date.parse(String(row.updated_at)) : 0;
       if (!at || at < cutoff) continue; // instantánea rancia (neurona apagada)
+      const snapshot = (row.snapshot ?? {}) as Record<string, unknown>;
+      // Fila con `v === 2` y `radio === false` NO es una topología LoRa:
+      // no va a `remoteTopologies`; solo se pasa a `recibirResumen`.
+      if (snapshot.v === 2 && snapshot.radio === false) {
+        const r = snapshot.resumen;
+        const resumenObj = snapshot.resumen;
+        if (resumenObj && typeof resumenObj === "object" && esMensajeRadar({ t: MSG_RADAR, resumen: resumenObj })) {
+          recibirResumen(resumenObj as ResumenRadar, "federacion");
+          // NO pisa un resumen más nuevo recibido por P2P: `recibirResumen`
+          // ya compara `at` y descarta los más viejos automáticamente.
+        }
+        continue;
+      }
       remote.push({
         deviceId: devId,
         label: String(row.device_label ?? "Neurona"),
         onlineCount: typeof row.online_count === "number" ? row.online_count : 0,
-        snapshot: (row.snapshot ?? {}) as RemoteTopology["snapshot"],
+        snapshot: snapshot as RemoteTopology["snapshot"],
         at,
       });
     }
