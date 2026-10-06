@@ -59,6 +59,10 @@ class ElegirPanelTest(unittest.TestCase):
         salida = _mod.elegir_panel(pesos, ["m1", "m2", "m3"], k=1, azar=AzarFijo(0.0))
         self.assertEqual(salida, ["m1"])
 
+    def test_k_cero_devuelve_vacio(self):
+        pesos = {"m1": {"peso": 0.9}}
+        self.assertEqual(_mod.elegir_panel(pesos, ["m1"], k=0, azar=AzarFijo()), [])
+
     def test_no_repite_y_respeta_utiles(self):
         salida = _mod.elegir_panel({}, ["m1", "m2"], k=5, azar=AzarFijo())
         self.assertEqual(sorted(salida), ["m1", "m2"])
@@ -103,6 +107,9 @@ class FusionarTest(unittest.TestCase):
         self.assertEqual(len(fusionadas), 1)
         self.assertEqual(fusionadas[0]["votos"], 2)
         self.assertEqual(fusionadas[0]["modelos"], ["m1", "m2"])
+
+    def test_entrada_vacia_devuelve_vacio(self):
+        self.assertEqual(_mod.fusionar([]), [])
 
     def test_distintas_no_se_fusionan(self):
         def llamar(modelo, prompt):
