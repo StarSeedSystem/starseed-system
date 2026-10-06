@@ -17,8 +17,9 @@ const TAMANOS = [
 const PRESUPUESTO_TTFB_MS = 800;
 const ANCHO_MOVIL_MAX = 767;
 
+// Igual que presupuestos() de produccion_rutas.py: móvil es ancho < 767 px.
 function presupuestoLcp(ancho) {
-  return ancho <= ANCHO_MOVIL_MAX ? 4000 : 2500;
+  return ancho < ANCHO_MOVIL_MAX ? 4000 : 2500;
 }
 
 function leerPermitidos() {
@@ -83,7 +84,7 @@ async function ejecutarLote(lote, base, sha, capturas, resultados, fallos, aviso
           try {
             r = await probarPagina(contexto, base, ruta, combo, capturas, nombreBase);
           } catch (error) {
-            r = { estado: 0, errores: ["pagina: " + String(error)], ttfb_ms: null,
+            r = { status: 0, errores: ["pagina: " + String(error)], ttfb_ms: null,
                   lcp_ms: null, hidratacion: false, desborde: false, sw: false };
           } finally {
             await contexto.close();
@@ -91,8 +92,8 @@ async function ejecutarLote(lote, base, sha, capturas, resultados, fallos, aviso
           const clave = `${ruta} @ ${combo.ancho}x${combo.alto} ${combo.modo}` +
             (combo.movimientoReducido ? " mr" : "");
           resultados[clave] = r;
-          if (r.estado >= 400 || r.estado === 0) {
-            fallos.push(`${clave}: HTTP ${r.estado}`);
+          if (r.status >= 400 || r.status === 0) {
+            fallos.push(`${clave}: HTTP ${r.status}`);
           }
           if (r.hidratacion) fallos.push(`${clave}: error de hidratación`);
           if (r.desborde) fallos.push(`${clave}: desborde horizontal`);
@@ -139,6 +140,7 @@ async function probarPagina(contexto, base, ruta, combo, capturas, nombreBase) {
     if (entradas.length > 0) {
       salida.lcpMs = Math.round(entradas[entradas.length - 1].startTime);
     } else {
+      // Respaldo: algunos Chromium no rellenan el tipo sin PerformanceObserver.
       const pintura = performance.getEntriesByType("paint")
         .filter((e) => e.name === "largest-contentful-paint");
       if (pintura.length > 0) salida.lcpMs = Math.round(pintura[0].startTime);
@@ -165,7 +167,7 @@ async function probarPagina(contexto, base, ruta, combo, capturas, nombreBase) {
   }
   await pagina.close();
   return {
-    estado,
+    status: estado,
     ttfb_ms: ttfbMs != null ? Math.max(0, Math.round(ttfbMs)) : null,
     lcp_ms: datos.lcpMs,
     duracion_ms: Date.now() - inicio,
@@ -195,13 +197,23 @@ function argumentos(argv) {
 }
 
 function compararRegresion(actualPorRuta, ultimaBuena) {
+  // Misma lectura de claves que produccion_rutas.comparar: «status» (acepta «estado» antiguo).
+  const estadoDe = (o) => (o && (o.status ?? o.estado)) || 0;
   const bloqueos = [];
   const avisos = [];
-  for (const [ruta, ahora] of Object.entries(actualPorRuta)) {
-    const antes = ultimaBuena[ruta];
+  for (const [ruta, antes] of Object.entries(ultimaBuena || {})) {
     if (!antes || typeof antes !== "object") continue;
-    if (typeof antes.estado === "number" && antes.estado < 400 && ahora.estado >= 400) {
-      bloqueos.push(`${ruta}: daba ${antes.estado} y ahora da ${ahora.estado}`);
+    const ahora = actualPorRuta[ruta];
+    const antesStatus = estadoDe(antes);
+    if (antesStatus >= 400) continue;
+    if (!ahora) {
+      bloqueos.push(`${ruta}: daba ${antesStatus} y ahora no responde`);
+      continue;
+    }
+    const ahoraStatus = estadoDe(ahora);
+    if (antesStatus < 400 && ahoraStatus >= 400) {
+      bloqueos.push(`${ruta}: daba ${antesStatus} y ahora da ${ahoraStatus}`);
+      continue;
     }
     for (const clave of ["ttfb_ms", "lcp_ms"]) {
       if (antes[clave] > 0 && ahora[clave] != null && ahora[clave] > antes[clave] * 1.5) {
@@ -236,18 +248,21 @@ async function main() {
     delete r.errores;
   }
 
+  // Peor caso por ruta (status, ttfb, lcp): sirve para la regresión y, en el
+  // informe, para que esta salida pueda usarse como próxima «última buena».
+  const peorPorRuta = {};
+  for (const [clave, r] of Object.entries(resultados)) {
+    const ruta = clave.split(" @ ")[0];
+    const p = peorPorRuta[ruta] || { status: 0, ttfb_ms: null, lcp_ms: null };
+    p.status = Math.max(p.status, r.status || 0);
+    p.ttfb_ms = Math.max(p.ttfb_ms || 0, r.ttfb_ms || 0) || null;
+    p.lcp_ms = Math.max(p.lcp_ms || 0, r.lcp_ms || 0) || null;
+    peorPorRuta[ruta] = p;
+  }
+
   if (args.ultimaBuena) {
     let ultima = {};
     try { ultima = JSON.parse(readFileSync(args.ultimaBuena, "utf8")); } catch { /* sin datos */ }
-    const peorPorRuta = {};
-    for (const [clave, r] of Object.entries(resultados)) {
-      const ruta = clave.split(" @ ")[0];
-      const p = peorPorRuta[ruta] || { estado: 0, ttfb_ms: 0, lcp_ms: 0 };
-      p.estado = Math.max(p.estado, r.estado || 0);
-      p.ttfb_ms = Math.max(p.ttfb_ms, r.ttfb_ms || 0);
-      p.lcp_ms = Math.max(p.lcp_ms, r.lcp_ms || 0);
-      peorPorRuta[ruta] = p;
-    }
     const regresion = compararRegresion(peorPorRuta, ultima);
     fallos.push(...regresion.bloqueos);
     avisos.push(...regresion.avisos);
@@ -260,6 +275,7 @@ async function main() {
     ok: fallos.length === 0,
     bloqueos: fallos,
     avisos,
+    resumen_rutas: peorPorRuta,
     combinaciones: resultados,
   };
   const texto = JSON.stringify(informe, null, 2);
