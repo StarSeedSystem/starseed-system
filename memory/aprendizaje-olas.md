@@ -3573,3 +3573,34 @@ servicios que lo importan (`bash scripts/puente/instalar-servicios.sh`).
 
 **Lo que quedó fuera, una por una:**
 - `PA1005D` — no escribió nada
+
+## 2026-10-05 18:22 · auto-1005-164140
+
+**Lo que se pidió.** no tocaste tus archivos
+
+**Resultado.** 3 de 20 integradas. 17 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 11 tareas se fueron por lo mismo — pruebas en rojo (CAMR1005A, BLQ1005A, PRD1005T, PRD1005D, LC1004B, CDV1004Cs). Es 55 % de la ola.
+- 5 tareas se fueron por lo mismo — no escribió nada (PRD1005S, DR0927-1, DR0927-2, DR0929-1, DR1003-1). Es 25 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+- codex/gpt-5.6-sol no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005A` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005T` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005D` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005S` — no escribió nada
+- `LC1004B` — pruebas en rojo: vitest falla (rama conservada)
+- `CDV1004Cs` — pruebas en rojo: vitest falla (rama conservada)
+- `p314Acs` — pruebas en rojo: vitest falla (rama conservada)
+- `DR0927-1` — no escribió nada
+- `DR0927-2` — no escribió nada
+- `DR0929-1` — no escribió nada
+- `DR1003-1` — no escribió nada
+- `FLU1005H` — pruebas en rojo: vitest falla (rama conservada)
+- `BLQ1005E` — otra cosa: ningún proveedor respondió (todos caídos)
+- `SB1004A` — pruebas en rojo: vitest falla (rama conservada)
+- `PA1005C` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005L` — pruebas en rojo: vitest falla (rama conservada)
