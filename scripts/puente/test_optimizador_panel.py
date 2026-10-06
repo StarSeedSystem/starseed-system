@@ -63,6 +63,11 @@ class ElegirPanelTest(unittest.TestCase):
         salida = _mod.elegir_panel({}, ["m1", "m2"], k=5, azar=AzarFijo())
         self.assertEqual(sorted(salida), ["m1", "m2"])
 
+    def test_k_cero_no_elige_a_nadie(self):
+        salida = _mod.elegir_panel({"m1": {"peso": 0.9}}, ["m1"], k=0,
+                                   azar=AzarFijo())
+        self.assertEqual(salida, [])
+
 
 class PedirPropuestasTest(unittest.TestCase):
     def test_json_roto_se_ignora(self):
@@ -109,6 +114,10 @@ class FusionarTest(unittest.TestCase):
             return PROPUESTA_A if modelo == "m1" else PROPUESTA_B
         fusionadas = _mod.fusionar(_mod.pedir_propuestas(["m1", "m2"], "r", llamar))
         self.assertEqual(len(fusionadas), 2)
+
+
+    def test_lista_vacia_devuelve_vacio(self):
+        self.assertEqual(_mod.fusionar([]), [])
 
 
 class ATareasTest(unittest.TestCase):
