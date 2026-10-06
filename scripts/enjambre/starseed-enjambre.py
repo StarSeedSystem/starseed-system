@@ -4316,6 +4316,90 @@ def worktree(tid):
     return wt
 
 
+def poner_al_dia(tid, wt):
+    """(2026-10-06) Una rama reutilizada se pone al día con main ANTES de escribir y de
+    las puertas. `worktree()` reutiliza `ola/<tid>` tal cual y nadie la movía: la ola
+    auto-1005-211229 integró 0 de 12 porque 9 tareas reintentadas pasaban tsc y vitest
+    sobre un main de hace días (p314Acs iba 571 commits por detrás, PA1005C 162,
+    CDV1004Cs 164) y fallaban en pruebas que main ya había arreglado.
+
+    - Lo que no tenga commit se guarda antes en la propia rama (salvavidas).
+    - Rebase sobre main (los conflictos en archivos basura se resuelven solos).
+    - Si choca de verdad: la rama vieja se ARCHIVA en `refs/archivo/ola/<tid>/<sello>`
+      (nada se pierde) y la tarea arranca desde main; el agente recibe en su contexto
+      qué archivos tocaba el intento anterior para reaprovechar la idea.
+    Devuelve un dict con `estado` ∈ al_dia | rebase | archivada | conservada | sin_verificar."""
+    rc, detras = sh(["git", "rev-list", "--count", "HEAD..main"], cwd=wt, timeout=30)
+    detras = (detras or "").strip()
+    if rc or not detras.isdigit():
+        return {"estado": "sin_verificar"}
+    n = int(detras)
+    if n == 0:
+        return {"estado": "al_dia", "detras": 0}
+    rc_st, st = sh(["git", "status", "--porcelain", "-uall"], cwd=wt, timeout=30)
+    if rc_st:
+        return {"estado": "sin_verificar", "detras": n}
+    reales = [
+        l
+        for l in (st or "").splitlines()
+        if l.strip() and not es_archivo_basura(l[3:].strip().split(" -> ")[-1].strip('"'))
+    ]
+    if reales:
+        try:
+            commit_salvavidas(tid)
+        except Exception as e:
+            evento("aviso", tid, "al día: no pude guardar lo pendiente (%s); conservo la rama" % str(e)[:120])
+            return {"estado": "conservada", "detras": n}
+    rc_rb, _ = rebase_saltando_basura(wt, tid)
+    if rc_rb == 0:
+        evento("aviso", tid, "al día con main: iba %d commit(s) por detrás → rebase limpio" % n)
+        return {"estado": "rebase", "detras": n}
+    rc_h, cima = sh(["git", "rev-parse", "HEAD"], cwd=wt, timeout=30)
+    cima = (cima or "").strip()
+    rc_f, archivos = sh(["git", "diff", "--name-only", "main...HEAD"], cwd=wt, timeout=60)
+    archivos = [a for a in (archivos or "").splitlines() if a.strip() and not es_archivo_basura(a)]
+    ref = "refs/archivo/ola/%s/%s" % (tid, time.strftime("%Y%m%d-%H%M%S"))
+    rc_u, _ = (1, "") if rc_h or not cima else sh(["git", "update-ref", ref, cima], cwd=wt, timeout=30)
+    if rc_u:
+        evento("aviso", tid, "al día: el rebase chocó y no pude archivar la rama; la conservo como estaba")
+        return {"estado": "conservada", "detras": n}
+    # Nunca un reset con cambios reales sin commit: si el salvavidas no los guardó, se conservan.
+    rc_st2, st2 = sh(["git", "status", "--porcelain", "-uall"], cwd=wt, timeout=30)
+    if rc_st2 or any(
+        l.strip() and not es_archivo_basura(l[3:].strip().split(" -> ")[-1].strip('"'))
+        for l in (st2 or "").splitlines()
+    ):
+        evento("aviso", tid, "al día: el rebase chocó y quedan cambios sin commit; conservo la rama")
+        return {"estado": "conservada", "detras": n, "ref": ref}
+    rc_r, _ = sh(["git", "reset", "-q", "--hard", "main"], cwd=wt, timeout=60)
+    if rc_r:
+        return {"estado": "conservada", "detras": n, "ref": ref}
+    set_estado(tid, trabajo_archivado={"ref": ref, "archivos": archivos[:20], "detras": n})
+    evento(
+        "aviso",
+        tid,
+        "al día con main: iba %d commit(s) por detrás y el rebase chocaba → intento anterior "
+        "archivado en %s (%d archivo(s)) y arranco desde main" % (n, ref, len(archivos)),
+    )
+    return {"estado": "archivada", "detras": n, "ref": ref, "archivos": archivos}
+
+
+def _bloque_trabajo_archivado(tid):
+    """Texto para el prompt cuando `poner_al_dia` archivó un intento anterior que chocaba."""
+    datos = (PROG.get(tid) or {}).get("trabajo_archivado")
+    if not isinstance(datos, dict) or not datos.get("ref"):
+        return ""
+    archivos = [str(a) for a in (datos.get("archivos") or [])][:20]
+    return (
+        "\n\nINTENTO ANTERIOR ARCHIVADO: esta tarea ya se intentó sobre un main de hace %s commit(s) "
+        "y chocaba con el main de hoy, así que arrancas desde main limpio. Aquel intento tocaba: %s. "
+        "Lee esos archivos tal como están AHORA en main antes de escribir: puede que parte del trabajo "
+        "ya exista o que el contrato haya cambiado (pruebas, firmas, nombres). Reaprovecha la idea, "
+        "no copies código viejo."
+        % (datos.get("detras", "?"), ", ".join(archivos) or "(sin archivos de código)")
+    )
+
+
 def commit_salvavidas(tid: str) -> str | None:
     """Commitea en la rama del agente (ola/<tid>) todo lo que haya en su worktree
     (staged, sin staged y sin rastrear) ANTES de correr tsc ni los tests.
@@ -4971,6 +5055,7 @@ def contexto_tarea(t, raiz=None):
         # Los mensajes del director son texto libre y este bloque se formatea con `%`:
         # un «50 %» en un mensaje tumbó AGR1 con «unsupported format character» (2026-09-20).
         + _mensajes.para_prompt(OLAS, t["id"]).replace("%", "%%")
+        + _bloque_trabajo_archivado(t["id"]).replace("%", "%%")
         + "%s\n\nTAREA %s (%s) · %s\nArchivos implicados: %s\n\n%s"
     ) % (
         inteligente,
@@ -6449,6 +6534,12 @@ def ejecutar(t, intento=1):
         set_estado(tid, estado="fallo", nota=str(e)[:200])
         evento("fallo", tid, "worktree: " + str(e)[:200])
         return
+    # (2026-10-06) Una rama reutilizada se pone al día con main antes de decidir nada:
+    # las puertas sobre un main de hace días fallan en pruebas que ya están arregladas.
+    try:
+        poner_al_dia(tid, wt)
+    except Exception as e:
+        evento("aviso", tid, "al día con main: no se pudo comprobar (%s)" % str(e)[:120])
     # (2026-09-20, 07:55) Trabajo previo, SIEMPRE (no solo con --reanudar): cambios sin
     # commitear que no sean basura, o commits del salvavidas por delante de main con diff
     # real. Con trabajo previo y sin mensajes del director sin leer → a las puertas; con
