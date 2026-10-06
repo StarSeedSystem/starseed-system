@@ -866,7 +866,7 @@ export function CentroMando() {
         /** Pasarelas sin cupo o caídas, según el archivo que el enjambre OBEDECE. */
         agotados: number | null;
         proveedoresResumen: string | null;
-        /** (2026-09-27) Crédito de Claude en la nube: «$250 de $250 · vence en…». */
+        /** (2026-10-04) Límite de Claude: "sesión 34 % · semana 61 % · reinicia en 2 h 10 min…". */
         credito: string | null;
         creditoResumen: string | null;
         creditoTono: TonoMedidor;
@@ -1018,11 +1018,11 @@ export function CentroMando() {
             if (resCredito.status === "fulfilled" && resCredito.value.ok) {
                 const dataCred = (await resCredito.value.json()) as { detalle?: DetalleMedidor };
                 if (dataCred.detalle) {
-                    // Pastilla y ventana salen del MISMO resumen: «$250 de $250 · vence en 39 días…».
+                    // Los nuevos límites: «sesión 34 % · semana 61 % · reinicia en 2 h 10 min...»
                     const resumen = dataCred.detalle.resumen ?? "";
-                    const m = /^\$([\d.]+) de \$([\d.]+)/.exec(resumen);
-                    credito = m ? `$${m[1]} de $${m[2]}` : null;
-                    creditoResumen = resumen.split(" · ").slice(1, 3).join(" · ") || resumen || null;
+                    const regex = /^sesión (\d+) % · semana (\d+) %/.exec(resumen);
+                    credito = regex ? `${regex[1]} % · ${regex[2]} %` : "sin lectura";
+                    creditoResumen = resumen || null;
                     const estados = dataCred.detalle.filas.map((f) => f.estado);
                     creditoTono = estados.includes("peligro") ? "peligro" : estados.includes("aviso") || dataCred.detalle.aviso ? "aviso" : "ok";
                 }
@@ -1724,10 +1724,10 @@ export function CentroMando() {
                                 // en la nube de Claude: lo declara él (no hay API) y VENCE, así
                                 // que el detalle dice también el ritmo para aprovecharlo.
                                 clave: "credito-claude" as const,
-                                titulo: "Crédito Claude nube",
+                                titulo: "Claude límites del plan",
                                 valor: medidoresResumen?.credito ?? "—",
                                 tono: medidoresResumen?.creditoTono ?? "normal",
-                                detalle: medidoresResumen?.creditoResumen ?? "saldo declarado de claude.ai → Uso",
+                                detalle: medidoresResumen?.creditoResumen ?? "limites del plan de claude.ai → Uso",
                             },
                             {
                                 // (2026-09-22) Alex: «tokens por segundo en total sumando los

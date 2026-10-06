@@ -43,6 +43,7 @@ import {
     type ClaveMedidor,
     type DatosMedidores,
 } from "@/lib/mando/medidores";
+import { ENLACE_USO_CLAUDE, type ConfigLimitesClaude } from "@/lib/mando/limites-claude";
 import {
     parsearCommits,
     tareasIntegradasEnMain,
@@ -58,6 +59,10 @@ export const dynamic = "force-dynamic";
 
 const correr = promisify(execFile);
 const RAÍZ = raizDelProyecto();
+
+function esObjeto(v: unknown): v is Record<string, unknown> {
+    return typeof v === "object" && v !== null;
+}
 const PROGRESO = path.join(RAÍZ, "starseed_memory_root", "olas", "progreso.json");
 
 type Entrada = { estado?: string; nota?: string; t?: string; modelo?: string; [k: string]: unknown };
@@ -244,6 +249,21 @@ async function leerCreditoClaude(): Promise<DatosMedidores["creditoClaude"]> {
         return d && typeof d === "object" && "restante_usd" in d ? d : null;
     } catch {
         return null;
+    }
+}
+
+/**
+ * (2026-10-04) Lo que Alex declara de los límites del plan de Claude (sesión y semanal):
+ * vive fuera del repo (`~/.starseed/limites-claude.json`, lo escribe
+ * `scripts/puente/limites_claude.py declarar`). Sin archivo, el medidor lo dice.
+ */
+async function leerLimitesClaude(): Promise<ConfigLimitesClaude | undefined> {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "limites-claude.json"), "utf8");
+        const d = JSON.parse(crudo) as ConfigLimitesClaude;
+        return esObjeto(d) && d.lecturas && Array.isArray(d.lecturas) ? d : undefined;
+    } catch {
+        return undefined;
     }
 }
 
@@ -680,7 +700,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // toda la capacidad viva, no solo la de esta máquina.
         latidos: [...latidosDeAqui, ...agentesNube],
         contenedores,
-        creditoClaude: await leerCreditoClaude().catch(() => null),
+        limitesClaude: await leerLimitesClaude().catch(() => undefined),
         proveedores,
         tokens,
         commitsSinPublicar,
@@ -722,9 +742,9 @@ export async function GET(peticion: Request): Promise<Response> {
     const clave = (new URL(peticion.url).searchParams.get("clave") ?? "ola-activa") as ClaveMedidor;
     // (2026-09-27) El crédito de Claude solo necesita su propio archivo: no se reúne todo.
     if (clave === "credito-claude") {
-        const creditoClaude = await leerCreditoClaude().catch(() => null);
+        const limitesClaude = await leerLimitesClaude().catch(() => undefined);
         return Response.json(
-            { detalle: detalleDeMedidor(clave, { creditoClaude }), generadoEn: new Date().toISOString() },
+            { detalle: detalleDeMedidor(clave, { limitesClaude }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
