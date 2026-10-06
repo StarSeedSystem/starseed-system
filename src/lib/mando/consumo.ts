@@ -1,12 +1,14 @@
 /**
- * Medidor «Consumo y créditos» — lector del SERVIDOR (2026-09-29).
+ * Medidor «Consumo y créditos» — lector del SERVIDOR (2026-10-04).
  *
  * Lee lo que escribe la vigía de consumo (`scripts/puente/vigia_consumo.py`, cada 15 min,
- * lanzada por el director de orquestación) y lo que Alex declara de su crédito de Claude:
+ * lanzada por el director de orquestación) y lo que Alex declara de los LÍMITES DEL PLAN
+ * de Claude (ventana de sesión de ~5 h y semanal, más la semanal de un modelo concreto si
+ * claude.ai la enseña):
  *   ~/.starseed/consumo.json            · la última vuelta (hoy, freno, bucles, Jev)
  *   ~/.starseed/consumo-historial.json  · 45 días: peticiones y bytes estimados por día
  *   ~/.starseed/presupuestos.json       · los topes (los edita el Mando por POST)
- *   ~/.starseed/credito-claude-nube.json· el crédito de Claude en la nube, declarado
+ *   ~/.starseed/limites-claude.json    · los límites del plan de Claude, declarados
  *
  * Viven fuera del repo: son datos de la máquina y de la cuenta de Alex, no del proyecto.
  * Solo se devuelven NÚMEROS, rutas de API ya saneadas por la vigía y fechas: nunca claves ni
@@ -18,26 +20,25 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { ENLACE_USO_CLAUDE, estadoCreditoClaude, type ConfigCreditoClaude } from "@/lib/mando/credito-claude";
 import {
     normalizarPresupuestos,
     tonoPorPct,
     type DatosConsumo,
     type DiaHistorial,
-    type MedidorClaudeNube,
     type MedidorJev,
+    type MedidorLimitesClaude,
     type MedidorSupabase,
     type NivelSupabase,
     type Presupuestos,
     type TonoConsumo,
 } from "@/lib/mando/consumo-tipos";
+import { estadoLimitesClaude, type ConfigLimitesClaude, ENLACE_USO_CLAUDE } from "@/lib/mando/limites-claude";
 
 const MB = 1024 * 1024;
 /** La vigía corre cada 15 min: más de 45 sin medir es que no está corriendo. */
 export const FRESCO_MS = 45 * 60_000;
 const DIA_MS = 86_400_000;
 export const DIAS_SPARKLINE = 14;
-export const COMANDO_CREDITO_CLAUDE = "python3 scripts/puente/credito_claude_nube.py declarar --restante <USD>";
 
 /** Carpeta de datos de la máquina. `STARSEED_DATOS_DIR` solo para pruebas. */
 export function directorioDatos(): string {
@@ -209,41 +210,31 @@ function medidorJev(c: Obj, p: Presupuestos): MedidorJev {
     return { usdHoy, techo: p.jev_usd_dia, pct, saldo, saldoMin: p.openrouter_usd_min_saldo, tono };
 }
 
-const TONO_CREDITO: Record<string, TonoConsumo> = { ok: "ok", normal: "neutro", aviso: "aviso", peligro: "peligro" };
-
-function medidorClaude(credito: unknown, ahora: number): MedidorClaudeNube {
-    const base = { comando: COMANDO_CREDITO_CLAUDE, enlace: ENLACE_USO_CLAUDE };
-    const cfg = obj(credito);
-    if (!cfg || !("restante_usd" in cfg)) {
+function medidorLimites(limites: unknown, ahora: number): MedidorLimitesClaude {
+    const base = { enlace: ENLACE_USO_CLAUDE, comando: "python3 scripts/puente/limites_claude.py estado" };
+    const cfg = obj(limites);
+    if (!cfg) {
         return {
             ...base,
-            restante: null,
-            total: null,
-            fraccion: null,
-            declaradoEn: null,
-            vence: null,
-            dias: null,
-            tono: "neutro",
-            aviso: "Sin declarar: dilo con el comando de abajo.",
+            sesion: null,
+            semana: null,
+            modelo: null,
+            tono: "aviso",
         };
     }
-    const e = estadoCreditoClaude(cfg as unknown as ConfigCreditoClaude, ahora);
+    const e = estadoLimitesClaude(cfg as unknown as ConfigLimitesClaude, ahora);
     return {
         ...base,
-        restante: e.restante,
-        total: e.total,
-        fraccion: e.fraccion,
-        declaradoEn: typeof cfg.declarado_en === "string" && cfg.declarado_en ? cfg.declarado_en : null,
-        vence: typeof cfg.vence === "string" && cfg.vence ? cfg.vence : null,
-        dias: e.dias,
-        tono: TONO_CREDITO[e.tono] ?? "neutro",
-        aviso: e.avisos[0] ?? null,
+        sesion: e.sesion ? { pct: e.sesion.pct, reinicio: e.sesion.reinicio } : null,
+        semana: e.semana ? { pct: e.semana.pct, reinicio: e.semana.reinicio } : null,
+        modelo: e.modelo ? { pct: e.modelo.pct, reinicio: e.modelo.reinicio } : null,
+        tono: e.tono,
     };
 }
 
 /** PURA: los cuatro archivos (ya parseados, o null) → lo que ve el medidor. */
 export function derivarConsumo(
-    entrada: { consumo: unknown; historial: unknown; presupuestos: unknown; credito: unknown },
+    entrada: { consumo: unknown; historial: unknown; presupuestos: unknown; limites: unknown },
     ahora: number,
 ): DatosConsumo {
     const presupuestos = normalizarPresupuestos(entrada.presupuestos);
@@ -252,7 +243,7 @@ export function derivarConsumo(
     return {
         supabase: medidorSupabase(c, h, presupuestos, ahora),
         jev: medidorJev(c, presupuestos),
-        claude: medidorClaude(entrada.credito, ahora),
+        claude: medidorLimites(entrada.limites, ahora),
         presupuestos,
         generadoEn: new Date(ahora).toISOString(),
     };
@@ -267,13 +258,13 @@ async function leerJson(ruta: string): Promise<unknown> {
 }
 
 export async function leerDatosConsumo(ahora = Date.now(), dir = directorioDatos()): Promise<DatosConsumo> {
-    const [consumo, historial, presupuestos, credito] = await Promise.all([
+    const [consumo, historial, presupuestos, limites] = await Promise.all([
         leerJson(path.join(dir, "consumo.json")),
         leerJson(path.join(dir, "consumo-historial.json")),
         leerJson(path.join(dir, "presupuestos.json")),
-        leerJson(path.join(dir, "credito-claude-nube.json")),
+        leerJson(path.join(dir, "limites-claude.json")),
     ]);
-    return derivarConsumo({ consumo, historial, presupuestos, credito }, ahora);
+    return derivarConsumo({ consumo, historial, presupuestos, limites }, ahora);
 }
 
 /** Escribe a un temporal y renombra: la vigía puede estar leyéndolo a la vez. */

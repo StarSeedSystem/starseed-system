@@ -162,24 +162,19 @@ export interface MedidorJev {
     tono: TonoConsumo;
 }
 
-export interface MedidorClaudeNube {
-    restante: number | null;
-    total: number | null;
-    /** 0-1 de lo que QUEDA. */
-    fraccion: number | null;
-    declaradoEn: string | null;
-    vence: string | null;
-    dias: number | null;
+export interface MedidorLimitesClaude {
+    sesion: { pct: number | null; reinicio: string | null } | null;
+    semana: { pct: number | null; reinicio: string | null } | null;
+    modelo: { pct: number | null; reinicio: string | null } | null;
     tono: TonoConsumo;
-    aviso: string | null;
-    comando: string;
     enlace: string;
+    comando: string;
 }
 
 export interface DatosConsumo {
     supabase: MedidorSupabase;
     jev: MedidorJev;
-    claude: MedidorClaudeNube;
+    claude: MedidorLimitesClaude;
     presupuestos: Presupuestos;
     generadoEn: string;
 }
