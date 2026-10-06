@@ -1,0 +1,34 @@
+{
+ "ola": "nube-20261005",
+ "tareas": [
+  {
+   "id": "DR1003-1",
+   "ola": "Ola Dream 2026-10-03 · lo que el análisis nocturno encontró",
+   "titulo": "Publicar commits pendientes (289 en cola)",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-10-03.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Publicar commits pendientes (289 en cola) — \n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "PRD1005H",
+   "ola": "Ola 1005R · Director de producción: publica solo lo filtrado, prueba en todos los escenarios, confirma cada medio y propaga en vivo",
+   "depende": [],
+   "titulo": "Producción · el bucle del director: elegir, probar en vista previa, publicar por lotes, confirmar cada medio, propagar o revertir",
+   "archivos": [
+    "scripts/puente/director-produccion.py",
+    "scripts/puente/test_director_produccion.py"
+   ],
+   "modelo": "codex/gpt-5.6-sol",
+   "prompt": "CONTRATO: `architecture/director-produccion.md`. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): un director de producción que publique automáticamente lo que ya filtraron los demás directores, juzgue con Jev, Laya, memorias y el propósito de cada tarea si es coherente publicarla, lo pruebe en todos los escenarios, confirme que llegó a cada medio y lo propague en tiempo real.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen. Sin dependencias nuevas.\n\nTU TAREA (PRD1005H): el ciclo de §3 a §6 usando los módulos de PRD1005A–E (impórtalos). Opciones `--una-vez`, `--seco`, `--modo`. Por ciclo: interruptor (`~/.starseed/produccion-pausada.json` → solo informe), cerrojo compartido con `publicar.py` (si su diario dice `corriendo`, espera), candidatos → puertas 1–3 (una sola llamada a `decidir.consultar_lote`) → lote (ventana `ventana_min`; las tareas cuya petición viene de Alex por el Chat Director van por exprés) → push con force-with-lease SOLO a `produccion/candidato` → espera CI y la URL de vista previa por la API de deployments de GitHub (reutiliza el cliente de `nube-gh.py`) → `produccion_pruebas.mjs` + nota de diseño si toca interfaz → en `auto`, `git push origin <sha>:main` sin force → confirmar cada medio → `produccion_avisar` → informe al Chat Director (`director_chat.publicar --de director-produccion`) → `decidir.confirmar`. Si falla la confirmación: revertir, vetar el sha y devolver las tareas a `pendiente` con el informe como contexto, escribiendo `olas/progreso.json` con el mismo cerrojo (flock) que usa el enjambre (mira `director-orquestacion.reintentar_sin_cambios`). Topes de §4. Estado atómico en `starseed_memory_root/mando/produccion-estado.json` e historial en `~/.starseed/produccion/historial.jsonl` (§6). Nunca `next build` local. Pruebas: todo inyectado (git, red, procesos); casos seco, canario, auto feliz, secreto detectado, Jev dice no, Jev sin respuesta con panel, fallo de medio → reversión, pausa, cerrojo ocupado, tope diario.",
+   "dependencias_ya_en_main": [
+    "PRD1005A",
+    "PRD1005B",
+    "PRD1005C",
+    "PRD1005D",
+    "PRD1005E",
+    "PRD1005F",
+    "PRD1005G"
+   ]
+  }
+ ]
+}
