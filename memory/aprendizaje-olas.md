@@ -3734,3 +3734,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Ramas de la nube.** 72 ramas revisadas con Jev: casi nunca traían código que main no tuviera, sí pruebas distintas
 (18 tareas de rescate y la cadena del radar compartido regenerada). Detalle y lecciones: `memory/aprendizaje-ramas-nube.md`.
+
+## 2026-10-06 15:18 · auto-1006-145649
+
+**Lo que se pidió.** archivar
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RSC1006Ls` — no escribió nada
