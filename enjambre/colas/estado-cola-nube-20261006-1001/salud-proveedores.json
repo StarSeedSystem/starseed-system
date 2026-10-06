@@ -1,0 +1,62 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-06 10:00:30",
+  "desde": "2026-09-29 16:09:57",
+  "ultimo_429": "2026-10-05 23:30:08",
+  "sin_cupo_hasta": "2026-09-29 17:07:11",
+  "motivo": "llamada: límite de la clave"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-06 10:00:30",
+  "desde": "2026-10-01 15:50:18",
+  "ultimo_429": "2026-10-05 10:09:03",
+  "sin_cupo_hasta": "2026-10-06 07:23:56",
+  "motivo": "modelos colgados sin escribir: nvidia/z-ai/glm-5.3, nvidia/moonshotai/kimi-k3"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-05 23:30:02",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-06 23:30:09",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-06 10:00:30",
+  "desde": "2026-09-04 21:02:32",
+  "ultimo_429": "2026-10-05 02:30:39",
+  "sin_cupo_hasta": "2026-10-06 05:47:13",
+  "motivo": "modelos colgados sin escribir: openrouter/nvidia/nemotron-3-super-120b-a12b:free, openrouter/cohere/north-mini-code:free, openrouter/google/gemma-4-31b-it:free, openrouter/thinkingm"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-06 10:00:31",
+  "desde": "2026-09-30 03:07:41",
+  "ultimo_429": "2026-10-05 23:30:07"
+ },
+ "ultimo_revisor_ok": "nim/moonshotai/kimi-k3",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-06 10:00:31",
+  "desde": "2026-10-04 11:16:01",
+  "sin_cupo_hasta": "2026-10-06 19:15:42",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "$ opencode run --model apinex/free/glm-5.3-flash · 2026-10-05 19:14:21 \u001b[0m\u001b[0m> build · free/glm-5.3-flash \u001b[0m→ \u001b[0mRead memory/orquestaci",
+  "ultimo_429": "2026-09-21 03:38:33"
+ },
+ "google": {
+  "estado": "vivo"
+ },
+ "codex": {
+  "sin_cupo_hasta": "2026-10-07 09:42:06",
+  "motivo": "$ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/RM4b · 2026-10-06 09:42:01 · promp"
+ }
+}
