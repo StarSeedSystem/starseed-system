@@ -240,10 +240,58 @@ def esperando_pasarela(latidos, ahora, frescura_s=180):
     return n
 
 
-def resumen(lineas, sumados):
+#: Proveedores de pago (por token, con la tarjeta de Alex): no se sondean como escritores.
+DE_PAGO = ("xai", "deepseek", "anthropic", "openai")
+#: Proveedores de opencode que no escriben código del enjambre: revisores (groq, aihubmix,
+#: tokenrouter), solo Markdown (llm7), la neurona local de 0,5B y freellmapi «auto», que el
+#: 2026-10-06 devolvió las llamadas a herramientas como texto (opencode no las ejecuta).
+NO_ESCRITORES = ("groq", "aihubmix", "tokenrouter", "llm7", "neurona", "freellmapi")
+#: Nombre del proveedor en la salud compartida cuando difiere del prefijo de opencode.
+SALUD_DE = {"nvidia": "nim"}
+
+
+def representantes(cfg_opencode):
+    """PURA: un modelo por proveedor de opencode para sondear («prov/modelo»), sin los de pago."""
+    salida = []
+    for prov, bloque in sorted(((cfg_opencode or {}).get("provider") or {}).items()):
+        if prov in DE_PAGO or prov in NO_ESCRITORES or not isinstance(bloque, dict):
+            continue
+        modelos = list((bloque.get("models") or {}).keys())
+        if modelos:
+            salida.append("%s/%s" % (prov, modelos[0]))
+    return salida
+
+
+def texto_escritores(resultados, ahora=None):
+    """PURA: (línea, alguno_puede). `resultados`: [(modelo, apto, motivo, horas)]. (2026-10-06)
+    Alex: «llevan mucho tiempo sin funcionar ningún agente y Buscar más capacidad no lo
+    arregla». Más huecos no sirven si ningún modelo gratuito tiene cupo: el botón lo dice, con
+    cuándo vuelve cada uno, en vez de contar solo sitios."""
+    ahora = time.time() if ahora is None else ahora
+    pueden = sorted({m.split("/", 1)[0] for m, apto, _, _ in resultados if apto})
+    no = []
+    for m, apto, motivo, horas in resultados:
+        if apto:
+            continue
+        cuando = (" · vuelve hacia las %s" % time.strftime("%H:%M", time.localtime(ahora + horas * 3600))
+                  if horas and horas >= 1 else "")
+        no.append("%s: %s%s" % (m.split("/", 1)[0], motivo, cuando))
+    if not resultados:
+        return "Escritores: no pude sondearlos", True
+    linea = "Escritores que pueden escribir ahora: %s" % (", ".join(pueden) if pueden else "NINGUNO")
+    if no:
+        linea += " · sin poder: " + "; ".join(no)
+    return linea, bool(pueden)
+
+
+def resumen(lineas, sumados, sin_escritores=False):
     """PURA: el texto entero que enseña el medidor (una línea por medio)."""
-    cabeza = ("Busqué en todos los medios · %d agente(s) más en camino" % sumados if sumados
-              else "Busqué en todos los medios · no cabe más ahora mismo")
+    if sin_escritores:
+        cabeza = ("Busqué en todos los medios · el límite NO son los huecos: ningún modelo gratuito "
+                  "tiene cupo ahora mismo; los agentes esperan y retoman solos cuando vuelva alguno")
+    else:
+        cabeza = ("Busqué en todos los medios · %d agente(s) más en camino" % sumados if sumados
+                  else "Busqué en todos los medios · no cabe más ahora mismo")
     return "\n".join([cabeza] + ["· " + l for l in lineas if l])
 
 
@@ -315,6 +363,52 @@ def _leer_latidos():
     return salida
 
 
+def _sondear_escritores():
+    """Una sonda de 1 token por proveedor de escritura (scripts/enjambre/sonda_escritor.py).
+    Lo que sale sin cupo para el día se anota en la salud compartida, para que el orquestador
+    no pierda 5 minutos por modelo intentándolo. Devuelve [(modelo, apto, motivo, horas)]."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    ruta = os.path.join(RAIZ, "scripts", "enjambre")
+    if ruta not in sys.path:
+        sys.path.insert(0, ruta)
+    import sonda_escritor as SE
+
+    cfg = _leer_json(os.path.expanduser("~/.config/opencode/opencode.json"), {})
+    entorno = dict(os.environ)
+    for r in (os.path.join(RAIZ, ".env.local"), "~/.hermes/.env", "~/.starseed/env"):
+        try:
+            for l in open(os.path.expanduser(r), encoding="utf-8"):
+                l = l.strip()
+                if l and not l.startswith("#") and "=" in l:
+                    k, v = l.split("=", 1)
+                    entorno.setdefault(k.replace("export ", "").strip(), v.strip().strip('"').strip("'"))
+        except OSError:
+            pass
+    modelos = representantes(cfg)
+    with ThreadPoolExecutor(8) as ex:
+        res = list(ex.map(lambda m: (m,) + tuple(SE.sondear(m, cfg, entorno)), modelos))
+    salud = _leer_json(SALUD, {})
+    cambio = False
+    for m, apto, motivo, horas, muerto in res:
+        prov = SALUD_DE.get(m.split("/", 1)[0], m.split("/", 1)[0])
+        e = salud.get(prov) if isinstance(salud.get(prov), dict) else {}
+        if not apto and not muerto and horas >= 1:
+            hasta = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + horas * 3600))
+            if str(e.get("sin_cupo_hasta") or "") < hasta:
+                e.update(sin_cupo_hasta=hasta, motivo="sonda del botón: " + motivo)
+                salud[prov], cambio = e, True
+    if cambio:
+        try:
+            tmp = SALUD + ".tmp-capacidad"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(salud, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, SALUD)
+        except OSError:
+            pass
+    return [(m, apto, motivo, horas) for m, apto, motivo, horas, _ in res]
+
+
 def _otros_medios():
     """Sondea todos los medios UNA vez y, con lo mismo, vuelve a medir los contenedores de la
     nube (lo que hacía el botón «Buscar contenedores», fusionado aquí el 2026-10-05): así el
@@ -382,6 +476,16 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         except Exception as e:
             lineas.append("%s: no pude mirarla (%s: %s)" % (NOMBRES["mac"], type(e).__name__, e))
 
+        # 1a · Escritores: una sonda de 1 token por proveedor (solo al pulsar el botón).
+        sin_escritores = False
+        if origen == "boton" and sondear_medios:
+            try:
+                linea_esc, alguno = texto_escritores(_sondear_escritores(), ahora)
+                lineas.append(linea_esc)
+                sin_escritores = not alguno
+            except Exception as e:
+                lineas.append("Escritores: no pude sondearlos (%s)" % type(e).__name__)
+
         # 1b · Modelos: sin modelos que contesten, un hueco no es capacidad.
         try:
             lineas.append(texto_modelos(_leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -416,7 +520,7 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         if futuro_medios is not None:
             lineas += [texto_medio(m) for m in futuro_medios.result()]
 
-    texto = resumen(lineas, sumados)
+    texto = resumen(lineas, sumados, sin_escritores=sin_escritores)
     estado_prev.update(visto=time.strftime("%Y-%m-%d %H:%M:%S"), origen=origen, sumados=sumados,
                        hechas=hechas, resumen=texto)
     if aplicar:

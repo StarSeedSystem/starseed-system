@@ -4,6 +4,7 @@ nube (repartir_nube: motivo_fuera, clasificar, reaperturas)."""
 import os
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -259,3 +260,39 @@ class Reaperturas(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EscritoresDelBoton(unittest.TestCase):
+    """(2026-10-06) «Buscar más capacidad no lo arregla»: si ningún modelo tiene cupo, lo dice."""
+
+    def test_representantes_uno_por_proveedor_sin_pago_ni_revisores(self):
+        cfg = {"provider": {
+            "openrouter": {"models": {"a:free": {}, "b:free": {}}},
+            "nvidia": {"models": {"moonshotai/kimi-k3": {}}},
+            "xai": {"models": {"grok": {}}},
+            "groq": {"models": {"gpt-oss": {}}},
+            "freellmapi": {"models": {"auto": {}}},
+            "vacio": {"models": {}},
+        }}
+        self.assertEqual(B.representantes(cfg), ["nvidia/moonshotai/kimi-k3", "openrouter/a:free"])
+
+    def test_ninguno_puede(self):
+        ahora = time.mktime((2026, 10, 6, 15, 0, 0, 0, 0, -1))
+        linea, alguno = B.texto_escritores([
+            ("openrouter/a:free", False, "cupo del día agotado (429)", 3.0),
+            ("nvidia/moonshotai/kimi-k3", False, "no contesta en 25 s", 0.25),
+        ], ahora)
+        self.assertFalse(alguno)
+        self.assertIn("NINGUNO", linea)
+        self.assertIn("openrouter: cupo del día agotado (429) · vuelve hacia las 18:00", linea)
+        self.assertNotIn("vuelve", linea.split("nvidia")[1])
+        self.assertIn("el límite NO son los huecos", B.resumen([linea], 0, sin_escritores=True))
+
+    def test_alguno_puede(self):
+        linea, alguno = B.texto_escritores([("xkiro/x", True, "responde", 0), ("google/g", False, "saturado (429)", 0.25)])
+        self.assertTrue(alguno)
+        self.assertTrue(linea.startswith("Escritores que pueden escribir ahora: xkiro"))
+        self.assertTrue(B.resumen(["x"], 3).startswith("Busqué en todos los medios · 3 agente(s)"))
+
+    def test_sin_resultados_no_alarma(self):
+        self.assertEqual(B.texto_escritores([]), ("Escritores: no pude sondearlos", True))

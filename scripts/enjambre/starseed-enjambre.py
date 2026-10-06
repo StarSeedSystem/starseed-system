@@ -6219,6 +6219,46 @@ def _siguiente_cruzando_proveedor(pendientes, por_proveedor):
     return pendientes.pop(0)
 
 
+try:
+    import sonda_escritor as _sonda
+except Exception:  # sin el módulo, se escribe como antes (opencode dirá lo que pase)
+    _sonda = None
+_SONDA_MEM = _sonda.Memoria() if _sonda else None
+
+
+def escritor_listo(modelo):
+    """(apto, motivo) · sonda de 1 token ANTES de lanzar opencode (2026-10-06, sonda_escritor.py).
+
+    Con la flota agotada, opencode reintentaba en silencio los 429/402 y cada modelo se
+    «colgaba» 5 min hasta que el vigilante lo cortaba: siete modelos = 35 min por tarea para
+    acabar en «ningún proveedor llegó a intentarlo». La sonda lo sabe en un segundo: un modelo
+    retirado o solo de pago sale de la rotación; un cupo diario agotado marca al proveedor
+    sin cupo hasta las 00:00 UTC (lo leen todas las olas); lo demás se veta unos minutos.
+    Un «responde» vale 10 min por proveedor. `STARSEED_SONDA_ESCRITOR=0` la apaga. Nunca lanza."""
+    if _sonda is None or os.environ.get("STARSEED_SONDA_ESCRITOR") == "0":
+        return True, ""
+    try:
+        sabido, motivo = _SONDA_MEM.consultar(modelo)
+        if sabido is not None:
+            return sabido, motivo
+        try:
+            cfg = json.load(open(RUTA_OPENCODE_CFG, encoding="utf-8"))
+        except Exception:
+            cfg = {}
+        entorno = dict(os.environ)
+        entorno.update({k: v for k, v in (ENV or {}).items() if v})
+        apto, motivo, horas, muerto = _sonda.sondear(modelo, cfg, entorno)
+        _SONDA_MEM.anotar(modelo, apto, motivo, horas)
+        if not apto:
+            if muerto:
+                MUERTOS.add(modelo)
+            elif horas >= 1:
+                marcar_sin_cupo(proveedor_de(modelo), "sonda de escritura: " + motivo, horas=horas)
+        return apto, motivo
+    except Exception:
+        return True, ""
+
+
 def _anotar_fallido(tid, modelo):
     """Deja constancia en progreso.json de qué modelo NO funcionó en esta tarea, para que un
     reintento —en esta ola o en otra— no vuelva a empezar por él."""
@@ -6718,6 +6758,17 @@ def ejecutar(t, intento=1):
                 % proveedor_de(modelo),
             )
             continue
+        _apto, _motivo_sonda = escritor_listo(modelo)
+        if not _apto:
+            if modelo not in apartados and modelo not in MUERTOS:
+                apartados.append(modelo)
+            evento(
+                "reenrutado",
+                tid,
+                "%s no puede escribir ahora (%s) → lo aparto sin gastar intento"
+                % (modelo, _motivo_sonda),
+            )
+            continue
         latir(tid, "escribiendo", modelo=modelo, intento=intento)
         rc, out = escribir(
             contexto_tarea(t, wt), modelo, wt, log, timeout=ESCRITURA_S, tid=tid
@@ -6932,7 +6983,14 @@ def ejecutar(t, intento=1):
         t_esp = time.time()
         vueltos = []
         while time.time() - t_esp < ESPERA_PROVEEDOR_S and not FIN.is_set():
-            vueltos = [m for m in apartados if proveedor_vivo(proveedor_de(m))]
+            vueltos = [
+                m
+                for m in apartados
+                if m not in MUERTOS
+                and proveedor_vivo(proveedor_de(m))
+                and apto_para_tarea(m, t)
+                and escritor_listo(m)[0]
+            ]
             if vueltos:
                 break
             FIN.wait(30)
@@ -6952,6 +7010,10 @@ def ejecutar(t, intento=1):
             modelo = _siguiente_cruzando_proveedor(pendientes, por_proveedor)
             if not proveedor_vivo(proveedor_de(modelo)):
                 apartados.append(modelo)
+                continue
+            if not escritor_listo(modelo)[0]:
+                if modelo not in MUERTOS:
+                    apartados.append(modelo)
                 continue
             latir(tid, "escribiendo", modelo=modelo, intento=intento)
             rc, out = escribir(
