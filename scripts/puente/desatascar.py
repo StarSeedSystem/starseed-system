@@ -230,7 +230,9 @@ def registrar_reparacion_pendiente(raiz, tid, objecion, ahora=None):
                 + "\n"
             )
         return True
-    except OSError:
+    except Exception:
+        # ValueError por ruta con byte nulo, OSError por disco lleno, etc.:
+        # ninguno puede tumbar el desatasco; la frase de aviso sale igual.
         return False
 
 
