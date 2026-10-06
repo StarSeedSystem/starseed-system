@@ -162,24 +162,17 @@ export interface MedidorJev {
     tono: TonoConsumo;
 }
 
-export interface MedidorClaudeNube {
-    restante: number | null;
-    total: number | null;
-    /** 0-1 de lo que QUEDA. */
-    fraccion: number | null;
-    declaradoEn: string | null;
-    vence: string | null;
-    dias: number | null;
-    tono: TonoConsumo;
-    aviso: string | null;
-    comando: string;
+export interface MedidorLimitesClaude {
+    /** Estado obtenido del archivo `~/.starseed/limites-claude.json`. */
+    limites: import('@/lib/mando/limites-claude').EstadoLimitesClaude;
     enlace: string;
+    comando: string;
 }
 
 export interface DatosConsumo {
     supabase: MedidorSupabase;
     jev: MedidorJev;
-    claude: MedidorClaudeNube;
+    claude: MedidorLimitesClaude;
     presupuestos: Presupuestos;
     generadoEn: string;
 }

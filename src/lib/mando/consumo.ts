@@ -18,14 +18,14 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { ENLACE_USO_CLAUDE, estadoCreditoClaude, type ConfigCreditoClaude } from "@/lib/mando/credito-claude";
+import { ENLACE_USO_CLAUDE, estadoLimitesClaude, type EstadoLimitesClaude } from "@/lib/mando/limites-claude";
 import {
     normalizarPresupuestos,
     tonoPorPct,
     type DatosConsumo,
     type DiaHistorial,
-    type MedidorClaudeNube,
     type MedidorJev,
+    type MedidorLimitesClaude,
     type MedidorSupabase,
     type NivelSupabase,
     type Presupuestos,
@@ -37,7 +37,7 @@ const MB = 1024 * 1024;
 export const FRESCO_MS = 45 * 60_000;
 const DIA_MS = 86_400_000;
 export const DIAS_SPARKLINE = 14;
-export const COMANDO_CREDITO_CLAUDE = "python3 scripts/puente/credito_claude_nube.py declarar --restante <USD>";
+export const COMANDO_LIMITE_CLAUDE = "python3 scripts/puente/limites_claude.py estado";
 
 /** Carpeta de datos de la máquina. `STARSEED_DATOS_DIR` solo para pruebas. */
 export function directorioDatos(): string {
@@ -211,39 +211,32 @@ function medidorJev(c: Obj, p: Presupuestos): MedidorJev {
 
 const TONO_CREDITO: Record<string, TonoConsumo> = { ok: "ok", normal: "neutro", aviso: "aviso", peligro: "peligro" };
 
-function medidorClaude(credito: unknown, ahora: number): MedidorClaudeNube {
-    const base = { comando: COMANDO_CREDITO_CLAUDE, enlace: ENLACE_USO_CLAUDE };
-    const cfg = obj(credito);
-    if (!cfg || !("restante_usd" in cfg)) {
+function medidorClaude(limites: unknown, ahora: number): MedidorLimitesClaude {
+    const cfg = obj(limites);
+    if (!cfg) {
         return {
-            ...base,
-            restante: null,
-            total: null,
-            fraccion: null,
-            declaradoEn: null,
-            vence: null,
-            dias: null,
-            tono: "neutro",
-            aviso: "Sin declarar: dilo con el comando de abajo.",
+            limites: {
+                sesion: null, semana: null, modelo: null, modeloNombre: null,
+                lecturaEn: null, lecturaHaceMin: null, desactualizada: false,
+                programadasEnSesion: 0, programadasEnSemana: 0,
+                recomendacion: "Sin lectura todavía: la dirección la toma en su próxima revisión",
+                tono: "aviso",
+            },
+            enlace: ENLACE_USO_CLAUDE,
+            comando: COMANDO_LIMITE_CLAUDE,
         };
     }
-    const e = estadoCreditoClaude(cfg as unknown as ConfigCreditoClaude, ahora);
+    const estado = estadoLimitesClaude(cfg, ahora);
     return {
-        ...base,
-        restante: e.restante,
-        total: e.total,
-        fraccion: e.fraccion,
-        declaradoEn: typeof cfg.declarado_en === "string" && cfg.declarado_en ? cfg.declarado_en : null,
-        vence: typeof cfg.vence === "string" && cfg.vence ? cfg.vence : null,
-        dias: e.dias,
-        tono: TONO_CREDITO[e.tono] ?? "neutro",
-        aviso: e.avisos[0] ?? null,
+        limites: estado,
+        enlace: ENLACE_USO_CLAUDE,
+        comando: COMANDO_LIMITE_CLAUDE,
     };
 }
 
 /** PURA: los cuatro archivos (ya parseados, o null) → lo que ve el medidor. */
 export function derivarConsumo(
-    entrada: { consumo: unknown; historial: unknown; presupuestos: unknown; credito: unknown },
+    entrada: { consumo: unknown; historial: unknown; presupuestos: unknown; limites: unknown },
     ahora: number,
 ): DatosConsumo {
     const presupuestos = normalizarPresupuestos(entrada.presupuestos);
@@ -252,7 +245,7 @@ export function derivarConsumo(
     return {
         supabase: medidorSupabase(c, h, presupuestos, ahora),
         jev: medidorJev(c, presupuestos),
-        claude: medidorClaude(entrada.credito, ahora),
+        claude: medidorClaude(entrada.limites, ahora),
         presupuestos,
         generadoEn: new Date(ahora).toISOString(),
     };
@@ -267,13 +260,13 @@ async function leerJson(ruta: string): Promise<unknown> {
 }
 
 export async function leerDatosConsumo(ahora = Date.now(), dir = directorioDatos()): Promise<DatosConsumo> {
-    const [consumo, historial, presupuestos, credito] = await Promise.all([
+    const [consumo, historial, presupuestos, limites] = await Promise.all([
         leerJson(path.join(dir, "consumo.json")),
         leerJson(path.join(dir, "consumo-historial.json")),
         leerJson(path.join(dir, "presupuestos.json")),
-        leerJson(path.join(dir, "credito-claude-nube.json")),
+        leerJson(path.join(dir, "limites-claude.json")),
     ]);
-    return derivarConsumo({ consumo, historial, presupuestos, credito }, ahora);
+    return derivarConsumo({ consumo, historial, presupuestos, limites }, ahora);
 }
 
 /** Escribe a un temporal y renombra: la vigía puede estar leyéndolo a la vez. */

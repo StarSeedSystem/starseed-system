@@ -454,28 +454,40 @@ function FilaJev({ j }: { j: DatosConsumo["jev"] }) {
 function FilaClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) {
     return (
         <Tarjeta
-            etiqueta="Crédito de Claude en la nube"
+            etiqueta="Límites del plan de Claude"
             icono={<Sparkles className="h-4 w-4 text-cyan-200/80" aria-hidden />}
-            titulo="Claude nube"
+            titulo="Claude plan"
             estado={
                 <Estado
-                    texto={c.restante === null ? "Sin declarar" : c.tono === "peligro" ? "Cuidado" : c.tono === "aviso" ? "Aviso" : "Declarado"}
-                    tono={c.tono}
+                    texto={c.limites.tono === "ok" ? "En presupuesto" : c.limites.tono === "aviso" ? "Aviso" : c.limites.tono === "peligro" ? "Peligro" : "Sin medir"}
+                    tono={c.limites.tono}
                 />
             }
         >
-            <Barra
-                etiqueta="Queda"
-                valor={c.restante === null ? "—" : `${usd(c.restante)} de ${usd(c.total)}`}
-                fraccion={c.fraccion}
-                tono={c.tono}
-                detalle={
-                    c.declaradoEn
-                        ? `declarado el ${fechaCorta(c.declaradoEn)} (${hace(c.declaradoEn, ahora)})${c.dias !== null ? ` · vence en ${c.dias} días` : ""}`
-                        : "No hay API del saldo: vale lo que declares."
-                }
+<Barra
+                etiqueta="Sesión"
+                valor={c.limites.sesion ? `${c.limites.sesion.pct}% · ${c.limites.sesion.minutosParaReinicio} min` : "—"}
+                fraccion={c.limites.sesion ? c.limites.sesion.pct / 100 : null}
+                tono={c.limites.sesion ? c.limites.sesion.tono : "neutro"}
+                detalle={c.limites.sesion ? `reinicio en ${c.limites.sesion.reinicio} ${c.limites.sesion.reiniciada ? "(reiniciada)" : ""}` : "No hay lectura todavía: la dirección la toma en su próxima revisión"}
             />
-            {c.aviso ? <p className="text-[11px] leading-snug text-amber-200/85">{c.aviso}</p> : null}
+            <Barra
+                etiqueta="Semana"
+                valor={c.limites.semana ? `${c.limites.semana.pct}% · ${c.limites.semana.minutosParaReinicio} min` : "—"}
+                fraccion={c.limites.semana ? c.limites.semana.pct / 100 : null}
+                tono={c.limites.semana ? c.limites.semana.tono : "neutro"}
+                detalle={c.limites.semana ? `reinicio en ${c.limites.semana.reinicio} ${c.limites.semana.reiniciada ? "(reiniciada)" : ""}` : null}
+            />
+            {c.limites.modelo ? (
+                <Barra
+                    etiqueta="Modelo"
+                    valor={c.limites.modelo ? `${c.limites.modelo.pct}% · ${c.limites.modelo.minutosParaReinicio} min` : "—"}
+                    fraccion={c.limites.modelo ? c.limites.modelo.pct / 100 : null}
+                    tono={c.limites.modelo ? c.limites.modelo.tono : "neutro"}
+                    detalle={c.limites.modelo ? `reinicio en ${c.limites.modelo.reinicio} ${c.limites.modelo.reiniciada ? "(reiniciada)" : ""}` : null}
+                />
+            ) : null}
+            {c.limites.recomendacion ? <p className="text-[11px] leading-snug text-amber-200/85">{c.limites.recomendacion}</p> : null}
             <div className="flex flex-col gap-1.5">
                 <a
                     href={c.enlace}
@@ -484,13 +496,13 @@ function FilaClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) 
                     className="mc-alzar inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-100"
                 >
                     <ExternalLink className="h-3 w-3" aria-hidden />
-                    Ver el saldo en claude.ai
+                    Ver el uso en claude.ai
                 </a>
                 <div className="flex items-center gap-1.5">
                     <code className="min-w-0 flex-1 break-all rounded-md border border-white/10 bg-black/40 px-2 py-1 font-mono text-[10.5px] text-white/70">
                         {c.comando}
                     </code>
-                    <Copiar texto={c.comando} etiqueta="Copiar el comando para declarar el saldo" />
+                    <Copiar texto={c.comando} etiqueta="Copiar el comando para leer los límites" />
                 </div>
             </div>
         </Tarjeta>
