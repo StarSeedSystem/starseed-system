@@ -54,6 +54,25 @@ import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 // ningún ciclo con `availability.ts` (que es quien lo alimenta).
 import { fuentesListasSnapshot } from "@/ai/astraura/ready-sources-snapshot";
 import { crearBucle } from "@/lib/network/bucle-fondo";
+import {
+  MSG_RADAR,
+  construirResumenRadar,
+  esMensajeRadar,
+  huellaResumen,
+  type ResumenRadar,
+} from "./radar-por-malla";
+import {
+  recibirResumen,
+  setResumenLocal,
+} from "./radar-remoto-store";
+import { obtenerRadioLocal } from "./radio-local-cliente";
+import { senalesRadioLocal } from "@/ai/astraura/mesh/senales-radio-local";
+import {
+  collectDetectedSignals,
+  getBleScanState,
+  getMeshState,
+  type DetectedSignal,
+} from "@/ai/astraura/mesh/signals";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
@@ -71,6 +90,8 @@ const CANAL_HEARTBEAT_MS = 30_000;
 const BEACON_CONSIDERADO_RECIENTE_MS = 30 * 60_000;
 /** Versión estática del OS para la ficha (ver `package.json`; no auto-sincronizada). */
 const OS_VERSION = "0.2.2";
+/** Cadencia máxima del latido de radar por la malla (cada 60 s). */
+const RADAR_LATIDO_MS = 60_000;
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                              */
@@ -501,6 +522,8 @@ export function useMallaNeuronas(deps?: {
   const meshRef = useRef<MeshHandle | null>(null);
   const concienciaRef = useRef<(() => void) | null>(null);
   const hbSentAtRef = useRef<Map<string, number>>(new Map());
+  const radarHuellaRef = useRef<string | null>(null);
+  const radarEnvioAtRef = useRef<number>(0);
 
   /* ---- 1) neuronas de la cuenta: bucle de la pestaña líder, difundido al resto ---- */
   useEffect(() => {
@@ -569,6 +592,10 @@ export function useMallaNeuronas(deps?: {
           }
           if (esMensajeFicha(msg)) {
             setFichas((prev) => ({ ...prev, [deviceId]: msg.ficha }));
+            return;
+          }
+          if (esMensajeRadar(msg)) {
+            recibirResumen(msg.resumen, "p2p");
             return;
           }
           if (!msg || typeof msg !== "object") return;
@@ -656,6 +683,64 @@ export function useMallaNeuronas(deps?: {
     };
     void enviarFichaYLatido();
     const timer = setInterval(() => void enviarFichaYLatido(), CANAL_HEARTBEAT_MS);
+    return () => {
+      cancelado = true;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Object.keys(peers).filter((k) => peers[k]?.state === "connected").join(",")]);
+
+  /* ---- 4b) latido del radar por la malla: cada 60 s, señales locales + resumen ---- */
+  useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    let cancelado = false;
+
+    const enviarRadar = async () => {
+      if (cancelado) return;
+      const conectados = Object.values(peers).filter((p) => p.state === "connected" && p.channelOpen);
+      if (conectados.length === 0) return;
+
+      const misIdsRadar = identidadDispositivo();
+      const estaNeurona = neuronas.find((n) => n.id === misIdsRadar.neuronDeviceId || !!n.isThisDevice) ?? null;
+      const idNeurona = estaNeurona?.id || misIdsRadar.neuronDeviceId || "desconocida";
+      const nombreNeurona = estaNeurona?.name || "Dispositivo";
+
+      const deteccionesBle = getBleScanState().detections.filter((d) => Date.now() - d.at < 60_000);
+      const senalesLocales: DetectedSignal[] = collectDetectedSignals({
+        mesh: getMeshState(),
+        ble: deteccionesBle,
+        includeExternal: true,
+      });
+
+      let radioLocal: Awaited<ReturnType<typeof obtenerRadioLocal>> = null;
+      try {
+        radioLocal = await obtenerRadioLocal();
+      } catch {
+        /* honesto: sin dato, continúa */
+      }
+      const senalesRadio = senalesRadioLocal(radioLocal, Date.now());
+
+      const resumen = construirResumenRadar([...senalesLocales, ...senalesRadio], {
+        neuronId: idNeurona,
+        nombre: nombreNeurona,
+      }, Date.now());
+
+      setResumenLocal(resumen);
+
+      const huella = huellaResumen(resumen);
+      const ahora = Date.now();
+      if (huella !== radarHuellaRef.current || ahora - radarEnvioAtRef.current > 5 * 60_000) {
+        for (const p of conectados) {
+          mesh.sendToPeer(p.deviceId, JSON.stringify({ t: MSG_RADAR, resumen }));
+        }
+        radarHuellaRef.current = huella;
+        radarEnvioAtRef.current = ahora;
+      }
+    };
+
+    const timer = setInterval(() => void enviarRadar(), RADAR_LATIDO_MS);
+    void enviarRadar();
     return () => {
       cancelado = true;
       clearInterval(timer);
