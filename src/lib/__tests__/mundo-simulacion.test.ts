@@ -4,6 +4,7 @@ import {
   avanzar, 
   guardarMundo, 
   cargarMundo, 
+  pasosParaTick,
   EstadoMundo,
   HabitanteMundo
 } from '../avatares/mundo/simulacion';
@@ -142,5 +143,80 @@ describe('Simulación del mundo de avatares', () => {
     const estadoDespues = avanzar(estadoInicial, 10);
     
     expect(estadoDespues.tick).toBe(10);
+  });
+});
+
+describe('Decisión del tick: pausa y pestaña oculta', () => {
+  it('en pausa, ningún pulso avanza el estado aunque el temporizador siga vivo', () => {
+    const personalidades = [{ id: 'pers1', nombre: 'Avatar 1' }];
+    let estado = mundoInicial(personalidades);
+    const antes = JSON.stringify(estado);
+
+    // El temporizador sigue disparándose con `pausado: true`, pero la
+    // decisión siempre debe ser 0 pasos y sin acumular nada.
+    for (let i = 0; i < 5; i++) {
+      const { pasos, pasosPendientes } = pasosParaTick({
+        pausado: true,
+        pestañaOculta: false,
+        pasosPendientes: 0
+      });
+      expect(pasos).toBe(0);
+      expect(pasosPendientes).toBe(0);
+      estado = avanzar(estado, pasos);
+    }
+
+    expect(estado.tick).toBe(0);
+    expect(JSON.stringify(estado)).toBe(antes);
+  });
+
+  it('en pausa no se acumula nada, ni siquiera con la pestaña oculta', () => {
+    let pendientes = 0;
+    for (let i = 0; i < 6; i++) {
+      const r = pasosParaTick({
+        pausado: true,
+        pestañaOculta: true,
+        pasosPendientes: pendientes
+      });
+      expect(r.pasos).toBe(0);
+      pendientes = r.pasosPendientes;
+    }
+    expect(pendientes).toBe(0);
+  });
+
+  it('sin pausa y pestaña visible, cada pulso avanza exactamente 1 paso', () => {
+    let estado = mundoInicial([{ id: 'pers1', nombre: 'Avatar 1' }]);
+
+    for (let i = 0; i < 3; i++) {
+      const { pasos } = pasosParaTick({
+        pausado: false,
+        pestañaOculta: false,
+        pasosPendientes: 0
+      });
+      estado = avanzar(estado, pasos);
+    }
+
+    expect(estado.tick).toBe(3);
+  });
+
+  it('pestaña oculta sin pausa: acumula con tope 4 y al volver avanza 1', () => {
+    let pendientes = 0;
+    for (let i = 0; i < 6; i++) {
+      const r = pasosParaTick({
+        pausado: false,
+        pestañaOculta: true,
+        pasosPendientes: pendientes
+      });
+      expect(r.pasos).toBe(0);
+      pendientes = r.pasosPendientes;
+    }
+    expect(pendientes).toBe(4);
+
+    const alVolver = pasosParaTick({
+      pausado: false,
+      pestañaOculta: false,
+      pasosPendientes: pendientes
+    });
+    expect(alVolver.pasos).toBe(1);
+    expect(alVolver.pasosPendientes).toBe(0);
   });
 });

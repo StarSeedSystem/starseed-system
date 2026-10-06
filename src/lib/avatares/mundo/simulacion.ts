@@ -231,6 +231,38 @@ export function avanzar(estado: EstadoMundo, pasos: number = 1): EstadoMundo {
   return nuevoEstado;
 }
 
+/* ── Decisión del tick ────────────────────────────────────────────────────
+ * Misma conducta que el intervalo de `mundo-avatares.tsx`, en forma pura:
+ * en pausa nada avanza ni se acumula; con la pestaña oculta se acumula con
+ * tope 4; visible y sin pausa avanza exactamente 1 y vacía lo acumulado. */
+
+export const TOPE_PASOS_PENDIENTES = 4;
+
+export interface EntradaTick {
+  pausado: boolean;
+  pestañaOculta: boolean;
+  pasosPendientes: number;
+}
+
+export interface DecisionTick {
+  pasos: number;
+  pasosPendientes: number;
+}
+
+export function pasosParaTick(entrada: EntradaTick): DecisionTick {
+  if (entrada.pausado) {
+    // Pausa real: ni avanza ni acumula.
+    return { pasos: 0, pasosPendientes: entrada.pasosPendientes };
+  }
+  if (entrada.pestañaOculta) {
+    return {
+      pasos: 0,
+      pasosPendientes: Math.min(entrada.pasosPendientes + 1, TOPE_PASOS_PENDIENTES)
+    };
+  }
+  return { pasos: 1, pasosPendientes: 0 };
+}
+
 const MUNDO_STORAGE_KEY = 'starseed.mundo.avatares.v1';
 
 export function guardarMundo(estado: EstadoMundo): void {
