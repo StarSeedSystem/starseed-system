@@ -57,7 +57,7 @@ HERRAMIENTAS_BASE = [
 # §10 movimiento: palabras que delatan una tarea con pieza en movimiento
 # (por texto de la tarea y por nombres de archivo, que entran en _texto_tarea).
 PALABRAS_MOVIMIENTO = (
-    "canvas", "animaci", "keyframes", "framer-motion", "audiomorphic",
+    "canvas", "animaci", "animado", "keyframes", "framer-motion", "audiomorphic",
     "vídeo", "video", "carrusel", "logo animado", "movimiento",
 )
 

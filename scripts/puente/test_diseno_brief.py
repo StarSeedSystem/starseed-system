@@ -191,6 +191,11 @@ class TestBriefRise(unittest.TestCase):
         self.assertTrue(es_de_movimiento({"titulo": "Hero con framer-motion"}))
         self.assertTrue(es_de_movimiento({"titulo": "Vídeo de redes"}))
 
+    def test_movimiento_rescatado_DIS1005L(self):
+        self.assertTrue(es_de_movimiento({"titulo": "Hero animado", "archivos": ["src/app/hero.tsx"]}))
+        self.assertTrue(es_de_movimiento({"titulo": "Canvas interactivo", "archivos": []}))
+        self.assertFalse(es_de_movimiento({"titulo": "Hero estático", "archivos": []}))
+
     def test_detecta_movimiento_por_archivo(self):
         tarea = {"titulo": "Panel", "archivos": ["src/lib/audiomorphic/scene.tsx"]}
         self.assertTrue(es_de_movimiento(tarea))
