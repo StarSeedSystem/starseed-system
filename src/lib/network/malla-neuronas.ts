@@ -19,6 +19,10 @@
  *   4. Arranca la CAPA DE FAROS (Adenda 99, `startMeshSubsystem`) para que
  *      las neuronas de OTRAS cuentas también se detecten (radar), sin tocar
  *      la radio LoRa (eso sigue siendo `connectMesh()` explícito).
+ *   5. (Ola 375 · RDV13) Comparte el RADAR: como mucho cada 60 s resume las
+ *      señales que oyen las antenas LOCALES y se lo envía a cada peer conectado
+ *      si cambió la huella (o cada 5 min); los resúmenes recibidos se guardan
+ *      en `radar-remoto-store` con vía "p2p".
  *
  * Egress (Supabase) — contrato «consumo» (2026-09-29): reutiliza el latido de neuronas
  * (5 min) y los ciclos de `startMeshSubsystem` (faro+radar 20 min, bandeja 5–15 min,
@@ -54,6 +58,26 @@ import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 // ningún ciclo con `availability.ts` (que es quien lo alimenta).
 import { fuentesListasSnapshot } from "@/ai/astraura/ready-sources-snapshot";
 import { crearBucle } from "@/lib/network/bucle-fondo";
+// (Ola 375 · RDV13) Radar compartido por la malla: piezas pequeñas ya en main.
+// Señales locales + resumen + almacén remoto; nada de esto toca el layout raíz
+// con módulos nuevos (todo ya cuelga del mismo grafo o es puro y diminuto).
+import {
+  BLE_FRESH_MS,
+  collectDetectedSignals,
+  getBleScanState,
+  type BleDetection,
+} from "@/ai/astraura/mesh/signals";
+import { getMeshState } from "@/ai/astraura/mesh/store";
+import { senalesRadioLocal } from "@/ai/astraura/mesh/senales-radio-local";
+import { obtenerRadioLocal } from "@/lib/network/radio-local-cliente";
+import {
+  MSG_RADAR,
+  construirResumenRadar,
+  esMensajeRadar,
+  huellaResumen,
+  type ResumenRadar,
+} from "@/lib/network/radar-por-malla";
+import { recibirResumen, setResumenLocal } from "@/lib/network/radar-remoto-store";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
@@ -67,6 +91,18 @@ import { crearBucle } from "@/lib/network/bucle-fondo";
 export const MALLA_NEURONAS_CADA_MS = 15 * 60_000;
 /** Late (ficha + heartbeat de latencia) por el canal cada esto (WebRTC: no toca Supabase). */
 const CANAL_HEARTBEAT_MS = 30_000;
+/**
+ * (RDV13) Resume las señales LOCALES del radar como mucho cada esto. El latido
+ * va cada 30 s, pero construir el resumen toca más piezas (BLE, radio nativa),
+ * así que se hace cada 60 s y nunca más a menudo.
+ */
+export const RADAR_LOCAL_CADA_MS = 60_000;
+/**
+ * (RDV13) Reenvía el MISMO resumen tras esto aunque la huella no cambie: el
+ * otro lado caduca los resúmenes a los 5 min (`RADAR_RESUMEN_TTL_MS`), así que
+ * renovarlo cada 5 min mantiene viva una malla silenciosa pero honesta.
+ */
+export const RADAR_REENVIO_MS = 5 * 60_000;
 /** Un faro más viejo que esto no cuenta como "neurona cercana detectada" (se renueva cada 20 min). */
 const BEACON_CONSIDERADO_RECIENTE_MS = 30 * 60_000;
 /** Versión estática del OS para la ficha (ver `package.json`; no auto-sincronizada). */
@@ -203,6 +239,52 @@ export function esMensajeFicha(x: unknown): x is MensajeFicha {
   if (o.t !== MSG_FICHA || !o.ficha || typeof o.ficha !== "object") return false;
   const f = o.ficha as Record<string, unknown>;
   return typeof f.syncDeviceId === "string" && typeof f.neuronDeviceId === "string";
+}
+
+/* ------------------------------------------------------------------ */
+/* Radar compartido (Ola 375 · RDV13) — piezas PURAS                  */
+/* ------------------------------------------------------------------ */
+
+interface MensajeRadar {
+  t: typeof MSG_RADAR;
+  resumen: ResumenRadar;
+}
+
+/**
+ * Detecciones BLE oídas hace menos de `ventanaMs` (puro, sin reloj propio).
+ * Una detección con `at` en el futuro no cuenta: un dato que este dispositivo
+ * aún no ha oído de verdad no es honesto.
+ */
+export function deteccionesBleRecientes(
+  detecciones: BleDetection[],
+  ahora: number,
+  ventanaMs: number = BLE_FRESH_MS,
+): BleDetection[] {
+  return detecciones.filter((d) => d.at <= ahora && ahora - d.at < ventanaMs);
+}
+
+/** Último resumen de radar que este motor compartió (huella + momento). */
+export interface EnvioRadarPrevio {
+  huella: string;
+  at: number;
+}
+
+/**
+ * hayQueEnviarRadar — ¿toca compartir el resumen con los peers? Puro:
+ *   · Sin envío previo → sí (primera vez que hay alguien conectado).
+ *   · Huella distinta → sí (cambió lo que oyen las antenas de esta neurona).
+ *   · Misma huella y ≥ `reenvioMs` desde el último envío → sí (renueva frescura).
+ *   · En cualquier otro caso → no: no se molesta el canal sin nada nuevo.
+ */
+export function hayQueEnviarRadar(
+  huella: string,
+  ultimo: EnvioRadarPrevio | null,
+  ahora: number,
+  reenvioMs: number = RADAR_REENVIO_MS,
+): boolean {
+  if (!ultimo) return true;
+  if (huella !== ultimo.huella) return true;
+  return ahora - ultimo.at >= reenvioMs;
 }
 
 /**
@@ -501,6 +583,10 @@ export function useMallaNeuronas(deps?: {
   const meshRef = useRef<MeshHandle | null>(null);
   const concienciaRef = useRef<(() => void) | null>(null);
   const hbSentAtRef = useRef<Map<string, number>>(new Map());
+  // (RDV13) Control del radar compartido: cuándo se construyó el último resumen
+  // local y qué se compartió al final (huella + momento).
+  const radarConstruidoAtRef = useRef(0);
+  const radarEnviadoRef = useRef<EnvioRadarPrevio | null>(null);
 
   /* ---- 1) neuronas de la cuenta: bucle de la pestaña líder, difundido al resto ---- */
   useEffect(() => {
@@ -569,6 +655,12 @@ export function useMallaNeuronas(deps?: {
           }
           if (esMensajeFicha(msg)) {
             setFichas((prev) => ({ ...prev, [deviceId]: msg.ficha }));
+            return;
+          }
+          // (RDV13) Radar de la otra neurona: guarda su resumen como oído "p2p".
+          // El guard descarta basura y el almacén caduca lo viejo solo.
+          if (esMensajeRadar(msg)) {
+            recibirResumen(msg.resumen, "p2p");
             return;
           }
           if (!msg || typeof msg !== "object") return;
@@ -652,6 +744,49 @@ export function useMallaNeuronas(deps?: {
         } catch {
           /* conserva la última medición real si este sondeo falla */
         }
+      }
+
+      // (RDV13 · Ola 375) Radar compartido: como mucho cada 60 s resume lo que
+      // oyen las antenas LOCALES de esta neurona (malla LoRa del radio conectado,
+      // BLE oído con gesto, radio nativa de la Mac si el Mando local la sirve) y
+      // lo comparte con los peers conectados. Solo se envía si la huella cambió
+      // o pasaron 5 min del último envío. Nunca lanza: un radar roto no puede
+      // tumbar el latido de la malla.
+      const ahoraRadar = Date.now();
+      if (ahoraRadar - radarConstruidoAtRef.current < RADAR_LOCAL_CADA_MS) return;
+      radarConstruidoAtRef.current = ahoraRadar;
+      try {
+        const ble = deteccionesBleRecientes(getBleScanState().detections, ahoraRadar);
+        const senales = [
+          ...collectDetectedSignals({
+            mesh: getMeshState(),
+            ble,
+            includeExternal: true,
+            now: ahoraRadar,
+          }),
+          ...senalesRadioLocal(await obtenerRadioLocal({ ahora: ahoraRadar }), ahoraRadar),
+        ];
+        if (cancelado) return;
+        const resumen = construirResumenRadar(
+          senales,
+          {
+            neuronId: identidadDispositivo().neuronDeviceId,
+            nombre: misNeuronas?.name || "Dispositivo",
+          },
+          ahoraRadar,
+        );
+        // Siempre se publica en el almacén (lo pintará el radar de esta neurona
+        // y lo usará la federación); el envío a peers es lo que se dosifica.
+        setResumenLocal(resumen);
+        const huella = huellaResumen(resumen);
+        if (hayQueEnviarRadar(huella, radarEnviadoRef.current, ahoraRadar)) {
+          radarEnviadoRef.current = { huella, at: ahoraRadar };
+          for (const p of conectados) {
+            mesh.sendToPeer(p.deviceId, JSON.stringify({ t: MSG_RADAR, resumen } satisfies MensajeRadar));
+          }
+        }
+      } catch {
+        /* el radar se reintenta en el siguiente latido; el latido ya fue */
       }
     };
     void enviarFichaYLatido();
