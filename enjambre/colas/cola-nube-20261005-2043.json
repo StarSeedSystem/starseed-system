@@ -1,0 +1,13 @@
+{
+ "ola": "nube-20261005",
+ "tareas": [
+  {
+   "id": "DR1003-1",
+   "ola": "Ola Dream 2026-10-03 · lo que el análisis nocturno encontró",
+   "titulo": "Publicar commits pendientes (289 en cola)",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-10-03.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Publicar commits pendientes (289 en cola) — \n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  }
+ ]
+}
