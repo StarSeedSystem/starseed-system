@@ -119,6 +119,20 @@ class TestProduccionPanel(unittest.TestCase):
         self.assertIsNone(_mod.parsear_respuesta("sin json"))
         self.assertIsNone(_mod.parsear_respuesta('{"otro": 1}'))
 
+    def test_sin_llamar_no_publica(self):
+        salida = _mod.decidir_panel(CANDIDATA, llamar=None, modelos=MODELOS)
+        self.assertFalse(salida["publicar"])
+        self.assertEqual(salida["votos"], {})
+        self.assertEqual(salida["motivos"], {})
+
+    def test_tres_respuestas_con_mayoria_publican(self):
+        llamar = llamar_falso({
+            "m1": _json("si"), "m2": _json("no"),
+            "m3": RuntimeError("caído"), "m4": _json("si"),
+        })
+        salida = _mod.decidir_panel(CANDIDATA, llamar=llamar, modelos=MODELOS)
+        self.assertTrue(salida["publicar"])
+        self.assertNotIn("seguridad", salida["votos"])
 
 if __name__ == "__main__":
     unittest.main()

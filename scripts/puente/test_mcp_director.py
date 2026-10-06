@@ -335,6 +335,10 @@ class PruebasProduccion(unittest.TestCase):
         self.assertIn("222", texto)
         self.assertIn("linea rota", texto)
 
+    def test_candidatos_sin_repo_devuelve_mensaje(self):
+        texto = self._texto("produccion_candidatos", {})
+        self.assertIn("No hay candidatos", texto)
+
 
 class PruebaProcesoReal(unittest.TestCase):
     def test_initialize_por_stdio_en_proceso_real(self):
