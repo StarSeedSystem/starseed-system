@@ -11,14 +11,18 @@
  *
  * Aquí se lee UNA vez y luego solo lo nuevo:
  *   · carga inicial acotada (eventos ligeros 30 días, `arranque` 72 h, latidos 10 min);
- *   · después, cada ≥ 45 s y solo si alguien pregunta, las filas con `id` mayor que la
+ *   · después, cada ≥ 180 s y solo si alguien pregunta, las filas con `id` mayor que la
  *     última vista;
  *   · todas las rutas comparten la misma memoria (en `globalThis`) y la misma petición
  *     en curso;
  *   · si Supabase contesta 402 (restringido) se deja de preguntar 30 min; 429 o 5xx, 5 min;
  *     sin red, 2 min. Mientras tanto se sirve lo que hay en memoria.
+ *   · mientras la nube esté en pausa (~/.starseed/nube-pausada.json con hasta: null o fecha futura),
+ *     no se consulta a Supabase y se sirve lo que hay en memoria.
  * Solo de servidor (usa `process.env` con la clave pública del proyecto).
  */
+
+import { readFile } from "fs/promises";
 
 export interface FilaBusRemoto {
     id: number;
@@ -38,7 +42,7 @@ export interface EstadoBusRemoto {
     peticiones: number;
 }
 
-export const REFRESCO_MS = 45_000;
+export const REFRESCO_MS = 180_000;
 const DIA_MS = 24 * 3600 * 1000;
 const MAX_FILAS = 4000;
 const SELECT = "select=id,t,quien,tipo,tarea,texto,datos";
@@ -104,7 +108,78 @@ export function pausaPorEstado(estado: number | "red"): number {
     return 0;
 }
 
+// --- Nube pausada ---
+
+function getPausaFilePath(): string | null {
+    // DEBUG: log the override value
+    console.log(`getPausaFilePath: overridePausaFilePath=${overridePausaFilePath}`);
+    if (overridePausaFilePath !== null) {
+        // DEBUG: log that we are using the override
+        console.log(`getPausaFilePath: using override: ${overridePausaFilePath}`);
+        return overridePausaFilePath;
+    }
+    const result = process.env.STARSEED_NUBE_PAUSADA || 
+        (() => {
+            const home = process.env.HOME || process.env.USERPROFILE;
+            return home ? `${home}/.starseed/nube-pausada.json` : null;
+        })();
+    // DEBUG: log the result
+    console.log(`getPausaFilePath: STARSEED_NUBE_PAUSADA=${process.env.STARSEED_NUBE_PAUSADA}, result=${result}`);
+    return result;
+}
+
+interface PausaInfo {
+    paused: boolean;
+    reason: string | null;
+    hasta: number | null;
+}
+
+let ultimaComprobacionPausa = 0;
+let pausaCache: PausaInfo = { paused: false, reason: null, hasta: null };
+let overridePausaFilePath: string | null = null;
+export function setOverridePausaFilePath(path: string | null) {
+    // DEBUG: log that we are setting the override
+    console.log(`setOverridePausaFilePath: path=${path}, overridePausaFilePath after=${overridePausaFilePath}`);
+    overridePausaFilePath = path;
+    console.log(`setOverridePausaFilePath: after setting, overridePausaFilePath=${overridePausaFilePath}`);
+}
+
+async function comprobarNubePausada(ahora: number = Date.now()): Promise<PausaInfo> {
+    if (ahora - ultimaComprobacionPausa < 60_000) {
+        return pausaCache;
+    }
+
+    ultimaComprobacionPausa = ahora;
+    const pausaFilePath = getPausaFilePath();
+    // DEBUG: log the pause file path and environment
+    console.log(`comprobarNubePausada: ahora=${ahora}, STARSEED_NUBE_PAUSADA=${process.env.STARSEED_NUBE_PAUSADA}, pausaFilePath=${pausaFilePath}`);
+
+    if (!pausaFilePath) {
+        pausaCache = { paused: false, reason: null, hasta: null };
+        return pausaCache;
+    }
+
+    try {
+        const contenido = await readFile(pausaFilePath, 'utf-8');
+        const pausa = JSON.parse(contenido);
+        const hasta = pausa.hasta ? new Date(pausa.hasta).getTime() : null;
+        const paused = hasta === null || hasta > ahora;
+        pausaCache = {
+            paused,
+            reason: paused ? null : `nube no pausada (hasta: ${pausa.hasta})`,
+            hasta
+        };
+    } catch (error) {
+        // Si no se puede leer el archivo, se trata como no pausada.
+        pausaCache = { paused: false, reason: `no se pudo leer el archivo de pausa: ${error.message}`, hasta: null };
+    }
+
+    return pausaCache;
+}
+
 async function pedir(m: Memoria, consulta: string, ahora: number): Promise<FilaBusRemoto[] | null> {
+    // DEBUG: log that we are entering pedir
+    console.log(`pedir: ahora=${ahora}, consulta=${consulta}`);
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !clave) return null;
@@ -158,6 +233,20 @@ function podar(m: Memoria, ahora: number): void {
 }
 
 async function refrescar(m: Memoria, ahora: number): Promise<void> {
+    // DEBUG: log that we are entering refrescar
+    console.log(`refrescar: ahora=${ahora}, m.enCurso=${m.enCurso !== null}`);
+
+    // Comprobar si la nube está pausada
+    console.log(`refrescar: entrada, ahora=${ahora}`);
+    const pausaInfo = await comprobarNubePausada(ahora);
+    console.log(`refrescar: después de comprobarNubePausada, pausaInfo=${JSON.stringify(pausaInfo)}`);
+    if (pausaInfo.paused) {
+        console.log(`refrescar: entrando en el bloque de pausa`);
+        m.motivo = pausaInfo.reason ?? "nube en pausa: el bus remoto no se consulta";
+        return;
+    }
+
+    // Pausa existente por errores de Supabase
     if (ahora < m.pausaHasta) return;
     if (m.ultimaCarga && ahora - m.ultimaCarga < REFRESCO_MS) return;
     if (m.maxId === 0) {
@@ -210,4 +299,14 @@ export function estadoBusRemoto(ahora = Date.now()): EstadoBusRemoto {
         motivo: m.motivo,
         peticiones: m.peticiones,
     };
+}
+
+// Para pruebas: reinicia el estado de la nube pausada
+export function reiniciarEstadoNube() {
+    if (process.env.NODE_ENV !== 'test') {
+        // En entornos no de prueba, no hacemos nada.
+        return;
+    }
+    ultimaComprobacionPausa = 0;
+    pausaCache = { paused: false, reason: null, hasta: null };
 }
