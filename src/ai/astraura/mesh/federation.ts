@@ -29,6 +29,8 @@ import { getActiveModemPreset } from "./sync";
 import type { RemoteTopology } from "./types";
 import { uidActual } from "@/lib/consumo/usuario";
 import { crearBucle, falloDe, MINUTO_MS, type BucleFondo, type FalloConsulta } from "@/lib/network/bucle-fondo";
+import { MSG_RADAR, esMensajeRadar, huellaResumen, type ResumenRadar } from "@/lib/network/radar-por-malla";
+import { getResumenLocal, recibirResumen } from "@/lib/network/radar-remoto-store";
 
 const DEVICE_ID_KEY = "starseed.mesh.device-id.v1";
 export const PUSH_INTERVAL_MS = 10 * MINUTO_MS;
@@ -38,9 +40,15 @@ const PULL_EN_CALMA_MS = 30 * MINUTO_MS;
 /** Instantáneas más viejas que esto se ignoran al leer (neurona apagada). */
 const REMOTE_FRESH_MS = 10 * 60_000;
 
+const PUSH_INTERVAL_NO_RADIO_MS = 15 * MINUTO_MS;
+const MIN_PUSHSIN_RADIO_MS = 5 * MINUTO_MS;
+
 let buclePush: BucleFondo | null = null;
 let buclePull: BucleFondo | null = null;
 let started = false;
+
+let lastPushNoRadioMs = 0;
+let lastHuellaLocal = "";
 
 /** Id estable de ESTE dispositivo (no PII; aleatorio, persistido local). */
 export function deviceId(): string {
@@ -75,57 +83,132 @@ async function ownerId(_supabase: NonNullable<Awaited<ReturnType<typeof client>>
   }
 }
 
+/** Construye un resumen simplificado sin radio (v=2) con recuentos de Wi-Fi y Bluetooth. */
+function construirResumenSinRadio(local: ResumenRadar, ahora: number): { t: typeof MSG_RADAR; resumen: ResumenRadar } | null {
+  if (!local || !local.senales || local.senales.length === 0) return null;
+  const wifiCount = local.senales.filter((s) => s.antenna === "ip").length;
+  const btCount = local.senales.filter((s) => s.antenna === "ble").length;
+  const senalesSimplificadas: Array<{
+    id: string; antenna: string; label: string; signalType: string;
+    quality: number; metrics: Array<{ label: string; value: string }>; lastHeard: number; distanceM: null;
+  }> = [];
+  if (wifiCount > 0) {
+    senalesSimplificadas.push({
+      id: "wifi-cercanas",
+      antenna: "ip",
+      label: `${wifiCount} redes cercanas`,
+      signalType: "wifi-cercanas",
+      quality: 0,
+      metrics: [{ label: "recuento", value: String(wifiCount) }],
+      lastHeard: ahora,
+      distanceM: null,
+    });
+  }
+  if (btCount > 0) {
+    senalesSimplificadas.push({
+      id: "bt-cercanos",
+      antenna: "ble",
+      label: `${btCount} dispositivos Bluetooth`,
+      signalType: "bluetooth-cercanos",
+      quality: 0,
+      metrics: [{ label: "recuento", value: String(btCount) }],
+      lastHeard: ahora,
+      distanceM: null,
+    });
+  }
+  if (senalesSimplificadas.length === 0) return null;
+  const resumenSimplificado: ResumenRadar = {
+    v: 1,
+    neuronId: local.neuronId,
+    nombre: local.nombre,
+    at: ahora,
+    senales: senalesSimplificadas as ResumenRadar["senales"],
+  };
+  return { t: MSG_RADAR, resumen: resumenSimplificado };
+}
+
 /** Sube la instantánea compacta de la malla local (si hay). Nunca lanza. */
 async function pushSnapshot(): Promise<FalloConsulta | null> {
   try {
     const s = getMeshState();
-    // Sin radio lista no hay nada que federar: cero peticiones.
-    if (s.status !== "ready" && s.status !== "degraded") return null;
-    // PRIVACIDAD (Adenda 98): "private" = esta neurona NO publica nada a la
-    // federación; nombres y posición solo viajan con opt-in explícito.
     const privacy = getMeshPrivacy();
     if (privacy.visibility === "private") return null;
+
+    // Caso con radio lista: flujo existente.
+    if (s.status === "ready" || s.status === "degraded") {
+      const supabase = await client();
+      if (!supabase) return null;
+      const owner = await ownerId(supabase);
+      if (!owner) return null; // sin sesión → sin federación (local sigue igual)
+      const nameOf = (n: { shortName?: string; longName?: string }) =>
+        privacy.shareName ? n.shortName || n.longName || null : null;
+      const online = s.nodes.filter((n) => !n.isSelf && n.presence === "online");
+      const snapshot = {
+        self: s.self
+          ? {
+              num: s.self.num,
+              name: nameOf(s.self),
+              snr: s.self.snr ?? null,
+              ...(privacy.sharePosition && typeof s.self.lat === "number" && typeof s.self.lon === "number"
+                ? { lat: s.self.lat, lon: s.self.lon }
+                : {}),
+            }
+          : null,
+        nodes: online.slice(0, 40).map((n) => ({
+          num: n.num,
+          name: nameOf(n),
+          snr: typeof n.snr === "number" ? Math.round(n.snr * 10) / 10 : null,
+        })),
+        region: s.region,
+        preset: getActiveModemPreset(),
+      };
+      const res = await supabase.from("os_mesh_topology").upsert(
+        {
+          owner_id: owner,
+          device_id: deviceId(),
+          device_label: privacy.shareName ? s.self?.longName || s.self?.shortName || "Neurona" : "Neurona",
+          snapshot,
+          online_count: online.length,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "owner_id,device_id" },
+      );
+      return falloDe(res as { error?: unknown; status?: number });
+    }
+
+    // Caso sin radio: publica un resumen simplificado (v=2, radio=false) si hay señales locales.
+    const local = getResumenLocal();
+    if (!local || !local.senales || local.senales.length === 0) return null;
+    const huellaActual = huellaResumen(local);
+    const ahora = Date.now();
+    if (ahora - lastPushNoRadioMs < MIN_PUSHSIN_RADIO_MS) return null;
+    if (ahora - lastPushNoRadioMs < PUSH_INTERVAL_NO_RADIO_MS && huellaActual === lastHuellaLocal) return null;
+
+    const mensajeRadar = construirResumenSinRadio(local, ahora);
+    if (!mensajeRadar) return null;
+
     const supabase = await client();
     if (!supabase) return null;
     const owner = await ownerId(supabase);
-    if (!owner) return null; // sin sesión → sin federación (local sigue igual)
+    if (!owner) return null;
 
-    const nameOf = (n: { shortName?: string; longName?: string }) =>
-      privacy.shareName ? n.shortName || n.longName || null : null;
-    const online = s.nodes.filter((n) => !n.isSelf && n.presence === "online");
-    const snapshot = {
-      self: s.self
-        ? {
-            num: s.self.num,
-            name: nameOf(s.self),
-            snr: s.self.snr ?? null,
-            // La POSICIÓN solo viaja con opt-in explícito (sharePosition).
-            ...(privacy.sharePosition && typeof s.self.lat === "number" && typeof s.self.lon === "number"
-              ? { lat: s.self.lat, lon: s.self.lon }
-              : {}),
-          }
-        : null,
-      nodes: online.slice(0, 40).map((n) => ({
-        num: n.num,
-        name: nameOf(n),
-        snr: typeof n.snr === "number" ? Math.round(n.snr * 10) / 10 : null,
-      })),
-      region: s.region,
-      preset: getActiveModemPreset(),
-    };
     const res = await supabase.from("os_mesh_topology").upsert(
       {
         owner_id: owner,
         device_id: deviceId(),
-        // El nombre del dispositivo respeta shareName igual que los nodos: con
-        // shareName=false NO viaja ("solo números de nodo"), solo el id opaco.
-        device_label: privacy.shareName ? s.self?.longName || s.self?.shortName || "Neurona" : "Neurona",
-        snapshot,
-        online_count: online.length,
+        device_label: "Resumen sin radio",
+        snapshot: {
+          v: 2,
+          radio: false,
+          resumen: mensajeRadar,
+        },
+        online_count: 0,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "owner_id,device_id" },
     );
+    lastPushNoRadioMs = ahora;
+    lastHuellaLocal = huellaActual;
     return falloDe(res as { error?: unknown; status?: number });
   } catch (e) {
     /* federación best-effort */
@@ -136,6 +219,10 @@ async function pushSnapshot(): Promise<FalloConsulta | null> {
 /** Lee las instantáneas de las OTRAS neuronas de la cuenta. Nunca lanza. */
 async function pullSnapshots(): Promise<{ fallo: FalloConsulta | null; siguienteMs?: number }> {
   try {
+    // Solo con la pestaña visible.
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return { fallo: null, siguienteMs: PULL_INTERVAL_MS };
+    }
     const supabase = await client();
     if (!supabase) return { fallo: null };
     const owner = await ownerId(supabase);
@@ -157,11 +244,31 @@ async function pullSnapshots(): Promise<{ fallo: FalloConsulta | null; siguiente
       if (!devId || devId === me) continue; // no me federo a mí mismo
       const at = row.updated_at ? Date.parse(String(row.updated_at)) : 0;
       if (!at || at < cutoff) continue; // instantánea rancia (neurona apagada)
+
+      const snapRaw = (row.snapshot ?? {}) as Record<string, unknown>;
+      const v = snapRaw.v;
+      const radio = snapRaw.radio;
+
+      // Fila sin radio (v=2, radio=false): no es topología LoRa; solo recibe resumen por federación.
+      if (v === 2 && radio === false) {
+        const resumenMsg = snapRaw.resumen;
+        if (resumenMsg && typeof resumenMsg === "object" && resumenMsg !== null) {
+          // esMensajeRadar recibe { t: MSG_RADAR, resumen: ResumenRadar }
+          // y valida que resumen sea un ResumenRadar con v===1.
+          if (esMensajeRadar(resumenMsg as { t: unknown; resumen: unknown })) {
+            const msg = resumenMsg as { t: typeof MSG_RADAR; resumen: import("@/lib/network/radar-por-malla").ResumenRadar };
+            recibirResumen(msg.resumen, "federacion");
+          }
+        }
+        continue; // NO va a remoteTopologies
+      }
+
+      // Filas con radio siguen exactamente como hoy.
       remote.push({
         deviceId: devId,
         label: String(row.device_label ?? "Neurona"),
         onlineCount: typeof row.online_count === "number" ? row.online_count : 0,
-        snapshot: (row.snapshot ?? {}) as RemoteTopology["snapshot"],
+        snapshot: snapRaw as RemoteTopology["snapshot"],
         at,
       });
     }
