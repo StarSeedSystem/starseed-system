@@ -103,6 +103,11 @@ class Sucesor(unittest.TestCase):
         self.assertIn("git cherry-pick --no-commit abc123", t["prompt"])
         self.assertIn("refs/heads/nube/3/ola/LC1004B", t["prompt"])
         self.assertIn("PROPÓSITO", t["prompt"])
+        # (20:35) LC1004Bd chocó con «add/add» y resolvió con `checkout --theirs -- .`: la
+        # instrucción dice cómo combinar a mano y deja el índice limpio.
+        self.assertIn("add/add", t["prompt"])
+        self.assertIn("git show <sha>:<archivo>", t["prompt"])
+        self.assertIn("Nunca `git checkout --theirs -- .`", t["prompt"])
         # Repararla otra vez no apila dos bloques de continuación.
         t2 = T.tarea_reparacion(t, "LC1004Be", "nube/4", ["def"], [], "otra vez")
         self.assertEqual(t2["prompt"].count("## CONTINÚA DESDE LA NUBE"), 1)
