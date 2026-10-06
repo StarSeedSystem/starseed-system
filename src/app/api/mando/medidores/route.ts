@@ -232,20 +232,36 @@ async function leerTokens(): Promise<DatosMedidores["tokens"]> {
     }
 }
 
-/**
- * (2026-09-27) Lo que Alex declara de su crédito de Claude en la nube. Vive fuera del repo
- * (`~/.starseed/credito-claude-nube.json`, lo escribe `credito_claude_nube.py declarar`):
- * es un dato de su cuenta, no del proyecto. Sin archivo, el medidor lo dice.
- */
-async function leerCreditoClaude(): Promise<DatosMedidores["creditoClaude"]> {
-    try {
-        const crudo = await readFile(path.join(os.homedir(), ".starseed", "credito-claude-nube.json"), "utf8");
-        const d = JSON.parse(crudo) as NonNullable<DatosMedidores["creditoClaude"]>;
-        return d && typeof d === "object" && "restante_usd" in d ? d : null;
-    } catch {
-        return null;
+    /**
+     * (2026-09-27) Lo que Alex declara de su crédito de Claude en la nube. Vive fuera del repo
+     * (`~/.starseed/credito-claude-nube.json`, lo escribe `scripts/puente/credito_claude_nube.py declarar`):
+     * es un dato de su cuenta, no del proyecto. Sin archivo, el medidor lo dice.
+     */
+    async function leerCreditoClaude(): Promise<DatosMedidores["creditoClaude"]> {
+        try {
+            const crudo = await readFile(path.join(os.homedir(), ".starseed", "credito-claude-nube.json"), "utf8");
+            const d = JSON.parse(crudo) as NonNullable<DatosMedidores["creditoClaude"]>;
+            return d && typeof d === "object" && "restante_usd" in d ? d : null;
+        } catch {
+            return null;
+        }
     }
-}
+
+    /**
+     * (2026-10-04) Los LÍMITES DEL PLAN de Claude (sesión ~5 h, semanal y opcionalmente
+     * modelo concreto) leídos desde `~/.starseed/limites-claude.json`. No hay API: la
+     * dirección los toma manualmente desde claude.ai → Ajustes → Uso y los guarda con
+     * `scripts/puente/limites_claude.py declarar …`.
+     */
+    async function leerLimitesClaude(): Promise<unknown> {
+        try {
+            const crudo = await readFile(path.join(os.homedir(), ".starseed", "limites-claude.json"), "utf8");
+            const d = JSON.parse(crudo) as unknown;
+            return d && typeof d === "object" ? d : null;
+        } catch {
+            return null;
+        }
+    }
 
 async function leerContenedores(): Promise<DatosMedidores["contenedores"]> {
     try {
@@ -681,6 +697,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         latidos: [...latidosDeAqui, ...agentesNube],
         contenedores,
         creditoClaude: await leerCreditoClaude().catch(() => null),
+        limitesClaude: await leerLimitesClaude().catch(() => null),
         proveedores,
         tokens,
         commitsSinPublicar,
@@ -720,11 +737,11 @@ export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
     const clave = (new URL(peticion.url).searchParams.get("clave") ?? "ola-activa") as ClaveMedidor;
-    // (2026-09-27) El crédito de Claude solo necesita su propio archivo: no se reúne todo.
+    // (2026-10-04) Los límites del plan de Claude solo necesitan su propio archivo: no se reúne todo.
     if (clave === "credito-claude") {
-        const creditoClaude = await leerCreditoClaude().catch(() => null);
+        const limitesClaude = await leerLimitesClaude().catch(() => null);
         return Response.json(
-            { detalle: detalleDeMedidor(clave, { creditoClaude }), generadoEn: new Date().toISOString() },
+            { detalle: detalleDeMedidor(clave, { limitesClaude }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }

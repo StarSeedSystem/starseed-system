@@ -1018,11 +1018,12 @@ export function CentroMando() {
             if (resCredito.status === "fulfilled" && resCredito.value.ok) {
                 const dataCred = (await resCredito.value.json()) as { detalle?: DetalleMedidor };
                 if (dataCred.detalle) {
-                    // Pastilla y ventana salen del MISMO resumen: «$250 de $250 · vence en 39 días…».
+                    // Como ahora el medidor de credito-claude enseña límites del plan (sesión ~5 h, semanal y opcionalmente modelo),
+                    // el valor de la pastilla extrae el par sesión y semana del resumen.
                     const resumen = dataCred.detalle.resumen ?? "";
-                    const m = /^\$([\d.]+) de \$([\d.]+)/.exec(resumen);
-                    credito = m ? `$${m[1]} de $${m[2]}` : null;
-                    creditoResumen = resumen.split(" · ").slice(1, 3).join(" · ") || resumen || null;
+                    const m = /^sesión (\d+) % · semana (\d+) %/.exec(resumen);
+                    credito = m ? `${m[1]} % · ${m[2]} %` : (resumen === "sin lectura" ? "sin lectura" : resumen || "—");
+                    creditoResumen = resumen;
                     const estados = dataCred.detalle.filas.map((f) => f.estado);
                     creditoTono = estados.includes("peligro") ? "peligro" : estados.includes("aviso") || dataCred.detalle.aviso ? "aviso" : "ok";
                 }
@@ -1719,15 +1720,16 @@ export function CentroMando() {
                                 detalle: medidoresResumen?.contenedoresResumen ?? "sitio libre para más agentes",
                             },
                             {
-                                // (2026-09-27) Alex: «agrega un medidor en el pulso de trabajo de
-                                // lo que queda disponible de esos créditos». Crédito de sesiones
-                                // en la nube de Claude: lo declara él (no hay API) y VENCE, así
-                                // que el detalle dice también el ritmo para aprovecharlo.
+                                // (2026-10-04) Alex: «los LÍMITES DEL PLAN de Claude (sesión ~5 h,
+                                // semanal y opcionalmente modelo concreto) leídos desde
+                                // ~/.starseed/limites-claude.json. No hay API: la dirección los toma
+                                // manualmente desde claude.ai → Ajustes → Uso y los guarda con
+                                // scripts/puente/limites_claude.py declarar …»
                                 clave: "credito-claude" as const,
-                                titulo: "Crédito Claude nube",
-                                valor: medidoresResumen?.credito ?? "—",
+                                titulo: "Claude · límites",
+                                valor: medidoresResumen?.credito ?? "sin lectura",
                                 tono: medidoresResumen?.creditoTono ?? "normal",
-                                detalle: medidoresResumen?.creditoResumen ?? "saldo declarado de claude.ai → Uso",
+                                detalle: medidoresResumen?.creditoResumen ?? "lotes del plan de Claude (sesión ~5 h, semanal)",
                             },
                             {
                                 // (2026-09-22) Alex: «tokens por segundo en total sumando los
