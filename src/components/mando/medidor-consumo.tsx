@@ -12,7 +12,8 @@
  *     contra 5 GB, estado (ok · aviso · freno · restringido 402), las 3 rutas que más piden,
  *     14 días de peticiones y el último bucle detectado.
  *   · Jev / OpenRouter — USD de hoy contra el techo y el saldo contra el mínimo.
- *   · Claude nube — lo que queda del crédito declarado, cuándo se declaró y cómo actualizarlo.
+ *   · Claude · límites del plan — ventanas de sesión (≈5 h) y semanal leídas de
+ *     claude.ai → Uso, con la previsión de las revisiones programadas al reinicio.
  * Y el formulario de presupuestos (POST a la misma ruta, solo local).
  *
  * Lo mide la vigía (`scripts/puente/vigia_consumo.py`, cada 15 min, sin tráfico del proyecto);
@@ -451,69 +452,81 @@ function FilaJev({ j }: { j: DatosConsumo["jev"] }) {
     );
 }
 
-function FilaClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) {
+/** «2 h 10 min» a partir de minutos hasta el reinicio (0 si ya pasó). */
+function hacia(minutos: number): string {
+    const m = Math.max(0, minutos);
+    const h = Math.floor(m / 60);
+    if (h > 0) return `${h} h ${m % 60} min`;
+    return `${m} min`;
+}
+
+function detalleVentana(v: NonNullable<DatosConsumo["claude"]["sesion"]>, disparos: number): string {
+    const base = v.reiniciada ? "reiniciada" : `reinicia en ${hacia(v.minutosParaReinicio)}`;
+    if (v.proyeccion === null || v.coste === null) return `${base} · previsión: sin datos todavía`;
+    const revisiones = disparos === 1 ? "1 revisión programada" : `${disparos} revisiones programadas`;
+    return `${base} · previsión al reinicio ${Math.round(v.proyeccion)} % (${revisiones}, ~${Math.round(v.coste)} % cada una)`;
+}
+
+function BarraVentana({
+    etiqueta,
+    v,
+    disparos,
+}: {
+    etiqueta: string;
+    v: NonNullable<DatosConsumo["claude"]["sesion"]>;
+    disparos: number;
+}) {
+    const pct = Math.round(v.pct);
+    return (
+        <Barra
+            etiqueta={etiqueta}
+            valor={`${pct} % usado · queda ${Math.round(v.queda)} %`}
+            fraccion={v.pct / 100}
+            tono={v.tono}
+            detalle={detalleVentana(v, disparos)}
+        />
+    );
+}
+
+function FilaLimitesClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: number }) {
+    const sinLectura = !c.sesion && !c.semana;
     return (
         <Tarjeta
             etiqueta="Límites del plan de Claude"
             icono={<Sparkles className="h-4 w-4 text-cyan-200/80" aria-hidden />}
-            titulo="Claude límites"
+            titulo="Claude · límites del plan"
             estado={
                 <Estado
-                    texto={c.tono === "peligro" ? "Cuidado" : c.tono === "aviso" ? "Aviso" : "OK"}
-                    tono={c.tono}
+                    texto={sinLectura ? "Sin lectura" : c.tono === "peligro" ? "Cuidado" : c.tono === "aviso" ? "Aviso" : "Al día"}
+                    tono={sinLectura ? "neutro" : c.tono}
                 />
             }
         >
-            <div className="grid gap-2.5 sm:grid-cols-2">
-                {c.sesion ? (
-                    <Barra
-                        etiqueta="Sesión"
-                        valor={`${Math.round(c.sesion.pct)} %${c.sesion.reinicio ? ` · ${fechaCorta(c.sesion.reinicio)}` : ""}`}
-                        fraccion={c.sesion.pct}
-                        tono={c.sesion.tono}
-                        detalle={`vence en ${c.sesion.minutosParaReinicio > 0 ? `${Math.floor(c.sesion.minutosParaReinicio / 60)} h ${c.sesion.minutosParaReinicio % 60} min` : "ya"}`}
-                    />
-                ) : null}
-                {c.semana ? (
-                    <Barra
-                        etiqueta="Semana"
-                        valor={`${Math.round(c.semana.pct)} %${c.semana.reinicio ? ` · ${fechaCorta(c.semana.reinicio)}` : ""}`}
-                        fraccion={c.semana.pct}
-                        tono={c.semana.tono}
-                        detalle={`vence en ${c.semana.minutosParaReinicio > 0 ? `${Math.floor(c.semana.minutosParaReinicio / 60)} h ${c.semana.minutosParaReinicio % 60} min` : "ya"}`}
-                    />
-                ) : null}
-                {c.modelo ? (
-                    <Barra
-                        etiqueta={c.modeloNombre || "Modelo"}
-                        valor={`${Math.round(c.modelo.pct)} %${c.modelo.reinicio ? ` · ${fechaCorta(c.modelo.reinicio)}` : ""}`}
-                        fraccion={c.modelo.pct}
-                        tono={c.modelo.tono}
-                        detalle={`vence en ${c.modelo.minutosParaReinicio > 0 ? `${Math.floor(c.modelo.minutosParaReinicio / 60)} h ${c.modelo.minutosParaReinicio % 60} min` : "ya"}`}
-                    />
-                ) : null}
-            </div>
-            <div className="flex flex-col gap-1.5">
-                <a
-                    href={c.enlace}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mc-alzar inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-100"
-                >
-                    <ExternalLink className="h-3 w-3" aria-hidden />
-                    Ver el uso en claude.ai
-                </a>
-                <div className="flex items-center gap-1.5">
-                    <code className="min-w-0 flex-1 break-all rounded-md border border-white/10 bg-black/40 px-2 py-1 font-mono text-[10.5px] text-white/70">
-                        {c.comando}
-                    </code>
-                    <Copiar texto={c.comando} etiqueta="Copiar el comando para ver límites" />
-                </div>
-                {c.recomendacion ? <p className="text-[11px] leading-snug text-amber-200/85">{c.recomendacion}</p> : null}
-                <p className="flex items-center gap-1 text-[11px] text-white/50">
-                    <ExternalLink className="h-3 w-3" aria-hidden />
-                    Lectura hace {c.lecturaHaceMin ?? "mucho"} {c.desactualizada ? "(desactualizada)" : ""} min
-                </p>
+            {c.sesion ? <BarraVentana etiqueta="Sesión (≈5 h)" v={c.sesion} disparos={c.programadasEnSesion} /> : null}
+            {c.semana ? <BarraVentana etiqueta="Semana" v={c.semana} disparos={c.programadasEnSemana} /> : null}
+            {c.modelo ? (
+                <BarraVentana etiqueta={`Semana · ${c.modeloNombre ?? "modelo"}`} v={c.modelo} disparos={0} />
+            ) : null}
+            {c.recomendacion ? <p className="text-[11px] leading-snug text-amber-200/85">{c.recomendacion}</p> : null}
+            <p className="flex items-center gap-1 text-[11px] text-white/50">
+                <ExternalLink className="h-3 w-3" aria-hidden />
+                leído {c.lecturaHaceMin === null ? "nunca" : `hace ${c.lecturaHaceMin} min`} de claude.ai → Uso
+                {c.desactualizada ? <span className="text-amber-200/85"> · desactualizado</span> : null}
+            </p>
+            <a
+                href={c.enlace}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mc-alzar inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-100"
+            >
+                <ExternalLink className="h-3 w-3" aria-hidden />
+                Ver el uso en claude.ai
+            </a>
+            <div className="flex items-center gap-1.5">
+                <code className="min-w-0 flex-1 break-all rounded-md border border-white/10 bg-black/40 px-2 py-1 font-mono text-[10.5px] text-white/70">
+                    {c.comando}
+                </code>
+                <Copiar texto={c.comando} etiqueta="Copiar el comando para declarar los límites" />
             </div>
         </Tarjeta>
     );
@@ -738,7 +751,7 @@ export function MedidorConsumo() {
                 <div className="mt-3 grid gap-2.5 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)]">
                     <FilaSupabase s={datos.supabase} p={datos.presupuestos} ahora={ahora} />
                     <FilaJev j={datos.jev} />
-                    <FilaClaude c={datos.claude} ahora={ahora} />
+                    <FilaLimitesClaude c={datos.claude} ahora={ahora} />
                 </div>
             ) : cargando ? (
                 <p className="mt-3 flex items-center gap-2 text-[12px] text-white/50">
