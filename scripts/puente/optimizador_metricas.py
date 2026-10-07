@@ -4,7 +4,9 @@
 `medir(fuentes, ahora, ventana_h=6)` no toca disco ni red: recibe las fuentes ya
 cargadas (`cargar_fuentes` es la única función con E/S) y devuelve exactamente las
 claves de la tabla §2 de `architecture/director-optimizador.md`. Cada métrica que
-no se pueda calcular sale `null` y el motivo va en `m["faltan"][clave]`.
+no se pueda calcular sale `null` y el motivo va en `m["faltan"][clave]`. La clave
+`produccion` (§5 de director-produccion.md) suma la tasa de reversión por modelo y la
+latencia petición→publicación leídas del historial de producción.
 
 Tiempos: los `t` de pasos/eventos van en "%Y-%m-%d %H:%M:%S" local. `ahora` admite
 epoch (float), datetime o esa cadena.
@@ -16,6 +18,11 @@ from datetime import datetime
 
 VENTANA_EVENTOS_H = 24
 FASES_PUERTA = ("tsc", "tests", "revision", "integracion", "integrando", "aprobacion")
+# §6 de director-produccion.md: ventana y mínimo para opinar sobre un modelo.
+VENTANA_PRODUCCION_D = 7
+MIN_LOTES_MODELO = 3
+# Nombres de campo que el historial de producción usa para la latencia (segundos).
+CLAVES_LATENCIA = ("latencia_peticion_publicacion", "latencia_peticion_publicacion_s")
 
 
 def _epoch(v, ahora_ref=None):
@@ -344,8 +351,59 @@ def _nube(fuentes, ahora):
     return {"pausada": pausada, "motivo": motivo, "contenedores_libres": libres}, None
 
 
+def _latencia_lote(lote):
+    """Segundos petición→publicación de una línea del historial (o None). PURA."""
+    for clave in CLAVES_LATENCIA:
+        v = lote.get(clave)
+        if isinstance(v, (int, float)):
+            return float(v)
+    return None
+
+
+def _produccion(fuentes, ahora):
+    """§5 de director-produccion.md: tasa de reversión por modelo (7 días, mínimo
+    3 lotes para opinar) y latencia petición→publicación (mediana y p90). PURA."""
+    historial = fuentes.get("produccion_historial")
+    if not historial:
+        return None, "sin produccion/historial.jsonl"
+    desde = ahora - VENTANA_PRODUCCION_D * 86400
+    lotes = [l for l in historial if (l.get("_t") or 0) >= desde]
+    if not lotes:
+        return None, "sin lotes en los últimos 7 días"
+    por_modelo = {}
+    latencias = []
+    for lote in lotes:
+        lat = _latencia_lote(lote)
+        if lat is not None:
+            latencias.append(lat)
+        revertido = bool(lote.get("revertido"))
+        for modelo in lote.get("modelos") or []:
+            d = por_modelo.setdefault(str(modelo), {"lotes": 0, "revertidos": 0})
+            d["lotes"] += 1
+            if revertido:
+                d["revertidos"] += 1
+    tasa_por_modelo = {}
+    for modelo, d in sorted(por_modelo.items()):
+        if d["lotes"] >= MIN_LOTES_MODELO:
+            tasa_por_modelo[modelo] = {
+                "lotes": d["lotes"],
+                "revertidos": d["revertidos"],
+                "tasa_reversion": round(d["revertidos"] / d["lotes"], 3),
+            }
+    return {
+        "lotes_ventana": len(lotes),
+        "tasa_reversion_modelo": tasa_por_modelo or None,
+        "latencia_peticion_publicacion": {
+            "n": len(latencias),
+            "mediana_s": _mediana(latencias),
+            "p90_s": _p90(latencias),
+        },
+    }, None
+
+
 CLAVES = ("integradas_h", "trabajadores", "listas", "fracción_escribiendo", "fases",
-          "modelos", "proveedores", "sin_usar", "memoria", "coste", "nube")
+          "modelos", "proveedores", "sin_usar", "memoria", "coste", "nube",
+          "produccion")
 
 
 def medir(fuentes, ahora, ventana_h=6):
@@ -392,6 +450,9 @@ def medir(fuentes, ahora, ventana_h=6):
     m["nube"], e = _nube(fuentes, ahora_ep)
     if e:
         faltan["nube"] = e
+    m["produccion"], e = _produccion(fuentes, ahora_ep)
+    if e:
+        faltan["produccion"] = e
 
     m["faltan"] = faltan
     return m
@@ -516,6 +577,12 @@ def cargar_fuentes(raiz, home, ahora=None, ventana_h=6):
     )
     if pasos:
         fuentes["pasos"] = pasos
+    prod = _leer_jsonl_desde_el_final(
+        os.path.join(dotstarseed, "produccion", "historial.jsonl"),
+        ahora_ep - VENTANA_PRODUCCION_D * 86400,
+    )
+    if prod:
+        fuentes["produccion_historial"] = prod
 
     latidos = []
     try:

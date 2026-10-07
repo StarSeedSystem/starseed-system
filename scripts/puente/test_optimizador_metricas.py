@@ -126,5 +126,67 @@ class TestCargarFuentes(unittest.TestCase):
         self.assertNotIn("progreso", f)
 
 
+class TestProduccion(unittest.TestCase):
+    """§5 del director de producción leído de un historial falso en memoria."""
+
+    @staticmethod
+    def lote(t, modelos, revertido=False, latencia=None):
+        d = {"t": e(t), "_t": BASE + t, "modelos": modelos, "revertido": revertido}
+        if latencia is not None:
+            d["latencia_peticion_publicacion"] = latencia
+        return d
+
+    def setUp(self):
+        dia = 86400
+        self.historial = [
+            self.lote(-1 * dia, ["kimi"], latencia=600.0),
+            self.lote(-2 * dia, ["kimi", "glm"], revertido=True, latencia=1800.0),
+            self.lote(-3 * dia, ["kimi"], latencia=1200.0),
+            self.lote(-1 * dia, ["glm"], revertido=True, latencia=900.0),
+            self.lote(-10 * dia, ["kimi"], revertido=True),  # fuera de los 7 días
+        ]
+
+    def test_tasa_reversion_minimo_3_lotes(self):
+        m = om.medir({"produccion_historial": self.historial}, BASE)
+        p = m["produccion"]
+        self.assertEqual(m["faltan"].get("produccion"), None)
+        self.assertEqual(p["lotes_ventana"], 4)
+        # kimi: 3 lotes en la ventana, 1 revertido → opina; glm: 2 lotes → calla
+        self.assertEqual(p["tasa_reversion_modelo"],
+                         {"kimi": {"lotes": 3, "revertidos": 1,
+                                   "tasa_reversion": round(1 / 3, 3)}})
+
+    def test_latencia_mediana_y_p90(self):
+        m = om.medir({"produccion_historial": self.historial}, BASE)
+        lat = m["produccion"]["latencia_peticion_publicacion"]
+        self.assertEqual(lat["n"], 4)
+        self.assertEqual(lat["mediana_s"], 1050.0)  # mediana de 600/900/1200/1800
+        self.assertEqual(lat["p90_s"], 1800.0)
+
+    def test_sin_historial_es_null_con_motivo(self):
+        m = om.medir({}, BASE)
+        self.assertIsNone(m["produccion"])
+        self.assertIn("produccion", m["faltan"])
+
+    def test_historial_sin_lotes_recientes(self):
+        m = om.medir({"produccion_historial": [self.lote(-30 * 86400, ["kimi"])]}, BASE)
+        self.assertIsNone(m["produccion"])
+        self.assertIn("7 días", m["faltan"]["produccion"])
+
+    def test_cargar_fuentes_lee_historial_produccion(self):
+        with tempfile.TemporaryDirectory() as raiz, tempfile.TemporaryDirectory() as home:
+            prod = os.path.join(home, ".starseed", "produccion")
+            os.makedirs(prod)
+            reciente = {"t": e(-3600), "modelos": ["kimi"], "revertido": False}
+            viejo = {"t": e(-30 * 86400), "modelos": ["glm"], "revertido": True}
+            with open(os.path.join(prod, "historial.jsonl"), "w", encoding="utf-8") as fh:
+                fh.write(json.dumps(viejo, ensure_ascii=False) + "\n")
+                fh.write(json.dumps(reciente, ensure_ascii=False) + "\n")
+            fh = om.cargar_fuentes(raiz, home, ahora=BASE)
+        self.assertEqual([l["modelos"] for l in fh["produccion_historial"]], [["kimi"]])
+        m = om.medir(fh, BASE)
+        self.assertEqual(m["produccion"]["lotes_ventana"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
