@@ -144,4 +144,50 @@ describe("PanelServidor", () => {
         const rejilla = document.querySelector(".grid.grid-cols-1.gap-3.lg\\:grid-cols-2");
         expect(rejilla).not.toBeNull();
     });
+
+    it("tarjeta Oracle muestra datos vinculados", async () => {
+        global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === "/api/mando/oracle") {
+                return new Response(JSON.stringify({
+                    vinculada: true,
+                    region: "mx-queretaro-1",
+                    limites: { a1_ocpu: 2, a1_gb: 12, micro: 2 },
+                    instancias: [{ nombre: "starseed-a1", forma: "VM.Standard.A1.Flex", ocpus: 2, gb: 12, estado: "RUNNING", ip_publica: "1.2.3.4" }],
+                    servicios: [{ nombre: "astraura", url: "https://...", ok: true, ms: 42, t: 123 }],
+                }), { status: 200 });
+            }
+            if (url === "/api/mando/servidor") {
+                return new Response(JSON.stringify(estado), { status: 200 });
+            }
+            return new Response("", { status: 404 });
+        });
+        render(<PanelServidor />);
+        await waitFor(() => expect(screen.getByText(/Región:/i)).toBeInTheDocument());
+        expect(screen.getByText(/mx-queretaro-1/)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /comprobar/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /vincular de nuevo/i })).toBeInTheDocument();
+    });
+
+    it("tarjeta Oracle oculta ocid en instancias", async () => {
+        global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === "/api/mando/oracle") {
+                return new Response(JSON.stringify({
+                    vinculada: true,
+                    region: "mx-queretaro-1",
+                    limites: { a1_ocpu: 2, a1_gb: 12, micro: 2 },
+                    instancias: [{ nombre: "", forma: "VM", ocpus: 1, gb: 1, estado: "RUNNING", ip_publica: "1.2.3.4" }],
+                    servicios: [],
+                }), { status: 200 });
+            }
+            if (url === "/api/mando/servidor") {
+                return new Response(JSON.stringify(estado), { status: 200 });
+            }
+            return new Response("", { status: 404 });
+        });
+        render(<PanelServidor />);
+        await waitFor(() => expect(screen.getByText(/Máquinas/i)).toBeInTheDocument());
+        expect(screen.queryByText(/ocid1.instance/)).not.toBeInTheDocument();
+    });
 });

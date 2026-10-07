@@ -531,37 +531,139 @@ function TarjetaEstaMac({ maquina }: { maquina: MaquinaEstado }) {
 }
 
 function TarjetaOraclePendiente() {
+    const [estado, setEstado] = useState<{vinculada?: boolean; region?: string; limites?: {a1_ocpu?: number; a1_gb?: number; micro?: number}; instancias?: Array<{nombre: string; forma: string; ocpus: number; gb: number; estado: string; ip_publica: string}>; servicios?: Array<{nombre: string; url: string; ok: boolean; ms?: number | null; t?: number}>} | null>(null);
+    const [cargando, setCargando] = useState(true);
+    const [accionError, setAccionError] = useState<string | null>(null);
+
+    const cargar = useCallback(async () => {
+        setCargando(true);
+        try {
+            const r = await fetch("/api/mando/oracle", { cache: "no-store" });
+            if (r.ok) setEstado(await r.json());
+        } catch {
+        } finally {
+            setCargando(false);
+        }
+    }, []);
+
+    useEffect(() => { void cargar(); }, [cargar]);
+
+    const postAccionOracle = useCallback(async (accion: "comprobar" | "vincular") => {
+        setAccionError(null);
+        try {
+            const r = await fetch("/api/mando/oracle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion }) });
+            if (!r.ok) throw new Error("Error");
+            await cargar();
+        } catch {
+            setAccionError("No se pudo ejecutar la acción.");
+        }
+    }, [cargar]);
+
+    const vinculada = estado?.vinculada === true;
+
+    if (cargando) {
+        return (
+            <article className="min-w-0 rounded-xl border border-dashed border-white/15 bg-white/[0.03] p-3 text-xs">
+                <header className="mb-2 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-zinc-500" aria-hidden />
+                    <h4 className="truncate text-sm font-semibold text-white">Oracle Always Free</h4>
+                </header>
+                <p className="text-white/60">Cargando…</p>
+            </article>
+        );
+    }
+
+    if (!vinculada) {
+        return (
+            <article className="min-w-0 rounded-xl border border-dashed border-white/15 bg-white/[0.03] p-3 text-xs">
+                <header className="mb-2 flex items-center gap-2">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-zinc-500" aria-hidden />
+                    <h4 className="truncate text-sm font-semibold text-white">Oracle Always Free</h4>
+                </header>
+                <dl className="space-y-1.5 text-white/60">
+                    <div>
+                        <dt className="inline font-medium text-white/70">Qué: </dt>
+                        <dd className="inline">un servidor gratis para siempre en la nube de Oracle, que no depende de que esta Mac esté encendida.</dd>
+                    </div>
+                    <div>
+                        <dt className="inline font-medium text-white/70">Por qué: </dt>
+                        <dd className="inline">para que la capa nube de Astraura y los agentes de Genesis sigan funcionando aunque apagues la Mac.</dd>
+                    </div>
+                    <div>
+                        <dt className="inline font-medium text-white/70">Cómo: </dt>
+                        <dd className="inline">creas la cuenta gratis y luego lo añades aquí abajo, para enlazarlo como destino de la capa nube y réplica de Genesis.</dd>
+                    </div>
+                </dl>
+                <a
+                    href="https://www.oracle.com/cloud/free/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mc-alzar mt-2 inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-[11px] text-emerald-200 transition-colors duration-200 hover:bg-white/10"
+                >
+                    Crear cuenta en Oracle Cloud <ExternalLink className="h-3 w-3" aria-hidden />
+                </a>
+                <p className="mt-2 text-[11px] text-white/40">
+                    La sincronización con Oracle ya está preparada aquí (registro + sonda): se conecta en cuanto exista el servidor.
+                </p>
+            </article>
+        );
+    }
+
+    const limites = estado?.limites ?? {};
+    const instancias = estado?.instancias ?? [];
+    const servicios = estado?.servicios ?? [];
+
     return (
-        <article className="min-w-0 rounded-xl border border-dashed border-white/15 bg-white/[0.03] p-3 text-xs">
+        <article className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-3 text-xs">
             <header className="mb-2 flex items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-zinc-500" aria-hidden />
+                <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
                 <h4 className="truncate text-sm font-semibold text-white">Oracle Always Free</h4>
             </header>
-            <dl className="space-y-1.5 text-white/60">
+            <div className="space-y-2 text-white/70">
+                <p>Región: <span className="text-white/90">{estado?.region || "—"}</span></p>
+                <p>Límites: A1 {limites.a1_ocpu ?? 0} OCPU / {limites.a1_gb ?? 0} GB · micro {limites.micro ?? 0}</p>
                 <div>
-                    <dt className="inline font-medium text-white/70">Qué: </dt>
-                    <dd className="inline">un servidor gratis para siempre en la nube de Oracle, que no depende de que esta Mac esté encendida.</dd>
+                    <p className="font-medium text-white/80">Máquinas</p>
+                    <ul className="mt-1 space-y-1">
+                        {instancias.map((i) => (
+                            <li key={i.nombre} className="flex items-center gap-2">
+                                <Punto ok={i.estado === "RUNNING"} />
+                                <span className="truncate">{i.nombre} · {i.forma} · {i.ocpus} OCPU · {i.gb} GB · {i.estado}</span>
+                            </li>
+                        ))}
+                        {instancias.length === 0 && <li className="text-white/50">Sin máquinas registradas.</li>}
+                    </ul>
                 </div>
                 <div>
-                    <dt className="inline font-medium text-white/70">Por qué: </dt>
-                    <dd className="inline">para que la capa nube de Astraura y los agentes de Genesis sigan funcionando aunque apagues la Mac.</dd>
+                    <p className="font-medium text-white/80">Servicios</p>
+                    <ul className="mt-1 space-y-1">
+                        {servicios.map((s) => (
+                            <li key={s.nombre} className="flex items-center gap-2">
+                                <Punto ok={s.ok} />
+                                <span className="truncate">{s.nombre} · {s.ok ? `${s.ms ?? "—"} ms` : "no responde"}</span>
+                            </li>
+                        ))}
+                        {servicios.length === 0 && <li className="text-white/50">Sin servicios.</li>}
+                    </ul>
                 </div>
-                <div>
-                    <dt className="inline font-medium text-white/70">Cómo: </dt>
-                    <dd className="inline">creas la cuenta gratis y luego lo añades aquí abajo, para enlazarlo como destino de la capa nube y réplica de Genesis.</dd>
-                </div>
-            </dl>
-            <a
-                href="https://www.oracle.com/cloud/free/"
-                target="_blank"
-                rel="noreferrer"
-                className="mc-alzar mt-2 inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-[11px] text-emerald-200 transition-colors duration-200 hover:bg-white/10"
-            >
-                Crear cuenta en Oracle Cloud <ExternalLink className="h-3 w-3" aria-hidden />
-            </a>
-            <p className="mt-2 text-[11px] text-white/40">
-                La sincronización con Oracle ya está preparada aquí (registro + sonda): se conecta en cuanto exista el servidor.
-            </p>
+            </div>
+            <div className="mt-3 flex gap-2">
+                <button
+                    type="button"
+                    onClick={() => void postAccionOracle("comprobar")}
+                    className="mc-alzar inline-flex min-h-[36px] flex-1 cursor-pointer items-center justify-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-white/80 hover:bg-white/10"
+                >
+                    <RefreshCw className="h-3 w-3" aria-hidden /> Comprobar
+                </button>
+                <button
+                    type="button"
+                    onClick={() => void postAccionOracle("vincular")}
+                    className="mc-alzar inline-flex min-h-[36px] flex-1 cursor-pointer items-center justify-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-white/80 hover:bg-white/10"
+                >
+                    Vincular de nuevo
+                </button>
+            </div>
+            {accionError && <p className="mt-2 text-[11px] text-red-300/90">{accionError}</p>}
         </article>
     );
 }
