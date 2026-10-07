@@ -295,7 +295,8 @@ def alimentar_salud(medidores: dict, ruta_salud: str = ARCHIVO_SALUD,
                 salud["codex"] = entrada
         if llena:
             reinicia = _fecha(llena.get("reinicia"))
-            hasta = (reinicia or ahora or datetime.now().astimezone()).astimezone()
+            base = reinicia or ahora or datetime.now().astimezone()
+            hasta = base.astimezone() if base.tzinfo is None else base
             entrada["sin_cupo_hasta"] = hasta.strftime("%Y-%m-%d %H:%M:%S")
             entrada["motivo"] = f"medidor: {llena.get('id')} 100 %"
             salud["codex"] = entrada

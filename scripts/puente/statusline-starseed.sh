@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 # Línea de estado de StarSeed para Claude Code.
 # Imprime: modelo · ctx N% · $coste · carpeta (solo los campos que existan).
 # Además, si el JSON de stdin trae rate_limits, escribe de forma atómica

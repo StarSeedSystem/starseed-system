@@ -60,7 +60,7 @@ class PruebasStatusline(unittest.TestCase):
         entorno = dict(os.environ)
         entorno["STARSEED_HOME"] = str(home)
         return subprocess.run(
-            ["/bin/zsh", str(SCRIPT)],
+            ["/bin/bash", str(SCRIPT)],
             input=stdin_texto.encode(),
             capture_output=True,
             env=entorno,
