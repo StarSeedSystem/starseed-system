@@ -25,6 +25,14 @@ AG = os.path.join(HOME, "Library", "LaunchAgents")
 P = lambda n: os.path.join(RAIZ, "scripts", "puente", n)
 LANZ = [PY3, P("lanzador-tcc.py")]
 
+# (2026-10-07) Este guion INSTALA al importarse. Una prueba que lo cargó bajo
+# `python -m unittest discover -s scripts/puente` le pasó «discover» como RAIZ y «-s» como
+# PY3, y dejó en ~/Library/LaunchAgents un com.starseed.produccion con ProgramArguments
+# ["-s", "discover/…"] (exit 78: el director de producción nunca corrió). Con argumentos que
+# no son una raíz y un python reales, no se toca nada.
+if not (os.path.isabs(RAIZ) and os.path.isdir(os.path.join(RAIZ, "scripts", "puente")) and os.path.isabs(PY3)):
+    sys.exit("instalar-servicios: RAIZ (%r) o PY3 (%r) no son rutas válidas; no instalo nada." % (RAIZ, PY3))
+
 # nombre -> (orden, log, vive_siempre)
 #   vive_siempre=False -> KeepAlive sólo si sale con error (guiones de un disparo)
 SERVICIOS = {
@@ -105,6 +113,10 @@ SERVICIOS = {
     # ninguno miraba el TABLERO. Esa noche el orquestador estuvo 123 minutos parado en una
     # puerta de aprobación y los medidores lo enseñaban sin que nadie los leyera.
     "vigia": ([PY3, P("vigia_medidores.py")], "/tmp/starseed-vigia.log", True),
+    # (2026-10-07) Director de producción y publicación: con el interruptor «Autopublicación»
+    # de Genesis encendido, lleva main a producción tras análisis, pruebas, CI y verificación
+    # (`autopublicar.py`, una pasada cada 5 min). Apagado, solo informa.
+    "produccion": ([PY3, P("autopublicar.py"), "--bucle"], "/tmp/starseed-produccion.log", True),
     # (2026-10-05) Pantalla siempre encendida (Ola 1005P, PA1005C): mantiene un
     # `caffeinate -dim` ligado a su propio proceso y declara al usuario activo cada 50 s,
     # según ~/.starseed/pantalla.json (encendida por defecto). Genesis lo lee con

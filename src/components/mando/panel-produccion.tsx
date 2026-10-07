@@ -10,6 +10,7 @@
  * con la pestaña visible.
  */
 
+import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import { useCallback, useEffect, useState } from "react";
 import { CircleSlash, Factory, Pause, Play } from "lucide-react";
 
@@ -214,6 +215,9 @@ export function PanelProduccion() {
                     </button>
                 </div>
             </header>
+            <div className="mt-3">
+                <InterruptorAutopublicacion compacto />
+            </div>
 
             {error ? <p className="mt-2 text-xs text-rose-200" role="alert">{error}</p> : null}
             {!datos && !error ? <p className="mt-3 text-xs text-white/50">Leyendo el estado del director…</p> : null}

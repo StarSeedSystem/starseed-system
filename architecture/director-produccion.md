@@ -319,3 +319,31 @@ uso, y permite apartarlo o activarlo a mano.
 - dar los permisos de Drive y redes dentro de n8n.
 
 Todo lo demás lo montan la flota y Claude. Hasta que existan, el enrutador funciona solo con lo propio.
+
+## 11. Autopublicación: lo que corre de verdad (2026-10-07)
+
+Alex (07-10): «añade un ajuste de un switch de autopublicación que sea realizado por un director
+especializado de producción y publicación que realice todas las pruebas, análisis y verificaciones a
+profundidad… ya lo había solicitado pero no se ha aplicado». Medido ese día: `director-produccion.py`
+nunca corrió (su plist de launchd lo escribió una prueba con los argumentos de `unittest discover`:
+`ProgramArguments ["-s", "discover/…"]`, exit 78), ignoraba el `modo` de la config, retenía el cerrojo
+`integrar` durante las esperas de CI y sus pruebas escribían en el historial real. Y el CI de main
+llevaba días en rojo por memoria en `next build`.
+
+Lo que hay ahora, más simple y comprobado:
+
+- **Interruptor** en Genesis · Ajustes y en Publicación → Producción (`InterruptorAutopublicacion`,
+  `POST /api/mando/produccion {accion: "autopublicar", activo}` → `~/.starseed/produccion/autopublicar.json`).
+  «Pausar» de la tarjeta Producción y los vetos (`vetos.json`, por sha) también lo frenan.
+- **Director** `scripts/puente/autopublicar.py` (servicio `com.starseed.produccion`, `--bucle`, una pasada
+  cada 5 min, sin cerrojos mientras espera). Máquina de estados persistida: `al-dia` · `esperando` ·
+  `ci` · `verificando` · `publicado` · `bloqueado`; las esperas largas se retoman en la siguiente pasada.
+- **Puertas** sobre EL MISMO commit: análisis (§3.2: secretos con `produccion_puertas`, migraciones
+  destructivas sin contar lo idempotente ni los cuerpos `$$…$$`), Jev (solo frena, p ≥ 0,8), pruebas del
+  puente en la Mac (`publicar.python_de_pruebas()`), CI en `produccion/candidato` (este es el «build en
+  la nube» del contrato: sin Mac), push `sha:main` solo si es avance rápido, Vercel «success» por la API
+  de deployments de GitHub y humo de producción.
+- **Topes**: ventana de 20 min, 24 publicaciones al día, CI ≤ 50 min, Vercel ≤ 45 min.
+- **Fuera por ahora**: vista previa con matriz de Playwright (§3.4), reversión automática (Vercel sigue
+  sirviendo el despliegue anterior si el build falla; si el humo falla tras publicar, avisa) y medios
+  distintos de la web.

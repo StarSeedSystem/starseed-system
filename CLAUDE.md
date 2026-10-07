@@ -825,7 +825,15 @@ en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado
 
 ### Reglas duras del área
 - **Publicación**: solo desde la **Mac**, con `STARSEED_LOCAL=1` y la confirmación **escrita `PUBLICAR`**
-  (o la palabra de Alex); **nunca automática**. Rutas `/api/mando/*` son SOLO locales (404 en producción)
+  (o la palabra de Alex). **Excepción autorizada por Alex (2026-10-05 y 2026-10-07): la
+  AUTOPUBLICACIÓN**, interruptor en Genesis · Ajustes (y en Publicación → Producción). Encendida,
+  `scripts/puente/autopublicar.py` (servicio `com.starseed.produccion`, cada 5 min) publica ESE commit
+  solo si pasa: análisis del lote (secretos, migraciones destructivas, vetos, Jev que solo frena) →
+  pruebas del puente en la Mac (unittest + pytest) → CI de GitHub en `produccion/candidato` (tsc,
+  vitest, núcleo mesh, `next build` con 8 GB de heap) → push fast-forward sin force → despliegue de
+  Vercel en «success» + humo de `/`, `/login` y `/version.json`. Un fallo veta ese sha (espera un
+  commit nuevo) y se dice en el Chat Director con el enlace y el motivo. Estado en
+  `~/.starseed/produccion/autopublicar-estado.json`. Apagada, nada se publica solo. Rutas `/api/mando/*` son SOLO locales (404 en producción)
   y jamás devuelven claves ni rutas del disco.
 - **Claves por medio (P9)**: capa `CLAVES_POR_PROVEEDOR` con `claves_de`, `clave_activa`, `agotar_clave`,
   `estado_claves`, sufijos `_2…_9` y **huellas sha256** (solo huellas, nunca valores). 429 → 1 h,

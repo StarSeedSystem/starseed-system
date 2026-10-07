@@ -8,7 +8,8 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const tocaRecoger = decidirRecogida;
+// (2026-10-07) Sin `export`: una ruta de Next solo exporta GET/POST/runtime/dynamic… (CLAUDE.md, «Publicar»).
+const tocaRecoger = decidirRecogida;
 
 const correr = promisify(execFile);
 let recogidaEnMarcha = false;

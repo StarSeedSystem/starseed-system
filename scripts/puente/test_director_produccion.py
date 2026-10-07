@@ -21,7 +21,24 @@ _spec.loader.exec_module(DP)
 
 
 class TestDirectorProduccionPuro(unittest.TestCase):
-    
+
+    def setUp(self):
+        # (2026-10-07) Estas pruebas escribían en el ~/.starseed/produccion/historial.jsonl REAL
+        # («abc123 · TEST · publicado» tres veces hoy) y llegaban al aviso real (ntfy y Chat
+        # Director). Todo lo de fuera, a una carpeta temporal y a dobles.
+        import tempfile
+        d = tempfile.mkdtemp()
+        for nombre, valor in (("HISTORIAL", os.path.join(d, "historial.jsonl")),
+                              ("ESTADO_PROD", os.path.join(d, "produccion-estado.json")),
+                              ("CERROJO_PAUSADA", os.path.join(d, "pausada.json"))):
+            p = patch.object(DP, nombre, valor)
+            p.start()
+            self.addCleanup(p.stop)
+        for nombre in ("_avisar", "_aprender", "_soltar_integracion"):
+            p = patch.object(DP, nombre, lambda *a, **k: None)
+            p.start()
+            self.addCleanup(p.stop)
+
     def test_pausada_no_publica(self):
         with patch.object(DP, "_pausada", return_value=True):
             with patch.object(DP, "_informe_pausado") as mock_informe:

@@ -86,6 +86,27 @@ if __name__ == "__main__":
 
 
 
+class ElPythonDeLasPuertasTienePytest(unittest.TestCase):
+    """2026-10-07, 14:46: «/usr/local/bin/python3: No module named pytest» tumbó la publicación
+    desde Genesis aunque las pruebas estaban en verde con el python de Homebrew."""
+
+    def test_salta_el_que_no_tiene_pytest(self):
+        con = {"/opt/homebrew/bin/python3"}
+        exe = P.python_de_pruebas(candidatos=["/opt/homebrew/bin/python3"], probar=lambda e: e in con,
+                                  existe=lambda e: True)
+        self.assertEqual(exe, "/opt/homebrew/bin/python3")
+
+    def test_si_el_propio_lo_tiene_se_queda_con_el_propio(self):
+        exe = P.python_de_pruebas(candidatos=["/otro"], probar=lambda e: True, existe=lambda e: True)
+        self.assertEqual(exe, sys.executable)
+
+    def test_sin_ninguno_vuelve_al_de_siempre_y_no_lanza(self):
+        def roto(_e):
+            raise OSError("no arranca")
+        self.assertEqual(P.python_de_pruebas(candidatos=["/a", "/b"], probar=roto, existe=lambda e: True), sys.executable)
+        self.assertEqual(P.python_de_pruebas(candidatos=["/no-existe"], probar=lambda e: False, existe=lambda e: False), sys.executable)
+
+
 class NoSeRepiteUnaBuildYaHecha(unittest.TestCase):
     """(2026-09-23) Si el reconstructor ya compiló esta misma huella y es lo servido, la
     puerta de build está pasada: repetirla eran doce minutos de swap comiéndose el disco."""

@@ -10,11 +10,16 @@
  * POST → `{ accion: "pausar" | "reanudar" }`      escribe el interruptor
  *        `{ accion: "vetar", clave, motivo }`     veto por sha o tarea
  *        `{ accion: "modo", modo }`               cambia `produccion.modo`
+ *        `{ accion: "autopublicar", activo }`     interruptor de la AUTOPUBLICACIÓN (2026-10-07):
+ *        lo lee `scripts/puente/autopublicar.py` (servicio com.starseed.produccion); al
+ *        encenderlo se lanza una pasada al momento.
  *
  * ⚠️ Solo local (`guardianMando`). Jamás devuelve rutas del disco ni claves:
  * los errores de escritura son genéricos.
  */
 
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -42,6 +47,52 @@ function rutaVetos(): string {
     return path.join(os.homedir(), ".starseed", "produccion", "vetos.json");
 }
 
+function rutaAutopublicar(): string {
+    return path.join(os.homedir(), ".starseed", "produccion", "autopublicar.json");
+}
+function rutaEstadoAutopublicar(): string {
+    return path.join(os.homedir(), ".starseed", "produccion", "autopublicar-estado.json");
+}
+
+/** Solo lo que la tarjeta pinta: nunca rutas ni salidas largas. */
+function estadoAutopublicarVisible(crudo: unknown): Record<string, unknown> | null {
+    if (!esObjeto(crudo)) return null;
+    const texto = (v: unknown, max = 400) => (typeof v === "string" ? v.slice(0, max) : undefined);
+    const historial = Array.isArray(crudo.historial)
+        ? crudo.historial.filter(esObjeto).slice(-10).map((h) => ({
+              sha: texto(h.sha, 40) ?? "",
+              resultado: texto(h.resultado, 40) ?? "",
+              dia: texto(h.dia, 10) ?? "",
+              url: texto(h.url, 300) ?? null,
+              motivo: texto(h.motivo, 160),
+          }))
+        : [];
+    return {
+        fase: texto(crudo.fase, 40),
+        detalle: texto(crudo.detalle),
+        sha: texto(crudo.sha, 40) ?? null,
+        url: texto(crudo.url, 300) ?? null,
+        actualizado: texto(crudo.actualizado, 40),
+        pendientes: typeof crudo.pendientes === "number" ? crudo.pendientes : undefined,
+        historial,
+    };
+}
+
+/** Una pasada del director al momento (desacoplada): no hace esperar a la pantalla. */
+function lanzarPasadaAutopublicar(): void {
+    try {
+        const python = existsSync("/opt/homebrew/bin/python3") ? "/opt/homebrew/bin/python3" : "python3";
+        const hijo = spawn(python, [path.join(raizDelProyecto(), "scripts", "puente", "autopublicar.py")], {
+            cwd: raizDelProyecto(),
+            detached: true,
+            stdio: "ignore",
+        });
+        hijo.unref();
+    } catch {
+        /* el servicio lo hará en su próxima vuelta (≤ 5 min) */
+    }
+}
+
 function esObjeto(v: unknown): v is Record<string, unknown> {
     return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -67,19 +118,23 @@ export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
 
-    const [crudoEstado, crudoConfig, crudoPausa, crudoVetos] = await Promise.all([
+    const [crudoEstado, crudoConfig, crudoPausa, crudoVetos, crudoAuto, crudoEstadoAuto] = await Promise.all([
         leerJson(rutaEstado()),
         leerJson(rutaConfig()),
         leerJson(rutaInterruptor()),
         leerJson(rutaVetos()),
+        leerJson(rutaAutopublicar()),
+        leerJson(rutaEstadoAutopublicar()),
     ]);
+    const autopublicar = { activo: esObjeto(crudoAuto) && crudoAuto.activo === true };
+    const autopublicarEstado = estadoAutopublicarVisible(crudoEstadoAuto);
     const estado = esObjeto(crudoEstado) ? crudoEstado : estadoVacio();
     const config = fusionar(DEFAULTS, esObjeto(crudoConfig) ? crudoConfig : {}).produccion;
     const pausada = esObjeto(crudoPausa) && crudoPausa.pausada === true;
     const vetos = esObjeto(crudoVetos) ? Object.keys(crudoVetos).length : 0;
 
     return Response.json(
-        { estado, config, pausada, vetos, actualizadoEn: new Date().toISOString() },
+        { estado, config, pausada, vetos, autopublicar, autopublicarEstado, actualizadoEn: new Date().toISOString() },
         { headers: { "Cache-Control": "no-store" } },
     );
 }
@@ -106,6 +161,19 @@ export async function POST(peticion: Request): Promise<Response> {
             return Response.json({ error: "No se pudo guardar el interruptor." }, { status: 500 });
         }
         return Response.json({ ok: true, pausada: accion === "pausar" }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (accion === "autopublicar") {
+        if (typeof cuerpo.activo !== "boolean") {
+            return Response.json({ error: "Falta «activo» (true o false)." }, { status: 400 });
+        }
+        try {
+            await escribirAtomico(rutaAutopublicar(), { activo: cuerpo.activo, quien: "genesis", desde: ahora });
+        } catch {
+            return Response.json({ error: "No se pudo guardar el interruptor." }, { status: 500 });
+        }
+        if (cuerpo.activo) lanzarPasadaAutopublicar();
+        return Response.json({ ok: true, activo: cuerpo.activo }, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (accion === "vetar") {
@@ -140,5 +208,5 @@ export async function POST(peticion: Request): Promise<Response> {
         }
     }
 
-    return Response.json({ error: "Acción desconocida: usa pausar, reanudar, vetar o modo." }, { status: 400 });
+    return Response.json({ error: "Acción desconocida: usa pausar, reanudar, vetar, modo o autopublicar." }, { status: 400 });
 }

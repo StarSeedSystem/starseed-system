@@ -169,6 +169,32 @@ VARIABLES_QUE_ENSUCIAN = (
 )
 
 
+#: (2026-10-07) La publicación de las 14:46 cayó con «/usr/local/bin/python3: No module named
+#: pytest»: el botón de Genesis lanza este guion con el primer python3 del PATH de su servidor
+#: (/usr/local/bin, sin pytest) y las puertas usaban `sys.executable`. El de Homebrew sí tiene
+#: pytest y además el permiso de disco de macOS (CLAUDE.md, trampa 4). Se elige el primero que
+#: importe pytest; si ninguno lo tiene, el de siempre, y la puerta lo dirá.
+CANDIDATOS_PYTHON = ("/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3")
+
+
+def python_de_pruebas(candidatos=None, probar=None, existe=os.path.exists):
+    """El intérprete con el que corren las puertas de Python. Puro salvo `probar`."""
+    if probar is None:
+        def probar(exe):
+            return subprocess.run([exe, "-c", "import pytest"], capture_output=True, timeout=60).returncode == 0
+    vistos = []
+    for exe in [sys.executable] + list(CANDIDATOS_PYTHON if candidatos is None else candidatos):
+        if not exe or exe in vistos or not existe(exe):
+            continue
+        vistos.append(exe)
+        try:
+            if probar(exe):
+                return exe
+        except Exception:  # noqa: BLE001 — un intérprete roto no es el elegido
+            continue
+    return sys.executable
+
+
 def entorno_de_puertas(base, bin_extra=None):
     """El entorno limpio con el que se corren las puertas. Puro y probado."""
     env = dict(base)
@@ -499,10 +525,11 @@ def main():
     if not puerta(diario, "vitest", ["npx", "vitest", "run", "--maxWorkers=3", "--minWorkers=1"], timeout=2400):
         diario.cerrar("fallo", motivo_de("vitest"))
         return 1
+    py = python_de_pruebas()
     if not puerta(
         diario,
         "python",
-        [sys.executable, "-m", "unittest", "discover", "-s", "scripts/puente", "-p", "test_*.py"],
+        [py, "-m", "unittest", "discover", "-s", "scripts/puente", "-p", "test_*.py"],
         timeout=900,
     ):
         diario.cerrar("fallo", motivo_de("python"))
@@ -512,7 +539,7 @@ def main():
     # miraba ese directorio (y con unittest, que no sabe ejecutarlas), se ponía roja y tiraba
     # su trabajo. Dos sitios corriendo las mismas pruebas de dos maneras: la enfermedad de
     # siempre. Ahora main pasa por lo mismo que los agentes, y con el mismo corredor.
-    if not puerta(diario, "python", [sys.executable, "-m", "pytest", "scripts/enjambre", "-q"], timeout=900):
+    if not puerta(diario, "python", [py, "-m", "pytest", "scripts/enjambre", "-q"], timeout=900):
         diario.cerrar("fallo", motivo_de("python"))
         return 1
 

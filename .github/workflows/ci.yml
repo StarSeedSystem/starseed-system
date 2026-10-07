@@ -48,7 +48,10 @@ jobs:
       - name: Build de producción (next build)
         run: npm run build
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          # (2026-10-07) Con 4096 el build moría por memoria («JavaScript heap out of memory»,
+          # exit 134) desde hace días: CI en rojo en todos los push a main. La máquina de
+          # GitHub tiene 16 GB; la autopublicación usa este CI como puerta de build.
+          NODE_OPTIONS: --max-old-space-size=8192
           NEXT_TELEMETRY_DISABLED: "1"
           # Placeholders: el build no debe requerir secretos reales de Supabase.
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co

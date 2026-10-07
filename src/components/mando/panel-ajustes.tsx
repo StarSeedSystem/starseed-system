@@ -24,6 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AjustesAccesos } from "@/components/mando/ajustes-accesos";
+import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import { PanelBitnetAjustes } from "@/components/mando/panel-bitnet-ajustes";
 import {
     estadoMac,
@@ -841,6 +842,7 @@ export function PanelAjustes() {
             </section>
 
             <TarjetaPantalla />
+            <InterruptorAutopublicacion />
 
             <article className="rounded-xl border border-white/10 bg-black/30 p-4">
                 <header className="flex flex-wrap items-center justify-between gap-2">
