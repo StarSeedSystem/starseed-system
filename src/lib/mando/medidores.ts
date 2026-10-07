@@ -2187,7 +2187,7 @@ export function detalleDeMedidor(
                     vacio: "Sin lecturas todavía: el servicio com.starseed.medidores lee Claude y Codex por terminal cada 10 min.",
                 };
             }
-            const estadosCredito = estadoCreditos(docPago, Date.now());
+            const estadosCredito = estadoCreditos(docPago, ahora ?? Date.now());
             const filas: FilaMedidor[] = estadosCredito.map((m) => {
                 const ficha: DatoDeFicha[] = [];
                 for (const v of m.ventanas) {
@@ -2211,10 +2211,10 @@ export function detalleDeMedidor(
                     ficha,
                 };
             });
-            const peorId = filas.reduce<string>((a, b) => {
+            const peorId = filas.reduce<string>((a, fila) => {
                 const s = filas.find((f) => f.id === a);
-                const sb = filas.find((f) => f.id === b);
-                return (s?.estado === "peligro" ? a : sb?.estado === "peligro" ? b : a);
+                const sb = filas.find((f) => f.id === fila.id);
+                return (s?.estado === "peligro" ? a : sb?.estado === "peligro" ? fila.id : a);
             }, filas[0]?.id ?? "");
             const peorNombre = filas.find((f) => f.id === peorId)?.titulo ?? "";
             const resumenStr = filas.length

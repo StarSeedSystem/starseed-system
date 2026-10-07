@@ -20,7 +20,7 @@ const tonoDePorcentaje=(p:number):Tono=>p>=90?'peligro':p>=70?'aviso':'ok'
 const fmt=(d:Date,o:Intl.DateTimeFormatOptions)=>new Intl.DateTimeFormat('es',o).format(d)
 
 export interface VentanaEstado{ id:string; etiqueta:string; usado_pct:number; reinicia:string; tono:Tono; queda:number; reiniciada:boolean; minutosParaReinicio:number }
-export interface MedidorEstado{ id:string; nombre:string; proveedor:string; plan?:string|null; tono:Tono; haceMin:number|null; obsoleto:boolean; resumen:string; textoExtras:string[]; ventanas:VentanaEstado[]; saldo:Saldo|null; ok?:boolean }
+export interface MedidorEstado{ id:string; nombre:string; proveedor:string; plan?:string|null; tono:Tono; haceMin:number|null; obsoleto:boolean; resumen:string; textoExtras:string[]; ventanas:VentanaEstado[]; saldo:Saldo|null; ok?:boolean; fuente?:string; enlace?:string }
 
 export function estadoCreditos(doc:DocCreditos|null,ahora:number):MedidorEstado[]{
   if(!doc||!doc.medidores) return []
@@ -45,7 +45,7 @@ function estadoMedidor(m:MedidorCredito,ahora:number):MedidorEstado{
   })
   let tono=ventanas.reduce<Tono>((a,v)=>v.tono==='peligro'?'peligro':v.tono==='aviso'&&a!=='peligro'?'aviso':a,'ok')
   if(obsoleto&&tono==='ok') tono='aviso'
-  return { id:m.id,nombre:m.nombre,proveedor:m.proveedor,plan:m.plan??null,tono,haceMin,obsoleto,resumen:resumenCredito(m),textoExtras:textoExtras(m),ventanas,saldo:m.saldo,ok:m.ok }
+  return { id:m.id,nombre:m.nombre,proveedor:m.proveedor,plan:m.plan??null,tono,haceMin,obsoleto,resumen:resumenCredito(m),textoExtras:textoExtras(m),ventanas,saldo:m.saldo,ok:m.ok,fuente:m.fuente,enlace:m.enlace }
 }
 
 export function resumenCredito(m:MedidorCredito):string{

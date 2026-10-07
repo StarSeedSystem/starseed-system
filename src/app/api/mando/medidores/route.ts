@@ -52,6 +52,7 @@ import {
 import { fundirTitulosArchivados, parsearIndice } from "@/lib/mando/indice-colas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
+import { leerCreditosPago } from "@/lib/mando/creditos-pago";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -742,6 +743,13 @@ export async function GET(peticion: Request): Promise<Response> {
         const limitesClaude = await leerLimitesClaude().catch(() => null);
         return Response.json(
             { detalle: detalleDeMedidor(clave, { limitesClaude }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    if (clave === "creditos") {
+        const creditosPago = await leerCreditosPago();
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { creditosPago }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
