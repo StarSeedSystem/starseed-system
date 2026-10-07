@@ -45,6 +45,26 @@ class LimitesClaude(unittest.TestCase):
         lecturas.append(otra)
         self.assertEqual(L.coste_por_revision(lecturas, "sesion"), 5)
 
+    def test_disparos_reales_y_casos_lc1007b(self):
+        # Caso real (2026-10-06 20:03, hasta 23:10) con periódica vieja cada 60 min
+        ahora = datetime(2026, 10, 6, 20, 3, tzinfo=timezone(timedelta(hours=-6)))
+        hasta = datetime(2026, 10, 6, 23, 10, tzinfo=timezone(timedelta(hours=-6)))
+        lista_real = [{"proxima": "2026-10-04T23:20:00-06:00", "cada_min": 60}]
+        # 20:20, 21:20, 22:20 (23:20 pasa de 23:10) => 3
+        self.assertEqual(L.disparos_antes(lista_real, ahora, hasta), 3)
+        # Puntual futura
+        lista = [{"proxima": (ahora + timedelta(minutes=30)).isoformat()}]
+        self.assertEqual(L.disparos_antes(lista, ahora, hasta), 1)
+        # Puntual pasada
+        lista = [{"proxima": (ahora - timedelta(minutes=30)).isoformat()}]
+        self.assertEqual(L.disparos_antes(lista, ahora, hasta), 0)
+        # Periódica futura
+        lista = [{"proxima": (ahora + timedelta(minutes=10)).isoformat(), "cada_min": 60}]
+        # 20:10? No: proxima = ahora + 10 min => 20:13, luego 21:13, 22:13 (23:13 > 23:10) => 3
+        self.assertEqual(L.disparos_antes(lista, ahora, hasta), 3)
+        # hasta <= ahora
+        self.assertEqual(L.disparos_antes(lista, ahora, ahora - timedelta(minutes=1)), 0)
+
     def test_disparos_periodicos(self):
         lista = [{"nombre": "revisión", "proxima": (self.ahora + timedelta(minutes=30)).isoformat(),
                   "cada_min": 60}]
