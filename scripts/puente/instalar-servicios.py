@@ -142,6 +142,11 @@ SERVICIOS = {
         "/tmp/starseed-laya.log",
         True,
     ),
+    "flujos": (
+        [PY3, P("flujos/servicio.py")],
+        "/tmp/starseed-flujos.log",
+        True,
+    ),
 }
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>
