@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   AudioLines, Clapperboard, Headset, CalendarDays, Megaphone, Gamepad2,
@@ -71,6 +71,8 @@ export interface DirectorioEstacionesProps {
 
 export function DirectorioEstaciones({ inicial, onPublicar }: DirectorioEstacionesProps) {
   const params = useSearchParams();
+  const router = useRouter();
+  const abrir = (id: string) => router.push(`/estaciones/${id}`);
   const [tipo, setTipo] = useState<TipoEstacion | "todas">(
     inicial?.tipo ?? (params.get("tipo") as TipoEstacion | null) ?? "todas");
   const [texto, setTexto] = useState("");
@@ -127,7 +129,7 @@ export function DirectorioEstaciones({ inicial, onPublicar }: DirectorioEstacion
         <section aria-label="En directo ahora" className="flex gap-3 overflow-x-auto pb-1">
           {enDirecto.map((e) => (
             <div key={e.id} className="w-64 shrink-0">
-              <TarjetaEstacion estacion={e} ahora={ahora} onOcultar={ocultar} />
+              <TarjetaEstacion estacion={e} ahora={ahora} onAbrir={abrir} onOcultar={ocultar} />
             </div>))}
         </section>)}
 
@@ -168,7 +170,7 @@ export function DirectorioEstaciones({ inicial, onPublicar }: DirectorioEstacion
       ) : (
         <section aria-label="Todas las estaciones" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtradas.map((e) => (
-            <TarjetaEstacion key={e.id} estacion={e} ahora={ahora} onOcultar={ocultar} />))}
+            <TarjetaEstacion key={e.id} estacion={e} ahora={ahora} onAbrir={abrir} onOcultar={ocultar} />))}
         </section>)}
     </main>
   );
