@@ -75,7 +75,7 @@ describe("migraciones mando", () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
-  it("define exactamente las ocho tablas del contrato del Mando", () => {
+  it("define exactamente las ocho tablas del contrato de Genesis", () => {
     expect(tablasConRls(sqlCompleto()).sort()).toEqual([
       "mando_ambitos",
       "mando_chat",
