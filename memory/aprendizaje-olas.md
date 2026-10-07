@@ -3791,3 +3791,83 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTPT1007C` — no escribió nada
 - `RTMC1007As` — no escribió nada
 - `RSC1006Es` — no escribió nada
+
+## 2026-10-07 08:40 · auto-1007-012735
+
+**Lo que se pidió.** Mando para todos · vista pública de un ámbito por lista blanca (puro)
+
+**Resultado.** 29 de 91 integradas. 62 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 26 tareas se fueron por lo mismo — la revisión lo rechazó (RSC1006Es, ES1010Dm, CAMR1005A, RM3, RM4, CU3r). Es 29 % de la ola.
+- 24 tareas se fueron por lo mismo — otra cosa (ES1010H, ES1010N, PT1007E, RSC1006Q, RSC1006Qb, RSC1006Qc). Es 26 % de la ola.
+- 8 tareas se fueron por lo mismo — no escribió nada (RSC1006Cs, RSC1006D, DR0919-1, RSC1006G, RSC1006J, PRD1005J). Es 9 % de la ola.
+- 3 tareas se fueron por lo mismo — los tipos no compilan (ES1010K, RSC1006B, p318Jc). Es 3 % de la ola.
+- sin modelo anotado no integró ninguna de sus 27 tareas.
+- google/gemini-3.6-flash no integró ninguna de sus 7 tareas.
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 7 tareas.
+- openrouter/thinkingmachines/inkling-small:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RSC1006Es` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/RSC1006Es conservada
+- `ES1010Dm` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/ES1010Dm conservada
+- `ES1010H` — otra cosa: continúa como ES1010Hb desde la rama nube/37601262017 (traer_nube)
+- `ES1010N` — otra cosa: continúa como ES1010Nb desde la rama nube/37600531848 (traer_nube)
+- `ES1010K` — los tipos no compilan: 1 errores tsc (rama ola/ES1010K conservada)
+- `CAMR1005A` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `RM3` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `RM4` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `PT1007E` — otra cosa: continúa como PT1007Eb desde la rama nube/37587405376 (traer_nube)
+- `CU3r` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/CU3r conservada
+- `PRD1005M` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/PRD1005M conservada
+- `PRD1005S` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `DIS1005D` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/DIS1005D conservada
+- `AGR2b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/AGR2b conservada
+- `CDV1004Cs` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `RSC1006Cs` — no escribió nada
+- `RSC1006Q` — otra cosa: continúa como RSC1006Qb desde la rama nube/37420657951 (traer_nube)
+- `RSC1006Qb` — otra cosa: continúa como RSC1006Qc desde la rama nube/37442005036 (traer_nube)
+- `RSC1006Qc` — otra cosa: continúa como RSC1006Qd desde la rama nube/37478166159 (traer_nube)
+- `RSC1006Qd` — otra cosa: continúa como RSC1006Qe desde la rama nube/37492382388 (traer_nube)
+- `RSC1006S` — otra cosa: continúa como RSC1006Sb desde la rama nube/37423563868 (traer_nube)
+- `RSC1006Sb` — otra cosa: continúa como RSC1006Sc desde la rama nube/37442005036 (traer_nube)
+- `RSC1006Sc` — otra cosa: continúa como RSC1006Sd desde la rama nube/37478166159 (traer_nube)
+- `RSC1006Sd` — otra cosa: continúa como RSC1006Se desde la rama nube/37492382388 (traer_nube)
+- `PT1007B` — otra cosa: continúa como PT1007Bb (integrada en 3dfa2348)
+- `PT1008Ab` — otra cosa: superada: PT1008A integrada por la dirección en fa19dcae
+- `PT1008D` — otra cosa: continúa como PT1008Dc (reencolada por la dirección)
+- `PT1009E` — otra cosa: continúa como PT1009Eb (reencolada por la dirección)
+- `RSC1006B` — los tipos no compilan: 6 errores tsc (rama ola/RSC1006B conservada)
+- `RSC1006D` — no escribió nada
+- `p324Ac` — otra cosa: lo que pedía ya está en main: src/lib/mando/medidores.ts · revisado por Claude el 2026-09-28 02:12
+- `p324Gc` — otra cosa: lo que pedía ya está en main: src/components/mando/mando-cristal.css · revisado por Claude el 2026-09-28 02:12
+- `DIS1005M` — la revisión lo rechazó: rechazada desde el Mando; rama ola/DIS1005M conservada
+- `JV8c` — otra cosa: lo que pedía ya está en main: src/app/api/jev/systemone/route.ts · revisado por Claude el 2026-09-28 02:12
+- `PT1009D` — otra cosa: continúa como PT1009Db (reencolada por la dirección)
+- `p318Jc` — los tipos no compilan: 4 errores tsc (rama ola/p318Jc conservada)
+- `p314Acs` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `DR0919-1` — no escribió nada
+- `DR1006-1` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/DR1006-1 conservada
+- `FLU1005H` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `R6b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/R6b conservada
+- `R6c` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/R6c conservada
+- `R7b` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/R7b conservada
+- `R7c` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `MC1007Bb` — otra cosa: continúa como MC1007Bc
+- `RSC1006G` — no escribió nada
+- `RSC1006H` — la revisión lo rechazó: rechazada automáticamente por desatascador (sin revisión humana); rama ola/RSC1006H conservada
+- `RSC1006J` — no escribió nada
+- `TK2c` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `p316Gc` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/p316Gc conservada
+- `p316Ic` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `p316Mb` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/p316Mb conservada
+- `p316Mc` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/p316Mc conservada
+- `PRD1005T` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
+- `ES1010Hb` — pruebas en rojo: vitest falla (rama conservada)
+- `FLU1005F` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-07 06:56:18 [0m> build · auto [0m [0m→ [0mRead CLAUDE.md [0m→ [0mRead memo
+- `PRD1005J` — no escribió nada
+- `PRD1005K` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-07 07:00:24 [0m [0m> build · auto [91m[1mError: [0mUnable to connect. Is th
+- `PRD1005R` — otra cosa: sin decisión en 0 h; rama ola/PRD1005R conservada
+- `RSC1006Fs` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RSC1006Is` — no escribió nada
+- `ES1010Ps` — no escribió nada
