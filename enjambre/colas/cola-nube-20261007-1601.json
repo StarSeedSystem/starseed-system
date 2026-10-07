@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "OR1007A",
+   "ola": "Ola 1007O · Oracle Always Free: la nube 24/7 de StarSeed OS (Astraura 1.58, malla, llamadas, enjambre y Genesis)",
+   "depende": [],
+   "titulo": "Oracle · `oracle_nube.py`: estado de la cuenta vinculada en `~/.starseed/oracle.json` sin un solo OCID",
+   "archivos": [
+    "scripts/puente/oracle_nube.py",
+    "scripts/puente/test_oracle_nube.py"
+   ],
+   "dificultad": "alta",
+   "privado": false,
+   "prompt": "CONTRATO: `architecture/oracle-nube.md`. Léelo ENTERO antes de empezar (sobre todo §1, §4 y §9): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, dilo en tu informe en vez de improvisar. Petición de Alex (2026-10-07): activar la cuenta Oracle Cloud Free para la nube 24/7 (Astraura 1.58 con sus capas y aprendizaje continuo, funciones en línea para todos, enjambre) y que Genesis y el OS la recuerden.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin `oci` real, sin SSH y sin archivos reales de la casa (todo lo externo se inyecta; HOME y rutas a un directorio temporal). Claves SOLO de `os.environ`/`process.env`, nunca se imprimen. NINGÚN OCID (tenancy, usuario, compartimento, instancia) en salidas, registros, JSON de estado ni pruebas con valores reales: en pruebas usa `ocid1.tenancy.oc1..falso`. Sin dependencias nuevas (ni npm ni pip). Rutas de proceso en macOS: nunca `pgrep -l`.\n\nTU TAREA (OR1007A): Módulo con núcleo PURO y una capa fina inyectable que llama a la CLI `oci` (ruta: `/opt/homebrew/bin/oci` o `oci` del PATH; `OCI_CLI_PROFILE` o perfil DEFAULT). (a) `vinculada(home)`: existe `~/.oci/config` con un perfil que tiene `key_file` legible; nunca lee ni devuelve el contenido de la llave. (b) `comprobar(correr)`: prueba de autenticación con `oci iam availability-domain list` (timeout 60 s) y, si responde, `oci limits value list --service-name compute` para A1 y micro y `oci compute instance list` (compartimento = tenancy leída de la config, que se usa en memoria y NUNCA se escribe). (c) Parsers puros de esas salidas JSON a `{nombre, forma, ocpus, gb, estado, ip_publica}` (la IP pública de una máquina sí se puede enseñar; `oci compute instance list-vnics` para sacarla). (d) `escribir_estado(ruta, estado)`: `~/.starseed/oracle.json` con chmod 600 y escritura atómica (.tmp + rename) con exactamente los campos de §4; región sí, ids no. (e) CLI: `estado` (texto en una línea por cosa), `--json`, y `comprobar` que escribe el archivo y, si cambia de no vinculada a vinculada, avisa al Chat Director con `director_chat.publicar(de=\"director-nube\")` (inyectable). Errores de la CLI (NotAuthenticated, región equivocada, sin red) se traducen a un `detalle` humano sin volcar la salida cruda. Pruebas: config falsa en un HOME temporal, salidas JSON de ejemplo y una comprobación explícita de que ningún `ocid1.` aparece en lo escrito ni en lo impreso."
+  }
+ ]
+}
