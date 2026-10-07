@@ -26,7 +26,7 @@ describe("safePersist", () => {
       window.addEventListener(PERSIST_DIAGNOSTIC_EVENT, listener);
     }
     try {
-      const r = safePersist("prueba:falla", () => {
+      const r = safePersist("prueba:falla", (): string => {
         throw new Error("disco lleno");
       });
       expect(r.ok).toBe(false);
@@ -45,7 +45,7 @@ describe("safePersist", () => {
         throw "tipo raro";
       }),
     ).not.toThrow();
-    const r = safePersist("prueba:tipo", () => {
+    const r = safePersist("prueba:tipo", (): string => {
       throw "tipo raro";
     });
     expect(r.ok).toBe(false);
