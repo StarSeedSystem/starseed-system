@@ -205,12 +205,14 @@ def lanzar(args: list[str]) -> None:
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
     rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
     if rc_push != 0:
+        _no_lanzada(cola)
         sys.exit("no pude empujar la rama de la cola: %s" % motivo_push(salida_push))
     rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
                                  "-f", "cola=%s" % cola,
                                  "-f", "trabajadores=%s" % trabajadores,
                                  "-f", "minutos=%s" % minutos])
     if rc_run != 0:
+        _no_lanzada(cola)
         sys.exit("gh no pudo disparar el workflow: %s" % (salida_run.strip()[-300:] or "?"))
     run_id = _esperar_run(rama)
     if not run_id:
@@ -220,6 +222,23 @@ def lanzar(args: list[str]) -> None:
     _anotar_lanzamiento(cola, trabajadores, minutos, run_id=run_id)
     _podar_ramas_de_cola()
     print("sigue con: python3 scripts/puente/nube-gh.py estado")
+
+
+def _no_lanzada(cola):
+    """La cola que no llegó a la nube deja de contar como envío (2026-10-06).
+
+    Los envíos a la nube se cuentan por las `cola-nube-*.json` que quedan en
+    `enjambre/colas/` (repartir_nube.envios_por_tarea), y a los 3 la tarea pasa a
+    «bloqueada». Con GitHub rechazando los empujes (GH013), cada reparto fallido gastaba un
+    envío sin que la nube viera la tarea: PT1007E, PT1008C y PT1008G acabaron «la nube la
+    intentó 3 veces» sin haberla intentado nunca. Se renombra a `.no-lanzada` (el contador
+    solo lee `.json`); el archivo se conserva para saber qué pasó."""
+    try:
+        ruta = os.path.join(RAIZ, cola)
+        if os.path.exists(ruta):
+            os.replace(ruta, ruta + ".no-lanzada")
+    except OSError:
+        pass
 
 
 def motivo_push(texto):
