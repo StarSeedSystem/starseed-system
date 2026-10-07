@@ -137,6 +137,47 @@ def clasificar_hf(quien: dict | None, spaces: list[dict] | None, error: str | No
     return medio("hf", "Hugging Face Spaces", "requiere_alex", "Docker gratuito exige PRO (402 medido 2026-09-20)", "cuenta %s (plan gratuito) · %d Space(s) activo(s)" % (quien.get("name"), len(activos)), "solo con PRO (9 $/mes); los Spaces públicos de otros no ejecutan nuestro código")
 
 
+#: Capacidad real de la cuenta Oracle Always Free (contrato architecture/oracle-nube.md §1,
+#: medida el 2026-10-07; el A1 bajó a la mitad el 2026-06-15: ya no son 4 OCPU ni 24 GB).
+CAPACIDAD_ORACLE = "A1 2 OCPU · 12 GB · 2 micro 1 GB · 10 TB/mes"
+RUTA_ORACLE_JSON = "~/.starseed/oracle.json"
+
+
+def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float) -> dict:
+    """PURA. Estado de Oracle según el contrato §9: `requiere_alex` sin vincular,
+    `usable` vinculada sin A1 en marcha y `listo` con el A1 RUNNING y su orquestador
+    del enjambre anunciado en medios.json (latido fresco, como el contenedor de Claude)."""
+    if not datos or not datos.get("vinculada"):
+        return medio(
+            "oracle", "Oracle Always Free", "requiere_alex", CAPACIDAD_ORACLE,
+            "cuenta sin vincular (falta ~/.starseed/oracle.json o «vinculada» no es cierto)",
+            "vincular: `oci setup bootstrap` en la Terminal",
+        )
+    instancias = datos.get("instancias") or []
+    a1 = next((i for i in instancias if isinstance(i, dict)
+               and "a1" in (str(i.get("nombre")) + str(i.get("forma"))).lower()), {})
+    if str(a1.get("estado") or "").upper() != "RUNNING":
+        return medio(
+            "oracle", "Oracle Always Free", "usable", CAPACIDAD_ORACLE,
+            "vinculada (región %s) sin máquina A1 en marcha" % (datos.get("region") or "?"),
+            "desplegar el A1 y su orquestador: scripts/puente/oracle_desplegar.py --simular",
+        )
+    latidos = [float(m.get("latido") or 0) for m in (medios or {}).get("medios", {}).values()
+               if isinstance(m, dict) and str(m.get("origen")) == "oracle"]
+    ultimo = max(latidos) if latidos else 0.0
+    if ultimo and ahora - ultimo < 600:
+        return medio(
+            "oracle", "Oracle Always Free", "listo", CAPACIDAD_ORACLE,
+            "A1 RUNNING y orquestador anunciado por el bus hace %d s" % int(ahora - ultimo), "",
+        )
+    return medio(
+        "oracle", "Oracle Always Free", "usable", CAPACIDAD_ORACLE,
+        "A1 RUNNING (región %s) pero su orquestador no se ha anunciado en medios.json"
+        % (datos.get("region") or "?"),
+        "arrancar el orquestador del enjambre en el A1 (se anuncia solo por el bus)",
+    )
+
+
 def clasificar_gcloud(instalado: bool, cuentas: list[str], proyecto: str, servicios: list[dict]) -> dict:
     if not instalado:
         return medio("gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex", "Cloud Run Jobs 180.000 vCPU·s/mes gratis (Cloud Shell no sirve para agentes desatendidos)", "gcloud no instalado", "brew install --cask google-cloud-sdk && gcloud auth login")
@@ -197,7 +238,13 @@ def sondear() -> dict:
         servicios = []
     medios.append(clasificar_gcloud(instalado and rc_g == 0, cuentas, (proyecto or "").strip(), servicios))
     medios.append(medio("colab", "Google Colab / Kaggle", "requiere_alex", "Colab: 2 vCPU · 12 GB · sesiones ≤12 h · Kaggle: 4 vCPU · 30 GB · 30 h/semana", "sin API: hace falta un cuaderno lanzador que clone el repo y corra el orquestador con las claves pegadas en la sesión", "medio por diseñar (cola futura): deploy/colab/enjambre.ipynb"))
-    medios.append(medio("oracle", "Oracle Free Tier", "no_disponible", "", "descartado por Alex (no deja crear la cuenta)", ""))
+    ruta_oracle = os.environ.get("ORACLE_JSON") or RUTA_ORACLE_JSON
+    try:
+        with open(os.path.expanduser(ruta_oracle), encoding="utf-8") as f:
+            oracle_datos = json.load(f)
+    except (OSError, ValueError):
+        oracle_datos = None
+    medios.append(clasificar_oracle(oracle_datos, reg, ahora))
     return {"generado": time.strftime("%Y-%m-%dT%H:%M:%S"), "medios": medios}
 
 

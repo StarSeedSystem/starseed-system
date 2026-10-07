@@ -96,5 +96,32 @@ class LaMacNoEsUnContenedorDeNube(unittest.TestCase):
         self.assertIn("claude", C.NO_SON_CONTENEDORES)
 
 
+class OracleTieneCapacidadReal(unittest.TestCase):
+    """Contrato oracle-nube.md §1 y §8: A1 de 2 OCPU y 12 GB, y el gobernador deja 1
+    agente permanente (núcleos − 1), no «descartado» ni 24 GB."""
+
+    def test_el_catalogo_dice_la_maquina_real(self):
+        cat = C.CATALOGO["oracle"]
+        self.assertEqual(cat["vcpu"], 2)
+        self.assertEqual(cat["ram_gb"], 12)
+        self.assertEqual(cat["jobs_simultaneos"], 1)
+
+    def test_un_oracle_usable_tiene_sitio_para_su_agente_permanente(self):
+        medio = {"id": "oracle", "nombre": "Oracle Always Free", "estado": "usable",
+                 "capacidad": "A1 2 OCPU · 12 GB · 2 micro 1 GB · 10 TB/mes", "detalle": ""}
+        c = C.contenedor(medio, C.CATALOGO["oracle"], {})
+        self.assertEqual(c["agentes_libres"], 1)
+        self.assertIn("2 vCPU", c["maquina"])
+        self.assertIn("12 GB", c["maquina"])
+
+    def test_un_oracle_que_requiere_a_alex_no_es_desplegable(self):
+        medio = {"id": "oracle", "estado": "requiere_alex", "detalle": "cuenta sin vincular",
+                 "siguiente_paso": "vincular: `oci setup bootstrap`"}
+        c = C.contenedor(medio, C.CATALOGO["oracle"], {})
+        self.assertFalse(c["desplegable"])
+        self.assertEqual(c["agentes_libres"], 0)
+        self.assertIn("vincular", c["falta"])
+
+
 if __name__ == "__main__":
     unittest.main()

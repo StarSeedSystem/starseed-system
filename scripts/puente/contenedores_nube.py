@@ -90,14 +90,14 @@ CATALOGO = {
         "lanza": "",
     },
     "oracle": {
-        "servicio": "Oracle Free Tier",
-        "proveedor": "Oracle",
-        "vcpu": 0,
-        "ram_gb": 0,
+        "servicio": "Oracle Always Free",
+        "proveedor": "Oracle Cloud (A1 Ampere ARM)",
+        "vcpu": 2,
+        "ram_gb": 12,
         "horas_job": 0,
-        "jobs_simultaneos": 0,
-        "agentes_por_job": 0,
-        "coste": "descartado por Alex (no deja crear la cuenta)",
+        "jobs_simultaneos": 1,
+        "agentes_por_job": 1,
+        "coste": "Always Free (gratis para siempre): 2 OCPU · 12 GB · 10 TB/mes de salida",
         "lanza": "",
     },
 }
@@ -136,7 +136,8 @@ def contenedor(medio: dict, cat: dict, vivos_por_medio: dict) -> dict:
         "servicio": cat.get("servicio") or medio.get("nombre") or mid,
         "proveedor": cat.get("proveedor") or "",
         "estado": medio.get("estado") or "no_disponible",
-        "maquina": ("%s vCPU · %s GB · %s h por job" % (cat.get("vcpu"), cat.get("ram_gb"), cat.get("horas_job"))
+        "maquina": ("%s vCPU · %s GB%s" % (cat.get("vcpu"), cat.get("ram_gb"),
+                                           (" · %s h por job" % cat.get("horas_job")) if cat.get("horas_job") else " · siempre encendido")
                     if cat.get("vcpu") else ""),
         "jobs_simultaneos": int(cat.get("jobs_simultaneos") or 0),
         "agentes_por_job": int(cat.get("agentes_por_job") or 0),

@@ -86,3 +86,43 @@ class SecretosDelEnjambre(unittest.TestCase):
         d = M.clasificar_gh(True, True, ["ANDROID_KEYSTORE_BASE64", "OPENROUTER_API_KEY"], [])
         self.assertEqual("usable", d["estado"])
         self.assertIn("1 clave", d["detalle"])
+
+
+class Oracle(unittest.TestCase):
+    """Estados del contrato oracle-nube.md §9: ya no es «descartado»."""
+
+    A1 = {"nombre": "starseed-a1", "forma": "VM.Standard.A1.Flex", "ocpus": 2, "gb": 12,
+          "estado": "RUNNING", "ip_publica": "203.0.113.10"}
+
+    def test_sin_oracle_json_requiere_a_alex_con_el_paso_de_vinculacion(self):
+        d = M.clasificar_oracle(None, None, 1_000_000.0)
+        self.assertEqual("requiere_alex", d["estado"])
+        self.assertIn("oci setup bootstrap", d["siguiente_paso"])
+        self.assertIn("A1 2 OCPU · 12 GB", d["capacidad"])
+
+    def test_vinculada_falsa_sigue_requiriendo_a_alex(self):
+        d = M.clasificar_oracle({"vinculada": False}, None, 1_000_000.0)
+        self.assertEqual("requiere_alex", d["estado"])
+
+    def test_vinculada_sin_a1_es_usable(self):
+        d = M.clasificar_oracle({"vinculada": True, "region": "mx-queretaro-1", "instancias": []},
+                                None, 1_000_000.0)
+        self.assertEqual("usable", d["estado"])
+        self.assertIn("queretaro", d["detalle"])
+
+    def test_a1_en_marcha_sin_orquestador_todavia_es_usable(self):
+        datos = {"vinculada": True, "region": "mx-queretaro-1", "instancias": [self.A1]}
+        self.assertEqual("usable", M.clasificar_oracle(datos, {"medios": {}}, 1_000_000.0)["estado"])
+
+    def test_a1_en_marcha_con_orquestador_anunciado_es_listo(self):
+        ahora = 1_000_000.0
+        datos = {"vinculada": True, "region": "mx-queretaro-1", "instancias": [self.A1]}
+        reg = {"medios": {"o1": {"entorno": "oracle", "origen": "oracle", "latido": ahora - 60}}}
+        d = M.clasificar_oracle(datos, reg, ahora)
+        self.assertEqual("listo", d["estado"])
+
+    def test_un_latido_viejo_no_basta_para_listo(self):
+        ahora = 1_000_000.0
+        datos = {"vinculada": True, "instancias": [self.A1]}
+        reg = {"medios": {"o1": {"origen": "oracle", "latido": ahora - 4000}}}
+        self.assertEqual("usable", M.clasificar_oracle(datos, reg, ahora)["estado"])
