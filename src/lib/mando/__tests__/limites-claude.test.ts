@@ -741,6 +741,41 @@ describe('limites-claude (rescate ramas nube)', () => {
     expect(resumenLimitesClaude(cercana)).toContain('reinicia en 45 min');
   });
 
+  it('mediana par: media de los dos centrales e ignora bajadas', () => {
+    const lecturas = [
+      lecturaBase({ sesion_pct: 10 }),
+      lecturaBase({ t: '2026-10-04T10:30:00.000Z', sesion_pct: 14 }),
+      lecturaBase({ t: '2026-10-04T11:00:00.000Z', sesion_pct: 22 }),
+      lecturaBase({ t: '2026-10-04T11:30:00.000Z', sesion_pct: 21 }), // bajada: no cuenta
+    ];
+    // aumentos 4 y 8 → mediana (4+8)/2 = 6
+    expect(costePorRevision(lecturas, 'sesion_pct')).toBe(6);
+  });
+
+  it('cada_min <= 0 se trata como puntual: cuenta 1 si proxima está en (ahora, hasta]', () => {
+    const ahora = Date.parse('2026-10-05T12:00:00.000Z');
+    const hasta = Date.parse('2026-10-05T18:00:00.000Z');
+    const lista: ProgramadaClaude[] = [
+      { nombre: 'cero', proxima: '2026-10-05T13:00:00.000Z', cada_min: 0 },
+      { nombre: 'negativa', proxima: '2026-10-05T14:00:00.000Z', cada_min: -5 },
+      { nombre: 'pasada', proxima: '2026-10-05T10:00:00.000Z', cada_min: 0 },
+    ];
+    expect(disparosAntes(lista, ahora, hasta)).toBe(2);
+  });
+
+  it('formato exacto del resumen calculado de verdad con proyección', () => {
+    const e = estadoLimitesClaude(
+      {
+        lecturas: [
+          lecturaBase({ sesion_pct: 30, semana_pct: 58 }),
+          lecturaBase({ t: '2026-10-04T11:00:00.000Z', sesion_pct: 34, semana_pct: 61 }),
+        ],
+      },
+      AHORA_RSC,
+    );
+    expect(resumenLimitesClaude(e)).toBe('sesión 34 % · semana 61 % · reinicia en 2 h 10 min · proyección 34 %');
+  });
+
   it('ENLACE_USO_CLAUDE apunta a Ajustes → Uso de claude.ai', () => {
     expect(ENLACE_USO_CLAUDE).toBe('https://claude.ai/settings/usage');
   });
