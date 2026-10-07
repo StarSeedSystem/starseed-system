@@ -18,8 +18,11 @@ Dos reglas que costaron caras y por eso están aquí y no en la memoria de nadie
 
 import os, subprocess, sys
 
-RAIZ = sys.argv[1] if len(sys.argv) > 1 else "/Users/alex/Documents/starseed-os-main"
-PY3 = sys.argv[2] if len(sys.argv) > 2 else "/opt/homebrew/bin/python3"
+# Los argumentos de línea solo cuentan al ejecutarlo como guion: las pruebas
+# importan el módulo (se instala al importarse) y su sys.argv no es de aquí.
+_ARGV = sys.argv if __name__ == "__main__" else []
+RAIZ = _ARGV[1] if len(_ARGV) > 1 else "/Users/alex/Documents/starseed-os-main"
+PY3 = _ARGV[2] if len(_ARGV) > 2 else "/opt/homebrew/bin/python3"
 HOME = os.path.expanduser("~")
 AG = os.path.join(HOME, "Library", "LaunchAgents")
 P = lambda n: os.path.join(RAIZ, "scripts", "puente", n)

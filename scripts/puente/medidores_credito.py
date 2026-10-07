@@ -295,7 +295,12 @@ def alimentar_salud(medidores: dict, ruta_salud: str = ARCHIVO_SALUD,
                 salud["codex"] = entrada
         if llena:
             reinicia = _fecha(llena.get("reinicia"))
-            hasta = (reinicia or ahora or datetime.now().astimezone()).astimezone()
+            if reinicia:
+                # Hora de pared tal como la informó el proveedor: convertirla a la
+                # TZ local la cambiaría donde el reloj sea distinto.
+                hasta = reinicia.replace(tzinfo=None)
+            else:
+                hasta = (ahora or datetime.now().astimezone()).astimezone()
             entrada["sin_cupo_hasta"] = hasta.strftime("%Y-%m-%d %H:%M:%S")
             entrada["motivo"] = f"medidor: {llena.get('id')} 100 %"
             salud["codex"] = entrada

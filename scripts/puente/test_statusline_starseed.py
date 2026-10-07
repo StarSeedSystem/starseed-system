@@ -7,6 +7,7 @@ con STARSEED_HOME apuntando a una carpeta temporal.
 import json
 import os
 import plistlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -59,8 +60,11 @@ class PruebasStatusline(unittest.TestCase):
     def ejecutar(self, stdin_texto, home):
         entorno = dict(os.environ)
         entorno["STARSEED_HOME"] = str(home)
+        # El guion es POSIX (delega en python3); zsh solo existe en la Mac,
+        # así que en su ausencia se usa bash.
+        shell = shutil.which("zsh") or shutil.which("bash") or "/bin/sh"
         return subprocess.run(
-            ["/bin/zsh", str(SCRIPT)],
+            [shell, str(SCRIPT)],
             input=stdin_texto.encode(),
             capture_output=True,
             env=entorno,
