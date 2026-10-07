@@ -1,0 +1,65 @@
+{
+ "ola": "nube-20261006",
+ "tareas": [
+  {
+   "id": "PT1007C",
+   "ola": "Ola 1007P · Puente de Mando para todos · F1 cimientos puros (ámbito, capacidades, protocolo, vista pública, token de motor, almacén)",
+   "depende": [],
+   "titulo": "Mando para todos · vista pública de un ámbito por lista blanca (puro)",
+   "archivos": [
+    "src/lib/mando/vista-publica.ts",
+    "src/lib/mando/__tests__/vista-publica.test.ts"
+   ],
+   "dificultad": "media",
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §5): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1007C): la vista pública de §5, PURA, con LISTA BLANCA (lo que no está escrito no sale).\n(a) Tipo de entrada `EstadoAmbito` mínimo: `{ambito: {nombre, visibilidad}, olas: {nombre, avance, tareas: {id, titulo, estado, prompt?, archivos?, registro?, proveedor?}[]}[], integradas: {titulo, fecha, archivos?, commit?}[], motor: {estado, ultimo_reporte, proveedores?: string[]}, medidores?: {creditos?: unknown}, chat: {canal, autor, texto}[]}` (usa `Visibilidad` de `src/lib/mando/ambito.ts`, PT1007A).\n(b) `vistaPublica(estado): VistaPublica | null`: `null` si la visibilidad no es `publico`; si lo es: nombre, olas con `nombre`, `avance` y sus tareas SOLO con `titulo` y `estado`; integradas SOLO con `titulo` y `fecha`; `motor` = `{estado, haceMin}`; `avanceMedio`; y del chat SOLO los mensajes del canal `publico` (`autor`, `texto`). Nunca prompts, archivos, registros, commits, proveedores, saldos ni créditos.\n(c) Vitest: con un estado lleno de datos privados reconocibles (un prompt «PROMPT-SECRETO», un archivo «ruta/privada.ts», un proveedor «proveedor-x», un saldo 123.45, un mensaje de canal `interno`), `JSON.stringify(vistaPublica(estado))` no contiene NINGUNO; visibilidad `privado` y `miembros` → `null`; avance medio correcto.\n Todo lo nuevo queda detrás de `STARSEED_MANDO_TODOS=1` (§1.10): sin la bandera, el Mando se comporta exactamente igual que hoy.",
+   "dependencias_ya_en_main": [
+    "PT1007A"
+   ]
+  },
+  {
+   "id": "PT1008A",
+   "ola": "Ola 1008P · Puente de Mando para todos · F2 datos y seguridad (migración aditiva + RLS + RPC, guardián por ámbito, conector del motor, almacén Supabase)",
+   "depende": [],
+   "titulo": "Mando para todos · migración aditiva: tablas mando_* con RLS activada",
+   "archivos": [
+    "supabase/migrations/20261008090000_mando_tablas.sql",
+    "src/lib/mando/__tests__/migraciones-mando.test.ts"
+   ],
+   "dificultad": "alta",
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §6.1 y §6.2): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1008A): las tablas de §6.1 en una migración ADITIVA (`create table if not exists`, nada de drop, rename, truncate ni alter type): `mando_ambitos` (id uuid, tipo, entidad_tipo, entidad_ref, perfil_id, visibilidad con check, modo_gobierno con check, nombre, creado_por uuid → auth.users, freno boolean default false, created_at), `mando_motores` (id, ambito_id → mando_ambitos on delete cascade, nombre, tipo check `local|nube-propia|servidor-propio`, token_hash text unique not null, huella, capacidades text[], estado check `vivo|dormido|frenado|revocado`, ultimo_reporte timestamptz, creado_por), `mando_enjambres` (id, ambito_id, motor_id, nombre, config jsonb check tamaño ≤ 16 KB), `mando_tareas` (ambito_id, tarea_id, ola, titulo, depende text[], archivos text[], prompt text check ≤ 20 000, estado, avance, updated_at; pk ambito_id+tarea_id), `mando_eventos` (id bigserial, ambito_id, motor_id, t, tipo, tarea, texto check ≤ 4 000), `mando_chat` (id bigserial, ambito_id, canal ≤ 40, autor ≤ 40, rol, texto ≤ 4 000, created_at), `mando_medidores` (ambito_id, motor_id, doc jsonb check `pg_column_size(doc) <= 32768`, updated_at; pk ambito_id+motor_id), `mando_presupuesto` (dia date, ambito_id, peticiones int default 0; pk dia+ambito_id). Índices por `ambito_id` (y `t` en eventos). `alter table … enable row level security` en TODAS, SIN políticas todavía (las pone PT1008B): sin políticas, nadie lee ni escribe desde el navegador, que es el estado seguro. Un disparador `mando_eventos_tope` que, tras insertar, borra las filas de ese ámbito más allá de las 2 000 más nuevas.\nVitest `migraciones-mando.test.ts` que lee con `node:fs` los archivos `supabase/migrations/*mando*.sql` y comprueba: cada `create table` de `mando_*` tiene su `enable row level security`; no hay `drop `, `truncate`, `rename` ni `alter … type`; toda `security definer` lleva `set search_path`. (PT1008B y PT1008C añadirán migraciones que esta misma prueba vigilará.) NO se aplica a ninguna base de datos: la dirección la revisa y la aplica en el proyecto de pruebas.",
+   "dependencias_ya_en_main": [
+    "PT1007A"
+   ]
+  },
+  {
+   "id": "PT1008D",
+   "ola": "Ola 1008P · Puente de Mando para todos · F2 datos y seguridad (migración aditiva + RLS + RPC, guardián por ámbito, conector del motor, almacén Supabase)",
+   "depende": [],
+   "titulo": "Mando para todos · guardianMando por ámbito y capacidad (detrás de la bandera)",
+   "archivos": [
+    "src/lib/mando/guardian.ts",
+    "src/lib/mando/__tests__/guardian-ambito.test.ts"
+   ],
+   "dificultad": "alta",
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §6.4): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1008D): el arreglo 2 de §6.4 sin romper nada de hoy.\n(a) `guardianMando(req?, opciones?: {ambito?: string; capacidad?: CapacidadAmbito})`: con `STARSEED_MANDO_TODOS !== \"1\"` hace EXACTAMENTE lo de hoy (no cambies ese camino). Con la bandera y en producción NO local: exige sesión y que el usuario tenga `capacidad` (por defecto `ver-detalle`) en `ambito` (por defecto su ámbito de persona); para saberlo llama a la RPC `mando_capacidad` (PT1008B) con el cliente de servidor de `@/utils/supabase/server`; si no la tiene → 403 `{error: \"No tienes permiso en este Mando.\"}`; si la RPC falla → 503 (nunca deja pasar por error). En local, igual que hoy.\n(b) Saca la decisión a una función pura exportada `decidirAcceso({bandera, produccion, esLocal, hayUsuario, tieneCapacidad, rpcFallo}): 200 | 401 | 403 | 404 | 503` y úsala dentro.\n(c) Vitest de `decidirAcceso` con TODAS las combinaciones relevantes, incluida la de hoy (sin bandera: local pasa sin sesión; producción no local con sesión pasa).",
+   "dependencias_ya_en_main": [
+    "PT1007A"
+   ]
+  },
+  {
+   "id": "PT1009E",
+   "ola": "Ola 1009P · Puente de Mando para todos · F3 interfaz (selector de ámbito, crear enjambre, motores, kits de entidad, aprobación democrática)",
+   "depende": [],
+   "titulo": "Mando para todos · aprobación democrática de olas en grupos (propuesta → votación → lanzar)",
+   "archivos": [
+    "src/lib/mando/aprobacion-olas.ts",
+    "src/lib/mando/__tests__/aprobacion-olas.test.ts"
+   ],
+   "dificultad": "media",
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §3): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1009E): la regla democrática de §3. (a) `necesitaVotacion(ambito, capacidad): boolean` (las cuatro capacidades de §3 en modo democrático). (b) `propuestaDeOla(ambito, ola: {nombre, tareas: TareaOla[]}, autor)`: arma el borrador de propuesta con `proposalForChange` de `src/lib/governance/permissions.ts` (léelo: usa su forma `ProposalDraft`) con un resumen legible (nombre de la ola, número de tareas, archivos tocados, si usa proveedores de pago) y SIN prompts completos. (c) `capacidadesAprobadas(propuestas: {capacidad, estado, vence?}[], ahora)`: las capacidades con propuesta `aprobada` y no vencida → para pasarlas como `aprobadas` a `capacidadesDe` (PT1007A). (d) Vitest: jerárquico no necesita votación; democrático sí para lanzar-olas y no para frenar; propuesta sin prompts; aprobada vencida no cuenta; rechazada no cuenta.\n Todo lo nuevo queda detrás de `STARSEED_MANDO_TODOS=1` (§1.10): sin la bandera, el Mando se comporta exactamente igual que hoy.",
+   "dependencias_ya_en_main": [
+    "PT1007A"
+   ]
+  }
+ ]
+}
