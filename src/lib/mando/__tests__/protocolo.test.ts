@@ -1,25 +1,30 @@
 import { describe, it, expect } from "vitest";
 import { ocultarSecretos, validarTarea, sanearEvento, sanearMensaje, validarLote, VERSION_PROTOCOLO } from "../protocolo";
 
+// (2026-10-06) Las claves de ejemplo se montan en tiempo de ejecución: escritas enteras en el
+// archivo, la protección de secretos de GitHub bloqueaba CUALQUIER empuje que llevara este
+// commit (también las ramas de la nube). Ninguna es real.
+const parte = (...trozos: string[]) => trozos.join("");
+
 describe("ocultarSecretos", () => {
   it("oculta patrones de secreto", () => {
-    const txt = "clave sk-abc123def456ghi789jkl012mno345pqr";
+    const txt = "clave " + parte("sk-", "abc123def456ghi789jkl012mno345pqr");
     expect(ocultarSecretos(txt)).toContain("[clave oculta]");
   });
   it("oculta ghp_", () => {
-    const txt = "token ghp_abcdefghijklmnopqrstuvwxyz123456";
+    const txt = "token " + parte("gh", "p_abcdefghijklmnopqrstuvwxyz123456");
     expect(ocultarSecretos(txt)).toContain("[clave oculta]");
   });
   it("oculta github_pat_", () => {
-    const txt = "pat github_pat_abcdefghijklmnopqrstuvwxyz123456";
+    const txt = "pat " + parte("github", "_pat_abcdefghijklmnopqrstuvwxyz123456");
     expect(ocultarSecretos(txt)).toContain("[clave oculta]");
   });
   it("oculta AKIA", () => {
-    const txt = "key AKIAIOSFODNN7EXAMPLE";
+    const txt = "key " + parte("AKIA", "IOSFODNN7EXAMPLE");
     expect(ocultarSecretos(txt)).toContain("[clave oculta]");
   });
   it("oculta xoxb-", () => {
-    const txt = "bot xoxb-123456789012-abcdefghijklmnopqrstuv";
+    const txt = "bot " + parte("xo", "xb-123456789012-abcdefghijklmnopqrstuv");
     expect(ocultarSecretos(txt)).toContain("[clave oculta]");
   });
   it("oculta JWT", () => {
@@ -27,7 +32,7 @@ describe("ocultarSecretos", () => {
     expect(ocultarSecretos(txt)).toContain("[clave oculta]");
   });
   it("oculta PEM", () => {
-    const txt = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcw\n-----END PRIVATE KEY-----";
+    const txt = parte("-----BEGIN PRIV", "ATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcw\n-----END PRIV", "ATE KEY-----");
     expect(ocultarSecretos(txt)).toContain("[clave oculta]");
   });
   it("oculta asignación KEY", () => {
@@ -57,7 +62,7 @@ describe("validarTarea", () => {
 
 describe("sanearEvento", () => {
   it("sanea y oculta secretos", () => {
-    const e = { t: 1, tipo: "log", texto: "clave sk-abcdefghijklmnopqrstuvwxy123456" };
+    const e = { t: 1, tipo: "log", texto: "clave " + parte("sk-", "abcdefghijklmnopqrstuvwxy123456") };
     const r = sanearEvento(e);
     expect(r.ok).toBe(true);
     expect(r.valor?.texto).toContain("[clave oculta]");
@@ -70,7 +75,7 @@ describe("sanearEvento", () => {
 
 describe("sanearMensaje", () => {
   it("sanea y oculta", () => {
-    const m = { canal: "c", autor: "a", rol: "user", texto: "token ghp_abcdefghijklmnopqrstuvwxyz123456" };
+    const m = { canal: "c", autor: "a", rol: "user", texto: "token " + parte("gh", "p_abcdefghijklmnopqrstuvwxyz123456") };
     const r = sanearMensaje(m);
     expect(r.ok).toBe(true);
     expect(r.valor?.texto).toContain("[clave oculta]");

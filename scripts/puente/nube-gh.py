@@ -205,7 +205,7 @@ def lanzar(args: list[str]) -> None:
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
     rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
     if rc_push != 0:
-        sys.exit("no pude empujar la rama de la cola: %s" % (salida_push.strip()[-300:] or "?"))
+        sys.exit("no pude empujar la rama de la cola: %s" % motivo_push(salida_push))
     rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
                                  "-f", "cola=%s" % cola,
                                  "-f", "trabajadores=%s" % trabajadores,
@@ -220,6 +220,26 @@ def lanzar(args: list[str]) -> None:
     _anotar_lanzamiento(cola, trabajadores, minutos, run_id=run_id)
     _podar_ramas_de_cola()
     print("sigue con: python3 scripts/puente/nube-gh.py estado")
+
+
+def motivo_push(texto):
+    """PURA. El porqué de un `git push` rechazado, en una línea útil.
+
+    (2026-10-06) Desde las 21:59 GitHub rechazaba cada rama de la nube con «push declined due
+    to repository rule violations» y el registro solo guardaba los últimos 300 caracteres
+    («remote: To https://…»): la causa (protección de secretos, GH013) y los enlaces para
+    desbloquear estaban más arriba y nadie los veía. Si es eso, se devuelven los tipos de
+    secreto, dónde están y los enlaces de GitHub para permitirlos (nunca el valor)."""
+    t = texto or ""
+    if "GH013" in t or "unblock-secret" in t or "Push cannot contain secrets" in t:
+        lineas = [l.replace("remote:", "").strip() for l in t.splitlines()]
+        tipos = sorted({l.strip("—- ").strip() for l in lineas if l.startswith("—") and l.endswith("—")} - {""})
+        rutas = sorted({l.split("path:", 1)[1].strip() for l in lineas if "path:" in l})
+        urls = sorted({w for l in lineas for w in l.split() if "unblock-secret" in w})
+        return ("GitHub bloquea el empuje por secretos detectados (protección de secretos, GH013): %s; en %s; "
+                "si son de prueba, desbloquéalos aquí: %s" % (", ".join(tipos) or "?", ", ".join(rutas) or "?",
+                                                             " ".join(urls) or "(sin enlace en la respuesta)"))
+    return t.strip()[-300:] or "?"
 
 
 def _sh_rc(orden: list[str], timeout: int = 120):
