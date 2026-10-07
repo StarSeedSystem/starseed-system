@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261006",
+ "tareas": [
+  {
+   "id": "MC1007G",
+   "ola": "Ola 1007M · Medidores de crédito por terminal: un medidor por cada crédito de pago que se actualiza solo (Claude, ChatGPT/Codex y cualquier API)",
+   "depende": [],
+   "titulo": "Medidores · medidor «creditos» en el panel y atajo en la ruta del Mando",
+   "archivos": [
+    "src/lib/mando/medidores.ts",
+    "src/app/api/mando/medidores/route.ts",
+    "src/lib/mando/__tests__/medidor-creditos.test.ts"
+   ],
+   "dificultad": "media",
+   "prompt": "CONTRATO: `architecture/medidores-credito.md`. Léelo ENTERO antes de empezar (sobre todo §4.3): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «El medidor de Claude debe usar la terminal para autoactualizarse y contar con un medidor para cada crédito del usuario en sus APIs y modelos de pago (en nuestro caso, Claude y ChatGPT, pero con espacio para cualquier medidor adaptado a cualquier modelo y APIs).»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (MC1007G): conectar `src/lib/mando/creditos-pago.ts` (MC1007F) al panel de medidores (§4.3). Toca solo lo necesario de dos archivos grandes: ediciones dirigidas, no reescrituras.\n(a) `medidores.ts`: añade `\"creditos\"` a `ClaveMedidor` (comentario con la petición de Alex y la fecha), a `ORDEN_POR_DEFECTO` justo detrás de `\"credito-claude\"` y a la lista de claves conocidas (busca dónde aparece `\"credito-claude\"` por segunda vez cerca del final); un campo opcional `creditosPago?: DocCreditos | null` en el tipo de datos que recibe `detalleDeMedidor`; y un `case \"creditos\"` que devuelve título «Créditos de pago», resumen («2 créditos · peor: ChatGPT · Codex al 100 %»), una `FilaMedidor` por medidor (id = id del medidor, título = nombre, estado = su tono, porque = `resumenCredito` + `textoExtras`, enlace = su `enlace`, ficha = por ventana «Usado», «Queda», «Reinicia», y además «Saldo», «Fuente» y «Leído hace»), `acciones: []` y `vacio`: «Sin lecturas todavía: el servicio com.starseed.medidores lee Claude y Codex por terminal cada 10 min.». Mira el `case \"credito-claude\"` y sigue su estilo.\n(b) `route.ts`: igual que el atajo de `clave === \"credito-claude\"`, para `clave === \"creditos\"` lee SOLO `leerCreditosPago()` y responde sin reunir todo lo demás.\n(c) Vitest `medidor-creditos.test.ts`: `detalleDeMedidor(\"creditos\", { creditosPago: <ejemplo de §3> })` da 2 filas en el orden claude, codex, con estados `ok` y `peligro`; con `null` da `vacio`; `medidoresVisibles(configuracionPorDefecto())` incluye `\"creditos\"` justo detrás de `\"credito-claude\"`.",
+   "dependencias_ya_en_main": [
+    "MC1007F"
+   ]
+  }
+ ]
+}
