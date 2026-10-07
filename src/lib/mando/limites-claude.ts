@@ -147,9 +147,10 @@ export function costePorRevision(lecturas: LecturaLimites[], campo: "sesion_pct"
 }
 
 /**
- * Disparos de tareas programadas antes de `hasta` (ms): 1 por cada
- * `proxima` ∈ (ahora, hasta], más floor((hasta − proxima)/cada_min) cuando
- * `cada_min` > 0.
+ * Disparos de tareas programadas antes de `hasta` (ms): para cada programada,
+ * los valores `proxima + k·cada_min` (k ≥ 0, en ms) que caen en (ahora, hasta].
+ * Si `proxima` ya pasó (`px <= ahora`), se avanza a la primera ocurrencia
+ * posterior a `ahora` (sin bucles: aritmética pura).
  */
 export function disparosAntes(lista: ProgramadaClaude[], ahora: number, hasta: number): number {
     let n = 0;
@@ -157,13 +158,28 @@ export function disparosAntes(lista: ProgramadaClaude[], ahora: number, hasta: n
     for (const p of lista) {
         const px = msDe(p.proxima);
         if (px === null) continue;
-        // Base shot: solo si proxima está en (ahora, hasta]
-        if (px > ahora && px <= hasta) {
-            n += 1;
-        }
-        // Additional shots: siempre que cada_min > 0 y proxima <= hasta
-        if (typeof p.cada_min === "number" && p.cada_min > 0 && px <= hasta) {
-            n += Math.floor((hasta - px) / (p.cada_min * 60000));
+        const cadaMin = p.cada_min;
+        if (typeof cadaMin === "number" && cadaMin > 0) {
+            const intervalo = cadaMin * 60000;
+            let primer = px;
+            if (primer <= ahora) {
+                primer = primer + Math.ceil((ahora - primer) / intervalo) * intervalo;
+            }
+            if (primer > hasta) {
+                // nada
+            } else if (primer > ahora) {
+                n += Math.floor((hasta - primer) / intervalo) + 1;
+            } else if (primer === ahora) {
+                // El primer disparo coincide con `ahora`, que está abierto en el intervalo;
+                // solo cuentan los siguientes (`primer + intervalo`, ...).
+                n += Math.floor((hasta - primer) / intervalo);
+            }
+        } else {
+            // Sin periodicidad (`cada_min` nulo o ≤ 0): cuenta 1 solo si
+            // `proxima` está en (ahora, hasta].
+            if (px > ahora && px <= hasta) {
+                n += 1;
+            }
         }
     }
     return n;

@@ -253,9 +253,62 @@ describe('limites-claude (pure logic)', () => {
         },
       ];
       // test1: proxima=500 >0 and <=1000 -> +1
-      // test2: proxima=0 -> not in (0,1000] -> base 0; additional: floor((1000-0)/200) = 5
+      // test2: proxima=0 -> not in (0,1000] -> base 0; first occurrence > 0 = 200; then 200,400,600,800,1000 -> 5 shots
       // total = 1 + 5 = 6
       expect(disparosAntes(lista, ahora, hasta)).toBe(6);
+    });
+
+    // Caso real LC1007A: periódica vieja que pasó hace días; debe avanzar a primera ocurrencia posterior.
+    it('caso real: periódica vieja cuenta 3 disparos hasta 23:10', () => {
+      const ahora = new Date('2026-10-06T20:03:00-06:00').getTime();
+      const hasta = new Date('2026-10-06T23:10:00-06:00').getTime();
+      const lista: ProgramadaClaude[] = [
+        {
+          nombre: 'revisión periódica',
+          proxima: '2026-10-04T23:20:00-06:00',
+          cada_min: 60,
+        },
+      ];
+      // Proxima = 2026-10-04 23:20 (ya pasó). Intervalo = 60 min.
+      // Avanzar a primera > ahora (20:03 el 6 oct): 20:20, luego 21:20, 22:20; 23:20 pasa 23:10.
+      expect(disparosAntes(lista, ahora, hasta)).toBe(3);
+    });
+
+    it('puntual futura: cuenta 1', () => {
+      const ahora = new Date('2026-10-06T20:00:00-06:00').getTime();
+      const hasta = new Date('2026-10-06T23:00:00-06:00').getTime();
+      const lista: ProgramadaClaude[] = [
+        { nombre: 'puntual', proxima: '2026-10-06T21:30:00-06:00', cada_min: null },
+      ];
+      expect(disparosAntes(lista, ahora, hasta)).toBe(1);
+    });
+
+    it('puntual pasada: cuenta 0', () => {
+      const ahora = new Date('2026-10-06T21:00:00-06:00').getTime();
+      const hasta = new Date('2026-10-06T23:00:00-06:00').getTime();
+      const lista: ProgramadaClaude[] = [
+        { nombre: 'pasada', proxima: '2026-10-06T20:30:00-06:00', cada_min: null },
+      ];
+      expect(disparosAntes(lista, ahora, hasta)).toBe(0);
+    });
+
+    it('periódica futura: cuenta base + adicionales', () => {
+      const ahora = new Date('2026-10-06T20:00:00-06:00').getTime();
+      const hasta = new Date('2026-10-06T23:00:00-06:00').getTime();
+      const lista: ProgramadaClaude[] = [
+        { nombre: 'futura', proxima: '2026-10-06T21:00:00-06:00', cada_min: 60 },
+      ];
+      // Base 21:00, adicionales 22:00, 23:00 -> total 3 (23:00 está en (20:00, 23:00], sí)
+      expect(disparosAntes(lista, ahora, hasta)).toBe(3);
+    });
+
+    it('hasta <= ahora: 0', () => {
+      const ahora = new Date('2026-10-06T22:00:00-06:00').getTime();
+      const hasta = new Date('2026-10-06T21:00:00-06:00').getTime();
+      const lista: ProgramadaClaude[] = [
+        { nombre: 'cualquiera', proxima: '2026-10-06T21:30:00-06:00', cada_min: 60 },
+      ];
+      expect(disparosAntes(lista, ahora, hasta)).toBe(0);
     });
   });
 
