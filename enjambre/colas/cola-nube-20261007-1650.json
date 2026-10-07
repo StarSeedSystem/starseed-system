@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "OR1007J",
+   "ola": "Ola 1007O · Oracle Always Free: la nube 24/7 de StarSeed OS (Astraura 1.58, malla, llamadas, enjambre y Genesis)",
+   "depende": [],
+   "titulo": "Oracle · `oracle_claves.py`: Alex lleva las claves a cada máquina por SSH sin que se impriman",
+   "archivos": [
+    "scripts/puente/oracle_claves.py",
+    "scripts/puente/test_oracle_claves.py"
+   ],
+   "dificultad": "media",
+   "privado": false,
+   "prompt": "CONTRATO: `architecture/oracle-nube.md`. Léelo ENTERO antes de empezar (sobre todo §5, §8 y §10): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, dilo en tu informe en vez de improvisar. Petición de Alex (2026-10-07): activar la cuenta Oracle Cloud Free para la nube 24/7 (Astraura 1.58 con sus capas y aprendizaje continuo, funciones en línea para todos, enjambre) y que Genesis y el OS la recuerden.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin `oci` real, sin SSH y sin archivos reales de la casa (todo lo externo se inyecta; HOME y rutas a un directorio temporal). Claves SOLO de `os.environ`/`process.env`, nunca se imprimen. NINGÚN OCID (tenancy, usuario, compartimento, instancia) en salidas, registros, JSON de estado ni pruebas con valores reales: en pruebas usa `ocid1.tenancy.oc1..falso`. Sin dependencias nuevas (ni npm ni pip). Rutas de proceso en macOS: nunca `pgrep -l`.\n\nTU TAREA (OR1007J): Herramienta que corre Alex: `oracle_claves.py <maquina> VAR1 VAR2 …` lee SOLO esas variables de `~/.starseed/env`, construye en memoria el archivo y lo deja en `/etc/starseed/env` de la máquina (IP desde `~/.starseed/oracle.json`, llave `~/.ssh/starseed_oracle_ed25519`, usuario `starseed`, `sudo install -m 600 -o root`), por la entrada estándar de ssh, sin archivos temporales locales. Nunca imprime valores: solo «VAR1 ✓, VAR2 (no está en tu env)». Rechaza nombres que no sean `[A-Z][A-Z0-9_]+`. `--simular` dice qué haría. Pruebas con un ssh falso que captura la entrada (para comprobar el contenido) y una comprobación de que la salida impresa no contiene ningún valor.",
+   "dependencias_ya_en_main": [
+    "OR1007A"
+   ]
+  }
+ ]
+}
