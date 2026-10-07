@@ -206,3 +206,59 @@ class ServiciosEnLaPasada(unittest.TestCase):
     def test_con_forzar_lo_hace_el_reactivador_no_la_pasada(self):
         _, _, llamadas = self.pasada(forzar=True)
         self.assertEqual(llamadas, [])
+
+
+class MedidorComoPrueba(unittest.TestCase):
+    """2026-10-07: la semana de Codex se reinició (0 %) pero la salud lo tenía «sin cupo» hasta
+    las 20:31 por una marca vieja del orquestador. El medidor de crédito cuenta como la sonda."""
+
+    def doc(self, semana=0, leido="2026-10-07T00:51:53-06:00", reinicia="2026-10-14T00:51:54-06:00", **extra):
+        m = {"ok": True, "obsoleto": False, "leido": leido,
+             "ventanas": [{"id": "5h", "usado_pct": 0, "reinicia": "2026-10-07T05:51:54-06:00"},
+                          {"id": "semana", "usado_pct": semana, "reinicia": reinicia}],
+             "extras": {"uso_normal": True, "reinicios_gratis": 1}}
+        m.update(extra)
+        return {"medidores": {"codex": m, "claude": {"ok": True, "ventanas": []}}}
+
+    T = __import__("datetime").datetime.fromisoformat("2026-10-07T00:55:00-06:00").timestamp()
+
+    def test_codex_con_cupo_es_apto(self):
+        self.assertEqual(A.aptos_de_medidores(self.doc(), self.T), ["codex"])
+
+    def test_semana_llena_no(self):
+        self.assertEqual(A.aptos_de_medidores(self.doc(semana=100), self.T), [])
+
+    def test_semana_llena_pero_ya_reiniciada_si(self):
+        self.assertEqual(A.aptos_de_medidores(
+            self.doc(semana=100, reinicia="2026-10-07T00:00:00-06:00"), self.T), ["codex"])
+
+    def test_lectura_vieja_obsoleta_bloqueada_o_cortada_no(self):
+        self.assertEqual(A.aptos_de_medidores(self.doc(leido="2026-10-06T20:00:00-06:00"), self.T), [])
+        self.assertEqual(A.aptos_de_medidores(self.doc(obsoleto=True), self.T), [])
+        self.assertEqual(A.aptos_de_medidores(self.doc(ok=False), self.T), [])
+        self.assertEqual(A.aptos_de_medidores(
+            self.doc(extras={"bloqueado": "rate_limit_reached"}), self.T), [])
+        self.assertEqual(A.aptos_de_medidores(self.doc(extras={"uso_normal": False}), self.T), [])
+
+    def test_basura_no_lanza(self):
+        for d in (None, {}, {"medidores": []}, {"medidores": {"codex": "x"}},
+                  {"medidores": {"codex": {"ok": True, "leido": "no", "ventanas": "x"}}}):
+            self.assertEqual(A.aptos_de_medidores(d, self.T), [])
+
+    def test_sin_sonda_pero_con_medidor_refresca_y_levanta_codex(self):
+        ordenes, levantados = [], []
+        linea = A.curar_enjambre(
+            {}, AHORA, False, latido_fn=lambda c: LATIDO_REAL, sondear_fn=lambda: [],
+            ordenar_fn=ordenes.append, reiniciar_fn=lambda: [],
+            levantar_fn=lambda aptos: (levantados.append(aptos) or (["codex"], [])),
+            avisar_fn=lambda t: None, cola_fn=lambda: "cola-x.json", medidores_fn=lambda ahora: ["codex"])
+        self.assertEqual(levantados, [["codex"]])
+        self.assertEqual(ordenes, ["cola-x.json"])
+        self.assertIn("codex", linea)
+
+    def test_medidor_que_falla_no_rompe_la_curacion(self):
+        r = A.curar_enjambre({}, AHORA, False, latido_fn=lambda c: LATIDO_REAL, sondear_fn=lambda: [],
+                             ordenar_fn=lambda c: None, reiniciar_fn=lambda: [],
+                             levantar_fn=lambda a: ([], []), avisar_fn=lambda t: None,
+                             cola_fn=lambda: "cola-x.json", medidores_fn=lambda ahora: 1 / 0)
+        self.assertIsInstance(r, str)

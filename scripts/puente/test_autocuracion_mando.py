@@ -105,7 +105,14 @@ class Revisar(unittest.TestCase):
             libre_fn=lambda: libre, avisar_fn=self.avisos.append, dormir=lambda s: None,
             # El punto 6 (enjambre atascado) mira procesos reales: aquí se aísla.
             curar_fn=lambda estado, ahora, forzar: "",
-            servicios_fn=lambda: {"estado": "ok", "detalle": ""})
+            servicios_fn=lambda: {"estado": "ok", "detalle": ""},
+            medidores_fn=lambda ahora: getattr(self, "levantados_medidor", []))
+
+    def test_medidor_que_ve_cupo_levanta_y_lo_dice(self):
+        self.levantados_medidor = ["codex"]
+        estado = self._revisar([True], 20.0)
+        self.assertTrue(any("codex" in h and "medidor" in h for h in estado["hechos"]))
+        self.assertTrue(any("codex" in a for a in self.avisos))
 
     def test_mando_caido_se_reinicia_solo_y_lo_dice(self):
         e = self._revisar([False, False, False], 20.0)

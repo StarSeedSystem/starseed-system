@@ -219,7 +219,84 @@ def aptos_de_sonda(resultados, alias=None):
                    for m, apto, _motivo, _h in (resultados or []) if apto})
 
 
-def levantar_marcas(salud, aptos, ahora_txt):
+# Medidores de crédito por terminal (MC1007D): `medidores_credito.py` los deja cada 10 min en
+# este archivo. Si el de Codex dice que vuelve a tener cupo (p. ej. tras el reinicio semanal),
+# su marca vieja de «sin cupo» en la salud ya no vale: cuenta como apto igual que la sonda.
+MEDIDORES = os.path.expanduser("~/.starseed/medidores-credito.json")
+MEDIDOR_VALIDO_S = 30 * 60
+MEDIDOR_A_SALUD = {"codex": "codex"}  # id del medidor → nombre del proveedor en la salud
+
+
+def _epoch_iso(valor):
+    if not isinstance(valor, str) or not valor:
+        return None
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(valor.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def aptos_de_medidores(doc, ahora, max_edad_s=MEDIDOR_VALIDO_S, mapa=None):
+    """PURA. Proveedores (nombre en la salud) cuyo medidor de crédito, con una lectura de hace
+    menos de `max_edad_s`, dice que tienen cupo: `ok`, no `obsoleto`, sin `bloqueado` ni
+    `uso_normal: false`, y ninguna ventana ≥ 100 % (la que ya pasó su `reinicia` cuenta como 0)."""
+    meds = doc.get("medidores") if isinstance(doc, dict) else None
+    if not isinstance(meds, dict):
+        return []
+    aptos = []
+    for mid, prov in (mapa or MEDIDOR_A_SALUD).items():
+        m = meds.get(mid)
+        if not isinstance(m, dict) or m.get("ok") is not True or m.get("obsoleto"):
+            continue
+        leido = _epoch_iso(m.get("leido"))
+        if leido is None or ahora - leido > max_edad_s:
+            continue
+        extras = m.get("extras") if isinstance(m.get("extras"), dict) else {}
+        if extras.get("bloqueado") or extras.get("uso_normal") is False:
+            continue
+        lleno = False
+        for v in m.get("ventanas") if isinstance(m.get("ventanas"), list) else []:
+            pct = v.get("usado_pct") if isinstance(v, dict) else None
+            if not isinstance(pct, (int, float)):
+                continue
+            reinicia = _epoch_iso(v.get("reinicia"))
+            if reinicia is not None and reinicia <= ahora:
+                continue
+            if pct >= 100:
+                lleno = True
+                break
+        if not lleno:
+            aptos.append(prov)
+    return sorted(aptos)
+
+
+def _aptos_medidores(ahora):
+    return aptos_de_medidores(_leer_json(MEDIDORES, {}), ahora)
+
+
+def _levantar_por_medidores(ahora):
+    """Cada pasada (solo lee un JSON): si un medidor de crédito ve cupo, su marca futura de
+    «sin cupo» en la salud se levanta aunque no haya nada atascado. Sin esto, Codex reiniciado
+    se quedaba fuera hasta que caducara una marca vieja (2026-10-07: 20 h desperdiciadas)."""
+    aptos = _aptos_medidores(ahora)
+    if not aptos:
+        return []
+    ahora_txt = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora))
+    levantados = []
+
+    def salud():
+        nonlocal levantados
+        nueva, levantados = levantar_marcas(_leer_json(SALUD, {}), aptos, ahora_txt,
+                                            motivo="el medidor de crédito lo ve con cupo (autocuración)")
+        if levantados:
+            _escribir_json(SALUD, nueva)
+
+    _con_cerrojo("salud", salud)
+    return levantados
+
+
+def levantar_marcas(salud, aptos, ahora_txt, motivo="la sonda lo vio escribir (autocuración)"):
     """PURA. Quita `sin_cupo_hasta` futuras de los proveedores que la sonda acaba de ver
     escribir (la sonda manda sobre una marca vieja). Devuelve (salud_nueva, levantados)."""
     nueva = dict(salud or {})
@@ -229,7 +306,7 @@ def levantar_marcas(salud, aptos, ahora_txt):
         if isinstance(e, dict) and str(e.get("sin_cupo_hasta") or "") > ahora_txt:
             e = dict(e)
             e.pop("sin_cupo_hasta", None)
-            e["motivo"] = "la sonda lo vio escribir (autocuración)"
+            e["motivo"] = motivo
             nueva[prov] = e
             levantados.append(prov)
     return nueva, levantados
@@ -502,7 +579,8 @@ def _servicios():
 
 def curar_enjambre(estado, ahora, forzar=False, latido_fn=None, sondear_fn=_sondear_escritores,
                    ordenar_fn=_ordenar_refresco, reiniciar_fn=_reiniciar_orquestador,
-                   levantar_fn=_levantar_y_perdonar, avisar_fn=None, cola_fn=_cola_viva):
+                   levantar_fn=_levantar_y_perdonar, avisar_fn=None, cola_fn=_cola_viva,
+                   medidores_fn=None):
     """Punto 6 del docstring. Modifica `estado` y devuelve una línea de lo que hizo (o "")."""
     avisar_fn = avisar_fn or _avisar
     cola = cola_fn()
@@ -521,6 +599,12 @@ def curar_enjambre(estado, ahora, forzar=False, latido_fn=None, sondear_fn=_sond
                  "no": sorted({m.split("/", 1)[0] for m, a, _, _ in resultados if not a})}
         estado["sonda"] = sonda
     aptos = list(sonda.get("aptos") or [])
+    if medidores_fn:
+        # El medidor de crédito por terminal es tan buena prueba como la sonda (y gratis).
+        try:
+            aptos = sorted(set(aptos) | set(medidores_fn(ahora) or []))
+        except Exception:
+            pass
     accion, porque = decidir_atasco(diag, bool(aptos), estado, ahora, forzar)
     largas = ", ".join("%s (%d min)" % (t, s // 60) for t, s in diag["largas"][:4]) or \
         ", ".join(t for t, _ in diag["esperando"][:4])
@@ -556,7 +640,7 @@ def curar_enjambre(estado, ahora, forzar=False, latido_fn=None, sondear_fn=_sond
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
-            servicios_fn=_servicios):
+            servicios_fn=_servicios, medidores_fn=_levantar_por_medidores):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos."""
     ahora = ahora if ahora is not None else time.time()
@@ -642,9 +726,21 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
         except Exception as e:
             hechos.append("no pude revisar los servicios: %s: %s" % (type(e).__name__, e))
 
+    # Marcas viejas de «sin cupo» que el medidor de crédito desmiente (cada pasada; gratis).
+    try:
+        levantados = medidores_fn(ahora) or []
+        if levantados:
+            linea = "medidores: %s vuelve(n) a tener cupo según su medidor; levanto su marca vieja de «sin cupo»" % (
+                ", ".join(levantados))
+            hechos.append(linea)
+            avisar_fn("Autocuración: " + linea + ".")
+    except Exception as e:
+        hechos.append("no pude leer los medidores de crédito: %s: %s" % (type(e).__name__, e))
+
     # Enjambre atascado esperando proveedores que ya volvieron (punto 6).
     try:
-        linea = (curar_fn or curar_enjambre)(estado, ahora, forzar)
+        linea = (curar_fn(estado, ahora, forzar) if curar_fn
+                 else curar_enjambre(estado, ahora, forzar, medidores_fn=_aptos_medidores))
         if linea:
             hechos.append(linea)
     except Exception as e:
