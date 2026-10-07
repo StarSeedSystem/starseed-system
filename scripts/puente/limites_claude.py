@@ -2,7 +2,7 @@
 """Registro local y proyecciones de los límites del plan de Claude."""
 from __future__ import annotations
 import argparse, json, math, os, statistics
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ARCHIVO = os.path.expanduser(os.environ.get("STARSEED_LIMITES_CLAUDE", "~/.starseed/limites-claude.json"))
 CAMPOS = ("sesion", "semana", "modelo")
@@ -62,12 +62,24 @@ def disparos_antes(lista: list[dict], ahora: datetime, hasta: datetime) -> int:
             proxima = _fecha(tarea["proxima"])
         except (KeyError, TypeError, ValueError):
             continue
-        if not ahora < proxima <= hasta:
-            continue
-        total += 1
         cada = tarea.get("cada_min")
         if isinstance(cada, int) and not isinstance(cada, bool) and cada > 0:
-            total += math.floor((hasta - proxima).total_seconds() / (cada * 60))
+            intervalo = cada * 60
+            delta_seg = (ahora - proxima).total_seconds()
+            if delta_seg > 0:
+                # Avanzar a la primera ocurrencia posterior a `ahora`
+                k = int(delta_seg // intervalo) + 1
+                primera = proxima + timedelta(seconds=k * intervalo)
+            else:
+                primera = proxima
+            if primera > hasta:
+                continue
+            count = int(math.floor((hasta - primera).total_seconds() / intervalo)) + 1
+            total += max(0, count)
+        else:
+            # Puntual: cuenta 1 solo si `proxima` está en (ahora, hasta]
+            if ahora < proxima <= hasta:
+                total += 1
     return total
 def estado(datos: dict, ahora: datetime) -> dict:
     lecturas = datos.get("lecturas", [])
