@@ -139,7 +139,9 @@ class PruebasSalud(unittest.TestCase):
     def test_codex_100_marca_y_luego_quita_solo_medidor(self):
         with tempfile.TemporaryDirectory() as tmp:
             salud = self._salud(tmp, 100)
-            self.assertEqual(salud["codex"]["sin_cupo_hasta"], "2026-10-09 22:12:51")
+            # Hora local de la máquina (en la Mac, -06:00 → igual; en un contenedor UTC, 04:12 del 10).
+            local = datetime.fromisoformat("2026-10-09T22:12:51-06:00").astimezone()
+            self.assertEqual(salud["codex"]["sin_cupo_hasta"], local.strftime("%Y-%m-%d %H:%M:%S"))
             self.assertTrue(salud["codex"]["motivo"].startswith("medidor:"))
             self.assertEqual(salud["claude"]["motivo"], "429")  # otros intactos
             salud2 = self._salud(tmp, 40)

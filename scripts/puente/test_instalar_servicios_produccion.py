@@ -52,7 +52,9 @@ class TestEntradaProduccion(unittest.TestCase):
     def test_entrada_existe_comandal_y_vive_siempre(self):
         orden, log, siempre = self.mod.SERVICIOS["produccion"]
         self.assertTrue(orden[0].endswith("python3"))
-        self.assertTrue(orden[1].endswith("director-produccion.py"))
+        # (2026-10-07) El servicio es la autopublicación (interruptor en Genesis · Ajustes).
+        self.assertTrue(orden[1].endswith("autopublicar.py"))
+        self.assertEqual(orden[2:], ["--bucle"])
         self.assertEqual(log, "/tmp/starseed-produccion.log")
         self.assertIs(siempre, True)
 
@@ -66,7 +68,7 @@ class TestEntradaProduccion(unittest.TestCase):
         self.assertIs(plist["KeepAlive"], True)
         self.assertIs(plist["RunAtLoad"], True)
         args = plist["ProgramArguments"]
-        self.assertTrue(any(a.endswith("director-produccion.py") for a in args))
+        self.assertTrue(any(a.endswith("autopublicar.py") for a in args))
         self.assertEqual(self.mod.SERVICIOS["produccion"][1], "/tmp/starseed-produccion.log")
 
     def test_solo_no_toca_otros_servicios(self):

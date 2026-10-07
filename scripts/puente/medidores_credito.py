@@ -295,12 +295,10 @@ def alimentar_salud(medidores: dict, ruta_salud: str = ARCHIVO_SALUD,
                 salud["codex"] = entrada
         if llena:
             reinicia = _fecha(llena.get("reinicia"))
-            if reinicia:
-                # Hora de pared tal como la informó el proveedor: convertirla a la
-                # TZ local la cambiaría donde el reloj sea distinto.
-                hasta = reinicia.replace(tzinfo=None)
-            else:
-                hasta = (ahora or datetime.now().astimezone()).astimezone()
+            # Hora LOCAL: el orquestador compara `sin_cupo_hasta` con time.localtime(). Quitarle
+            # la zona a la fecha del proveedor (lo que hizo una tarea de la nube para que la prueba
+            # pasara en UTC) dejaba la hora de SU zona: 6 h de error con un «Z».
+            hasta = (reinicia or ahora or datetime.now().astimezone()).astimezone()
             entrada["sin_cupo_hasta"] = hasta.strftime("%Y-%m-%d %H:%M:%S")
             entrada["motivo"] = f"medidor: {llena.get('id')} 100 %"
             salud["codex"] = entrada
