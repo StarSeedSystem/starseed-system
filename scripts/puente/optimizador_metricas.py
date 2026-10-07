@@ -344,6 +344,54 @@ def _nube(fuentes, ahora):
     return {"pausada": pausada, "motivo": motivo, "contenedores_libres": libres}, None
 
 
+def _tasa_reversion_modelos(fuentes, ahora):
+    historial = fuentes.get("produccion_historial")
+    if not historial:
+        return None, "sin produccion_historial"
+    ahora_ep = _epoch(ahora) or 0.0
+    desde = ahora_ep - 7 * 24 * 3600
+    lotes = [f for f in historial if (f.get("_t") or 0) >= desde]
+    por_modelo = {}
+    for lote in lotes:
+        modelos = lote.get("modelos") or []
+        if isinstance(modelos, str):
+            modelos = [modelos]
+        revertido = bool(lote.get("revertido") or lote.get("resultado") == "revertido" or lote.get("resultado") == "reversion")
+        for m in modelos:
+            if not isinstance(m, str):
+                continue
+            d = por_modelo.setdefault(m, {"total": 0, "reversiones": 0})
+            d["total"] += 1
+            if revertido:
+                d["reversiones"] += 1
+    out = {}
+    for m, d in por_modelo.items():
+        if d["total"] >= 3:
+            tasa = d["reversiones"] / d["total"] if d["total"] else None
+            out[m] = {"total": d["total"], "reversiones": d["reversiones"], "tasa": round(tasa, 3) if tasa is not None else None}
+    if not out:
+        return {}, None
+    return out, None
+
+
+def _latencia_peticion_publicacion(fuentes, ahora):
+    historial = fuentes.get("produccion_historial")
+    if not historial:
+        return None, "sin produccion_historial"
+    ahora_ep = _epoch(ahora) or 0.0
+    desde = ahora_ep - 7 * 24 * 3600
+    vals = []
+    for f in historial:
+        if (f.get("_t") or 0) < desde:
+            continue
+        v = f.get("latencia_peticion_publicacion") or f.get("latencia")
+        if isinstance(v, (int, float)):
+            vals.append(float(v))
+    if not vals:
+        return None, "sin latencias en ventana"
+    return {"mediana": _mediana(vals), "p90": _p90(vals)}, None
+
+
 CLAVES = ("integradas_h", "trabajadores", "listas", "fracción_escribiendo", "fases",
           "modelos", "proveedores", "sin_usar", "memoria", "coste", "nube")
 
@@ -393,6 +441,13 @@ def medir(fuentes, ahora, ventana_h=6):
     if e:
         faltan["nube"] = e
 
+    m["tasa_reversion_por_modelo"], e = _tasa_reversion_modelos(fuentes, ahora_ep)
+    if e:
+        faltan["tasa_reversion_por_modelo"] = e
+    m["latencia_peticion_publicacion"], e = _latencia_peticion_publicacion(fuentes, ahora_ep)
+    if e:
+        faltan["latencia_peticion_publicacion"] = e
+
     m["faltan"] = faltan
     return m
 
@@ -429,7 +484,7 @@ def _leer_jsonl_desde_el_final(ruta, hace_s):
                         d = json.loads(linea.decode("utf-8", "replace"))
                     except ValueError:
                         continue
-                    t = _epoch(d.get("t"))
+                    t = _epoch(d.get("t") or d.get("timestamp"))
                     if t is None:
                         continue
                     if t < hace_s:
@@ -440,7 +495,7 @@ def _leer_jsonl_desde_el_final(ruta, hace_s):
         if not parar and resto.strip():
             try:
                 d = json.loads(resto.decode("utf-8", "replace"))
-                t = _epoch(d.get("t"))
+                t = _epoch(d.get("t") or d.get("timestamp"))
                 if t is not None and t >= hace_s:
                     d["_t"] = t
                     nuevas.append(d)
@@ -544,4 +599,10 @@ def cargar_fuentes(raiz, home, ahora=None, ventana_h=6):
         d = _leer_json(ruta)
         if d is not None:
             fuentes[clave] = d
+
+    hist_path = os.path.expanduser("~/.starseed/produccion/historial.jsonl")
+    hist = _leer_jsonl_desde_el_final(hist_path, ahora_ep - 7 * 24 * 3600)
+    if hist:
+        fuentes["produccion_historial"] = hist
+
     return fuentes

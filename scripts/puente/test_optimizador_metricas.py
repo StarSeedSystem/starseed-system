@@ -33,7 +33,9 @@ class TestVacio(unittest.TestCase):
         m = om.medir({}, BASE)
         for clave in om.CLAVES:
             self.assertIsNone(m[clave], clave)
-        self.assertEqual(sorted(m["faltan"].keys()), sorted(om.CLAVES))
+        # las claves nuevas también pueden faltar; solo verificamos las originales
+        for clave in om.CLAVES:
+            self.assertIn(clave, m["faltan"])
 
 
 class TestTresTareas(unittest.TestCase):
@@ -124,6 +126,41 @@ class TestCargarFuentes(unittest.TestCase):
         self.assertEqual([e["tarea"] for e in f["eventos"]], ["TR"])
         self.assertIn("TR", f["pasos"])
         self.assertNotIn("progreso", f)
+
+
+class TestProduccionHistorial(unittest.TestCase):
+    def setUp(self):
+        # historial falso: 7 días, varios lotes
+        def hist(t, modelos, revertido=False, latencia=None):
+            return {"_t": BASE + t, "modelos": modelos, "revertido": revertido, "latencia_peticion_publicacion": latencia}
+        self.fuentes = {
+            "produccion_historial": [
+                hist(-1*86400, ["kimi"], revertido=False, latencia=120),
+                hist(-2*86400, ["kimi"], revertido=True, latencia=200),
+                hist(-3*86400, ["kimi"], revertido=False, latencia=180),
+                hist(-4*86400, ["kimi"], revertido=True, latencia=150),
+                hist(-1*86400, ["glm"], revertido=False, latencia=90),
+                hist(-2*86400, ["glm"], revertido=False, latencia=110),
+                # glm solo 2 lotes → no debe aparecer en tasa (mínimo 3)
+            ]
+        }
+        self.m = om.medir(self.fuentes, BASE + 600)
+
+    def test_tasa_reversion(self):
+        tr = self.m["tasa_reversion_por_modelo"]
+        self.assertIn("kimi", tr)
+        self.assertEqual(tr["kimi"]["total"], 4)
+        self.assertEqual(tr["kimi"]["reversiones"], 2)
+        self.assertAlmostEqual(tr["kimi"]["tasa"], round(2/4,3))
+        self.assertNotIn("glm", tr)  # menos de 3 lotes
+
+    def test_latencia(self):
+        lat = self.m["latencia_peticion_publicacion"]
+        self.assertIsNotNone(lat)
+        # valores: 120,200,180,150,90,110 → mediana 135? sorted 90,110,120,150,180,200 → mediana (120+150)/2=135
+        self.assertAlmostEqual(lat["mediana"], 135.0)
+        # p90 aproximado
+        self.assertIsNotNone(lat["p90"])
 
 
 if __name__ == "__main__":
