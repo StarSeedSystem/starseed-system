@@ -112,6 +112,47 @@ class TestLeer(unittest.TestCase):
         self.assertNotIn("ANTHROPIC_API_KEY", llamadas["env"])
         self.assertTrue(llamadas["env"]["PATH"].startswith(os.path.join(home, ".local", "bin")))
 
+    def test_leer_exito_con_suscripcion(self):
+        texto_salida = (
+            "You are currently using your subscription to power your Claude Code usage\n"
+            "\n"
+            "Current session: 23% used · resets Oct 6 at 6:10pm (America/Mexico_City)\n"
+            "Current week (all models): 41% used · resets Oct 10 at 4am (America/Mexico_City)\n"
+            "Current week (Fable): 0% used · resets Oct 10 at 4am (America/Mexico_City)\n"
+            "\n"
+            "What's contributing to your limits usage?\n"
+            "..."
+        )
+
+        def ejecutar_mock(orden, *, stdin, capture_output, text, timeout, cwd, env):
+            class Proc:
+                stdout = texto_salida
+                returncode = 0
+            return Proc()
+
+        ahora = datetime(2026, 10, 6, 18, 5)
+        medidor = M.leer(ahora=ahora, ejecutar=ejecutar_mock, entorno={})
+        self.assertEqual(medidor["id"], "claude")
+        self.assertEqual(medidor["proveedor"], "anthropic")
+        self.assertEqual(medidor["nombre"], "Claude · plan")
+        self.assertEqual(medidor["tipo"], "plan")
+        self.assertEqual(medidor["plan"], "suscripción")
+        self.assertTrue(medidor["ok"])
+        self.assertIsNone(medidor["error"])
+        self.assertEqual(medidor["leido"], "2026-10-06T18:05:00")
+        self.assertEqual(medidor["enlace"], "https://claude.ai/settings/usage")
+
+    def test_leer_ahora_param(self):
+        def ejecutar_mock(orden, *, stdin, capture_output, text, timeout, cwd, env):
+            class Proc:
+                stdout = "using your subscription\n"
+                returncode = 0
+            return Proc()
+
+        ahora = datetime(2026, 12, 30, 10, 30)
+        medidor = M.leer(ahora=ahora, ejecutar=ejecutar_mock, entorno={})
+        self.assertEqual(medidor["leido"], "2026-12-30T10:30:00")
+
     def test_timeout(self):
         def fake_timeout(*a, **kw):
             raise subprocess.TimeoutExpired(cmd="claude", timeout=60)
