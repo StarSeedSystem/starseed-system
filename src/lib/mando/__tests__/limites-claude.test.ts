@@ -8,7 +8,23 @@ import {
   estadoLimitesClaude,
   resumenLimitesClaude,
   EstadoLimitesClaude,
+  ENLACE_USO_CLAUDE,
 } from '../limites-claude';
+
+// Rescate RSC1006F (ramas de la nube 2026-10-06): lectura base compacta.
+const lecturaBase = (extra: Partial<LecturaLimites> = {}): LecturaLimites => ({
+  t: '2026-10-04T10:00:00.000Z',
+  sesion_pct: 10,
+  sesion_reinicio: '2026-10-04T14:10:00.000Z',
+  semana_pct: 20,
+  semana_reinicio: '2026-10-09T00:00:00.000Z',
+  modelo_nombre: null,
+  modelo_pct: null,
+  modelo_reinicio: null,
+  fuente: 'test',
+  ...extra,
+});
+const AHORA_RSC = Date.parse('2026-10-04T12:00:00.000Z');
 
 describe('limites-claude (pure logic)', () => {
   describe('costePorRevision', () => {
@@ -624,5 +640,108 @@ describe('limites-claude (pure logic)', () => {
       expect(resumen).toContain('reinicia en 2 h 10 min');
       expect(resumen).toContain('proyección 72 %');
     });
+  });
+});
+
+// Casos rescatados de las ramas de la nube (RSC1006F · LC1004B/Bd/C/E), adaptados a la API de main.
+describe('limites-claude (rescate ramas nube)', () => {
+  it('entrada basura ({}, null, "ruido"): todo null, tono aviso y recomendación fija', () => {
+    for (const cfg of [{}, null, 'ruido']) {
+      const e = estadoLimitesClaude(cfg, AHORA_RSC);
+      expect(e.sesion).toBeNull();
+      expect(e.semana).toBeNull();
+      expect(e.tono).toBe('aviso');
+      expect(e.recomendacion).toBe('Sin lectura todavía: la dirección la toma en su próxima revisión');
+    }
+  });
+
+  it('peligro cuando pct >= umbral aunque la proyección sea null', () => {
+    const e = estadoLimitesClaude(
+      { lecturas: [lecturaBase({ semana_pct: 92 })], umbral_pct: 90 },
+      AHORA_RSC,
+    );
+    expect(e.semana?.tono).toBe('peligro');
+    expect(e.tono).toBe('peligro');
+  });
+
+  it('sin coste conocido la proyección es null y no hay recomendación', () => {
+    const e = estadoLimitesClaude(
+      { lecturas: [lecturaBase({ sesion_pct: 50 })], umbral_pct: 90 },
+      AHORA_RSC,
+    );
+    expect(e.sesion?.proyeccion).toBeNull();
+    expect(e.sesion?.tono).toBe('ok');
+    expect(e.recomendacion).toBeNull();
+  });
+
+  it('expone modeloNombre y la ventana de modelo solo si la lectura la trae completa', () => {
+    const e = estadoLimitesClaude(
+      {
+        lecturas: [lecturaBase({
+          modelo_nombre: 'Fable',
+          modelo_pct: 20,
+          modelo_reinicio: '2026-10-09T00:00:00.000Z',
+        })],
+      },
+      AHORA_RSC,
+    );
+    expect(e.modeloNombre).toBe('Fable');
+    expect(e.modelo?.pct).toBe(20);
+    // Sin reinicio del modelo, la ventana no se construye
+    const incompleta = estadoLimitesClaude(
+      { lecturas: [lecturaBase({ modelo_nombre: 'Fable', modelo_pct: 20 })] },
+      AHORA_RSC,
+    );
+    expect(incompleta.modelo).toBeNull();
+    expect(incompleta.modeloNombre).toBe('Fable');
+  });
+
+  it('lectura de hace más de 120 min: desactualizada, aviso global y ventana intacta', () => {
+    const e = estadoLimitesClaude(
+      { lecturas: [lecturaBase({ t: '2026-10-04T08:00:00.000Z', sesion_pct: 50 })] },
+      AHORA_RSC,
+    );
+    expect(e.desactualizada).toBe(true);
+    expect(e.lecturaHaceMin).toBe(240);
+    expect(e.tono).toBe('aviso');
+    expect(e.sesion?.tono).toBe('ok');
+  });
+
+  it('proyección >= umbral sin superar 100: tono aviso y recomendación de espaciado', () => {
+    const cfg = {
+      lecturas: [
+        lecturaBase({ sesion_pct: 80 }),
+        lecturaBase({ t: '2026-10-04T11:00:00.000Z', sesion_pct: 84 }),
+      ],
+      programadas: {
+        t: '2026-10-04T11:00:00.000Z',
+        lista: [{ nombre: 'ola', proxima: '2026-10-04T12:10:00.000Z', cada_min: 60 }],
+      },
+      umbral_pct: 90,
+    };
+    const e = estadoLimitesClaude(cfg, AHORA_RSC);
+    // coste 4; `hasta` es cerrado: 12:10, 13:10 y 14:10 → 3 disparos
+    expect(e.sesion?.coste).toBe(4);
+    expect(e.programadasEnSesion).toBe(3);
+    expect(e.sesion?.proyeccion).toBe(96);
+    expect(e.sesion?.tono).toBe('aviso');
+    expect(e.recomendacion).toBe('Espacia las revisiones: caben 1 hasta el reinicio de sesión');
+  });
+
+  it('resumen: "reiniciada" si el reinicio pasó y solo minutos si falta menos de una hora', () => {
+    const pasada = estadoLimitesClaude(
+      { lecturas: [lecturaBase({ sesion_reinicio: '2026-10-04T11:00:00.000Z' })] },
+      AHORA_RSC,
+    );
+    expect(resumenLimitesClaude(pasada)).toContain('reiniciada');
+    const cercana = estadoLimitesClaude(
+      { lecturas: [lecturaBase({ sesion_reinicio: '2026-10-04T12:45:00.000Z' })] },
+      AHORA_RSC,
+    );
+    expect(resumenLimitesClaude(cercana)).toContain('reinicia en 45 min');
+  });
+
+  it('ENLACE_USO_CLAUDE apunta a Ajustes → Uso de claude.ai', () => {
+    expect(ENLACE_USO_CLAUDE).toBe('https://claude.ai/settings/usage');
   });
 });
