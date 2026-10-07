@@ -1,0 +1,79 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+const migrationsDir = join(process.cwd(), "supabase", "migrations");
+
+function listMandoSql(): string[] {
+  const files = readdirSync(migrationsDir);
+  return files.filter(f => f.includes("mando") && f.endsWith(".sql")).map(f => join(migrationsDir, f));
+}
+
+function readSql(file: string): string {
+  return readFileSync(file, "utf-8");
+}
+
+function hasForbidden(sql: string): boolean {
+  const lower = sql.toLowerCase();
+  return /(^\s*drop\s)/m.test(lower) ||
+         /(^\s*truncate\s)/m.test(lower) ||
+         /(^\s*rename\s)/m.test(lower) ||
+         /alter\s+.*\s+type\b/.test(lower);
+}
+
+function tablasConRls(sql: string): string[] {
+  const tables: string[] = [];
+  const createRe = /create table if not exists public\.(mando_\w+)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = createRe.exec(sql)) !== null) {
+    tables.push(m[1].toLowerCase());
+  }
+  return tables;
+}
+
+function tieneRlsPara(tablas: string[], sql: string): boolean {
+  for (const t of tablas) {
+    const re = new RegExp(`alter table public\\.${t}\\s+enable row level security`, "i");
+    if (!re.test(sql)) return false;
+  }
+  return true;
+}
+
+function securityDefinerOk(sql: string): boolean {
+  const blocks = sql.split(/security definer/gi);
+  for (let i = 1; i < blocks.length; i++) {
+    const after = blocks[i];
+    if (!/set\s+search_path\s*=\s*public/i.test(after)) return false;
+  }
+  return true;
+}
+
+describe("migraciones mando", () => {
+  const files = listMandoSql();
+
+  it("existe al menos una migración mando", () => {
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  for (const file of files) {
+    it(`migración ${file} no usa drop/truncate/rename/alter type`, () => {
+      const sql = readSql(file);
+      expect(hasForbidden(sql)).toBe(false);
+    });
+
+    it(`migración ${file} habilita RLS para cada tabla mando_* que crea`, () => {
+      const sql = readSql(file);
+      // Las migraciones de políticas o RPC (PT1008B/C) no crean tablas: solo se mira la RLS
+      // de las que sí las crean.
+      const tablas = tablasConRls(sql);
+      expect(tieneRlsPara(tablas, sql)).toBe(true);
+    });
+
+    it(`migración ${file} security definer lleva set search_path`, () => {
+      const sql = readSql(file);
+      if (/security definer/i.test(sql)) {
+        expect(securityDefinerOk(sql)).toBe(true);
+      }
+    });
+  }
+});
