@@ -17,6 +17,8 @@ import { promisify } from "node:util";
 
 import type { CuentasTareas, EstadoMando, EventoRelevo, RepoInfo } from "@/lib/mando/tipos";
 import { guardianMando } from "@/lib/mando/guardian";
+import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
+import { almacenPara, tareaDesdeAlmacen } from "@/lib/mando/almacen-servidor";
 import { construirRamificacion } from "@/lib/mando/ramificacion";
 import {
     leerColas,
@@ -100,15 +102,39 @@ export async function GET(request: Request): Promise<Response> {
     const veto = await guardianMando(request);
     if (veto) return veto;
 
+    // Contrato §7: tras `STARSEED_MANDO_TODOS=1`, tareas y progreso entran por el
+    // almacén elegido (local o Supabase, según el ámbito pedido) y no por llamadas
+    // sueltas; sin bandera se lee exactamente como hoy. Ámbito aún sin almacén
+    // (F2, Supabase): 501 en vez de enseñar por error los datos de esta máquina.
+    const ambito = new URL(request.url).searchParams.get("ambito") ?? undefined;
+    const almacen =
+        process.env.STARSEED_MANDO_TODOS === "1"
+            ? almacenPara({
+                  banderaTodos: true,
+                  esLocal: esDespliegueLocal(request),
+                  ambitoId: ambito,
+              })
+            : null;
+    if (process.env.STARSEED_MANDO_TODOS === "1" && !almacen) {
+        return Response.json(
+            { error: "Ese ámbito aún no tiene almacén (ola F2 encolada)." },
+            { status: 501 },
+        );
+    }
+    const leerTareas = async () =>
+        almacen ? (await almacen.leerTareas()).map(tareaDesdeAlmacen) : leerColas();
+    const leerProgresoMando = async (): Promise<Record<string, unknown>> =>
+        almacen ? almacen.leerProgreso() : leerProgreso();
+
     const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit, asuntosDeMain, veredictos] =
         await Promise.all([
             leerEstadoRelevo(),
-            leerColas(),
+            leerTareas(),
             leerInformes(),
             leerUsoDiario(),
             leerRevisiones(),
             leerRepo(),
-            leerProgreso(),
+            leerProgresoMando(),
             leerLatidos(),
             enjambreEnMarcha(),
             medirAgentes(),
