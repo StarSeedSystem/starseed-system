@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "ES1010N",
+   "ola": "Ola 1010E · Estaciones: transmisiones en directo libres (directorio, reproductor autoadaptable, malla y estudio con IA)",
+   "titulo": "Estaciones · mezclador del estudio (lienzo, audio, grabar y WHIP)",
+   "depende": [],
+   "dificultad": "alta",
+   "archivos": [
+    "src/lib/estaciones/mezclador.ts",
+    "src/lib/estaciones/__tests__/mezclador.test.ts"
+   ],
+   "prompt": "CONTRATO: `architecture/estaciones.md`. Léelo ENTERO antes de empezar (sobre todo la sección que cita tu tarea): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-07): «añade una página, sección y función principal de StarSeed OS de \"Estaciones\" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable».\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta). Claves SOLO del entorno; nunca se imprimen ni se guardan. Sin dependencias nuevas (`hls.js` ya la instaló la dirección). Nada de `node:*` en `src/lib/estaciones` ni en `src/components/estaciones` (van al navegador). Textos visibles en español; el panel de control del OS se llama «Genesis» (nunca «Puente de Mando» ni «Mando»: la prueba `src/lib/__tests__/nombre-genesis.test.ts` lo vigila). ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (ES1010N): §10 del contrato («Mezclador»). `crearMezclador(deps)` con TODO lo del navegador inyectado (`crearCanvas`, `AudioContext`, `requestAnimationFrame`, `MediaRecorder`, `RTCPeerConnection`, `fetch`) y una API pequeña: `ponerEscena(escena, medios: Record<idFuente, HTMLVideoElement | HTMLImageElement | MediaStream | string>)`, `cambiarSalida(salida)`, `flujo(): MediaStream` (canvas.captureStream(fps) + pista de audio mezclada), `grabar(): { parar(): Promise<Blob> }`, `emitirWhip(url, token?): Promise<{ parar(): Promise<void> }>` (SDP offer por POST `application/sdp` con `Authorization: Bearer` si hay token; respuesta 201 con el answer; DELETE al recurso `Location` al parar) y `destruir()`. Dibuja capas visibles por `z`, texto con la fuente del sistema y sombra legible; en `malla-baja` 15 fps. La URL y el token WHIP NUNCA se guardan fuera de memoria. Pruebas con objetos falsos: orden de dibujo, cambio de salida, grabación (Blob), WHIP feliz y con error HTTP (mensaje en español), destruir para todo.",
+   "dependencias_ya_en_main": [
+    "ES1010M"
+   ]
+  }
+ ]
+}
