@@ -1,0 +1,54 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "ES1010K",
+   "ola": "Ola 1010E · Estaciones: transmisiones en directo libres (directorio, reproductor autoadaptable, malla y estudio con IA)",
+   "titulo": "Estaciones · publicar o editar una estación (formulario con detección y licencia)",
+   "depende": [],
+   "dificultad": "alta",
+   "archivos": [
+    "src/components/estaciones/nueva-estacion.tsx",
+    "src/components/estaciones/__tests__/nueva-estacion.test.tsx"
+   ],
+   "prompt": "CONTRATO: `architecture/estaciones.md`. Léelo ENTERO antes de empezar (sobre todo la sección que cita tu tarea): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-07): «añade una página, sección y función principal de StarSeed OS de \"Estaciones\" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable».\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta). Claves SOLO del entorno; nunca se imprimen ni se guardan. Sin dependencias nuevas (`hls.js` ya la instaló la dirección). Nada de `node:*` en `src/lib/estaciones` ni en `src/components/estaciones` (van al navegador). Textos visibles en español; el panel de control del OS se llama «Genesis» (nunca «Puente de Mando» ni «Mando»: la prueba `src/lib/__tests__/nombre-genesis.test.ts` lo vigila). ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (ES1010K): §9 del contrato («NuevaEstacion»). Diálogo con `src/components/ui/dialog` (shadcn) y props `{ abierto; onCerrar(); inicial?: Partial<BorradorEstacion> & { id?: string }; ambitos?: { tipo: \"persona\" | \"entidad\"; ref: string | null; nombre: string }[]; onGuardada?(e: Estacion) }`. Al pegar el enlace enseña el `motivo` de `detectarFormato` y pre-rellena el tipo con `tipoSugerido` (si el usuario no lo tocó). Campos: enlace, título, descripción, tipo (select con `ETIQUETA_TIPO`), licencia OBLIGATORIA (radio con `ETIQUETA_LICENCIA` y una línea que explica cada una), categorías (separadas por comas), idioma, horario opcional (inicio/fin `datetime-local`), ámbito (si llegan varios), visibilidad (pública o del grupo, esta solo con ámbito entidad) y «Anunciar también por la malla». Los errores de `validarEstacion` salen junto a su campo; guardar llama a `publicarEstacion` o `editarEstacion`, y si `en_malla` llama después a `anunciarEnMalla` (no bloquea si falla: aviso). Pruebas con datos y malla mockeados: detección y sugerencia, errores por campo, publicar, editar, malla.",
+   "dependencias_ya_en_main": [
+    "ES1010B",
+    "ES1010E"
+   ]
+  },
+  {
+   "id": "FLU1005D",
+   "ola": "Ola 1005F · Flujos y conocimiento propios: replicar n8n y Dify en el Mando antes de que venzan sus pruebas",
+   "depende": [],
+   "titulo": "Flujos · importador de JSON de n8n a flujos propios, con informe de lo que no traduce",
+   "archivos": [
+    "scripts/puente/flujos/importar_n8n.py",
+    "scripts/puente/flujos/test_importar_n8n.py",
+    "scripts/puente/flujos/ejemplos_n8n/basico.json"
+   ],
+   "prompt": "CONTRATO: `architecture/puente-propio-flujos.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. Petición de Alex (2026-10-05): aprovechar las pruebas gratuitas de n8n Cloud (vence el 2026-10-18) y Dify Sandbox para aprender y replicar su funcionamiento en nuestro propio Genesis, sin depender de externos. Se aprende el DISEÑO; nunca se copia código con licencia restrictiva.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red (todo lo externo se inyecta). Claves SOLO de `os.environ`; un flujo guarda NOMBRES de variables, nunca valores. Sin dependencias nuevas.\n\nTU TAREA (FLU1005D): §3, importador. `importar(json_n8n) -> (Flujo, informe)`: mapea por `type` de nodo n8n (n8n-nodes-base.webhook, scheduleTrigger, cron, httpRequest, if, switch, set, merge, respondToWebhook, telegram, googleDrive y code). `code` solo si el JS es una transformación traducible a `set` o a expresiones; si no, nodo `pendiente` con el código original en el informe. Traduce las conexiones (`main`, índices de salida), los parámetros y las expresiones `={{ $json.x }}` a nuestro formato. Las credenciales de n8n pasan a NOMBRES de variables sugeridos y nunca a valores. El informe lista lo traducido, lo aproximado y lo no traducido. Escribe `ejemplos_n8n/basico.json` con un flujo n8n realista (webhook → if → http → set → respond) y prueba la traducción completa y la ejecución en el motor con nodos falsos. CLI: `python3 -m flujos.importar_n8n <archivo.json> [--guardar]`.\n\nNOMBRE (Alex, 2026-10-07): el panel de control del OS se llama «Genesis» en TODO texto que veas o escribas (interfaz, avisos, comentarios): nunca «Puente de Mando», «Centro de Mando» ni «Mando» a secas; la página es /genesis. Los identificadores de código (src/lib/mando, /api/mando, tablas mando_*, STARSEED_MANDO*) NO cambian. Lo vigila src/lib/__tests__/nombre-genesis.test.ts.",
+   "dependencias_ya_en_main": [
+    "FLU1005A",
+    "FLU1005B"
+   ]
+  },
+  {
+   "id": "FLU1005I",
+   "ola": "Ola 1005F · Flujos y conocimiento propios: replicar n8n y Dify en el Mando antes de que venzan sus pruebas",
+   "depende": [],
+   "titulo": "Flujos · servicio `flujos` que corre disparadores y motor (com.starseed.flujos)",
+   "archivos": [
+    "scripts/puente/flujos/servicio.py",
+    "scripts/puente/flujos/test_servicio.py",
+    "scripts/puente/instalar-servicios.py"
+   ],
+   "prompt": "CONTRATO: `architecture/puente-propio-flujos.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. Petición de Alex (2026-10-05): aprovechar las pruebas gratuitas de n8n Cloud (vence el 2026-10-18) y Dify Sandbox para aprender y replicar su funcionamiento en nuestro propio Genesis, sin depender de externos. Se aprende el DISEÑO; nunca se copia código con licencia restrictiva.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red (todo lo externo se inyecta). Claves SOLO de `os.environ`; un flujo guarda NOMBRES de variables, nunca valores. Sin dependencias nuevas.\n\nTU TAREA (FLU1005I): bucle cada 10 s: `disparadores.pendientes()` → `motor.ejecutar` de los flujos activos → aviso al Chat Director solo si un flujo falla del todo (con enlace a la ejecución). Al arrancar, `motor.reanudar` de las ejecuciones a medias. Tope de ejecuciones simultáneas: 2 (Mac de 8 GB). Entrada `flujos` en `SERVICIOS` de `instalar-servicios.py`, conservando las demás. Pruebas del bucle con motor y disparadores falsos.\n\nNOMBRE (Alex, 2026-10-07): el panel de control del OS se llama «Genesis» en TODO texto que veas o escribas (interfaz, avisos, comentarios): nunca «Puente de Mando», «Centro de Mando» ni «Mando» a secas; la página es /genesis. Los identificadores de código (src/lib/mando, /api/mando, tablas mando_*, STARSEED_MANDO*) NO cambian. Lo vigila src/lib/__tests__/nombre-genesis.test.ts.",
+   "dependencias_ya_en_main": [
+    "FLU1005A",
+    "FLU1005C",
+    "FLU1005B"
+   ]
+  }
+ ]
+}
