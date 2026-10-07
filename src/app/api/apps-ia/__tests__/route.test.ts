@@ -19,7 +19,7 @@ describe("apps-ia - contrato puro de la API", () => {
   });
 
   it("comprueba Bearer contra la variable indicada", () => {
-    const entorno = { GUIA_API_KEY: "secreta" };
+    const entorno: NodeJS.ProcessEnv = { GUIA_API_KEY: "secreta", NODE_ENV: "test" };
     expect(claveAppAceptada("Bearer secreta", "GUIA_API_KEY", entorno)).toBe(true);
     expect(claveAppAceptada("Bearer otra", "GUIA_API_KEY", entorno)).toBe(false);
     expect(claveAppAceptada("Bearer secreta", "NO_EXISTE", entorno)).toBe(false);
