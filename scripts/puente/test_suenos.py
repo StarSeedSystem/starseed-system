@@ -140,24 +140,25 @@ class Estado(Base):
         self.assertIsNone(d["orquestador"])
 
     def test_un_latido_fresco_es_analizando(self):
-        json.dump(
-            {
-                "cola": "cola-suenos-%s.json" % SESION,
-                "tareas": {
-                    "SA092970": {
-                        "fase": "analizando",
-                        "modelo": "llm7/gpt-oss",
-                        "subfase": "lectura 2/5",
-                        "desde": time.time() - 120,
-                        "tokens": {"entrada": 50, "salida": 10, "llamadas": 1},
-                    }
+        with open(
+            os.path.join(self.r["olas"], "latidos-cola-suenos-%s.json" % SESION),
+            "w",
+        ) as f:
+            json.dump(
+                {
+                    "cola": "cola-suenos-%s.json" % SESION,
+                    "tareas": {
+                        "SA092970": {
+                            "fase": "analizando",
+                            "modelo": "llm7/gpt-oss",
+                            "subfase": "lectura 2/5",
+                            "desde": time.time() - 120,
+                            "tokens": {"entrada": 50, "salida": 10, "llamadas": 1},
+                        }
+                    },
                 },
-            },
-            open(
-                os.path.join(self.r["olas"], "latidos-cola-suenos-%s.json" % SESION),
-                "w",
-            ),
-        )
+                f,
+            )
         self.parchear(S, "orquestadores_vivos", lambda: [])
         _, d = self.correr("estado")
         fila = [f for f in d["filas"] if f["id"] == "SA092970"][0]
@@ -222,9 +223,8 @@ class Verificar(Base):
         self.assertEqual(v["estado"], "ajustado")
         self.assertEqual(v["ajustes"], {"1": {"esfuerzo": 5}})
         self.assertEqual(v["rechazados"], [2])
-        lineas = (
-            open(os.path.join(self.sesion, "verificaciones.jsonl")).read().splitlines()
-        )
+        with open(os.path.join(self.sesion, "verificaciones.jsonl")) as f:
+            lineas = f.read().splitlines()
         self.assertEqual(len(lineas), 1)
 
     def test_errores_no_escriben_nada(self):
@@ -327,9 +327,8 @@ class Lanzar(Base):
         self.parchear(S, "orquestadores_vivos", lambda: [])
 
     def cola(self, nombre=None):
-        return json.load(
-            open(os.path.join(self.r["olas"], nombre or S.nombre_cola(SESION)))
-        )
+        with open(os.path.join(self.r["olas"], nombre or S.nombre_cola(SESION))) as f:
+            return json.load(f)
 
     def test_seco_no_escribe(self):
         codigo, d = self.correr(
@@ -358,16 +357,19 @@ class Lanzar(Base):
         self.assertEqual(self.lanzados, [("mando", "suenos-%s" % SESION)])
         tareas = self.cola()
         self.assertTrue(all(t["tipo"] == "analisis" for t in tareas))
-        plan = json.load(open(os.path.join(self.sesion, "plan.json")))
+        with open(os.path.join(self.sesion, "plan.json")) as f:
+            plan = json.load(f)
         self.assertEqual(len(plan["tareas"]), 5)  # las 4 que había + la nueva
         self.assertEqual(len(plan["lanzamientos"]), 1)
 
     def test_relanzar_la_sesion_reusa_sus_horas(self):
-        plan = json.load(open(os.path.join(self.sesion, "plan.json")))
+        with open(os.path.join(self.sesion, "plan.json")) as f:
+            plan = json.load(f)
         plan["lanzamientos"] = [
             {"t": "2026-09-29 14:25:00", "horas": 4, "por": "mando"}
         ]
-        json.dump(plan, open(os.path.join(self.sesion, "plan.json"), "w"))
+        with open(os.path.join(self.sesion, "plan.json"), "w") as f:
+            json.dump(plan, f)
         codigo, d = self.correr(
             "lanzar", "--fecha", SESION, "--areas", "mando", "--seco"
         )
@@ -394,10 +396,11 @@ class Lanzar(Base):
         self.assertEqual(self.lanzados, [])
 
     def test_un_orquestador_vivo_que_sabe_sonar_recibe_las_tareas(self):
-        json.dump(
-            [{"id": "p400A", "prompt": "código"}],
-            open(os.path.join(self.r["olas"], "cola-auto-0929.json"), "w"),
-        )
+        with open(os.path.join(self.r["olas"], "cola-auto-0929.json"), "w") as f:
+            json.dump(
+                [{"id": "p400A", "prompt": "código"}],
+                f,
+            )
         self.parchear(
             S,
             "orquestadores_vivos",
@@ -582,27 +585,26 @@ class Latido(Base):
             "anthropic/claude-opus-5.5",
         )
         self.assertEqual(codigo, 0)
-        datos = json.load(
-            open(os.path.join(self.r["olas"], "latidos-externo-suenos.json"))
-        )
+        with open(os.path.join(self.r["olas"], "latidos-externo-suenos.json")) as f:
+            datos = json.load(f)
         t = datos["tareas"]["claude-sup-1"]
         self.assertEqual(
             (t["medio"], t["fase"], t["modelo"]),
             ("claude", "verificando SA092967", "anthropic/claude-opus-5.5"),
         )
         self.correr("latido", "--agente", "claude-sup-1", "--fase", "consolidando")
+        with open(os.path.join(self.r["olas"], "latidos-externo-suenos.json")) as f:
+            datos2 = json.load(f)
         self.assertEqual(
-            json.load(
-                open(os.path.join(self.r["olas"], "latidos-externo-suenos.json"))
-            )["tareas"]["claude-sup-1"]["fase"],
+            datos2["tareas"]["claude-sup-1"]["fase"],
             "consolidando",
         )
         self.correr("latido", "--agente", "claude-sup-1", "--terminar")
+        with open(os.path.join(self.r["olas"], "latidos-externo-suenos.json")) as f:
+            datos3 = json.load(f)
         self.assertNotIn(
             "claude-sup-1",
-            json.load(
-                open(os.path.join(self.r["olas"], "latidos-externo-suenos.json"))
-            )["tareas"],
+            datos3["tareas"],
         )
 
 
