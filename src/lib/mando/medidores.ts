@@ -17,7 +17,7 @@ import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-oper
 
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
-import { estadoCreditos, resumenCredito, textoExtras, type DocCreditos } from "./creditos-pago-tipos";
+import { estadoCreditos, type DocCreditos } from "./creditos-pago-tipos";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -2192,17 +2192,32 @@ export function detalleDeMedidor(
                     vacio: "Sin lecturas todavía: el servicio com.starseed.medidores lee Claude y Codex por terminal cada 10 min.",
                 };
             }
-            const peor = estados.reduce((p, e) => (e.tono === "peligro" ? e : p), estados[0]);
-            const resumen = `${estados.length} créditos · peor: ${peor.nombre} · ${peor.id} al ${Math.max(...estados.map(e => e.ventanas.reduce((m, v) => Math.max(m, v.usado_pct), 0)))} %`;
+            const peso = { peligro: 2, aviso: 1, ok: 0 } as const;
+            const masUsada = (e: (typeof estados)[number]) =>
+                e.ventanas.reduce((m, v) => Math.max(m, v.usado_pct), 0);
+            const peor = estados.reduce((p, e) => {
+                if (peso[e.tono] !== peso[p.tono]) return peso[e.tono] > peso[p.tono] ? e : p;
+                return masUsada(e) > masUsada(p) ? e : p;
+            }, estados[0]);
+            const ventanaPeor = peor.ventanas.reduce((a, b) => (b.usado_pct > a.usado_pct ? b : a), peor.ventanas[0]);
+            const resumen = ventanaPeor
+                ? `${estados.length} créditos · peor: ${peor.nombre}, ${ventanaPeor.etiqueta} al ${ventanaPeor.usado_pct} %`
+                : `${estados.length} créditos · peor: ${peor.nombre}`;
+            const fchaReinicio = (iso: string) =>
+                new Intl.DateTimeFormat("es", { weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
             const filas: FilaMedidor[] = estados.map(e => {
-                const porque = `${resumenCredito({ id: e.id, ventanas: e.ventanas } as any)} · ${e.textoExtras.join(" · ")}`;
+                const porque = [e.resumen, ...e.textoExtras].join(" · ");
                 const ficha: DatoDeFicha[] = [];
                 for (const v of e.ventanas) {
-                    ficha.push({ etiqueta: "Usado", valor: `${v.usado_pct} %` });
-                    ficha.push({ etiqueta: "Queda", valor: `${v.queda} %` });
-                    ficha.push({ etiqueta: "Reinicia", valor: v.reinicia });
+                    const partes = [`${v.usado_pct} % usado`, `queda ${v.queda} %`];
+                    if (v.reiniciada) partes.push("se reinició");
+                    else if (v.reinicia) partes.push(`reinicia ${fchaReinicio(v.reinicia)}`);
+                    ficha.push({ etiqueta: v.etiqueta, valor: partes.join(" · ") });
                 }
-                if (e.saldo) ficha.push({ etiqueta: "Saldo", valor: `${e.saldo.valor} ${e.saldo.unidad}` });
+                if (e.saldo) {
+                    const valor = new Intl.NumberFormat("es", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(e.saldo.valor);
+                    ficha.push({ etiqueta: "Saldo", valor: `${valor} ${e.saldo.unidad}` });
+                }
                 ficha.push({ etiqueta: "Fuente", valor: doc.medidores[e.id]?.fuente ?? "—" });
                 const hace = e.haceMin !== null ? `${e.haceMin} min` : "desconocido";
                 ficha.push({ etiqueta: "Leído hace", valor: hace });
