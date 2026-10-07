@@ -102,7 +102,10 @@ class Revisar(unittest.TestCase):
             traer_fn=lambda: self.traidas.append(ahora) or True,
             ahora=ahora, sondear_fn=lambda: next(it), reiniciar_fn=lambda: self.reinicios.append(1),
             limpiar_fn=lambda ids: (self.limpiezas.append(ids) or {"ok": True, "limpiados": list(ids)}),
-            libre_fn=lambda: libre, avisar_fn=self.avisos.append, dormir=lambda s: None)
+            libre_fn=lambda: libre, avisar_fn=self.avisos.append, dormir=lambda s: None,
+            # El punto 6 (enjambre atascado) mira procesos reales: aquí se aísla.
+            curar_fn=lambda estado, ahora, forzar: "",
+            servicios_fn=lambda: {"estado": "ok", "detalle": ""})
 
     def test_mando_caido_se_reinicia_solo_y_lo_dice(self):
         e = self._revisar([False, False, False], 20.0)

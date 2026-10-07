@@ -34,6 +34,21 @@ arreglar desde la máquina (lo de la pestaña lo arregla `src/lib/mando/autocura
    pruebas relacionadas en la Mac; lo que quedó a medias se convierte en una tarea que continúa
    desde su rama; lo demás se pregunta en el Chat Director. Nunca borra una rama.
 
+6. **Enjambre atascado esperando proveedores que ya volvieron.** (2026-10-06, 22:56, Alex:
+   «los agentes y procesos están detenidos… el puente de mando debería autorrepararse usando
+   los directores».) Un orquestador vivo desde las 18:10 tenía a sus tres trabajadores
+   «esperando proveedor» 40 min con apinex, freellmapi y Google respondiendo a la sonda: sus
+   vetos en memoria no caducaban y la marca «sin cupo» de Google en la salud era vieja. Ahora,
+   si alguna tarea lleva más de 20 min esperando proveedor, se sondean los escritores (1 token
+   cada uno; la respuesta vale 10 min); si alguno puede escribir, se levanta su marca vieja
+   de «sin cupo» y se manda al orquestador la orden `refrescar_proveedores` (borra sus vetos
+   sin matar la tanda). Si 10 min después sigue igual, se reinicia el orquestador (el
+   vigilante lo relanza con `--reanudar`) como mucho una vez cada 45 min. Si nadie tiene cupo,
+   se dice cuándo vuelve el primero y no se toca nada: esperar ahí no es un fallo.
+
+`revisar(forzar=True)` hace todo lo de arriba YA, sin respetar los tiempos mínimos: es lo que
+lanza el botón «Reactivar directores» del Mando (`scripts/puente/reactivar_mando.py`).
+
 Todo lo que hace queda en `~/.starseed/autocuracion-mando.json` y en el Chat Director.
 Las decisiones son funciones PURAS (`decidir_reinicio`, `ids_a_limpiar`) con sus pruebas.
 """
@@ -60,6 +75,17 @@ LIMPIEZA_MINIMA_S = 60 * 60
 LLENADO_MINIMO_S = 5 * 60
 BUSQUEDA_MINIMA_S = 30 * 60
 TRAER_MINIMO_S = 30 * 60
+ATASCO_UMBRAL_S = 20 * 60
+REFRESCO_MINIMO_S = 15 * 60
+REFRESCO_SIN_EFECTO_S = 10 * 60
+REINICIO_ORQ_MINIMO_S = 45 * 60
+SONDA_VALIDA_S = 10 * 60
+SERVICIOS_MINIMO_S = 10 * 60
+FASES_ESPERA = ("esperando proveedor", "esperando cupo")
+OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
+SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
+COLGADOS = os.path.expanduser("~/.starseed/colgados.json")
+CERROJOS = os.path.expanduser("~/.starseed/cerrojos")
 DISCO_AVISO_GB = 6.0
 DISCO_CRITICO_GB = 3.0
 
@@ -127,6 +153,100 @@ def decidir_busqueda(ahora, ultima_busqueda, minimo_s=BUSQUEDA_MINIMA_S):
     if ultima_busqueda and ahora - ultima_busqueda < minimo_s:
         return False, "busqué capacidad hace %d min" % int((ahora - ultima_busqueda) // 60)
     return True, "toca buscar más capacidad"
+
+
+def diagnostico_atasco(tareas, ahora, umbral_s=ATASCO_UMBRAL_S):
+    """PURA. `tareas`: {tid: {"fase", "desde"}} del latido de la tanda viva.
+    → {"esperando": [(tid, s)], "trabajando": [tid], "largas": [(tid, s)], "atascada": bool}.
+    «Esperando proveedor» NO es trabajar, aunque ocupe trabajador."""
+    esperando, trabajando = [], []
+    for tid, d in (tareas or {}).items():
+        if not isinstance(d, dict):
+            continue
+        fase = str(d.get("fase") or "")
+        if not fase or fase == "hecho":
+            continue
+        if fase.startswith(FASES_ESPERA):
+            try:
+                desde = float(d.get("desde") or ahora)
+            except (TypeError, ValueError):
+                desde = ahora
+            esperando.append((tid, max(0.0, ahora - desde)))
+        else:
+            trabajando.append(tid)
+    largas = [(t, seg) for t, seg in esperando if seg >= umbral_s]
+    return {"esperando": esperando, "trabajando": trabajando, "largas": largas,
+            "atascada": bool(largas)}
+
+
+def decidir_atasco(diag, hay_escritores, estado, ahora, forzar=False):
+    """PURA. Qué hacer con un enjambre que espera proveedores. → (acción, por qué) con
+    acción ∈ nada | esperar | refrescar | reiniciar.
+
+    · Sin tareas esperando de más (o, con `forzar`, sin ninguna esperando): nada.
+    · Nadie con cupo según la sonda: esperar (no es un fallo; lo arregla el reinicio de cupos).
+    · Si no se refrescó hace poco: refrescar (borra vetos sin matar la tanda).
+    · Si se refrescó hace ≥ 10 min y sigue igual: reiniciar el orquestador, como mucho
+      cada 45 min. `forzar` (el botón) baja esos tiempos a 2 y 5 min."""
+    hay_espera = diag.get("atascada") or (forzar and diag.get("esperando"))
+    if not hay_espera:
+        return "nada", "ninguna tarea esperando proveedor de más"
+    if not hay_escritores:
+        return "esperar", "ningún escritor tiene cupo ahora: esperar no es un fallo"
+    estado = estado or {}
+    ult_ref = float(estado.get("ultimo_refresco") or 0)
+    ult_rei = float(estado.get("ultimo_reinicio_orq") or 0)
+    sin_efecto = 2 * 60 if forzar else REFRESCO_SIN_EFECTO_S
+    min_ref = 0 if forzar else REFRESCO_MINIMO_S
+    min_rei = 5 * 60 if forzar else REINICIO_ORQ_MINIMO_S
+    desde_ref = ahora - ult_ref
+    if ult_ref > ult_rei and sin_efecto <= desde_ref < 3 * REFRESCO_MINIMO_S:
+        if ahora - ult_rei >= min_rei:
+            return "reiniciar", "refresqué hace %d min y sigue esperando con escritores libres" % (desde_ref // 60)
+        return "esperar", "reinicié el orquestador hace %d min: le doy tiempo" % ((ahora - ult_rei) // 60)
+    if ult_ref > ult_rei and desde_ref < sin_efecto:
+        return "esperar", "refresqué hace %d s: le doy tiempo" % desde_ref
+    if desde_ref >= min_ref:
+        return "refrescar", "hay escritores con cupo y tareas esperando proveedor"
+    return "esperar", "refresqué hace %d min" % (desde_ref // 60)
+
+
+def aptos_de_sonda(resultados, alias=None):
+    """PURA. De `[(modelo, apto, motivo, horas)]` saca los PROVEEDORES (nombre de la salud)
+    que pueden escribir. `alias`: {prefijo: nombre en la salud} (nvidia → nim)."""
+    alias = alias or {"nvidia": "nim"}
+    return sorted({alias.get(m.split("/", 1)[0], m.split("/", 1)[0])
+                   for m, apto, _motivo, _h in (resultados or []) if apto})
+
+
+def levantar_marcas(salud, aptos, ahora_txt):
+    """PURA. Quita `sin_cupo_hasta` futuras de los proveedores que la sonda acaba de ver
+    escribir (la sonda manda sobre una marca vieja). Devuelve (salud_nueva, levantados)."""
+    nueva = dict(salud or {})
+    levantados = []
+    for prov in aptos or []:
+        e = nueva.get(prov)
+        if isinstance(e, dict) and str(e.get("sin_cupo_hasta") or "") > ahora_txt:
+            e = dict(e)
+            e.pop("sin_cupo_hasta", None)
+            e["motivo"] = "la sonda lo vio escribir (autocuración)"
+            nueva[prov] = e
+            levantados.append(prov)
+    return nueva, levantados
+
+
+def perdonar_colgados(colgados, aptos):
+    """PURA. Rompe las rachas de cuelgue de los modelos de proveedores que responden, para
+    que un reinicio del orquestador no los vuelva a vetar al arrancar."""
+    nuevo = dict(colgados or {})
+    perdonados = []
+    for m, e in list(nuevo.items()):
+        prov = m.split("/", 1)[0]
+        prov = {"nvidia": "nim"}.get(prov, prov)
+        if prov in (aptos or []) and isinstance(e, dict) and int(e.get("seguidos") or 0) > 0:
+            nuevo[m] = dict(e, seguidos=0)
+            perdonados.append(m)
+    return nuevo, perdonados
 
 
 # ── la máquina ──────────────────────────────────────────────────────────────────
@@ -247,10 +367,198 @@ def _buscar():
     return buscar_capacidad.buscar(aplicar=True, sondear_medios=False, mac=False, origen="autocuracion")
 
 
+_PATRON_ORQ = r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py"
+
+
+def _procesos_orquestador():
+    """[(pid, args)] de los orquestadores vivos (orden que EMPIEZA por python -u)."""
+    import re
+    import subprocess
+
+    try:
+        salida = subprocess.run(["ps", "-axo", "pid=,args="], capture_output=True, text=True,
+                                timeout=20).stdout
+    except Exception:
+        return []
+    vivos = []
+    for linea in salida.splitlines():
+        trozos = linea.strip().split(None, 1)
+        if len(trozos) == 2 and trozos[0].isdigit() and re.match(_PATRON_ORQ, trozos[1]):
+            vivos.append((int(trozos[0]), trozos[1]))
+    return vivos
+
+
+def _cola_viva():
+    """Nombre del archivo de la cola que corre ahora (de los argumentos del orquestador)."""
+    for _pid, args in _procesos_orquestador():
+        for trozo in args.split():
+            base = os.path.basename(trozo)
+            if base.startswith("cola-") and base.endswith(".json"):
+                return base
+    return None
+
+
+def _latido_tareas(cola, frescura_s=300):
+    """{tid: {fase, desde}} del latido de la tanda viva, si es reciente."""
+    if not cola:
+        return {}
+    ruta = os.path.join(OLAS, "latidos-" + cola)
+    try:
+        if time.time() - os.path.getmtime(ruta) > frescura_s:
+            return {}
+    except OSError:
+        return {}
+    d = _leer_json(ruta, {})
+    tareas = d.get("tareas") if isinstance(d, dict) else None
+    return tareas if isinstance(tareas, dict) else {}
+
+
+def _sondear_escritores():
+    """[(modelo, apto, motivo, horas)] con la misma sonda que el botón de capacidad."""
+    if DIRECTORIO not in sys.path:
+        sys.path.insert(0, DIRECTORIO)
+    import buscar_capacidad
+    return buscar_capacidad._sondear_escritores()
+
+
+def _con_cerrojo(nombre, fn):
+    """Ejecuta `fn()` con el mismo flock que usa el orquestador (~/.starseed/cerrojos)."""
+    import fcntl
+
+    os.makedirs(CERROJOS, exist_ok=True)
+    with open(os.path.join(CERROJOS, nombre + ".lock"), "a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            return fn()
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def _escribir_json(ruta, datos):
+    tmp = ruta + ".tmp-autocuracion"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+
+
+def _ordenar_refresco(cola):
+    """Deja la orden `refrescar_proveedores` en el archivo de control de la tanda viva."""
+    ruta = os.path.join(OLAS, "control-" + cola)
+
+    def poner():
+        ordenes = _leer_json(ruta, {})
+        if not isinstance(ordenes, dict):
+            ordenes = {}
+        ordenes["_flota"] = {"accion": "refrescar_proveedores", "quien": "director-autocuracion",
+                             "t": time.strftime("%Y-%m-%d %H:%M:%S")}
+        _escribir_json(ruta, ordenes)
+
+    _con_cerrojo("control-control-" + cola, poner)
+
+
+def _levantar_y_perdonar(aptos):
+    """Quita marcas viejas de «sin cupo» y rachas de cuelgue de quien responde a la sonda."""
+    ahora_txt = time.strftime("%Y-%m-%d %H:%M:%S")
+    levantados, perdonados = [], []
+
+    def salud():
+        nonlocal levantados
+        nueva, levantados = levantar_marcas(_leer_json(SALUD, {}), aptos, ahora_txt)
+        if levantados:
+            _escribir_json(SALUD, nueva)
+
+    def colgados():
+        nonlocal perdonados
+        nuevo, perdonados = perdonar_colgados(_leer_json(COLGADOS, {}), aptos)
+        if perdonados:
+            _escribir_json(COLGADOS, nuevo)
+
+    try:
+        _con_cerrojo("salud", salud)
+    except Exception:
+        pass
+    try:
+        colgados()
+    except Exception:
+        pass
+    return levantados, perdonados
+
+
+def _reiniciar_orquestador():
+    """SIGTERM al orquestador: el vigilante lo relanza en ≤ 90 s con `--reanudar`."""
+    import signal
+
+    pids = [pid for pid, _ in _procesos_orquestador()]
+    for pid in pids:
+        os.kill(pid, signal.SIGTERM)
+    return pids
+
+
+def _servicios():
+    """Los servicios com.starseed.* que deben estar siempre vivos (paso 1 del reactivador)."""
+    import reactivar_mando
+    return reactivar_mando.paso_servicios()
+
+
+def curar_enjambre(estado, ahora, forzar=False, latido_fn=None, sondear_fn=_sondear_escritores,
+                   ordenar_fn=_ordenar_refresco, reiniciar_fn=_reiniciar_orquestador,
+                   levantar_fn=_levantar_y_perdonar, avisar_fn=None, cola_fn=_cola_viva):
+    """Punto 6 del docstring. Modifica `estado` y devuelve una línea de lo que hizo (o "")."""
+    avisar_fn = avisar_fn or _avisar
+    cola = cola_fn()
+    if not cola:
+        return ""
+    tareas = (latido_fn or _latido_tareas)(cola)
+    diag = diagnostico_atasco(tareas, ahora)
+    estado["enjambre"] = {"esperando": len(diag["esperando"]), "trabajando": len(diag["trabajando"]),
+                          "largas": [t for t, _ in diag["largas"]]}
+    if not (diag["atascada"] or (forzar and diag["esperando"])):
+        return ""
+    sonda = estado.get("sonda") or {}
+    if forzar or ahora - float(sonda.get("t") or 0) >= SONDA_VALIDA_S:
+        resultados = sondear_fn() or []
+        sonda = {"t": ahora, "aptos": aptos_de_sonda(resultados),
+                 "no": sorted({m.split("/", 1)[0] for m, a, _, _ in resultados if not a})}
+        estado["sonda"] = sonda
+    aptos = list(sonda.get("aptos") or [])
+    accion, porque = decidir_atasco(diag, bool(aptos), estado, ahora, forzar)
+    largas = ", ".join("%s (%d min)" % (t, s // 60) for t, s in diag["largas"][:4]) or \
+        ", ".join(t for t, _ in diag["esperando"][:4])
+    if accion == "refrescar":
+        levantados, perdonados = levantar_fn(aptos)
+        ordenar_fn(cola)
+        estado["ultimo_refresco"] = ahora
+        linea = ("enjambre: %s esperaba(n) proveedor con %s pudiendo escribir → orden de refrescar "
+                 "proveedores%s%s" % (largas, ", ".join(aptos),
+                                       "; marca vieja de «sin cupo» levantada: %s" % ", ".join(levantados) if levantados else "",
+                                       "; rachas de cuelgue perdonadas: %d" % len(perdonados) if perdonados else ""))
+        avisar_fn("Autocuración: " + linea + ".")
+        return linea
+    if accion == "reiniciar":
+        levantar_fn(aptos)
+        pids = reiniciar_fn()
+        estado["ultimo_reinicio_orq"] = ahora
+        linea = "enjambre: %s; reinicio el orquestador (%s) y el vigilante lo relanza" % (
+            porque, ", ".join(str(p) for p in pids) or "no encontré su proceso")
+        avisar_fn("Autocuración: " + linea + ".")
+        return linea
+    if accion == "esperar" and not aptos:
+        # Una vez por hora como mucho: esperar sin cupo no es un fallo, pero se dice.
+        if forzar or ahora - float(estado.get("ultimo_aviso_sin_cupo") or 0) >= 3600:
+            estado["ultimo_aviso_sin_cupo"] = ahora
+            linea = "enjambre: %s espera(n) proveedor y la sonda no ve ningún escritor con cupo (%s); no toco nada" % (
+                largas, ", ".join(sonda.get("no") or []) or "sin datos")
+            avisar_fn("Autocuración: " + linea + ".")
+            return linea
+    return "enjambre: %s" % porque if forzar else ""
+
+
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
-            buscar_fn=_buscar, traer_fn=_traer_en_fondo):
-    """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO)."""
+            buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
+            servicios_fn=_servicios):
+    """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
+    `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos."""
     ahora = ahora if ahora is not None else time.time()
     estado = _leer_json(ESTADO, {}) if ESTADO else {}
     hechos = []
@@ -277,7 +585,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
 
     libre = libre_fn()
     ids = ids_a_limpiar(libre)
-    if ids and ahora - (estado.get("ultima_limpieza") or 0) >= LIMPIEZA_MINIMA_S:
+    if ids and (forzar or ahora - (estado.get("ultima_limpieza") or 0) >= LIMPIEZA_MINIMA_S):
         r = limpiar_fn(ids)
         estado["ultima_limpieza"] = ahora
         limpiados = r.get("limpiados") or []
@@ -289,7 +597,8 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
     if any(sondas):
         try:
             decision, aplicar = asignar_fn()
-            llenar, porque_ll = decidir_llenado(decision, ahora, estado.get("ultimo_llenado"))
+            llenar, porque_ll = decidir_llenado(decision, ahora,
+                                                None if forzar else estado.get("ultimo_llenado"))
             if llenar:
                 hechas = aplicar() or []
                 estado["ultimo_llenado"] = ahora
@@ -300,7 +609,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
 
     # Más capacidad fuera de la Mac (la nube), como el botón del Mando, cada 30 min.
     if any(sondas):
-        toca, _porque_b = decidir_busqueda(ahora, estado.get("ultima_busqueda"))
+        toca, _porque_b = decidir_busqueda(ahora, None if forzar else estado.get("ultima_busqueda"))
         if toca:
             estado["ultima_busqueda"] = ahora
             try:
@@ -312,7 +621,8 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
 
     # Traer a main lo que hizo la nube y reparar lo que dejó a medias (en segundo plano).
     if any(sondas):
-        toca, _porque_t = decidir_busqueda(ahora, estado.get("ultimo_traer"), TRAER_MINIMO_S)
+        toca, _porque_t = decidir_busqueda(ahora, None if forzar else estado.get("ultimo_traer"),
+                                           TRAER_MINIMO_S)
         if toca:
             estado["ultimo_traer"] = ahora
             try:
@@ -320,6 +630,25 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
                 hechos.append("traer la nube: pasada lanzada en segundo plano")
             except Exception as e:
                 hechos.append("no pude lanzar traer la nube: %s: %s" % (type(e).__name__, e))
+
+    # Servicios caídos (cada 10 min; con `forzar` los revisa el propio reactivador).
+    if not forzar and ahora - float(estado.get("ultimos_servicios") or 0) >= SERVICIOS_MINIMO_S:
+        estado["ultimos_servicios"] = ahora
+        try:
+            r = servicios_fn() or {}
+            if r.get("estado") in ("reparado", "fallo"):
+                hechos.append("servicios: %s" % r.get("detalle"))
+                avisar_fn("Autocuración: servicios del Mando — %s." % r.get("detalle"))
+        except Exception as e:
+            hechos.append("no pude revisar los servicios: %s: %s" % (type(e).__name__, e))
+
+    # Enjambre atascado esperando proveedores que ya volvieron (punto 6).
+    try:
+        linea = (curar_fn or curar_enjambre)(estado, ahora, forzar)
+        if linea:
+            hechos.append(linea)
+    except Exception as e:
+        hechos.append("no pude revisar el enjambre: %s: %s" % (type(e).__name__, e))
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),

@@ -306,7 +306,78 @@ def codex_disponible() -> bool:
         return False
 
 
-MUERTOS = set()  # modelos que el proveedor ha rechazado en esta corrida
+class ConjuntoCaduco(set):
+    """Un `set` cuyos miembros CADUCAN (2026-10-06, autocuración del enjambre).
+
+    Alex: «los agentes y procesos están detenidos… el puente de mando debería
+    autorrepararse». Medido esa noche: un orquestador vivo desde las 18:10 tenía a las
+    22:55 a sus tres trabajadores «esperando proveedor» con apinex, freellmapi y Google
+    respondiendo a la sonda. MUERTOS vivía para toda la corrida: un cuelgue o un 429 de
+    las 19:00 seguía vetando el modelo a las 23:00, y la espera solo miraba a los
+    apartados de ESA tarea. Ahora cada veto dura `horas` (por defecto
+    STARSEED_MUERTOS_TTL_MIN, 45 min) y al caducar el modelo vuelve a pasar por la sonda
+    de 1 token antes de escribir: si sigue mal, se vuelve a apartar en un segundo.
+
+    Mismo interfaz que `set` para quien lo usa (`in`, `add`, `discard`, iterar, `len`).
+    """
+
+    def __init__(self, ttl_s=None, reloj=time.time):
+        super().__init__()
+        self._ttl_s = float(
+            ttl_s
+            if ttl_s is not None
+            else 60 * int(os.environ.get("STARSEED_MUERTOS_TTL_MIN", "45") or 45)
+        )
+        self._hasta = {}
+        self._reloj = reloj
+
+    def add(self, elemento, horas=None):
+        dura = self._ttl_s if horas is None else float(horas) * 3600
+        fin = self._reloj() + max(0.0, dura)
+        # Un veto nuevo nunca ACORTA uno más largo que ya estuviera puesto.
+        self._hasta[elemento] = max(fin, self._hasta.get(elemento, 0.0))
+        super().add(elemento)
+
+    def _purgar(self):
+        ahora_ = self._reloj()
+        for e in [e for e, fin in list(self._hasta.items()) if fin <= ahora_]:
+            self._hasta.pop(e, None)
+            super().discard(e)
+
+    def __contains__(self, elemento):
+        fin = self._hasta.get(elemento)
+        if fin is not None and fin <= self._reloj():
+            self._hasta.pop(elemento, None)
+            super().discard(elemento)
+            return False
+        return super().__contains__(elemento)
+
+    def __iter__(self):
+        self._purgar()
+        return iter(list(super().__iter__()))
+
+    def __len__(self):
+        self._purgar()
+        return super().__len__()
+
+    def discard(self, elemento):
+        self._hasta.pop(elemento, None)
+        super().discard(elemento)
+
+    def remove(self, elemento):
+        self._hasta.pop(elemento, None)
+        super().remove(elemento)
+
+    def clear(self):
+        self._hasta.clear()
+        super().clear()
+
+    def caduca(self, elemento):
+        """Epoch en que vuelve a contar el modelo (None si no está vetado)."""
+        return self._hasta.get(elemento) if elemento in self else None
+
+
+MUERTOS = ConjuntoCaduco()  # modelos vetados en esta corrida; cada veto caduca (ver arriba)
 PROCESOS = {}  # tarea -> Popen de opencode en marcha (para poder cortarlo)
 CORTADOS = set()  # tareas cuyo opencode ha matado el vigilante: no cuentan como intento
 PROCESOS_LOCK = threading.Lock()
@@ -396,7 +467,7 @@ def apartar_si_pide_pago(tid, modelo, salida):
     linea = exige_pago(salida)
     if not linea:
         return False
-    MUERTOS.add(modelo)
+    MUERTOS.add(modelo, horas=HORAS_PAGO)
     try:
         _anotar_fallido(tid, modelo)
     except Exception:
@@ -495,7 +566,7 @@ def apartar_si_se_cuelga(tid, modelo):
         return False
     if int((datos.get(modelo) or {}).get("seguidos") or 0) < COLGADOS_MAX:
         return False
-    MUERTOS.add(modelo)
+    MUERTOS.add(modelo, horas=HORAS_COLGADO)
     evento(
         "proveedor",
         tid,
@@ -545,7 +616,9 @@ def apartar_colgados_al_arrancar():
                 int((e or {}).get("seguidos") or 0) >= COLGADOS_MAX
                 and float((e or {}).get("ultimo") or 0) > limite
             ):
-                MUERTOS.add(m)
+                # Lo que le queda a su racha, no el veto corto por defecto.
+                resto_h = (float((e or {}).get("ultimo") or 0) - limite) / 3600
+                MUERTOS.add(m, horas=max(0.25, resto_h))
         except Exception:
             pass
 
@@ -2946,6 +3019,42 @@ PROG = cargar_prog()
 PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
 
 
+_CERRADAS_DISCO = {"t": 0.0, "ids": frozenset()}
+
+
+def _leer_estado_disco(tid):
+    try:
+        with open(PROG_JSON, encoding="utf-8") as f:
+            return str((json.load(f).get(tid) or {}).get("estado") or "")
+    except Exception:
+        return ""
+
+
+def cerradas_en_disco(cada_s=30, ruta=None):
+    """Ids que `progreso.json` da por cerrados para siempre (integrada, sustituida…).
+
+    (2026-10-06) Una tanda arrancada a las 18:10 volvió a escribir a las 22:55 LC1007A, que
+    la nube ya había integrado a las 21:55: la copia en memoria no se entera de lo que
+    cierran otros (traer_nube, el Mando, la dirección). Se relee el disco como mucho cada
+    `cada_s` segundos. Nunca lanza."""
+    ahora_ = time.time()
+    if ahora_ - _CERRADAS_DISCO["t"] >= cada_s:
+        _CERRADAS_DISCO["t"] = ahora_
+        try:
+            with open(ruta or PROG_JSON, encoding="utf-8") as f:
+                disco = json.load(f)
+            if isinstance(disco, dict):
+                _CERRADAS_DISCO["ids"] = frozenset(
+                    k
+                    for k, v in disco.items()
+                    if isinstance(v, dict)
+                    and v.get("estado") in (PROGRESO_IRREVERSIBLE | {"descartada"})
+                )
+        except Exception:
+            pass
+    return _CERRADAS_DISCO["ids"]
+
+
 def fusionar_progreso(memoria, disco, propias):
     """Funde dos fotos sin permitir que una tarea cerrada vuelva a `en_curso`."""
     salida = dict(memoria)
@@ -5318,6 +5427,31 @@ def entregar_mensajes():
         pass
 
 
+def refrescar_proveedores(quien="director"):
+    """Borra los vetos de esta corrida (MUERTOS, los que piden pago y la memoria de la sonda).
+
+    (2026-10-06) La pide la autocuración del Mando cuando ve trabajadores «esperando
+    proveedor» mientras la sonda dice que hay escritores con cupo. No hay que matar la
+    tanda: en ≤ 30 s cada espera vuelve a mirar la rotación entera y la sonda de 1 token
+    descarta en un segundo lo que siga mal. Devuelve cuántos vetos borró. Nunca lanza."""
+    global _SONDA_MEM
+    try:
+        n = len(MUERTOS)
+        MUERTOS.clear()
+        PIDEN_PAGO.clear()
+        if _sonda is not None:
+            _SONDA_MEM = _sonda.Memoria()
+        evento(
+            "reenrutado",
+            "",
+            "refresco de proveedores pedido por %s: %d veto(s) borrados; cada modelo "
+            "vuelve a pasar la sonda antes de escribir" % (quien, n),
+        )
+        return n
+    except Exception:
+        return 0
+
+
 def atender_control():
     """Aplica las órdenes externas. Lo llama el vigilante cada 20 s."""
     entregar_mensajes()
@@ -5325,6 +5459,10 @@ def atender_control():
         if not isinstance(orden, dict):
             continue
         accion = str(orden.get("accion") or "reasignar")
+        if accion == "refrescar_proveedores":
+            # Orden de la FLOTA (no de una tarea): va antes del filtro de MIAS.
+            refrescar_proveedores(str(orden.get("quien") or "director")[:32])
+            continue
         # Nube y agentes de IDE se anuncian por el mismo canal que ya sincroniza el Mando.
         # Su capacidad y bytes son datos operativos; nunca se aceptan ni guardan credenciales.
         if accion == "latido_medio":
@@ -6256,7 +6394,8 @@ def escritor_listo(modelo):
         _SONDA_MEM.anotar(modelo, apto, motivo, horas)
         if not apto:
             if muerto:
-                MUERTOS.add(modelo)
+                # Retirado o solo de pago: no vuelve en minutos, pero se re-sondea cada 6 h.
+                MUERTOS.add(modelo, horas=6)
             elif horas >= 1:
                 marcar_sin_cupo(proveedor_de(modelo), "sonda de escritura: " + motivo, horas=horas)
         return apto, motivo
@@ -6731,6 +6870,7 @@ def ejecutar(t, intento=1):
     por_proveedor = {}  # proveedor -> intentos ya gastados en él (para cruzar pasarelas)
     ronda = 0
     pendientes = [] if reanudada else list(modelos)
+    no_caben = set()  # modelos descartados por tamaño: no «vuelven» nunca (ver abajo)
     # No gastar intentos donde el intento no puede salir bien (2026-09-14, ola 323). Dos de
     # los seis modelos de p323A, p323E y p323G se fueron en Groq, que en su tramo gratuito
     # admite 7-8 mil tokens de entrada cuando el prompt de una tarea de esta casa ronda los
@@ -6742,6 +6882,7 @@ def ejecutar(t, intento=1):
             pendientes, _apartados_tam = _limite_proveedor.filtrar_por_tamano(
                 pendientes, _tokens
             )
+            no_caben.update(_m for _m, _ in _apartados_tam)
             for _m, _motivo in _apartados_tam:
                 # OJO: NO van a `apartados`. Esa lista es para modelos que esperan a que su
                 # proveedor vuelva, y el segundo bucle los reintenta en cuanto revive. Un
@@ -6876,7 +7017,7 @@ def ejecutar(t, intento=1):
                     modelo, out, catalogo_proveedor(proveedor_de(modelo))
                 )
                 if retirar:
-                    MUERTOS.add(modelo)
+                    MUERTOS.add(modelo, horas=12)
                     evento(
                         "proveedor",
                         tid,
@@ -6988,14 +7129,26 @@ def ejecutar(t, intento=1):
         t_esp = time.time()
         vueltos = []
         while time.time() - t_esp < ESPERA_PROVEEDOR_S and not FIN.is_set():
-            vueltos = [
-                m
-                for m in apartados
-                if m not in MUERTOS
-                and proveedor_vivo(proveedor_de(m))
-                and apto_para_tarea(m, t)
-                and escritor_listo(m)[0]
-            ]
+            # (2026-10-06) Se mira TODA la rotación, no solo los apartados de esta tarea:
+            # un proveedor que estaba vetado (MUERTOS) cuando arrancó la tarea nunca entraba
+            # en `apartados`, y al volver nadie lo veía. Los vetos ahora caducan y una orden
+            # `refrescar_proveedores` del director los borra: aquí se nota en ≤ 30 s.
+            candidatos = list(
+                dict.fromkeys(
+                    apartados + [m for m in modelos_para(tid) if m not in no_caben]
+                )
+            )
+            vueltos = []
+            for m in candidatos:
+                if (
+                    m not in MUERTOS
+                    and proveedor_vivo(proveedor_de(m))
+                    and apto_para_tarea(m, t)
+                    and escritor_listo(m)[0]
+                ):
+                    vueltos.append(m)
+                    if len(vueltos) >= 3:  # con tres sanos basta; sondear más cuesta tiempo
+                        break
             if vueltos:
                 break
             FIN.wait(30)
@@ -7098,7 +7251,7 @@ def ejecutar(t, intento=1):
                         modelo, out, catalogo_proveedor(proveedor_de(modelo))
                     )
                     if retirar:
-                        MUERTOS.add(modelo)
+                        MUERTOS.add(modelo, horas=12)
                     else:
                         evento(
                             "aviso",
@@ -8401,6 +8554,16 @@ def main():
             if tid in SOLTADAS:
                 pendientes.pop(tid)
                 hechas.add(tid)
+                continue
+            if tid in cerradas_en_disco():
+                pendientes.pop(tid)
+                hechas.add(tid)
+                evento(
+                    "aviso",
+                    tid,
+                    "otra ola ya la cerró (%s según progreso.json) → no la repito"
+                    % (_leer_estado_disco(tid) or "cerrada"),
+                )
                 continue
             if _es_analisis(t):
                 # Un sueño: sin dependencias, sin arriendo (el analista se reclama él mismo

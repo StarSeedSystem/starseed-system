@@ -122,6 +122,7 @@ import type { SaludNeurona } from "@/lib/mando/neurona";
 import { instalarGuardiaFetchMando } from "@/lib/mando/guardia-fetch";
 import { instalarAutocuracionPagina } from "@/lib/mando/autocuracion-pagina";
 import { AvisoAutocuracion } from "@/components/mando/aviso-autocuracion";
+import { ReactivadorDirectores } from "@/components/mando/reactivador-directores";
 import {
     leerEstadoPantalla,
     useMantenerPantalla,
@@ -1600,6 +1601,10 @@ export function CentroMando() {
         <div className="space-y-5">
             <AvisoAutocuracion />
             <GuardianPantalla />
+            {/* (2026-10-06) Alex: «un botón hasta arriba para lanzar un reactivador de todos
+                los directores que verifique y repare cualquier error». Va antes de todo y
+                fuera de `pulso`: si el pulso no carga, el botón sigue ahí para arreglarlo. */}
+            {!soloLocal && <ReactivadorDirectores />}
             {cargando ? (
                 <p className="flex items-center gap-2 text-sm text-white/60">
                     <CircleDashed className="h-4 w-4 animate-spin" aria-hidden />

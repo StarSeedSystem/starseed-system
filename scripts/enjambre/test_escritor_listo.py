@@ -8,7 +8,7 @@ from test_progreso_irreversible import enjambre
 class EscritorListo(unittest.TestCase):
     def setUp(self):
         self.mem = enjambre._sonda.Memoria()
-        for nombre, valor in (("_SONDA_MEM", self.mem), ("MUERTOS", set())):
+        for nombre, valor in (("_SONDA_MEM", self.mem), ("MUERTOS", enjambre.ConjuntoCaduco())):
             p = mock.patch.object(enjambre, nombre, valor)
             p.start()
             self.addCleanup(p.stop)
