@@ -47,6 +47,7 @@ import {
     type ServidorRegistrado,
     type TipoServidor,
 } from "@/lib/mando/servidor-astraura-tipos";
+import { resumenOracle } from "@/lib/mando/oracle-tipos";
 
 // ── Formato ───────────────────────────────────────────────────────────────────
 
@@ -614,7 +615,7 @@ function TarjetaOraclePendiente() {
     const servicios = estado?.servicios ?? [];
 
     return (
-        <article className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-3 text-xs">
+        <article className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-3 text-xs" aria-label={estado ? resumenOracle(estado as any) : undefined}>
             <header className="mb-2 flex items-center gap-2">
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
                 <h4 className="truncate text-sm font-semibold text-white">Oracle Always Free</h4>
