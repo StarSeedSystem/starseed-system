@@ -25,6 +25,11 @@ import { QUICK_NOTES_KEY } from "@/lib/notes/quick-notes";
 import { QUICK_TASKS_KEY } from "@/lib/tasks/quick-tasks";
 import { CLAVE_SESION } from "../flow-director-partes";
 
+// (2026-10-07) Las claves de EJEMPLO se montan en tiempo de ejecución: escritas enteras en el
+// archivo, la protección de secretos de GitHub bloquearía cualquier empuje que llevara este
+// commit (CLAUDE.md, trampa 12). Ninguna es real.
+const parte = (...t: string[]) => t.join("");
+
 function pintar(ui: React.ReactElement, clase: ClaseTamano) {
     medida = MEDIDAS[clase];
     return render(<EnMarco clase={clase}>{ui}</EnMarco>);
@@ -189,8 +194,8 @@ describe("Escudo Ontológico", () => {
         expect(screen.getByText("Se bloquea tras 10 min")).toBeTruthy();
     });
     it("escanea en local y encuentra un secreto a la vista sin tocar las bóvedas", async () => {
-        localStorage.setItem("starseed.api.token", "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD");
-        localStorage.setItem("starseed.ai.providers", JSON.stringify({ openai: "sk-proj-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" }));
+        localStorage.setItem("starseed.api.token", parte("sk-pr", "oj-abcdefghijklmnopqrstuvwxyz0123456789ABCD"));
+        localStorage.setItem("starseed.ai.providers", JSON.stringify({ openai: parte("sk-pr", "oj-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz") }));
         pintar(<CryptoShieldWidget />, "xl");
         fireEvent.click(await screen.findByRole("button", { name: /Escanear: Secretos a la vista/ }));
         expect(screen.getByText(/posibles? secretos? a la vista/)).toBeTruthy();

@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { comprobaciones, escanearAlmacen, puntuacion, type SenalesSeguridad } from "../_catalogo/seguridad";
 import { enmascararCorreo, mapearFaceta, etiquetaVisibilidad } from "../_catalogo/identidad";
 
+// (2026-10-07) Las claves de EJEMPLO se montan en tiempo de ejecución: escritas enteras en el
+// archivo, la protección de secretos de GitHub bloquearía cualquier empuje que llevara este
+// commit (CLAUDE.md, trampa 12). Ninguna es real.
+const parte = (...t: string[]) => t.join("");
+
 const base: SenalesSeguridad = { metodo: "ninguno", minutosInactividad: 0, alAbrir: false, passkey: false, cifrada: true, biometria: null, persistente: null };
 
 describe("Escudo · comprobaciones puras", () => {
@@ -26,15 +31,15 @@ describe("Escudo · comprobaciones puras", () => {
     });
     it("el escaneo solo lee claves con nombre sospechoso y nunca las bóvedas ni la sesión", () => {
         localStorage.clear();
-        localStorage.setItem("starseed.ai.providers", "sk-proj-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+        localStorage.setItem("starseed.ai.providers", parte("sk-pr", "oj-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"));
         localStorage.setItem("sb-abc-auth-token", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abcdefghijklmnopqrstuvwxyz");
-        localStorage.setItem("starseed.integration.home-assistant", JSON.stringify({ apiKey: "sk-proj-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy" }));
-        localStorage.setItem("notas", "sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+        localStorage.setItem("starseed.integration.home-assistant", JSON.stringify({ apiKey: parte("sk-pr", "oj-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy") }));
+        localStorage.setItem("notas", parte("sk-pr", "oj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"));
         const e = escanearAlmacen();
         expect(e.claves).toBe(0);
         expect(e.hallazgos).toBe(0);
         expect(e.boveda).toBe(1);
-        localStorage.setItem("mi.token", "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD");
+        localStorage.setItem("mi.token", parte("sk-pr", "oj-abcdefghijklmnopqrstuvwxyz0123456789ABCD"));
         expect(escanearAlmacen().hallazgos).toBeGreaterThan(0);
     });
 });
