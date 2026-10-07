@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "ES1010H",
+   "ola": "Ola 1010E · Estaciones: transmisiones en directo libres (directorio, reproductor autoadaptable, malla y estudio con IA)",
+   "titulo": "Estaciones · reproductor autoadaptable de una estación",
+   "depende": [],
+   "dificultad": "alta",
+   "archivos": [
+    "src/components/estaciones/reproductor-estacion.tsx",
+    "src/components/estaciones/__tests__/reproductor-estacion.test.tsx"
+   ],
+   "prompt": "CONTRATO: `architecture/estaciones.md`. Léelo ENTERO antes de empezar (sobre todo la sección que cita tu tarea): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-07): «añade una página, sección y función principal de StarSeed OS de \"Estaciones\" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable».\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta). Claves SOLO del entorno; nunca se imprimen ni se guardan. Sin dependencias nuevas (`hls.js` ya la instaló la dirección). Nada de `node:*` en `src/lib/estaciones` ni en `src/components/estaciones` (van al navegador). Textos visibles en español; el panel de control del OS se llama «Genesis» (nunca «Puente de Mando» ni «Mando»: la prueba `src/lib/__tests__/nombre-genesis.test.ts` lo vigila). ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (ES1010H): §9 del contrato («ReproductorEstacion») y reglas 3 y 4. Props: `{ estacion: Pick<Estacion,\"enlace\"|\"tipo\"|\"titulo\">; className?; compacto?: boolean }`. Decide con `detectarFormato`: `<audio>`/`<video>` nativos con `controls playsInline muted autoPlay`; HLS: si `video.canPlayType(\"application/vnd.apple.mpegurl\")` lo pone directo, si no `import(\"hls.js\")` en un efecto (destruye la instancia al desmontar; si falla, pasa a «Abrir en una pestaña»); `marco` → `<iframe>` con `sandbox={FRAME_SANDBOX}` y `allow={FRAME_ALLOW}` de `src/components/browser/web-frame.tsx`, `loading=\"lazy\"`, `referrerPolicy=\"no-referrer\"`, `title` = título, y para Twitch `conParent(url, window.location.hostname)`; `interno` → `next/link` «Abrir en StarSeed»; `pestana` → tarjeta con el motivo y el botón. Siempre un botón «Activar sonido» mientras esté en silencio y un enlace «Abrir en una pestaña» (`target=\"_blank\" rel=\"noopener noreferrer\"`). Contenedor 16:9 (`aspect-video`); `soloAudio` → barra compacta con barras animadas que respetan `prefers-reduced-motion`. Pruebas (jsdom, `hls.js` mockeado con `vi.mock`): un caso por reproductor, el botón de sonido, el aislamiento del iframe y el fallo de hls → pestaña.",
+   "dependencias_ya_en_main": [
+    "ES1010B"
+   ]
+  }
+ ]
+}
