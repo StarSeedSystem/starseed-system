@@ -13,12 +13,13 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from medidor_http_json import (
     extraer,
     leer_entorno,
     leer_declarado,
+    leer_http_json,
 )
 
 
@@ -83,6 +84,43 @@ class TestLeerEntorno(unittest.TestCase):
                 self.assertEqual(leer_entorno("CONTRASEÑA"), "secret")
         finally:
             os.unlink(tmp)
+
+
+class TestLeerHttpJson(unittest.TestCase):
+    """Prueba la lectura HTTP sin red ni claves reales."""
+
+    def test_respuesta_valida_calcula_uso_y_saldo(self) -> None:
+        entrada = {
+            "id": "test-http", "nombre": "Test HTTP", "proveedor": "test",
+            "url": "https://example.com/api", "clave_env": "TEST_API_KEY",
+            "rutas": {
+                "usado": "data.usage", "limite": "data.limit",
+                "restante": "data.limit_remaining",
+            },
+            "unidad": "USD",
+        }
+        respuesta = MagicMock()
+        respuesta.read.return_value = json.dumps({
+            "data": {"usage": 25, "limit": 100, "limit_remaining": 75},
+        }).encode("utf-8")
+        respuesta_contexto = MagicMock()
+        respuesta_contexto.__enter__.return_value = respuesta
+        abrir_url = Mock(return_value=respuesta_contexto)
+
+        resultado = leer_http_json(
+            entrada, "2026-10-06T18:00:00Z", abrir_url=abrir_url,
+            entorno={"TEST_API_KEY": "secreto"},
+        )
+
+        self.assertTrue(resultado["ok"], f"Resultado: {resultado}")
+        self.assertEqual(resultado["ventanas"][0]["usado_pct"], 25.0)
+        self.assertEqual(resultado["saldo"], {
+            "valor": 75.0, "limite": 100.0, "unidad": "USD",
+        })
+        solicitud = abrir_url.call_args.args[0]
+        self.assertEqual(solicitud.get_header("Authorization"), "Bearer secreto")
+        abrir_url.assert_called_once_with(solicitud, timeout=20)
+        respuesta.read.assert_called_once_with(256 * 1024)
 
 
 class TestLeerDeclarado(unittest.TestCase):
