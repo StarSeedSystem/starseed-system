@@ -748,7 +748,7 @@ export function useMallaNeuronas(deps?: {
 
       // (RDV13 · Ola 375) Radar compartido: como mucho cada 60 s resume lo que
       // oyen las antenas LOCALES de esta neurona (malla LoRa del radio conectado,
-      // BLE oído con gesto, radio nativa de la Mac si el Mando local la sirve) y
+      // BLE oído con gesto, radio nativa de la Mac si el Genesis local la sirve) y
       // lo comparte con los peers conectados. Solo se envía si la huella cambió
       // o pasaron 5 min del último envío. Nunca lanza: un radar roto no puede
       // tumbar el latido de la malla.
