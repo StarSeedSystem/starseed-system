@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20261006",
+ "tareas": [
+  {
+   "id": "RTMC1007As",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Medidores · adaptador de Claude por terminal (`claude -p /usage`, cero tokens) · lo que faltó: scripts/puente/test_medidor_http_json.py",
+   "archivos": [
+    "scripts/puente/test_medidor_http_json.py"
+   ],
+   "prompt": "SEGUIMIENTO de RTMC1007A, que ya está integrada (sha 56d61598cf01). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_medidor_http_json.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Rescate de pruebas · Medidores · adaptador de Claude por terminal (`claude -p /usage`, cero tokens)\n\n--- encargo original, como contexto ---\nORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea MC1007A («Medidores · adaptador de Claude por terminal (`claude -p /usage`, cero tokens)») se hizo en main por otro camino; su rama nube/37551058234 queda archivada en `refs/archivo/nube/37551058234` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTMC1007A · solo estos archivos: scripts/puente/test_medidor_claude_terminal.py, scripts/puente/test_medidor_http_json.py):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas Python con unittest, con el patrón de carga que ya use el archivo.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_medidor_claude_terminal.py\ndef test_leer_exito_con_suscripcion():\n    \"\"\"lee() con salida exitosa y suscripción.\"\"\"\n    ahora = datetime(2026, 10, 6, 18, 5)\n    texto_salida = (\n        \"You are currently using your subscription to power your Claude Code usage\\n\"\n        \"\\n\"\n        \"Current session: 23% used · resets Oct 6 at 6:10pm (America/Mexico_City)\\n\"\n        \"Current week (all models): 41% used · resets Oct 10 at 4am (America/Mexico_City)\\n\"\n        \"Current week (Fable): 0% used · resets Oct 10 at 4am (America/Mexico_City)\\n\"\n        \"\\n\"\n        \"What's contributing to your limits usage?\\n\"\n        \"...\"\n    )\n    ejecuciones = []\n\n    def ejecutar_mock(orden, *, stdin, capture_output, text, timeout, cwd, env):\n        ejecuciones.append(orden)\n        class Pr",
+   "origen": "seguimiento de alcance parcial",
+   "depende_de": []
+  },
+  {
+   "id": "MC1007Fb",
+   "ola": "Ola 1007R · Revisión de la dirección: arreglos de las piezas ya integradas de 1007M/1007P",
+   "depende": [],
+   "titulo": "Medidores · arreglos de revisión en creditos-pago (resumen tras reinicio, ventanas sin fecha, medidor sin lectura)",
+   "archivos": [
+    "src/lib/mando/creditos-pago.ts",
+    "src/lib/mando/__tests__/creditos-pago.test.ts"
+   ],
+   "dificultad": "media",
+   "prompt": "CONTRATO: `architecture/medidores-credito.md`. Léelo ENTERO antes de empezar (sobre todo §3 y §4.3): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «El medidor de Claude debe usar la terminal para autoactualizarse y contar con un medidor para cada crédito del usuario en sus APIs y modelos de pago (en nuestro caso, Claude y ChatGPT, pero con espacio para cualquier medidor adaptado a cualquier modelo y APIs).»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (MC1007Fb): revisión de la dirección de MC1007F (ya integrada) contra §3 y §4.3. Arreglos en `src/lib/mando/creditos-pago.ts`, con pruebas nuevas:\n(1) El `resumen` de `estadoCreditos` se calcula con las ventanas YA AJUSTADAS (una ventana cuyo `reinicia` pasó cuenta como 0 %): hoy, tras reiniciarse la semana, seguiría diciendo «100 % semana». Mantén `resumenCredito(m)` exportada para un medidor crudo, pero que acepte un `ahora` opcional y ajuste igual.\n(2) `VentanaCredito.reinicia` es `string | null` (las ventanas del adaptador `http_json` traen `null`): si es nulo o no es fecha válida, el resumen NO lleva «· reinicia …» y `minutosParaReinicio` es `null`, no 0.\n(3) Un medidor con `ok: false` sin ventanas ni saldo tiene tono `aviso` (no `ok`) y resumen «sin lectura»; con `error`, `textoExtras` añade el error corto.\nNo cambies los nombres exportados que ya usan otros (`estadoCreditos`, `resumenCredito`, `textoExtras`, `leerCreditosPago`, tipos).\n(4) Defensa: si un medidor del archivo llega sin `ventanas` (o no es lista), se trata como `[]`; sin `nombre`, se usa el `id`. Nada de excepciones por datos incompletos (prueba con un medidor `{id, ok: false, error}` a secas)."
+  }
+ ]
+}

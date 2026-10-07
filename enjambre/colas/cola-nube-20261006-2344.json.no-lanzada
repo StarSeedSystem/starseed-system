@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261006",
+ "tareas": [
+  {
+   "id": "PT1008G",
+   "ola": "Ola 1007R · Revisión de la dirección: arreglos de las piezas ya integradas de 1007M/1007P",
+   "depende": [],
+   "dificultad": "alta",
+   "titulo": "Mando para todos · RPC para registrar y revocar motores desde la sesión del usuario (sin tocar la tabla directamente)",
+   "archivos": [
+    "supabase/migrations/20261008090150_mando_motores_usuario.sql"
+   ],
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §3, §6.2 y §6.4): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1008G): PT1008Bb deja `mando_motores` cerrada a `anon` y `authenticated` (solo se ve por la vista filtrada). Para que una persona registre o revoque SUS motores sin abrir la tabla, en una migración ADITIVA nueva `supabase/migrations/20261008090150_mando_motores_usuario.sql`:\n(a) `public.mando_registrar_motor(_ambito uuid, _nombre text, _tipo text, _token_hash text, _huella text, _capacidades text[]) returns uuid` (SECURITY DEFINER, `set search_path = public`): exige `auth.uid()` no nulo y `public.mando_capacidad(_ambito, 'gestionar-motores')`; valida `_tipo` en (`local`, `nube-propia`, `servidor-propio`), `_token_hash ~ '^[0-9a-f]{64}$'` (el sha256 en hex de `src/lib/mando/motor-token.ts`), `_huella` = los 8 primeros caracteres del hash, `_nombre` de 1 a 60 caracteres y cada capacidad dentro de (`reportar`, `recoger-tareas`, `medidores`, `chat-motor`); si algo falla, `raise exception` con un mensaje corto SIN repetir el hash. Inserta con `estado = 'dormido'` y `creado_por = auth.uid()` y devuelve el id.\n(b) `public.mando_revocar_motor(_motor uuid) returns boolean`: exige `gestionar-motores` en el ámbito del motor o ser su `creado_por`; pone `estado = 'revocado'`. Nunca borra la fila.\n(c) `revoke all on function … from public, anon;` y `grant execute … to authenticated;` para las dos.\nLa prueba `src/lib/mando/__tests__/migraciones-mando.test.ts` ya vigila este archivo (search_path, sin drop, sin grant a anon). No apliques nada a ninguna base de datos.",
+   "dependencias_ya_en_main": [
+    "PT1008Bb"
+   ]
+  }
+ ]
+}

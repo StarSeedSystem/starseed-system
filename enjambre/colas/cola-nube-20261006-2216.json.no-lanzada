@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261006",
+ "tareas": [
+  {
+   "id": "PT1007E",
+   "ola": "Ola 1007P · Puente de Mando para todos · F1 cimientos puros (ámbito, capacidades, protocolo, vista pública, token de motor, almacén)",
+   "depende": [],
+   "titulo": "Mando para todos · interfaz AlmacenMando (local | supabase | memoria) y elección por bandera",
+   "archivos": [
+    "src/lib/mando/almacen.ts",
+    "src/lib/mando/__tests__/almacen.test.ts"
+   ],
+   "dificultad": "media",
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §1.2, §1.10 y §7): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1007E): la interfaz de datos de §7 que permitirá que las mismas tarjetas lean de la Mac o de Supabase sin saber de dónde.\n(a) `interface AlmacenMando { tipo: \"local\" | \"supabase\" | \"memoria\"; ambitoId: string; leerTareas(): Promise<TareaOla[]>; leerProgreso(): Promise<Record<string, {estado: string; avance?: number}>>; leerEventos(desde?: string, limite?: number): Promise<EventoMando[]>; leerChat(canal: string, limite?: number): Promise<MensajeChat[]>; leerMedidores(): Promise<unknown | null>; encolarOrden(orden: {tipo: \"encolar\" | \"aprobar\" | \"frenar\"; datos: unknown}): Promise<{ok: boolean; motivo?: string}>; }` usando los tipos de `protocolo.ts` (PT1007B).\n(b) `crearAlmacenMemoria(inicial?)`: implementación completa en memoria (para pruebas y demos); `encolarOrden` valida con `protocolo.ts` y rechaza lo inválido.\n(c) `crearAlmacenLocal(lectores)`: adaptador que RECIBE funciones lectoras inyectadas (las de hoy: no cambies ninguna ruta ni lector existente en esta tarea) y las expone como `AlmacenMando` con `ambitoId: \"local\"`; lo que no tenga lector devuelve vacío, nunca lanza.\n(d) `elegirAlmacen({banderaTodos, esLocal, ambitoId}): \"local\" | \"supabase\"`: `local` si no hay bandera, si la petición es local con ámbito `local` o sin ámbito; `supabase` en el resto.\n(e) Vitest: memoria (leer, encolar válido e inválido, límites de eventos), local con lectores falsos (incluido uno que lanza → vacío) y la tabla de `elegirAlmacen`.\n Todo lo nuevo queda detrás de `STARSEED_MANDO_TODOS=1` (§1.10): sin la bandera, el Mando se comporta exactamente igual que hoy.",
+   "dependencias_ya_en_main": [
+    "PT1007A",
+    "PT1007Bb"
+   ]
+  }
+ ]
+}

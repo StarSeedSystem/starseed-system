@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261006",
+ "tareas": [
+  {
+   "id": "PT1008C",
+   "ola": "Ola 1008P · Puente de Mando para todos · F2 datos y seguridad (migración aditiva + RLS + RPC, guardián por ámbito, conector del motor, almacén Supabase)",
+   "depende": [],
+   "titulo": "Mando para todos · RPC del motor (reportar y recoger) con token, tamaño, cadencia y presupuesto común",
+   "archivos": [
+    "supabase/migrations/20261008090200_mando_rpc_motor.sql"
+   ],
+   "dificultad": "alta",
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §6.2 y §6.3): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1008C): las RPC de §6.2 y el presupuesto de §6.3, en una migración aditiva (requiere `pgcrypto` para `digest`: `create extension if not exists pgcrypto`).\n(a) `public.mando_motor_reportar(p_token text, p_lote jsonb) returns jsonb` (SECURITY DEFINER, `set search_path = public, extensions`): busca el motor por `token_hash = encode(digest(p_token, 'sha256'), 'hex')` (el mismo hash que `src/lib/mando/motor-token.ts`, PT1007D); rechaza si no existe, si está `revocado` o si su ámbito tiene `freno`; rechaza lotes de más de 65 536 bytes (`octet_length(p_lote::text)`) o de más de 200 eventos; exige que hayan pasado 30 s desde `ultimo_reporte` (si no: `{ok:false, motivo:'cadencia', cadencia_s:30}`); inserta eventos (texto recortado a 4 000), hace upsert de tareas/progreso y de `mando_medidores` (si viene `medidores`), actualiza `ultimo_reporte` y `estado`, suma 1 a `mando_presupuesto` del día y devuelve `{ok:true, cadencia_s, freno}` con `cadencia_s` = 60, o 600 si las peticiones del día de TODOS los ámbitos pasan del 70 % de `current_setting('app.mando_tope_diario', true)` (por defecto 20 000), o 1 800 si pasan del 90 %.\n(b) `public.mando_motor_pendiente(p_token text) returns jsonb`: mismo control de token; devuelve las tareas del ámbito en estado `pendiente` (como mucho 50) y el estado del freno.\n(c) `revoke all on function … from public, anon` y `grant execute … to anon, authenticated` (el motor llama con la clave pública y SU token; nunca con la de servicio).\nLa prueba de PT1008A ya vigila este archivo. NO se aplica a ninguna base de datos.",
+   "dependencias_ya_en_main": [
+    "PT1008B",
+    "PT1007D"
+   ]
+  }
+ ]
+}
