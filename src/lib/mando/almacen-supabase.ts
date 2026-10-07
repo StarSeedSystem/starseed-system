@@ -116,10 +116,11 @@ export function crearAlmacenSupabase(cliente: ClienteSupabaseMando, ambitoId: st
     async encolarOrden(orden) {
       const r = revisar(orden);
       if (!r.ok) return { ok: false, motivo: r.motivo };
-      if (r.tarea) {
+      const t = r.tarea;
+      if (t) {
         return ejecutar(() => tareas().upsert({
-          ambito_id: ambitoId, tarea_id: r.tarea.id, ola: r.tarea.ola, titulo: r.tarea.titulo,
-          depende: r.tarea.depende, archivos: r.tarea.archivos, prompt: r.tarea.prompt,
+          ambito_id: ambitoId, tarea_id: t.id, ola: t.ola, titulo: t.titulo,
+          depende: t.depende, archivos: t.archivos, prompt: t.prompt,
           estado: "pendiente",
         }));
       }
