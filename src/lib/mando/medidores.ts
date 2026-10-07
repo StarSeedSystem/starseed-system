@@ -17,7 +17,7 @@ import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-oper
 
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
-import { estadoCreditos, resumenCredito, textoExtras, type DocCreditos } from "./creditos-pago";
+import { estadoCreditos, resumenCredito, textoExtras, type DocCreditos } from "./creditos-pago-tipos";
 
 export type ClaveMedidor =
     | "en-curso"
