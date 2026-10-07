@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-06 18:08:27 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 01:24:00 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,30 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 19 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 36 |
-| HEAD | `c89f54ce chore(memoria): aprendizaje de la ola auto-1006-170455` |
-| Sin publicar | 44 commits |
+| HEAD | `bec02792 chore(memoria): aprendizaje de la ola auto-1006-231549` |
+| Sin publicar | 18 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1006-170455.json`, hace 7s)
+## Quién escribe ahora (latido de `cola-auto-1006-231549.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RSC1006Es` | hecho | - | 4 min | 250 s | 97420 |
+| `PT1009B` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 45 s | 135203 |
+| `MC1007E` | hecho | nvidia/moonshotai/kimi-k3 | 15 min | 911 s | 69628 |
+| `MC1007H` | hecho | codex/gpt-5.6-sol | 15 min | 928 s | 755475 |
+| `PT1008Dd` | hecho | nvidia/moonshotai/kimi-k3 | 23 min | 1408 s | 80861 |
+| `PT1008G` | hecho | nvidia/moonshotai/kimi-k3 | 27 min | 1640 s | 42414 |
+| `MC1007Gb` | hecho | nvidia/moonshotai/kimi-k3 | 41 min | 2481 s | 59676 |
+| `PT1009Db` | hecho | nvidia/moonshotai/kimi-k3 | 59 min | 3510 s | 145948 |
+| `RTMC1007As` | hecho | freellmapi/auto | 61 min | 3672 s | 47931 |
+| `RSC1006Es` | hecho | freellmapi/auto | 62 min | 3690 s | 122412 |
+| `RTPT1007C` | hecho | freellmapi/auto | 65 min | 3930 s | 63004 |
+| `MC1007Fb` | hecho | nvidia/moonshotai/kimi-k3 | 66 min | 3962 s | 123880 |
+| `PT1009Eb` | hecho | freellmapi/auto | 84 min | 5024 s | 180627 |
+| `MC1007Ib` | hecho | nvidia/moonshotai/kimi-k3 | 87 min | 5213 s | 86228 |
+| `MC1007Bc` | hecho | freellmapi/auto | 93 min | 5572 s | 127883 |
+| `PT1008Bb` | hecho | freellmapi/auto | 104 min | 6232 s | 49080 |
+| `PT1008Dc` | hecho | freellmapi/auto | 124 min | 7463 s | 9634 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
