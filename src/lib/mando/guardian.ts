@@ -9,7 +9,7 @@
  * Devuelve la respuesta de veto o `null` si se puede seguir.
  */
 
-import type { CapacidadAmbito } from "./tipos";
+import type { CapacidadAmbito } from "./ambito";
 import { createClient } from "@/utils/supabase/server";
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 
@@ -40,7 +40,7 @@ export async function guardianMando(req?: Request, opciones?: {ambito?: string; 
     } = {};
     
     if (!bandera) {
-        return decidirAcceso({
+        const status = await decidirAcceso({
             bandera: false,
             produccion,
             esLocal,
@@ -48,6 +48,7 @@ export async function guardianMando(req?: Request, opciones?: {ambito?: string; 
             tieneCapacidad: undefined,
             rpcFallo: false,
         });
+        return status === 200 ? null : Response.json({ error: "Acceso denegado." }, { status });
     }
     
     if (produccion && !esLocal) {
@@ -81,7 +82,7 @@ export async function guardianMando(req?: Request, opciones?: {ambito?: string; 
         }
     }
     
-    return decidirAcceso({
+    const status = await decidirAcceso({
         bandera,
         produccion,
         esLocal,
@@ -89,6 +90,7 @@ export async function guardianMando(req?: Request, opciones?: {ambito?: string; 
         tieneCapacidad: undefined,
         rpcFallo: false,
     });
+    return status === 200 ? null : Response.json({ error: "Acceso denegado." }, { status });
 }
 
 export async function decidirAcceso({
@@ -105,7 +107,7 @@ export async function decidirAcceso({
     hayUsuario: boolean;
     tieneCapacidad?: boolean;
     rpcFallo: boolean;
-}): Promise<200 | 401 | 403 | 404 | 503> {
+}): Promise<number> {
     if (!bandera) {
         return 200;
     }
