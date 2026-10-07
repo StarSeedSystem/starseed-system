@@ -17,6 +17,7 @@ import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-oper
 
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
+import { type DocCreditos, estadoCreditos, resumenCredito, textoExtras } from "./creditos-pago";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -36,7 +37,12 @@ export type ClaveMedidor =
     | "ola-activa"
     // (2026-09-27) Alex: «agrega un medidor en el pulso de trabajo de lo que queda de los
     // 250 $ de crédito de Claude en la nube». Ver `credito-claude.ts`.
-    | "credito-claude";
+    | "credito-claude"
+    // (2026-10-06) Alex: «El medidor de Claude debe usar la terminal para
+    // autoactualizarse y contar con un medidor para cada crédito del usuario en sus
+    // APIs y modelos de pago (en nuestro caso, Claude y ChatGPT, pero con espacio
+    // para cualquier medidor adaptado a cualquier modelo y APIs).»
+    | "creditos";
 
 export type ClaseAccion =
     | "descartar"
@@ -1089,6 +1095,9 @@ export interface DatosMedidores {
      *  dirección los toma manualmente desde claude.ai → Uso y los guarda con
      *  `scripts/puente/limites_claude.py declarar …`. */
     limitesClaude?: unknown;
+    /** (2026-10-06) Créditos de pago (Claude y ChatGPT/Codex) leídos de
+     * `~/.starseed/medidores-credito.json` por `leerCreditosPago()`. No hay API. */
+    creditosPago?: DocCreditos | null;
     contenedores?: {
         generado?: string;
         contenedores: {
@@ -2163,6 +2172,67 @@ export function detalleDeMedidor(
             };
         }
 
+        case "creditos": {
+            // (2026-10-06) Medidor de créditos de pago (Claude y ChatGPT/Codex) leído
+            // por terminal cada 10 min (`leerCreditosPago()`). Una fila por medidor,
+            // con ficha por ventana, saldo, fuente y lectura.
+            const docPago = d.creditosPago;
+            if (!docPago) {
+                return {
+                    clave,
+                    titulo: "Créditos de pago",
+                    resumen: "Sin lecturas todavía: el servicio com.starseed.medidores lee Claude y Codex por terminal cada 10 min.",
+                    filas: [],
+                    acciones: [],
+                    vacio: "Sin lecturas todavía: el servicio com.starseed.medidores lee Claude y Codex por terminal cada 10 min.",
+                };
+            }
+            const estadosCredito = estadoCreditos(docPago, Date.now());
+            const filas: FilaMedidor[] = estadosCredito.map((m) => {
+                const ficha: DatoDeFicha[] = [];
+                for (const v of m.ventanas) {
+                    ficha.push({ etiqueta: "Usado", valor: `${v.usado_pct} %` });
+                    ficha.push({ etiqueta: "Queda", valor: `${v.queda} %` });
+                    ficha.push({ etiqueta: "Reinicia", valor: v.reinicia });
+                }
+                if (m.saldo) {
+                    const val = new Intl.NumberFormat("es", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(m.saldo.valor);
+                    ficha.push({ etiqueta: "Saldo", valor: `${val} ${m.saldo.unidad}` });
+                }
+                ficha.push({ etiqueta: "Fuente", valor: m.fuente || "terminal" });
+                ficha.push({ etiqueta: "Leído hace", valor: m.haceMin !== null ? `${m.haceMin} min` : "desconocido" });
+                return {
+                    id: m.id,
+                    titulo: m.nombre,
+                    estado: m.tono,
+                    porque: [m.resumen, ...m.textoExtras].filter(Boolean).join(" · "),
+                    enlace: m.enlace,
+                    acciones: [],
+                    ficha,
+                };
+            });
+            const peorId = filas.reduce<string>((a, b) => {
+                const s = filas.find((f) => f.id === a);
+                const sb = filas.find((f) => f.id === b);
+                return (s?.estado === "peligro" ? a : sb?.estado === "peligro" ? b : a);
+            }, filas[0]?.id ?? "");
+            const peorNombre = filas.find((f) => f.id === peorId)?.titulo ?? "";
+            const resumenStr = filas.length
+                ? `${filas.length} créditos · peor: ${peorNombre || peorId} · ` + filas.map((f) => {
+                    const extra = f.id === "codex" && f.estado === "peligro" ? "al 100 %" : "";
+                    return `${f.titulo}${extra ? " · " + extra : ""}`;
+                }).join(" · ")
+                : "Sin lecturas todavía";
+            return {
+                clave,
+                titulo: "Créditos de pago",
+                resumen: filas.length ? resumenStr : "Sin lecturas todavía: el servicio com.starseed.medidores lee Claude y Codex por terminal cada 10 min.",
+                filas,
+                acciones: [],
+                vacio: filas.length ? undefined : "Sin lecturas todavía: el servicio com.starseed.medidores lee Claude y Codex por terminal cada 10 min.",
+            };
+        }
+
         case "disco":
             return {
                 clave,
@@ -2296,6 +2366,7 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     // agentes, ¿dónde caben más? (2026-09-22)
     "contenedores",
     "credito-claude",
+    "creditos",
     "listas",
     "bloqueadas",
     "sin-publicar",
