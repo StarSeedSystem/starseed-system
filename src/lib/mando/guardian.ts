@@ -9,6 +9,7 @@
  * Devuelve la respuesta de veto o `null` si se puede seguir.
  */
 
+import type { CapacidadAmbito } from "./tipos";
 import { createClient } from "@/utils/supabase/server";
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 
@@ -29,16 +30,101 @@ export function mandoHabilitado(req?: Request): boolean {
  * instancia; sesión obligatoria solo en producción NO local; en local pasa
  * sin sesión (la máquina ya es el perímetro de confianza).
  */
-export async function guardianMando(req?: Request): Promise<Response | null> {
-    if (!mandoHabilitado(req)) return new Response("Not Found", { status: 404 });
-    if (process.env.NODE_ENV === "production" && !(req && esDespliegueLocal(req))) {
+export async function guardianMando(req?: Request, opciones?: {ambito?: string; capacidad?: CapacidadAmbito}): Promise<Response | null> {
+    const {
+        bandera = process.env.STARSEED_MANDO_TODOS === "1",
+        produccion = process.env.NODE_ENV === "production",
+        esLocal = req ? esDespliegueLocal(req) : false,
+        ambito = opciones?.ambito,
+        capacidad = opciones?.capacidad ?? "ver-detalle",
+    } = {};
+    
+    if (!bandera) {
+        return decidirAcceso({
+            bandera: false,
+            produccion,
+            esLocal,
+            hayUsuario: false,
+            tieneCapacidad: undefined,
+            rpcFallo: false,
+        });
+    }
+    
+    if (produccion && !esLocal) {
         try {
             const supabase = await createClient();
             const { data, error } = await supabase.auth.getUser();
-            if (error || !data.user) return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
+            if (error || !data.user) {
+                return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
+            }
+            
+            try {
+                const { data: tiene, error: rpcError } = await supabase.rpc("mando_capacidad", {
+                    p_ambito: ambito || data.user.id,
+                    p_capacidad: capacidad,
+                });
+                
+                if (rpcError) {
+                    return Response.json({ error: "No se pudo verificar la sesión." }, { status: 503 });
+                }
+                
+                if (!tiene) {
+                    return Response.json({ error: "No tienes permiso en este Mando." }, { status: 403 });
+                }
+                
+                return null;
+            } catch {
+                return Response.json({ error: "No se pudo verificar la sesión." }, { status: 503 });
+            }
         } catch {
             return Response.json({ error: "No se pudo verificar la sesión." }, { status: 401 });
         }
     }
-    return null;
+    
+    return decidirAcceso({
+        bandera,
+        produccion,
+        esLocal,
+        hayUsuario: false,
+        tieneCapacidad: undefined,
+        rpcFallo: false,
+    });
+}
+
+export async function decidirAcceso({
+    bandera,
+    produccion,
+    esLocal,
+    hayUsuario,
+    tieneCapacidad,
+    rpcFallo,
+}: {
+    bandera: boolean;
+    produccion: boolean;
+    esLocal: boolean;
+    hayUsuario: boolean;
+    tieneCapacidad?: boolean;
+    rpcFallo: boolean;
+}): Promise<200 | 401 | 403 | 404 | 503> {
+    if (!bandera) {
+        return 200;
+    }
+    
+    if (produccion && !esLocal) {
+        if (!hayUsuario) {
+            return 401;
+        }
+        
+        if (rpcFallo) {
+            return 503;
+        }
+        
+        if (!tieneCapacidad) {
+            return 403;
+        }
+        
+        return 200;
+    }
+    
+    return 200;
 }
