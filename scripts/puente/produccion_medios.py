@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Director de producción — medios (PRD1005C). Firmas concisas; implementación en produccion_medios_impl."""
 from __future__ import annotations
-import os, subprocess
+import os, subprocess, sys
 from typing import Any
-from scripts.puente import produccion_medios_impl as impl
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import produccion_medios_impl as impl
 
 
 class MedioProduccion:
