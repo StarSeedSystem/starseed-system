@@ -36,6 +36,8 @@ def elegir_panel(pesos, utiles, k=3, exploracion=0.2, azar=None):
 
     `azar` es un módulo/objeto con `random()` y `choice(seq)` (por defecto `random`).
     """
+    if k <= 0:
+        return []
     import random as _random
     azar = azar or _random
     candidatos = [m for m in (utiles or []) if isinstance(m, str) and m]
@@ -122,6 +124,8 @@ def pedir_propuestas(modelos, resumen, llamar):
             texto = llamar(modelo, texto_peticion)
         except Exception:
             continue
+        if not isinstance(texto, str) or not texto.strip():
+            continue
         datos = _extraer_json(texto)
         if not isinstance(datos, dict):
             continue
@@ -139,6 +143,8 @@ def pedir_propuestas(modelos, resumen, llamar):
 def fusionar(propuestas):
     """Propuestas con las repetidas fusionadas: mismas (área, título) suman votos
     y acumulan los modelos que las propusieron. PURA."""
+    if not propuestas:
+        return []
     por_clave = {}
     for p in propuestas or []:
         clave = (p.get("area"), str(p.get("titulo") or "").strip().lower())
