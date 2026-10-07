@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "MC1007E",
+   "ola": "Ola 1007M · Medidores de crédito por terminal: un medidor por cada crédito de pago que se actualiza solo (Claude, ChatGPT/Codex y cualquier API)",
+   "depende": [],
+   "titulo": "Medidores · servicio 24/7 (launchd cada 10 min) y línea de estado de Claude Code que alimenta gratis",
+   "archivos": [
+    "scripts/puente/com.starseed.medidores.plist",
+    "scripts/puente/statusline-starseed.sh",
+    "scripts/puente/test_statusline_starseed.py"
+   ],
+   "dificultad": "media",
+   "prompt": "CONTRATO: `architecture/medidores-credito.md`. Léelo ENTERO antes de empezar (sobre todo §4.2): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «El medidor de Claude debe usar la terminal para autoactualizarse y contar con un medidor para cada crédito del usuario en sus APIs y modelos de pago (en nuestro caso, Claude y ChatGPT, pero con espacio para cualquier medidor adaptado a cualquier modelo y APIs).»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (MC1007E): la autoactualización de §4.2.\n(a) `com.starseed.medidores.plist`, igual que `scripts/puente/com.starseed.nube.plist` salvo: Label `com.starseed.medidores`; ProgramArguments `/opt/homebrew/bin/python3`, `/Users/alex/Documents/starseed-os-main/scripts/puente/medidores_credito.py`, `recoger`; `StartInterval` 600; `RunAtLoad` true; SIN `KeepAlive`; `Nice` 10; `PATH` `/Users/alex/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`; log `/tmp/starseed-medidores.log`; WorkingDirectory el repo.\n(b) `statusline-starseed.sh` (zsh con python3 embebido, como la línea de estado actual de Alex): imprime `modelo · ctx N% · $coste · carpeta` con la MISMA lógica defensiva (solo los campos que existan: `model.display_name` o `model.id`, `context_window.used_percentage`, `cost.total_cost_usd`, `workspace.current_dir`) y, además, si el JSON de stdin trae `rate_limits`, escribe atómicamente `<STARSEED_HOME o HOME>/.starseed/medidores-entrada/claude-statusline.json` con SOLO `{\"t\": ahora ISO, \"five_hour\": {\"usado_pct\", \"reinicia\"}, \"seven_day\": {\"usado_pct\", \"reinicia\"}}` (`reinicia` en ISO desde `resets_at`, segundos Unix). Un fallo al escribir nunca rompe la línea ni imprime errores.\n(c) `test_statusline_starseed.py` (`unittest`): el plist se parsea con `plistlib` y tiene Label, StartInterval 600, sin KeepAlive y el PATH con `.local/bin`; el script, con un JSON de ejemplo por stdin y `STARSEED_HOME` temporal, imprime UNA línea con el modelo y escribe el archivo con los números; sin `rate_limits` no escribe nada; JSON roto → imprime `starseed` y sale 0. (No instales nada en la máquina: la dirección instala el servicio y la línea de estado tras revisarlos.)",
+   "dependencias_ya_en_main": [
+    "MC1007D"
+   ]
+  }
+ ]
+}
