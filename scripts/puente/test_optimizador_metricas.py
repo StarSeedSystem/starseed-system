@@ -126,5 +126,67 @@ class TestCargarFuentes(unittest.TestCase):
         self.assertNotIn("progreso", f)
 
 
+class TestHistorialProduccion(unittest.TestCase):
+    """Métricas nuevas de `historial.jsonl`: tasa de reversión por modelo (7 días,
+    ≥3 lotes) y latencia `petición → publicación` (mediana y p90)."""
+
+    def test_historial_falso_reversion_y_latencia(self):
+        with tempfile.TemporaryDirectory() as raiz, tempfile.TemporaryDirectory() as home:
+            # Archivo falso de historial dentro de ~/.starseed/produccion
+            prod_dir = os.path.join(home, ".starseed", "produccion")
+            os.makedirs(prod_dir, exist_ok=True)
+            # 5 líneas en los últimos 7 días: 3 para kimi (2 revertidos), 2 para glm (0 revertidos)
+            # Ventana = 6 h (BASE + 3600) para que todas entren en la ventana de medir
+            ahora = BASE + 3600
+            historial = [
+                {"sha": "a1", "tareas": ["T1"], "resultado": "publicado",
+                 "timestamp": (BASE - 2 * 3600), "modelos": ["kimi"], "reversion": False,
+                 "latencia": 120},
+                {"sha": "a2", "tareas": ["T2"], "resultado": "publicado",
+                 "timestamp": (BASE - 3600), "modelos": ["kimi"], "reversion": True,
+                 "latencia": 300},
+                {"sha": "a3", "tareas": ["T3"], "resultado": "publicado",
+                 "timestamp": (BASE - 1800), "modelos": ["kimi"], "reversion": False,
+                 "latencia": 180},
+                {"sha": "a4", "tareas": ["T4"], "resultado": "publicado",
+                 "timestamp": (BASE - 300), "modelos": ["glm"], "reversion": False,
+                 "latencia": 60},
+                {"sha": "a5", "tareas": ["T5"], "resultado": "publicado",
+                 "timestamp": BASE, "modelos": ["glm"], "reversion": False,
+                 "latencia": 90},
+            ]
+            with open(os.path.join(prod_dir, "historial.jsonl"), "w", encoding="utf-8") as fh:
+                for linea in historial:
+                    fh.write(json.dumps(linea, ensure_ascii=False) + "\n")
+            f = om.cargar_fuentes(raiz, home, ahora=ahora, ventana_h=6)
+            m = om.medir(f, ahora=ahora, ventana_h=6)
+            # Tasa de reversión por modelo: kimi = 1/3 ≈ 0.333; glm = 2 lotes (<3) → no aparece
+            self.assertIsNotNone(m.get("reversion_modelo"))
+            rev_mod = m.get("reversion_modelo")
+            self.assertIsNotNone(rev_mod)
+            # rev_mod puede ser dict o None según el tipo inferido; comprobamos con assertIsInstance
+            self.assertIsInstance(rev_mod, dict)
+            from typing import cast
+            rev_mod_dict = cast(dict, rev_mod)
+            self.assertIn("kimi", rev_mod_dict)
+            self.assertEqual(rev_mod_dict["kimi"], round(1 / 3, 3))
+            # Latencia: mediana de [120, 300, 180, 60, 90] = 120; p90 ≈ 300
+            lat = m.get("latencia_peticion_publicacion")
+            self.assertIsNotNone(lat)
+            from typing import cast
+            lat_dict = cast(dict, lat)
+            self.assertAlmostEqual(lat_dict["mediana"], 120.0)
+            self.assertAlmostEqual(lat_dict["p90"], 300.0)
+
+    def test_historial_sin_archivo_da_null(self):
+        with tempfile.TemporaryDirectory() as raiz, tempfile.TemporaryDirectory() as home:
+            f = om.cargar_fuentes(raiz, home, ahora=BASE)
+            m = om.medir(f, ahora=BASE, ventana_h=6)
+            self.assertIsNone(m.get("reversion_modelo"))
+            self.assertIsNone(m.get("latencia_peticion_publicacion"))
+            self.assertIn("reversion_modelo", m.get("faltan", {}))
+            self.assertIn("latencia_peticion_publicacion", m.get("faltan", {}))
+
+
 if __name__ == "__main__":
     unittest.main()

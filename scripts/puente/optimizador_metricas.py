@@ -344,8 +344,90 @@ def _nube(fuentes, ahora):
     return {"pausada": pausada, "motivo": motivo, "contenedores_libres": libres}, None
 
 
+def _es_reversion(h):
+    if isinstance(h, dict) and h.get("reversion") is True:
+        return True
+    if isinstance(h, dict) and h.get("revertido") is True:
+        return True
+    res = h.get("resultado", "")
+    if isinstance(res, str) and "revert" in res.lower():
+        return True
+    return False
+
+
+def _modelos_de_historial(h):
+    modelos = set()
+    for campo in ("modelos", "escritores", "escribieron"):
+        val = h.get(campo)
+        if isinstance(val, list):
+            for v in val:
+                if isinstance(v, str) and v:
+                    modelos.add(v)
+        elif isinstance(val, dict):
+            for k in val:
+                if isinstance(k, str) and k:
+                    modelos.add(k)
+    # Si no hay modelos explícitos, intentar extraer de tareas (no fiable, pero útil)
+    if not modelos:
+        tareas = h.get("tareas", [])
+        if isinstance(tareas, list):
+            # No extraemos modelos de tareas porque no los contienen directamente
+            pass
+    return modelos
+
+
+def _reversion_modelo(fuentes, ahora_ep):
+    hist = fuentes.get("historial")
+    if hist is None:
+        return None, "sin historial.jsonl"
+    desde_rev = ahora_ep - 7 * 24 * 3600
+    por_modelo = {}
+    for h in (hist or []):
+        if not isinstance(h, dict):
+            continue
+        t = _epoch(h.get("timestamp")) or _epoch(h.get("t")) or 0
+        if t == 0 or t < desde_rev:
+            continue
+        modelos = _modelos_de_historial(h)
+        revertido = _es_reversion(h)
+        # Si no hay modelos explícitos, saltamos esta línea para no inventar datos
+        if not modelos:
+            continue
+        for m in modelos:
+            por_modelo.setdefault(m, {"total": 0, "revertidos": 0})
+            por_modelo[m]["total"] += 1
+            if revertido:
+                por_modelo[m]["revertidos"] += 1
+    out = {}
+    for m, d in sorted(por_modelo.items()):
+        if d["total"] >= 3:
+            out[m] = round(d["revertidos"] / max(1, d["total"]), 3)
+    return out if out else None, None
+
+
+def _latencia_peticion_publicacion(fuentes, ahora_ep):
+    hist = fuentes.get("historial")
+    if hist is None:
+        return None, "sin historial.jsonl"
+    latencias = []
+    for h in (hist or []):
+        if not isinstance(h, dict):
+            continue
+        t = _epoch(h.get("timestamp")) or _epoch(h.get("t")) or 0
+        if t == 0:
+            continue
+        for campo in ("latencia", "latencia_s", "latencia_peticion_publicacion", "peticion_publicacion"):
+            val = h.get(campo)
+            if isinstance(val, (int, float)) and val > 0:
+                latencias.append(float(val))
+    if not latencias:
+        return None, "sin latencias en historial"
+    return {"mediana": _mediana(latencias), "p90": _p90(latencias)}, None
+
+
 CLAVES = ("integradas_h", "trabajadores", "listas", "fracción_escribiendo", "fases",
-          "modelos", "proveedores", "sin_usar", "memoria", "coste", "nube")
+          "modelos", "proveedores", "sin_usar", "memoria", "coste", "nube",
+          "reversion_modelo", "latencia_peticion_publicacion")
 
 
 def medir(fuentes, ahora, ventana_h=6):
@@ -392,6 +474,13 @@ def medir(fuentes, ahora, ventana_h=6):
     m["nube"], e = _nube(fuentes, ahora_ep)
     if e:
         faltan["nube"] = e
+
+    m["reversion_modelo"], e = _reversion_modelo(fuentes, ahora_ep)
+    if e:
+        faltan["reversion_modelo"] = e
+    m["latencia_peticion_publicacion"], e = _latencia_peticion_publicacion(fuentes, ahora_ep)
+    if e:
+        faltan["latencia_peticion_publicacion"] = e
 
     m["faltan"] = faltan
     return m
@@ -528,6 +617,26 @@ def cargar_fuentes(raiz, home, ahora=None, ventana_h=6):
         pass
     if latidos:
         fuentes["latidos"] = latidos
+
+    # Historial de producción (para tasa de reversión por modelo y latencia)
+    hist_ruta = os.path.join(dotstarseed, "produccion", "historial.jsonl")
+    hist_data = []
+    try:
+        with open(hist_ruta, "r", encoding="utf-8") as f:
+            for linea in f:
+                linea = linea.strip()
+                if not linea:
+                    continue
+                try:
+                    d = json.loads(linea)
+                    if isinstance(d, dict):
+                        hist_data.append(d)
+                except ValueError:
+                    continue
+    except OSError:
+        pass
+    if hist_data:
+        fuentes["historial"] = hist_data
 
     pares = (
         ("gobernador", os.path.join(dotstarseed, "gobernador.json")),
