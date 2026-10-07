@@ -1084,3 +1084,38 @@ hasta las 00:00 UTC en la salud compartida), el botón **dice cuándo el límite
 modelos** y cuándo vuelve cada uno, y opencode va **sin LSP de TypeScript**
 (`"lsp": {"typescript": {"disabled": true}}`, que el orquestador pone si falta). Más huecos
 no son más trabajo si ningún modelo tiene cupo: lo que suma de verdad es otro proveedor.
+
+### 10. Trabajadores «esperando proveedor» con proveedores que ya volvieron → se repara solo (2026-10-06)
+
+A las 22:56 tres trabajadores llevaban 30-40 min «esperando proveedor» con apinex, freellmapi
+y Google respondiendo a la sonda, y ningún director lo veía («esperando» contaba como
+trabajando). Causas: los vetos del orquestador (`MUERTOS`) duraban toda la corrida, la espera
+solo miraba los apartados de esa tarea, la salud tenía marcas viejas de «sin cupo» y
+`colgados.json` volvía a vetar al arrancar. Ahora: los vetos **caducan**
+(`ConjuntoCaduco`, 45 min; pago 6 h, retirado 12 h, cuelgues lo que quede de su racha), la
+espera mira la rotación entera, el orquestador atiende la orden de flota
+`refrescar_proveedores` y no repite tareas que `progreso.json` ya cerró. La **autocuración**
+(punto 6 de `scripts/puente/autocuracion_mando.py`, cada 120 s por el vigía) ve tareas
+esperando > 20 min → sonda → levanta las marcas viejas y perdona rachas de quien responde →
+refresca → si a los 10 min sigue igual, reinicia el orquestador (máx. cada 45 min). Botón
+**«Reactivar directores»** arriba del Mando (`scripts/puente/reactivar_mando.py`,
+`/api/mando/reactivar`): servicios `com.starseed.*`, autocuración forzada, orquestador y
+medidores, con parte en el Chat Director. Comprobado: tras el refresco las tres tareas
+siguieron con freellmapi en 1 min.
+
+### 11. `next build` roto sin que tsc ni vitest lo vean: nada de `node:*` en código de cliente (2026-10-06)
+
+`medidores.ts` (va al navegador con `centro-mando.tsx`) importó `creditos-pago.ts`, que leía
+el disco con `node:fs`: tsc y vitest en verde y `next build` con «UnhandledSchemeError:
+node:fs» → el Mando no se podía reconstruir. Regla: lo puro va en `*-tipos.ts` sin Node; la
+lectura de disco en otro archivo solo de servidor. Puerta:
+`src/lib/mando/__tests__/sin-node-en-cliente.test.ts` (recorre el grafo desde `/mando`).
+
+### 12. Claves de EJEMPLO en pruebas bloquean todos los empujes (2026-10-06)
+
+El repositorio tiene la protección de secretos de GitHub activa: un commit con una clave de
+ejemplo con forma real (`xoxb-…`, `ghp_…`, `AKIA…`, bloques PEM) hace que GitHub rechace
+CUALQUIER empuje que lo lleve («push declined due to repository rule violations», GH013),
+también las ramas `colas/nube-*` (la nube se queda sin agentes) y la publicación de main. En
+pruebas, montar esas cadenas en tiempo de ejecución (`["gh", "p_…"].join("")`). Si ya entró
+una, `nube-gh.py` dice ahora el tipo, la ruta y el enlace de GitHub para permitirla.
