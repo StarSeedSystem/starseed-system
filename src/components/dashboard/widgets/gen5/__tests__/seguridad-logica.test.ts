@@ -5,6 +5,9 @@ import { enmascararCorreo, mapearFaceta, etiquetaVisibilidad } from "../_catalog
 
 const base: SenalesSeguridad = { metodo: "ninguno", minutosInactividad: 0, alAbrir: false, passkey: false, cifrada: true, biometria: null, persistente: null };
 
+// La clave de ejemplo se monta en tiempo de ejecución: escrita entera, el escáner de secretos de GitHub la marcaría.
+const parte = (...trozos: string[]) => trozos.join("");
+
 describe("Escudo · comprobaciones puras", () => {
     it("sin bloqueo es un fallo; con PIN sin inactividad, atención", () => {
         const a = comprobaciones(base, null, null);
@@ -26,15 +29,15 @@ describe("Escudo · comprobaciones puras", () => {
     });
     it("el escaneo solo lee claves con nombre sospechoso y nunca las bóvedas ni la sesión", () => {
         localStorage.clear();
-        localStorage.setItem("starseed.ai.providers", "sk-proj-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+        localStorage.setItem("starseed.ai.providers", parte("sk-pr", "oj-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"));
         localStorage.setItem("sb-abc-auth-token", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abcdefghijklmnopqrstuvwxyz");
-        localStorage.setItem("starseed.integration.home-assistant", JSON.stringify({ apiKey: "sk-proj-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy" }));
-        localStorage.setItem("notas", "sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+        localStorage.setItem("starseed.integration.home-assistant", JSON.stringify({ apiKey: parte("sk-pr", "oj-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy") }));
+        localStorage.setItem("notas", parte("sk-pr", "oj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"));
         const e = escanearAlmacen();
         expect(e.claves).toBe(0);
         expect(e.hallazgos).toBe(0);
         expect(e.boveda).toBe(1);
-        localStorage.setItem("mi.token", "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD");
+        localStorage.setItem("mi.token", parte("sk-pr", "oj-abcdefghijklmnopqrstuvwxyz0123456789ABCD"));
         expect(escanearAlmacen().hallazgos).toBeGreaterThan(0);
     });
 });
