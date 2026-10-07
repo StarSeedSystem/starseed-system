@@ -15,6 +15,10 @@ import os
 from datetime import datetime
 
 VENTANA_EVENTOS_H = 24
+# §5/§6 del director de producción: el optimizador lee el historial de lotes.
+# Ventana fija de 7 días y mínimo de 3 lotes para opinar de la reversión de un modelo.
+VENTANA_HISTORIAL_DIAS = 7
+MIN_LOTES_REVERSA = 3
 FASES_PUERTA = ("tsc", "tests", "revision", "integracion", "integrando", "aprobacion")
 
 
@@ -344,8 +348,57 @@ def _nube(fuentes, ahora):
     return {"pausada": pausada, "motivo": motivo, "contenedores_libres": libres}, None
 
 
+def _reversion_por_modelo(fuentes, desde, hasta):
+    """§6: tasa de reversión por modelo leída del historial de producción.
+    Cada lote del historial declara `modelos` (los que escribieron sus tareas) y si se
+    `revertido`. Se imputa el lote a cada modelo que participó; con menos de
+    MIN_LOTES_REVERSA lotes un modelo no se juzga (`tasa_reversion` a None). PURA."""
+    historial = fuentes.get("historial_produccion")
+    if not historial:
+        return None, "sin historial de producción"
+    por = {}
+    for lote in _filas_en_ventana(historial, desde, hasta):
+        modelos = lote.get("modelos")
+        if not isinstance(modelos, list) or not modelos:
+            continue
+        revertido = bool(lote.get("revertido"))
+        for modelo in modelos:
+            if not modelo:
+                continue
+            d = por.setdefault(str(modelo), {"lotes": 0, "revertidos": 0})
+            d["lotes"] += 1
+            if revertido:
+                d["revertidos"] += 1
+    if not por:
+        return None, "sin lotes con modelos en la ventana"
+    out = {}
+    for modelo, d in sorted(por.items()):
+        tasa = None
+        if d["lotes"] >= MIN_LOTES_REVERSA:
+            tasa = round(d["revertidos"] / d["lotes"], 3)
+        out[modelo] = {"lotes": d["lotes"], "revertidos": d["revertidos"],
+                       "tasa_reversion": tasa}
+    return out, None
+
+
+def _latencia_peticion_publicacion(fuentes, desde, hasta):
+    """§5: latencia petición → publicación (mediana y p90, en segundos). PURA."""
+    historial = fuentes.get("historial_produccion")
+    if not historial:
+        return None, "sin historial de producción"
+    lat = []
+    for lote in _filas_en_ventana(historial, desde, hasta):
+        v = lote.get("latencia_peticion_publicacion_s")
+        if isinstance(v, (int, float)) and v >= 0:
+            lat.append(float(v))
+    if not lat:
+        return None, "sin latencias en la ventana"
+    return {"n": len(lat), "mediana_s": _mediana(lat), "p90_s": _p90(lat)}, None
+
+
 CLAVES = ("integradas_h", "trabajadores", "listas", "fracción_escribiendo", "fases",
-          "modelos", "proveedores", "sin_usar", "memoria", "coste", "nube")
+          "modelos", "proveedores", "sin_usar", "memoria", "coste", "nube",
+          "reversion_por_modelo", "latencia_peticion_publicacion")
 
 
 def medir(fuentes, ahora, ventana_h=6):
@@ -392,6 +445,17 @@ def medir(fuentes, ahora, ventana_h=6):
     m["nube"], e = _nube(fuentes, ahora_ep)
     if e:
         faltan["nube"] = e
+
+    # §5/§6 del director de producción: ventana propia de 7 días, distinta de
+    # ventana_h (que es la del enjambre). No altera las métricas anteriores.
+    desde_historial = ahora_ep - VENTANA_HISTORIAL_DIAS * 86400
+    m["reversion_por_modelo"], e = _reversion_por_modelo(fuentes, desde_historial, ahora_ep)
+    if e:
+        faltan["reversion_por_modelo"] = e
+    m["latencia_peticion_publicacion"], e = _latencia_peticion_publicacion(
+        fuentes, desde_historial, ahora_ep)
+    if e:
+        faltan["latencia_peticion_publicacion"] = e
 
     m["faltan"] = faltan
     return m
@@ -544,4 +608,11 @@ def cargar_fuentes(raiz, home, ahora=None, ventana_h=6):
         d = _leer_json(ruta)
         if d is not None:
             fuentes[clave] = d
+    # §5/§6: historial de producción (últimos 7 días), leyendo desde el final.
+    hist = _leer_jsonl_desde_el_final(
+        os.path.join(dotstarseed, "produccion", "historial.jsonl"),
+        ahora_ep - VENTANA_HISTORIAL_DIAS * 86400,
+    )
+    if hist:
+        fuentes["historial_produccion"] = hist
     return fuentes

@@ -126,5 +126,84 @@ class TestCargarFuentes(unittest.TestCase):
         self.assertNotIn("progreso", f)
 
 
+def lote(t, modelos, revertido=False, latencia=None):
+    d = {"t": e(t), "sha": "abc%d" % t, "modelos": list(modelos),
+         "revertido": revertido, "_t": BASE + t}
+    if latencia is not None:
+        d["latencia_peticion_publicacion_s"] = latencia
+    return d
+
+
+class TestHistorialProduccion(unittest.TestCase):
+    """§5/§6: tasa de reversión por modelo y latencia petición→publicación."""
+
+    def setUp(self):
+        self.fuentes = {"historial_produccion": [
+            lote(0, ["kimi"], revertido=True, latencia=600),
+            lote(100, ["kimi"], revertido=False, latencia=300),
+            lote(200, ["kimi", "glm"], revertido=True, latencia=900),
+            lote(300, ["glm"], revertido=True, latencia=1200),
+            lote(400, ["glm"], revertido=False, latencia=1500),
+            lote(-9 * 86400, ["viejo"], revertido=True, latencia=10),  # fuera de 7 días
+        ]}
+        self.m = om.medir(self.fuentes, BASE + 500)
+
+    def test_reversion_por_modelo(self):
+        r = self.m["reversion_por_modelo"]
+        # kimi: 3 lotes, 2 revertidos → opina; glm: 3 lotes, 2 revertidos
+        self.assertEqual(r["kimi"], {"lotes": 3, "revertidos": 2,
+                                     "tasa_reversion": round(2 / 3, 3)})
+        self.assertEqual(r["glm"], {"lotes": 3, "revertidos": 2,
+                                    "tasa_reversion": round(2 / 3, 3)})
+        # «viejo» quedó fuera de la ventana de 7 días
+        self.assertNotIn("viejo", r)
+
+    def test_reversion_minimo_3_lotes(self):
+        fuentes = {"historial_produccion": [
+            lote(0, ["nuevo"], revertido=True),
+            lote(100, ["nuevo"], revertido=False),
+        ]}
+        r = om.medir(fuentes, BASE + 500)["reversion_por_modelo"]
+        self.assertEqual(r["nuevo"], {"lotes": 2, "revertidos": 1,
+                                      "tasa_reversion": None})
+
+    def test_latencia_mediana_y_p90(self):
+        lat = self.m["latencia_peticion_publicacion"]
+        self.assertEqual(lat["n"], 5)
+        self.assertEqual(lat["mediana_s"], om._mediana([600, 300, 900, 1200, 1500]))
+        self.assertEqual(lat["p90_s"], 1500.0)
+
+    def test_latencia_sin_datos_falta_con_motivo(self):
+        m = om.medir({"historial_produccion": [lote(0, ["k"])]}, BASE + 500)
+        self.assertIsNone(m["latencia_peticion_publicacion"])
+        self.assertEqual(m["faltan"]["latencia_peticion_publicacion"],
+                         "sin latencias en la ventana")
+
+    def test_sin_historial_todo_null(self):
+        m = om.medir({}, BASE)
+        self.assertIsNone(m["reversion_por_modelo"])
+        self.assertIsNone(m["latencia_peticion_publicacion"])
+        self.assertIn("reversion_por_modelo", m["faltan"])
+        self.assertIn("latencia_peticion_publicacion", m["faltan"])
+
+
+class TestCargarHistorial(unittest.TestCase):
+    def test_historial_falso_desde_disco(self):
+        with tempfile.TemporaryDirectory() as raiz, tempfile.TemporaryDirectory() as home:
+            produ = os.path.join(home, ".starseed", "produccion")
+            os.makedirs(produ)
+            with open(os.path.join(produ, "historial.jsonl"), "w", encoding="utf-8") as fh:
+                fh.write("línea rota\n")
+                fh.write(json.dumps(lote(-8 * 86400, ["a"])) + "\n")  # fuera de 7 días
+                fh.write(json.dumps(lote(-3600, ["kimi"], revertido=True,
+                                         latencia=420)) + "\n")
+            f = om.cargar_fuentes(raiz, home, ahora=BASE)
+        self.assertEqual(len(f["historial_produccion"]), 1)
+        self.assertEqual(f["historial_produccion"][0]["modelos"], ["kimi"])
+        m = om.medir(f, BASE)
+        self.assertEqual(m["latencia_peticion_publicacion"],
+                         {"n": 1, "mediana_s": 420.0, "p90_s": 420.0})
+
+
 if __name__ == "__main__":
     unittest.main()
