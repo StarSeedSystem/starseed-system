@@ -21,8 +21,12 @@ import os, subprocess, sys
 # Los argumentos de línea solo cuentan al ejecutarlo como guion: las pruebas
 # importan el módulo (se instala al importarse) y su sys.argv no es de aquí.
 _ARGV = sys.argv if __name__ == "__main__" else []
-RAIZ = _ARGV[1] if len(_ARGV) > 1 else "/Users/alex/Documents/starseed-os-main"
-PY3 = _ARGV[2] if len(_ARGV) > 2 else "/opt/homebrew/bin/python3"
+RAIZ = _ARGV[1] if len(_ARGV) > 1 else os.environ.get(
+    "STARSEED_RAIZ_INSTALAR", "/Users/alex/Documents/starseed-os-main"
+)
+PY3 = _ARGV[2] if len(_ARGV) > 2 else os.environ.get(
+    "STARSEED_PY3_INSTALAR", "/opt/homebrew/bin/python3"
+)
 HOME = os.path.expanduser("~")
 AG = os.path.join(HOME, "Library", "LaunchAgents")
 P = lambda n: os.path.join(RAIZ, "scripts", "puente", n)
@@ -189,19 +193,20 @@ esc = lambda t: t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"
 
 def instalar(etiqueta, orden, log, siempre):
     ruta = os.path.join(AG, etiqueta + ".plist")
-    open(ruta, "w").write(
-        PLANTILLA
-        % {
-            "etiqueta": etiqueta,
-            "raiz": RAIZ,
-            "log": log,
-            "home": HOME,
-            "args": "\n".join("    <string>%s</string>" % esc(a) for a in orden),
-            "vivo": "<key>KeepAlive</key><true/>"
-            if siempre
-            else "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>",
-        }
-    )
+    with open(ruta, "w") as f:
+        f.write(
+            PLANTILLA
+            % {
+                "etiqueta": etiqueta,
+                "raiz": RAIZ,
+                "log": log,
+                "home": HOME,
+                "args": "\n".join("    <string>%s</string>" % esc(a) for a in orden),
+                "vivo": "<key>KeepAlive</key><true/>"
+                if siempre
+                else "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>",
+            }
+        )
     ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
     subprocess.run(["launchctl", "unload", ruta], capture_output=True)
     r = subprocess.run(["launchctl", "load", ruta], capture_output=True, text=True)

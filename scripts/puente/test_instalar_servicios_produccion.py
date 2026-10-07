@@ -22,12 +22,21 @@ _RUTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instalar-servi
 def _cargar_con_solo(carpeta, solo="produccion"):
     """Ejecuta el módulo en una HOME temporal sin tocar el sistema."""
     os.makedirs(os.path.join(carpeta, "Library", "LaunchAgents"), exist_ok=True)
+    # Raíz válida y dentro de la carpeta temporal: sin ella el guardia del módulo
+    # (instalado de verdad una vez con «discover» como RAÍZ) no instala nada.
+    raiz = os.path.join(carpeta, "repo")
+    os.makedirs(os.path.join(raiz, "scripts", "puente"), exist_ok=True)
     espec = importlib.util.spec_from_file_location(
         "instalar_servicios_en_prueba", _RUTA
     )
     assert espec is not None and espec.loader is not None
     modulo = importlib.util.module_from_spec(espec)
-    entorno = {"HOME": carpeta, "STARSEED_SOLO": solo}
+    entorno = {
+        "HOME": carpeta,
+        "STARSEED_SOLO": solo,
+        "STARSEED_RAIZ_INSTALAR": raiz,
+        "STARSEED_PY3_INSTALAR": "/usr/bin/python3",
+    }
 
     def falso_run(orden, **kwargs):
         m = mock.Mock()
