@@ -1,6 +1,6 @@
 # Puente de Mando · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-06 17:00:53 desde el Mando vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-06 18:08:27 desde el Mando vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 19 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 36 |
-| HEAD | `cbc570fe chore(memoria): aprendizaje de la ola auto-1006-160716` |
-| Sin publicar | 41 commits |
+| HEAD | `c89f54ce chore(memoria): aprendizaje de la ola auto-1006-170455` |
+| Sin publicar | 44 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1006-160716.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1006-170455.json`, hace 7s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RSC1006Es` | hecho | - | 1 min | 35 s | 49750 |
+| `RSC1006Es` | hecho | - | 4 min | 250 s | 97420 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
