@@ -89,3 +89,83 @@ export function PanelIa(p: {
     </div>
   );
 }
+
+export function BarraSalidasEstudio({ flujo }: { flujo: () => MediaStream | null }) {
+  const router = useRouter();
+  const [grabando, setGrabando] = useState(false);
+  const [emitiendo, setEmitiendo] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const grabacion = useRef<MediaRecorder | null>(null);
+  const bloques = useRef<Blob[]>([]);
+
+  const conFlujo = (accion: (f: MediaStream) => void) => {
+    const f = flujo();
+    if (!f) { setAviso("No hay ninguna fuente de vídeo o audio en el aire."); return; }
+    setAviso(""); accion(f);
+  };
+
+  const alternarGrabacion = () => conFlujo((f) => {
+    if (grabacion.current) { grabacion.current.stop(); return; }
+    const rec = new MediaRecorder(f, { mimeType: "video/webm" });
+    bloques.current = [];
+    rec.ondataavailable = (e) => { if (e.data.size) bloques.current.push(e.data); };
+    rec.onstop = () => {
+      setGrabando(false); grabacion.current = null;
+      const url = URL.createObjectURL(new Blob(bloques.current, { type: "video/webm" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `estudio-${Date.now()}.webm`; a.click();
+      URL.revokeObjectURL(url);
+    };
+    grabacion.current = rec; rec.start(); setGrabando(true);
+  });
+
+  const alternarEmision = () => conFlujo(async (f) => {
+    if (emitiendo) { f.getTracks().forEach((t) => t.stop()); setEmitiendo(false); return; }
+    const conf = JSON.parse(localStorage.getItem(CLAVE_WHIP) ?? "null") as { url: string; token: string } | null
+      ?? (() => {
+        const url = window.prompt("Endpoint WHIP (https)")?.trim();
+        const token = window.prompt("Token de emisión")?.trim();
+        if (!url || !token) return null;
+        const v = { url, token }; localStorage.setItem(CLAVE_WHIP, JSON.stringify(v)); return v;
+      })();
+    if (!conf) { setAviso("Faltan las credenciales WHIP."); return; }
+    try {
+      const pc = new RTCPeerConnection();
+      f.getTracks().forEach((t) => pc.addTrack(t, f));
+      const oferta = await pc.createOffer();
+      await pc.setLocalDescription(oferta);
+      const r = await fetch(conf.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/sdp", Authorization: `Bearer ${conf.token}` },
+        body: oferta.sdp ?? "",
+      });
+      if (!r.ok) { setEmitiendo(false); setAviso("El servidor WHIP rechazó la emisión."); return; }
+      await pc.setRemoteDescription({ type: "answer", sdp: await r.text() });
+      setEmitiendo(true);
+    } catch { setEmitiendo(false); setAviso("No se pudo conectar con el endpoint WHIP."); }
+  });
+
+  const publicar = async () => {
+    const titulo = window.prompt("Título de la estación")?.trim();
+    if (!titulo) return;
+    const conf = JSON.parse(localStorage.getItem(CLAVE_WHIP) ?? "null") as { url: string; token: string } | null;
+    const r = await publicarEstacion({ titulo, tipo: "video", fuente: "estudio", enlace: conf?.url ?? "https://", licencia: "cc0" });
+    if (r.ok) router.push(`/estaciones/${r.estacion.id}`); else setAviso(r.error);
+  };
+
+  return (
+    <div className="space-y-2 rounded-xl border border-white/10 p-2">
+      <p className="font-medium">Salidas</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={btn} aria-pressed={grabando} onClick={alternarGrabacion}>
+          {grabando ? "Parar grabación" : "Grabar webm"}
+        </button>
+        <button type="button" className={btn} aria-pressed={emitiendo} onClick={() => void alternarEmision()}>
+          {emitiendo ? "Parar emisión" : "Emitir por WHIP"}
+        </button>
+        <button type="button" className={btn} onClick={() => void publicar()}>Publicar estación</button>
+      </div>
+      {aviso && <p role="alert" className="text-xs text-amber-300">{aviso}</p>}
+    </div>
+  );
+}

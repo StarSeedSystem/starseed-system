@@ -32,6 +32,9 @@ export function EstudioProduccion() {
   const [aire, setAire] = useState<string | null>(null);
   const [salidaId, setSalidaId] = useState("horizontal");
   const [aviso, setAviso] = useState("");
+  const [tema, setTema] = useState("");
+  const [rotulos, setRotulos] = useState<string[]>([]);
+  const [sugerida, setSugerida] = useState<{ escenaId: string; porque: string } | null>(null);
   const pistas = useRef(new Map<string, MediaStreamTrack>());
 
   useEffect(() => () => { pistas.current.forEach((p) => p.stop()); pistas.current.clear(); }, []);
@@ -128,7 +131,12 @@ export function EstudioProduccion() {
             {Object.values(SALIDAS).map((s) => (<option key={s.id} value={s.id}>{s.id} {s.ancho ? `${s.ancho}×${s.alto}` : ""}</option>))}
           </select>
         </label>
-        <PanelIa escenas={escenas} onRotulo={agregarRotulo} onAplicar={setAire} />
+        <PanelIa
+          tema={tema} setTema={setTema} rotulos={rotulos} setRotulos={setRotulos}
+          escenas={escenas.map((e) => ({ id: e.id, nombre: e.nombre }))}
+          sugerida={sugerida} setSugerida={setSugerida}
+          onRotulo={agregarRotulo} onAplicar={setAire}
+        />
         <BarraSalidasEstudio flujo={flujoSalida} />
         {aviso && <p role="alert" className="text-xs text-amber-300">{aviso}</p>}
       </aside>
