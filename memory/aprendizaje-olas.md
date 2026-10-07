@@ -3773,3 +3773,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `RSC1006Es` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-07 01:23 · auto-1006-231549
+
+**Lo que se pidió.** Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.
+
+**Resultado.** 12 de 16 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (RTPT1007C, RTMC1007As, RSC1006Es). Es 19 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+- freellmapi/auto integró 3 tareas sin fallar una.
+- nvidia/moonshotai/kimi-k3 integró 8 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `PT1008Dc` — otra cosa: continúa como PT1008Dd (reencolada por la dirección con guía paso a paso)
+- `RTPT1007C` — no escribió nada
+- `RTMC1007As` — no escribió nada
+- `RSC1006Es` — no escribió nada
