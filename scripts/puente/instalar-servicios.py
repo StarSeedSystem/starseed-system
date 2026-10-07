@@ -127,6 +127,14 @@ SERVICIOS = {
     # cada mensaje a los canales pedidos (claude-mac, hermes, telegram, chatgpt,
     # bandejas). `director_chat.py` tacha las claves antes de escribir.
     "cartero": ([PY3, P("cartero_director.py")], "/tmp/starseed-cartero.log", True),
+    # (2026-10-07) Director de producción (Ola 1005R, PRD1005J): publica lo que ya
+    # filtraron los demás directores. El guion hace un ciclo y duerme `intervalo_s`
+    # (bloque `produccion` de la configuración); aquí solo se lanza en bucle perenne.
+    "produccion": (
+        [PY3, P("director-produccion.py")],
+        "/tmp/starseed-produccion.log",
+        True,
+    ),
     # (2026-09-22) Voz en tiempo real de Astraura (Supertonic 3, 127.0.0.1:4460): la voz de
     # las conversaciones, 4 veces más rápida que el tiempo real en esta Mac, con una voz fija.
     # Corre en su propio entorno (~/.starseed/astraura-voice/rt-venv) y lleva la concesión de
