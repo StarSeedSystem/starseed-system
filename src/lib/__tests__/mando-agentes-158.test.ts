@@ -2,7 +2,7 @@
  * Test de `cruzarPersonalidades` (Ola 270 · 2026-09-07).
  * ─────────────────────────────────────────────────────────────────────────────
  * La función pura que une el corpus vivo del backend 1.58 con las
- * personalidades del OS. Sin ella bien, el árbol del Mando dibujaría turnos
+ * personalidades del OS. Sin ella bien, el árbol de Genesis dibujaría turnos
  * de personalidades que no son o marcaría activas dos a la vez.
  * Cubre: con corpus (turnos y último por nombre, activa elegida) y sin corpus
  * (ceros y primera activa), además del emparejado tolerante a mayúsculas.

@@ -24,7 +24,7 @@ export interface Invitacion {
   capacidades?: readonly Capacidad[];
 }
 
-export interface Mando {
+export interface Genesis {
   dueno: string;
   invitaciones?: readonly Invitacion[];
 }
@@ -53,7 +53,7 @@ function normaliza(correo: string): string {
 
 export function rolDe(
   correo: string,
-  mando: Mando,
+  mando: Genesis,
   listaDesarrolladores: readonly string[],
 ): Rol {
   const c = normaliza(correo);

@@ -28,7 +28,7 @@ export const AREAS_TRABAJO: AreaTrabajo[] = [
     },
 ];
 '''
-EXTRAS = [{"id": "mando", "nombre": "Puente de Mando", "descripcion": "El Mando.", "documentos": ["memory/orquestacion-economica.md"]}]
+EXTRAS = [{"id": "mando", "nombre": "Genesis", "descripcion": "Genesis.", "documentos": ["memory/orquestacion-economica.md"]}]
 RAICES = {"voz": ["src/lib/voces", "native/astraura-voice"], "mando": ["src/lib/mando", "scripts/puente"]}
 
 
@@ -101,7 +101,7 @@ class Area(unittest.TestCase):
         self.assertNotIn("native/astraura-voice", t)
 
     def test_area_extra_y_desconocida(self):
-        self.assertIn("Puente de Mando", construir("analista", area="mando")["texto"])
+        self.assertIn("Genesis", construir("analista", area="mando")["texto"])
         self.assertIn("«nada» no está", construir("analista", area="nada")["texto"])
 
     def test_el_area_se_deduce_de_la_tarea(self):

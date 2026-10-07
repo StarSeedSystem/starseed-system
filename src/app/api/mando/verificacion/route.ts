@@ -93,7 +93,7 @@ export async function POST(peticion: Request): Promise<Response> {
                 : "sin el vigilante nadie relanza el enjambre; sin el director nadie reconcilia estados",
     });
 
-    // El Mando se sirve desde .next: sin BUILD_ID, un reinicio no levanta.
+    // Genesis se sirve desde .next: sin BUILD_ID, un reinicio no levanta.
     let hayBuild = true;
     try {
         await access(path.join(RAÍZ, ".next", "BUILD_ID"));
@@ -105,8 +105,8 @@ export async function POST(peticion: Request): Promise<Response> {
         estado: hayBuild ? "ok" : "fallo",
         dato: hayBuild ? ".next con BUILD_ID" : "sin BUILD_ID",
         porque: hayBuild
-            ? "el Mando puede reiniciarse sin quedarse abajo"
-            : "una compilación murió a medias: si se reinicia el servicio, el Mando no levanta",
+            ? "Genesis puede reiniciarse sin quedarse abajo"
+            : "una compilación murió a medias: si se reinicia el servicio, Genesis no levanta",
     });
 
     // Git: árbol limpio y qué falta por publicar.

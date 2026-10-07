@@ -1,4 +1,4 @@
-# Chat Director del Puente de Mando — contrato (Ola 1004 · 2026-10-04)
+# Chat Director de Genesis — contrato (Ola 1004 · 2026-10-04)
 
 > **Petición de Alex (2026-10-04):** encima del «Pulso del trabajo», un chat de la DIRECCIÓN donde
 > llega lo mismo que hablamos en la sesión de Claude (Cowork): los mismos informes, en el mismo
@@ -15,7 +15,7 @@ Este documento es la fuente de verdad. Lo que no esté aquí no forma parte del 
 ## 1. Un solo archivo de verdad
 
 `starseed_memory_root/mando/director/chat.jsonl` — append-only, una línea JSON por registro. Lo
-escriben el Mando (ruta `/api/mando/director-chat`), el cartero (`scripts/puente/cartero_director.py`),
+escriben Genesis (ruta `/api/mando/director-chat`), el cartero (`scripts/puente/cartero_director.py`),
 la biblioteca de Python (`scripts/puente/director_chat.py`), el servidor MCP y la sesión de Claude.
 Nadie reescribe líneas: las correcciones son registros nuevos.
 
@@ -83,7 +83,7 @@ El feed del chat es la **fusión** (por `t`, sin duplicados por `id`) de:
    `rechazada`, `fallo*`, `sin_cambios`, `proveedor_caido`, `arranque` y los «cola terminada» → `actualizacion`.
 4. `relevo/bitacora.jsonl` — notas y relevos entre agentes.
 
-Cada fuente se lee por la **cola** (≤ 256 KB): el 03-10 el servidor del Mando murió por leer archivos
+Cada fuente se lee por la **cola** (≤ 256 KB): el 03-10 el servidor de Genesis murió por leer archivos
 enteros en cada petición.
 
 **Papel de quien habla** (`rolDeDirector(quien)`): verificador (vigia, revision-opus, director-opus),
@@ -98,7 +98,7 @@ usos (uso, consumo, jev). El resto: agente.
 
 ## 5. La interfaz
 
-En `/mando`, **encima** del «Pulso del trabajo» (`centro-mando.tsx`), plegable y abierto por defecto:
+En `/genesis`, **encima** del «Pulso del trabajo» (`centro-mando.tsx`), plegable y abierto por defecto:
 
 - Filtros: Todo · Conversación · Informes · Enjambre · Usos.
 - Cada mensaje: autor y papel, canal de origen, modelo, uso, hora; botones **«Responder con [modelo ▾]»**

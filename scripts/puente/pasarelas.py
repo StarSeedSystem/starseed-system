@@ -62,7 +62,7 @@ _PISTAS = (
     # TARDAR NO ES MORIR (2026-09-22). Cuando la sonda se queda sin tiempo, el cuerpo que
     # llega aquí no es una respuesta del servidor: es el texto de la excepción de Python
     # («TimeoutError: timed out», «socket.timeout», «URLError ... timed out»). Ninguna
-    # pista lo reconocía, así que caía en el `return CAIDA` del final y el Puente le pedía
+    # pista lo reconocía, así que caía en el `return CAIDA` del final y Genesis le pedía
     # a Alex renovar la clave. Medido esta noche con FreeLLMAPI: el informe decía «caída ·
     # renovar la clave» mientras la pasarela contestaba HTTP 200 en dos segundos y ofrecía
     # 234 modelos. Lo que tardaba era su ruta `auto`, porque las pasarelas gratuitas de

@@ -1,6 +1,6 @@
 "use client";
 
-/** Panel de procesos del Centro de Mando (Ola 231)
+/** Panel de procesos de Genesis (Ola 231)
  * ─────────────────────────────────────────────────────────────────────────────
  * Qué está corriendo AHORA MISMO en la máquina y en el repositorio: si el
  * enjambre libre está activo, el estado del repositorio (rama, HEAD, commits
@@ -379,7 +379,7 @@ export function PanelProcesos() {
                         ? "La consola está apagada en esta instancia (solo funciona en local o con STARSEED_MANDO=1)."
                         : respuesta.status === 401
                           ? "Necesitas iniciar sesión para ver el estado del mando."
-                          : `No se pudo leer el estado del mando (HTTP ${respuesta.status}).`,
+                          : `No se pudo leer el estado de Genesis (HTTP ${respuesta.status}).`,
                 );
                 setEstado(null);
                 return;

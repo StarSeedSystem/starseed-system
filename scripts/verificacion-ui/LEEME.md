@@ -5,8 +5,7 @@ errores de consola de cada pantalla. Los escribió Hermes el 2026-09-04; estaban
 raíz del repositorio y se recogen aquí para que no ensucien el árbol y se puedan reutilizar.
 
 Sirven para lo único que ni `tsc` ni `vitest` ni la revisión cruzada detectan: que la página
-**funcione de verdad** al abrirla. Así se encontró el error de claves duplicadas del Puente de
-Mando, con el commit ya integrado y las tres puertas en verde.
+**funcione de verdad** al abrirla. Así se encontró el error de claves duplicadas de Genesis, con el commit ya integrado y las tres puertas en verde.
 
 - `verify_ui_final.js` — el más completo: login y recorrido con recogida de errores.
 - `verify_ui_playwright*.js` — versiones previas del mismo recorrido.

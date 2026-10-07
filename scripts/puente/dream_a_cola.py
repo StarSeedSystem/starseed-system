@@ -6,7 +6,7 @@ detectadas, riesgos, ideas nuevas. Nueve informes. **Y nadie los ha leído.** Un
 trabaja toda la noche y cuyo informe nadie abre no es un analista: es un archivo creciendo.
 
 Alex: «ese reporte del dream que ya se genera automáticamente que se envíe a los directores
-del puente de mando para que lo procesen y ejecuten lo que sea útil y coherente y se
+de Genesis para que lo procesen y ejecuten lo que sea útil y coherente y se
 autoperfeccione».
 
 Lo que este módulo decide, y lo que NO:

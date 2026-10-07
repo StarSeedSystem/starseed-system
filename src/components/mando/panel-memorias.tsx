@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel «Memorias» del Centro de Mando (Ola de Memorias)
+ * Panel «Memorias» de Genesis (Ola de Memorias)
  * ─────────────────────────────────────────────────────────────────────────────
  * Todas las memorias del proyecto StarSeed OS en un solo lugar, en las ocho
  * capas de `@/lib/mando/memorias`: núcleo, proyecto, relevo e informes,

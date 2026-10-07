@@ -2,7 +2,7 @@
 
 > Petición de Alex (2026-10-05): aprovechar las pruebas gratuitas de n8n Cloud (vence el
 > **2026-10-18**) y Dify Cloud Sandbox (200 créditos de mensajes) para mejorar nuestros sistemas lo más
-> posible; replicar el funcionamiento de esos servicios de pago **en nuestro propio Puente de Mando y
+> posible; replicar el funcionamiento de esos servicios de pago **en nuestro propio Genesis y
 > workflow**, aprendiendo de cada uno en el proceso, para no depender de servicios externos antes de que
 > se acaben sus créditos gratuitos. Antes de cada vencimiento hay que trasladar los workflows completos.
 
@@ -37,14 +37,14 @@ Fuentes:
 
 Nunca se copia código con licencia restrictiva: se aprende el **diseño**.
 
-## 3. Motor de flujos propio («Flujos del Mando»)
+## 3. Motor de flujos propio («Flujos de Genesis»)
 
 Lo que replica de n8n, en Python puro dentro de `scripts/puente/flujos/` y sin servidor nuevo:
 
 - **Flujo:** un grafo de nodos con conexiones. Se guarda como JSON en
   `starseed_memory_root/flujos/<id>.json` y va versionado en git.
 - **Disparadores:**
-  - webhook en el Mando: `/api/flujos/gancho/[ruta]`, con firma HMAC;
+  - webhook en Genesis: `/api/flujos/gancho/[ruta]`, con firma HMAC;
   - cron;
   - eventos del bus del enjambre: `commit`, `rechazada`, `publicada`…;
   - mensaje del Chat Director;
@@ -69,7 +69,7 @@ Lo que replica de n8n, en Python puro dentro de `scripts/puente/flujos/` y sin s
   schedule, httpRequest, if, switch, set, merge, code (solo si es traducible), telegram, googleDrive y
   respondToWebhook. Lo que no sabe traducir lo marca y lo informa, nunca lo ignora en silencio. Es lo
   que permite trasladar los workflows completos antes del vencimiento.
-- **Editor en el Mando:**
+- **Editor en Genesis:**
   - lienzo de nodos con `@dnd-kit/core`, que ya es dependencia: nada nuevo;
   - panel de cada nodo;
   - historial de ejecuciones con entrada y salida;
@@ -85,7 +85,7 @@ Lo que replica de n8n, en Python puro dentro de `scripts/puente/flujos/` y sin s
   - API compatible con el subconjunto de Dify que usamos (`/datasets`, `/documents`, `/retrieve`). Así
     lo que hoy habla con Dify cambia de URL y sigue funcionando.
 - **Apps de IA:** un prompt con variables, una base de conocimiento, un modelo con enrutado gratuito y
-  publicación como API del Mando con su clave. Cada app lleva un registro de conversaciones y
+  publicación como API de Genesis con su clave. Cada app lleva un registro de conversaciones y
   anotaciones, como en Dify, para mejorar respuestas.
 - **Exportador desde Dify:** el DSL de cada app y los documentos de cada base, al repo, en
   `memory/aprendizaje-externos/dify-export/`.

@@ -21,7 +21,7 @@ Si un token ya existe, se usa antes que un hexadecimal suelto
 - **Material y movimiento:** cristal técnico oscuro o velo claro, con líneas y focos tokenizados; el movimiento queda subordinado a procesos y estado, no a adorno (`src/app/globals.css:3601-3641`).
 - **Motivo / no hacer:** binario, orbe y capas de sistema; no reintroducir la antigua isla negra con `text-white`, `bg-white` o hex repetidos (`src/app/globals.css:3571-3588`).
 
-## Puente de Mando
+## Genesis
 
 - **Propósito y público:** instrumento operativo para observar y dirigir agentes en una Mac de 8 GB; prima lectura inmediata y bajo coste (`src/components/mando/mando-cristal.css:1-19`).
 - **Paleta/tokens:** `--mc-neon-cian` 34/211/238, `--mc-neon-violeta` 167/139/250, `--mc-neon-ambar` 251/191/36; cristal, borde, canto y radio `0.85rem` (`src/components/mando/mando-cristal.css:22-35`).

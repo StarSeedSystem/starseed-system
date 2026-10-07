@@ -31,7 +31,7 @@ un commit no prueba integración. Las copias automáticas no generan trabajo adi
 ## Secuencia solicitada
 
 1. Corregir la política económica, colas, procesos y recuentos con pruebas de regresión.
-2. Actualizar/verificar desde el Mando y gestionar directores, capacidades y conexiones reales.
+2. Actualizar/verificar desde Genesis y gestionar directores, capacidades y conexiones reales.
 3. Conectar las notificaciones de cada IDE con entrega observable y sin bucles de respuesta.
 4. Reparar la procedencia BitNet/Astraura, latencia/cancelación de voz y orbe reactiva al audio.
 5. Tres puertas, comprobar el resultado en la Mac y publicar solo lo autorizado.

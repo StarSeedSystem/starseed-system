@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Reactivador del Puente de Mando: TODOS los directores verifican y reparan, ya (2026-10-06).
+"""Reactivador de Genesis: TODOS los directores verifican y reparan, ya (2026-10-06).
 
-Alex (22:56): «los agentes y procesos están detenidos y el puente de mando aún no está bien
+Alex (22:56): «los agentes y procesos están detenidos y Genesis aún no está bien
 diseñado, las funciones de los directores no están siendo realizadas porque aún tengo que
-decirte aquí que lo repares. El puente de mando debería autorrepararse usando los directores
+decirte aquí que lo repares. Genesis debería autorrepararse usando los directores
 y habilidades del puente». Y luego: «debería de haber un botón hasta arriba para lanzar un
 reactivador de todos los directores que verifique y repare cualquier error o situación».
 
@@ -13,13 +13,13 @@ tiempos mínimos, con un parte paso a paso:
 
   1. Servicios: cada `com.starseed.*` que debe estar siempre vivo y no lo está se relanza
      (`launchctl kickstart -k`); los periódicos que salieron con error se dicen.
-  2. Autocuración completa (`autocuracion_mando.revisar(forzar=True)`): el servidor del Mando,
+  2. Autocuración completa (`autocuracion_mando.revisar(forzar=True)`): el servidor de Genesis,
      el disco, los huecos de trabajadores, la capacidad en la nube, traer la nube y el
      enjambre atascado esperando proveedores que ya volvieron.
   3. Orquestador: si no hay ninguno vivo y hay trabajo, se relanza el vigilante, que lo arranca.
   4. Medidores de crédito: se leen por la terminal (Claude, Codex…) sin gastar tokens.
 
-El parte se escribe tras cada paso en `~/.starseed/reactivador-ultimo.json` (el botón del Mando
+El parte se escribe tras cada paso en `~/.starseed/reactivador-ultimo.json` (el botón de Genesis
 lo va leyendo) y al final se publica en el Chat Director. Un solo reactivador a la vez.
 
     python3 scripts/puente/reactivar_mando.py [--origen boton|auto] [--json]
@@ -89,7 +89,7 @@ def resumen(pasos):
 
 
 #: Hechos de la autocuración que son una REPARACIÓN (no una comprobación de rutina).
-REPARACIONES = ("Mando reiniciado", "disco con", "capacidad:", "capacidad fuera de la Mac", "servicios:")
+REPARACIONES = ("Genesis reiniciado", "disco con", "capacidad:", "capacidad fuera de la Mac", "servicios:")
 
 
 def estado_autocuracion(r):
@@ -173,7 +173,7 @@ def paso_servicios(correr=_correr, plists_fn=_plists):
         partes.append("no pude relanzar: " + ", ".join(mal))
     if avisos:
         partes.append("; ".join(avisos[:6]))
-    return {"paso": "Servicios del Mando", "estado": estado,
+    return {"paso": "Servicios de Genesis", "estado": estado,
             "detalle": " · ".join(partes) or "%d servicios vivos" % len(vivos)}
 
 
@@ -183,7 +183,7 @@ def paso_autocuracion():
     hechos = r.get("hechos") or []
     enj = r.get("enjambre") or {}
     detalle = []
-    detalle.append("Mando %s" % ("responde" if r.get("responde") else "NO responde"))
+    detalle.append("Genesis %s" % ("responde" if r.get("responde") else "NO responde"))
     if r.get("libre_gb") is not None:
         detalle.append("disco %.1f GB libres" % r["libre_gb"])
     if enj:
@@ -290,7 +290,7 @@ def reactivar(origen="boton", pasos=PASOS, guardar=_guardar, publicar=_publicar,
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Reactivador de todos los directores del Mando")
+    ap = argparse.ArgumentParser(description="Reactivador de todos los directores de Genesis")
     ap.add_argument("--origen", default="terminal")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Los agentes que trabajan EN LA NUBE, para que el Puente los cuente.
+"""Los agentes que trabajan EN LA NUBE, para que Genesis los cuente.
 
 POR QUÉ EXISTE (2026-09-22)
 ---------------------------
@@ -16,7 +16,7 @@ enjambre lleva tantos agentes como `trabajadores` se le pasaron al lanzarlo. No 
 adivina nada — el dato está en los inputs del propio run.
 
 No se llama a la red desde la petición del panel: eso metería un viaje a internet en cada
-refresco. Este guion escribe `starseed_memory_root/mando/agentes-nube.json` y el Mando lo
+refresco. Este guion escribe `starseed_memory_root/mando/agentes-nube.json` y Genesis lo
 lee de disco, como todo lo demás.
 """
 from __future__ import annotations
@@ -52,7 +52,7 @@ def trabajadores_de(inputs) -> int:
 
 
 def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
-    """PURA: de la lista de runs de GitHub al resumen que lee el Puente.
+    """PURA: de la lista de runs de GitHub al resumen que lee Genesis.
 
     Solo entran los `in_progress` (y `queued`, que ya tienen máquina asignada) que no
     lleven más de `viejo_s`. Un run terminado no tiene agentes, por muy reciente que sea.

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Centro de Mando (Ola 231)
+ * Genesis (Ola 231)
  * ─────────────────────────────────────────────────────────────────────────────
  * Consola de producción y desarrollo del StarSeed OS en esta máquina: de un
  * vistazo, el pulso del trabajo (ola activa, tareas en curso, commits sin
@@ -57,7 +57,7 @@ import { AjustesDirector } from "@/components/mando/ajustes-director";
 // Ola 272 · O3B (2026-09-07): la pestaña «Oficina 3D». El componente carga
 // Three.js, así que entra con `next/dynamic` sin SSR y SOLO se monta al abrir
 // la pestaña (dos barreras: el chunk no baja y el render no se ejecuta hasta que
-// el usuario la pide, y el resto del Mando arranca igual de ligero que antes).
+// el usuario la pide, y el resto de Genesis arranca igual de ligero que antes).
 import dynamic from "next/dynamic";
 // Ola 1004 · CDL1004: el «Chat Director» carga diferido (sin SSR) como las
 // pestañas pesadas: sondea el feed cada 10 s y no debe encarecer el arranque.
@@ -73,13 +73,13 @@ const OficinaMando = dynamic(
     },
 );
 // Ola 275 · V4 (2026-09-07): la pestaña «Voces» monta el Estudio de Voces dentro
-// del Mando, y la Voz del Mando (provider + control en la cabecera) se cablea aquí
+// de Genesis, y la Voz de Genesis (provider + control en la cabecera) se cablea aquí
 // UNA sola vez para que los anuncios hablados no se dupliquen.
 import { PanelVoces } from "@/components/mando/panel-voces";
 // Ola 285 · K3 (2026-09-08): la pestaña «Canales StarSeed» entra con carga
 // diferida (`next/dynamic`, sin SSR) y SOLO se monta al abrirla, igual que la
 // oficina y las voces: el panel pesa (editor, sembrado, listados) pero no
-// debe costar nada al resto del Mando hasta que el usuario lo pide.
+// debe costar nada al resto de Genesis hasta que el usuario lo pide.
 const PanelTaller = dynamic(
     () => import("@/components/mando/panel-taller").then((m) => m.PanelTaller),
     { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando el taller…</p> },
@@ -142,7 +142,7 @@ import {
 
 /**
  * Guardián de pantalla encendida (Ola 1005P · PA1005Ds): se monta UNA vez en
- * el Centro de Mando y no pinta nada. Sondea `/api/mando/pantalla` cada 60 s
+ * Genesis y no pinta nada. Sondea `/api/mando/pantalla` cada 60 s
  * y al recuperar el foco (si falla, conserva el último valor; por defecto
  * activa) y, con el ajuste encendido, mantiene la Screen Wake Lock de este
  * dispositivo. En la Mac, además, el servicio `com.starseed.pantalla` aguanta
@@ -180,7 +180,7 @@ const CLAVE_REPORTES_VISTOS = "starseed.mando.reportes.visto";
 /**
  * Insignia de la pestaña Reportes (p323D): cuenta los críticos/altos con fecha
  * posterior al último «visto». Marcar como visto ocurre al ABRIR la pestaña
- * (que es cuando la bandeja de verdad se mira), no al cargar el Mando.
+ * (que es cuando la bandeja de verdad se mira), no al cargar Genesis.
  */
 function InsigniaReportes({ activa }: { activa: boolean }) {
     const [sinVer, setSinVer] = useState(0);
@@ -230,7 +230,7 @@ function InsigniaReportes({ activa }: { activa: boolean }) {
 }
 
 /**
- * Pestañas del Centro de Mando, AGRUPADAS por lo que vas a hacer (2026-09-15).
+ * Pestañas de Genesis, AGRUPADAS por lo que vas a hacer (2026-09-15).
  *
  * Eran veinte en una fila corrida, ordenadas por cuándo se fueron añadiendo. Para
  * encontrar «Contextos» había que leerlas todas. Ahora van por familias y la barra
@@ -278,7 +278,7 @@ const PESTANAS_OPCIONES = PESTANAS.map((p) => ({ id: p.id, label: p.etiqueta, hi
 /** Lee la pestaña inicial: primero `?pestana=` de la URL (p. ej. desde /voces), luego la última guardada. */
 function pestanaInicial(): IdPestana {
     if (typeof window === "undefined") return "procesos";
-    // La URL manda sobre el recuerdo: «Abrir en el Puente de Mando» desde /voces
+    // La URL manda sobre el recuerdo: «Abrir en Genesis» desde /voces
     // debe aterrizar en la pestaña «Voces» aunque la última visita fuera otra.
     const deLaUrl = new URLSearchParams(window.location.search).get("pestana");
     if (deLaUrl && PESTANAS.some((p) => p.id === deLaUrl)) return deLaUrl as IdPestana;
@@ -767,7 +767,7 @@ function PanelMedidorJev({ datos, alCerrar }: { datos: RespuestaJev; alCerrar: (
 
 // (2026-10-05) Antes de que ningún panel lea: las lecturas iguales en vuelo se comparten y las
 // colgadas se cortan a los 45 s. Sin esto, una pestaña abierta horas con la Mac cargada se quedaba
-// sin recursos (`ERR_INSUFFICIENT_RESOURCES`) y el Mando entero en «—». Ver `guardia-fetch.ts`.
+// sin recursos (`ERR_INSUFFICIENT_RESOURCES`) y Genesis entero en «—». Ver `guardia-fetch.ts`.
 instalarGuardiaFetchMando();
 // (2026-10-05) Y si aun así la página se atasca, se cura sola: suelta lo atascado y, si no
 // basta, se recarga (con el servidor sano). Ver `autocuracion-pagina.ts`.
@@ -853,7 +853,7 @@ export function CentroMando() {
         /** Agentes que CABEN ahora en los contenedores de nube (sitio libre medido). */
         contenedores: number | null;
         contenedoresResumen: string | null;
-        /** Tokens por segundo de todo el Puente, de las fuentes que llevan contador. */
+        /** Tokens por segundo de todo Genesis, de las fuentes que llevan contador. */
         tokens: number | null;
         tokensResumen: string | null;
         /** Agentes que trabajan donde no hay contador de tokens (la nube). */
@@ -1277,7 +1277,7 @@ export function CentroMando() {
                 const respuesta = await fetch("/api/mando/jev", { cache: "no-store" });
                 if (vivo && respuesta.ok) setJev((await respuesta.json()) as RespuestaJev);
             } catch {
-                // Si la sonda local no responde, el resto del Mando conserva su pulso.
+                // Si la sonda local no responde, el resto de Genesis conserva su pulso.
             } finally {
                 enCurso = false;
             }
@@ -1461,7 +1461,7 @@ export function CentroMando() {
     }, []);
 
     // (2026-09-09) La cuota REAL de Google Drive. `df` de la carpeta de DriveFS en
-    // macOS informa del disco LOCAL, no de Drive: por eso el Mando llegó a decir
+    // macOS informa del disco LOCAL, no de Drive: por eso Genesis llegó a decir
     // «6 GB libres de 228» con un Drive de 2 TB. El servidor ya devuelve null en ese
     // caso; aquí se pregunta a la API de Google con el token de «carpetas remotas»,
     // que vive SOLO en el navegador y nunca sale de él.
@@ -1590,7 +1590,7 @@ export function CentroMando() {
     const enCursoAhora = medidoresResumen?.enCurso ?? pulso?.tareasEnCurso ?? 0;
 
 
-    // Ola 275 · V4: la Voz del Mando se monta UNA vez aquí (no por pestaña), para
+    // Ola 275 · V4: la Voz de Genesis se monta UNA vez aquí (no por pestaña), para
     // que los anuncios hablados no se dupliquen al cambiar de vista. Se alimenta
     // de los eventos del relevo y de un resumen mínimo del estado («Léeme el
     // estado»); si no hay estado aún, la voz espera en silencio.
@@ -2086,7 +2086,7 @@ export function CentroMando() {
                         />
                     ) : null}
                     {/* (2026-09-29) Alex: «añade un medidor de esos créditos que lo verifique
-                        desde el Puente de Mando». Supabase (hoy, ciclo, freno, bucles), Jev y
+                        desde Genesis». Supabase (hoy, ciclo, freno, bucles), Jev y
                         el crédito de Claude, con sus presupuestos editables. */}
                     <MedidorConsumo />
                 </div>
@@ -2111,11 +2111,11 @@ export function CentroMando() {
                         opciones={PESTANAS_OPCIONES}
                         valor={pestana}
                         onCambiar={alCambiarPestana}
-                        titulo="Pestañas del Centro de Mando"
+                        titulo="Pestañas de Genesis"
                         className="w-full"
                     />
                 </div>
-                <TabsList aria-label="Pestañas del Centro de Mando" className="mc-cristal hidden flex-wrap gap-y-1 sm:flex">
+                <TabsList aria-label="Pestañas de Genesis" className="mc-cristal hidden flex-wrap gap-y-1 sm:flex">
                     {PESTANAS.map((p, i) => (
                         <Fragment key={p.id}>
                             {i > 0 && PESTANAS[i - 1].grupo !== p.grupo ? (
@@ -2146,7 +2146,7 @@ export function CentroMando() {
                     {/* Ola 272 · O3B: Three.js solo se carga al abrir la pestaña.
                         El render condicional garantiza que el chunk dinámico ni
                         siquiera se pida antes de tiempo; al volver a la pestaña
-                        la oficina se vuelve a montar limpia. Así `/mando?pestana=oficina`
+                        la oficina se vuelve a montar limpia. Así `/genesis?pestana=oficina`
                         funciona igual si el usuario entra directo por URL. */}
                     {pestana === "oficina" ? <OficinaMando alCambiarPestana={alCambiarPestana} /> : null}
                 </TabsContent>

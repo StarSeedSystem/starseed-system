@@ -1,7 +1,7 @@
 /**
- * Sueños profundos en el Mando (2026-09-29): la derivación de estados tiene que coincidir con
+ * Sueños profundos en Genesis (2026-09-29): la derivación de estados tiene que coincidir con
  * `scripts/puente/suenos.py estado`, las lentes y áreas no pueden separarse de las del
- * analista y del planificador, y el resto del Mando tiene que tratar `informe` como un cierre
+ * analista y del planificador, y el resto de Genesis tiene que tratar `informe` como un cierre
  * que NO es «sin cambios».
  */
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -110,7 +110,7 @@ describe("consolidado y lanzamiento", () => {
     });
 });
 
-describe("el resto del Mando conoce `informe`", () => {
+describe("el resto de Genesis conoce `informe`", () => {
     it("verificación, acciones, agentes, grafo y colas", () => {
         const v = verificacionDe({ estado: "informe" } as never);
         expect(v.aviso).toBe(false);

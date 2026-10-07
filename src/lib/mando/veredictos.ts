@@ -4,7 +4,7 @@
  * `scripts/puente/veredictos.py` escribe `starseed_memory_root/olas/veredictos.json`
  * con la forma `{ t, veredictos: [{id, estado, veredicto, cambio, motivo, confianza, fuente}] }`.
  * Este módulo lo lee con tolerancia (sin archivo → lista vacía, nunca lanza) y decide
- * el tono con que el Mando lo enseña al abrir una bloqueada. Es solo lectura de disco
+ * el tono con que Genesis lo enseña al abrir una bloqueada. Es solo lectura de disco
  * local: no llama a Jev ni a ninguna red, y jamás devuelve claves ni rutas absolutas.
  */
 
@@ -74,7 +74,7 @@ export function parsearVeredictos(bruto: unknown): ListaVeredictos {
 
 /**
  * Lee `starseed_memory_root/olas/veredictos.json` bajo `raiz`.
- * Sin archivo o JSON corrupto → lista vacía; el Mando sigue funcionando igual.
+ * Sin archivo o JSON corrupto → lista vacía; Genesis sigue funcionando igual.
  */
 export async function leerVeredictos(raiz: string): Promise<ListaVeredictos> {
     try {

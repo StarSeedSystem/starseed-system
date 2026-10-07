@@ -1,14 +1,14 @@
 #!/bin/bash
-# ═══ StarSeed · Túnel del Puente de Mando ═══════════════════════════════════
+# ═══ StarSeed · Túnel de Genesis ═══════════════════════════════════
 # Pedido por Alex (2026-09-17): «que el chat de Hermes envíe un mensaje con el
-# enlace para abrir y vincular el Puente de Mando desde cualquier navegador».
+# enlace para abrir y vincular Genesis desde cualquier navegador».
 #
 # Un túnel rápido de cloudflared hacia el puerto 9002. La URL es aleatoria y
 # cambia si el túnel se rehace; por eso se guarda en ~/.starseed/tunel-mando.json
 # (chmod 600) y se manda al chat privado de Alex cuando cambia
 # (avisar-enlace-mando.py) — nunca se escribe en el repo, en los docs ni en logs.
 #
-# CUIDADO: el Mando puede aprobar, rechazar y soltar tareas. Cualquiera con la
+# CUIDADO: Genesis puede aprobar, rechazar y soltar tareas. Cualquiera con la
 # URL llega a él. Es imposible de adivinar, pero NO es una contraseña: si se
 # filtra, se reinicia este servicio y sale otra.
 #
@@ -25,7 +25,7 @@ LOG="$HOME/.starseed/tunel-mando.log"
 SALIDA="/tmp/mando_cloudflared.log"
 AQUI="$(cd "$(dirname "$0")" && pwd)"
 VIGILA_S=60          # cada cuánto se comprueba que el túnel contesta
-FALLOS_MAX=5         # fallos seguidos (con el Mando local vivo) antes de rehacerlo
+FALLOS_MAX=5         # fallos seguidos (con Genesis local vivo) antes de rehacerlo
 mkdir -p "$HOME/.starseed"
 
 ANTERIOR=$(python3 -c "import json;print(json.load(open('$ESTADO')).get('url',''))" 2>/dev/null)
@@ -58,17 +58,17 @@ python3 - "$URL" "$ESTADO" <<'PY'
 import json, os, sys, time
 url, ruta = sys.argv[1], sys.argv[2]
 with open(ruta, "w", encoding="utf-8") as f:
-    json.dump({"url": url, "mando": url + "/mando", "local": "http://localhost:9002/mando",
+    json.dump({"url": url, "mando": url + "/genesis", "local": "http://localhost:9002/genesis",
                "puerto": 9002, "t": time.strftime("%Y-%m-%d %H:%M:%S")}, f, ensure_ascii=False, indent=1)
 os.chmod(ruta, 0o600)
 PY
-echo "[$(date)] túnel del Mando listo (la URL solo está en tunel-mando.json)" >> "$LOG"
+echo "[$(date)] túnel de Genesis listo (la URL solo está en tunel-mando.json)" >> "$LOG"
 
 # Si la URL cambió, el enlace nuevo va al chat privado de Alex (espera a que el
 # túnel conteste para no mandar un enlace que todavía no abre).
 if [ "$URL" != "$ANTERIOR" ]; then
   for i in $(seq 1 10); do
-    curl -s -m 15 -o /dev/null -w '%{http_code}' "$URL/mando" 2>/dev/null | grep -qE '^(200|307|308)$' && break
+    curl -s -m 15 -o /dev/null -w '%{http_code}' "$URL/genesis" 2>/dev/null | grep -qE '^(200|307|308)$' && break
     sleep 6
   done
   python3 "$AQUI/avisar-enlace-mando.py" >/dev/null 2>&1 || echo "[$(date)] no pude avisar del enlace nuevo" >> "$LOG"
@@ -76,16 +76,16 @@ fi
 
 # Primer plano: mientras cloudflared viva y el túnel conteste, no se hace nada.
 # Si cloudflared muere, o el túnel no contesta FALLOS_MAX veces seguidas con el
-# Mando local vivo, se sale y launchd lo rehace (ThrottleInterval 30 s).
+# Genesis local vivo, se sale y launchd lo rehace (ThrottleInterval 30 s).
 fallos=0
 while kill -0 "$CF" 2>/dev/null; do
   sleep "$VIGILA_S"
-  codigo=$(curl -s -m 20 -o /dev/null -w '%{http_code}' "$URL/mando" 2>/dev/null)
+  codigo=$(curl -s -m 20 -o /dev/null -w '%{http_code}' "$URL/genesis" 2>/dev/null)
   if echo "$codigo" | grep -qE '^(200|307|308)$'; then
     fallos=0
     continue
   fi
-  local_ok=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PUERTO/mando" 2>/dev/null)
+  local_ok=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PUERTO/genesis" 2>/dev/null)
   if echo "$local_ok" | grep -qE '^(200|307|308)$'; then
     fallos=$((fallos + 1))
     echo "[$(date)] el túnel no contesta ($codigo) · fallo $fallos de $FALLOS_MAX" >> "$LOG"

@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   DOCK_DEFAULTS_VERSION,
   normalizeDockState,
+  renombrarMandoAGenesis,
   normalizeDockSyncValue,
   parseDockPayload,
 } from "@/lib/dock/dock-defaults";
@@ -108,5 +109,30 @@ describe("normalizeDockSyncValue · camino del sync entrante", () => {
     const { value, changed } = normalizeDockSyncValue(original);
     expect(changed).toBe(false);
     expect(value).toBe(original);
+  });
+});
+
+describe("renombre del Puente de Mando a Genesis (2026-10-07)", () => {
+  const viejo = { id: "mando", label: "Mando", iconKey: "Gauge", path: "/mando", color: "amber", enabled: false, origin: "preset" };
+
+  it("un payload AL DÍA renombra el botón sin volver a encender nada", () => {
+    const r = normalizeDockState({ defaultsVersion: DOCK_DEFAULTS_VERSION, items: [viejo] });
+    expect(r.changed).toBe(true);
+    expect(r.payload.defaultsVersion).toBe(DOCK_DEFAULTS_VERSION);
+    expect(r.payload.items).toEqual([{ ...viejo, label: "Genesis", path: "/genesis" }]);
+  });
+
+  it("respeta una etiqueta o ruta propias y es idempotente", () => {
+    const propio = { ...viejo, label: "Mi consola" };
+    const r = renombrarMandoAGenesis([propio]);
+    expect(r.items[0]).toEqual({ ...propio, path: "/genesis" });
+    const otra = renombrarMandoAGenesis(r.items);
+    expect(otra.changed).toBe(false);
+    expect(otra.items).toBe(r.items);
+  });
+
+  it("no toca otros botones", () => {
+    const otro = { id: "voces", label: "Mando", path: "/mando" };
+    expect(renombrarMandoAGenesis([otro]).changed).toBe(false);
   });
 });

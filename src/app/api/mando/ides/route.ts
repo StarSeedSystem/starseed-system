@@ -1,12 +1,12 @@
 /**
  * /api/mando/ides (Ola 335 · ID2) — los IDE vinculados y su frescura de contexto.
  *
- * GET  → detalle con la forma de medidor del Mando:
+ * GET  → detalle con la forma de medidor de Genesis:
  *        `{ detalle: { clave, titulo, resumen, filas, acciones, vacio }, generadoEn }`.
  * POST { accion: "sincronizar" } → relanza el relevo a todos los IDE
  *        (scripts/puente/sincronizar-ides.py) y devuelve el nuevo estado.
  *
- * Seguridad: misma puerta que el resto del Mando; nunca devuelve rutas absolutas
+ * Seguridad: misma puerta que el resto de Genesis; nunca devuelve rutas absolutas
  * del disco ni claves — el «puntero» se enseña en su forma corta (`~/.codex/…`).
  */
 import { execFile } from "node:child_process";

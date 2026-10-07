@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""starseed-sincroniza · sincroniza el Puente de Mando con todos los IDE disponibles.
+"""starseed-sincroniza · sincroniza Genesis con todos los IDE disponibles.
 Corre en background y mantiene los contextos actualizados en:
-- Hermes (chat principal del Puente de Mando)
+- Hermes (chat principal de Genesis)
 - Claude Code (hilo de la ola activa)
 - Codex (notificaciones de la nube)
 - Antigravity IDE (hilo de la ola activa)
@@ -26,9 +26,9 @@ def verificar_hermes_activo():
         return False
 
 def verificar_puerto_9002():
-    """Verifica que el Mando responde en localhost:9002."""
+    """Verifica que Genesis responde en localhost:9002."""
     try:
-        salida = subprocess.check_output(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", f"{PUENTO_URL}/mando"], text=True)
+        salida = subprocess.check_output(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", f"{PUENTO_URL}/genesis"], text=True)
         return salida.strip() == "200"
     except Exception:
         return False
@@ -83,7 +83,7 @@ def main():
             
             # Solo imprimir si cambió el estado
             if estado_actual != estado_anterior:
-                print(f"  Mando: {'✅' if mando_activo else '❌'} | "
+                print(f"  Genesis: {'✅' if mando_activo else '❌'} | "
                       f"Hermes: {'✅' if hermes_activo else '❌'} | "
                       f"Orquestador: {'✅' if orquestador_activo else '❌'}")
                 estado_anterior = estado_actual
@@ -96,9 +96,9 @@ def main():
             if not hermes_activo and estado_anterior and estado_anterior.get("hermes"):
                 notificar_a_ides("⚠️ Hermes gateway caído")
             
-            # Si el Mando no responde, notificar
+            # Si Genesis no responde, notificar
             if not mando_activo and estado_anterior and estado_anterior.get("mando"):
-                notificar_a_ides("⚠️ Puerto 9002 sin respuesta - Mando apagado")
+                notificar_a_ides("⚠️ Puerto 9002 sin respuesta - Genesis apagado")
             
         except Exception as e:
             print(f"  Error: {e}")

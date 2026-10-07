@@ -24,7 +24,7 @@ def _git(raiz, args, timeout=60):
 
 
 def build_timestamp(raiz):
-    """Cuándo se construyó lo que el Mando está sirviendo AHORA.
+    """Cuándo se construyó lo que Genesis está sirviendo AHORA.
 
     `.next/BUILD_ID` se reescribe en cada build, así que su fecha es la fecha de
     la build viva. Sin esto no se puede distinguir «está en main» de «se ve en

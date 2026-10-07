@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Panel «Sueños profundos» (Procesos del Puente de Mando · 2026-09-29)
+ * Panel «Sueños profundos» (Procesos de Genesis · 2026-09-29)
  * ─────────────────────────────────────────────────────────────────────────────
- * Alex: «a través del Puente de Mando orquesta una flota de agentes de sueños profundos que
+ * Alex: «a través de Genesis orquesta una flota de agentes de sueños profundos que
  * pueda llevar varias horas, donde analicen a detalle cada área de todo StarSeed OS».
  *
  * Qué enseña, todo leído del disco de esta máquina por `GET /api/mando/suenos` (sin Supabase):
@@ -96,7 +96,7 @@ function useSuenos(fecha: string | undefined) {
                 setError(d.error ?? `Los sueños no respondieron (HTTP ${r.status}).`);
             }
         } catch {
-            if (vivo.current) setError("No se pudieron leer los sueños: ¿está el Mando en marcha?");
+            if (vivo.current) setError("No se pudieron leer los sueños: ¿está Genesis en marcha?");
         } finally {
             if (vivo.current) setCargando(false);
         }
@@ -140,7 +140,7 @@ async function ordenar(cuerpo: Record<string, unknown>): Promise<Record<string, 
         const d = (await r.json().catch(() => ({}))) as Record<string, unknown>;
         return { ...d, ok: r.ok && d.ok !== false };
     } catch {
-        return { ok: false, error: "No se pudo hablar con el Mando." };
+        return { ok: false, error: "No se pudo hablar con Genesis." };
     }
 }
 

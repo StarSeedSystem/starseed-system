@@ -1,5 +1,5 @@
 /**
- * Chat Director del Mando · lector y escritor del lado del servidor (Ola 1004)
+ * Chat Director de Genesis · lector y escritor del lado del servidor (Ola 1004)
  * ─────────────────────────────────────────────────────────────────────────────
  * Cola de archivo única `starseed_memory_root/mando/director/chat.jsonl`
  * (append-only, una línea JSON por registro), fusión con `canal.jsonl`,

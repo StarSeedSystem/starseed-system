@@ -1,5 +1,5 @@
 /**
- * oficina-servidor.ts — Oficina 3D del Mando, lado servidor (Ola 272 · 2026-09-07)
+ * oficina-servidor.ts — Oficina 3D de Genesis, lado servidor (Ola 272 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * Reúne las fuentes vivas (latidos de la máquina, progreso de las olas y la
  * rama 1.58 del backend local — nunca red externa más allá de `leerRama158`,
@@ -7,7 +7,7 @@
  * funde con el genoma persistido en `starseed_memory_root/mando/oficina/`.
  *
  * Solo escribe `genomas.json` cuando algo cambió de verdad (comparando
- * contenido), para no reescribir el disco en cada refresco del Mando.
+ * contenido), para no reescribir el disco en cada refresco de Genesis.
  *
  * ⚠️ Seguridad: las rutas que salen de aquí son SIEMPRE relativas al
  * repositorio; jamás se devuelven claves ni rutas absolutas del disco.
@@ -73,7 +73,7 @@ async function guardarGenomasSiCambia(genomas: GenomaSer[]): Promise<void> {
 }
 
 /**
- * Calcula la oficina del Mando con el genoma evolucionado aplicado: experiencia
+ * Calcula la oficina de Genesis con el genoma evolucionado aplicado: experiencia
  * y nivel nunca bajan (un ser no desaprende), y el ADN se re-deriva con la
  * experiencia fusionada para que el cuerpo refleje la historia acumulada.
  */

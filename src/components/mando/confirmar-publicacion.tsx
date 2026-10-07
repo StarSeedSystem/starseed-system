@@ -4,7 +4,7 @@
  * Diálogo de confirmación de una publicación (Ola 274 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * Modal accesible (role="dialog", cierre con Escape, foco inicial en el campo)
- * que firma la publicación del Mando. Publicar en producción dispara Vercel, por
+ * que firma la publicación de Genesis. Publicar en producción dispara Vercel, por
  * eso exige escribir exactamente «PUBLICAR»; para vista previa y paquete basta
  * con «OK». Nada de `window.confirm`: la firma es escrita y deliberada.
  */

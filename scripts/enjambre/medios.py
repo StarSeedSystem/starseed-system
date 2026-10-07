@@ -266,7 +266,7 @@ def tope_de_silencio(bytes_trabajo, colgado_s=300, orientacion_s=900, log_crecie
 
 
 
-# ── (2026-09-20) La ficha de IDE de cada agente, para el Mando ────────────────
+# ── (2026-09-20) La ficha de IDE de cada agente, para Genesis ────────────────
 #: Cómo se abre el proceso de un agente en su IDE, cuando el IDE ofrece un enlace.
 #: opencode no tiene enlace por sesión (se sigue por el log); Codex sí (`codex://threads/…`).
 ENLACES_IDE = {
@@ -287,7 +287,7 @@ def partes_de_medio(medio_id):
 
 
 def ficha_ide(tid, registro, medios_vivos, ahora, servidor="", sesion=None, ruta_log=""):
-    """Lo que el Mando enseña de un agente: desde dónde trabaja, si está en línea, quién
+    """Lo que Genesis enseña de un agente: desde dónde trabaja, si está en línea, quién
     podría seguir su tarea si ese medio cae, y cómo ver su proceso en vivo.
 
     - `medioId` sale del ARRIENDO de la tarea (el medio que la tiene ahora mismo).

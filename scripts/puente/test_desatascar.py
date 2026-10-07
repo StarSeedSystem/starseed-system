@@ -331,7 +331,7 @@ class TestRepararBloqueantes(unittest.TestCase):
         self.assertTrue(lineas[0]["automatico"])
 
     def test_mando_caido_y_disco_no_escribible_aun_devuelve_frase(self):
-        """Si ni el Mando ni el archivo de pendientes responden, la frase sale
+        """Si ni Genesis ni el archivo de pendientes responden, la frase sale
         igual: un fallo de red o de disco no puede tumbar el desatasco."""
         frases = d.reparar_bloqueantes(
             [("X2", "objeción")],

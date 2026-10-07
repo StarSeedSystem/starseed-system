@@ -22,7 +22,7 @@ describe("clasificarEfecto", () => {
         expect(clasificarEfecto("scripts/puente/director-orquestacion.py").area).toBe("Directores y enjambre");
         expect(clasificarEfecto("scripts/enjambre/starseed-enjambre.py").riesgo).toBe("alto");
     });
-    it("la API del Mando es riesgo alto", () => {
+    it("la API de Genesis es riesgo alto", () => {
         expect(clasificarEfecto("src/app/api/mando/colas/route.ts").riesgo).toBe("alto");
     });
     it("la lógica es riesgo medio y la interfaz bajo", () => {
@@ -121,7 +121,7 @@ describe("minutosDesde y construirFicha", () => {
             AHORA,
         );
         expect(f.lineas).toBe(184);
-        expect(f.efectos.map((e) => e.area)).toEqual(["Lógica del Mando", "Pruebas"]);
+        expect(f.efectos.map((e) => e.area)).toEqual(["Lógica de Genesis", "Pruebas"]);
         expect(f.veredicto.verde).toBe(true);
         expect(f.minutosEsperando).toBe(30);
         expect(f.repercusiones.join(" ")).toContain("Desbloquea 1");

@@ -1,13 +1,13 @@
 ## Cómo se trabaja aquí
 
 Esto es el MÉTODO, no el estado. Vale igual en Claude, Hermes, Codex, Cursor, VS Code o
-Antigravity: quien abra un chat sobre este repo trabaja así. Lo escribe el Puente de Mando y
+Antigravity: quien abra un chat sobre este repo trabaja así. Lo escribe Genesis y
 se regenera solo — no lo edites a mano; el original es `memory/workflow-actual.md`.
 
 ### Quién escribe qué
 
 El **enjambre escribe el código de producto**. Los asistentes (Claude, Hermes, Codex…)
-dirigen, verifican y publican: diseñan olas, las lanzan, miran el Mando, comprueban en
+dirigen, verifican y publican: diseñan olas, las lanzan, miran Genesis, comprueban en
 `localhost` y aprueban. No se escribe código de producto a mano salvo para DESHACER una
 regresión. Esto lo pidió Alex expresamente y no es negociable.
 

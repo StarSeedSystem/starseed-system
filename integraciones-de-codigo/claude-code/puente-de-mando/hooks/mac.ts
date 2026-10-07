@@ -1,6 +1,6 @@
 /**
  * Transporte hacia la Mac (piezas puras; la llamada con `$` vive en register.tsx, porque el
- * motor solo sigue `$` dentro del mismo archivo): el mod no tiene red propia hacia el Mando (escucha en
+ * motor solo sigue `$` dentro del mismo archivo): el mod no tiene red propia hacia Genesis (escucha en
  * 127.0.0.1:9002 de la Mac), así que cada lectura o acción es UNA llamada al servidor MCP
  * `remote-devices` (Desktop Commander, `start_process`), que corre el script de
  * `script-mac.ts` y devuelve su línea `@@MANDO@@{json}`.
@@ -64,6 +64,6 @@ export function interpretar<T>(texto: string, esError: boolean): Respuesta<T> {
   const pista = texto.replace(/\s+/g, ' ').trim().slice(0, 240)
   return {
     ok: false,
-    error: esError ? `El enlace con la Mac devolvió un error: ${pista || 'sin detalle'}` : `La Mac no devolvió datos del Mando. ${pista}`,
+    error: esError ? `El enlace con la Mac devolvió un error: ${pista || 'sin detalle'}` : `La Mac no devolvió datos de Genesis. ${pista}`,
   }
 }

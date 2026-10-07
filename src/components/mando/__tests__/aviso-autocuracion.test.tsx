@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("AvisoAutocuracion", () => {
-    it("dice que el Mando se desatascó solo y por qué", () => {
+    it("dice que Genesis se desatascó solo y por qué", () => {
         render(<AvisoAutocuracion />);
         act(() => {
             window.dispatchEvent(new CustomEvent(EVENTO, { detail: { remedio: "reiniciar-guardia", porque: "40 lecturas fallidas seguidas" } }));

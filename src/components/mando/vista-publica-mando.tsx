@@ -1,6 +1,6 @@
 // src/components/mando/vista-publica-mando.tsx
 // ─────────────────────────────────────────────────────────────────────────────
-// Vista pública del Mando de un ámbito (contrato puente-mando-para-todos.md §5
+// Vista pública de Genesis de un ámbito (contrato puente-mando-para-todos.md §5
 // y §7). Pinta SOLO lo que la lista blanca de `vistaPublica` permite: nombre,
 // olas con su avance, integradas recientes, salud del motor («vivo hace N min»)
 // y el canal público del chat en solo lectura. Con `null` no pinta nada.
@@ -32,7 +32,7 @@ export function VistaPublicaMando({ vista }: VistaPublicaMandoProps) {
         <div className="space-y-6" data-testid="vista-publica-mando">
             <header className="space-y-1">
                 <h2 className="font-headline text-lg font-semibold leading-tight">
-                    Mando de {vista.nombre}
+                    Genesis de {vista.nombre}
                 </h2>
                 <p className="text-xs text-muted-foreground">
                     Avance medio de las olas: {Math.round(vista.avanceMedio * 100)} %

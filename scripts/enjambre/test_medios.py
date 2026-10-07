@@ -194,7 +194,7 @@ class PruebaSilencioConRegistroVivo(unittest.TestCase):
 
 
 class FichaIde(unittest.TestCase):
-    """(2026-09-20) Lo que el Mando enseña de cada agente: IDE, servidor, en línea, alternativas, proceso."""
+    """(2026-09-20) Lo que Genesis enseña de cada agente: IDE, servidor, en línea, alternativas, proceso."""
 
     def _vivos(self):
         return {

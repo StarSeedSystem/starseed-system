@@ -70,7 +70,7 @@ def veredicto(estados, hay_alguien_trabajando=True):
 
 
 def motivo(ids, estados, veredicto_dado):
-    """La frase para el Mando, que dice la verdad sobre lo que pasa."""
+    """La frase para Genesis, que dice la verdad sobre lo que pasa."""
     malas = [
         "%s (%s)" % (i, e or "?")
         for i, e in zip(list(ids or []), list(estados or []))

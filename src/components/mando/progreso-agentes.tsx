@@ -4,7 +4,7 @@
  * Barra de progreso por agente, con la fase en que va y qué significa (2026-09-15).
  *
  * Alex lo pidió dos veces: «una barra de progreso de cada agente con descripción de
- * cada fase de su desarrollo hasta su completación». Hasta ahora el Mando decía
+ * cada fase de su desarrollo hasta su completación». Hasta ahora Genesis decía
  * «3 tareas en curso» y ya: ni en qué punto va cada una, ni cuánto le queda, ni si
  * lleva media hora atascada en la misma fase.
  *

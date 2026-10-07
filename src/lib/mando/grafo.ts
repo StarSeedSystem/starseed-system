@@ -1,5 +1,5 @@
 /**
- * Grafo de orquestación (Ola 239 · Centro de Mando)
+ * Grafo de orquestación (Ola 239 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Construye el grafo que une cómo se produce el desarrollo: cada ola contiene
  * sus tareas, las tareas dependen unas de otras, cada tarea la escribió un

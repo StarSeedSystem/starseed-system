@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel de flota del Centro de Mando (Ola 231)
+ * Panel de flota de Genesis (Ola 231)
  * ─────────────────────────────────────────────────────────────────────────────
  * Vista de un vistazo de los proveedores de inteligencia: papel en la cadena
  * de relevo (escritor / revisor), estado, barra de uso frente a su cuota,
@@ -219,7 +219,7 @@ const CLASE_ESTADO_RUTA: Record<EstadoRuta, string> = {
     desconocido: "border-white/15 bg-white/5 text-white/50",
 };
 
-/** Clases comunes de los chips del Mando. */
+/** Clases comunes de los chips de Genesis. */
 const CHIP_RUTA = "rounded-full border px-2 py-0.5 text-[11px]";
 
 /**
@@ -964,7 +964,7 @@ export function PanelFlota() {
                 fetch("/api/mando/modelos", { cache: "no-store" }).catch(() => null),
             ]);
             if (!respuesta.ok) {
-                setError("El mando no está disponible (solo funciona en local).");
+                setError("Genesis no está disponible (solo funciona en local).");
                 setEstado(null);
                 setCatalogo([]);
                 return;

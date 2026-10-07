@@ -1,5 +1,5 @@
 /**
- * GET/POST /api/mando/colas (Ola 241 · Puente de Mando · Diseñador de olas)
+ * GET/POST /api/mando/colas (Ola 241 · Genesis · Diseñador de olas)
  * ─────────────────────────────────────────────────────────────────────────────
  * GET  → todas las colas completas del disco (id, ola, título, archivos, prompt,
  *        dependencias, modelo) y los modelos asignables.

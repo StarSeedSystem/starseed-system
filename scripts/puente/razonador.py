@@ -1,6 +1,6 @@
 """Razonador de la Trinidad de Astraura: reflejo (Needle 3) · juicio (Jev) · deliberación (BitNet).
 
-(2026-09-20) Tres motores, tres papeles medidos, una sola puerta para el Mando y los directores:
+(2026-09-20) Tres motores, tres papeles medidos, una sola puerta para Genesis y los directores:
 
 - **Needle 3 = reflejo** (local, gratis, 0,1–0,3 s): intención del usuario → herramienta +
   argumentos, extracción. Medido hoy: «abre la app Café» → abrir_app(Café) fiable en español.

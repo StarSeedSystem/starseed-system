@@ -10,7 +10,7 @@ si publicó o no. Aquí el proceso corre suelto y va dejando su estado en
 
     starseed_memory_root/mando/publicacion-estado.json
 
-paso a paso, de modo que el Mando lo puede seguir en vivo y, si se cierra el
+paso a paso, de modo que Genesis lo puede seguir en vivo y, si se cierra el
 navegador, al volver sigue ahí.
 
 ORDEN INAMOVIBLE: primero se commitea, después se pasan las puertas, y solo si
@@ -139,9 +139,9 @@ def bin_node():
 
 
 #: Variables que CAMBIAN EL COMPORTAMIENTO de la app y que este proceso hereda
-#: del servidor del Mando, porque el botón lo lanza ese servidor. Si no se
+#: del servidor de Genesis, porque el botón lo lanza ese servidor. Si no se
 #: quitan, las puertas no juzgan el código: juzgan la máquina donde corren. La
-#: primera vez que se pulsó el botón, `STARSEED_LOCAL=1` (que el Mando necesita
+#: primera vez que se pulsó el botón, `STARSEED_LOCAL=1` (que Genesis necesita
 #: para servirse a sí mismo) hizo que `esDespliegueLocal` devolviera cierto para
 #: un dominio de Vercel y dos pruebas se pusieron en rojo sin que nadie hubiera
 #: tocado ese código. Un rojo falso es peor que ninguna puerta: enseña a
@@ -157,7 +157,7 @@ VARIABLES_QUE_ENSUCIAN = (
     # valor. Se quita y cada herramienta pone el suyo (vitest pone «test»).
     "NODE_ENV",
     # (2026-09-23) Alex: «no funciona el publicar desde el medidor». Desde la terminal
-    # pasaba y desde el Mando no, y la diferencia era esta: el botón lanza el publicador
+    # pasaba y desde Genesis no, y la diferencia era esta: el botón lanza el publicador
     # desde el `next start -p 9002`, que deja PORT=9002 en el entorno. Con eso vitest
     # corría con PORT=9002 y `native/laya/servidor-laya.mjs` (que leía `PORT`) daba 9002
     # en vez de 4470: una prueba en rojo que solo existía al publicar desde el botón.
@@ -219,7 +219,7 @@ PASOS = [
 
 
 class Diario(object):
-    """El estado que el Mando lee. Se escribe entero en cada cambio, con un
+    """El estado que Genesis lee. Se escribe entero en cada cambio, con un
     `.tmp` + rename: el panel lee este archivo a la vez y un volcado a medias lo
     dejaría ilegible justo cuando más se está mirando."""
 
@@ -289,7 +289,7 @@ def puerta(diario, clave, orden, timeout=1800, intentos=2):
 
     Si el proceso REVIENTA (se queda sin memoria, lo matan) en vez de dar un
     veredicto, espera y lo intenta una segunda vez, y lo cuenta como lo que es.
-    Hoy el Mando dijo «los tipos no compilan» cuando lo que había pasado es que
+    Hoy Genesis dijo «los tipos no compilan» cuando lo que había pasado es que
     node murió antes de arrancar: media hora buscando un error inexistente.
     Un fallo DE VERDAD no se reintenta nunca — eso sería taparlo.
     """
@@ -343,7 +343,7 @@ def resumen_salida(clave, salida):
 
 # ── el proceso ──────────────────────────────────────────────────────────────
 def _reiniciar_mando(diario=None):
-    """Tras una build, REINICIAR el Mando. No es un detalle: es obligatorio.
+    """Tras una build, REINICIAR Genesis. No es un detalle: es obligatorio.
 
     (2026-09-16, medido) `next build` reemplaza `.next` entero. El servidor que ya estaba
     corriendo sigue sirviendo el HTML de su build anterior, con referencias a unos chunks
@@ -353,7 +353,7 @@ def _reiniciar_mando(diario=None):
         ls .next/static/chunks/webpack-8c7b75d0218cd13e.js   → no existe
 
     El HTML llega con un 200 impecable y la página no carga nunca. Desde fuera parece que
-    el Mando está bien: responde. Por eso hay que reiniciarlo aquí y no fiarse del 200.
+    Genesis está bien: responde. Por eso hay que reiniciarlo aquí y no fiarse del 200.
 
     (2026-09-22) Peor todavía: mientras la build corría, el directorio servido no existía
     y Alex veía «Internal Server Error» durante los cuatro minutos enteros. Desde hoy la
@@ -377,11 +377,11 @@ def _reiniciar_mando(diario=None):
     except Exception:
         ok = False
     if diario is not None and not ok:
-        # Solo se dice cuando FALLA: un Mando sin reiniciar tras la build responde 200 y
+        # Solo se dice cuando FALLA: un Genesis sin reiniciar tras la build responde 200 y
         # no carga, y eso hay que verlo en el diario de la publicación.
         try:
             diario.marcar("build", "ok",
-                          "AVISO: no pude reiniciar el Mando — reinícialo o servirá chunks muertos")
+                          "AVISO: no pude reiniciar Genesis — reinícialo o servirá chunks muertos")
         except Exception:
             pass
     return ok
@@ -477,9 +477,9 @@ def main():
             diario.marcar("commit", "falla", salida)
             diario.cerrar("fallo", "no se publicó: `git add` falló")
             return 1
-        mensaje = nota or "Cambios del Puente de Mando"
+        mensaje = nota or "Cambios de Genesis"
         if "\n" not in mensaje:
-            mensaje += "\n\nCommiteado desde el Puente de Mando tras pasar las cuatro puertas."
+            mensaje += "\n\nCommiteado desde Genesis tras pasar las cuatro puertas."
         rc, salida = git(["-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", mensaje])
         if rc != 0:
             diario.marcar("commit", "falla", salida)
@@ -542,7 +542,7 @@ def main():
             if not _rm.hay_sitio_para_compilar(libre):
                 # (2026-10-05) Negarse sin hacer sitio primero no es autocuración: la
                 # publicación de las 01:41 cayó con 4,4 GB libres y, minutos después, el disco
-                # tenía 7,5. Se recoge lo propio y lo regenerable (lista blanca del Mando) y
+                # tenía 7,5. Se recoge lo propio y lo regenerable (lista blanca de Genesis) y
                 # solo se rinde si aun así no llega.
                 hecho = ["recogido %s" % (", ".join(_rm.liberar_lo_propio()) or "nada propio")]
                 try:

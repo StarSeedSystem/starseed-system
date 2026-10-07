@@ -41,7 +41,7 @@ Estado y trazas: `starseed_memory_root/olas/{progreso.json,progreso.md,eventos.j
 Al terminar la escritura, `alcance_tarea` compara los `archivos` pedidos por la cola con lo
 tocado de verdad en el worktree (diff sobre `main` + cambios sin commit). Si falta alguno se
 hace **una pasada de compleción** con el mismo modelo (fase `completando`, pintada como
-«escribiendo» en el Mando), repitiéndole el enunciado y permitiéndole justificar `SIN TOCAR
+«escribiendo» en Genesis), repitiéndole el enunciado y permitiéndole justificar `SIN TOCAR
 <ruta>: <motivo>`. Si aun así siguen faltando, se registra el paso `alcance`, se emite el
 aviso «TAREA INCOMPLETA» y el revisor recibe el bloque ALCANCE: si el enunciado exigía esos
 cambios, debe marcarlo BLOQUEANTE. Nació el 2026-09-06, tras dos tareas integradas a medias
@@ -110,7 +110,7 @@ valores repetidos se deduplican. Cuando una clave recibe 402, un aviso de cuota 
 en 10 min, `agotar_clave` la marca en `~/.starseed/salud-proveedores.json`
 (`claves_agotadas[huella]`) y se salta a la siguiente; solo cuando TODAS están agotadas se
 llama a `marcar_sin_cupo`. Los **valores solo viven en los archivos de entorno (chmod
-600)**: en logs, eventos, JSON y el Mando aparecen únicamente el nombre de la variable, el
+600)**: en logs, eventos, JSON y Genesis aparecen únicamente el nombre de la variable, el
 medio y una huella sha256 corta (`estado_claves`, escrito bajo `claves` en cada sondeo).
 Pruebas: `test_claves.py`.
 

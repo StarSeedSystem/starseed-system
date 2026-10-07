@@ -1,5 +1,5 @@
 /**
- * GET/POST /api/mando/publicaciones (Ola 274 · 2026-09-07 · Publicaciones del Mando)
+ * GET/POST /api/mando/publicaciones (Ola 274 · 2026-09-07 · Publicaciones de Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * GET  → commits sin publicar del OS y de Astraura (agrupados por ola, con
  *        diffstat, base remota y si el remoto se movió) + bitácora reciente.

@@ -1,5 +1,5 @@
 /**
- * Modelos disponibles para el asistente del Mando y cómo llamarlos (solo servidor)
+ * Modelos disponibles para el asistente de Genesis y cómo llamarlos (solo servidor)
  * ─────────────────────────────────────────────────────────────────────────────
  * Catálogo vivo de TODOS los modelos que esta máquina puede usar ahora mismo —
  * xKiro (los gratuitos de su catálogo), NVIDIA NIM, aihubmix, tokenrouter, OpenRouter,
@@ -294,7 +294,7 @@ export function variablesDeProveedor(id: string, delCatalogo: string[]): string[
 /**
  * Diccionario vivo de variables por proveedor, construido a partir de
  * `PROVEEDORES_CATALOGO` (que ya trae `variables` por proveedor, p. ej. groq →
- * `["GROQ_API_KEY"]`) más los alias de arriba. Así el Mando reconoce las claves de
+ * `["GROQ_API_KEY"]`) más los alias de arriba. Así Genesis reconoce las claves de
  * TODOS los proveedores del catálogo, no solo los 8 que estaban a mano (Ola 286 · F4).
  */
 const CLAVES: Record<string, string[]> = Object.fromEntries(

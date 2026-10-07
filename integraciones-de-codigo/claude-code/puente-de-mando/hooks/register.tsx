@@ -1,10 +1,10 @@
 /**
- * Puente de Mando de StarSeed OS dentro de Claude Code.
+ * Genesis de StarSeed OS dentro de Claude Code.
  *
  * QUÉ: un panel con siete pestañas (Pulso, Chat Director, Bloqueadas con Reparar, Olas,
  * Producción, Servicios y Uso), la orden `/mando`, una línea de estado viva y seis
  * herramientas para el modelo (estado, medidor, reparar, chat, informar, publicar).
- * POR QUÉ: Alex dirige la flota desde el Mando del navegador; desde aquí la misma
+ * POR QUÉ: Alex dirige la flota desde Genesis del navegador; desde aquí la misma
  * información y las mismas palancas quedan a un atajo, y Claude las usa sin abrir el
  * navegador ni escribir curl a mano.
  * CÓMO: todo pasa por `enMac` (un único viaje por el enlace con el equipo, ver `mac.ts`).
@@ -35,7 +35,7 @@ import {
 
 const P = 'puente-de-mando'
 const PANEL = 'puente-de-mando'
-const TITULO = 'Puente de Mando'
+const TITULO = 'Genesis'
 /** Cada cuánto se relee la Mac para la línea de estado (el panel tiene su botón). */
 const CADA_MS = 5 * 60_000
 
@@ -69,7 +69,7 @@ async function enMac<T>($: EngineInterface, accion: Accion, datos: unknown = {})
     })
     const local = interpretar<T>(r.stdout, r.exitCode !== 0)
     if (local.ok) return local
-    return { ok: false, error: `Sin enlace con la Mac (${motivoEnlace}) y el Mando local no responde: ${local.error}` }
+    return { ok: false, error: `Sin enlace con la Mac (${motivoEnlace}) y Genesis local no responde: ${local.error}` }
   } catch (e) {
     const motivo = (e instanceof Error ? e.message : String(e)).slice(0, 160)
     return { ok: false, error: `No hay enlace con la Mac desde esta sesión: ${motivoEnlace || motivo}` }
@@ -151,13 +151,13 @@ const HERRAMIENTAS: Herramienta[] = [
   {
     name: 'estado',
     description:
-      'Estado del Puente de Mando de StarSeed OS, leído ahora de la Mac: tareas en curso, agentes, bloqueadas (y cuántas se pueden reparar), olas, publicación en curso con sus puertas, servicios com.starseed.*, memoria y carga de la Mac, crédito y la bandeja de claude-cowork en el Chat Director.',
+      'Estado de Genesis de StarSeed OS, leído ahora de la Mac: tareas en curso, agentes, bloqueadas (y cuántas se pueden reparar), olas, publicación en curso con sus puertas, servicios com.starseed.*, memoria y carga de la Mac, crédito y la bandeja de claude-cowork en el Chat Director.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'medidor',
     description:
-      'Filas de un medidor del Mando (las mismas del panel «pulso de trabajo»): id, estado, avance, etapa, quién y por qué. Úsalo para ver qué tareas están en curso, bloqueadas, sin publicar, etc.',
+      'Filas de un medidor de Genesis (las mismas del panel «pulso de trabajo»): id, estado, avance, etapa, quién y por qué. Úsalo para ver qué tareas están en curso, bloqueadas, sin publicar, etc.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -170,7 +170,7 @@ const HERRAMIENTAS: Herramienta[] = [
   {
     name: 'reparar',
     description:
-      'Repara tareas bloqueadas o fallidas con /api/mando/reintentar (reintento con cambio automático, por delante en la cola). Sin ids, el Mando procesa todas las que sirvan. Solo para tareas en fallo o bloqueo, nunca para las que esperan a otra tarea viva.',
+      'Repara tareas bloqueadas o fallidas con /api/mando/reintentar (reintento con cambio automático, por delante en la cola). Sin ids, Genesis procesa todas las que sirvan. Solo para tareas en fallo o bloqueo, nunca para las que esperan a otra tarea viva.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -193,7 +193,7 @@ const HERRAMIENTAS: Herramienta[] = [
   {
     name: 'publicar',
     description:
-      'Lanza la publicación del Mando (commit, cuatro puertas, push a origin/main y verificación). Úsalo SOLO con la palabra de Alex o dentro de las puertas del director de producción. La nota explica qué se publica (8 caracteres o más).',
+      'Lanza la publicación de Genesis (commit, cuatro puertas, push a origin/main y verificación). Úsalo SOLO con la palabra de Alex o dentro de las puertas del director de producción. La nota explica qué se publica (8 caracteres o más).',
     inputSchema: { type: 'object', properties: { nota: { type: 'string', minLength: 8 } }, required: ['nota'] },
   },
 ]
@@ -201,15 +201,18 @@ const HERRAMIENTAS: Herramienta[] = [
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({
-      name: 'mando',
-      description: 'Abre el Puente de Mando de StarSeed OS (pestaña opcional: pulso, chat, bloqueadas, olas, produccion, servicios, uso)',
-      argumentHint: '[pestaña]',
-    })
-    await $.command.register({
-      name: 'mando-estado',
-      description: 'Resumen del Puente de Mando en texto, leído ahora de la Mac',
-    })
+    // (2026-10-07) El Puente de Mando se llama Genesis: /genesis es la orden; /mando sigue
+    // valiendo para quien la tenga en los dedos.
+    for (const [name, alias] of [['genesis', ''], ['mando', ' (alias de /genesis)']] as const) {
+      await $.command.register({
+        name,
+        description: `Abre Genesis de StarSeed OS (pestaña opcional: pulso, chat, bloqueadas, olas, produccion, servicios, uso)${alias}`,
+        argumentHint: '[pestaña]',
+      })
+    }
+    for (const [name, alias] of [['genesis-estado', ''], ['mando-estado', ' (alias de /genesis-estado)']] as const) {
+      await $.command.register({ name, description: `Resumen de Genesis en texto, leído ahora de la Mac${alias}` })
+    }
     for (const h of HERRAMIENTAS) await $.tool.register(h)
     $.clock.after(4_000, () => void refrescar($))
     $.clock.every(CADA_MS, () => void refrescar($))
@@ -217,24 +220,28 @@ export const register: Register = on => {
   })
 
   // ── Órdenes ──────────────────────────────────────────────────────────────
-  on('command.run', { command: 'mando' }, async ($, e) => {
-    const pedida = (e.args ?? '').trim().toLowerCase().replace('producción', 'produccion')
-    await abrir($, esPestana(pedida) ? pedida : undefined)
-    return { text: `Puente de Mando abierto${esPestana(pedida) ? ` en «${pedida}»` : ''}.` }
-  })
+  for (const command of ['genesis', 'mando']) {
+    on('command.run', { command }, async ($, e) => {
+      const pedida = (e.args ?? '').trim().toLowerCase().replace('producción', 'produccion')
+      await abrir($, esPestana(pedida) ? pedida : undefined)
+      return { text: `Genesis abierto${esPestana(pedida) ? ` en «${pedida}»` : ''}.` }
+    })
+  }
 
-  on('command.run', { command: 'mando-estado' }, async $ => {
-    const fallo = await leerAhora($)
-    const r = await read($, resumen)
-    if (!r) return { text: `Sin datos del Mando: ${fallo ?? 'la Mac no respondió'}` }
-    return { text: (fallo ? `⚠ ${fallo}\n(último resumen bueno:)\n` : '') + textoResumen(r) }
-  })
+  for (const command of ['genesis-estado', 'mando-estado']) {
+    on('command.run', { command }, async $ => {
+      const fallo = await leerAhora($)
+      const r = await read($, resumen)
+      if (!r) return { text: `Sin datos de Genesis: ${fallo ?? 'la Mac no respondió'}` }
+      return { text: (fallo ? `⚠ ${fallo}\n(último resumen bueno:)\n` : '') + textoResumen(r) }
+    })
+  }
 
   // ── Herramientas del modelo ─────────────────────────────────────────────
   on('tool.call', { tool: 'mcp__puente-de-mando__estado' }, async $ => {
     const fallo = await leerAhora($)
     const r = await read($, resumen)
-    if (!r) return { isError: true, result: `Sin datos del Mando: ${fallo ?? 'la Mac no respondió'}` }
+    if (!r) return { isError: true, result: `Sin datos de Genesis: ${fallo ?? 'la Mac no respondió'}` }
     return { result: (fallo ? `⚠ ${fallo} — muestro el último resumen bueno.\n` : '') + textoResumen(r) }
   })
 
@@ -320,7 +327,7 @@ export const register: Register = on => {
 
     let cuerpo: RenderChildren
     if (!r) {
-      cuerpo = <Text dimColor>{leyendo ? 'Leyendo el Mando en la Mac…' : 'Aún sin datos. Pulsa ↻ Actualizar.'}</Text>
+      cuerpo = <Text dimColor>{leyendo ? 'Leyendo Genesis en la Mac…' : 'Aún sin datos. Pulsa ↻ Actualizar.'}</Text>
     } else if (tab === 'pulso') {
       const enCurso = r['en-curso']?.filas ?? []
       cuerpo = (

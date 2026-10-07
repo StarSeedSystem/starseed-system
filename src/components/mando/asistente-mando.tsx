@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Asistente técnico del Puente de Mando (cliente)
+ * Asistente técnico de Genesis (cliente)
  * ─────────────────────────────────────────────────────────────────────────────
  * El mismo componente sirve a la orbe flotante (`modo="flotante"`) y a la sección
  * «Asistente» de la pestaña Chat (`modo="panel"`): lista de chats, selector de modelo

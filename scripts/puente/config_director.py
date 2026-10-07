@@ -3,7 +3,7 @@
 """Carga y valida los ajustes que los directores Python leen en cada pasada.
 
 Los directores tenían sus umbrales clavados como constantes (ESPERA_MIN, disco,
-reintentos, proveedores a usar). Para que la pestaña Director del Mando mande de
+reintentos, proveedores a usar). Para que la pestaña Director de Genesis mande de
 verdad, esos ajustes viven ahora en `starseed_memory_root/mando/director-config.json`,
 y este módulo PURO los carga fusionando sobre unos valores por defecto y rechazando
 lo que no sea válido (tipo o rango).
@@ -33,7 +33,7 @@ except ImportError:
     }
 
 
-# Solo las claves con valor numérico se pueden ajustar desde el Mando; las que
+# Solo las claves con valor numérico se pueden ajustar desde Genesis; las que
 # son estructuras (p. ej. "corta", una tabla por niveles) no entran en el panel.
 def _es_valor_numerico(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)

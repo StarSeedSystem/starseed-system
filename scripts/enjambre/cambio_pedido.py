@@ -2,7 +2,7 @@
 """El cambio que se pide desde el Puente LLEGA al agente. Puro, sin IO.
 
 (2026-09-23) Alex: «en el medidor de bloqueadas falta la opción de reintentar con cambios
-automáticamente». Al ir a probarlo apareció algo peor: el Mando escribía `cambio_pedido` en
+automáticamente». Al ir a probarlo apareció algo peor: Genesis escribía `cambio_pedido` en
 progreso.json con «Reintentar con un cambio»… y NADIE lo leía. Ni el orquestador ni el
 reparto a la nube. La tarea volvía a la cola con su prompt de siempre —exactamente lo que
 el botón decía que NO iba a pasar— y, si esperaba a una dependencia muerta, el orquestador

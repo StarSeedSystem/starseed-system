@@ -16,12 +16,12 @@ class Mensajes(unittest.TestCase):
         os.makedirs(self.wt)
 
     def test_anotar_y_leer_conservan_orden_y_saltan_basura(self):
-        ma.anotar(self.olas, "AG-1", "usa el token de color del Mando")
+        ma.anotar(self.olas, "AG-1", "usa el token de color de Genesis")
         ma.anotar(self.olas, "AG-1", "no toques la ramificación")
         with open(ma.ruta_mensajes(self.olas, "AG-1"), "a", encoding="utf-8") as f:
             f.write("{basura\n\n")
         ms = ma.leer(self.olas, "AG-1")
-        self.assertEqual([m["texto"] for m in ms], ["usa el token de color del Mando", "no toques la ramificación"])
+        self.assertEqual([m["texto"] for m in ms], ["usa el token de color de Genesis", "no toques la ramificación"])
         self.assertEqual(ms[0]["de"], "alex")
 
     def test_vacio_se_rechaza_y_se_recorta(self):

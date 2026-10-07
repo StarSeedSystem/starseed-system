@@ -179,7 +179,7 @@ def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0, quien
     if medio in ("local", "laya-local"):
         uso["local_fallos_seguidos"] = 0
     # (2026-09-21) El desglose por medio vivia SOLO al nivel global del archivo, y el
-    # medidor del Puente lo busca dentro de cada dia: por eso enseñaba «local 0 ·
+    # medidor de Genesis lo busca dentro de cada dia: por eso enseñaba «local 0 ·
     # openrouter 0» llevando 892 decisiones. Se anota tambien por dia, que es la pregunta
     # que de verdad se hace quien mira el medidor: hoy, ¿cuanto fue gratis y cuanto no?
     pm_dia = dia.setdefault("por_medio", {}).setdefault(

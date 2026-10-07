@@ -58,7 +58,7 @@ import agentes_huerfanos as _huerf  # noqa: E402
 def barrer_trabajadores_huerfanos():
     """(2026-09-23) Mata los `node (vitest N)` adoptados por init: su vitest ya murió y
     nadie leerá sus resultados, pero cada uno retiene ~2,2 GB. Cinco de ellos dejaron la
-    Mac sin RAM y el Puente de Mando sin contestar. Devuelve los pids cortados."""
+    Mac sin RAM y Genesis sin contestar. Devuelve los pids cortados."""
     try:
         s = subprocess.run(
             ["ps", "-eo", "pid=,ppid=,args="], capture_output=True, text=True, timeout=20

@@ -42,7 +42,7 @@ Todo aquí es puro: diccionarios y texto, sin disco, sin red, sin reloj.
 #: La llave del interruptor en `~/.starseed/enjambre.json`.
 LLAVE = "resolucionAutomatica"
 
-#: Quién consta como autor de la decisión. No se dice «desde el Mando»: el que
+#: Quién consta como autor de la decisión. No se dice «desde Genesis»: el que
 #: lea esto mañana tiene que poder distinguir a Alex de un automatismo.
 QUIEN = "director y verificadores"
 
@@ -131,7 +131,7 @@ def decidir(ajustes, ficha, veredicto, puede_aprobar_solo, consejero=None):
 
 
 def nota(accion, motivo):
-    """La línea que verá Alex en el Mando, que no se hace pasar por él."""
+    """La línea que verá Alex en Genesis, que no se hace pasar por él."""
     if accion == "aprobar":
         return "resuelta automáticamente por %s — %s" % (QUIEN, motivo)
     return "esperando tu visto bueno — %s" % motivo

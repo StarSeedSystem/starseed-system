@@ -1,5 +1,5 @@
 /**
- * Publicaciones del Puente de Mando (Ola 274 · 2026-09-07)
+ * Publicaciones de Genesis (Ola 274 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * Lista los commits sin publicar del OS y de Astraura (agrupados por ola, con
  * diffstat y base remota) y ejecuta publicaciones —producción (push a main),
@@ -109,7 +109,7 @@ const NOMBRE_REPO: Record<RepoPublicable, string> = { os: "StarSeed OS", astraur
 
 /**
  * Traducción de la ruta absoluta a una forma corta con `~` para no revelar el disco
- * en la API (las rutas del Mando jamás devuelven rutas reales completas).
+ * en la API (las rutas de Genesis jamás devuelven rutas reales completas).
  */
 function rutaBonita(ruta: string): string {
     const casa = homedir();
@@ -201,7 +201,7 @@ export function argumentosPublicacion(opts: {
         return { args: ["push", "origin", `${hasta}:refs/heads/${rama}`], refTemporal: null };
     }
     if (modo === "vista-previa") {
-        // Rama propia del Mando, con --force-with-lease (nunca --force a secas).
+        // Rama propia de Genesis, con --force-with-lease (nunca --force a secas).
         return { args: ["push", "--force-with-lease", "origin", `${hasta}:refs/heads/vista-previa/mando`], refTemporal: null };
     }
     // Paquete: el extremo superior debe ser una ref, no un sha suelto.

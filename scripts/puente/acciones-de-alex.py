@@ -9,7 +9,7 @@ del check-in diario para la api o verificaciones humanas)».
 El sistema YA sabe cuándo hace falta: `pasarelas.py` clasifica cada pasarela y guarda su
 enlace, el informe del renovador dice cuál está en `fichaje` o `sin_clave`, y `gh` dice qué
 secretos faltan en el repo. Lo que no había era un sitio donde mirarlo TODO junto. Esto lo
-arma y lo deja en `starseed_memory_root/mando/acciones-de-alex.json`, que el Mando pinta y
+arma y lo deja en `starseed_memory_root/mando/acciones-de-alex.json`, que Genesis pinta y
 cualquier IDE puede leer.
 
 Regla de este archivo: una acción solo entra si Claude NO puede hacerla. Todo lo que se
@@ -140,7 +140,7 @@ def accion_sin_canal(entorno):
         "comando": PREFIJO + "bash scripts/puente/telegram-alta.sh",
         "enlace": "https://t.me/BotFather",
         "por_que_no_lo_hago_yo": "son credenciales tuyas: yo no escribo tokens de terceros",
-        "detalle": "sin esto, todo lo de esta lista te lo tienes que encontrar tú mirando el Puente",
+        "detalle": "sin esto, todo lo de esta lista te lo tienes que encontrar tú mirando Genesis",
         "variable": None,
     }
 
@@ -266,7 +266,7 @@ def actualizar_pasarela(pasarelas, clave, medida):
 
 def resondear(clave, segundos=20):
     """Mide AHORA una pasarela con la misma sonda del renovador (ocho tokens) y deja el
-    resultado en el informe, para que el Mando y el enjambre vean lo mismo que el botón.
+    resultado en el informe, para que Genesis y el enjambre vean lo mismo que el botón.
 
     (2026-09-23) Alex: «no funciona la comprobación del check-in de apinex: responde error
     cuando compruebo que ya lo hice». Medido: el informe era de las 15:51, él fichó y pulsó
@@ -319,7 +319,7 @@ def resondear(clave, segundos=20):
 def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
-    (2026-09-21, pedido por Alex) «en el puente de mando en su ventana debe haber un boton
+    (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
     de verificar para cuando sea realizada la tarea». El boton llama aqui.
 
     La gracia esta en que NO se cree nada de lo guardado: recoge los hechos otra vez
@@ -332,7 +332,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     todas.
     """
     # Solo en una comprobación de verdad (sin datos inyectados) se reescribe la lista que pinta
-    # el Mando: si no, «Ya lo hice» decía «hecho» y la tarjeta seguía ahí hasta la siguiente
+    # Genesis: si no, «Ya lo hice» decía «hecho» y la tarjeta seguía ahí hasta la siguiente
     # vuelta del director (hasta 3 min), que es otra forma de no creerse el botón.
     real = pasarelas is None and secretos_repo is None
     # Si la acción es de una pasarela, se MIDE de nuevo esa pasarela antes de nada.
@@ -391,7 +391,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
 
 
 def guardar_lista(acciones):
-    """Deja la lista donde la lee el Mando (`/api/mando/acciones`). Nunca lanza."""
+    """Deja la lista donde la lee Genesis (`/api/mando/acciones`). Nunca lanza."""
     try:
         datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
         os.makedirs(os.path.dirname(SALIDA), exist_ok=True)

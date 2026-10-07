@@ -61,7 +61,7 @@ CTX="$(mktemp)"
   echo; echo "### tasks abiertas"; grep "^- \[ \]" "$ROOT/tasks/tasks.md" 2>/dev/null | tail -45
   echo; echo "### logs (ultimas 50)"; tail -50 "$ROOT/logs/logs.md" 2>/dev/null
   echo; echo "### git log"; git -C "$REPO" log --oneline -12 2>/dev/null
-  # ── Estado VIVO: lo que hasta ahora solo veia el Puente de Mando ──────────────
+  # ── Estado VIVO: lo que hasta ahora solo veia Genesis ──────────────
   # El Dream sonaba con las memorias y las adendas, pero no sabia que estaba
   # pasando AHORA: que olas corren, que agente escribe que tarea, que proveedores
   # estan caidos, cuantos commits esperan. Sin eso sus sugerencias iban a ciegas.
@@ -105,7 +105,7 @@ for PAR in "${MODELS[@]}"; do
 $RESUMEN
 
 Informe completo: starseed_memory_root/dream/sugerencias-$DATE.md
-Puente de Mando: http://localhost:9002/mando" >/dev/null 2>&1 || true
+Genesis: http://localhost:9002/genesis" >/dev/null 2>&1 || true
     echo "🌙 Dream OK ($PROV/$M) -> $OUT"
     rm -f "$CTX"; exit 0
   fi

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Pestaña Director del Mando (2/3 · p318G) — proveedores con salud.
+ * Pestaña Director de Genesis (2/3 · p318G) — proveedores con salud.
  * Una fila por proveedor: nombre, estado, motivo, número de modelos.
  * Botones Apartar/Reactivar y enlace check-in si lo necesita.
  */
@@ -35,7 +35,7 @@ async function accionProveedor(
     const cuerpo = (await r.json()) as { ok?: boolean; detalle?: string; error?: string };
     return { ok: Boolean(cuerpo.ok), detalle: cuerpo.detalle ?? cuerpo.error ?? `HTTP ${r.status}` };
   } catch {
-    return { ok: false, detalle: "No se pudo hablar con el Mando." };
+    return { ok: false, detalle: "No se pudo hablar con Genesis." };
   }
 }
 

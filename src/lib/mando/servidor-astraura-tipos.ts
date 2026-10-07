@@ -1,7 +1,7 @@
 /**
  * Administrador de servidor de Astraura 1.58 (capa nube) — TIPOS PUROS.
  * ─────────────────────────────────────────────────────────────────────────────
- * Alex pidió, en el Puente de Mando, ver y controlar la Mac como servidor de
+ * Alex pidió, en Genesis, ver y controlar la Mac como servidor de
  * la capa nube de Astraura 1.58 (hoy esta Mac; mañana Oracle u otro): un
  * interruptor para que no se duerma sola durante horas o días, un botón para
  * apagar solo la pantalla (ahorra batería sin cortar la sesión ni los
@@ -191,7 +191,7 @@ export const ETIQUETA_DESPIERTO = "com.starseed.despierto";
  * `-d` (la pantalla puede seguir apagándose para ahorrar batería), con
  * `RunAtLoad`/`KeepAlive` para que sobreviva a un reinicio de sesión, y
  * `ProcessType Interactive` (igual que el resto de demonios interactivos del
- * Mando: `Background` ahoga CPU/I/O, ver CLAUDE.md §Modo ligero).
+ * Genesis: `Background` ahoga CPU/I/O, ver CLAUDE.md §Modo ligero).
  */
 export function plistDespierto(): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -269,7 +269,7 @@ export interface NubeServidorEstado {
     destino: DestinoNubeServidor;
 }
 
-// ── Servicios `com.starseed.*` del Mando ─────────────────────────────────────
+// ── Servicios `com.starseed.*` de Genesis ─────────────────────────────────────
 
 export interface ServicioMando {
     /** Sin el prefijo `com.starseed.` (igual que `leerServicios()`). */
@@ -298,9 +298,9 @@ export const ETIQUETAS_REINICIABLES: readonly string[] = [
 export const NOMBRES_SERVICIOS: Record<string, string> = {
     astraura: "Astraura 1.58 (backend)",
     "astraura.tunnel": "Túnel de Astraura",
-    mando: "Puente de Mando",
-    "mando.tunel": "Túnel del Mando",
-    reconstruir: "Reconstructor del Mando",
+    mando: "Genesis",
+    "mando.tunel": "Túnel de Genesis",
+    reconstruir: "Reconstructor de Genesis",
     freellmapi: "freellmapi",
     "astraura-voice": "Voz de Astraura",
     despierto: "Mantener encendida",

@@ -1,5 +1,5 @@
 /**
- * GET /api/mando/estado (Ola 231 · Centro de Mando)
+ * GET /api/mando/estado (Ola 231 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Consola de mando en `localhost`: muestra en vivo el estado del desarrollo y
  * la orquestación multiagéntica leyendo archivos reales de la máquina.

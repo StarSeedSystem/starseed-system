@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import reventon as R
 
-#: Recortada de la salida que el Mando mostró como «los tipos no compilan».
+#: Recortada de la salida que Genesis mostró como «los tipos no compilan».
 CRASH_REAL = """
 79: 0x102da4688 node::builtins::BuiltinLoader::CompileAndCall(v8::Local<v8::Context>, char const*, node::Realm*) [/Users/alex/.nvm/versions/node/v22.14.0/bin/node]
 81: 0x102e54f40 node::Realm::ExecuteBootstrapper(char const*) [/Users/alex/.nvm/versions/node/v22.14.0/bin/node]

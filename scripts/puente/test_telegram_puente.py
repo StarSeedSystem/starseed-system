@@ -90,7 +90,7 @@ comprobar(
     False,
 )
 
-# La etiqueta de la ola puede venir ya completa desde el Mando.
+# La etiqueta de la ola puede venir ya completa desde Genesis.
 resumen_ola = PUENTE._mensajes_resumen({
     "cuentas": {"ola": "Ola 305", "integradas": 1},
 })

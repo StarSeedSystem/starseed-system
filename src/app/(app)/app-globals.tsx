@@ -38,7 +38,7 @@ import { startAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
 // Studio 1.58) pueda abrir la ventana de una entidad viva con
 // `openAstraura158Window(...)` sin tener que montar nada por su cuenta.
 import { Astraura158WindowHost } from "@/components/astraura/window/astraura-158-window-host";
-// El Puente de Mando (/mando) no monta nada de esto: ni el sondeo del feed 1.58 (401 antes
+// Genesis (/genesis) no monta nada de esto: ni el sondeo del feed 1.58 (401 antes
 // de iniciar sesión), ni la intro, ni el registro de neuronas. Ahorra memoria para los agentes.
 import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";

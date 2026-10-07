@@ -6,15 +6,15 @@ pruebas en verde. Su revisión cruzada salió bloqueante, así que el orquestado
 las puso a esperar y anunció:
 
     «rama ola/p316I lista (da05b469): tsc 0 · tests ok · revisión bloqueante.
-     Espera tu visto bueno en el Mando.»
+     Espera tu visto bueno en Genesis.»
 
 Nueve minutos después, algo que se identificaba como `ide` —el desatascador, que
 corre por temporizador— ejecutó `starseed-puente rechazar` sobre las dos. En el
 registro quedó «(ide)». En `progreso.json` quedó esto:
 
-    nota: "rechazada desde el Mando; rama ola/p316I conservada"
+    nota: "rechazada desde Genesis; rama ola/p316I conservada"
 
-Es decir: el estado decía que la había rechazado el Mando, o sea una persona,
+Es decir: el estado decía que la había rechazado Genesis, o sea una persona,
 cuando no la miró nadie. Alex lo notó sin ver el código, preguntando por qué no
 avanzaba nada. Un sistema que no distingue «lo revisó Alex» de «lo mató un
 temporizador» no se puede auditar, y esa es justo la diferencia que importa.
@@ -45,13 +45,13 @@ class PruebaQuienDecidio(unittest.TestCase):
         fuente = open(
             os.path.join(DIRECTORIO, "starseed-enjambre.py"), encoding="utf-8"
         ).read()
-        i = fuente.find('nota="rechazada desde el Mando')
+        i = fuente.find('nota="rechazada desde Genesis')
         self.assertEqual(
-            i, -1, "el rechazo vuelve a firmarse como «desde el Mando» sin mirar quién fue"
+            i, -1, "el rechazo vuelve a firmarse como «desde Genesis» sin mirar quién fue"
         )
 
     def test_un_rechazo_automatico_se_nombra_como_tal(self):
-        # La frase que se escribe cuando NO vino del Mando tiene que decir dos
+        # La frase que se escribe cuando NO vino de Genesis tiene que decir dos
         # cosas: quién fue, y que ahí no hubo persona.
         fuente = open(
             os.path.join(DIRECTORIO, "starseed-enjambre.py"), encoding="utf-8"

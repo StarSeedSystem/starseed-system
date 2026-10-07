@@ -64,7 +64,7 @@ En la misma release están los instaladores de **StarSeed Nexus** y **StarSeed C
 - Agentes, personalidades, cerebros y memorias configurables por cuenta, perfil y dispositivo.
 
 **Tu sistema, a tu manera**
-- **Puente de Mando** (`/mando`): la consola de orquestación multiagente —olas, tareas, agentes, flota de proveedores y relevo— con la que se programa StarSeed OS.
+- **Genesis** (`/genesis`): la consola de orquestación multiagente —olas, tareas, agentes, flota de proveedores y relevo— con la que se programa StarSeed OS.
 - **Biblioteca**: instala apps y recursos en la web o en cualquiera de tus **neuronas** (los dispositivos vinculados a tu cuenta), y asígnalos al perfil que quieras.
 - **Escritorios, pizarras, salas 3D y XR** sincronizables para trabajar en grupo.
 - **Interfaz editable por la IA**, con un núcleo intocable: lo que se comparte se revisa antes de instalarse y nunca se ejecuta código ajeno.
@@ -75,7 +75,7 @@ En la misma release están los instaladores de **StarSeed Nexus** y **StarSeed C
 - **Voz**: síntesis y reconocimiento, con motores locales cuando el dispositivo lo permite.
 
 **Para quien desarrolla el proyecto**
-- **Puente de Mando del proyecto** (`/mando`): la consola desde la que se programa StarSeed OS, con olas de tareas, agentes y proveedores en vivo. Solo funciona en la máquina del proyecto; en el despliegue público sus APIs responden 404. Más en [`PUENTE-DE-MANDO.md`](PUENTE-DE-MANDO.md).
+- **Genesis del proyecto** (`/genesis`): la consola desde la que se programa StarSeed OS, con olas de tareas, agentes y proveedores en vivo. Solo funciona en la máquina del proyecto; en el despliegue público sus APIs responden 404. Más en [`PUENTE-DE-MANDO.md`](PUENTE-DE-MANDO.md).
 
 ## Ecosistema StarSeed
 
@@ -145,7 +145,7 @@ Las claves van solo en `.env.local` (ignorado por git). `.env.example` lista los
 │   └── lib/            lógica pura: versión, biblioteca, sincronía, núcleo…
 ├── native/             apps nativas Tauri 2 (OS, Nexus, Café)
 ├── supabase/           migraciones SQL
-├── scripts/            utilidades: versión, Puente de Mando, verificación
+├── scripts/            utilidades: versión, Genesis, verificación
 ├── enjambre/           orquestación de los agentes que desarrollan el proyecto
 ├── architecture/       procedimientos y decisiones técnicas
 ├── memory/             principios, roadmap, arquitectura y bitácora

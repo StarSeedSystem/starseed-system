@@ -4,8 +4,7 @@
 (2026-09-20) Lo que ayer costó cuatro subagentes de Gemini —«¿reintentar, cambiar,
 descartar o esperar?» por cada bloqueada— ahora cuesta una decisión tipada de
 $0,00002 por tarea. Lee `progreso.json`, la ficha de cada cola, la objeción del revisor
-en `revisiones.md` y el final del log de la tarea; escribe `veredictos.json` para el
-Mando (botón «Reintentar con cambio inteligente») y para el director de Hermes, que
+en `revisiones.md` y el final del log de la tarea; escribe `veredictos.json` para Genesis (botón «Reintentar con cambio inteligente») y para el director de Hermes, que
 solo lanza un subagente cuando la confianza baja de 0,7.
 
 Reglas deterministas (mandan sobre Jev, como pide Alex del 13/09):

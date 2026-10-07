@@ -1,5 +1,5 @@
 // src/lib/mando/salud-proceso.ts
-// Salud de tareas y agentes del Mando: un número 1-10 y una frase.
+// Salud de tareas y agentes de Genesis: un número 1-10 y una frase.
 // Módulo PURO: sin fechas del sistema (el "ahora" entra por parámetro),
 // sin disco, sin red, sin procesos lanzados.
 export type Señal = "bien" | "vigilar" | "mal";

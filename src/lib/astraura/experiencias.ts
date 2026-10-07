@@ -1,5 +1,5 @@
 // Experiencias del razonador (Trinidad: Needle · Jev · BitNet) en el OS.
-// Mismo formato que scripts/puente/experiencias.py del Mando. Se guardan en
+// Mismo formato que scripts/puente/experiencias.py de Genesis. Se guardan en
 // IndexedDB (nunca localStorage: son muchas) detrás de la interfaz Almacen.
 
 export type Capa = "regla" | "needle" | "jev" | "bitnet" | "llm" | "persona";

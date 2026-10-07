@@ -1,5 +1,5 @@
 /**
- * GET /api/mando/ramificacion (Ola 241 · Puente de Mando)
+ * GET /api/mando/ramificacion (Ola 241 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * El árbol vivo de las olas: tareas → dependencias → agente (modelo, proveedor,
  * fase, tokens, ventana) → revisor → commit, cruzando disco, bus y latidos.

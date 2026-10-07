@@ -24,7 +24,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Mismo candado que el Centro de Mando: la ruta no existe fuera de local. */
+/** Mismo candado que Genesis: la ruta no existe fuera de local. */
 function mandoHabilitado(): boolean {
     return process.env.NODE_ENV !== "production" || process.env.STARSEED_MANDO === "1";
 }

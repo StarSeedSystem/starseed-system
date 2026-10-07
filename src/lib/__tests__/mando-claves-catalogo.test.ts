@@ -1,6 +1,6 @@
 /**
  * Tests de `variablesDeProveedor` y `pasarelasDeclaradas` (Ola 286 · F4):
- * cómo el Mando reconoce las claves de TODOS los proveedores del catálogo y las
+ * cómo Genesis reconoce las claves de TODOS los proveedores del catálogo y las
  * pasarelas declaradas por entorno. Solo funciones PURAS; jamás valores de claves.
  */
 import { describe, expect, it } from "vitest";

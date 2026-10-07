@@ -24,8 +24,7 @@ haría un jefe de redacción:
 Lo ya propuesto otro día (memoria `~/.starseed/dream-encargado.json`, la misma del Dream) no
 vuelve a la cola: se marca en el informe como «ya encargada».
 
-JEV DE CONSEJERO (2026-09-29, Alex: «usa todas las habilidades y herramientas del Puente de
-Mando y del workflow como Jev»). Para cada hallazgo del ranking (hasta STARSEED_SUENOS_JEV_MAX,
+JEV DE CONSEJERO (2026-09-29, Alex: «usa todas las habilidades y herramientas de Genesis y del workflow como Jev»). Para cada hallazgo del ranking (hasta STARSEED_SUENOS_JEV_MAX,
 30 por defecto) se le hacen a Jev dos preguntas tipadas con el contrato de
 `POST /api/jev/systemone` (`jev.contrato`): ¿es accionable por el enjambre? (sí/no con
 probabilidad) y ¿qué prioridad? (alta · media · baja). La pirámide es la de Jev: BitNet LOCAL
@@ -36,7 +35,7 @@ accionable con mucha seguridad (p < 0,2) o afina la prioridad cuando su confianz
 Sin Jev (apagado, sin red, sin local), manda la regla y queda dicho. Cada consejo queda escrito
 en el informe (columna «Jev») y en consolidado.json.
 
-AVISOS. El resumen va al canal común (`puente.decir`), a la bandeja de Reportes del Mando (UN
+AVISOS. El resumen va al canal común (`puente.decir`), a la bandeja de Reportes de Genesis (UN
 evento `informe` de `director-suenos` en el bus: poco y grueso, §15) y, solo cuando la sesión
 está completa, a Telegram por Hermes (`hermes send -t telegram:Maggasukha`), si Hermes está.
 
@@ -740,7 +739,7 @@ def render_informe(c, sesion, planificadas=None, cola_nombre=None, n_cola=0, top
         "",
         "- Estado y verificación: `python3 scripts/puente/suenos.py estado` · `python3 scripts/puente/suenos.py por-verificar`.",
         '- Veredicto de un informe: `python3 scripts/puente/suenos.py veredicto <tarea> --estado verificado|ajustado|rechazado --nota "…" --por claude-<modelo>`.',
-        "- La cola propuesta se abre en el Mando (Procesos → Sueños profundos → «Abrir en Diseñador»); se lanza a mano y cada tarea espera tu visto bueno antes de integrarse.",
+        "- La cola propuesta se abre en Genesis (Procesos → Sueños profundos → «Abrir en Diseñador»); se lanza a mano y cada tarea espera tu visto bueno antes de integrarse.",
         "",
     ]
     return "\n".join(lin)
@@ -901,7 +900,7 @@ def _leer_env(clave, rutas=(".env.local", "~/.starseed/env", "~/.hermes/.env")):
 
 
 def publicar_en_bus(texto, datos, tipo="informe"):
-    """UN evento al bus (relevo_eventos): es lo que lee la bandeja de Reportes del Mando
+    """UN evento al bus (relevo_eventos): es lo que lee la bandeja de Reportes de Genesis
     (quien «director-…» → «sugerencia»). Poco y grueso: uno por consolidación."""
     url = (_leer_env("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
     clave = _leer_env("NEXT_PUBLIC_SUPABASE_ANON_KEY")
@@ -938,7 +937,7 @@ def publicar_en_bus(texto, datos, tipo="informe"):
 
 
 def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
-    """Canal común siempre; la bandeja de Reportes del Mando si se le pasa `bus`; Hermes →
+    """Canal común siempre; la bandeja de Reportes de Genesis si se le pasa `bus`; Hermes →
     Telegram solo si se pide (el resumen final de una sesión completa)."""
     hecho = {"canal": False, "telegram": False, "reportes": False}
     try:
@@ -1038,7 +1037,7 @@ def ejecutar(
         c, sesion, planificadas, nombre_cola if cola else None, len(cola), tope
     )
     resumen = resumen_corto(c, sesion, len(cola))
-    # Rutas RELATIVAS al repositorio: esto lo enseña el Mando, que nunca devuelve rutas del disco.
+    # Rutas RELATIVAS al repositorio: esto lo enseña Genesis, que nunca devuelve rutas del disco.
     fuera = {
         "sesion": sesion,
         "cuentas": c["cuentas"],
@@ -1083,7 +1082,7 @@ def ejecutar(
         fuera["seco"] = True
         return fuera
     _escribir(os.path.join(dir_sesion, "INFORME.md"), texto)
-    # Lo que lee el panel del Mando (Procesos → Sueños profundos): el ranking ya hecho.
+    # Lo que lee el panel de Genesis (Procesos → Sueños profundos): el ranking ya hecho.
     _escribir(
         os.path.join(dir_sesion, "consolidado.json"),
         json.dumps(fuera, ensure_ascii=False, indent=1),

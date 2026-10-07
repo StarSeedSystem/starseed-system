@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Motores por línea de órdenes del Chat Director del Mando.
+"""Motores por línea de órdenes del Chat Director de Genesis.
 
 Módulo puro salvo `correr`: construye órdenes para Claude (Mac), Hermes y
 Codex (ChatGPT) y traduce sus salidas. Nunca guarda ni imprime claves.
@@ -99,7 +99,7 @@ def orden_codex(modelo: str, raiz: str) -> list:
 
 def prompt_director(pregunta: str, historial: list, contexto: str) -> str:
     partes = [
-        "Eres la dirección del Puente de Mando de StarSeed OS. Responde en "
+        "Eres la dirección de Genesis de StarSeed OS. Responde en "
         "español, claro y breve.",
         "Reglas: no escribes código (lo escribe el enjambre tarea a tarea); "
         "propones olas, verificas puertas y decides rumbo; termina siempre "

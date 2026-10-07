@@ -40,7 +40,7 @@ Es la fuente de verdad de estilo. La leen el brief, las reglas y los agentes.
 - `identidades.md`: una ficha por contexto. Cada ficha lleva propósito, público, paleta (con sus
   tokens), tipografía, materiales, movimiento, motivos geométricos y qué NO hacer. Contextos:
   StarSeed OS/Nexus (Trinity de `DESIGN.md`: Zenith `#007FFF`, Creation `#10B981`, Logic `#FFBF00`,
-  Anchor `#DC143C`), Astraura (cian `#00f0ff`), Mando (`mando-cristal.css`), Café (pergamino +
+  Anchor `#DC143C`), Astraura (cian `#00f0ff`), Genesis (`mando-cristal.css`), Café (pergamino +
   terracota `#C05C3B`, Fraunces + Space Mono), Audiomorphic (violeta `#A855F7` + oro `#D4AF37`),
   Materia Viva y los 12 presets de `curated-presets.ts`. Las cifras y rutas se citan del código,
   nunca de memoria.
@@ -176,7 +176,7 @@ Biblioteca los lista (`packages.ts`, sección «Herramientas de diseño»).
 
 Método completo en `architecture/diseno-referencias/adn-diseno.md`. Cambia tres cosas del director:
 
-- **La memoria guarda ADN, no solo fichas.** Cada identidad de `identidades.md` (OS/Nexus, Mando,
+- **La memoria guarda ADN, no solo fichas.** Cada identidad de `identidades.md` (OS/Nexus, Genesis,
   Astraura, Café, Audiomorphic, Materia Viva) y cada resultado ganador de un bucle de diseño tiene su
   carpeta `memory/diseno/adn/<slug>/` con `dna.json`, `PROMPT.md` (≤ 2 KB), `referencia/`,
   `ejemplo/` y `check.py`. El ADN se **mide** (estilos calculados del DOM y píxeles de la captura),

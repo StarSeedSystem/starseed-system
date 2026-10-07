@@ -1,5 +1,5 @@
 /**
- * /api/mando/consumo — el medidor «Consumo y créditos» del Puente de Mando (2026-09-29).
+ * /api/mando/consumo — el medidor «Consumo y créditos» de Genesis (2026-09-29).
  *
  * GET  → { datos }: Supabase (hoy, ciclo, freno, bucles, 14 días), Jev/OpenRouter y el
  *        crédito de Claude en la nube. Solo números, rutas de API saneadas y fechas.
@@ -46,7 +46,7 @@ export async function POST(peticion: Request): Promise<Response> {
         return Response.json({ error: "Envía los presupuestos como JSON." }, { status: 415, headers: SIN_CACHE });
     }
     if (!mismoOrigen(peticion)) {
-        return Response.json({ error: "Solo desde el propio Puente de Mando." }, { status: 403, headers: SIN_CACHE });
+        return Response.json({ error: "Solo desde el propio Genesis." }, { status: 403, headers: SIN_CACHE });
     }
     let cuerpo: unknown;
     try {

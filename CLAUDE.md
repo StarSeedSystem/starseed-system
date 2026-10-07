@@ -1,17 +1,32 @@
 # 🌌 CLAUDE.md — Memoria de Trabajo del Proyecto StarSeed OS
 
-## Acceso al Puente de Mando · léelo antes de tocar nada (2026-09-12)
+## Nombre: **Genesis** (antes «Puente de Mando») · regla permanente (Alex, 2026-10-07)
 
-**[Abrir el Puente de Mando](http://localhost:9002/mando)** — la aplicación Next.js del repo, servida
+«En todo StarSeed OS, en todos sus contextos, tanto para individuales como grupales y comunales;
+renombra todo el Puente de Mando a Genesis.» Así se llama el producto en TODO texto que lea una
+persona o un agente: interfaz, avisos, Chat Director, Telegram, plugin, documentos y prompts
+(«el Mando» → «Genesis», «del Mando» → «de Genesis», «Genesis de <grupo>», «Genesis para todos»).
+La página es **`/genesis`** (`/mando` redirige con su `?pestana=`/`?ambito=`), la orden de Claude
+Code es `/genesis` (`/mando` sigue como alias) y el lanzador del Escritorio `Genesis.command`.
+**Los identificadores de código NO cambian, a propósito:** `src/lib/mando`, `src/components/mando`,
+`/api/mando/*`, tablas `mando_*`, `STARSEED_MANDO*`, servicios `com.starseed.mando`, `scripts/puente/`,
+el plugin `puente-de-mando` y su prefijo de herramientas — renombrarlos rompería servicios,
+migraciones, el enjambre en marcha y los enlaces guardados, sin que nadie lo vea. Guardia:
+`src/lib/__tests__/nombre-genesis.test.ts` (falla si un texto de `src/` vuelve a decir «Puente de
+Mando», «Centro de Mando» o «Mando» a secas). El botón guardado del dock se renombra solo
+(`renombrarMandoAGenesis` en `src/lib/dock/dock-defaults.ts`, sin volver a encender nada).
+
+## Acceso a Genesis · léelo antes de tocar nada (2026-09-12)
+
+**[Abrir Genesis](http://localhost:9002/genesis)** — la aplicación Next.js del repo, servida
 por launchd (`com.starseed.mando`, `next start` sobre el build compilado). **Doble clic en
-`~/Desktop/Puente-de-Mando.command`** (fuente: `scripts/puente/Puente-de-Mando.command`, que
+`~/Desktop/Genesis.command`** (fuente: `scripts/puente/Genesis.command`, que
 `instalar-servicios.sh` copia al Escritorio): revive por launchd lo caído (Astraura, gobernador,
 vigilante, director), compila el OS si falta `.next/BUILD_ID` con el turno de la máquina
 (`scripts/puente/con-turno.py`), arranca el servidor ligero y abre el navegador. A mano:
 `bash scripts/puente/instalar-servicios.sh` y luego `estado`. *(El 9003 fue un `next dev` provisional
-de Astra del 09-11; no es el Mando. `Orquestacion-StarSeed.command` —Adenda 185, visor Python en
-:8899— quedó retirado el 2026-09-20: su copia vive en `docs/legado/` y lo único que aportaba y el
-Mando no tenía, la cuenta de tokens de las sesiones de Claude Code, es la cola 352.)*
+de Astra del 09-11; no es Genesis. `Orquestacion-StarSeed.command` —Adenda 185, visor Python en
+:8899— quedó retirado el 2026-09-20: su copia vive en `docs/legado/` y lo único que aportaba y Genesis no tenía, la cuenta de tokens de las sesiones de Claude Code, es la cola 352.)*
 
 **Cómo se opera, quién vigila qué y con qué modelo, cuotas, recursos de API y la revisión horaria
 de Fable/Opus: `memory/orquestacion-economica.md` §0.** Es la regla permanente; va vinculada a
@@ -275,7 +290,7 @@ Configuración & Preferencias), más una sección 22 propia del OS: «Gobernanza
 - **Federación de topologías** (`federation.ts`): Supabase `os_mesh_topology`, push 45s / pull 60s (RLS por owner). **Relé/feed/faros**: `os_mesh_relay` (Adenda 99).
 - **Supabase Realtime** (`src/lib/realtime/realtime.ts`): `postgres_changes` sobre `supabase_realtime` (~31 tablas) — backbone de datos en vivo.
 - **Sync de cuenta/dispositivos** (`src/lib/sync/realtime-sync.ts`): `postgres_changes` en `user_settings` + canal `broadcast acct:<uid>` (anti-eco por deviceId). Panel en `/servidores`.
-- **Malla de neuronas — detección y auto-vínculo** (Ola 366, `src/lib/network/malla-neuronas.ts`): montaje global (`MallaNeuronasMount`, layout raíz, excluido de `/mando`/`/voces`) que detecta las neuronas de la MISMA cuenta (`neuron_devices`, online <3min, heartbeat lento en pestaña oculta) y las auto-vincula por WebRTC **sin botón** cuando hay ≥2 online (glare cortés/descortés por id, reintento con backoff, ficha de dispositivo intercambiada al conectar); además detecta neuronas cercanas de OTRAS cuentas solo por faros (`os_mesh_relay`, nunca radio LoRa, respeta `capaMeshCompartiendo()`). Unifica los 3 namespaces de id históricos (`identidad-dispositivo.ts`) sin invalidar los ya guardados. UI en el Hub de Conexiones (pestaña «Malla») y en `/red-mesh` (`MallaNeuronasPanel`). Vínculo entre cuentas queda **fuera de alcance** (pide consentimiento de ambas): botón «Solicitar vínculo» deshabilitado a propósito. Hook de resumen para otros módulos: `usePeersMalla()`. SOP: `architecture/malla-neuronas-autovinculo.md`.
+- **Malla de neuronas — detección y auto-vínculo** (Ola 366, `src/lib/network/malla-neuronas.ts`): montaje global (`MallaNeuronasMount`, layout raíz, excluido de `/genesis`/`/voces`) que detecta las neuronas de la MISMA cuenta (`neuron_devices`, online <3min, heartbeat lento en pestaña oculta) y las auto-vincula por WebRTC **sin botón** cuando hay ≥2 online (glare cortés/descortés por id, reintento con backoff, ficha de dispositivo intercambiada al conectar); además detecta neuronas cercanas de OTRAS cuentas solo por faros (`os_mesh_relay`, nunca radio LoRa, respeta `capaMeshCompartiendo()`). Unifica los 3 namespaces de id históricos (`identidad-dispositivo.ts`) sin invalidar los ya guardados. UI en el Hub de Conexiones (pestaña «Malla») y en `/red-mesh` (`MallaNeuronasPanel`). Vínculo entre cuentas queda **fuera de alcance** (pide consentimiento de ambas): botón «Solicitar vínculo» deshabilitado a propósito. Hook de resumen para otros módulos: `usePeersMalla()`. SOP: `architecture/malla-neuronas-autovinculo.md`.
 - **Syncthing** (`/sincronizacion`): sync P2P cifrado de archivos entre dispositivos.
 - **Memory-root** (`src/lib/memory-sync/manifest.ts`, SOP `architecture/memoria-cerebros-sync.md`): contrato de manifest (diseño, aún sin I/O real a cuenta).
 - **Google Drive como medio de cualquier cerebro/memoria** (Ola 374, 2026-09-27, mismo SOP §«Ola 374»): REAL, no diseño — OAuth con custodia en SERVIDOR (`storage_credentials` cifrado AES-256-GCM, `src/lib/storage/credenciales-servidor.ts`; nunca `refresh_token` al navegador), driver real `src/lib/storage/gdrive-driver.ts`, sync por cerebro `src/lib/storage/gdrive-brain-sync.ts` (regla: el más nuevo gana, ningún borrado se propaga solo) wired en `syncBrainMemoryNow`, backend genérico `gdrive` en `REAL_DRIVER_KINDS`, UI en Cerebro → Memoria → Fuentes.
@@ -377,7 +392,7 @@ suyas a un tercero o cambia la configuración de sus cuentas.
 un número de agentes hay que SONDEAR todos los medios (`scripts/puente/medios_disponibles.py`) y
 ENCENDER los que estén en `usable`, que son medios apagados, no medios trabajando. Y decir siempre
 el número con su desglose por medio y con cuántas tareas quedan en cola: más agentes que tareas no
-es capacidad, es ruido. **Desde el Mando es UN botón** (2026-10-05): «Buscar más capacidad en todos
+es capacidad, es ruido. **Desde Genesis es UN botón** (2026-10-05): «Buscar más capacidad en todos
 los medios», el único botón general de los medidores Agentes, Tareas en curso, Listas y Contenedores
 (Alex: «son demasiados botones… que sea solo uno fusionado funcional»; `scripts/puente/buscar_capacidad.py`):
 llena la Mac hasta su tope, vuelve a medir los contenedores, reabre en la nube lo que solo agotó sus tres envíos con los proveedores
@@ -416,7 +431,7 @@ de Supabase NO tiene límite de gasto diario, así que lo ponemos nosotros. `scr
 `~/.starseed/presupuestos.json` (25.000 peticiones · 150 MB/día · 5 GB/ciclo): aviso al 70 %, **freno
 remoto** en `os_freno` al 100 % hasta las 00:00 UTC, y alarma de **bucles** (ruta > 1.500/h o agente +
 ruta > 800/h). `scripts/puente/limites_supabase.py` pone los topes del servidor (PostgREST `max_rows`
-1000, límites de Auth y Realtime). Se verifica en el medidor **«Consumo y créditos»** del Mando.
+1000, límites de Auth y Realtime). Se verifica en el medidor **«Consumo y créditos»** de Genesis.
 
 ## 🌐 Navegador de los agentes: extensiones de Claude y de ChatGPT en el Chrome de la fundación (2026-09-08)
 
@@ -436,7 +451,7 @@ Dos caminos, y no son el mismo:
 
 ⚠️ **El navegador es una capacidad de la MAC, no de la nube.** Los agentes del enjambre que
 corren en el contenedor de Cowork **no** llegan al Chrome de Alex: si una tarea necesita el
-navegador, se lanza en la Mac (`STARSEED_MEDIO=mac`) o se reasigna a ese servidor desde el Mando.
+navegador, se lanza en la Mac (`STARSEED_MEDIO=mac`) o se reasigna a ese servidor desde Genesis.
 Escribirlo en el prompt de una tarea de la nube es pedirle algo que no puede hacer.
 
 Reglas de uso, que valen para todos: nunca introducir contraseñas ni datos de pago; nunca aceptar
@@ -502,9 +517,9 @@ catálogos indexados en local, refrescables con `starseed-fuentes refrescar` y c
 | [OpenDesign](https://github.com/nexu-io/open-design) | Apache-2.0 | Diseño nativo de agentes: prototipos, presentaciones, paneles, imágenes, documentos y motion MP4; importa de Figma |
 | [Langflow](https://github.com/langflow-ai/langflow) | MIT | Flujos de agente visuales desplegables como API o servidor MCP; candidato a diseñar las olas |
 | [OpenHands Agent Canvas](https://github.com/OpenHands/openhands) | MIT | Ejecuta agentes en local/Docker/VM. Sin CLI headless (verificado): sirve para paralelizar fuera de la Mac, no como ejecutor del enjambre |
-| [Flowise](https://github.com/FlowiseAI/Flowise) | Apache-2.0 | **Archivado el 2026-08-13 (EOL, sin sucesor)**: no se instala. Se tomó como patrón: el **Diseñador de olas** del Mando (nodos editables → guardar cola → lanzar por API, aquí o en la nube con orden firmada), la ficha de ejecución por nodo y los nodos de aprobación humana (ya reales) |
+| [Flowise](https://github.com/FlowiseAI/Flowise) | Apache-2.0 | **Archivado el 2026-08-13 (EOL, sin sucesor)**: no se instala. Se tomó como patrón: el **Diseñador de olas** de Genesis (nodos editables → guardar cola → lanzar por API, aquí o en la nube con orden firmada), la ficha de ejecución por nodo y los nodos de aprobación humana (ya reales) |
 | [itsfree.ai](https://itsfree.ai/?cat=api) · [FreeTheAi](https://github.com/Free-The-Ai/free-ai) · [freellmapi](https://github.com/tashfeenahmed/freellmapi) | — · — · MIT | Catálogos de **APIs de IA gratuitas** para la orquestación económica (2026-09-05): de itsfree.ai entró **LLM7.io** (sin clave: `gpt-oss`, `minimax-m2.7`; revisor siempre disponible) y la lista de cuentas que solo Alex puede abrir (Groq, Cerebras, Cloudflare, ModelScope, Z.ai, SambaNova, OpenCode Zen); FreeTheAi entra con `FREETHEAI_API_KEY` (Discord); freellmapi es un enrutador autoalojado (29 proveedores, un bearer, failover) que se conecta como **pasarela declarada por entorno** (`STARSEED_PASARELA_<NOMBRE>_URL/_KEY/_MODELOS/_RPM`, sin tocar código). Tabla completa en `memory/orquestacion-economica.md` §5 |
-| [GitNexus](https://github.com/abhigyanpatwari/GitNexus) | PolyForm Noncommercial | **Grafo del código** del repositorio (`.gitnexus/`, ignorado): símbolos, llamadas, comunidades y flujos. El orquestador da a cada agente el **mapa** de su tarea, al revisor el **radio de impacto** del diff y al visto bueno humano los flujos que la rama toca; la orbe del Mando lo consulta con `{"accion":"mapa"}`. Habilidad `.agent/skills/grafo-codigo`. Solo uso interno (no se empaqueta en el producto) |
+| [GitNexus](https://github.com/abhigyanpatwari/GitNexus) | PolyForm Noncommercial | **Grafo del código** del repositorio (`.gitnexus/`, ignorado): símbolos, llamadas, comunidades y flujos. El orquestador da a cada agente el **mapa** de su tarea, al revisor el **radio de impacto** del diff y al visto bueno humano los flujos que la rama toca; la orbe de Genesis lo consulta con `{"accion":"mapa"}`. Habilidad `.agent/skills/grafo-codigo`. Solo uso interno (no se empaqueta en el producto) |
 
 El enjambre las reparte solo: `contexto_inteligente()` mira las palabras de cada tarea y le pasa al
 agente **el puntero y el comando de búsqueda**, nunca el catálogo entero (economía de contexto).
@@ -597,21 +612,21 @@ si no hay `STARSEED_ROOT`/`STARSEED_WT`. Lo que aprendió esta noche:
   hasta `ESPERA_PROVEEDOR_S`=45 min (fase «esperando proveedor») en vez de darse por perdida en
   2 segundos (VZ2, 22:31).
 - **La cola viaja en el bus**: el evento `arranque` lleva las tareas (id, ola, título, depende)
-  para que el Puente de Mando de la otra máquina las dibuje aunque no tenga el archivo
+  para que Genesis de la otra máquina las dibuje aunque no tenga el archivo
   (`starseed_memory_root/` no se versiona).
 - xKiro tiene **cuota diaria** para los modelos `:free` (la agotamos el 04-09 a las ~20:50 UTC);
   aihubmix gratis solo permite 10 llamadas sin recarga. Revisores que sí quedan: tokenrouter
   (`z-ai/glm-5.3-free`, pensante: `max_tokens` 2500) y NIM.
 - El supervisor avisa «recuperado» UNA vez (estado en memoria, no releyendo el archivo).
 
-### Puente de Mando · Ramificación multiagéntica (2026-09-04, noche)
+### Genesis · Ramificación multiagéntica (2026-09-04, noche)
 
 Pestaña **Procesos** → `RamificacionAgentes` (`src/components/mando/ramificacion-agentes.tsx`):
 el árbol de cada ola por niveles de dependencia con flechas, tarjeta por tarea con su rama
 agente → revisor → commit, latido vivo (fase, modelo·proveedor, tokens reales in/out, llamadas,
 barra de ventana), ficha con pasos/eventos/contexto. Datos: `GET /api/mando/ramificacion`
 (`src/lib/mando/ramificacion.ts`: colas de disco + colas del bus + progreso + pasos + eventos +
-latidos). Se relee cada 20 s. En `/mando` no se montan los globales del OS (`AppGlobals`).
+latidos). Se relee cada 20 s. En `/genesis` no se montan los globales del OS (`AppGlobals`).
 
 ### Diseñador de olas y lanzamiento remoto (2026-09-05)
 
@@ -626,9 +641,9 @@ un reinicio del contenedor: relanzarlo al retomar la sesión). Órdenes sin firm
 (>15 min) o de otra máquina se anotan como `lanzar_rechazado`. Verificado de punta a punta el
 2026-09-05 con `cola-241-prueba-disenador` (P1 → commit e3c22c9).
 
-### Asistente técnico del Mando · la orbe (2026-09-05)
+### Asistente técnico de Genesis · la orbe (2026-09-05)
 
-En `/mando`, tocar la orbe de Astraura abre el **asistente técnico de administración de la
+En `/genesis`, tocar la orbe de Astraura abre el **asistente técnico de administración de la
 orquestación** (`src/components/mando/{asistente-mando,orbe-asistente}.tsx`); la pestaña Chat
 tiene la sección «Asistente técnico» (mismos chats, guardados en
 `starseed_memory_root/mando/chats/`, no versionados) y la sección «Orquestación (bus)».
@@ -644,7 +659,7 @@ Verificado el 2026-09-05 con Kimi K3 (4.573/260 tokens, 35 s) y xKiro qwen3-code
 
 ### Medidores de tareas y «medio» de cada agente (2026-09-05)
 
-Cabecera del Mando: además de ola activa, en curso, commits y proveedores, **Integradas · En
+Cabecera de Genesis: además de ola activa, en curso, commits y proveedores, **Integradas · En
 curso · Fallidas · Sin cambios · Pendientes** de la ola activa (detalle: total de las últimas
 olas), calculados por la ramificación (`cuentas` en `/api/mando/estado`). Cada agente y cada
 tarea llevan su **medio** —desde dónde se están usando las APIs: quién lanzó el orquestador—:
@@ -680,7 +695,7 @@ openrouter: las que opencode puede usar para escribir) y **Modelo** (catálogo v
 
 Verificado el 2026-09-05 con la Ola 242 (tres tests reales): P1 reasignada de NIM a xkiro
 mientras escribía (API), P2 movida de la nube a la Mac (API) e integrada allí, P3 reasignada
-de DeepSeek a Kimi desde la ficha del Mando (UI) e integrada en la nube; 115 tests en verde.
+de DeepSeek a Kimi desde la ficha de Genesis (UI) e integrada en la nube; 115 tests en verde.
 
 ### Nodos de aprobación humana (2026-09-05)
 
@@ -689,8 +704,7 @@ bueno antes de integrar»** lanza la cola con `--aprobacion` (Mac) o `aprobacion
 orden firmada (nube → `STARSEED_APROBACION=1`); también vale `"aprobacion": true` en una tarea
 suelta de la cola. El orquestador hace todo lo de siempre (escritura → tsc → tests → revisión)
 y, en vez de integrar, deja la rama `ola/<id>` lista, publica `esperando_aprobacion` (rama, sha,
-diffstat, dictamen del revisor, modelo) y espera hasta `STARSEED_ESPERA_APROBACION_S` (6 h). El
-Mando lo enseña arriba de Procesos («Esperando tu visto bueno», con el diff y el dictamen), en
+diffstat, dictamen del revisor, modelo) y espera hasta `STARSEED_ESPERA_APROBACION_S` (6 h). Genesis lo enseña arriba de Procesos («Esperando tu visto bueno», con el diff y el dictamen), en
 la ficha de la tarea y en la cabecera («Tu visto bueno»). **Aprobar e integrar** / **Rechazar**
 viajan como orden de control (`aprobar`/`rechazar`: archivo `control-<cola>.json` en la Mac o
 evento firmado `control` para la nube): aprobar integra en main por ff; rechazar conserva la
@@ -716,10 +730,10 @@ Consultar cuesta 1-2 s y cero tokens. Tres usos, todos en `starseed-enjambre.py`
    detect-changes` para que el agente no haga grep a ciegas.
 2. `impacto_cambios("ola/<id>")` antes de la revisión → paso `impacto` (archivos, símbolos, flujos,
    riesgo low…critical) y el radio de impacto entra en el prompt del revisor.
-3. El evento `esperando_aprobacion` lleva `impacto`; el Mando lo enseña como chip en «Esperando
+3. El evento `esperando_aprobacion` lleva `impacto`; Genesis lo enseña como chip en «Esperando
    tu visto bueno» y en la ficha de la tarea (`ImpactoDiff`, `data-testid="impacto-diff"`).
 
-La orbe del Mando puede proponer `{"accion":"mapa","consulta":"reasignarTarea"}` (símbolo →
+La orbe de Genesis puede proponer `{"accion":"mapa","consulta":"reasignarTarea"}` (símbolo →
 `context`; «impacto <símbolo>» → `impact`; concepto → `query`), que `consultarGrafo()` ejecuta y
 deja como turno «grafo» del chat. **No** se configura su servidor MCP en opencode (`gitnexus
 setup`): 17 herramientas por turno cuestan más contexto de lo que ahorran; la CLI basta. Licencia
@@ -731,13 +745,13 @@ Cualquier enrutador gratuito entra en la flota sin tocar código, con cuatro var
 `~/.starseed/env` (chmod 600): `STARSEED_PASARELA_<NOMBRE>_URL` (base `/v1`), `_KEY`
 («sin-clave» si no exige), `_MODELOS` (revisores en orden; el primero es la sonda) y `_RPM`.
 El orquestador lo sondea, lo mete en `REVISORES`/`CUPOS_RPM` y `llamar_llm` le habla; el catálogo
-del Mando (`/api/mando/modelos`, `modelosPasarelas()`) lo lista y `llamarModelo` lo usa. Verificado
+de Genesis (`/api/mando/modelos`, `modelosPasarelas()`) lo lista y `llamarModelo` lo usa. Verificado
 con una pasarela de prueba sobre LLM7 (sonda 1,1 s; respuesta 3,8 s). Candidato: **freellmapi**
 en local (`http://127.0.0.1:3001/v1`) cuando Alex cargue sus claves en su panel.
 
 ### Vercel: 250 MB por función y el trazador de archivos (2026-09-05)
 
-El primer despliegue del Mando falló: «api/mando/asistente is 2.21gb uncompressed». Causa: con
+El primer despliegue de Genesis falló: «api/mando/asistente is 2.21gb uncompressed». Causa: con
 `const RAÍZ = process.cwd()` y lecturas `readFile(path.join(RAÍZ, rutaVariable))`, el trazador
 (`@vercel/nft`) mete el proyecto entero en la función (src/, venv/, .git/, .next/cache/…).
 Regla: en código de servidor la raíz sale de `raizDelProyecto()` (`src/lib/mando/raiz.ts`:
@@ -758,7 +772,7 @@ mano: son 900 MB por copia en una Mac de 8 GB.
 
 El **modo ligero** (`scripts/starseed-ligero.sh {construir|arrancar|parar|estado|dev}`) sirve el OS
 compilado (`next start -p 9002`, ~48 MB) y exporta `STARSEED_MANDO=1` y `STARSEED_LOCAL=1`: la **voz
-y el Mando funcionan sin sesión en localhost** (nunca en Vercel). El build necesita **heap 4096**
+y Genesis funcionan sin sesión en localhost** (nunca en Vercel). El build necesita **heap 4096**
 por defecto, `construir --limpiar` y **≥ 4 GB de disco**; `construir/arrancar` descargan el vigilante
 launchd `com.starseed.dev-vigilante` y `dev` lo recarga. El demonio de voz (`daemon.mjs`) usa el
 **residente `asr_stream_server`** de VibeASR.cpp (modelos cargados una vez, sueño a los 5 min,
@@ -782,14 +796,14 @@ agentes (Curador, Entrenador, Evaluador, Desplegador, Cronista) que corren como 
 `architecture/astraura-158-aprendizaje-continuo.md`. Soberanía: los datos no salen de la neurona
 sin consentimiento y el usuario es dueño de cada adaptador.
 
-## 🧭 Mando ampliado y flota honesta (Adenda 228 · 2026-09-07)
+## 🧭 Genesis ampliado y flota honesta (Adenda 228 · 2026-09-07)
 
-Las olas 257–276 convirtieron el Mando en la **sala de control honesta y ampliada** de toda la
+Las olas 257–276 convirtieron Genesis en la **sala de control honesta y ampliada** de toda la
 orquestación y de la inteligencia 1.58. Todo el código lo escribió el enjambre económico (NIM
 kimi-k3/deepseek-v4 y xKiro; revisores kimi-k3/llm7) y **Claude supervisó, verificó cada endpoint
 en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado-aprendizaje-158-olas-257-276-2026-09-07.md`.
 
-### Pestañas y superficies nuevas del Mando
+### Pestañas y superficies nuevas de Genesis
 - **Oficina 3D** — `src/lib/mando/oficina.ts` (seres con ADN determinista `derivarAdn`, 7 salas,
   xp/nivel, `fusionarGenoma` nunca baja), servidor `/api/mando/oficina` (genomas en
   `starseed_memory_root/mando/oficina/genomas.json`, `exportar-predeterminado`), UI reusa `OficinaSeres`.
@@ -818,7 +832,7 @@ en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado
   402/cuota → 24 h, aviso único.
 - **Sonda ligera `GET /models`**: la sonda por minuto es la de listado de modelos, **jamás generación** —
   la de generación quemaba el cupo diario de OpenRouter/aihubmix y tres 429 dejaban xKiro 24 h fuera.
-- **Flota honesta**: el Mando clasifica proveedores con las claves presentes en la neurona
+- **Flota honesta**: Genesis clasifica proveedores con las claves presentes en la neurona
   (`clavesPresentes`), «dato antiguo» y la foto del bus; «Por conseguir» solo lista lo que Alex debe crear.
 - **Tareas del enjambre**: **≤ 3 archivos y ≤ 120 líneas por archivo** (ESCRITURA_S 1500 s cortaba las de
   4–5), con **verificación en la Mac tras cada despliegue** — destapó 9 defectos que ningún revisor vio.
@@ -910,13 +924,13 @@ adelante:
 Regla corta para quien retome: **editable sí, ejecutable no; compartible sí, sin revisar no;
 conectado a todo sí, con la memoria personal quieta.**
 
-## 🖥️ Un commit en la nube NO cambia el Puente de Mando de Alex (regla permanente · 2026-09-09)
+## 🖥️ Un commit en la nube NO cambia Genesis de Alex (regla permanente · 2026-09-09)
 
 Lo dijo él después de que se lo enseñara tres veces como «arreglado»:
 
-> «no ha cambiado nada, el puente de mando sigue diciendo *Tareas en curso 0 · 128 pendientes*; es
+> «no ha cambiado nada, Genesis sigue diciendo *Tareas en curso 0 · 128 pendientes*; es
 > importante que recuerdes **fundamentalmente verificar los resultados y la orquestación en el
-> Puente de Mando en localhost**.»
+> Genesis en localhost**.»
 
 Tenía razón, y el error era de método, no de código. Entre un commit en el contenedor de la nube y
 lo que Alex ve en `localhost:9002` hay **tres puertas**, y saltarse cualquiera significa anunciar
@@ -927,15 +941,15 @@ como hecho algo que él no puede ver:
 2. **Reconstruir** — `next start` sirve lo COMPILADO. Un archivo nuevo en el disco de la Mac no
    cambia nada hasta `bash scripts/starseed-ligero.sh construir` (heap 4096) y reiniciar el
    servidor ligero.
-3. **Verificar EN localhost** — abrir `/mando`, mirar el medidor concreto, y solo entonces decirlo.
+3. **Verificar EN localhost** — abrir `/genesis`, mirar el medidor concreto, y solo entonces decirlo.
 
-Y una cuarta, distinta y fácil de confundir con las anteriores: **el Mando lee la carpeta
+Y una cuarta, distinta y fácil de confundir con las anteriores: **Genesis lee la carpeta
 `starseed_memory_root/olas/` de la máquina donde corre**. El enjambre trabaja en la nube y esa
-carpeta **no se versiona**, así que el Mando de la Mac puede enseñar «0 en curso» con seis agentes
+carpeta **no se versiona**, así que Genesis de la Mac puede enseñar «0 en curso» con seis agentes
 escribiendo a toda máquina. Copiar el estado a mano es un parche que caduca en minutos; el arreglo
 de verdad es el latido remoto por Supabase (tarea `zM1`).
 
-**Regla corta: nada está hecho hasta que se ve en el Mando de la Mac.** «tsc en verde», «tests en
+**Regla corta: nada está hecho hasta que se ve en Genesis de la Mac.** «tsc en verde», «tests en
 verde» y «commit integrado» son pasos intermedios, no el resultado.
 
 ---
@@ -961,7 +975,7 @@ Tres puertas rojas, una sola causa. El arreglo es `npm install --include=dev`. *
 
 ### 2. Un `id` de tarea solo puede vivir en UNA cola
 
-El Mando empareja cada latido con su tarea por la clave `cola|id`. Si el mismo `id` aparece en dos
+Genesis empareja cada latido con su tarea por la clave `cola|id`. Si el mismo `id` aparece en dos
 archivos `cola-*.json`, el árbol se queda con **una** de las dos colas y, si elige la que no está
 corriendo, el latido no casa: la tarea se pinta pendiente y la cabecera enseña **0 en curso con los
 agentes escribiendo**. Medido hoy con `pRJ1`-`pRJ3` duplicadas en `cola-309` y `cola-310`.
@@ -977,7 +991,7 @@ relanzada mezcla tareas de olas antiguas, así que ese recorte escondía agentes
 escribiendo en ese momento: 5 vivos, la cabecera enseñaba 3. Ahora se eligen las últimas por número
 **y además, sin excepción, toda ola con al menos un latido fresco**.
 
-**Regla: cualquier recorte del Mando (por número, por fecha, por página) se aplica después de
+**Regla: cualquier recorte de Genesis (por número, por fecha, por página) se aplica después de
 garantizar que lo vivo está dentro.** Lo vivo es justo lo que hay que ver.
 
 ### 4. El permiso de disco de macOS se concede POR BINARIO, no por carpeta (2026-09-10)
@@ -1020,7 +1034,7 @@ devuelve `"Times"` con las fuentes de `/_next/static/media` servidas sin error.
 ### 6. Un `next start` huérfano en el 9002 sirve páginas nuevas con rutas viejas (2026-09-28)
 
 Tras instalar un build, las rutas NUEVAS (`/documentos`, `/tabla`, `/juego`…) daban **404** y el
-registro decía «Mando reiniciado: la pantalla ya sirve el código nuevo». El que escuchaba en el
+registro decía «Genesis reiniciado: la pantalla ya sirve el código nuevo». El que escuchaba en el
 9002 era un `next start` lanzado a las 15:31 por fuera de launchd (un `python -` del `.command`
 del Escritorio); el servicio relanzado no podía escuchar. Y la comprobación se dejaba engañar:
 Next lee las páginas del disco en cada petición (el HTML llevaba el BUILD_ID nuevo), pero la
@@ -1030,9 +1044,9 @@ y se para. Síntoma para reconocerlo: una ruta que existe en `.next/server/app` 
 `x-nextjs-cache: HIT`; `lsof -iTCP:9002 -sTCP:LISTEN` + `ps -o lstart=` enseña un proceso más
 viejo que la instalación.
 
-### 7. Subir Next de versión «a mano» tumba el Mando entero (2026-10-03)
+### 7. Subir Next de versión «a mano» tumba Genesis entero (2026-10-03)
 
-Hermes no podía abrir el Mando: `/tmp/starseed-mando.log` repetía «Could not find a production
+Hermes no podía abrir Genesis: `/tmp/starseed-mando.log` repetía «Could not find a production
 build in the '.next' directory» con **Next.js 16.3.8**. Alguien había empezado a subir el OS a
 Next 16 sin terminar: `package.json` con `"next": "16.3.8"`, `package-lock.json` BORRADO, un
 `pnpm-lock.yaml` nuevo, `node_modules` instalado con pnpm, `tsconfig.json` reescrito por Next 16
@@ -1048,9 +1062,9 @@ enjambre vivo (orquestador o `opencode run`), ni con más de 4 GB de swap en uso
 reconocerlo: `node -e "console.log(require('next/package.json').version)"` no coincide con
 `node_modules/next` dentro de `package-lock.json`.
 
-### 8. Sondeos que se apilan dejan la pestaña sin recursos · el Mando se autorrepara (2026-10-05)
+### 8. Sondeos que se apilan dejan la pestaña sin recursos · Genesis se autorrepara (2026-10-05)
 
-Alex, dos veces en una noche: «no carga el puente de mando». El servidor respondía (`/mando` 200 en
+Alex, dos veces en una noche: «no carga Genesis». El servidor respondía (`/genesis` 200 en
 0,5 s), pero la pestaña llevaba horas abierta y Chrome contestaba `net::ERR_INSUFFICIENT_RESOURCES`
 a todo (más de 35.000 peticiones descartadas, cada pastilla en «—»): treinta y un paneles sondean
 con `setInterval` sin mirar si su lectura anterior volvió y, con la Mac cargada (medidores de hasta
@@ -1064,9 +1078,9 @@ debería el propio puente autorrepararse sin tener que pedírtelo». Tres capas,
   salud de las lecturas; si está atascada y el servidor responde, suelta lo atascado y, si no basta,
   se recarga sola (máximo una vez cada 10 min). Lo dice en un aviso discreto.
 - **Servidor y disco** (`scripts/puente/autocuracion_mando.py`, en cada pasada del vigía de
-  medidores): si `/api/mando/latido` no responde a tres sondas, reinicia el Mando con
+  medidores): si `/api/mando/latido` no responde a tres sondas, reinicia Genesis con
   `reiniciar_mando()` (no durante una publicación que lo compila); por debajo de 6 GB limpia lo
-  regenerable con la lista blanca del Mando (la caché de Next solo por debajo de 3 GB). La
+  regenerable con la lista blanca de Genesis (la caché de Next solo por debajo de 3 GB). La
   publicación hace sitio con lo mismo antes de rendirse por disco. Estado en
   `~/.starseed/autocuracion-mando.json`; cada remedio, una línea en el Chat Director.
 
@@ -1098,7 +1112,7 @@ espera mira la rotación entera, el orquestador atiende la orden de flota
 (punto 6 de `scripts/puente/autocuracion_mando.py`, cada 120 s por el vigía) ve tareas
 esperando > 20 min → sonda → levanta las marcas viejas y perdona rachas de quien responde →
 refresca → si a los 10 min sigue igual, reinicia el orquestador (máx. cada 45 min). Botón
-**«Reactivar directores»** arriba del Mando (`scripts/puente/reactivar_mando.py`,
+**«Reactivar directores»** arriba de Genesis (`scripts/puente/reactivar_mando.py`,
 `/api/mando/reactivar`): servicios `com.starseed.*`, autocuración forzada, orquestador y
 medidores, con parte en el Chat Director. Comprobado: tras el refresco las tres tareas
 siguieron con freellmapi en 1 min.
@@ -1107,9 +1121,9 @@ siguieron con freellmapi en 1 min.
 
 `medidores.ts` (va al navegador con `centro-mando.tsx`) importó `creditos-pago.ts`, que leía
 el disco con `node:fs`: tsc y vitest en verde y `next build` con «UnhandledSchemeError:
-node:fs» → el Mando no se podía reconstruir. Regla: lo puro va en `*-tipos.ts` sin Node; la
+node:fs» → Genesis no se podía reconstruir. Regla: lo puro va en `*-tipos.ts` sin Node; la
 lectura de disco en otro archivo solo de servidor. Puerta:
-`src/lib/mando/__tests__/sin-node-en-cliente.test.ts` (recorre el grafo desde `/mando`).
+`src/lib/mando/__tests__/sin-node-en-cliente.test.ts` (recorre el grafo desde `/genesis`).
 
 ### 12. Claves de EJEMPLO en pruebas bloquean todos los empujes (2026-10-06)
 

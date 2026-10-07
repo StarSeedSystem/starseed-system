@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel de entornos del Centro de Mando (Ola 239)
+ * Panel de entornos de Genesis (Ola 239)
  * ─────────────────────────────────────────────────────────────────────────────
  * Salud en vivo de los entornos del proyecto, agrupados por tipo: desarrollo,
  * producción, backend, bases de datos, agentes y nube. Cada tarjeta muestra su

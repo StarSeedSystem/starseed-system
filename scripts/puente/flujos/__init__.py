@@ -1,4 +1,4 @@
-"""Núcleo público de los Flujos del Mando."""
+"""Núcleo público de los Flujos de Genesis."""
 
 from .modelo import (Conexion, Ejecucion, Flujo, Nodo, cargar_flujo,
                      guardar_flujo, orden_topologico, validar_flujo)

@@ -344,7 +344,7 @@ describe("qué cuenta de verdad como «lista para trabajar»", () => {
     // que nadie cerró en progreso.json.
     const asuntos = [
         "Ola · p323E: capturar-prueba.py: captura de la ruta local que tocó cada tarea",
-        "Ola 320 · p320A y p320K rehechas a mano: desbloquean las 8 tareas del Mando",
+        "Ola 320 · p320A y p320K rehechas a mano: desbloquean las 8 tareas de Genesis",
         "fix(mando): la cabecera deja de descuadrarse",
     ].join("\n");
 

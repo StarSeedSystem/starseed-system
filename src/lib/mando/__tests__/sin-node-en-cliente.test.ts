@@ -1,8 +1,8 @@
 /**
- * Puerta (2026-10-06): nada de lo que importa un componente de cliente del Mando puede
+ * Puerta (2026-10-06): nada de lo que importa un componente de cliente de Genesis puede
  * importar módulos de Node. MC1007G hizo que `medidores.ts` (que acaba en el bundle de
  * `centro-mando.tsx`) importara `creditos-pago.ts`, que leía el disco con `node:fs`: tsc y
- * vitest pasaron y `next build` falló («UnhandledSchemeError: node:fs»). El Mando dejó de
+ * vitest pasaron y `next build` falló («UnhandledSchemeError: node:fs»). Genesis dejó de
  * poder reconstruirse sin que ninguna puerta lo viera. Esta prueba recorre el grafo de
  * importaciones desde la página /mando y falla si algo que va al navegador (lo que cuelga
  * de un «use client») importa un módulo de Node. `import type` no cuenta.
@@ -38,11 +38,11 @@ function importaciones(codigo: string): string[] {
     return fuera;
 }
 
-describe("código de cliente del Mando sin módulos de Node", () => {
+describe("código de cliente de Genesis sin módulos de Node", () => {
     it("lo que el navegador carga desde /mando no llega a node:*", () => {
-        // Desde la página del Mando: todo lo que cuelga de un archivo «use client» va al
+        // Desde la página de Genesis: todo lo que cuelga de un archivo «use client» va al
         // bundle del navegador (lo de antes puede ser componente de servidor y sí usa Node).
-        const raiz = path.join(SRC, "app", "(app)", "mando", "page.tsx");
+        const raiz = path.join(SRC, "app", "(app)", "genesis", "page.tsx");
         expect(existsSync(raiz)).toBe(true);
         const problemas: string[] = [];
         const vistos = new Set<string>();

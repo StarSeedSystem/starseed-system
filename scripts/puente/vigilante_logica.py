@@ -6,7 +6,7 @@ import os
 import re
 import sys
 
-# (2026-09-23) El cambio pedido desde el Puente tiene que LLEGAR al agente; la regla vive
+# (2026-09-23) El cambio pedido desde Genesis tiene que LLEGAR al agente; la regla vive
 # en scripts/enjambre/cambio_pedido.py y es la misma para la Mac y para la nube.
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enjambre"))
@@ -54,7 +54,7 @@ ESTADOS_NO_AUTOMATICOS = {
 
 # (2026-09-29) Las colas de los sueños profundos (`cola-suenos-<fecha>.json`) y su propuesta
 # (`cola-suenos-propuesta-<fecha>.json`) NO son demanda del vigilante: los sueños los lanza
-# `scripts/puente/suenos.py` (o el Mando) y los relanza el supervisor Claude; la propuesta
+# `scripts/puente/suenos.py` (o Genesis) y los relanza el supervisor Claude; la propuesta
 # espera a que una persona la abra en el Diseñador. Si el vigilante las cogiera, metería
 # análisis en un orquestador viejo que no sabe soñar y lanzaría una propuesta sin mirar.
 PREFIJO_SUENOS = "cola-suenos-"
@@ -126,7 +126,7 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
     # (2026-09-24) Una dependencia que YA está en main cuenta como hecha aunque el progreso
     # no la conozca. p318I se integró el 13 («… · p318I: …») y no tiene entrada en
     # progreso.json: aquí, en el orquestador y en la nube salía «(?)» y p318Jb/p318Jc se
-    # bloqueaban para siempre, mientras el Mando las daba por libres. Se quita de `depende`
+    # bloqueaban para siempre, mientras Genesis las daba por libres. Se quita de `depende`
     # en la copia que se reparte: lo mismo que ya hacía el reparto a la nube para decidir.
     integradas = {}
 
@@ -183,7 +183,7 @@ def decidir_relanzamiento(cfg, hay_orquestador, n_pendientes):
     """Decisión pura de relanzar sin tocar disco ni procesos.
 
     Devuelve (relanzar, trabajadores, tope). No relanza si el orquestador ya
-    vive, si no queda trabajo o si el Mando puso `pausado` para ajustar.
+    vive, si no queda trabajo o si Genesis puso `pausado` para ajustar.
     """
     trabajadores = int(cfg.get("trabajadores", 5))
     tope = int(cfg.get("tope_por_relanzamiento", 20))

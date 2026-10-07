@@ -4,7 +4,7 @@
 
 POR QUÉ (2026-09-19)
 --------------------
-Alex: «he intentado usar Hermes en el chat oficial del Puente de Mando, pero
+Alex: «he intentado usar Hermes en el chat oficial de Genesis, pero
 han surgido tantos errores que no he podido completar ninguna tarea, porque no
 funciona el autoenrutamiento». Medido en ~/.hermes/logs/gateway.error.log:
 
@@ -62,7 +62,7 @@ ALIAS = {"nvidia": "nvidia", "nim": "nvidia", "neurona": "ollama", "google": "ge
 #: la clave la lee él del entorno) y los modelos con los que nos sirven.
 #: (2026-09-19, 17:28) `hermes chat --provider gemini -m gemini-3.6-flash` contestó
 #: «ok» en la Mac con GEMINI_API_KEY de ~/.hermes/.env. Es el único gratuito de
-#: hoy con 1M de contexto y herramientas: la sesión del Mando pesa ~100k tokens
+#: hoy con 1M de contexto y herramientas: la sesión de Genesis pesa ~100k tokens
 #: y con 128k de ventana la compresión se quedaba colgada 120 s en cada turno.
 NATIVOS = {
     "gemini": ["gemini-3.6-flash"],
@@ -76,7 +76,7 @@ NATIVOS = {
 #: contestado con otro modelo: la sonda de google es `gemini-3.5-flash-lite`
 #: porque los modelos con razonamiento devuelven vacío a 16 tokens (medido
 #: 2026-09-19: gemini-3.6-flash → sin contenido, flash-lite → «ok» en 0,9 s),
-#: pero para dirigir el Mando hace falta el grande.
+#: pero para dirigir Genesis hace falta el grande.
 HERMES_PREFIERE = {"gemini": "gemini-3.6-flash"}
 
 #: Desempate entre proveedores en el MISMO estado: contexto grande y herramientas

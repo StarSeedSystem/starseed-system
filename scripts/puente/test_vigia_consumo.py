@@ -24,7 +24,7 @@ def t(texto):
 
 class Evaluar(unittest.TestCase):
     def test_lo_del_25_09_salta(self):
-        # Lo que se midió el día del bloqueo: el Mando pidiendo el bus sin parar.
+        # Lo que se midió el día del bloqueo: Genesis pidiendo el bus sin parar.
         filas = [{"ruta": "/rest/v1/relevo_eventos", "ua": "node", "st": "402", "n": 2750, "pesadas": 900}]
         a = V.evaluar(filas, {})
         self.assertTrue(any(x.startswith("CRÍTICO") for x in a))

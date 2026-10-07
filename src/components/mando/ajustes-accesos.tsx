@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ajustes de accesos del Puente de Mando (Ola 332 · CU3c): selector de cuentas
+ * Ajustes de accesos de Genesis (Ola 332 · CU3c): selector de cuentas
  * y perfiles, quién está conectado ahora y accesos de servicio. El POST
  * devuelve el MISMO payload completo que el GET (contrato único), así que
  * `enviar` solo hace `setDatos`. Permisos decididos en servidor; aquí solo se
@@ -31,7 +31,7 @@ export function AjustesAccesos() {
 
     const cargar = useCallback(async () => {
         const res = await fetch("/api/mando/accesos", { cache: "no-store" });
-        if (!res.ok) { setAviso("No puedes ver los accesos de este Mando."); return; }
+        if (!res.ok) { setAviso("No puedes ver los accesos de este Genesis."); return; }
         setDatos((await res.json()) as DatosAccesos);
     }, []);
     useEffect(() => { void cargar(); }, [cargar]);
@@ -64,7 +64,7 @@ export function AjustesAccesos() {
     return (
         <section className="space-y-4 text-sm">
             <p className="text-muted-foreground">
-                Cuentas y perfiles de este Mando. Conectado ahora como <b>{datos.quienPide}</b>.
+                Cuentas y perfiles de este Genesis. Conectado ahora como <b>{datos.quienPide}</b>.
                 {datos.conectados.length > 0 && <> También lo usan: {datos.conectados.join(", ")}.</>}
             </p>
             <ul className="space-y-1">

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Lanzador de olas en la nube: escucha en el bus (`relevo_eventos`) las órdenes `lanzar`
-FIRMADAS que publica el Puente de Mando de la Mac y arranca aquí el orquestador.
+FIRMADAS que publica Genesis de la Mac y arranca aquí el orquestador.
 
 Orden esperada (datos): {donde:"nube", cola:"cola-241-x", workers:2, t:ISO, firma:HMAC, tareas:[…]}
 La firma es HMAC-SHA256(STARSEED_LANZADOR_SECRETO, "cola|t"); una orden sin firma válida, con

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Pone `progreso.json` de acuerdo con la realidad cuando el orquestador no está.
 
-POR QUÉ. El 2026-09-12 el Mando enseñaba «50 pendientes · 5 en curso» durante horas con
+POR QUÉ. El 2026-09-12 Genesis enseñaba «50 pendientes · 5 en curso» durante horas con
 CERO orquestadores vivos. Tres mentiras distintas, todas en `progreso.json`:
 
   1. `en_curso` rancio: el orquestador murió (o lo mataron) a media tarea y nadie cerró
@@ -13,7 +13,7 @@ CERO orquestadores vivos. Tres mentiras distintas, todas en `progreso.json`:
   3. `bloqueada` cuya dependencia sí está integrada — en git, aunque el estado no lo sepa.
 
 El vigilante ya filtraba bien (por eso decía «no queda trabajo real») pero no CORREGÍA
-nada, así que el Mando seguía contando mentiras. Esto es una función pura: recibe el
+nada, así que Genesis seguía contando mentiras. Esto es una función pura: recibe el
 progreso, los asuntos de `git log main` y si hay orquestador vivo; devuelve el progreso
 nuevo y una lista de cambios en prosa para el canal. La escribe el director cada pasada.
 """
@@ -80,8 +80,7 @@ def reconciliar(progreso, asuntos, orquestador_vivo, ahora=None, ids_en_colas=No
     `ids_en_colas` (opcional) es el conjunto de ids que alguna cola fuente define hoy.
     Con él se cierran las HUÉRFANAS: entradas que siguen vivas en `progreso.json` pero
     cuya ola ya no existe (archivada, renombrada o borrada). El 2026-09-14 había 8 así
-    —Q1b, J1, A7, E6A, O4, AR1, zX1, p321I— contadas como «pendientes» en el medidor del
-    Mando mientras `seleccionar_pendientes` devolvía 0 ejecutables, porque el vigilante
+    —Q1b, J1, A7, E6A, O4, AR1, zX1, p321I— contadas como «pendientes» en el medidor de Genesis mientras `seleccionar_pendientes` devolvía 0 ejecutables, porque el vigilante
     recorre COLAS y el medidor recorría ESTADOS. Nadie las podía ejecutar ni cerrar.
     Sin este argumento (o con `None`) el comportamiento es el de siempre.
     """
@@ -119,7 +118,7 @@ def reconciliar(progreso, asuntos, orquestador_vivo, ahora=None, ids_en_colas=No
             cambios.append("%s bloqueada→pendiente (%s)" % (tid, dep))
 
     # Tercera pasada: huérfanas. Solo si sabemos qué define hoy alguna cola fuente.
-    # Se marcan `sustituida` —terminal en todos los contadores, del vigilante al Mando—
+    # Se marcan `sustituida` —terminal en todos los contadores, del vigilante a Genesis—
     # con la razón escrita, en vez de inventar un estado nuevo que 18 sitios no conocen.
     if ids_en_colas:
         for tid, v in p.items():

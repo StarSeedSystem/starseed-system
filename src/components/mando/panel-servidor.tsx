@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel «Servidor 1.58» del Centro de Mando.
+ * Panel «Servidor 1.58» de Genesis.
  * ─────────────────────────────────────────────────────────────────────────────
  * Administrador de servidor de Astraura 1.58 (capa nube): un interruptor para
  * que esta Mac no se duerma sola (la pantalla sí se puede apagar, para ahorrar
@@ -11,7 +11,7 @@
  *
  * Lee `GET /api/mando/servidor` (solo local; 404 en producción) cada 15 s
  * mientras el panel está montado y la pestaña visible, igual que el resto de
- * paneles del Mando (`panel-neurona.tsx`). Los TIPOS vienen SOLO de
+ * paneles de Genesis (`panel-neurona.tsx`). Los TIPOS vienen SOLO de
  * `servidor-astraura-tipos.ts` (sin `node:*`): importar el módulo de servidor
  * por valor metería `node:child_process`/`node:fs` en el bundle del cliente.
  */
@@ -202,7 +202,7 @@ function SeccionEnergia({ estado, alCambiar }: { estado: EstadoServidorAstraura;
                     <p className="text-sm font-medium text-white">Mantener encendida</p>
                     <p className="mt-0.5 text-xs text-white/60">
                         Evita que la Mac se duerma sola (reposo del sistema y del disco), para que la capa nube de
-                        Astraura y los agentes del Mando sigan trabajando horas o días. La pantalla se puede seguir
+                        Astraura y los agentes de Genesis sigan trabajando horas o días. La pantalla se puede seguir
                         apagando para ahorrar batería.
                     </p>
                 </div>
@@ -428,7 +428,7 @@ function SeccionNube({ estado, alCambiar }: { estado: EstadoServidorAstraura; al
     );
 }
 
-// ── c) Procesos del Puente de Mando ──────────────────────────────────────────
+// ── c) Procesos de Genesis ──────────────────────────────────────────
 
 function SeccionServicios({ estado, alCambiar }: { estado: EstadoServidorAstraura; alCambiar: () => void }) {
     const [reiniciandoEtiqueta, setReiniciandoEtiqueta] = useState<string | null>(null);
@@ -462,7 +462,7 @@ function SeccionServicios({ estado, alCambiar }: { estado: EstadoServidorAstraur
         <section className="mc-cristal space-y-3 p-4">
             <header className="flex items-center gap-2">
                 <Cpu className="h-4 w-4 text-violet-300" aria-hidden />
-                <h3 className="text-sm font-semibold text-white">Procesos del Puente de Mando</h3>
+                <h3 className="text-sm font-semibold text-white">Procesos de Genesis</h3>
             </header>
 
             {estado.servicios.length === 0 ? (
@@ -544,11 +544,11 @@ function TarjetaOraclePendiente() {
                 </div>
                 <div>
                     <dt className="inline font-medium text-white/70">Por qué: </dt>
-                    <dd className="inline">para que la capa nube de Astraura y los agentes del Mando sigan funcionando aunque apagues la Mac.</dd>
+                    <dd className="inline">para que la capa nube de Astraura y los agentes de Genesis sigan funcionando aunque apagues la Mac.</dd>
                 </div>
                 <div>
                     <dt className="inline font-medium text-white/70">Cómo: </dt>
-                    <dd className="inline">creas la cuenta gratis y luego lo añades aquí abajo, para enlazarlo como destino de la capa nube y réplica del Mando.</dd>
+                    <dd className="inline">creas la cuenta gratis y luego lo añades aquí abajo, para enlazarlo como destino de la capa nube y réplica de Genesis.</dd>
                 </div>
             </dl>
             <a
@@ -772,7 +772,7 @@ export function PanelServidor() {
             if (!r.ok) {
                 setError(
                     r.status === 404
-                        ? "Este panel solo funciona en el Puente de Mando local (404 en producción)."
+                        ? "Este panel solo funciona en Genesis local (404 en producción)."
                         : r.status === 401
                           ? "Necesitas iniciar sesión para ver el servidor."
                           : `No se pudo leer el estado del servidor (HTTP ${r.status}).`,
@@ -782,7 +782,7 @@ export function PanelServidor() {
             }
             setEstado((await r.json()) as EstadoServidorAstraura);
         } catch {
-            if (vivoRef.current) setError("No se pudo hablar con el Mando.");
+            if (vivoRef.current) setError("No se pudo hablar con Genesis.");
         } finally {
             if (vivoRef.current) setCargando(false);
         }

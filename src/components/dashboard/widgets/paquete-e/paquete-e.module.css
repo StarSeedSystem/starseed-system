@@ -17,7 +17,7 @@
   isolation: isolate;
 }
 
-/* Fuera del marco unificado (marco clásico, Puente de Mando): una tarjeta de vidrio propia. */
+/* Fuera del marco unificado (marco clásico, Genesis): una tarjeta de vidrio propia. */
 .tarjeta {
   border-radius: 24px;
   background:

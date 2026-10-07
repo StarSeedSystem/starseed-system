@@ -92,7 +92,7 @@ describe("PanelServidor", () => {
         await screen.findByText(/Modo servidor · esta Mac/i);
         expect(screen.getByText(/Mantener encendida/i)).toBeInTheDocument();
         expect(screen.getByText(/Astraura 1\.58 · capa nube/i)).toBeInTheDocument();
-        expect(screen.getByText(/Procesos del Puente de Mando/i)).toBeInTheDocument();
+        expect(screen.getByText(/Procesos de Genesis/i)).toBeInTheDocument();
         expect(screen.getByText(/Servidores de Astraura/i)).toBeInTheDocument();
         expect(screen.getByRole("button", { name: /apagar pantalla/i })).toBeInTheDocument();
     });

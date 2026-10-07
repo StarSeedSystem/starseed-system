@@ -68,7 +68,7 @@ export type DockIconKey =
   | 'Rss'
   // ── Voces (Ola 228) ──
   | 'AudioLines'
-  // ── Mando (Ola 231) ──
+  // ── Genesis (Ola 231) ──
   | 'Gauge'
   // ── Mundo de los avatares (Ola 234) ──
   | 'Smile'
@@ -270,8 +270,8 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'canales',       label: 'Canales',             iconKey: 'Rss',             path: '/canales',               color: 'emerald', enabled: true,  origin: 'preset' },
   // Ola 228: página Voces — estudio de voces y emisión de voz del OS.
   { id: 'voces',         label: 'Voces',               iconKey: 'AudioLines',      path: '/voces',                 color: 'purple',  enabled: true,  origin: 'preset' },
-  // Ola 231: Puente de Mando — consola de producción y desarrollo (solo local).
-  { id: 'mando',         label: 'Mando',               iconKey: 'Gauge',           path: '/mando',                 color: 'amber',   enabled: true,  origin: 'preset' },
+  // Ola 231: Genesis — consola de producción y desarrollo (solo local).
+  { id: 'mando',         label: 'Genesis',               iconKey: 'Gauge',           path: '/genesis',                 color: 'amber',   enabled: true,  origin: 'preset' },
   // Ola 234: Mundo de los avatares — escena 3D viva de los habitantes de la red.
   { id: 'mundo-avatares', label: 'Mundo de los avatares', iconKey: 'Smile',      path: '/mundo-avatares',         color: 'purple',  enabled: true,  origin: 'preset' },
   // Ola 237: Laboratorio de Astraura — el genoma de nueve capas fásicas, del

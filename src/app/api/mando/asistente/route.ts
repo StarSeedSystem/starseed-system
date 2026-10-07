@@ -1,5 +1,5 @@
 /**
- * POST /api/mando/asistente — un turno con el asistente técnico del Mando.
+ * POST /api/mando/asistente — un turno con el asistente técnico de Genesis.
  *
  *   {chatId, modelo, mensaje}            → responde con el modelo elegido (estado vivo + memorias)
  *   {accion:"leer", chatId?, ruta}       → lee un archivo permitido y, si hay chat, lo añade como turno «herramienta»

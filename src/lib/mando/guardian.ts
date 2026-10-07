@@ -5,7 +5,7 @@
  * además, sesión. En un despliegue LOCAL (modo ligero en la neurona, Ola 253 ·
  * 2026-09-06) la consola pasa SIN sesión: es la misma puerta que la de la voz
  * (`esDespliegueLocal`), porque exigir login en la propia máquina dejaba el
- * Puente de Mando apagado justo donde tiene que usarse.
+ * Genesis apagado justo donde tiene que usarse.
  * Devuelve la respuesta de veto o `null` si se puede seguir.
  */
 
@@ -16,7 +16,7 @@ import type { CapacidadAmbito } from "./ambito";
 export type DecisionAcceso = 200 | 401 | 403 | 404 | 503;
 
 /**
- * Decisión pura de acceso al Mando. El orden importa:
+ * Decisión pura de acceso a Genesis. El orden importa:
  * apagado → 404; local u otro no-producción → 200; sin sesión → 401;
  * sin la bandera de "mando para todos" se queda como hoy → 200;
  * RPC caída → 503 (nunca deja pasar por error); sin capacidad → 403.
@@ -40,7 +40,7 @@ export function decidirAcceso(e: {
 }
 
 /**
- * Cierto si el mando está habilitado en esta instancia:
+ * Cierto si Genesis está habilitado en esta instancia:
  *  - `NODE_ENV !== "production"` (desarrollo y tests), o
  *  - `STARSEED_MANDO=1`, o
  *  - la petición llega a un despliegue local (`esDespliegueLocal`: localhost,
@@ -100,7 +100,7 @@ export async function guardianMando(
     const decision = decidirAcceso({ bandera, habilitado, produccion, esLocal, hayUsuario, tieneCapacidad, rpcFallo });
     if (decision === 404) return new Response("Not Found", { status: 404 });
     if (decision === 401) return Response.json({ error: "Necesitas iniciar sesión." }, { status: 401 });
-    if (decision === 403) return Response.json({ error: "No tienes permiso en este Mando." }, { status: 403 });
+    if (decision === 403) return Response.json({ error: "No tienes permiso en este Genesis." }, { status: 403 });
     if (decision === 503) return Response.json({ error: "No se pudo comprobar el permiso." }, { status: 503 });
     return null;
 }

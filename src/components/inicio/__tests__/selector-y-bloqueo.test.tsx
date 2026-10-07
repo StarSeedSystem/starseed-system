@@ -22,8 +22,8 @@ describe("SelectorPantallaInicial", () => {
         expect(leerPreferencias().perfiles.p1).toEqual({ tipo: "escritorios" });
         expect(onGuardado).toHaveBeenCalledWith({ tipo: "escritorios" });
         fireEvent.click(screen.getByRole("radio", { name: /Otra página/ }));
-        fireEvent.change(screen.getByLabelText("Buscar una página"), { target: { value: "mando" } });
-        expect(screen.getByRole("button", { name: "Mando" })).toBeTruthy();
+        fireEvent.change(screen.getByLabelText("Buscar una página"), { target: { value: "genesis" } });
+        expect(screen.getByRole("button", { name: "Genesis" })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Biblioteca" })).toBeNull();
     });
 });

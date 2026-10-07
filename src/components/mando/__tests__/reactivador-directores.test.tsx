@@ -7,7 +7,7 @@ const hecho = {
     enMarcha: false,
     resumen: "1 reparado(s) · 3 bien",
     pasos: [
-        { paso: "Servicios del Mando", estado: "ok", detalle: "21 servicios vivos" },
+        { paso: "Servicios de Genesis", estado: "ok", detalle: "21 servicios vivos" },
         { paso: "Directores de autocuración", estado: "reparado", detalle: "orden de refrescar proveedores" },
     ],
 };
@@ -59,7 +59,7 @@ describe("ReactivadorDirectores", () => {
         expect(parte.textContent).toContain("reparado");
     });
 
-    it("si ya hay uno en marcha al abrir el Mando, lo sigue sin lanzar otro", async () => {
+    it("si ya hay uno en marcha al abrir Genesis, lo sigue sin lanzar otro", async () => {
         parteActual = { ...hecho, enMarcha: true };
         render(<ReactivadorDirectores />);
         await act(async () => {});

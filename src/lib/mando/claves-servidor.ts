@@ -1,5 +1,5 @@
 /**
- * Claves de proveedor desde el Puente de Mando (solo servidor, sin "use client")
+ * Claves de proveedor desde Genesis (solo servidor, sin "use client")
  * ─────────────────────────────────────────────────────────────────────────────
  * Guarda, prueba y olvida la clave de un proveedor escribiéndola SOLO en
  * `~/.starseed/env` (chmod 600), nunca en el repositorio ni en memoria. De una

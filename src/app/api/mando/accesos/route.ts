@@ -1,5 +1,5 @@
 /**
- * GET/POST /api/mando/accesos (Ola 332 · CU3c · Ajustes del Mando).
+ * GET/POST /api/mando/accesos (Ola 332 · CU3c · Ajustes de Genesis).
  * GET: cuentas visibles, quién está conectado y servicios (solo el NOMBRE de
  * la variable y su uso, jamás el valor). POST concede o retira y devuelve el
  * MISMO payload completo que el GET (contrato único, sin recarga en cliente).
@@ -14,7 +14,7 @@ import { guardianMando } from "@/lib/mando/guardian";
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 import { leerEstadoDeIdes } from "@/lib/mando/ides";
 import { DESARROLLADORES_INICIALES, puede, rolDe,
-    type Capacidad, type Invitacion, type Mando, type Rol } from "@/lib/mando/permisos";
+    type Capacidad, type Invitacion, type Genesis, type Rol } from "@/lib/mando/permisos";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export const runtime = "nodejs";
@@ -26,7 +26,7 @@ export interface DatosAccesos {
     quienPide: string; cuentas: CuentaAcceso[];
     conectados: readonly string[]; servicios: ServicioAcceso[];
 }
-interface RegistroAccesos extends Mando { servicios?: readonly ServicioAcceso[]; }
+interface RegistroAccesos extends Genesis { servicios?: readonly ServicioAcceso[]; }
 const RUTA = (): string =>
     path.join(raizDelProyecto(), "starseed_memory_root", "mando", "accesos.json");
 async function leerRegistro(): Promise<RegistroAccesos> {

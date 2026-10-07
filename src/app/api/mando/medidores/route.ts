@@ -186,7 +186,7 @@ async function leerProveedores(): Promise<{ id: string; estado: string; motivo?:
     // pero no aparece en el medidor de proveedores agotados». Exacto: eran DOS listas de
     // dos archivos distintos. `salud-proveedores.json` solo tiene las pasarelas que el
     // orquestador ha usado; `pasarelas-informe.json` tiene todas las que se sondean,
-    // freellmapi incluida. Que el Puente te pida arreglar algo que no figura en ninguna
+    // freellmapi incluida. Que Genesis te pida arreglar algo que no figura en ninguna
     // lista es lo que hace imposible saber si el aviso es real. Ahora salen de las dos, y
     // el informe manda sobre la salud porque es la medida más reciente.
     try {
@@ -332,7 +332,7 @@ async function leerAgentesDeLaNube(): Promise<
 /**
  * (2026-09-23) Las olas que la nube ejecuta ahora: los runs vivos de `agentes-nube.json` y,
  * de cada uno, la cola que se llevó. Esa cola vive en `enjambre/colas/`, fuera del
- * directorio que lee `leerColas`, y por eso el Puente no sabía ni el título de lo que
+ * directorio que lee `leerColas`, y por eso Genesis no sabía ni el título de lo que
  * hacían sus cuatro agentes: la fila decía «nube/35799864769» y nada más. Se lee con
  * `tareasDeCola`, el mismo lector que las colas de la Mac.
  */
@@ -486,7 +486,7 @@ async function leerEntradas(): Promise<Record<string, Entrada>> {
  * (2026-09-24) Cuántas veces se mandó cada tarea a la nube en los dos últimos días, contando
  * las `enjambre/colas/cola-nube-AAAAMMDD-HHMM*.json`. La misma cuenta que usa el reparto
  * para dejar de reenviar (`repartir_nube.envios_por_tarea`). Se guarda un minuto: `reunir`
- * se llama varias veces por segundo al abrir el Puente.
+ * se llama varias veces por segundo al abrir Genesis.
  */
 let cacheEnvios: { t: number; cuenta: Record<string, number> } | null = null;
 async function enviosALaNube(): Promise<Record<string, number>> {
@@ -534,7 +534,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         midiendo("enjambre", enjambreEnMarcha().catch(() => false)),
         midiendo("commitsOlas", leerCommitsDeOlas().catch(() => new Map())),
     ]);
-    // La pausa del Mando vive fuera de git, en la config del director.
+    // La pausa de Genesis vive fuera de git, en la config del director.
     let pausado = false;
     try {
         const cfg = JSON.parse(
@@ -652,7 +652,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     ]);
 
     // (2026-09-23) Las olas en marcha, de la Mac y de la nube, con sus tareas. Y el encargo
-    // de cada tarea, que hasta hoy no salía de la cola: el Puente sabía el título y nada más.
+    // de cada tarea, que hasta hoy no salía de la cola: Genesis sabía el título y nada más.
     const olasActivas = [...olasDeLaMac(colas, latidosDeAqui), ...olasNube];
     const descripciones: Record<string, string> = {};
     for (const t of colas) if (t.descripcion) descripciones[t.id] = t.descripcion;
@@ -679,7 +679,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     }
 
     // Si tardó más de 5 s, se dice QUÉ fuente lo hizo (las tres más lentas): así el log
-    // del Mando explica las esperas en vez de solo registrar «heap out of memory».
+    // de Genesis explica las esperas en vez de solo registrar «heap out of memory».
     const total = Date.now() - inicio;
     if (total > 5_000) {
         const lentas = Object.fromEntries(
@@ -832,7 +832,7 @@ export async function POST(peticion: Request): Promise<Response> {
                     return Response.json({ error: `${id} tiene un agente trabajando ahora: no se reasigna.` }, { status: 409 });
                 }
                 entradas[id].estado = "pendiente";
-                entradas[id].nota = `rancia (en curso sin agente): reasignada desde el Mando el ${new Date()
+                entradas[id].nota = `rancia (en curso sin agente): reasignada desde Genesis el ${new Date()
                     .toISOString()
                     .slice(0, 16)
                     .replace("T", " ")}`;

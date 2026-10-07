@@ -122,7 +122,7 @@ class TestEscaleraConfigurable(unittest.TestCase):
 
 
 class PrioridadConfigurable(unittest.TestCase):
-    """Los pesos de la prioridad se ajustan desde el JSON del Mando."""
+    """Los pesos de la prioridad se ajustan desde el JSON de Genesis."""
 
     def _alguna_clave(self):
         return next(iter(PESOS))

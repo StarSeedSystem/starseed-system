@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel «Núcleo Astraura» para el Centro de Mando.
+ * Panel «Núcleo Astraura» para Genesis.
  * Muestra el estado de BitNet 1.58, Needle 3 y Needle 2/ESP32.
  */
 

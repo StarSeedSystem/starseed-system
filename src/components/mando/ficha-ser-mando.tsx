@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ficha-ser-mando.tsx — Ficha lateral de un ser del Mando (Ola 272 · 2026-09-07)
+ * ficha-ser-mando.tsx — Ficha lateral de un ser de Genesis (Ola 272 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * La tarjeta que se ve al tocar un ser en la Oficina 3D: su avatar, su rol, su
  * actividad viva (por tipo), su genoma (nivel, xp, rasgos, generación) y las
@@ -231,7 +231,7 @@ export function FichaSerMando({
         try {
             const { buscarTimbre, TIMBRES } = await import("@/lib/aurora/timbres");
             const { hablarStarSeed } = await import("@/lib/aurora/voz-starseed/motor");
-            // Voz elegida por asignación del Mando (Ola 275) o la primera del catálogo.
+            // Voz elegida por asignación de Genesis (Ola 275) o la primera del catálogo.
             const asignada = vocesPorAgente.find((v) => v.id === ser.id);
             const timbre = (asignada ? buscarTimbre(asignada.timbreId) : null) ?? TIMBRES[0];
             const detalle = detalleVivo.detalle ?? etiquetaActividad(detalleVivo.actividad);

@@ -2,7 +2,7 @@
 
 // src/hooks/use-eventos-relevo.ts
 // -----------------------------------------------------------------------------
-// Latido en vivo del Centro de Mando (Ola 232 · C2): eventos del enjambre
+// Latido en vivo de Genesis (Ola 232 · C2): eventos del enjambre
 // desde la tabla pública `relevo_eventos` de Supabase, con carga inicial,
 // suscripción Realtime (INSERT) y un sondeo suave de respaldo para no perder
 // nada si la conexión de tiempo real cae.

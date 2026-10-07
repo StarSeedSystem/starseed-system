@@ -1,4 +1,4 @@
-// Pruebas del módulo PURO src/lib/mando/reportes.ts (bandeja curada del Mando).
+// Pruebas del módulo PURO src/lib/mando/reportes.ts (bandeja curada de Genesis).
 import { describe, it, expect } from "vitest";
 
 import {

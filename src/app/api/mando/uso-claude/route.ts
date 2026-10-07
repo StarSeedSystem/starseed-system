@@ -1,5 +1,5 @@
 /**
- * GET /api/mando/uso-claude (Ola 352 · MU1 · Puente de Mando)
+ * GET /api/mando/uso-claude (Ola 352 · MU1 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Devuelve el resumen de gasto de las sesiones de Claude Code de esta Mac
  * (tokens por tipo y % de relectura de caché), leído de

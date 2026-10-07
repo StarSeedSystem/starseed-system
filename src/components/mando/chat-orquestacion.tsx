@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Chat de orquestación del Centro de Mando (Ola 231)
+ * Chat de orquestación de Genesis (Ola 231)
  * ─────────────────────────────────────────────────────────────────────────────
  * Vista conversacional del bus del enjambre (`relevo_eventos`): cada evento
  * aparece como un mensaje, con su autor (Claude, Hermes, el enjambre…), su
@@ -68,7 +68,7 @@ function Mensaje({ evento }: { evento: EventoRelevo }) {
 
 export function ChatOrquestacion() {
     // Dos secciones: el bus de orquestación (solo lectura) y el asistente técnico (chats
-    // propios, vinculados a la orbe flotante del Mando).
+    // propios, vinculados a la orbe flotante de Genesis).
     const [seccion, setSeccion] = useState<"asistente" | "orquestacion">("asistente");
     const [eventos, setEventos] = useState<EventoRelevo[]>([]);
     const [cargando, setCargando] = useState(true);

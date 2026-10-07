@@ -8,8 +8,7 @@ esa carpeta se pierde, se pierde el Dream.
 ## starseed-dream.sh
 
 El Dream nocturno. El cron de Hermes lo lanza cada mañana sobre las 07:00 y deja
-su informe en `starseed_memory_root/dream/sugerencias-<fecha>.md`, que el
-Puente de Mando procesa con `scripts/puente/director_dream.py` al cerrar cada
+su informe en `starseed_memory_root/dream/sugerencias-<fecha>.md`, que Genesis procesa con `scripts/puente/director_dream.py` al cerrar cada
 ola.
 
 **Estuvo mudo el 16 y el 17 de septiembre de 2026**, y el motivo merece quedar

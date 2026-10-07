@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Antes se usaba `pgrep -f "next build"`, que mira la línea de órdenes ENTERA:
  * un `opencode run <prompt>` del enjambre lleva en el prompt la frase
- * «next build» (las reglas del repo) y el Mando creía que había una build
+ * «next build» (las reglas del repo) y Genesis creía que había una build
  * corriendo con el disco lleno. Aquí solo cuenta si el EJECUTABLE es un
  * binario capaz de lanzar builds y `next build` aparece como argumento.
  */

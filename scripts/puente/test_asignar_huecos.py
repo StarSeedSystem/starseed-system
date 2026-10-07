@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Comprobar y asignar desde el Mando (2026-09-23): la decisión, sin disco ni procesos."""
+"""Comprobar y asignar desde Genesis (2026-09-23): la decisión, sin disco ni procesos."""
 
 import os
 import sys
@@ -136,11 +136,11 @@ class PrioridadAdelantada(unittest.TestCase):
         progreso = {"NORMAL": {"estado": "pendiente", "adelantar": "2026-09-23 11:00:00"}}
         listas, _ = prioridad_logica.ordenar(tareas, progreso, None)
         self.assertEqual([t["id"] for t, _p, _r in listas], ["NORMAL", "CAP"])
-        self.assertIn("Alex la pidió primero desde el Mando", listas[0][2])
+        self.assertIn("Alex la pidió primero desde Genesis", listas[0][2])
 
 
 class DependenciasMuertas(unittest.TestCase):
-    """JF2 esperaba a JF1, «sustituida»: el Mando decía «se puede coger» y el vigilante
+    """JF2 esperaba a JF1, «sustituida»: Genesis decía «se puede coger» y el vigilante
     «bloqueada». Al asignarla se le quita la dependencia que no llegará."""
 
     TAREAS = {

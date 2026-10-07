@@ -14,7 +14,7 @@ export type FilaMando = {
   porque?: string | null
   quien?: string | null
   desde?: string | null
-  /** Clases de acción que el Mando ofrece para esta fila (reintentar, descartar…). */
+  /** Clases de acción que Genesis ofrece para esta fila (reintentar, descartar…). */
   acciones: string[]
 }
 

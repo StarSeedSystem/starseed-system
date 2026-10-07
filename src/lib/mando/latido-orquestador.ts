@@ -2,7 +2,7 @@
  * Salud de las colas del enjambre (Ola 298 · LT1 · 2026-09-08)
  * ─────────────────────────────────────────────────────────────────────────────
  * Detecta colas huérfanas: colas con tareas pendientes cuyo orquestador ya no
- * late (murió con el reciclado del contenedor, por ejemplo). El Mando usaba la
+ * late (murió con el reciclado del contenedor, por ejemplo). Genesis usaba la
  * cabecera «0 en curso · 18 pendientes» sin decir que NO HAY NADIE trabajando.
  *
  * Cada ola viva reescribe `olas/latidos-<cola>.json` cada ~2 min; si el archivo
@@ -117,7 +117,7 @@ export function ordenarPorUrgencia(saludes: SaludCola[]): SaludCola[] {
     );
 }
 
-/** Resumen numérico y una frase de titular para la cabecera del Mando. */
+/** Resumen numérico y una frase de titular para la cabecera de Genesis. */
 export function resumen(saludes: SaludCola[]): { vivas: number; huerfanas: number; pendientesHuerfanas: number; frase: string } {
     const vivas = saludes.filter((s) => s.estado === "viva").length;
     const huerfanas = saludes.filter((s) => s.estado === "huerfana").length;

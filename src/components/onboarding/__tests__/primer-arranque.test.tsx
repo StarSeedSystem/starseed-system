@@ -200,7 +200,7 @@ describe("PrimerArranque · sin sesión", () => {
         expect(aviso.isConnected).toBe(false);
     });
 
-    it("en la consola del Mando no abre nada", async () => {
+    it("en la consola de Genesis no abre nada", async () => {
         est.ruta = "/mando";
         montar();
         await pausa();

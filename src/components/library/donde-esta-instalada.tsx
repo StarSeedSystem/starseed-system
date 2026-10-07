@@ -3,7 +3,7 @@
 /**
  * «Dónde está instalada» — en la ficha de una app de la Biblioteca.
  * ─────────────────────────────────────────────────────────────────────────────
- * (2026-09-25) Rescatado de «Mi Puente de Mando» (retirado a petición de Alex): era
+ * (2026-09-25) Rescatado de «Mi Genesis» (retirado a petición de Alex): era
  * lo único de sus páginas que el OS no tenía ya. La ficha solo decía «Instalada en
  * 2 sitios»; ahora se ve CUÁLES (la web, este dispositivo, otra neurona, un perfil),
  * en qué estado está cada uno, y se puede quitar un sitio de la lista. Se sincroniza

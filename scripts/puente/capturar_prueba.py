@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Captura de pantalla de la ruta local que tocó cada tarea integrada.
 
-Parte de la bandeja curada del Mando: cada reporte de una ola quiere que Alex
+Parte de la bandeja curada de Genesis: cada reporte de una ola quiere que Alex
 vea «hasta qué punto se ve». Este módulo decide qué rutas serviría una tarea
 (lo PURO, sin red) y, aparte, captura esas rutas con Chrome headless cuando
 se pide (lo IMPURO, que no se prueba).
@@ -22,7 +22,7 @@ import subprocess
 import sys
 import unicodedata
 
-RUTA_MANDO = "/mando"
+RUTA_MANDO = "/genesis"
 ESTADOS_INTEGRADAS = {"commit", "integrada", "integrado", "publicada", "publicado"}
 
 # Un segmento de ruta que Next.js ignora en la URL: los grupos de ruta "(app)".
@@ -57,7 +57,7 @@ def _ruta_de_archivo(archivo):
     ruta = _ruta_sirve_pagina(archivo)
     if ruta is not None:
         return ruta
-    # Un componente del Mando vive en su única página: /mando.
+    # Un componente de Genesis vive en su única página: /genesis.
     if isinstance(archivo, str) and archivo.startswith(_PREFIJO_COMPONENTE_MANDO):
         return RUTA_MANDO
     return None

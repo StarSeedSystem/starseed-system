@@ -135,12 +135,12 @@ export const FASES_APRENDIZAJE: FaseAprendizaje[] = [
   },
   {
     id: "despliegue",
-    nombre: "Despliegue y Mando",
+    nombre: "Despliegue y Genesis",
     ola: 271,
     hitos: [
       hito("desp-lora", "Carga de adaptadores con llama-server --lora"),
       hito("desp-registro", "Registro y rollback en aprendizaje/adaptadores.json"),
-      hito("desp-mando", "Pestaña «Aprendizaje» en el Puente de Mando"),
+      hito("desp-mando", "Pestaña «Aprendizaje» en Genesis"),
     ],
   },
   {

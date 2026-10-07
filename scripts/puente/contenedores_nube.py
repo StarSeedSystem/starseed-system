@@ -8,13 +8,13 @@ para que los directores de los agentes también usen esa información para enrut
 a agentes en todos los contenedores y siempre se aproveche la mayor cantidad disponible».
 
 Las dos mitades de esa frase son la razón del diseño. Hasta hoy la capacidad de la nube
-vivía en dos sitios que no se hablaban: el sondeo de medios que se pinta en el Puente
+vivía en dos sitios que no se hablaban: el sondeo de medios que se pinta en Genesis
 (`medios_disponibles.py`) y unas constantes dentro del director (`TOPE_AGENTES = 12`,
 `TRABAJADORES = 4`). O sea: lo que la pantalla enseñaba y lo que el director usaba para
 decidir no eran el mismo número, y el del director era una suposición escrita a mano.
 
 Aquí se mide UNA vez y se escribe UNA vez, en `mando/contenedores.json`. Lo leen el
-medidor del Puente y el director de la nube. Si mañana un medio cambia de capacidad, los
+medidor de Genesis y el director de la nube. Si mañana un medio cambia de capacidad, los
 dos cambian juntos, porque es el mismo archivo.
 
 Qué se mide de cada contenedor:

@@ -1,11 +1,13 @@
-# Puente de Mando para todos: enjambres propios para cada persona, grupo y página (Olas 1007P → 1009P)
+# Genesis para todos: enjambres propios para cada persona, grupo y página (Olas 1007P → 1009P)
 
-> Petición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de
+> **Nombre (2026-10-07):** el producto se llama **Genesis** en todos sus contextos —personal, de grupo y de comunidad— («Genesis de <ámbito>», «Genesis para todos»). Este archivo conserva su nombre de ruta y los identificadores internos (`mando_*`, `/api/mando/*`, `STARSEED_MANDO_TODOS`) a propósito; ver «Nombre: Genesis» en `CLAUDE.md`.
+
+> Petición de Alex (2026-10-06): «Todo Genesis debe estar diseñado para funcionar de
 > forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a
 > cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya
 > hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a
 > Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura,
-> funcional y con todas las características del puente de mando que hemos desarrollado. Y también
+> funcional y con todas las características de Genesis que hemos desarrollado. Y también
 > diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS para
 > cualquier comunidad, grupo o individuo utilizando las páginas y características de todo
 > Starseed OS.»
@@ -18,18 +20,18 @@ universal, libre y seguro», `architecture/protocolo-comun-agentes.md`,
 
 ## 0. De dónde partimos (mapa del 2026-10-06)
 
-- El Mando de hoy es la consola de UNA máquina: ~50 rutas `src/app/api/mando/*` y ~75
+- Genesis de hoy es la consola de UNA máquina: ~50 rutas `src/app/api/mando/*` y ~75
   componentes `src/components/mando/*` leen el disco de la Mac (`starseed_memory_root/olas/*`,
   `~/.starseed/*`, git, launchd). `guardianMando` deja pasar sin sesión en local y, en producción
-  no local, a cualquiera con sesión: no mira de quién es el Mando.
-- Ya existen las piezas de un OS con muchos dueños, pero el Mando no las usa: 9 tipos de entidad
+  no local, a cualquiera con sesión: no mira de quién es Genesis.
+- Ya existen las piezas de un OS con muchos dueños, pero Genesis no las usa: 9 tipos de entidad
   (`src/lib/entity-kinds.ts`: personal, comunidad, ef, partido, asamblea, grupo, evento, pagina,
   proyecto) con sus kits; roles y gobierno democrático/jerárquico
   (`governance/membership.ts`, `governance/permissions.ts`, `os_memberships`, `os_entity_roles`);
   salas (`salas/sala.ts`); agentes de grupo con límites que nacen cerrados
   (`agents/agentes-grupo.ts`); alcance de la memoria (`nucleo/alcance-memoria.ts`); núcleo
   intocable e «interfaz como dato» (`nucleo/invariantes.ts`, `nucleo/ui-spec.ts`,
-  `paquete-sistema.ts`); roles del Mando (`mando/permisos.ts`).
+  `paquete-sistema.ts`); roles de Genesis (`mando/permisos.ts`).
 - Huecos de seguridad que este diseño cierra ANTES de abrir nada a nadie (§6.4):
   `os_is_group_member()` cuenta como miembro a quien está `pending`; `relevo_eventos` deja leer y
   escribir a `anon`; `guardianMando` no comprueba el dueño en producción; los límites de los
@@ -39,20 +41,20 @@ universal, libre y seguro», `architecture/protocolo-comun-agentes.md`,
 
 1. **Tu enjambre, tus claves, tu máquina.** Las claves de proveedores de IA de un usuario NUNCA
    salen de su motor (su ordenador o su servidor) ni de su navegador (`ai/client/keyStorage.ts`).
-   El servidor de StarSeed no las guarda, no las ve y no las pide. El Mando enseña nombres,
+   El servidor de StarSeed no las guarda, no las ve y no las pide. Genesis enseña nombres,
    huellas y medidores; nunca valores.
-2. **Un solo Mando.** Mismas tarjetas, mismos medidores, mismo Chat Director, mismas olas,
+2. **Un solo Genesis.** Mismas tarjetas, mismos medidores, mismo Chat Director, mismas olas,
    mismos formatos de tarea (`{id, ola, depende, titulo, archivos, prompt}`), mismos directores.
-   Lo que cambia es DE QUIÉN es (el ámbito) y DÓNDE corre (el motor). El Mando de Alex en su Mac
+   Lo que cambia es DE QUIÉN es (el ámbito) y DÓNDE corre (el motor). Genesis de Alex en su Mac
    sigue funcionando exactamente igual: es el ámbito «local» con motor local sin token.
-3. **Ámbitos aislados.** Todo dato del Mando lleva `ambito_id`. Las políticas RLS impiden leer o
+3. **Ámbitos aislados.** Todo dato de Genesis lleva `ambito_id`. Las políticas RLS impiden leer o
    escribir fuera del propio ámbito; la vista pública es una lista blanca (§5).
 4. **Núcleo intocable.** Un enjambre de usuario trabaja en los destinos de SU ámbito (sus
    repositorios, sus espacios, su página) y nunca en el código ni en la producción de StarSeed
    OS. Contribuir al OS es una propuesta (rama + revisión de los directores + palabra de Alex),
    nunca una escritura directa.
 5. **Editable sí, ejecutable no.** Lo que se comparte entre ámbitos (plantillas de ola,
-   configuraciones de directores, paquetes de Mando) es DATO revisado por `paquete-sistema.ts`
+   configuraciones de directores, paquetes de Genesis) es DATO revisado por `paquete-sistema.ts`
    (invariantes + rastreo de claves). Ningún motor ejecuta código que su dueño no aceptó.
 6. **Pendiente no es miembro; el silencio no es aprobación; Jev frena, nunca empuja.**
 7. **Salida siempre.** Quien administra un ámbito puede frenarlo en cualquier momento (freno por
@@ -60,17 +62,17 @@ universal, libre y seguro», `architecture/protocolo-comun-agentes.md`,
 8. **Datos honestos.** Cada cifra dice su fuente y su edad; desconocido no es ilimitado.
 9. **Presupuesto común.** El plan gratuito de Supabase (≈25 000 peticiones y 150 MB al día,
    `memory/orquestacion-economica.md` §15) es de todos: ningún ámbito puede agotarlo (§6.3).
-10. **Todo detrás de una bandera.** `STARSEED_MANDO_TODOS=1` (servidor) enciende el Mando
+10. **Todo detrás de una bandera.** `STARSEED_MANDO_TODOS=1` (servidor) enciende Genesis
     multiusuario; sin ella, el comportamiento es el de hoy. Encenderla en producción es de Alex.
 
 ## 2. Conceptos
 
-- **Ámbito** (`AmbitoMando`): el dueño de un Mando. `{id, tipo: "persona" | "entidad",
+- **Ámbito** (`AmbitoMando`): el dueño de un Genesis. `{id, tipo: "persona" | "entidad",
   entidad_tipo?: EntityKind, entidad_ref?: slug o uuid, perfil_id?: uuid, visibilidad: "privado" |
   "miembros" | "publico", modo_gobierno: "jerarquico" | "democratico", creado_por}`. Un perfil de
   persona tiene su ámbito; cada entidad (comunidad, grupo, partido, asamblea, evento, página,
   proyecto, entidad federativa) puede tener el suyo. El ámbito `local` es el de la máquina donde
-  corre el Mando sin bandera (el de Alex).
+  corre Genesis sin bandera (el de Alex).
 - **Motor**: dónde corre un enjambre. `local` (la app de StarSeed o `starseed-nodo` en el
   ordenador del usuario), `nube-propia` (las Actions de un repositorio DEL USUARIO, como
   `nube-gh` hoy) o `servidor-propio` (`servidor-propio-protocolo.md`). Cada motor pertenece a un
@@ -85,7 +87,7 @@ universal, libre y seguro», `architecture/protocolo-comun-agentes.md`,
 
 ## 3. Roles → capacidades por ámbito
 
-Capacidades del Mando por ámbito: `ver-resumen`, `ver-detalle`, `chatear`, `encolar`,
+Capacidades de Genesis por ámbito: `ver-resumen`, `ver-detalle`, `chatear`, `encolar`,
 `aprobar`, `lanzar-olas`, `usar-apis`, `publicar`, `gestionar-motores`, `gestionar-accesos`,
 `frenar`, `administrar`.
 
@@ -161,7 +163,7 @@ de `medidores-credito.md` §3, ≤ 32 KB, sin claves), `mando_presupuesto` (peti
 
 `mando_presupuesto` cuenta las RPC del día. Al 70 % del tope diario global las RPC devuelven
 `cadencia_min: 600` (los motores pasan a cada 10 min); al 90 %, solo latidos cada 30 min; el tope
-por ámbito es una fracción proporcional. Una comunidad grande puede llevar su Mando a su propio
+por ámbito es una fracción proporcional. Una comunidad grande puede llevar su Genesis a su propio
 servidor con el mismo protocolo (`servidor-propio-protocolo.md`).
 
 ### 6.4 Arreglos de seguridad previos (van ANTES de abrir nada)
@@ -176,17 +178,17 @@ servidor con el mismo protocolo (`servidor-propio-protocolo.md`).
 
 ## 7. Interfaz (mismas tarjetas, otro dueño)
 
-- Los componentes del Mando leen a través de `AlmacenMando` (`src/lib/mando/almacen.ts`) con dos
+- Los componentes de Genesis leen a través de `AlmacenMando` (`src/lib/mando/almacen.ts`) con dos
   implementaciones: `local` (lo de hoy, archivos de la máquina) y `supabase` (por ámbito). Ninguna
   tarjeta sabe cuál tiene debajo.
-- `/mando?ambito=<id>`: selector «Mi Mando · Mis grupos · Mis páginas» con los ámbitos donde
+- `/mando?ambito=<id>`: selector «Mi Genesis · Mis grupos · Mis páginas» con los ámbitos donde
   quien mira tiene al menos `ver-resumen`.
 - Asistente «Crear enjambre»: ámbito → motor (este equipo / mi GitHub / mi servidor) →
   proveedores que el motor detecta (gratis primero; medidores de crédito) → directores y
   plantilla de ola → límites (presupuesto, horario, visibilidad, alcance de memoria) → token del
   motor (una vez) y la orden para instalarlo.
 - En cada kit de entidad (`components/social/toolkits/index.tsx`) aparece la herramienta
-  «Puente de Mando» con su insignia de visibilidad; en una página pública, la vista pública.
+  «Genesis» con su insignia de visibilidad; en una página pública, la vista pública.
 
 ## 8. Fases y olas
 

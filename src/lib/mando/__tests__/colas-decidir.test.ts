@@ -13,16 +13,16 @@ import {
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 /**
- * El Mando tiene que poder administrar los ids que el ENJAMBRE escribe.
+ * Genesis tiene que poder administrar los ids que el ENJAMBRE escribe.
  *
  * `PATRON_ID` exigía empezar por MAYÚSCULA, y desde la ola 300 el enjambre escribe `p316I`,
  * `p320M`, `zW7`, `zO2`, `p323A`, `p316L2`. Resultado: «Nombre de cola no válido» al intentar
  * aprobar, rechazar, soltar o reencolar su propio trabajo desde la consola. Es decir: el
- * Puente de Mando no podía administrar el enjambre, que es exactamente para lo que existe.
+ * Genesis no podía administrar el enjambre, que es exactamente para lo que existe.
  *
  * Es el fallo que la tarea p320M lleva días intentando arreglar —y que se comió sus ocho
  * intentos gratuitos sin llegar nunca a un escritor capaz—. Se arregló a mano el 2026-09-16
- * porque bloqueaba, por segunda vez en una tarde, reencolar las atascadas desde el Mando.
+ * porque bloqueaba, por segunda vez en una tarde, reencolar las atascadas desde Genesis.
  */
 const tarea = (id: string) => ({
     id,

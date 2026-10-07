@@ -1,7 +1,7 @@
 /**
- * GET/POST /api/mando/oficina (Ola 272 · 2026-09-07 · Puente de Mando)
+ * GET/POST /api/mando/oficina (Ola 272 · 2026-09-07 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
- * La Oficina 3D del Mando: los seres reales de la orquestación (escritores,
+ * La Oficina 3D de Genesis: los seres reales de la orquestación (escritores,
  * revisores, agentes 1.58, personalidades, procesos de fondo y BitNet) con su
  * sala, actividad viva y genoma evolutivo.
  *

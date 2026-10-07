@@ -11,7 +11,7 @@ activar o asignar tareas o agentes automáticamente».
 El reparto automático ya existe: el vigilante, cada 90 s, mete en la tanda viva las
 pendientes nuevas (`alimentar_tanda_viva`) o lanza una tanda si no hay ninguna, y el
 orquestador coge la siguiente de su cola cuando queda un trabajador libre. Lo que faltaba
-era poder PREGUNTAR y ACTUAR desde el Mando sin esperar la vuelta, y sobre todo saber POR
+era poder PREGUNTAR y ACTUAR desde Genesis sin esperar la vuelta, y sobre todo saber POR
 QUÉ no entra una tarea: trabajadores llenos, tope del gobernador por RAM, pausa, una
 conversación con Astraura, disco lleno, una tanda manual (`--solo`) o una dependencia.
 
@@ -52,8 +52,8 @@ WORKERS_POR_DEFECTO = 5
 SERVICIO_VIGILANTE = "com.starseed.vigilante"
 
 # Una dependencia en estos estados NO VA A LLEGAR NUNCA (la misma regla que
-# `DEPENDENCIA_IMPOSIBLE` del Mando en medidores.ts). Medido hoy: JF2 esperaba a JF1, que
-# está «sustituida» (la partieron en JF1b/JF1c, ya integradas). El Mando la contaba como
+# `DEPENDENCIA_IMPOSIBLE` de Genesis en medidores.ts). Medido hoy: JF2 esperaba a JF1, que
+# está «sustituida» (la partieron en JF1b/JF1c, ya integradas). Genesis la contaba como
 # «se puede coger ya» y el vigilante la daba por bloqueada: dos verdades, y la tarea parada
 # para siempre. Al asignarla se le quita esa dependencia por el camino de siempre
 # (`quitar_dependencias`, lo mismo que «Reintentar con cambio automático»).
@@ -227,7 +227,7 @@ def decidir(estado, pedida=None):
         motivos.append("disco justo (%.1f GB): puede fallar alguna puerta" % disco)
     if estado.get("pausado"):
         salida["resumen"] = (
-            "El enjambre está EN PAUSA desde el Mando: nadie coge trabajo hasta reanudarlo "
+            "El enjambre está EN PAUSA desde Genesis: nadie coge trabajo hasta reanudarlo "
             "(Ajustes → Director)."
         )
         return salida
@@ -505,7 +505,7 @@ def aplicar(estado, decision):
                 previas = [d for d in (entrada.get("quitar_dependencias") or []) if d not in deps]
                 entrada["quitar_dependencias"] = previas + list(deps)
                 entrada.setdefault("estado", "pendiente")
-                entrada["nota"] = "dependencia(s) que no llegarán quitadas desde el Mando: %s" % ", ".join(deps)
+                entrada["nota"] = "dependencia(s) que no llegarán quitadas desde Genesis: %s" % ", ".join(deps)
                 progreso[tid] = entrada
             _escribir_json_atomico(PROGRESO, progreso)
             hechas.append("dependencias muertas quitadas: %s" % ", ".join(quitar))
@@ -564,7 +564,7 @@ def main(argv):
     decision = decidir(estado, pedida)
     hechas = aplicar(estado, decision) if orden == "asignar" else []
     if orden == "asignar" and hechas:
-        _anunciar("Asignar desde el Mando: %s" % decision["resumen"])
+        _anunciar("Asignar desde Genesis: %s" % decision["resumen"])
     tanda = estado.get("tanda")
     print(
         json.dumps(

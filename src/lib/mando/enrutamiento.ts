@@ -1,7 +1,7 @@
 /**
  * Enrutamiento visible de la flota (2026-09-09 · Ola 301 · RT2)
  * ─────────────────────────────────────────────────────────────────────────────
- * Módulo PURO (sin red ni disco) que contesta lo que el Mando no sabía decir de
+ * Módulo PURO (sin red ni disco) que contesta lo que Genesis no sabía decir de
  * un vistazo: quién escribe AHORA, quién entra cuando el activo se agote y POR
  * QUÉ. Lo consumen la pestaña «Flota» y el «Taller del agente», para que la
  * lógica de la cadena no viva dentro de un componente y se pueda probar sola.

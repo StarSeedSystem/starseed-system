@@ -28,6 +28,8 @@ function entradaBase(): EntradaAvisoNovedad {
 describe("esRutaExcluidaAviso", () => {
   it("excluye /login, /mando, /llamada y /vivo (y sus subrutas)", () => {
     expect(esRutaExcluidaAviso("/login")).toBe(true);
+    expect(esRutaExcluidaAviso("/genesis")).toBe(true);
+    expect(esRutaExcluidaAviso("/genesis/procesos")).toBe(true);
     expect(esRutaExcluidaAviso("/mando")).toBe(true);
     expect(esRutaExcluidaAviso("/mando/procesos")).toBe(true);
     expect(esRutaExcluidaAviso("/llamada")).toBe(true);
@@ -52,7 +54,7 @@ describe("debeMostrarAviso", () => {
   });
 
   it("nunca en rutas excluidas (login, mando, llamada, vivo)", () => {
-    for (const ruta of ["/login", "/mando", "/llamada", "/vivo"]) {
+    for (const ruta of ["/login", "/genesis", "/mando", "/llamada", "/vivo"]) {
       expect(debeMostrarAviso({ ...entradaBase(), ruta })).toBe(false);
     }
   });

@@ -271,7 +271,7 @@ export function DirectorAgentes() {
 
         // 3. Verificar Next.js respondiendo
         try {
-            const resRaiz = await fetch("/mando", { cache: "no-store" });
+            const resRaiz = await fetch("/genesis", { cache: "no-store" });
             if (!resRaiz.ok) {
                 resultados.push(`❌ Página /mando: HTTP ${resRaiz.status}`);
                 todoOk = false;

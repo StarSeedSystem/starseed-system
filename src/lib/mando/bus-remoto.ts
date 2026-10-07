@@ -2,7 +2,7 @@
  * Bus remoto del enjambre (`relevo_eventos` en Supabase) con DIETA DE TRÁFICO.
  * ─────────────────────────────────────────────────────────────────────────────
  * (2026-09-25) Supabase restringió el proyecto del OS por `exceed_egress_quota` y nadie
- * podía iniciar sesión. Medido en sus registros: el Mando pedía el historial del bus
+ * podía iniciar sesión. Medido en sus registros: Genesis pedía el historial del bus
  * una y otra vez, cada petición entera desde cero —la ramificación, 30 días y 2000 filas
  * con la cola completa de cada `arranque` (~8 KB por fila, unos 10 MB por petición); las
  * colas, otros 200 `arranque`; los latidos, la foto completa— y lo repetía cada 20 s por

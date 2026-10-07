@@ -1,13 +1,13 @@
 # SOP · Sueños profundos (2026-09-29)
 
-> **Encargo de Alex:** «a través del Puente de Mando orquesta una flota de agentes de sueños
+> **Encargo de Alex:** «a través de Genesis orquesta una flota de agentes de sueños
 > profundos que pueda llevar varias horas, donde analicen a detalle cada área de todo StarSeed
 > OS para buscar mejoras y optimizaciones potenciales como recomendaciones para próximas
-> olas». Y: «para los sueños del Puente de Mando utiliza tus modelos de Claude como directores,
+> olas». Y: «para los sueños de Genesis utiliza tus modelos de Claude como directores,
 > supervisores y verificadores, y los modelos de las APIs gratuitas y contenedores del Puente
-> de Mando y de los 250 $ de crédito de Claude en la nube». Y: «recuerda usar localhost y la
-> terminal para controlar el Puente de Mando». Y: «usa todas las habilidades y herramientas del
-> Puente de Mando y del workflow como Jev y demás conectores y utilidades».
+> de Genesis y de los 250 $ de crédito de Claude en la nube». Y: «recuerda usar localhost y la
+> terminal para controlar Genesis». Y: «usa todas las habilidades y herramientas del
+> Genesis y del workflow como Jev y demás conectores y utilidades».
 
 El Dream de Hermes lee REGISTROS una vez al día. Los sueños profundos leen CÓDIGO, área por
 área y con seis lentes, y dejan cada hallazgo citado (`archivo:línea`) para que Claude lo
@@ -21,7 +21,7 @@ resultado es un informe y una cola PROPUESTA que una persona abre en el Diseñad
 | A · trabajadores | el orquestador único (`starseed-enjambre.py`) con tareas `tipo: "analisis"` | **cero crédito de Claude**: flota gratuita (llm7, NIM, xKiro `:free`, Groq, AIHubMix, OpenRouter solo `:free`, Gemini al final) | lectura compartida → síntesis → contraste; un informe por área × lente | `scripts/enjambre/analista.py` |
 | B · dirección, supervisión y verificación | **Claude**: sesiones en la nube (tarea programada, crédito de 250 $) y la sesión interactiva | crédito de Claude, poco y corto | lanzar, desatascar, verificar 3-6 informes por pasada abriendo el código citado, consolidar | `scripts/puente/suenos.py` + `scripts/puente/supervisor_suenos.md` |
 | C · consolidación | `director_suenos.py` (Python puro) + **Jev** de consejero | cero (Jev: BitNet local primero; OpenRouter con techo diario) | rechazos, ajustes, duplicados, ranking, INFORME.md, cola propuesta, avisos | `scripts/puente/director_suenos.py` |
-| D · Mando | `/api/mando/suenos` + panel «Sueños profundos» en Procesos | cero (lee disco local, sin Supabase) | rejilla área × lente, quién verificó, recomendaciones, lanzar, «Abrir en Diseñador» | `src/lib/mando/suenos*.ts`, `src/components/mando/panel-suenos.tsx` |
+| D · Genesis | `/api/mando/suenos` + panel «Sueños profundos» en Procesos | cero (lee disco local, sin Supabase) | rejilla área × lente, quién verificó, recomendaciones, lanzar, «Abrir en Diseñador» | `src/lib/mando/suenos*.ts`, `src/components/mando/panel-suenos.tsx` |
 
 ## 2. El plan: áreas × lentes (`scripts/puente/suenos_areas.py`)
 
@@ -106,7 +106,7 @@ python3 scripts/puente/suenos.py por-verificar --n 6    # los de más peso prime
 python3 scripts/puente/suenos.py veredicto SA092967 --estado verificado --nota "abrí x.ts:40…" --por claude-opus-5.5
 python3 scripts/puente/suenos.py veredicto SA092967 --estado ajustado --hallazgo 2 --esfuerzo 4 --rechazar-hallazgos 5 --nota "…" --por claude-sonnet
 python3 scripts/puente/suenos.py consolidar             # INFORME.md + cola propuesta + avisos
-python3 scripts/puente/suenos.py latido --agente claude-sup-1 --fase "verificando"   # el supervisor en el Mando (medio «claude»)
+python3 scripts/puente/suenos.py latido --agente claude-sup-1 --fase "verificando"   # el supervisor en Genesis (medio «claude»)
 ```
 
 `verificaciones.jsonl` solo se añade. Verificar con correcciones cuenta como «ajustado». El
@@ -126,12 +126,12 @@ oráculo: Jev solo VETA lo accionable con p < 0,2 y cambia la prioridad con conf
 Jev manda la regla y queda escrito («regla: media»).
 
 Escribe `dream/profundo/<fecha>/INFORME.md` (resumen ejecutivo, top 15 con columna Jev, por
-área, riesgos, cómo seguir), `consolidado.json` (lo que pinta el Mando) y
+área, riesgos, cómo seguir), `consolidado.json` (lo que pinta Genesis) y
 `olas/cola-suenos-propuesta-<fecha>.json` (≤ 15 tareas ≤ 3 archivos, `aprobacion: true`,
 `importancia: "capacidad"` cuando toca, `privado` en las de seguridad). **La propuesta no se
 lanza**: el vigilante ignora toda `cola-suenos-*` (`vigilante_logica.PREFIJO_SUENOS`). Lo ya
 propuesto (memoria `~/.starseed/dream-encargado.json`, la del Dream) no se repite. Avisos: canal
-común, UN evento `informe` de `director-suenos` en el bus (bandeja de Reportes del Mando) y,
+común, UN evento `informe` de `director-suenos` en el bus (bandeja de Reportes de Genesis) y,
 solo con la sesión completa, Telegram por Hermes (`hermes send -t telegram:Maggasukha -s …`).
 
 ## 6. Un solo orquestador
@@ -143,8 +143,7 @@ solo con la sesión completa, Telegram por Hermes (`hermes send -t telegram:Magg
   quitan huecos a los agentes de código;
 - si ese orquestador es viejo o va con `--solo` → NO lanza otro (acción `esperar`; `--forzar`
   lo haría, HTTP y ~80 MB, solo si Alex lo pide);
-- sin orquestador → lo pide al Mando (`POST localhost:9002/api/mando/colas`, «aquí») y, si el
-  Mando no contesta, lo arranca directamente como hace el Mando (`python3 -u … --workers N`);
+- sin orquestador → lo pide a Genesis (`POST localhost:9002/api/mando/colas`, «aquí») y, si Genesis no contesta, lo arranca directamente como hace Genesis (`python3 -u … --workers N`);
 - si la copia instalada no sabe soñar → acción `instalar` con la orden exacta.
 `--donde` solo admite `mac`: allí están las claves de la flota y la lente privada no sale.
 
@@ -158,7 +157,7 @@ git fetch -q .transfer/<paquete>.bundle ola0929-suenos:suenos && git merge --ff-
 bash scripts/enjambre/instalar.sh && bash scripts/enjambre/instalar.sh --comprobar
 # 3) pruebas de lo nuevo (segundos)
 python3 -m pytest -q scripts/enjambre/test_analista.py scripts/puente/test_suenos.py scripts/puente/test_suenos_areas.py scripts/puente/test_director_suenos.py
-# 4) el Mando sirve el build compilado: reconstruir con el turno de la máquina (enjambre parado, §0)
+# 4) Genesis sirve el build compilado: reconstruir con el turno de la máquina (enjambre parado, §0)
 python3 scripts/puente/reconstruir_mando.py --una-vez
 # 5) ver el plan y lanzar (todas las áreas × lentes, repartido en 4 h)
 python3 scripts/puente/suenos.py plan --horas 4
@@ -167,16 +166,16 @@ python3 scripts/puente/suenos.py lanzar --horas 4
 python3 scripts/puente/suenos.py estado
 ```
 
-Por localhost (lo mismo, desde el Mando o con curl):
+Por localhost (lo mismo, desde Genesis o con curl):
 
 ```bash
-open "http://localhost:9002/mando?pestana=procesos"          # panel «Sueños profundos»
+open "http://localhost:9002/genesis?pestana=procesos"          # panel «Sueños profundos»
 curl -s http://localhost:9002/api/mando/suenos | python3 -m json.tool | head -60
 curl -s -X POST http://localhost:9002/api/mando/suenos -H 'Content-Type: application/json' \
      -d '{"accion":"lanzar","horas":4,"areas":[],"lentes":[]}'
 curl -s -X POST http://localhost:9002/api/mando/suenos -H 'Content-Type: application/json' -d '{"accion":"consolidar"}'
 curl -s -X POST http://localhost:9002/api/mando/suenos -H 'Content-Type: application/json' -d '{"accion":"a-disenador"}'
-# la cola de sueños ya escrita también se puede lanzar por la API de colas del Mando:
+# la cola de sueños ya escrita también se puede lanzar por la API de colas de Genesis:
 curl -s -X POST http://localhost:9002/api/mando/colas -H 'Content-Type: application/json' \
      -d '{"accion":"lanzar","nombre":"suenos-2026-09-29","donde":"mac","workers":3}'
 ```
@@ -197,7 +196,7 @@ python3 scripts/puente/suenos.py estado
 ```
 `detener` toma el flock de `progreso.json` (`~/.starseed/cerrojos/progreso.lock`) mientras
 manda la señal, así el orquestador nunca muere a medio escribir el progreso (que no se escribe
-con renombrado atómico), y no manda SIGKILL. (El botón «detener» del Mando busca con
+con renombrado atómico), y no manda SIGKILL. (El botón «detener» de Genesis busca con
 `pgrep -af`, que en macOS solo imprime pids: allí no encuentra la cola; usa la CLI.)
 Parar con SIGTERM no pierde nada: los informes escritos se saltan al relanzar, la lectura
 compartida (`.mapa/`) se reutiliza y los reclamos y cerrojos de un proceso muerto se rompen solos.

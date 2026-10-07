@@ -302,7 +302,7 @@ function FichaBloqueada({
 }
 
 /**
- * EL PANEL. La única lista de bloqueadas del Mando: las mismas fichas y los
+ * EL PANEL. La única lista de bloqueadas de Genesis: las mismas fichas y los
  * mismos botones en el detalle del medidor y en la sección de procesos.
  * Legible a 360 px: una columna, botones que se envuelven.
  */

@@ -1,4 +1,4 @@
-/** Fuentes reales del Director del Mando (Ola 318 · p318B): lectores de I/O
+/** Fuentes reales del Director de Genesis (Ola 318 · p318B): lectores de I/O
  *  tolerantes que alimentan `director-datos.ts`. Solo servidor. */
 import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";

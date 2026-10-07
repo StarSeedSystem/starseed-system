@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel de contextos del Centro de Mando (Ola 239)
+ * Panel de contextos de Genesis (Ola 239)
  * ─────────────────────────────────────────────────────────────────────────────
  * Con qué trabajó cada agente del enjambre: la lista de tareas que registraron
  * su contexto (id · ola · título · hace cuánto · tamaño) y, al abrir una, sus

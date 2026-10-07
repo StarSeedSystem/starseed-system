@@ -1,5 +1,5 @@
 /**
- * Estado compartido del asistente del Mando en el navegador (cliente)
+ * Estado compartido del asistente de Genesis en el navegador (cliente)
  * ─────────────────────────────────────────────────────────────────────────────
  * La orbe flotante y la sección «Asistente» de la pestaña Chat son DOS vistas del mismo
  * chat: el id del chat actual y el modelo elegido viven en localStorage y cualquier cambio

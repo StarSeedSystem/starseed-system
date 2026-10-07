@@ -72,10 +72,10 @@ export function clasificarEfecto(ruta: string): Efecto {
         return { area: "Directores y enjambre", detalle: "manda sobre las demás tareas", riesgo: "alto" };
     }
     if (ruta.startsWith("src/app/api/")) {
-        return { area: "API del Mando", detalle: "escribe en disco y ejecuta órdenes", riesgo: "alto" };
+        return { area: "API de Genesis", detalle: "escribe en disco y ejecuta órdenes", riesgo: "alto" };
     }
     if (ruta.startsWith("src/lib/")) {
-        return { area: "Lógica del Mando", detalle: "cálculo que alimenta la interfaz", riesgo: "medio" };
+        return { area: "Lógica de Genesis", detalle: "cálculo que alimenta la interfaz", riesgo: "medio" };
     }
     if (ruta.startsWith("src/components/") || ruta.startsWith("src/app/")) {
         return { area: "Interfaz", detalle: "lo que se ve, sin efectos fuera", riesgo: "bajo" };
@@ -124,8 +124,8 @@ export function repercusionesDe(efectos: Efecto[], dependientes: string[]): stri
     if (efectos.some((e) => e.area === "Directores y enjambre" && e.riesgo === "alto")) {
         añadir("Cambia quien manda sobre las demás tareas: un fallo aquí para el enjambre entero.");
     }
-    if (efectos.some((e) => e.area === "API del Mando" && e.riesgo === "alto")) {
-        añadir("Añade o cambia una orden que el Mando puede ejecutar en tu Mac.");
+    if (efectos.some((e) => e.area === "API de Genesis" && e.riesgo === "alto")) {
+        añadir("Añade o cambia una orden que Genesis puede ejecutar en tu Mac.");
     }
     if (dependientes.length > 0) {
         añadir(`Desbloquea ${dependientes.length} tarea(s): ${dependientes.join(", ")}.`);

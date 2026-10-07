@@ -3,7 +3,7 @@
  * Tamaño y dispositivo de los widgets del paquete D (Ola 0929).
  *
  * Cada tamaño es un DISEÑO: la clase sale del marco unificado que envuelve al widget
- * (`useMarcoUnificado`) y, fuera de él (Puente de Mando, Estudio, «marco clásico»), de la medida
+ * (`useMarcoUnificado`) y, fuera de él (Genesis, Estudio, «marco clásico»), de la medida
  * del propio widget. El dispositivo decide la ergonomía: táctil = dianas de 44 px; TV = letra
  * mayor, anillos de foco y nada que solo aparezca al pasar el ratón.
  */

@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * GET  → { saludes, resumen, autocuracion }: la salud de cada cola (viva /
  *        huérfana / terminada / sin_latido), el titular para la cabecera del
- *        Mando y el estado del interruptor de autocuración.
+ *        Genesis y el estado del interruptor de autocuración.
  * POST → { accion: "revivir", cola, trabajadores? }  — relanza una cola huérfana
  *        (rechaza si está viva: dos orquestadores se pisarían).
  *        { accion: "autocuracion", activa } — enciende/apaga el interruptor
@@ -12,7 +12,7 @@
  *        interruptor está encendido.
  *
  * ⚠️ Nada de esto arranca solo desde el módulo: quien dispara el barrido es la
- * interfaz del Mando (LT3) o una tarea programada; esta ruta solo responde a
+ * interfaz de Genesis (LT3) o una tarea programada; esta ruta solo responde a
  * quien la llama. Seguridad: puerta única `guardianMando` — 404 fuera de
  * local/STARSEED_MANDO; sesión solo en producción no local; nunca devuelve
  * claves ni rutas absolutas del disco.

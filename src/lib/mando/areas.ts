@@ -1,8 +1,8 @@
 // src/lib/mando/areas.ts
 // -----------------------------------------------------------------------------
-// Áreas de trabajo del OS (Ola 231 · Centro de Mando): el índice vivo del
+// Áreas de trabajo del OS (Ola 231 · Genesis): el índice vivo del
 // proyecto — por dónde se trabaja, con qué documentos de memoria y qué olas
-// tocaron cada zona. Lo muestra `panel-areas.tsx` en el Centro de Mando.
+// tocaron cada zona. Lo muestra `panel-areas.tsx` en Genesis.
 //
 // Cada área reúne sus accesos directos (rutas internas o enlaces externos),
 // los documentos que mandan sobre ella y las olas que la han tocado. Los

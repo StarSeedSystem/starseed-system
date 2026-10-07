@@ -10,7 +10,7 @@
  * con la palabra «atascada», no solo con color, y las filas que necesitan
  * atención van arriba.
  *
- * Comprobación a mano: http://localhost:9002/mando → bajo las pastillas de la
+ * Comprobación a mano: http://localhost:9002/genesis → bajo las pastillas de la
  * cabecera, una fila por tarea viva con sus seis etapas.
  */
 

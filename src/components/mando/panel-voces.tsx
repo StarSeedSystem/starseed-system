@@ -8,7 +8,7 @@
  *  · «Demonio de voz» — salud viva del daemon de voz 127.0.0.1:4444, leída del
  *    `GET /api/mando/voces` (campo `demonio`), sondeada cada 20 s.
  *  · «Forja 1.58» — progreso global y por fases de la forja de voces.
- *  · «Voz del Mando» — monta la tarjeta ya existente (`TarjetaVozDelMando`),
+ *  · «Voz de Genesis» — monta la tarjeta ya existente (`TarjetaVozDelMando`),
  *    protegida por si no hay `VozMandoProvider` montado.
  *  · «Voces por agente» — asigna timbre a escritores/revisores, los cinco
  *    agentes 1.58 y las personalidades del OS, con «Oír» y «Guardar».
@@ -71,7 +71,7 @@ function Chip({ activo, etiqueta }: { activo: boolean | undefined | null; etique
     return <span className={`rounded-full border px-2 py-0.5 text-[11px] ${clase}`}>{etiqueta}</span>;
 }
 
-/** Marco común de una tarjeta del panel (misma estética que el resto del Mando). */
+/** Marco común de una tarjeta del panel (misma estética que el resto de Genesis). */
 function Tarjeta({ titulo, icono, nino }: { titulo: string; icono: React.ReactNode; nino: React.ReactNode }) {
     return (
         <section className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
@@ -178,7 +178,7 @@ function TarjetaForja() {
 }
 
 /**
- * Tarjeta «Voz del Mando» protegida: usa la tarjeta existente
+ * Tarjeta «Voz de Genesis» protegida: usa la tarjeta existente
  * (`TarjetaVozDelMando`), pero si falta el `VozMandoProvider` (que monta
  * `CentroMando`), avisa en vez de romper por contexto vacío.
  */
@@ -189,24 +189,24 @@ function TarjetaVozDelMandoProtegida() {
     } catch {
         return (
             <Tarjeta
-                titulo="Voz del Mando"
+                titulo="Voz de Genesis"
                 icono={<Volume2 className="h-4 w-4 text-white/70" aria-hidden />}
-                nino={<p className="text-xs text-white/60">Activa la Voz del Mando desde la cabecera para ajustarla aquí.</p>}
+                nino={<p className="text-xs text-white/60">Activa la Voz de Genesis desde la cabecera para ajustarla aquí.</p>}
             />
         );
     }
     if (!control || control.prefs === undefined) {
         return (
             <Tarjeta
-                titulo="Voz del Mando"
+                titulo="Voz de Genesis"
                 icono={<Volume2 className="h-4 w-4 text-white/70" aria-hidden />}
-                nino={<p className="text-xs text-white/60">Activa la Voz del Mando desde la cabecera para ajustarla aquí.</p>}
+                nino={<p className="text-xs text-white/60">Activa la Voz de Genesis desde la cabecera para ajustarla aquí.</p>}
             />
         );
     }
     return (
         <Tarjeta
-            titulo="Voz del Mando"
+            titulo="Voz de Genesis"
             icono={<Volume2 className="h-4 w-4 text-white/70" aria-hidden />}
             nino={<TarjetaVozDelMando />}
         />
@@ -336,8 +336,8 @@ interface RespuestaVoces {
 const MAX_FILAS = 12;
 
 /**
- * Panel principal de la pestaña «Voces» del Mando. Agrupa demonio, forja, la
- * Voz del Mando, la asignación por agente y el Estudio de Voces completo.
+ * Panel principal de la pestaña «Voces» de Genesis. Agrupa demonio, forja, la
+ * Voz de Genesis, la asignación por agente y el Estudio de Voces completo.
  */
 export function PanelVoces() {
     const [demonio, setDemonio] = useState<EstadoDemonio | null>(null);

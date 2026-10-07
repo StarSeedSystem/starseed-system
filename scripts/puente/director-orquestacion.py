@@ -222,7 +222,7 @@ def escribir_orden(listas, bloqueadas):
 def pendientes_totales():
     """Lo EJECUTABLE ahora, no todo lo que no ha terminado.
 
-    (2026-09-14) El PARTE decía «76 pendientes» mientras el Mando decía 33 y
+    (2026-09-14) El PARTE decía «76 pendientes» mientras Genesis decía 33 y
     progreso.json 10: esto contaba toda tarea no terminal de TODAS las colas,
     incluidas las cerradas y las bloqueadas por dependencia. Tres cifras
     distintas para la misma pregunta hacen que no te puedas fiar de ninguna.
@@ -259,7 +259,7 @@ def pendientes_totales():
 
 def reconciliar_estados():
     """Cierra en_curso rancios, marca commit lo que ya está en main y desbloquea a sus
-    dependientes. Ver reconciliar_progreso.py: sin esto el Mando cuenta mentiras."""
+    dependientes. Ver reconciliar_progreso.py: sin esto Genesis cuenta mentiras."""
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from reconciliar_progreso import ids_de_colas_fuente, reconciliar

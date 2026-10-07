@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """contexto_agente · el MISMO contexto de memoria y entendimiento para todos los agentes (2026-09-30).
 
-Alex: «que se usen más las habilidades, herramientas y conectores del Puente de Mando, como
+Alex: «que se usen más las habilidades, herramientas y conectores de Genesis, como
 Jev en todos los agentes y subagentes, con el mismo workflow y contextos de memorias y
 entendimientos completos». Cada agente —escritor o revisor del enjambre, analista de los
 sueños, supervisor Claude, subagente de Claude en la terminal, Hermes, un IDE— carga ESTE
@@ -59,12 +59,12 @@ REGLAS = [
      "memory/workflow-actual.md · Quién escribe qué"),
     ("tarea-pequena", ("escritor", "analista", "supervisor"),
      "Una tarea del enjambre cabe en ≤ 3 archivos y ≤ 120 líneas por archivo.",
-     "CLAUDE.md · Mando ampliado"),
+     "CLAUDE.md · Genesis ampliado"),
     ("candidato", ("escritor", "revisor", "supervisor"),
      "La salida de un motor es un CANDIDATO, no un archivo: uno que encoge más de la mitad no se integra.",
      "memory/orquestacion-economica.md · §0"),
     ("puertas", ("escritor", "revisor", "supervisor", "subagente"),
-     "Puertas: alcance → cableado → tsc → vitest → revisión → integración; nada está hecho hasta que se ve en el Mando de la Mac.",
+     "Puertas: alcance → cableado → tsc → vitest → revisión → integración; nada está hecho hasta que se ve en Genesis de la Mac.",
      "memory/workflow-actual.md · Las puertas"),
     ("tests", ("escritor",),
      "Tests TS solo de funciones puras: prohibido `vi.mock` de módulos de Node e importar un `route.ts`; importa describe/it/expect de vitest.",
@@ -148,7 +148,7 @@ HERRAMIENTAS = [
      "dirigir y verificar los sueños profundos", "scripts/puente/suenos.py"),
     ("latido", ("supervisor", "subagente"),
      "python3 scripts/puente/latido_externo.py empezar <id> \"<título>\" --agente <tú> --medio claude",
-     "aparecer como agente en el Mando (fase, terminar)", "scripts/puente/latido_externo.py"),
+     "aparecer como agente en Genesis (fase, terminar)", "scripts/puente/latido_externo.py"),
     ("gitnexus", ("escritor", "revisor", "analista", "subagente"),
      "gitnexus context <símbolo> · gitnexus impact <símbolo> · gitnexus query \"<concepto>\" · gitnexus detect-changes",
      "mapa del código antes que grep a ciegas (Mac, índice en .gitnexus/)", None),
@@ -157,7 +157,7 @@ HERRAMIENTAS = [
      "catálogos de APIs, MCP y patrones antes de inventar uno (Mac)", None),
     ("decir", ("supervisor", "subagente"),
      "starseed-puente decir \"<texto>\" --de <tú> --tipo aviso|hecho|error",
-     "el canal común del Mando y de los IDE", "scripts/puente/puente.py"),
+     "el canal común de Genesis y de los IDE", "scripts/puente/puente.py"),
     ("relevo", ("supervisor", "subagente"),
      "starseed-relevo nota --de <tú> \"hecho…; sigue…\"",
      "dejar el punto de relevo para el siguiente agente (Mac)", None),

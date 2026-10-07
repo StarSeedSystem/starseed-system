@@ -11,7 +11,7 @@ MUEVE a `starseed_memory_root/colas-fuente/`.
 
 (2026-10-03) Nadie lo llamaba y, con el orquestador vivo, no movía ninguna `cola-auto-*`
 —y el orquestador casi siempre está vivo—. Se juntaron 727 copias (25 MB) y 633 latidos en
-`olas/`: el Mando las leía TODAS en cada petición (`leerColasCompletas`) y su servidor murió
+`olas/`: Genesis las leía TODAS en cada petición (`leerColasCompletas`) y su servidor murió
 por «JavaScript heap out of memory» a los 19 min. Ahora solo se quedan la cola que corre un
 orquestador vivo y las de menos de 24 h; sus `latidos-` se van con ellas; y el vigilante lo
 pasa cada hora.
@@ -113,7 +113,7 @@ def indice_de(colas):
     """PURA: id → {titulo, ola, cola} de las colas archivadas (sin prompts).
 
     `colas` es [(nombre, tareas)]. Si un id sale en varias, gana la de nombre mayor (las
-    copias `cola-auto-MMDD-HHMMSS` ordenan por fecha). El Mando lo funde en sus títulos para
+    copias `cola-auto-MMDD-HHMMSS` ordenan por fecha). Genesis lo funde en sus títulos para
     que las tareas de colas archivadas sigan «conocidas» (`indice-colas.ts`)."""
     tareas = {}
     for nombre, lista in sorted(colas, key=lambda c: c[0]):

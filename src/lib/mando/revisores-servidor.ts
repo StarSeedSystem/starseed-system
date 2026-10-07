@@ -9,7 +9,7 @@
  *
  * NADA ARRANCA SOLO DESDE ESTE MÓDULO: no hay `setInterval`, ni temporizadores,
  * ni efectos al importarlo. Quien dispara `barridoRevisores()` es la interfaz
- * del Mando o una tarea programada; quien aprueba una sugerencia y quien lanza
+ * de Genesis o una tarea programada; quien aprueba una sugerencia y quien lanza
  * la cola resultante es una persona. La vigilancia deja COLA, no hechos
  * consumados: cada sugerencia nace `propuesta` y ahí se queda sola.
  *
@@ -198,7 +198,7 @@ export function areaQueToca(estado: EstadoRevisores, ahora = new Date()): { area
 async function bloquesDeRuta(relativa: string): Promise<Array<{ ruta: string; texto: string; peso: number }>> {
     const limpia = relativa.replace(/^\.?\//, "").replace(/\/$/, "");
     // Rutas siempre relativas a `raizDelProyecto()`, nunca a `process.cwd()`
-    // directo: es la regla del Mando para no arrastrar el árbol al bundle.
+    // directo: es la regla de Genesis para no arrastrar el árbol al bundle.
     const absoluta = path.join(RAÍZ, limpia);
     const bloques: Array<{ ruta: string; texto: string; peso: number }> = [];
     const añadir = async (rutaAbs: string, rutaRel: string): Promise<void> => {

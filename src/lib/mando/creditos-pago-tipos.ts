@@ -1,6 +1,6 @@
 // (2026-10-06) Tipos y funciones PURAS de los créditos de pago, sin nada de Node: las usa
 // `medidores.ts`, que acaba en el bundle del navegador (centro-mando.tsx). Con `node:fs`
-// aquí, `next build` fallaba («UnhandledSchemeError: node:fs») y el Mando no se podía
+// aquí, `next build` fallaba («UnhandledSchemeError: node:fs») y Genesis no se podía
 // reconstruir. La lectura del disco vive en `creditos-pago.ts` (solo servidor).
 export interface VentanaCredito { id:string; etiqueta:string; usado_pct:number; reinicia:string|null }
 export interface Saldo { valor:number; unidad:string }

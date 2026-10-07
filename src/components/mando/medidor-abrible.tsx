@@ -11,7 +11,7 @@
  *   · El detalle se pide SOLO al abrir. Ocho peticiones al montar la página es lo
  *     contrario de «que no ocupe muchos recursos».
  *   · Confirmación en dos pasos en el propio botón, nunca `window.confirm`: ese
- *     bloquea el hilo y congela todo el Mando mientras está abierto.
+ *     bloquea el hilo y congela todo Genesis mientras está abierto.
  *   · Un reintento sin describir el cambio no se puede enviar. Sería el mismo
  *     intento y fallaría exactamente igual.
  *   · Título, valor y botones CENTRADOS (lo pidió Alex). Las filas del panel van
@@ -329,7 +329,7 @@ function FichaDesplegable({ f }: { f: FilaMedidor }) {
                         // para que se lean como continuaciones de la etiqueta de arriba.
                         const sangrada = SANGRADAS.has(dato.etiqueta);
                         // Los avisos usan el mismo rojo de peligro que las acciones destructivas
-                        // del Mando, para que su significado visual no cambie dentro de la ficha.
+                        // de Genesis, para que su significado visual no cambie dentro de la ficha.
                         const tono = dato.aviso ? "text-rose-200" : "text-white/70";
                         return (
                             <Fragment key={`${f.id}-ficha-${i}-${dato.etiqueta}`}>

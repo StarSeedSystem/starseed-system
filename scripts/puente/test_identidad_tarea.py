@@ -60,7 +60,7 @@ class TestIdentidadCommit(unittest.TestCase):
 
     def test_no_reconoce_menciones_libres(self):
         self.assertIsNone(
-            identidad_commit("fix: reparación completa del Puente de Mando")
+            identidad_commit("fix: reparación completa de Genesis")
         )
         self.assertIsNone(identidad_commit("repara zW8 que quedó roto en Ola 305"))
         self.assertIsNone(identidad_commit("Ola 305 · zW8 quedó a medias y se retoca"))

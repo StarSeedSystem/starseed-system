@@ -1,5 +1,5 @@
 /**
- * Memorias del Puente de Mando — lectura de disco (solo servidor)
+ * Memorias de Genesis — lectura de disco (solo servidor)
  * ─────────────────────────────────────────────────────────────────────────────
  * Reúne, en las ocho capas de `memorias.ts`, todo lo que StarSeed OS recuerda:
  * el núcleo (principios/instrucciones), la memoria del proyecto, los informes
@@ -416,7 +416,7 @@ async function catalogoCompleto(base: ArchivoMemoria[]): Promise<ArchivoMemoria[
 }
 
 /**
- * Todo lo que sabe el Mando sobre las memorias del proyecto, en las ocho
+ * Todo lo que sabe Genesis sobre las memorias del proyecto, en las ocho
  * capas de `memorias.ts`. `consulta` (opcional) filtra los archivos de cada
  * capa por título/ruta/resumen — el conteo por capa y las «últimas
  * actualizaciones» siempre reflejan el catálogo COMPLETO, no lo filtrado.

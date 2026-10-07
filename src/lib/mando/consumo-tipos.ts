@@ -1,16 +1,16 @@
 /**
- * Medidor «Consumo y créditos» del Puente de Mando — tipos y reglas PURAS (2026-09-29).
+ * Medidor «Consumo y créditos» de Genesis — tipos y reglas PURAS (2026-09-29).
  *
  * Seguro para el cliente: sin `node:`, sin red, sin reloj propio. Lo usan la ruta
  * `/api/mando/consumo` (servidor) y el componente `medidor-consumo.tsx` (navegador).
  *
- * Alex: «añade un medidor de esos créditos que lo verifique desde el Puente de Mando; ya no
+ * Alex: «añade un medidor de esos créditos que lo verifique desde Genesis; ya no
  * pueden haber errores de ese tipo que consuman los créditos». El plan gratuito de Supabase
  * NO tiene límite de gasto diario: los presupuestos de aquí son NUESTROS y los hace cumplir
  * `scripts/puente/vigia_consumo.py` (freno remoto en `os_freno`).
  */
 
-/** Lo que Alex puede editar desde el Mando (`~/.starseed/presupuestos.json`). */
+/** Lo que Alex puede editar desde Genesis (`~/.starseed/presupuestos.json`). */
 export interface Presupuestos {
     supabase_peticiones_dia: number;
     supabase_mb_dia: number;

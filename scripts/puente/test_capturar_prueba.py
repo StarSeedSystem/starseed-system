@@ -13,7 +13,7 @@ from capturar_prueba import (
 class TestRutasDeArchivos(unittest.TestCase):
     def test_pagina_de_grupo_de_ruta(self):
         self.assertEqual(
-            rutas_de_archivos(["src/app/(app)/mando/page.tsx"]), ["/mando"]
+            rutas_de_archivos(["src/app/(app)/genesis/page.tsx"]), ["/genesis"]
         )
 
     def test_pagina_de_otro_grupo(self):
@@ -28,7 +28,7 @@ class TestRutasDeArchivos(unittest.TestCase):
     def test_componente_del_mando(self):
         self.assertEqual(
             rutas_de_archivos(["src/components/mando/chat-orquestacion.tsx"]),
-            ["/mando"],
+            ["/genesis"],
         )
 
     def test_componente_ajeno_no_da_ruta(self):
@@ -42,18 +42,18 @@ class TestRutasDeArchivos(unittest.TestCase):
 
     def test_sin_duplicados_y_en_orden(self):
         archivos = [
-            "src/app/(app)/mando/page.tsx",
+            "src/app/(app)/genesis/page.tsx",
             "src/components/mando/asistente-mando.tsx",
-            "src/app/(app)/mando/page.tsx",
+            "src/app/(app)/genesis/page.tsx",
         ]
-        self.assertEqual(rutas_de_archivos(archivos), ["/mando"])
+        self.assertEqual(rutas_de_archivos(archivos), ["/genesis"])
 
     def test_varias_rutas_distintas(self):
         archivos = [
-            "src/app/(app)/mando/page.tsx",
+            "src/app/(app)/genesis/page.tsx",
             "src/app/(main)/escritorios/page.tsx",
         ]
-        self.assertEqual(rutas_de_archivos(archivos), ["/mando", "/escritorios"])
+        self.assertEqual(rutas_de_archivos(archivos), ["/genesis", "/escritorios"])
 
     def test_none_y_vacio(self):
         self.assertEqual(rutas_de_archivos(None), [])
@@ -76,7 +76,7 @@ class TestNombreCaptura(unittest.TestCase):
 
 class TestHaceFaltaCaptura(unittest.TestCase):
     def test_integrada_con_algo_visible(self):
-        self.assertTrue(hace_falta_captura("commit", ["src/app/(app)/mando/page.tsx"]))
+        self.assertTrue(hace_falta_captura("commit", ["src/app/(app)/genesis/page.tsx"]))
 
     def test_integrada_sin_algo_visible(self):
         self.assertFalse(hace_falta_captura("commit", ["src/lib/mando/colas.ts"]))
@@ -84,7 +84,7 @@ class TestHaceFaltaCaptura(unittest.TestCase):
     def test_no_integrada(self):
         for estado in ("fallo", "en_curso", "pendiente", "esperando_aprobacion"):
             self.assertFalse(
-                hace_falta_captura(estado, ["src/app/(app)/mando/page.tsx"])
+                hace_falta_captura(estado, ["src/app/(app)/genesis/page.tsx"])
             )
 
     def test_sin_archivos(self):
@@ -92,7 +92,7 @@ class TestHaceFaltaCaptura(unittest.TestCase):
 
     def test_estado_desconocido(self):
         self.assertFalse(
-            hace_falta_captura("otra_cosa", ["src/app/(app)/mando/page.tsx"])
+            hace_falta_captura("otra_cosa", ["src/app/(app)/genesis/page.tsx"])
         )
 
 

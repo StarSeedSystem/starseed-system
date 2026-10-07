@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Cartero del Chat Director del Mando: entrega mensajes a los canales.
+"""Cartero del Chat Director de Genesis: entrega mensajes a los canales.
 
 Cada 5 s revisa `director_chat.leer()` y atiende las entregas pendientes:
 claude-mac y chatgpt ejecutan la orden local, telegram solo envía (no
@@ -271,7 +271,7 @@ def _entregar_chatgpt(mensaje, modelo_pedido, raiz=None):
 def _entregar_telegram(mensaje, raiz=None):
     texto = mensaje.get("texto", "")[:3500]
     rc, salida = motores_director.correr(
-        ["hermes", "send", "-t", "telegram:Maggasukha", "-s", "Puente de Mando", texto],
+        ["hermes", "send", "-t", "telegram:Maggasukha", "-s", "Genesis", texto],
         segundos=120,
     )
     if rc != 0:
@@ -433,7 +433,7 @@ def main(argv=None):
 
     p = argparse.ArgumentParser(
         prog="cartero_director",
-        description="Cartero del Chat Director del Mando",
+        description="Cartero del Chat Director de Genesis",
     )
     p.add_argument(
         "--una-vez", action="store_true", help="hace una pasada de entregas y sale"

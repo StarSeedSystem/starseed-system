@@ -11,7 +11,7 @@
  *     compositor: ni layout ni pintura del resto de la página).
  *   · Se enciende tras un umbral (250 ms): una carga corta no parpadea nada.
  *   · Cuenta las peticiones con un envoltorio de `window.fetch` que solo suma y
- *     resta un entero; el sondeo periódico (estado del Mando, salud de voz,
+ *     resta un entero; el sondeo periódico (estado de Genesis, salud de voz,
  *     latidos, telemetría…) queda fuera para que la barra hable de lo que el
  *     usuario espera, no de lo que el OS vigila en segundo plano.
  *   · Adaptativo: con `prefers-reduced-motion`, `saveData` o poca memoria

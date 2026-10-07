@@ -90,7 +90,7 @@ export function PanelGrafo() {
                         ? "La consola está apagada en esta instancia (solo funciona en local o con STARSEED_MANDO=1)."
                         : respuesta.status === 401
                           ? "Necesitas iniciar sesión para ver el grafo del mando."
-                          : `No se pudo leer el grafo del mando (HTTP ${respuesta.status}).`,
+                          : `No se pudo leer el grafo de Genesis (HTTP ${respuesta.status}).`,
                 );
                 setGrafo(null);
                 return;

@@ -1,6 +1,6 @@
 // src/lib/mando/reportes.ts
 // -----------------------------------------------------------------------------
-// Bandeja curada de Reportes del Puente de Mando (Ola p323A).
+// Bandeja curada de Reportes de Genesis (Ola p323A).
 //
 // No es otro chat de eventos crudos (eso ya lo hace `chat-orquestacion.tsx`):
 // aquí cada entrada EXPLICA qué pasó, por qué importa y cómo comprobarlo, con

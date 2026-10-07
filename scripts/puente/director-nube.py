@@ -23,7 +23,7 @@ dos topes que no medían nada real:
 Ahora el tope es el único que sí es real: **cuántos agentes simultáneos aguantan las
 pasarelas gratuitas**, `TOPE_AGENTES`. Los jobs se lanzan en paralelo mientras quepan
 agentes, y el número de agentes se MIDE de los runs vivos (no se supone) con
-`agentes_nube.resumir`, el mismo lector que alimenta el medidor del Puente.
+`agentes_nube.resumir`, el mismo lector que alimenta el medidor de Genesis.
 
 Lo que NO hace, a propósito:
   · No toca `main` con código: `nube-gh.py lanzar` solo publica el commit de la cola.
@@ -140,7 +140,7 @@ def hay_claves():
 def medir_nube():
     """(runs_en_marcha, agentes_en_marcha), medido de GitHub y ESCRITO en el bus.
 
-    Es el mismo lector del medidor del Puente (`agentes_nube`), a propósito: si el director
+    Es el mismo lector del medidor de Genesis (`agentes_nube`), a propósito: si el director
     y el medidor contaran por su cuenta volveríamos a la enfermedad de dos sitios que
     calculan el mismo número de forma distinta. Aquí se mide una vez y se escribe una vez.
     """
@@ -177,7 +177,7 @@ def inventario_de_contenedores():
 
     Los topes salen de aquí y no de constantes del director: antes `TOPE_AGENTES = 12` y
     `TRABAJADORES = 4` eran suposiciones escritas a mano que no tenían por qué coincidir
-    con lo que el Puente enseñaba en pantalla. Ahora la pantalla y la decisión leen el
+    con lo que Genesis enseñaba en pantalla. Ahora la pantalla y la decisión leen el
     mismo archivo.
     """
     try:

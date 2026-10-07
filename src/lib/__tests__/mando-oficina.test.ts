@@ -1,5 +1,5 @@
 /**
- * Pruebas del modelo puro de la Oficina 3D del Mando (Ola 272 · 2026-09-07).
+ * Pruebas del modelo puro de la Oficina 3D de Genesis (Ola 272 · 2026-09-07).
  * Cubre: seres por modelo con rol correcto, salas con ocupantes y actividad
  * en (0,1], la fusión del genoma (la xp nunca baja y se ganan rasgos al subir
  * de nivel) y el determinismo del ADN.

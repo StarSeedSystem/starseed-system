@@ -2,10 +2,18 @@ import type { NextConfig } from 'next';
 import path from 'path';
 
 const nextConfig: NextConfig = {
+  // (2026-10-07) El Puente de Mando se llama Genesis: su página es /genesis. La URL vieja
+  // redirige (con su ?pestana=/?ambito=) para que no se rompa ningún enlace, atajo ni script.
+  async redirects() {
+    return [
+      { source: '/mando', destination: '/genesis', permanent: false },
+      { source: '/mando/:resto*', destination: '/genesis/:resto*', permanent: false },
+    ];
+  },
   /* config options here */
   // COMPILAR SIN TIRAR LO QUE SE ESTÁ SIRVIENDO (2026-09-22).
   //
-  // El Mando corre con `next start`, que lee de `.next` EN CALIENTE, no solo al arrancar.
+  // Genesis corre con `next start`, que lee de `.next` EN CALIENTE, no solo al arrancar.
   // Cada `next build` borraba y rehacía ese mismo directorio, así que durante los dos a
   // cinco minutos de compilación la pantalla devolvía «Internal Server Error»:
   //     ⨯ Error: ENOENT: no such file or directory, open '.next/required-server-files.json'
@@ -21,7 +29,7 @@ const nextConfig: NextConfig = {
   // Lo que NUNCA debe viajar dentro de una función de Vercel (límite: 250 MB sin comprimir).
   // El 2026-09-05 «api/mando/asistente» salió de 2,21 GB porque el trazador arrastró el
   // proyecto entero (src/, venv/, .git/, .next/cache/…) al ver lecturas con rutas variables
-  // bajo process.cwd() (arreglado además en src/lib/mando/raiz.ts). El Mando es 404 en
+  // bajo process.cwd() (arreglado además en src/lib/mando/raiz.ts). Genesis es 404 en
   // producción: sus funciones no necesitan ningún archivo del disco.
   outputFileTracingExcludes: {
     '**': ['./venv/**', './.git/**', './.next/cache/**', './.tmp/**', './.transfer/**'],

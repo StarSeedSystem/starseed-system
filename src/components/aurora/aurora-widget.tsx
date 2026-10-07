@@ -523,7 +523,7 @@ export function AuroraWidget() {
       return;
     }
 
-    // (2026-09-05) En el Puente de Mando la orbe es el ASISTENTE TÉCNICO de la orquestación:
+    // (2026-09-05) En Genesis la orbe es el ASISTENTE TÉCNICO de la orquestación:
     // un toque abre/cierra su panel (mismo chat y selector de modelo que la pestaña Chat).
     if (esRutaMinima(window.location.pathname)) {
       // (2026-09-05) En el Estudio de Voces la orbe es el BOTÓN DE PRUEBA: un toque habla la

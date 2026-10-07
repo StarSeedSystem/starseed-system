@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Chat Director del Mando: biblioteca y línea de órdenes (solo estándar)."""
+"""Chat Director de Genesis: biblioteca y línea de órdenes (solo estándar)."""
 
 import argparse
 import fcntl
@@ -266,7 +266,7 @@ def _formatear(registro):
 
 def _principal(argv=None):
     p = argparse.ArgumentParser(
-        prog="director_chat", description="Chat Director del Mando"
+        prog="director_chat", description="Chat Director de Genesis"
     )
     sub = p.add_subparsers(dest="orden", required=True)
     s = sub.add_parser("leer", help="leer el chat")

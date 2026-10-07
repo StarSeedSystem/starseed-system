@@ -1,5 +1,5 @@
 /**
- * GET /api/mando/contextos (Ola 239 · Centro de Mando)
+ * GET /api/mando/contextos (Ola 239 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Devuelve el contexto que recibió cada tarea del enjambre (leído de
  * `starseed_memory_root/olas/contextos/`), normalizado y ordenado por lo más

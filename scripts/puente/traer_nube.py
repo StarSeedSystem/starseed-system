@@ -11,7 +11,7 @@ las 14:40: 66 ramas, con PRD1005L y PRD1005N integradas en la nube (pasaron sus 
 fuera de main, y ~60 «salvavidas» (trabajo a medias que no pasó las puertas) sin que nadie las
 mirase. La nube trabajaba y su trabajo no llegaba.
 
-Una pasada (`revisar`), automática desde la autocuración del Mando cada 30 min:
+Una pasada (`revisar`), automática desde la autocuración de Genesis cada 30 min:
 
 1. **Traer** lo que la nube integró y main no tiene: `cherry-pick` de sus commits con el cerrojo
    `integrar` (el del orquestador) y, ANTES de quedarse, las mismas puertas que un agente en la
@@ -136,7 +136,7 @@ def elegir_por_tarea(entradas):
 
 
 def base_de(tid):
-    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` del Mando)."""
+    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
     return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
 
 

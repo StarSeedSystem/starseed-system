@@ -137,16 +137,16 @@ async function checkRaiz(base) {
   return check("raiz", ESTADO_FALLO, r.status, `raíz muy lenta (${r.ms} ms)`, r.ms);
 }
 
-/** Panel del Mando: estado general (debe traer `cuentas`). */
+/** Panel de Genesis: estado general (debe traer `cuentas`). */
 async function checkMandoEstado(base) {
   const r = await pedir(`${base}/api/mando/estado`);
   const bien = r.status === 200 && r.json && typeof r.json === "object" && "cuentas" in r.json;
   return bien
-    ? check("mando_estado", ESTADO_OK, r.status, "estado del Mando con cuentas", r.ms)
-    : check("mando_estado", ESTADO_FALLO, r.error ?? r.status, "el Mando no dio su estado", r.ms);
+    ? check("mando_estado", ESTADO_OK, r.status, "estado de Genesis con cuentas", r.ms)
+    : check("mando_estado", ESTADO_FALLO, r.error ?? r.status, "Genesis no dio su estado", r.ms);
 }
 
-/** Ramificación del Mando: la lista de olas debe ser un array. */
+/** Ramificación de Genesis: la lista de olas debe ser un array. */
 async function checkMandoRamificacion(base) {
   const r = await pedir(`${base}/api/mando/ramificacion`);
   const bien = r.status === 200 && r.json && Array.isArray(r.json.olas);

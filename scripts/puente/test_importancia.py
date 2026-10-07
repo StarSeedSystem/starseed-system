@@ -18,7 +18,7 @@ def l(texto, tipo="aviso", tarea=""):
 
 class TestSuena(unittest.TestCase):
     def test_lo_que_pide_una_decision(self):
-        self.assertTrue(suena(l("rama ola/p316I lista: Espera tu visto bueno en el Mando")))
+        self.assertTrue(suena(l("rama ola/p316I lista: Espera tu visto bueno en Genesis")))
         self.assertTrue(suena(l("Rechazo automático · p316I")))
         self.assertTrue(suena(l("ninguna pasarela escribe ahora mismo — no arranco")))
 
@@ -46,7 +46,7 @@ class TestSuena(unittest.TestCase):
 
     def test_siempre_gana_sobre_nunca(self):
         # Lleva las dos: es una rotación (nunca) y un visto bueno (siempre). Gana siempre.
-        self.assertTrue(suena(l("reenrutado y ahora espera tu visto bueno en el Mando")))
+        self.assertTrue(suena(l("reenrutado y ahora espera tu visto bueno en Genesis")))
         # Una cuota caída ya no suena: el enjambre la aparta solo.
         self.assertFalse(suena(l("reenrutado: apinex sin cupo hasta 2026-09-16 19:31:08")))
 
@@ -78,7 +78,7 @@ class TestResumen(unittest.TestCase):
 class TestFiltrar(unittest.TestCase):
     def test_separa_las_dos_cosas(self):
         lineas = [l("latido - · x"),
-                  l("rama ola/zW7 lista: espera tu visto bueno en el Mando"),
+                  l("rama ola/zW7 lista: espera tu visto bueno en Genesis"),
                   l("sin cambios con kimi (1/5) → sigo"),
                   l("commit zW7 · integrado en main", tipo="commit")]
         fuertes, resumen = filtrar(lineas)

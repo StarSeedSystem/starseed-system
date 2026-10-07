@@ -1,5 +1,5 @@
 /**
- * GET /api/mando/memorias (Ola de Memorias · Puente de Mando)
+ * GET /api/mando/memorias (Ola de Memorias · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Todas las memorias del proyecto StarSeed OS en ocho capas —núcleo, proyecto,
  * relevo e informes, aprendizajes, recuerdos por tarea, preferencias y

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel de ajustes del Centro de Mando (Ola 233)
+ * Panel de ajustes de Genesis (Ola 233)
  * ─────────────────────────────────────────────────────────────────────────────
  * Configura cómo trabaja el enjambre desde la propia consola del OS, sin
  * editar el archivo a mano. Habla con `GET/PUT /api/mando/ajustes`
@@ -356,7 +356,7 @@ function unionModelos(
  * Interruptor «Mantener la pantalla encendida» (Ola 1005P · PA1005Ds).
  * Un único ajuste global (`~/.starseed/pantalla.json`, vía `/api/mando/pantalla`)
  * gobierna el servicio `com.starseed.pantalla` de la Mac y la Screen Wake Lock
- * de cualquier dispositivo con el Mando abierto. Encendido por defecto.
+ * de cualquier dispositivo con Genesis abierto. Encendido por defecto.
  */
 function TarjetaPantalla() {
     const [estado, setEstado] = useState<EstadoPantallaMando | null>(null);
@@ -399,7 +399,7 @@ function TarjetaPantalla() {
                         Mantener la pantalla encendida
                     </h3>
                     <p className="mt-0.5 text-xs text-white/50">
-                        Un solo ajuste para la Mac y cualquier dispositivo con el Mando
+                        Un solo ajuste para la Mac y cualquier dispositivo con Genesis
                         abierto. Encendido por defecto.
                     </p>
                 </div>
@@ -976,10 +976,10 @@ export function PanelAjustes() {
             <article className="rounded-xl border border-white/10 bg-black/30 p-4">
                 <header>
                     <h3 className="text-sm font-semibold text-white">
-                        Accesos a este Mando
+                        Accesos a este Genesis
                     </h3>
                     <p className="mt-0.5 text-xs text-white/50">
-                        Quién trabaja con este Mando, quién lo está usando ahora y los
+                        Quién trabaja con este Genesis, quién lo está usando ahora y los
                         servicios autorizados.
                     </p>
                 </header>
@@ -1020,7 +1020,7 @@ function TarjetasInformativas() {
                 icono={<KeyRound className="h-4 w-4" aria-hidden />}
             >
                 <p>
-                    La API del mando recorta todo a rutas relativas del repositorio y a
+                    La API de Genesis recorta todo a rutas relativas del repositorio y a
                     resúmenes seguros. Jamás devuelve tokens, cookies ni rutas absolutas
                     del disco del usuario.
                 </p>

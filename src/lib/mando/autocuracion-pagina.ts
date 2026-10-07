@@ -1,5 +1,5 @@
 /**
- * Autocuración de la PÁGINA del Mando (2026-10-05).
+ * Autocuración de la PÁGINA de Genesis (2026-10-05).
  *
  * QUÉ: cada 15 s mira la salud de las lecturas (`guardia-fetch.ts`). Si la página está
  * atascada —muchas lecturas fallidas seguidas, o más de dos minutos pidiendo sin que vuelva
@@ -95,7 +95,7 @@ async function sondearServidor(tope = 8000): Promise<boolean> {
 
 function anunciar(detalle: { remedio: Remedio; porque: string; descartadas?: number }) {
     try {
-        console.info(`[autocuración del Mando] ${detalle.remedio}: ${detalle.porque}`);
+        console.info(`[autocuración de Genesis] ${detalle.remedio}: ${detalle.porque}`);
         window.dispatchEvent(new CustomEvent(EVENTO, { detail: detalle }));
     } catch {
         // Sin CustomEvent no hay aviso; el remedio se aplica igual.

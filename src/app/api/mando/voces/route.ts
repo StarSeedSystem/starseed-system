@@ -1,7 +1,7 @@
 /**
  * GET/POST /api/mando/voces (Ola 275 · Tarea V2 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
- * Persistencia de la «Voz del Mando»: las preferencias de anuncios hablados de
+ * Persistencia de la «Voz de Genesis»: las preferencias de anuncios hablados de
  * la orquestación y la asignación de voces por agente/personalidad. Vive en
  * `starseed_memory_root/mando/voces.json` (tolerante: si no existe se devuelven
  * los valores por defecto) vía `raizDelProyecto()`.

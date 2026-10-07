@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel «Publicar» del Centro de Mando (Ola 239)
+ * Panel «Publicar» de Genesis (Ola 239)
  * ─────────────────────────────────────────────────────────────────────────────
  * Lo que espera el visto bueno de Alex y, desde aquí mismo, el botón que lo
  * publica: cabecera (rama, HEAD, commits sin publicar), tres semáforos

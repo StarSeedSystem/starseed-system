@@ -1,5 +1,5 @@
 /**
- * GET /api/mando/director — el modelo real del Director del Puente de Mando:
+ * GET /api/mando/director — el modelo real del Director de Genesis:
  * agentes vivos/colgados por latido, tareas pendientes de las colas fuente,
  * salud de proveedores contra el catálogo de modelos, servicios launchd y el
  * canal común (Ola 318 · p318B). Nunca devuelve claves ni rutas del disco.

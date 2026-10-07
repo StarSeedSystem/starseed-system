@@ -33,7 +33,7 @@ describe("motorDe", () => {
         expect(motorDe("codex/gpt-5.6-sol")).toBe("chatgpt");
     });
 
-    it("cualquier otro modelo (o un texto vacío) va por la API del Mando", () => {
+    it("cualquier otro modelo (o un texto vacío) va por la API de Genesis", () => {
         expect(motorDe("nim/kimi-k3")).toBe("api");
         expect(motorDe("xkiro/qwen3.8-max")).toBe("api");
         expect(motorDe("")).toBe("api");

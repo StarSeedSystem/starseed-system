@@ -2,7 +2,7 @@
 """Mensajes de Alex a un agente EN MARCHA, sin interrumpirlo (2026-09-20).
 
 Alex: «una opción de enviar mensajes al agente para que lo considere en el
-trabajo sin interrumpir el proceso». El Mando escribe (POST
+trabajo sin interrumpir el proceso». Genesis escribe (POST
 /api/mando/agentes/<id>/mensaje) una línea JSON en
 `starseed_memory_root/olas/mensajes/<id>.jsonl`:
     {"t": "2026-09-20T23:10:00", "de": "alex", "texto": "…"}
@@ -12,7 +12,7 @@ y el orquestador los ENTREGA por dos vías, ninguna corta nada:
   2. el bloque «MENSAJES DEL DIRECTOR» al principio del prompt del siguiente
      intento y del revisor.
 Cada mensaje lleva `entregado` (cuándo se escribió en el worktree) y `leido`
-(cuándo entró en un prompt), que el Mando enseña. Nunca claves: es texto de
+(cuándo entró en un prompt), que Genesis enseña. Nunca claves: es texto de
 trabajo. Funciones puras probadas en test_mensajes_agente.py.
 """
 from __future__ import annotations
@@ -68,7 +68,7 @@ def _escribir(olas: str, tid: str, mensajes: list[dict]) -> None:
 
 
 def anotar(olas: str, tid: str, texto: str, de: str = "alex") -> dict:
-    """Añade un mensaje (lo usa el Mando y las pruebas). Devuelve el mensaje."""
+    """Añade un mensaje (lo usa Genesis y las pruebas). Devuelve el mensaje."""
     texto = str(texto or "").strip()
     if not texto:
         raise ValueError("mensaje vacío")

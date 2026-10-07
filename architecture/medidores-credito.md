@@ -10,7 +10,7 @@ choca con el código real, gana el código real y se anota la diferencia en el i
 
 ## 0. Por qué
 
-Hasta hoy el medidor «Claude · límites» del Mando enseñaba lo que alguien DECLARABA a mano
+Hasta hoy el medidor «Claude · límites» de Genesis enseñaba lo que alguien DECLARABA a mano
 (`limites_claude.py declarar`). La última lectura tenía días: decía semana 24 % cuando la real
 era 41 %. Un medidor que hay que alimentar a mano miente en cuanto nadie lo alimenta. Las dos
 suscripciones de pago de Alex se pueden leer desde la terminal de la Mac SIN gastar tokens; se
@@ -189,10 +189,10 @@ Se marca `fuente: "registro de sesiones de codex"` y `leido` = el `timestamp` de
 | MC1007C | Adaptadores por configuración `http_json` y `declarado` | `scripts/puente/medidor_http_json.py`, `scripts/puente/test_medidor_http_json.py` |
 | MC1007D | Recolector: registro, salida, historial, puente a `limites_claude` y a la salud de proveedores | `scripts/puente/medidores_credito.py`, `scripts/puente/test_medidores_credito.py` |
 | MC1007E | Servicio 24/7 + línea de estado que alimenta gratis | `scripts/puente/com.starseed.medidores.plist`, `scripts/puente/statusline-starseed.sh`, `scripts/puente/test_statusline_starseed.py` |
-| MC1007F | Lectura y estado en el Mando (puro) | `src/lib/mando/creditos-pago.ts`, `src/lib/mando/__tests__/creditos-pago.test.ts` |
+| MC1007F | Lectura y estado en Genesis (puro) | `src/lib/mando/creditos-pago.ts`, `src/lib/mando/__tests__/creditos-pago.test.ts` |
 | MC1007G | Medidor «creditos» en el panel y la ruta | `src/lib/mando/medidores.ts`, `src/app/api/mando/medidores/route.ts` |
 | MC1007H | Una tarjeta por crédito en el pulso de trabajo + «Actualizar ahora» | `src/components/mando/centro-mando.tsx`, `src/app/api/mando/creditos/route.ts` |
-| MC1007I | El plugin del puente de mando conoce el medidor | `integraciones-de-codigo/claude-code/puente-de-mando/hooks/texto.ts`, `integraciones-de-codigo/claude-code/puente-de-mando/hooks/script-mac.ts` |
+| MC1007I | El plugin de Genesis conoce el medidor | `integraciones-de-codigo/claude-code/puente-de-mando/hooks/texto.ts`, `integraciones-de-codigo/claude-code/puente-de-mando/hooks/script-mac.ts` |
 
 ### 4.1 Recolector (`medidores_credito.py`)
 
@@ -222,7 +222,7 @@ Se marca `fuente: "registro de sesiones de codex"` y `leido` = el `timestamp` de
 - `com.starseed.medidores`: `StartInterval` 600 s (cada 10 min), `RunAtLoad`, `Nice` 10,
   `PATH` con `/Users/alex/.local/bin` delante, log en `/tmp/starseed-medidores.log`. Lo instala
   la dirección (Claude) tras integrarse, con `launchctl bootstrap`.
-- Bajo demanda: el botón «Actualizar ahora» del Mando hace `POST /api/mando/creditos`, que
+- Bajo demanda: el botón «Actualizar ahora» de Genesis hace `POST /api/mando/creditos`, que
   lanza `medidores_credito.py recoger` (máximo una vez por minuto; si hay otra en marcha,
   responde 202 con la lectura actual).
 - Gratis cuando hay sesión de Claude Code abierta: `statusline-starseed.sh` hace lo mismo que la
@@ -231,7 +231,7 @@ Se marca `fuente: "registro de sesiones de codex"` y `leido` = el `timestamp` de
   (`{"t", "five_hour": {"usado_pct", "reinicia"}, "seven_day": {…}}`). El adaptador Claude lo usa
   si es más reciente que su última lectura por terminal.
 
-### 4.3 En el Mando
+### 4.3 En Genesis
 
 - `creditos-pago.ts` (puro salvo `leerCreditosPago()`): `estadoCreditos(doc, ahora)` → por
   medidor y ventana: `tono` `peligro` ≥ 90 %, `aviso` ≥ 70 % (los mismos umbrales que
@@ -244,7 +244,7 @@ Se marca `fuente: "registro de sesiones de codex"` y `leido` = el `timestamp` de
   «Actualizar ahora».
 - Pulso de trabajo: UNA tarjeta por medidor (dinámica: aparecen las que haya en el JSON). La
   tarjeta «Claude · límites» actual se queda (tiene las proyecciones de revisiones).
-- Plugin del puente de mando: `medidor` acepta la clave `creditos`.
+- Plugin de Genesis: `medidor` acepta la clave `creditos`.
 
 ## 5. Para todos los usuarios de StarSeed OS
 
@@ -257,6 +257,5 @@ de StarSeed nunca ve sus claves.
 
 - Pruebas Python sin red ni procesos reales (subprocess y urllib inyectados) con las salidas de
   §2 como datos; vitest para `creditos-pago.ts`.
-- En la Mac: `medidores_credito.py recoger` → el JSON trae `claude` y `codex` con `ok: true`; el
-  Mando enseña una tarjeta por crédito; `limites_claude.py estado` tiene `lectura_hace_min` < 15
+- En la Mac: `medidores_credito.py recoger` → el JSON trae `claude` y `codex` con `ok: true`; Genesis enseña una tarjeta por crédito; `limites_claude.py estado` tiene `lectura_hace_min` < 15
   y `fuente` «terminal» sin que nadie declare nada.

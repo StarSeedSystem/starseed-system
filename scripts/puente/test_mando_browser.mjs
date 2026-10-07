@@ -41,8 +41,8 @@ async function run() {
     console.warn(`[NET FAIL] ${req.method()} ${req.url()}: ${req.failure()?.errorText}`);
   });
 
-  console.log("Navigating to http://localhost:9002/mando...");
-  const resp = await page.goto('http://localhost:9002/mando', { waitUntil: 'domcontentloaded', timeout: 20000 });
+  console.log("Navigating to http://localhost:9002/genesis...");
+  const resp = await page.goto('http://localhost:9002/genesis', { waitUntil: 'domcontentloaded', timeout: 20000 });
   console.log("Response status:", resp ? resp.status() : 'null');
 
   await page.waitForTimeout(3000);

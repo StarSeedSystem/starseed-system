@@ -49,8 +49,8 @@ export function toolkitMeta(kind: string): EntityKindMeta {
 }
 
 /**
- * Herramienta «Puente de Mando» del kit de cada entidad (contrato
- * architecture/puente-mando-para-todos.md §7). Enlaza al Mando del ámbito de la
+ * Herramienta «Genesis» del kit de cada entidad (contrato
+ * architecture/puente-mando-para-todos.md §7). Enlaza a Genesis del ámbito de la
  * entidad y enseña la insignia de visibilidad. Solo aparece con la bandera
  * `NEXT_PUBLIC_STARSEED_MANDO_TODOS=1`; la lee al renderizar para que una
  * entidad sin bandera no note ningún cambio.
@@ -81,7 +81,7 @@ export function PuenteMandoTool({
                     <Compass className="h-[18px] w-[18px]" aria-hidden />
                 </span>
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium leading-tight">Puente de Mando</p>
+                    <p className="text-sm font-medium leading-tight">Genesis</p>
                     <p className="truncate text-xs text-muted-foreground">
                         Enjambre de agentes de esta entidad, en vivo y 24/7
                     </p>
@@ -94,18 +94,18 @@ export function PuenteMandoTool({
                     {etiquetas[visibilidad]}
                 </Badge>
                 <a
-                    href={`/mando?ambito=${encodeURIComponent(slug)}`}
+                    href={`/genesis?ambito=${encodeURIComponent(slug)}`}
                     className="cursor-pointer shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/5"
                     style={{ borderColor: `${ac}55`, color: ac }}
                 >
-                    Abrir Mando
+                    Abrir Genesis
                 </a>
             </div>
         </GlassCard>
     );
 }
 
-/** Envuelve un toolkit y le añade la herramienta «Puente de Mando» (§7). */
+/** Envuelve un toolkit y le añade la herramienta «Genesis» (§7). */
 function KitConMando({
     toolkit,
     slug,
@@ -144,7 +144,7 @@ export function GovernanceToolkit({ kind, slug, accent, name, entityKind }: Gove
             return <KitConMando toolkit={<EventoToolkit {...props} />} {...props} />;
         case "none":
         default:
-            // Sin kit propio (p.ej. una página), el Puente de Mando aún aplica.
+            // Sin kit propio (p.ej. una página), Genesis aún aplica.
             return (
                 <PuenteMandoTool
                     slug={slug}

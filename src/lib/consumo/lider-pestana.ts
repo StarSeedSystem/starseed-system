@@ -1,7 +1,7 @@
 /**
  * Pestaña líder (contrato «consumo», 2026-09-29).
  *
- * Con el OS abierto en Chrome, en la ventana del Mando y en el panel del navegador de Claude, cada
+ * Con el OS abierto en Chrome, en la ventana de Genesis y en el panel del navegador de Claude, cada
  * pestaña repetía los mismos sondeos de fondo: tres veces el tráfico por la misma información.
  * Solo UNA pestaña por navegador —la líder— hace sondeos de fondo; las demás esperan su turno.
  *

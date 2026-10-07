@@ -167,7 +167,7 @@ def accion_bloqueante(intentos):
 
 
 def post_reintentar(tid, url=URL_REINTENTAR, timeout=15):
-    """Pide al Mando la reparación automática. Devuelve True/False, nunca lanza."""
+    """Pide a Genesis la reparación automática. Devuelve True/False, nunca lanza."""
     try:
         import urllib.request
 
@@ -212,7 +212,7 @@ def intentos_reparacion(raiz, tid, incrementar=False):
 
 
 def registrar_reparacion_pendiente(raiz, tid, objecion, ahora=None):
-    """El Mando no respondió: la petición queda escrita para el director."""
+    """Genesis no respondió: la petición queda escrita para el director."""
     ruta = _ruta_reparaciones_pendientes(raiz)
     try:
         os.makedirs(os.path.dirname(ruta), exist_ok=True)
@@ -517,8 +517,7 @@ def reparar_bloqueantes(
     """Una revisión bloqueante no se rechaza: se repara con la objeción como cambio.
 
     (2026-10-05, `architecture/bloqueadas-reparacion.md` §4) Llama a
-    `POST /api/mando/reintentar` con `{ids:[tid], automatico:true}`. Si el
-    Mando no responde, la petición queda en `reparaciones-pendientes.jsonl`
+    `POST /api/mando/reintentar` con `{ids:[tid], automatico:true}`. Si Genesis no responde, la petición queda en `reparaciones-pendientes.jsonl`
     para que la levante el director. Solo al tercer intento con objeción de la
     misma cadena marca `escalar` — nunca `rechazada`. El aviso va al Chat
     Director en una línea.
@@ -546,7 +545,7 @@ def reparar_bloqueantes(
             else:
                 registrar_reparacion_pendiente(raiz, tid, objecion, ahora)
                 frases.append(
-                    "reparación de %s pendiente en archivo: el Mando no responde" % tid
+                    "reparación de %s pendiente en archivo: Genesis no responde" % tid
                 )
             texto = (
                 "*Reparación automática · %s*\n%s"

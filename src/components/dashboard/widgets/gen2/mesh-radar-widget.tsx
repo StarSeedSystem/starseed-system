@@ -8,7 +8,7 @@
 // tus neuronas con su vínculo WebRTC (conectado · conectando · fallido · sin vínculo), la ruta
 // medida (misma red local · internet directo · reenviado) y su latencia, y las neuronas
 // CERCANAS de otras cuentas detectadas por faros. Solo lectura: CERO peticiones propias.
-// Donde el motor no corre (p. ej. el Mando) se dice, no se inventa. Invariante (§6): red
+// Donde el motor no corre (p. ej. Genesis) se dice, no se inventa. Invariante (§6): red
 // federada, descentralizada; el vínculo entre cuentas exige el consentimiento de ambas.
 //
 //   micro      → el radar con tus neuronas enlazadas.

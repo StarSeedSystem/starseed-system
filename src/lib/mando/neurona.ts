@@ -1,12 +1,12 @@
 /**
  * SALUD DE LA NEURONA (Ola 258 · 2026-09-06) — solo servidor
  * ─────────────────────────────────────────────────────────────────────────────
- * El Puente de Mando necesita ver, de un vistazo, si esta máquina (la Mac de
+ * Genesis necesita ver, de un vistazo, si esta máquina (la Mac de
  * Alex, 8 GB) está en condiciones de atender: memoria libre y swap, el demonio
  * de voz despierto o cediendo memoria, el llama-server BitNet vivo o caído y
  * qué tiene cargado Ollama. Hoy hubo que medirlo a mano durante horas (26
  * informes de crash de `llama-server-*.ips` en `~/Library/Logs/DiagnosticReports`);
- * esta sonda lo trae a la cabecera del Mando.
+ * esta sonda lo trae a la cabecera de Genesis.
  *
  * Seguridad (innegociable): este módulo solo debe importarse desde rutas de
  * servidor. NUNCA devuelve rutas absolutas de la casa del usuario: los crashes
@@ -28,7 +28,7 @@ const execFileAsync = promisify(execFile);
 /**
  * Resultado de la última verificación de la neurona (Ola 269 · 2026-09-07).
  * Lo escribe `scripts/verificar-neurona.mjs` en `starseed_memory_root/verificaciones/ultimo.json`;
- * el Mando lo muestra como tarjeta «Última verificación» de un vistazo.
+ * Genesis lo muestra como tarjeta «Última verificación» de un vistazo.
  */
 export interface VerificacionNeurona {
     /** Marca de tiempo de la verificación (ISO). */
@@ -81,7 +81,7 @@ export interface SaludNeurona {
         vivo: boolean;
         modelos: Array<{ nombre: string; tamanoMb: number; expira: string | null }>;
     };
-    /** Avisos en español para la cabecera del Mando (vacío si todo va bien). */
+    /** Avisos en español para la cabecera de Genesis (vacío si todo va bien). */
     avisos: string[];
     /** Última verificación pasada por `node scripts/verificar-neurona.mjs` (null si aún no hay). */
     verificacion: VerificacionNeurona | null;
@@ -139,7 +139,7 @@ export function parsearSwapusage(texto: string): { usadoMb: number | null; total
 }
 
 /**
- * Avisos (strings en español) para la cabecera del Mando. Función pura para
+ * Avisos (strings en español) para la cabecera de Genesis. Función pura para
  * poder probarla en aislamiento: la sonda la rellena al final de `medirNeurona`.
  */
 export function avisosDe(salud: SaludNeurona): string[] {

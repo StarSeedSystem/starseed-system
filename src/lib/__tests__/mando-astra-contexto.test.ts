@@ -150,7 +150,7 @@ describe("mando-astra-contexto · empaquetador de contexto para Astra", () => {
         "src/lib/mando/astra.ts",
         "src/lib/mando/astra.ts",
         "src/lib/mando/grafo.ts",
-        "src/app/(app)/mando/page.tsx",
+        "src/app/(app)/genesis/page.tsx",
         "memory/orquestacion-economica.md",
         "./src/lib/mando/astra.ts", // duplicado con prefijo "./"
       ];

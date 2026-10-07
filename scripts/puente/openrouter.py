@@ -19,7 +19,7 @@ Todo son campos estándar del cuerpo o cabeceras: si OpenRouter los retira, los 
 SITIO = "https://starseed-os.vercel.app"
 # Solo ASCII: el fetch de Bun (opencode) rechaza el punto medio «·» con
 # «Header 'x-title' has invalid value» y todo OpenRouter enmudecía (2026-09-20).
-TITULO = "StarSeed OS - Puente de Mando"
+TITULO = "StarSeed OS - Genesis"
 
 CABECERAS = {"HTTP-Referer": SITIO, "X-Title": TITULO}
 

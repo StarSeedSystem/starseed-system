@@ -1,5 +1,5 @@
 /**
- * Autocuración de la página del Mando (2026-10-05): decide sola si soltar lo atascado,
+ * Autocuración de la página de Genesis (2026-10-05): decide sola si soltar lo atascado,
  * recargar o esperar al servidor.
  */
 import { describe, expect, it } from "vitest";
@@ -11,7 +11,7 @@ function entrada(cambios: Partial<EntradaAutocuracion> = {}): EntradaAutocuracio
     return { ahora: 100_000, visible: true, salud: sana, inicio: 0, servidorVivo: true, ultimoReinicio: null, ultimaRecarga: null, ...cambios };
 }
 
-describe("autocuración de la página del Mando", () => {
+describe("autocuración de la página de Genesis", () => {
     it("con lecturas que vuelven no hace nada", () => {
         expect(decidirRemedio(entrada()).remedio).toBe("nada");
     });

@@ -1,12 +1,12 @@
 // src/lib/mando/eventos.ts
 // -----------------------------------------------------------------------------
-// Latido en vivo del Centro de Mando (Ola 231): lectura de los eventos del
+// Latido en vivo de Genesis (Ola 231): lectura de los eventos del
 // enjambre desde la tabla pública `relevo_eventos` de Supabase y clasificación
 // visual de cada evento para el panel.
 //
 // La tabla guarda columnas: id · t · quien · tipo · tarea · texto · datos. La
 // publica el enjambre, Claude y Hermes con todo lo que hacen; el Centro de
-// Mando los muestra en vivo (consulta + suscripción Realtime, ver el hook
+// Genesis los muestra en vivo (consulta + suscripción Realtime, ver el hook
 // `useEventosRelevo` en `src/hooks/use-eventos-relevo.ts`).
 //
 // ⚠️ Este módulo es de CLIENTE (usa el singleton del navegador) y solo trae

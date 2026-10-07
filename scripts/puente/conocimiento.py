@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Conocimiento propio del Mando (FLU1005E · ola 1005F): bases, documentos y recuperación BM25.
+"""Conocimiento propio de Genesis (FLU1005E · ola 1005F): bases, documentos y recuperación BM25.
 
 Réplica del subconjunto de Dify que usamos (architecture/puente-propio-flujos.md §4),
 sin depender de Dify: crear y listar bases, añadir documentos (texto, markdown, PDF vía
@@ -265,7 +265,7 @@ def recuperar(base_id, consulta, top=5, raiz=None):
     return {"query": {"content": consulta}, "records": records}
 
 
-# ---------- CLI (proceso corto: lo invocan la API del Mando y la terminal) ----------
+# ---------- CLI (proceso corto: lo invocan la API de Genesis y la terminal) ----------
 
 
 def _opcion(argv, nombre, por_defecto=""):

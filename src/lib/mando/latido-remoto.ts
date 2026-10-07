@@ -1,14 +1,14 @@
 /**
  * Contrato del latido remoto del enjambre (Ola 308 · zM1 · 2026-09-09)
  * ─────────────────────────────────────────────────────────────────────────────
- * El Puente de Mando de la Mac miraba `starseed_memory_root/olas/`, una carpeta
+ * Genesis de la Mac miraba `starseed_memory_root/olas/`, una carpeta
  * que deliberadamente NO se versiona y que, desde que el enjambre se mudó al
  * contenedor de la nube, dejó de recibir noticias. Este módulo define la «foto
  * pequeña» que cabe en una fila de base de datos (Supabase) y no lleva secretos.
  *
  * Es un módulo **PURO**: sin red ni `node:*`. Lo importan cliente y servidor, así
  * que jamás puede leer variables de entorno, tocar el disco ni hacer fetch. El
- * paso real a Supabase (migración + RLS) y el enganche del Mando van en tareas
+ * paso real a Supabase (migración + RLS) y el enganche de Genesis van en tareas
  * siguientes; aquí, el contrato y sus pruebas.
  *
  * ⚠️ Seguridad: un latido llega de OTRA máquina. `sanearLatido` valida con
@@ -37,7 +37,7 @@ export interface TareaLatida {
 }
 
 /**
- * Recuento de tareas de la ola tal como lo pinta la cabecera del Mando. Los
+ * Recuento de tareas de la ola tal como lo pinta la cabecera de Genesis. Los
  * números son lo único que cuenta: nunca llevan texto libre ni rutas.
  */
 export interface CuentasLatido {
@@ -104,7 +104,7 @@ function bytesDe(l: LatidoRemoto): number {
 /**
  * ¿El latido es lo bastante reciente para contar como «en curso ahora»? Fresco =
  * menos de 5 minutos. **Un latido viejo NO se pinta como si fuera de ahora**: es
- * exactamente el error que ha estado sufriendo el Mando (carpes viejas contando
+ * exactamente el error que ha estado sufriendo Genesis (carpes viejas contando
  * como agentes vivos).
  */
 export function esLatidoFresco(l: LatidoRemoto, ahora: number): boolean {

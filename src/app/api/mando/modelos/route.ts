@@ -3,7 +3,7 @@
  * (xKiro gratuitos, NIM, aihubmix, tokenrouter, OpenRouter, Gemini, Ollama local) con la
  * salud del supervisor del enjambre. Lleva además `proveedores` (Ola 271 · M9B: la
  * clasificación honesta por claves REALES de la máquina + salud + foto del bus) y
- * `agotados` (sinCupo + enfriandose), el número que muestra la cabecera del Mando.
+ * `agotados` (sinCupo + enfriandose), el número que muestra la cabecera de Genesis.
  * Nunca devuelve claves, solo nombres de variables, medios y huellas.
  */
 import { guardianMando } from "@/lib/mando/guardian";

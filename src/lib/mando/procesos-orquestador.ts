@@ -1,7 +1,7 @@
 /**
  * PROCESOS DEL ORQUESTADOR (2026-10-03) — solo servidor
  * ─────────────────────────────────────────────────────────────────────────────
- * Aprobar, rechazar, detener y reintentar desde el Mando preguntaban con
+ * Aprobar, rechazar, detener y reintentar desde Genesis preguntaban con
  * `pgrep -af starseed-enjambre.py` y buscaban la cola en cada línea. En Linux
  * `-a` imprime la orden entera; en **macOS `-a` significa «incluye ancestros» y
  * pgrep solo imprime PIDs**. Así que en la Mac de Alex ninguna línea traía

@@ -4,8 +4,7 @@ CAMBIO DELIBERADO (2026-09-16). Estas pruebas defendían lo contrario: que la
 suscripción de ChatGPT no habilitara escritores por sí sola, con
 `STARSEED_CODEX_ESCRITOR=1` como opt-in. La idea era prudente, pero el resultado
 en la práctica fue que esa variable no se puso NUNCA en ningún sitio permanente
-—ni en los plist de launchd, ni en `~/.starseed/env`, ni en el lanzamiento del
-Mando— y desde la ola 296, que construyó la integración y la dejó verificada,
+—ni en los plist de launchd, ni en `~/.starseed/env`, ni en el lanzamiento de Genesis— y desde la ola 296, que construyó la integración y la dejó verificada,
 todos los orquestadores arrancaron con Codex apagado.
 
 O sea: una capacidad de escritura de coste cero, viva y funcionando

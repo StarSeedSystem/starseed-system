@@ -1,5 +1,5 @@
 /**
- * /api/mando/chats — los chats del asistente técnico del Mando (los mismos para la orbe y
+ * /api/mando/chats — los chats del asistente técnico de Genesis (los mismos para la orbe y
  * para la pestaña Chat). Se guardan en `starseed_memory_root/mando/chats/` (no versionado).
  *
  * GET            → lista de chats

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * oficina-mando.tsx — Oficina 3D del Puente de Mando (Ola 272 · 2026-09-07)
+ * oficina-mando.tsx — Oficina 3D de Genesis (Ola 272 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * La sala donde viven los seres reales de la orquestación: escritores y
  * revisores del enjambre, los cinco agentes 1.58, las personalidades, los
@@ -44,7 +44,7 @@ interface OficinaMandoProps {
     alCambiarPestana: (id: string) => void;
 }
 
-/** Colores de las salas del Mando, para la leyenda (mismo orden que `SALAS_MANDO`). */
+/** Colores de las salas de Genesis, para la leyenda (mismo orden que `SALAS_MANDO`). */
 const COLOR_POR_SALA: Record<string, string> = {
     enjambre: "#39FF14",
     revision: "#FFBF00",
@@ -83,7 +83,7 @@ function salaDe(estado: EstadoOficina, ocupante: OcupanteOficina | undefined): s
     return estado.salas.find((s) => s.id === ocupante.salaId)?.nombre ?? null;
 }
 
-/** Carga la oficina del Mando (GET) y devuelve los datos o un error, sin lanzar. */
+/** Carga la oficina de Genesis (GET) y devuelve los datos o un error, sin lanzar. */
 async function cargarOficina(): Promise<{ datos: DatosOficina | null; error: string | null }> {
     try {
         const res = await fetch("/api/mando/oficina", { cache: "no-store" });
@@ -91,7 +91,7 @@ async function cargarOficina(): Promise<{ datos: DatosOficina | null; error: str
         const datos = (await res.json()) as DatosOficina;
         return { datos, error: null };
     } catch {
-        return { datos: null, error: "No se pudo cargar la oficina (¿está el Mando en local?)." };
+        return { datos: null, error: "No se pudo cargar la oficina (¿está Genesis en local?)." };
     }
 }
 
@@ -267,7 +267,7 @@ export function OficinaMando({ alCambiarPestana }: OficinaMandoProps) {
         <div data-testid="oficina-mando" className="space-y-4">
             {/* Cabecera: título + botón Actualizar. */}
             <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold text-white">Oficina 3D del Mando</h2>
+                <h2 className="text-lg font-semibold text-white">Oficina 3D de Genesis</h2>
                 <button
                     type="button"
                     onClick={() => void refrescar()}

@@ -170,16 +170,16 @@ export const APP_CATALOG: StarseedApp[] = [
         open: { primary: "route", allowed: ["route"], route: "/voces" },
     },
     {
-        // Ola 231: Puente de Mando — consola de producción y desarrollo (solo local).
+        // Ola 231: Genesis — consola de producción y desarrollo (solo local).
         id: "mando",
-        name: "Mando",
-        short: "Mando",
-        description: "Puente de Mando: pulso del desarrollo (olas, tareas, commits, flota de proveedores) y relevo entre agentes. Solo en tu máquina.",
+        name: "Genesis",
+        short: "Genesis",
+        description: "Genesis: pulso del desarrollo (olas, tareas, commits, flota de proveedores) y relevo entre agentes. Solo en tu máquina.",
         icon: Gauge,
         accent: "#FFBF00",
         category: "sistema",
         status: "native",
-        open: { primary: "route", allowed: ["route"], route: "/mando" },
+        open: { primary: "route", allowed: ["route"], route: "/genesis" },
     },
     {
         // Ola 234: Mundo de los avatares — escena 3D viva de los habitantes.

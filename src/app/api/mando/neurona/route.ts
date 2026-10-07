@@ -1,7 +1,7 @@
 /**
  * GET /api/mando/neurona (Ola 258 · 2026-09-06)
  * ─────────────────────────────────────────────────────────────────────────────
- * Salud de la neurona para la cabecera del Puente de Mando: memoria y swap,
+ * Salud de la neurona para la cabecera de Genesis: memoria y swap,
  * demonio de voz, llama-server BitNet y Ollama. La puerta es el guardián común
  * de `/api/mando/*` (404 fuera de local; sesión solo en producción desplegada).
  * NUNCA devuelve rutas absolutas del disco: los crashes llegan como nombre de

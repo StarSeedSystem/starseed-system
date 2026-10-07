@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Latidos de agentes EXTERNOS en el Puente de Mando (2026-09-25).
+"""Latidos de agentes EXTERNOS en Genesis (2026-09-25).
 
 Alex: «tus agentes, incluso los que uses con Claude Opus 5.5 para tareas que lo requieran
-—como lo que estás haciendo— deben aparecer en los agentes y tareas del Puente de Mando».
+—como lo que estás haciendo— deben aparecer en los agentes y tareas de Genesis».
 
-El Mando ya pinta los agentes del enjambre leyendo `starseed_memory_root/olas/latidos-*.json`
+Genesis ya pinta los agentes del enjambre leyendo `starseed_memory_root/olas/latidos-*.json`
 (los escribe el orquestador cada 20 s). Este script escribe lo mismo para quien NO es el
 orquestador: Claude en Cowork, sus subagentes, Hermes… Cada tarea dice hasta cuándo sigue
 viva (`hasta`), así que no hace falta latir cada 20 s: basta con avisar al empezar, al
@@ -19,7 +19,7 @@ Uso:
   latido_externo.py terminar <id> [--agente cowork]
   latido_externo.py lista [--agente cowork]
 
-Escribe `latidos-externo-<agente>.json` (el Mando acepta estos archivos hasta 45 min sin
+Escribe `latidos-externo-<agente>.json` (Genesis acepta estos archivos hasta 45 min sin
 tocar y descarta cada tarea al pasar su `hasta`). Nunca guarda claves ni texto de prompts.
 """
 from __future__ import annotations
@@ -60,7 +60,7 @@ def escribir(agente: str, datos: dict) -> None:
     fd, tmp = tempfile.mkstemp(dir=DIR_OLAS, prefix=".latido-", suffix=".json")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False, indent=1)
-    os.replace(tmp, destino)  # atómico: el Mando nunca lee un archivo a medias
+    os.replace(tmp, destino)  # atómico: Genesis nunca lee un archivo a medias
 
 
 def limpiar_caducadas(datos: dict, ahora: float) -> None:

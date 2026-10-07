@@ -1,5 +1,5 @@
 /**
- * El publicador visto desde el Mando: lanzarlo, leer su diario y resumirlo.
+ * El publicador visto desde Genesis: lanzarlo, leer su diario y resumirlo.
  *
  * El trabajo de verdad lo hace `scripts/puente/publicar.py`, suelto, porque las
  * puertas tardan entre cinco y quince minutos y una petición HTTP se muere antes

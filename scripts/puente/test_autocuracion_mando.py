@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Autocuración del Mando (2026-10-05): reiniciar si no responde y hacer sitio si falta disco."""
+"""Autocuración de Genesis (2026-10-05): reiniciar si no responde y hacer sitio si falta disco."""
 import json
 import os
 import sys

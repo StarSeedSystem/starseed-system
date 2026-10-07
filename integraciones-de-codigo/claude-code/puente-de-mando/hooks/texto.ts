@@ -14,7 +14,7 @@ export const PESTANAS = [
   { id: 'uso', titulo: 'Uso', tecla: '7' },
 ] as const
 
-/** Medidores del Mando que la herramienta `medidor` acepta. */
+/** Medidores de Genesis que la herramienta `medidor` acepta. */
 export const CLAVES_MEDIDOR = [
   'en-curso', 'agentes', 'listas', 'bloqueadas', 'sin-publicar', 'proveedores', 'contenedores',
   'tokens', 'integradas', 'memoria', 'disco', 'ola-activa', 'credito-claude', 'creditos',
@@ -26,7 +26,7 @@ export function esperaDependencia(f: FilaMando): boolean {
 }
 
 /**
- * Una fila de bloqueadas se puede reparar si el Mando ofrece reintentarla Y su causa es suya
+ * Una fila de bloqueadas se puede reparar si Genesis ofrece reintentarla Y su causa es suya
  * (la nube la intentó y no la integró, la rechazaron, no tocó sus archivos). Si espera a otra
  * tarea, reencolarla solo crearía un duplicado que seguiría esperando.
  */
@@ -65,7 +65,7 @@ export function paso(p: PublicacionMando | undefined): string {
 }
 
 export function lineaEstado(r: ResumenMando | null, error: string | null): string | undefined {
-  if (!r) return error ? '⟁ Mando · sin enlace' : undefined
+  if (!r) return error ? '⟁ Genesis · sin enlace' : undefined
   const n = (m?: MedidorMando) => (m ? String(m.total) : '?')
   const partes = [
     `${n(r['en-curso'])} en curso`,
@@ -74,7 +74,7 @@ export function lineaEstado(r: ResumenMando | null, error: string | null): strin
     `pub ${paso(r.publicacion)}`,
   ]
   if ((r.bandeja?.length ?? 0) > 0) partes.push(`✉ ${r.bandeja!.length}`)
-  return `⟁ Mando · ${partes.join(' · ')}${error ? ' · ⚠' : ''}`
+  return `⟁ Genesis · ${partes.join(' · ')}${error ? ' · ⚠' : ''}`
 }
 
 function lineaMedidor(nombre: string, m?: MedidorMando): string {
@@ -125,7 +125,7 @@ export function textoPublicacion(p?: PublicacionMando): string {
 export function textoResumen(r: ResumenMando): string {
   const reparables = filasReparables(r.bloqueadas)
   const partes = [
-    `Puente de Mando · datos de la Mac a las ${r.t}`,
+    `Genesis · datos de la Mac a las ${r.t}`,
     lineaMedidor('En curso', r['en-curso']),
     lineaMedidor('Agentes', r.agentes),
     lineaMedidor('Bloqueadas', r.bloqueadas) + ` · ${reparables.length} reparable(s)`,

@@ -18,7 +18,8 @@ PALABRAS_INTERFAZ = ("tailwind.config", "tema", "widget", "fondo", "icono")
 
 # Palabras clave de contexto -> nombre de identidad en memory/diseno/identidades.md
 IDENTIDADES_CLAVES = [
-    ("mando", "mando"),
+    ("mando", "genesis"),   # src/components/mando, /api/mando… → identidad «Genesis»
+    ("genesis", "genesis"),
     ("cafe", "café"),
     ("café", "café"),
     ("audiomorphic", "audiomorphic"),

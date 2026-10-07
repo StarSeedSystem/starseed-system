@@ -12,7 +12,7 @@ import Link from "next/link";
 import { EstudioVoces } from "@/components/voces/estudio-voces";
 
 /**
- * (2026-09-05) Página MÍNIMA, como el Puente de Mando: sin fondos WebGL, sin dock, sin bordes
+ * (2026-09-05) Página MÍNIMA, como Genesis: sin fondos WebGL, sin dock, sin bordes
  * Trinity, sin guía ni ventanas de arranque (ver RUTAS_MINIMAS). Solo el estudio y la orbe,
  * que aquí es el botón de prueba: un toque habla la frase de muestra con la voz activa.
  */
@@ -27,14 +27,13 @@ export default function VocesPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    {/* Ola 275 · V4: el mismo Estudio se puede abrir dentro del
-                        Puente de Mando (pestaña «Voces»); la URL manda sobre el
+                    {/* Ola 275 · V4: el mismo Estudio se puede abrir dentro de Genesis (pestaña «Voces»); la URL manda sobre el
                         recuerdo de pestaña (`?pestana=voces`). */}
                     <Link
-                        href="/mando?pestana=voces"
+                        href="/genesis?pestana=voces"
                         className="rounded-md border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
                     >
-                        Abrir en el Puente de Mando
+                        Abrir en Genesis
                     </Link>
                     <Link href="/escritorios" className="rounded-md border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5">
                         ← Volver al OS

@@ -9,7 +9,7 @@
  * `df`/`rsync`/sondas) y un import de valor metería `node:child_process` al bundle.
  *
  * `Tarjeta`/`Barra`/`Fila`/`formatoMb` se replican aquí (no se exportan
- * desde `panel-neurona.tsx`): mismo marco, barra y tonos del Mando para que las
+ * desde `panel-neurona.tsx`): mismo marco, barra y tonos de Genesis para que las
  * tarjetas nuevas se vean idénticas a las de memoria/swap.
  */
 

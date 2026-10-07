@@ -92,7 +92,7 @@ class TestNota(unittest.TestCase):
         n = R.nota("aprobar", "todo conforme")
         self.assertIn("automáticamente", n)
         self.assertIn(R.QUIEN, n)
-        self.assertNotIn("desde el Mando", n)
+        self.assertNotIn("desde Genesis", n)
 
     def test_la_espera_dice_por_que(self):
         self.assertIn("bloqueante", R.nota("esperar", "la revisión es bloqueante"))

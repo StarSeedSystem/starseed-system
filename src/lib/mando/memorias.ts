@@ -1,5 +1,5 @@
 /**
- * Memorias del Puente de Mando — lógica PURA (pestaña «Memorias», Ola de Memorias)
+ * Memorias de Genesis — lógica PURA (pestaña «Memorias», Ola de Memorias)
  * ─────────────────────────────────────────────────────────────────────────────
  * Todo lo que se puede probar sin disco ni red: qué archivo se omite por su
  * nombre, cómo se redactan secretos, cómo se extraen vínculos (`[[wiki]]`,
@@ -68,7 +68,7 @@ export const DEFINICION_CAPAS: readonly DefinicionCapa[] = [
     {
         id: "preferencias",
         titulo: "Preferencias y configuración",
-        descripcion: "Ajustes del enjambre, del Mando y configuración local — nunca claves.",
+        descripcion: "Ajustes del enjambre, de Genesis y configuración local — nunca claves.",
     },
     {
         id: "agentes-externos",
@@ -84,7 +84,7 @@ export const DEFINICION_CAPAS: readonly DefinicionCapa[] = [
 
 // ─── Tipos de datos ─────────────────────────────────────────────────────────
 
-/** Una memoria (archivo o entrada sintética) catalogada por el Mando. */
+/** Una memoria (archivo o entrada sintética) catalogada por Genesis. */
 export interface ArchivoMemoria {
     /** Ruta relativa al repositorio, o pseudo-ruta `~/...` fuera de él; nunca una ruta absoluta del disco. */
     ruta: string;
@@ -181,7 +181,7 @@ export function debeOmitirArchivo(rutaOArchivo: string): boolean {
     if (nombre.includes("secret")) return true;
     if (nombre.startsWith("credentials")) return true;
     if (/^auth.*\.json$/.test(nombre)) return true;
-    // (2026-09-25) La URL del túnel del Mando solo vive en ~/.starseed/tunel-mando.json y
+    // (2026-09-25) La URL del túnel de Genesis solo vive en ~/.starseed/tunel-mando.json y
     // en el chat privado de Alex: nunca se enseña en ninguna otra pantalla.
     if (nombre.includes("tunel") || nombre.includes("tunnel")) return true;
     return false;

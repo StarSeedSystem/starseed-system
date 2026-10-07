@@ -1,6 +1,6 @@
 // src/lib/mando/respaldo-chat.ts
 // -----------------------------------------------------------------------------
-// Cadena de respaldo del chat del Mando (Ola 323).
+// Cadena de respaldo del chat de Genesis (Ola 323).
 //
 // POR QUÉ. El 2026-09-14 el chat devolvía «This operation was aborted» y nada más.
 // Medido en la máquina de Alex contra `/api/mando/asistente`:
@@ -46,7 +46,7 @@ export function proveedorDe(id: string): string {
  *      esperando ocho timeouts seguidos.
  *
  * Se descartan los marcados `sinCupo`/`caido` (salvo el pedido) y los de pago: el chat
- * del Mando es gratuito por regla de la casa.
+ * de Genesis es gratuito por regla de la casa.
  */
 export function cadenaDeRespaldo(
     pedido: string,

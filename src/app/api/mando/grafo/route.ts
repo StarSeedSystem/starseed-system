@@ -1,9 +1,9 @@
 /**
- * GET /api/mando/grafo (Ola 239 · Centro de Mando)
+ * GET /api/mando/grafo (Ola 239 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Devuelve el grafo de orquestación del desarrollo: olas → tareas →
  * dependencias → agente (modelo) → revisor → commit. Lo pinta la pestaña
- * «Grafo» del Centro de Mando.
+ * «Grafo» de Genesis.
  *
  * ⚠️ Seguridad: puerta única `guardianMando` — 404 fuera de local/STARSEED_MANDO;
  * sesión solo en producción no local; localhost sin sesión (Ola 254 · 2026-09-06).

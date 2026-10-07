@@ -1,5 +1,5 @@
 /**
- * Contextos por agente del Centro de Mando (Ola 239)
+ * Contextos por agente de Genesis (Ola 239)
  * ─────────────────────────────────────────────────────────────────────────────
  * El orquestador del enjambre deja, por cada tarea, un archivo JSON en la carpeta
  * `starseed_memory_root/olas/contextos/` con la forma:

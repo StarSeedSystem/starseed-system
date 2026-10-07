@@ -1,6 +1,6 @@
 "use client";
 /**
- * Pestaña Director del Mando (3/3 · p318H) — Ajustes Director real: carga
+ * Pestaña Director de Genesis (3/3 · p318H) — Ajustes Director real: carga
  * GET /api/mando/director/config, valida en cliente con `validar` (mismos
  * límites que el servidor) y guarda con PUT. Nada hardcodeado.
  */
@@ -54,7 +54,7 @@ export function AjustesDirector() {
             if (r.ok && cuerpo.ok) setGuardadoEn(horaActual());
             else setErroresEnvio(cuerpo.errores ?? ["No se pudo guardar la configuración."]);
         } catch {
-            setErroresEnvio(["No se pudo hablar con el Mando."]);
+            setErroresEnvio(["No se pudo hablar con Genesis."]);
         } finally { setGuardando(false); }
     };
     const onVigilante = async () => {

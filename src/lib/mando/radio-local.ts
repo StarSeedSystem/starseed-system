@@ -1,6 +1,6 @@
 // Radio nativa de la Mac (servidor): lee Wi-Fi y Bluetooth del SISTEMA con `system_profiler`,
 // que ve lo que el navegador nunca ve (redes cercanas con su señal, dispositivos Bluetooth
-// emparejados con batería y RSSI). Solo para el Mando local (Ola 375 · RDV10).
+// emparejados con batería y RSSI). Solo para Genesis local (Ola 375 · RDV10).
 // Privacidad: el parser (`radio-local-tipos.ts`) descarta direcciones MAC antes de salir de aquí.
 import { execFile } from "node:child_process";
 import { parsearSystemProfiler, type RadioLocal } from "./radio-local-tipos";

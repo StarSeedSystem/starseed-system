@@ -162,7 +162,7 @@ describe("accionServidor — apagar_pantalla", () => {
 });
 
 describe("accionServidor — reiniciar", () => {
-    it("rechaza com.starseed.mando (nunca se reinicia el propio Mando)", async () => {
+    it("rechaza com.starseed.mando (nunca se reinicia el propio Genesis)", async () => {
         const r = await accionServidor({ accion: "reiniciar", servicio: "mando" });
         expect(r.ok).toBe(false);
         expect(ctx.espia.some((l) => l.binario === "launchctl" && l.args[0] === "kickstart")).toBe(false);

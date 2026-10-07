@@ -5,7 +5,7 @@
  * lanzada por el director de orquestación) y lo que Alex declara de su crédito de Claude:
  *   ~/.starseed/consumo.json            · la última vuelta (hoy, freno, bucles, Jev)
  *   ~/.starseed/consumo-historial.json  · 45 días: peticiones y bytes estimados por día
- *   ~/.starseed/presupuestos.json       · los topes (los edita el Mando por POST)
+ *   ~/.starseed/presupuestos.json       · los topes (los edita Genesis por POST)
  *   ~/.starseed/credito-claude-nube.json· el crédito de Claude en la nube, declarado
  *
  * Viven fuera del repo: son datos de la máquina y de la cuenta de Alex, no del proyecto.

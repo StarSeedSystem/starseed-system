@@ -9,7 +9,7 @@
  * Reglas duras:
  *  · Las funciones puras no tocan disco ni red: solo transforman texto.
  *  · `construirContexto` (la única asíncrona) lee con `raizDelProyecto()`,
- *    NUNCA con `process.cwd()` directo (regla del Mando para no
+ *    NUNCA con `process.cwd()` directo (regla de Genesis para no
  *    contaminar el bundle de Vercel con todo el árbol).
  *  · `redactarSecretos` se aplica a TODO lo que sale: ninguna clave puede
  *    viajar en el prompt de Astra, ni siquiera una del propio repo.
@@ -41,7 +41,7 @@ export const FUENTES_POR_AMBITO: Record<string, string[]> = {
     "src/components/dashboard/apps/app-catalog.ts",
   ],
   // Capas, acoplamientos, deuda: la arquitectura viva + los archivos más
-  // compartidos del módulo Mando.
+  // compartidos del módulo Genesis.
   arquitectura: [
     "memory/architecture.md",
     "CLAUDE.md",
@@ -55,7 +55,7 @@ export const FUENTES_POR_AMBITO: Record<string, string[]> = {
     "src/components/layout/omni-dock.tsx",
     "src/components/layout/header.tsx",
   ],
-  // Costes de render, bundles, llamadas repetidas: el Mando es el sitio con
+  // Costes de render, bundles, llamadas repetidas: Genesis es el sitio con
   // más I/O del OS, y el documento de economía marca la vara.
   rendimiento: [
     "memory/orquestacion-economica.md",

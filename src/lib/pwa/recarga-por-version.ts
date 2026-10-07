@@ -3,7 +3,7 @@
  *
  * Cuando se publica o se reconstruye el OS, los trozos de JavaScript cambian de nombre. Una
  * pestaña que ya estaba abierta sigue con el mapa viejo: al navegar pide un trozo que ya no
- * existe (404) y la página cae en «Algo no salió como esperábamos». Medido en el Mando de
+ * existe (404) y la página cae en «Algo no salió como esperábamos». Medido en Genesis de
  * localhost justo después de reconstruirlo: `/agent` mostraba el panel de error hasta
  * recargar a mano. Aquí se reconoce ese error y se recarga sola, UNA vez por minuto como
  * mucho, para que un trozo que falla por otra causa no entre en bucle.

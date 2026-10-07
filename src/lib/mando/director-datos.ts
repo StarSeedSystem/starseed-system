@@ -1,4 +1,4 @@
-// Modelo de datos puro del Director del Mando: la verdad calculada desde las
+// Modelo de datos puro del Director de Genesis: la verdad calculada desde las
 // fuentes reales (latidos, progreso, salud de proveedores, launchctl y canal).
 
 export interface TareaLatido {

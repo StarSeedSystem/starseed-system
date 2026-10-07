@@ -1,9 +1,9 @@
 /**
- * GET/POST /api/mando/agentes-158 (Ola 270 · 2026-09-07 · Puente de Mando)
+ * GET/POST /api/mando/agentes-158 (Ola 270 · 2026-09-07 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Proxy de la «ramificación 1.58»: el árbol vivo del backend Astraura 1.58 de
  * esta neurona (BitNet → personalidades → agentes de aprendizaje continuo →
- * procesos de fondo) para la pestaña «Procesos» del Mando.
+ * procesos de fondo) para la pestaña «Procesos» de Genesis.
  *
  *   GET  → `leerRama158()` (estado vivo cruzado con las personalidades del OS).
  *   POST → `{ agente, accion: "pausar" | "reanudar" | "ejecutar" }` reenviado al

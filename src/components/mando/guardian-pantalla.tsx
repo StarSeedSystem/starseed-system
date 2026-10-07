@@ -3,7 +3,7 @@
 /**
  * Guardián de «pantalla siempre encendida» (Ola 1005P · PA1005D)
  * ─────────────────────────────────────────────────────────────────────────
- * Una vez montado en el Mando: sondea `GET /api/mando/pantalla` (cada 60 s y
+ * Una vez montado en Genesis: sondea `GET /api/mando/pantalla` (cada 60 s y
  * al recuperar el foco; si falla conserva el último valor, y por defecto
  * está activa) y, si el ajuste está encendido, pide la Screen Wake Lock del
  * navegador. El navegador la suelta al ocultar la pestaña: se vuelve a pedir

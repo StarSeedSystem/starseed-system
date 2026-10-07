@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Regenera PUENTE-DE-MANDO.md desde el Mando VIVO y lo reparte a los cuatro IDE.
+"""Regenera PUENTE-DE-MANDO.md desde Genesis VIVO y lo reparte a los cuatro IDE.
 
 No copia estado a mano: lee localhost:9002 y el latido en disco, escribe UN documento
 canónico en la raíz del repo, y deja en cada IDE un puntero a ese mismo archivo. Así
@@ -59,14 +59,14 @@ def documento():
     u = (c.get("ultimas") or {}) if vivo else {}
     L = []
     A = L.append
-    A("# Puente de Mando · contexto compartido de los cuatro entornos")
+    A("# Genesis · contexto compartido de los cuatro entornos")
     A("")
-    A("> Generado por `scripts/puente/sincronizar-ides.py` el %s desde el Mando vivo."
+    A("> Generado por `scripts/puente/sincronizar-ides.py` el %s desde Genesis vivo."
       % time.strftime("%Y-%m-%d %H:%M:%S"))
     A("> **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.")
     A("")
     A("Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,")
-    A("**Hermes** y **Antigravity IDE**. Los cuatro miran el mismo Mando y dan órdenes por el")
+    A("**Hermes** y **Antigravity IDE**. Los cuatro miran el mismo Genesis y dan órdenes por el")
     A("mismo canal, así que ninguno necesita que otro le resuma nada.")
     A("")
     A("## Estado ahora mismo")
@@ -74,7 +74,7 @@ def documento():
     if vivo:
         A("| | |")
         A("|---|---|")
-        A("| Mando | **encendido** en %s/mando |" % MANDO)
+        A("| Genesis | **encendido** en %s/mando |" % MANDO)
         A("| Ola arriba | %s |" % c.get("ola", "—"))
         A("| Agentes escribiendo | **%d** |" % len(e.get("latidos") or []))
         A("| En esta ola | integradas %s · en curso %s · esperando aprobación %s · pendientes %s |"
@@ -82,7 +82,7 @@ def documento():
         A("| Últimas %s olas | en curso %s · pendientes %s · integradas %s |"
           % (u.get("olas"), u.get("enCurso"), u.get("pendientes"), u.get("integradas")))
     else:
-        A("El Mando está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`")
+        A("Genesis está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`")
         A("y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.")
     A("| HEAD | `%s` |" % git("log", "--oneline", "-1")[:90])
     A("| Sin publicar | %s commits |" % git("rev-list", "--count", "origin/main..main"))
@@ -125,7 +125,7 @@ def documento():
     A("  más, mejor, mientras cada uno trabaje en su propio worktree.")
     A("- **Nunca `next build` con el enjambre vivo.** La Mac es de 8 GB.")
     A("- Tres puertas antes de publicar: `tsc --noEmit`, `vitest run`, `next build` completo.")
-    A("- **Nada está hecho hasta que se ve en el Mando de la Mac.**")
+    A("- **Nada está hecho hasta que se ve en Genesis de la Mac.**")
     A("- Claves solo en archivos de entorno (`~/.hermes/.env`, `~/.starseed/env`). En el repo,")
     A("  en documentos y en los latidos, solo NOMBRES de variable. En `opencode.json`, `{env:VAR}`.")
     A("- Nunca `amend`, `rebase` ni `force-push` para cambiar autoría.")
@@ -140,7 +140,7 @@ def documento():
     A("| Rumbo y reglas permanentes | `CLAUDE.md` (Claude) · `AGENTS.md` (Codex, Antigravity) · `gemini.md` |")
     A("| Estado del enjambre | `starseed_memory_root/olas/` — **no se versiona**, muere con la máquina |")
     A("| Orquestador | `scripts/enjambre/starseed-enjambre.py`, instalado en `~/.local/bin/` |")
-    A("| Mando | `%s/mando` — local, `/api/mando/*` devuelve 404 en producción |" % MANDO)
+    A("| Genesis | `%s/mando` — local, `/api/mando/*` devuelve 404 en producción |" % MANDO)
     A("| Publicado | https://starseed-os.vercel.app |")
     A("")
     # (2026-09-16) Hasta hoy este documento contaba el ESTADO pero no el MÉTODO, así que
@@ -168,7 +168,7 @@ def repartir(texto):
     destinos = []
     # Codex y Antigravity leen AGENTS.md del repo; Hermes y Claude tienen los suyos.
     # A cada IDE le dejamos un PUNTERO, no una copia: una sola verdad.
-    puntero = ("# Puente de Mando · StarSeed\n\n"
+    puntero = ("# Genesis · StarSeed\n\n"
                "El contexto y el estado vivos están en un solo sitio, y se regeneran solos:\n\n"
                "    %s\n\n"
                "Ábrelo al empezar cualquier chat. Para refrescarlo:\n\n"

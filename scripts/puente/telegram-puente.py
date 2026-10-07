@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Telegram → Puente de Mando y viceversa.
+"""Telegram → Genesis y viceversa.
 
 Saca lo que pasa por Telegram y mete lo que el dueño escribe en el canal común
 que leen Claude, Codex, Hermes y Antigravity. Reutiliza todo lo que ya existe:
-el CLI `starseed-puente` (decir + CANAL) y el API del Mando en localhost:9002.
+el CLI `starseed-puente` (decir + CANAL) y el API de Genesis en localhost:9002.
 
 Arrancarlo:
   export TELEGRAM_BOT_TOKEN=tu_token
@@ -77,7 +77,7 @@ def debe_reenviar_linea(linea):
 
 
 def _etiqueta_ola(etiqueta, prefijo="Ola"):
-    """Añade el prefijo únicamente cuando el Mando no lo incluyó ya."""
+    """Añade el prefijo únicamente cuando Genesis no lo incluyó ya."""
     nombre = str(etiqueta or "—").strip()
     if nombre.casefold() == "ola" or nombre.casefold().startswith("ola "):
         return nombre
@@ -460,7 +460,7 @@ def _marcos_aprobacion(ids):
 def _mensajes_resumen(estado):
     """Construye los fragmentos de texto que saca el bot por su cuenta, sin
     que nadie pregunte. Recibe lo que devolvió _status() (puede ser None o el
-    dict del Mando) y devuelve una lista de objetos canal listos para reenviar.
+    dict de Genesis) y devuelve una lista de objetos canal listos para reenviar.
 
     Es puramente descriptiva: no decide qué reenviar, solo prepara textos
     candidatos. El filtro de repetición está en es_repetido().
@@ -503,7 +503,7 @@ def _mensajes_resumen(estado):
                 "ids_referencia": ids,
             })
 
-    # proveedores sin cuota: el Mando lista cuentas críticas.
+    # proveedores sin cuota: Genesis lista cuentas críticas.
     cuentas_criticas = cuentas.get("cuentasCriticas") or []
     for c in cuentas_criticas:
         frases.append({
@@ -686,7 +686,7 @@ def _ejecutar_puente():
                 if accion == "estado":
                     e = _status()
                     if not e or e.get("_error"):
-                        txt = "Mando apagado: no hay qué snapshotear."
+                        txt = "Genesis apagado: no hay qué snapshotear."
                     else:
                         c = e.get("cuentas") or {}
                         txt = "%s · integradas %s · en curso %s · aprobación %s · pendientes %s" % (
@@ -698,14 +698,14 @@ def _ejecutar_puente():
                     res = _telegram_send(token, msg.get("chat", {}).get("id"), txt)
                     print("estado → %s" % (res.get("ok") if res else "?"))
                 elif accion == "agentes":
-                    txt = "Consulta el Mando: /agentes"
+                    txt = "Consulta Genesis: /agentes"
                     _telegram_send(token, msg.get("chat", {}).get("id"), txt)
                 elif accion == "puertas":
                     _telegram_send(token, msg.get("chat", {}).get("id"),
                                    "Tres puertas: tsc · vitest · next build (nunca con el enjambre vivo).")
                 elif accion == "cola":
                     _telegram_send(token, msg.get("chat", {}).get("id"),
-                                   "La cola viva la muestra el Mando; /estado lo trae.")
+                                   "La cola viva la muestra Genesis; /estado lo trae.")
                 elif accion == "ayuda":
                     txt = ("Órdenes Telegram → Puente:\n"
                            "/estado /agentes /olas /cola /puertas /ayuda\n"
@@ -761,7 +761,7 @@ def _ejecutar_puente():
                         txt = "\n".join("· %s" % (o.get("id") or "?") for o in olas[-n:])
                         _telegram_send(token, msg.get("chat", {}).get("id"), txt or "Sin olas recientes.")
                     else:
-                        _telegram_send(token, msg.get("chat", {}).get("id"), "Mando apagado.")
+                        _telegram_send(token, msg.get("chat", {}).get("id"), "Genesis apagado.")
                 elif accion == "desconocida":
                     _telegram_send(token, msg.get("chat", {}).get("id"),
                                    "Orden «%s» no reconocida. Escribe /ayuda." % extra)

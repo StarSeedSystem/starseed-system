@@ -1,5 +1,5 @@
 /**
- * Motores de un ámbito del Mando (§2 y §6.2 del contrato).
+ * Motores de un ámbito de Genesis (§2 y §6.2 del contrato).
  * Funciones PURAS: validan el cuerpo del POST y arman la respuesta única
  * que enseña el token. La ruta hace la parte de servidor (RPC y guardián).
  * El token en claro solo aparece en la respuesta del POST, nunca dentro de

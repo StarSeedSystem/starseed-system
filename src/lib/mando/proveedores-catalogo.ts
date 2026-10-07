@@ -1,5 +1,5 @@
 /**
- * Catálogo de proveedores de inteligencia para el Mando (Ola 271)
+ * Catálogo de proveedores de inteligencia para Genesis (Ola 271)
  * ─────────────────────────────────────────────────────────────────────────────
  * Un solo sitio con, para cada proveedor real de la flota: su base de API,
  * dónde se consigue la clave, su documentación, qué da gratis y si necesita
@@ -319,7 +319,7 @@ export const PROVEEDORES_CATALOGO: ProveedorInfo[] = [
         // (2026-09-09) Claude entra en el catálogo porque es quien DIRIGE: diseña las
         // olas, supervisa el enjambre, verifica en localhost y aprueba. No escribe el
         // código del producto por regla permanente de Alex (economía de créditos): eso
-        // es trabajo de la flota gratuita. Aparece aquí para que el Mando enseñe la
+        // es trabajo de la flota gratuita. Aparece aquí para que Genesis enseñe la
         // cadena completa de quién hace qué, no solo los escritores.
         id: "claude",
         nombre: "Claude · dirección y verificación",

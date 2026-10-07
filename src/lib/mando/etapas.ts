@@ -28,7 +28,7 @@ export interface PasoTarea {
 
 // Minutos a partir de los cuales una etapa se considera atascada.
 // El de «visto bueno» es 20 porque el 13-09-2026 tres tareas estuvieron
-// 147 minutos esperando aprobación sin que el Mando lo mostrara.
+// 147 minutos esperando aprobación sin que Genesis lo mostrara.
 export const TOPES_MIN: Record<Exclude<Etapa, "integrada">, number> = {
   escribiendo: 25,
   verificando: 20,

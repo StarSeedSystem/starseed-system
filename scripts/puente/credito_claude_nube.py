@@ -4,7 +4,7 @@
 
 Alex tiene «Créditos de sesiones en la nube» en claude.ai → Ajustes → Uso: se aplican solos a
 las sesiones de Claude en la nube y, al usarse o vencer, vuelve el uso normal del plan. No hay
-API para leer el saldo, así que este guion guarda lo que Alex DECLARA y el Mando lo enseña en el
+API para leer el saldo, así que este guion guarda lo que Alex DECLARA y Genesis lo enseña en el
 pulso de trabajo (medidor «Crédito Claude nube», `src/lib/mando/credito-claude.ts`).
 
 Uso:

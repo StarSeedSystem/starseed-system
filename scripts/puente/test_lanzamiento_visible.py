@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Lo que lanza el Mando tiene que ser VISIBLE para el vigilante.
+"""Lo que lanza Genesis tiene que ser VISIBLE para el vigilante.
 
-El caso real (ola 325, 2026-09-16): el Mando lanzó el orquestador a las 19:34:59
+El caso real (ola 325, 2026-09-16): Genesis lanzó el orquestador a las 19:34:59
 sin la bandera `-u`. `orquestador_vivo()` solo reconoce como orquestador un
 proceso cuya orden empieza por un python seguido de `-u`, así que para el
 vigilante no había nadie trabajando — y a los cuarenta y ocho segundos lanzó un
@@ -10,7 +10,7 @@ SEGUNDO orquestador sobre la misma cola. Los dos se pelearon por los arriendos
 una Mac de 8 GB, con las puertas ya haciendo cola detrás de un único cerrojo.
 
 La regla de oro es UN orquestador con N trabajadores. Esta prueba la defiende
-desde el otro lado: comprueba que la orden que escribe el Mando encaja con el
+desde el otro lado: comprueba que la orden que escribe Genesis encaja con el
 patrón con el que el vigilante cuenta orquestadores. Son dos archivos distintos
 —`src/lib/mando/colas.ts` y `scripts/puente/vigilante_logica.py`— y nada más los
 ata; por eso se atan aquí.
@@ -45,7 +45,7 @@ class PruebaLanzamientoVisible(unittest.TestCase):
         self.assertIn(
             '"-u"',
             trozo,
-            "el Mando lanzaría un orquestador INVISIBLE para el vigilante, que a los "
+            "Genesis lanzaría un orquestador INVISIBLE para el vigilante, que a los "
             "90 s lanzaría un segundo orquestador sobre la misma cola",
         )
 

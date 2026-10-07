@@ -1,5 +1,5 @@
 /**
- * Pruebas de la «Voz del Mando» (Ola 275 · Tarea V1 · 2026-09-07).
+ * Pruebas de la «Voz de Genesis» (Ola 275 · Tarea V1 · 2026-09-07).
  *
  * - `anunciosDe` convierte un `esperando_aprobacion` en prioridad 1 con el
  *   motivo en la frase, e ignora `latido`/`arranque` y lo desactivado.

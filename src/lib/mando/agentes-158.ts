@@ -1,12 +1,12 @@
 /**
- * Lectura de la «ramificación 1.58» para el Puente de Mando (Ola 270 · 2026-09-07)
+ * Lectura de la «ramificación 1.58» para Genesis (Ola 270 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * El backend Astraura 1.58 (esta neurona, `ASTRAURA_158_URL` o
  * `http://127.0.0.1:8000`) trabaja de forma continua: BitNet al fondo, cinco
  * agentes de aprendizaje (Curador, Entrenador, Evaluador, Desplegador,
  * Cronista) y procesos de fondo (imaginación, sueños, enjambre, Director,
  * learner, cognition). Este módulo lee su estado vivo y lo cruza con las
- * personalidades del OS para dibujarlo en el Mando.
+ * personalidades del OS para dibujarlo en Genesis.
  *
  * Tolerancia total a fallos: si el backend está apagado o tarda, `leerRama158`
  * devuelve `backend: "apagado"` con arrays vacíos — nunca lanza.
@@ -82,7 +82,7 @@ export interface PersonalidadRama {
     origen: "os" | "corpus";
 }
 
-/** Rama completa que dibuja el Mando: BitNet → personalidades → agentes → procesos. */
+/** Rama completa que dibuja Genesis: BitNet → personalidades → agentes → procesos. */
 export interface Rama158 {
     /** ISO de cuándo se tomó esta foto. */
     t: string;

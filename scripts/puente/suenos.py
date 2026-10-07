@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""suenos · la terminal de los SUEÑOS PROFUNDOS del Puente de Mando (localhost:9002).
+"""suenos · la terminal de los SUEÑOS PROFUNDOS de Genesis (localhost:9002).
 
 Una flota de analistas GRATUITOS (el enjambre, tareas `tipo: "analisis"`) sueña cada área de
 StarSeed OS con seis lentes; los supervisores CLAUDE (sesiones en la nube pagadas con el
@@ -32,8 +32,8 @@ Dónde queda todo (nada se versiona: starseed_memory_root/ está en .gitignore):
 `lanzar` respeta la regla de UN orquestador: si ya hay uno vivo que sabe soñar (arrancó
 después de instalar el analista), le añade las tareas a su cola viva, que relee al cambiar;
 si es uno viejo, no lanza un segundo (salvo `--forzar`) y dice qué hacer. Sin orquestador,
-pide el lanzamiento al Mando (`POST localhost:9002/api/mando/colas`, «aquí») y, si el Mando
-no contesta, arranca el orquestador directamente, como hace el Mando.
+pide el lanzamiento a Genesis (`POST localhost:9002/api/mando/colas`, «aquí») y, si Genesis
+no contesta, arranca el orquestador directamente, como hace Genesis.
 
 Protocolo de un supervisor Claude: `scripts/puente/supervisor_suenos.md`. SOP:
 `architecture/suenos-profundos.md`.
@@ -251,7 +251,7 @@ def puede_sonar(orq, instalado_mtime, ahora=None):
 
 
 def lanzar_por_mando(nombre, workers):
-    """POST /api/mando/colas {accion: lanzar, donde: mac}. None si el Mando no contesta."""
+    """POST /api/mando/colas {accion: lanzar, donde: mac}. None si Genesis no contesta."""
     cuerpo = json.dumps({"accion": "lanzar", "nombre": nombre, "donde": "mac", "workers": workers}).encode()
     req = urllib.request.Request(MANDO_URL + "/api/mando/colas", data=cuerpo, method="POST",
                                  headers={"Content-Type": "application/json"})
@@ -268,7 +268,7 @@ def lanzar_por_mando(nombre, workers):
 
 
 def lanzar_directo(raiz, cola_rel, workers, tope_analisis=None, medio=None):
-    """Como `lanzarAqui` del Mando: python3 -u <orquestador> <cola> --workers N, desacoplado."""
+    """Como `lanzarAqui` de Genesis: python3 -u <orquestador> <cola> --workers N, desacoplado."""
     r = rutas(raiz)
     os.makedirs(os.path.join(r["olas"], "logs"), exist_ok=True)
     registro = open(os.path.join(r["olas"], "logs", "lanzamiento-%s.log" % os.path.basename(cola_rel)[5:-5]), "a")
@@ -372,7 +372,7 @@ def _latidos_frescos(dir_olas, ahora):
 
 def estado_sesion(raiz, sesion, ahora=None, vivos=None):
     """Una fila por área × lente con estado, proveedor, tokens, tiempo y veredicto. Lee solo
-    archivos locales (el Mando hace lo mismo desde TypeScript)."""
+    archivos locales (Genesis hace lo mismo desde TypeScript)."""
     ahora = time.time() if ahora is None else ahora
     r = rutas(raiz)
     dir_sesion = os.path.join(r["profundo"], sesion)
@@ -521,12 +521,12 @@ def cmd_lanzar(a, raiz):
         workers = max(1, min(8, a.workers))
         respuesta = None if a.directo else lanzar_por_mando("suenos-%s" % sesion, workers)
         if respuesta and respuesta.get("ok"):
-            fuera.update(accion="mando", pid=respuesta.get("pid"), mensaje="Lanzado por el Puente de Mando (localhost:9002).")
+            fuera.update(accion="mando", pid=respuesta.get("pid"), mensaje="Lanzado por Genesis (localhost:9002).")
         else:
             if respuesta and not respuesta.get("ok"):
-                fuera["aviso_mando"] = respuesta.get("error") or "el Mando no lo lanzó"
+                fuera["aviso_mando"] = respuesta.get("error") or "Genesis no lo lanzó"
             pid = lanzar_directo(raiz, cola_rel, workers, a.tope_analisis, "claude" if os.environ.get("CLAUDECODE") else None)
-            fuera.update(accion="directo", pid=pid, mensaje="El Mando no contestó: orquestador lanzado desde la terminal.")
+            fuera.update(accion="directo", pid=pid, mensaje="Genesis no contestó: orquestador lanzado desde la terminal.")
     try:
         director_suenos.anunciar("Sueños profundos %s: %d tareas en marcha (%s) · hasta %d a la vez · "
                                  "verificación por supervisores Claude." % (sesion, len(plan["tareas"]), fuera["accion"],
@@ -728,7 +728,7 @@ def parser():
     p.add_argument("--donde", default="mac")
     p.add_argument("--workers", type=int, default=3)
     p.add_argument("--rehacer", action="store_true")
-    p.add_argument("--directo", action="store_true", help="no pedirlo al Mando: arrancar el orquestador aquí")
+    p.add_argument("--directo", action="store_true", help="no pedirlo a Genesis: arrancar el orquestador aquí")
     p.add_argument("--forzar", action="store_true", help="lanzar aunque haya otro orquestador vivo")
     p.add_argument("--seco", action="store_true")
     p.add_argument("--por", default=os.environ.get("STARSEED_MEDIO") or "terminal")

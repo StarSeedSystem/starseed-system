@@ -8,8 +8,7 @@
 // WidgetLibre y publica aquí su acento, su clase de tamaño y el
 // espaciado que le toca. Las piezas del kit (WidgetShell, StatTile,
 // Chip, estados…) lo leen para adoptar la escala tipográfica y las
-// pastillas fantasma SOLO dentro de ese marco: fuera de él (Puente de
-// Mando, Estudio, «marco clásico») el contexto es `null` y todo se ve
+// pastillas fantasma SOLO dentro de ese marco: fuera de él (Genesis, Estudio, «marco clásico») el contexto es `null` y todo se ve
 // exactamente como siempre.
 // ════════════════════════════════════════════════════════════════
 

@@ -1,5 +1,5 @@
 /**
- * Revisores continuos por área — puerta del Mando (Ola 301 · RV2 · 2026-09-09).
+ * Revisores continuos por área — puerta de Genesis (Ola 301 · RV2 · 2026-09-09).
  *
  *   GET                        → estado de la vigilancia, sugerencias vivas y el área que tocaría ahora
  *   POST {accion:"barrido"}    → una pasada: UNA sola área, la más atrasada
@@ -8,7 +8,7 @@
  *   POST {accion:"descartar", id} → la retira de las vivas
  *
  * AQUÍ NO ARRANCA NADA SOLO: esta ruta no programa temporizadores ni barre al
- * importarse. Quien dispara el barrido es la interfaz del Mando o una tarea
+ * importarse. Quien dispara el barrido es la interfaz de Genesis o una tarea
  * programada, y quien lanza la cola que sale de una aprobación es una persona.
  * Solo local: `guardianMando` devuelve 404 en producción desplegada.
  */
@@ -47,7 +47,7 @@ export async function GET(peticion: Request): Promise<Response> {
     );
 }
 
-/** Acciones del Mando sobre la vigilancia. Todas explícitas, ninguna automática. */
+/** Acciones de Genesis sobre la vigilancia. Todas explícitas, ninguna automática. */
 export async function POST(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;

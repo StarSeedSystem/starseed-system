@@ -10,7 +10,7 @@ LA DISTINCIÓN QUE IMPORTA, y que este proyecto ha pagado cara varias veces:
     «git push» garantiza.
   · APLICADO  = además se está usando de verdad. Un módulo nuevo que nadie
     importa está integrado y no sirve para nada; y un cambio de interfaz que
-    está en main pero NO en la build que sirve el Mando ahora mismo no se ve
+    está en main pero NO en la build que sirve Genesis ahora mismo no se ve
     en pantalla por mucho que el commit exista. Las dos veces el informe decía
     «publicado» y Alex, delante de la pantalla, veía que no.
 

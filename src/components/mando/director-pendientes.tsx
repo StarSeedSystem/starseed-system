@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Pestaña Director del Mando (2/3 · p318G) — tareas pendientes.
+ * Pestaña Director de Genesis (2/3 · p318G) — tareas pendientes.
  * Resumen con seis cifras, lista de bloqueadas con dependencia, lista de fallos
  * con nota, botón Reintentar por fila con estado de carga y resultado.
  */
@@ -20,7 +20,7 @@ async function reasignarCola(tarea: string): Promise<{ ok: boolean; detalle: str
     });
     const cuerpo = (await r.json()) as { ok?: boolean; detalle?: string; error?: string };
     return { ok: Boolean(cuerpo.ok), detalle: cuerpo.detalle ?? cuerpo.error ?? `HTTP ${r.status}` };
-  } catch { return { ok: false, detalle: "No se pudo hablar con el Mando." }; }
+  } catch { return { ok: false, detalle: "No se pudo hablar con Genesis." }; }
 }
 
 function FilaBloqueada({ bloqueada }: { bloqueada: { id: string; dependeDe: string[] } }) {

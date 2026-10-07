@@ -1,8 +1,8 @@
 /**
- * GET/POST /api/mando/aprendizaje (Ola 270 · 2026-09-07 · Puente de Mando)
+ * GET/POST /api/mando/aprendizaje (Ola 270 · 2026-09-07 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Proxy del «aprendizaje continuo» de Astraura 1.58 para la pestaña «Aprendizaje»
- * del Centro de Mando: corpus vivo por personalidad, curación, evaluaciones,
+ * de Genesis: corpus vivo por personalidad, curación, evaluaciones,
  * crónica, fábrica y adaptadores, más las acciones de valoración y exportación.
  *
  *   GET  → `leerAprendizaje()` (lectura tolerante en disco, nunca lanza).

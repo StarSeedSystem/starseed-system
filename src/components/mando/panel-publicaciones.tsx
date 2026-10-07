@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Panel «Commits pendientes» del Centro de Mando (Ola 274 · 2026-09-07)
+ * Panel «Commits pendientes» de Genesis (Ola 274 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * Lista los commits sin publicar del OS y de Astraura (agrupados por ola, con
  * diffstat y base remota) y lanza publicaciones —producción, vista previa o
  * paquete— siempre detrás de la confirmación escrita del diálogo. Se sondea
- * cada 30 s con el patrón de visibilidad de los demás paneles del Mando.
+ * cada 30 s con el patrón de visibilidad de los demás paneles de Genesis.
  */
 
 import { useCallback, useEffect, useState } from "react";

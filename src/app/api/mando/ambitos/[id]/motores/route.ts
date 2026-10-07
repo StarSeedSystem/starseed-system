@@ -1,5 +1,5 @@
 /**
- * Motores de un ámbito — Mando para todos (PT1009B · §2 y §6.2 del contrato).
+ * Motores de un ámbito — Genesis para todos (PT1009B · §2 y §6.2 del contrato).
  *
  *   POST   {nombre, tipo, capacidades} → registra un motor vía RPC
  *          `mando_registrar_motor` y enseña el token UNA sola vez.
@@ -7,7 +7,7 @@
  *          (nunca token_hash).
  *   DELETE ?motor=<id> → revoca el motor vía RPC `mando_revocar_motor`.
  *
- * Todo detrás de `STARSEED_MANDO_TODOS=1`: sin la bandera, 404 y el Mando se
+ * Todo detrás de `STARSEED_MANDO_TODOS=1`: sin la bandera, 404 y Genesis se
  * comporta exactamente igual que hoy. La tabla `mando_motores` está cerrada:
  * nada de insert/update directos.
  */

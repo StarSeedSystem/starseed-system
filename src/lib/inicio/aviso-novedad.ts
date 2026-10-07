@@ -44,7 +44,7 @@ export const ESPERA_LUEGO_MS = 3 * 24 * 60 * 60 * 1000;
 export const UMBRAL_CUENTA_NUEVA_MS = 10 * 60 * 1000;
 
 /** Rutas propias de acceso o de una experiencia a pantalla completa: nunca se abre encima. */
-export const RUTAS_EXCLUIDAS_AVISO = ["/login", "/mando", "/llamada", "/vivo"];
+export const RUTAS_EXCLUIDAS_AVISO = ["/login", "/genesis", "/mando", "/llamada", "/vivo"];
 
 export function esRutaExcluidaAviso(ruta: string | null): boolean {
   return Boolean(ruta && RUTAS_EXCLUIDAS_AVISO.some((r) => ruta === r || ruta.startsWith(`${r}/`)));

@@ -261,7 +261,7 @@ def codex_disponible() -> bool:
     (2026-09-16) El interruptor pasa de OPT-IN a OPT-OUT, y no es un capricho. La condición
     era `STARSEED_CODEX_ESCRITOR == "1"`, y esa variable NO estaba puesta en ningún sitio
     permanente: ni en los plist de launchd, ni en `~/.starseed/env`, ni en el lanzamiento
-    del Mando. Solo aparecía en estas dos comprobaciones y en una prueba que la simula. Es
+    de Genesis. Solo aparecía en estas dos comprobaciones y en una prueba que la simula. Es
     decir: desde la ola 296, que construyó esto y lo dejó verificado, TODOS los
     orquestadores han arrancado con Codex apagado. La capacidad de escritura de coste cero
     que da la suscripción de ChatGPT llevaba ahí, viva, sin que nadie la usara — comprobado
@@ -309,7 +309,7 @@ def codex_disponible() -> bool:
 class ConjuntoCaduco(set):
     """Un `set` cuyos miembros CADUCAN (2026-10-06, autocuración del enjambre).
 
-    Alex: «los agentes y procesos están detenidos… el puente de mando debería
+    Alex: «los agentes y procesos están detenidos… Genesis debería
     autorrepararse». Medido esa noche: un orquestador vivo desde las 18:10 tenía a las
     22:55 a sus tres trabajadores «esperando proveedor» con apinex, freellmapi y Google
     respondiendo a la sonda. MUERTOS vivía para toda la corrida: un cuelgue o un 429 de
@@ -1230,7 +1230,7 @@ def candidatos_revision():
 
 def _revisor_respondio(prov, modelo):
     """Anota el último revisor que sí contestó: en esta ola (global) y en el archivo de
-    salud (útil para las Oläs siguientes y para el Mando)."""
+    salud (útil para las Oläs siguientes y para Genesis)."""
     global REVISOR_ULTIMO_OK
     REVISOR_ULTIMO_OK = "%s/%s" % (prov, modelo)
     try:
@@ -1242,7 +1242,7 @@ def _revisor_respondio(prov, modelo):
 
 
 def revalidar_proveedor(prov):
-    """Para un modelo pedido EXPRESAMENTE (cola o Mando): si su proveedor consta «caído» pero
+    """Para un modelo pedido EXPRESAMENTE (cola o Genesis): si su proveedor consta «caído» pero
     el dato es viejo (>10 min: el supervisor de esta máquina llevaba tiempo sin mirar), se
     sondea ahora mismo en vez de reenrutar a ciegas. El 2026-09-05 P2 pidió minimax por
     xkiro y se fue a NIM porque el archivo de salud de la Mac decía «caído» de otro día."""
@@ -1462,7 +1462,7 @@ def _sonda_generacion(prov, claves, kay):
     # Ola 271… y no lo llamaba NADIE. Era código muerto. Resultado: una pasarela que
     # daba un 429 y se reponía a los cinco minutos seguía apartada la hora entera,
     # aunque el enjambre acabara de escribir con ella. Capacidad gratis tirada, y
-    # ningún «proveedor_recuperado» en el Mando en todo ese tiempo.
+    # ningún «proveedor_recuperado» en Genesis en todo ese tiempo.
     # Las 402/cuota NO se tocan: esas aguantan sus 24 h.
     if vivo:
         _liberar_429(prov)
@@ -1559,7 +1559,7 @@ def supervisor_proveedores():
                     visto[prov] = "caido"
         # (2026-09-07, Ola 271, P9B) Cada ciclo del supervisor deja también el estado de las
         # CLAVES de cada proveedor (var/medio/huella/agotada_hasta, jamás valores) para el
-        # Mando y para que las demás olas vean qué clave toca sin recontar los archivos.
+        # Genesis y para que las demás olas vean qué clave toca sin recontar los archivos.
         try:
             d["claves"] = estado_claves()
         except Exception:
@@ -2101,7 +2101,7 @@ def agotar_clave(prov, huella, motivo, tipo="cuota"):
     d[prov] = e
     _salud_guardar(d)
     siguiente = clave_activa(prov)
-    hasta_hhmm = hasta_txt[11:16]  # «HH:MM» local para el aviso y el Mando
+    hasta_hhmm = hasta_txt[11:16]  # «HH:MM» local para el aviso y Genesis
     if siguiente:
         evento(
             "aviso",
@@ -2130,7 +2130,7 @@ def agotar_clave(prov, huella, motivo, tipo="cuota"):
 
 
 def estado_claves():
-    """Resumen para el Mando y el JSON de salud (Ola 271, Tarea 3). Por proveedor: sus
+    """Resumen para Genesis y el JSON de salud (Ola 271, Tarea 3). Por proveedor: sus
     claves con var/medio/huella/agotada_hasta, cuál está activa y el sin_cupo del
     proveedor. NUNCA incluye valores: solo nombres de variable y huellas."""
     d = _salud()
@@ -2454,7 +2454,7 @@ def sh(cmd, cwd=ROOT, timeout=120, env=None, log=None):
     mata el grupo entero. Antes `subprocess.run(timeout=…)` mataba solo al hijo directo
     (`sh`/`npx`): vitest y sus trabajadores quedaban adoptados por init. Cinco
     `node (vitest N)` de ~2,2 GB cada uno, huérfanos 49 minutos, dejaron la Mac sin RAM
-    y el Puente de Mando sin contestar."""
+    y Genesis sin contestar."""
     e = entorno_hijo(env)
     p = None
     try:
@@ -2700,8 +2700,7 @@ def cerrojo(nombre, espera_aviso=60):
 
 
 # ── eventos (supervisor) ────────────────────────────────────────────────────
-# Cada evento lleva una CATEGORÍA gruesa además de su tipo fino, para que el Puente de
-# Mando pueda agruparlos: escritura, verificación, revisión, integración, supervisión,
+# Cada evento lleva una CATEGORÍA gruesa además de su tipo fino, para que Genesis pueda agruparlos: escritura, verificación, revisión, integración, supervisión,
 # proveedor, ola. Lo pidió Alex: «cada proceso debe ser etiquetado por tipo».
 CATEGORIA_DE = {
     "inicio": "escritura",
@@ -3013,7 +3012,7 @@ def guardar_prog(prog):
 
 PROG = cargar_prog()
 
-# Estados que nunca puede deshacer una corrida vieja. Si el Mando o un IDE ya
+# Estados que nunca puede deshacer una corrida vieja. Si Genesis o un IDE ya
 # registró una integración/rechazo mientras este proceso conservaba una copia
 # anterior en memoria, la verdad persistida manda (2026-09-10 · Puente).
 PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
@@ -3035,7 +3034,7 @@ def cerradas_en_disco(cada_s=30, ruta=None):
 
     (2026-10-06) Una tanda arrancada a las 18:10 volvió a escribir a las 22:55 LC1007A, que
     la nube ya había integrado a las 21:55: la copia en memoria no se entera de lo que
-    cierran otros (traer_nube, el Mando, la dirección). Se relee el disco como mucho cada
+    cierran otros (traer_nube, Genesis, la dirección). Se relee el disco como mucho cada
     `cada_s` segundos. Nunca lanza."""
     ahora_ = time.time()
     if ahora_ - _CERRADAS_DISCO["t"] >= cada_s:
@@ -3432,7 +3431,7 @@ except Exception:
 
 
 def _ajustes_del_mando():
-    """Los ajustes que Alex toca desde el Mando (~/.starseed/enjambre.json)."""
+    """Los ajustes que Alex toca desde Genesis (~/.starseed/enjambre.json)."""
     try:
         with open(
             os.path.expanduser("~/.starseed/enjambre.json"), encoding="utf-8"
@@ -4043,7 +4042,7 @@ def archivos_declarados_sin_tocar(declarados, tocados):
 
     (2026-09-20) NE1b decia en su encargo, con todas las letras, «esta tarea NO reescribe
     el modulo: lo LEE ENTERO y lo CABLEA», y nombraba tres archivos: la ruta nueva, la
-    pastilla del Mando y su prueba. Entrego otra cosa —reescribio el modulo que ya
+    pastilla de Genesis y su prueba. Entrego otra cosa —reescribio el modulo que ya
     existia— y se integro con «revision ok». La revision no fallo: lee el diff que le dan
     y no sabe que se habia pedido. Un agente que no toca NI UNO de los archivos que el
     mismo encargo declara no ha hecho la tarea, y eso se comprueba con `git`, sin
@@ -5083,7 +5082,7 @@ def toca_tests_ts(archivos):
 def _guardar_contexto(t, contexto):
     """Deja constancia de QUÉ contexto recibió cada agente (área, documentos, reglas,
     habilidades, fuentes, conexiones, relevo, revisión previa) en olas/contextos/<id>.json,
-    para que el Puente de Mando pueda enseñar «con qué trabajó este agente»."""
+    para que Genesis pueda enseñar «con qué trabajó este agente»."""
     try:
         carpeta = os.path.join(OLAS, "contextos")
         os.makedirs(carpeta, exist_ok=True)
@@ -5187,7 +5186,7 @@ LAT_JSON = os.path.join(
         else "cola"
     ),
 )
-# Órdenes por tarea que llegan DESDE FUERA mientras la ola corre (Puente de Mando → archivo
+# Órdenes por tarea que llegan DESDE FUERA mientras la ola corre (Genesis → archivo
 # `control-<cola>.json`; en la nube lo escribe el lanzador con la orden firmada del bus):
 #   {"P2": {"accion": "reasignar", "modelo": "xkiro/…", "t": "…", "quien": "mando"},
 #    "P3": {"accion": "soltar", "donde": "nube", …}}
@@ -5208,9 +5207,9 @@ REABRIR = set()  # ids que el director manda repetir dentro de la MISMA tanda  #
 APROBACIONES = {}  # tarea -> "aprobar" | "rechazar" (nodos de aprobación humana)
 # Y QUIÉN lo decidió. Va aparte para no cambiar la forma de APROBACIONES, pero es
 # obligatorio: sin esto, una tarea rechazada por un director automático quedaba escrita
-# en progreso.json como «rechazada desde el Mando», es decir, como si la hubiera mirado
+# en progreso.json como «rechazada desde Genesis», es decir, como si la hubiera mirado
 # una persona. El 2026-09-16 pasó con p316I y p317C: las dos habían pasado tsc y las
-# pruebas, el mensaje decía «espera tu visto bueno en el Mando», y nueve minutos después
+# pruebas, el mensaje decía «espera tu visto bueno en Genesis», y nueve minutos después
 # el desatascador las rechazó solo. En el registro quedó «(ide)»; en el estado, nada.
 # Un sistema que no distingue «lo revisó Alex» de «lo mató un temporizador» no se puede
 # auditar, y esa diferencia es justo la que hay que poder mirar.
@@ -5341,7 +5340,7 @@ def refrescar_bloque_opencode(cfg, prov):
 
 
 def asegurar_modelo_opencode(modelo):
-    """Un modelo pedido desde el Mando puede no estar en ~/.config/opencode/opencode.json
+    """Un modelo pedido desde Genesis puede no estar en ~/.config/opencode/opencode.json
     (xkiro tiene 40 y solo hay 10 declarados): si el proveedor está, se añade el modelo
     para que `opencode run --model` lo acepte. Sin claves: la config las lee de {env:…}."""
     prov, _, nombre = modelo.partition("/")
@@ -5349,7 +5348,7 @@ def asegurar_modelo_opencode(modelo):
         return False
     # (2026-09-08, Ola 296 · CX1) Los escritores `codex/` NO pasan por opencode: los escribe
     # `codex exec` con la sesión de ChatGPT, así que no hay bloque `provider` que asegurar ni
-    # razón para tocar opencode.json. Se dan por listos (True) para que el Mando pueda
+    # razón para tocar opencode.json. Se dan por listos (True) para que Genesis pueda
     # reasignar una tarea a Codex igual que a cualquier otro modelo.
     if es_modelo_codex(modelo):
         return codex_disponible()
@@ -5410,7 +5409,7 @@ def asegurar_modelo_opencode(modelo):
 
 def entregar_mensajes():
     """Deja MENSAJES-DEL-DIRECTOR.md en el worktree de cada tarea viva que tenga
-    mensajes nuevos (Alex, desde el Mando). No interrumpe nada: el agente lo lee
+    mensajes nuevos (Alex, desde Genesis). No interrumpe nada: el agente lo lee
     cuando su prompt se lo manda. Nunca lanza."""
     try:
         base = os.path.realpath(WT_BASE)
@@ -5430,7 +5429,7 @@ def entregar_mensajes():
 def refrescar_proveedores(quien="director"):
     """Borra los vetos de esta corrida (MUERTOS, los que piden pago y la memoria de la sonda).
 
-    (2026-10-06) La pide la autocuración del Mando cuando ve trabajadores «esperando
+    (2026-10-06) La pide la autocuración de Genesis cuando ve trabajadores «esperando
     proveedor» mientras la sonda dice que hay escritores con cupo. No hay que matar la
     tanda: en ≤ 30 s cada espera vuelve a mirar la rotación entera y la sonda de 1 token
     descarta en un segundo lo que siga mal. Devuelve cuántos vetos borró. Nunca lanza."""
@@ -5463,7 +5462,7 @@ def atender_control():
             # Orden de la FLOTA (no de una tarea): va antes del filtro de MIAS.
             refrescar_proveedores(str(orden.get("quien") or "director")[:32])
             continue
-        # Nube y agentes de IDE se anuncian por el mismo canal que ya sincroniza el Mando.
+        # Nube y agentes de IDE se anuncian por el mismo canal que ya sincroniza Genesis.
         # Su capacidad y bytes son datos operativos; nunca se aceptan ni guardan credenciales.
         if accion == "latido_medio":
             medio_id = re.sub(r"[^a-zA-Z0-9_.:-]", "-", str(orden.get("medio") or tid))[
@@ -5531,7 +5530,7 @@ def atender_control():
                 except Exception:
                     pass
             set_estado(
-                tid, estado="reasignada", nota="movida a %s desde el Mando" % donde
+                tid, estado="reasignada", nota="movida a %s desde Genesis" % donde
             )
             evento(
                 "reasignada",
@@ -5560,7 +5559,7 @@ def atender_control():
             evento(
                 "reasignado",
                 tid,
-                "cambio a %s pedido desde el Mando → corto la escritura actual y sigo el mismo flujo con él"
+                "cambio a %s pedido desde Genesis → corto la escritura actual y sigo el mismo flujo con él"
                 % modelo,
                 datos={"modelo": modelo},
             )
@@ -5568,7 +5567,7 @@ def atender_control():
             evento(
                 "reasignado",
                 tid,
-                "empezará con %s (pedido desde el Mando)" % modelo,
+                "empezará con %s (pedido desde Genesis)" % modelo,
                 datos={"modelo": modelo},
             )
         else:
@@ -6090,7 +6089,7 @@ def tokens_por_tarea():
 
 
 def foto_enjambre(vivas_txt):
-    """La foto completa que viaja en cada latido al bus: lo que ve el Puente de Mando de
+    """La foto completa que viaja en cada latido al bus: lo que ve Genesis de
     CUALQUIER máquina, no solo de la que tiene los archivos delante."""
     ahora_s = time.time()
     tokens = tokens_por_tarea()
@@ -6160,7 +6159,7 @@ def foto_enjambre(vivas_txt):
         "donde": os.environ.get("STARSEED_DONDE", "nube"),
         "medio": MEDIO,
         "tareas": tareas,
-        # «completando» pinta como «escribiendo» en el Mando: es una escritura de alcance.
+        # «completando» pinta como «escribiendo» en Genesis: es una escritura de alcance.
         # «analizando» (2026-09-29): un sueño profundo también es un agente trabajando.
         "agentesActivos": len(
             [
@@ -6294,7 +6293,7 @@ def vigilante():
                 )
             )
             # «completando» (puerta de alcance, Ola 259) es escritura: mismo trato por si se
-            # cuelga y misma pintura en el Mando (cuenta como agente escribiendo).
+            # cuelga y misma pintura en Genesis (cuenta como agente escribiendo).
             # Antes de la PRIMERA escritura se consiente más silencio: el agente está
             # leyendo AGENTS.md y mirando el repositorio porque es lo que le pedimos, y a
             # 5-10 tok/s eso no cabe en cinco minutos. Ver `tope_de_silencio` en medios.py
@@ -6464,7 +6463,7 @@ def debe_pedir_visto_bueno(bloqueante, faltan, aprobacion_pedida, argv):
 
 def _paso_local(tid, nombre, **datos):
     """Como `paso`, pero SOLO al archivo local `olas/pasos/<id>.jsonl` (la ficha de la tarea
-    en el Mando lo lee): los pasos de un sueño no viajan al bus, que debe llevar pocos
+    en Genesis lo lee): los pasos de un sueño no viajan al bus, que debe llevar pocos
     eventos y gruesos (contrato de consumo, memory/orquestacion-economica.md §15)."""
     try:
         os.makedirs(PASOS_DIR, exist_ok=True)
@@ -6655,7 +6654,7 @@ def _ejecutar_analisis(t):
     ruta_log = os.path.join(LOGS, tid + ".log")
 
     def registrar(texto):
-        # El registro crece con cada llamada: el vigilante lo ve y el Mando también.
+        # El registro crece con cada llamada: el vigilante lo ve y Genesis también.
         try:
             with open(ruta_log, "a", encoding="utf-8") as f:
                 f.write("[%s] %s\n" % (ahora()[11:], texto))
@@ -6923,7 +6922,7 @@ def ejecutar(t, intento=1):
             limpiar_worktree(tid)
             return
         if tid in CORTADOS and tid in REASIGNADOS:
-            # Lo cortó el Mando para cambiar de modelo/API: lo que dejó a medias el modelo
+            # Lo cortó Genesis para cambiar de modelo/API: lo que dejó a medias el modelo
             # anterior se descarta (estaba escribiendo cuando se le cortó), el nuevo va
             # primero y el flujo sigue igual (tsc → tests → revisión → integración).
             CORTADOS.discard(tid)
@@ -7645,7 +7644,7 @@ def ejecutar(t, intento=1):
             and (adelante or "0").strip().isdigit()
             and int(adelante.strip()) > 0
         ):
-            # Un commit vacío con el título de la tarea: así main y el Mando ven
+            # Un commit vacío con el título de la tarea: así main y Genesis ven
             # «345 · NE3-1: …» y no solo «salvavidas · …» (2026-09-21, 01:55).
             rc, out = sh(
                 "git -c core.hooksPath=/dev/null commit -q --allow-empty -F /tmp/enj-msg-%s.txt"
@@ -7783,7 +7782,7 @@ def ejecutar(t, intento=1):
             )
     # ── Nodo de aprobación humana (patrón Flowise «human in the loop») ─────────────────
     # Con `--aprobacion`, `STARSEED_APROBACION=1` o `"aprobacion": true` en la tarea, NADA se
-    # integra en main sin el visto bueno de Alex: la rama queda lista, el Mando la enseña con su
+    # integra en main sin el visto bueno de Alex: la rama queda lista, Genesis la enseña con su
     # diff y sus comprobaciones, y la orden `aprobar`/`rechazar` llega por el archivo de control
     # (Mac) o por el bus firmado (nube). Si nadie decide en ESPERA_APROBACION_S, la rama se
     # conserva y la tarea queda «pendiente_aprobacion» (se integra a mano o relanzando --solo).
@@ -7828,12 +7827,12 @@ def ejecutar(t, intento=1):
         )
         latir(tid, "esperando aprobación", modelo=modelo_ok)
         # `motivo` (Ola 261, P4): por qué pide visto bueno — cola, bloqueo confirmado o alcance
-        # incompleto. El Mando lo enseña junto al resto de campos (rama, sha, diffstat, revisión,
+        # incompleto. Genesis lo enseña junto al resto de campos (rama, sha, diffstat, revisión,
         # bloqueante, modelo, impacto), que se mantienen idénticos al flujo ya existente.
         evento(
             "esperando_aprobacion",
             tid,
-            "rama ola/%s lista (%s): tsc 0 · tests ok · revisión %s. Espera tu visto bueno en el Mando. Motivo: %s."
+            "rama ola/%s lista (%s): tsc 0 · tests ok · revisión %s. Espera tu visto bueno en Genesis. Motivo: %s."
             % (
                 tid,
                 sha_rama.strip(),
@@ -7889,11 +7888,11 @@ def ejecutar(t, intento=1):
             return
         if decision == "rechazar":
             quien = QUIEN_DECIDIO.pop(tid, "mando")
-            # «desde el Mando» solo si vino del Mando. Si lo decidió un director
+            # «desde Genesis» solo si vino de Genesis. Si lo decidió un director
             # automático, se dice su nombre: el que lea esto mañana tiene que poder
             # distinguir una decisión de Alex de un temporizador.
             de_quien = (
-                "rechazada desde el Mando"
+                "rechazada desde Genesis"
                 if quien == "mando"
                 else "rechazada automáticamente por %s (sin revisión humana)" % quien
             )
@@ -8027,13 +8026,13 @@ def ejecutar(t, intento=1):
         segundos_total=int(time.time() - t0),
     )
     # (2026-09-06, Ola 261, P4) Si llega aquí con bloqueante=True es porque alguien aprobó en el
-    # Mando o porque se forzó con `--integrar-bloqueantes`: el evento es `commit` (se integró) y
+    # Genesis o porque se forzó con `--integrar-bloqueantes`: el evento es `commit` (se integró) y
     # la nota lo dice, en vez de publicar «bloqueante» sobre un commit ya dentro de main.
     if bloqueante:
         detalle = (
             "integrado con --integrar-bloqueantes"
             if "--integrar-bloqueantes" in sys.argv
-            else "bloqueo revisado y aprobado en el Mando"
+            else "bloqueo revisado y aprobado en Genesis"
         )
         nota = "%s · revisión bloqueante (%s)" % (sha.strip(), detalle)
     else:
@@ -8422,7 +8421,7 @@ def main():
     anunciar_medios_locales()
     threading.Thread(target=vigilante, daemon=True).start()
     threading.Thread(target=supervisor_proveedores, daemon=True).start()
-    # La cola entera viaja en el bus: el Puente de Mando de la OTRA máquina no tiene este
+    # La cola entera viaja en el bus: Genesis de la OTRA máquina no tiene este
     # archivo (starseed_memory_root/ no se versiona) y sin esto la ola de la nube no aparecía.
     evento(
         "arranque",
@@ -8518,7 +8517,7 @@ def main():
                 ocupadas = set(activos) | hechas
                 nuevas = fusionar_cola(pendientes, estado_cola, ocupadas)
                 for tid in nuevas:
-                    # Registro mínimo para que el resto del bucle y el Mando la
+                    # Registro mínimo para que el resto del bucle y Genesis la
                     # reconozcan igual que a las del arranque.
                     TAREAS_POR_ID[tid] = estado_cola["tareas"][tid]
                     MIAS.add(tid)
@@ -8714,7 +8713,7 @@ def main():
         "HEAD %s · %s" % (head.strip(), resumen),
         datos={"cola": nombre_cola},
     )
-    # Último latido, ya sin tareas vivas: si no, el Mando de la otra máquina seguía viendo
+    # Último latido, ya sin tareas vivas: si no, Genesis de la otra máquina seguía viendo
     # «P2 escribiendo» hasta 4 min después de terminar (el latido anterior seguía en ventana).
     for d in list(LATIDOS.values()):
         d["fase"] = "hecho"
@@ -8795,7 +8794,7 @@ def main():
     try:
         # (2026-09-20, DV1) 300 s no alcanzan cuando el espejo copia una memoria entera
         # recien crecida: se cortaba a la mitad y NADIE se enteraba («except: pass»).
-        # Ahora 900 s y el resultado queda escrito como evento, que es lo que lee el Mando.
+        # Ahora 900 s y el resultado queda escrito como evento, que es lo que lee Genesis.
         res_espejo = subprocess.run(
             [
                 sys.executable,

@@ -178,7 +178,7 @@ function horasDesde(iso: string, ahora: Date): number | null {
 
 /**
  * ¿Toca revisar esta área? Siempre devuelve el PORQUÉ, porque la vigilancia se
- * enseña en el Mando y «no toca» sin motivo no le sirve a nadie. Un área que
+ * enseña en Genesis y «no toca» sin motivo no le sirve a nadie. Un área que
  * nunca se ha revisado (marca vacía o ilegible) toca siempre: es la primera vez.
  */
 export function tocaRevisar(

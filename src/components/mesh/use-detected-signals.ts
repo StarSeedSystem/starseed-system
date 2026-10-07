@@ -15,7 +15,7 @@
  *   · Escaneo BLE          → SOLO tras un gesto del usuario (Web Bluetooth).
  *   · Web Serial           → puertos USB ya autorizados por el usuario.
  *   · Radio nativa (Mac)   → Wi-Fi actual, redes cercanas y Bluetooth del
- *                             sistema, leídos por el Mando local (RDV12).
+ *                             sistema, leídos por Genesis local (RDV12).
  *   · Radar por la malla   → resúmenes de lo que oyen tus OTRAS neuronas,
  *                             compartidos por la malla P2P (RDV14).
  *
@@ -258,7 +258,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   /* (Ola 375 · RDV12) Radio NATIVA de la Mac: Wi-Fi actual, redes cercanas y Bluetooth
      que solo el sistema ve. Solo servido en localhost (en producción no pide nada).
      (Ola 1006R · RDV14) Se lee al montar y cada 60 s SOLO con la pestaña visible:
-     oculta, el Mando local no trabaja para nadie. */
+     oculta, Genesis local no trabaja para nadie. */
   const [radioLocal, setRadioLocal] = useState<RadioLocal | null>(() => radioLocalEnCache());
   useEffect(() => {
     let vivo = true;
@@ -383,14 +383,14 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
         fix: "Comprueba que el internet público StarSeed está encendido en el panel de conectividad.",
       });
     }
-    // (RDV14) Sin radio nativa (origen público o Mando local apagado): el
+    // (RDV14) Sin radio nativa (origen público o Genesis local apagado): el
     // navegador no ve el Wi-Fi ni el Bluetooth del sistema, y eso no es un
     // fallo — se declara de dónde saldría el dato.
     if (!radioLocal) {
       out.push({
         id: "wifi-bt-sistema",
         label: "Wi-Fi y Bluetooth del sistema",
-        reason: "El navegador no los expone; los lee el Mando local de la Mac y llegan aquí por la malla si esa neurona está vinculada.",
+        reason: "El navegador no los expone; los lee Genesis local de la Mac y llegan aquí por la malla si esa neurona está vinculada.",
       });
     }
     // Wi-Fi: la plataforma NUNCA permite escanear redes cercanas. Se declara.

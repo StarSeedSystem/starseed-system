@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel «Aprendizaje» del Centro de Mando (Ola 270 · 2026-09-07)
+ * Panel «Aprendizaje» de Genesis (Ola 270 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * El aprendizaje continuo de Astraura 1.58, de un vistazo: corpus vivo por
  * personalidad (turnos, partición train/val, bytes, última actividad), curación,
@@ -9,7 +9,7 @@
  * exportar `train.jsonl` por personalidad y valorar turnos a mano (👍/👎/neutro).
  *
  * Lee `GET /api/mando/aprendizaje` (solo local; 404 en producción) y se refresca
- * cada 20 s como el resto del Mando.
+ * cada 20 s como el resto de Genesis.
  */
 
 import { useCallback, useEffect, useState } from "react";

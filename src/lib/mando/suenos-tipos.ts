@@ -1,5 +1,5 @@
 /**
- * Sueños profundos · tipos y lógica PURA (2026-09-29 · Puente de Mando)
+ * Sueños profundos · tipos y lógica PURA (2026-09-29 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Una flota de analistas gratuitos (tareas `tipo: "analisis"` del enjambre) sueña cada área
  * de StarSeed OS con seis lentes y deja un informe por área × lente en
@@ -8,7 +8,7 @@
  * propuesta que NO se lanza sola. SOP: `architecture/suenos-profundos.md`.
  *
  * Este módulo no importa nada de Node: lo usan el panel (cliente) y `suenos.ts` (servidor).
- * La misma derivación de estados que `suenos.py estado`, para que la terminal y el Mando
+ * La misma derivación de estados que `suenos.py estado`, para que la terminal y Genesis
  * digan lo mismo del mismo sueño.
  */
 
@@ -26,7 +26,7 @@ export const LENTES_SUENOS = [
 
 /** Áreas de la orquestación que no están en `AREAS_TRABAJO` (copia de `AREAS_EXTRA` de suenos_areas.py). */
 export const AREAS_EXTRA_SUENOS = [
-    { id: "mando", nombre: "Puente de Mando y orquestación" },
+    { id: "mando", nombre: "Genesis y orquestación" },
     { id: "dashboards", nombre: "Dashboards y widgets" },
     { id: "gobernanza", nombre: "Gobernanza y Hub" },
 ] as const;

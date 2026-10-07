@@ -73,7 +73,7 @@ class TestResumen(unittest.TestCase):
 
 
 class TrabajadoresDePuertaHuerfanos(unittest.TestCase):
-    """(2026-09-23) Los cinco `node (vitest N)` de 2,2 GB que tumbaron el Mando."""
+    """(2026-09-23) Los cinco `node (vitest N)` de 2,2 GB que tumbaron Genesis."""
 
     FILAS = [
         (39558, 1, "node (vitest 2)     "),

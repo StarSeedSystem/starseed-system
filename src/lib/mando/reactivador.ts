@@ -1,5 +1,5 @@
 /**
- * Reactivador de todos los directores del Mando (2026-10-06).
+ * Reactivador de todos los directores de Genesis (2026-10-06).
  *
  * Alex: «debería de haber un botón hasta arriba para lanzar un reactivador de todos los
  * directores que verifique y repare cualquier error o situación». El trabajo lo hace

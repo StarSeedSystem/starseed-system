@@ -19,7 +19,7 @@ const base: InformeReactivador = {
     enMarcha: false,
     resumen: "1 reparado(s) · 3 bien",
     pasos: [
-        { paso: "Servicios del Mando", estado: "ok", detalle: "21 servicios vivos" },
+        { paso: "Servicios de Genesis", estado: "ok", detalle: "21 servicios vivos" },
         { paso: "Directores de autocuración", estado: "reparado", detalle: "orden de refrescar proveedores" },
     ],
 };

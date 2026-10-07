@@ -1,4 +1,4 @@
-// Radio nativa en el navegador (Ola 375 · RDV11): pide al Mando local lo que la Mac ve por
+// Radio nativa en el navegador (Ola 375 · RDV11): pide a Genesis local lo que la Mac ve por
 // su Wi-Fi y su Bluetooth. `/api/mando/radio-local` solo existe servido en la propia Mac
 // (en producción da 404), así que fuera de localhost NO se hace ninguna petición.
 import type { RadioLocal } from "@/lib/mando/radio-local-tipos";
@@ -23,7 +23,7 @@ export function radioLocalEnCache(): RadioLocal | null {
   return cache;
 }
 
-/** Radio de la Mac con caché de 60 s; null fuera de localhost o si el Mando no la sirve. */
+/** Radio de la Mac con caché de 60 s; null fuera de localhost o si Genesis no la sirve. */
 export async function obtenerRadioLocal(opts?: { ahora?: number; host?: string }): Promise<RadioLocal | null> {
   const ahora = opts?.ahora ?? Date.now();
   if (!esOrigenLocal(opts?.host)) return null;

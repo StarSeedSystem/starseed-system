@@ -5,7 +5,7 @@
     python3 scripts/puente/suenos_areas.py [--areas rito,voz] [--lentes arquitectura-deuda]
                                            [--horas 4] [--fecha 2026-09-29] [--json]
 
-POR QUÉ EXISTE (2026-09-29). Alex: «a través del Puente de Mando orquesta una flota de agentes
+POR QUÉ EXISTE (2026-09-29). Alex: «a través de Genesis orquesta una flota de agentes
 de sueños profundos que pueda llevar varias horas, donde analicen a detalle cada área de todo
 StarSeed OS para buscar mejoras y optimizaciones potenciales como recomendaciones para próximas
 olas». El Dream de Hermes lee registros una vez al día; esto lee CÓDIGO, área por área y con
@@ -46,8 +46,8 @@ AREAS_TS = os.path.join("src", "lib", "mando", "areas.ts")
 AREAS_EXTRA = [
     {
         "id": "mando",
-        "nombre": "Puente de Mando y orquestación",
-        "descripcion": "El Mando en localhost:9002, los directores en Python y el orquestador único del enjambre.",
+        "nombre": "Genesis y orquestación",
+        "descripcion": "Genesis en localhost:9002, los directores en Python y el orquestador único del enjambre.",
         "documentos": ["memory/orquestacion-economica.md", "PUENTE-DE-MANDO.md"],
     },
     {
@@ -306,7 +306,7 @@ def id_tarea(fecha, indice):
 
 def prompt_de(area, lente, privado):
     """El encargo que viaja en la cola. Corto a propósito: el analista construye los prompts
-    de verdad con el código leído; esto es lo que un humano lee en el Mando."""
+    de verdad con el código leído; esto es lo que un humano lee en Genesis."""
     return (
         "SUEÑO PROFUNDO · análisis, NO escritura: no edites ningún archivo ni hagas commits.\n\n"
         "Analiza el área «%s» (%s) con la lente «%s»: %s.\n\n"

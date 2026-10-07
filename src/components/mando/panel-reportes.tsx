@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel de Reportes del Puente de Mando (Ola p323C)
+ * Panel de Reportes de Genesis (Ola p323C)
  * ─────────────────────────────────────────────────────────────────────────────
  * Bandeja CURADA: cada entrada explica qué pasó, por qué importa y cómo
  * comprobarlo (enlaces al diff / localhost y pruebas con código o capturas).
@@ -9,7 +9,7 @@
  *
  * Toda la lógica de filtrado vive en `filtrar` de `@/lib/mando/reportes`
  * (p323A): aquí solo hay estado de interfaz (umbrales y búsqueda) y pintado.
- * Sondeo cada 30 s con `cache: "no-store"`, como el resto del Mando. La ruta
+ * Sondeo cada 30 s con `cache: "no-store"`, como el resto de Genesis. La ruta
  * `/api/mando/reportes` es SOLO local (404 en producción).
  */
 

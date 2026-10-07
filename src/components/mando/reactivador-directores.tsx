@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Botón «Reactivar directores», arriba del todo del Mando (2026-10-06).
+ * Botón «Reactivar directores», arriba del todo de Genesis (2026-10-06).
  *
  * Alex: «debería de haber un botón hasta arriba para lanzar un reactivador de todos los
  * directores que verifique y repare cualquier error o situación para mejorar». Lanza
  * `scripts/puente/reactivar_mando.py` (vía `/api/mando/reactivar`) y enseña su parte paso a
- * paso mientras avanza: servicios, autocuración (Mando, disco, huecos, nube, enjambre
+ * paso mientras avanza: servicios, autocuración (Genesis, disco, huecos, nube, enjambre
  * atascado), orquestador y medidores. Lo mismo hacen los directores solos cada pocos minutos;
  * el botón es para «ahora mismo».
  */
@@ -114,10 +114,10 @@ export function ReactivadorDirectores() {
                     <p className="font-semibold">Reactivar directores</p>
                     <p className="truncate text-xs opacity-80" aria-live="polite">
                         {enMarcha
-                            ? "Verificando y reparando: servicios, Mando, disco, enjambre, nube y medidores…"
+                            ? "Verificando y reparando: servicios, Genesis, disco, enjambre, nube y medidores…"
                             : informe
                               ? `Último: ${haceCuanto(informe.t, ahora)} · ${informe.resumen}`
-                              : "Verifica y repara todo el Mando ahora, sin esperar a los directores."}
+                              : "Verifica y repara todo Genesis ahora, sin esperar a los directores."}
                     </p>
                 </div>
                 <div className="flex shrink-0 gap-2">

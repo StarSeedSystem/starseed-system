@@ -1,15 +1,15 @@
-# Puente de Mando · mod de Claude Code (StarSeed OS)
+# Genesis · mod de Claude Code (StarSeed OS)
 
-El Puente de Mando de StarSeed OS dentro de Claude Code: la misma información y las mismas
-palancas que el Mando del navegador (`localhost:9002/mando`), a un atajo.
+Genesis de StarSeed OS dentro de Claude Code: la misma información y las mismas
+palancas que Genesis del navegador (`localhost:9002/genesis`), a un atajo.
 
 ## Qué trae
 
-- **Panel** «Puente de Mando», con siete pestañas (teclas `1`–`7`; `r` actualiza):
+- **Panel** «Genesis», con siete pestañas (teclas `1`–`7`; `r` actualiza):
   - **Pulso**: en curso, agentes, bloqueadas, olas, sin publicar, crédito, publicación y Mac.
   - **Chat Director**: últimos mensajes, bandeja de claude-cowork (con «✓ visto») y un campo
     para escribir a la flota como Alex.
-  - **Bloqueadas**: cada una con su causa y **Reparar** si el Mando la puede reintentar.
+  - **Bloqueadas**: cada una con su causa y **Reparar** si Genesis la puede reintentar.
     **Reparar todas las que sirvan** pide un segundo clic.
   - **Olas**: el medidor de olas activas.
   - **Producción**: la publicación en curso, paso a paso. Lanzar otra pide una nota y una
@@ -17,9 +17,9 @@ palancas que el Mando del navegador (`localhost:9002/mando`), a un atajo.
   - **Servicios**: `com.starseed.*` vivos y parados, memoria, carga, enjambre y avisos.
   - **Uso**: crédito, memoria, disco, tokens de Claude en la Mac y límites.
 - **Órdenes**:
-  - `/mando [pestaña]` abre el panel.
+  - `/genesis [pestaña]` abre el panel (`/genesis` sigue valiendo).
   - `/mando-estado` escribe el resumen en texto.
-- **Línea de estado viva**: `⟁ Mando · 5 en curso · 11 agentes · 3/32 bloq · pub corriendo: …`.
+- **Línea de estado viva**: `⟁ Genesis · 5 en curso · 11 agentes · 3/32 bloq · pub corriendo: …`.
   Se relee cada 5 min.
 - **Herramientas del modelo**, todas `mcp__puente-de-mando__*`: `estado`, `medidor`, `reparar`,
   `chat`, `informar` (publica como claude-cowork) y `publicar` (solo con la palabra de Alex o
@@ -27,13 +27,13 @@ palancas que el Mando del navegador (`localhost:9002/mando`), a un atajo.
 
 ## Cómo llega a la Mac
 
-El Mando solo escucha en `127.0.0.1:9002` de la Mac. Cada lectura o acción es **una** llamada
+Genesis solo escucha en `127.0.0.1:9002` de la Mac. Cada lectura o acción es **una** llamada
 al servidor MCP `remote-devices` (Desktop Commander, `start_process`). Esa llamada corre
 `hooks/script-mac.ts`, un Python de biblioteca estándar que entra por heredoc.
 
-- El script reduce el Mando a un resumen de unos 50 KB, en lugar de los 2,5 MB de `/estado`,
+- El script reduce Genesis a un resumen de unos 50 KB, en lugar de los 2,5 MB de `/estado`,
   y lo devuelve en una sola línea `@@MANDO@@{json}`.
-- Las acciones usan las mismas rutas que el Mando:
+- Las acciones usan las mismas rutas que Genesis:
   - `/api/mando/reintentar` con `{ids, automatico: true}`;
   - `/api/mando/director-chat` con `decir`;
   - `/api/mando/publicacion` con `publicar`;

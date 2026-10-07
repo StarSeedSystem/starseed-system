@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /mando — PUENTE DE MANDO (Ola 231).
+ * /mando — GENESIS (Ola 231).
  * ─────────────────────────────────────────────────────────────────────────────
  * Consola de producción y desarrollo del StarSeed OS: el pulso del trabajo
  * (olas, tareas, commits, flota de proveedores), los procesos en marcha, los
@@ -17,7 +17,7 @@ export default function MandoPage() {
     return (
         <main className="min-h-screen px-4 py-8 md:px-8">
             <header className="mb-6">
-                <h1 className="text-2xl font-semibold">Puente de Mando · StarSeed OS</h1>
+                <h1 className="text-2xl font-semibold">Genesis · StarSeed OS</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                     Consola de producción y desarrollo: olas, tareas, flota de
                     proveedores y el relevo entre agentes, en vivo y en tu máquina.

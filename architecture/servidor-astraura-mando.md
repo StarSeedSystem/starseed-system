@@ -1,6 +1,6 @@
-# SOP · Administrador de servidor de Astraura 1.58 (pestaña «Servidor 1.58» del Mando)
+# SOP · Administrador de servidor de Astraura 1.58 (pestaña «Servidor 1.58» de Genesis)
 
-> Alex pidió, en el Puente de Mando, un administrador de servidor de Astraura 1.58 para la
+> Alex pidió, en Genesis, un administrador de servidor de Astraura 1.58 para la
 > capa nube (hoy esta Mac; mañana Oracle u otro servidor) con un interruptor para mantenerla
 > encendida sin que se duerma sola durante horas o días, y un botón para apagar solo la
 > pantalla y ahorrar batería sin cortar la sesión ni los procesos. Código: tipos puros
@@ -26,7 +26,7 @@ Always Free como sugerencia explicada, listo para sondear en cuanto exista.
    cuánto se usó por última vez), el motor `llama-server`, el «fondo» (ciclo, descanso,
    aplazadas/cedidas) y el túnel (activo, proveedor, huella, si coincide con lo publicado) más
    el destino actual de la capa nube.
-3. **Procesos del Puente de Mando** — todos los `com.starseed.*` con su pid o su último código
+3. **Procesos de Genesis** — todos los `com.starseed.*` con su pid o su último código
    de salida, botón «Reiniciar» solo en los reiniciables, y el estado del enjambre + el tope
    del gobernador.
 4. **Servidores de Astraura** — tarjeta de «Esta Mac» (host, uptime, carga, RAM libre), tarjeta
@@ -61,7 +61,7 @@ El interruptor «Mantener encendida» instala el launchd `com.starseed.despierto
 - **`KeepAlive: true`** para que launchd relance `caffeinate` si muriera por lo que sea (no
   hay un demonio vigilando al vigilante); **`RunAtLoad: true`** para que sobreviva a un
   reinicio de sesión sin que Alex tenga que volver a tocar el interruptor.
-- **`ProcessType: Interactive`**, igual que el resto de demonios interactivos del Mando (ver
+- **`ProcessType: Interactive`**, igual que el resto de demonios interactivos de Genesis (ver
   CLAUDE.md §«Modo ligero, oído residente y BitNet estable»): `Background` hace que macOS
   ahogue CPU/I/O a procesos que en realidad importan que respondan rápido.
 
@@ -74,7 +74,7 @@ saber cuándo empezó.
 
 El botón «Apagar pantalla» ejecuta `pmset displaysleepnow` sin `sudo`: apaga la pantalla YA,
 sin tocar ningún ajuste de reposo ni cortar la sesión. Los procesos —el enjambre, Astraura, el
-propio Mando— siguen exactamente igual; mover el ratón o tocar una tecla enciende la pantalla
+propio Genesis— siguen exactamente igual; mover el ratón o tocar una tecla enciende la pantalla
 otra vez.
 
 ## 5. La tapa cerrada es harina de otro costal
@@ -122,7 +122,7 @@ primera vez que hace falta). Siempre aparecen, calculados:
 
 Los guardados llevan `{id, nombre, tipo, url, creado, ultimaSonda?}`; `ultimaSonda` es el
 resultado de la última vez que se pidió `GET <url>/api/ping` (5 s de timeout), con `ok`, `ms`,
-`t` y `detalle`. Escritura atómica (`.tmp` + `rename`), igual que el resto de JSON del Mando.
+`t` y `detalle`. Escritura atómica (`.tmp` + `rename`), igual que el resto de JSON de Genesis.
 
 ## 8. Próximo paso: Oracle
 
@@ -134,7 +134,7 @@ cuenta gratuita de Oracle y añada el servidor aquí, el plan es:
 1. Publicar ahí el destino de la capa nube (variante de `ASTRAURA_CLOUD_URL`, o un nuevo campo
    del registro marcado como «destino activo»), para que dejar de depender del túnel de esta
    Mac sea un cambio de configuración, no de código.
-2. Usar ese mismo servidor como **réplica del Mando**: los mismos endpoints `/api/mando/*`,
+2. Usar ese mismo servidor como **réplica de Genesis**: los mismos endpoints `/api/mando/*`,
    detrás del mismo `guardianMando`, sirviendo desde una máquina que no se apaga con la Mac de
    Alex.
 

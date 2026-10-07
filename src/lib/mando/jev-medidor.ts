@@ -1,5 +1,5 @@
 /**
- * Medidor de Jev (PURO): arma lo que enseña el Puente de Mando a partir de
+ * Medidor de Jev (PURO): arma lo que enseña Genesis a partir de
  * `~/.starseed/jev-uso.json`, que escribe `scripts/puente/jev.py`.
  *
  * (2026-09-25) Alex: «los datos del medidor de Jev no son correctos». Lo que fallaba:

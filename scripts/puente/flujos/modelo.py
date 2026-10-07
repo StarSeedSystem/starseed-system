@@ -1,4 +1,4 @@
-"""Modelo persistente de los Flujos del Mando."""
+"""Modelo persistente de los Flujos de Genesis."""
 
 from __future__ import annotations
 

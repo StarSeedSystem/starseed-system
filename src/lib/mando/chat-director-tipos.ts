@@ -1,5 +1,5 @@
 /**
- * Chat Director del Mando · tipos, canales y motores (PURO · Ola 1004)
+ * Chat Director de Genesis · tipos, canales y motores (PURO · Ola 1004)
  * ─────────────────────────────────────────────────────────────────────────────
  * Contrato de `starseed_memory_root/mando/director/chat.jsonl` (append-only, una
  * línea JSON por registro: un MENSAJE o una ENTREGA). Este módulo no toca disco
@@ -67,7 +67,7 @@ export interface CanalDirector {
 
 /** Los nueve canales del chat, en el orden del contrato. */
 export const CANALES: readonly CanalDirector[] = [
-    { id: "mando", nombre: "Este chat (Puente de Mando)", descripcion: "El chat principal, donde Alex dirige a todos los agentes a la vez.", respuesta: "ninguna" },
+    { id: "mando", nombre: "Este chat (Genesis)", descripcion: "El chat principal, donde Alex dirige a todos los agentes a la vez.", respuesta: "ninguna" },
     { id: "claude-cowork", nombre: "Claude Opus 5.5 · dirección (Cowork)", descripcion: "La dirección (Opus 5.5): contesta al momento con Claude Code en esta Mac y la sesión de Cowork lo retoma en su revisión.", respuesta: "inmediata" },
     { id: "claude-mac", nombre: "Claude Opus 5.5 · Mac (Claude Code)", descripcion: "Claude Code en esta Mac: contesta al momento en su propio chat.", respuesta: "inmediata" },
     { id: "hermes", nombre: "Hermes", descripcion: "El agente de la casa, siempre despierto: contesta al momento.", respuesta: "inmediata" },

@@ -1,5 +1,5 @@
 /**
- * Publicación del Puente de Mando (Ola 239 · «Pestaña Publicar»)
+ * Publicación de Genesis (Ola 239 · «Pestaña Publicar»)
  * ─────────────────────────────────────────────────────────────────────────────
  * PREPARA y DOCUMENTA la publicación, pero NUNCA la ejecuta (nada de `git push`
  * ni despliegues: eso lo hace Alex desde su terminal). `leerPublicacion()`

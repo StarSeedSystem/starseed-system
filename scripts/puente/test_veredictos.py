@@ -6,7 +6,7 @@ import pasarelas
 import resolucion_automatica as ra
 import veredictos as vd
 
-REVISIONES = """## 343863b0 · Ola 337 · RS3: Aprobar, Rechazar y Soltar desde el Mando
+REVISIONES = """## 343863b0 · Ola 337 · RS3: Aprobar, Rechazar y Soltar desde Genesis
 **Revisión Kimi — commit 343863b0**
 1. en `reasignarTarea`, `nombreNuevo = auto-0913-193908-t1` no cumple `PATRON_NOMBRE`.
 **Seguimiento:** sí, bloqueante — el regex.

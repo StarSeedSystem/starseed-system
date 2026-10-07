@@ -1,5 +1,5 @@
 /**
- * Tests de `validarCola` (colas del Diseñador de olas del Mando).
+ * Tests de `validarCola` (colas del Diseñador de olas de Genesis).
  * Casos: cola válida, nombre inválido, ids repetidos, dependencia inexistente y ciclos.
  */
 import { describe, it, expect } from "vitest";

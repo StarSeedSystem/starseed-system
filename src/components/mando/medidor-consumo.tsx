@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * «Consumo y créditos» — el medidor del Puente de Mando (2026-09-29).
+ * «Consumo y créditos» — el medidor de Genesis (2026-09-29).
  *
  * Alex: «ya van varias veces que se termina el límite mensual o hay gastos excesivos de
  * créditos o de dinero del uso de las bases de datos y por errores de loops erróneos: añade
- * un medidor de esos créditos que lo verifique desde el Puente de Mando».
+ * un medidor de esos créditos que lo verifique desde Genesis».
  *
  * Una fila por medio, cada una con su barra y su estado:
  *   · Supabase — peticiones y MB estimados de HOY contra el presupuesto diario, el ciclo
@@ -77,7 +77,7 @@ export function useDatosConsumo() {
                 setError(d.error ?? `El medidor no respondió (HTTP ${r.status}).`);
             }
         } catch {
-            if (vivo.current) setError("No se pudo leer el consumo: ¿está el Mando en marcha?");
+            if (vivo.current) setError("No se pudo leer el consumo: ¿está Genesis en marcha?");
         } finally {
             if (vivo.current) setCargando(false);
         }
@@ -580,7 +580,7 @@ function FormPresupuestos({
             if (res.ok && d.datos) alGuardar(d.datos, d.mensaje ?? "Presupuestos guardados.");
             else setError(d.error ?? `No se guardó (HTTP ${res.status}).`);
         } catch {
-            setError("No se pudo hablar con el Mando.");
+            setError("No se pudo hablar con Genesis.");
         } finally {
             setGuardando(false);
         }

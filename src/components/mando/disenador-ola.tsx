@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Diseñador de olas (Ola 241 · Puente de Mando · pestaña «Procesos»)
+ * Diseñador de olas (Ola 241 · Genesis · pestaña «Procesos»)
  * ─────────────────────────────────────────────────────────────────────────────
  * Lo que Flowise aportaba —un lienzo de nodos que se edita y luego se ejecuta por
  * API— traído a las colas del enjambre: aquí se crean, corrigen y asignan las tareas
@@ -418,7 +418,7 @@ export function DisenadorOla({ onCerrar, colaInicial }: { onCerrar: () => void; 
                 {consejo ? (
                     <p className="basis-full text-[11px] text-white/55">
                         <span className="text-emerald-200">{consejo.texto}</span>
-                        {consejo.estimado ? " (estimación: el mando local no reportó memoria ni proveedores)" : ""}
+                        {consejo.estimado ? " (estimación: Genesis local no reportó memoria ni proveedores)" : ""}
                     </p>
                 ) : null}
                 <label className="grid gap-1 text-white/60">

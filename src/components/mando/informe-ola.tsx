@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Informe de cierre de ola (Ola 231 · Centro de Mando)
+ * Informe de cierre de ola (Ola 231 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Pinta EXACTAMENTE el mismo markdown del informe de cierre que genera
  * `starseed-informe-ola` (`starseed_memory_root/relevo/informe-<cola>.md`) — el

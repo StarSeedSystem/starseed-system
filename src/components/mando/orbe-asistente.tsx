@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Orbe asistente del Puente de Mando (cliente)
+ * Orbe asistente de Genesis (cliente)
  * ─────────────────────────────────────────────────────────────────────────────
- * En `/mando`, la orbe flotante de Astraura (AuroraWidget, layout raíz) deja de abrir el
+ * En `/genesis`, la orbe flotante de Astraura (AuroraWidget, layout raíz) deja de abrir el
  * Exocórtex y abre ESTE panel: el asistente técnico de administración de la orquestación,
  * con el mismo chat y el mismo selector de modelo que la sección «Asistente» de la
  * pestaña Chat. Se abre/cierra con el evento `starseed:mando-asistente` (lo lanza el toque
@@ -51,7 +51,7 @@ export function OrbeAsistente() {
                 <div
                     className="fixed bottom-4 right-4 z-[70] flex max-h-[80vh] w-[min(520px,calc(100vw-2rem))] flex-col rounded-2xl border border-violet-400/30 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur"
                     role="dialog"
-                    aria-label="Asistente técnico del Puente de Mando"
+                    aria-label="Asistente técnico de Genesis"
                 >
                     <ChatAgentePuente modo="flotante" onCerrar={() => setAbierto(false)} />
                 </div>

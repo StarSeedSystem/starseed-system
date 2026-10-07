@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Una corrida vieja no puede reabrir trabajo ya cerrado desde el Mando."""
+"""Una corrida vieja no puede reabrir trabajo ya cerrado desde Genesis."""
 import importlib.util
 import os
 import sys

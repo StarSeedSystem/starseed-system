@@ -21,7 +21,7 @@ function reporteDemo() {
         veredicto: "Atención: proceso de orquestador caído",
         peor: "fallo" as const,
         puntos: [
-            { nombre: "Mando", estado: "ok" as const, dato: "9002 escuchando", porque: "Sin él no hay verificación." },
+            { nombre: "Genesis", estado: "ok" as const, dato: "9002 escuchando", porque: "Sin él no hay verificación." },
             { nombre: "Enjambre", estado: "aviso" as const, dato: "sin trabajadores", porque: "Las tareas esperan sin escribir." },
             { nombre: "Orquestador", estado: "fallo" as const, dato: "proceso muerto", porque: "El orquestador python no responde." },
         ],

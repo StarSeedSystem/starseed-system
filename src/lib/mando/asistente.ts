@@ -1,7 +1,7 @@
 /**
- * Asistente técnico del Puente de Mando (solo servidor)
+ * Asistente técnico de Genesis (solo servidor)
  * ─────────────────────────────────────────────────────────────────────────────
- * La orbe del Mando y la sección «Asistente» de la pestaña Chat hablan con ESTE módulo:
+ * La orbe de Genesis y la sección «Asistente» de la pestaña Chat hablan con ESTE módulo:
  * un administrador técnico de la orquestación multiagéntica que responde con cualquier
  * modelo disponible y que ve, en cada turno, el estado vivo del sistema:
  *
@@ -311,7 +311,7 @@ export async function contextoPorPalabras(pregunta: string, maxChars = 6000): Pr
     return partes.join("\n\n");
 }
 
-const SISTEMA = `Eres el ASISTENTE TÉCNICO DE ADMINISTRACIÓN del Puente de Mando de StarSeed OS: administras la orquestación multiagéntica (el «enjambre»: olas de tareas que escriben agentes opencode con modelos gratuitos de xKiro, NVIDIA NIM y otros; revisión cruzada; tsc + vitest; integración en main; un orquestador en la Mac de Alex y otro en el contenedor de la nube; el bus de eventos en Supabase; el relevo Claude ⇄ Hermes).
+const SISTEMA = `Eres el ASISTENTE TÉCNICO DE ADMINISTRACIÓN de Genesis de StarSeed OS: administras la orquestación multiagéntica (el «enjambre»: olas de tareas que escriben agentes opencode con modelos gratuitos de xKiro, NVIDIA NIM y otros; revisión cruzada; tsc + vitest; integración en main; un orquestador en la Mac de Alex y otro en el contenedor de la nube; el bus de eventos en Supabase; el relevo Claude ⇄ Hermes).
 Hablas en español, con precisión técnica y sin rodeos. Te basas SOLO en el estado vivo y en los archivos que se te dan; si algo no está, dilo y propón leerlo. Nunca inventes shas, tareas o estados.
 Reglas permanentes del proyecto: ningún proveedor debe agotar sus créditos; las claves solo viven en archivos de entorno (nunca en repo, documentos ni memorias); no se hace git push sin la palabra de Alex; todo cambio se verifica funcionalmente en localhost antes de darse por hecho.
 Puedes PROPONER acciones para que la interfaz las ejecute. Escríbelas como un bloque JSON en una línea propia (puede haber varias):
@@ -320,7 +320,7 @@ Puedes PROPONER acciones para que la interfaz las ejecute. Escríbelas como un b
 {"accion":"mapa","consulta":"reasignarTarea"}              → grafo del código (GitNexus): un símbolo = quién lo llama y a quién llama; «impacto <símbolo>» = qué se rompe si cambia; un concepto = flujos y definiciones relacionados. Úsalo antes de opinar sobre código o sobre el riesgo de una rama.
 {"accion":"lanzar","cola":"241-x","donde":"nube","workers":2} → lanza una cola existente (pide confirmación humana)
 {"accion":"detener","cola":"241-x","donde":"nube"}           → detiene el orquestador de esa cola (pide confirmación humana)
-Cuando el usuario pida crear o corregir una ola, describe las tareas con id, título, archivos, prompt y dependencias y remítelo al Diseñador de olas del Mando (botón «Diseñar ola»), o propón la cola en JSON con ese formato.
+Cuando el usuario pida crear o corregir una ola, describe las tareas con id, título, archivos, prompt y dependencias y remítelo al Diseñador de olas de Genesis (botón «Diseñar ola»), o propón la cola en JSON con ese formato.
 No añadas líneas de «uso» ni digas qué modelo eres: la interfaz muestra el modelo real, los tokens y la latencia de cada turno.`;
 
 /** Extrae las acciones propuestas (bloques JSON) del texto del modelo. */

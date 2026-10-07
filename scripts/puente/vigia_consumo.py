@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 """Director de consumo: que ningún medio desperdicie créditos ni datos.
 
-(2026-09-25) Alex, tras quedarse sin inicio de sesión porque el Mando agotó el tráfico
+(2026-09-25) Alex, tras quedarse sin inicio de sesión porque Genesis agotó el tráfico
 gratuito de Supabase: «los directores deben supervisar que no haya medios donde se
 desperdicien créditos o datos de ningún tipo». El director de orquestación lanza esto
 cada 15 min. Mide sin gastar: los registros de Supabase por la API de gestión (cero
 tráfico de salida del proyecto) y los contadores locales de Jev. Escribe
-`~/.starseed/consumo.json` (lo lee el parte horario y el medidor «Consumo y créditos» del
-Mando) y avisa en el canal solo cuando aparece una alerta nueva. Nunca imprime claves:
+`~/.starseed/consumo.json` (lo lee el parte horario y el medidor «Consumo y créditos» de Genesis) y avisa en el canal solo cuando aparece una alerta nueva. Nunca imprime claves:
 solo nombres, rutas y números.
 
 (2026-09-29) PRESUPUESTO DIARIO, FRENO Y BUCLES. El proyecto quedó bloqueado otra vez por
@@ -22,7 +21,7 @@ diario: estos límites son NUESTROS, y se aplican así:
     suscriptores × tamaño de evento: los registros de Realtime no cuentan mensajes).
     Historial de 45 días en `~/.starseed/consumo-historial.json`.
   · Presupuestos en `~/.starseed/presupuestos.json` (se crea con los valores del contrato;
-    el Mando los edita). Al 70 % → aviso una vez al día. Al 100 % → FRENO REMOTO: una sola
+    Genesis los edita). Al 70 % → aviso una vez al día. Al 100 % → FRENO REMOTO: una sola
     escritura en `public.os_freno` (id=1) con la clave de servicio; los clientes lo leen y
     frenan sus sondeos hasta las 00:00 UTC. Pasada esa hora (o si ya no se supera) → se
     apaga con otra escritura.

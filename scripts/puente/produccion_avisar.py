@@ -3,7 +3,7 @@
 """Aviso de versión nueva por ntfy — puerta 7 del director de producción.
 
 Tras publicar un lote (puerta 5 y 6 del contrato `architecture/director-produccion.md`),
-el director avisa a los clientes abiertos (web, PWA, Mando) con un POST a un TEMA FIJO
+el director avisa a los clientes abiertos (web, PWA, Genesis) con un POST a un TEMA FIJO
 de ntfy. El tema no es secreto: el cliente nunca confía en el aviso — solo lo toma como
 señal para comprobar `/version.json`—, así que un aviso falso no hace nada.
 Sin Supabase Realtime, para no gastar créditos.

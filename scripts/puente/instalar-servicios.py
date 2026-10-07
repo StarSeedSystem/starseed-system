@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Escribe y carga los plists de launchd del Puente. Lo llama instalar-servicios.sh.
+"""Escribe y carga los plists de launchd de Genesis. Lo llama instalar-servicios.sh.
 
 Dos reglas que costaron caras y por eso están aquí y no en la memoria de nadie:
 
@@ -39,7 +39,7 @@ SERVICIOS = {
         True,
     ),
     "guardia": ([PY3, P("guardia-memoria.py")], "/tmp/starseed-guardia.log", True),
-    # (2026-09-22) Tokens/s del Puente. No pregunta a ninguna API ni toca ningún proceso:
+    # (2026-09-22) Tokens/s de Genesis. No pregunta a ninguna API ni toca ningún proceso:
     # lee cada 5 s los contadores que YA están escritos en disco y guarda las diferencias.
     "tokens": (
         [PY3, "-u", P("tokens_por_segundo.py")],
@@ -71,9 +71,9 @@ SERVICIOS = {
         "/tmp/starseed-telegram.log",
         True,
     ),
-    # El Mando lo supervisa launchd en primer plano: nada de doble fork. Así hay un pid
+    # Genesis lo supervisa launchd en primer plano: nada de doble fork. Así hay un pid
     # de verdad, KeepAlive lo revive solo, y no queda huérfano si se reinicia el MCP.
-    # (2026-09-16) El servidor del Mando corría SIN NINGUNA clave de proveedor en su
+    # (2026-09-16) El servidor de Genesis corría SIN NINGUNA clave de proveedor en su
     # entorno: `listarModelos()` daba «sin clave» para todo y el asistente técnico no
     # tenía a quién preguntar. Se cargan como en el servicio de Telegram: el shell lee
     # ~/.hermes/.env y ~/.starseed/env y se convierte en el lanzador con exec.
@@ -89,11 +89,11 @@ SERVICIOS = {
         "/tmp/starseed-mando.log",
         True,
     ),
-    # (2026-09-22) El Mando se sirve con `next start`, o sea de un build compilado: editar
+    # (2026-09-22) Genesis se sirve con `next start`, o sea de un build compilado: editar
     # `src/` no cambiaba NADA de lo que se ve hasta que alguien corría `next build`. De ahí
     # los «todo sigue igual» de Alex delante de arreglos que ya estaban en el disco. Esto
     # compila solo cuando las fuentes de la pantalla cambian, con el turno de la máquina
-    # (para no pelear RAM con los agentes) y reinicia el Mando al acabar.
+    # (para no pelear RAM con los agentes) y reinicia Genesis al acabar.
     "reconstruir": (
         [PY3, P("reconstruir_mando.py")],
         "/tmp/starseed-reconstruir.log",
@@ -107,7 +107,7 @@ SERVICIOS = {
     "vigia": ([PY3, P("vigia_medidores.py")], "/tmp/starseed-vigia.log", True),
     # (2026-10-05) Pantalla siempre encendida (Ola 1005P, PA1005C): mantiene un
     # `caffeinate -dim` ligado a su propio proceso y declara al usuario activo cada 50 s,
-    # según ~/.starseed/pantalla.json (encendida por defecto). El Mando lo lee con
+    # según ~/.starseed/pantalla.json (encendida por defecto). Genesis lo lee con
     # `launchctl list com.starseed.pantalla` (pantalla-config.ts). Instalado a mano esa
     # noche y vivo; aquí queda para que una reinstalación lo vuelva a poner.
     "pantalla": ([PY3, P("mantener_pantalla.py")], "/tmp/starseed-pantalla.log", True),
@@ -195,7 +195,7 @@ def instalar(etiqueta, orden, log, siempre):
     )
 
 
-# Reinstalar TODOS reinicia el Mando y los directores; con STARSEED_SOLO se toca solo lo nombrado.
+# Reinstalar TODOS reinicia Genesis y los directores; con STARSEED_SOLO se toca solo lo nombrado.
 SOLO = {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",") if n.strip()}
 for nombre, (orden, log, siempre) in SERVICIOS.items():
     if SOLO and nombre not in SOLO:
@@ -215,8 +215,8 @@ if os.path.exists(TUNEL):
         True,
     )
 
-# (2026-09-17) El túnel del Puente de Mando: mismo mecanismo que el de Astraura,
-# hacia :9002. Pedido por Alex para abrir y vincular el Mando desde cualquier
+# (2026-09-17) El túnel de Genesis: mismo mecanismo que el de Astraura,
+# hacia :9002. Pedido por Alex para abrir y vincular Genesis desde cualquier
 # navegador. Su guion vuelve enseguida si ya hay túnel vivo; launchd lo relanza
 # cada 5 min como vigilante, y si la URL cambia, tunel-mando.sh la guarda en
 # ~/.starseed/tunel-mando.json (nunca en el repo).
@@ -231,7 +231,7 @@ if os.path.exists(TUNEL_MANDO):
 
 # (2026-09-19) FreeLLMAPI: pasarela unificada OpenAI-compatible en :3001 que
 # reparte entre los proveedores gratuitos con las claves que ya tenemos. Pedida
-# por Alex para «todos los IDE y el Puente de Mando». Las claves se le pasan en
+# por Alex para «todos los IDE y Genesis». Las claves se le pasan en
 # memoria al arrancar (freellmapi-lanzar.sh), nunca en un archivo nuevo.
 FREELLMAPI = os.path.expanduser("~/.starseed/herramientas/freellmapi-lanzar.sh")
 if os.path.exists(FREELLMAPI):

@@ -311,7 +311,7 @@ def _podar_ramas_de_cola(dejar: int = 8) -> None:
 def _anotar_lanzamiento(cola: str, trabajadores: str, minutos: str, run_id=None) -> None:
     """Deja escrito con cuantos trabajadores sale este run.
 
-    (2026-09-22) El Puente no podia contar los agentes de la nube, y no por descuido: el
+    (2026-09-22) Genesis no podia contar los agentes de la nube, y no por descuido: el
     bus de medios es un archivo del disco de la Mac y un runner de GitHub no puede
     escribir en el. Preguntar a GitHub tampoco basta, porque los inputs de un
     `workflow_dispatch` no se pueden leer por la API despues del lanzamiento. El unico

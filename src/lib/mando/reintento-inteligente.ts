@@ -269,7 +269,7 @@ export function ejecutarReintentoInteligente(p: EjecucionReintentoParams): Ejecu
             resultados.push({ id: pedido, accion: "esperando", motivo: `ya existe un sucesor vivo: ${ultimoId}` });
             continue;
         }
-        const clasificacion = p.escalar ? { accion: "escalar" as const, motivo: "escalado pedido desde el Mando" }
+        const clasificacion = p.escalar ? { accion: "escalar" as const, motivo: "escalado pedido desde Genesis" }
             : clasificar(tarea, universo, p.revisionesMd);
         if (clasificacion.accion !== "reintentar") {
             const accion = clasificacion.accion === "escalar" ? "escalada"

@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Abre el chat principal del Puente de Mando en el IDE que le pidas, con el
+# Abre el chat principal de Genesis en el IDE que le pidas, con el
 # contexto compartido ya cargado. Refresca el contexto antes, siempre.
 #   bash scripts/puente/abrir-chat.sh codex|hermes|antigravity|todos
 RAIZ="${STARSEED_ROOT:-/Users/alex/Documents/starseed-os-main}"
@@ -7,7 +7,7 @@ cd "$RAIZ" || exit 1
 export PATH="$HOME/.local/bin:$PATH"
 bash scripts/puente/arrancar-mando.sh >/dev/null 2>&1
 python3 scripts/puente/sincronizar-ides.py --solo >/dev/null 2>&1
-SALUDO="Eres el chat principal del Puente de Mando de StarSeed OS en este IDE. Lee AGENTS.md y PUENTE-DE-MANDO.md de la raiz del repositorio antes de nada: ahi esta el estado vivo del enjambre, regenerado desde localhost:9002. Dirige el enjambre con 'starseed-puente' (estado, agentes, aprobar, soltar, reasignar, puertas). No arranques un segundo orquestador y no ejecutes 'next build' con el enjambre vivo. Dime que ves en el Mando ahora mismo y que es lo siguiente mas rentable."
+SALUDO="Eres el chat principal de Genesis de StarSeed OS en este IDE. Lee AGENTS.md y PUENTE-DE-MANDO.md de la raiz del repositorio antes de nada: ahi esta el estado vivo del enjambre, regenerado desde localhost:9002. Dirige el enjambre con 'starseed-puente' (estado, agentes, aprobar, soltar, reasignar, puertas). No arranques un segundo orquestador y no ejecutes 'next build' con el enjambre vivo. Dime que ves en Genesis ahora mismo y que es lo siguiente mas rentable."
 abrir_codex() {
   command -v codex >/dev/null || { echo "codex no esta en el PATH"; return 1; }
   echo "→ Codex: abriendo chat en $RAIZ"

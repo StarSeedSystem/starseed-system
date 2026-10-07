@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel «Astra» del Centro de Mando (2026-09-08, Ola 294 · AR4)
+ * Panel «Astra» de Genesis (2026-09-08, Ola 294 · AR4)
  * ─────────────────────────────────────────────────────────────────────────────
  * Astra (`gpt-6-astra`) es el DIRECTOR de orquestación: audita un ámbito del OS
  * y propone mejoras priorizadas; no escribe código (eso es de la flota gratuita).
@@ -52,7 +52,7 @@ interface RespuestaAuditoria {
 const CLS_BTN = "inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10";
 const CLS_CHIP = "rounded-full border px-2 py-0.5 text-[11px]";
 
-/** Chip de puntuación 1..5 con el color del Mando según la gravedad que convenga. */
+/** Chip de puntuación 1..5 con el color de Genesis según la gravedad que convenga. */
 function ChipPuntos({ etiqueta, valor, invertido }: { etiqueta: string; valor: number; invertido?: boolean }) {
     // `invertido` para impacto (5 es bueno → verde); esfuerzo/riesgo van al revés (5 → rojo).
     const nivel = invertido ? 6 - valor : valor;
@@ -173,7 +173,7 @@ export function PanelAstra() {
                     <p className="mt-2 text-xs text-amber-100/80">
                         Astra es el director de orquestación: audita el OS y propone mejoras, no escribe el código.
                         Para activarlo, pon la clave en <code>~/.starseed/env</code> como{" "}
-                        <code>STARSEED_PASARELA_OPENAI_KEY</code> y reinicia el Mando. La clave NUNCA se escribe
+                        <code>STARSEED_PASARELA_OPENAI_KEY</code> y reinicia Genesis. La clave NUNCA se escribe
                         en el repositorio ni en ningún archivo versionado.
                     </p>
                 </div>

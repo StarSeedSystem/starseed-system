@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Esta prueba no mira cómo QUEDA el Mando: mira que no se haya vuelto caro.
+ * Esta prueba no mira cómo QUEDA Genesis: mira que no se haya vuelto caro.
  *
  * Parece rara hasta que alguien mete una transición de `height` en la cabecera y
  * el panel empieza a dar tirones con el enjambre escribiendo al lado. El
@@ -15,7 +15,7 @@ const css = readFileSync(path.resolve(__dirname, "../mando-cristal.css"), "utf8"
 /** El CSS sin comentarios: las reglas se cuentan, las explicaciones no. */
 const reglas = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
-describe("presupuesto de rendimiento del Mando", () => {
+describe("presupuesto de rendimiento de Genesis", () => {
     it("no anima ninguna propiedad que recalcule el layout", () => {
         const transiciones = reglas.match(/transition:[^;]+;/g) ?? [];
         const prohibidas = /\b(width|height|top|left|right|bottom|margin|padding)\b/;

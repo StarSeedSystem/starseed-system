@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ramificación multiagéntica (Ola 241 · Puente de Mando · pestaña «Procesos»)
+ * Ramificación multiagéntica (Ola 241 · Genesis · pestaña «Procesos»)
  * ─────────────────────────────────────────────────────────────────────────────
  * El árbol vivo de cada ola, dibujado: las tareas en columnas por profundidad de
  * dependencias, con las flechas de qué depende de qué, y en cada tarea su rama de
@@ -827,7 +827,7 @@ function IconoMotivo({ motivo }: { motivo: string }) {
 /**
  * Lo que espera tu visto bueno (nodos de aprobación humana): cada tarea con su rama lista,
  * sus comprobaciones (tsc, tests, revisión) y el diff resumido, para aprobar o rechazar sin
- * salir del Mando. Es la pestaña «Publicar» de la Ola 239 (MD8) en su forma mínima y real.
+ * salir de Genesis. Es la pestaña «Publicar» de la Ola 239 (MD8) en su forma mínima y real.
  */
 /** Tono del riesgo que da el grafo del código (GitNexus): low · medium · high · critical. */
 function tonoRiesgo(riesgo: string): string {
@@ -878,7 +878,7 @@ function SwitchResolucion() {
                 const datos = (await r.json()) as { config?: ConfigEnjambre };
                 if (vivo && datos.config) setConfig(datos.config);
             } catch {
-                // Sin acceso al Mando local, el switch no se ofrece.
+                // Sin acceso a Genesis local, el switch no se ofrece.
             }
         })();
         return () => {
@@ -912,7 +912,7 @@ function SwitchResolucion() {
                 }
             } catch {
                 setConfig(anterior);
-                setAviso("No se pudo guardar: sin conexión con el Mando.");
+                setAviso("No se pudo guardar: sin conexión con Genesis.");
             } finally {
                 setEnviando(false);
             }

@@ -6,7 +6,7 @@
  * sesión»), con dos diferencias que el dueño pidió: el vacío SIEMPRE ofrece la acción real que lo
  * llena (crear, conectar, entrar), y el esqueleto tiene la forma del contenido que viene (lista,
  * rejilla, tarjetas, cifras). Dentro del marco unificado la cabecera es la común (icono fantasma +
- * Rotulo + acciones fantasma); fuera de él (Mando, Estudio, «marco clásico»), una tarjeta sobria.
+ * Rotulo + acciones fantasma); fuera de él (Genesis, Estudio, «marco clásico»), una tarjeta sobria.
  *
  * Publica `data-testid="marco-widget"`, `data-estado`, `data-tamano` y `data-dispositivo`, y pausa
  * sus animaciones fuera de pantalla (`data-en-pantalla`).

@@ -1,5 +1,5 @@
 /**
- * Contrato y validación de los ajustes del enjambre (Ola 233 · Centro de Mando)
+ * Contrato y validación de los ajustes del enjambre (Ola 233 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────
  * Define la forma del archivo `~/.starseed/enjambre.json` que el orquestador
  * (`starseed-enjambre.py`) lee en cada ola para saber cuántos workers abrir,
@@ -10,7 +10,7 @@
  * escribe claves, y rechaza cualquier valor fuera de los rangos y de la lista
  * blanca definidos aquí.
  *
- * ⚠️ Reglas (cláusulas pétreas del área de Mando):
+ * ⚠️ Reglas (cláusulas pétreas del área de Genesis):
  *  • workers 1-6
  *  • concurrenciaOpencode 1-6
  *  • cuposRpm por proveedor entre 1 y 120

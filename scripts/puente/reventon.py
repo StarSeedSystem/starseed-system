@@ -3,7 +3,7 @@
 
 POR QUÉ (2026-09-16, 20:45)
 --------------------------
-El Puente de Mando acababa de decir, en rojo:
+Genesis acababa de decir, en rojo:
 
     no se publicó: los tipos no compilan
 
@@ -91,7 +91,7 @@ def es_reventon(rc, salida=""):
 
 
 def motivo(clave, rc, salida=""):
-    """La frase honesta para el Mando. Ni adorna ni acusa al código sin pruebas."""
+    """La frase honesta para Genesis. Ni adorna ni acusa al código sin pruebas."""
     nombres = {
         "tsc": "los tipos",
         "vitest": "las pruebas del OS",

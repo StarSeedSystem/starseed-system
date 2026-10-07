@@ -1,5 +1,5 @@
 /**
- * /api/flujos/gancho/[ruta] — entrada firmada de los Flujos del Mando.
+ * /api/flujos/gancho/[ruta] — entrada firmada de los Flujos de Genesis.
  *
  * POST con cabecera `X-StarSeed-Firma: sha256=<hmac>` del cuerpo crudo, con la
  * clave de `PRODUCCION_WEBHOOK_SECRETO` (la misma que

@@ -44,7 +44,7 @@ describe("normalizar", () => {
 describe("coincide", () => {
     const contexto = {
         tarea: "MD3",
-        titulo: "Pestaña de contextos del Mando",
+        titulo: "Pestaña de contextos de Genesis",
         area: "mando",
         habilidades: ["Icon", "design-md", "grafo-codigo"],
     };

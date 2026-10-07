@@ -1,5 +1,5 @@
 /**
- * Guardia de las lecturas del Mando (2026-10-05): la pestaña se quedó sin recursos
+ * Guardia de las lecturas de Genesis (2026-10-05): la pestaña se quedó sin recursos
  * (`ERR_INSUFFICIENT_RESOURCES`) porque cada panel repetía su lectura sin esperar a la anterior.
  */
 import { describe, expect, it, vi } from "vitest";
@@ -17,7 +17,7 @@ function fetchLento() {
     return { f: f as unknown as typeof fetch, llamadas: f, pendientes };
 }
 
-describe("guardia de las lecturas del Mando", () => {
+describe("guardia de las lecturas de Genesis", () => {
     it("diez vueltas del mismo medidor con la anterior sin volver son UNA petición, y todos leen su cuerpo", async () => {
         const { f, llamadas, pendientes } = fetchLento();
         const g = crearFetchGuardado(f);
@@ -85,7 +85,7 @@ describe("guardia de las lecturas del Mando", () => {
     });
 });
 
-describe("guardia de las lecturas del Mando · tope, cola y salud", () => {
+describe("guardia de las lecturas de Genesis · tope, cola y salud", () => {
     it("con muchas lecturas distintas, como mucho maxEnVuelo a la vez y el resto espera turno", async () => {
         const { f, llamadas, pendientes } = fetchLento();
         const g = crearFetchGuardado(f, { maxEnVuelo: 2, maxCola: 10 });

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Aviso de autocuración del Mando (2026-10-05): cuando la página se atasca y se cura sola
+ * Aviso de autocuración de Genesis (2026-10-05): cuando la página se atasca y se cura sola
  * (`src/lib/mando/autocuracion-pagina.ts`), lo dice aquí en una línea, sin tapar nada. Tras una
  * recarga automática, la página nueva explica por qué se recargó. Honesto y discreto: el
  * remedio ya está hecho, esto solo cuenta qué pasó.
@@ -11,9 +11,9 @@ import { CLAVE_RECARGA, EVENTO, type Remedio } from "@/lib/mando/autocuracion-pa
 
 const TEXTO: Record<Remedio, string> = {
     nada: "",
-    "reiniciar-guardia": "El Mando se atascó y se ha desatascado solo",
-    recargar: "El Mando se atascó y se recarga solo",
-    "esperar-servidor": "El servidor del Mando no responde: la Mac lo está levantando",
+    "reiniciar-guardia": "Genesis se atascó y se ha desatascado solo",
+    recargar: "Genesis se atascó y se recarga solo",
+    "esperar-servidor": "El servidor de Genesis no responde: la Mac lo está levantando",
 };
 
 export function AvisoAutocuracion() {
@@ -24,7 +24,7 @@ export function AvisoAutocuracion() {
             const crudo = window.sessionStorage.getItem(CLAVE_RECARGA);
             const previo = crudo ? (JSON.parse(crudo) as { t?: number; porque?: string }) : null;
             if (previo?.t && Date.now() - previo.t < 120_000) {
-                setAviso({ texto: "El Mando se recargó solo tras atascarse", porque: previo.porque ?? "" });
+                setAviso({ texto: "Genesis se recargó solo tras atascarse", porque: previo.porque ?? "" });
             }
         } catch {
             // Sin sessionStorage no hay aviso de la recarga anterior.

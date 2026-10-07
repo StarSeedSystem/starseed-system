@@ -21,7 +21,7 @@ const RESUMEN: ResumenMando = {
   bloqueadas: {
     clave: 'bloqueadas', titulo: 'Bloqueadas', resumen: '2 bloqueadas', total: 3, historicas: 5,
     filas: [
-      { id: 'CU3br', titulo: 'Ajustes del Mando', estado: 'bloqueada sin salida', porque: 'la nube la intentó 82 veces sin integrarla. Repetirla igual no sirve: «Reintentar con un cambio» en Bloqueadas', acciones: ['descartar', 'reintentar', 'reintentar-auto'] },
+      { id: 'CU3br', titulo: 'Ajustes de Genesis', estado: 'bloqueada sin salida', porque: 'la nube la intentó 82 veces sin integrarla. Repetirla igual no sirve: «Reintentar con un cambio» en Bloqueadas', acciones: ['descartar', 'reintentar', 'reintentar-auto'] },
       { id: 'CAMR1005F', titulo: 'CAMR · bucle autónomo', estado: 'bloqueada sin salida', porque: 'espera a 3 tarea(s) que NO EXISTEN: este bloqueo no se resuelve nunca', acciones: ['descartar', 'reintentar', 'reintentar-auto'] },
       { id: 'DIS1005N', titulo: 'Diseño · pruebas', estado: 'esperando', porque: 'espera a DIS1005M', acciones: [] },
     ],
@@ -47,7 +47,7 @@ const RESUMEN: ResumenMando = {
 type Llamada = { accion: string; datos: unknown }
 
 const PROPS_PANEL = {
-  title: 'Puente de Mando', isFocused: true, bodyColumns: 100, placement: 'dock' as const,
+  title: 'Genesis', isFocused: true, bodyColumns: 100, placement: 'dock' as const,
   scroll: { offset: 0, bodyRows: 40 }, view: {},
 }
 
@@ -98,8 +98,8 @@ test('textoReparacion entiende la respuesta de hoy de /api/mando/reintentar', ()
 })
 
 test('la línea de estado cuenta en curso, agentes, bloqueadas reparables y la publicación', () => {
-  expect(lineaEstado(RESUMEN, null)).toBe('⟁ Mando · 5 en curso · 11 agentes · 1/3 bloq · pub corriendo: Pruebas del OS (vitest)')
-  expect(lineaEstado(null, 'sin enlace')).toBe('⟁ Mando · sin enlace')
+  expect(lineaEstado(RESUMEN, null)).toBe('⟁ Genesis · 5 en curso · 11 agentes · 1/3 bloq · pub corriendo: Pruebas del OS (vitest)')
+  expect(lineaEstado(null, 'sin enlace')).toBe('⟁ Genesis · sin enlace')
 })
 
 test('la herramienta estado lee la Mac y resume', async ($, on) => {

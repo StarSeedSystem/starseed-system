@@ -1,7 +1,7 @@
 /**
  * POST /api/mando/orquestar (Ola 234 · mundo de los avatares)
  * ─────────────────────────────────────────────────────────────────────────────
- * Chat de orquestación del Centro de Mando: hablar con el sistema multiagéntico
+ * Chat de orquestación de Genesis: hablar con el sistema multiagéntico
  * del enjambre SIN salir de la consola.
  *
  * ⚠️ Seguridad: puerta única `guardianMando` — 404 fuera de local/STARSEED_MANDO;
@@ -215,7 +215,7 @@ Reglas:
 - Solo JSON: el array completo. Nada más.`;
 
 /** Prompt de sistema para preguntar (contexto breve del enjambre). */
-const PROMPT_PREGUNTAR = `Eres el oráculo del Centro de Mando del StarSeed OS.
+const PROMPT_PREGUNTAR = `Eres el oráculo de Genesis del StarSeed OS.
 Responde de forma clara y concisa en español sobre el desarrollo y la orquestación
 multiagéntica del proyecto. Si alguien te pide "lanzar una ola", "disparar el
 enjambre" o "ejecutar un comando", explica que lanzar una ola es siempre una

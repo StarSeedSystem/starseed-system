@@ -1,5 +1,5 @@
 /**
- * GET/PUT /api/mando/ajustes (Ola 233 · Centro de Mando)
+ * GET/PUT /api/mando/ajustes (Ola 233 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────
  * Lee y guarda la configuración del enjambre (`~/.starseed/enjambre.json`)
  * que el orquestador consulta al iniciar cada ola.

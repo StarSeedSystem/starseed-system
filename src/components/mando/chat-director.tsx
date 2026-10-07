@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Chat Director del Mando (Ola 1004)
+ * Chat Director de Genesis (Ola 1004)
  * ─────────────────────────────────────────────────────────────────────────────
  * Sección plegable «Dirección · chat del director», justo encima del «Pulso del
  * trabajo». Lee el feed fundido de `/api/mando/director-chat` (cada 10 s solo lo
  * nuevo, con `desde`), lo filtra por pestañas y compone mensajes a la dirección.
- * Un fallo de red se anota en un aviso pequeño: el chat jamás rompe el Mando.
+ * Un fallo de red se anota en un aviso pequeño: el chat jamás rompe Genesis.
  * El estado plegado se recuerda en `starseed.mando.director.plegado`.
  */
 

@@ -2,7 +2,7 @@
 """El inventario de contenedores: la capacidad se MIDE y la lee todo el mundo.
 
 Antes la capacidad de la nube vivía en dos sitios que no se hablaban: el sondeo que se
-pinta en el Puente y unas constantes del director (`TOPE_AGENTES = 12`). Lo que la
+pinta en Genesis y unas constantes del director (`TOPE_AGENTES = 12`). Lo que la
 pantalla enseñaba y lo que el director decidía no tenían por qué coincidir.
 """
 import unittest

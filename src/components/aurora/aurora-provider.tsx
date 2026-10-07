@@ -140,7 +140,7 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
   });
 
   const superStart = useCallback(() => {
-    // El Puente de Mando (/mando) es una consola de trabajo: Aurora no escucha ahí
+    // Genesis (/genesis) es una consola de trabajo: Aurora no escucha ahí
     // (pedía el micrófono al cargar y gastaba CPU en una máquina que ya va justa).
     if (typeof window !== "undefined" && esRutaConsola(window.location.pathname)) return;
     const g = guardRef.current;

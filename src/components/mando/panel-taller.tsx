@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Taller del agente — pestaña del Puente de Mando (2026-09-09)
+ * Taller del agente — pestaña de Genesis (2026-09-09)
  * ─────────────────────────────────────────────────────────────────────────────
  * Lo que Alex pidió: «una ventana de habilidades, conexiones, MCP, prompts,
  * plugins y memorias para los agentes, agregando los que ya tenemos y los de
@@ -83,7 +83,7 @@ interface RespuestaModelos {
  * Quién atiende a los agentes ahora mismo (2026-09-09 · Ola 301 · RT2). El
  * Taller reparte habilidades, conexiones y memorias, pero hasta hoy no decía
  * QUIÉN las ejecuta: aquí van el resumen de la flota y, por papel, el activo y
- * el que entra si se agota. Si el mando no responde (producción), no se pinta.
+ * el que entra si se agota. Si Genesis no responde (producción), no se pinta.
  */
 function TarjetaFlotaDelTaller() {
     const [resumen, setResumen] = useState<ResumenFlota | null>(null);

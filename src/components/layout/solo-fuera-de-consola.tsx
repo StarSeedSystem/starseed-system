@@ -3,7 +3,7 @@
 /**
  * `<SoloFueraDeConsola>` — cromo del OS que NO se monta en las rutas de consola.
  * ---------------------------------------------------------------------------
- * El Puente de Mando (`/mando`) es una herramienta de trabajo que se abre mientras
+ * Genesis (`/genesis`; la vieja `/mando` redirige) es una herramienta de trabajo que se abre mientras
  * los agentes escriben. En una máquina de 8 GB, cada fondo WebGL, cada host de
  * ventanas y cada overlay le quita sitio a un agente: hemos visto la Mac bajar a
  * 650 MB libres y provocar parones de siete minutos en tareas que iban bien.
@@ -19,7 +19,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 /** Rutas que son consola de trabajo, no escaparate (sin fondos, hosts ni overlays). */
-export const RUTAS_CONSOLA = ["/mando", "/voces"];
+export const RUTAS_CONSOLA = ["/genesis", "/mando", "/voces"];
 
 /**
  * Rutas MÍNIMAS (2026-09-05): además de lo anterior, sin dock, sin bordes Trinity, sin guía

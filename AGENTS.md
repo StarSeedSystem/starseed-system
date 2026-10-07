@@ -1,16 +1,16 @@
 # AGENTS.md · StarSeed OS
 
-Acceso al Mando completo: [abrir en esta Mac](http://localhost:9002/mando) — la app Next.js del
+Acceso a Genesis completo: [abrir en esta Mac](http://localhost:9002/genesis) — la app Next.js del
 repo bajo launchd (`com.starseed.mando`, `next start`). *(Corrección 2026-09-12: 9002 nunca fue una
 «interfaz Python provisional»; el 9003 fue un `next dev` suelto del 09-11, sin supervisar.)*
 
 Lo lee **Codex** y **Antigravity IDE**. Claude usa `CLAUDE.md`, que manda sobre este archivo
 cuando se contradigan; Hermes lee ambos. Los cuatro entornos trabajan sobre el MISMO repo, el
-MISMO enjambre y el MISMO Puente de Mando.
+MISMO enjambre y el MISMO Genesis.
 
 ## Empieza aquí, siempre
 
-**Puente de Mando: http://localhost:9002/mando.** Cómo se opera, la pirámide de coste (enjambre
+**Genesis: http://localhost:9002/genesis.** Cómo se opera, la pirámide de coste (enjambre
 gratuito → directores Python → Astra → Fable/Opus una vez por hora), cuotas y recursos de API:
 `memory/orquestacion-economica.md` §0. Léelo una vez; es la regla permanente.
 
@@ -23,10 +23,10 @@ costó media ola cinco días seguidos sin que nadie lo notara.
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 starseed-puente estado      # qué hay vivo ahora mismo
-cat PUENTE-DE-MANDO.md      # el contexto compartido, regenerado desde el Mando
+cat PUENTE-DE-MANDO.md      # el contexto compartido, regenerado desde Genesis
 ```
 
-Si `PUENTE-DE-MANDO.md` está viejo o el Mando está apagado:
+Si `PUENTE-DE-MANDO.md` está viejo o Genesis está apagado:
 
 ```bash
 bash scripts/puente/arrancar-mando.sh          # levanta localhost:9002
@@ -40,7 +40,7 @@ TypeScript estricto, Tailwind/shadcn, Supabase). Se desarrolla en **olas**: tand
 pequeñas que escriben agentes en paralelo, cada uno en su propio worktree, y que un orquestador
 integra en `main` tras pasar escritura → tsc → tests → revisión → aprobación.
 
-El **Puente de Mando** (`localhost:9002/mando`) es el instrumento: enseña qué agentes escriben
+El **Genesis** (`localhost:9002/genesis`) es el instrumento: enseña qué agentes escriben
 ahora, qué tareas esperan aprobación, qué olas hay y en qué estado está el repositorio. Es local
 a propósito: `/api/mando/*` devuelve 404 en producción.
 
@@ -63,7 +63,7 @@ starseed-puente puertas                 # tsc · vitest · build · commits sin 
 Al abrir un IDE salen muchos hilos y no se distingue el puesto de mando. Por eso hay **un solo
 nombre, igual en todos**:
 
-> **`PUENTE DE MANDO · StarSeed OS`**
+> **`GENESIS · StarSeed OS`**
 
 Ese es el chat principal, el permanente, donde se dirige. Todo lo demás es un hilo de tarea y
 lleva el prefijo **`ola/`** — `ola/TG1 · puente Telegram`, `ola/zN4 · contrato de salas` — así que
@@ -119,7 +119,7 @@ eventos del orquestador al mismo sitio.
 - **Nunca `next build` con el enjambre vivo.** La Mac es de 8 GB; un agente `opencode` cuesta
   ~600 MB de runtime Node.
 - Tres puertas antes de publicar: `npx tsc --noEmit`, `npx vitest run`, `npx next build` completo.
-- **Nada está hecho hasta que se ve en el Mando de la Mac.** «tsc en verde» y «commit integrado»
+- **Nada está hecho hasta que se ve en Genesis de la Mac.** «tsc en verde» y «commit integrado»
   son pasos intermedios, no el resultado.
 - Cada tarea escribe un **módulo puro NUEVO y pequeño** (≤3 archivos, ≤120 líneas por escritura);
   el cableado va en su propia tarea.
@@ -136,8 +136,7 @@ eventos del orquestador al mismo sitio.
   siempre la sintaxis literal `{env:VARIABLE}`.
 - Nunca `amend`, `rebase` ni `force-push` para cambiar autoría. `git commit -F archivo`, nunca
   `-m` con comillas invertidas.
-- Los `id` de tarea son únicos en todo el histórico **y** entre los archivos de cola vivos: el
-  Mando empareja latido y tarea por `cola|id`, y un id duplicado le hace enseñar «0 en curso».
+- Los `id` de tarea son únicos en todo el histórico **y** entre los archivos de cola vivos: Genesis empareja latido y tarea por `cola|id`, y un id duplicado le hace enseñar «0 en curso».
 - No uses `pkill -f` ni `pgrep -f` con el nombre del orquestador: la orden se mata a sí misma.
 - En macOS no existe `setsid`: `nohup … & disown`, o el doble fork de
   `scripts/puente/arrancar-mando.sh` para algo que deba sobrevivir a la terminal.

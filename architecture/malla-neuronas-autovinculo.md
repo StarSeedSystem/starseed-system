@@ -113,7 +113,7 @@ capacidades REALES en vez de las cifras fijas que tenía antes.
 ```
 
 Hermano de `SovereignSyncMount`/`RealtimeSyncProvider`: no pinta nada (`return null`), degrada en
-silencio sin sesión. **Excluido de `/mando` y `/voces`** (`esRutaConsola`, `solo-fuera-de-consola.tsx`)
+silencio sin sesión. **Excluido de `/genesis` y `/voces`** (`esRutaConsola`, `solo-fuera-de-consola.tsx`)
 por el mismo motivo que `AppGlobals`: son rutas de trabajo en máquinas de 8 GB donde cada
 suscripción/timer de más le quita sitio a un agente.
 
@@ -192,7 +192,7 @@ cuentas.
   - Ficha + heartbeat por el canal WebRTC YA establecido: cada 30s, **no pasa por Supabase** (viaje
     dentro del DataChannel P2P), así que no añade egress de servidor mientras el enlace esté vivo.
   - **Neto nuevo respecto a antes de esta ola:** el coste de faros (antes limitado a las páginas que
-    montaban `startMeshSubsystem()`) ahora corre en todas las páginas fuera de `/mando`/`/voces`
+    montaban `startMeshSubsystem()`) ahora corre en todas las páginas fuera de `/genesis`/`/voces`
     mientras haya sesión — es el cambio de egress más honesto a señalar: más superficie con la
     misma cadencia por dispositivo, no una cadencia más agresiva.
 

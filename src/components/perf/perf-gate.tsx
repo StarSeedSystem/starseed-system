@@ -44,11 +44,11 @@ export function PerfController() {
 
 /** Renderiza los fondos pesados SOLO si el dispositivo los tolera. */
 /**
- * Rutas de CONSOLA: herramientas de trabajo, no escaparate. El Puente de Mando se abre
+ * Rutas de CONSOLA: herramientas de trabajo, no escaparate. Genesis se abre
  * mientras los agentes escriben, y en una máquina de 8 GB cada fondo WebGL le quita sitio
  * a un agente. Aquí no se monta ninguna capa pesada.
  */
-const RUTAS_CONSOLA = ["/mando"];
+const RUTAS_CONSOLA = ["/genesis", "/mando"];
 
 export function PerfHeavyOnly({ children }: { children: React.ReactNode }) {
   const ruta = usePathname();

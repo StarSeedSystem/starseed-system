@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Panel de áreas de trabajo, memorias y permisos (Ola 231 · Centro de Mando)
+ * Panel de áreas de trabajo, memorias y permisos (Ola 231 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
- * El Centro de Mando también es el índice del proyecto: por dónde se trabaja
+ * Genesis también es el índice del proyecto: por dónde se trabaja
  * y con qué memorias y permisos. Rejilla de tarjetas por área (cada una con
  * su color de `ACENTOS`), con sus accesos directos, sus documentos de memoria
  * y un resumen de su última actividad sacado de los eventos del relevo.

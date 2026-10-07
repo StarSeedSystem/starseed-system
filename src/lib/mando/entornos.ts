@@ -133,7 +133,7 @@ export interface ServicioConocido {
 
 /**
  * El catálogo de entornos del proyecto SIN la sonda de salud en vivo (Ola de
- * Memorias del Mando): para paneles que solo necesitan el ENLACE y la nota
+ * Memorias de Genesis): para paneles que solo necesitan el ENLACE y la nota
  * —no si el servicio responde ahora mismo—, y que no quieren pagar los ~6 s
  * de `fetch` por entorno que hace `leerEntornos()`. Misma fuente de verdad,
  * así que nunca se desincroniza con la pestaña «Entornos».

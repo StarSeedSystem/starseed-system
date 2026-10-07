@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Latidos de agentes externos (2026-09-25): Claude en Cowork y sus subagentes en el Mando."""
+"""Latidos de agentes externos (2026-09-25): Claude en Cowork y sus subagentes en Genesis."""
 import json
 import os
 import tempfile

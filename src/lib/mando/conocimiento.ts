@@ -1,5 +1,5 @@
 /**
- * /api/conocimiento — lógica PURA de la API de conocimiento del Mando (FLU1005E · ola 1005F).
+ * /api/conocimiento — lógica PURA de la API de conocimiento de Genesis (FLU1005E · ola 1005F).
  *
  * Forma de respuesta del subconjunto de Dify que usamos (architecture/puente-propio-flujos.md §4):
  *   GET  /datasets                      → { data: Dataset[], total }

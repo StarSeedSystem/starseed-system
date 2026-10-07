@@ -459,7 +459,7 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
         ready = r.ready;
         reason = r.reason;
         // (Ola 278 · OS3) Si la sonda llegó a la neurona a través del proxy del
-        // OS (el navegador bloquea 127.0.0.1), se anota para que el Mando y el
+        // OS (el navegador bloquea 127.0.0.1), se anota para que Genesis y el
         // chat lo enseñen y no parezca un fallo del backend.
         if (r.via === "proxy") {
           reason = ["Astraura 1.58 responde vía el servidor del OS (el navegador bloquea 127.0.0.1).", reason]

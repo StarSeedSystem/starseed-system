@@ -9,7 +9,7 @@
  * `onPaso`. Este componente las pinta EN VIVO (spinner → ✓/✗ con ms y
  * detalle), permite copiar el informe en texto plano y muestra el consejo
  * final. Se monta junto al botón «Probar» del Estudio de Voces y en la
- * tarjeta «Demonio de voz» del Centro de Mando.
+ * tarjeta «Demonio de voz» de Genesis.
  *
  * Nunca lanza: si `diagnosticarVoz` fallara, el informe muestra el error y
  * deja de dibujar. Nunca dos diagnósticos a la vez (ref `enCurso`).

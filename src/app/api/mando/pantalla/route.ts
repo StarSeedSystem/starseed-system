@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────
  * Lee y cambia el ajuste global `~/.starseed/pantalla.json` que gobierna el
  * servicio `com.starseed.pantalla` de la Mac y la Screen Wake Lock del
- * navegador en cualquier dispositivo con el Mando abierto.
+ * navegador en cualquier dispositivo con Genesis abierto.
  *
  * ⚠️ Seguridad: puerta única `guardianMando` — 404 fuera de local. NUNCA
  * devuelve la ruta absoluta del archivo ni claves.

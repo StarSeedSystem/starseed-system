@@ -79,7 +79,7 @@ export type ClaseAccion =
 export interface AccionMedidor {
     clase: ClaseAccion;
     texto: string;
-    /** Pestaña del Mando para `ir-a`. */
+    /** Pestaña de Genesis para `ir-a`. */
     destino?: string;
     /** Rojo + confirmación en dos pasos. Nunca se omite en algo que borra. */
     destructiva: boolean;
@@ -121,7 +121,7 @@ export interface FilaMedidor {
 export interface DatoDeFicha {
     etiqueta: string;
     valor: string;
-    /** Enlace externo (GitHub) o interno del Mando. Opcional: muchos datos no llevan. */
+    /** Enlace externo (GitHub) o interno de Genesis. Opcional: muchos datos no llevan. */
     enlace?: string;
     /** Para pintar en rojo lo que merece mirarse. */
     aviso?: boolean;
@@ -648,7 +648,7 @@ export function enlaceDeCommit(repo?: string, sha?: string): string | undefined 
  * de rellenarlo: los agentes corren por `opencode` y `codex`, que no nos devuelven su
  * cuenta de tokens, así que el gasto del agente se mide hoy en BYTES ESCRITOS y en tiempo.
  * Inventar un número de tokens sería justo la clase de dato falso que llevamos días
- * quitando del Puente.
+ * quitando de Genesis.
  */
 export function fichaDeAgente(
     l: DatosMedidores["latidos"][number],
@@ -927,7 +927,7 @@ const DEPENDENCIA_CUMPLIDA = new Set(["commit", "hecho"]);
  *   {"estado": "sustituida", "nota": "huérfana: ninguna cola fuente la define ya"}
  * Es decir: JF1 ya no existe. Esperar a algo que nadie va a hacer no es una dependencia,
  * es un candado. Con la regla vieja, JF2 se quedaba «lista» para siempre sin que nadie
- * pudiera cogerla, y el Puente lo contaba como trabajo disponible.
+ * pudiera cogerla, y Genesis lo contaba como trabajo disponible.
  */
 const DEPENDENCIA_IMPOSIBLE = new Set(["sustituida", "descartada", "rechazada"]);
 
@@ -960,7 +960,7 @@ export function dependenciasQueFaltan(
 /**
  * Las tareas que se pueden coger AHORA.
  *
- * (2026-09-22) Aquí faltaba lo más importante y por eso el Puente mentía en la cara:
+ * (2026-09-22) Aquí faltaba lo más importante y por eso Genesis mentía en la cara:
  * enseñaba «LISTAS PARA TRABAJAR 7 · 7 se pueden coger ya · el enjambre las va cogiendo
  * por tandas» mientras RM5, RM6, RM7, RM8, JF2, p318Jb y p318Jc estaban TODAS esperando a
  * otra tarea (RM5 espera a RM3, que falló, y a RM4, que fue rechazada; p318Jb espera a un
@@ -1071,7 +1071,7 @@ export interface DatosMedidores {
      * escritos a mano).
      */
     /**
-     * Tokens por segundo del Puente entero. Lo escribe `tokens_por_segundo.py` leyendo
+     * Tokens por segundo de Genesis. Lo escribe `tokens_por_segundo.py` leyendo
      * contadores que ya están en disco, sin preguntar a ninguna API.
      */
     tokens?: {
@@ -1662,7 +1662,7 @@ export function detalleDeMedidor(
                 // (2026-09-22) Un agente en «esperando proveedor» NO está trabajando: está
                 // parado porque todas las pasarelas útiles están caídas o sin cupo. Esta
                 // noche tres de ellos estuvieron 28, 31 y 35 minutos así, sin modelo y sin
-                // escribir un byte, y el Puente los contaba como «agentes escribiendo
+                // escribir un byte, y Genesis los contaba como «agentes escribiendo
                 // ahora». Alex lo llamó mentira y lo era. Ahora se dicen por su nombre.
                 // (2026-09-29) Un sueño profundo lee y analiza: no se dice «escribiendo». Su
                 // espera de proveedor viaja en la subfase, no en la fase.

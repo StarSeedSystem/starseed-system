@@ -1,7 +1,7 @@
 /**
  * ALMACENAMIENTO DE LA NEURONA (Ola 273 · 2026-09-07) — solo servidor
  * ─────────────────────────────────────────────────────────────────────────────
- * Alex pidió ver en el Puente de Mando el disco, lo regenerable (para limpiar
+ * Alex pidió ver en Genesis el disco, lo regenerable (para limpiar
  * con seguridad), el espejo del memory root en Google Drive (DriveFS) y una
  * acción «aliviar memoria» (dormir el BitNet + cesión del pool de voz), todo
  * solo en local (las rutas `/api/mando/*` son 404 en producción).
@@ -25,7 +25,7 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const execFileAsync = promisify(execFile);
 
-/** Umbral de swap (MB) a partir del cual el Mando lo explica avisando. */
+/** Umbral de swap (MB) a partir del cual Genesis lo explica avisando. */
 export const UMBRAL_SWAP_MB = 3000;
 
 /** Entrada de la lista blanca de lo que se puede limpiar sin riesgo. */

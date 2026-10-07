@@ -1,7 +1,7 @@
 /**
  * VOZ DEL MANDO — lógica pura (Ola 275 · Tarea V1 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
- * El Puente de Mando HABLA: anuncia con la voz elegida lo que importa de la
+ * Genesis HABLA: anuncia con la voz elegida lo que importa de la
  * orquestación (visto bueno pendiente, integradas, fallidas, proveedores que
  * caen o vuelven, publicaciones) y cada agente/personalidad puede tener su
  * propia voz.
@@ -13,7 +13,7 @@
 
 import type { EventoRelevo } from "./tipos";
 
-/** Preferencias persistentes de la voz del Mando. */
+/** Preferencias persistentes de la voz de Genesis. */
 export interface PreferenciasVozMando {
     activa: boolean;
     /** Timbre por defecto de avisos (id de `TIMBRES`), null = el activo del OS. */
@@ -254,7 +254,7 @@ function timbreDelEvento(e: EventoRelevo, vocesPorAgente: Record<string, string>
  *  · no repite claves ya anunciadas;
  *  · ordena por prioridad (1 antes) y, a igual prioridad, por hora `t`;
  *  · aplica la voz del agente si `vocesPorAgente` la tiene (si no, la
- *    preferida del Mando y, en su defecto, ninguna: el motor usará la activa).
+ *    preferida de Genesis y, en su defecto, ninguna: el motor usará la activa).
  */
 export function anunciosDe(
     eventos: EventoRelevo[],
@@ -344,7 +344,7 @@ export function asignarVozAutomatica(
 // ── «Léeme el estado» ─────────────────────────────────────────────────────────
 
 /**
- * Párrafo de 2–3 frases para el botón «Léeme el estado» del Mando. Resume lo
+ * Párrafo de 2–3 frases para el botón «Léeme el estado» de Genesis. Resume lo
  * que importa AHORA: ola activa, recuento y salud de proveedores. No mira
  * pantallas: solo los números que recibe.
  */

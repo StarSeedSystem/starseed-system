@@ -1,5 +1,5 @@
 /**
- * Chat Director del Mando · feed fusionado (PURO · Ola 1004)
+ * Chat Director de Genesis · feed fusionado (PURO · Ola 1004)
  * ─────────────────────────────────────────────────────────────────────────────
  * Convierte a `MensajeDirector` las fuentes que alimentan el chat del Director:
  * el chat fundido (`director/chat.jsonl`), el canal común (`mando/canal.jsonl`),

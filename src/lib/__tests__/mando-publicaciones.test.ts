@@ -1,5 +1,5 @@
 /**
- * Pruebas del servidor de publicaciones del Mando (Ola 274 · 2026-09-07).
+ * Pruebas del servidor de publicaciones de Genesis (Ola 274 · 2026-09-07).
  *
  * - `interpretarLog` debe leer cabecera + shortstat de cada commit (ola, tarea,
  *   título y conteos), y tratar un commit sin shortstat como 0/0/0.
@@ -61,7 +61,7 @@ describe("argumentosPublicacion", () => {
         });
     });
 
-    it("vista previa usa --force-with-lease a la rama del Mando", () => {
+    it("vista previa usa --force-with-lease a la rama de Genesis", () => {
         const r = argumentosPublicacion({ ...base, modo: "vista-previa", esHead: false });
         expect(r.args).toEqual(["push", "--force-with-lease", "origin", `${base.hasta}:refs/heads/vista-previa/mando`]);
         expect(r.refTemporal).toBeNull();

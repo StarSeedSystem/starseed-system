@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Pone los servicios del Puente bajo launchd, que es quien de verdad los mantiene vivos.
+# Pone los servicios de Genesis bajo launchd, que es quien de verdad los mantiene vivos.
 #
 #   bash scripts/puente/instalar-servicios.sh          # instala y arranca
 #   bash scripts/puente/instalar-servicios.sh estado   # dice quién vive
@@ -8,7 +8,7 @@
 # POR QUÉ LAUNCHD. Los lanzábamos con un demonio propio (doble fork + setsid) y aun
 # así morían todos a la vez, sin marca de salida. La causa: el servidor MCP que da la
 # terminal arranca con `--pgroup` y, al reiniciarse, se lleva por delante todo lo que
-# lanzó. La prueba está en que el Mando fue el ÚNICO superviviente de cada masacre — y
+# lanzó. La prueba está en que Genesis fue el ÚNICO superviviente de cada masacre — y
 # era el único bajo launchd. Así que van todos ahí: launchd es de macOS, sobrevive al
 # reinicio del MCP, al cierre de la terminal y al arranque de la máquina, y con
 # KeepAlive los levanta solo si se caen.
@@ -36,11 +36,11 @@ case "${1:-instalar}" in
     ;;
   *)
     "$PY3" "$RAIZ/scripts/puente/instalar-servicios.py" "$RAIZ" "$PY3"
-    # Lanzador de doble clic del Mando en el Escritorio (2026-09-20): misma copia que el repo.
+    # Lanzador de doble clic de Genesis en el Escritorio (2026-09-20): misma copia que el repo.
     if [ -d "$HOME/Desktop" ]; then
-      cp "$RAIZ/scripts/puente/Puente-de-Mando.command" "$HOME/Desktop/Puente-de-Mando.command" \
-        && chmod +x "$HOME/Desktop/Puente-de-Mando.command" \
-        && echo "lanzador en el Escritorio: Puente-de-Mando.command"
+      cp "$RAIZ/scripts/puente/Genesis.command" "$HOME/Desktop/Genesis.command" \
+        && chmod +x "$HOME/Desktop/Genesis.command" \
+        && echo "lanzador en el Escritorio: Genesis.command"
     fi
     echo
     echo "Comprueba con: bash $0 estado"

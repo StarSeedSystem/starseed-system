@@ -123,7 +123,7 @@ def main():
         with open(PROGRESO, encoding="utf-8") as f:
             progreso = json.load(f)
     asuntos = asuntos_main(RAIZ)
-    # (2026-09-23) La nube no ve el progreso de la Mac: el cambio pedido desde el Puente
+    # (2026-09-23) La nube no ve el progreso de la Mac: el cambio pedido desde Genesis
     # (prompt y dependencias quitadas) se hornea DENTRO de la cola que se le manda.
     colas = [(nombre, aplicar_a_todas(tareas, progreso)) for nombre, tareas in colas]
     # (2026-09-24) Lo que ya se mandó 3 veces sin integrarse no se vuelve a mandar.

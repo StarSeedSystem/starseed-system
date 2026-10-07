@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Tarjeta «Sesiones de Claude en esta Mac» (Ola 352 · MU2 · Puente de Mando)
+ * Tarjeta «Sesiones de Claude en esta Mac» (Ola 352 · MU2 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Cuánto gastan las sesiones de Claude Code locales: tokens totales por tipo
  * (formato k/M), % de relectura de caché (verde ≥70, ámbar 40-70, rojo <40) y

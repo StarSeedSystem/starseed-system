@@ -78,7 +78,7 @@ export async function POST(peticion: Request): Promise<Response> {
 
   const fuentes: FuenteContexto[] = [
     { nombre: "estado y medidores vivos", contenido: briefing, fechaMs: ahoraMs, maxEdadMinutos: 30 },
-    { nombre: "método del Puente", contenido: puenteMd.contenido, fechaMs: puenteMd.mtimeMs, maxEdadMinutos: 180 },
+    { nombre: "método de Genesis", contenido: puenteMd.contenido, fechaMs: puenteMd.mtimeMs, maxEdadMinutos: 180 },
     { nombre: "workflow operativo", contenido: workflowMd.contenido, fechaMs: workflowMd.mtimeMs, maxEdadMinutos: 1440 },
     { nombre: "pasarelas", contenido: JSON.stringify(pasarelasSeguras), fechaMs: informeArchivo.mtimeMs, maxEdadMinutos: 360 },
     { nombre: "memorias pertinentes", contenido: memorias, fechaMs: ahoraMs, maxEdadMinutos: 120 },

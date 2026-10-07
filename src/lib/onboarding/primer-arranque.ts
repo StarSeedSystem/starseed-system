@@ -15,7 +15,7 @@
  *   · Con cuenta y esta neurona nueva en la cuenta → los ajustes de la nueva neurona.
  *   · Con cuenta y neurona conocida → nada.
  *
- * Nunca pisa a quien ya manda: la consola (/mando), las rutas de acceso (/login,
+ * Nunca pisa a quien ya manda: la consola (/genesis), las rutas de acceso (/login,
  * /bienvenida…), el rito de una cuenta recién creada (director-rito) ni la guía. La
  * coordinación de «una ventana cada vez» la hace el componente con el registro de modales.
  *

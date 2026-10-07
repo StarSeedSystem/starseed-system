@@ -1,6 +1,6 @@
 /**
- * /api/mando/claves (AGR2c · 2026-09-20) — SOLO local / Mando
- * TODO: Integrar permisos.ts cuando existan permisos sobre el Mando. Por ahora guardianMando exige maquina local.
+ * /api/mando/claves (AGR2c · 2026-09-20) — SOLO local / Genesis
+ * TODO: Integrar permisos.ts cuando existan permisos sobre Genesis. Por ahora guardianMando exige maquina local.
  */
 
 import { guardianMando } from "@/lib/mando/guardian";

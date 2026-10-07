@@ -1,5 +1,5 @@
 /**
- * Sueños profundos · lector y acciones del Puente de Mando (2026-09-29 · SOLO servidor)
+ * Sueños profundos · lector y acciones de Genesis (2026-09-29 · SOLO servidor)
  * ─────────────────────────────────────────────────────────────────────────────
  * Lee del disco de ESTA máquina (nada de Supabase: el panel no gasta cuota del bus):
  *   · starseed_memory_root/dream/profundo/<fecha>/plan.json            el plan
@@ -169,7 +169,7 @@ export async function leerDatosSuenos(fecha?: string, conInforme = false): Promi
 
 // ─────────────────────────────── acciones (por la terminal de siempre) ───────────────────────────────
 
-/** Quita del texto la carpeta personal y la raíz del repo: el Mando no enseña rutas del disco. */
+/** Quita del texto la carpeta personal y la raíz del repo: Genesis no enseña rutas del disco. */
 export function sinRutas(texto: string, raiz = raizDelProyecto(), casa = homedir()): string {
     let t = texto;
     if (raiz && raiz.length > 1) t = t.split(raiz).join(".");
@@ -205,7 +205,7 @@ async function suenosPy(args: string[], timeoutMs: number): Promise<{ ok: boolea
 }
 
 /**
- * Lanza una sesión de sueños. Siempre `--directo`: aquí YA estamos en el Mando, así que
+ * Lanza una sesión de sueños. Siempre `--directo`: aquí YA estamos en Genesis, así que
  * suenos.py no debe volver a pedírselo por HTTP; decide igual la regla de UN orquestador
  * (tanda viva que sabe soñar → se le añaden las tareas; una vieja → no se lanza otro).
  */

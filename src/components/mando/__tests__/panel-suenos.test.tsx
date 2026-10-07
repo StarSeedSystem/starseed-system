@@ -15,7 +15,7 @@ afterEach(() => {
 
 const datos = {
     sesiones: ["2026-09-29"],
-    areas: [{ id: "voz", nombre: "Voz" }, { id: "mando", nombre: "Puente de Mando y orquestación" }],
+    areas: [{ id: "voz", nombre: "Voz" }, { id: "mando", nombre: "Genesis y orquestación" }],
     lentes: [],
     sesion: {
         sesion: "2026-09-29",
@@ -49,7 +49,7 @@ function servir() {
         if (u.startsWith("/api/mando/suenos") && (!init || init.method !== "POST")) {
             return new Response(JSON.stringify({ datos }), { status: 200 });
         }
-        if (u === "/api/mando/suenos") return new Response(JSON.stringify({ ok: true, mensaje: "Lanzado por el Puente de Mando.", sesion: "2026-09-29" }), { status: 200 });
+        if (u === "/api/mando/suenos") return new Response(JSON.stringify({ ok: true, mensaje: "Lanzado por Genesis.", sesion: "2026-09-29" }), { status: 200 });
         return new Response(JSON.stringify({ colas: [], modelos: [] }), { status: 200 });
     }) as typeof fetch;
 }
@@ -82,7 +82,7 @@ describe("PanelSuenos", () => {
         fireEvent.click(await screen.findByRole("button", { name: /Lanzar…/ }));
         fireEvent.click(screen.getByLabelText("Voz"));
         fireEvent.click(screen.getByRole("button", { name: /^Lanzar$/ }));
-        expect(await screen.findByText("Lanzado por el Puente de Mando.")).toBeInTheDocument();
+        expect(await screen.findByText("Lanzado por Genesis.")).toBeInTheDocument();
         const post = pedidos.find((p) => p.cuerpo && (p.cuerpo as { accion?: string }).accion === "lanzar");
         expect(post?.cuerpo).toMatchObject({ accion: "lanzar", horas: 3, areas: ["mando"], lentes: [] });
     });

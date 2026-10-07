@@ -1,4 +1,4 @@
-// Pruebas de `vista-publica-mando.tsx` y de la herramienta «Puente de Mando»
+// Pruebas de `vista-publica-mando.tsx` y de la herramienta «Genesis»
 // de los kits de entidad (Ola 1009P · PT1009Db · contrato §5 y §7).
 // La vista pública pinta solo la lista blanca de `vistaPublica` (misma entrada
 // con datos privados reconocibles que la prueba de PT1007C) y la herramienta
@@ -54,7 +54,7 @@ describe("VistaPublicaMando", () => {
         expect(vista).not.toBeNull();
         const { container } = render(<VistaPublicaMando vista={vista} />);
 
-        expect(screen.getByText(/Mando de MiAmbito/)).toBeInTheDocument();
+        expect(screen.getByText(/Genesis de MiAmbito/)).toBeInTheDocument();
         expect(screen.getByText("Ola 1")).toBeInTheDocument();
         expect(screen.getByText("Integración 1")).toBeInTheDocument();
         expect(screen.getByText(/Motor vivo hace 5 min/)).toBeInTheDocument();
@@ -77,12 +77,12 @@ describe("PuenteMandoTool (bandera)", () => {
         expect(container).toBeEmptyDOMElement();
     });
 
-    it("con la bandera aparece y enlaza al Mando del ámbito", () => {
+    it("con la bandera aparece y enlaza a Genesis del ámbito", () => {
         process.env[BANDERA] = "1";
         render(<PuenteMandoTool slug="mi grupo" visibilidad="publico" />);
-        const enlace = screen.getByRole("link", { name: /Abrir Mando/ });
-        expect(enlace).toHaveAttribute("href", "/mando?ambito=mi%20grupo");
-        expect(screen.getByText("Puente de Mando")).toBeInTheDocument();
+        const enlace = screen.getByRole("link", { name: /Abrir Genesis/ });
+        expect(enlace).toHaveAttribute("href", "/genesis?ambito=mi%20grupo");
+        expect(screen.getByText("Genesis")).toBeInTheDocument();
         expect(screen.getByText("público")).toBeInTheDocument();
     });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel «Canales StarSeed» del Centro de Mando (Ola 285 · K2 · 2026-09-08)
+ * Panel «Canales StarSeed» de Genesis (Ola 285 · K2 · 2026-09-08)
  * ─────────────────────────────────────────────────────────────────────────────
  * Tarjetas por canal, editor completo, alta de canales de cualquier plataforma
  * (las «próximamente» marcadas), sembrado desde Telegram, envío de prueba con
@@ -71,7 +71,7 @@ const PLACEHOLDER_ID: Record<string, string> = {
     web: "URL de la página",
 };
 
-// Clases compartidas de campos y botones para no repetir el estilo del Mando.
+// Clases compartidas de campos y botones para no repetir el estilo de Genesis.
 const CLS_INPUT = "w-full cursor-text rounded-md border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white/80";
 const CLS_SELECT = "w-full cursor-pointer rounded-md border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white/80";
 const CLS_BTN = "inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10";
@@ -142,7 +142,7 @@ export function PanelCanales() {
         }
     }, []);
 
-    // Sondeo cada 30 s, saltando la lectura con la pestaña oculta (patrón del Mando).
+    // Sondeo cada 30 s, saltando la lectura con la pestaña oculta (patrón de Genesis).
     useEffect(() => {
         let vivo = true;
         let pendiente = false;

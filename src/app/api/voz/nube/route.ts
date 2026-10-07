@@ -8,7 +8,7 @@
  * Recibe `{ texto (≤ 600), genero?, velocidad? }` y devuelve audio. Orden:
  *   (a) Gemini TTS (`GEMINI_API_KEY` / `GOOGLE_API_KEY`): PCM 16 bit 24 kHz
  *       mono, envuelto en WAV por el servidor. Voces Kore/Puck/Aoede según
- *       el género. La clave se lee como en el Mando: `process.env` y, en la
+ *       el género. La clave se lee como en Genesis: `process.env` y, en la
  *       neurona local (`STARSEED_LOCAL`/`STARSEED_MANDO`), también los
  *       archivos `~/.starseed/env` y `~/.hermes/.env`.
  *   (b) Google Translate TTS (sin clave): el texto se parte en trozos de

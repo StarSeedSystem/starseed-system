@@ -1,10 +1,10 @@
 /**
- * Lectura del «aprendizaje continuo» de Astraura 1.58 para el Mando (Ola 270 · 2026-09-07)
+ * Lectura del «aprendizaje continuo» de Astraura 1.58 para Genesis (Ola 270 · 2026-09-07)
  * ───────────────────────────────────────────────────────────────────────────────────────
  * El backend 1.58 aprende sola: un corpus JSONL por personalidad
  * (`data/aprendizaje/corpus/`), una curación, evaluaciones con puerta de regresión,
  * una crónica en prosa y una «fábrica» de adaptadores LoRA GGUF. Este módulo junta
- * todo eso para la pestaña «Aprendizaje» del Centro de Mando.
+ * todo eso para la pestaña «Aprendizaje» de Genesis.
  *
  *   - La curación, las evaluaciones, la crónica y la fábrica se leen del
  *     DISCO del repo astraura (`ASTRAURA_158_DIR` o `~/Documents/IA 1.58 bit`), con

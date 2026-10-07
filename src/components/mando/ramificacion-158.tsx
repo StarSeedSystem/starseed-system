@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ramificación 1.58 (Ola 270 · 2026-09-07 · Puente de Mando · pestaña «Procesos»)
+ * Ramificación 1.58 (Ola 270 · 2026-09-07 · Genesis · pestaña «Procesos»)
  * ─────────────────────────────────────────────────────────────────────────────
  * El árbol vivo del backend Astraura 1.58 de esta neurona, por niveles:
  *   0) BitNet local (vivo/dormido/cedido, puerto, último uso interactivo)

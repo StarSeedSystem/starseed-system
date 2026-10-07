@@ -2,7 +2,7 @@
 """Autocuración del enjambre (2026-10-06): los vetos caducan, el director puede borrarlos sin
 matar la tanda y una tanda vieja no repite lo que otra ya cerró.
 
-Alex: «los agentes y procesos están detenidos… el puente de mando debería autorrepararse
+Alex: «los agentes y procesos están detenidos… Genesis debería autorrepararse
 usando los directores». Esa noche tres trabajadores llevaban 40 min «esperando proveedor»
 con apinex, freellmapi y Google respondiendo a la sonda."""
 import json

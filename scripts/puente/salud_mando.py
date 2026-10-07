@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Salud del Puente de Mando: módulo puro (sin IO), cada medidor con veredicto y remedio."""
+"""Salud de Genesis: módulo puro (sin IO), cada medidor con veredicto y remedio."""
 
 try:
     from scripts.puente.identidad_tarea import esta_integrada

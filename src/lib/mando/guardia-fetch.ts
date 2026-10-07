@@ -1,5 +1,5 @@
 /**
- * Guardia de las lecturas del Mando en el navegador (2026-10-05).
+ * Guardia de las lecturas de Genesis en el navegador (2026-10-05).
  *
  * QUÉ: envuelve `fetch` para las lecturas GET de `/api/mando/…`:
  *   1. Una lectura idéntica que ya está en vuelo se COMPARTE (cada llamante recibe su copia).
@@ -10,14 +10,14 @@
  *   4. Lleva la salud de las lecturas (fallos seguidos, último éxito) para la autocuración
  *      de la página (`autocuracion-pagina.ts`), y `reiniciarGuardia()` suelta todo de golpe.
  *
- * POR QUÉ: Alex: «no carga el puente de mando» (dos veces en una noche). La pestaña llevaba
+ * POR QUÉ: Alex: «no carga Genesis» (dos veces en una noche). La pestaña llevaba
  * horas abierta y Chrome respondía `net::ERR_INSUFFICIENT_RESOURCES` a TODO: más de 35.000
  * peticiones descartadas y cada pastilla en «—». Treinta y un paneles sondean con
  * `setInterval` sin mirar si su lectura anterior volvió (solo la cabecera lanza diez
  * medidores por vuelta); con la Mac cargada un medidor tarda hasta 46 s y las vueltas se
  * apilaban sin límite. Compartir las iguales no bastaba: hacía falta un TOPE.
  *
- * CÓMO: solo GET a rutas del Mando, con URL de texto y sin cuerpo; todo lo demás (POST,
+ * CÓMO: solo GET a rutas de Genesis, con URL de texto y sin cuerpo; todo lo demás (POST,
  * otras rutas, `Request` con cabeceras propias) pasa intacto. La petición compartida no lleva
  * la señal de ningún llamante: si un panel aborta la suya (al desmontarse), solo ESE llamante
  * recibe el aborto y los demás siguen esperando la misma respuesta.
@@ -39,7 +39,7 @@ export interface OpcionesGuardiaFetch {
     ahora?: () => number;
 }
 
-/** Salud de las lecturas del Mando vista desde la página. */
+/** Salud de las lecturas de Genesis vista desde la página. */
 export interface SaludGuardia {
     enVuelo: number;
     enCola: number;
@@ -182,7 +182,7 @@ export function crearFetchGuardado(original: typeof fetch, opciones: OpcionesGua
     }) as FetchGuardado;
 
     guardado.salud = () => ({ enVuelo, enCola: cola.length, ...salud });
-    guardado.reiniciar = (motivo = "autocuración del Mando") => {
+    guardado.reiniciar = (motivo = "autocuración de Genesis") => {
         const error = new DOMException(`Lectura cortada: ${motivo}.`, "AbortError");
         for (const turno of cola.splice(0)) turno.descartar(error);
         for (const control of [...controles]) {
@@ -206,7 +206,7 @@ let fetchDeVerdad: typeof fetch | null = null;
  * La guardia de ESTA página. Se guarda aquí y no se lee de `window.fetch` porque otros envuelven
  * `fetch` después (el indicador de carga global, `indicador-carga-global.tsx`, pone su contador
  * encima): la guardia sigue trabajando debajo, pero `window.fetch` ya no es ella. Medido el
- * 2026-10-05 en el Mando instalado: la autocuración de la página no la encontraba y no actuaba.
+ * 2026-10-05 en Genesis instalado: la autocuración de la página no la encontraba y no actuaba.
  */
 let instancia: FetchGuardado | null = null;
 

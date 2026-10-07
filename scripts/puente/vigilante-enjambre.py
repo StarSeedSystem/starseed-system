@@ -3,7 +3,7 @@
 """El que hace que la orquestación sea AUTOMÁTICA de verdad.
 
 Hasta hoy faltaba justo esto. El orquestador terminaba su cola, salía con éxito…
-y ahí se quedaba. El Mando enseñaba «0 tareas en curso» con decenas de pendientes,
+y ahí se quedaba. Genesis enseñaba «0 tareas en curso» con decenas de pendientes,
 y no porque nada funcionara: porque nadie volvía a arrancarlo. La automatización
 se apoyaba en que yo estuviera delante para relanzarlo a mano, y eso no es
 automatización.
@@ -46,7 +46,7 @@ import higiene_colas
 import higiene_worktrees
 
 #: (2026-10-03) Cada hora, las copias `cola-auto-*` viejas y sus latidos salen de `olas/`
-#: (se MUEVEN a colas-fuente/). Se habían juntado 727: el Mando las leía todas en cada
+#: (se MUEVEN a colas-fuente/). Se habían juntado 727: Genesis las leía todas en cada
 #: petición y su servidor murió por falta de memoria.
 HIGIENE_CADA_S = int(os.environ.get("STARSEED_HIGIENE_S", "3600"))
 
@@ -763,7 +763,7 @@ def main():
                 if ahora - pausa_avisada >= 3600:
                     pausa_avisada = ahora
                     _p.decir(
-                        "vigilante en pausa por ajuste del Mando",
+                        "vigilante en pausa por ajuste de Genesis",
                         "vigilante",
                         "aviso",
                     )

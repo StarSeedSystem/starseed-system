@@ -8,7 +8,7 @@ const tarea = (id: string, estado = "pendiente", dependenciasPendientes: string[
     dependenciasPendientes,
 });
 
-describe("conteo operativo del Mando", () => {
+describe("conteo operativo de Genesis", () => {
     it("cuenta una sola vez un id repetido en varias colas", () => {
         const resultado = contarTrabajoReal([tarea("A1"), tarea("A1"), tarea("A2")], []);
         expect(resultado).toEqual({ enCurso: 0, listas: 2, bloqueadas: 0, pendientes: 2, copiasOmitidas: 1 });

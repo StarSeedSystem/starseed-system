@@ -9,7 +9,7 @@ describe("indicador de carga global · qué peticiones cuentan", () => {
         expect(cuentaComoCarga("/api/voz-local/tts")).toBe(true);
         expect(cuentaComoCarga("https://pqzdpmedcsgcedkvndzl.supabase.co/rest/v1/os_spaces?select=*")).toBe(true);
     });
-    it("ignora el sondeo de fondo (estado del Mando, salud de voz, latidos, chunks)", () => {
+    it("ignora el sondeo de fondo (estado de Genesis, salud de voz, latidos, chunks)", () => {
         expect(cuentaComoCarga("/api/mando/estado")).toBe(false);
         expect(cuentaComoCarga("/api/mando/ramificacion")).toBe(false);
         expect(cuentaComoCarga("/api/voz/salud")).toBe(false);

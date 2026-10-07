@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Las puertas tienen que juzgar el código, no la máquina donde corren.
 
-El botón «Commitear y publicar» lo lanza el servidor del Mando, y ese servidor
+El botón «Commitear y publicar» lo lanza el servidor de Genesis, y ese servidor
 corre con `STARSEED_LOCAL=1` y `STARSEED_MANDO=1` para poder servirse a sí mismo.
 La primera vez que se pulsó, el publicador heredó esas variables y dos pruebas de
 `esDespliegueLocal` se pusieron en rojo sin que nadie hubiera tocado ese código.
@@ -70,7 +70,7 @@ class PruebaCuandoHaceFaltaConstruir(unittest.TestCase):
 
 
 class ElPuertoDelMandoNoLlegaALasPuertas(unittest.TestCase):
-    """(2026-09-23) Publicar desde el botón del Mando corría vitest con PORT=9002 (el del
+    """(2026-09-23) Publicar desde el botón de Genesis corría vitest con PORT=9002 (el del
     `next start`) y una prueba de Laya salía en rojo solo al publicar desde ahí."""
 
     def test_se_quitan_las_variables_del_servidor_que_lanza(self):

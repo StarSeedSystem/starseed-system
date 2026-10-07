@@ -19,7 +19,7 @@ petición (Chat Director, ola) → enjambre escribe → puertas de la tarea (tsc
 → si algo falla: revierte, veta y devuelve la tarea al enjambre con el informe
 ```
 
-`publicar.py` sigue siendo el botón manual «Publicar» del Mando. El director **reutiliza** sus
+`publicar.py` sigue siendo el botón manual «Publicar» de Genesis. El director **reutiliza** sus
 puertas (`puerta()`, `PASOS`, turno de máquina) importándolas, nunca copiándolas, y los dos comparten
 cerrojo: si el diario de publicación dice `corriendo`, el otro espera.
 
@@ -30,7 +30,7 @@ El director clasifica cada archivo del lote por medio. Un lote puede tocar vario
 | Medio | Lo disparan | Cómo se publica | Cómo se confirma | Cómo se revierte |
 |---|---|---|---|---|
 | **Web OS** (`starseed-os.vercel.app`) | `src/**`, `public/**`, `next.config.*`, `package*.json`, `tailwind.config.ts` | `git push origin <sha>:main` sin force; Vercel compila por la integración Git | `/version.json` de producción sirve `sha` del lote (sondeo hasta 15 min) y humo de producción verde | `git revert` del lote y push; si hay `VERCEL_TOKEN` en el entorno, antes se promueve el despliegue anterior (instantáneo) |
-| **Mando local** (Mac, :9002) | lo mismo + `src/app/api/mando/**`, `src/lib/mando/**` | `reconstruir_mando.py` ya compila y cambia solo; si la nube trae build, `instalar_build.py` | `http://127.0.0.1:9002/version.json` sirve el `sha` | volver al build anterior (`intercambiar_build`) |
+| **Genesis local** (Mac, :9002) | lo mismo + `src/app/api/mando/**`, `src/lib/mando/**` | `reconstruir_mando.py` ya compila y cambia solo; si la nube trae build, `instalar_build.py` | `http://127.0.0.1:9002/version.json` sirve el `sha` | volver al build anterior (`intercambiar_build`) |
 | **Servicios del Mac** | `scripts/puente/**`, `scripts/enjambre/**` con copia instalada (`~/.local/bin`, plists) | copiar con respaldo `.bak-<MMDD-HHMM>` y `launchctl kickstart -k` solo del servicio afectado | hash de la copia = repo, servicio vivo y latido nuevo | restaurar el `.bak` y reiniciar |
 | **Supabase** (`jhgvhkypqadfdkkqoxta`) | `supabase/migrations/**` | solo migraciones **aditivas** (`CREATE … IF NOT EXISTS`, `ADD COLUMN` sin `NOT NULL` sin defecto, índices, políticas nuevas) por la Management API | la migración aparece aplicada y el esquema la refleja | migración inversa escrita en la misma tarea; si no existe, no se publica |
 | **Hermes / Telegram** | `scripts/hermes/skills/**` | sincronizar a `~/.hermes/skills` con respaldo | hash igual | restaurar respaldo |
@@ -40,7 +40,7 @@ El director clasifica cada archivo del lote por medio. Un lote puede tocar vario
 | **Astraura (1.58)** | repo `IA 1.58 bit` | `publicaciones.ts` modo producción | — | — |
 
 Astraura queda **en pausa** mientras Alex mantenga parado el backend 1.58. Las **redes sociales** no
-son un medio automático: el director prepara la pieza verificada y la deja en la bandeja del Mando
+son un medio automático: el director prepara la pieza verificada y la deja en la bandeja de Genesis
 para que Alex la publique con un toque.
 
 ## 3. Las puertas, de la más barata a la más cara
@@ -51,8 +51,7 @@ para que Alex la publique con un toque.
    - main pasó su verificación (`verificado` de la tanda o las puertas propias);
    - si toca interfaz, el director de diseño dejó nota ≥ `umbral_diseno` (si diseño está inactivo,
      se registra «sin nota» y no bloquea);
-   - nadie la vetó en `~/.starseed/produccion/vetos.json`. **Cualquier director, o Alex desde el
-     Mando, puede vetar un `sha` o una tarea** escribiendo ahí, con motivo.
+   - nadie la vetó en `~/.starseed/produccion/vetos.json`. **Cualquier director, o Alex desde Genesis, puede vetar un `sha` o una tarea** escribiendo ahí, con motivo.
 2. **Seguridad.**
    - Escaneo de secretos en el diff: patrones de claves y tokens, archivos `.env*` y claves en
      `NEXT_PUBLIC_*`. Un positivo bloquea el lote entero y avisa (sin imprimir el valor).
@@ -104,7 +103,7 @@ para que Alex la publique con un toque.
    - Aviso `version` por ntfy, en un tema fijo del código (no es secreto: el cliente siempre lo
      comprueba contra `version.json`, así que un aviso falso no hace nada). **Sin Supabase Realtime**,
      para no consumir créditos.
-   - Los clientes abiertos (web, PWA, Mando y nativo si envuelve la web) reciben el aviso, comprueban
+   - Los clientes abiertos (web, PWA, Genesis y nativo si envuelve la web) reciben el aviso, comprueban
      `version.json` al momento y aplican:
      - si la persona no está escribiendo, una recarga suave que conserva el estado (el tope de 2
        recargas por sesión se mantiene);
@@ -128,7 +127,7 @@ para que Alex la publique con un toque.
   `auto`.
 - **Topes:** `max_publicaciones_dia` 24; `ventana_min` 20; `max_tags_nativos_semana` 1; migraciones
   solo `aditivas`.
-- **Interruptor:** `~/.starseed/produccion-pausada.json` y un botón en el Mando. Pausado, no publica
+- **Interruptor:** `~/.starseed/produccion-pausada.json` y un botón en Genesis. Pausado, no publica
   nada; las puertas y los informes siguen corriendo.
 
 ## 5. Desarrollo en tiempo real
@@ -171,7 +170,7 @@ medio) y se la entrega al optimizador como métrica.
   `NOMBRES_DIRECTORES` de `director-servicios.tsx`, junto con optimizador y diseño, que faltan.
 - **Estado:** `starseed_memory_root/mando/produccion-estado.json` (escritura atómica). Contiene los
   candidatos, cada puerta por candidata y cada medio con el `sha` que sirve.
-- **Mando:** tarjeta «Producción» dentro del panel de Publicación, con el lote en curso, puerta por
+- **Genesis:** tarjeta «Producción» dentro del panel de Publicación, con el lote en curso, puerta por
   puerta, los medios con su `sha`, las últimas publicaciones y reversiones, el modo, Pausar/Reanudar y
   Vetar. API: `/api/mando/produccion`, solo local y con `guardianMando`.
 
@@ -271,7 +270,7 @@ cupo del mes.
 
 | Puente | Tipo | Capacidades | Cupo gratuito que vigila | Cómo se activa |
 |---|---|---|---|---|
-| Bandeja del Mando | Propio | Avisos, piezas para aprobar | — | Siempre activo |
+| Bandeja de Genesis | Propio | Avisos, piezas para aprobar | — | Siempre activo |
 | Chat Director | Propio | Avisos, informes | — | Siempre activo |
 | ntfy (tema fijo) | Propio (servicio público gratuito) | Aviso de versión a los clientes | — | Siempre activo |
 | Telegram / Hermes | Propio | Avisos importantes | — | Ya configurado |
@@ -289,8 +288,7 @@ cupo del mes.
    que lo propio no cubre.
 3. Entre los externos capaces se ordenan por: sano (último ok reciente, sin fallos seguidos), cupo
    restante, latencia media y peso aprendido. Cada éxito sube el peso y cada fallo lo baja.
-4. Si el primero falla, se prueba el siguiente. Si no queda ninguno, la pieza va a la bandeja del
-   Mando con el motivo, de modo que nunca se pierde.
+4. Si el primero falla, se prueba el siguiente. Si no queda ninguno, la pieza va a la bandeja de Genesis con el motivo, de modo que nunca se pierde.
 5. Se cuenta cada uso contra su cupo, que se reinicia el día 1 o en la fecha del plan. Al 90 % el
    puente se aparta solo y se avisa en el Chat Director.
 6. Un puente no configurado (sin URL en el entorno) **no existe** para el enrutador: no da error ni
@@ -310,7 +308,7 @@ cupo del mes.
   Space, con `N8N_ENCRYPTION_KEY` fija) y **activa los flujos por la CLI**. Los webhooks no necesitan
   que nadie entre a la interfaz ni un usuario propietario.
 
-**Mando.** La tarjeta de Producción muestra cada puente con su estado, el cupo usado y el último
+**Genesis.** La tarjeta de Producción muestra cada puente con su estado, el cupo usado y el último
 uso, y permite apartarlo o activarlo a mano.
 
 **Vincular cuentas:** `python3 scripts/puente/vincular_cuentas.py` (o abrir `.transfer/vincular-cuentas.command`) abre cada página en el navegador, lee la clave del portapapeles sin mostrarla, la valida y la guarda en `~/.starseed/env`. La prueba de n8n Cloud queda pendiente hasta que los flujos estén listos, para no gastar sus 14 días.

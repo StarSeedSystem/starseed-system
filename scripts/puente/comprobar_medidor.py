@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comprueba un medidor del Mando midiendo el sistema real sin datos inventados."""
+"""Comprueba un medidor de Genesis midiendo el sistema real sin datos inventados."""
 
 from __future__ import annotations
 
@@ -297,7 +297,7 @@ def agentes_que_dice(clave: str, detalle: Dict[str, Any]) -> Optional[int]:
 def cotejar(clave: str, detalle: Optional[Dict[str, Any]], hechos: Dict[str, Any]) -> List[Dict[str, str]]:
     """PURA: lo que dice el medidor frente a lo que se acaba de medir por otro camino."""
     if detalle is None:
-        return [veredicto_proceso("Medidor", "muerto", "la API del Mando no contestó")]
+        return [veredicto_proceso("Medidor", "muerto", "la API de Genesis no contestó")]
     fuera = [veredicto_proceso("Medidor", "vivo", "contesta: %s" % str(detalle.get("resumen") or "")[:160])]
     if clave in ("agentes", "en-curso", "ola-activa"):
         dice = agentes_que_dice(clave, detalle)

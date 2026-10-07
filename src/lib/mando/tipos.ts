@@ -1,5 +1,5 @@
 /**
- * Tipos compartidos del Centro de Mando (Ola 231)
+ * Tipos compartidos de Genesis (Ola 231)
  * ─────────────────────────────────────────────────────────────────────────────
  * Contrato de datos entre `src/lib/mando/lector-local.ts` (solo servidor) y la
  * ruta `GET /api/mando/estado`. La ruta jamás devuelve claves, tokens ni rutas
@@ -10,7 +10,7 @@
 /**
  * Veredicto de una tarea atascada (Ola 343 · JV3). Lo escribe
  * `scripts/puente/veredictos.py` en `starseed_memory_root/olas/veredictos.json` y lo lleva
- * el Mando al estado para que la ficha de la bloqueada muestre el botón
+ * Genesis al estado para que la ficha de la bloqueada muestre el botón
  * «Reintentar con cambio inteligente»: `veredicto` ∈ reintentar | reintentar_con_cambio
  * | descartar | esperar, `fuente` ∈ regla | jev | nadie, `confianza` 0..1.
  */
@@ -121,7 +121,7 @@ export interface FotoEnjambre {
     medio?: string;
 }
 
-/** Recuento de tareas de la ola activa (y de las últimas olas), para la cabecera del Mando. */
+/** Recuento de tareas de la ola activa (y de las últimas olas), para la cabecera de Genesis. */
 export interface CuentasTareas {
     ola: string;
     integradas: number;

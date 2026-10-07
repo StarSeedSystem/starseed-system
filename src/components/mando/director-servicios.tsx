@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Pestaña Director del Mando (1/3 · p318F) — directores reales.
+ * Pestaña Director de Genesis (1/3 · p318F) — directores reales.
  * ─────────────────────────────────────────────────────────────────────────────
  * Una tarjeta por director de `resumenDirectores` (director-datos.ts): pid o
  * «caído», última salida, último mensaje del canal con «hace N min», y un
@@ -37,7 +37,7 @@ async function reiniciarServicio(nombre: string): Promise<{ ok: boolean; detalle
         const cuerpo = (await r.json()) as { ok?: boolean; detalle?: string; error?: string };
         return { ok: Boolean(cuerpo.ok), detalle: cuerpo.detalle ?? cuerpo.error ?? `HTTP ${r.status}` };
     } catch {
-        return { ok: false, detalle: "No se pudo hablar con el Mando." };
+        return { ok: false, detalle: "No se pudo hablar con Genesis." };
     }
 }
 

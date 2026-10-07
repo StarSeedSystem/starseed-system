@@ -1,4 +1,4 @@
-/** Flota editorial del Mando y su salud real de generación (Olas 231 y 288c). */
+/** Flota editorial de Genesis y su salud real de generación (Olas 231 y 288c). */
 
 export interface ModeloFlota {
     id: string;

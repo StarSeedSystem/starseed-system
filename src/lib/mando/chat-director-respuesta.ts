@@ -1,5 +1,5 @@
 /**
- * Chat Director del Mando · historial para el modelo y validación del POST (PURO · Ola 1004)
+ * Chat Director de Genesis · historial para el modelo y validación del POST (PURO · Ola 1004)
  * ─────────────────────────────────────────────────────────────────────────────
  * Nada de disco ni red: `historialParaModelo` reduce el feed a turnos
  * user/assistant y `pedidoDeAccion` valida el cuerpo del POST de

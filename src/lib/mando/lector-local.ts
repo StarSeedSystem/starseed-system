@@ -76,7 +76,7 @@ async function listarArchivos(dirRelativa: string, prefijo: string): Promise<str
 /**
  * Dónde vive la carpeta de olas. En este repositorio es `starseed_memory_root/olas`, pero el
  * lector buscaba en `olas/` a secas y por eso las colas, el progreso y los latidos llegaban
- * vacíos al Mando mientras los informes —que sí probaban las dos rutas— sí aparecían.
+ * vacíos a Genesis mientras los informes —que sí probaban las dos rutas— sí aparecían.
  */
 let olasResuelta: string | null = null;
 async function directorioOlas(): Promise<string> {
@@ -207,7 +207,7 @@ export async function leerColas(): Promise<TareaOla[]> {
  * El encargo de una tarea en una o dos frases: el primer párrafo del prompt que dice QUÉ
  * hacer. Se saltan los preámbulos que cuentan de dónde viene el encargo («ORIGEN: esto lo
  * escribió el Dream…») o avisos de método («ANTES DE ESCRIBIR NADA…»): son útiles para el
- * agente, pero como descripción en el Puente no dicen qué se está haciendo. PURA.
+ * agente, pero como descripción en Genesis no dicen qué se está haciendo. PURA.
  */
 export function descripcionDePrompt(prompt: unknown, tope = 280): string {
     const bruto = typeof prompt === "string" ? prompt : "";
@@ -215,7 +215,7 @@ export function descripcionDePrompt(prompt: unknown, tope = 280): string {
         .split(/\n\s*\n/)
         .map((p) => p.replace(/\s+/g, " ").trim())
         .filter(Boolean);
-    // (2026-09-23) Visto en el Puente: la descripción de DEDUPE salía «NO explores el
+    // (2026-09-23) Visto en Genesis: la descripción de DEDUPE salía «NO explores el
     // repositorio entero: abre SOLO…», que es una regla de método para el agente, no el
     // encargo. Los párrafos de método empiezan por una palabra en MAYÚSCULAS («ORIGEN:»,
     // «NO explores», «ANTES DE…», «POR QUÉ VUELVE:»); el encargo, no.
@@ -228,7 +228,7 @@ export function descripcionDePrompt(prompt: unknown, tope = 280): string {
 /**
  * Las tareas de UNA cola ya leída. Las colas del enjambre son ARRAYS de tareas
  * ([{id, ola, titulo, archivos, prompt, depende}]) o un objeto `{ola, tareas}`; leerlas como
- * un objeto suelto es lo que dejaba el Mando en «0 tareas» con 11 colas en disco. Se exporta
+ * un objeto suelto es lo que dejaba Genesis en «0 tareas» con 11 colas en disco. Se exporta
  * porque las colas de la NUBE viven en otro directorio y el medidor de olas las lee sueltas,
  * con esta misma función: dos lectores de colas acabarían contando distinto. PURA.
  */
@@ -407,7 +407,7 @@ export function colaInteligente(
 /**
  * Latidos del BUS: los orquestadores —de esta Mac y del contenedor de Cowork— publican cada
  * 2 min un evento `latido` en `relevo_eventos` con la foto completa en `datos`: tareas, fase,
- * modelo, tokens reales, proveedores y memoria. Sin esto el Mando solo veía la máquina donde
+ * modelo, tokens reales, proveedores y memoria. Sin esto Genesis solo veía la máquina donde
  * corre, y los agentes de la nube «no aparecían».
  */
 export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enjambres: FotoEnjambre[] }> {
@@ -578,7 +578,7 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
 
 /**
  * Lee TODOS los latidos de todas las colas locales SIN filtrar por mtime.
- * El Director la usa para mostrar los mismos agentes que el Puente de Mando,
+ * El Director la usa para mostrar los mismos agentes que Genesis,
  * que lee el archivo de colas directamente sin descartar por inactividad.
  */
 export async function leerLatidosCompletos(): Promise<LatidoTarea[]> {
@@ -627,7 +627,7 @@ const execFileAsync = promisify(execFile);
 /**
  * Commits del enjambre en la historia de git («Ola 226 · X4F2: …» → `226|X4F2` → sha).
  * Es el último recurso para saber que una tarea se hizo: las olas 221-226 se integraron
- * con el orquestador anterior y `progreso.json` ya no las recuerda, así que el Mando las
+ * con el orquestador anterior y `progreso.json` ya no las recuerda, así que Genesis las
  * contaba como «pendientes» (64 en la cabecera el 2026-09-05) cuando llevan días en main.
  */
 export async function leerCommitsDeOlas(): Promise<Map<string, { sha: string; titulo: string }>> {
@@ -717,7 +717,7 @@ export function resumirOlas(
 
     const resúmenes: OlaResumen[] = [];
     for (const [ola, lista] of porOla) {
-        // Antes se daba todo por procesado y `restantes` era 0 fijo, así que el Mando decía
+        // Antes se daba todo por procesado y `restantes` era 0 fijo, así que Genesis decía
         // «0 tareas en curso» aunque hubiera una ola escribiendo. Ahora se cruza con progreso.json.
         let procesadas = 0;
         let sinCambios = 0;
@@ -763,7 +763,7 @@ export async function leerInformes(): Promise<InformeOla[]> {
     //
     // Antes se ordenaba por nombre con `localeCompare` y se daba la vuelta. Los nombres
     // mezclan dos formas —`informe-cola-auto-0914-180046.md` y `informe-Ola-227-…md`— y
-    // `localeCompare` ignora mayúsculas, así que «Ola» ganaba a «cola» siempre: el Mando
+    // `localeCompare` ignora mayúsculas, así que «Ola» ganaba a «cola» siempre: Genesis
     // enseñaba como «informe más reciente» uno del 3 de septiembre teniendo 54 informes,
     // el último de hace un rato. Ordenar por mtime no se puede confundir con nada.
     const conFecha: { informe: InformeOla; ms: number }[] = [];

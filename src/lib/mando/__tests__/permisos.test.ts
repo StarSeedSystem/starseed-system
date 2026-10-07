@@ -4,10 +4,10 @@ import {
   puede,
   rolDe,
   type Capacidad,
-  type Mando,
+  type Genesis,
 } from "../permisos";
 
-const MANDO: Mando = {
+const MANDO: Genesis = {
   dueno: "alex@star.seed",
   invitaciones: [
     { correo: "visita@star.seed", vigente: true, capacidades: ["ver"] },
@@ -26,7 +26,7 @@ const TODAS: readonly Capacidad[] = [
 ];
 
 describe("rolDe", () => {
-  it("el dueño del Mando es dueño", () => {
+  it("el dueño de Genesis es dueño", () => {
     expect(rolDe("alex@star.seed", MANDO, DESARROLLADORES_INICIALES)).toBe(
       "dueño",
     );

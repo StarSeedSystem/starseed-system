@@ -5,8 +5,7 @@
 QUÉ PIDIÓ ALEX (2026-09-17)
 ---------------------------
 «El botón de Google Drive aparece como montado pero al abrirlo solo aparece un
-archivo. Todo lo de StarSeed —memorias, progreso del proyecto completo, el
-Puente de Mando y todos sus medios y contextos— debe estar ahí vinculado. Será
+archivo. Todo lo de StarSeed —memorias, progreso del proyecto completo, Genesis y todos sus medios y contextos— debe estar ahí vinculado. Será
 nuestro servidor de almacenamiento principal, también para archivos pesados,
 para no necesitar de esta computadora para editar el programa: esta computadora
 solo es otro medio.»
@@ -14,7 +13,7 @@ solo es otro medio.»
 QUÉ PASABA DE VERDAD
 --------------------
 Drive SÍ está montado, con la app oficial de Google, y está lleno. Lo que estaba
-vacío era el sitio al que mira el Mando:
+vacío era el sitio al que mira Genesis:
 
     My Drive/StarSeed_Memory_Root/          ← existe, pero de junio y julio
     My Drive/StarSeed_Memory_Root/neurona-maggasukha.local/   ← VACÍA

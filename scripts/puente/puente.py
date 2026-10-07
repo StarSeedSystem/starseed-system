@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Puente de Mando desde cualquier IDE — Claude, Codex, Hermes, Antigravity.
+"""Genesis desde cualquier IDE — Claude, Codex, Hermes, Antigravity.
 
-Un solo mando para los cuatro entornos. No duplica estado: LEE el Mando vivo en
+Un solo mando para los cuatro entornos. No duplica estado: LEE Genesis vivo en
 localhost:9002 y ESCRIBE órdenes en el mismo archivo de control que el orquestador
 ya vigila cada 20 s. Quien lo ejecute —una terminal de Codex, el agente de Hermes,
 el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mismo.
@@ -32,11 +32,11 @@ OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 
 
 def api(ruta, espera=25, intentos=3):
-    """Pregunta al Mando, con paciencia y sin mentir.
+    """Pregunta a Genesis, con paciencia y sin mentir.
 
     Esta Mac trabaja con el enjambre encima y a veces con `load` por encima de 13: una
     consulta que normalmente tarda 20 ms puede tardar segundos. Con un solo intento y 8 s
-    de plazo, el CLI declaraba «Mando APAGADO» con el Mando perfectamente vivo, y eso es
+    de plazo, el CLI declaraba «Genesis APAGADO» con Genesis perfectamente vivo, y eso es
     justo lo que los cuatro chats repetían. Ahora reintenta y distingue las dos cosas:
     no responder a tiempo NO es estar apagado."""
     ultimo = None
@@ -217,11 +217,11 @@ def cmd_estado():
     e = api("estado")
     if "_error" in e:
         if e.get("_lento"):
-            print("Mando VIVO pero lento: no contestó en 25 s tras 3 intentos.")
+            print("Genesis VIVO pero lento: no contestó en 25 s tras 3 intentos.")
             print("No está apagado; la máquina está saturada. Mira quién come CPU:")
             print("  ps -eo pid,%cpu,rss,comm -r | head -5")
         else:
-            print("Mando APAGADO (%s).\nLevántalo:  bash scripts/puente/arrancar-mando.sh" % e["_error"])
+            print("Genesis APAGADO (%s).\nLevántalo:  bash scripts/puente/arrancar-mando.sh" % e["_error"])
     else:
         c = e.get("cuentas") or {}
         u = c.get("ultimas") or {}
@@ -263,7 +263,7 @@ def cmd_agentes():
 def cmd_olas(n=6):
     e = api("estado")
     if "_error" in e:
-        print("Mando apagado."); return
+        print("Genesis apagado."); return
     for o in (e.get("olas") or [])[: int(n)]:
         print("· %-70s total %s" % (str(o.get("id"))[:70], o.get("total")))
 
@@ -301,7 +301,7 @@ def cmd_puertas():
     print("  2  npx vitest run")
     print("  3  npx next build          ← nunca con el enjambre vivo: la Mac es de 8 GB")
     print("\nSin publicar ahora mismo: %s commits" % git("rev-list", "--count", "origin/main..main"))
-    print("Regla: nada está hecho hasta que se ve en el Mando de la Mac.")
+    print("Regla: nada está hecho hasta que se ve en Genesis de la Mac.")
 
 
 def cmd_briefing():

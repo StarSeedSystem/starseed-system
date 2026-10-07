@@ -1,13 +1,13 @@
 # Protocolo común de los agentes — un mismo contexto y una misma puerta de decisión (2026-09-30)
 
 > **Por qué.** Alex: «hace falta que se usen más las habilidades, herramientas y conectores del
-> Puente de Mando, como el uso de Jev en todos los agentes y subagentes para optimizar y mejorar
+> Genesis, como el uso de Jev en todos los agentes y subagentes para optimizar y mejorar
 > los procesos con el mismo workflow y contextos de memorias y entendimientos completos y las
 > mejores decisiones con los sistemas Jev y las demás herramientas».
 >
 > **Qué resuelve.** Hasta hoy cada agente sabía cosas distintas: el escritor del enjambre leía
 > `contexto_inteligente()`, el analista de los sueños solo la «casa» del prompt, un subagente de
-> Claude en la terminal no sabía que existía Jev, y Jev solo decidía en cuatro puntos del Mando.
+> Claude en la terminal no sabía que existía Jev, y Jev solo decidía en cuatro puntos de Genesis.
 > Ahora hay **dos piezas comunes** y todos los agentes las usan:
 >
 > 1. `scripts/puente/contexto_agente.py`: **lo que carga** cada agente (reglas, protocolo,
@@ -104,7 +104,7 @@ Antes de nada, en ~/Documents/starseed-os-main:
 Léelo: sus reglas mandan. En cualquier decisión dudosa (qué archivo tocar, si algo ya está hecho,
 qué opción elegir), pregunta antes de actuar:
   python3 scripts/puente/decidir.py si-no --quien <tu-nombre> --estado '<json breve>' --pregunta "¿…?" --regla <lo que harías>
-y anota «jev: p=…» en tu informe. Aparece en el Mando con latido_externo.py y deja tu relevo.
+y anota «jev: p=…» en tu informe. Aparece en Genesis con latido_externo.py y deja tu relevo.
 ```
 
 ## 5. Coste y límites honestos

@@ -328,7 +328,7 @@ class DependenciasHechasNoFrenanLaNube(unittest.TestCase):
 class ReclamarVaradasEnLaNube(unittest.TestCase):
     """(2026-09-22, MEDIDO) RM3 y RM4 en «reasignada · nube» con CERO runs en marcha.
 
-    Detrás: RM5 esperaba a RM3 y RM4, RM6 a RM5, RM7 a RM5 y RM6, RM8 a RM7. El Puente
+    Detrás: RM5 esperaba a RM3 y RM4, RM6 a RM5, RM7 a RM5 y RM6, RM8 a RM7. Genesis
     enseñaba «LISTAS PARA TRABAJAR 5» y ningún agente podía coger ninguna. Prestar a la
     nube no puede ser perder: si allí no queda nadie, vuelve.
     """

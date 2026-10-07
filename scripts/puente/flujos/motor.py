@@ -1,4 +1,4 @@
-"""Ejecución durable y sin red de los Flujos del Mando."""
+"""Ejecución durable y sin red de los Flujos de Genesis."""
 from __future__ import annotations
 from dataclasses import asdict
 import json

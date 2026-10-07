@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Vigía de medidores: lee TODOS los medidores del Puente y arregla lo que pueda, solo.
+"""Vigía de medidores: lee TODOS los medidores de Genesis y arregla lo que pueda, solo.
 
 Alex (2026-09-22): «todos los medidores y todos los procesos activos deben ser analizados
 por los directores verificadores en todo el tiempo y solucionar cualquier situación
@@ -261,9 +261,9 @@ def aplicar(problema: dict) -> str:
 
 
 def una_pasada(aplicar_remedios=True) -> dict:
-    # (2026-10-05) Primero, que el propio Mando esté vivo y con disco: si no responde se
+    # (2026-10-05) Primero, que el propio Genesis esté vivo y con disco: si no responde se
     # reinicia solo y si falta sitio se limpia lo regenerable (autocuracion_mando.py). Sin
-    # esto, todo lo de abajo leía «{}» de un Mando caído y nadie lo levantaba.
+    # esto, todo lo de abajo leía «{}» de un Genesis caído y nadie lo levantaba.
     autocuracion = {}
     if aplicar_remedios:
         try:

@@ -1,19 +1,19 @@
 {
-  "_lee_esto_primero": "Registro de los chats PRINCIPALES del Puente de Mando. Uno por entorno, con nombre fijo. Los chats de tarea se llaman «ola/<id> · <titulo>» y NO se apuntan aqui: se distinguen solos por el prefijo. Abre el principal con: starseed-puente chat <entorno>",
-  "nombre_canonico": "PUENTE DE MANDO · StarSeed OS",
+  "_lee_esto_primero": "Registro de los chats PRINCIPALES de Genesis. Uno por entorno, con nombre fijo. Los chats de tarea se llaman «ola/<id> · <titulo>» y NO se apuntan aqui: se distinguen solos por el prefijo. Abre el principal con: starseed-puente chat <entorno>",
+  "nombre_canonico": "GENESIS · StarSeed OS",
   "prefijo_tareas": "ola/",
   "proyecto": "starseed-os",
   "entornos": {
     "claude": {
       "producto": "Claude (Cowork)",
       "proyecto": "StarSeed",
-      "como_volver": "Abre el proyecto StarSeed en la app de Claude; el chat principal es esta conversacion, la del Puente de Mando.",
+      "como_volver": "Abre el proyecto StarSeed en la app de Claude; el chat principal es esta conversacion, la de Genesis.",
       "id": "session_018RMahTwV5WCPD9iPaXmDC3"
     },
     "codex": {
       "producto": "Codex (app de escritorio)",
       "proyecto": "starseed-os-main",
-      "como_volver": "Abre PUENTE DE MANDO · StarSeed OS en Codex; CLI: codex resume 01a08a31-a97c-7332-973a-32ebc5606504",
+      "como_volver": "Abre GENESIS · StarSeed OS en Codex; CLI: codex resume 01a08a31-a97c-7332-973a-32ebc5606504",
       "id": "01a08a31-a97c-7332-973a-32ebc5606504"
     },
     "hermes": {
@@ -37,7 +37,7 @@
       "como_volver": "El bot escribe y escucha en el chat de TELEGRAM_CHAT_ID; /ayuda lista las ordenes.",
       "id": null,
       "temas": {
-        "PUENTE DE MANDO": "el hilo principal: ordenes y estado",
+        "GENESIS": "el hilo principal: ordenes y estado",
         "olas": "avance de cada tarea, un mensaje por hito",
         "avisos": "proveedor sin cuota, tarea colgada, puerta de aprobacion, puertas en rojo"
       },

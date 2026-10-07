@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""El reconstructor del Mando: cuándo compilar y, sobre todo, cuándo NO insistir."""
+"""El reconstructor de Genesis: cuándo compilar y, sobre todo, cuándo NO insistir."""
 import os
 import shutil
 import tempfile
@@ -224,7 +224,7 @@ class CompilarNoEsServir(unittest.TestCase):
         self.assertFalse(reinicia)
 
     def test_build_ajeno_nunca_servido_pide_reinicio(self):
-        # El caso de publicar.py: compiló como puerta y nadie reinició el Mando.
+        # El caso de publicar.py: compiló como puerta y nadie reinició Genesis.
         reinicia, _ = R.decidir_reinicio("nuevo123", None)
         self.assertTrue(reinicia)
 
@@ -261,7 +261,7 @@ class CompilarSinTirarLoServido(unittest.TestCase):
     """(2026-09-22) «Internal Server Error» durante toda la compilación.
 
     `next start` lee `.next` EN CALIENTE. Compilar encima del directorio servido lo borra
-    y lo reescribe, y mientras tanto el Mando contesta:
+    y lo reescribe, y mientras tanto Genesis contesta:
 
         ⨯ Error: ENOENT: no such file or directory, open '.next/required-server-files.json'
 
@@ -372,7 +372,7 @@ class NoCompilarSinSitio(unittest.TestCase):
 class ServirLoQueHayEnElDisco(unittest.TestCase):
     """(2026-09-22, MEDIDO) Un 200 impecable sirviendo un build que ya no existe.
 
-    El plist del Mando tiene `KeepAlive`: `launchctl kill SIGTERM` no para nada, launchd
+    El plist de Genesis tiene `KeepAlive`: `launchctl kill SIGTERM` no para nada, launchd
     relanza el servidor antes del cambio de directorio y levanta el build VIEJO. Un
     segundo después ese build se va del disco y la pantalla se queda en «Midiendo el pulso
     del trabajo…» para siempre, con la consola diciendo:
@@ -410,7 +410,7 @@ class ServirLoQueHayEnElDisco(unittest.TestCase):
         self.assertFalse(R.sirve_lo_que_hay_en_disco(html, self.raiz))
 
     def test_sin_pista_no_se_acusa_a_nadie(self):
-        """Un HTML del que no se saca nada no puede declarar roto al Mando."""
+        """Un HTML del que no se saca nada no puede declarar roto a Genesis."""
         self.assertTrue(R.sirve_lo_que_hay_en_disco("", self.raiz))
         self.assertTrue(R.sirve_lo_que_hay_en_disco("<html></html>", self.raiz))
 
@@ -448,11 +448,11 @@ class RecogerLoPropioAntesDeRendirse(unittest.TestCase):
 
 
 class UnSoloReinicioALaVez(unittest.TestCase):
-    """(2026-09-22, MEDIDO) El Mando se quedó apagado DOS veces, las dos igual.
+    """(2026-09-22, MEDIDO) Genesis se quedó apagado DOS veces, las dos igual.
 
     `publicar.py` y el reconstructor reinician los dos por aquí. Uno hacía `bootout` justo
     entre el `bootstrap` y la comprobación del otro: el segundo veía el servicio cargado,
-    escribía «Mando reiniciado: la pantalla ya sirve el código nuevo» y se iba, mientras el
+    escribía «Genesis reiniciado: la pantalla ya sirve el código nuevo» y se iba, mientras el
     primero lo acababa de tirar. Resultado en pantalla: nada, ni en `launchctl list`, ni
     proceso, ni nada escuchando en el 9002.
     """
@@ -475,7 +475,7 @@ class UnSoloReinicioALaVez(unittest.TestCase):
         self.assertTrue(R._tomar_cerrojo(self.cerrojo, espera_s=1))
 
     def test_un_cerrojo_viejo_no_bloquea_para_siempre(self):
-        """Si el dueño murió sin soltarlo, nadie podría reiniciar el Mando nunca más."""
+        """Si el dueño murió sin soltarlo, nadie podría reiniciar Genesis nunca más."""
         os.makedirs(self.cerrojo)
         os.utime(self.cerrojo, (0, 0))
         self.assertTrue(R._tomar_cerrojo(self.cerrojo, espera_s=1, caduca_s=5))
@@ -648,7 +648,7 @@ class NoSeCompilaEnPlenaConversacion(unittest.TestCase):
 
 class UnFalloNoBorraLoQueSeSirve(unittest.TestCase):
     """25-09: tras una build parada por el disco, el estado perdía `build_servido` y la pasada
-    siguiente reiniciaba el Mando sin motivo (y el reinicio anotaba ok=True)."""
+    siguiente reiniciaba Genesis sin motivo (y el reinicio anotaba ok=True)."""
 
     def test_el_fallo_conserva_build_servido_y_anota_el_disco(self):
         guardados = []
@@ -705,7 +705,7 @@ class NoSeCompilaConAstrauraEnUso(unittest.TestCase):
 
 
 class ElSilencioDeAstrauraNoBloqueaParaSiempre(unittest.TestCase):
-    """26-09: el estado de Astraura se colgaba siempre con el BitNet saturado y el Mando pasó
+    """26-09: el estado de Astraura se colgaba siempre con el BitNet saturado y Genesis pasó
     5 h sin reconstruirse. El uso medido bloquea; el silencio, como mucho 90 min."""
 
     def _pasada(self, estado, uso):

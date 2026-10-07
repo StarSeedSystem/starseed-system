@@ -1,14 +1,14 @@
 /**
  * El script que corre EN LA MAC (Python 3, solo biblioteca estándar).
  *
- * QUÉ: lee el Mando (`127.0.0.1:9002/api/mando/…`) y el Chat Director, y lo reduce a un
+ * QUÉ: lee Genesis (`127.0.0.1:9002/api/mando/…`) y el Chat Director, y lo reduce a un
  * resumen pequeño; o ejecuta una acción (reparar, decir, informar, publicar, entrega).
- * POR QUÉ: el mod vive en Claude Code y el Mando solo escucha en la Mac. Un único viaje
+ * POR QUÉ: el mod vive en Claude Code y Genesis solo escucha en la Mac. Un único viaje
  * por el enlace con el equipo trae todo el panel ya recortado (decenas de KB, no los
  * 2,5 MB de `/estado`), así que no carga la Mac ni el contexto.
  * CÓMO: `python3 - <acción> '<json %-codificado>' <<'PYEOF_MANDO' … PYEOF_MANDO`. Imprime
  * UNA línea `@@MANDO@@{json}`; el mod busca esa marca y descarta todo lo demás. Nunca
- * imprime claves ni rutas de secretos: solo lee las respuestas públicas del Mando.
+ * imprime claves ni rutas de secretos: solo lee las respuestas públicas de Genesis.
  */
 export const MARCA = '@@MANDO@@'
 

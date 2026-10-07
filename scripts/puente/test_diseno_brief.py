@@ -21,7 +21,7 @@ from scripts.puente.diseno_brief import (
 )
 
 IDENTIDADES_PRUEBA = {
-    "Mando": "Cristal, oscuro, tokens mando-cristal.css.",
+    "Genesis": "Cristal, oscuro, tokens mando-cristal.css.",
     "Café": "Pergamino y terracota #C05C3B, Fraunces + Space Mono.",
     "StarSeed OS/Nexus": "Trinity: Zenith, Creation, Logic, Anchor.",
 }
@@ -55,9 +55,9 @@ class TestDisenoBrief(unittest.TestCase):
         self.assertFalse(es_de_interfaz(tarea))
 
     def test_identidad_mando(self):
-        tarea = {"titulo": "Panel del Mando", "archivos": ["src/components/mando/panel.tsx"]}
+        tarea = {"titulo": "Panel de Genesis", "archivos": ["src/components/mando/panel.tsx"]}
         nombre, ficha = identidad_de(tarea, parsear_identidades(MEMORIA_PRUEBA["identidades"]))
-        self.assertEqual(nombre, "Mando")
+        self.assertEqual(nombre, "Genesis")
         self.assertIn("mando-cristal", ficha)
 
     def test_identidad_cafe(self):
@@ -159,18 +159,18 @@ class TestBriefAdn(unittest.TestCase):
     def test_dos_identidades_dos_bloques(self):
         memoria = dict(MEMORIA_PRUEBA)
         memoria["adn"] = dict(MEMORIA_PRUEBA["adn"])
-        memoria["adn"]["mando"] = {"prompt": "Cristal del Mando.", "imagen": IMAGEN_CAFE.replace("cafe", "mando")}
-        tarea = {"titulo": "Panel del Mando con vista del Café",
+        memoria["adn"]["genesis"] = {"prompt": "Cristal de Genesis.", "imagen": IMAGEN_CAFE.replace("cafe", "genesis")}
+        tarea = {"titulo": "Panel de Genesis con vista del Café",
                  "archivos": ["src/components/mando/panel.tsx"]}
         texto = brief(tarea, memoria, max_chars=9000)
-        self.assertIn("## ADN — Mando", texto)
+        self.assertIn("## ADN — Genesis", texto)
         self.assertIn("## ADN — Café", texto)
         nombres = [n for n, _ in identidades_de(tarea, parsear_identidades(memoria["identidades"]))]
-        self.assertEqual(set(nombres), {"Mando", "Café"})
+        self.assertEqual(set(nombres), {"Genesis", "Café"})
 
     def test_slug_de_normaliza(self):
         self.assertEqual(slug_de("Café"), "cafe")
-        self.assertEqual(slug_de("Mando"), "mando")
+        self.assertEqual(slug_de("Genesis"), "genesis")
         self.assertEqual(slug_de("StarSeed OS/Nexus"), "starseed-os-nexus")
         self.assertEqual(slug_de("Materia Viva"), "materia-viva")
 

@@ -1,8 +1,8 @@
 /**
- * oficina.ts — Modelo PURO de la Oficina 3D del Puente de Mando (Ola 272 · 2026-09-07)
+ * oficina.ts — Modelo PURO de la Oficina 3D de Genesis (Ola 272 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
  * Pedido de Alex: «la versión de los agentes en sus entornos virtuales 3D como
- * en el OS pero en el Puente de Mando, para que se desarrollen también y
+ * en el OS pero en Genesis, para que se desarrollen también y
  * evolucionen sus sistemas y después desarrollemos las versiones
  * predeterminadas».
  *
@@ -30,11 +30,11 @@ import type { LatidoTarea } from "@/lib/mando/tipos";
 import type { RamaTarea } from "@/lib/mando/ramificacion";
 import type { Rama158 } from "@/lib/mando/agentes-158";
 
-/** Familias de seres que pueblan la oficina del Mando. */
+/** Familias de seres que pueblan la oficina de Genesis. */
 export type TipoSer = "escritor" | "revisor" | "agente158" | "personalidad" | "proceso" | "bitnet";
 
 /**
- * Genoma persistido de un ser del Mando: lo que el ser HA VIVIDO y no se pierde
+ * Genoma persistido de un ser de Genesis: lo que el ser HA VIVIDO y no se pierde
  * al apagar la máquina. A diferencia del ADN (determinista, derivable siempre),
  * el genoma es historia: experiencia, nivel y rasgos ganados.
  */
@@ -69,7 +69,7 @@ export interface SerPredeterminado {
     exportadoEn: string;
 }
 
-/** Fuentes de datos vivas del Mando (ya normalizadas por los lectores). */
+/** Fuentes de datos vivas de Genesis (ya normalizadas por los lectores). */
 export interface FuentesOficina {
     latidos: LatidoTarea[];
     ramas?: RamaTarea[];
@@ -88,7 +88,7 @@ export interface OficinaCalculada {
 }
 
 /**
- * Las salas del Mando, una por función. La actividad se rellena en
+ * Las salas de Genesis, una por función. La actividad se rellena en
  * `seresDelMando` a partir de los ocupantes reales: una sala sin nadie
  * trabajando se ve quieta, nunca animada de mentira.
  */
@@ -287,7 +287,7 @@ function ocupanteDeLatido(l: LatidoTarea): Pick<SerVivo, "salaId" | "actividad" 
 }
 
 /**
- * Reúne a todos los seres del Mando y los sienta en su sala.
+ * Reúne a todos los seres de Genesis y los sienta en su sala.
  *
  * Un modelo es «revisor» solo si revisa y nunca ha escrito (commits ni
  * latidos de escritura); en cualquier otro caso es escritor, aunque ahora

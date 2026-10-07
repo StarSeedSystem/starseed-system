@@ -50,7 +50,7 @@ ASTRAURA = os.environ.get("STARSEED_ASTRAURA_URL", "http://127.0.0.1:8000")
 MOTORES = ("llama-server", "tts-server")
 #: El trabajo de fondo de la Mac que cede su RAM a la conversación. Se compara la línea de
 #: órdenes COMPLETA con patrones anclados al ejecutable, nunca se imprime (puede llevar un
-#: prompt), y nunca casa con el propio servidor del Mando (`next start`), ni con este guion.
+#: prompt), y nunca casa con el propio servidor de Genesis (`next start`), ni con este guion.
 PATRONES_ENJAMBRE = (
     re.compile(r"^\S*opencode(\.exe)?\s+run\b"),
     re.compile(r"^\S*[Pp]ython[0-9.]*\s+(-u\s+)?\S*starseed-enjambre\.py\b"),

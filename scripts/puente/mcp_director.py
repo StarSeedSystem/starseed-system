@@ -27,7 +27,7 @@ import produccion_candidatos as pc
 PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
-    "Lee y escribe en el Chat Director del Puente de Mando de StarSeed, "
+    "Lee y escribe en el Chat Director de Genesis de StarSeed, "
     "y consulta, veta, pausa o reanuda la producción."
 )
 

@@ -66,7 +66,7 @@ def huerfanos(filas, vivos=()):
 
 
 def resumen(filas, pids):
-    """Una línea por huérfano para el evento del Mando, sin volcar la orden entera."""
+    """Una línea por huérfano para el evento de Genesis, sin volcar la orden entera."""
     porque = {int(p): a for p, _, a in (filas or ()) if str(p).isdigit()}
     salida = []
     for p in pids or ():
@@ -79,12 +79,12 @@ def resumen(filas, pids):
 # ─────────────────────────────────────────────────────────────────────────────
 # (2026-09-23, 00:15) TRABAJADORES DE PUERTA HUÉRFANOS
 #
-# Alex: «no está cargando, autoreparándose el Puente de Mando». Medido: cinco
+# Alex: «no está cargando, autoreparándose Genesis». Medido: cinco
 # `node (vitest N)` con ppid 1, 49 minutos vivos, ~2,2 GB cada uno: 11 GB de una
-# Mac de 8. Swap a 13,3 GB, disco a 2,7 GB y el `next-server` del Mando en estado
+# Mac de 8. Swap a 13,3 GB, disco a 2,7 GB y el `next-server` de Genesis en estado
 # U (esperando página) sin contestar en 20 s. Su vitest principal había muerto
 # (una puerta cortada por tiempo mata solo al hijo directo, no a sus nietos), así
-# que nadie iba a leer sus resultados. Matarlos devolvió el Mando en el acto
+# que nadie iba a leer sus resultados. Matarlos devolvió Genesis en el acto
 # (307 en 0,27 s) y el swap bajó a 5,4 GB.
 #
 # Regla segura: un trabajador de vitest («node (vitest N)») lo crea SU vitest

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel de olas, tareas e informes (Ola 231 · Centro de Mando)
+ * Panel de olas, tareas e informes (Ola 231 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
  * Izquierda: las olas conocidas (de las colas y del progreso) con su avance
  * (hechas / total, barra), estado y fecha. Al pulsar una, la derecha muestra
@@ -161,7 +161,7 @@ async function enviarReintento({
             detalle: cuerpo.detalle ?? cuerpo.error ?? `HTTP ${r.status}`,
         };
     } catch {
-        return { ok: false, relanzadas: [], descartadas: [], detalle: "No se pudo hablar con el Mando." };
+        return { ok: false, relanzadas: [], descartadas: [], detalle: "No se pudo hablar con Genesis." };
     }
 }
 
@@ -171,7 +171,7 @@ function DetalleOla({ ola, estado, onCambio }: { ola: OlaResumen; estado: Estado
     const commits = commitsDeOla(ola, estado.repo?.log ?? []);
     const revisiones = revisionesDeOla(ola, estado.revisiones);
     const informes = estado.informes.filter((i) => mencionaOla(i.nombre, ola.id));
-    // Volver a cargar tras un reintento (el Mando se refresca en cada acción).
+    // Volver a cargar tras un reintento (Genesis se refresca en cada acción).
     const [recarga, setRecarga] = useState(0);
     useEffect(() => {
         if (recarga > 0) { const t = window.setTimeout(() => setRecarga(0), 300); return () => window.clearTimeout(t); }
@@ -373,7 +373,7 @@ export function PanelOlas() {
         try {
             const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
             if (!respuesta.ok) {
-                setError("El mando no está disponible (solo funciona en local).");
+                setError("Genesis no está disponible (solo funciona en local).");
                 setEstado(null);
                 return;
             }

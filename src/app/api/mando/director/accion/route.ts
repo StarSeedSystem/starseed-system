@@ -103,7 +103,7 @@ export async function POST(peticion: Request): Promise<Response> {
         r = await reiniciarServicio(cuerpo.nombre);
     } else if (accion === "apartar_proveedor") {
         r = await tocarProveedor(cuerpo.proveedor, (e) => {
-            e.estado = "caido"; e.sin_cupo_hasta = horaLocal(horas); e.motivo = "apartado desde el Mando"; e.t = horaLocal();
+            e.estado = "caido"; e.sin_cupo_hasta = horaLocal(horas); e.motivo = "apartado desde Genesis"; e.t = horaLocal();
         }, "apartado");
     } else if (accion === "reactivar_proveedor") {
         r = await tocarProveedor(cuerpo.proveedor, (e) => {

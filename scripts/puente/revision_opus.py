@@ -4,11 +4,11 @@
 
 El director de orquestación la lanza en segundo plano con su parte horario; esta decide sola
 si toca (cada STARSEED_OPUS_REVISION_H horas, 4 por defecto, y solo si el estado cambió).
-Lee los medidores del Mando, pide a Opus (CLI de Claude Code, suscripción, con tope en
+Lee los medidores de Genesis, pide a Opus (CLI de Claude Code, suscripción, con tope en
 `opus_director.py`) hasta tres decisiones de dirección y las deja:
   · en starseed_memory_root/mando/revision-opus.json (lo último),
-  · en el canal del director (Reportes del Mando),
-  · y mientras piensa, como agente «director-opus» en Agentes y Tareas del Mando.
+  · en el canal del director (Reportes de Genesis),
+  · y mientras piensa, como agente «director-opus» en Agentes y Tareas de Genesis.
 Sin Opus o sin cupo no hace nada: el director sigue con sus reglas y Jev.
 """
 import hashlib, importlib.util, json, os, subprocess, sys, time, urllib.request
@@ -25,7 +25,7 @@ MANDO = os.environ.get("STARSEED_MANDO_LOCAL", "http://127.0.0.1:9002")
 CLAVES = ("ola-activa", "en-curso", "listas", "bloqueadas", "sin-publicar", "proveedores", "contenedores", "disco")
 PREGUNTA = (
     "Eres el director de StarSeed OS (un sistema operativo social; un enjambre de agentes con modelos "
-    "gratuitos escribe el código y tú diriges). Abajo va el estado del Puente de Mando. Da como máximo "
+    "gratuitos escribe el código y tú diriges). Abajo va el estado de Genesis. Da como máximo "
     "TRES decisiones de dirección para las próximas horas: qué desbloquear, qué lanzar o frenar, qué "
     "verificar, y qué tarea de diseño o animación compleja reservar para Opus. Español llano, sin jerga. "
     "Formato por línea: «- decisión · por qué · cómo comprobarlo». Si todo va bien, responde «sin cambios»."

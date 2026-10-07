@@ -13,7 +13,7 @@
  * `TransferenciasArchivoToast`) para que lleguen aunque el panel esté cerrado
  * — es lo único que este montaje dibuja; todo lo demás sigue siendo motor puro.
  *
- * Excluido de las RUTAS_CONSOLA (`/mando`, `/voces`, ver
+ * Excluido de las RUTAS_CONSOLA (`/genesis`, `/voces`, ver
  * `solo-fuera-de-consola.tsx`): son herramientas de trabajo en máquinas de
  * 8 GB donde cada suscripción/timer de más le quita sitio a un agente — el
  * mismo motivo por el que esas rutas ya excluyen `AppGlobals`.

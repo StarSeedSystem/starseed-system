@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Pestaña Director del Mando (3/3 · p318H) — composición real.
+ * Pestaña Director de Genesis (3/3 · p318H) — composición real.
  * Carga GET /api/mando/director al montar y cada 20 s (con limpieza del
  * intervalo y un error honesto si la API no responde), pinta la cabecera
  * con las cifras clave y monta las cuatro secciones ya reales (servicios,

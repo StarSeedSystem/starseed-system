@@ -1,5 +1,5 @@
 /**
- * Lógica pura del panel de contextos del Centro de Mando (Ola 239)
+ * Lógica pura del panel de contextos de Genesis (Ola 239)
  * ─────────────────────────────────────────────────────────────────────────────
  * Funciones de entrada → salida usadas por `panel-contextos.tsx`: filtro de
  * búsqueda, tiempos relativos y tamaños. Sin disco, sin red, sin procesos.

@@ -92,7 +92,7 @@ recomendados.
   - `iw`, `batctl`, `babeld` y `yggdrasilctl`.
 - **API en `127.0.0.1:4480`:** `GET /estado`, `GET /mediciones`, `POST /aplicar` (con `seco` por
   defecto) y `POST /enviar`. Solo escucha en local.
-- **Mando:** la ruta `/api/mando/camr` hace de proxy para el panel en el Mac. La app nativa (Tauri)
+- **Genesis:** la ruta `/api/mando/camr` hace de proxy para el panel en el Mac. La app nativa (Tauri)
   hablará con el agente directamente.
 
 ## 5. Ley y licencias (obligatorio, lo aplica el motor)

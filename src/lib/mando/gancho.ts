@@ -1,5 +1,5 @@
 /**
- * Lógica pura del gancho HTTP de los Flujos del Mando (§3 del contrato).
+ * Lógica pura del gancho HTTP de los Flujos de Genesis (§3 del contrato).
  *
  * La ruta `POST /api/flujos/gancho/[ruta]` solo decide y escribe; aquí vive lo
  * comprobable sin red ni disco: la verificación HMAC (idéntica a la de

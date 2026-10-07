@@ -573,7 +573,7 @@ export function AuroraGuide() {
   // (Ola 250 · 2026-09-06) PRIMERO el turno y SOLO se navega desde rutas del
   // propio rito. Antes se comprobaba el pathname ANTES que `esMiTurno`, así que
   // cualquier página que monta la guía navegaba al escritorio aunque no hubiera
-  // rito (el Mando redirigía y secuestraba la sesión). Ahora, fuera del rito
+  // rito (Genesis redirigía y secuestraba la sesión). Ahora, fuera del rito
   // (consola /mando, /voces o cualquier página del OS) la guía ESPERA: el efecto
   // se re-ejecuta con usePathname y abrirá cuando la persona llegue a /escritorios.
   const etapaGuiaAtendidaRef = useRef(false);

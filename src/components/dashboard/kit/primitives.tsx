@@ -22,7 +22,7 @@ import { mezclar } from "@/components/widgets-libres/familias/comun";
 // (Ola L6) Dentro de un MarcoUnificado (contexto ≠ null) las piezas adoptan la escala de
 // Rotulo/Pildora: rótulos 11px/600/.14em al 60 %, cifras 600, pastillas fantasma
 // (`acento 12 %` + filo interior `acento 40 %`) y el acento del marco como color por
-// defecto. Fuera del marco (Mando, Estudio, «marco clásico») se ven exactamente igual.
+// defecto. Fuera del marco (Genesis, Estudio, «marco clásico») se ven exactamente igual.
 const PRIMARIO = "hsl(var(--primary))";
 const CLASE_ROTULO = "text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60";
 

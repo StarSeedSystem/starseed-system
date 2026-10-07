@@ -1,4 +1,4 @@
-"""Disparadores de los Flujos del Mando (§3 del contrato, sin red).
+"""Disparadores de los Flujos de Genesis (§3 del contrato, sin red).
 
 Cuatro fuentes:
 - `webhook`: la ruta `POST /api/flujos/gancho/[ruta]` verifica la firma y deja

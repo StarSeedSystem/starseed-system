@@ -1,6 +1,6 @@
 /**
  * (2026-09-25) Los agentes externos (Claude en Cowork, subagentes, Hermes) aparecen en el
- * Mando con su sitio dicho para personas.
+ * Genesis con su sitio dicho para personas.
  */
 import { describe, expect, it } from "vitest";
 

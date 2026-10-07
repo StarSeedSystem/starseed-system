@@ -3,10 +3,10 @@
 /**
  * VOZ DEL MANDO — capa de UI (Ola 275 · Tarea V2 · 2026-09-07)
  * ─────────────────────────────────────────────────────────────────────────────
- * El Puente de Mando HABLA. Este módulo une la lógica pura de `voz-mando.ts`
+ * Genesis HABLA. Este módulo une la lógica pura de `voz-mando.ts`
  * con el motor único `hablarStarSeed`:
  *
- *  · `useVozDelMando(eventos, estado)` — hook que se monta UNA vez en el Mando.
+ *  · `useVozDelMando(eventos, estado)` — hook que se monta UNA vez en Genesis.
  *    Carga las preferencias de `GET /api/mando/voces` (con caché en
  *    `localStorage` `starseed.mando.voz.v1` para arrancar rápido), convierte la
  *    tanda de eventos en anuncios con `anunciosDe`, los planifica con
@@ -85,7 +85,7 @@ export function usarControl(): ControlVozMando {
 }
 
 /** Habla una frase de ejemplo de prioridad 1 (para «Probar anuncio»). */
-const FRASE_PRUEBA = "Atención: tarea esperando tu visto bueno. Toque de prueba de la voz del Mando.";
+const FRASE_PRUEBA = "Atención: tarea esperando tu visto bueno. Toque de prueba de la voz de Genesis.";
 
 /** Nombre legible del timbre para la prueba de voz por agente. */
 function nombreTimbre(timbreId: string | null | undefined): string {
@@ -104,7 +104,7 @@ async function hablarUna(texto: string, timbreId: string | null | undefined, emo
             ...(emocion ? { emocion } : {}),
         });
     } catch {
-        // La voz es un extra: un fallo de síntesis nunca rompe el Mando.
+        // La voz es un extra: un fallo de síntesis nunca rompe Genesis.
     }
 }
 
@@ -145,7 +145,7 @@ interface RespuestaVoces {
 }
 
 /**
- * Hook de la Voz del Mando: se monta UNA vez en `CentroMando`. Convierte los
+ * Hook de la Voz de Genesis: se monta UNA vez en `CentroMando`. Convierte los
  * eventos de la orquestación en anuncios hablados (en serie) y expone el control
  * a la cabecera y al panel.
  *
@@ -308,7 +308,7 @@ export function useVozDelMando(eventos: EventoRelevo[], estado: EstadoVozMando |
 // ── Componentes de interfaz ───────────────────────────────────────────────────
 
 /**
- * Botón pequeño de altavoz para la cabecera del Mando: activa/silencia la voz
+ * Botón pequeño de altavoz para la cabecera de Genesis: activa/silencia la voz
  * con un toque. Lee su estado del contexto (`useVozDelMando` debe montarse en
  * `CentroMando` y envolver el árbol con `VozMandoProvider`).
  */
@@ -320,7 +320,7 @@ export function ControlVozDelMando() {
             type="button"
             onClick={alternar}
             aria-pressed={activa}
-            title={activa ? "Silenciar la voz del Mando" : "Activar la voz del Mando"}
+            title={activa ? "Silenciar la voz de Genesis" : "Activar la voz de Genesis"}
             className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] shadow-lg backdrop-blur transition-colors ${
                 activa
                     ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
@@ -351,7 +351,7 @@ const ANUNCIOS: Array<{ clave: keyof PreferenciasVozMando["anunciar"]; etiqueta:
 ];
 
 /**
- * Tarjeta «Voz del Mando»: selector de timbre, interruptor maestro, los
+ * Tarjeta «Voz de Genesis»: selector de timbre, interruptor maestro, los
  * interruptores por tipo de anuncio, silencio mínimo, «Probar anuncio» y
  * «Léeme el estado». Todo lee y escribe a través del control del contexto.
  */
@@ -365,7 +365,7 @@ export function TarjetaVozDelMando() {
     return (
         <div className="space-y-3 text-xs">
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                <span className="text-white/80">Voz del Mando activa</span>
+                <span className="text-white/80">Voz de Genesis activa</span>
                 <input
                     type="checkbox"
                     checked={prefs.activa}

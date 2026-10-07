@@ -83,7 +83,7 @@ def sigue_agotado(marca, ahora):
 
 
 def minutos_restantes(marca, ahora):
-    """Cuántos minutos quedan, para poder decirlo en el Mando sin mentir."""
+    """Cuántos minutos quedan, para poder decirlo en Genesis sin mentir."""
     if not sigue_agotado(marca, ahora):
         return 0
     return int((float(marca["hasta"]) - float(ahora)) / 60 + 0.5)

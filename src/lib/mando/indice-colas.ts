@@ -2,12 +2,12 @@
  * ÍNDICE DE COLAS ARCHIVADAS (2026-10-03) — PURO
  * ─────────────────────────────────────────────────────────────────────────────
  * `higiene_colas.py` saca de `olas/` las colas cerradas y las copias `cola-auto-*`
- * viejas a `starseed_memory_root/colas-fuente/` (el servidor del Mando leía 747 colas
+ * viejas a `starseed_memory_root/colas-fuente/` (el servidor de Genesis leía 747 colas
  * en cada petición y murió por falta de memoria). Pero las colas eran también el
  * único sitio donde vivía el título de algunas tareas viejas, y `integradas` solo
  * cuenta ids «conocidos» (progreso + colas): al moverlas, la pastilla bajó de 467 a
  * 458 sin que main perdiera nada. La higiene deja un índice pequeño
- * (`colas-fuente/indice.json`, id → título/ola/cola, sin prompts) y el Mando lo funde
+ * (`colas-fuente/indice.json`, id → título/ola/cola, sin prompts) y Genesis lo funde
  * en sus títulos: lo vivo manda, lo archivado solo rellena huecos.
  */
 

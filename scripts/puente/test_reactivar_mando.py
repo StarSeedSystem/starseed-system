@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Reactivador de todos los directores (botón de arriba del Mando, 2026-10-06)."""
+"""Reactivador de todos los directores (botón de arriba de Genesis, 2026-10-06)."""
 import os
 import subprocess
 import sys

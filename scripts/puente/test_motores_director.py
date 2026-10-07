@@ -147,7 +147,7 @@ class TestPromptDirector(unittest.TestCase):
             {"rol": "director", "texto": "tres tareas"},
         ]
         p = M.prompt_director("¿y ahora?", historial, "contexto breve")
-        self.assertIn("dirección del Puente de Mando", p)
+        self.assertIn("dirección de Genesis", p)
         self.assertIn("no escribes código", p)
         self.assertIn("Contexto:", p)
         self.assertIn("contexto breve", p)

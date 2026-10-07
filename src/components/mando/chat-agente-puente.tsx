@@ -85,7 +85,7 @@ export function ChatAgentePuente({ modo = "panel", onCerrar }: ChatAgentePuenteP
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
-        {mensajes.length === 0 && <div className="text-center text-zinc-500 py-6">Escribe una consulta para el Agente Puente del Mando.</div>}
+        {mensajes.length === 0 && <div className="text-center text-zinc-500 py-6">Escribe una consulta para el Agente Puente de Genesis.</div>}
         {mensajes.map((m) => (
           <div key={m.id} className={`flex flex-col ${m.rol === "user" ? "items-end" : "items-start"}`}>
             <div className={`p-2.5 rounded-lg max-w-[85%] ${m.rol === "user" ? "bg-violet-600/30 text-violet-100 border border-violet-500/30" : "bg-zinc-800/80 text-zinc-200 border border-zinc-700/50"}`}>

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Manda por el chat de Hermes el enlace para abrir y vincular el Puente de Mando.
+"""Manda por el chat de Hermes el enlace para abrir y vincular Genesis.
 
 Pedido por Alex (2026-09-17). Lee ~/.starseed/tunel-mando.json (lo escribe
 tunel-mando.sh) y envía, por el mismo canal y con la misma hora al final que el
@@ -40,13 +40,13 @@ def _cargar_env():
 
 
 def texto(estado):
-    publico = estado.get("mando") or (estado.get("url", "") + "/mando")
-    local = estado.get("local") or "http://localhost:9002/mando"
+    publico = estado.get("mando") or (estado.get("url", "") + "/genesis")
+    local = estado.get("local") or "http://localhost:9002/genesis"
     return (
-        "🛸 *Puente de Mando · vinculado*\n\n"
+        "🛸 *Genesis · vinculado*\n\n"
         "Desde cualquier navegador:\n%s\n\n"
         "En esta Mac:\n%s\n\n"
-        "Es el mismo Mando que usan Claude, Hermes y los IDEs: mismas colas, "
+        "Es el mismo Genesis que usan Claude, Hermes y los IDEs: mismas colas, "
         "mismo chat, mismos permisos (`maggasukha@star.seed`). Si el túnel se "
         "reinicia, sale un enlace nuevo por aquí." % (publico, local)
     )

@@ -1,6 +1,6 @@
 # Bloqueadas: reparar en vez de rechazar (una sola sección, reintentos automáticos de verdad)
 
-> Petición de Alex (2026-10-05): en el Puente de Mando hay dos secciones de bloqueadas, la del medidor
+> Petición de Alex (2026-10-05): en Genesis hay dos secciones de bloqueadas, la del medidor
 > del pulso de trabajo y la de procesos (ramificación), y en ninguna funciona el reintento con cambio
 > automático ni «reintentar las que sirven». Hay que unificarlas y hacer funcionales los reintentos
 > automáticos con los directores, de forma inteligente. Además: **casi todo lo rechazado podía ser útil

@@ -4,7 +4,7 @@
  * Cada ruta del mando debe pasar por `guardianMando` de `@/lib/mando/guardian`:
  * la puerta duplicada (función local `mandoHabilitado` + bloque
  * `createClient()/auth.getUser()`) exigía sesión incluso en `next start` local,
- * dejando el Puente de Mando apagado justo donde tiene que usarse. Este test
+ * dejando Genesis apagado justo donde tiene que usarse. Este test
  * recorre TODOS los `route.ts` de `src/app/api/mando` y comprueba que ninguno
  * reintroduce la puerta vieja y que todos usan el guardián común. Así ninguna
  * ruta nueva vuelve a duplicarla.

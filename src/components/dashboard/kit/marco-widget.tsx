@@ -81,7 +81,7 @@ export function MarcoWidget(p: MarcoWidgetProps) {
     const tHover = tokensDe("hover", reducido);
     const estado = estadoDeMarco(p);
     // (Ola L6) Dentro de un MarcoUnificado el vidrio lo pone el marco: sin caja propia y con la
-    // cabecera común (icono fantasma + Rotulo). Fuera de él (Puente de Mando), como siempre.
+    // cabecera común (icono fantasma + Rotulo). Fuera de él (Genesis), como siempre.
     const marcoU = useMarcoUnificado();
     const caja = marcoU
         ? "flex h-full w-full flex-col overflow-hidden rounded-[inherit] bg-transparent"

@@ -15,7 +15,7 @@ la nube se quedaba quieta con trabajo de sobra.
 
 Una pasada (botón «Buscar más capacidad», el ÚNICO botón general de los medidores Agentes,
 Tareas en curso, Listas y Contenedores desde las 17:20 —Alex: «son demasiados botones… que
-sea solo uno fusionado funcional»—, y la autocuración del Mando cada 30 min):
+sea solo uno fusionado funcional»—, y la autocuración de Genesis cada 30 min):
 
 1. **Mac**: llena los trabajadores libres con `asignar_huecos` (la misma decisión que
    «Buscar y asignar»). Nunca pasa del tope del gobernador: más procesos en una Mac de 8 GB
@@ -192,7 +192,7 @@ def texto_medio(m):
     detalle = m.get("siguiente_paso") or m.get("detalle") or m.get("capacidad") or ""
     if m.get("id") == "claude":
         detalle = ("2 agentes solo mientras haya una sesión de Claude abierta que arranque el "
-                   "orquestador en su contenedor: desde el Mando no se puede encender")
+                   "orquestador en su contenedor: desde Genesis no se puede encender")
     return "%s: %s%s" % (nombre, estado, (" · " + detalle) if detalle else "")
 
 
@@ -550,7 +550,7 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
     if aplicar:
         _guardar(estado_prev)
     if aplicar and (origen == "boton" or sumados):
-        _avisar(("Buscar más capacidad (%s):\n" % ("botón del Mando" if origen == "boton" else origen)) + texto)
+        _avisar(("Buscar más capacidad (%s):\n" % ("botón de Genesis" if origen == "boton" else origen)) + texto)
     return {"ok": True, "resumen": texto, "lineas": lineas, "sumados": sumados, "hechas": hechas,
             "plan_nube": plan, "runs_nube": vivos}
 

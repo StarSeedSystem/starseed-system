@@ -42,7 +42,7 @@ export interface PropuestaTarea {
 
 /**
  * Una sugerencia estructurada de Astra. El campo `evidencia` cita SIEMPRE
- * archivo y línea; `archivos` los lista limpios para el Mando. `impacto`,
+ * archivo y línea; `archivos` los lista limpios para Genesis. `impacto`,
  * `esfuerzo` y `riesgo` van en 1..5 (5 = más impacto / más esfuerzo / más riesgo).
  */
 export interface SugerenciaAstra {

@@ -142,7 +142,7 @@ def turno(espera_s=ESPERA_S, reintento_s=REINTENTO_S, avisar=None):
             subprocess.run(["npx", "tsc", "--noEmit"])
 
     `avisar(segundos_esperando)` se llama una vez por minuto mientras espera,
-    para que quien mira el Mando sepa que no está colgado, está haciendo cola.
+    para que quien mira Genesis sepa que no está colgado, está haciendo cola.
     """
     os.makedirs(CERROJOS, exist_ok=True)
     ruta = os.path.join(CERROJOS, NOMBRE)

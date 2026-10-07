@@ -127,7 +127,7 @@ class Textos(unittest.TestCase):
     def test_medio_claude_explica_que_no_se_enciende_desde_el_mando(self):
         t = B.texto_medio({"id": "claude", "estado": "usable", "siguiente_paso": "pídele a Claude"})
         self.assertIn("Contenedor de Claude: disponible", t)
-        self.assertIn("desde el Mando no se puede encender", t)
+        self.assertIn("desde Genesis no se puede encender", t)
 
     def test_medio_generico(self):
         t = B.texto_medio({"id": "hf", "estado": "requiere_alex", "siguiente_paso": "solo con PRO"})

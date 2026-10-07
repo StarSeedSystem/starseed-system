@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel «Neurona» del Centro de Mando (Ola 258 · 2026-09-06)
+ * Panel «Neurona» de Genesis (Ola 258 · 2026-09-06)
  * ─────────────────────────────────────────────────────────────────────────────
  * Salud en vivo de esta máquina: memoria y swap, el demonio de voz (con el
  * oído residente y sus cesiones de memoria), el llama-server BitNet y Ollama.
@@ -353,7 +353,7 @@ export function PanelNeurona() {
 
     // `forzar`: la primera lectura (y la vuelta a la pestaña) siempre se hacen;
     // el refresco periódico se salta mientras la pestaña está oculta, igual que
-    // la cabecera del Mando, para no gastar el proceso con la consola de fondo.
+    // la cabecera de Genesis, para no gastar el proceso con la consola de fondo.
     const cargar = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         if (forzar) setCargando(true);

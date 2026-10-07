@@ -7,11 +7,11 @@
 > a modelos capaces), el progreso se **autoenruta** a otros modelos y sesiones para que la
 > tarea continúe sola, y cada ola termina con su **punto de relevo** escrito.
 
-## 0. Cómo se opera el Puente de Mando — vinculado a cada sesión (regla permanente · 2026-09-12)
+## 0. Cómo se opera Genesis — vinculado a cada sesión (regla permanente · 2026-09-12)
 
-**Abrir el Mando (2026-09-20):** doble clic en `~/Desktop/Puente-de-Mando.command` (fuente `scripts/puente/Puente-de-Mando.command`): revive lo caído por launchd, compila si falta el build (con turno) y abre `http://localhost:9002/mando`. El visor viejo de :8899 (`Orquestacion-StarSeed.command`) está retirado en `docs/legado/`.
+**Abrir Genesis (2026-09-20):** doble clic en `~/Desktop/Genesis.command` (fuente `scripts/puente/Genesis.command`): revive lo caído por launchd, compila si falta el build (con turno) y abre `http://localhost:9002/genesis`. El visor viejo de :8899 (`Orquestacion-StarSeed.command`) está retirado en `docs/legado/`.
 
-**Enlace:** el Mando vive en **http://localhost:9002/mando** en la Mac (servicio launchd
+**Enlace:** Genesis vive en **http://localhost:9002/genesis** en la Mac (servicio launchd
 `com.starseed.mando`; si no responde: `bash scripts/puente/instalar-servicios.sh`). Desde la
 terminal: `starseed-puente estado | agentes | olas | cola | puertas | briefing | mensajes`.
 Desde Telegram: el bot `@starseed_puente_bot` con `/estado /agentes /olas /cola /puertas`.
@@ -25,7 +25,7 @@ Todo lo que dice cualquier agente o modelo va al canal común `starseed_memory_r
 | 0 · trabajo | el enjambre (N agentes, UN orquestador) | flota gratuita (§5): llm7, NIM, Groq, OpenRouter, Apinex… | continuo | escribe las olas, ≤3 archivos / ≤120 líneas por tarea |
 | 1 · directores 24/7 | `vigilante` · `director` · `guardia` · `eco` · `ecoides` · `telegram` (launchd) | **cero créditos**: Python puro | 90 s / 180 s | relanza el enjambre si hay trabajo real, **reconcilia `progreso.json` con git**, aprueba lo revisado, congela BitNet, replica el canal a los IDE |
 | 2 · dirección | Astra (Codex/ChatGPT) como director principal | cupo de ChatGPT | cuando hace falta | diseña olas, decide dependencias, verifica en localhost |
-| 3 · revisión de precisión | **Claude Fable / Opus** (Cowork o Claude Code) | créditos de Claude, los caros | **una vez por hora** (tarea programada) y cuando algo se rompe | audita a los directores (¿reconciliaron? ¿aprobaron bien?), la salud completa del Mando medidor a medidor, y **arregla lo que la capa 1 no sabe arreglar** |
+| 3 · revisión de precisión | **Claude Fable / Opus** (Cowork o Claude Code) | créditos de Claude, los caros | **una vez por hora** (tarea programada) y cuando algo se rompe | audita a los directores (¿reconciliaron? ¿aprobaron bien?), la salud completa de Genesis medidor a medidor, y **arregla lo que la capa 1 no sabe arreglar** |
 
 **Escalera de escalado (regla de Alex, 2026-09-12) — «0 en curso con pendientes» es una alarma, no un
 estado.** Cuando hay tareas pendientes y nadie escribe, o una tarea falla, **los directores lo resuelven
@@ -57,7 +57,7 @@ ramifica al enjambre o a Astra. **Lo largo y pesado va siempre a la capa 0**, au
 3. `progreso.json` honesto: cero `en_curso` sin latido, cero `bloqueada` cuya dependencia ya está en main
    (`python3 scripts/puente/reconciliar_progreso.py` sin `--aplicar` lo lista).
 4. Proveedores: cuáles agotados, cuándo renuevan, a quién se está enrutando.
-5. Cada medidor del Mando contra la realidad (cabecera, olas, agentes, puertas, disco).
+5. Cada medidor de Genesis contra la realidad (cabecera, olas, agentes, puertas, disco).
 6. Punta de git: `main` local vs `origin/main`, árbol limpio, y **que ningún archivo haya encogido**
    (ver regla de abajo). Publicar solo con las tres puertas en verde.
 7. Sugerencias: qué mejorar del Puente, escritas como tareas para el enjambre, no hechas a mano.
@@ -78,7 +78,7 @@ orquestador (regla rota) con Ollama 7B (no cabe en 8 GB junto al enjambre); lo q
   enjambre parado y voz/BitNet descargados** (`launchctl unload` de `com.starseed.astraura-voice` y
   `com.starseed.astraura`, y se recargan al terminar), con `NODE_OPTIONS=--max-old-space-size=2560`.
   El guardia congela BitNet (y, cuando entre la tarea p316F, también la voz) mientras el enjambre escribe.
-  **Nunca un `next dev` permanente**: el Mando es `next start` sobre el build.
+  **Nunca un `next dev` permanente**: Genesis es `next start` sobre el build.
 - Disco: nunca por debajo de **5 GB libres** (con 1 GB SQLite se corrompió y Hermes perdió sus chats).
   Lo regenerable (cachés de apps, `node_modules` de worktrees, builds viejos, `npm cache`) se borra sin
   preguntar; lo pesado que haya que conservar (modelos, exportes, vídeos) va al **Google Drive
@@ -170,7 +170,7 @@ repositorio).
 | **xKiro** | `https://api.xkiro.com/v1` | `XKIRO_API_KEY` | 40 gratuitos con tool-calling (`qwen3-coder-plus`, `minimax-m3`, `devstral-medium`…) | 5M tokens/día; cuota diaria en los `:free` | **ESCRITOR** (opencode edita de verdad con ellos) y revisor primero |
 | **LLM7.io** (itsfree.ai) | `https://api.llm7.io/v1` | `LLM7_API_KEY` (opcional) | **sin clave**: `gpt-oss` (20B) y `minimax-m2.7` (verificados 2026-09-05, revisión real en 14 s); con token: 44 modelos (deepseek-v4-flash, glm-5.3-flash…). Sus etiquetas «claude/gpt-6» son reventa: no se usan | 10 req/min sin clave (40 con token) | revisor de respaldo, siempre disponible |
 | **FreeTheAi** | `https://api.freetheai.xyz/v1` | `FREETHEAI_API_KEY` | 60+ modelos (gpt-oss-120b…); clave por su Discord (`/signup` y `/checkin` diario; la crea Alex, nunca un agente) | 10-35 req/min, 250/día | revisor de reserva (solo con clave) |
-| **Pasarela declarada por entorno** | `STARSEED_PASARELA_<NOMBRE>_URL` | `STARSEED_PASARELA_<NOMBRE>_KEY` (+ `_MODELOS`, `_RPM`) | cualquier enrutador OpenAI-compatible: **freellmapi** en local (`http://127.0.0.1:3001/v1`, 29 proveedores gratis tras un bearer, ~40 MB RSS), NavyAI, pasarela propia… | el que declare `_RPM` (10 si falta) | revisor; entra sin tocar código en el orquestador y en el catálogo del Mando |
+| **Pasarela declarada por entorno** | `STARSEED_PASARELA_<NOMBRE>_URL` | `STARSEED_PASARELA_<NOMBRE>_KEY` (+ `_MODELOS`, `_RPM`) | cualquier enrutador OpenAI-compatible: **freellmapi** en local (`http://127.0.0.1:3001/v1`, 29 proveedores gratis tras un bearer, ~40 MB RSS), NavyAI, pasarela propia… | el que declare `_RPM` (10 si falta) | revisor; entra sin tocar código en el orquestador y en el catálogo de Genesis |
 
 ### Catálogos de proveedores gratuitos (2026-09-05)
 
@@ -309,7 +309,7 @@ sin presupuesto o con `STARSEED_JEV=0` devuelve None y la regla de siempre decid
 | `pasarelas.clasificar` (errores) | pistas de texto y código HTTP | error desconocido: si confianza > 0,6 |
 | `resolucion_automatica.decidir` (aprobar sola) | director + verificadores conformes | solo VETA si P(integrar sin visto bueno) < 0,3 |
 
-Hermes (director del Mando) ejecuta `veredictos.py` primero y lanza un subagente **solo** para
+Hermes (director de Genesis) ejecuta `veredictos.py` primero y lanza un subagente **solo** para
 las filas con `fuente: jev` y `confianza < 0,7`. El orden de las colas sigue siendo determinista
 y sin modelo (decisión del 13/09): Jev opina, no ordena.
 
@@ -601,7 +601,7 @@ Cómo se aprovecha, en este orden:
 4. **Nada de sesiones eternas:** el contexto largo es lo que más gasta (medido el 27-09: una sola
    sesión releyó 750 M tokens de caché). Pasados ~200 M, relevo y sesión nueva.
 
-Medidor: **«Crédito Claude nube»** en el pulso de trabajo del Mando (`src/lib/mando/credito-claude.ts`,
+Medidor: **«Crédito Claude nube»** en el pulso de trabajo de Genesis (`src/lib/mando/credito-claude.ts`,
 `case "credito-claude"` en `medidores.ts`). No hay API, así que el saldo es el DECLARADO:
 `python3 scripts/puente/credito_claude_nube.py declarar --restante <USD> [--semanal-todos <%>]`
 (archivo `~/.starseed/credito-claude-nube.json`, chmod 600, fuera del repo). Cada sesión en la
@@ -630,7 +630,7 @@ hacen cumplir en tres capas (contrato «consumo», agentes G1/G2/G3):
      Es una estimación y se dice así en el medidor (qué % fue medido).
    - Historial de 45 días en `~/.starseed/consumo-historial.json`; el día anterior se relee
      entero una vez al cambiar de día.
-   - Presupuestos en `~/.starseed/presupuestos.json` (se crea solo; el Mando lo edita):
+   - Presupuestos en `~/.starseed/presupuestos.json` (se crea solo; Genesis lo edita):
      `supabase_peticiones_dia` 25.000 · `supabase_mb_dia` 150 · `supabase_mb_ciclo` 5120 ·
      `ciclo_inicio` (fecha de inicio del ciclo de facturación; null = se supone el primer día
      medido) · `jev_usd_dia` 0,05 · `openrouter_usd_min_saldo` 2.
@@ -641,7 +641,7 @@ hacen cumplir en tres capas (contrato «consumo», agentes G1/G2/G3):
      otra escritura. Con 402 no se escribe nada (`restringido: true`).
    - **Detector de bucles**: una ruta > 1.500 peticiones/h o un agente (user-agent) + ruta > 800/h
      → «BUCLE · ruta · n/h desde «agente»» al canal (como mucho cada 3 h por bucle) y queda como
-     «último bucle detectado» en el Mando. Rutas y agentes van saneados: sin ids ni nada que
+     «último bucle detectado» en Genesis. Rutas y agentes van saneados: sin ids ni nada que
      parezca una clave.
    - **Nunca en bucle**: si falla la API de registros, la vuelta se corta; un fallo al escribir
      el freno espera 1 h; «tabla inexistente» (migración `20260929090000_os_freno.sql` sin
@@ -656,7 +656,7 @@ hacen cumplir en tres capas (contrato «consumo», agentes G1/G2/G3):
    Cambiar Realtime desconecta una vez a los clientes. Primero `--seco`:
    `python3 scripts/puente/limites_supabase.py --seco` y luego sin `--seco`.
 
-**Medidor en el Mando: «Consumo y créditos»** (bajo el pulso de trabajo;
+**Medidor en Genesis: «Consumo y créditos»** (bajo el pulso de trabajo;
 `src/components/mando/medidor-consumo.tsx`, `GET/POST /api/mando/consumo`, lector
 `src/lib/mando/consumo.ts`, tipos `src/lib/mando/consumo-tipos.ts`). Una fila por medio con barra y
 estado: Supabase (peticiones y MB de hoy contra el presupuesto, ciclo contra 5 GB con días
@@ -685,7 +685,7 @@ CONSOLIDA, siempre por la terminal de la Mac y por localhost:9002. Jev aconseja
 accionable/prioridad en la consolidación (local primero, techo diario, lo privado solo en local).
 
 **Estado nuevo `informe`**: el sueño terminó bien sin código que integrar. Es terminal en el
-orquestador, el vigilante, el reconciliador y el Mando, y **nunca** cuenta como «sin_cambios».
+orquestador, el vigilante, el reconciliador y Genesis, y **nunca** cuenta como «sin_cambios».
 El vigilante no coge ninguna `cola-suenos-*` (ni la de la sesión ni la propuesta).
 
 **Desplegar y lanzar en la Mac:**
@@ -694,7 +694,7 @@ cd ~/Documents/starseed-os-main
 bash scripts/enjambre/instalar.sh && bash scripts/enjambre/instalar.sh --comprobar   # orquestador + analista.py
 python3 scripts/puente/reconstruir_mando.py --una-vez                                # panel y /api/mando/suenos
 python3 scripts/puente/suenos.py plan --horas 4 && python3 scripts/puente/suenos.py lanzar --horas 4
-python3 scripts/puente/suenos.py estado        # o http://localhost:9002/mando?pestana=procesos → «Sueños profundos»
+python3 scripts/puente/suenos.py estado        # o http://localhost:9002/genesis?pestana=procesos → «Sueños profundos»
 curl -s -X POST http://localhost:9002/api/mando/suenos -H 'Content-Type: application/json' -d '{"accion":"lanzar","horas":4}'
 ```
 **Supervisar (cada hora, tarea programada con «Requerir esta computadora»):** el bloque de
@@ -715,7 +715,7 @@ Regla: **una flota gratuita se reparte por turnos entre TODOS los proveedores vi
 
 ## 17. Protocolo común de los agentes: un mismo contexto y Jev en todos (regla permanente · 2026-09-30)
 
-**Qué pidió Alex.** «Que se usen más las habilidades, herramientas y conectores del Puente de Mando,
+**Qué pidió Alex.** «Que se usen más las habilidades, herramientas y conectores de Genesis,
 como el uso de Jev en todos los agentes y subagentes, con el mismo workflow y contextos de memorias y
 entendimientos completos y las mejores decisiones.» SOP: `architecture/protocolo-comun-agentes.md`.
 

@@ -3,7 +3,7 @@
 
 Medido esa noche: cinco `node (vitest N)` de ~2,2 GB huérfanos 49 minutos (su vitest lo
 había cortado el tiempo de la puerta, que mataba solo al hijo directo) dejaron la Mac sin
-RAM y el Puente de Mando sin contestar. `sh()` y los agentes van ahora en su propio grupo de
+RAM y Genesis sin contestar. `sh()` y los agentes van ahora en su propio grupo de
 procesos y se cortan con `matar_grupo`.
 """
 import importlib.util

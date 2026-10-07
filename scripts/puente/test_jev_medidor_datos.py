@@ -1,4 +1,4 @@
-"""Jev: lo que anota para el medidor del Mando (2026-09-25). Sin red.
+"""Jev: lo que anota para el medidor de Genesis (2026-09-25). Sin red.
 
 - quién pregunta y qué habilidad usa, por día;
 - la caché cuenta; la latencia de OpenRouter es la suya, no la del intento local;

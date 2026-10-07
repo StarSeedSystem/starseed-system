@@ -22,9 +22,9 @@ junto al BitNet b1.58 base; el base solo se refresca en la nube, nunca en la Mac
 - **Sin secretos:** el filtro de privacidad garantiza que **nunca** entran claves, tokens ni
   rutas de `.env` al corpus. El corpus cita nombres de variables, no valores.
 - **Gratis primero:** el ciclo corre con el BitNet local y modelos gratuitos de la nube
-  (misma regla de orquestación económica del Mando); nadie agota sus créditos.
+  (misma regla de orquestación económica de Genesis); nadie agota sus créditos.
 - **Aprobación humana heredada:** desplegar un adaptador nuevo puede pedir el visto bueno de
-  Alex en el Mando, como cualquier ola.
+  Alex en Genesis, como cualquier ola.
 
 ## 2. Arquitectura en cinco capas
 
@@ -33,8 +33,8 @@ junto al BitNet b1.58 base; el base solo se refresca en la nube, nunca en la Mac
 | Corpus vivo | Captura, filtra y limpia datos de entrenamiento | 268 | Neurona (local) |
 | Fábrica | Entrena adaptadores LoRA (QVAC/Metal) y refresca el base (onebitllms/GPU) | 269 | Mac + nube GPU |
 | Evaluación | Mide estilo, tool-calls, memoria y tareas; puerta de regresión | 270 | Neurona + nube gratis |
-| Despliegue | Carga `--lora`, registro y rollback | 271 | Neurona + Mando |
-| Agentes | Cinco roles que operan el ciclo como olas de tipo `aprendizaje` | 268-272 | Orquestador del Mando |
+| Despliegue | Carga `--lora`, registro y rollback | 271 | Neurona + Genesis |
+| Agentes | Cinco roles que operan el ciclo como olas de tipo `aprendizaje` | 268-272 | Orquestador de Genesis |
 
 ### 2.1 Corpus vivo
 
@@ -44,7 +44,7 @@ Fuentes de datos, todas **opt-in y filtradas**:
 - Trazas de herramientas (tool-calls con sus argumentos normalizados).
 - Salidas de `cognition.py` (imaginación, sueños, enjambre, Director Metis, cronista).
 - Tomas de voz valoradas (cuando el usuario puntúa una respuesta hablada).
-- Decisiones del Mando (aprobaciones y rechazos de olas, con su motivo).
+- Decisiones de Genesis (aprobaciones y rechazos de olas, con su motivo).
 
 Formato: **JSONL** en `data/aprendizaje/corpus/<personalidad>/AAAA-MM.jsonl`, un archivo por
 personalidad y mes. Antes de escribir: filtro de privacidad (sin claves, sin correos salvo el
@@ -99,7 +99,7 @@ tool-call JSON, servidos vía llama-server OpenAI-compatible.
 ### 2.5 Agentes del aprendizaje
 
 Cinco roles (definidos en `AGENTES_APRENDIZAJE`), que corren como **olas de tipo
-`aprendizaje`** del orquestador del Mando, interconectados con sus procesos y tareas:
+`aprendizaje`** del orquestador de Genesis, interconectados con sus procesos y tareas:
 
 | Agente | Rol | Modelo preferido |
 |---|---|---|
@@ -111,7 +111,7 @@ Cinco roles (definidos en `AGENTES_APRENDIZAJE`), que corren como **olas de tipo
 
 Lo barato (curar, etiquetar, despachar) va al **BitNet local**; lo difícil (juzgar estilo,
 redactar informes largos) va a los **modelos gratuitos de la nube** con la misma lógica de
-relevo ante 429/402 del orquestador. Cada ciclo respeta la aprobación humana del Mando.
+relevo ante 429/402 del orquestador. Cada ciclo respeta la aprobación humana de Genesis.
 
 ## 3. Integración con el OS
 
@@ -123,7 +123,7 @@ relevo ante 429/402 del orquestador. Cada ciclo respeta la aprobación humana de
 - **Botones de valoración** en el chat (pulgar arriba/abajo por turno): la valoración y el
   turno se sellan al corpus; solo entran al entrenamiento los turnos con valoración positiva
   o corrección del usuario.
-- **Pestaña «Aprendizaje» del Mando:** estado de los cinco agentes, progreso por fase
+- **Pestaña «Aprendizaje» de Genesis:** estado de los cinco agentes, progreso por fase
   (`progresoAprendizaje()`), última evaluación, adaptador activo por personalidad y botones
   de aprobar/revertir para los despliegues con `aprobacion: true`.
 
@@ -134,7 +134,7 @@ relevo ante 429/402 del orquestador. Cada ciclo respeta la aprobación humana de
 | 268 | Corpus vivo | JSONL por personalidad con filtro de privacidad y limpieza Falcon; test de que ningún corpus contiene patrones de claves |
 | 269 | Fábrica | Un adaptador LoRA real entrenado en la Mac con QVAC para una personalidad piloto; receta onebitllms reproducible documentada |
 | 270 | Evaluación | Conjuntos por personalidad + puerta de regresión funcionando; un adaptador rechazado de verdad demuestra la puerta |
-| 271 | Despliegue + Mando | Carga `--lora`, registro con rollback y pestaña «Aprendizaje» |
+| 271 | Despliegue + Genesis | Carga `--lora`, registro con rollback y pestaña «Aprendizaje» |
 | 272 | Integración OS | Personalidades con `adaptador`, valoraciones alimentando el corpus, bots 3D escribiendo |
 
 ## 5. Límites honestos

@@ -159,7 +159,7 @@ def numero_ola(texto):
 
 
 #: (2026-10-05) Por qué una tarea NO va a la nube, en el orden en que se comprueba. El botón
-#: «Buscar más capacidad» del Mando enseña este recuento en vez de un «0 tareas» sin explicar.
+#: «Buscar más capacidad» de Genesis enseña este recuento en vez de un «0 tareas» sin explicar.
 MOTIVOS_FUERA = (
     ("ola-actual", "son de la ola que corre en la Mac"),
     ("estado", "no están pendientes ni fallidas"),
@@ -354,7 +354,7 @@ def reclamar_varadas(progreso, runs_en_marcha):
 
     (2026-09-22, MEDIDO) RM3 y RM4 llevaban horas en «reasignada · nube» con CERO runs en
     marcha. Detrás de ellas, RM5 esperaba a RM3 y RM4; RM6 a RM5; RM7 a RM5 y RM6; RM8 a
-    RM7. El Puente enseñaba «LISTAS PARA TRABAJAR 5» y ningún agente podía coger ninguna:
+    RM7. Genesis enseñaba «LISTAS PARA TRABAJAR 5» y ningún agente podía coger ninguna:
     la cadena entera colgaba de dos tareas que ya no iba a hacer nadie. El vigía lo veía
     («cadena_rota») y solo sabía avisar —y ni eso: «no pude avisar»—.
 

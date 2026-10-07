@@ -1,11 +1,11 @@
-/* mando-cristal.css — la capa visual del Puente de Mando (2026-09-15)
+/* mando-cristal.css — la capa visual de Genesis (2026-09-15)
  *
  * Alex pidió «3D cristal líquido neón pero simple, que no ocupe mucha capacidad
  * de recursos». Las dos cosas a la vez se consiguen con una idea: la sensación de
  * relieve la da LA LUZ, no la geometría. Nada de WebGL, nada de `perspective`,
  * nada de librerías. Sombras, gradientes y dos propiedades animables.
  *
- * PRESUPUESTO (esto es un requisito, no un consejo — el Mando corre en una Mac de
+ * PRESUPUESTO (esto es un requisito, no un consejo — Genesis corre en una Mac de
  * 8 GB con un enjambre de agentes escribiendo al lado):
  *   · Solo se animan `transform` y `opacity`. Jamás width/height/top/left/margin:
  *     eso recalcula el layout en cada fotograma y da tirones.

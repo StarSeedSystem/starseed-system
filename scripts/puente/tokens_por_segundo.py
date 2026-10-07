@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tokens por segundo de TODO el Puente, medidos — y lo que no se puede medir, dicho.
+"""Tokens por segundo de TODO Genesis, medidos — y lo que no se puede medir, dicho.
 
 (2026-09-22) Alex: «agrega un medidor de tokens por segundo en total sumando los de todos
-los procesos de cada api de todo el puente de mando en tiempo real».
+los procesos de cada api de todo Genesis en tiempo real».
 
 Antes de escribir nada se fue a ver QUIÉN publica tokens de verdad:
 
@@ -219,7 +219,7 @@ def resumir(ritmo, sin_contador=SIN_CONTADOR, media=None):
 
     (2026-09-22, segunda pasada) Manda la MEDIA DEL MINUTO, igual que en la pantalla. Antes
     esta frase salía solo del instantáneo y el archivo decía «0 tok/s ahora mismo» mientras
-    el medidor del Puente decía «44,2 tok/s de media en 1 min»: el mismo dato contado de
+    el medidor de Genesis decía «44,2 tok/s de media en 1 min»: el mismo dato contado de
     dos maneras en dos sitios, que es la avería que llevamos toda la sesión persiguiendo.
     El gasto va a ráfagas, así que el instantáneo es cero casi siempre y no puede ser la
     frase principal de nada.

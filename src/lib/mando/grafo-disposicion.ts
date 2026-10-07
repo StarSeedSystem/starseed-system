@@ -2,7 +2,7 @@
  * Disposición del grafo de orquestación (Ola 239 · MD7)
  * ─────────────────────────────────────────────────────────────────────────────
  * Módulo PURO (sin disco, red ni DOM) que calcula cómo se dibuja el grafo del
- * Mando: columnas fijas —olas a la izquierda, luego tareas, modelos, revisores
+ * Genesis: columnas fijas —olas a la izquierda, luego tareas, modelos, revisores
  * y commits a la derecha—, filas repartidas por columna y aristas como curvas
  * bezier. Lo consume `panel-grafo.tsx`; no sabe nada de React.
  */

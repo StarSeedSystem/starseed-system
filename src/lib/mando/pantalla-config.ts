@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────
  * Un único archivo `~/.starseed/pantalla.json` gobierna tanto el servicio de
  * la Mac (`com.starseed.pantalla`, caffeinate) como la Screen Wake Lock de
- * cualquier navegador con el Mando abierto. Encendido por defecto: si el
+ * cualquier navegador con Genesis abierto. Encendido por defecto: si el
  * archivo no existe o está roto, vale `activa: true`.
  */
 

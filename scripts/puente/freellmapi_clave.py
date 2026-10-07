@@ -6,7 +6,7 @@ Alex (2026-09-22): «¿no se supone que la api de freellmapi se consigue automá
 Sí, y se podía desde el principio: FreeLLMAPI genera su clave unificada al arrancar y la
 guarda en `settings.unified_api_key` de su propia base de datos, en el disco de Alex.
 Nadie la copiaba a `~/.starseed/env`, así que `FREELLMAPI_KEY` estaba vacía o vieja, la
-pasarela contestaba 401 a todo, el renovador la daba por caída y el Puente le pedía a Alex
+pasarela contestaba 401 a todo, el renovador la daba por caída y Genesis le pedía a Alex
 «renovar la clave» de un servicio que se la había generado él solo.
 
 Esto lo cierra: se lee de SU base de datos y se escribe en el archivo de entorno, con el

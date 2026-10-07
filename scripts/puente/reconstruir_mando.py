@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Reconstruye el Puente cuando su código cambia, sin que nadie lo pida.
+"""Reconstruye Genesis cuando su código cambia, sin que nadie lo pida.
 
 POR QUÉ EXISTE (2026-09-22). Alex lleva días diciendo «pero aun no ha cambiado nada de lo
 que te he pedido, todo sigue igual» delante de una pantalla que, efectivamente, seguía
-igual — y no porque el arreglo no estuviera hecho, sino porque **el Mando se sirve con
+igual — y no porque el arreglo no estuviera hecho, sino porque **Genesis se sirve con
 `next start`, o sea de un build compilado**. Editar `src/` no cambia nada de lo que se ve:
 hasta que alguien corre `next build` y reinicia el servicio, la pantalla enseña el código
 de la última compilación. `arrancar-mando.sh` ya lo decía por escrito («'next start' sirve
@@ -13,7 +13,7 @@ la cabeza de quien editaba. Un arreglo que solo existe en el disco no está entr
 
 Esto lo cierra: cada `INTERVALO_S` se mira una huella de las fuentes de la pantalla; si no
 coincide con la del último build, se reconstruye CON EL TURNO DE LA MÁQUINA (para no
-pelearse por la RAM con los agentes) y se reinicia el servicio del Mando.
+pelearse por la RAM con los agentes) y se reinicia el servicio de Genesis.
 
 Lo que NO hace, a propósito:
   · No reconstruye por un cambio en Python ni en las colas: solo por lo que compila el
@@ -380,13 +380,13 @@ def decidir_reinicio(build_id, build_servido):
     `publicar.py` lo pasa como puerta antes de empujar— el disco queda al día y el servidor
     sigue sirviendo el build anterior hasta que alguien lo reinicia. Mirar solo «¿hay
     fuentes más nuevas que el build?» daría «al día» con la pantalla vieja delante: por eso
-    también se compara el build compilado con el que el Mando tenía cuando arrancó.
+    también se compara el build compilado con el que Genesis tenía cuando arrancó.
     """
     if not build_id:
         return False, "no hay build que servir"
     if build_id == build_servido:
-        return False, "el Mando ya sirve este build"
-    return True, "hay un build más nuevo que el que sirve el Mando (%s)" % build_id[:12]
+        return False, "Genesis ya sirve este build"
+    return True, "hay un build más nuevo que el que sirve Genesis (%s)" % build_id[:12]
 
 
 def publicacion_va_a_compilar(publicacion) -> bool:
@@ -495,7 +495,7 @@ def primera_linea_de_error(salida) -> str:
 
 
 def reconstruir(huella_actual) -> dict:
-    """Construye con el turno de la máquina y reinicia el Mando si salió bien."""
+    """Construye con el turno de la máquina y reinicia Genesis si salió bien."""
     _guardar(dict(_leer_estado(), estado="reconstruyendo", huella_intentada=huella_actual,
                   t=time.time(), visto=time.strftime("%Y-%m-%d %H:%M:%S")))
     empezo = time.time()
@@ -552,7 +552,7 @@ def reconstruir(huella_actual) -> dict:
         "por_disco": bool(por_disco) and not ok,
     }
     # (2026-09-25) Se FUNDE con lo guardado: reescribirlo entero perdía `build_servido`, y
-    # la pasada siguiente, al no encontrarlo, reiniciaba el Mando «porque hay un build más
+    # la pasada siguiente, al no encontrarlo, reiniciaba Genesis «porque hay un build más
     # nuevo» —el mismo que ya servía— y el reinicio anotaba ok=True, borrando el fallo.
     _guardar(dict(_leer_estado(), **datos))
     print("[%s] build %s en %d s%s" % (time.strftime("%H:%M"), "ok" if ok else "FALLÓ",
@@ -616,10 +616,9 @@ def chunk_del_html(html):
 def sirve_lo_que_hay_en_disco(html, raiz=RAIZ):
     """PURA-ish: ¿el servidor sirve el build que está en el disco?
 
-    (2026-09-22, MEDIDO) Aquí se coló la misma enfermedad con otro disfraz. El plist del
-    Mando tiene `KeepAlive`, así que `launchctl kill SIGTERM` no para nada: launchd
+    (2026-09-22, MEDIDO) Aquí se coló la misma enfermedad con otro disfraz. El plist de Genesis tiene `KeepAlive`, así que `launchctl kill SIGTERM` no para nada: launchd
     relanza el servidor EN EL ACTO, antes de que dé tiempo a cambiar los directorios de
-    sitio. El Mando volvía a levantar el build VIEJO y, un segundo después, ese build se
+    sitio. Genesis volvía a levantar el build VIEJO y, un segundo después, ese build se
     iba del disco. Resultado en la pantalla de Alex:
 
         HTML servido pide  webpack-68ad2f16eee5d4c9.js
@@ -635,7 +634,7 @@ def sirve_lo_que_hay_en_disco(html, raiz=RAIZ):
     return os.path.exists(os.path.join(raiz, DIST_SERVIDO, "static", "chunks", chunk))
 
 
-def _html_del_mando(url="http://localhost:9002/mando", timeout=20):
+def _html_del_mando(url="http://localhost:9002/genesis", timeout=20):
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             return r.read().decode("utf-8", "replace")
@@ -656,10 +655,10 @@ CERROJO_REINICIO = os.path.expanduser("~/.starseed/cerrojos/reinicio-mando.lock"
 def _tomar_cerrojo(ruta=CERROJO_REINICIO, espera_s=180, caduca_s=600):
     """Directorio atómico: o lo creas tú, o ya lo tiene otro. Devuelve si es tuyo.
 
-    (2026-09-22, MEDIDO) El Mando se quedó APAGADO dos veces —ni en `launchctl list`, ni
+    (2026-09-22, MEDIDO) Genesis se quedó APAGADO dos veces —ni en `launchctl list`, ni
     proceso, ni nada en el 9002— y las dos con el mismo patrón: `publicar.py` y el
     reconstructor reiniciándolo a la vez. Uno hacía `bootout` justo entre el `bootstrap`
-    y la comprobación del otro, así que el segundo veía el servicio cargado, decía «Mando
+    y la comprobación del otro, así que el segundo veía el servicio cargado, decía «Genesis
     reiniciado» y se iba tan tranquilo mientras el primero lo acababa de tirar.
 
     Dos procesos parando y arrancando el mismo servicio a la vez no es una carrera rara:
@@ -690,7 +689,7 @@ def _soltar_cerrojo(ruta=CERROJO_REINICIO):
     subprocess.run(["rm", "-rf", ruta], check=False)
 
 
-#: Puerto del Mando.
+#: Puerto de Genesis.
 PUERTO_MANDO = int(os.environ.get("STARSEED_PUERTO_MANDO", "9002"))
 
 
@@ -704,14 +703,13 @@ def pids_escuchando(puerto: int = PUERTO_MANDO) -> list[int]:
 
 
 def liberar_puerto(puerto: int = PUERTO_MANDO, espera_s: float = 6.0) -> list[int]:
-    """(2026-09-28, MEDIDO) Mata el servidor HUÉRFANO que siga escuchando en el puerto del
-    Mando con el servicio de launchd ya descargado.
+    """(2026-09-28, MEDIDO) Mata el servidor HUÉRFANO que siga escuchando en el puerto de Genesis con el servicio de launchd ya descargado.
 
     Un `next start` lanzado fuera de launchd (el `.command` del Escritorio, una prueba a mano)
     se queda con el 9002: el servicio relanzado no puede escuchar y el viejo sigue sirviendo.
     Y engaña a la comprobación de después: las páginas se leen del disco en cada petición, así
     que el HTML lleva el BUILD_ID nuevo, pero la tabla de rutas es la que cargó al arrancar —
-    las rutas nuevas daban 404 con «Mando reiniciado» escrito en el registro. Se llama justo
+    las rutas nuevas daban 404 con «Genesis reiniciado» escrito en el registro. Se llama justo
     después del `bootout`: si alguien sigue escuchando, no es el servicio.
     """
     import signal
@@ -747,9 +745,9 @@ def liberar_puerto(puerto: int = PUERTO_MANDO, espera_s: float = 6.0) -> list[in
 
 
 def reiniciar_mando() -> None:
-    """Para el Mando DE VERDAD, cambia el build de sitio y lo vuelve a arrancar."""
+    """Para Genesis DE VERDAD, cambia el build de sitio y lo vuelve a arrancar."""
     if not _tomar_cerrojo():
-        print("otro proceso está reiniciando el Mando; no me meto", flush=True)
+        print("otro proceso está reiniciando Genesis; no me meto", flush=True)
         return
     try:
         _reiniciar_mando_sin_cerrojo()
@@ -762,14 +760,14 @@ def _reiniciar_mando_sin_cerrojo() -> None:
     etiqueta = "gui/%d/%s" % (uid, SERVICIO)
     plist = os.path.expanduser("~/Library/LaunchAgents/%s.plist" % SERVICIO)
     # `kill SIGTERM` NO basta: con `KeepAlive` launchd lo relanza antes del cambio y el
-    # Mando levanta el build viejo. `bootout` lo descarga; nadie lo relanza a mitad.
+    # Genesis levanta el build viejo. `bootout` lo descarga; nadie lo relanza a mitad.
     subprocess.run(["launchctl", "bootout", etiqueta], capture_output=True, text=True)
     time.sleep(1)
     liberar_puerto()
     if intercambiar_build():
         print("build nuevo puesto en su sitio (el anterior queda en .next-anterior)", flush=True)
     # (2026-09-22, MEDIDO) `bootstrap` justo después de `bootout` FALLA a veces —launchd
-    # todavía está desmontando el servicio— y entonces el Mando se queda APAGADO: ni en
+    # todavía está desmontando el servicio— y entonces Genesis se queda APAGADO: ni en
     # `launchctl list`, ni proceso, ni nada escuchando en el 9002. Me pasó hoy y lo tuve
     # que levantar a mano. Parar de verdad era lo correcto; darlo por arrancado sin mirar,
     # no. Se reintenta y se COMPRUEBA que el servicio existe.
@@ -779,23 +777,23 @@ def _reiniciar_mando_sin_cerrojo() -> None:
         subprocess.run(["launchctl", "kickstart", etiqueta], capture_output=True, text=True)
         if servicio_cargado(etiqueta):
             break
-        print("el Mando no arrancó al intento %d; reintento" % (intento + 1), flush=True)
+        print("Genesis no arrancó al intento %d; reintento" % (intento + 1), flush=True)
         time.sleep(2)
     else:
-        print("NO PUDE ARRANCAR EL MANDO tras 5 intentos: la pantalla se queda apagada",
+        print("NO PUDE ARRANCAR GENESIS tras 5 intentos: la pantalla se queda apagada",
               flush=True)
     # Y se vuelve a mirar unos segundos después: «cargado» justo tras `bootstrap` no
     # significa «sigue vivo». Las dos veces que se apagó, el servicio desapareció DESPUÉS
-    # de que alguien dijera «Mando reiniciado».
+    # de que alguien dijera «Genesis reiniciado».
     time.sleep(6)
     if not servicio_cargado(etiqueta):
-        print("el Mando se cayó después de arrancar: lo levanto otra vez", flush=True)
+        print("Genesis se cayó después de arrancar: lo levanto otra vez", flush=True)
         subprocess.run(["launchctl", "bootstrap", "gui/%d" % uid, plist],
                        capture_output=True, text=True)
     # Y ahora se COMPRUEBA que sirve lo que hay en el disco, en vez de darlo por hecho.
     time.sleep(8)
     if not sirve_lo_que_hay_en_disco(_html_del_mando()):
-        print("el Mando servía un build que ya no está en el disco: lo reinicio otra vez",
+        print("Genesis servía un build que ya no está en el disco: lo reinicio otra vez",
               flush=True)
         subprocess.run(["launchctl", "kickstart", "-k", etiqueta], capture_output=True, text=True)
         time.sleep(8)
@@ -805,7 +803,7 @@ def _reiniciar_mando_sin_cerrojo() -> None:
     # al día. Si no, un intento interrumpido dejaba «reconstruyendo» puesto para siempre.
     _guardar(dict(_leer_estado(), build_servido=servido, estado="al-dia", ok=True,
                   error=None, visto=time.strftime("%Y-%m-%d %H:%M:%S")))
-    print("Mando reiniciado: la pantalla ya sirve el código nuevo (%s)" % (servido or "?"),
+    print("Genesis reiniciado: la pantalla ya sirve el código nuevo (%s)" % (servido or "?"),
           flush=True)
 
 
@@ -865,7 +863,7 @@ def motivo_dependencias(instalada, bloqueada):
     """PURA: motivo si el `next` de node_modules no es el del package-lock (o None).
 
     (2026-10-03) Un intento de subir a Next 16 a mano dejó node_modules en 16.3.8 (instalado
-    con pnpm) y package-lock en 15.5: el Mando no arrancaba («Could not find a production
+    con pnpm) y package-lock en 15.5: Genesis no arrancaba («Could not find a production
     build») y compilar con esa mezcla solo podía dar una pantalla distinta de la del repo.
     Se para y se dice el arreglo: reinstalar lo que dice el lock."""
     if not instalada or not bloqueada:
@@ -955,13 +953,13 @@ def astraura_en_uso_por(estado, umbral_s=ASTRAURA_EN_USO_S) -> bool:
 
 #: (2026-09-26, MEDIDO) Un `/api/bitnet/estado` que no contesta NO es lo mismo que Alex usando
 #: a Astraura. Con el BitNet saturado por peticiones de fondo (0,8 tok/s, una cola detrás del
-#: único hueco) el estado se colgaba SIEMPRE, cada pasada lo contaba como «en uso» y el Mando
+#: único hueco) el estado se colgaba SIEMPRE, cada pasada lo contaba como «en uso» y Genesis
 #: pasó 5 h sirviendo un build viejo. Alex: «no aparece lo de las capas de conciencia en los
 #: chats». El uso MEDIDO sigue bloqueando sin límite; el SILENCIO bloquea como mucho esto, y
 #: después se compila igual: `con-turno.py` le pide la RAM al BitNet antes de empezar.
 ESPERA_MAX_SIN_RESPUESTA_S = int(os.environ.get("STARSEED_RECONSTRUIR_SILENCIO_S", "5400"))
 # (2026-09-26) Desde que la Mac sirve la capa nube a TODOS los dispositivos (túnel) y la
-# malla P2P, «Astraura en uso» puede no acabar nunca y el Mando se quedaba sin actualizar
+# malla P2P, «Astraura en uso» puede no acabar nunca y Genesis se quedaba sin actualizar
 # para siempre. El uso sigue mandando, pero con techo: pasadas 2 h esperando, se compila
 # con el turno de la máquina (el turnero del backend rechaza a tiempo lo que no quepa).
 ESPERA_MAX_EN_USO_S = int(os.environ.get("STARSEED_RECONSTRUIR_USO_MAX_S", "7200"))
@@ -1062,7 +1060,7 @@ def una_pasada(forzar: bool = False) -> bool:
                   % (time.strftime("%H:%M"), ", ".join(quitados), libre), flush=True)
     if hazlo and not hay_sitio_para_compilar(libre):
         aviso = ("no compilo: quedan %.1f GB libres y hacen falta %.1f (ya tiré lo mío; "
-                 "esto es disco del Mac, no del Puente)" % (libre, MINIMO_LIBRE_GB))
+                 "esto es disco del Mac, no de Genesis)" % (libre, MINIMO_LIBRE_GB))
         print("[%s] %s" % (time.strftime("%H:%M"), aviso), flush=True)
         _guardar(dict(_leer_estado(), estado="sin-sitio", ok=False, error=aviso,
                       visto=time.strftime("%Y-%m-%d %H:%M:%S")))
@@ -1083,7 +1081,7 @@ def una_pasada(forzar: bool = False) -> bool:
         return True
 
     print("[%s] espero: %s" % (time.strftime("%H:%M"), motivo), flush=True)
-    # Se anota igual: así el Puente puede decir «al día» con fecha, no de memoria.
+    # Se anota igual: así Genesis puede decir «al día» con fecha, no de memoria.
     _guardar(dict(estado, visto=time.strftime("%Y-%m-%d %H:%M:%S"), huella_vista=actual, silencio_desde=None))
     return False
 
@@ -1092,7 +1090,7 @@ def main() -> int:
     if "--una-vez" in sys.argv:
         una_pasada(forzar="--ya" in sys.argv)
         return 0
-    print("Reconstructor del Mando · cada %d s · el build va con el turno de la máquina"
+    print("Reconstructor de Genesis · cada %d s · el build va con el turno de la máquina"
           % INTERVALO_S, flush=True)
     while True:
         try:

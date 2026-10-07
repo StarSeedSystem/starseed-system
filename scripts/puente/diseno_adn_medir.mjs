@@ -14,7 +14,7 @@ const ADN_ROOT = resolve("memory/diseno/adn");
 const RUTAS_IDENTIDAD = {
   "starseed-os": "/",
   astraura: "/agent",
-  mando: "/mando",
+  genesis: "/genesis",
   cafe: "/cafe",
   audiomorphic: "/audiomorphic",
   "materia-viva": "/materia-viva",

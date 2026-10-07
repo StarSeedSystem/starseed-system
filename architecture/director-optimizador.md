@@ -49,7 +49,7 @@ Fuentes, todas opcionales (si una falta, su métrica sale `null` con el motivo):
 |---|---|
 | `integradas_h` | tareas que pasaron a `commit` por hora en la ventana |
 | `trabajadores` | `{tope_gobernador, vivos, escribiendo, en_puerta, ociosos}` desde los latidos |
-| `listas` | tareas que se pueden coger ya (misma regla que el Mando) |
+| `listas` | tareas que se pueden coger ya (misma regla que Genesis) |
 | `fracción_escribiendo` | tiempo escribiendo / tiempo total de las tareas de la ventana |
 | `fases` | `{fase: {n, segundos_mediana, segundos_p90, fallos}}` (escritura, tsc, tests, revisión, integración…) |
 | `modelos` | `{modelo: {intentos, con_cambios, integradas, sin_cambios, colgados, segundos_mediana, tasa}}` (`tasa` = integradas/intentos) |
@@ -156,7 +156,7 @@ empeora, se deshace escribiendo `antes`. Al cerrar, `decidir.py confirmar <jev_e
 por hora. Lleva: integradas/h y tendencia, fracción escribiendo, trabajadores (tope/vivos/escribiendo),
 los 3 mejores y los 3 peores modelos, cambios aplicados con su experimento, experimentos cerrados,
 propuestas encoladas y coste (Jev, Opus, Supabase). Además escribe `quien="director-optimizador"`
-en `canal.jsonl` para que el Mando lo cuente vivo.
+en `canal.jsonl` para que Genesis lo cuente vivo.
 
 ## 9. Integración
 

@@ -1,5 +1,5 @@
 /**
- * /api/mando/suenos — los SUEÑOS PROFUNDOS en el Puente de Mando (2026-09-29).
+ * /api/mando/suenos — los SUEÑOS PROFUNDOS en Genesis (2026-09-29).
  *
  * GET  ?fecha=AAAA-MM-DD&informe=1 → { datos }: sesiones, rejilla área × lente (estado,
  *      proveedor, tokens estimados, tiempo, quién verificó), recomendaciones consolidadas,
@@ -54,7 +54,7 @@ export async function POST(peticion: Request): Promise<Response> {
         return Response.json({ error: "Envía la orden como JSON." }, { status: 415, headers: SIN_CACHE });
     }
     if (!mismoOrigen(peticion)) {
-        return Response.json({ error: "Solo desde el propio Puente de Mando." }, { status: 403, headers: SIN_CACHE });
+        return Response.json({ error: "Solo desde el propio Genesis." }, { status: 403, headers: SIN_CACHE });
     }
     let cuerpo: Record<string, unknown>;
     try {

@@ -1,8 +1,8 @@
 /**
- * Colas de olas: leer, diseñar, guardar y lanzar (Ola 241 · Puente de Mando · solo servidor)
+ * Colas de olas: leer, diseñar, guardar y lanzar (Ola 241 · Genesis · solo servidor)
  * ─────────────────────────────────────────────────────────────────────────────
  * Lo que Flowise hacía con su lienzo (nodos editables que luego se ejecutan por API),
- * aquí sobre las colas del enjambre: el Diseñador de olas del Mando lee las colas
+ * aquí sobre las colas del enjambre: el Diseñador de olas de Genesis lee las colas
  * completas (con prompt, archivos, dependencias y modelo), guarda una cola nueva o
  * corregida en `starseed_memory_root/olas/cola-<nombre>.json` y la lanza:
  *
@@ -47,14 +47,14 @@ const OLAS = path.join(RAÍZ, "starseed_memory_root", "olas");
 /**
  * Id de tarea. Acepta MAYÚSCULAS Y MINÚSCULAS (2026-09-16) porque así son los ids que el
  * enjambre lleva escribiendo desde la ola 300: `p316I`, `p320M`, `zW7`, `zO2`, `p323A`,
- * `p316L2`. El patrón anterior exigía empezar por mayúscula, así que el Mando RECHAZABA las
+ * `p316L2`. El patrón anterior exigía empezar por mayúscula, así que Genesis RECHAZABA las
  * colas que el propio enjambre genera — «Nombre de cola no válido» al intentar aprobar,
  * rechazar, soltar o reencolar cualquiera de ellas. La consola no podía administrar el
  * trabajo de su propio enjambre, que es justo para lo que existe.
  *
  * Es el fallo que la tarea p320M lleva días intentando arreglar y que se comió sus ocho
  * intentos gratuitos. Se arregla aquí porque bloqueaba, hoy y por segunda vez en una tarde,
- * reencolar las tareas atascadas desde el Mando.
+ * reencolar las tareas atascadas desde Genesis.
  */
 const PATRON_ID = /^[A-Za-z][A-Za-z0-9]{0,8}$/;
 export const PATRON_NOMBRE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -72,7 +72,7 @@ const ROTACION = [
  * `codex` entra el 2026-09-16 y es el tercer candado que tenía la misma puerta. El
  * orquestador SÍ sabe escribir con Codex desde la ola 296 (`es_modelo_codex`,
  * `escribir_con_codex`, `comando_codex`), pero esta lista blanca no lo incluía, así que
- * una tarea con `modelo: "codex/gpt-5.6-sol"` la rechazaba el Mando antes de guardarla:
+ * una tarea con `modelo: "codex/gpt-5.6-sol"` la rechazaba Genesis antes de guardarla:
  * «no es de una API con la que el orquestador pueda escribir». Los otros dos candados eran
  * el interruptor `STARSEED_CODEX_ESCRITOR`, que nadie encendía, y una orden de `codex exec`
  * ilegal que moría en el análisis de argumentos. Tres sitios distintos apagando lo mismo, y
@@ -472,7 +472,7 @@ export async function resolverNombreColaActual(
 }
 
 /**
- * Reintento inteligente desde el Mando (Ola 339+ · Alex, 2026-09-17).
+ * Reintento inteligente desde Genesis (Ola 339+ · Alex, 2026-09-17).
  * Cuándo: una tarea quedó en estado fallida / bloqueada / sin_cambios y Alex le da
  * al botón «Reintentar» (o «Reintentar útiles»). En vez de volver a lanzar a ciegas:
  *  1) se descarta si es INÚTIL — duplicada (el mismo `titulo` ya existe en otra
@@ -481,7 +481,7 @@ export async function resolverNombreColaActual(
  *  2) si es útil se re-encola en una cola nueva `cola-<nombre>-rt<id>` con la tarea
  *     en `pendiente`, un `modelo` distinto al que falló y el MOTIVO del fallo
  *     añadido al prompt (cambio inteligente: el enjambre no repite el error).
- * Devuelve qué se descartó y qué se relanzó, para que el Mando lo pinte honrado.
+ * Devuelve qué se descartó y qué se relanzó, para que Genesis lo pinte honrado.
  */
 export interface PeticionReintentar {
     /** Cola (sin `cola-`). Opcional: si no se especifica, se resuelve automáticamente. */
@@ -574,7 +574,7 @@ export async function reintentarTarea(p: PeticionReintentar): Promise<{
                 objecionDe(revisionesMd, baseId) ??
                 clasificacion.motivo ??
                 p.motivo ??
-                "Reintento inteligente pedido desde el Mando";
+                "Reintento inteligente pedido desde Genesis";
 
             const tareaNueva = reencolar(tareaAnalizar, objecion, progreso);
 
@@ -673,9 +673,9 @@ export async function lanzarAqui(nombre: string, workers: number, extra: string[
     const permitidos = extra.filter((x) => ["--sin-revision", "--reanudar", "--aprobacion"].includes(x));
     // `-u` NO es cosmético: `orquestador_vivo()` del vigilante solo reconoce como
     // orquestador un proceso cuya orden EMPIEZA por un python seguido de `-u`
-    // (scripts/puente/vigilante_logica.py). Sin esa bandera, lo que lanza el Mando es
+    // (scripts/puente/vigilante_logica.py). Sin esa bandera, lo que lanza Genesis es
     // INVISIBLE para el vigilante, que a los noventa segundos lanza un segundo
-    // orquestador sobre la misma cola. Eso pasó en la ola 325: el Mando lanzó a las
+    // orquestador sobre la misma cola. Eso pasó en la ola 325: Genesis lanzó a las
     // 19:34:59 y el vigilante lanzó otro a las 19:35:47, y los dos se pelearon por los
     // arriendos («el arriendo de PS8 ya pertenece a otro medio»), con el doble de
     // memoria en una Mac de 8 GB. La regla de oro es UN orquestador con N trabajadores.

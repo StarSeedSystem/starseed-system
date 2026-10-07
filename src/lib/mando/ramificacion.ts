@@ -1,9 +1,9 @@
 /**
- * Ramificación multiagéntica (Ola 241 · Puente de Mando · solo servidor)
+ * Ramificación multiagéntica (Ola 241 · Genesis · solo servidor)
  * ─────────────────────────────────────────────────────────────────────────────
  * El árbol vivo de cada ola: tareas → dependencias → agente que la escribe (modelo,
  * proveedor, fase, tokens reales, ventana) → revisor → commit. Lo consume la pestaña
- * «Procesos» del Puente de Mando (`ramificacion-agentes.tsx`) y `GET /api/mando/ramificacion`.
+ * «Procesos» de Genesis (`ramificacion-agentes.tsx`) y `GET /api/mando/ramificacion`.
  *
  * Fuentes, en este orden de verdad:
  *  1. Las colas del disco (`olas/cola-*.json`): estructura (tareas, dependencias, títulos).
@@ -428,11 +428,11 @@ export async function construirRamificacion(cuantas = 4, horasBus = 24 * 30): Pr
     ];
     // FRESCURA (2026-09-09). Un latido lo escribe el orquestador mientras vive; cuando el
     // contenedor de la nube se recicla —cada ~35 minutos— el archivo se queda ahí, congelado,
-    // y el Mando seguía contando esos agentes muertos como «en curso». Medido hoy: 12 latidos
+    // y Genesis seguía contando esos agentes muertos como «en curso». Medido hoy: 12 latidos
     // en pantalla con 6 agentes reales, la mitad de una corrida que había muerto media hora
     // antes. `quietoSegundos` es lo que el propio orquestador anota como tiempo sin avance:
     // por encima del umbral, ese agente ya no está trabajando y no se cuenta.
-    // Es la misma honestidad que el resto del Mando: mejor decir 6 que inflar a 12.
+    // Es la misma honestidad que el resto de Genesis: mejor decir 6 que inflar a 12.
     const latidos = todosLosLatidos.filter((l) => (l.quietoSegundos ?? 0) <= LATIDO_FRESCO_S);
     // Indexado por `cola|tarea`: un id solo no basta, porque se repite entre olas.
     const vivoPor = new Map<string, LatidoTarea>();

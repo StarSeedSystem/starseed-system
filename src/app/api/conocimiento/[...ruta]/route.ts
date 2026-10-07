@@ -1,5 +1,5 @@
 /**
- * /api/conocimiento/[...ruta] — API de conocimiento del Mando (FLU1005E · ola 1005F).
+ * /api/conocimiento/[...ruta] — API de conocimiento de Genesis (FLU1005E · ola 1005F).
  *
  * Réplica del subconjunto de Dify que usamos (architecture/puente-propio-flujos.md §4):
  *   GET  /api/conocimiento/datasets

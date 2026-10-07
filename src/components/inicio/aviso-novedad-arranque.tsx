@@ -8,7 +8,7 @@
  * con sesión iniciada, sin bloqueo en ESTA neurona y sin haber elegido nunca
  * una pantalla inicial, aparece a los ~4 s de calma en una página normal —
  * nunca encima del rito de bienvenida/perfil, de Configurar Neurona, del
- * Puente de Mando ni de las rutas de acceso, llamada o vivo.
+ * Genesis ni de las rutas de acceso, llamada o vivo.
  *
  * Persistencia entre medios (2026-09-29): la respuesta viaja con la CUENTA (una novedad se anuncia
  * una vez por cuenta, no una vez por medio: localhost, Vercel, PWA y Tauri ya no la repiten) y la

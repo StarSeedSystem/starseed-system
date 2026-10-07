@@ -1,5 +1,5 @@
 /**
- * Lector de agentes y sesiones del Centro de Mando (Ola 238 · solo servidor)
+ * Lector de agentes y sesiones de Genesis (Ola 238 · solo servidor)
  * ─────────────────────────────────────────────────────────────────────────────
  * Junta en una sola vista quién está trabajando en la neurona:
  *  1. Sesiones de Hermes (SQLite `~/.hermes/state.db`, en SOLO LECTURA).
@@ -8,7 +8,7 @@
  *  3. Cada orquestador vivo del enjambre como una sesión más.
  *  4. Procesos vivos (`ps`): orquestadores, agentes `opencode run` y servidor.
  *
- * Cada bloque va envuelto en try/catch: un fallo en Hermes jamás deja al Mando
+ * Cada bloque va envuelto en try/catch: un fallo en Hermes jamás deja a Genesis
  * sin las demás fuentes. Nunca se devuelven claves ni rutas absolutas del
  * usuario: solo enlaces locales (127.0.0.1) y textos recortados.
  */
@@ -25,7 +25,7 @@ const ejecutar = promisify(execFile);
 /** Raíz del repositorio (en Next.js `process.cwd()` apunta al proyecto). */
 const RAIZ = raizDelProyecto();
 
-/** Sesión normalizada de un agente del Mando. */
+/** Sesión normalizada de un agente de Genesis. */
 export interface SesionAgente {
     id: string;
     medio: "hermes" | "claude" | "enjambre";
@@ -205,7 +205,7 @@ async function listarProcesos(): Promise<ProcesoVivo[]> {
     }
 }
 
-/** Clasifica las líneas de `ps` en los tipos que interesan al Mando. */
+/** Clasifica las líneas de `ps` en los tipos que interesan a Genesis. */
 function clasificarProcesos(salida: string): ProcesoVivo[] {
     const vivos: ProcesoVivo[] = [];
     for (const linea of salida.split("\n")) {

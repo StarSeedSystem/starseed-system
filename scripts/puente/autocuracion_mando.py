@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Autocuración del Puente de Mando en la Mac: se repara solo, sin que nadie lo pida.
+"""Autocuración de Genesis en la Mac: se repara solo, sin que nadie lo pida.
 
-Alex (2026-10-05, 02:15): «de nuevo no carga el puente de mando, eso debería el propio
+Alex (2026-10-05, 02:15): «de nuevo no carga Genesis, eso debería el propio
 puente autorrepararse sin tener que pedírtelo aquí, directo del puente debería
 automáticamente repararse y funcionar».
 
-Había vigilantes de todo menos del propio Mando. Este módulo cubre lo que sí se puede
+Había vigilantes de todo menos del propio Genesis. Este módulo cubre lo que sí se puede
 arreglar desde la máquina (lo de la pestaña lo arregla `src/lib/mando/autocuracion-pagina.ts`):
 
 1. **El servidor no responde.** En cada pasada del vigía de medidores (cada 120 s) se sondea
@@ -13,19 +13,19 @@ arreglar desde la máquina (lo de la pestaña lo arregla `src/lib/mando/autocura
    reconstrucción reiniciándolo a propósito, se reinicia con `reconstruir_mando.reiniciar_mando()`
    —el mismo camino, con su cerrojo, que usa la publicación— y como mucho una vez cada 10 min.
 2. **El disco se queda corto.** Por debajo de 6 GB libres se limpia lo regenerable con la
-   MISMA lista blanca del Mando (`POST /api/mando/almacenamiento {accion: "limpiar"}`):
+   MISMA lista blanca de Genesis (`POST /api/mando/almacenamiento {accion: "limpiar"}`):
    cachés de npm, Playwright, registros de Drive y de olas viejas. La caché de builds de Next
    solo se toca por debajo de 3 GB, porque sin ella la siguiente compilación tarda mucho más.
    La publicación usa la misma función antes de rendirse por falta de sitio.
 3. **Trabajadores parados con trabajo desatascable.** (04:05, Alex: «aún no funciona, solo hay 1
    agente».) Quedaba UN agente porque todo lo demás esperaba a dependencias rechazadas que no
    llegarán nunca, y la decisión de desatascarlas (`asignar_huecos.decidir`, el botón
-   «Reintentar con cambio automático» del Mando) estaba preparada sin que nadie la aplicara.
+   «Reintentar con cambio automático» de Genesis) estaba preparada sin que nadie la aplicara.
    Ahora, si hay huecos libres y tareas que meter, se aplica sola (como mucho cada 5 min) y se
    avisa. `decidir` ya respeta la pausa, la conversación de voz y el disco.
 4. **Más capacidad fuera de la Mac.** (12:40, Alex: «de nuevo solo hay 3 activos… sin que te
    tenga que decir cada vez desde aquí».) Cada 30 min se hace lo mismo que el botón «Buscar
-   más capacidad» del Mando (`buscar_capacidad.buscar`), sin sondear los medios lentos: si la
+   más capacidad» de Genesis (`buscar_capacidad.buscar`), sin sondear los medios lentos: si la
    nube tiene sitio y trabajo que pueda coger —también el que solo agotó sus envíos con los
    proveedores saturados—, se lanza. Si suma agentes, lo dice en el Chat Director.
 5. **Traer la nube.** (18:40, Alex: «trae la nube y en vez de borrar ramas que se corrijan,
@@ -35,7 +35,7 @@ arreglar desde la máquina (lo de la pestaña lo arregla `src/lib/mando/autocura
    desde su rama; lo demás se pregunta en el Chat Director. Nunca borra una rama.
 
 6. **Enjambre atascado esperando proveedores que ya volvieron.** (2026-10-06, 22:56, Alex:
-   «los agentes y procesos están detenidos… el puente de mando debería autorrepararse usando
+   «los agentes y procesos están detenidos… Genesis debería autorrepararse usando
    los directores».) Un orquestador vivo desde las 18:10 tenía a sus tres trabajadores
    «esperando proveedor» 40 min con apinex, freellmapi y Google respondiendo a la sonda: sus
    vetos en memoria no caducaban y la marca «sin cupo» de Google en la salud era vieja. Ahora,
@@ -47,7 +47,7 @@ arreglar desde la máquina (lo de la pestaña lo arregla `src/lib/mando/autocura
    se dice cuándo vuelve el primero y no se toca nada: esperar ahí no es un fallo.
 
 `revisar(forzar=True)` hace todo lo de arriba YA, sin respetar los tiempos mínimos: es lo que
-lanza el botón «Reactivar directores» del Mando (`scripts/puente/reactivar_mando.py`).
+lanza el botón «Reactivar directores» de Genesis (`scripts/puente/reactivar_mando.py`).
 
 Todo lo que hace queda en `~/.starseed/autocuracion-mando.json` y en el Chat Director.
 Las decisiones son funciones PURAS (`decidir_reinicio`, `ids_a_limpiar`) con sus pruebas.
@@ -94,7 +94,7 @@ LIMPIABLES = ("npm-cache", "playwright", "drivefs-logs", "olas-logs", "node-cach
 #: La caché de builds de Next: solo en disco crítico.
 LIMPIABLES_CRITICO = ("next-cache",)
 
-#: Pasos de una publicación en los que el Mando se para o se reinicia a propósito.
+#: Pasos de una publicación en los que Genesis se para o se reinicia a propósito.
 PASOS_QUE_LO_PARAN = ("build", "push", "verificar")
 
 
@@ -102,7 +102,7 @@ PASOS_QUE_LO_PARAN = ("build", "push", "verificar")
 
 def decidir_reinicio(sondas_ok, ahora, ultimo_reinicio, publicacion_en_marcha=False,
                      minimo_s=REINICIO_MINIMO_S):
-    """PURA. ¿Hay que reiniciar el Mando? Devuelve (sí/no, por qué).
+    """PURA. ¿Hay que reiniciar Genesis? Devuelve (sí/no, por qué).
 
     `sondas_ok`: lista de booleanos de esta pasada (True = respondió).
     """
@@ -126,7 +126,7 @@ def ids_a_limpiar(libre_gb, aviso_gb=DISCO_AVISO_GB, critico_gb=DISCO_CRITICO_GB
 
 
 def publicacion_en_marcha(datos):
-    """PURA. ¿La publicación está en un paso que para o reinicia el Mando?"""
+    """PURA. ¿La publicación está en un paso que para o reinicia Genesis?"""
     if not isinstance(datos, dict) or datos.get("estado") != "corriendo":
         return False
     for paso in datos.get("pasos") or []:
@@ -348,7 +348,7 @@ def _guardar(datos):
 
 
 def sondear(url=None, tope_s=TOPE_SONDA_S):
-    """True si el Mando contesta 2xx a una lectura ligera."""
+    """True si Genesis contesta 2xx a una lectura ligera."""
     try:
         with urllib.request.urlopen(url or (MANDO + "/api/mando/latido"), timeout=tope_s) as r:
             return 200 <= r.status < 300
@@ -365,7 +365,7 @@ def espacio_libre_gb(raiz=RAIZ):
 
 
 def limpiar(ids, tope_s=120):
-    """Pide al Mando que limpie esos regenerables con SU lista blanca. Devuelve su respuesta."""
+    """Pide a Genesis que limpie esos regenerables con SU lista blanca. Devuelve su respuesta."""
     if not ids:
         return {"ok": True, "limpiados": [], "detalle": "nada que limpiar"}
     cuerpo = json.dumps({"accion": "limpiar", "ids": list(ids)}).encode("utf-8")
@@ -375,7 +375,7 @@ def limpiar(ids, tope_s=120):
         with urllib.request.urlopen(req, timeout=tope_s) as r:
             return json.loads(r.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError) as e:
-        return {"ok": False, "limpiados": [], "detalle": "el Mando no pudo limpiar: %s" % e}
+        return {"ok": False, "limpiados": [], "detalle": "Genesis no pudo limpiar: %s" % e}
 
 
 def liberar_disco(minimo_gb, raiz=RAIZ):
@@ -414,7 +414,7 @@ def _reiniciar():
 
 
 def _asignar():
-    """(decisión, aplicar) de `asignar_huecos`: la misma lógica que el botón del Mando."""
+    """(decisión, aplicar) de `asignar_huecos`: la misma lógica que el botón de Genesis."""
     if DIRECTORIO not in sys.path:
         sys.path.insert(0, DIRECTORIO)
     import asignar_huecos
@@ -662,10 +662,10 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
         try:
             reiniciar_fn()
             estado["ultimo_reinicio"] = ahora
-            hechos.append("Mando reiniciado: %s" % porque)
-            avisar_fn("Autocuración: el Mando %s y lo he reiniciado solo." % porque)
+            hechos.append("Genesis reiniciado: %s" % porque)
+            avisar_fn("Autocuración: Genesis %s y lo he reiniciado solo." % porque)
         except Exception as e:
-            hechos.append("no pude reiniciar el Mando: %s" % e)
+            hechos.append("no pude reiniciar Genesis: %s" % e)
 
     libre = libre_fn()
     ids = ids_a_limpiar(libre)
@@ -691,7 +691,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
         except Exception as e:
             hechos.append("no pude llenar los huecos: %s: %s" % (type(e).__name__, e))
 
-    # Más capacidad fuera de la Mac (la nube), como el botón del Mando, cada 30 min.
+    # Más capacidad fuera de la Mac (la nube), como el botón de Genesis, cada 30 min.
     if any(sondas):
         toca, _porque_b = decidir_busqueda(ahora, None if forzar else estado.get("ultima_busqueda"))
         if toca:
@@ -722,7 +722,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             r = servicios_fn() or {}
             if r.get("estado") in ("reparado", "fallo"):
                 hechos.append("servicios: %s" % r.get("detalle"))
-                avisar_fn("Autocuración: servicios del Mando — %s." % r.get("detalle"))
+                avisar_fn("Autocuración: servicios de Genesis — %s." % r.get("detalle"))
         except Exception as e:
             hechos.append("no pude revisar los servicios: %s: %s" % (type(e).__name__, e))
 

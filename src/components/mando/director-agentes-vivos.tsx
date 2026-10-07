@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * Pestaña Director del Mando (1/3 · p318F) — agentes en vivo por fase honesta.
+ * Pestaña Director de Genesis (1/3 · p318F) — agentes en vivo por fase honesta.
  * Cabecera «N vivos · N esperando aprobación · N colgados» (vivos = escribiendo +
  * verificando + revisando; esperando aprobación NUNCA cuenta como colgado) y una
  * lista con id, fase, modelo·proveedor, KB y minutos.
  *
  * `AgenteVivo` no lleva la cola del latido (`latidos-*.json` guarda las tareas
  * por id, sin nombre de cola — ver `director-fuentes.ts:leerLatidos`), así que
- * Aprobar/Rechazar/Soltar viajan con `nombre: ""` y el Mando devuelve el error
+ * Aprobar/Rechazar/Soltar viajan con `nombre: ""` y Genesis devuelve el error
  * real si le falta ese dato; llevar la cola hasta aquí es la próxima tarea.
  */
 
@@ -39,7 +39,7 @@ async function ordenColas(accion: string, tarea: string, extra: Record<string, u
         const cuerpo = (await r.json()) as { ok?: boolean; detalle?: string; error?: string };
         return { ok: Boolean(cuerpo.ok), detalle: cuerpo.detalle ?? cuerpo.error ?? `HTTP ${r.status}` };
     } catch {
-        return { ok: false, detalle: "No se pudo hablar con el Mando." };
+        return { ok: false, detalle: "No se pudo hablar con Genesis." };
     }
 }
 

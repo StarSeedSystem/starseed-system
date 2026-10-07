@@ -2,7 +2,7 @@
 
 // src/components/mando/linea-tiempo.tsx
 // -----------------------------------------------------------------------------
-// Línea de tiempo horizontal de una tarea (Ola 232 · Centro de Mando).
+// Línea de tiempo horizontal de una tarea (Ola 232 · Genesis).
 //
 // Dibuja un carril por tarea con sus hitos (inicio → avisos → commit /
 // bloqueante / fallo), ordenados cronológicamente, con la duración calculada

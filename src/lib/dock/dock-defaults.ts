@@ -74,7 +74,7 @@ export const DOCK_DEFAULTS_VERSION = 22;
  * sin esta garantía no aparecería en el dock de nadie.
  * v16 (Ola 228) añade `voces`: la página Voces es nueva y sin esta garantía
  * no aparecería en el dock de las cuentas ya existentes.
- * v17 (Ola 231) añade `mando`: el Puente de Mando es nuevo y sin esta
+ * v17 (Ola 231) añade `mando`: Genesis es nuevo y sin esta
  * garantía no aparecería en el dock de las cuentas ya existentes.
  * v18 (Ola 234) añade `mundo-avatares`: la escena 3D de los avatares es nueva
  * y sin esta garantía no aparecería en el dock de las cuentas ya existentes.
@@ -139,7 +139,7 @@ const FALLBACK_SEEDS: Record<string, DockItemLike> = {
     color: 'purple', enabled: true, origin: 'preset',
   },
   mando: {
-    id: 'mando', label: 'Mando', iconKey: 'Gauge', path: '/mando',
+    id: 'mando', label: 'Genesis', iconKey: 'Gauge', path: '/genesis',
     color: 'amber', enabled: true, origin: 'preset',
   },
   'mundo-avatares': {
@@ -220,6 +220,27 @@ export function parseDockPayload(input: unknown): { items: DockItemLike[] | null
 }
 
 /**
+ * (2026-10-07) El Puente de Mando pasa a llamarse **Genesis** y su página a `/genesis`.
+ * El botón guardado de cada cuenta (id `mando`, que NO cambia) se renombra aquí, en TODOS
+ * los payloads y sin subir DOCK_DEFAULTS_VERSION: subirla volvería a encender los botones
+ * que cada persona apagó. Solo se tocan los valores de fábrica viejos; si alguien le puso
+ * otra etiqueta o ruta a su botón, se respeta. Pura e idempotente.
+ */
+export function renombrarMandoAGenesis(items: DockItemLike[]): { items: DockItemLike[]; changed: boolean } {
+  let changed = false;
+  const next = items.map((it) => {
+    if (it.id !== 'mando') return it;
+    const cambios: Record<string, unknown> = {};
+    if (it.label === 'Mando' || it.label === 'Puente de Mando') cambios.label = 'Genesis';
+    if (it.path === '/mando') cambios.path = '/genesis';
+    if (Object.keys(cambios).length === 0) return it;
+    changed = true;
+    return { ...it, ...cambios };
+  });
+  return { items: changed ? next : items, changed };
+}
+
+/**
  * FUNCIÓN ÚNICA de normalización — la llaman TODOS los caminos de entrada del
  * estado del dock: carga local inicial, payload remoto entrante del sync
  * (realtime + pull manual) y cambio de cuenta/perfil. Es pura: no lee ni
@@ -236,12 +257,13 @@ export function normalizeDockState(input: unknown): DockNormalizeResult {
 
   // Payload ya al día: se respeta ÍNTEGRO. Si el usuario apagó un botón después
   // de la garantía, esa es su decisión y aquí no se toca (personalizable de verdad).
+  const renombrado = renombrarMandoAGenesis(items);
   if (defaultsVersion >= DOCK_DEFAULTS_VERSION) {
-    return { payload: { defaultsVersion, items }, changed: false, hadItems: true };
+    return { payload: { defaultsVersion, items: renombrado.items }, changed: renombrado.changed, hadItems: true };
   }
 
   // Payload viejo (o sin versionar): se fuerza presencia + encendido.
-  let next = items;
+  let next = renombrado.items;
   for (const id of DOCK_DEFAULT_ON_IDS) {
     const idx = next.findIndex((it) => it.id === id);
     if (idx === -1) {

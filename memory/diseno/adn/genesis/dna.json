@@ -1,5 +1,5 @@
 {
-  "meta": {"nombre": "Puente de Mando", "slug": "mando", "fuentes": ["memory/diseno/identidades.md"], "fecha": "2026-10-06", "medio_origen": "http://127.0.0.1:9002/mando", "no_copiado": []},
+  "meta": {"nombre": "Genesis", "slug": "genesis", "fuentes": ["memory/diseno/identidades.md"], "fecha": "2026-10-06", "medio_origen": "http://127.0.0.1:9002/genesis", "no_copiado": []},
   "alma": {"una_linea": "Instrumento operativo de cristal con lectura inmediata", "adjetivos": ["cristalino", "operativo", "neon", "denso"], "linaje": "mando-cristal", "distancia_lectura": "0.5-1 m", "energia": {"densidad": 8, "variacion": 5, "contraste": 7, "calidez": 4}},
   "paleta": [
     {"rol": "cian", "hex": "#22D3EE", "nombre": "neon cian", "cobertura": 30, "prohibido": []},
