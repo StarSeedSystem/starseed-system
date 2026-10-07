@@ -26,8 +26,10 @@ _SECRETOS = [
     ("pem", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
     ("next-public-clave", re.compile(
         r"\bNEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|KEY|TOKEN)[A-Z0-9_]*\s*=\s*[\"']?[^\s\"']+")),
+    # (2026-10-07) Un marcador de documentación (`STARSEED_MOTOR_TOKEN=<token>`, `=${VAR}`,
+    # `=$(…)`, `={…}`) no es una clave: frenaba la autopublicación de 81 commits por un texto de ayuda.
     ("variable-entorno", re.compile(
-        r"\b[A-Z][A-Z0-9_]{2,}(?:_KEY|_TOKEN|_SECRET|_PASSWORD)\s*=\s*[\"']?[^\s\"']{8,}")),
+        r"\b[A-Z][A-Z0-9_]{2,}(?:_KEY|_TOKEN|_SECRET|_PASSWORD)\s*=\s*[\"']?(?![<$({%\[])[^\s\"']{8,}")),
 ]
 
 _ENV_NOMBRE = re.compile(r"(^|/)\.env(\.|$)")

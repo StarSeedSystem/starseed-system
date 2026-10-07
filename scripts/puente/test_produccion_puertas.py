@@ -55,6 +55,20 @@ def test_escanear_ignora_eliminadas_y_contexto():
     assert pp.escanear_secretos(diff) == []
 
 
+def test_escanear_no_confunde_marcadores_de_documentacion_con_claves():
+    # (2026-10-07) Un texto de ayuda frenaba la autopublicación: «STARSEED_MOTOR_TOKEN=<token…».
+    diff = _diff("src/lib/mando/motores.ts", [
+        '"(una línea STARSEED_MOTOR_TOKEN=<token… Se enseña una sola vez"',
+        "OPENAI_API_KEY=${OPENAI_API_KEY}",
+        "GITHUB_TOKEN=$(gh auth token)",
+        "STRIPE_SECRET_KEY={{ secrets.STRIPE }}",
+    ])
+    assert [h for h in pp.escanear_secretos(diff) if h["tipo"] == "variable-entorno"] == []
+    # …pero un valor real sigue frenando.
+    real = _diff("src/a.ts", ["MOTOR_TOKEN=abc123def456ghi"])
+    assert [h["tipo"] for h in pp.escanear_secretos(real)] == ["variable-entorno"]
+
+
 def test_migracion_destructiva():
     assert pp.migracion_destructiva("DROP TABLE users;")[0] is True
     assert pp.migracion_destructiva("truncate t;")[0] is True
