@@ -35,27 +35,29 @@ def interpretar_rpc(resultado: dict, ahora: datetime | None = None) -> list[dict
     # Construir diccionario de entradas
     entradas = {}
     if isinstance(raw, dict):
-        # Caso rateLimitsByLimitId
-        for k, v in raw.items():
-            if isinstance(v, dict) and ("primary" in v or "secondary" in v or "limitId" in v):
-                key_str = str(k) if k is not None else "codex"
-                entradas[key_str] = v
-            elif isinstance(v, dict) and ("usedPercent" in v or "resetsAt" in v):
-                entradas[str(k) if str(k) != "codex" else "codex"] = v
-        # Si raw es una entrada única (rateLimits) envuelta en dict sin clave de id
-        if not entradas and (isinstance(raw.get("limitId"), str) or ("primary" in raw and isinstance(raw, dict))):
+        # Si parece una entrada única (rateLimits o similar con primary/limitId a nivel superior)
+        if isinstance(raw.get("limitId"), str) or ("primary" in raw and isinstance(raw.get("primary"), dict)):
             lid_raw = raw.get("limitId", "codex")
             limit_id_str = str(lid_raw) if isinstance(lid_raw, str) else "codex"
             entradas = {limit_id_str: raw}
-        # Si aún no tenemos entradas y raw es un dict simple con datos
-        if not entradas and isinstance(raw, dict) and ("primary" in raw or "limitId" in raw):
-            # Evitar que raw sea el dict original con rateLimits como clave
-            pass
-        # Si raw es un dict que NO es rateLimitsByLimitId pero tiene una clave única con datos
-        if not entradas and isinstance(raw, dict) and len(raw) == 1:
-            first_key, first_val = next(iter(raw.items()))
-            if isinstance(first_val, dict) and "primary" in first_val:
-                entradas = {str(first_key): first_val}
+        else:
+            # Caso rateLimitsByLimitId: los valores son entradas individuales
+            for k, v in raw.items():
+                if isinstance(v, dict) and ("primary" in v or "secondary" in v or "limitId" in v):
+                    key_str = str(k) if k is not None else "codex"
+                    entradas[key_str] = v
+                elif isinstance(v, dict) and ("usedPercent" in v or "resetsAt" in v):
+                    entradas[str(k) if str(k) != "codex" else "codex"] = v
+            # Si aún no tenemos entradas y raw es un dict simple con datos
+            if not entradas and isinstance(raw, dict) and ("primary" in raw or "limitId" in raw):
+                lid_raw = raw.get("limitId", "codex")
+                limit_id_str = str(lid_raw) if isinstance(lid_raw, str) else "codex"
+                entradas = {limit_id_str: raw}
+            # Si raw es un dict que NO es rateLimitsByLimitId pero tiene una clave única con datos
+            if not entradas and isinstance(raw, dict) and len(raw) == 1:
+                first_key, first_val = next(iter(raw.items()))
+                if isinstance(first_val, dict) and ("primary" in first_val or "limitId" in first_val):
+                    entradas = {str(first_key): first_val}
     # Si raw es una lista o vacío, sin entradas
     if not isinstance(entradas, dict) or not entradas:
         # Intentar extraer directamente de resultado (rateLimits como entrada única)
@@ -101,7 +103,7 @@ def interpretar_rpc(resultado: dict, ahora: datetime | None = None) -> list[dict
             if resets_at is not None:
                 try:
                     ts = int(resets_at)
-                    fecha = datetime.fromtimestamp(ts, tz=ZoneInfo("UTC")).astimezone()
+                    fecha = datetime.fromtimestamp(ts, tz=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Mexico_City"))
                     reinicia_str = fecha.isoformat()
                 except Exception:
                     pass
@@ -160,7 +162,7 @@ def interpretar_rpc(resultado: dict, ahora: datetime | None = None) -> list[dict
                     pass
         if exp_times:
             exp_times.sort()
-            fecha_vence = datetime.fromtimestamp(exp_times[0], tz=ZoneInfo("UTC")).astimezone()
+            fecha_vence = datetime.fromtimestamp(exp_times[0], tz=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Mexico_City"))
             extras["reinicio_gratis_vence"] = fecha_vence.isoformat()
         # Plan
         plan_type = info.get("planType")
@@ -244,7 +246,7 @@ def interpretar_rollout(lineas, ahora: datetime | None = None) -> list[dict]:
         if resets_at is not None:
             try:
                 ts = int(resets_at)
-                fecha = datetime.fromtimestamp(ts, tz=ZoneInfo("UTC")).astimezone()
+                fecha = datetime.fromtimestamp(ts, tz=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Mexico_City"))
                 reinicia_str = fecha.isoformat()
             except Exception:
                 pass
