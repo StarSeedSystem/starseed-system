@@ -148,6 +148,7 @@ def resumen(_d):
         "memoria": lambda: medidor("memoria", 0),
         "disco": lambda: medidor("disco", 0),
         "credito": lambda: medidor("credito-claude", 0),
+        "creditos": lambda: medidor("creditos", 0),
         "publicacion": publicacion,
         "servidor": servidor,
         "chat": lambda: chat(12),

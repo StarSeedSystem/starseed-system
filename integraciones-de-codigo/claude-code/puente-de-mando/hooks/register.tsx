@@ -331,6 +331,7 @@ export const register: Register = on => {
           {medidorLinea('Olas', r.olas)}
           {medidorLinea('Sin publicar', r['sin-publicar'])}
           {medidorLinea('Crédito Claude', r.credito)}
+          {medidorLinea('Créditos de pago', r.creditos)}
           <Text wrap="truncate-end"><Text bold>Publicación: </Text>{paso(r.publicacion)}</Text>
           <Text dimColor wrap="truncate-end">{textoServidor(r.servidor).split('\n')[1] ?? ''}</Text>
           <Text> </Text>
@@ -512,6 +513,7 @@ export const register: Register = on => {
       cuerpo = (
         <Box flexDirection="column">
           {medidorLinea('Crédito Claude', r.credito)}
+          {medidorLinea('Créditos de pago', r.creditos)}
           {medidorLinea('Memoria', r.memoria)}
           {medidorLinea('Disco', r.disco)}
           <Text wrap="wrap">

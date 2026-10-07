@@ -103,6 +103,7 @@ export type ResumenMando = {
   memoria?: MedidorMando
   disco?: MedidorMando
   credito?: MedidorMando
+  creditos?: MedidorMando
   publicacion?: PublicacionMando
   servidor?: ServidorMando
   chat?: MensajeMando[]

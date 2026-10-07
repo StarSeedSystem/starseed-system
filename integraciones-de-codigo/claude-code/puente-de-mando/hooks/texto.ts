@@ -17,7 +17,7 @@ export const PESTANAS = [
 /** Medidores del Mando que la herramienta `medidor` acepta. */
 export const CLAVES_MEDIDOR = [
   'en-curso', 'agentes', 'listas', 'bloqueadas', 'sin-publicar', 'proveedores', 'contenedores',
-  'tokens', 'integradas', 'memoria', 'disco', 'ola-activa', 'credito-claude',
+  'tokens', 'integradas', 'memoria', 'disco', 'ola-activa', 'credito-claude', 'creditos',
 ] as const
 
 /** ¿La fila espera a otra tarea? Entonces se arregla la dependencia, no esta. */
@@ -132,6 +132,7 @@ export function textoResumen(r: ResumenMando): string {
     lineaMedidor('Olas', r.olas),
     lineaMedidor('Sin publicar', r['sin-publicar']),
     lineaMedidor('Crédito Claude', r.credito),
+    lineaMedidor('Créditos de pago', r.creditos),
     textoPublicacion(r.publicacion),
     textoServidor(r.servidor),
     `Bandeja de claude-cowork: ${r.bandeja?.length ?? 0} pendiente(s)`,
