@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 08:40:15 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 17:42:17 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,63 +16,35 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 19 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 36 |
-| HEAD | `fcd9b6d2 chore(memoria): aprendizaje de la ola auto-1007-012735` |
-| Sin publicar | 76 commits |
+| HEAD | `09a24f0b chore(memoria): aprendizaje de la ola auto-1007-152551` |
+| Sin publicar | 9 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1007-012735.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1007-152551.json`, hace 6s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `PT1008F` | hecho | nvidia/moonshotai/kimi-k3 | 3 min | 193 s | 130323 |
-| `FLU1005G` | hecho | nvidia/moonshotai/kimi-k3 | 25 min | 1515 s | 101425 |
-| `ES1010Ps` | hecho | nvidia/moonshotai/kimi-k3 | 46 min | 2775 s | 300 |
-| `RSC1006Is` | hecho | nvidia/moonshotai/kimi-k3 | 48 min | 2859 s | 3755 |
-| `PRD1005R` | hecho | codex/gpt-5.6-sol | 49 min | 2934 s | 2653049 |
-| `PRD1005J` | hecho | nvidia/moonshotai/kimi-k3 | 50 min | 3022 s | 65883 |
-| `RSC1006Fs` | hecho | - | 53 min | 3163 s | 0 |
-| `FLU1005I` | hecho | freellmapi/auto | 98 min | 5896 s | 90476 |
-| `PRD1005K` | hecho | freellmapi/auto | 99 min | 5926 s | 168 |
-| `FLU1005F` | hecho | freellmapi/auto | 100 min | 5997 s | 10357 |
-| `ES1010P` | hecho | nvidia/moonshotai/kimi-k3 | 114 min | 6842 s | 113996 |
-| `FLU1005D` | hecho | freellmapi/auto | 124 min | 7449 s | 82377 |
-| `ES1010Hb` | hecho | nvidia/moonshotai/kimi-k3 | 130 min | 7822 s | 98053 |
-| `ES1010Nb` | hecho | freellmapi/auto | 149 min | 8917 s | 68591 |
-| `RSC1006J` | hecho | freellmapi/auto | 162 min | 9721 s | 6698 |
-| `RSC1006I` | hecho | nvidia/moonshotai/kimi-k3 | 165 min | 9908 s | 68366 |
-| `DR1006-1` | hecho | freellmapi/auto | 174 min | 10453 s | 94748 |
-| `RSC1006H` | hecho | freellmapi/auto | 174 min | 10455 s | 64900 |
-| `p318Jc` | hecho | freellmapi/auto | 182 min | 10924 s | 535006 |
-| `RSC1006G` | hecho | freellmapi/auto | 195 min | 11701 s | 425 |
-| `RSC1006F` | hecho | nvidia/moonshotai/kimi-k3 | 195 min | 11725 s | 38313 |
-| `DR0919-1` | hecho | nvidia/moonshotai/kimi-k3 | 209 min | 12536 s | 100815 |
-| `RSC1006B` | hecho | nvidia/moonshotai/kimi-k3 | 212 min | 12713 s | 48351 |
-| `RSC1006D` | hecho | freellmapi/auto | 219 min | 13155 s | 4691 |
-| `PRD1005H` | hecho | freellmapi/auto | 223 min | 13387 s | 189691 |
-| `RSC1006Qe` | hecho | nvidia/moonshotai/kimi-k3 | 224 min | 13443 s | 98523 |
-| `FLU1005B` | hecho | nvidia/moonshotai/kimi-k3 | 227 min | 13648 s | 89982 |
-| `RSC1006Cs` | hecho | freellmapi/auto | 247 min | 14811 s | 14495 |
-| `ES1010N` | hecho | freellmapi/auto | 252 min | 15124 s | 85036 |
-| `ES1010K` | hecho | freellmapi/auto | 254 min | 15211 s | 190774 |
-| `ES1010J` | hecho | nvidia/moonshotai/kimi-k3 | 257 min | 15436 s | 108829 |
-| `ES1010E` | hecho | nvidia/moonshotai/kimi-k3 | 280 min | 16791 s | 101488 |
-| `ES1010I` | hecho | nvidia/moonshotai/kimi-k3 | 303 min | 18174 s | 47899 |
-| `ES1010H` | hecho | freellmapi/auto | 309 min | 18553 s | 2783 |
-| `ES1010O` | hecho | nvidia/moonshotai/kimi-k3 | 312 min | 18708 s | 103621 |
-| `PT1007Ebs` | hecho | nvidia/moonshotai/kimi-k3 | 316 min | 18968 s | 35269 |
-| `ES1010M` | hecho | nvidia/moonshotai/kimi-k3 | 317 min | 18990 s | 74980 |
-| `ES1010G` | hecho | nvidia/moonshotai/kimi-k3 | 334 min | 20038 s | 83866 |
-| `ES1010F` | hecho | nvidia/moonshotai/kimi-k3 | 342 min | 20515 s | 73472 |
-| `ES1010Dm` | hecho | nvidia/moonshotai/kimi-k3 | 343 min | 20569 s | 53151 |
-| `ES1010C` | hecho | nvidia/moonshotai/kimi-k3 | 359 min | 21518 s | 45079 |
-| `ES1010B` | hecho | nvidia/moonshotai/kimi-k3 | 359 min | 21527 s | 41947 |
-| `SEC1007Ab` | hecho | freellmapi/auto | 367 min | 22025 s | 54805 |
-| `PT1007Eb` | hecho | codex/gpt-5.6-sol | 376 min | 22571 s | 347634 |
-| `ES1010A` | hecho | freellmapi/auto | 377 min | 22619 s | 54247 |
-| `RTPT1007Cs` | hecho | nvidia/moonshotai/kimi-k3 | 389 min | 23342 s | 31236 |
-| `RTPT1007C` | hecho | codex/gpt-5.6-sol | 400 min | 24003 s | 551198 |
-| `RSC1006Es` | hecho | codex/gpt-5.6-sol | 400 min | 24009 s | 577465 |
-| `RTMC1007As` | hecho | codex/gpt-5.6-sol | 414 min | 24861 s | 276485 |
+| `OR1007C` | hecho | freellmapi/auto | 4 min | 233 s | 150066 |
+| `OR1007B` | hecho | apinex/free/deepseek-v4-pro-0813 | 29 min | 1764 s | 2381 |
+| `OR1007H` | hecho | apinex/free/deepseek-v4-pro-0813 | 31 min | 1886 s | 14166 |
+| `OR1007I` | hecho | apinex/free/glm-5.3-flash | 35 min | 2126 s | 1038 |
+| `OR1007E` | hecho | apinex/free/glm-5.3-flash | 36 min | 2185 s | 19808 |
+| `OR1007F` | hecho | apinex/free/deepseek-v4-pro-0813 | 41 min | 2459 s | 710 |
+| `RSC1006Bs` | hecho | codex/gpt-5.6-sol | 52 min | 3103 s | 613115 |
+| `OR1007A` | hecho | codex/gpt-5.6-sol | 52 min | 3105 s | 467044 |
+| `OR1007D` | hecho | codex/gpt-5.6-sol | 69 min | 4161 s | 44388 |
+| `FLU1005F` | hecho | codex/gpt-5.6-sol | 73 min | 4406 s | 835416 |
+| `RSC1006G` | hecho | codex/gpt-5.6-sol | 81 min | 4865 s | 373916 |
+| `RSC1006Is` | hecho | codex/gpt-5.6-sol | 82 min | 4946 s | 222625 |
+| `RSC1006J` | hecho | codex/gpt-5.6-sol | 88 min | 5284 s | 448007 |
+| `PRD1005K` | hecho | freellmapi/auto | 91 min | 5483 s | 83572 |
+| `RSC1006B` | hecho | nvidia/moonshotai/kimi-k3 | 103 min | 6184 s | 65451 |
+| `RSC1006Fs` | hecho | freellmapi/auto | 114 min | 6838 s | 15125 |
+| `RSC1006D` | hecho | freellmapi/auto | 114 min | 6847 s | 6058 |
+| `RSC1006Cs` | hecho | apinex/free/deepseek-v4-flash-0731 | 118 min | 7097 s | 39635 |
+| `ES1010Ps` | hecho | nvidia/z-ai/glm-5.3 | 119 min | 7110 s | 74693 |
+| `ES1010K` | hecho | nvidia/z-ai/glm-5.3 | 123 min | 7360 s | 210171 |
+| `ES1010Hb` | hecho | nvidia/moonshotai/kimi-k3 | 135 min | 8073 s | 146036 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
