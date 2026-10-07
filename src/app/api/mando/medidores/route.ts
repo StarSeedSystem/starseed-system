@@ -21,6 +21,7 @@ import { promisify } from "node:util";
 import { guardianMando } from "@/lib/mando/guardian";
 import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
 import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
+import { leerCreditosPago } from "@/lib/mando/creditos-pago";
 import {
     colaInteligente,
     enjambreEnMarcha,
@@ -742,6 +743,13 @@ export async function GET(peticion: Request): Promise<Response> {
         const limitesClaude = await leerLimitesClaude().catch(() => null);
         return Response.json(
             { detalle: detalleDeMedidor(clave, { limitesClaude }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    if (clave === "creditos") {
+        const creditosPago = await leerCreditosPago().catch(() => null);
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { creditosPago }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
