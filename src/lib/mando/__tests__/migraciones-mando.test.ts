@@ -69,9 +69,50 @@ function noGrantToAnon(sql: string): boolean {
 
 describe("migraciones mando", () => {
   const files = listMandoSql();
+  const sqlCompleto = () => files.map(readSql).join("\n");
 
   it("existe al menos una migración mando", () => {
     expect(files.length).toBeGreaterThan(0);
+  });
+
+  it("define exactamente las ocho tablas del contrato del Mando", () => {
+    expect(tablasConRls(sqlCompleto()).sort()).toEqual([
+      "mando_ambitos",
+      "mando_chat",
+      "mando_enjambres",
+      "mando_eventos",
+      "mando_medidores",
+      "mando_motores",
+      "mando_presupuesto",
+      "mando_tareas",
+    ]);
+  });
+
+  it("mando_capacidad fija search_path y usa security definer", () => {
+    const bloque = sqlCompleto().match(
+      /create or replace function public\.mando_capacidad\([\s\S]*?\$\$;/i,
+    )?.[0];
+    expect(bloque).toBeDefined();
+    expect(bloque).toMatch(/security definer/i);
+    expect(bloque).toMatch(/set\s+search_path\s*=\s*public/i);
+  });
+
+  it("limita mando_eventos mediante su disparador", () => {
+    const sql = sqlCompleto();
+    expect(sql).toMatch(/create or replace function public\.mando_eventos_tope\(/i);
+    expect(sql).toMatch(
+      /create or replace trigger\s+\w+\s+after insert on public\.mando_eventos[\s\S]*?execute function public\.mando_eventos_tope\(\)/i,
+    );
+  });
+
+  it("indexa las consultas por ámbito de eventos y chat", () => {
+    const sql = sqlCompleto();
+    expect(sql).toMatch(
+      /create index if not exists\s+\w+\s+on public\.mando_eventos\s*\(\s*ambito_id\s*,\s*t\s*\)/i,
+    );
+    expect(sql).toMatch(
+      /create index if not exists\s+\w+\s+on public\.mando_chat\s*\(\s*ambito_id\s*\)/i,
+    );
   });
 
   for (const file of files) {

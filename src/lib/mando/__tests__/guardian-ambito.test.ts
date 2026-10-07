@@ -14,8 +14,16 @@ describe("decidirAcceso", () => {
         expect(decidirAcceso({ bandera: false, habilitado: true, produccion: false, esLocal: false, hayUsuario: false, tieneCapacidad: false, rpcFallo: false })).toBe(200);
     });
 
+    it("con bandera, no producción pasa sin sesión → 200", () => {
+        expect(decidirAcceso({ bandera: true, habilitado: true, produccion: false, esLocal: false, hayUsuario: false, tieneCapacidad: false, rpcFallo: false })).toBe(200);
+    });
+
     it("producción no local sin sesión → 401", () => {
         expect(decidirAcceso({ bandera: false, habilitado: true, produccion: true, esLocal: false, hayUsuario: false, tieneCapacidad: false, rpcFallo: false })).toBe(401);
+    });
+
+    it("con bandera, producción no local sin sesión → 401", () => {
+        expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: false, tieneCapacidad: false, rpcFallo: false })).toBe(401);
     });
 
     it("hoy: sin bandera, producción no local con sesión → 200", () => {
