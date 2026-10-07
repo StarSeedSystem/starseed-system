@@ -277,8 +277,12 @@ def _nuevo_lote(m, est, ahora):
             if r.startswith("supabase/migrations/") and r.endswith(".sql") and not r.endswith("_rollback.sql")}
     bloqueos = analizar_lote(diff, migs)
     if bloqueos:
-        m.avisar("Autopublicación frenada (%s): %s." % (head[:8], "; ".join(bloqueos)), tipo="aviso")
-        return vetar(est, head, "análisis: " + "; ".join(bloqueos), ahora)
+        motivo = "análisis: " + "; ".join(bloqueos)
+        # (2026-10-07) El mismo bloqueo con cada commit nuevo del enjambre llenaba el Chat
+        # Director cada 5 min. Se avisa cuando cambia el motivo, no cuando cambia el sha.
+        if not (est.get("fase") == "bloqueado" and est.get("detalle") == motivo):
+            m.avisar("Autopublicación frenada (%s): %s." % (head[:8], "; ".join(bloqueos)), tipo="aviso")
+        return vetar(est, head, motivo, ahora)
     asuntos = m.git(["log", "--format=%s", "origin/main..%s" % head])[1].splitlines()
     if m.jev_frena({"commits": asuntos[:40], "archivos": len(nombres), "pendientes": pendientes}):
         m.avisar("Autopublicación frenada (%s): Jev no ve coherente publicar este lote ahora." % head[:8], tipo="aviso")
@@ -381,8 +385,10 @@ def main(argv=None):
         una_pasada("--json" in argv)
         return 0
     while True:
+        # (2026-10-07) Cada pasada en un proceso nuevo: el servicio vive días y, con los módulos
+        # cargados al arrancar, seguía usando un escáner de secretos ya corregido en el repo.
         try:
-            una_pasada()
+            subprocess.run([sys.executable, os.path.abspath(__file__)], timeout=3600)
         except Exception as e:  # noqa: BLE001 — una pasada rota no tumba al director
             print("[%s] pasada rota: %s: %s" % (time.strftime("%H:%M"), type(e).__name__, e), flush=True)
         time.sleep(300)

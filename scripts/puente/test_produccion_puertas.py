@@ -65,7 +65,8 @@ def test_escanear_no_confunde_marcadores_de_documentacion_con_claves():
     ])
     assert [h for h in pp.escanear_secretos(diff) if h["tipo"] == "variable-entorno"] == []
     # …pero un valor real sigue frenando.
-    real = _diff("src/a.ts", ["MOTOR_TOKEN=abc123def456ghi"])
+    # (el valor se monta en tiempo de ejecución: la autopublicación escanea este mismo archivo)
+    real = _diff("src/a.ts", ["MOTOR_TOKEN=" + "abc123def456ghi"])
     assert [h["tipo"] for h in pp.escanear_secretos(real)] == ["variable-entorno"]
 
 

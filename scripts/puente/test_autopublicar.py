@@ -100,6 +100,16 @@ class Puertas(unittest.TestCase):
         self.assertEqual(m.pushes, [])
         self.assertNotIn(CLAVE_FALSA, " ".join(m.avisos) + str(e))
 
+    def test_el_mismo_bloqueo_no_se_repite_en_el_chat_con_cada_commit(self):
+        diff = "+++ b/src/x.ts\n@@ -0,0 +1 @@\n+const k = '%s'\n" % CLAVE_FALSA
+        m = Falso(diff=diff)
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(len(m.avisos), 1)
+        e = dict(e, vetados={})  # llega un commit nuevo con el mismo problema
+        e = A.pasada(m, e, T0 + 300)
+        self.assertEqual(e["fase"], "bloqueado")
+        self.assertEqual(len(m.avisos), 1)
+
     def test_jev_puede_frenar(self):
         e = A.pasada(Falso(jev=True), {}, T0)
         self.assertEqual((e["fase"], e["detalle"]), ("bloqueado", "Jev frenó el lote"))

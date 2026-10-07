@@ -185,3 +185,24 @@ la cuenta con 24 GB. Corre con su `~/.starseed/env` propio, que Alex pone con
   peticiones. OpenHands y Browser Use nunca se exponen.
 - Ningún recurso fuera de Always Free, ni pasar la cuenta a pago, sin la palabra de Alex.
 - No se apaga ni se cambia el túnel de la Mac hasta que Oracle responda verde 24 h seguidas.
+
+## 11. Estado real (2026-10-07, 16:50 hora de la Mac)
+
+Alex eligió «Crear todo ahora». Se creó con la CLI (`.transfer/oracle/crear.py`, fuera del repo,
+idempotente por nombre; `oracle_desplegar.py` de OR1007G debe reconocer estos MISMOS nombres):
+
+- Región de origen `mx-queretaro-1` (Querétaro), 1 dominio de disponibilidad.
+- Red: VCN `starseed-vcn` (10.0.0.0/16), puerta `starseed-igw`, subred `starseed-publica`
+  (10.0.0.0/24) con la tabla y la lista de seguridad por defecto (solo 22/tcp e ICMP), y un grupo
+  de seguridad por papel: `starseed-nsg-a1` (80, 443/tcp y 8189/udp), `starseed-nsg-turn` (3478
+  tcp/udp, 5349/tcp, 49160–49200/udp) y `starseed-nsg-vigia` (nada más que SSH).
+- **`starseed-a1` RUNNING**: 2 OCPU, 12 GB, 100 GB, Ubuntu 24.04 aarch64, IP pública fija de la
+  máquina en `~/.starseed/oracle.json`. cloud-init base (`.transfer/oracle/cloud-init-a1.yaml`):
+  Docker 29 + compose 2.40, fail2ban, actualizaciones automáticas, swap de 4 GB e iptables con
+  80/443/8189 abiertos y guardados. Usuario `ubuntu`, solo llave `~/.ssh/starseed_oracle_ed25519`.
+- `starseed-turn` y `starseed-vigia` (micro): **«Out of host capacity»** en la región. Un
+  reintento corre en la Mac cada 20 min durante 24 h (`.transfer/oracle/reintentar.sh`, registro
+  `/tmp/oracle-reintentos.log`). Si no llegan, coturn y el vigía van al A1 (hay sitio en §3).
+- Presupuesto `starseed-alerta-1usd`: 1 USD al mes con aviso por correo al 100 % real y previsto.
+- Los límites de servicio de la cuenta (prueba) permiten hasta 41 OCPU de A1: **no se usan**; las
+  guardias de §5 siguen mandando.
