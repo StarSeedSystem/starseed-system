@@ -1,4 +1,4 @@
-# Puente de Mando · StarSeed
+# Genesis · StarSeed
 
 El contexto y el estado vivos están en un solo sitio, y se regeneran solos:
 
