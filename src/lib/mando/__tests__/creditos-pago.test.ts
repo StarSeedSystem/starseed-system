@@ -49,4 +49,50 @@ describe('creditos-pago',()=>{
     const ext=textoExtras(m)
     expect(ext).toContain('bloqueado: rate_limit_reached'); expect(ext).toContain('uso normal cortado'); expect(ext.some(s=>s.includes('reinicio gratis'))).toBe(true)
   })
+  it('resumen con ventana reiniciada cuenta como 0 %',()=>{
+    const m:MedidorCredito={id:'claude',proveedor:'anthropic',nombre:'Claude · plan',tipo:'plan',ventanas:[{id:'sesion',etiqueta:'Sesión',usado_pct:90,reinicia:'2026-10-06T17:00:00-06:00'}],saldo:null}
+    const r=estadoCreditos({version:1,t:'',medidores:{claude:m}},ahora)
+    expect(r[0].resumen).toContain('0 %'); expect(r[0].ventanas[0].usado_pct).toBe(0)
+  })
+  it('resumenCredito acepta ahora opcional y ajusta',()=>{
+    const m:MedidorCredito={id:'x',proveedor:'p',nombre:'N',tipo:'plan',ventanas:[{id:'semana',etiqueta:'Semana',usado_pct:41,reinicia:'2026-10-09T04:00:00-06:00'}],saldo:null}
+    expect(resumenCredito(m,ahora)).toMatch(/41 % semana · reinicia/)
+    const pasado=Date.parse('2026-10-10T10:00:00-06:00')
+    expect(resumenCredito(m,pasado)).toMatch(/0 % semana · reinicia/)
+  })
+  it('reinicia nulo o no fecha válida: sin texto reinicia y minutosParaReinicio null',()=>{
+    const doc:DocCreditos={version:1,t:'',medidores:{claude:{id:'claude',proveedor:'a',nombre:'C',tipo:'plan',ventanas:[{id:'semana',etiqueta:'Semana',usado_pct:30,reinicia:null}],saldo:null,leido:'2026-10-06T16:00:00-06:00',ok:true}}}
+    const r=estadoCreditos(doc,ahora)
+    const v=r[0].ventanas[0]
+    expect(v.reinicia).toBeNull(); expect(v.reiniciada).toBe(false); expect(v.minutosParaReinicio).toBeNull()
+    expect(r[0].resumen).not.toContain('reinicia')
+  })
+  it('reinicia no fecha válida también da null',()=>{
+    const doc:DocCreditos={version:1,t:'',medidores:{claude:{id:'claude',proveedor:'a',nombre:'C',tipo:'plan',ventanas:[{id:'semana',etiqueta:'Semana',usado_pct:30,reinicia:'no-fecha'}],saldo:null,leido:'2026-10-06T16:00:00-06:00',ok:true}}}
+    const r=estadoCreditos(doc,ahora)
+    const v=r[0].ventanas[0]
+    expect(v.reinicia).toBe('no-fecha'); expect(v.reiniciada).toBe(false); expect(v.minutosParaReinicio).toBeNull()
+  })
+  it('medidor ok:false sin ventanas ni saldo tiene tono aviso y resumen sin lectura',()=>{
+    const doc:DocCreditos={version:1,t:'',medidores:{x:{id:'x',proveedor:'p',nombre:'X',tipo:'plan',ventanas:[],saldo:null,leido:'2026-10-06T16:00:00-06:00',ok:false}}}
+    const r=estadoCreditos(doc,ahora)
+    expect(r[0].tono).toBe('aviso'); expect(r[0].resumen).toBe('sin lectura')
+  })
+  it('medidor con error añade textoExtras',()=>{
+    const m:MedidorCredito={id:'y',proveedor:'p',nombre:'Y',tipo:'plan',ventanas:[],saldo:null,error:'falló lectura',ok:false}
+    expect(textoExtras(m)).toContain('error: falló lectura')
+  })
+  it('defensa: ventanas no lista se trata como vacío y sin nombre usa id',()=>{
+    const doc:DocCreditos={version:1,t:'',medidores:{a:{id:'a',proveedor:'p',tipo:'plan',ventanas:'no-lista' as unknown as unknown[]}}}
+    const r=estadoCreditos(doc,ahora)
+    expect(r[0].ventanas).toEqual([])
+    const doc2:DocCreditos={version:1,t:'',medidores:{b:{id:'b',proveedor:'p',tipo:'plan',nombre:undefined as unknown as string}}}
+    const r2=estadoCreditos(doc2,ahora)
+    expect(r2[0].nombre).toBe('b')
+  })
+  it('defensa: medidor mínimo {id, ok:false, error} no lanza',()=>{
+    const doc:DocCreditos={version:1,t:'',medidores:{min:{id:'min',proveedor:'p',tipo:'plan',ventanas:undefined,saldo:null,ok:false,error:'nulo'}}}
+    const r=estadoCreditos(doc,ahora)
+    expect(r[0].id).toBe('min'); expect(r[0].tono).toBe('aviso'); expect(r[0].resumen).toBe('sin lectura'); expect(r[0].textoExtras).toContain('error: nulo')
+  })
 })
