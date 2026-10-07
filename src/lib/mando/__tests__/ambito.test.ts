@@ -197,3 +197,90 @@ describe("constantes", () => {
     ]);
   });
 });
+
+describe("rolDeFilas - filtrado de roles de aplicación", () => {
+  it("ignora dueño, delegado y visitante", () => {
+    expect(rolDeFilas([{ role: "dueño" }])).toBe("visitante");
+    expect(rolDeFilas([{ role: "delegado" }])).toBe("visitante");
+    expect(rolDeFilas([{ role: "visitante" }])).toBe("visitante");
+  });
+
+  it("ignora roles de aplicación mezclados con roles de BD", () => {
+    expect(rolDeFilas([{ role: "dueño" }, { role: "member" }])).toBe("member");
+    expect(rolDeFilas([{ role: "delegado" }, { role: "admin" }])).toBe("admin");
+  });
+});
+
+const ambitoEntidadPrivado: AmbitoMando = {
+  id: "e3",
+  tipo: "entidad",
+  visibilidad: "privado",
+  modo_gobierno: "jerarquico",
+};
+
+describe("capacidadesDe - visibilidad privado", () => {
+  it("entidad privado: moderator vacío", () => {
+    const caps = capacidadesDe({ ambito: ambitoEntidadPrivado, rol: "moderator" });
+    expect(caps.size).toBe(0);
+  });
+
+  it("entidad privado: editor vacío", () => {
+    const caps = capacidadesDe({ ambito: ambitoEntidadPrivado, rol: "editor" });
+    expect(caps.size).toBe(0);
+  });
+
+  it("entidad privado: member vacío", () => {
+    const caps = capacidadesDe({ ambito: ambitoEntidadPrivado, rol: "member" });
+    expect(caps.size).toBe(0);
+  });
+
+  it("entidad privado: viewer vacío", () => {
+    const caps = capacidadesDe({ ambito: ambitoEntidadPrivado, rol: "viewer" });
+    expect(caps.size).toBe(0);
+  });
+
+  it("entidad privado: owner conserva todas", () => {
+    const caps = capacidadesDe({ ambito: ambitoEntidadPrivado, rol: "owner" });
+    for (const c of CAPACIDADES_AMBITO) {
+      expect(caps.has(c)).toBe(true);
+    }
+  });
+
+  it("entidad privado: admin conserva todas menos administrar", () => {
+    const caps = capacidadesDe({ ambito: ambitoEntidadPrivado, rol: "admin" });
+    expect(caps.has("administrar")).toBe(false);
+    for (const c of CAPACIDADES_AMBITO) {
+      if (c !== "administrar") expect(caps.has(c)).toBe(true);
+    }
+  });
+
+  it("persona privado: solo dueño tiene capacidades", () => {
+    const capsDueño = capacidadesDe({ ambito: ambitoPersonaPrivado, rol: "dueño" });
+    expect(capsDueño.size).toBe(CAPACIDADES_AMBITO.length);
+    const capsMember = capacidadesDe({ ambito: ambitoPersonaPrivado, rol: "member" });
+    expect(capsMember.size).toBe(0);
+    const capsViewer = capacidadesDe({ ambito: ambitoPersonaPrivado, rol: "viewer" });
+    expect(capsViewer.size).toBe(0);
+  });
+
+  it("persona privado: delegado conserva delegadas", () => {
+    const delegadas: CapacidadAmbito[] = ["ver-resumen", "chatear"];
+    const caps = capacidadesDe({ ambito: ambitoPersonaPrivado, rol: "delegado", delegadas });
+    expect(caps.has("ver-resumen")).toBe(true);
+    expect(caps.has("chatear")).toBe(true);
+    expect(caps.size).toBe(2);
+  });
+});
+
+describe("capacidadesDe - rama final", () => {
+  it("rol que no encaja → ver-resumen solo si publico", () => {
+    const ambitoPublico: AmbitoMando = { id: "p2", tipo: "persona", visibilidad: "publico", modo_gobierno: "jerarquico" };
+    const capsPublico = capacidadesDe({ ambito: ambitoPublico, rol: "owner" as RolAmbito });
+    expect(capsPublico.has("ver-resumen")).toBe(true);
+    expect(capsPublico.size).toBe(1);
+
+    const ambitoPrivado: AmbitoMando = { id: "p3", tipo: "entidad", visibilidad: "privado", modo_gobierno: "jerarquico" };
+    const capsPrivado = capacidadesDe({ ambito: ambitoPrivado, rol: "dueño" as RolAmbito });
+    expect(capsPrivado.size).toBe(0);
+  });
+});

@@ -110,13 +110,13 @@ export function rolDeFilas(
       tienePending = true;
       continue;
     }
-    const rolValido = r as RolAmbito;
-    if (PRIORIDAD_ROL[rolValido] !== undefined) {
-      const prio = PRIORIDAD_ROL[rolValido];
-      if (prio > mejorPrio) {
-        mejor = rolValido;
-        mejorPrio = prio;
-      }
+    if (!["owner", "admin", "moderator", "editor", "member", "viewer"].includes(r)) {
+      continue;
+    }
+    const prio = PRIORIDAD_ROL[r as RolAmbito];
+    if (prio > mejorPrio) {
+      mejor = r as RolAmbito;
+      mejorPrio = prio;
     }
   }
 
@@ -157,6 +157,17 @@ export function capacidadesDe({
   }
 
   const esPersona = ambito.tipo === "persona";
+
+  if (ambito.visibilidad === "privado") {
+    if (esPersona) {
+      if (rol !== "dueño") return caps;
+    } else {
+      if (rol === "moderator" || rol === "editor" || rol === "member" || rol === "viewer") {
+        return caps;
+      }
+    }
+  }
+
   const esDueñoPersona = esPersona && rol === "dueño";
   const esOwnerEntidad = !esPersona && rol === "owner";
   const esAdminEntidad = !esPersona && rol === "admin";
@@ -183,7 +194,9 @@ export function capacidadesDe({
     caps.add("chatear");
     if (miembrosEncolan) caps.add("encolar");
   } else {
-    caps.add("ver-resumen");
+    if (ambito.visibilidad === "publico") {
+      caps.add("ver-resumen");
+    }
   }
 
   if (ambito.modo_gobierno === "democratico") {
