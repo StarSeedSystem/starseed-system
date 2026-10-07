@@ -92,6 +92,10 @@ class PedirPropuestasTest(unittest.TestCase):
         self.assertEqual(salida[0]["modelos"], ["m1"])
         self.assertEqual(salida[0]["area"], "habilidades")
 
+    def test_respuesta_vacia_se_ignora(self):
+        salida = _mod.pedir_propuestas(["m1"], "r", lambda m, p: "")
+        self.assertEqual(salida, [])
+
     def test_llamar_que_lanza_no_tumba_el_panel(self):
         def llamar(modelo, prompt):
             raise RuntimeError("pasarela colgada")
