@@ -16,42 +16,46 @@ as $$
     when a.tipo = 'persona' then (
       case when a.creado_por = auth.uid() then 'dueño' else 'visitante' end
     )
-    when a.tipo = 'entidad' then coalesce(
-      (
-        -- Rol más alto desde os_memberships (excluyendo pending) por entidad_ref
-        select m.role
+    when a.tipo = 'entidad' then (
+      with roles as (
+        select case lower(m.role)
+          when 'miembro' then 'member'
+          when 'moderador' then 'moderator'
+          else lower(m.role)
+        end as norm_role
         from public.os_memberships m
         where m.group_slug = a.entidad_ref
           and m.user_id = auth.uid()
-          and m.role <> 'pending'
-        order by case m.role
-          when 'owner' then 6
-          when 'admin' then 5
-          when 'moderator' then 4
-          when 'editor' then 3
-          when 'member' then 2
-          when 'viewer' then 1
-        end desc
-        limit 1
-      ),
-      -- Rol más alto desde os_entity_roles (por entity_id::text = entidad_ref)
-      (
-        select r.role
+        union all
+        select case lower(r.role)
+          when 'miembro' then 'member'
+          when 'moderador' then 'moderator'
+          else lower(r.role)
+        end
         from public.os_entity_roles r
         where r.entity_id::text = a.entidad_ref
-          and r.user_id = auth.uid()
-          and r.role <> 'pending'
-        order by case r.role
-          when 'owner' then 6
-          when 'admin' then 5
-          when 'moderator' then 4
-          when 'editor' then 3
-          when 'member' then 2
-          when 'viewer' then 1
-        end desc
-        limit 1
-      ),
-      'visitante'
+          and r.account_id = auth.uid()
+      )
+      select case
+        when exists (select 1 from roles where norm_role <> 'pending')
+        then (
+          select norm_role
+          from roles
+          where norm_role <> 'pending'
+          order by case norm_role
+            when 'owner' then 6
+            when 'admin' then 5
+            when 'moderator' then 4
+            when 'editor' then 3
+            when 'member' then 2
+            when 'viewer' then 1
+          end desc
+          limit 1
+        )
+        when exists (select 1 from roles)
+        then 'pending'
+        else 'visitante'
+      end
     )
     else 'visitante'
   end
@@ -145,7 +149,7 @@ $$;
    ═══════════════════════════════════════════════════════════════════════════ */
 
 -- Vista pública de motores: sin token_hash ni columnas sensibles
-create or replace view public.mando_motores_publica as
+create or replace view public.mando_motores_publica with (security_barrier = true) as
 select
   id,
   ambito_id,
@@ -156,7 +160,11 @@ select
   estado,
   ultimo_reporte,
   creado_por
-from public.mando_motores;
+from public.mando_motores
+where public.mando_capacidad(ambito_id, 'gestionar-motores');
+
+revoke all on public.mando_motores_publica from anon, public;
+grant select on public.mando_motores_publica to authenticated;
 
 -- RLS en mando_ambitos (SELECT con ver-detalle; ver-resumen solo esta tabla)
 do $$ begin execute 'drop policy if exists mando_ambitos_select on public.mando_ambitos'; end $$;
@@ -239,3 +247,5 @@ as $$
       and m.role <> 'pending'
   );
 $$;
+
+revoke all on public.mando_ambitos, public.mando_motores, public.mando_enjambres, public.mando_tareas, public.mando_eventos, public.mando_chat, public.mando_medidores, public.mando_presupuesto from anon;

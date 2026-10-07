@@ -48,6 +48,25 @@ function securityDefinerOk(sql: string): boolean {
   return true;
 }
 
+function noUserIdInOsEntityRoles(sql: string): boolean {
+  return !/os_entity_roles[^;\n]*\buser_id\b/i.test(sql);
+}
+
+function viewsHaveSecurityBarrier(sql: string): boolean {
+  const defs = sql.split(/create (?:or replace )?view/gi);
+  for (let i = 1; i < defs.length; i++) {
+    const beforeAs = defs[i].split(/\bas\b/i)[0];
+    if (!/security_barrier|security_invoker/i.test(beforeAs)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function noGrantToAnon(sql: string): boolean {
+  return !/grant\s+.*\s+to\s+anon\b/i.test(sql);
+}
+
 describe("migraciones mando", () => {
   const files = listMandoSql();
 
@@ -74,6 +93,21 @@ describe("migraciones mando", () => {
       if (/security definer/i.test(sql)) {
         expect(securityDefinerOk(sql)).toBe(true);
       }
+    });
+
+    it(`migración ${file} no usa os_entity_roles con .user_id`, () => {
+      const sql = readSql(file);
+      expect(noUserIdInOsEntityRoles(sql)).toBe(true);
+    });
+
+    it(`migración ${file} todas las vistas llevan security_barrier o security_invoker`, () => {
+      const sql = readSql(file);
+      expect(viewsHaveSecurityBarrier(sql)).toBe(true);
+    });
+
+    it(`migración ${file} no hace grant ... to anon`, () => {
+      const sql = readSql(file);
+      expect(noGrantToAnon(sql)).toBe(true);
     });
   }
 });
