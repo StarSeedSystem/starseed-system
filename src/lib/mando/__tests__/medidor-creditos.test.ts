@@ -77,17 +77,17 @@ describe("medidor creditos", () => {
     const ahora = Date.parse("2026-10-06T18:05:00-06:00");
     const detalle = detalleDeMedidor("creditos", { creditosPago: ejemplo }, ahora);
     const claude = detalle.filas[0];
-    const sesion = claude.ficha.find((f) => f.etiqueta === "Sesión (5 h)");
-    const semana = claude.ficha.find((f) => f.etiqueta === "Semana (todos los modelos)");
+    const sesion = claude.ficha?.find((f) => f.etiqueta === "Sesión (5 h)");
+    const semana = claude.ficha?.find((f) => f.etiqueta === "Semana (todos los modelos)");
     expect(sesion?.valor.startsWith("23 % usado · queda 77 % · reinicia ")).toBe(true);
     expect(semana?.valor.startsWith("41 % usado · queda 59 % · reinicia ")).toBe(true);
-    expect(claude.ficha.filter((f) => f.etiqueta === "Usado")).toHaveLength(0);
+    expect(claude.ficha?.filter((f) => f.etiqueta === "Usado")).toHaveLength(0);
   });
 
   it("ventana pasada dice «se reinició» y cuenta 0 % usado", () => {
     const ahora = Date.parse("2026-10-06T18:15:00-06:00");
     const detalle = detalleDeMedidor("creditos", { creditosPago: ejemplo }, ahora);
-    const sesion = detalle.filas[0].ficha.find((f) => f.etiqueta === "Sesión (5 h)");
+    const sesion = detalle.filas[0]?.ficha?.find((f) => f.etiqueta === "Sesión (5 h)");
     expect(sesion?.valor).toBe("0 % usado · queda 100 % · se reinició");
   });
 
@@ -95,8 +95,8 @@ describe("medidor creditos", () => {
     const ahora = Date.parse("2026-10-06T18:05:00-06:00");
     const detalle = detalleDeMedidor("creditos", { creditosPago: ejemplo }, ahora);
     const claude = detalle.filas[0];
-    expect(claude.porque.endsWith(" ·")).toBe(false);
-    expect(claude.porque.startsWith("41 % semana · reinicia ")).toBe(true);
+    expect(claude.porque?.endsWith(" ·")).toBe(false);
+    expect(claude.porque?.startsWith("41 % semana · reinicia ")).toBe(true);
     const codex = detalle.filas[1];
     expect(codex.porque).toContain("1 reinicio gratis hasta el 29 oct");
     expect(codex.porque).toContain("bloqueado: rate_limit_reached");
@@ -112,12 +112,12 @@ describe("medidor creditos", () => {
     const ahora = Date.parse("2026-10-06T18:05:00-06:00");
     const detalle = detalleDeMedidor("creditos", { creditosPago: ejemplo }, ahora);
     const codex = detalle.filas[1];
-    expect(codex.ficha.find((f) => f.etiqueta === "Saldo")?.valor).toBe("0,00 créditos");
+    expect(codex.ficha?.find((f) => f.etiqueta === "Saldo")?.valor).toBe("0,00 créditos");
     const conSaldo = { ...ejemplo, medidores: { ...ejemplo.medidores, extra: {
       id: "extra", proveedor: "banco", nombre: "Banco", tipo: "saldo", ventanas: [],
       saldo: { valor: 7.5, unidad: "USD" }, ok: true,
     } } };
     const d2 = detalleDeMedidor("creditos", { creditosPago: conSaldo }, ahora);
-    expect(d2.filas[2].ficha.find((f) => f.etiqueta === "Saldo")?.valor).toBe("7,50 USD");
+    expect(d2.filas[2]?.ficha?.find((f) => f.etiqueta === "Saldo")?.valor).toBe("7,50 USD");
   });
 });
