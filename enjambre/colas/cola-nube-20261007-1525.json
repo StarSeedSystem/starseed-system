@@ -1,0 +1,53 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "ES1010Ps",
+   "ola": "Ola 1010E · Estaciones: transmisiones en directo libres (directorio, reproductor autoadaptable, malla y estudio con IA)",
+   "titulo": "Estaciones · estudio de producción en directo (página y mesa) · lo que faltó: src/app/(app)/estaciones/estudio/page.tsx",
+   "depende": [],
+   "dificultad": "alta",
+   "archivos": [
+    "src/app/(app)/estaciones/estudio/page.tsx"
+   ],
+   "prompt": "SEGUIMIENTO de ES1010P, que ya está integrada (sha e80d87fd6d6a). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/app/(app)/estaciones/estudio/page.tsx.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Estaciones · estudio de producción en directo (página y mesa)\n\n--- encargo original, como contexto ---\nCONTRATO: `architecture/estaciones.md`. Léelo ENTERO antes de empezar (sobre todo la sección que cita tu tarea): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-07): «añade una página, sección y función principal de StarSeed OS de \"Estaciones\" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable».\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta). Claves SOLO del entorno; nunca se imprimen ni se guardan. Sin dependencias nuevas (`hls.js` ya la instaló la dirección). Nada de `node:*` en `src/lib/estaciones` ni en `src/components/estaciones` (van al navegador). Textos visibles en español; el panel de control del OS se llama «Genesis» (nunca «Puente de Mando» ni «Mando»: la prueba `src/lib/__tests__/nombre-genesis.test.ts` lo vigila). ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (ES1010P): §10 del contrato («UI»). `EstudioProduccion`: pide permisos solo al pulsar (cámara/micro con `getUserMedia`, pantalla con `getDisplayMedia`; mira `src/lib/llamadas/medios.ts`), añade fuentes (cámara, pantalla, micrófono, imagen htt",
+   "dependencias_ya_en_main": [
+    "ES1010N",
+    "ES1010O",
+    "ES1010E"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "ES1010K",
+   "ola": "Ola 1010E · Estaciones: transmisiones en directo libres (directorio, reproductor autoadaptable, malla y estudio con IA)",
+   "titulo": "Estaciones · publicar o editar una estación (formulario con detección y licencia)",
+   "depende": [],
+   "dificultad": "alta",
+   "archivos": [
+    "src/components/estaciones/nueva-estacion.tsx",
+    "src/components/estaciones/__tests__/nueva-estacion.test.tsx"
+   ],
+   "prompt": "CONTRATO: `architecture/estaciones.md`. Léelo ENTERO antes de empezar (sobre todo la sección que cita tu tarea): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-07): «añade una página, sección y función principal de StarSeed OS de \"Estaciones\" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable».\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta). Claves SOLO del entorno; nunca se imprimen ni se guardan. Sin dependencias nuevas (`hls.js` ya la instaló la dirección). Nada de `node:*` en `src/lib/estaciones` ni en `src/components/estaciones` (van al navegador). Textos visibles en español; el panel de control del OS se llama «Genesis» (nunca «Puente de Mando» ni «Mando»: la prueba `src/lib/__tests__/nombre-genesis.test.ts` lo vigila). ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (ES1010K): §9 del contrato («NuevaEstacion»). Diálogo con `src/components/ui/dialog` (shadcn) y props `{ abierto; onCerrar(); inicial?: Partial<BorradorEstacion> & { id?: string }; ambitos?: { tipo: \"persona\" | \"entidad\"; ref: string | null; nombre: string }[]; onGuardada?(e: Estacion) }`. Al pegar el enlace enseña el `motivo` de `detectarFormato` y pre-rellena el tipo con `tipoSugerido` (si el usuario no lo tocó). Campos: enlace, título, descripción, tipo (select con `ETIQUETA_TIPO`), licencia OBLIGATORIA (radio con `ETIQUETA_LICENCIA` y una línea que explica cada una), categorías (separadas por comas), idioma, horario opcional (inicio/fin `datetime-local`), ámbito (si llegan varios), visibilidad (pública o del grupo, esta solo con ámbito entidad) y «Anunciar también por la malla». Los errores de `validarEstacion` salen junto a su campo; guardar llama a `publicarEstacion` o `editarEstacion`, y si `en_malla` llama después a `anunciarEnMalla` (no bloquea si falla: aviso). Pruebas con datos y malla mockeados: detección y sugerencia, errores por campo, publicar, editar, malla.",
+   "dependencias_ya_en_main": [
+    "ES1010B",
+    "ES1010E"
+   ]
+  },
+  {
+   "id": "PRD1005K",
+   "ola": "Ola 1005R · Director de producción: publica solo lo filtrado, prueba en todos los escenarios, confirma cada medio y propaga en vivo",
+   "depende": [],
+   "titulo": "Producción · el optimizador lee el historial de producción (tasa de reversión por modelo, latencia petición→publicado)",
+   "archivos": [
+    "scripts/puente/optimizador_metricas.py",
+    "scripts/puente/test_optimizador_metricas.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`. Léelo ENTERO antes de empezar: es la fuente de verdad, y lo que no esté ahí no se inventa. Petición de Alex (2026-10-05): un director de producción que publique automáticamente lo que ya filtraron los demás directores, juzgue con Jev, Laya, memorias y el propósito de cada tarea si es coherente publicarla, lo pruebe en todos los escenarios, confirme que llegó a cada medio y lo propague en tiempo real.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves SOLO de `os.environ`/`process.env`; nunca se imprimen. Sin dependencias nuevas.\n\nTU TAREA (PRD1005K): §5 y §6. En `optimizador_metricas.py`, una métrica nueva leída de `~/.starseed/produccion/historial.jsonl`: tasa de reversión por modelo (ventana 7 días, mínimo 3 lotes para opinar) y `latencia_peticion_publicacion` (mediana y p90). Sin cambiar las métricas existentes. Pruebas con un historial falso.",
+   "dependencias_ya_en_main": [
+    "PRD1005H"
+   ]
+  }
+ ]
+}
