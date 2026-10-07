@@ -72,6 +72,14 @@ export type SafePersistResult<T> =
   | { ok: true; value: T }
   | { ok: false; reason: string };
 
+/** Carga pública del evento local de diagnóstico de persistencia. */
+export interface PersistDiagnosticDetail {
+  key: string;
+  ok: false;
+  reason: string;
+  at: number;
+}
+
 type MaybePromise<T> = T | Promise<T>;
 
 /** Motivo breve y sin contenido sensible para diagnóstico local. */
@@ -85,8 +93,9 @@ function persistFailure<T>(key: string, error: unknown): SafePersistResult<T> {
   console.warn(`[persistencia] ${key}: ${reason}`);
   if (typeof window !== "undefined") {
     try {
-      window.dispatchEvent(new CustomEvent(PERSIST_DIAGNOSTIC_EVENT, {
-        detail: { key, ok: false, reason, at: Date.now() },
+      const detail: PersistDiagnosticDetail = { key, ok: false, reason, at: Date.now() };
+      window.dispatchEvent(new CustomEvent<PersistDiagnosticDetail>(PERSIST_DIAGNOSTIC_EVENT, {
+        detail,
       }));
     } catch (eventError) {
       console.warn(`[persistencia] no se pudo emitir el diagnóstico: ${persistReason(eventError)}`);
