@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "MC1007Gb",
+   "ola": "Ola 1007R · Revisión de la dirección: arreglos de las piezas ya integradas de 1007M/1007P",
+   "depende": [],
+   "titulo": "Medidores · arreglos de revisión en el panel «Créditos de pago» (ficha legible, peor medidor bien dicho)",
+   "archivos": [
+    "src/lib/mando/medidores.ts",
+    "src/lib/mando/__tests__/medidor-creditos.test.ts"
+   ],
+   "dificultad": "media",
+   "prompt": "CONTRATO: `architecture/medidores-credito.md`. Léelo ENTERO antes de empezar (sobre todo §3 y §4.3): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «El medidor de Claude debe usar la terminal para autoactualizarse y contar con un medidor para cada crédito del usuario en sus APIs y modelos de pago (en nuestro caso, Claude y ChatGPT, pero con espacio para cualquier medidor adaptado a cualquier modelo y APIs).»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (MC1007Gb): revisión de la dirección de MC1007G (ya integrada) contra §4.3. Solo el `case \"creditos\"` de `detalleDeMedidor` en `src/lib/mando/medidores.ts` (ediciones dirigidas; no toques nada más del archivo) y su prueba:\n(1) La ficha hoy repite «Usado», «Queda» y «Reinicia» sin decir de qué ventana: con 3 ventanas salen 9 filas iguales. Una fila por ventana con la etiqueta de la ventana como `etiqueta` («Sesión (5 h)») y como `valor` «23 % usado · queda 77 % · reinicia vie 4:00» (fecha legible con `Intl.DateTimeFormat(\"es\", {weekday: \"short\", hour: \"numeric\", minute: \"2-digit\"})`; «se reinició» si `reiniciada`; sin «reinicia» si no hay fecha).\n(2) El `porque` de cada fila usa `e.resumen` (que ya calcula `estadoCreditos` con las ventanas ajustadas tras MC1007Fb) más `e.textoExtras`, sin el `as any` de hoy; sin « · » colgando si no hay extras.\n(3) El resumen del panel: el medidor con PEOR tono (peligro > aviso > ok; empate → el de la ventana más usada) y SU ventana más usada: «2 créditos · peor: ChatGPT · Codex, Semana al 100 %». Hoy mezcla el nombre de uno con el máximo de todos.\n(4) Saldo con 2 decimales y separador español («7,50 USD»).\nPruebas en `medidor-creditos.test.ts` para los cuatro puntos con el ejemplo de §3 del contrato.\n\nCAMBIO DE LA DIRECCIÓN (2026-10-06, 23:30): las funciones puras de créditos viven ahora en `src/lib/mando/creditos-pago-tipos.ts` (sin Node); `medidores.ts` ya importa de ahí y así debe seguir: `creditos-pago.ts` lee el disco y NO puede acabar en el navegador (rompe `next build`). La prueba `src/lib/mando/__tests__/sin-node-en-cliente.test.ts` lo vigila."
+  }
+ ]
+}
