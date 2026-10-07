@@ -17,7 +17,7 @@ import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-oper
 
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
-import { estadoCreditos, resumenCredito, textoExtras, type DocCreditos } from "./creditos-pago-tipos";
+import { estadoCreditos, type DocCreditos } from "./creditos-pago-tipos";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -2192,17 +2192,37 @@ export function detalleDeMedidor(
                     vacio: "Sin lecturas todavía: el servicio com.starseed.medidores lee Claude y Codex por terminal cada 10 min.",
                 };
             }
-            const peor = estados.reduce((p, e) => (e.tono === "peligro" ? e : p), estados[0]);
-            const resumen = `${estados.length} créditos · peor: ${peor.nombre} · ${peor.id} al ${Math.max(...estados.map(e => e.ventanas.reduce((m, v) => Math.max(m, v.usado_pct), 0)))} %`;
+            // (2026-10-06, MC1007Gb, contrato medidores-credito §4.3) Peor = tono más grave
+            // (peligro > aviso > ok); a empate, el de la ventana más usada. El resumen dice
+            // SU ventana más usada, no el máximo de todos los medidores mezclados.
+            const pesoTono = (t: string) => (t === "peligro" ? 2 : t === "aviso" ? 1 : 0);
+            const masUsada = (e: (typeof estados)[number]) =>
+                e.ventanas.reduce((m, v) => (v.usado_pct > m.usado_pct ? v : m), e.ventanas[0]);
+            const peor = estados.reduce((p, e) => {
+                const d = pesoTono(e.tono) - pesoTono(p.tono);
+                if (d !== 0) return d > 0 ? e : p;
+                return masUsada(e).usado_pct > masUsada(p).usado_pct ? e : p;
+            }, estados[0]);
+            const ventanaPeor = masUsada(peor);
+            const resumen = `${estados.length} créditos · peor: ${peor.nombre}, ${ventanaPeor.etiqueta} al ${ventanaPeor.usado_pct} %`;
+            const fmtReinicio = new Intl.DateTimeFormat("es", { weekday: "short", hour: "numeric", minute: "2-digit" });
+            const fmtSaldo = new Intl.NumberFormat("es", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const filas: FilaMedidor[] = estados.map(e => {
-                const porque = `${resumenCredito({ id: e.id, ventanas: e.ventanas } as any)} · ${e.textoExtras.join(" · ")}`;
+                const porque = [e.resumen, ...e.textoExtras].filter(Boolean).join(" · ");
                 const ficha: DatoDeFicha[] = [];
                 for (const v of e.ventanas) {
-                    ficha.push({ etiqueta: "Usado", valor: `${v.usado_pct} %` });
-                    ficha.push({ etiqueta: "Queda", valor: `${v.queda} %` });
-                    ficha.push({ etiqueta: "Reinicia", valor: v.reinicia });
+                    let reinicio = "";
+                    if (v.reiniciada) reinicio = " · se reinició";
+                    else if (v.reinicia) {
+                        const f = Date.parse(v.reinicia);
+                        if (Number.isFinite(f)) reinicio = ` · reinicia ${fmtReinicio.format(f)}`;
+                    }
+                    ficha.push({
+                        etiqueta: v.etiqueta,
+                        valor: `${v.usado_pct} % usado · queda ${v.queda} %${reinicio}`,
+                    });
                 }
-                if (e.saldo) ficha.push({ etiqueta: "Saldo", valor: `${e.saldo.valor} ${e.saldo.unidad}` });
+                if (e.saldo) ficha.push({ etiqueta: "Saldo", valor: `${fmtSaldo.format(e.saldo.valor)} ${e.saldo.unidad}` });
                 ficha.push({ etiqueta: "Fuente", valor: doc.medidores[e.id]?.fuente ?? "—" });
                 const hace = e.haceMin !== null ? `${e.haceMin} min` : "desconocido";
                 ficha.push({ etiqueta: "Leído hace", valor: hace });
