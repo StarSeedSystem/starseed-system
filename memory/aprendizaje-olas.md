@@ -3871,3 +3871,32 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RSC1006Fs` — otra cosa: ningún proveedor respondió (todos caídos)
 - `RSC1006Is` — no escribió nada
 - `ES1010Ps` — no escribió nada
+
+## 2026-10-07 17:42 · auto-1007-152551
+
+**Lo que se pidió.** añade una página, sección y función principal de StarSeed OS de "Estaciones" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable
+
+**Resultado.** 10 de 25 integradas. 15 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 8 tareas se fueron por lo mismo — no escribió nada (RSC1006Cs, RSC1006Fs, RSC1006D, OR1007E, OR1007I, OR1007F). Es 32 % de la ola.
+- 5 tareas se fueron por lo mismo — otra cosa (RSC1006J, OR1007D, CPA1007A, CPA1007B, CPA1007I). Es 20 % de la ola.
+- codex/gpt-5.6-sol integró 5 tareas sin fallar una.
+- freellmapi/auto integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `ES1010Hb` — pruebas en rojo: vitest falla (rama conservada)
+- `ES1010K` — los tipos no compilan: 1 errores tsc (rama ola/ES1010K conservada)
+- `RSC1006Cs` — no escribió nada
+- `RSC1006Fs` — no escribió nada
+- `RSC1006D` — no escribió nada
+- `RSC1006J` — otra cosa: red caída: $ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/RSC1006J · 2026-10-07 1
+- `OR1007D` — otra cosa: ningún proveedor respondió (todos caídos)
+- `OR1007E` — no escribió nada
+- `OR1007I` — no escribió nada
+- `OR1007F` — no escribió nada
+- `OR1007H` — no escribió nada
+- `OR1007B` — no escribió nada
+- `CPA1007A` — otra cosa
+- `CPA1007B` — otra cosa: reasignada a la nube 20261007
+- `CPA1007I` — otra cosa
