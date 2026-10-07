@@ -45,6 +45,17 @@ class LimitesClaude(unittest.TestCase):
         lecturas.append(otra)
         self.assertEqual(L.coste_por_revision(lecturas, "sesion"), 5)
 
+    def test_coste_ignora_disminuciones(self):
+        lecturas = [self.lectura(pct) for pct in (20, 10, 15)]
+        self.assertEqual(L.coste_por_revision(lecturas, "sesion"), 5)
+        self.assertIsNone(L.coste_por_revision(lecturas, "modelo"))
+
+    def test_fecha_no_iso(self):
+        lectura = self.lectura()
+        lectura["t"] = "2026-01-01"
+        with self.assertRaisesRegex(ValueError, "fecha inválida"):
+            L.anadir_lectura({}, lectura)
+
     def test_disparos_reales_y_casos_lc1007b(self):
         # Caso real (2026-10-06 20:03, hasta 23:10) con periódica vieja cada 60 min
         ahora = datetime(2026, 10, 6, 20, 3, tzinfo=timezone(timedelta(hours=-6)))
@@ -64,6 +75,9 @@ class LimitesClaude(unittest.TestCase):
         self.assertEqual(L.disparos_antes(lista, ahora, hasta), 3)
         # hasta <= ahora
         self.assertEqual(L.disparos_antes(lista, ahora, ahora - timedelta(minutes=1)), 0)
+        fuera = [{"proxima": (hasta + timedelta(minutes=1)).isoformat(), "cada_min": 60}]
+        self.assertEqual(L.disparos_antes(fuera, ahora, hasta), 0)
+        self.assertEqual(L.disparos_antes([], ahora, hasta), 0)
 
     def test_disparos_periodicos(self):
         lista = [{"nombre": "revisión", "proxima": (self.ahora + timedelta(minutes=30)).isoformat(),
@@ -106,6 +120,11 @@ class LimitesClaude(unittest.TestCase):
         self.assertEqual(L.main(["declarar", "--sesion", "12", "--sesion-reinicio", reinicio,
                                  "--semana", "23", "--semana-reinicio", reinicio]), 0)
         self.assertEqual(L.leer()["lecturas"][0]["sesion_pct"], 12)
+        self.assertEqual(L.main(["declarar", "--sesion", "13", "--sesion-reinicio", reinicio,
+                                 "--semana", "24", "--semana-reinicio", reinicio,
+                                 "--modelo-nombre", "Fable", "--modelo", "7",
+                                 "--modelo-reinicio", reinicio]), 0)
+        self.assertEqual(L.leer()["lecturas"][-1]["modelo_nombre"], "Fable")
         lista = [{"nombre": "salud", "proxima": reinicio, "cada_min": 60}]
         self.assertEqual(L.main(["programadas", "--json", json.dumps(lista)]), 0)
         self.assertEqual(L.leer()["programadas"]["lista"], lista)

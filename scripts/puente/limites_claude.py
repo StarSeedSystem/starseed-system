@@ -7,7 +7,13 @@ from datetime import datetime, timedelta
 ARCHIVO = os.path.expanduser(os.environ.get("STARSEED_LIMITES_CLAUDE", "~/.starseed/limites-claude.json"))
 CAMPOS = ("sesion", "semana", "modelo")
 def _fecha(valor: str) -> datetime:
-    return datetime.fromisoformat(valor.replace("Z", "+00:00"))
+    try:
+        fecha = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+    except (AttributeError, TypeError, ValueError) as error:
+        raise ValueError("fecha inválida") from error
+    if fecha.tzinfo is None:
+        raise ValueError("fecha inválida")
+    return fecha
 def leer() -> dict:
     try:
         with open(ARCHIVO, encoding="utf-8") as archivo:
