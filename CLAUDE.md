@@ -821,7 +821,10 @@ en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado
   launchd), «Apagar pantalla» (`pmset displaysleepnow`), estado backend/BitNet/túnel (solo huellas,
   nunca la URL), servicios `com.starseed.*` reiniciables y registro de servidores. Tipos puros
   `mando/servidor-astraura-tipos.ts`, servidor `mando/servidor-astraura.ts`, UI `panel-servidor.tsx`.
-  SOP: `architecture/servidor-astraura-mando.md`.
+  SOP: `architecture/servidor-astraura-mando.md`. **Oracle Always Free** (cuenta recibida el
+  2026-10-07; A1 gratis = 2 OCPU / 12 GB desde el 15-06-2026, no 4/24): contrato
+  `architecture/oracle-nube.md`, Ola 1007O. Sesión de la CLI en `~/.oci/` (la abre Alex con
+  `oci setup bootstrap`); estado sin ids en `~/.starseed/oracle.json`; nunca OCIDs en el repo.
 
 ### Reglas duras del área
 - **Publicación**: solo desde la **Mac**, con `STARSEED_LOCAL=1` y la confirmación **escrita `PUBLICAR`**
