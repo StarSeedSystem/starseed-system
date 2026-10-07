@@ -16,6 +16,10 @@ type Tono='peligro'|'aviso'|'ok'
 const tonoDePorcentaje=(p:number):Tono=>p>=90?'peligro':p>=70?'aviso':'ok'
 const fmt=(d:Date,o:Intl.DateTimeFormatOptions)=>new Intl.DateTimeFormat('es',o).format(d)
 
+export function tocaRecoger(ultimo:number|null,enMarcha:boolean,ahora:number):boolean{
+  return !enMarcha&&(ultimo===null||ahora-ultimo>=60_000)
+}
+
 export interface VentanaEstado{ id:string; etiqueta:string; usado_pct:number; reinicia:string|null; tono:Tono; queda:number; reiniciada:boolean; minutosParaReinicio:number|null }
 export interface MedidorEstado{ id:string; nombre:string; proveedor:string; plan?:string|null; tono:Tono; haceMin:number|null; obsoleto:boolean; resumen:string; textoExtras:string[]; ventanas:VentanaEstado[]; saldo:Saldo|null; ok?:boolean }
 

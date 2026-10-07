@@ -828,6 +828,7 @@ export function CentroMando() {
     const [medidorAbierto, setMedidorAbierto] = useState<ClaveMedidor | null>(null);
     const [idesAbierto, setIdesAbierto] = useState(false);
     const [jevAbierto, setJevAbierto] = useState(false);
+    const [actualizandoCreditos, setActualizandoCreditos] = useState(false);
     // Panel "Te toca a ti" (AX1): separado de los medidores estándar.
     const [accionesAlexAbierto, setAccionesAlexAbierto] = useState(false);
 
@@ -871,12 +872,14 @@ export function CentroMando() {
         credito: string | null;
         creditoResumen: string | null;
         creditoTono: TonoMedidor;
+        /** Una tarjeta dinámica por medidor de pago leído desde terminal o API. */
+        creditos: FilaMedidor[];
     } | null>(null);
 
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas, resCredito] =
+            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas, resCredito, resCreditos] =
                 await Promise.allSettled([
                     fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
@@ -888,6 +891,7 @@ export function CentroMando() {
                     fetch("/api/mando/medidores?clave=ola-activa", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=integradas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=credito-claude", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=creditos", { cache: "no-store" }),
                 ]);
 
             let listas: number | null = null;
@@ -911,6 +915,7 @@ export function CentroMando() {
             let credito: string | null = null;
             let creditoResumen: string | null = null;
             let creditoTono: TonoMedidor = "normal";
+            let creditos: FilaMedidor[] = [];
 
             if (resListas.status === "fulfilled" && resListas.value.ok) {
                 const dataListas = (await resListas.value.json()) as { detalle?: DetalleMedidor };
@@ -1030,6 +1035,11 @@ export function CentroMando() {
                 }
             }
 
+            if (resCreditos.status === "fulfilled" && resCreditos.value.ok) {
+                const dataCreditos = (await resCreditos.value.json()) as { detalle?: DetalleMedidor };
+                creditos = dataCreditos.detalle?.filas ?? [];
+            }
+
             setMedidoresResumen({
                 listas,
                 bloqueadas,
@@ -1052,6 +1062,7 @@ export function CentroMando() {
                 credito,
                 creditoResumen,
                 creditoTono,
+                creditos,
             });
         } catch {
             setMedidoresResumen({
@@ -1076,9 +1087,20 @@ export function CentroMando() {
                 credito: null,
                 creditoResumen: null,
                 creditoTono: "normal",
+                creditos: [],
             });
         }
     }, []);
+
+    const actualizarCreditos = useCallback(async () => {
+        setActualizandoCreditos(true);
+        try {
+            await fetch("/api/mando/creditos", { method: "POST", cache: "no-store" });
+            await cargarMedidoresResumen(true);
+        } finally {
+            setActualizandoCreditos(false);
+        }
+    }, [cargarMedidoresResumen]);
 
     useEffect(() => {
         let vivo = true;
@@ -1736,6 +1758,35 @@ export function CentroMando() {
                                 tono: medidoresResumen?.creditoTono ?? "normal",
                                 detalle: medidoresResumen?.creditoResumen ?? "lotes del plan de Claude (sesión ~5 h, semanal)",
                             },
+                            ...(
+                                medidoresResumen?.creditos.length
+                                    ? medidoresResumen.creditos
+                                    : [{ id: "sin-lectura", titulo: "Créditos de pago", porque: "sin lectura", acciones: [] }]
+                            ).map((fila) => {
+                                const [valor = "sin lectura", ...detalle] = (fila.porque ?? "sin lectura").split(" · ");
+                                const tono: TonoMedidor =
+                                    fila.estado === "peligro"
+                                        ? "peligro"
+                                        : fila.estado === "aviso"
+                                          ? "aviso"
+                                          : fila.estado === "ok"
+                                            ? "ok"
+                                            : "normal";
+                                return {
+                                    clave: "creditos" as const,
+                                    titulo: fila.titulo,
+                                    valor,
+                                    tono,
+                                    detalle: detalle.join(" · ") || undefined,
+                                };
+                            }),
+                            {
+                                compacto: true,
+                                titulo: "Actualizar créditos",
+                                valor: "Actualizar ahora",
+                                alClic: () => void actualizarCreditos(),
+                                cargando: actualizandoCreditos,
+                            },
                             {
                                 // (2026-09-22) Alex: «tokens por segundo en total sumando los
                                 // de todos los procesos de cada api, en tiempo real». Suma lo
@@ -1973,25 +2024,39 @@ export function CentroMando() {
                                       },
                                   ]
                                 : []),
-                        ].map((m) => (
-                            <li key={m.titulo}>
-                                <PastillaMedidor
-                                    clave={"clave" in m ? m.clave : undefined}
-                                    titulo={m.titulo}
-                                    valor={m.valor}
-                                    detalle={"detalle" in m ? m.detalle : undefined}
-                                    tono={"tono" in m ? m.tono : undefined}
-                                    abierto={"abierto" in m ? m.abierto : "clave" in m && medidorAbierto === m.clave}
-                                    alPulsar={(c) => {
-                                        setIdesAbierto(false);
-                                        setJevAbierto(false);
-                                        setMedidorAbierto((a) => (a === c ? null : c));
-                                    }}
-                                    alClic={"alClic" in m ? m.alClic : undefined}
-                                    cargando={"cargando" in m ? Boolean(m.cargando) : false}
-                                />
-                            </li>
-                        ))}
+                        ].map((m) =>
+                            "compacto" in m ? (
+                                <li key={m.titulo} className="flex items-center justify-center">
+                                    <button
+                                        type="button"
+                                        disabled={m.cargando}
+                                        onClick={m.alClic}
+                                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-cyan-300/30 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] text-cyan-100 transition-colors hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <RefreshCw className={`h-3 w-3 ${m.cargando ? "animate-spin" : ""}`} aria-hidden />
+                                        {m.cargando ? "Actualizando…" : "Actualizar ahora"}
+                                    </button>
+                                </li>
+                            ) : (
+                                <li key={m.titulo}>
+                                    <PastillaMedidor
+                                        clave={"clave" in m ? m.clave : undefined}
+                                        titulo={m.titulo}
+                                        valor={m.valor}
+                                        detalle={"detalle" in m ? m.detalle : undefined}
+                                        tono={"tono" in m ? m.tono : undefined}
+                                        abierto={"abierto" in m ? m.abierto : "clave" in m && medidorAbierto === m.clave}
+                                        alPulsar={(c) => {
+                                            setIdesAbierto(false);
+                                            setJevAbierto(false);
+                                            setMedidorAbierto((a) => (a === c ? null : c));
+                                        }}
+                                        alClic={"alClic" in m ? m.alClic : undefined}
+                                        cargando={"cargando" in m ? Boolean(m.cargando) : false}
+                                    />
+                                </li>
+                            ),
+                        )}
                     </ul>
                     {idesAbierto ? (
                         <PanelIdes alCerrar={() => setIdesAbierto(false)} />
