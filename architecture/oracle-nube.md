@@ -85,7 +85,8 @@ Disco: A1 100 GB y cada micro 50 GB (total 200). Object Storage guarda la copia 
 de la base de la malla y de n8n.
 
 Nombres: mientras no haya dominio propio, `<servicio>.<ip-con-guiones>.sslip.io` (Let's Encrypt
-funciona con sslip.io). Subdominios: `astraura`, `malla`, `media`, `buscar`, `n8n`, `turn`.
+funciona con sslip.io). Subdominios: `astraura`, `malla`, `media`, `buscar`, `n8n`, `turn` y `capas` (espejo de capas de
+`architecture/capas-autoadaptables.md` §6: Caddy sirve el volumen del espejo, solo lectura).
 
 ## 4. Vinculación: cómo lo recuerdan Genesis y el OS
 

@@ -334,6 +334,10 @@ luego Jev, luego LLM. Needle 2 queda para el ESP32.
 intención → herramienta) → juicio (Jev, elegir/sí-no con probabilidad) → deliberación (BitNet o el enrutador
 económico); una puerta por medio (`scripts/puente/razonador.py`), cada decisión anotada como experiencia y
 un ciclo nocturno que entrena el adaptador colectivo de Needle con lo acertado. Needle no juzga: medido.
+**Capas autoadaptables** (2026-10-07, `architecture/capas-autoadaptables.md`, Ola 1007C): las capas
+son papeles (reflejo, memoria, palabra, razón, profunda, voz, adaptador) que cumplen Needle 3 (2–20
+capas), Bonsai 1.58/1-bit y BitNet según la tarea y el medio; web guarda solo el reflejo, PWA ≤ 1 GB,
+app nativa ≤ 15 % del disco; ninguna capa sin su SHA en `config/capas-astraura.json`; nunca pesos por LoRa.
 **Jev** (2026-09-20, `memory/orquestacion-economica.md` §9): decisiones tipadas con probabilidad
 por $0,00002 (`scripts/puente/jev.py`) para veredictos de bloqueadas, Telegram, errores de pasarela
 y el veto de la aprobación sola; consejero con umbral, nunca oráculo; techo 0,05 $/día; en
