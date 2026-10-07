@@ -16,8 +16,8 @@ export async function leerCreditosPago(ruta=path.join(os.homedir(),'.starseed','
 }
 
 type Tono='peligro'|'aviso'|'ok'
-const tonoDePorcentaje=p=>p>=90?'peligro':p>=70?'aviso':'ok'
-const fmt=(d,o)=>new Intl.DateTimeFormat('es',o).format(d)
+const tonoDePorcentaje=(p:number):Tono=>p>=90?'peligro':p>=70?'aviso':'ok'
+const fmt=(d:Date,o:Intl.DateTimeFormatOptions)=>new Intl.DateTimeFormat('es',o).format(d)
 
 export interface VentanaEstado{ id:string; etiqueta:string; usado_pct:number; reinicia:string; tono:Tono; queda:number; reiniciada:boolean; minutosParaReinicio:number }
 export interface MedidorEstado{ id:string; nombre:string; proveedor:string; plan?:string|null; tono:Tono; haceMin:number|null; obsoleto:boolean; resumen:string; textoExtras:string[]; ventanas:VentanaEstado[]; saldo:Saldo|null; ok?:boolean }
@@ -26,7 +26,7 @@ export function estadoCreditos(doc:DocCreditos|null,ahora:number):MedidorEstado[
   if(!doc||!doc.medidores) return []
   const lista=Object.values(doc.medidores)
   const orden=[...lista].sort((a,b)=>{
-    const prio=id=>id==='claude'?0:id==='codex'?1:2
+    const prio=(id:string)=>id==='claude'?0:id==='codex'?1:2
     const pa=prio(a.id),pb=prio(b.id)
     return pa!==pb?pa-pb:a.nombre.localeCompare(b.nombre)
   })
