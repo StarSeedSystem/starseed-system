@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "PT1008C",
+   "ola": "Ola 1008P · Puente de Mando para todos · F2 datos y seguridad (migración aditiva + RLS + RPC, guardián por ámbito, conector del motor, almacén Supabase)",
+   "depende": [],
+   "titulo": "Mando para todos · RPC del motor (reportar y recoger) con token, tamaño, cadencia y presupuesto común",
+   "archivos": [
+    "supabase/migrations/20261008090200_mando_rpc_motor.sql"
+   ],
+   "dificultad": "alta",
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §6.2 y §6.3): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1008C): las RPC de §6.2 y el presupuesto de §6.3, en una migración aditiva (requiere `pgcrypto` para `digest`: `create extension if not exists pgcrypto`).\n(a) `public.mando_motor_reportar(p_token text, p_lote jsonb) returns jsonb` (SECURITY DEFINER, `set search_path = public, extensions`): busca el motor por `token_hash = encode(digest(p_token, 'sha256'), 'hex')` (el mismo hash que `src/lib/mando/motor-token.ts`, PT1007D); rechaza si no existe, si está `revocado` o si su ámbito tiene `freno`; rechaza lotes de más de 65 536 bytes (`octet_length(p_lote::text)`) o de más de 200 eventos; exige que hayan pasado 30 s desde `ultimo_reporte` (si no: `{ok:false, motivo:'cadencia', cadencia_s:30}`); inserta eventos (texto recortado a 4 000), hace upsert de tareas/progreso y de `mando_medidores` (si viene `medidores`), actualiza `ultimo_reporte` y `estado`, suma 1 a `mando_presupuesto` del día y devuelve `{ok:true, cadencia_s, freno}` con `cadencia_s` = 60, o 600 si las peticiones del día de TODOS los ámbitos pasan del 70 % de `current_setting('app.mando_tope_diario', true)` (por defecto 20 000), o 1 800 si pasan del 90 %.\n(b) `public.mando_motor_pendiente(p_token text) returns jsonb`: mismo control de token; devuelve las tareas del ámbito en estado `pendiente` (como mucho 50) y el estado del freno.\n(c) `revoke all on function … from public, anon` y `grant execute … to anon, authenticated` (el motor llama con la clave pública y SU token; nunca con la de servicio).\nLa prueba de PT1008A ya vigila este archivo. NO se aplica a ninguna base de datos.",
+   "dependencias_ya_en_main": [
+    "PT1008B",
+    "PT1007D"
+   ]
+  },
+  {
+   "id": "PT1007E",
+   "ola": "Ola 1007P · Puente de Mando para todos · F1 cimientos puros (ámbito, capacidades, protocolo, vista pública, token de motor, almacén)",
+   "depende": [],
+   "titulo": "Mando para todos · interfaz AlmacenMando (local | supabase | memoria) y elección por bandera",
+   "archivos": [
+    "src/lib/mando/almacen.ts",
+    "src/lib/mando/__tests__/almacen.test.ts"
+   ],
+   "dificultad": "media",
+   "prompt": "CONTRATO: `architecture/puente-mando-para-todos.md`. Léelo ENTERO antes de empezar (sobre todo §1.2, §1.10 y §7): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-06): «Todo el puente de mando debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.»\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta; rutas en carpetas temporales). Claves SOLO del entorno (`os.environ`/`process.env` o archivos de entorno leídos como datos); nunca se imprimen ni se guardan. Sin dependencias nuevas. ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (PT1007E): la interfaz de datos de §7 que permitirá que las mismas tarjetas lean de la Mac o de Supabase sin saber de dónde.\n(a) `interface AlmacenMando { tipo: \"local\" | \"supabase\" | \"memoria\"; ambitoId: string; leerTareas(): Promise<TareaOla[]>; leerProgreso(): Promise<Record<string, {estado: string; avance?: number}>>; leerEventos(desde?: string, limite?: number): Promise<EventoMando[]>; leerChat(canal: string, limite?: number): Promise<MensajeChat[]>; leerMedidores(): Promise<unknown | null>; encolarOrden(orden: {tipo: \"encolar\" | \"aprobar\" | \"frenar\"; datos: unknown}): Promise<{ok: boolean; motivo?: string}>; }` usando los tipos de `protocolo.ts` (PT1007B).\n(b) `crearAlmacenMemoria(inicial?)`: implementación completa en memoria (para pruebas y demos); `encolarOrden` valida con `protocolo.ts` y rechaza lo inválido.\n(c) `crearAlmacenLocal(lectores)`: adaptador que RECIBE funciones lectoras inyectadas (las de hoy: no cambies ninguna ruta ni lector existente en esta tarea) y las expone como `AlmacenMando` con `ambitoId: \"local\"`; lo que no tenga lector devuelve vacío, nunca lanza.\n(d) `elegirAlmacen({banderaTodos, esLocal, ambitoId}): \"local\" | \"supabase\"`: `local` si no hay bandera, si la petición es local con ámbito `local` o sin ámbito; `supabase` en el resto.\n(e) Vitest: memoria (leer, encolar válido e inválido, límites de eventos), local con lectores falsos (incluido uno que lanza → vacío) y la tabla de `elegirAlmacen`.\n Todo lo nuevo queda detrás de `STARSEED_MANDO_TODOS=1` (§1.10): sin la bandera, el Mando se comporta exactamente igual que hoy.",
+   "dependencias_ya_en_main": [
+    "PT1007A",
+    "PT1007Bb"
+   ]
+  },
+  {
+   "id": "SEC1007A",
+   "ola": "Ola 1007R · Revisión de la dirección: arreglos de las piezas ya integradas de 1007M/1007P",
+   "depende": [],
+   "dificultad": "baja",
+   "titulo": "Pruebas gen5: la clave de ejemplo «sk-proj-…» montada en tiempo de ejecución (protección de secretos de GitHub)",
+   "archivos": [
+    "src/components/dashboard/widgets/gen5/__tests__/seguridad-logica.test.ts",
+    "src/components/dashboard/widgets/gen5/__tests__/catalogo-gen5.test.tsx"
+   ],
+   "prompt": "CONTEXTO: el repositorio público tiene activa la protección de secretos de GitHub. Una clave de EJEMPLO con forma real escrita entera en un archivo hace que GitHub abra una alerta y bloquee empujes (CLAUDE.md, trampa 12). Reglas de la casa (`memory/workflow-actual.md`): si una prueba falla se arregla el código, no la prueba; sin dependencias nuevas.\n\nTU TAREA (SEC1007A): en `src/components/dashboard/widgets/gen5/__tests__/seguridad-logica.test.ts` (línea ~37) y `src/components/dashboard/widgets/gen5/__tests__/catalogo-gen5.test.tsx` (línea ~191) hay una clave de ejemplo «sk-proj-…» (un abecedario, no es real) escrita entera. Móntala en tiempo de ejecución sin cambiar su valor, igual que en `src/lib/mando/__tests__/protocolo.test.ts`: `const parte = (...t: string[]) => t.join(\"\");` y `parte(\"sk-pr\", \"oj-…resto…\")`. Las pruebas deben seguir pasando igual (el escáner del widget debe seguir encontrándola). Después de tu cambio, `grep -rE \"sk-proj-[A-Za-z0-9_-]{20,}\" src` no debe encontrar nada en esos dos archivos. No toques nada más."
+  }
+ ]
+}
