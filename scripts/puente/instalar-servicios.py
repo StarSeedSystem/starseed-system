@@ -105,6 +105,15 @@ SERVICIOS = {
     # ninguno miraba el TABLERO. Esa noche el orquestador estuvo 123 minutos parado en una
     # puerta de aprobación y los medidores lo enseñaban sin que nadie los leyera.
     "vigia": ([PY3, P("vigia_medidores.py")], "/tmp/starseed-vigia.log", True),
+    # (2026-10-07, Ola 1005F) Flujos de Genesis: bucle que cada 10 s consume
+    # disparadores (webhook/cron/bus/chat) y ejecuta los flujos activos con el
+    # motor durable; avisa al Chat Director solo si un flujo cae del todo.
+    # WorkingDirectory ya es la raíz del repo, así que vale el import por módulo.
+    "flujos": (
+        [PY3, "-m", "scripts.puente.flujos.servicio"],
+        "/tmp/starseed-flujos.log",
+        True,
+    ),
     # (2026-10-05) Pantalla siempre encendida (Ola 1005P, PA1005C): mantiene un
     # `caffeinate -dim` ligado a su propio proceso y declara al usuario activo cada 50 s,
     # según ~/.starseed/pantalla.json (encendida por defecto). Genesis lo lee con
