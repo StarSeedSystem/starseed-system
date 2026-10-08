@@ -96,7 +96,7 @@ export function filaNodo(
   const ramLibreMb = Number(gobernador?.ram_libre_mb ?? estadoBitnet?.salud?.ram_libre_mb ?? estadoBitnet?.ram_libre_mb ?? estadoBitnet?.ram_free_mb ?? 0);
   const swapMb = Number(gobernador?.swap_mb ?? estadoBitnet?.salud?.swap_mb ?? estadoBitnet?.swap_mb ?? 0);
 
-  const agentesMax = Number(gobernador?.maximo_hardware ?? (medio === "vps" ? 3 : 2));
+  const agentesMax = Number(gobernador?.maximo_hardware ?? (medio === "vps" ? 1 : 2));
   const agentesAhora = Number(gobernador?.trabajadores ?? 0);
   const permanente = nodo?.permanente !== undefined ? Boolean(nodo.permanente) : !/claude|codespace|container|ephemeral|docker|runner|pod/i.test(host);
 

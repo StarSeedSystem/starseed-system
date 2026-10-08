@@ -109,7 +109,7 @@ export function PanelNodosBitnet() {
 
       {res.agentesMaxTotal <= 3 && (
         <div className="mt-3 rounded-lg border border-amber-800/40 bg-amber-950/30 p-2.5 text-xs text-amber-300">
-          Para más agentes a la vez añade un medio: Oracle Free Tier ARM (4 OCPU/24 GB, gratis) → 3 agentes permanentes; receta en memory/orquestacion-economica.md §10
+          Para más agentes a la vez añade un medio: Oracle Free Tier ARM (2 OCPU/12 GB, gratis, vinculado 2026-10-07) → 1 agente permanente (núcleos − 1); receta en memory/orquestacion-economica.md §10
         </div>
       )}
     </div>

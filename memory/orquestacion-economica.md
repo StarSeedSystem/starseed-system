@@ -363,7 +363,7 @@ macOS, arm64 o x86_64):
      el proxy deniega `StarSeedSystem/starseed-system` salvo que Alex lo añada a las fuentes de la
      sesión; hasta entonces sus commits viajan por `git bundle` en el bus).
 Medios que caben hoy: Mac M1 8 GB → 3; contenedor de Cowork 2 vCPU/8 GB → 1 (y muere con la
-sesión); **Oracle Free Tier ARM (4 OCPU/24 GB, gratis) → 3 permanentes**; un VPS de 16 GB/8
+sesión); **Oracle Free Tier ARM (2 OCPU/12 GB, gratis) → 1 permanente (núcleos − 1)**; un VPS de 16 GB/8
 núcleos → 5. Hermes suma **agentes de razonamiento** aparte (delegate_task, 4 hijos a la vez, sin
 RAM local: el límite es el RPM gratuito de Gemini), pero esos no pasan puertas ni integran código.
 
@@ -428,7 +428,7 @@ en `gh workflow list` sea su ruta está roto, aunque el YAML sea válido para Py
 | Google Cloud · Cloud Shell | **descartado como medio** | 0 | 50 h/semana, pero mata las sesiones NO interactivas a los 40 min y la doc dice «intended for interactive use only»: no sirve para agentes desatendidos |
 | Colab / Kaggle | requiere_alex | 2 / 4 | falta un cuaderno lanzador que clone el repo y arranque el orquestador |
 | Hugging Face | requiere_alex | 0 | Spaces Docker en CPU exige PRO (402 medido) |
-| Oracle Free Tier | descartado | — | Alex no pudo crear la cuenta |
+| Oracle Free Tier | vinculándose (2026-10-07) · ver architecture/oracle-nube.md | 1 permanente (2 OCPU · 12 GB, núcleos − 1) | Cuenta recibida; A1 creado en mx-queretaro-1; desplegar con `oracle_desplegar.py` |
 
 **El cuello de botella real, dicho sin adornos.** Con la nube encendida el hierro deja de mandar y
 el límite pasa a ser (a) el RPM de las pasarelas gratuitas y (b) **cuántas tareas hay en cola**.

@@ -64,6 +64,6 @@ LoRa Meshtastic en `src/ai/astraura/mesh/`; `mesh_network.py` en el backend):
 ## Dónde corre BitNet, honesto
 
 Nube (contenedor: ~5 tok/s) · Mac solo con el enjambre dormido (hoy 14 GB de swap: no) · VPS o
-Oracle Free Tier ARM (4 CPU/24 GB, gratis) si Alex abre la cuenta · Android/iOS nativo con
+Oracle Free Tier ARM (2 OCPU/12 GB, gratis) vinculado (2026-10-07) · ver architecture/oracle-nube.md · Android/iOS nativo con
 bitnet.cpp en ≥ 4 GB (ola futura) · navegador: no (ahí Needle WASM). «BitNet en todos los
 dispositivos» = BitNet **alcanzable desde** todos los dispositivos por la mesh, y Needle en todos.

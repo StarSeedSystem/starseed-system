@@ -35,29 +35,31 @@ describe("nodos-bitnet", () => {
     expect(f.tono).toBe("verde");
   });
 
-  it("clasifica Oracle Free Tier ARM correctamente", () => {
-    const nodoOracle: MeshNodoInput = { hostname: "oracle-vps-arm", medio: "vps", os: "linux", arq: "aarch64", ram_gb: 24, cpu_cores: 4 };
-    const estadoOracle: EstadoBitnetInput = { salud: { vivo: true, tok_s: 20.0, ram_libre_mb: 18000, swap_mb: 0 } };
-    const gobOracle: GobernadorInput = { maximo_hardware: 3, trabajadores: 0 };
+  it("clasifica Oracle Free Tier ARM correctamente con límites nuevos (2 OCPU / 12 GB, 1 agente)", () => {
+    const nodoOracle: MeshNodoInput = { hostname: "oracle-vps-arm", medio: "vps", os: "linux", arq: "aarch64", ram_gb: 12, cpu_cores: 2 };
+    const estadoOracle: EstadoBitnetInput = { salud: { vivo: true, tok_s: 20.0, ram_libre_mb: 8000, swap_mb: 0 } };
+    const gobOracle: GobernadorInput = { maximo_hardware: 1, trabajadores: 0 };
 
     const f = filaNodo(nodoOracle, estadoOracle, gobOracle);
     expect(f.medio).toBe("vps");
     expect(f.permanente).toBe(true);
     expect(f.vivo).toBe(true);
-    expect(f.agentesMax).toBe(3);
+    expect(f.agentesMax).toBe(1);
+    expect(f.ramGb).toBe(12);
+    expect(f.nucleos).toBe(2);
   });
 
   it("calcula resumen con frase en español", () => {
     const filas: FilaNodo[] = [
       { id: "mac", nombre: "Mac", medio: "mac", arq: "arm64", ramGb: 8, nucleos: 8, vivo: true, tokS: 9.0, ramLibreMb: 2000, swapMb: 0, agentesMax: 2, agentesAhora: 1, permanente: true, tono: "verde" },
       { id: "nube", nombre: "Nube", medio: "nube", arq: "x86_64", ramGb: 2, nucleos: 2, vivo: true, tokS: 13.0, ramLibreMb: 1200, swapMb: 0, agentesMax: 2, agentesAhora: 0, permanente: false, tono: "verde" },
-      { id: "caido", nombre: "VPS", medio: "vps", arq: "arm64", ramGb: 24, nucleos: 4, vivo: false, tokS: 0, ramLibreMb: 0, swapMb: 0, agentesMax: 3, agentesAhora: 0, permanente: true, tono: "gris" },
+      { id: "caido", nombre: "VPS", medio: "vps", arq: "arm64", ramGb: 12, nucleos: 2, vivo: false, tokS: 0, ramLibreMb: 0, swapMb: 0, agentesMax: 1, agentesAhora: 0, permanente: true, tono: "gris" },
     ];
 
     const r = resumen(filas);
     expect(r.nodosVivos).toBe(2);
     expect(r.tokSTotal).toBe(22);
-    expect(r.agentesMaxTotal).toBe(7);
-    expect(r.frase).toBe("2 nodos vivos · 22 tok/s en total · caben 6 agentes más");
+    expect(r.agentesMaxTotal).toBe(5);
+    expect(r.frase).toBe("2 nodos vivos · 22 tok/s en total · caben 4 agentes más");
   });
 });

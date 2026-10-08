@@ -39,7 +39,7 @@ código, o requieren GPU) — quedan como *self-host* opcional del usuario.
 
 | Plataforma | Gratis real | Duerme por inactividad | Ideal para | Ojo |
 |---|---|---|---|---|
-| **Oracle Cloud — Always Free** | Sí, de por vida | **No** (VM 24/7) | Cualquier contenedor Docker permanente (SearXNG, Crawl4AI, n8n, Stirling…) | ARM Ampere A1: 4 OCPU / 24 GB RAM / ~200 GB. A veces "Out of Capacity" en la región; usa imágenes `linux/arm64`. **La mejor opción "siempre encendida".** |
+| **Oracle Cloud — Always Free** | Sí, de por vida | **No** (VM 24/7) | Cualquier contenedor Docker permanente (SearXNG, Crawl4AI, n8n, Stirling…) | ARM Ampere A1: 2 OCPU / 12 GB RAM / ~200 GB. A veces "Out of Capacity" en la región; usa imágenes `linux/arm64`. **La mejor opción "siempre encendida" (vinculándose 2026-10-07; ver architecture/oracle-nube.md).** |
 | **Hugging Face Spaces** | Sí (`cpu-basic`) | Sí, a las **48 h** (revive con una visita) | Servicios Docker sin estado y de arranque rápido (SearXNG, Crawl4AI, Stirling, Langflow) | 16 GB RAM / 2 vCPU / 50 GB. Ideal para instancias oficiales de bajo tráfico. |
 | **Render (free web service)** | Sí (750 h/mes) | Sí, a los **15 min** (cold start 30–60 s) | Demos y pruebas | El sueño **rompe webhooks entrantes** (n8n). |
 | **Railway** | Solo *trial* ($5 crédito único) + Hobby con $5/mes | Depende del plan | Despliegues rápidos de 1 clic | No es gratis permanente; se agota el crédito. |
