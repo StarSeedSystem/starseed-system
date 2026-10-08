@@ -21,6 +21,20 @@ interface DatosAccesos {
     conectados: readonly string[]; servicios: ServicioAcceso[];
 }
 
+/**
+ * Un payload inesperado (red a medias, un POST que devuelve otra forma) no
+ * debe reventar la pantalla: faltan listas → se enseña su estado vacío.
+ */
+export function normalizarDatosAccesos(bruto: unknown): DatosAccesos {
+    const d = (bruto ?? {}) as Partial<DatosAccesos>;
+    return {
+        quienPide: typeof d.quienPide === "string" ? d.quienPide : "",
+        cuentas: Array.isArray(d.cuentas) ? d.cuentas : [],
+        conectados: Array.isArray(d.conectados) ? d.conectados : [],
+        servicios: Array.isArray(d.servicios) ? d.servicios : [],
+    };
+}
+
 export function AjustesAccesos() {
     const [datos, setDatos] = useState<DatosAccesos | null>(null);
     const [ocupado, setOcupado] = useState(false);
@@ -32,7 +46,7 @@ export function AjustesAccesos() {
     const cargar = useCallback(async () => {
         const res = await fetch("/api/mando/accesos", { cache: "no-store" });
         if (!res.ok) { setAviso("No puedes ver los accesos de este Genesis."); return; }
-        setDatos((await res.json()) as DatosAccesos);
+        setDatos(normalizarDatosAccesos(await res.json()));
     }, []);
     useEffect(() => { void cargar(); }, [cargar]);
 
@@ -43,8 +57,10 @@ export function AjustesAccesos() {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(cuerpo) });
             if (!res.ok) { setAviso("No se pudo aplicar el cambio."); return; }
-            setDatos((await res.json()) as DatosAccesos);
+            setDatos(normalizarDatosAccesos(await res.json()));
             setCorreo(""); setVariable(""); setUso("");
+        } catch {
+            setAviso("No se pudo aplicar el cambio.");
         } finally { setOcupado(false); }
     }, []);
 

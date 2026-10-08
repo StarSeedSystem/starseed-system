@@ -49,6 +49,9 @@ async function guardarRegistro(r: RegistroAccesos): Promise<void> {
 }
 /** Correo de quien pide: sesión verificada, nunca lo que diga el cliente. */
 async function correoQuePide(req: Request, dueno: string): Promise<string> {
+    // En local se asume el dueño a propósito. No se puede falsificar en
+    // producción: `esDespliegueLocal` devuelve siempre falso cuando
+    // `VERCEL=1` (ver puerta-local.ts), aunque lleguen cabeceras forjadas.
     if (process.env.NODE_ENV !== "production" || esDespliegueLocal(req)) return dueno;
     const { createClient } = await import("@/utils/supabase/server");
     const supabase = await createClient();
