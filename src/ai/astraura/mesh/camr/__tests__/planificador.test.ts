@@ -68,6 +68,11 @@ describe("fragmentosPorMtu", () => {
     expect(fragmentosPorMtu(3000, 1500)).toBe(2);
     expect(fragmentosPorMtu(1024, 250)).toBe(5); // LoRa
   });
+
+  it("una MTU inválida (0) nunca divide: se trata como 1 byte útil", () => {
+    expect(fragmentosPorMtu(10, 0)).toBe(10);
+    expect(fragmentosPorMtu(0, 0)).toBe(0);
+  });
 });
 
 describe("cuotaAgotada", () => {

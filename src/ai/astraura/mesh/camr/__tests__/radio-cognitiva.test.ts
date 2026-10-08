@@ -75,6 +75,12 @@ describe("histéresis (oscilación)", () => {
     expect(r.params.spreadFactor).toBe(actualBase.spreadFactor);
     expect(r.porque.join(" ")).toContain("histéresis");
   });
+  it("con una medida buena menos de las exigidas todavía no sube", () => {
+    const casi = histBueno.slice(0, MEJORAS_SUBIDA - 1);
+    const r = recomendar(casi, [], perfilEu(), actualBase);
+    expect(r.params.spreadFactor).toBe(actualBase.spreadFactor);
+    expect(r.cambio).toBe(false);
+  });
   it("con mejora sostenida sube de velocidad", () => {
     const r = recomendar(histBueno, [], perfilEu(), actualBase);
     expect(r.params.spreadFactor).toBe(7);
