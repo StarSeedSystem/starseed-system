@@ -343,7 +343,8 @@ describe("porcentajes de avance", () => {
         expect(d.resumen).toBe("0 del OS · 1 de Astraura 1.58 esperando");
         // El botón de publicar del medidor es solo del OS; Astraura se publica en «Commits pendientes».
         expect(d.acciones.map((a) => a.clase)).toEqual(["ir-a"]);
-        expect(d.acciones[0].destino).toBe("commits");
+        // (2026-10-08) …y abre allí mismo el diálogo de publicar Astraura («no funciona» si solo cambia de pestaña).
+        expect(d.acciones[0].destino).toBe("commits#publicar-astraura");
     });
 
     it("la media ignora las filas sin avance en vez de contarlas como cero", () => {

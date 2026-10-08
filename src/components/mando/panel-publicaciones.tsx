@@ -324,8 +324,21 @@ function VistaPreviaSeccion({
     );
 }
 
-/** Panel principal: sondeo 30 s, tarjetas por repo, trabajo en curso y bitácora. */
-export function PanelPublicaciones() {
+/**
+ * Panel principal: sondeo 30 s, tarjetas por repo, trabajo en curso y bitácora.
+ *
+ * (2026-10-08) Alex: «el botón de Publicar Astraura 1.58 (Commits pendientes) no funciona». El
+ * botón del medidor solo cambiaba de pestaña, por debajo del medidor abierto: no se veía nada.
+ * Con `pedidoPublicar` («astraura» u «os») el panel abre él solo el diálogo de publicar ese repo
+ * en cuanto lee su estado. La firma escrita («PUBLICAR») sigue siendo de Alex.
+ */
+export function PanelPublicaciones({
+    pedidoPublicar = null,
+    alAtenderPedido,
+}: {
+    pedidoPublicar?: string | null;
+    alAtenderPedido?: () => void;
+} = {}) {
     const [resumen, setResumen] = useState<Resumen | null>(null);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -434,6 +447,24 @@ export function PanelPublicaciones() {
         },
         [cargarTrabajo],
     );
+
+    // El pedido del medidor se atiende UNA vez, cuando ya se sabe qué tiene ese repo.
+    useEffect(() => {
+        if (!pedidoPublicar || !resumen) return;
+        const repo = resumen.repos.find((r) => r.repo === pedidoPublicar);
+        if (repo && repo.commits.length > 0 && repo.remoto !== null && !repo.remotoMovido) {
+            alAccion(repo, "produccion");
+        } else {
+            setError(
+                !repo
+                    ? `No encuentro el repositorio «${pedidoPublicar}» en esta máquina.`
+                    : repo.commits.length === 0
+                      ? `${repo.nombre} no tiene commits pendientes de publicar.`
+                      : `${repo.nombre} no se puede publicar ahora: ${repo.remotoMovido ? "el remoto se movió, primero integra a mano" : "no tiene rama remota"}.`,
+            );
+        }
+        alAtenderPedido?.();
+    }, [pedidoPublicar, resumen, alAccion, alAtenderPedido]);
 
     const alPublicarHasta = useCallback(
         (repo: EstadoRepoPublicable) => (sha: string) => alAccion(repo, "produccion", sha),

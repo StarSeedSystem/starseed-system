@@ -1657,7 +1657,7 @@ export function detalleDeMedidor(
                               },
                           ]
                         : []),
-                    ...(filasAstraura.length ? [IR_A("Publicar Astraura 1.58 (Commits pendientes)", "commits")] : []),
+                    ...(filasAstraura.length ? [IR_A("Publicar Astraura 1.58 (Commits pendientes)", "commits#publicar-astraura")] : []),
                 ],
                 vacio: "No hay nada sin publicar: la rama está igual que el remoto.",
             };

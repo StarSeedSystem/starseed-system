@@ -100,6 +100,59 @@ class Recomprobar(unittest.TestCase):
         self.assertIn("1 ya estaban en main (AGR2c)", texto)
 
 
+class RevisionDeVerdad(unittest.TestCase):
+    """(2026-10-08) «revisa las bloqueadas si realmente no son reaplicables»: de 7, 6 ya estaban
+    hechas por otra tarea o fallaban por sí mismas, y el resumen decía otra cosa."""
+
+    def test_una_hermana_integrada_con_el_mismo_titulo_la_sustituye(self):
+        prog = {"p318Jc": {"estado": "bloqueante", "nota": "(libre×8)"}, "p318Jb": {"estado": "commit"}}
+        tareas = {"p318Jc": {"titulo": "Fidelidad de datos de la pestaña Director"},
+                  "p318Jb": {"titulo": "Fidelidad de datos de la pestaña Director"}}
+        d, motivo = R.clasificar("p318Jc", prog["p318Jc"], tareas["p318Jc"], [], AHORA, progreso=prog, tareas=tareas)
+        self.assertEqual((d, "p318Jb" in motivo), ("sustituida", True))
+        # Con otro título no es la misma tarea: no se da por hecha.
+        tareas["p318Jb"]["titulo"] = "Otra cosa"
+        d, _ = R.clasificar("p318Jc", prog["p318Jc"], tareas["p318Jc"], [], AHORA, progreso=prog, tareas=tareas)
+        self.assertNotEqual(d, "sustituida")
+
+    def test_una_sucesora_integrada_cuenta_aunque_la_ola_siga_viva(self):
+        prog = {"PRD1005T": {"estado": "bloqueante", "nota": "(libre×8)"}, "PRD1005Tb": {"estado": "commit"}}
+        d, _ = R.clasificar("PRD1005T", prog["PRD1005T"], {"archivos": ["x"]}, [], AHORA,
+                            fuentes={"PRD1005T"}, progreso=prog)
+        self.assertEqual(d, "sustituida")
+
+    def test_los_mismos_errores_de_tsc_en_intentos_seguidos_son_de_la_tarea(self):
+        pasos = [{"t": "2026-10-07 09:00:00", "paso": "tsc", "errores_despues": "14"},
+                 {"t": "2026-10-08 07:41:49", "paso": "tsc", "errores_despues": "14"}]
+        d, motivo = R.clasificar("R7c", {"nota": "escalada agotada tras 8 intentos (libre×8)"}, {"archivos": ["a"]},
+                                 [], AHORA, pasos=pasos)
+        self.assertEqual(d, "sigue")
+        self.assertIn("tsc sigue con 14 errores tras 2 intentos", motivo)
+        # Viejos (fuera de la ventana) o seguidos de un intento limpio: no condenan la tarea.
+        viejos = [dict(p, t="2026-09-22 04:44:33") for p in pasos]
+        # Las pruebas en rojo no condenan: a veces el roto era main (PRD1005S, 2026-10-05).
+        rojas = [{"t": "2026-10-08 07:00:00", "paso": "tests", "resultado": "falla"}] * 3
+        self.assertEqual(R.clasificar("S", {"nota": "(libre×8)"}, None, [], AHORA, pasos=rojas)[0], "reabrir")
+        self.assertEqual(R.clasificar("R7c", {"nota": "(libre×8)"}, None, [], AHORA, pasos=viejos)[0], "reabrir")
+        limpio = pasos + [{"t": "2026-10-08 09:00:00", "paso": "tsc", "errores_despues": "0"}]
+        self.assertEqual(R.clasificar("R7c", {"nota": "(libre×8)"}, None, [], AHORA, pasos=limpio)[0], "reabrir")
+
+    def test_sin_archivos_no_es_trabajo_del_enjambre(self):
+        d, motivo = R.clasificar("DR0919-1", {"nota": "(libre×8)"}, {"archivos": []}, [], AHORA)
+        self.assertEqual(d, "sigue")
+        self.assertIn("no es trabajo de código", motivo)
+
+    def test_el_resumen_dice_el_motivo_de_verdad(self):
+        inf = {"total": 3, "integradas": [], "sustituidas": [], "reabiertas": [],
+               "siguen": [{"id": "A", "motivo": "ya se reabrió por aquí hace menos de 24 h"},
+                          {"id": "B", "motivo": "ya se reabrió por aquí hace menos de 24 h"},
+                          {"id": "C", "motivo": "falla la propia tarea: tsc sigue con 4 errores"}]}
+        texto = R.resumen(inf)
+        self.assertIn("2 esperan su turno", texto)
+        self.assertIn("1 fallan por sí mismas", texto)
+        self.assertNotIn("Jev", texto)
+
+
 class Borrar(unittest.TestCase):
     """(2026-10-08) «pon uno para borrarlas, antes revisa que no sean reaplicables»."""
 

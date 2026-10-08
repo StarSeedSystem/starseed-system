@@ -97,30 +97,76 @@ def en_main(tid, tarea, asuntos):
     return any(patron.search(a or "") for a in asuntos or [])
 
 
-def sucesora_integrada(tid, progreso):
-    """La primera sucesora (mismo id + sufijo en minúsculas: BLQ1005A → BLQ1005Ad) en «commit»."""
+def _titulo_normal(t):
+    return re.sub(r"\W+", " ", str((t or {}).get("titulo") or "")).strip().lower()
+
+
+def sucesora_integrada(tid, progreso, tareas=None):
+    """La sucesora (mismo id + sufijo en minúsculas: BLQ1005A → BLQ1005Ad) en «commit», o una
+    HERMANA (mismo id base: p318Jc ↔ p318Jb) en «commit» con el MISMO título. (2026-10-08)
+    p318Jc y PRD1005T seguían «bloqueadas» con p318Jb y PRD1005Tb ya integradas en main."""
+    base = re.sub(r"(?<=[A-Z0-9])[a-z]+$", "", tid)
     for k, v in sorted((progreso or {}).items()):
-        if k != tid and k.startswith(tid) and re.fullmatch(r"[a-z]+", k[len(tid):] or "-") \
-                and isinstance(v, dict) and v.get("estado") == "commit":
+        if k == tid or not isinstance(v, dict) or v.get("estado") != "commit":
+            continue
+        if k.startswith(tid) and re.fullmatch(r"[a-z]+", k[len(tid):] or "-"):
+            return k
+        if tareas is not None and k.startswith(base) and re.fullmatch(r"[a-z]*", k[len(base):]) \
+                and _titulo_normal(tareas.get(k)) and _titulo_normal(tareas.get(k)) == _titulo_normal(tareas.get(tid)):
             return k
     return None
 
 
-def clasificar(tid, entrada, tarea, asuntos, ahora, ultima_reapertura=None, fuentes=None, progreso=None):
+#: Ventana en la que cuentan los intentos de la propia Mac para juzgar la tarea.
+VENTANA_PASOS_S = 72 * 3600
+
+
+def falla_repetida(pasos, ahora, ventana_s=VENTANA_PASOS_S):
+    """PURA. Si los intentos de la Mac fallan por la PROPIA tarea, el porqué; si no, None.
+
+    (2026-10-08) «escalada agotada tras 8 intentos (libre×8)» parecía fallo del medio y se
+    reabría, pero R7c llevaba tres intentos con los mismos 14 errores de tsc: repetirla igual no
+    sirve. Cuenta solo tsc (lo mide el worktree tras escribir; main está en 0): las pruebas en
+    rojo no, porque a veces era main el que estaba roto (PRD1005S el 10-05, veredicto-servidor).
+    Hacen falta los DOS últimos tsc en rojo y el último dentro de la ventana."""
+    tsc = [p for p in pasos or [] if p.get("paso") == "tsc"]
+    if len(tsc) < 2:
+        return None
+    ultimo, penultimo = tsc[-1], tsc[-2]
+    try:
+        t = time.mktime(time.strptime(str(ultimo.get("t"))[:19], "%Y-%m-%d %H:%M:%S"))
+    except ValueError:
+        return None
+    if ahora - t > ventana_s:
+        return None
+    rojos = [p for p in (penultimo, ultimo) if str(p.get("errores_despues") or "0") not in ("0", "")]
+    if len(rojos) == 2:
+        n = sum(1 for p in tsc if str(p.get("errores_despues") or "0") not in ("0", ""))
+        return "tsc sigue con %s errores tras %d intentos" % (ultimo.get("errores_despues"), n)
+    return None
+
+
+def clasificar(tid, entrada, tarea, asuntos, ahora, ultima_reapertura=None, fuentes=None, progreso=None,
+               tareas=None, pasos=None):
     """('commit'|'sustituida'|'reabrir'|'sigue', motivo). PURA.
 
     `fuentes`: ids definidos por alguna cola FUENTE viva (no `cola-auto-*`). (2026-10-08) Reabrir
     una tarea que solo vive en copias `auto` no sirve: el reconciliador la cierra al momento como
     «huérfana» (pasó con 10 de 34). Esas se dicen por su nombre: o ya las hizo una sucesora, o
-    hay que rehacerlas en una cola nueva."""
+    hay que rehacerlas en una cola nueva. `pasos`: los intentos de la Mac (`olas/pasos/<id>.jsonl`)."""
     nota = str((entrada or {}).get("nota") or "")
     if en_main(tid, tarea, asuntos):
         return "commit", "ya estaba integrada en main"
+    suc = sucesora_integrada(tid, progreso, tareas)
+    if suc:
+        return "sustituida", "la hizo %s (ya en main)" % suc
     if fuentes is not None and tid not in fuentes:
-        suc = sucesora_integrada(tid, progreso)
-        if suc:
-            return "sustituida", "la hizo su sucesora %s (ya en main)" % suc
         return "sigue", "su ola está cerrada (ninguna cola fuente la define): hay que rehacerla en una cola nueva"
+    if tarea is not None and "archivos" in tarea and not tarea.get("archivos"):
+        return "sigue", "no declara archivos: no es trabajo de código para el enjambre, lo revisa la dirección"
+    repetida = falla_repetida(pasos, ahora)
+    if repetida:
+        return "sigue", "falla la propia tarea: %s; repetirla igual no sirve" % repetida
     if ultima_reapertura and ahora - float(ultima_reapertura) < UNA_VEZ_CADA_S:
         return "sigue", "ya se reabrió por aquí hace menos de 24 h"
     if _TAREA.search(nota) and not re.search(r"libre×", nota):
@@ -172,14 +218,15 @@ def opinion_jev(candidatas, titulos, asuntos, consultar_lote=None):
     return salida
 
 
-def recomprobar(progreso, tareas, asuntos, ahora, memoria, jev=None, fuentes=None):
+def recomprobar(progreso, tareas, asuntos, ahora, memoria, jev=None, fuentes=None, pasos=None):
     """Decide todo. Devuelve (correcciones, informe, memoria_nueva). PURA salvo `jev`."""
     bloqueadas = {k: v for k, v in (progreso or {}).items()
                   if isinstance(v, dict) and v.get("estado") in ESTADOS_BLOQUEADOS}
     decisiones = {}
     for tid, v in sorted(bloqueadas.items()):
         decisiones[tid] = clasificar(tid, v, tareas.get(tid), asuntos, ahora, (memoria or {}).get(tid),
-                                     fuentes=fuentes, progreso=progreso)
+                                     fuentes=fuentes, progreso=progreso, tareas=tareas,
+                                     pasos=(pasos or {}).get(tid))
     viejas = [t for t, (d, _) in decisiones.items() if d == "reabrir" and antigua(bloqueadas[t], ahora)]
     titulos = {t: str((tareas.get(t) or {}).get("titulo") or "") for t in viejas}
     obsoletas = {t: p for t, p in (jev(viejas, titulos) if jev else {}).items() if p >= JEV_OBSOLETA}
@@ -301,9 +348,39 @@ def resumen(informe):
         partes.append("%d ya las hizo una sucesora" % len(informe["sustituidas"]))
     if informe["reabiertas"]:
         partes.append("%d vuelven a la cola (fallo del medio)" % len(informe["reabiertas"]))
-    if informe["siguen"]:
-        partes.append("%d siguen bloqueadas por la propia tarea o porque Jev las ve obsoletas" % len(informe["siguen"]))
+    # (2026-10-08) Antes todas las que siguen salían como «por la propia tarea o porque Jev las ve
+    # obsoletas», aunque fuesen 7 que solo esperaban su turno de 24 h: Alex las dio por perdidas.
+    grupos = {}
+    for s in informe["siguen"]:
+        m = str(s.get("motivo", ""))
+        clave = ("esperan su turno (se reabrieron hace menos de 24 h)" if m.startswith("ya se reabrió")
+                 else "fallan por sí mismas" if m.startswith("falla la propia tarea")
+                 else "Jev las ve obsoletas" if m.startswith("Jev")
+                 else "su ola está cerrada" if m.startswith("su ola")
+                 else "no son trabajo de código (las revisa la dirección)" if m.startswith("no declara archivos")
+                 else "sin causa clara (las revisa una persona)")
+        grupos[clave] = grupos.get(clave, 0) + 1
+    for clave, n in grupos.items():
+        partes.append("%d %s" % (n, clave))
     return " · ".join(partes)
+
+
+def leer_pasos(ids):
+    """{id: [pasos]} de `olas/pasos/<id>.jsonl` (los intentos de la Mac), tolerante a líneas rotas."""
+    salida = {}
+    for tid in ids:
+        lista = []
+        try:
+            with open(os.path.join(OLAS, "pasos", "%s.jsonl" % tid), encoding="utf-8") as f:
+                for linea in f:
+                    try:
+                        lista.append(json.loads(linea))
+                    except ValueError:
+                        continue
+        except OSError:
+            pass
+        salida[tid] = lista
+    return salida
 
 
 def ids_de_colas_de_codigo(carpeta):
@@ -359,7 +436,8 @@ def main(argv=None):
         fuentes = None  # «no sé»: no se usa la regla de la ola cerrada
     correcciones, informe, memoria_nueva = recomprobar(
         progreso, tareas, asuntos, ahora, memoria,
-        jev=lambda c, t: opinion_jev(c, t, asuntos), fuentes=fuentes)
+        jev=lambda c, t: opinion_jev(c, t, asuntos), fuentes=fuentes,
+        pasos=leer_pasos([k for k, v in progreso.items() if isinstance(v, dict) and v.get("estado") in ESTADOS_BLOQUEADOS]))
     if borrar:
         bloqueadas = [k for k, v in progreso.items() if isinstance(v, dict) and v.get("estado") in ESTADOS_BLOQUEADOS]
         if not ids:  # sin la lista del medidor: las bloqueadas y las que esperan a otra

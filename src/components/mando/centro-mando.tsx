@@ -1131,6 +1131,25 @@ export function CentroMando() {
         }
     }, []);
 
+    // (2026-10-08) Alex: «el botón de Publicar Astraura 1.58 (Commits pendientes) no funciona».
+    // Los «ir a» de un medidor cambiaban la pestaña por debajo del medidor abierto y fuera de la
+    // vista: parecía que no pasaba nada. Ahora se cierra el medidor, se baja a las pestañas y,
+    // con `#publicar-<repo>`, «Commits pendientes» abre directamente el diálogo de publicar.
+    const [pedidoPublicar, setPedidoPublicar] = useState<string | null>(null);
+    const atenderPedidoPublicar = useCallback(() => setPedidoPublicar(null), []);
+    const alIrADesdeMedidor = useCallback(
+        (destino: string) => {
+            const [id, ancla = ""] = destino.split("#");
+            if (ancla.startsWith("publicar-")) setPedidoPublicar(ancla.slice("publicar-".length));
+            setMedidorAbierto(null);
+            alCambiarPestana(id);
+            window.requestAnimationFrame(() =>
+                document.getElementById("mando-pestanas")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+            );
+        },
+        [alCambiarPestana],
+    );
+
     // Ejecuta una acción de un medidor y devuelve la frase que se enseña bajo el panel.
     // Toda la decisión de QUÉ es legal vive en @/lib/mando/medidores y en la ruta; aquí
     // solo se habla con ella y se traduce el resultado a castellano.
@@ -2066,7 +2085,7 @@ export function CentroMando() {
                         <PanelMedidor
                             clave={medidorAbierto}
                             alAccionar={accionarMedidor}
-                            alIrA={alCambiarPestana}
+                            alIrA={alIrADesdeMedidor}
                             alCerrar={() => setMedidorAbierto(null)}
                         />
                     ) : accionesAlexAbierto ? (
@@ -2105,7 +2124,7 @@ export function CentroMando() {
                 </p>
             ) : null}
 
-            <Tabs value={pestana} onValueChange={alCambiarPestana}>
+            <Tabs id="mando-pestanas" className="scroll-mt-4" value={pestana} onValueChange={alCambiarPestana}>
                 <div className="flex sm:hidden">
                     <MenuListaMovil
                         opciones={PESTANAS_OPCIONES}
@@ -2154,7 +2173,7 @@ export function CentroMando() {
                     <PanelOlas />
                 </TabsContent>
                 <TabsContent value="commits">
-                    <PanelPublicaciones />
+                    <PanelPublicaciones pedidoPublicar={pedidoPublicar} alAtenderPedido={atenderPedidoPublicar} />
                 </TabsContent>
                 <TabsContent value="publicar">
                     <PanelPublicacion />
