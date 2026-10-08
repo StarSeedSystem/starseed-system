@@ -25,7 +25,7 @@ import { promisify } from "node:util";
 
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { leerServicios } from "@/lib/mando/director-fuentes";
-import { tunelPublicado } from "@/lib/astraura/destino-nube";
+import { destinoFijoPublicado, tunelPublicado } from "@/lib/astraura/destino-nube";
 import {
     calcularAvisos,
     ETIQUETA_DESPIERTO,
@@ -271,7 +271,11 @@ async function leerTunelActivo(): Promise<TunelActivoJson | null> {
 }
 
 async function medirNube(): Promise<NubeServidorEstado> {
-    const [activo, publicado] = await Promise.all([leerTunelActivo(), tunelPublicado().catch(() => null)]);
+    const [activo, publicado, fijo] = await Promise.all([
+        leerTunelActivo(),
+        tunelPublicado().catch(() => null),
+        destinoFijoPublicado().catch(() => null),
+    ]);
     const url = typeof activo?.url === "string" && activo.url.trim() ? activo.url.trim() : null;
     const tunelActivo = Boolean(activo?.active) && url !== null;
     const huella = url ? huellaCorta(url) : null;
@@ -290,7 +294,7 @@ async function medirNube(): Promise<NubeServidorEstado> {
         huella,
         publicado: { huella: huellaPublicado },
         coincide: huella && huellaPublicado ? huella === huellaPublicado : null,
-        destino: propia ? "despliegue-propio" : "esta-mac-tunel",
+        destino: propia ? "despliegue-propio" : fijo ? "servidor-fijo" : "esta-mac-tunel",
     };
 }
 
@@ -384,6 +388,7 @@ async function leerRegistroServidores(): Promise<ServidorRegistrado[]> {
                 tipo: tipoValido(d.tipo) ? d.tipo : "otro",
                 url,
                 creado: typeof d.creado === "string" ? d.creado : "",
+                ...(d.destino === true ? { destino: true } : {}),
                 ultimaSonda,
             });
         }

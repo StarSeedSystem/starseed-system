@@ -252,7 +252,7 @@ export interface AstrauraServidorEstado {
 }
 
 /** De dónde sale hoy la capa nube de Astraura para el resto del OS. */
-export type DestinoNubeServidor = "esta-mac-tunel" | "despliegue-propio";
+export type DestinoNubeServidor = "esta-mac-tunel" | "despliegue-propio" | "servidor-fijo";
 
 export interface NubeServidorEstado {
     /** Esta Mac tiene un túnel activo publicado (`active_tunnel.json`). */
@@ -356,6 +356,8 @@ export interface ServidorRegistrado {
     /** La propia dirección del servidor de Alex: no es un secreto, se enseña tal cual. */
     url: string;
     creado: string;
+    /** Marcado como destino activo de la nube (contrato `architecture/oracle-nube.md` §6). */
+    destino?: boolean;
     ultimaSonda?: SondaServidor;
 }
 

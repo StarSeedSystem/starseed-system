@@ -399,7 +399,13 @@ function SeccionNube({ estado, alCambiar }: { estado: EstadoServidorAstraura; al
                 </li>
                 <li className="flex items-center justify-between gap-2">
                     <span className="text-white/70">Destino de la capa nube</span>
-                    <span className="text-white/50">{n.destino === "esta-mac-tunel" ? "Esta Mac, por túnel" : "Despliegue propio"}</span>
+                    <span className="text-white/50">
+                        {n.destino === "esta-mac-tunel"
+                            ? "Esta Mac, por túnel"
+                            : n.destino === "servidor-fijo"
+                              ? "Servidor fijo del registro"
+                              : "Despliegue propio"}
+                    </span>
                 </li>
             </ul>
 

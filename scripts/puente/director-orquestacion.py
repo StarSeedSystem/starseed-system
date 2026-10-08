@@ -668,12 +668,13 @@ def main():
             # la Astraura de esta Mac por su túnel, cuya URL cambia en cada arranque.
             if time.time() - ultimo_tunel >= TUNEL_CADA_S:
                 ultimo_tunel = time.time()
-                subprocess.Popen(
-                    [sys.executable, os.path.join(DIRECTORIO, "publicar_tunel_astraura.py")],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                )
+                for publicador in ("publicar_tunel_astraura.py", "publicar_destino_astraura.py"):
+                    subprocess.Popen(
+                        [sys.executable, os.path.join(DIRECTORIO, publicador)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                    )
             if time.time() - ultimo_parte >= PARTE_CADA_S:
                 ultimo_parte = time.time()
                 cola, lat, _ = cola_viva()
