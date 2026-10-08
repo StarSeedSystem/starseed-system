@@ -4022,3 +4022,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `DR1007-2` — no escribió nada
+
+## 2026-10-08 11:12 · auto-1008-105713
+
+**Lo que se pidió.** Última salida: 31/12/1969, 18:00:00
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (p318Jc, CPA1007K). Es 67 % de la ola.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `p318Jc` — los tipos no compilan: 4 errores tsc (rama ola/p318Jc conservada)
+- `CPA1007K` — los tipos no compilan: 24 errores tsc (rama ola/CPA1007K conservada)
+- `FLU1005Hc` — pruebas en rojo: vitest falla (rama conservada)
