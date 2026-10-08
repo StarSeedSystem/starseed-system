@@ -139,12 +139,41 @@ export async function resolverEndpointBitnet(target: Astraura158Target): Promise
   }
 }
 
+/** Nodo tal como lo devuelve GET /api/astraura/nodos (§7). */
+interface NodoCandidatoApi {
+  id: string;
+  tipo: TipoNodo;
+  url: string | null;
+  vivo: boolean;
+  tokS: number | null;
+  ramLibreMb: number | null;
+  latenciaMs: number | null;
+}
+
+/**
+ * Pide candidatos a `/api/astraura/nodos` (sustituye a la inexistente
+ * `/api/bitnet/candidatos`). Se pide con `privacidad=privada` por defecto:
+ * el deliberador ve la consulta y lo privado nunca sale a un servidor público
+ * (§5). Solo se usan nodos vivos con URL (los pares sin URL van por la malla,
+ * no por HTTP). Sin red o sin candidatos → lista vacía y el llamador cae al
+ * endpoint de siempre.
+ */
 async function obtenerCandidatosParaPreferencia(pref: TipoNodo): Promise<Candidato[]> {
   try {
-    const res = await fetch("/api/bitnet/candidatos");
+    const res = await fetch("/api/astraura/nodos?tarea=razon&privacidad=privada");
     if (!res.ok) return [];
-    const data = (await res.json()) as { candidatos?: Candidato[] };
-    return (data?.candidatos ?? []).filter((c) => c.tipo === pref);
+    const data = (await res.json()) as { nodos?: NodoCandidatoApi[] };
+    return (data?.nodos ?? [])
+      .filter((n) => n.tipo === pref && n.vivo && typeof n.url === "string" && n.url.length > 0)
+      .map((n) => ({
+        id: n.id,
+        tipo: n.tipo,
+        url: n.url as string,
+        vivo: n.vivo,
+        tokS: n.tokS,
+        ramLibreMb: n.ramLibreMb,
+        latenciaMs: n.latenciaMs,
+      }));
   } catch {
     return [];
   }

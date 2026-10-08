@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   anunciar,
+  crearFichaNodo,
   elegirDeliberador,
   elegirReflejo,
+  fichaCompacta,
+  FICHA_COMPACTA_MAX_BYTES,
+  filtrarPorPrivacidad,
+  iniciarPublicacionCapacidades,
+  permitePrivacidad,
   resumenRed,
   type CapacidadesNodo,
 } from "../capacidades-nodo";

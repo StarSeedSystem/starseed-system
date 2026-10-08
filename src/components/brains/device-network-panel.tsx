@@ -58,10 +58,14 @@ import {
 } from "@/lib/network/lan-sync";
 import type { PeerSnapshot, PeerState } from "@/lib/network/webrtc-mesh";
 import {
+  crearFichaNodo,
   elegirDeliberador,
   elegirReflejo,
+  iniciarPublicacionCapacidades,
   resumenRed,
   type CapacidadesNodo,
+  type MedioNodo,
+  type PublicacionCapacidades,
 } from "@/lib/network/capacidades-nodo";
 
 /* ------------------------------------------------------------------ */
@@ -198,6 +202,44 @@ function DeviceRow({
 }
 
 /* ------------------------------------------------------------------ */
+/* Ficha de capacidades de ESTE dispositivo (medida, no inventada)      */
+/* ------------------------------------------------------------------ */
+
+function medioDesdePlataforma(platform: string): MedioNodo {
+  const p = (platform || "").toLowerCase();
+  if (p.includes("android")) return "android";
+  if (p.includes("iphone") || p.includes("ios") || p.includes("ipad")) return "ios";
+  if (p.includes("linux")) return "linux";
+  if (p.includes("nube") || p.includes("cloud")) return "nube";
+  if (p.includes("win") || p.includes("chrome") || p.includes("browser")) return "navegador";
+  return "mac";
+}
+
+/**
+ * Mide la ficha de ESTE dispositivo. Lo que el navegador no puede medir
+ * (tok/s por capa, RAM libre) queda sin dato («sin medir»), nunca inventado.
+ */
+async function medirFichaPropia(device: DeviceInfo): Promise<CapacidadesNodo> {
+  let bateriaPct: number | null = null;
+  try {
+    const nav = navigator as Navigator & { getBattery?: () => Promise<{ level?: number }> };
+    const bat = await nav.getBattery?.();
+    if (bat && typeof bat.level === "number") bateriaPct = Math.round(bat.level * 100);
+  } catch {
+    /* sin API de batería: se anuncia sin dato */
+  }
+  return crearFichaNodo({
+    nodoId: device.id,
+    medio: medioDesdePlataforma(device.platform),
+    capas: [],
+    tokS: null,
+    bateriaPct,
+    enSegundoPlano: typeof document !== "undefined" ? document.hidden : false,
+    ambitos: ["propio", "cuenta"],
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* Panel principal                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -225,6 +267,33 @@ export default function DeviceNetworkPanel() {
   /** Log honesto del ping/eco de "Probar envío". */
   const [pingLog, setPingLog] = useState<string[]>([]);
   const [pinging, setPinging] = useState(false);
+  /** Fichas de capacidades reales recibidas por la malla (nodoId → última ficha). */
+  const [fichasRed, setFichasRed] = useState<Record<string, CapacidadesNodo>>({});
+  /** Ficha medida de ESTE dispositivo (null hasta la primera medida). */
+  const [fichaPropia, setFichaPropia] = useState<CapacidadesNodo | null>(null);
+  /** Latido de publicación de la ficha propia (arranque + 20 min + al cambiar). */
+  const publicacionRef = useRef<PublicacionCapacidades | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    if (!thisDevice) {
+      setFichaPropia(null);
+      return;
+    }
+    const device = thisDevice;
+    void medirFichaPropia(device).then((f) => {
+      if (vivo) setFichaPropia(f);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [thisDevice]);
+
+  /** Fichas conocidas: la propia + las recibidas por la malla. */
+  const capsNodes = useMemo<CapacidadesNodo[]>(() => {
+    const lista = Object.values(fichasRed).filter((f) => f.nodoId !== fichaPropia?.nodoId);
+    return fichaPropia ? [fichaPropia, ...lista] : lista;
+  }, [fichasRed, fichaPropia]);
 
   const sameNetIds = useMemo(() => new Set(sameNetwork.map((d) => d.id)), [sameNetwork]);
   const lanStatus = useMemo(() => lanSyncStatus(), []);
@@ -251,30 +320,6 @@ export default function DeviceNetworkPanel() {
     () => Object.values(peers).filter((p) => p.state === "connected" && p.channelOpen).length,
     [peers],
   );
-
-  const capsNodes = useMemo<CapacidadesNodo[]>(() => {
-    return devices.map((d) => {
-      const p = (d.platform || "").toLowerCase();
-      let medio: CapacidadesNodo["medio"] = "mac";
-      if (p.includes("android")) medio = "android";
-      else if (p.includes("iphone") || p.includes("ios") || p.includes("ipad")) medio = "ios";
-      else if (p.includes("linux")) medio = "linux";
-      else if (p.includes("nube") || p.includes("cloud")) medio = "nube";
-      else if (p.includes("win") || p.includes("chrome") || p.includes("browser")) medio = "navegador";
-
-      const isMacOrCloud = medio === "mac" || medio === "nube" || medio === "linux";
-      return {
-        nodoId: d.id,
-        medio,
-        needle: { version: "3.0.0" },
-        bitnet: isMacOrCloud ? { tokPorS: 9.5, ctx: 2048, ocupado: false } : null,
-        jev: isMacOrCloud,
-        ramLibreMb: isMacOrCloud ? 2048 : 512,
-        cpu: 25,
-        t: d.lastSeen || Date.now(),
-      };
-    });
-  }, [devices]);
 
   const networkResumen = useMemo(() => resumenRed(capsNodes), [capsNodes]);
   const deliberadorNodo = useMemo(() => elegirDeliberador(capsNodes, Date.now()), [capsNodes]);
@@ -323,7 +368,12 @@ export default function DeviceNetworkPanel() {
 
     const concienciaSync = setupConcienciaSync(mesh, {
       onCapacidades: (cap) => {
-        setPingLog((l) => [`← capacidades de ${cap.nodoId.slice(0, 8)}: ${cap.medio}`, ...l].slice(0, 6));
+        setFichasRed((prev) => {
+          const anterior = prev[cap.nodoId];
+          if (anterior && anterior.t >= cap.t) return prev;
+          return { ...prev, [cap.nodoId]: cap };
+        });
+        setPingLog((l) => [`← ficha de ${cap.nodoId.slice(0, 8)}: ${cap.medio}`, ...l].slice(0, 6));
       },
       onNuevasExperiencias: (exps) => {
         setPingLog((l) => [`← ${exps.length} nuevas experiencias recibidas por mesh`, ...l].slice(0, 6));
@@ -333,11 +383,25 @@ export default function DeviceNetworkPanel() {
       },
     });
 
+    // Anuncio de la ficha propia: al arrancar y cada 20 min por la malla (§7).
+    // NUNCA por Supabase en cada latido (presupuesto de Supabase).
+    if (thisDevice && !publicacionRef.current) {
+      publicacionRef.current = iniciarPublicacionCapacidades({
+        obtenerFicha: () => medirFichaPropia(thisDevice),
+        publicarMalla: (ficha) => {
+          concienciaSync.publicarCapacidades(ficha);
+          setFichaPropia(ficha);
+        },
+      });
+    }
+
     peerUnsubRef.current = () => {
       unsubPeer();
       concienciaSync.unsubscribe();
+      publicacionRef.current?.detener();
+      publicacionRef.current = null;
     };
-  }, []);
+  }, [thisDevice]);
 
   // Limpieza global al desmontar el panel: soltar listener y cerrar mesh.
   useEffect(() => {
@@ -584,19 +648,43 @@ export default function DeviceNetworkPanel() {
             <Radio className="h-3.5 w-3.5 text-sky-300" />
             <span>Capacidades de red</span>
             <Badge variant="outline" className="border-sky-400/30 text-[9px] text-sky-300">
-              {networkResumen.nodos} nodo(s) · {networkResumen.conBitnet} BitNet · {networkResumen.conNeedle} Needle
+              {networkResumen.nodos} ficha(s) · {networkResumen.conBitnet} con BitNet · {networkResumen.conNeedle} con Needle
             </Badge>
           </div>
-          <div className="mt-1.5 grid gap-1 text-[10px] text-foreground/70">
-            <div>
-              <span className="font-semibold text-foreground/85">Deliberador (BitNet):</span>{" "}
-              {deliberadorNodo ? `${deliberadorNodo.nodoId} (${deliberadorNodo.medio}, ${deliberadorNodo.bitnet?.tokPorS} tok/s)` : "Sin nodo libre"}
+          {capsNodes.length === 0 ? (
+            <p className="mt-1.5 text-[10px] text-foreground/50">
+              Aún no hay fichas medidas. Conecta por red directa para anunciar la tuya y recibir la de tus dispositivos.
+            </p>
+          ) : (
+            <div className="mt-1.5 grid gap-1 text-[10px] text-foreground/70">
+              <div>
+                <span className="font-semibold text-foreground/85">Deliberador (BitNet):</span>{" "}
+                {deliberadorNodo
+                  ? `${deliberadorNodo.nodoId.slice(0, 8)} (${deliberadorNodo.medio}, ${
+                      deliberadorNodo.bitnet ? `${deliberadorNodo.bitnet.tokPorS} tok/s` : "sin medir"
+                    })`
+                  : "Sin nodo con BitNet medido"}
+              </div>
+              <div>
+                <span className="font-semibold text-foreground/85">Reflejo (Needle):</span>{" "}
+                {reflejoNodo
+                  ? `${reflejoNodo.nodoId.slice(0, 8)} (${reflejoNodo.medio}, v${reflejoNodo.needle?.version ?? "?"})`
+                  : "Sin nodo con Needle medido"}
+              </div>
+              {fichaPropia && (
+                <div>
+                  <span className="font-semibold text-foreground/85">Este nodo:</span>{" "}
+                  {fichaPropia.capas && fichaPropia.capas.length > 0
+                    ? `${fichaPropia.capas.length} capa(s)`
+                    : "sin capas medidas"}
+                  {" · "}
+                  {fichaPropia.tokS ? "tok/s medidos" : "tok/s sin medir"}
+                  {fichaPropia.bateriaPct != null && ` · batería ${fichaPropia.bateriaPct} %`}
+                  {fichaPropia.enSegundoPlano && " · en 2.º plano"}
+                </div>
+              )}
             </div>
-            <div>
-              <span className="font-semibold text-foreground/85">Reflejo (Needle):</span>{" "}
-              {reflejoNodo ? `${reflejoNodo.nodoId} (${reflejoNodo.medio}, v${reflejoNodo.needle?.version})` : "Sin nodo con Needle"}
-            </div>
-          </div>
+          )}
         </div>
       )}
 
