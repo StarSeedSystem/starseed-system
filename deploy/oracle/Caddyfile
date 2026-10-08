@@ -1,0 +1,50 @@
+# Caddyfile para A1 — subdominios de StarSeed
+# Fuente de verdad: architecture/oracle-nube.md §3, §5
+# Cada bloque usa {$STARSEED_HOST} (variable de entorno de Caddy)
+# HTTPS automático con sslip.io cuando no haya dominio propio.
+
+{
+    # Configuración global: sin redirección de www, solo HTTPS
+    email {$STARSEED_HOST_ADMIN}
+    admin off
+}
+
+# Subdominios según §3 del contrato de Oracle
+astraura.{$STARSEED_HOST} {
+    reverse_proxy astraura:8000
+    tls internal
+}
+
+malla.{$STARSEED_HOST} {
+    reverse_proxy mesh-server:8080
+    tls internal
+}
+
+media.{$STARSEED_HOST} {
+    reverse_proxy mediamtx:9997
+    tls internal
+}
+
+buscar.{$STARSEED_HOST} {
+    reverse_proxy searxng:8080
+    tls internal
+}
+
+n8n.{$STARSEED_HOST} {
+    reverse_proxy n8n:5678
+    tls internal
+}
+
+turn.{$STARSEED_HOST} {
+    reverse_proxy coturn:3478 {
+        # El proxy TCP para TURN; Caddy no expone UDP directamente
+        transport tcp
+    }
+    tls internal
+}
+
+capas.{$STARSEED_HOST} {
+    root * /var/lib/starseed/capas
+    file_server
+    tls internal
+}

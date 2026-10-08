@@ -1,0 +1,52 @@
+#cloud-config
+# cloud-init para A1 (VM.Standard.A1.Flex) — Ubuntu 24.04 arm64
+# Fuente de verdad: architecture/oracle-nube.md §3, §5
+# Reglas: usuario starseed, solo llave SSH (variable), sin contraseña,
+# Docker, fail2ban, unattended-upgrades, iptables abierto y persistido.
+
+package_update: true
+package_upgrade: true
+packages:
+  - docker.io
+  - docker-compose
+  - fail2ban
+  - netfilter-persistent
+  - iptables-persistent
+  - curl
+  - vim
+  - git
+
+users:
+  - name: starseed
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${STARSEED_PUBLIC_KEY}
+    shell: /bin/bash
+    lock_passwd: true
+    groups: [docker]
+
+# El usuario ubuntu por defecto existe en las imágenes OCI; lo dejamos
+# pero sin acceso por contraseña. La llave pública del A1 va por variable.
+runcmd:
+  - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+  - sysctl -p
+  # iptables: abrir 80/tcp, 443/tcp, 8189/udp (A1) según §3; guardar con netfilter-persistent
+  - iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+  - iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+  - iptables -I INPUT -p udp --dport 8189 -j ACCEPT
+  - netfilter-persistent save
+  # unattended-upgrades: actualizar sin interacción
+  - dpkg-reconfigure -plow unattended-upgrades || echo "unattended-upgrades configurado"
+  # swap de 4 GB (recomendado para A1 de 12 GB con memoria ocupada)
+  - fallocate -l 4G /swapfile || true
+  - chmod 600 /swapfile || true
+  - mkswap /swapfile || true
+  - swapon /swapfile || true
+  - echo "/swapfile none swap sw 0 0" >> /etc/fstab
+  # Docker: habilitar servicio
+  - systemctl enable docker --now
+  # fall2ban básico
+  - systemctl enable fail2ban --now
+  # Directorio para volúmenes
+  - mkdir -p /etc/starseed /var/lib/starseed/volumes
+  - chown root:root /etc/starseed && chmod 755 /etc/starseed

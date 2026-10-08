@@ -1,0 +1,177 @@
+version: "3.9"
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: starseed-caddy
+    mem_limit: 128m
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - capas_vol:/var/lib/starseed/capas:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    environment:
+      STARSEED_HOST: ${STARSEED_HOST}
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  astraura:
+    build:
+      context: ${ASTRAURA_BUILD_CONTEXT}
+      dockerfile: ${ASTRAURA_DOCKERFILE}
+    container_name: starseed-astraura
+    mem_limit: 3g
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    environment:
+      ASTRAURA_MODE: nube
+      ASTRAURA_AUTH_MODE: key
+      ASTRAURA_MESH_KEY: ${ASTRAURA_MESH_KEY}
+      STARSEED_HOST: ${STARSEED_HOST}
+    volumes:
+      - astraura_corpus:/app/corpus
+      - astraura_config:/app/config
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  postgres:
+    image: postgres:16-alpine
+    container_name: starseed-postgres
+    mem_limit: 1g
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  mesh-server:
+    build:
+      context: ${MESH_BUILD_CONTEXT}
+      dockerfile: ${MESH_DOCKERFILE}
+    container_name: starseed-mesh
+    mem_limit: 384m
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    environment:
+      STARSEED_HOST: ${STARSEED_HOST}
+      MESH_KEY: ${MESH_KEY}
+    volumes:
+      - mesh_data:/app/data
+    depends_on:
+      - postgres
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: starseed-mediamtx
+    mem_limit: 256m
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    ports:
+      - "8189:8189/udp"
+    environment:
+      MTX_PROTOCOLS: tcp,udp
+      MTX_WEBRTC_ICE_SERVERS: "stun:stun.l.google.com:19302"
+    volumes:
+      - mediamtx_config:/etc/mediamtx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9997/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  searxng:
+    image: searxng/searxng:latest
+    container_name: starseed-searxng
+    mem_limit: 384m
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    environment:
+      SEARXNG_FORMATS: "html, json"
+      SEARXNG_LIMITER: "true"
+      SEARXNG_LIMITER_COUNT: 100
+    volumes:
+      - searxng_config:/etc/searxng
+      - valkey_data:/data/valkey
+    depends_on:
+      valkey:
+        condition: service_started
+  valkey:
+    image: valkey/valkey:alpine
+    container_name: starseed-valkey
+    mem_limit: 256m
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    volumes:
+      - valkey_data:/data
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: starseed-n8n
+    mem_limit: 768m
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD}
+      WEBHOOK_URL: "https://n8n.${STARSEED_HOST}/"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5678/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  orquestador:
+    image: node:22-alpine
+    container_name: starseed-orquestador
+    mem_limit: 2.5g
+    restart: unless-stopped
+    networks:
+      - starseed-interna
+    working_dir: /app
+    command: ["node", "/app/scripts/enjambre/starseed-enjambre.py"]
+    volumes:
+      - ./scripts/enjambre:/app/scripts/enjambre:ro
+      - starseed_memory_root_vol:/app/starseed_memory_root
+    environment:
+      STARSEED_HOST: ${STARSEED_HOST}
+      STARSEED_ROOT: /app
+networks:
+  starseed-interna:
+    driver: bridge
+volumes:
+  caddy_data: {}
+  caddy_config: {}
+  capas_vol: {}
+  astraura_corpus: {}
+  astraura_config: {}
+  postgres_data: {}
+  mesh_data: {}
+  mediamtx_config: {}
+  searxng_config: {}
+  valkey_data: {}
+  n8n_data: {}
+  starseed_memory_root_vol: {}
