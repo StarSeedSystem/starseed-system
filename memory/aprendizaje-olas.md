@@ -4105,3 +4105,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `p318Jc` — los tipos no compilan: 4 errores tsc (rama ola/p318Jc conservada)
+
+## 2026-10-08 15:59 · auto-1008-140757
+
+**Lo que se pidió.** no anade otro coste
+
+**Resultado.** 5 de 10 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (CAMR1005Db, PT1009Cb, CPA1007Kb). Es 30 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (PRD1005S, RM6). Es 20 % de la ola.
+- codex/gpt-5.6-sol integró 3 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005Db` — los tipos no compilan: 2 errores tsc (rama ola/CAMR1005Db conservada)
+- `PT1009Cb` — los tipos no compilan: 5 errores tsc (rama ola/PT1009Cb conservada)
+- `CPA1007Kb` — los tipos no compilan: 4 errores tsc (rama ola/CPA1007Kb conservada)
+- `PRD1005S` — otra cosa: sin decisión en 0 h; rama ola/PRD1005S conservada
+- `RM6` — otra cosa: sin decisión en 0 h; rama ola/RM6 conservada
