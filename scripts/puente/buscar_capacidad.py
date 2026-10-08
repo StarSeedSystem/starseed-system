@@ -80,7 +80,7 @@ NOMBRES = {
     "gcloud": "Google Cloud",
     "hf": "Hugging Face",
     "colab": "Colab / Kaggle",
-    "oracle": "Oracle",
+    "oracle": "Oracle Always Free",
 }
 ESTADOS = {
     "listo": "trabajando",
@@ -193,6 +193,11 @@ def texto_medio(m):
     if m.get("id") == "claude":
         detalle = ("2 agentes solo mientras haya una sesión de Claude abierta que arranque el "
                    "orquestador en su contenedor: desde Genesis no se puede encender")
+    elif m.get("id") == "oracle":
+        # Oracle ya no es «descartado» (OR1007B): su estado real sale de oracle.json (§9 del
+        # contrato) y aquí se enseña con su capacidad (§1) delante del paso o del detalle.
+        resto = m.get("siguiente_paso") or m.get("detalle") or ""
+        detalle = " · ".join(p for p in (m.get("capacidad"), resto) if p)
     return "%s: %s%s" % (nombre, estado, (" · " + detalle) if detalle else "")
 
 
