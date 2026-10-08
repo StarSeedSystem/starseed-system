@@ -15,6 +15,8 @@ import {
     Sparkles, Users,
     // Ola 285 · K6: Canales StarSeed.
     Rss,
+    // Ola 1010E · ES1010R: Estaciones — transmisiones en directo.
+    Cast,
     // 2026-09-28: Contactos.
     BookUser,
     // 2026-09-28: apps en vivo.
@@ -155,6 +157,25 @@ export const APP_CATALOG: StarseedApp[] = [
             primary: "route",
             allowed: ["route", "window", "tab"],
             route: "/canales",
+        },
+    },
+    {
+        // Ola 1010E · ES1010R: Estaciones — transmisiones en directo libres de
+        // la red (audio, vídeo, XR, eventos, juegos, pizarras, dashboards…)
+        // con reproductor autoadaptable, malla y estudio de producción con IA.
+        // Contrato: architecture/estaciones.md §11.
+        id: "estaciones",
+        name: "Estaciones",
+        short: "Estaciones",
+        description: "El directorio de transmisiones en directo de la red: audio, vídeo, XR, eventos, juegos y dashboards libres, con reproductor autoadaptable y estudio con IA.",
+        icon: Cast,
+        accent: "#FB7185",
+        category: "starseed",
+        status: "native",
+        open: {
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/estaciones",
         },
     },
     {
@@ -436,8 +457,10 @@ export const APP_CATALOG: StarseedApp[] = [
         iconUrl: "/app-icons/radio.png",
         accent: "#FB923C",
         category: "media",
-        status: "soon", // streaming en Fase 2
-        open: { primary: "window", allowed: ["window", "tab"] },
+        // Ola 1010E · ES1010R: la radio en vivo pasa a abrir las estaciones de
+        // audio del directorio (architecture/estaciones.md §11).
+        status: "native",
+        open: { primary: "route", allowed: ["route", "window", "tab"], route: "/estaciones?tipo=audio" },
     },
     {
         id: "camara",
@@ -486,9 +509,9 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
     sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares", "laboratorio"],
-    media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
+    media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };
 
