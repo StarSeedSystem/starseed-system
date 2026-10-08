@@ -4013,3 +4013,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `PT1009C` — otra cosa: sin decisión en 0 h; rama ola/PT1009C conservada
 - `CPA1007K` — los tipos no compilan: 5 errores tsc (rama ola/CPA1007K conservada)
 - `RTCAMR1005B` — otra cosa: continúa como RTCAMR1005Bb desde la rama nube/37801771584 (traer_nube)
+
+## 2026-10-08 10:55 · auto-1008-100845
+
+**Lo que se pidió.** top 3 accionables
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `DR1007-2` — no escribió nada
