@@ -93,11 +93,28 @@ describe("GET /api/llamadas/ice", () => {
         vi.stubEnv("METERED_TURN_DOMAIN", "");
         vi.stubEnv("TURN_URL", "");
         vi.stubEnv("NEXT_PUBLIC_TURN_URL", "");
+        vi.stubEnv("TURN_SECRET", "");
+        vi.stubEnv("TURN_URLS", "");
         const r = await pedir({ "x-forwarded-for": "10.0.0.1", "sec-fetch-site": "same-origin" });
         expect(r.status).toBe(200);
         expect(r.headers.get("cache-control")).toMatch(/no-store/);
         const j = await r.json();
         expect(j).toEqual({ iceServers: STUN_POR_DEFECTO, fuente: "stun", ttl: 300 });
+    });
+
+    it("con coturn propio (REST): credencial temporal, caché privada de 5 min y nunca el secreto", async () => {
+        const secreto = "secreto-" + "de-prueba-coturn";
+        vi.stubEnv("CLOUDFLARE_TURN_KEY_ID", "");
+        vi.stubEnv("METERED_TURN_DOMAIN", "");
+        vi.stubEnv("TURN_SECRET", secreto);
+        vi.stubEnv("TURN_URLS", "turn:turn.example.org:3478");
+        const r = await pedir({ "x-forwarded-for": "10.0.0.9", "sec-fetch-site": "same-origin" });
+        expect(r.status).toBe(200);
+        expect(r.headers.get("cache-control")).toBe("private, max-age=300");
+        const texto = JSON.stringify(await r.json());
+        expect(texto).toContain('"fuente":"rest"');
+        expect(texto).toContain("turn:turn.example.org:3478");
+        expect(texto).not.toContain(secreto);
     });
 
     it("con Cloudflare configurado devuelve sus credenciales temporales (nunca el token)", async () => {

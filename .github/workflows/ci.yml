@@ -46,7 +46,10 @@ jobs:
       - name: Tests del núcleo mesh/cripto
         run: npx --yes tsx scripts/test-mesh-core.ts
       - name: Build de producción (next build)
-        run: npm run build
+        # (2026-10-08) NO `npm run build`: el script de package.json fija NODE_OPTIONS=4096 en la
+        # propia orden y pisaba el 8192 de aquí abajo, así que el build seguía muriendo por memoria
+        # (runs 37709017023 y anteriores). Mismo prebuild (version.json) y el mismo next build.
+        run: npm run prebuild && npx next build
         env:
           # (2026-10-07) Con 4096 el build moría por memoria («JavaScript heap out of memory»,
           # exit 134) desde hace días: CI en rojo en todos los push a main. La máquina de
