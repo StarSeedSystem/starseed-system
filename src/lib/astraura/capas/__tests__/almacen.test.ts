@@ -111,7 +111,7 @@ describe("AlmacenCapas · guardarCapa", () => {
     // Se retoma y se cierra con los tres trozos.
     const res = await almacen.guardarCapa(entrada, [trozos[1], trozos[2], trozos[0]]);
     expect(res.ok).toBe(true);
-    expect(new TextDecoder().decode(await almacen.abrirCapa(entrada.id)!)).toBe("unodostres");
+    expect(new TextDecoder().decode((await almacen.abrirCapa(entrada.id))!)).toBe("unodostres");
   });
 });
 
