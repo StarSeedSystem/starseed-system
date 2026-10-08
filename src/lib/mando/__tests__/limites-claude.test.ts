@@ -779,4 +779,52 @@ describe('limites-claude (rescate ramas nube)', () => {
   it('ENLACE_USO_CLAUDE apunta a Ajustes → Uso de claude.ai', () => {
     expect(ENLACE_USO_CLAUDE).toBe('https://claude.ai/settings/usage');
   });
+
+  it('costePorRevision con arreglo vacío de lecturas: retorna null', () => {
+    expect(costePorRevision([], 'sesion_pct')).toBeNull();
+  });
+
+  it('disparosAntes con dos tareas periódicas mismo cada_min: cuenta combinada', () => {
+    const ahora = 0;
+    const hasta = 1000 * 60 * 1000;
+    const lista: ProgramadaClaude[] = [
+      { nombre: 'cada100', proxima: new Date(100 * 60 * 1000).toISOString(), cada_min: 100 },
+      { nombre: 'cada100', proxima: new Date(200 * 60 * 1000).toISOString(), cada_min: 100 },
+    ];
+    // Tarea 1: primera a los 100min, luego cada 100min hasta 1000min:
+    // shots at 100,200,...,1000 -> floor((1000-100)/100)+1 = 10 shots
+    // Tarea 2: primera a los 200min, luego cada 100min hasta 1000min:
+    // shots at 200,300,...,1000 -> floor((1000-200)/100)+1 = 9 shots
+    // total = 10 + 9 = 19
+    expect(disparosAntes(lista, ahora, hasta)).toBe(19);
+  });
+
+  it('resumenLimitesClaude solo sesión: forma cadena con sesión y sin semana', () => {
+    const estado: EstadoLimitesClaude = {
+      sesion: {
+        pct: 34,
+        queda: 66,
+        reinicio: '2026-01-01T07:10:00.000Z',
+        minutosParaReinicio: 130,
+        coste: 5,
+        proyeccion: 72,
+        reiniciada: false,
+        tono: 'ok',
+      },
+      semana: null,
+      modelo: null,
+      modeloNombre: null,
+      lecturaEn: '2026-01-01T05:00:00.000Z',
+      lecturaHaceMin: 60,
+      desactualizada: false,
+      programadasEnSesion: 10,
+      programadasEnSemana: 0,
+      recomendacion: null,
+      tono: 'ok',
+    };
+    const resumen = resumenLimitesClaude(estado);
+    expect(resumen).toContain('sesión 34 %');
+    expect(resumen).not.toContain('semana');
+    expect(resumen).toContain('reinicia en 2 h 10 min');
+  });
 });
