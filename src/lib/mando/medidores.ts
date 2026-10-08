@@ -1584,6 +1584,32 @@ export function detalleDeMedidor(
                 }
             }
 
+            // (2026-10-08) Lo que «Listas» manda aquí («N más esperan a otra tarea: están en
+            // Bloqueadas») tiene que ESTAR aquí. PRD1005U esperaba a PRD1005S (la rehace
+            // PRD1005Sc) desde una cola que no es la activa: «Listas» decía 4 y «Bloqueadas» 3.
+            const yaEnFilas = new Set([...filasOperativas, ...filasHistoricas].map((f) => f.id));
+            for (const t of d.ejecutables) {
+                if (!t.esperaA?.length || yaEnFilas.has(t.id)) continue;
+                if (typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(t.id, d.asuntosDeMain)) continue;
+                yaEnFilas.add(t.id);
+                const entrada = d.progreso[t.id];
+                const b = fichaDeBloqueada(`dependencia no integrada: ${t.esperaA.join(", ")}`, estadoDeBloqueadas, titulo, {
+                    ...(entrada ?? {}),
+                    estado: entrada?.estado || "pendiente",
+                }, viaDe);
+                filasOperativas.push({
+                    id: t.id,
+                    titulo: t.titulo || titulo(t.id),
+                    estado: b.muerta ? "bloqueada sin salida" : "bloqueada",
+                    porque: b.veredicto,
+                    desde: entrada?.t,
+                    ficha: b.ficha,
+                    historial: d.historiales?.[t.id]?.slice(0, 4),
+                    acciones: accionesDeBloqueada({ estado: b.muerta ? "bloqueada sin salida" : "bloqueada", ficha: b.ficha }),
+                    historica: false,
+                });
+            }
+
             filasOperativas.sort((a, b) => a.id.localeCompare(b.id));
             filasHistoricas.sort((a, b) => a.id.localeCompare(b.id));
 

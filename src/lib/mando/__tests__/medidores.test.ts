@@ -541,6 +541,20 @@ describe("las dependencias se miden con la regla del orquestador (cadenas)", () 
         expect(dependenciasQueFaltan(["A"], { A: { estado: "commit" } })).toEqual([]);
     });
 
+    it("lo que «Listas» manda a «Bloqueadas» está en «Bloqueadas», con quién la rehace", () => {
+        const d = detalleDeMedidor("bloqueadas", {
+            fila: [],
+            ejecutables: [{ id: "PRD1005U", titulo: "Genesis muestra los puentes", esperaA: ["PRD1005S"] }],
+            progreso: { PRD1005S: { estado: "sustituida" }, PRD1005Sc: { estado: "en_curso" }, PRD1005U: { estado: "pendiente" } },
+            titulos: { PRD1005S: "enrutador de puentes" },
+        });
+        const fila = d.filas.find((f) => f.id === "PRD1005U");
+        expect(fila?.estado).toBe("bloqueada");
+        expect(fila?.porque).toContain("siguen vivas");
+        expect(JSON.stringify(fila?.ficha)).toContain("la rehace PRD1005Sc");
+        expect(d.resumen).toContain("1 esperando a otra tarea");
+    });
+
     it("«Listas» no ofrece lo que el orquestador no cogería (RM7 con RM6 rehaciéndose)", () => {
         const colas = [{ id: "RM7", titulo: "Ajustes de red mesh", cola: "363", dependencias: ["RM5", "RM6"] }];
         const progreso = { RM5: { estado: "commit" }, RM6: { estado: "sustituida" }, RM6b: { estado: "reasignada" } };
