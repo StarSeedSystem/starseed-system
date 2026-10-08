@@ -65,7 +65,7 @@ export const DOCK_STORAGE_KEY = 'starseed.dock.items.v2';
  * banderas one-shot por navegador (`starseed.dock.items.migrated.vN`), que era
  * justo lo que no llegaba a las cuentas viejas.
  */
-export const DOCK_DEFAULTS_VERSION = 22;
+export const DOCK_DEFAULTS_VERSION = 23;
 
 /**
  * Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION.
@@ -88,8 +88,11 @@ export const DOCK_DEFAULTS_VERSION = 22;
  * v22 (2026-09-28) añade `contactos`: la app de Contactos (libreta privada de
  * personas, que sustituye a «seguir» personas) es nueva y sin esta garantía no
  * aparecería en el dock de las cuentas ya existentes.
+ * v23 (2026-10-07) añade `estaciones`: la página de Estaciones (transmisiones
+ * en directo libres, Ola 1010E) es nueva y sin esta garantía no aparecería en
+ * el dock de las cuentas ya existentes.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'contactos'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'contactos', 'estaciones'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa
@@ -123,9 +126,10 @@ export interface DockNormalizeResult {
  * sync, donde el catálogo real (`DOCK_PRESETS`, que arrastra lucide-react) no
  * está cargado. `dock-config.ts` registra el catálogo canónico al importarse
  * (`registerDockSeedProvider`) y entonces estas semillas dejan de usarse; deben
- * mantenerse SIEMPRE espejo de sus entradas en DOCK_PRESETS.
+ * mantenerse SIEMPRE espejo de sus entradas en DOCK_PRESETS. Exportadas para
+ * que la prueba del espejo (`dock-estaciones.test.ts`) pueda compararlas.
  */
-const FALLBACK_SEEDS: Record<string, DockItemLike> = {
+export const FALLBACK_SEEDS: Record<string, DockItemLike> = {
   senales: {
     id: 'senales', label: 'Señales', iconKey: 'RadioTower', path: '/senales',
     color: 'cyan', enabled: true, origin: 'preset',
@@ -159,6 +163,12 @@ const FALLBACK_SEEDS: Record<string, DockItemLike> = {
   contactos: {
     id: 'contactos', label: 'Contactos', iconKey: 'BookUser', path: '/contactos',
     color: 'emerald', enabled: true, origin: 'preset',
+  },
+  // Ola 1010E (2026-10-07): Estaciones — transmisiones en directo libres
+  // (espejo de su entrada en DOCK_PRESETS).
+  estaciones: {
+    id: 'estaciones', label: 'Estaciones', iconKey: 'Cast', path: '/estaciones',
+    color: 'crimson', enabled: true, origin: 'preset',
   },
 };
 
