@@ -66,7 +66,7 @@ En `src/lib/voces/vinculos.ts`, idempotente:
 - `estudio` = Q8_0 (~1000 MB), `alta` = Q4_K_M (~600 MB): misma voz, distinta
   precisión. El cambio lo hace la pestaña Motores con «Cargar este modelo».
 
-## Vía Suptónica (Supertonic ONNX TTS)
+## Vía Suptónica (Supertonic ONNX TTS) – síntesis on-device sin GPU
 
 - **Síntesis en el dispositivo**: Supertonic ejecuta TTS ONNX en CPU o
   WebAssembly SIMD, sin GPU. `IDIOMAS_SUPERTONIC` declara 31 idiomas: español,
@@ -87,6 +87,11 @@ En `src/lib/voces/vinculos.ts`, idempotente:
   idiomas y latencia; `soporteSupertonic()` comprueba soporte sin exigir daemon
   OmniVoice ni GPU; `nivelParaVoz()` prioriza `suptonica`; y
   `crearNivelSuptonicoDefecto()` publica `supertonic-es-v1` con los 31 idiomas.
+- **Integración con el contrato de niveles**: este nivel está definido como
+  `NivelVozSuptonica` en `src/lib/aurora/voz-starseed/niveles.ts` y se integra
+  con la cadena `estudio/alta/ligera/minima` sin duplicar el timbre; el motor
+  único `hablarStarSeed()` elige el nivel suptónico cuando está disponible y el
+  timbre permanece igual.
 - **Reparto por la mesh**: cada neurona anuncia motor, modelos, RAM, carga,
   latencia y transporte mediante `src/lib/network/inferencia-local.ts`. PAIR
   puede elegir, con `requiereGpu: false`, el nodo con el modelo `suptonica` y
