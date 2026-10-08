@@ -55,6 +55,9 @@ import { listPersonalityProfiles } from "@/lib/aurora/personalities";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import { useAiConversations } from "@/lib/aurora/conversations";
 import { ConfigChangeNotice, isConfigChangeMessage } from "@/components/aurora/config-change-notice";
+// (§8) Botones 👍/👎/«corregir» bajo cada respuesta: alimentan las
+// experiencias de aprendizaje en IDB sin tocar nada más de la vista.
+import { ValorarRespuesta } from "@/components/astraura/valorar-respuesta";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
 /** Un mensaje "en vivo" del motor (conversation lleva `.at`). */
@@ -560,6 +563,17 @@ function Conversation(props: {
                   />
                   {m.role === "aurora" && enhancedMeta && (
                     <ProcessLine meta={enhancedMeta} onOpenFull={() => openProcess(enhancedMeta)} />
+                  )}
+                  {m.role === "aurora" && (
+                    <ValorarRespuesta
+                      className="mt-1"
+                      entrada={
+                        [...visibleConvo.slice(0, i)].reverse().find((e) => e.role === "user")?.text ?? ""
+                      }
+                      respuesta={displayText}
+                      modelo={m.meta?.model ?? ""}
+                      herramientas={m.meta?.tools?.map((t) => ({ nombre: t.name, ok: t.ok }))}
+                    />
                   )}
                 </div>
               );

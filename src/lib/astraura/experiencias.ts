@@ -3,7 +3,14 @@
 // IndexedDB (nunca localStorage: son muchas) detrás de la interfaz Almacen.
 
 export type Capa = "regla" | "needle" | "jev" | "bitnet" | "llm" | "persona";
-export type TipoExperiencia = "intencion" | "eleccion" | "si_no" | "puntuacion" | "texto";
+export type TipoExperiencia = "intencion" | "eleccion" | "si_no" | "puntuacion" | "texto" | "valoracion" | "correccion";
+
+// Aprendizaje en el cliente (§8): la persona valora la respuesta y, si quiere, la corrige.
+export type Valoracion = "positiva" | "negativa";
+export interface ResultadoHerramienta {
+  nombre: string;
+  ok: boolean;
+}
 
 export const MAX_ENTRADA = 400;
 
@@ -21,6 +28,13 @@ export interface Experiencia {
   resultado: boolean | null;
   opciones?: unknown[];
   nota_resultado?: string;
+  // Aprendizaje por ámbito (§8): ámbito, capa y modelo que respondieron,
+  // la valoración de la persona y cómo les fue a las herramientas usadas.
+  ambito?: string;
+  modelo?: string;
+  valoracion?: Valoracion;
+  correccion?: string;
+  herramientas?: ResultadoHerramienta[];
 }
 
 export interface CierreExperiencia {
@@ -30,10 +44,20 @@ export interface CierreExperiencia {
   nota: string;
 }
 
+// Marca append-only de «ya subida al corpus del ámbito»: un almacén sin
+// borrado no puede poner banderas, así que se anota una línea por referencia.
+export interface MarcaSubida {
+  ref: string;
+  t: string;
+  subida: true;
+}
+
 // Clave-valor mínimo: IndexedDB en el navegador, un Map en las pruebas.
+export type LineaExperiencias = Experiencia | CierreExperiencia | MarcaSubida;
+
 export interface Almacen {
-  poner(linea: Experiencia | CierreExperiencia): Promise<void>;
-  lineas(): Promise<(Experiencia | CierreExperiencia)[]>;
+  poner(linea: LineaExperiencias): Promise<void>;
+  lineas(): Promise<LineaExperiencias[]>;
 }
 
 export function recortar(x: unknown, n = MAX_ENTRADA): string {
@@ -67,6 +91,11 @@ export async function nueva(op: {
   opciones?: unknown[];
   dominio?: string;
   medio?: string;
+  ambito?: string;
+  modelo?: string;
+  valoracion?: Valoracion;
+  correccion?: string;
+  herramientas?: ResultadoHerramienta[];
 }): Promise<Experiencia> {
   const entrada = recortar(op.entrada);
   const e: Experiencia = {
@@ -83,6 +112,11 @@ export async function nueva(op: {
     resultado: null,
   };
   if (op.opciones && op.opciones.length > 0) e.opciones = [...op.opciones];
+  if (op.ambito) e.ambito = op.ambito;
+  if (op.modelo) e.modelo = op.modelo;
+  if (op.valoracion) e.valoracion = op.valoracion;
+  if (op.correccion) e.correccion = recortar(op.correccion, 400);
+  if (op.herramientas && op.herramientas.length > 0) e.herramientas = [...op.herramientas];
   return e;
 }
 
@@ -97,12 +131,19 @@ export async function cerrar(id: string, resultado: boolean, nota: string, almac
   return c;
 }
 
+export async function marcarSubida(id: string, almacen: Almacen): Promise<MarcaSubida> {
+  const m: MarcaSubida = { ref: id, t: ahora(), subida: true };
+  await almacen.poner(m);
+  return m;
+}
+
 export async function leer(ultimas: number = 500, almacen: Almacen): Promise<Experiencia[]> {
   const lineas = (await almacen.lineas()).slice(-ultimas * 2);
   const porId = new Map<string, Experiencia>();
   const orden: string[] = [];
   for (const d of lineas) {
     if ("ref" in d) {
+      if ("subida" in d) continue; // marca de subida: no es un cierre
       const e = porId.get(d.ref);
       if (e) {
         e.resultado = d.resultado;
