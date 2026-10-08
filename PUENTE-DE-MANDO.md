@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 11:26:58 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 11:53:01 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,17 +16,16 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 18 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 35 |
-| HEAD | `3bb7259c chore(memoria): aprendizaje de la ola auto-1008-111528` |
-| Sin publicar | 31 commits |
+| HEAD | `fbad43f7 chore(memoria): aprendizaje de la ola auto-1008-112737` |
+| Sin publicar | 33 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1008-111528.json`, hace 7s)
+## Quién escribe ahora (latido de `cola-auto-1008-112737.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `FLU1005Hc` | hecho | freellmapi/auto | 1 min | 34 s | 525133 |
-| `CPA1007K` | hecho | freellmapi/auto | 3 min | 155 s | 331448 |
-| `p318Jc` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 10 min | 626 s | 571729 |
+| `CPA1007K` | hecho | freellmapi/auto | 1 min | 33 s | 413714 |
+| `p318Jc` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 25 min | 1472 s | 578090 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
