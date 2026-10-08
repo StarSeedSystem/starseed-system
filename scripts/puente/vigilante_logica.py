@@ -218,7 +218,9 @@ def decidir_relanzamiento(cfg, hay_orquestador, n_pendientes):
     return (True, trabajadores, tope)
 
 
-CAMPOS_CORRECCION = ("estado", "nota", "medio", "modelo_siguiente")
+#: (2026-10-08) `intentos_auto`: la escalera del director (libre×2 → … → bloqueante) llega
+#: también por aquí con el orquestador vivo; sin su cuenta repetiría «libre» para siempre.
+CAMPOS_CORRECCION = ("estado", "nota", "medio", "modelo_siguiente", "intentos_auto")
 
 
 def aplicar_correcciones(progreso, correcciones):

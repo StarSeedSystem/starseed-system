@@ -51,8 +51,8 @@ DISCO_AVISA_GB = 5.0
 WORKERS_POR_DEFECTO = 5
 SERVICIO_VIGILANTE = "com.starseed.vigilante"
 
-# Una dependencia en estos estados NO VA A LLEGAR NUNCA (la misma regla que
-# `DEPENDENCIA_IMPOSIBLE` de Genesis en medidores.ts). Medido hoy: JF2 esperaba a JF1, que
+# Una dependencia en estos estados NO VA A LLEGAR NUNCA si además ninguna sucesora de su
+# cadena sigue viva ni está integrada (`_cadena_de`; la misma regla que `src/lib/mando/cadenas.ts`). Medido hoy: JF2 esperaba a JF1, que
 # está «sustituida» (la partieron en JF1b/JF1c, ya integradas). Genesis la contaba como
 # «se puede coger ya» y el vigilante la daba por bloqueada: dos verdades, y la tarea parada
 # para siempre. Al asignarla se le quita esa dependencia por el camino de siempre
@@ -145,6 +145,36 @@ def porque_no_esta_lista(tid, progreso, tareas_por_id, en_cola_viva):
     return "no entra en la selección automática"
 
 
+def _base_de_cadena(tid):
+    """«RM6b» → «RM6» (la regla de Genesis y del vigilante)."""
+    tid = str(tid or "")
+    if len(tid) > 1 and tid[-1] in "bcdefghijklmnopqrstuvwxyz" and (tid[-2].isdigit() or tid[-2].isupper()):
+        return tid[:-1]
+    return tid
+
+
+def _orden_en_cadena(tid):
+    return 0 if _base_de_cadena(tid) == tid else ord(tid[-1]) - 97
+
+
+def _cadena_de(dep, progreso, tareas_por_id, asuntos_integrados=frozenset()):
+    """«cumplida», «viva» o «muerta»: lo que pasa con una dependencia muerta mirando su CADENA.
+
+    (2026-10-08, medido) RM7 esperaba a RM6, «sustituida» porque su objeción la rehace RM6b.
+    Para este módulo «sustituida» era «no llegará nunca»: le quitó la dependencia y metió RM7
+    en la tanda con RM6b sin integrar. Una sucesora viva es una espera; una integrada la cumple;
+    solo una cadena entera muerta (JF1 sin nadie detrás) es una dependencia que no llegará."""
+    base, propio = _base_de_cadena(dep), _orden_en_cadena(dep)
+    ids = set(progreso or {}) | set(tareas_por_id or {})
+    sucesoras = sorted((k for k in ids if k != dep and _base_de_cadena(k) == base
+                        and _orden_en_cadena(k) > propio), key=_orden_en_cadena)
+    if any(_estado(progreso, k) in DEP_CUMPLIDA or k in asuntos_integrados for k in sucesoras):
+        return "cumplida"
+    if any(_estado(progreso, k) not in DEP_MUERTA | {"bloqueante", "cancelada"} for k in sucesoras):
+        return "viva"
+    return "muerta"
+
+
 def desatascables(tareas_por_id, progreso, asuntos_integrados=frozenset()):
     """{id: [deps muertas]} de las tareas abiertas que SOLO esperan a dependencias que ya no
     llegarán (y al menos una). Las que esperan a algo vivo no entran: esperar sí sirve ahí."""
@@ -165,7 +195,13 @@ def desatascables(tareas_por_id, progreso, asuntos_integrados=frozenset()):
             est = _estado(progreso, d)
             if est in DEP_CUMPLIDA or d in asuntos_integrados:
                 continue
-            (muertas if est in DEP_MUERTA else vivas).append(d)
+            if est in DEP_MUERTA:
+                cadena = _cadena_de(d, progreso, tareas_por_id, asuntos_integrados)
+                if cadena == "cumplida":
+                    continue
+                (vivas if cadena == "viva" else muertas).append(d)
+            else:
+                vivas.append(d)
         if muertas and not vivas:
             fuera[tid] = muertas
     return fuera

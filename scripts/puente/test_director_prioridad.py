@@ -91,6 +91,35 @@ class ReencoloPorPrioridad(Base):
             self.assertEqual(p[tid]["estado"], "fallo_tsc")
 
 
+class ConOrquestadorVivo(Base):
+    """(2026-10-08) Con el orquestador vivo la escalera también actúa, por correcciones."""
+
+    def test_va_por_correcciones_y_no_toca_el_progreso(self):
+        with mock.patch.object(director, "orquestador_vivo", return_value=True):
+            tocadas = director.continuar_estancadas(tope=2)
+        self.assertEqual(sorted(tocadas), sorted(self.CORTAS))
+        with open(os.path.join(self.olas, "progreso.json"), encoding="utf-8") as fh:
+            p = json.load(fh)
+        self.assertEqual({p[t]["estado"] for t in self.CORTAS}, {"fallo_tsc"})
+        with open(os.path.join(self.olas, "progreso-correcciones.json"), encoding="utf-8") as fh:
+            c = json.load(fh)
+        self.assertEqual(sorted(c), sorted(self.CORTAS))
+        for tid in self.CORTAS:
+            self.assertEqual(c[tid]["estado"], "pendiente")
+            self.assertEqual(c[tid]["intentos_auto"], 1)
+            self.assertIn("director:", c[tid]["nota"])
+
+    def test_la_correccion_lleva_la_cuenta_de_la_escalera(self):
+        import sys as _s
+        _s.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from vigilante_logica import aplicar_correcciones
+        nuevo, aplicadas = aplicar_correcciones({"X": {"estado": "sin_cambios"}},
+                                                {"X": director.correccion_de({"estado": "pendiente",
+                                                                              "intentos_auto": 2})})
+        self.assertEqual(aplicadas, ["X"])
+        self.assertEqual(nuevo["X"]["intentos_auto"], 2)
+
+
 class LineaOrden(Base):
     def test_linea_con_las_tres_primeras_y_su_porque(self):
         linea = director.linea_orden()

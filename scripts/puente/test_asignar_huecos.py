@@ -157,6 +157,22 @@ class DependenciasMuertas(unittest.TestCase):
     def test_solo_las_que_esperan_a_muertas(self):
         self.assertEqual(A.desatascables(self.TAREAS, self.PROG), {"JF2": ["JF1"]})
 
+    def test_sustituida_con_sucesora_viva_es_una_espera(self):
+        # (2026-10-08) RM7 esperaba a RM6 «sustituida» con RM6b rehaciéndola: no se le quita.
+        tareas = {"RM7": {"id": "RM7", "depende": ["RM5", "RM6"]}}
+        prog = {"RM5": {"estado": "commit"}, "RM6": {"estado": "sustituida"}, "RM6b": {"estado": "reasignada"}}
+        self.assertEqual(A.desatascables(tareas, prog), {})
+
+    def test_sustituida_con_sucesora_integrada_esta_cumplida(self):
+        tareas = {"RM7": {"id": "RM7", "depende": ["RM6"]}}
+        prog = {"RM6": {"estado": "sustituida"}, "RM6b": {"estado": "commit"}}
+        self.assertEqual(A.desatascables(tareas, prog), {})
+
+    def test_cadena_entera_muerta_si_se_quita(self):
+        tareas = {"RM7": {"id": "RM7", "depende": ["RM6"]}}
+        prog = {"RM6": {"estado": "sustituida"}, "RM6b": {"estado": "rechazada"}}
+        self.assertEqual(A.desatascables(tareas, prog), {"RM7": ["RM6"]})
+
     def test_ya_quitada_no_se_repite(self):
         prog = dict(self.PROG, JF2={"estado": "pendiente", "quitar_dependencias": ["JF1"]})
         self.assertEqual(A.desatascables(self.TAREAS, prog), {})

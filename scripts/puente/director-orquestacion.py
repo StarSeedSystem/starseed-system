@@ -298,6 +298,39 @@ def reconciliar_estados():
         return []
 
 
+def correccion_de(entrada):
+    """PURA. Los campos que la escalera cambió, con la forma de `progreso-correcciones.json`.
+    `modelo_siguiente` va siempre (None = sin modelo clavado: lo elige el orquestador) y
+    `intentos_auto` también, para que la escalera suba de escalón y no repita «libre» siempre."""
+    return {
+        "estado": entrada.get("estado"),
+        "nota": entrada.get("nota"),
+        "modelo_siguiente": entrada.get("modelo_siguiente"),
+        "intentos_auto": entrada.get("intentos_auto", 0),
+        "t": entrada.get("t"),
+    }
+
+
+def anotar_correcciones(nuevas, ruta=None):
+    """Funde `nuevas` en `progreso-correcciones.json` (escritura atómica). Nunca lanza."""
+    ruta = ruta or os.path.join(OLAS, "progreso-correcciones.json")
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            actuales = json.load(fh)
+    except Exception:
+        actuales = {}
+    actuales = actuales if isinstance(actuales, dict) else {}
+    actuales.update(nuevas or {})
+    try:
+        tmp = ruta + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(actuales, fh, ensure_ascii=False, indent=1)
+        os.replace(tmp, ruta)
+    except Exception as e:  # noqa: BLE001
+        print("director/correcciones: %s: %s" % (type(e).__name__, e), flush=True)
+    return actuales
+
+
 def continuar_estancadas(tope=20):
     """Continúa sola lo atascado con escalera de reintentos: libre×2 → haiku×2 → sonnet.
 
@@ -306,9 +339,16 @@ def continuar_estancadas(tope=20):
     escribe progreso y gasto atomicamente.
 
     Devuelve la lista de ids tocados para el parte.
+
+    (2026-10-08, medido) «Solo si no hay orquestador vivo» era «casi nunca»: el vigilante lo
+    relanza en 90 s y la ventana entre tandas no coincidía con la pasada del director. A las
+    17:06 la tanda acabó con PT1009Cb en fallo_tsc, CPA1007Kb en fallo_tests y CAMR1005Dc en
+    sin_cambios, y nadie las volvía a tocar mientras el orquestador seguía con RM6b y RM7. Con
+    el orquestador vivo el cambio va por `progreso-correcciones.json`, el camino de siempre:
+    el vigilante lo aplica fuera de la tanda viva o pide `reabrir` dentro de ella, sin que la
+    copia en memoria del orquestador lo pise.
     """
-    if orquestador_vivo():
-        return []
+    vivo = orquestador_vivo()
 
     try:
         # Leer estado
@@ -408,12 +448,14 @@ def continuar_estancadas(tope=20):
 
         # Escribir atomicamente
         if tocadas:
-            # Progreso
-            ruta_prog = os.path.join(OLAS, "progreso.json")
-            tmp_prog = ruta_prog + ".tmp"
-            with open(tmp_prog, "w", encoding="utf-8") as fh:
-                json.dump(p_nuevo, fh, ensure_ascii=False, indent=1)
-            os.replace(tmp_prog, ruta_prog)
+            if vivo:
+                anotar_correcciones({tid: correccion_de(p_nuevo.get(tid) or {}) for tid in tocadas})
+            else:
+                ruta_prog = os.path.join(OLAS, "progreso.json")
+                tmp_prog = ruta_prog + ".tmp"
+                with open(tmp_prog, "w", encoding="utf-8") as fh:
+                    json.dump(p_nuevo, fh, ensure_ascii=False, indent=1)
+                os.replace(tmp_prog, ruta_prog)
 
             # Gasto
             tmp_gasto = ruta_gasto + ".tmp"

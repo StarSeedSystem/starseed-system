@@ -342,8 +342,11 @@ def _nuevo_lote(m, est, ahora):
                 if str(motivo_veto).startswith("Jev") else "espero a que llegue un commit nuevo")
         return con_fase(est, "bloqueado", "%s · %s" % (motivo_veto, cola), ahora, sha=head, pendientes=pendientes)
     if ahora - float(est.get("ultima_publicacion") or 0) < VENTANA_S:
-        return con_fase(est, "esperando", "Ventana de 20 min entre publicaciones: %d commit(s) en cola." % pendientes,
-                        ahora, pendientes=pendientes)
+        # (2026-10-08) Alex: «autopublicación tampoco, ya que aún hay pendientes». Estaba bien
+        # (la ventana es a propósito) pero no lo decía: se dice CUÁNDO sale el lote.
+        sale = time.strftime("%H:%M", time.localtime(float(est.get("ultima_publicacion") or 0) + VENTANA_S))
+        return con_fase(est, "esperando", "Ventana de 20 min entre publicaciones: %d commit(s) en cola; "
+                        "salen solos hacia las %s." % (pendientes, sale), ahora, pendientes=pendientes)
     if publicadas_hoy(est.get("historial"), ahora) >= MAX_DIA:
         return con_fase(est, "esperando", "Tope de %d publicaciones hoy." % MAX_DIA, ahora, pendientes=pendientes)
 

@@ -132,6 +132,15 @@ def main():
     from repartir_nube import envios_vigentes
 
     envios = envios_vigentes(DESTINO_DIR)
+    # (2026-10-08) Lo que ya está en la tanda viva de la Mac se queda en la Mac (RM6b, doble).
+    from repartir_nube import ids_de_la_tanda_viva
+    try:
+        procesos = subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True, timeout=20).stdout
+    except Exception:
+        procesos = ""
+    en_la_mac = ids_de_la_tanda_viva(procesos, OLAS)
+    if en_la_mac:
+        colas = [(nombre, [t for t in tareas if str((t or {}).get("id")) not in en_la_mac]) for nombre, tareas in colas]
     elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope, envios=envios)
     ahora = datetime.datetime.now()
     fecha = ahora.strftime("%Y%m%d")

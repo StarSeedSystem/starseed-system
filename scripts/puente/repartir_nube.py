@@ -52,6 +52,36 @@ MAX_ARCHIVOS_NUBE = 3
 MAX_ENVIOS_NUBE = 3
 
 
+def ids_de_la_tanda_viva(args_procesos, olas):
+    """Ids de la cola que está leyendo AHORA el orquestador de la Mac (por sus argumentos).
+
+    (2026-10-08, medido) RM6b estaba en la tanda viva de la Mac (Genesis mete ahí cada
+    reparación) y el reparto la mandó también a la nube: dos agentes rehaciendo la misma
+    tarea y su progreso pisado a «reasignada · nube» mientras la Mac la escribía. El filtro
+    «ola-actual» no la veía porque una cola `cola-auto-*` no lleva número de ola. Lo que ya
+    está en la tanda de la Mac no se reparte. `args_procesos`: la salida de `ps -axo args=`."""
+    import json as _json
+    import os as _os
+
+    ids = set()
+    for linea in str(args_procesos or "").splitlines():
+        if "starseed-enjambre.py" not in linea or "grep" in linea:
+            continue
+        for trozo in linea.split():
+            nombre = _os.path.basename(trozo)
+            if not (trozo.endswith(".json") and nombre.startswith("cola-")):
+                continue
+            ruta = trozo if _os.path.isabs(trozo) else _os.path.join(olas, nombre)
+            try:
+                with open(ruta, encoding="utf-8") as f:
+                    d = _json.load(f)
+            except (OSError, ValueError):
+                continue
+            lista = d if isinstance(d, list) else (d or {}).get("tareas") or []
+            ids.update(str(t.get("id")) for t in lista if isinstance(t, dict) and t.get("id"))
+    return ids
+
+
 def leer_colas_nube(carpeta, ahora_ts, dias=2):
     """[(nombre, ids)] de las `cola-nube-AAAAMMDD-HHMM*.json` de los últimos `dias` días.
     La única función con disco de este módulo: el resto sigue siendo puro. Nunca lanza."""

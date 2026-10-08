@@ -204,6 +204,21 @@ class LasMismasTresVecesYVeces(unittest.TestCase):
         self.assertIn("envío 1 de 3", nuevo["X"]["nota"])
 
 
+class TandaVivaDeLaMac(unittest.TestCase):
+    """(2026-10-08) RM6b en la tanda viva de la Mac no puede ir también a la nube."""
+
+    def test_lee_los_ids_de_la_cola_del_orquestador(self):
+        import tempfile
+        from repartir_nube import ids_de_la_tanda_viva
+        with tempfile.TemporaryDirectory() as olas:
+            with open(os.path.join(olas, "cola-auto-1008-163740.json"), "w", encoding="utf-8") as f:
+                json.dump([{"id": "RM6b"}, {"id": "RM7"}], f)
+            ps = ("/usr/bin/python3 -u /Users/x/.local/bin/starseed-enjambre.py starseed_memory_root/olas/"
+                  "cola-auto-1008-163740.json --workers 3\n/bin/zsh -c grep starseed-enjambre.py cola-x.json\n")
+            self.assertEqual(ids_de_la_tanda_viva(ps, olas), {"RM6b", "RM7"})
+            self.assertEqual(ids_de_la_tanda_viva("", olas), set())
+
+
 if __name__ == "__main__":
     unittest.main()
 

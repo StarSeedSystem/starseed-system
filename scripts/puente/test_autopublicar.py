@@ -171,6 +171,9 @@ class Puertas(unittest.TestCase):
     def test_ventana_entre_publicaciones(self):
         e = A.pasada(Falso(), {"ultima_publicacion": T0 - 60}, T0)
         self.assertEqual(e["fase"], "esperando")
+        # dice cuándo sale el lote: «… hacia las HH:MM», 20 min después de la última
+        sale = A.time.strftime("%H:%M", A.time.localtime(T0 - 60 + A.VENTANA_S))
+        self.assertIn("hacia las %s" % sale, e["detalle"])
 
 
 class CicloCompleto(unittest.TestCase):
