@@ -296,6 +296,21 @@ describe("resumenDirectores", () => {
     expect(sinNada.find((d) => d.nombre === "optimizador")?.vivo).toBe(false);
   });
 
+  it("optimizador sale vivo con proceso y mensaje de canal", () => {
+    const launchctl = [
+      "123\t0\tcom.starseed.optimizador",
+    ].join("\n");
+    const canal = [
+      { quien: "optimizador", texto: "arrancado", hora: AHORA - 60 },
+      { quien: "optimizador", texto: "último aviso", hora: AHORA - 30 },
+    ];
+    const r = resumenDirectores(launchctl, canal, AHORA);
+    const optimizador = r.find((d) => d.nombre === "optimizador");
+    expect(optimizador).toMatchObject({
+      vivo: true, pid: 123, ultimoMensaje: "último aviso", hace: 30,
+    });
+  });
+
   it("produccion cuenta vivo por proceso y por mensaje firmado director-produccion", () => {
     const conAmbos = resumenDirectores("88\t0\tcom.starseed.produccion", [
       { quien: "director-produccion", texto: "publicando lote", hora: AHORA - 12 },
