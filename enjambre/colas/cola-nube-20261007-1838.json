@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "OR1007G",
+   "ola": "Ola 1007O · Oracle Always Free: la nube 24/7 de StarSeed OS (Astraura 1.58, malla, llamadas, enjambre y Genesis)",
+   "depende": [],
+   "titulo": "Oracle · `oracle_desplegar.py`: red, 3 máquinas Always Free y alerta de 1 USD, en simulación por defecto",
+   "archivos": [
+    "scripts/puente/oracle_desplegar.py",
+    "scripts/puente/test_oracle_desplegar.py"
+   ],
+   "dificultad": "alta",
+   "privado": false,
+   "prompt": "CONTRATO: `architecture/oracle-nube.md`. Léelo ENTERO antes de empezar (sobre todo §1, §3 y §5): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, dilo en tu informe en vez de improvisar. Petición de Alex (2026-10-07): activar la cuenta Oracle Cloud Free para la nube 24/7 (Astraura 1.58 con sus capas y aprendizaje continuo, funciones en línea para todos, enjambre) y que Genesis y el OS la recuerden.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin `oci` real, sin SSH y sin archivos reales de la casa (todo lo externo se inyecta; HOME y rutas a un directorio temporal). Claves SOLO de `os.environ`/`process.env`, nunca se imprimen. NINGÚN OCID (tenancy, usuario, compartimento, instancia) en salidas, registros, JSON de estado ni pruebas con valores reales: en pruebas usa `ocid1.tenancy.oc1..falso`. Sin dependencias nuevas (ni npm ni pip). Rutas de proceso en macOS: nunca `pgrep -l`.\n\nTU TAREA (OR1007G): Plan idempotente con `oci` inyectable: VCN `starseed-vcn`, subred pública, puerta a internet, tabla de rutas, lista de seguridad con EXACTAMENTE los puertos de §3, el A1 (2 OCPU, 12 GB, 100 GB, Ubuntu 24.04 aarch64 más reciente) y las 2 micro (50 GB), cada una con su cloud-init de `deploy/oracle/` y la llave `~/.ssh/starseed_oracle_ed25519.pub`, y un presupuesto con alerta a 1 USD al correo de la cuenta. `--simular` (por defecto) imprime el plan humano sin llamar a nada que cree; `--aplicar` crea. Guardias que fallan ANTES de crear nada: solo formas `VM.Standard.A1.Flex` y `VM.Standard.E2.1.Micro`; la suma de A1 existente + nuevo ≤ 2 OCPU y ≤ 12 GB; ≤ 2 micro; disco total ≤ 200 GB. Lo que ya existe (por nombre) no se duplica. Ante «Out of host capacity» reintenta cada 10 min hasta 24 h (reloj inyectable) y lo dice en el Chat Director. Al terminar llama a `oracle_nube.comprobar`. Pruebas con un `correr` falso: simulación sin creaciones, guardias, idempotencia, reintento por capacidad, y ningún OCID en la salida.",
+   "dependencias_ya_en_main": [
+    "OR1007A",
+    "OR1007E"
+   ]
+  }
+ ]
+}
