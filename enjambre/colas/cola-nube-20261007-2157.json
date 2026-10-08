@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "ES1010L",
+   "ola": "Ola 1010E · Estaciones: transmisiones en directo libres (directorio, reproductor autoadaptable, malla y estudio con IA)",
+   "titulo": "Estaciones · páginas /estaciones y /estaciones/[id] con detalle, presencia y chat",
+   "depende": [],
+   "dificultad": "alta",
+   "archivos": [
+    "src/app/(app)/estaciones/page.tsx",
+    "src/app/(app)/estaciones/[id]/page.tsx",
+    "src/components/estaciones/detalle-estacion.tsx"
+   ],
+   "prompt": "CONTRATO: `architecture/estaciones.md`. Léelo ENTERO antes de empezar (sobre todo la sección que cita tu tarea): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-07): «añade una página, sección y función principal de StarSeed OS de \"Estaciones\" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable».\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta). Claves SOLO del entorno; nunca se imprimen ni se guardan. Sin dependencias nuevas (`hls.js` ya la instaló la dirección). Nada de `node:*` en `src/lib/estaciones` ni en `src/components/estaciones` (van al navegador). Textos visibles en español; el panel de control del OS se llama «Genesis» (nunca «Puente de Mando» ni «Mando»: la prueba `src/lib/__tests__/nombre-genesis.test.ts` lo vigila). ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (ES1010L): §9 y §6.3 del contrato. `page.tsx` de `/estaciones`: componente de cliente que monta `DirectorioEstaciones` y abre `NuevaEstacion` (mira cómo monta `/canales` su página en `src/app/(app)/canales/page.tsx` y copia su envoltorio). `[id]/page.tsx`: monta `DetalleEstacion` con el `id` (Next 15: `params` es una promesa, usa `use(params)` o `useParams()`); ids `interna:*` se resuelven con `estacionesInternas()`. `DetalleEstacion`: `obtenerEstacion` → `ReproductorEstacion` grande, título, descripción, licencia, ámbito, estado, espectadores y chat efímero por el canal Realtime `estacion:<id>` (presence + broadcast `chat`, ≤ 500 caracteres, sin guardar; mira cómo usa los canales `src/components/posts/live-channel.tsx`), «Compartir» (`navigator.share` o copiar enlace), «Abrir en una pestaña», y si eres el dueño: «Estoy emitiendo» (latido cada 60 s con `latirEstacion` y el recuento de presencia, se para al desmontar), pausar/reanudar, terminar y «Anunciar en la malla». Estación que no existe → mensaje honesto con enlace al directorio. Sin pruebas nuevas obligatorias (los componentes ya las tienen), pero `tsc` limpio.",
+   "dependencias_ya_en_main": [
+    "ES1010J",
+    "ES1010K"
+   ]
+  }
+ ]
+}
