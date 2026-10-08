@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261008",
+ "tareas": [
+  {
+   "id": "ES1010Q",
+   "ola": "Ola 1010E · Estaciones: transmisiones en directo libres (directorio, reproductor autoadaptable, malla y estudio con IA)",
+   "titulo": "Estaciones · Estaciones en el dock para todas las cuentas",
+   "depende": [],
+   "dificultad": "media",
+   "archivos": [
+    "src/components/layout/dock-config.ts",
+    "src/lib/dock/dock-defaults.ts",
+    "src/lib/dock/__tests__/dock-estaciones.test.ts"
+   ],
+   "prompt": "CONTRATO: `architecture/estaciones.md`. Léelo ENTERO antes de empezar (sobre todo la sección que cita tu tarea): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-07): «añade una página, sección y función principal de StarSeed OS de \"Estaciones\" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable».\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta). Claves SOLO del entorno; nunca se imprimen ni se guardan. Sin dependencias nuevas (`hls.js` ya la instaló la dirección). Nada de `node:*` en `src/lib/estaciones` ni en `src/components/estaciones` (van al navegador). Textos visibles en español; el panel de control del OS se llama «Genesis» (nunca «Puente de Mando» ni «Mando»: la prueba `src/lib/__tests__/nombre-genesis.test.ts` lo vigila). ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (ES1010Q): §11 del contrato (dock) y CLAUDE.md §11. En `dock-config.ts`: preset `estaciones` exactamente como dice el contrato (importa `Cast` de lucide y añádelo a `DockIconKey` y `DOCK_ICON_MAP`, que deben coincidir). En `dock-defaults.ts`: `estaciones` al final de `DOCK_DEFAULT_ON_IDS`, `DOCK_DEFAULTS_VERSION` 22 → 23 con su línea en el comentario («v23 (2026-10-07) añade `estaciones`…») y su espejo en `FALLBACK_SEEDS`. NO toques `renombrarMandoAGenesis`. Prueba nueva: un payload v22 sin `estaciones` lo recibe encendido; uno v23 que lo apagó se respeta; la semilla de respaldo es idéntica al preset."
+  }
+ ]
+}
