@@ -7,10 +7,14 @@
  * desplegado perdían la fuente. Ahora el destino se resuelve por ORDEN:
  *
  *   a) `ASTRAURA_CLOUD_URL` — despliegue propio permanente (Cloud Run, etc.).
- *   b) El túnel que la neurona publica en Supabase (`astraura_state`, clave
+ *   b) El servidor fijo del registro publicado en Supabase (`astraura_state`,
+ *      clave `destino_fijo`) por `publicar_destino_astraura.py` — Oracle Always
+ *      Free (contrato `architecture/oracle-nube.md` §6): manda antes que el
+ *      túnel de la Mac.
+ *   c) El túnel que la neurona publica en Supabase (`astraura_state`, clave
  *      `tunel_publico`) — ver abajo.
- *   c) `ASTRAURA_158_URL` — override fijo por entorno, si está declarado.
- *   d) `null` — no hay nube disponible ahora mismo.
+ *   d) `ASTRAURA_158_URL` — override fijo por entorno, si está declarado.
+ *   e) `null` — no hay nube disponible ahora mismo.
  *
  * (G2 · 2026-09-26) Ya NO hay upstream de Cloud Run por defecto: el proyecto
  * quedó SIN facturación de Google Cloud (ver abajo) y ese candidato fijo
@@ -38,7 +42,7 @@ export interface DestinoNube {
   /** Base URL limpia (sin barra final). */
   base: string;
   /** De dónde salió el destino. */
-  via: "env" | "tunel";
+  via: "env" | "fijo" | "tunel";
   /** Latencia real de la sonda `/api/status`. */
   latenciaMs: number;
 }
@@ -115,15 +119,47 @@ export function tunelAceptable(url: unknown, hostsExtra: string[] = []): boolean
   }
 }
 
-/** El túnel que la neurona publicó en Supabase, o `null`. Nunca lanza. */
-export async function tunelPublicado(): Promise<string | null> {
+/**
+ * PURA: ¿es una URL de destino fijo aceptable? La misma lista blanca del túnel
+ * MÁS los hosts `*.sslip.io` (los subdominios de Oracle del contrato
+ * `architecture/oracle-nube.md` §3): https obligatorio, sin usuario, sin ruta,
+ * sin consulta y sin fragmento.
+ */
+export function destinoFijoAceptable(url: unknown, hostsExtra: string[] = []): boolean {
+  try {
+    const u = new URL(String(url ?? ""));
+    const host = u.hostname.toLowerCase();
+    return (
+      u.protocol === "https:" &&
+      (host.endsWith(".trycloudflare.com") || host.endsWith(".sslip.io") || hostsExtra.includes(host)) &&
+      !u.username && !u.password &&
+      (u.pathname === "/" || u.pathname === "") &&
+      !u.search && !u.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hostsPermitidos(): string[] {
+  return String(process.env.ASTRAURA_TUNEL_HOSTS ?? "")
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** Lee en `astraura_state` la URL publicada bajo `key` si pasa la validación. Nunca lanza. */
+async function publicadoEnSupabase(
+  key: string,
+  aceptable: (url: unknown, extra: string[]) => boolean,
+): Promise<string | null> {
   const base = limpiarBase(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL);
   const clave = String(process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
   if (!base || !clave) return null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), SALUD_TIMEOUT_MS);
   try {
-    const res = await fetch(`${base}/rest/v1/astraura_state?key=eq.tunel_publico&select=data`, {
+    const res = await fetch(`${base}/rest/v1/astraura_state?key=eq.${key}&select=data`, {
       headers: { apikey: clave, Authorization: `Bearer ${clave}`, Accept: "application/json" },
       signal: ctrl.signal,
       cache: "no-store",
@@ -131,16 +167,22 @@ export async function tunelPublicado(): Promise<string | null> {
     if (!res.ok) return null;
     const filas = (await res.json()) as { data?: { url?: string } }[];
     const url = limpiarBase(filas?.[0]?.data?.url);
-    const extra = String(process.env.ASTRAURA_TUNEL_HOSTS ?? "")
-      .split(",")
-      .map((h) => h.trim().toLowerCase())
-      .filter(Boolean);
-    return tunelAceptable(url, extra) ? url : null;
+    return aceptable(url, hostsPermitidos()) ? url : null;
   } catch {
     return null;
   } finally {
     clearTimeout(t);
   }
+}
+
+/** El túnel que la neurona publicó en Supabase, o `null`. Nunca lanza. */
+export async function tunelPublicado(): Promise<string | null> {
+  return publicadoEnSupabase("tunel_publico", tunelAceptable);
+}
+
+/** El servidor fijo del registro publicado en Supabase (Oracle), o `null`. Nunca lanza. */
+export async function destinoFijoPublicado(): Promise<string | null> {
+  return publicadoEnSupabase("destino_fijo", destinoFijoAceptable);
 }
 
 /**
@@ -157,11 +199,16 @@ export async function destinoNube(): Promise<DestinoNube | null> {
 
     // Candidatos por prioridad; se sondean todos a la vez y gana el primero sano.
     const propia = limpiarBase(process.env.ASTRAURA_CLOUD_URL);
-    const publicado = await tunelPublicado();
+    const [publicadoFijo, publicado] = await Promise.all([destinoFijoPublicado(), tunelPublicado()]);
     const fijo = limpiarBase(process.env.ASTRAURA_158_URL);
     const candidatos: { base: string; via: DestinoNube["via"] }[] = [];
     if (propia) candidatos.push({ base: propia, via: "env" });
-    if (publicado) candidatos.push({ base: publicado, via: "tunel" });
+    if (publicadoFijo && !candidatos.some((c) => c.base === publicadoFijo)) {
+      candidatos.push({ base: publicadoFijo, via: "fijo" });
+    }
+    if (publicado && !candidatos.some((c) => c.base === publicado)) {
+      candidatos.push({ base: publicado, via: "tunel" });
+    }
     if (fijo && !candidatos.some((c) => c.base === fijo)) candidatos.push({ base: fijo, via: "tunel" });
     const sondas = await Promise.all(candidatos.map((c) => sana(c.base)));
     let destino: DestinoNube | null = null;

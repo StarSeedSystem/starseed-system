@@ -4,7 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { destinoNube, invalidarDestino, tunelAceptable } from "../destino-nube";
+import { destinoFijoAceptable, destinoNube, invalidarDestino, tunelAceptable } from "../destino-nube";
 
 const TUNEL = "https://uno-dos-tres.trycloudflare.com";
 const MUERTA = "https://astraura-muerta.run.app";
@@ -40,11 +40,12 @@ describe("destinoNube", () => {
         invalidarDestino();
     });
 
-    function simular(tunel: string | null, sanos: string[]) {
+    function simular(tunel: string | null, sanos: string[], fijo: string | null = null) {
         const fetchFalso = vi.fn(async (entrada: string | URL) => {
             const url = String(entrada);
             if (url.includes("/rest/v1/astraura_state")) {
-                return new Response(JSON.stringify(tunel ? [{ data: { url: tunel } }] : []), { status: 200 });
+                const valor = url.includes("key=eq.destino_fijo") ? fijo : tunel;
+                return new Response(JSON.stringify(valor ? [{ data: { url: valor } }] : []), { status: 200 });
             }
             const base = url.replace(/\/api\/(status|ping)$/, "");
             return new Response("{}", { status: sanos.includes(base) ? 200 : 503 });
@@ -114,7 +115,8 @@ describe("destinoNube", () => {
         vi.stubGlobal("fetch", vi.fn(async (entrada: string | URL) => {
             const url = String(entrada);
             if (url.includes("/rest/v1/astraura_state")) {
-                return new Response(JSON.stringify([{ data: { url: TUNEL } }]), { status: 200 });
+                const valor = url.includes("key=eq.destino_fijo") ? null : TUNEL;
+                return new Response(JSON.stringify(valor ? [{ data: { url: valor } }] : []), { status: 200 });
             }
             if (url === `${MUERTA}/api/status`) return new Response("{}", { status: 200 });
             if (url === `${MUERTA}/api/ping`) return new Response('{"detail":"Not Found"}', { status: 404 });
@@ -122,5 +124,49 @@ describe("destinoNube", () => {
             return new Response("", { status: 503 });
         }));
         expect(await destinoNube()).toMatchObject({ base: TUNEL, via: "tunel" });
+    });
+
+    describe("destino fijo (Oracle Always Free)", () => {
+        const FIJO = "https://astraura.132-226-240-1.sslip.io"; // IP de mentira, de ejemplo
+
+        it("un servidor fijo publicado manda antes que el túnel de la Mac", async () => {
+            simular(TUNEL, [FIJO, TUNEL], FIJO);
+            expect(await destinoNube()).toMatchObject({ base: FIJO, via: "fijo" });
+        });
+
+        it("la nube propia (ASTRAURA_CLOUD_URL), sana, sigue delante del fijo", async () => {
+            simular(TUNEL, [MUERTA, FIJO, TUNEL], FIJO);
+            expect(await destinoNube()).toMatchObject({ base: MUERTA, via: "env" });
+        });
+
+        it("sin fijo publicado (o caído) se vuelve al túnel", async () => {
+            simular(TUNEL, [TUNEL], "https://astraura.10-0-0-9.sslip.io");
+            expect(await destinoNube()).toMatchObject({ base: TUNEL, via: "tunel" });
+        });
+
+        it("un fijo publicado inválido se ignora y no se sondea", async () => {
+            const fetchFalso = simular(TUNEL, [TUNEL], "https://evil.example.com");
+            expect(await destinoNube()).toMatchObject({ base: TUNEL, via: "tunel" });
+            expect(fetchFalso.mock.calls.some((c) => String(c[0]).includes("evil.example.com"))).toBe(false);
+        });
+    });
+});
+
+describe("destinoFijoAceptable", () => {
+    const SSLIP = "https://astraura.132-226-240-1.sslip.io";
+
+    it("https obligatorio, host de túnel o sslip.io, sin ruta, usuario, consulta ni fragmento", () => {
+        expect(destinoFijoAceptable(SSLIP)).toBe(true);
+        expect(destinoFijoAceptable(SSLIP + "/")).toBe(true);
+        expect(destinoFijoAceptable("https://uno.trycloudflare.com")).toBe(true);
+        expect(destinoFijoAceptable("https://mi.nodo.org", ["mi.nodo.org"])).toBe(true);
+        expect(destinoFijoAceptable("http://astraura.1-2-3-4.sslip.io")).toBe(false);
+        expect(destinoFijoAceptable("https://sslip.io.evil.com")).toBe(false);
+        expect(destinoFijoAceptable("https://evil.example.com")).toBe(false);
+        expect(destinoFijoAceptable(SSLIP + "/api")).toBe(false);
+        expect(destinoFijoAceptable(SSLIP + "?x=1")).toBe(false);
+        expect(destinoFijoAceptable(SSLIP + "/#a")).toBe(false);
+        expect(destinoFijoAceptable("https://usu:clave@astraura.1-2-3-4.sslip.io")).toBe(false);
+        expect(destinoFijoAceptable(null)).toBe(false);
     });
 });
