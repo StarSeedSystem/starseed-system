@@ -206,6 +206,35 @@ def _sh(orden, timeout=120):
         return 1, "%s: %s" % (type(e).__name__, e)
 
 
+AVISOS = os.path.expanduser("~/.starseed/vigia-avisos.json")
+
+
+def _avisar(texto: str, cada_s: int = 3600) -> str:
+    """Al Chat Director, como mucho una vez por hora el MISMO aviso. (2026-10-08) Avisaba con
+    `scripts/puente/puente-de-mando.py decir`, que desapareció al renombrar el Puente a
+    Genesis (2026-10-07): cada aviso salía «no pude avisar» y nadie se enteraba de nada."""
+    try:
+        with open(AVISOS, encoding="utf-8") as f:
+            dados = json.load(f)
+    except (OSError, ValueError):
+        dados = {}
+    if time.time() - float(dados.get(texto, 0)) < cada_s:
+        return "ya avisado en la última hora"
+    try:
+        import director_chat
+
+        director_chat.publicar(texto, de="vigia-medidores", rol="director", tipo="aviso")
+    except Exception as e:  # noqa: BLE001
+        return "no pude avisar (%s)" % type(e).__name__
+    dados[texto] = time.time()
+    try:
+        with open(AVISOS, "w", encoding="utf-8") as f:
+            json.dump({k: v for k, v in dados.items() if time.time() - float(v) < 86400}, f, ensure_ascii=False)
+    except OSError:
+        pass
+    return "avisado en el canal"
+
+
 def aplicar(problema: dict) -> str:
     """Ejecuta el remedio y devuelve lo que pasó, en castellano."""
     remedio = problema.get("remedio")
@@ -273,19 +302,14 @@ def aplicar(problema: dict) -> str:
     if remedio == "avisar_cadena_rota":
         # No hay arreglo automático posible: alguien tiene que decidir si se reencola la
         # raíz o se descarta la rama entera. Lo que SÍ se puede es no callárselo.
-        rc, _ = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "puente-de-mando.py"),
-                     "decir", "AVISO · ninguna tarea se puede coger: %s. La cadena está rota en la raíz."
-                     % quien])
-        return "avisado en el canal" if rc == 0 else "no pude avisar"
+        return _avisar("AVISO · ninguna tarea se puede coger: %s. La cadena está rota en la raíz." % quien)
 
     if remedio == "avisar_tokens_ciegos":
         # Tampoco tiene arreglo automático: si hay gasto que nadie cuenta, alguien tiene
         # que añadir la fuente. Lo que no puede pasar es que la pantalla enseñe un 0 y
         # nadie se entere de que ese 0 es una ceguera, no una medida.
-        rc, _ = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "puente-de-mando.py"),
-                     "decir", "AVISO · el medidor de tokens da 0 con %s agente(s) trabajando: "
-                     "hay una fuente sin contador que no está nombrada." % quien])
-        return "avisado en el canal" if rc == 0 else "no pude avisar"
+        return _avisar("AVISO · el medidor de tokens da 0 con %s agente(s) trabajando: "
+                       "hay una fuente sin contador que no está nombrada." % quien)
 
     return "sin remedio conocido"
 
