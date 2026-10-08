@@ -67,7 +67,9 @@ describe("migrarLocalPrimero (migración de una sola vez)", () => {
       mode: "auto",
       freeFirst: true,
       omniRoute: { enabled: true, endpoint: "http://192.168.1.50:20128" },
-    });
+});
+
+  
     expect((r.omniRoute as Record<string, unknown>).endpoint).toBe("http://192.168.1.50:20128");
     expect(r.mode).toBe("auto");
     expect(r.freeFirst).toBe(true);
