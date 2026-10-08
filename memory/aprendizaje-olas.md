@@ -3938,3 +3938,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RSC1006D` — no escribió nada
 - `RSC1006J` — no escribió nada
 - `ES1010L` — no escribió nada
+
+## 2026-10-07 23:48 · auto-1007-221612
+
+**Lo que se pidió.** añade una página, sección y función principal de StarSeed OS de "Estaciones" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable
+
+**Resultado.** 5 de 10 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (RSC1006Fs, RSC1006Ds). Es 20 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `ES1010Hb` — pruebas en rojo: vitest falla (rama conservada)
+- `ES1010L` — otra cosa: sin decisión en 0 h; rama ola/ES1010L conservada
+- `RSC1006Fs` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RSC1006Fs conservada)
+- `RSC1006Ds` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RSC1006Ds conservada)
+- `RSC1006Js` — no escribió nada
