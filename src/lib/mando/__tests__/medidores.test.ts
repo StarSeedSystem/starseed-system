@@ -332,6 +332,20 @@ describe("porcentajes de avance", () => {
         expect(c.filas[0].porcentaje).toBeUndefined();
     });
 
+    it("sin publicar lista también los commits de Astraura 1.58 que la pastilla ya suma", () => {
+        // (2026-10-08) Alex: «aparecen 11 sin publicar en el medidor pero ninguna dentro».
+        const d = detalleDeMedidor("sin-publicar", {
+            commitsSinPublicar: [],
+            commitsSinPublicarAstraura: [{ sha: "3fee41cd45c8", asunto: "túnel: publicar la URL nueva" }],
+        });
+        expect(d.filas).toHaveLength(1);
+        expect(d.filas[0].titulo).toBe("Astraura 1.58 · túnel: publicar la URL nueva");
+        expect(d.resumen).toBe("0 del OS · 1 de Astraura 1.58 esperando");
+        // El botón de publicar del medidor es solo del OS; Astraura se publica en «Commits pendientes».
+        expect(d.acciones.map((a) => a.clase)).toEqual(["ir-a"]);
+        expect(d.acciones[0].destino).toBe("commits");
+    });
+
     it("la media ignora las filas sin avance en vez de contarlas como cero", () => {
         expect(mediaDeAvance([{ id: "a", titulo: "", porcentaje: 100, acciones: [] }, { id: "b", titulo: "", acciones: [] }])).toBe(100);
         expect(mediaDeAvance([{ id: "a", titulo: "", acciones: [] }])).toBe(0);

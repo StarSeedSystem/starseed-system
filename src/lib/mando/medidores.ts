@@ -1122,6 +1122,8 @@ export interface DatosMedidores {
         };
     } | null;
     commitsSinPublicar: { sha: string; asunto: string; fecha?: string }[];
+    /** (2026-10-08) Los del repo de Astraura 1.58: la pastilla ya los sumaba y la lista no. */
+    commitsSinPublicarAstraura?: { sha: string; asunto: string; fecha?: string }[];
     /** (2026-09-23) El diario de la publicación en curso o la última (`publicacion-estado.json`). */
     publicacion?: {
         estado: string;
@@ -1605,7 +1607,7 @@ export function detalleDeMedidor(
         }
 
         case "sin-publicar": {
-            const filas: FilaMedidor[] = d.commitsSinPublicar.map((c) => ({
+            const filasOs: FilaMedidor[] = d.commitsSinPublicar.map((c) => ({
                 id: c.sha.slice(0, 8),
                 titulo: c.asunto,
                 estado: "sin publicar",
@@ -1613,31 +1615,46 @@ export function detalleDeMedidor(
                 // Un commit no se tira desde un panel: solo se publica o se deja.
                 acciones: [],
             }));
+            // (2026-10-08) Los de Astraura 1.58 también se cuentan en la pastilla: aquí se ven con
+            // su repo. Se publican aparte (Commits pendientes → Astraura, con confirmación escrita): la
+            // autopublicación y el botón de este medidor solo publican el OS (pestaña «Commits pendientes»).
+            const filasAstraura: FilaMedidor[] = (d.commitsSinPublicarAstraura ?? []).map((c) => ({
+                id: c.sha.slice(0, 8),
+                titulo: `Astraura 1.58 · ${c.asunto}`,
+                estado: "sin publicar · Astraura",
+                desde: c.fecha,
+                acciones: [],
+            }));
+            const filas: FilaMedidor[] = [...filasOs, ...filasAstraura];
             const carga = cargaDePublicacion(d.publicacion, Date.now());
             const publicando = Boolean(carga && !/parece muerto/.test(carga.texto));
-            const fallo = filas.length && !publicando ? falloDePublicacion(d.publicacion, Date.now()) : undefined;
+            const fallo = filasOs.length && !publicando ? falloDePublicacion(d.publicacion, Date.now()) : undefined;
             return {
                 clave,
                 titulo: "Sin publicar",
                 resumen: publicando
-                    ? `publicando ${filas.length} commit(s)…`
+                    ? `publicando ${filasOs.length} commit(s)…`
                     : filas.length === 0
                       ? "todo publicado"
-                      : `${filas.length} commits esperando`,
+                      : filasAstraura.length
+                        ? `${filasOs.length} del OS · ${filasAstraura.length} de Astraura 1.58 esperando`
+                        : `${filas.length} commits esperando`,
                 filas,
                 cargando: carga,
                 aviso: fallo,
                 // Mientras publica no se ofrece otra vez: dos publicadores se pisarían el índice.
-                acciones:
-                    filas.length && !publicando
+                acciones: [
+                    ...(filasOs.length && !publicando
                         ? [
                               {
-                                  clase: "publicar",
+                                  clase: "publicar" as const,
                                   texto: fallo ? "Reintentar la publicación" : "Publicar en origin/main",
                                   destructiva: false,
                               },
                           ]
-                        : [],
+                        : []),
+                    ...(filasAstraura.length ? [IR_A("Publicar Astraura 1.58 (Commits pendientes)", "commits")] : []),
+                ],
                 vacio: "No hay nada sin publicar: la rama está igual que el remoto.",
             };
         }

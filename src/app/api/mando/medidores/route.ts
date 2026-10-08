@@ -52,6 +52,7 @@ import {
 } from "@/lib/mando/integradas";
 import { fundirTitulosArchivados, parsearIndice } from "@/lib/mando/indice-colas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
+import { leerPendientes } from "@/lib/mando/publicaciones";
 import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
 
 export const runtime = "nodejs";
@@ -571,6 +572,13 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             return { sha: sha ?? "", asunto: asunto ?? "", fecha: fecha ?? "" };
         });
 
+    // (2026-10-08) Alex: «aparecen 11 sin publicar en el medidor pero ninguna dentro». La pastilla
+    // suma el OS y Astraura 1.58 (`/api/mando/publicaciones`); la lista solo leía el OS. Ahora
+    // también trae los de Astraura, con su repo, para que número y lista casen.
+    const commitsSinPublicarAstraura = await leerPendientes("astraura")
+        .then((r) => r.commits.map((c) => ({ sha: c.sha, asunto: c.asunto, fecha: c.fecha })))
+        .catch(() => [] as { sha: string; asunto: string; fecha?: string }[]);
+
     // Ejecutables ahora: la regla vive en `medidores.ts` y es la MISMA que usa el
     // vigilante. Aquí solo se le da lo que hay en disco y los asuntos de `main`.
     // (2026-09-21) Aqui habia un `-n 1200` y por eso el medidor seguia ofreciendo tareas
@@ -702,6 +710,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         proveedores,
         tokens,
         commitsSinPublicar,
+        commitsSinPublicarAstraura,
         // (2026-09-23) Leer un JSON pequeño: el indicador de carga de «Sin publicar».
         publicacion: await leerDiario().catch(() => null),
         ejecutables,
@@ -885,6 +894,36 @@ export async function POST(peticion: Request): Promise<Response> {
         } catch (e) {
             const msj = e instanceof Error ? e.message : String(e);
             return Response.json({ error: `No pude buscar más capacidad: ${msj.slice(0, 300)}` }, { status: 500 });
+        }
+    }
+
+    // (2026-10-08) Alex: «para las bloqueadas agrega un botón de recomprobar todas con los
+    // directores desde el medidor». La decisión vive en `scripts/puente/recomprobar_bloqueadas.py`
+    // (pura y probada): ya en main → cerrada; fallo del medio → vuelve a la cola de la Mac; fallo
+    // de la tarea u obsoleta según Jev → sigue, con su motivo. Va por las correcciones de siempre.
+    if (accion === "recomprobar-bloqueadas") {
+        try {
+            const { stdout } = await correr("python3", ["scripts/puente/recomprobar_bloqueadas.py", "--json"], {
+                cwd: RAÍZ,
+                timeout: 180_000,
+                windowsHide: true,
+            });
+            const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as {
+                resumen?: string;
+                integradas?: string[];
+                reabiertas?: string[];
+                siguen?: { id: string; motivo: string }[];
+            };
+            const siguen = (r.siguen ?? []).slice(0, 8).map((x) => `· ${x.id}: ${x.motivo}`);
+            return Response.json({
+                ok: true,
+                resumen: [r.resumen || "Recomprobadas.", ...siguen].join("\n"),
+                integradas: r.integradas ?? [],
+                reabiertas: r.reabiertas ?? [],
+            });
+        } catch (e) {
+            const msj = e instanceof Error ? e.message : String(e);
+            return Response.json({ error: `No pude recomprobar las bloqueadas: ${msj.slice(0, 300)}` }, { status: 500 });
         }
     }
 

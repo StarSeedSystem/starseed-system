@@ -321,6 +321,34 @@ export function BloqueadasPanel({
     const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
 
     const reparables = useMemo(() => items.filter((i) => i.reparable), [items]);
+    const [recomprobando, setRecomprobando] = useState(false);
+
+    // (2026-10-08) Alex: «para las bloqueadas agrega un botón de recomprobar todas con los
+    // directores desde el medidor». Decide `scripts/puente/recomprobar_bloqueadas.py`: ya en main
+    // → se cierra; fallo del medio → vuelve a la cola; fallo de la tarea u obsoleta según Jev →
+    // sigue, con su motivo. Nada se archiva solo.
+    const recomprobarTodas = useCallback(async () => {
+        setRecomprobando(true);
+        setResultado(null);
+        try {
+            const r = await fetch("/api/mando/medidores", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clave: "bloqueadas", accion: "recomprobar-bloqueadas" }),
+            });
+            const d = (await r.json().catch(() => ({}))) as { resumen?: string; error?: string };
+            setResultado(
+                r.ok && !d.error
+                    ? { ok: true, texto: d.resumen || "Recomprobadas." }
+                    : { ok: false, texto: d.error || `No respondió (${r.status}).` },
+            );
+        } catch {
+            setResultado({ ok: false, texto: "La consola local no respondió." });
+        } finally {
+            setRecomprobando(false);
+            alHecho?.();
+        }
+    }, [alHecho]);
 
     const repararTodas = useCallback(async () => {
         setEnviando(true);
@@ -342,8 +370,17 @@ export function BloqueadasPanel({
                     <FichaBloqueada key={item.id} item={item} alVer={alVer} alHecho={alHecho} />
                 ))}
             </ul>
-            {reparables.length > 0 ? (
-                <p className="mt-2.5 flex flex-wrap items-center justify-center gap-2 border-t border-white/10 pt-2.5">
+            <p className="mt-2.5 flex flex-wrap items-center justify-center gap-2 border-t border-white/10 pt-2.5">
+                <button
+                    type="button"
+                    disabled={recomprobando || enviando}
+                    onClick={() => void recomprobarTodas()}
+                    className="cursor-pointer rounded-md border border-cyan-300/40 bg-cyan-500/15 px-3 py-1.5 text-[11px] font-medium text-cyan-100 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                    data-testid="recomprobar-todas"
+                >
+                    {recomprobando ? "Recomprobando con los directores…" : `Recomprobar todas con los directores (${items.length})`}
+                </button>
+                {reparables.length > 0 ? (
                     <button
                         type="button"
                         disabled={enviando}
@@ -353,17 +390,17 @@ export function BloqueadasPanel({
                     >
                         {enviando ? "Reparando…" : `Reparar todas las que sirvan (${reparables.length})`}
                     </button>
-                    {resultado ? (
-                        <span
-                            role="status"
-                            data-testid="resultado-reparar-todas"
-                            className={`text-[11px] ${resultado.ok ? "text-emerald-300" : "text-rose-300"}`}
-                        >
-                            {resultado.texto}
-                        </span>
-                    ) : null}
-                </p>
-            ) : null}
+                ) : null}
+                {resultado ? (
+                    <span
+                        role="status"
+                        data-testid="resultado-reparar-todas"
+                        className={`w-full whitespace-pre-line text-center text-[11px] ${resultado.ok ? "text-emerald-300" : "text-rose-300"}`}
+                    >
+                        {resultado.texto}
+                    </span>
+                ) : null}
+            </p>
         </section>
     );
 }
