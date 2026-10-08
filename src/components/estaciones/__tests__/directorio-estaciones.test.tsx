@@ -20,6 +20,7 @@ const estado = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => ({ get: (k: string) => (k === "tipo" ? estado.tipoUrl : null) }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 vi.mock("@/lib/realtime/realtime", () => ({
   useRealtimeRows: () => ({ rows: estado.tabla, loading: false, reload: async () => {} }),
