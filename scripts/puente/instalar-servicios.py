@@ -123,6 +123,14 @@ SERVICIOS = {
     # de Genesis encendido, lleva main a producción tras análisis, pruebas, CI y verificación
     # (`autopublicar.py`, una pasada cada 5 min). Apagado, solo informa.
     "produccion": ([PY3, P("autopublicar.py"), "--bucle"], "/tmp/starseed-produccion.log", True),
+    # (2026-10-08) Director de diseño (Ola 1005D, DIS1005E): brief al entrar cada
+    # tarea de interfaz, verificación al integrar y aprendizaje, con informe horario
+    # al Chat Director. Envuelto en lanzador-tcc.py como el resto de directores.
+    "diseno": (
+        LANZ + ["--", PY3, P("director-diseno.py")],
+        "/tmp/starseed-diseno.log",
+        True,
+    ),
     # (2026-10-05) Pantalla siempre encendida (Ola 1005P, PA1005C): mantiene un
     # `caffeinate -dim` ligado a su propio proceso y declara al usuario activo cada 50 s,
     # según ~/.starseed/pantalla.json (encendida por defecto). Genesis lo lee con
