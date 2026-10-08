@@ -20,6 +20,8 @@ PESOS = {
     "hex_suelto": -8,
     "important": -5,
     "zindex_alto": -5,
+    "adn": -5,
+    "movimiento": -5,
 }
 
 MAX_DESCUENTO_POR_TIPO = -40
@@ -90,6 +92,30 @@ def _puntuar_diff(diff_texto: str, fallos: list[dict[str, str]]) -> int:
     return descuento
 
 
+def proponer_prohibicion(fallos_repetidos):
+    """Devuelve una prohibición candidata cuando un fallo genérico se repite ≥3 veces
+    en tareas de una misma identidad. fallos_repetidos es una lista de dicts con
+    'identidad' y 'tipo' (fallo genérico)."""
+    if not fallos_repetidos:
+        return None
+    conteo = {}
+    for f in fallos_repetidos:
+        identidad = f.get("identidad")
+        tipo = f.get("tipo")
+        if not identidad or not tipo:
+            continue
+        clave = (identidad, tipo)
+        conteo[clave] = conteo.get(clave, 0) + 1
+    for (identidad, tipo), n in conteo.items():
+        if n >= 3:
+            return {
+                "identidad": identidad,
+                "prohibicion": f"Prohibido {tipo} en identidad {identidad}",
+                "repeticiones": n,
+            }
+    return None
+
+
 def puntuar(informe: dict[str, Any], diff_texto: str = "",
             umbral: int = UMBRAL_DEFECTO) -> dict[str, Any]:
     """Nota 0-100 del informe de una pantalla más los fallos del diff."""
@@ -108,5 +134,32 @@ def puntuar(informe: dict[str, Any], diff_texto: str = "",
     nota += _aplicar(fallos, "fuera_horizontal", fuera,
                      f"{donde}: el elemento se sale del viewport en horizontal; revisa anchuras fijas")
     nota += _puntuar_diff(diff_texto, fallos)
+
+    # ADN: cada prueba fallida resta y genera arreglo con fail_looks_like
+    adn_fallos = _lista(informe, "adn_fallos")
+    if adn_fallos:
+        peso = PESOS["adn"]
+        total = peso * len(adn_fallos)
+        if total < MAX_DESCUENTO_POR_TIPO:
+            total = MAX_DESCUENTO_POR_TIPO
+        nota += total
+        for f in adn_fallos:
+            if isinstance(f, dict):
+                looks = f.get("fail_looks_like") or str(f)
+                tipo = f.get("id") or "adn"
+            else:
+                looks = str(f)
+                tipo = "adn"
+            fallos.append({
+                "tipo": "adn",
+                "donde": donde,
+                "arreglo": f"{donde}: {tipo} falló, parece {looks}. Ajusta el ADN de la identidad.",
+            })
+
+    # Movimiento: incorpora nota de diseno_movimiento_reglas si existe
+    movimiento_nota = informe.get("movimiento_nota")
+    if isinstance(movimiento_nota, (int, float)):
+        nota = int((nota + movimiento_nota) / 2)
+
     nota = max(0, min(100, nota))
     return {"nota": nota, "umbral": umbral, "aprobado": nota >= umbral, "fallos": fallos}
