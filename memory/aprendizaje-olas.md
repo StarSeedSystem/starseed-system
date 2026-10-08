@@ -4096,3 +4096,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `p318Jc` — los tipos no compilan: 4 errores tsc (rama ola/p318Jc conservada)
+
+## 2026-10-08 12:08 · auto-1008-120711
+
+**Lo que se pidió.** Última salida: 31/12/1969, 18:00:00
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `p318Jc` — los tipos no compilan: 4 errores tsc (rama ola/p318Jc conservada)
