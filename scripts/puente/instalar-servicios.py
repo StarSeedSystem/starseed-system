@@ -21,8 +21,8 @@ import os, subprocess, sys
 # Los argumentos de línea solo cuentan al ejecutarlo como guion: las pruebas
 # importan el módulo (se instala al importarse) y su sys.argv no es de aquí.
 _ARGV = sys.argv if __name__ == "__main__" else []
-RAIZ = _ARGV[1] if len(_ARGV) > 1 else "/Users/alex/Documents/starseed-os-main"
-PY3 = _ARGV[2] if len(_ARGV) > 2 else "/opt/homebrew/bin/python3"
+RAIZ = os.environ.get("STARSEED_RAIZ", _ARGV[1] if len(_ARGV) > 1 else "/Users/alex/Documents/starseed-os-main")
+PY3 = os.environ.get("STARSEED_PY3", _ARGV[2] if len(_ARGV) > 2 else "/opt/homebrew/bin/python3")
 HOME = os.path.expanduser("~")
 AG = os.path.join(HOME, "Library", "LaunchAgents")
 P = lambda n: os.path.join(RAIZ, "scripts", "puente", n)
