@@ -110,6 +110,31 @@ def id_en_asuntos(tid, asuntos):
     return any(patron.search(asunto) for asunto in asuntos)
 
 
+def base_de_cadena(tid):
+    """«CAMR1005Db» → «CAMR1005D»: la misma regla que `obtenerBaseId` de Genesis (una letra
+    minúscula b-z al final, detrás de mayúscula o cifra, marca un reintento de la cadena)."""
+    tid = str(tid or "")
+    if len(tid) > 1 and tid[-1] in "bcdefghijklmnopqrstuvwxyz" and (tid[-2].isdigit() or tid[-2].isupper()):
+        return tid[:-1]
+    return tid
+
+
+def sucesora_integrada(dep, progreso, asuntos_git=()):
+    """La sucesora de `dep` (misma cadena, letra posterior) ya integrada, o None.
+
+    (2026-10-08) CAMR1005F esperaba a CAMR1005Db; si Db falla y la repara CAMR1005Dc, la
+    integración llega con el id «Dc» y la dependencia «Db» no se cumplía NUNCA: la cadena
+    quedaba muerta aunque el trabajo estuviera en main. Una sucesora integrada la cumple."""
+    base = base_de_cadena(dep)
+    for k, v in sorted((progreso or {}).items() if isinstance(progreso, dict) else []):
+        if k == dep or k <= dep or base_de_cadena(k) != base:
+            continue
+        est = v.get("estado") if isinstance(v, dict) else ""
+        if est in ("commit", "hecho") or id_en_asuntos(k, asuntos_git or []):
+            return k
+    return None
+
+
 def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
     """Deduplica por id y excluye cierres, copias automáticas e integradas en git.
 
@@ -134,7 +159,8 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
         if dep not in integradas:
             e = progreso.get(dep) if isinstance(progreso, dict) else None
             est = e.get("estado") if isinstance(e, dict) else ""
-            integradas[dep] = est in ("commit", "hecho") or id_en_asuntos(dep, asuntos_git or [])
+            integradas[dep] = (est in ("commit", "hecho") or id_en_asuntos(dep, asuntos_git or [])
+                               or sucesora_integrada(dep, progreso, asuntos_git) is not None)
         return integradas[dep]
 
     for nombre, tareas in colas:

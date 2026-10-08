@@ -45,6 +45,9 @@ export interface ResultadoReintento {
 const FALLOS = new Set([
     "fallo", "fallo_motor", "fallo_tsc", "fallo_tests", "sin_cambios",
     "interrumpida", "conflicto", "rechazada", "bloqueante", "bloqueada", "faltan",
+    // (2026-10-08) La rama que esperó un visto bueno con revisión BLOQUEANTE y nadie decidió:
+    // el veredicto ya está dado. Antes se quedaba ahí para siempre bloqueando su cadena.
+    "pendiente_aprobacion",
 ]);
 const DESCARTABLES = new Set(["sustituida", "reasignada", "duplicada", "descartada"]);
 const VIVOS = new Set(["", "pendiente", "en_curso", "escribiendo", "esperando"]);
@@ -127,7 +130,7 @@ function eventoDe(texto: string, id: string): string {
 export function cambioAutomatico(tarea: TareaAnalizar, fuentes: FuentesCambio = {}): string {
     const estado = String(tarea.estado ?? "").toLowerCase();
     const nota = String(tarea.nota ?? tarea.motivo ?? "").trim();
-    if (estado === "rechazada" || estado === "bloqueante") {
+    if (estado === "rechazada" || estado === "bloqueante" || estado === "pendiente_aprobacion") {
         const objecion = (objecionDe(fuentes.revisionesMd ?? "", tarea.id)
             ?? eventoDe(fuentes.eventos ?? "", tarea.id))
             || nota || "La revisión fue bloqueante.";
@@ -166,6 +169,10 @@ export function clasificar(tarea: TareaAnalizar, progreso: unknown, revisionesMd
     const nota = String(tarea.nota ?? tarea.motivo ?? "");
     if (!["rechazada", "bloqueante", "bloqueada"].includes(estado) && esFalloDelMedio(estado, nota)) {
         return { accion: "reintentar", motivo: `era el medio (${causaDelMedio(nota)}): vuelve a la cola sin gastar intento` };
+    }
+    // Una rama EN VERDE esperando el visto bueno de una persona no se repara: se aprueba o no.
+    if (estado === "pendiente_aprobacion" && String((tarea as Record<string, unknown>).revisor ?? "") !== "bloqueante") {
+        return { accion: "esperar", motivo: "rama en verde: espera el visto bueno de una persona" };
     }
     if (numeroIntento(tarea.id, progreso) >= 3) return { accion: "escalar", motivo: "tercer intento fallido: escala al director, nunca se descarta" };
     if (estado === "bloqueada") {

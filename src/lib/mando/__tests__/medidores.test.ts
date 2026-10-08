@@ -340,11 +340,28 @@ describe("porcentajes de avance", () => {
         });
         expect(d.filas).toHaveLength(1);
         expect(d.filas[0].titulo).toBe("Astraura 1.58 · túnel: publicar la URL nueva");
-        expect(d.resumen).toBe("0 del OS · 1 de Astraura 1.58 esperando");
+        expect(d.resumen).toBe("el OS está publicado · 1 de Astraura 1.58 esperan TU firma (la autopublicación no publica Astraura)");
         // El botón de publicar del medidor es solo del OS; Astraura se publica en «Commits pendientes».
         expect(d.acciones.map((a) => a.clase)).toEqual(["ir-a"]);
         // (2026-10-08) …y abre allí mismo el diálogo de publicar Astraura («no funciona» si solo cambia de pestaña).
         expect(d.acciones[0].destino).toBe("commits#publicar-astraura");
+    });
+
+    it("sin publicar dice que el OS lo publica la autopublicación y calla un fallo manual ya superado", () => {
+        // (2026-10-08) Alex: «la autopublicación tampoco [funciona] ya que aún hay pendientes».
+        const fin = "2026-10-08 14:02:00";
+        const d = detalleDeMedidor("sin-publicar", {
+            commitsSinPublicar: [{ sha: "2b6df44b0000", asunto: "Enjambre: arrienda otra vez" }],
+            publicacion: { estado: "fallo", terminado: fin, resumen: "no se publicó: la build falló", pasos: [] },
+            autopublicacion: { activa: true, fase: "esperando", detalle: "Ventana entre lotes: próximo en 12 min.", ultimaMs: Date.parse("2026-10-08T16:31:56") },
+        });
+        expect(d.resumen).toBe("1 del OS: los publica sola la autopublicación (Ventana entre lotes: próximo en 12 min)");
+        expect(d.aviso).toBeUndefined();
+        const sinAuto = detalleDeMedidor("sin-publicar", {
+            commitsSinPublicar: [{ sha: "2b6df44b0000", asunto: "x" }],
+            autopublicacion: { activa: false },
+        });
+        expect(sinAuto.resumen).toBe("1 del OS esperando (autopublicación apagada)");
     });
 
     it("la media ignora las filas sin avance en vez de contarlas como cero", () => {

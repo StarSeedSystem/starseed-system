@@ -118,3 +118,30 @@ describe("cadena, modelo y cola", () => {
         expect(resultado.resultados.map((r) => r.id)).toEqual(["A"]);
     });
 });
+
+describe("ramas que esperaron un visto bueno (2026-10-08)", () => {
+    const md = `## 2026-10-08 15:35 · 363 · RM6: Registrar Red Mesh
+**Revisión (freellmapi/auto)**
+
+**Riesgos reales**
+1. El campo url pasa de "/senales" a "internal://inferencia-distribuida-local".
+
+**Probar a mano en localhost**
+1. Abrir la biblioteca.
+
+**Seguimiento:** sí, bloqueante — URL interna no válida.
+`;
+
+    it("con revisión bloqueante se repara con la objeción literal", () => {
+        const progreso = { RM6: { estado: "pendiente_aprobacion", revisor: "bloqueante", prompt: "Registra RM6." } };
+        const r = ejecutarReintentoInteligente({ ids: ["RM6"], progreso, revisionesMd: md });
+        expect(r.reintentadas).toEqual(["RM6b"]);
+        expect(r.reencoladas[0].prompt).toContain("internal://inferencia-distribuida-local");
+    });
+
+    it("en verde espera a una persona y no entra en «reparar todas»", () => {
+        const progreso = { X: { estado: "pendiente_aprobacion", revisor: "ok" } };
+        expect(ejecutarReintentoInteligente({ ids: ["X"], progreso, revisionesMd: "" }).reintentadas).toEqual([]);
+        expect(ejecutarReintentoInteligente({ progreso, revisionesMd: "" }).reintentadas).toEqual([]);
+    });
+});

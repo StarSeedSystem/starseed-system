@@ -1136,6 +1136,14 @@ export interface DatosMedidores {
         resumen?: string;
         pasos: { titulo: string; estado: string; detalle?: string }[];
     } | null;
+    /** (2026-10-08) Estado de la AUTOPUBLICACIÓN (`~/.starseed/produccion/autopublicar-estado.json`). */
+    autopublicacion?: {
+        activa: boolean;
+        fase?: string;
+        detalle?: string;
+        /** Última publicación hecha por la autopublicación (ms). */
+        ultimaMs?: number;
+    } | null;
     /** `esperaA`: las dependencias que le faltan. Si viene, la tarea NO se puede coger. */
     ejecutables: { id: string; titulo: string; ola?: string; esperaA?: string[] }[];
     /** Asuntos recientes de `main`; ausente si Git no pudo leerse. */
@@ -1632,7 +1640,22 @@ export function detalleDeMedidor(
             const filas: FilaMedidor[] = [...filasOs, ...filasAstraura];
             const carga = cargaDePublicacion(d.publicacion, Date.now());
             const publicando = Boolean(carga && !/parece muerto/.test(carga.texto));
-            const fallo = filasOs.length && !publicando ? falloDePublicacion(d.publicacion, Date.now()) : undefined;
+            // (2026-10-08) Alex: «la autopublicación tampoco [funciona] ya que aún hay pendientes».
+            // Funcionaba: lo que quedaba eran 11 de ASTRAURA (que la autopublicación no publica) y un
+            // aviso de la publicación MANUAL fallida de las 13:56, ya superada por la automática.
+            // Ahora el resumen dice quién publica cada cosa y el aviso viejo no se enseña.
+            const auto = d.autopublicacion;
+            const finManual = d.publicacion?.terminado ? Date.parse(d.publicacion.terminado.replace(" ", "T")) : NaN;
+            const superada = Boolean(auto?.ultimaMs && Number.isFinite(finManual) && auto.ultimaMs > finManual);
+            const fallo = filasOs.length && !publicando && !superada ? falloDePublicacion(d.publicacion, Date.now()) : undefined;
+            const textoOs = !filasOs.length
+                ? "el OS está publicado"
+                : auto?.activa
+                  ? `${filasOs.length} del OS: los publica sola la autopublicación (${(auto.detalle || auto.fase || "en marcha").replace(/\.$/, "")})`
+                  : `${filasOs.length} del OS esperando (autopublicación apagada)`;
+            const textoAstraura = filasAstraura.length
+                ? ` · ${filasAstraura.length} de Astraura 1.58 esperan TU firma (la autopublicación no publica Astraura)`
+                : "";
             return {
                 clave,
                 titulo: "Sin publicar",
@@ -1640,9 +1663,7 @@ export function detalleDeMedidor(
                     ? `publicando ${filasOs.length} commit(s)…`
                     : filas.length === 0
                       ? "todo publicado"
-                      : filasAstraura.length
-                        ? `${filasOs.length} del OS · ${filasAstraura.length} de Astraura 1.58 esperando`
-                        : `${filas.length} commits esperando`,
+                      : `${textoOs}${textoAstraura}`,
                 filas,
                 cargando: carga,
                 aviso: fallo,

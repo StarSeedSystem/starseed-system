@@ -73,6 +73,21 @@ async function git(args: string[]): Promise<string> {
     }
 }
 
+/** (2026-10-08) El interruptor y el estado de la autopublicación, para que «Sin publicar» diga
+ *  quién publica cada cosa y no enseñe el fallo de una publicación manual ya superada. */
+async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]> {
+    const carpeta = path.join(os.homedir(), ".starseed", "produccion");
+    const leer = async (n: string) => JSON.parse(await readFile(path.join(carpeta, n), "utf8").catch(() => "{}")) as Record<string, unknown>;
+    const [interruptor, estado] = await Promise.all([leer("autopublicar.json"), leer("autopublicar-estado.json")]);
+    const ultima = Number(estado.ultima_publicacion);
+    return {
+        activa: interruptor.activo === true,
+        fase: typeof estado.fase === "string" ? estado.fase : undefined,
+        detalle: typeof estado.detalle === "string" ? estado.detalle : undefined,
+        ultimaMs: Number.isFinite(ultima) && ultima > 0 ? ultima * 1000 : undefined,
+    };
+}
+
 /**
  * Qué está tocando AHORA cada tarea viva, leído de su worktree.
  *
@@ -713,6 +728,8 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         commitsSinPublicarAstraura,
         // (2026-09-23) Leer un JSON pequeño: el indicador de carga de «Sin publicar».
         publicacion: await leerDiario().catch(() => null),
+        // (2026-10-08) Y el de la autopublicación: quién publica el OS y cuándo lo hizo por última vez.
+        autopublicacion: await leerAutopublicacion().catch(() => null),
         ejecutables,
         enjambreVivo: vivo,
         enjambrePausado: pausado,

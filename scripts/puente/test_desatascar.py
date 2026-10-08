@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 """Pruebas de desatascar.py — las tres paradas medidas el 2026-09-13."""
 
+import json
 import os
 import sys
+import tempfile
 import time
 import unittest
 
@@ -386,6 +388,84 @@ class TestDesatascarDirigeBloqueantes(unittest.TestCase):
         self.assertEqual(rep.call_count, 1)
         self.assertEqual(rech.call_count, 0)
         self.assertIn("reparación automática de A", frases)
+
+
+
+
+class TestAprobacionesPendientes(unittest.TestCase):
+    """(2026-10-08) Ramas en «pendiente_aprobacion» con revisión bloqueante: se reparan."""
+
+    def setUp(self):
+        self.ahora = 1_800_000_000.0
+
+    def _p(self, **extra):
+        e = {"estado": "pendiente_aprobacion", "revisor": "bloqueante", "motivo_vb": "revisión bloqueante confirmada",
+             "t": _hace(30, self.ahora)}
+        e.update(extra)
+        return e
+
+    def test_bloqueante_vieja_se_repara_y_queda_sustituida(self):
+        prog = {"RM6": self._p()}
+        enviados = []
+        with tempfile.TemporaryDirectory() as raiz:
+            os.makedirs(os.path.join(raiz, "starseed_memory_root", "olas"))
+            frases = d.reparar_aprobaciones_pendientes(raiz=raiz, ahora=self.ahora, progreso=prog, tareas={},
+                                                       enviar=lambda t: enviados.append(t) or "RM6b")
+            with open(os.path.join(raiz, "starseed_memory_root", "olas", "progreso-correcciones.json")) as f:
+                corr = json.load(f)
+        self.assertEqual(enviados, ["RM6"])
+        self.assertEqual(corr["RM6"]["estado"], "sustituida")
+        self.assertIn("RM6b", corr["RM6"]["nota"])
+        self.assertIn("reparo RM6 → RM6b", frases[0])
+
+    def test_sin_sucesora_creada_no_se_marca_nada(self):
+        with tempfile.TemporaryDirectory() as raiz:
+            os.makedirs(os.path.join(raiz, "starseed_memory_root", "olas"))
+            d.reparar_aprobaciones_pendientes(raiz=raiz, ahora=self.ahora, progreso={"RM6": self._p()}, tareas={},
+                                              enviar=lambda t: None)
+            self.assertFalse(os.path.exists(os.path.join(raiz, "starseed_memory_root", "olas",
+                                                         "progreso-correcciones.json")))
+
+    def test_en_verde_reciente_o_con_sucesora_viva_no_se_toca(self):
+        prog = {"A": self._p(revisor="ok"), "B": self._p(t=_hace(1, self.ahora)),
+                "C": self._p(), "Cb": {"estado": "pendiente"}}
+        self.assertEqual(d.aprobaciones_pendientes_a_reparar(prog, {}, self.ahora), [])
+
+    def test_sucesora_definida_en_cola_cuenta_aunque_no_tenga_progreso(self):
+        self.assertEqual(d.sucesora_viva("PRD1005S", {"PRD1005S": self._p()}, {"PRD1005Sb": {}}), "PRD1005Sb")
+        self.assertIsNone(d.sucesora_viva("RM6", {"RM6": self._p(), "RM7": {"estado": "pendiente"}}, {}))
+
+
+class TestEslabonesRotos(unittest.TestCase):
+    """(2026-10-08) CAMR1005F/G esperaban a CAMR1005Db en `fallo_tsc` y nadie lo reparaba."""
+
+    def setUp(self):
+        self.ahora = 1_800_000_000.0
+
+    def test_un_fallo_con_alguien_esperando_se_repara(self):
+        prog = {"CAMR1005Db": {"estado": "fallo_tsc", "t": _hace(30, self.ahora)}}
+        tareas = {"CAMR1005F": {"depende": ["CAMR1005B", "CAMR1005Db"]}, "CAMR1005G": {"depende": ["CAMR1005Db"]}}
+        self.assertEqual(d.eslabones_rotos(prog, tareas, self.ahora), [("CAMR1005Db", ["CAMR1005F", "CAMR1005G"])])
+        pedidos = []
+        frases = d.reparar_eslabones_rotos(raiz=tempfile.mkdtemp(), ahora=self.ahora, progreso=prog, tareas=tareas,
+                                           enviar=lambda t: pedidos.append(t) or "CAMR1005Dc")
+        self.assertEqual(pedidos, ["CAMR1005Db"])
+        self.assertIn("CAMR1005Dc", frases[0])
+
+    def test_rechazada_reciente_o_con_sucesora_no_se_toca(self):
+        tareas = {"X": {"depende": ["A"]}, "Y": {"depende": ["B"]}, "Z": {"depende": ["C"]}}
+        prog = {"A": {"estado": "rechazada", "t": _hace(30, self.ahora)},
+                "B": {"estado": "fallo_tsc", "t": _hace(1, self.ahora)},
+                "C": {"estado": "fallo_tsc", "t": _hace(30, self.ahora)}, "Cb": {"estado": "pendiente"}}
+        self.assertEqual(d.eslabones_rotos(prog, tareas, self.ahora), [])
+
+    def test_la_sucesora_de_la_cola_viva_pasa_a_una_cola_fuente(self):
+        with tempfile.TemporaryDirectory() as olas:
+            with open(os.path.join(olas, "cola-auto-1008-170000.json"), "w") as f:
+                json.dump([{"id": "CAMR1005Dc", "titulo": "t"}], f)
+            ruta = d.asegurar_en_cola_fuente(olas, "CAMR1005Dc")
+            self.assertTrue(os.path.basename(ruta).startswith("cola-reintentos-"))
+            self.assertIsNone(d.asegurar_en_cola_fuente(olas, "CAMR1005Dc"))  # ya tiene fuente
 
 
 if __name__ == "__main__":

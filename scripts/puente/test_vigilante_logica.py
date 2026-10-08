@@ -201,6 +201,28 @@ class DependenciaYaEnMain(unittest.TestCase):
         self.assertEqual(V.seleccionar_pendientes(colas, {}, [])[0]["depende"], ["A"])
 
 
+class SucesoraCumpleLaDependencia(unittest.TestCase):
+    """(2026-10-08) CAMR1005F espera a CAMR1005Db; si la integra su sucesora Dc, se cumple."""
+
+    def test_base_de_cadena(self):
+        import vigilante_logica as V
+        self.assertEqual(V.base_de_cadena("CAMR1005Db"), "CAMR1005D")
+        self.assertEqual(V.base_de_cadena("p318Jc"), "p318J")
+        self.assertEqual(V.base_de_cadena("c313_QW4"), "c313_QW4")
+
+    def test_la_sucesora_integrada_libera_a_quien_esperaba(self):
+        colas = [("cola-camr-1005c.json", [{"id": "CAMR1005F", "depende": ["CAMR1005Db"]}])]
+        progreso = {"CAMR1005Db": {"estado": "fallo_tsc"}, "CAMR1005Dc": {"estado": "commit"}}
+        t = seleccionar_pendientes(colas, progreso, [])[0]
+        self.assertEqual(t["depende"], [])
+        self.assertEqual(t["dependencias_ya_en_main"], ["CAMR1005Db"])
+
+    def test_sin_sucesora_integrada_sigue_esperando(self):
+        colas = [("cola-camr-1005c.json", [{"id": "CAMR1005F", "depende": ["CAMR1005Db"]}])]
+        progreso = {"CAMR1005Db": {"estado": "fallo_tsc"}, "CAMR1005Dc": {"estado": "pendiente"}}
+        self.assertEqual(seleccionar_pendientes(colas, progreso, [])[0]["depende"], ["CAMR1005Db"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

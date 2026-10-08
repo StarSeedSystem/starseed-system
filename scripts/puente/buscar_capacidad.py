@@ -518,6 +518,23 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
 
         # 1 · Mac
         estado_mac, decision = {}, {}
+        # (2026-10-08) Alex: «hay listas pendientes sin proceso activo» y el botón contestaba
+        # «no cabe más». Había un orquestador VIVO sin ninguna tarea en marcha: el botón ni lo
+        # miraba. Ahora, si una persona lo pulsa y el orquestador está parado con listas, se
+        # reinicia en el acto (no tiene nada en marcha: no se pierde trabajo).
+        if aplicar and mac:
+            try:
+                import atasco_orquestador
+
+                cura = atasco_orquestador.curar(persiste_s=0 if origen == "boton" else atasco_orquestador.PERSISTE_S,
+                                                edad_min_s=120 if origen == "boton" else atasco_orquestador.EDAD_MIN_S)
+                if cura.get("accion") == "reiniciado":
+                    hechas.append("orquestador parado reiniciado")
+                    sumados += len(cura.get("listas") or [])
+                    lineas.append("%s: el orquestador estaba vivo pero PARADO (%s) → lo reinicio y el vigilante "
+                                  "lanza una tanda nueva ya" % (NOMBRES["mac"], cura.get("motivo")))
+            except Exception as e:  # noqa: BLE001
+                lineas.append("%s: no pude mirar si el orquestador está parado (%s)" % (NOMBRES["mac"], type(e).__name__))
         try:
             import asignar_huecos
 
@@ -527,6 +544,10 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             if hechas_mac:
                 hechas += hechas_mac
                 sumados += int(decision.get("huecos") or 0)
+                # Despertar al vigilante para una tanda nueva SÍ suma agentes: antes salía
+                # «no cabe más ahora mismo» justo cuando arrancaba una tanda.
+                if decision.get("despertar_vigilante") and not decision.get("huecos"):
+                    sumados += min(len(estado_mac.get("listas") or []), int(estado_mac.get("tope") or 3)) or 1
             lineas.append(texto_mac(estado_mac, decision, hechas_mac))
         except Exception as e:
             lineas.append("%s: no pude mirarla (%s: %s)" % (NOMBRES["mac"], type(e).__name__, e))

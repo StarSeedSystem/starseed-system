@@ -217,16 +217,46 @@ def aplicar(problema: dict) -> str:
         return "desatascador: %s" % ("ok" if rc == 0 else salida.strip()[-120:] or "falló")
 
     if remedio == "arrancar_enjambre":
-        # NO se llama al vigilante: su pasada bloquea hasta dos minutos y él ya corre solo
-        # cada 90 s (launchd). Lo único que puede impedirle arrancar es un árbol sucio —
-        # pasó esta noche: dos archivos míos sin commitear tuvieron al enjambre sin
-        # arrancar y el log decía «ajeno: src/...». Eso sí se puede mirar y decir.
+        # (2026-10-08) Aquí el remedio era una frase —«el vigilante lo relanza solo en menos de
+        # 90 s»— y durante 35 min no fue verdad: había un orquestador VIVO sin hacer nada (el
+        # vigilante solo relanza si no hay ninguno). Ahora se mira de verdad: si hay un
+        # orquestador parado con listas, se reinicia; si no hay ninguno, se despierta al
+        # vigilante en el acto. Lo único que sigue sin tocarse es un árbol sucio.
         rc, salida = _sh(["git", "status", "--porcelain"], timeout=30)
         sucios = [l for l in salida.splitlines() if l.strip()]
         if sucios:
             return "el árbol tiene %d archivo(s) sin commitear y el enjambre no arranca con eso: %s" % (
                 len(sucios), ", ".join(l[3:] for l in sucios[:3]))
-        return "el vigilante lo relanza solo en menos de 90 s"
+        try:
+            import atasco_orquestador
+
+            cura = atasco_orquestador.curar()
+        except Exception as e:  # noqa: BLE001
+            return "no pude mirar el orquestador: %s" % type(e).__name__
+        if cura.get("accion") == "reiniciado":
+            return "orquestador parado reiniciado: %s" % cura.get("motivo")
+        if cura.get("accion") == "vigilando":
+            return "orquestador parado desde hace %s s (%s): lo reinicio si sigue así" % (
+                cura.get("desde_s", 0), cura.get("motivo"))
+        if cura.get("accion") == "sin_orquestador":
+            # Como mucho un despertar cada 5 min: si el arranque falla por otra causa, el
+            # vigilante ya espera y avisa; reiniciarlo en bucle no lo arregla.
+            marca = os.path.expanduser("~/.starseed/vigia-despertar.txt")
+            try:
+                if time.time() - os.path.getmtime(marca) < 300:
+                    return "sin orquestador: ya desperté al vigilante hace menos de 5 min"
+            except OSError:
+                pass
+            try:
+                import asignar_huecos
+
+                with open(marca, "w") as f:
+                    f.write(time.strftime("%Y-%m-%d %H:%M:%S"))
+                return ("sin orquestador: despierto al vigilante ya" if asignar_huecos.despertar_vigilante()
+                        else "sin orquestador y no pude despertar al vigilante")
+            except Exception as e:  # noqa: BLE001
+                return "sin orquestador; despertar falló: %s" % type(e).__name__
+        return "el orquestador trabaja (%s): el medidor irá al día en la próxima lectura" % cura.get("motivo")
 
     if remedio == "desplegar_nube":
         # Se pregunta ANTES si hay algo que mandar. Sin esto el vigía lanzaba un reparto
@@ -279,6 +309,18 @@ def una_pasada(aplicar_remedios=True) -> dict:
     if aplicar_remedios:
         for p in problemas:
             hechos.append({**p, "resultado": aplicar(p)})
+        # (2026-10-08) Ramas con revisión bloqueante que se quedaron en «pendiente_aprobacion»:
+        # nadie las miraba y bloqueaban su cadena. Se reparan en cada pasada (idempotente:
+        # una vez creada la sucesora, la original queda «sustituida»).
+        try:
+            import desatascar
+
+            for frase in desatascar.reparar_aprobaciones_pendientes():
+                print("    aprobaciones: %s" % frase, flush=True)
+            for frase in desatascar.reparar_eslabones_rotos():
+                print("    cadenas: %s" % frase, flush=True)
+        except Exception as e:  # noqa: BLE001
+            print("vigia-medidores: aprobaciones: %s: %s" % (type(e).__name__, e), flush=True)
     datos = {
         "visto": time.strftime("%Y-%m-%d %H:%M:%S"),
         "medidores": {k: (v.get("resumen") or "") for k, v in medidores.items()},

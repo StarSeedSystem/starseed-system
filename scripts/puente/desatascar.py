@@ -150,6 +150,210 @@ def clasificar_puertas(progreso, ahora, declarados_por_id=None, tope_min=6):
     return a_rechazar, a_aprobar, bloqueantes
 
 
+#: Estados de una sucesora que todavía va a salir (o ya salió).
+_SUCESORA_VIVA = (None, "", "pendiente", "en_curso", "escribiendo", "esperando", "esperando_aprobacion",
+                  "pendiente_aprobacion", "reasignada", "commit")
+
+
+def _base_id(tid):
+    """El id de la cadena: «RM6b» → «RM6» (misma regla que `obtenerBaseId` de Genesis)."""
+    return tid[:-1] if len(tid) > 1 and tid[-1] in "bcdefghijklmnopqrstuvwxyz" and tid[-2].isalnum() \
+        and not tid[-2].islower() else tid
+
+
+def sucesora_viva(tid, progreso, tareas):
+    """La sucesora de `tid` en su cadena (mismo id base, letra posterior) que sigue viva."""
+    base = _base_id(tid)
+    for k in sorted(set(progreso or {}) | set(tareas or {})):
+        if k == tid or _base_id(k) != base or k <= tid:
+            continue
+        if ((progreso or {}).get(k) or {}).get("estado") in _SUCESORA_VIVA:
+            return k
+    return None
+
+
+def aprobaciones_pendientes_a_reparar(progreso, tareas, ahora, tope_min=5):
+    """PURA. [(id, objecion)] de las ramas en «pendiente_aprobacion» con revisión BLOQUEANTE.
+
+    (2026-10-08) Alex: «los directores no revisan bien… nada se autorrepara». El orquestador
+    espera 20 min el visto bueno y, si nadie decide, deja la rama en `pendiente_aprobacion`.
+    `clasificar_puertas` solo miraba `esperando_aprobacion`, así que esas ramas se quedaban
+    ahí para siempre y bloqueaban su cadena (RM6 → RM7, RM8; PRD1005S → PRD1005U). Con
+    revisión bloqueante el veredicto ya está dado: se reparan con la objeción, como en la
+    puerta viva. Una rama EN VERDE sigue esperando a una persona: eso no se toca."""
+    salida = []
+    for tid, e in sorted((progreso or {}).items()):
+        if not isinstance(e, dict) or e.get("estado") != "pendiente_aprobacion":
+            continue
+        if e.get("revisor") != "bloqueante" or _minutos(e.get("t"), ahora) < tope_min:
+            continue
+        if sucesora_viva(tid, progreso, tareas):
+            continue
+        objecion = str(e.get("objecion") or e.get("motivo_vb") or e.get("motivo") or "")
+        salida.append((tid, objecion or "revisión bloqueante confirmada"))
+    return salida
+
+
+def reparar_aprobaciones_pendientes(raiz=None, ahora=None, enviar=None, progreso=None, tareas=None):
+    """Repara (Genesis → `POST /api/mando/reintentar`) las de `aprobaciones_pendientes_a_reparar`
+    y deja la original como «sustituida» para no repetir. Devuelve frases para el canal."""
+    raiz = raiz or RAIZ
+    ahora = ahora or time.time()
+    enviar = enviar or post_reparar
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    if progreso is None:
+        try:
+            with open(os.path.join(olas, "progreso.json"), encoding="utf-8") as f:
+                progreso = json.load(f)
+        except Exception:
+            return []
+    tareas = tareas if tareas is not None else _tareas_de_las_colas(olas)
+    frases, correcciones = [], {}
+    for tid, objecion in aprobaciones_pendientes_a_reparar(progreso, tareas, ahora):
+        sucesor = enviar(tid)
+        if sucesor and isinstance(sucesor, str):
+            try:
+                asegurar_en_cola_fuente(olas, sucesor)
+            except Exception:
+                pass
+        if sucesor:
+            correcciones[tid] = {
+                "estado": "sustituida", "t": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)),
+                "nota": "reparada automáticamente por el desatascador: la objeción del revisor pasa a %s "
+                        "(rama ola/%s conservada)" % (sucesor if isinstance(sucesor, str) else "su sucesora", tid),
+            }
+            frases.append("reparo %s → %s (rama esperando aprobación con revisión bloqueante)"
+                          % (tid, sucesor if isinstance(sucesor, str) else "sucesora"))
+            try:
+                director_chat.publicar("*Reparación automática · %s*\nLa rama esperaba un visto bueno con "
+                                       "revisión bloqueante; su objeción pasa a una sucesora.\n\n%s"
+                                       % (tid, objecion[:600]),
+                                       de="desatascador", rol="sistema", tipo="aviso", canal="mando",
+                                       canales=["claude-cowork"], tarea=tid)
+            except Exception:
+                pass
+        else:
+            # Genesis no creó sucesora (no responde, o la cadena va por su tercer intento y
+            # escala): no se marca nada y se vuelve a mirar en la próxima pasada.
+            frases.append("no reparo %s todavía: Genesis no creó sucesora (caído o la cadena escala)" % tid)
+    if correcciones:
+        ruta = os.path.join(olas, "progreso-correcciones.json")
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                actuales = json.load(f)
+        except Exception:
+            actuales = {}
+        actuales = actuales if isinstance(actuales, dict) else {}
+        actuales.update(correcciones)
+        tmp = ruta + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(actuales, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, ruta)
+    return frases
+
+
+def asegurar_en_cola_fuente(olas, tid):
+    """Genesis mete la sucesora en la cola VIVA (`cola-auto-*`), que es una copia: si la tanda
+    acaba antes de cogerla, el reconciliador la cierra como «huérfana». Se copia también a
+    `cola-reintentos-<fecha>.json` (cola fuente de código) si ninguna fuente la define."""
+    import glob
+
+    fuentes, encontrada = set(), None
+    for ruta in sorted(glob.glob(os.path.join(olas, "cola-*.json")), key=os.path.getmtime):
+        nombre = os.path.basename(ruta)
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                datos = json.load(f)
+        except Exception:
+            continue
+        lista = datos if isinstance(datos, list) else (datos or {}).get("tareas", []) if isinstance(datos, dict) else []
+        for t in lista:
+            if isinstance(t, dict) and t.get("id") == tid:
+                encontrada = t
+                if not nombre.startswith(("cola-auto-", "cola-suenos-")):
+                    fuentes.add(nombre)
+    if fuentes or not encontrada:
+        return None
+    ruta = os.path.join(olas, "cola-reintentos-%s.json" % time.strftime("%Y-%m-%d"))
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            actuales = json.load(f)
+    except Exception:
+        actuales = []
+    actuales = actuales if isinstance(actuales, list) else []
+    actuales.append(encontrada)
+    tmp = ruta + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(actuales, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+    return ruta
+
+
+#: Estados de fallo que se reparan solos cuando BLOQUEAN a otra tarea. «rechazada» no: esa ya
+#: la decidió alguien (para eso está «Borrar las que no se pueden reaplicar»).
+FALLOS_REPARABLES = ("fallo", "fallo_motor", "fallo_tsc", "fallo_tests", "sin_cambios", "interrumpida",
+                     "conflicto", "bloqueante")
+
+
+def eslabones_rotos(progreso, tareas, ahora, tope_min=5):
+    """PURA. Dependencias en FALLO que tienen a alguien esperando y ninguna sucesora viva.
+
+    (2026-10-08) CAMR1005F y G esperaban a CAMR1005Db, que acabó en `fallo_tsc`: nadie lo
+    reparaba (la reparación solo saltaba con el botón) y la cadena entera se quedaba muerta.
+    Devuelve [(dep, [quienes esperan])]."""
+    progreso = progreso or {}
+    esperan = {}
+    for tid, t in (tareas or {}).items():
+        if (progreso.get(tid) or {}).get("estado") not in (None, "", "pendiente", "bloqueada"):
+            continue
+        deps = (t or {}).get("depende") or []
+        for dep in [deps] if isinstance(deps, str) else deps:
+            e = progreso.get(dep) or {}
+            if e.get("estado") in FALLOS_REPARABLES and _minutos(e.get("t"), ahora) >= tope_min \
+                    and not sucesora_viva(dep, progreso, tareas):
+                esperan.setdefault(dep, []).append(tid)
+    return sorted((dep, sorted(q)) for dep, q in esperan.items())
+
+
+def reparar_eslabones_rotos(raiz=None, ahora=None, enviar=None, progreso=None, tareas=None):
+    """Pide a Genesis la reparación automática de cada eslabón roto (sucesora con el cambio que
+    dicta su fallo). La cadena sigue sola: una sucesora integrada cumple la dependencia."""
+    raiz = raiz or RAIZ
+    ahora = ahora or time.time()
+    enviar = enviar or post_reparar
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    if progreso is None:
+        try:
+            with open(os.path.join(olas, "progreso.json"), encoding="utf-8") as f:
+                progreso = json.load(f)
+        except Exception:
+            return []
+    tareas = tareas if tareas is not None else _tareas_de_las_colas(olas)
+    frases = []
+    for dep, quienes in eslabones_rotos(progreso, tareas, ahora):
+        sucesor = enviar(dep)
+        if sucesor and isinstance(sucesor, str):
+            try:
+                asegurar_en_cola_fuente(olas, sucesor)
+            except Exception:
+                pass
+        if sucesor:
+            frases.append("reparo %s → %s: %s esperaban a una tarea en %s" % (
+                dep, sucesor, ", ".join(quienes[:4]), (progreso.get(dep) or {}).get("estado")))
+            try:
+                director_chat.publicar("*Eslabón roto reparado · %s → %s*\n%s esperaban a %s, que acabó en «%s». "
+                                       "La sucesora lleva el cambio que dicta su fallo; cuando se integre, la "
+                                       "cadena sigue sola." % (dep, sucesor, ", ".join(quienes[:6]), dep,
+                                                               (progreso.get(dep) or {}).get("estado")),
+                                       de="desatascador", rol="sistema", tipo="aviso", canal="mando",
+                                       canales=["claude-cowork"], tarea=dep)
+            except Exception:
+                pass
+        else:
+            frases.append("no reparo %s todavía: Genesis no creó sucesora (caído o la cadena escala)" % dep)
+    return frases
+
+
 def puertas_a_rechazar(progreso, ahora, tope_min=6):
     """Solo las que hay que tirar. Ver `clasificar_puertas`."""
     return clasificar_puertas(progreso, ahora, None, tope_min)[0]
@@ -164,6 +368,24 @@ TOPE_INTENTOS_REPARACION = 3
 def accion_bloqueante(intentos):
     """PURA: reparar hasta `TOPE_INTENTOS_REPARACION`; luego escalar, nunca rechazar."""
     return "escalar" if intentos >= TOPE_INTENTOS_REPARACION else "reparar"
+
+
+def post_reparar(tid, url=URL_REINTENTAR, timeout=30):
+    """Como `post_reintentar`, pero devuelve el id de la SUCESORA creada (o None). Un 200 que
+    dice «esperando» o «escalada» no es una reparación: no se marca nada como hecho."""
+    try:
+        import urllib.request
+
+        datos = json.dumps({"ids": [tid], "automatico": True}).encode("utf-8")
+        peticion = urllib.request.Request(url, data=datos, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(peticion, timeout=timeout) as r:
+            cuerpo = json.loads(r.read().decode("utf-8") or "{}")
+        for res in cuerpo.get("resultados") or []:
+            if res.get("accion") == "reintentada" and res.get("sucesor"):
+                return res["sucesor"]
+        return None
+    except Exception:
+        return None
 
 
 def post_reintentar(tid, url=URL_REINTENTAR, timeout=15):
@@ -777,6 +999,8 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
     puertas, parciales, bloqueantes = clasificar_puertas(progreso, ahora, declarados)
     if bloqueantes:
         frases += reparar_bloqueantes(bloqueantes, raiz=raiz, ahora=ahora)
+    frases += reparar_aprobaciones_pendientes(raiz=raiz, ahora=ahora, progreso=progreso,
+                                              tareas=tareas_conocidas)
     if puertas:
         frases += rechazar_puertas(puertas)
     if parciales:

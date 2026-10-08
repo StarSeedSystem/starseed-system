@@ -715,6 +715,19 @@ def main():
                         "higiene worktrees: %s: %s" % (type(e).__name__, e), flush=True
                     )
             if hay:
+                # (2026-10-08) Un orquestador VIVO sin ninguna tarea en marcha y con listas en
+                # su cola (35 min así con JF2b): antes nadie lo veía, porque aquí solo se
+                # relanza cuando NO hay orquestador. Si dura, se reinicia y se relanza ya.
+                try:
+                    import atasco_orquestador
+
+                    cura = atasco_orquestador.curar()
+                    if cura.get("accion") == "reiniciado":
+                        print("atasco: %s" % cura.get("motivo"), flush=True)
+                        hay = orquestador_vivo()
+                except Exception as e:  # noqa: BLE001
+                    print("atasco_orquestador: %s: %s" % (type(e).__name__, e), flush=True)
+            if hay:
                 try:
                     matar_colgados()
                 except Exception as e:  # noqa: BLE001

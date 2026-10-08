@@ -320,8 +320,14 @@ def borrables(progreso, tareas, asuntos, informe, candidatos, definidas=()):
                 borrar[tid] = "espera a %s, que ya no va a salir" % ", ".join(muertas)
                 quedan.pop(tid, None)
                 cambio = True
-            elif tid not in quedan and dependencias(tareas.get(tid)):
-                quedan[tid] = "espera a %s, que todavía va a salir" % ", ".join(dependencias(tareas.get(tid)))
+            elif tid not in quedan:
+                # Solo se nombran las dependencias que siguen ABIERTAS, con su estado: «espera a
+                # CAMR1005Db (fallo_tsc)» dice dónde está el nudo; las ya integradas no.
+                abiertas = [d for d in dependencias(tareas.get(tid))
+                            if not (estados.get(d) in ("commit", "hecho") or en_main(d, tareas.get(d), asuntos))]
+                if abiertas:
+                    quedan[tid] = "espera a %s, que todavía va a salir" % ", ".join(
+                        "%s (%s)" % (d, estados.get(d) or "sin empezar") for d in abiertas)
     for tid in list(quedan):
         if tid in borrar:
             quedan.pop(tid)
@@ -362,6 +368,23 @@ def resumen(informe):
         grupos[clave] = grupos.get(clave, 0) + 1
     for clave, n in grupos.items():
         partes.append("%d %s" % (n, clave))
+    if informe.get("esperan"):
+        partes.append("%d esperan a otra tarea que todavía va a salir (%s)" % (
+            len(informe["esperan"]), "; ".join("%s: %s" % (e["id"], e["motivo"].replace("espera a ", "")
+                                                          .replace(", que todavía va a salir", ""))
+                                                for e in informe["esperan"][:4])))
+    if informe.get("sin_salida"):
+        partes.append("%d esperan a algo que ya no saldrá (%s): pulsa «Borrar las que no se pueden reaplicar»" % (
+            len(informe["sin_salida"]), ", ".join(e["id"] for e in informe["sin_salida"][:6])))
+    enj = informe.get("enjambre")
+    if enj == "reiniciado":
+        partes.append("el orquestador estaba parado: lo reinicié para que avance lo que esperan")
+    elif enj == "despertado":
+        partes.append("no había orquestador: desperté al vigilante para que avance lo que esperan")
+    if informe.get("total", 0) == 0 and len(partes) == 1:
+        partes = ["Ninguna bloqueada por fallo y nada esperando"]
+    elif informe.get("total", 0) == 0:
+        partes[0] = "Ninguna bloqueada por fallo"
     return " · ".join(partes)
 
 
@@ -441,7 +464,7 @@ def main(argv=None):
     if borrar:
         bloqueadas = [k for k, v in progreso.items() if isinstance(v, dict) and v.get("estado") in ESTADOS_BLOQUEADOS]
         if not ids:  # sin la lista del medidor: las bloqueadas y las que esperan a otra
-            ids = [k for k, v in progreso.items() if isinstance(v, dict) and v.get("estado") == "pendiente"
+            ids = [k for k in ids_de_colas_de_codigo(OLAS) if (progreso.get(k) or {}).get("estado") in (None, "pendiente")
                    and dependencias(tareas.get(k))]
         a_borrar, quedan = borrables(progreso, tareas, asuntos, informe, set(ids) | set(bloqueadas),
                                      definidas=ids_de_colas_de_codigo(OLAS))
@@ -452,6 +475,32 @@ def main(argv=None):
                                          "rama conservada si la había" % motivo}
         informe["borradas"] = [{"id": t, "motivo": m} for t, m in sorted(a_borrar.items())]
         informe["quedan"] = [{"id": t, "motivo": m} for t, m in sorted(quedan.items())]
+    else:
+        # (2026-10-08) Alex: «no funciona el recomprobar las bloqueadas». El panel enseñaba 5
+        # que esperaban a otra tarea y esto contestaba «0 bloqueadas recomprobadas»: solo miraba
+        # las bloqueadas por fallo. Ahora explica también las que esperan (a quién y si esa otra
+        # todavía va a salir) y, si lo que esperan está listo y nadie lo trabaja, lo pone en
+        # marcha en el acto (orquestador parado → se reinicia).
+        if not ids:
+            codigo = ids_de_colas_de_codigo(OLAS)
+            ids = [k for k in codigo if (progreso.get(k) or {}).get("estado") in (None, "pendiente")
+                   and dependencias(tareas.get(k))]
+        sin_salida, esperan = borrables(progreso, tareas, asuntos, informe, set(ids),
+                                        definidas=ids_de_colas_de_codigo(OLAS))
+        informe["esperan"] = [{"id": t, "motivo": m} for t, m in sorted(esperan.items())
+                              if t not in {s["id"] for s in informe["siguen"]}]
+        informe["sin_salida"] = [{"id": t, "motivo": m} for t, m in sorted(sin_salida.items())
+                                 if t not in {s["id"] for s in informe["siguen"]}]
+        if informe["esperan"] and not simular:
+            try:
+                import atasco_orquestador
+                cura = atasco_orquestador.curar(persiste_s=0, edad_min_s=120)
+                informe["enjambre"] = cura.get("accion")
+                if cura.get("accion") == "sin_orquestador":
+                    import asignar_huecos
+                    informe["enjambre"] = "despertado" if asignar_huecos.despertar_vigilante() else "sin_orquestador"
+            except Exception as e:  # noqa: BLE001
+                informe["enjambre"] = "no pude mirarlo (%s)" % type(e).__name__
     informe["resumen"] = resumen(informe)
     informe["t"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     informe["simulado"] = simular
