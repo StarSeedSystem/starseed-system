@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "OR1007Bs",
+   "ola": "Ola 1007O · Oracle Always Free: la nube 24/7 de StarSeed OS (Astraura 1.58, malla, llamadas, enjambre y Genesis)",
+   "depende": [],
+   "titulo": "Oracle · los medios y contenedores dejan de decir «descartado»: estado real desde `oracle.json` · lo que faltó: scripts/puente/buscar_capacidad.py",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py"
+   ],
+   "dificultad": "media",
+   "privado": false,
+   "prompt": "SEGUIMIENTO de OR1007B, que ya está integrada (sha ecb12323a8e3). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/buscar_capacidad.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Oracle · los medios y contenedores dejan de decir «descartado»: estado real desde `oracle.json`\n\n--- encargo original, como contexto ---\nCONTRATO: `architecture/oracle-nube.md`. Léelo ENTERO antes de empezar (sobre todo §8 y §9): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, dilo en tu informe en vez de improvisar. Petición de Alex (2026-10-07): activar la cuenta Oracle Cloud Free para la nube 24/7 (Astraura 1.58 con sus capas y aprendizaje continuo, funciones en línea para todos, enjambre) y que Genesis y el OS la recuerden.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin `oci` real, sin SSH y sin archivos reales de la casa (todo lo externo se inyecta; HOME y rutas a un directorio temporal). Claves SOLO de `os.environ`/`process.env`, nunca se imprimen. NINGÚN OCID (tenancy, usuario, compartimento, instancia) en salidas, registros, JSON de estado ni pruebas con valores reales: en pruebas usa `ocid1.tenancy.oc1..falso`. Sin dependencias nuevas (ni npm ni pip). Rutas de proceso en macOS: nunca `pgrep -l`.\n\nTU TAREA (OR1007B): Hoy `medios_disponibles.py` (línea del medio «oracle») y `contenedores_nube.py` (entrada «oracle») dicen «descartado por Alex (no deja crear la cuenta)». Eso ya no es verdad. Lee `~/.starseed/oracle.json` (ruta inyectable; si falta, `requiere_alex` con siguiente paso «vincular: `oci setup bootstrap` en la Terminal») y da el estado de §9: `requiere_alex` sin vincular, `usable` vinculada sin máquina A1 en marcha, `listo` con A1 RUNNING y su orquestador anunciado en `medios.json`. Capacidad real: «A1 2 OCPU · 12 GB · 2 micro 1 GB · 10 TB/mes». `contenedores_nube.py`: vcpu 2, ram_gb 12, jobs_simultaneos 1 (núcleos − 1). `buscar_capacidad.py` solo cambia lo imprescindible para que la línea de Oracle diga ese estado. Actualiza las pruebas existentes que esperaban «descartado» y añade una por estado.",
+   "dependencias_ya_en_main": [
+    "OR1007A"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ]
+}
