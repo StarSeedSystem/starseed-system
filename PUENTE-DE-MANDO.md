@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 17:42:17 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 20:25:06 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -14,37 +14,32 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
 | Ola arriba | reintentos-2026-09-21 |
 | Agentes escribiendo | **0** |
-| En esta ola | integradas 19 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 36 |
-| HEAD | `09a24f0b chore(memoria): aprendizaje de la ola auto-1007-152551` |
-| Sin publicar | 9 commits |
+| En esta ola | integradas 18 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 35 |
+| HEAD | `b70c161f chore(memoria): aprendizaje de la ola auto-1007-174338` |
+| Sin publicar | 6 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1007-152551.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-1007-174338.json`, hace 9s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `OR1007C` | hecho | freellmapi/auto | 4 min | 233 s | 150066 |
-| `OR1007B` | hecho | apinex/free/deepseek-v4-pro-0813 | 29 min | 1764 s | 2381 |
-| `OR1007H` | hecho | apinex/free/deepseek-v4-pro-0813 | 31 min | 1886 s | 14166 |
-| `OR1007I` | hecho | apinex/free/glm-5.3-flash | 35 min | 2126 s | 1038 |
-| `OR1007E` | hecho | apinex/free/glm-5.3-flash | 36 min | 2185 s | 19808 |
-| `OR1007F` | hecho | apinex/free/deepseek-v4-pro-0813 | 41 min | 2459 s | 710 |
-| `RSC1006Bs` | hecho | codex/gpt-5.6-sol | 52 min | 3103 s | 613115 |
-| `OR1007A` | hecho | codex/gpt-5.6-sol | 52 min | 3105 s | 467044 |
-| `OR1007D` | hecho | codex/gpt-5.6-sol | 69 min | 4161 s | 44388 |
-| `FLU1005F` | hecho | codex/gpt-5.6-sol | 73 min | 4406 s | 835416 |
-| `RSC1006G` | hecho | codex/gpt-5.6-sol | 81 min | 4865 s | 373916 |
-| `RSC1006Is` | hecho | codex/gpt-5.6-sol | 82 min | 4946 s | 222625 |
-| `RSC1006J` | hecho | codex/gpt-5.6-sol | 88 min | 5284 s | 448007 |
-| `PRD1005K` | hecho | freellmapi/auto | 91 min | 5483 s | 83572 |
-| `RSC1006B` | hecho | nvidia/moonshotai/kimi-k3 | 103 min | 6184 s | 65451 |
-| `RSC1006Fs` | hecho | freellmapi/auto | 114 min | 6838 s | 15125 |
-| `RSC1006D` | hecho | freellmapi/auto | 114 min | 6847 s | 6058 |
-| `RSC1006Cs` | hecho | apinex/free/deepseek-v4-flash-0731 | 118 min | 7097 s | 39635 |
-| `ES1010Ps` | hecho | nvidia/z-ai/glm-5.3 | 119 min | 7110 s | 74693 |
-| `ES1010K` | hecho | nvidia/z-ai/glm-5.3 | 123 min | 7360 s | 210171 |
-| `ES1010Hb` | hecho | nvidia/moonshotai/kimi-k3 | 135 min | 8073 s | 146036 |
+| `CPA1007B` | hecho | openrouter/thinkingmachines/inklin | 1 min | 43 s | 89049 |
+| `OR1007J` | hecho | openrouter/thinkingmachines/inklin | 13 min | 756 s | 134304 |
+| `CPA1007J` | hecho | openrouter/thinkingmachines/inklin | 29 min | 1749 s | 140186 |
+| `CPA1007G` | hecho | nvidia/moonshotai/kimi-k3 | 30 min | 1807 s | 180654 |
+| `OR1007G` | hecho | openrouter/thinkingmachines/inklin | 31 min | 1850 s | 139957 |
+| `CPA1007D` | hecho | nvidia/moonshotai/kimi-k3 | 51 min | 3043 s | 72724 |
+| `OR1007H` | hecho | nvidia/moonshotai/kimi-k3 | 68 min | 4060 s | 202677 |
+| `OR1007Bs` | hecho | openrouter/thinkingmachines/inklin | 76 min | 4567 s | 81167 |
+| `OR1007F` | hecho | openrouter/thinkingmachines/inklin | 83 min | 4998 s | 81097 |
+| `OR1007I` | hecho | openrouter/thinkingmachines/inklin | 91 min | 5489 s | 167144 |
+| `OR1007E` | hecho | openrouter/thinkingmachines/inklin | 106 min | 6389 s | 154241 |
+| `CPA1007I` | hecho | nvidia/moonshotai/kimi-k3 | 115 min | 6924 s | 153468 |
+| `OR1007D` | hecho | openrouter/thinkingmachines/inklin | 129 min | 7747 s | 122709 |
+| `CPA1007A` | hecho | nvidia/moonshotai/kimi-k3 | 138 min | 8300 s | 93546 |
+| `OR1007B` | hecho | nvidia/moonshotai/kimi-k3 | 142 min | 8548 s | 87310 |
+| `RSC1006J` | hecho | freellmapi/auto | 156 min | 9382 s | 483142 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
