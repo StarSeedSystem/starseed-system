@@ -10,6 +10,9 @@
  *
  * Honestidad radical: cada antena muestra su estado REAL y si el OS la controla
  * de verdad o es solo informativa (Wi-Fi/celular/telefonía). SSR-safe.
+ *
+ * Integración RM5: transporte BWP (RM3), PanelInferencia (RM2) y voz de
+ * borde supertónica/1.58 local (RM4) en paridad embedded / página.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
