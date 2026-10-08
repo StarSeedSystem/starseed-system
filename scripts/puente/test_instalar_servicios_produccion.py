@@ -33,7 +33,9 @@ def _cargar_con_solo(carpeta, solo="produccion"):
         "HOME": carpeta,
         "STARSEED_SOLO": solo,
         "STARSEED_RAIZ": repo_root,
-        "STARSEED_PY3": sys.executable,
+        # Ruta fija, no sys.executable: bajo launchd (autopublicación) sys.executable es el binario
+        # del framework («…/Python.app/Contents/MacOS/Python») y la prueba de abajo se ponía roja.
+        "STARSEED_PY3": "/opt/homebrew/bin/python3",
     }
 
     def falso_run(orden, **kwargs):
