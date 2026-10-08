@@ -1,7 +1,7 @@
 """Pruebas de diseno_reglas: puntuación pura del informe y del diff."""
 import unittest
 
-from diseno_reglas import puntuar
+from diseno_reglas import puntuar, proponer_prohibicion
 
 
 def informe_base():
@@ -77,6 +77,76 @@ class PuntuarDiff(unittest.TestCase):
     def test_lineas_eliminadas_no_cuentan(self):
         r = puntuar(informe_base(), "-color: #ff00aa;")
         self.assertEqual(r["nota"], 100)
+
+
+class PuntuarADN(unittest.TestCase):
+    def test_adn_fallo_resta_y_genera_arreglo_con_fail_looks_like(self):
+        informe = informe_base()
+        informe["adn_fallos"] = [{"id": "proporcion", "fail_looks_like": "titular 4x cuerpo"}]
+        r = puntuar(informe)
+        self.assertEqual(r["nota"], 95)
+        self.assertTrue(r["aprobado"])
+        self.assertEqual(len(r["fallos"]), 1)
+        fallo = r["fallos"][0]
+        self.assertEqual(fallo["tipo"], "adn")
+        self.assertIn("proporcion", fallo["arreglo"])
+        self.assertIn("titular 4x cuerpo", fallo["arreglo"])
+
+    def test_adn_multiple_con_tope(self):
+        informe = informe_base()
+        informe["adn_fallos"] = [{"id": f"p{i}"} for i in range(10)]
+        r = puntuar(informe)
+        self.assertEqual(r["nota"], 60)
+        self.assertEqual(len(r["fallos"]), 10)
+
+    def test_adn_fallo_sin_dict(self):
+        informe = informe_base()
+        informe["adn_fallos"] = ["fallo generico"]
+        r = puntuar(informe)
+        self.assertEqual(r["nota"], 95)
+        self.assertIn("fallo generico", r["fallos"][0]["arreglo"])
+
+
+class PuntuarMovimiento(unittest.TestCase):
+    def test_movimiento_promedia_nota(self):
+        informe = informe_base()
+        informe["movimiento_nota"] = 80
+        r = puntuar(informe)
+        self.assertEqual(r["nota"], 90)
+        self.assertTrue(r["aprobado"])
+
+    def test_movimiento_baja_nota_bajo_umbral(self):
+        informe = informe_base()
+        informe["desbordes"] = ["div.x"]
+        informe["movimiento_nota"] = 50
+        r = puntuar(informe)
+        self.assertLess(r["nota"], 75)
+        self.assertFalse(r["aprobado"])
+
+
+class Prohibicion(unittest.TestCase):
+    def test_proponer_prohibicion_detecta_repeticion(self):
+        fallos = [
+            {"identidad": "trinity", "tipo": "desborde"},
+            {"identidad": "trinity", "tipo": "desborde"},
+            {"identidad": "trinity", "tipo": "desborde"},
+        ]
+        p = proponer_prohibicion(fallos)
+        self.assertIsNotNone(p)
+        self.assertEqual(p["identidad"], "trinity")
+        self.assertIn("desborde", p["prohibicion"])
+        self.assertEqual(p["repeticiones"], 3)
+
+    def test_proponer_prohibicion_no_suficiente(self):
+        fallos = [
+            {"identidad": "trinity", "tipo": "desborde"},
+            {"identidad": "trinity", "tipo": "contraste_bajo"},
+        ]
+        p = proponer_prohibicion(fallos)
+        self.assertIsNone(p)
+
+    def test_proponer_prohibicion_vacio(self):
+        self.assertIsNone(proponer_prohibicion([]))
 
 
 if __name__ == "__main__":
