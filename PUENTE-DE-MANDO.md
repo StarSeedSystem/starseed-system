@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 12:08:27 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 16:00:02 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -9,22 +9,26 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 ## Estado ahora mismo
 
-| | |
-|---|---|
-| Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | reintentos-2026-09-21 |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 18 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 35 |
-| HEAD | `aaba0190 chore(memoria): aprendizaje de la ola auto-1008-120711` |
-| Sin publicar | 43 commits |
+Genesis está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`
+y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.
+| HEAD | `58a393fe chore(memoria): aprendizaje de la ola auto-1008-140757` |
+| Sin publicar | 5 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1008-120711.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1008-140757.json`, hace 13s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `p318Jc` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 1 min | 32 s | 609895 |
+| `RM6` | hecho | freellmapi/auto | 4 min | 254 s | 52535 |
+| `PRD1005S` | hecho | freellmapi/auto | 11 min | 675 s | 719291 |
+| `RM5s` | hecho | freellmapi/auto | 15 min | 909 s | 88386 |
+| `RM5` | hecho | codex/gpt-5.6-sol | 38 min | 2259 s | 322501 |
+| `CAMR1005Db` | hecho | freellmapi/auto | 51 min | 3038 s | 172026 |
+| `PT1009Cb` | hecho | freellmapi/auto | 57 min | 3418 s | 63177 |
+| `CPA1007Kb` | hecho | freellmapi/auto | 61 min | 3670 s | 209285 |
+| `PT1008E` | hecho | codex/gpt-5.6-sol | 85 min | 5085 s | 1139834 |
+| `JF2b` | hecho | freellmapi/auto | 86 min | 5181 s | 247532 |
+| `TK1c` | hecho | codex/gpt-5.6-sol | 86 min | 5188 s | 2064706 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
