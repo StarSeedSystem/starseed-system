@@ -468,5 +468,21 @@ class TestEslabonesRotos(unittest.TestCase):
             self.assertIsNone(d.asegurar_en_cola_fuente(olas, "CAMR1005Dc"))  # ya tiene fuente
 
 
+class TestMotivoSinSucesora(unittest.TestCase):
+    """(2026-10-08) El vigía decía «caído o la cadena escala» sin saber cuál de las dos."""
+
+    def test_escalada_dice_quien_la_retoma(self):
+        d.ULTIMO_MOTIVO["X1c"] = ("escalada", "tercer intento fallido: escala al director, nunca se descarta")
+        self.assertIn("escalera del director", d.motivo_sin_sucesora("X1c"))
+
+    def test_sin_respuesta_es_genesis_que_no_respondio(self):
+        d.ULTIMO_MOTIVO.pop("NADIE", None)
+        self.assertEqual(d.motivo_sin_sucesora("NADIE"), "Genesis no respondió")
+
+    def test_otra_accion_se_cita(self):
+        d.ULTIMO_MOTIVO["Y"] = ("esperando", "ya existe un sucesor vivo: Yb")
+        self.assertIn("ya existe un sucesor vivo", d.motivo_sin_sucesora("Y"))
+
+
 if __name__ == "__main__":
     unittest.main()

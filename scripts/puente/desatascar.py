@@ -235,7 +235,7 @@ def reparar_aprobaciones_pendientes(raiz=None, ahora=None, enviar=None, progreso
         else:
             # Genesis no creó sucesora (no responde, o la cadena va por su tercer intento y
             # escala): no se marca nada y se vuelve a mirar en la próxima pasada.
-            frases.append("no reparo %s todavía: Genesis no creó sucesora (caído o la cadena escala)" % tid)
+            frases.append("no reparo %s todavía: %s" % (tid, motivo_sin_sucesora(tid)))
     if correcciones:
         ruta = os.path.join(olas, "progreso-correcciones.json")
         try:
@@ -350,7 +350,7 @@ def reparar_eslabones_rotos(raiz=None, ahora=None, enviar=None, progreso=None, t
             except Exception:
                 pass
         else:
-            frases.append("no reparo %s todavía: Genesis no creó sucesora (caído o la cadena escala)" % dep)
+            frases.append("no reparo %s todavía: %s" % (dep, motivo_sin_sucesora(dep)))
     return frases
 
 
@@ -370,9 +370,28 @@ def accion_bloqueante(intentos):
     return "escalar" if intentos >= TOPE_INTENTOS_REPARACION else "reparar"
 
 
+#: Lo que contestó Genesis la última vez que no creó sucesora, por id: para decir POR QUÉ.
+#: (2026-10-08) El vigía repetía cada 2 min «Genesis no creó sucesora (caído o la cadena
+#: escala)» sin saber cuál de las dos: con CAMR1005Dc en su tercer eslabón era «escalada», y
+#: eso lo retoma la escalera del director (`continuar_estancadas`), no un caído.
+ULTIMO_MOTIVO = {}
+
+
+def motivo_sin_sucesora(tid):
+    """La frase de por qué Genesis no creó sucesora para `tid`."""
+    m = ULTIMO_MOTIVO.get(tid)
+    if not m:
+        return "Genesis no respondió"
+    accion, motivo = m
+    if accion == "escalada":
+        return "la cadena va por su tercer intento; la retoma la escalera del director (%s)" % motivo[:120]
+    return "Genesis dice «%s»%s" % (accion, (": " + motivo[:120]) if motivo else "")
+
+
 def post_reparar(tid, url=URL_REINTENTAR, timeout=30):
     """Como `post_reintentar`, pero devuelve el id de la SUCESORA creada (o None). Un 200 que
     dice «esperando» o «escalada» no es una reparación: no se marca nada como hecho."""
+    ULTIMO_MOTIVO.pop(tid, None)
     try:
         import urllib.request
 
@@ -383,6 +402,7 @@ def post_reparar(tid, url=URL_REINTENTAR, timeout=30):
         for res in cuerpo.get("resultados") or []:
             if res.get("accion") == "reintentada" and res.get("sucesor"):
                 return res["sucesor"]
+            ULTIMO_MOTIVO[tid] = (str(res.get("accion") or ""), str(res.get("motivo") or ""))
         return None
     except Exception:
         return None
