@@ -19,6 +19,16 @@ describe("capasEfectivasPara (Ola 1003 · §19)", () => {
         expect(r2.contextoPersonal).toBe(false);
     });
 
+    it("con ambos ids pero sin ajustes hereda todo de la cuenta", () => {
+        const r = capasEfectivasPara(prefs, true, AJUSTES_VACIOS, { personalidadId: "aurora", agenteId: "a1" });
+        expect(r.preferencia.activo).toBe(true);
+        expect(r.preferencia.capas).toEqual({ local: true, mesh: true, nube: true, colectiva: true });
+        expect(r.contextoPersonal).toBe(true);
+        const conCuentaApagada = capasEfectivasPara({ ...prefs, capa158Nube: false }, false, AJUSTES_VACIOS, {});
+        expect(conCuentaApagada.preferencia.capas.nube).toBe(false);
+        expect(conCuentaApagada.contextoPersonal).toBe(false);
+    });
+
     it("un agente con contextoPersonal apagado lo apaga solo para él", () => {
         let ajustes: AjustesCapasEntidad = AJUSTES_VACIOS;
         ajustes = fijarCapa(ajustes, "agente", "ag-1", "contextoPersonal", false);
@@ -33,6 +43,8 @@ describe("capasEfectivasPara (Ola 1003 · §19)", () => {
         ajustes = fijarCapa(ajustes, "personalidad", "aurora", "activo", false);
         const soloPersonalidad = capasEfectivasPara(prefs, true, ajustes, { personalidadId: "aurora" });
         expect(soloPersonalidad.preferencia.activo).toBe(false);
+        // Los demás campos de la cuenta se mantienen.
+        expect(soloPersonalidad.preferencia.capas).toEqual({ local: true, mesh: true, nube: true, colectiva: true });
         // Otra personalidad no se ve afectada.
         expect(capasEfectivasPara(prefs, true, ajustes, { personalidadId: "hermione" }).preferencia.activo).toBe(true);
         // El agente manda sobre la personalidad y lo vuelve a encender.

@@ -87,6 +87,18 @@ describe("leerAjustesCapasEntidad", () => {
     expect(() => leerAjustesCapasEntidad({ personalidades: null })).not.toThrow();
     expect(() => leerAjustesCapasEntidad({ personalidades: { p1: null } })).not.toThrow();
   });
+  it("bucle de basura variada siempre devuelve estructura válida", () => {
+    for (const raw of [{}, null, 42, "texto", [], { personalidades: 7, agentes: null }]) {
+      expect(() => leerAjustesCapasEntidad(raw)).not.toThrow();
+      expect(leerAjustesCapasEntidad(raw)).toEqual(AJUSTES_VACIOS);
+    }
+    const raro = leerAjustesCapasEntidad({
+      personalidades: { "": { local: false }, p1: { local: false, inexistente: true, mesh: "no" } },
+      agentes: { a1: { nube: true } },
+    });
+    expect(raro.personalidades["p1"]).toEqual({ local: false });
+    expect(raro.agentes["a1"]).toEqual({ nube: true });
+  });
 });
 
 describe("resolverCapasEntidad - precedencia", () => {
@@ -152,6 +164,47 @@ describe("resolverCapasEntidad - precedencia", () => {
     expect(efectivas.local).toBe(false);
     expect(efectivas.colectiva).toBe(false);
   });
+  it("con ambos ids pero sin ajustes hereda todo de la cuenta", () => {
+    const { efectivas, procedencia } = resolverCapasEntidad(
+      cuenta,
+      AJUSTES_VACIOS,
+      { personalidadId: "p1", agenteId: "a1" },
+    );
+    for (const c of CAMPOS_CAPA) {
+      expect(efectivas[c]).toBe(cuenta[c]);
+      expect(procedencia[c]).toBe("cuenta");
+    }
+  });
+  it("la personalidad manda en campos que el agente no fija", () => {
+    const ajustesConAgente: AjustesCapasEntidad = {
+      personalidades: { p1: { mesh: false } },
+      agentes: { a1: { nube: false } },
+    };
+    const { efectivas, procedencia } = resolverCapasEntidad(
+      cuenta,
+      ajustesConAgente,
+      { personalidadId: "p1", agenteId: "a1" },
+    );
+    expect(efectivas.mesh).toBe(false);
+    expect(procedencia.mesh).toBe("personalidad");
+    expect(efectivas.nube).toBe(false);
+    expect(procedencia.nube).toBe("agente");
+  });
+  it("agente gana a personalidad y esta a la cuenta, campo a campo (vía fijarCapa)", () => {
+    let ajustes = fijarCapa(AJUSTES_VACIOS, "personalidad", "p1", "mesh", false);
+    ajustes = fijarCapa(ajustes, "agente", "a1", "mesh", true);
+    ajustes = fijarCapa(ajustes, "agente", "a1", "nube", false);
+    const { efectivas, procedencia } = resolverCapasEntidad(cuenta, ajustes, {
+      personalidadId: "p1",
+      agenteId: "a1",
+    });
+    expect(efectivas.mesh).toBe(true);
+    expect(procedencia.mesh).toBe("agente");
+    expect(efectivas.nube).toBe(false);
+    expect(procedencia.nube).toBe("agente");
+    expect(efectivas.local).toBe(cuenta.local);
+    expect(procedencia.local).toBe("cuenta");
+  });
 });
 
 describe("fijarCapa", () => {
@@ -204,6 +257,16 @@ describe("capasDeCuenta", () => {
     expect(r.nube).toBe(true);
     expect(r.colectiva).toBe(false);
     expect(r.contextoPersonal).toBe(true);
+  });
+  it("con contextoPersonal false no lo fuerza", () => {
+    const pref = { activo: true, capas: { local: true, mesh: true, nube: true, colectiva: true }, nivelador: 0, especifico: null };
+    const r = capasDeCuenta(pref, false);
+    expect(r.activo).toBe(true);
+    expect(r.local).toBe(true);
+    expect(r.mesh).toBe(true);
+    expect(r.nube).toBe(true);
+    expect(r.colectiva).toBe(true);
+    expect(r.contextoPersonal).toBe(false);
   });
 });
 
