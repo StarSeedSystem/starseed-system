@@ -68,6 +68,37 @@ class RotacionOptimizada(unittest.TestCase):
                     base,
                 )
 
+    def test_instantes_epoch_numericos(self):
+        # Rescatado de nube/…/OPT1004F: `ahora` y `caduca` admiten epoch.
+        base = ["a/1", "b/2", "c/3"]
+        resultado = enjambre.aplicar_rotacion_optimizada(
+            base,
+            self.datos(delante=["c/3"], detras=[], probar=[], caduca=1_800_000_000),
+            1_700_000_000,
+        )
+        self.assertEqual(resultado[0], "c/3")
+        caducada = enjambre.aplicar_rotacion_optimizada(
+            base,
+            self.datos(delante=["c/3"], detras=[], probar=[], caduca=1_600_000_000),
+            1_700_000_000,
+        )
+        self.assertIs(caducada, base)
+
+    def test_duplicados_entre_listas_no_se_repiten(self):
+        # Rescatado de nube/…/OPT1004F: un modelo en varias listas sale una vez.
+        base = ["a/1", "b/2", "c/3", "d/4"]
+        resultado = enjambre.aplicar_rotacion_optimizada(
+            base,
+            self.datos(
+                delante=["a/1", "a/1"],
+                detras=["a/1", "d/4"],
+                probar=["b/2", "b/2", "nuevo/5"],
+            ),
+            "2026-10-04T18:00:00+00:00",
+        )
+        self.assertEqual(resultado, ["a/1", "c/3", "b/2", "nuevo/5", "d/4"])
+        self.assertEqual(len(resultado), len(set(resultado)))
+
     def test_modelo_pedido_sigue_primero(self):
         orden = enjambre.aplicar_rotacion_optimizada(
             ["a/1", "b/2", "c/3"],
