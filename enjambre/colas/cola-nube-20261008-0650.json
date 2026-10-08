@@ -1,0 +1,119 @@
+{
+ "ola": "nube-20261008",
+ "tareas": [
+  {
+   "id": "p314Acs",
+   "ola": "Ola 314 · Reservas y enrutamiento verificable",
+   "titulo": "Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas · lo que faltó: scripts/enjambre/presupuesto.py",
+   "archivos": [
+    "scripts/enjambre/presupuesto.py"
+   ],
+   "prompt": "SEGUIMIENTO de p314Ac, que ya está integrada (sha 32135a82429a). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/enjambre/presupuesto.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Presupuesto multiventana con reserva, ritmo y cuotas desconocidas explícitas\n\n--- encargo original, como contexto ---\nÚnica tarea: módulo Python PURO NUEVO presupuesto.py y unittest test_presupuesto.py, ≤120 líneas cadauno, sin IO ni libs externas. API decidir_presupuesto(ventanas, costes, ahora, reserva=0.2, antiguedad_max=900, rafaga=0.05)->dict {permitido:bool,motivos:list[str],reintentar_en:float|None}. ventanas lista dict: unidad(str), limite(float), usado(float), reservado(float, default0), inicio(epoch), reinicio(epoch), observado(epoch). costes dict por unidad con estimación NO negativa; falta de coste o ventanas => no_verificado, deniega. Solo admite finitos, no bool, limite>0, inicio<=observado<=ahora<reinicio, usado/reservado>=0; foto caducada o ventana vencida deniega y requiere nueva lectura (no supone reset). Reserva: usado+reservado+coste <= limite*(1-reserva). Ritmo: usado+reservado+coste <= limite*(1-reserva)*min(1, (ahora-inicio)/(reinicio-inicio)+rafaga), distribuye consumo a lo largo de cada ventana, breve ráfaga configurable. Todas las ventanas deben permitir; unidades distintas tienen costes distintos. Si denegación solo ritmo, calcula instante exacto en que puede intentarse; reserva agotada => reinicio; datos inválidos => None. No mutar entrada. Pruebas dos ventanas (horaria permite semanal bloquea), crédito adicional0 no ilimitado, costeausente, datosviejos/NaN/Infinity/futuros, reserva y reservas en vuelo, ráfaga inicial, hora calculada, limitesexactos. No guardar credenciales ni inventar precios ni saldo. NO cablear, no editar otros archivos, NO build ni deps; correr unittest propio. Leer architecture/puente-economico-verificable.md. Otro modelo de dirección revisa y cablea.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — la función puede lanzar `KeyError` (y potencialmente `ZeroDivisionError`) cuando la ventana no incluye `reservado` o tiene duración 0. Se necesita corregir el acceso a `v[\"reservado\"]` (usar `v.get(\"reservado\", 0.0)`) y validar que `reinicio > inicio`. Después de esos cambios",
+   "depende": [],
+   "estado": "bloqueante",
+   "nota": "director: escalada agotada tras 8 intentos (libre×8): requiere una persona",
+   "motivo": "",
+   "modelo": "nvidia/moonshotai/kimi-k3",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "CDV1004Cs",
+   "ola": "Ola 1004M · Chat Director: tus mensajes se distinguen y siempre se ve que alguien contesta",
+   "depende": [],
+   "titulo": "Chat Director · tu mensaje aparece al instante con «pensando…» y el chat sondea cada 3 s mientras alguien contesta · lo que faltó: src/components/mando/__tests__/chat-director.test.tsx",
+   "archivos": [
+    "src/components/mando/__tests__/chat-director.test.tsx"
+   ],
+   "prompt": "SEGUIMIENTO de CDV1004C, que ya está integrada (sha 7c95a0ab2aea). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/components/mando/__tests__/chat-director.test.tsx.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Chat Director · tu mensaje aparece al instante con «pensando…» y el chat sondea cada 3 s mientras alguien contesta\n\n--- encargo original, como contexto ---\nPETICIÓN DE ALEX (2026-10-04 15:05, literal): «cuando envio mensaje en el chat de director no responde ni aparece cargando y mis mensajes deben aparecer diferentes visualmente a los del director, arreglalo».\n\nDIAGNÓSTICO (claude-supervisor, mirado en el código y en chat.jsonl):\n1. `MensajeDelDirector` (src/components/mando/chat-director-mensaje.tsx) pinta IGUAL un mensaje de Alex (rol «alex») y uno del director: misma tarjeta violeta, mismo lado.\n2. Al enviar con el modelo por defecto «claude-cowork/claude-opus-5-5», la ruta POST deja la entrega «pendiente» en la bandeja de claude-cowork, que contesta en su próxima revisión programada. El único rastro en la UI es una línea gris de 10 px («…: en la próxima revisión de Claude»): Alex no ve que nada esté pasando, y volvió a pulsar «Enviar» (reenviar) 42 s después.\n3. Con un modelo por la API la ruta POST tarda hasta 90 s, de forma síncrona, y mientras tanto el chat no enseña ni el mensaje de Alex ni un «pensando…».\n4. Entrega duplicada: `publicarMensaje` ya escribe la entrega «pendiente» de cada canal de bandeja, y luego la ruta vuelve a escribir `publicarEntrega(mensaje.id, motor, \"pendiente\")` para el mismo canal.\n\n`CANALES` (src/lib/mando/chat-director-tipos.ts) ya dice cómo contesta cada canal: `respuesta: \"inmediata\" | \"en-revision\" | \"archivo\" | \"ninguna\"`. Úsalo y NO lo dupliques.\nDiseño: tokens de Tailwind que ya usa Genesis; el director sigue en violeta, a la IZQUIERDA. Alex pasa a la DERECHA en cian (el acento StarSeed, #00f0ff): borde `border-cyan-400/30`, fondo `bg-cyan-500/10` y texto legible. Animaciones solo con `motion-safe:` (respeta «reducir movimiento»). En una pantalla chica no puede quedar texto cortado ni elementos pegados. Las reglas de la casa están en `memory/workflow-actual.md`: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba.\n\nCAMBIO DE ALEX (2026-10-04 15:20, literal): «debe contestarla cualquier modelo seleccionado del direct\n\nNOMBRE (Alex, 2026-10-07): el panel de control del OS se llama «Genesis» en TODO texto que veas o escribas (interfaz, avisos, comentarios): nunca «Puente de Mando», «Centro de Mando» ni «Mando» a secas; la página es /genesis. Los identificadores de código (src/lib/mando, /api/mando, tablas mando_*, STARSEED_MANDO*) NO cambian. Lo vigila src/lib/__tests__/nombre-genesis.test.ts.",
+   "dependencias_ya_en_main": [
+    "CDV1004A"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "ES1010R",
+   "ola": "Ola 1010E · Estaciones: transmisiones en directo libres (directorio, reproductor autoadaptable, malla y estudio con IA)",
+   "titulo": "Estaciones · Estaciones en el catálogo de apps y en la Biblioteca",
+   "depende": [],
+   "dificultad": "media",
+   "archivos": [
+    "src/components/dashboard/apps/app-catalog.ts",
+    "src/lib/library/packages.ts"
+   ],
+   "prompt": "CONTRATO: `architecture/estaciones.md`. Léelo ENTERO antes de empezar (sobre todo la sección que cita tu tarea): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, gana el código y lo anotas.\nPetición de Alex (2026-10-07): «añade una página, sección y función principal de StarSeed OS de \"Estaciones\" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable».\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin procesos reales y sin tocar el `~/.starseed` real (todo lo externo se inyecta). Claves SOLO del entorno; nunca se imprimen ni se guardan. Sin dependencias nuevas (`hls.js` ya la instaló la dirección). Nada de `node:*` en `src/lib/estaciones` ni en `src/components/estaciones` (van al navegador). Textos visibles en español; el panel de control del OS se llama «Genesis» (nunca «Puente de Mando» ni «Mando»: la prueba `src/lib/__tests__/nombre-genesis.test.ts` lo vigila). ≤ 120 líneas por archivo que escribas; si no cabe, deja lo esencial probado y anota en tu informe lo que falta.\n\nTU TAREA (ES1010R): §11 del contrato (catálogo y Biblioteca). En `app-catalog.ts`: entrada `estaciones` copiando la forma de `canales` (icono `Cast` de lucide, `accent` «#FB7185», categoría `starseed`, `status: \"native\"`, ruta `/estaciones`), su id en `APP_COLLECTIONS.starseed` y `.media`; la app `radio` pasa a `status: \"native\"` con `route: \"/estaciones?tipo=audio\"` (mantén su id). En `packages.ts`: paquete `app-estaciones` en `CORE_ROUTE_PACKAGES` copiando la forma de `app-senales` (`payload: { route: \"/estaciones\" }`, etiquetas «directo», «radio», «vídeo», «xr», «malla», «estudio»; elige un `icon` que YA esté en el mapa de iconos de la Biblioteca: búscalo con grep de `ICON_MAP`). Las pruebas que ya existen del catálogo y de la Biblioteca deben seguir en verde."
+  },
+  {
+   "id": "TK2c",
+   "ola": "Ola 339 · Destilar a Astraura con lo que ya generamos",
+   "titulo": "Corpus de destilacion: el enjambre ya es el maestro y estabamos tirando sus respuestas",
+   "archivos": [
+    "scripts/puente/destilacion_corpus.py",
+    "scripts/puente/test_destilacion_corpus.py"
+   ],
+   "prompt": "LA IDEA, sacada de la receta de tinker-cookbook (on-policy distillation) pero SIN su servicio de pago: un modelo maestro supervisa al alumno, y eso rinde mas que entrenar al alumno solo.\n\nNOSOTROS YA TENEMOS EL MAESTRO Y NO LO APROVECHAMOS. Cada tarea del enjambre es una demostracion: un encargo (prompt), un modelo fuerte y gratuito que lo resuelve (gemini-3.6-flash, gpt-5.6-sol, kimi-k3...), un diff que paso CUATRO PUERTAS (tsc, vitest, unittest, build) y una revision. Es un corpus supervisado con etiqueta de calidad objetiva, y lo estamos tirando. El alumno es BitNet b1.58 local, el motor de Astraura.\n\nTU ENCARGO, dos archivos y ninguno fuera: `scripts/puente/destilacion_corpus.py`.\n  1. `ejemplo_de_tarea(tarea, entrada_progreso, diff)` PURA: devuelve un dict {encargo, respuesta, modelo, area, calidad, sha} o None si no sirve como ejemplo. SOLO entran las de calidad demostrada: estado `commit` Y revision no bloqueante. Una tarea rechazada no es un mal ejemplo, es ruido: fuera.\n  2. `recoger(progreso, tareas, leer_diff)` PURA salvo por `leer_diff`, que se le inyecta: recorre el progreso y devuelve la lista de ejemplos, sin duplicados por sha.\n  3. `main()`: escribe `starseed_memory_root/destilacion/corpus.jsonl` en formato JSONL (un ejemplo por linea), anadiendo solo lo nuevo, y deja un resumen con cuantos ejemplos hay por area y por modelo maestro.\n\nCUIDADO CON ESTO, es lo mas importante: el corpus NO puede llevar NINGUNA clave, token ni valor de variable de entorno. Antes de escribir un ejemplo, descarta cualquier linea del diff que case con algo tipo `[A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\\s*=` y deja una marca de que se quito. Una prueba tiene que comprobar exactamente eso.\n\nPruebas: una tarea `commit` con revision limpia entra; una rechazada no; una con revision bloqueante no; no se duplica por sha; y la de las claves.\n\nNO explores el repositorio entero: abre SOLO los archivos que se nombran. Comentarios en ESPANOL que expliquen el PORQUE. Pruebas en el mismo directorio. Corre tus pruebas antes de terminar.\n\nPOR QUÉ VUELVE: el intento anterior fue rechazado. Objeción literal del revisor:\nSeguimiento: sí, bloqueante — ampliar `limpiar_secretos` para cubrir `:` además de `=`, cabeceras `Authorization/Bearer` y patrones de token conocidos (`sk-`, `ghp_`, etc.) antes de generar corpus real.\n\nRiesgos reales:\n1. **Fuga de secretos al corpus (seguridad).** `PATRON_SECRETO` solo captura `CLAVE = valor`. Formatos habituales en diffs reales —`\"apiKey\": \"sk-...\"`, `api_key: valor` (YAML/JSON), `Authorization: Bearer ...`, tokens `sk-...`/`ghp_...` sueltos— pasan limpios y acaban en `corpus.jsonl`, que alimentará el entrenamiento del modelo alumno. Es un agujero real de exfiltración, no cosmético.\n2. **Filtro \"bloqueante\" por subcadena es frágil en ambos sentidos:** una nota como «no es bloqueante» descarta un ejemplo válido (conservador, aceptable), pero una revisión bloqueante redactada con otras palabras («rechazado por seguridad») entra al corpus como ejemplo de calidad. El criterio de calidad demostrada queda poco garantizado.\n3. `git show` incluye mensaje de commit y metadatos; el \"diff\" destilado no es solo código. Menor, pero degrada el corpus.\nAtiéndela punto por punto; si algún punto no aplica, di por qué en el commit.",
+   "depende": [],
+   "estado": "rechazada",
+   "nota": "rechazada automáticamente por ide (sin revisión humana); rama ola/TK2 conservada",
+   "motivo": "",
+   "modelo": "google/gemini-3.6-flash"
+  },
+  {
+   "id": "PRD1005S",
+   "ola": "Ola 1005B · Producción: puentes propios primero y externos gratuitos (n8n HF, n8n Cloud, Dify, Zapier) con autoenrutado",
+   "depende": [],
+   "titulo": "Producción · enrutador de puentes: lo propio siempre, externos sanos y dentro de cupo gratuito, con pesos aprendidos",
+   "archivos": [
+    "scripts/puente/produccion_puentes.py",
+    "scripts/puente/test_produccion_puentes.py"
+   ],
+   "prompt": "CONTRATO: `architecture/director-produccion.md`, sobre todo §9 y §10. Léelo ENTERO antes de empezar: es la fuente de verdad. Decisión de Alex (2026-10-05): principalmente lo propio, para no depender de externos, pero aprovechando lo disponible (n8n en Hugging Face, n8n Cloud, Dify Cloud Sandbox y Zapier) con autoenrutado inteligente y sin pasar NUNCA de un cupo gratuito.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni archivos reales (todo lo externo se inyecta). Claves y URLs SOLO de `os.environ`; nunca se imprimen (como mucho el host). Sin dependencias nuevas.\n\nTU TAREA (PRD1005S): §10 completo. (a) Registro de puentes como datos: la tabla de §10 con tipo, capacidades, variables de entorno que lo activan, cupo gratuito y fecha de reinicio. (b) `activos(entorno)`: un puente sin sus variables NO existe. (c) `enrutar(evento, capacidad, datos, entorno=…, enviar=…, ahora=…)`: los avisos van SIEMPRE por los propios; para capacidades externas, ordena los externos capaces por salud, cupo restante, latencia y peso, prueba en orden y, si ninguno sirve, deja la pieza en la bandeja de Genesis con el motivo. (d) Contabilidad en `~/.starseed/produccion/puentes.json` con escritura atómica: usos por mes, último ok y fallo, fallos seguidos, latencia media y peso (éxito +0,1, fallo −0,15, entre 0,05 y 1). Al 90 % del cupo, el puente se aparta y se devuelve un aviso para el Chat Director. (e) Despertar del n8n de Hugging Face: petición de salud previa con tope de 60 s. El envío real lo hace `produccion_webhooks.emitir` (de PRD1005O), que se inyecta. Pruebas: puente sin configurar, cupo al 90 %, el primero falla y entra el segundo, todos caen y va a la bandeja, reinicio de mes y aprendizaje de pesos.\n\nNOMBRE (Alex, 2026-10-07): el panel de control del OS se llama «Genesis» en TODO texto que veas o escribas (interfaz, avisos, comentarios): nunca «Puente de Mando», «Centro de Mando» ni «Mando» a secas; la página es /genesis. Los identificadores de código (src/lib/mando, /api/mando, tablas mando_*, STARSEED_MANDO*) NO cambian. Lo vigila src/lib/__tests__/nombre-genesis.test.ts.",
+   "dependencias_ya_en_main": [
+    "PRD1005O"
+   ]
+  },
+  {
+   "id": "CAMR1005B",
+   "ola": "Ola 1005C · CAMR: enrutamiento cognitivo multiespectro (RNS, Meshtastic, 802.11s/Babel/BATMAN/Yggdrasil) con radio cognitiva legal y planificador comunitario",
+   "depende": [],
+   "titulo": "CAMR · motor de radio cognitiva: modulación adaptativa con histéresis, TPC comunitario, espectro limpio, PIRE direccional y reversión",
+   "archivos": [
+    "src/ai/astraura/mesh/camr/radio-cognitiva.ts",
+    "src/ai/astraura/mesh/camr/__tests__/radio-cognitiva.test.ts"
+   ],
+   "modelo": "codex/gpt-5.6-sol",
+   "prompt": "CONTRATO: `architecture/camr-enrutamiento-cognitivo.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §0 lista lo que YA existe en `src/ai/astraura/mesh/` y `src/components/mesh/`: se reutiliza y se amplía, nunca se duplica. §5 (ley y licencias) es obligatorio en todo lo que toque radio. Petición de Alex (2026-10-05): módulo CAMR en el panel de señales y enrutamiento del OS.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni hardware (simulador y adaptadores falsos). Sin dependencias npm nuevas; en Python, librerías de radio solo con importación perezosa.\n\nTU TAREA (CAMR1005B): §2 completo, puro y determinista. `recomendar(historial, vecinos, perfil, actual) → {params, porque[], cambio}`: (1) modulación (preset, ancho de banda, SF y CR de LoRa; MCS de Wi-Fi) por margen de SNR y BER/PER, con histéresis (subir exige N mejoras seguidas, bajar es inmediato si se pierde enlace); (2) TPC: mínima potencia con margen objetivo hacia el vecino más lejano necesario y reparto comunitario (baja quien sobra; sube solo el puente único), con tope legal; (3) canal: el más limpio del plan de bandas legal, cambio solo si mejora más que un umbral, con anuncio previo a los vecinos; (4) PIRE con ganancia direccional y acimut recomendado si la antena es orientable; (5) `vigilarCambio`: tras aplicar, si la métrica empeora durante T, devuelve la reversión. Ninguna salida puede violar `dentroDeLey`. Pruebas por escenario (ruido creciente, vecino que se aleja, interferencia en un canal, oscilación).",
+   "dependencias_ya_en_main": [
+    "CAMR1005A"
+   ]
+  },
+  {
+   "id": "CAMR1005C",
+   "ola": "Ola 1005C · CAMR: enrutamiento cognitivo multiespectro (RNS, Meshtastic, 802.11s/Babel/BATMAN/Yggdrasil) con radio cognitiva legal y planificador comunitario",
+   "depende": [],
+   "titulo": "CAMR · planificador multitrayecto comunitario: clases de tráfico, redundancia del control crítico, masivo por alta capacidad, equidad de tiempo de aire",
+   "archivos": [
+    "src/ai/astraura/mesh/camr/planificador.ts",
+    "src/ai/astraura/mesh/camr/__tests__/planificador.test.ts"
+   ],
+   "prompt": "CONTRATO: `architecture/camr-enrutamiento-cognitivo.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §0 lista lo que YA existe en `src/ai/astraura/mesh/` y `src/components/mesh/`: se reutiliza y se amplía, nunca se duplica. §5 (ley y licencias) es obligatorio en todo lo que toque radio. Petición de Alex (2026-10-05): módulo CAMR en el panel de señales y enrutamiento del OS.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red ni hardware (simulador y adaptadores falsos). Sin dependencias npm nuevas; en Python, librerías de radio solo con importación perezosa.\n\nTU TAREA (CAMR1005C): §3. `planificar(paquete, clase, enlaces, metricas, cuotas) → [rutas]` con la política de §3: control-critico por largo alcance y alta resiliencia con dos caminos si existen; masivo por mayor capacidad, troceado, nunca por LoRa salvo `forzar`; tiempo-real por menor latencia estable; mensajes por equilibrio. Equidad: cupos de tiempo de aire por nodo en bandas compartidas con prioridad de emergencias. Respeta `permiteCifrado` (no manda tráfico cifrado por bandas de radioaficionado) y el ciclo de trabajo. Fragmentación y reensamblado por MTU entre tecnologías. Pruebas por clase y de casos de caída de enlace.",
+   "dependencias_ya_en_main": [
+    "CAMR1005A"
+   ]
+  },
+  {
+   "id": "CU3bs",
+   "ola": 362,
+   "titulo": "Ajustes de Genesis: conceder o retirar un acceso no deja la pantalla en blanco (archivos corregidos)",
+   "archivos": [
+    "src/app/api/mando/accesos/route.ts",
+    "src/components/mando/ajustes-accesos.tsx",
+    "src/components/mando/__tests__/ajustes-accesos.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "NOTA DE LA DIRECCIÓN (2026-10-08): CU3br falló 82 veces en la nube sin tocar sus archivos porque declaraba `src/components/mando/panel-accesos.tsx`, que NO existe: la interfaz de accesos vive en `src/components/mando/ajustes-accesos.tsx` (y la ruta `src/app/api/mando/accesos/route.ts` ya existe). Primero comprueba si el fallo sigue: con una prueba que conceda y retire un acceso con fetch falso y verifique que la tarjeta sigue pintada (sin pantalla en blanco) y enseña el error si la API falla. Si ya no ocurre, deja SOLO la prueba que lo demuestra. Si ocurre, arréglalo en esos archivos.\n\nRESCATE (2026-09-20). Esta tarea se rechazo el 17/09 «automaticamente por ide, sin revision\nhumana». La causa de aquella racha esta medida y ARREGLADA: una cabecera x-title con un\ncaracter no ASCII hacia que TODOS los modelos :free de OpenRouter fallaran en 0 s, y el\ndesatascador daba por muerta la tarea. No era culpa del encargo.\nCOMPROBADO HOY: ni `src/app/api/mando/accesos/route.ts` ni `src/components/mando/panel-accesos.tsx` existen en main. El trabajo sigue pendiente entero.\nTRAMPA MEDIDA EL 20/09: `tsc` y vitest NO ven un import de VALOR desde un modulo que toca\n`node:*` hecho en un componente de CLIENTE; solo lo ve `next build`. De un modulo con\n`node:fs`/`node:util`, un componente de cliente solo puede importar TIPOS.\n\n=== ENCARGO ORIGINAL ===\nCU3 fue RECHAZADA con bloqueo confirmado por dos revisores. El defecto, literal:\n\n«El POST devuelve `{ ok, accion, correo }`, pero `llamar()` lo castea a `DatosAccesos` y `conceder()`/`retirar()` hacen `setDatos(d)`. Tras conceder o retirar, `datos.cuentas` pasa a ser `undefined` y el render (`datos.cuentas.map`, `datos.cuentas.find`) revienta la pantalla. El primer alta de invitado rompe la UI.»\n\nEs decir: el panel funciona hasta que lo usas. La primera vez que concedes un acceso, pantalla en blanco.\n\nARREGLO, y elige UNA de las dos vías (no las dos):\n· que el POST devuelva el MISMO payload completo que el GET, o\n· que el cliente rehaga el GET después del POST.\nLa primera es mejor: una ida y vuelta menos y sin ventana de estado inconsistente.\n\nY pase lo que pase, el render no debe poder reventar por esto: si `datos.cuentas` llega vacío o ausente, la pantalla enseña su estado vacío, no una excepción. Una pantalla que se rompe por una respuesta inesperada es un fallo aparte del contrato.\n\nDos cosas más que el revisor anotó y conviene atender:\n· `leerDatos` → modificar → `guardarDatos` no es atómico entre peticiones: dos POST simultáneos pisan el cambio del otro. El rename atómico protege de corrupción parcial, no de perder una actualización. Si no lo arreglas aquí, DÉJALO ESCRITO en un comentario como deuda conocida, con el porqué.\n· en local, `correoQuePide` devuelve siempre `dueno`. Es deliberado, pero confirma en un comentario que `esDespliegueLocal` no puede dar verdadero en producción por una cabecera forjada.\n\nAñade una prueba del caso que rompía: conceder un acceso y comprobar que después la lista sigue teniendo sus cuentas.",
+   "aprobacion": false
+  }
+ ]
+}
