@@ -68,6 +68,45 @@ class RotacionOptimizada(unittest.TestCase):
                     base,
                 )
 
+    def test_duplicados_y_extraños_se_depuran(self):
+        base = ["a/1", "b/2", "c/3"]
+        resultado = enjambre.aplicar_rotacion_optimizada(
+            base,
+            self.datos(
+                delante=["c/3", "c/3", "fantasma/9"],
+                detras=["b/2", "b/2", "otro/8"],
+                probar=["nuevo/5", "nuevo/5", "c/3", "b/2"],
+            ),
+            "2026-10-04T18:00:00+00:00",
+        )
+        self.assertEqual(resultado, ["c/3", "a/1", "nuevo/5", "b/2"])
+
+    def test_en_delante_y_detras_gana_delante(self):
+        resultado = enjambre.aplicar_rotacion_optimizada(
+            ["a/1", "b/2"],
+            self.datos(delante=["b/2", "a/1"], detras=["a/1"], probar=[]),
+            "2026-10-04T18:00:00+00:00",
+        )
+        self.assertEqual(resultado, ["b/2", "a/1"])
+
+    def test_miembros_no_texto_invalidan_la_rotacion(self):
+        base = ["a/1", "b/2"]
+        self.assertIs(
+            enjambre.aplicar_rotacion_optimizada(
+                base, self.datos(probar=[5]), "2026-10-04T18:00:00+00:00"
+            ),
+            base,
+        )
+
+    def test_caducidad_con_sufijo_z_se_vale(self):
+        base = ["a/1", "b/2"]
+        resultado = enjambre.aplicar_rotacion_optimizada(
+            base,
+            self.datos(caduca="2026-10-05T00:00:00Z", t="2026-10-04T12:00:00Z"),
+            "2026-10-04T18:00:00Z",
+        )
+        self.assertNotEqual(resultado, base)
+
     def test_modelo_pedido_sigue_primero(self):
         orden = enjambre.aplicar_rotacion_optimizada(
             ["a/1", "b/2", "c/3"],
