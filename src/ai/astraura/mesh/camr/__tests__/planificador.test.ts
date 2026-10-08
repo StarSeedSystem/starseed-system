@@ -145,6 +145,16 @@ describe("planificar · equidad de tiempo de aire", () => {
     const rutas = planificar(paquete(100), "control-critico", enlaces, metricas(), c);
     expect(rutas.some((r) => r.enlaceId === "a")).toBe(true);
   });
+
+  it("el favorito con cupo agotado cede al siguiente mejor", () => {
+    const enlaces2 = [
+      enlace({ id: "rapido", capacidadKbps: 80_000 }),
+      enlace({ id: "lento", tecnologia: "yggdrasil", capacidadKbps: 5_000 }),
+    ];
+    const agotado: CuotasPlan = { cupoMs: { rapido: 0 }, consumidoMs: { rapido: 0 } };
+    const rutas = planificar(paquete(100), "masivo", enlaces2, metricas(), agotado);
+    expect(rutas[0].enlaceId).toBe("lento");
+  });
 });
 
 describe("planificar · política por clase", () => {

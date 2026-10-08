@@ -17,6 +17,7 @@ import {
   vigilarCambio,
 } from "../radio-cognitiva";
 import type { PerfilCognitivo, VecinoCognitivo } from "../radio-cognitiva";
+import { dentroDeLey } from "../regulacion";
 import type { Medicion, ParametrosRadio } from "../tipos";
 
 const T0 = 1_700_000_000_000;
@@ -48,6 +49,9 @@ const actualBase: ParametrosRadio = {
   anchoBandaMhz: 0.25,
   codingRate: "4/8",
 };
+
+/** Nivel ya ajustado al SNR de sus medidas (MEDIUM_FAST, nivel 3). */
+const ajustado: ParametrosRadio = { ...actualBase, spreadFactor: 9, anchoBandaMhz: 0.25, codingRate: "4/5" };
 
 const vecino = (v: Partial<VecinoCognitivo>): VecinoCognitivo => ({
   id: "v1", snrDb: null, rssiDbm: null, esPuenteUnico: false, ...v,
@@ -85,9 +89,29 @@ describe("histéresis (oscilación)", () => {
     expect(r.params.spreadFactor).toBe(12);
     expect(r.cambio).toBe(true);
   });
+  it("no oscila: alternando bueno/malo se queda en el peldaño", () => {
+    const oscilante = [5, -18, 6, -18, 7].map((snr, i) => med({ snrDb: snr, ber: 0 }, T0 + i * 1000));
+    const r = recomendar(oscilante, [], perfilEu(), actualBase);
+    expect(r.params.spreadFactor).toBe(actualBase.spreadFactor);
+    expect(r.porque.join(" ")).toContain("histéresis");
+  });
+  it("sin nada que mejorar, no propone cambio", () => {
+    // Ya en el nivel que sus medidas sostienen y potencia equilibrada.
+    const ajustado: ParametrosRadio = { ...actualBase, spreadFactor: 9, anchoBandaMhz: 0.25, codingRate: "4/5" };
+    const r = recomendar([med({ snrDb: -9, ber: 0 }, T0)], [vecino({ snrDb: -9 })], perfilEu(), ajustado);
+    expect(r.cambio).toBe(false);
+    expect(r.params.frecuenciaMhz).toBe(ajustado.frecuenciaMhz);
+    expect(r.params.potenciaDbm).toBe(ajustado.potenciaDbm);
+    expect(r.params.spreadFactor).toBe(ajustado.spreadFactor);
+  });
 });
 
 describe("TPC comunitario (vecino que se aleja)", () => {
+  it("mantiene la potencia cuando ya está ajustada al margen objetivo", () => {
+    const r = potenciaComunitaria(14, [vecino({ snrDb: -10 })], perfilEu(), 869.5);
+    expect(r.potenciaDbm).toBe(14);
+    expect(r.nota).toContain("equilibrada");
+  });
   it("sube solo lo necesario si hay puente único", () => {
     const v = [vecino({ snrDb: -14, esPuenteUnico: true })];
     const r = potenciaComunitaria(14, v, perfilEu(), 869.5);
@@ -177,5 +201,29 @@ describe("Wi-Fi (MCS) y vigilarCambio (reversión)", () => {
       med({ snrDb: -4, perdida: 0.01 }, T0 + i * 10_000),
     );
     expect(vigilarCambio(antes, posteriores, actualBase, 10_000).revertir).toBe(false);
+  });
+});
+
+describe("propiedades del motor", () => {
+  it("la escalera LoRa sube de robustez y baja el SNR mínimo", () => {
+    for (let i = 1; i < ESCALERA_LORA.length; i++) {
+      expect(ESCALERA_LORA[i].snrMinDb).toBeLessThanOrEqual(ESCALERA_LORA[i - 1].snrMinDb);
+      expect(ESCALERA_LORA[i].spreadFactor).toBeGreaterThanOrEqual(ESCALERA_LORA[i - 1].spreadFactor);
+    }
+  });
+
+  it("las propuestas siempre quedan dentro de la ley", () => {
+    // Puente único lejísimos: el TPC querría subir mucho; el tope legal manda.
+    const lejos = [vecino({ id: "puente", snrDb: -60, esPuenteUnico: true })];
+    const r = recomendar(
+      [med({ snrDb: -6, ber: 0 }, T0)],
+      lejos,
+      perfilEu({ potenciaMaxEquipoDbm: 33 }),
+      { ...actualBase, potenciaDbm: 30 },
+    );
+    const legal = dentroDeLey({ banda: "EU_868", radio: r.params }, perfilEu().legal);
+    expect(legal.ok).toBe(true);
+    expect(r.params.potenciaDbm).toBeLessThanOrEqual(27);
+    expect(r.porque.length).toBeGreaterThan(1);
   });
 });
