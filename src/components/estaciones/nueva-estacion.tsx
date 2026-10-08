@@ -88,7 +88,7 @@ export function NuevaEstacion({ abierto, onCerrar, inicial, ambitos = [], onGuar
             <div><Label>Fin</Label><Input type="datetime-local" value={form.termina_en?.slice(0,16)??""} onChange={e=>setForm(f=>({...f,termina_en:e.target.value?e.target.value+":00":null}))}/></div>
           </div>
           <Label>Ámbito</Label>
-          <Select value={opcionesAmbito.find(a=>a.tipo===form.ambito_tipo && a.ref===form.entidad_ref)?.nombre ?? ""} onValueChange={v=>{const o=opcionesAmbito.find(a=>a.nombre===v); if(o) setForm(f=>({...f,ambito_tipo:o.tipo,entidad_ref:o.ref}));}}>
+          <Select value={opcionesAmbito.find(a=>a.tipo===form.ambito_tipo && a.ref===form.entidad_ref)?.nombre ?? ""} onValueChange={v=>{const o=opcionesAmbito.find(a=>a.nombre===v); if(o) setForm((f: BorradorEstacion)=>({...f,ambito_tipo:o.tipo as "persona"|"entidad",entidad_ref:o.ref}));}}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{opcionesAmbito.map(a=><SelectItem key={a.nombre} value={a.nombre}>{a.nombre}</SelectItem>)}</SelectContent>
           </Select>
