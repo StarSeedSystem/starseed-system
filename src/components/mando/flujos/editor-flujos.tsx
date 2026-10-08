@@ -102,6 +102,13 @@ export function flujoDesdeServidor(datos: unknown): FlujoUI | null {
             : {};
         const pos = config.posicion as Record<string, unknown> | undefined;
         delete config.posicion;
+        // Descartar nodos sin id válido
+        if (!n.id || typeof n.id !== "string" || n.id.trim() === "") {
+            continue;
+        }
+        if (typeof n.tipo !== "string") {
+            continue;
+        }
         nodos.push({
             id: n.id,
             tipo: n.tipo,
@@ -445,118 +452,118 @@ export function EditorFlujos() {
             </div>
             {aviso ? <p role="status" className="text-sm opacity-90">{aviso}</p> : null}
 
-            {flujo ? (
-                <div className="flex flex-col gap-3 md:flex-row">
-                    <div className="flex min-w-0 flex-1 flex-col gap-2">
-                        <div className="flex flex-wrap gap-1" aria-label="Paleta de tipos de nodo">
-                            {TIPOS_NODO.map((t) => (
-                                <button
-                                    key={t.tipo}
-                                    type="button"
-                                    title={t.disparador ? "Disparador: arranca el flujo" : "Nodo de acción"}
-                                    className={`mc-cristal mc-alzar cursor-pointer rounded px-2 py-1 text-xs ${t.disparador ? "mc-neon--aviso" : ""}`}
-                                    onClick={() => agregarNodo(t.tipo)}
-                                >
-                                    + {t.etiqueta}
-                                </button>
-                            ))}
-                        </div>
+<div className="flex flex-wrap gap-1" aria-label="Paleta de tipos de nodo">
+    {TIPOS_NODO.map((t) => (
+        <button
+            key={t.tipo}
+            type="button"
+            title={t.disparador ? "Disparador: arranca el flujo" : "Nodo de acción"}
+            className={`mc-cristal mc-alzar cursor-pointer rounded px-2 py-1 text-xs ${t.disparador ? "mc-neon--aviso" : ""}`}
+            onClick={() => agregarNodo(t.tipo)}
+        >
+            + {t.etiqueta}
+        </button>
+    ))}
+</div>
 
-                        {/* Lienzo (escritorio). En pantallas estrechas se usa la lista. */}
-                        <div className="relative hidden h-[420px] overflow-hidden rounded-md border border-white/10 md:block"
-                            aria-label="Lienzo del flujo"
-                            onWheel={(e) => {
-                                const factor = e.deltaY < 0 ? 1.1 : 0.9;
-                                setVista((v) => ({ ...v, escala: Math.min(2, Math.max(0.5, v.escala * factor)) }));
-                            }}
-                        >
-                            <DndContext onDragEnd={moverNodo}>
-                                <div
-                                    className="absolute origin-top-left"
-                                    style={{ transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.escala})` }}
-                                >
-                                    <svg className="absolute left-0 top-0 h-[2000px] w-[2000px] overflow-visible" role="presentation">
-                                        {flujo.conexiones.map((c) => {
-                                            const o = nodosPorId.get(c.origen);
-                                            const d = nodosPorId.get(c.destino);
-                                            if (!o || !d) return null;
-                                            return (
-                                                <path
-                                                    key={`${c.origen}-${c.destino}`}
-                                                    d={rutaConexion(puertoDe(o, "salida"), puertoDe(d, "entrada"))}
-                                                    fill="none"
-                                                    stroke="rgba(34,211,238,0.65)"
-                                                    strokeWidth={2}
-                                                    role="button"
-                                                    aria-label={`Quitar conexión de ${c.origen} a ${c.destino}`}
-                                                    className="cursor-pointer hover:stroke-violet-300"
-                                                    onClick={() => actualizar((f) => ({
-                                                        ...f,
-                                                        conexiones: f.conexiones.filter((x) => x !== c),
-                                                    }))}
-                                                />
-                                            );
-                                        })}
-                                    </svg>
-                                    {flujo.nodos.map((nodo) => (
-                                        <NodoLienzo
-                                            key={nodo.id}
-                                            nodo={nodo}
-                                            escala={vista.escala}
-                                            seleccionado={seleccionado === nodo.id}
-                                            conectando={origenConexion === nodo.id}
-                                            onElegir={setSeleccionado}
-                                            onSalida={(id) => setOrigenConexion((actual) => (actual === id ? null : id))}
-                                            onEntrada={conectar}
-                                        />
-                                    ))}
-                                </div>
-                            </DndContext>
-                            <div className="absolute bottom-2 right-2 flex gap-1">
-                                <button type="button" aria-label="Acercar" className="mc-cristal cursor-pointer rounded px-2 py-1 text-sm"
-                                    onClick={() => setVista((v) => ({ ...v, escala: Math.min(2, v.escala * 1.2) }))}>+</button>
-                                <button type="button" aria-label="Alejar" className="mc-cristal cursor-pointer rounded px-2 py-1 text-sm"
-                                    onClick={() => setVista((v) => ({ ...v, escala: Math.max(0.5, v.escala / 1.2) }))}>−</button>
-                                <button type="button" aria-label="Centrar vista" className="mc-cristal cursor-pointer rounded px-2 py-1 text-sm"
-                                    onClick={() => setVista({ escala: 1, x: 0, y: 0 })}>⟲</button>
-                            </div>
-                        </div>
-
-                        {/* Lista de nodos (móvil, 360 px): orden y acceso al panel. */}
-                        <ul className="flex flex-col gap-1 md:hidden" aria-label="Lista de nodos">
-                            {flujo.nodos.map((nodo) => (
-                                <li key={nodo.id} className="mc-cristal flex items-center justify-between rounded px-2 py-1 text-sm">
-                                    <span>{etiquetaDe(nodo.tipo)} <span className="opacity-70">({nodo.id})</span></span>
-                                    <span className="flex gap-1">
-                                        <button type="button" className="cursor-pointer rounded border border-white/15 px-2 py-0.5 text-xs"
-                                            onClick={() => setSeleccionado(nodo.id)}>Editar</button>
-                                        <button type="button" aria-label={`Eliminar ${nodo.id}`} className="mc-neon--peligro cursor-pointer rounded border border-white/15 px-2 py-0.5 text-xs"
-                                            onClick={() => eliminarNodo(nodo.id)}>×</button>
-                                    </span>
-                                </li>
-                            ))}
-                            {flujo.nodos.length === 0 ? (
-                                <li className="text-sm opacity-70">Añade nodos desde la paleta: un disparador y las acciones.</li>
-                            ) : null}
-                        </ul>
+{flujo ? (
+    <div className="flex flex-col gap-3 md:flex-row">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+            {/* Lienzo (escritorio). En pantallas estrechas se usa la lista. */}
+            <div className="relative hidden h-[420px] overflow-hidden rounded-md border border-white/10 md:block"
+                aria-label="Lienzo del flujo"
+                onWheel={(e) => {
+                    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+                    setVista((v) => ({ ...v, escala: Math.min(2, Math.max(0.5, v.escala * factor)) }));
+                }}
+            >
+                <DndContext onDragEnd={moverNodo}>
+                    <div
+                        className="absolute origin-top-left"
+                        style={{ transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.escala})` }}
+                    >
+                        <svg className="absolute left-0 top-0 h-[2000px] w-[2000px] overflow-visible" role="presentation">
+                            {flujo.conexiones.map((c) => {
+                                const o = nodosPorId.get(c.origen);
+                                const d = nodosPorId.get(c.destino);
+                                if (!o || !d) return null;
+                                return (
+                                    <path
+                                        key={`${c.origen}-${c.destino}`}
+                                        d={rutaConexion(puertoDe(o, "salida"), puertoDe(d, "entrada"))}
+                                        fill="none"
+                                        stroke="rgba(34,211,238,0.65)"
+                                        strokeWidth={2}
+                                        role="button"
+                                        aria-label={`Quitar conexión de ${c.origen} a ${c.destino}`}
+                                        className="cursor-pointer hover:stroke-violet-300"
+                                        onClick={() => actualizar((f) => ({
+                                            ...f,
+                                            conexiones: f.conexiones.filter((x) => x !== c),
+                                        }))}
+                                    />
+                                );
+                            })}
+                        </svg>
+                        {flujo.nodos.map((nodo) => (
+                            <NodoLienzo
+                                key={nodo.id}
+                                nodo={nodo}
+                                escala={vista.escala}
+                                seleccionado={seleccionado === nodo.id}
+                                conectando={origenConexion === nodo.id}
+                                onElegir={setSeleccionado}
+                                onSalida={(id) => setOrigenConexion((actual) => (actual === id ? null : id))}
+                                onEntrada={conectar}
+                            />
+                        ))}
                     </div>
-
-                    {nodoSeleccionado ? (
-                        <PanelNodo
-                            nodo={nodoSeleccionado}
-                            variables={variables}
-                            onCambiar={cambiarNodo}
-                            onEliminar={eliminarNodo}
-                            onCerrar={() => setSeleccionado(null)}
-                        />
-                    ) : null}
+                </DndContext>
+                <div className="absolute bottom-2 right-2 flex gap-1">
+                    <button type="button" aria-label="Acercar" className="mc-cristal cursor-pointer rounded px-2 py-1 text-sm"
+                        onClick={() => setVista((v) => ({ ...v, escala: Math.min(2, v.escala * 1.2) }))}>+</button>
+                    <button type="button" aria-label="Alejar" className="mc-cristal cursor-pointer rounded px-2 py-1 text-sm"
+                        onClick={() => setVista((v) => ({ ...v, escala: Math.max(0.5, v.escala / 1.2) }))}>−</button>
+                    <button type="button" aria-label="Centrar vista" className="mc-cristal cursor-pointer rounded px-2 py-1 text-sm"
+                        onClick={() => setVista({ escala: 1, x: 0, y: 0 })}>⟲</button>
                 </div>
-            ) : (
-                <p className="text-sm opacity-75">
-                    Elige un flujo guardado o crea uno nuevo. Los flujos viven en el disco del Genesis y
-                    el servicio los ejecuta cuando salta su disparador.
-                </p>
-            )}
+            </div>
+
+            {/* Lista de nodos (móvil, 360 px): orden y acceso al panel. */}
+            <ul className="flex flex-col gap-1 md:hidden" aria-label="Lista de nodos">
+                {flujo.nodos.map((nodo) => (
+                    <li key={nodo.id} className="mc-cristal flex items-center justify-between rounded px-2 py-1 text-sm">
+                        <span>{etiquetaDe(nodo.tipo)} <span className="opacity-70">({nodo.id})</span></span>
+                        <span className="flex gap-1">
+                            <button type="button" className="cursor-pointer rounded border border-white/15 px-2 py-0.5 text-xs"
+                                onClick={() => setSeleccionado(nodo.id)}>Editar</button>
+                            <button type="button" aria-label={`Eliminar ${nodo.id}`} className="mc-neon--peligro cursor-pointer rounded border border-white/15 px-2 py-0.5 text-xs"
+                                onClick={() => eliminarNodo(nodo.id)}>×</button>
+                        </span>
+                    </li>
+                ))}
+                {flujo.nodos.length === 0 ? (
+                    <li className="text-sm opacity-70">Añade nodos desde la paleta: un disparador y las acciones.</li>
+                ) : null}
+            </ul>
+        </div>
+
+        {nodoSeleccionado ? (
+            <PanelNodo
+                nodo={nodoSeleccionado}
+                variables={variables}
+                onCambiar={cambiarNodo}
+                onEliminar={eliminarNodo}
+                onCerrar={() => setSeleccionado(null)}
+            />
+        ) : null}
+    </div>
+) : (
+    <p className="text-sm opacity-75">
+        Elige un flujo guardado o crea uno nuevo. Los flujos viven en el disco del Genesis y
+        el servicio los ejecuta cuando salta su disparador.
+    </p>
+)}
 
             <HistorialEjecuciones flujoId={flujo?.id ?? null} />
         </section>

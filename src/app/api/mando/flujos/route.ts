@@ -22,6 +22,7 @@ import path from "node:path";
 import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { nombreArchivoEntrada, sanitizarRuta } from "@/lib/mando/gancho";
+import { TIPOS_NODO as TIPOS_NODO_ARRAY, flujoDesdeServidor, flujoParaServidor, rutaConexion, puertoDe, nuevoIdNodo, CAMPOS_POR_TIPO } from "@/lib/mando/flujos-util";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,12 +30,8 @@ export const dynamic = "force-dynamic";
 const RE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_EJECUCIONES = 20;
 const ARCHIVO_ESTADO = "disparadores-estado.json";
-const TIPOS_NODO = new Set([
-    "webhook", "cron", "bus", "chat",
-    "http", "ntfy", "telegram", "chat_director", "ia", "conocimiento",
-    "si", "switch", "fusion", "set", "esperar",
-]);
-const DISPARADORES = new Set(["webhook", "cron", "bus", "chat"]);
+const TIPOS_NODO = new Set(TIPOS_NODO_ARRAY.map(t => t.tipo));
+const DISPARADORES = new Set(TIPOS_NODO_ARRAY.filter(t => t.disparador).map(t => t.tipo));
 
 function carpetaFlujos(): string {
     return path.join(raizDelProyecto(), "starseed_memory_root", "flujos");
@@ -74,12 +71,21 @@ function errorValidacion(flujo: unknown): string | null {
     if (!Array.isArray(f.nodos)) return "El flujo necesita una lista de nodos.";
     const ids = new Set<string>();
     for (const nodo of f.nodos) {
-        if (!nodo || !RE_ID.test(String(nodo.id ?? ""))) return "Cada nodo necesita un id válido.";
-        if (ids.has(nodo.id)) return "Los ids de nodo deben ser únicos.";
-        ids.add(nodo.id);
-        if (!TIPOS_NODO.has(String(nodo.tipo))) return `Tipo de nodo desconocido: ${String(nodo.tipo)}.`;
-        if (typeof nodo.reintentos === "number" && nodo.reintentos < 0) return "Los reintentos no pueden ser negativos.";
-        if (typeof nodo.espera_ms === "number" && nodo.espera_ms < 0) return "La espera no puede ser negativa.";
+         if (!nodo || !RE_ID.test(String(nodo.id ?? ""))) return "Cada nodo necesita un id válido.";
+         if (ids.has(nodo.id)) return "Los ids de nodo deben ser únicos.";
+         ids.add(nodo.id);
+         if (!TIPOS_NODO.has(String(nodo.tipo))) return `Tipo de nodo desconocido: ${String(nodo.tipo)}.`;
+         // Validar claves de configuración según tipo
+         const tipo = String(nodo.tipo);
+         const allowed = (CAMPOS_POR_TIPO[tipo] ?? []).map(c => c.clave);
+         const config = nodo.configuracion ?? {};
+         for (const clave of Object.keys(config)) {
+             if (!allowed.includes(clave)) {
+                 return `Clave de configuración no permitida '${clave}' para nodo de tipo '${tipo}'.`;
+             }
+         }
+         if (typeof nodo.reintentos === "number" && nodo.reintentos < 0) return "Los reintentos no pueden ser negativos.";
+         if (typeof nodo.espera_ms === "number" && nodo.espera_ms < 0) return "La espera no puede ser negativa.";
     }
     const conexiones = Array.isArray(f.conexiones) ? f.conexiones : [];
     const salidas = new Map<string, string[]>();
