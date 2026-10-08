@@ -14,7 +14,7 @@ import {
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge,
-  Smile, FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses,
+  Smile, FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses, Cast,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -77,7 +77,9 @@ export type DockIconKey =
   // ── Contactos (2026-09-28) ──
   | 'BookUser'
   // ── Apps en vivo (2026-09-28) ──
-  | 'FileText' | 'Table2' | 'Gamepad2' | 'Box' | 'Glasses';
+  | 'FileText' | 'Table2' | 'Gamepad2' | 'Box' | 'Glasses'
+  // ── Estaciones · transmisiones en directo (Ola 1010E) ──
+  | 'Cast';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -91,7 +93,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge, Smile,
-  FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses,
+  FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses, Cast,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -277,6 +279,13 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // Ola 237: Laboratorio de Astraura — el genoma de nueve capas fásicas, del
   // núcleo ternario 1,58 bits al contexto. Nada escribe en el OS sin confirmación.
   { id: 'laboratorio',   label: 'Laboratorio de Astraura', iconKey: 'FlaskConical', path: '/laboratorio',          color: 'purple',  enabled: true,  origin: 'preset' },
+  // Ola 1010E: Estaciones — transmisiones en directo libres de cualquier
+  // formato (audio, vídeo, XR, eventos, juegos…), con reproductor
+  // autoadaptable, faros por la malla y estudio de producción con IA.
+  // La garantía v23 (DOCK_DEFAULTS_VERSION) la enciende en todas las cuentas.
+  // El contrato pedía color 'rose', que no existe en DockColor: manda el
+  // código y se usa 'crimson' (su tono más cercano).
+  { id: 'estaciones',   label: 'Estaciones',            iconKey: 'Cast',            path: '/estaciones',            color: 'crimson', enabled: true,  origin: 'preset' },
 ];
 
 /**
