@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 22:12:49 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 23:48:16 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,28 +16,24 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 18 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 35 |
-| HEAD | `52d2df59 chore(memoria): aprendizaje de la ola auto-1007-202759` |
-| Sin publicar | 8 commits |
+| HEAD | `bbd4fa46 chore(memoria): aprendizaje de la ola auto-1007-221612` |
+| Sin publicar | 7 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1007-202759.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-1007-221612.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CPA1007H` | hecho | codex/gpt-5.6-sol | 1 min | 61 s | 1245311 |
-| `ES1010S` | hecho | freellmapi/auto | 21 min | 1246 s | 209418 |
-| `CPA1007C` | hecho | codex/gpt-5.6-sol | 26 min | 1565 s | 853863 |
-| `CPA1007Bb` | hecho | freellmapi/auto | 27 min | 1646 s | 46129 |
-| `RSC1006Cs` | hecho | freellmapi/auto | 52 min | 3134 s | 238615 |
-| `ES1010L` | hecho | freellmapi/auto | 54 min | 3246 s | 3194 |
-| `RSC1006J` | hecho | freellmapi/auto | 55 min | 3316 s | 487755 |
-| `RSC1006D` | hecho | freellmapi/auto | 58 min | 3478 s | 119338 |
-| `CPA1007B` | hecho | nvidia/moonshotai/kimi-k3 | 61 min | 3659 s | 126682 |
-| `CPA1007G` | hecho | nvidia/moonshotai/kimi-k3 | 64 min | 3834 s | 284989 |
-| `RSC1006Fs` | hecho | freellmapi/auto | 76 min | 4547 s | 17004 |
-| `CPA1007D` | hecho | nvidia/moonshotai/kimi-k3 | 95 min | 5673 s | 92533 |
-| `ES1010K` | hecho | openrouter/thinkingmachines/inklin | 99 min | 5945 s | 251435 |
-| `ES1010Hb` | hecho | codex/gpt-5.6-sol | 101 min | 6049 s | 198899 |
+| `CPA1007E` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 45 s | 132160 |
+| `RSC1006Ds` | hecho | freellmapi/auto | 4 min | 254 s | 110143 |
+| `RSC1006Js` | hecho | apinex/free/deepseek-v4-pro-0813 | 10 min | 622 s | 86015 |
+| `RSC1006J` | hecho | freellmapi/auto | 29 min | 1769 s | 593027 |
+| `CPA1007F` | hecho | freellmapi/auto | 32 min | 1916 s | 102774 |
+| `ES1010L` | hecho | freellmapi/auto | 33 min | 1973 s | 117975 |
+| `RSC1006Fs` | hecho | freellmapi/auto | 64 min | 3812 s | 93033 |
+| `RSC1006D` | hecho | freellmapi/auto | 66 min | 3930 s | 141580 |
+| `CPA1007D` | hecho | nvidia/moonshotai/kimi-k3 | 80 min | 4781 s | 129428 |
+| `ES1010Hb` | hecho | nvidia/moonshotai/kimi-k3 | 87 min | 5217 s | 255595 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
