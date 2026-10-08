@@ -165,7 +165,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
     if (conectado && mesh.transport === "serial") {
       vinculos.push({ transporte: "usb-serial", rssi });
     }
-    if ((conectado && mesh.transport === "daemon") || lista?.status === "available") {
+    if (conectado && mesh.transport === "daemon") {
       vinculos.push({ transporte: "wifi-mesh", rssi, tasaKbps });
     }
     return vinculos;
@@ -213,15 +213,31 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
 
   // Voz de borde: sondear UNA vez (caché de 5 min) las capacidades de hardware
   // y de ahí el soporte supertonic y el nivel que hablaría en esta neurona.
-  const [vozBorde, setVozBorde] = useState<{ soporte: SoporteSupertonic; nivel: NivelVozSuptonica } | null>(null);
+  const [vozBorde, setVozBorde] = useState<{
+    soporte: SoporteSupertonic;
+    nivel: NivelVozSuptonica;
+    runtimeDisponible: boolean;
+    motivo?: string;
+  } | null>(null);
   const [hablandoVoz, setHablandoVoz] = useState(false);
   useEffect(() => {
     let alive = true;
     void detectarCapacidades().then((c) => {
       if (!alive) return;
+      const soporte = soporteSupertonic(c);
+      const nivel = nivelParaVoz({
+        supertonic: c.supertonic,
+        mobile: c.movil,
+        daemonLocal: c.daemonLocal,
+      });
+      const runtimeDisponible = soporte.disponible || nivel === "158-local";
       setVozBorde({
-        soporte: soporteSupertonic(c),
-        nivel: nivelParaVoz({ supertonic: c.supertonic, mobile: c.movil, daemonLocal: c.daemonLocal }),
+        soporte,
+        nivel,
+        runtimeDisponible,
+        motivo: runtimeDisponible
+          ? undefined
+          : `${soporte.motivo ?? "Supertonic no está disponible"}; tampoco responde OmniVoice/1.58 local en 127.0.0.1:4500`,
       });
     });
     return () => { alive = false; };
@@ -432,7 +448,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           {vozBorde && (
             <span className={cn(
               "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
-              vozBorde.soporte.disponible
+              vozBorde.runtimeDisponible
                 ? "bg-emerald-500/15 text-emerald-200"
                 : "bg-white/[0.06] text-white/45",
             )}>
@@ -441,14 +457,14 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           )}
           <button
             type="button"
-            disabled={!vozBorde?.soporte.disponible || hablandoVoz}
+            disabled={!vozBorde?.runtimeDisponible || hablandoVoz}
             onClick={() => void probarVozBorde()}
-            title={vozBorde?.soporte.disponible
+            title={vozBorde?.runtimeDisponible
               ? "Sintetiza una frase corta por el motor único Voz StarSeed"
-              : (vozBorde?.soporte.motivo ?? "Midiendo el hardware de voz…")}
+              : (vozBorde?.motivo ?? "Midiendo el hardware de voz…")}
             className={cn(
               "ml-auto inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors",
-              vozBorde?.soporte.disponible
+              vozBorde?.runtimeDisponible
                 ? "border-sky-500/30 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20"
                 : "cursor-not-allowed border-white/10 bg-black/20 text-white/40",
               hablandoVoz && "opacity-50",
@@ -457,8 +473,8 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
             {hablandoVoz ? "Sintetizando…" : "Probar voz"}
           </button>
         </div>
-        {!vozBorde?.soporte.disponible && vozBorde?.soporte.motivo && (
-          <p className="mt-1 text-[10px] leading-snug text-white/45">{vozBorde.soporte.motivo}</p>
+        {!vozBorde?.runtimeDisponible && vozBorde?.motivo && (
+          <p className="mt-1 text-[10px] leading-snug text-white/45">{vozBorde.motivo}</p>
         )}
       </div>
 
