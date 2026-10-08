@@ -1,0 +1,71 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-08 06:56:09",
+  "desde": "2026-09-29 16:09:57",
+  "ultimo_429": "2026-10-07 20:50:54",
+  "sin_cupo_hasta": "2026-10-08 18:00:35",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-08 06:55:09",
+  "desde": "2026-10-01 15:50:18",
+  "ultimo_429": "2026-10-08 06:55:33",
+  "sin_cupo_hasta": "2026-10-07 05:34:15",
+  "motivo": "pasarela: $ opencode run --model nvidia/moonshotai/kimi-k3 · 2026-10-07 05:11:24 \u001b[0m \u001b[0m > build · moonshotai/kimi-k3 \u001b[0m$ \u001b[0mls && cat MENSAJES-D"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-08 06:09:44",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-09 06:09:51",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-08 06:56:11",
+  "desde": "2026-09-04 21:02:32",
+  "ultimo_429": "2026-10-06 20:00:05",
+  "sin_cupo_hasta": "2026-10-08 18:00:35",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-08 06:56:12",
+  "desde": "2026-09-30 03:07:41",
+  "ultimo_429": "2026-10-07 23:16:11"
+ },
+ "ultimo_revisor_ok": "groq/openai/gpt-oss-120b",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-08 06:56:12",
+  "desde": "2026-10-04 11:16:01",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "$ opencode run --model apinex/free/glm-5.3-flash · 2026-10-07 23:22:40 \u001b[0m> build · free/glm-5.3-flash \u001b[0m \u001b[0m→ \u001b[0mRead src/ai/astraura/",
+  "ultimo_429": "2026-09-21 03:38:33",
+  "sin_cupo_hasta": "2026-10-08 23:24:09"
+ },
+ "google": {
+  "estado": "vivo",
+  "sin_cupo_hasta": "2026-10-08 18:00:35",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "codex": {
+  "motivo": "$ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/DR1007-1 · 2026-10-08 06:43:58 · p",
+  "sin_cupo_hasta": "2026-10-09 06:44:05"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-08 06:56:13",
+  "desde": "2026-10-07 15:26:19",
+  "sin_cupo_hasta": "2026-10-09 06:43:58",
+  "motivo": "$ opencode run --model freellmapi/auto · 2026-10-08 06:37:16 \u001b[0m \u001b[0m > build · auto\u001b[0m→ \u001b[0mRead CLAUDE.md \u001b[0m✱ \u001b[0mGrep \"starseed-event"
+ }
+}
