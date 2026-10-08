@@ -27,7 +27,14 @@ def _cargar_con_solo(carpeta, solo="produccion"):
     )
     assert espec is not None and espec.loader is not None
     modulo = importlib.util.module_from_spec(espec)
-    entorno = {"HOME": carpeta, "STARSEED_SOLO": solo}
+    # Compute the repository root (three levels up from this file)
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    entorno = {
+        "HOME": carpeta,
+        "STARSEED_SOLO": solo,
+        "STARSEED_RAIZ": repo_root,
+        "STARSEED_PY3": sys.executable,
+    }
 
     def falso_run(orden, **kwargs):
         m = mock.Mock()

@@ -88,11 +88,7 @@ def _es_simulacion(correr: Callable) -> bool:
     # En pruebas, se inyecta un correr falso
     return hasattr(correr, '__name__') and correr.__name__ == 'correr_falso'
 
-def _ocultar_ocids(texto: str) -> str:
-    """Reemplaza OCIDs con versiones falsas para salida pública."""
-    import re
-    ocid_pattern = re.compile(r'ocid1\.[^\s\"']+', re.IGNORECASE)
-    return ocid_pattern.sub('[oculto]', texto)
+
 
 def _leer_clave_publica(home: Path) -> str:
     """Lee la llave SSH pública."""
