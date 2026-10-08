@@ -60,15 +60,19 @@ export function AjustesAccesos() {
         return <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> {aviso || "Cargando accesos…"}</div>;
     }
-    const invitadas = datos.cuentas.filter((c) => c.rol === "invitado");
+    const cuentas = datos.cuentas ?? [];
+    const servicios = datos.servicios ?? [];
+    const conectados = datos.conectados ?? [];
+    const quien = datos.quienPide ?? "";
+    const invitadas = cuentas.filter((c) => c.rol === "invitado");
     return (
         <section className="space-y-4 text-sm">
             <p className="text-muted-foreground">
-                Cuentas y perfiles de este Genesis. Conectado ahora como <b>{datos.quienPide}</b>.
-                {datos.conectados.length > 0 && <> También lo usan: {datos.conectados.join(", ")}.</>}
+                Cuentas y perfiles de este Genesis. Conectado ahora como <b>{quien}</b>.
+                {conectados.length > 0 && <> También lo usan: {conectados.join(", ")}.</>}
             </p>
             <ul className="space-y-1">
-                {datos.cuentas.filter((c) => c.rol !== "invitado").map((c) => (
+                {cuentas.filter((c) => c.rol !== "invitado").map((c) => (
                     <li key={c.correo} className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <span>{c.correo}</span>
@@ -95,7 +99,7 @@ export function AjustesAccesos() {
                     <UserPlus className="h-4 w-4" /> Conceder</Button>
             </div>
             <ul className="space-y-1">
-                {datos.servicios.map((s) => (
+                {servicios.map((s) => (
                     <li key={s.variable} className="flex items-center gap-2">
                         <KeyRound className="h-4 w-4 text-muted-foreground" />
                         <code className="text-xs">{s.variable}</code>

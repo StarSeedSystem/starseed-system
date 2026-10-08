@@ -49,6 +49,9 @@ async function guardarRegistro(r: RegistroAccesos): Promise<void> {
 }
 /** Correo de quien pide: sesión verificada, nunca lo que diga el cliente. */
 async function correoQuePide(req: Request, dueno: string): Promise<string> {
+    // En desarrollo y despliegue local se devuelve el dueño; en producción real
+    // esDespliegueLocal nunca es verdadero porque VERCEL=1 fuerza false y el host
+    // se decide por servidor, no por cabeceras forjables por el cliente.
     if (process.env.NODE_ENV !== "production" || esDespliegueLocal(req)) return dueno;
     const { createClient } = await import("@/utils/supabase/server");
     const supabase = await createClient();
