@@ -3963,3 +3963,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `RSC1006Js` — no escribió nada
+
+## 2026-10-08 00:02 · auto-1008-000129
+
+**Lo que se pidió.** archivar
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RSC1006Js` — no escribió nada
