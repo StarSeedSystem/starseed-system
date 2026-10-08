@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261008",
+ "tareas": [
+  {
+   "ola": "363",
+   "titulo": "Registrar Red Mesh / Senales y voz de borde en la biblioteca del OS",
+   "archivos": [
+    "src/lib/oss-library.ts"
+   ],
+   "depende": [],
+   "intentos": 0,
+   "cola": "cola-363-red-mesh.json",
+   "segundos": 1994,
+   "t": "2026-10-08 15:55:48",
+   "rama": "ola/RM6",
+   "sha": "a6469c64ae03c42d7e203e1a25ceba0673725d50",
+   "revisor": "bloqueante",
+   "motivo_vb": "revisión bloqueante confirmada",
+   "faltan": [],
+   "id": "RM6b",
+   "prompt": "Lo nuevo de red mesh, inferencia local (PAIR), transporte (buildwithparallel) y voz de borde (Supertonic) debe quedar visible en la biblioteca del sistema como app y como capacidad. Abre `src/lib/oss-library.ts` y reutiliza EXACTAMENTE el patron y las claves con las que registra el resto (no inventes un esquema nuevo). Anade: 1) entrada de app Red Mesh a `/red-mesh` si no existe y Senales a `/senales` (iconos + descripcion de una linea). 2) entrada de CAPACIDAD inferencia distribuida local: modelo de texto y voz compartido entre nodos de la flota, sin GPU, sin pago por demanda cuando usa PAIR/supertonic 1.58. Solo catalogo/registro, sin comportamiento. Sin any, tsc limpio.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nRiesgos reales:\n1. El campo `url` pasa de `\"/senales\"` a `\"internal://inferencia-distribuida-local\"`. Si algún componente de la biblioteca usa ese valor directamente como `href` o para redireccionar, el esquema `internal:` no es reconocido por el navegador, lo que producirá un enlace roto o una navegación fallida (error 404 o sin acción). Esto afecta el comportamiento de la UI y podría confundir al usuario.\n\nSeguimiento: sí, bloqueante — URL interna no válida que podría romper navegación o enlaces en la biblioteca.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol",
+   "dependencias_ya_en_main": [
+    "RM5"
+   ]
+  }
+ ]
+}
