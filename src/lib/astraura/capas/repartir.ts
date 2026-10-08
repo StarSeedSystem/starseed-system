@@ -184,6 +184,13 @@ export async function pedirCapa(
  * Verifica un trozo recibido contra el almacén (SHA-256 del trozo y del archivo completo).
  * Lanza si no coincide.
  */
+async function shaHex(datos: ArrayBuffer): Promise<string> {
+  const resumen = await globalThis.crypto.subtle.digest("SHA-256", datos);
+  return [...new Uint8Array(resumen)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export async function verificarTrozo(
   almacen: Almacenamiento,
   entrada: EntradaCapa,
@@ -191,7 +198,6 @@ export async function verificarTrozo(
   datos: ArrayBuffer,
   shaTrozo: string,
 ): Promise<boolean> {
-  const { shaHex } = await import("./almacen");
   const real = await shaHex(datos);
   if (real !== shaTrozo) return false;
   // Guardar trozo verificado.
