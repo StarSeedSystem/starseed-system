@@ -833,9 +833,10 @@ en la Mac y aprobó**. Fuente de verdad: `docs/adendas/adenda-228-mando-ampliado
 ### Reglas duras del área
 - **Publicación**: solo desde la **Mac**, con `STARSEED_LOCAL=1` y la confirmación **escrita `PUBLICAR`**
   (o la palabra de Alex). **Excepción autorizada por Alex (2026-10-05 y 2026-10-07): la
-  AUTOPUBLICACIÓN**, interruptor en Genesis · Ajustes (y en Publicación → Producción). Encendida,
+  AUTOPUBLICACIÓN**, interruptor en Genesis · Ajustes, en Publicación → Producción y dentro del medidor
+  «Sin publicar» (con «Revisar ahora» y «Publicar sin Jev esta vez»). Encendida,
   `scripts/puente/autopublicar.py` (servicio `com.starseed.produccion`, cada 5 min) publica ESE commit
-  solo si pasa: análisis del lote (secretos, migraciones destructivas, vetos, Jev que solo frena) →
+  solo si pasa: análisis del lote (secretos, migraciones destructivas, vetos, Jev que solo frena y solo con certeza, p ≥ 0,95) →
   pruebas del puente en la Mac (unittest + pytest) → CI de GitHub en `produccion/candidato` (tsc,
   vitest, núcleo mesh, `next build` con 8 GB de heap) → push fast-forward sin force → despliegue de
   Vercel en «success» + humo de `/`, `/login` y `/version.json`. Un fallo veta ese sha (espera un

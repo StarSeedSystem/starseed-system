@@ -339,7 +339,9 @@ Lo que hay ahora, más simple y comprobado:
   cada 5 min, sin cerrojos mientras espera). Máquina de estados persistida: `al-dia` · `esperando` ·
   `ci` · `verificando` · `publicado` · `bloqueado`; las esperas largas se retoman en la siguiente pasada.
 - **Puertas** sobre EL MISMO commit: análisis (§3.2: secretos con `produccion_puertas`, migraciones
-  destructivas sin contar lo idempotente ni los cuerpos `$$…$$`), Jev (solo frena, p ≥ 0,8), pruebas del
+  destructivas sin contar lo idempotente ni los cuerpos `$$…$$`), Jev (solo frena y solo con certeza,
+  p ≥ 0,95; entre 0,8 y 0,95 deja una DUDA anotada y siguen las puertas — 2026-10-08: con 0,8 frenó
+  8 de 8 lotes del 07-10 sin motivo concreto; ve las tareas integradas, no los «salvavidas»), pruebas del
   puente en la Mac (`publicar.python_de_pruebas()`), CI en `produccion/candidato` (este es el «build en
   la nube» del contrato: sin Mac), push `sha:main` solo si es avance rápido, Vercel «success» por la API
   de deployments de GitHub y humo de producción.
@@ -347,3 +349,8 @@ Lo que hay ahora, más simple y comprobado:
 - **Fuera por ahora**: vista previa con matriz de Playwright (§3.4), reversión automática (Vercel sigue
   sirviendo el despliegue anterior si el build falla; si el humo falla tras publicar, avisa) y medios
   distintos de la web.
+- **Genesis (2026-10-08):** el interruptor también vive dentro del medidor «Sin publicar» del pulso, con
+  «Revisar ahora» y, si Jev frenó el lote, «Publicar sin Jev esta vez» (`~/.starseed/produccion/
+  autopublicar-peticion.json`, que el director lee y borra). Esos botones solo levantan un veto de Jev;
+  los deterministas (análisis, pruebas, CI, Vercel, humo) no se tocan. Cada pasada del servicio corre
+  en un proceso nuevo: los cambios del repo valen sin reiniciarlo.
