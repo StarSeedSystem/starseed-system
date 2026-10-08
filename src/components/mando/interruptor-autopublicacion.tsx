@@ -9,7 +9,9 @@
  * `com.starseed.produccion`, cada 5 min) lleva main a producción tras: análisis del lote
  * (secretos, migraciones destructivas, Jev) → pruebas del puente en la Mac → CI en GitHub
  * (tsc, vitest, núcleo mesh, next build) → push sin force → Vercel listo y humo en producción.
- * Aquí se enciende/apaga y se ve en qué paso va. Vive en Ajustes y en Publicación.
+ * Aquí se enciende/apaga y se ve en qué paso va. Vive en Ajustes, en Publicación y (2026-10-08) dentro
+ * del medidor «Sin publicar» del pulso, con «Revisar ahora» y, si Jev frenó el lote, «Publicar sin Jev
+ * esta vez» (solo salta a Jev: las pruebas, el CI, Vercel y el humo siguen).
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -24,6 +26,7 @@ export interface EstadoAutopublicacion {
     url?: string | null;
     actualizado?: string;
     pendientes?: number;
+    jev?: { decision?: string; confianza?: number; sha?: string };
     historial?: { sha: string; resultado: string; dia: string; url?: string | null; motivo?: string }[];
 }
 
@@ -40,6 +43,17 @@ const FASES: Record<string, { texto: string; tono: string }> = {
 /** Etiqueta y color de una fase del director (desconocida → «Sin datos»). */
 export function faseVisible(fase: string | undefined): { texto: string; tono: string } {
     return (fase && FASES[fase]) || { texto: "Sin datos aún", tono: "text-white/50" };
+}
+
+/** Lo que opinó Jev del último lote, en una línea (o null si no hay nada que decir). */
+export function lineaJev(e: EstadoAutopublicacion | null | undefined): string | null {
+    const j = e?.jev;
+    if (!j?.decision) return null;
+    const p = typeof j.confianza === "number" ? j.confianza.toFixed(2).replace(".", ",") : "?";
+    if (j.decision === "frena") return `Jev frenó el lote (seguro al ${p}).`;
+    if (j.decision === "duda") return `Jev dudaba (${p}), pero no frena por debajo de 0,95: deciden las puertas.`;
+    if (j.decision === "saltado") return "Jev saltado desde Genesis para este lote.";
+    return null;
 }
 
 export function InterruptorAutopublicacion({ compacto = false }: { compacto?: boolean }) {
@@ -90,7 +104,35 @@ export function InterruptorAutopublicacion({ compacto = false }: { compacto?: bo
         [cargar],
     );
 
+    const pedir = useCallback(
+        async (accion: "autopublicar-revisar" | "autopublicar-saltar-jev") => {
+            setOcupado(true);
+            setAviso(null);
+            try {
+                const r = await fetch("/api/mando/produccion", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ accion }),
+                });
+                if (!r.ok) throw new Error(String(r.status));
+                setAviso(
+                    accion === "autopublicar-revisar"
+                        ? "Pedido: el director revisa el lote ahora (tarda unos segundos)."
+                        : "Pedido: este lote sigue sin Jev; las demás puertas se pasan igual.",
+                );
+                window.setTimeout(() => void cargar(), 4000);
+            } catch {
+                setAviso("No se pudo pedir (la consola local no respondió).");
+            } finally {
+                setOcupado(false);
+            }
+        },
+        [cargar],
+    );
+
     const fase = faseVisible(activo ? estado?.fase : "apagado");
+    const frenadaPorJev = activo && estado?.fase === "bloqueado" && (estado?.detalle ?? "").startsWith("Jev");
+    const jev = activo ? lineaJev(estado) : null;
     const ultimas = (estado?.historial ?? []).slice(-3).reverse();
 
     return (
@@ -131,6 +173,29 @@ export function InterruptorAutopublicacion({ compacto = false }: { compacto?: bo
                             </a>
                         )}
                     </p>
+                )}
+                {jev && <p className="text-white/50">{jev}</p>}
+                {activo && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                            type="button"
+                            onClick={() => void pedir("autopublicar-revisar")}
+                            disabled={ocupado}
+                            className="rounded-md border border-white/15 px-2 py-1 text-[11px] text-white/80 hover:bg-white/10 disabled:opacity-50"
+                        >
+                            Revisar ahora
+                        </button>
+                        {frenadaPorJev && (
+                            <button
+                                type="button"
+                                onClick={() => void pedir("autopublicar-saltar-jev")}
+                                disabled={ocupado}
+                                className="rounded-md border border-amber-300/40 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-400/10 disabled:opacity-50"
+                            >
+                                Publicar sin Jev esta vez
+                            </button>
+                        )}
+                    </div>
                 )}
                 {!compacto && (
                     <p className="text-white/40">

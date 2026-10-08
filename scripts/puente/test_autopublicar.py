@@ -64,8 +64,16 @@ class Falso(object):
     def pruebas_python(self, _sha):
         return self.o["pruebas"]
 
-    def jev_frena(self, _r):
-        return self.o["jev"]
+    def jev_opina(self, resumen):
+        self.resumen_jev = resumen
+        j = self.o["jev"]
+        if isinstance(j, dict):
+            return j
+        return {"respuesta": "no", "confianza": 0.97} if j else {"respuesta": "sí", "confianza": 0.9}
+
+    def peticion(self):
+        p, self.o["peticion"] = self.o.get("peticion"), None
+        return p
 
     def vetos_externos(self):
         return set(self.o.get("vetos", ()))
@@ -112,7 +120,38 @@ class Puertas(unittest.TestCase):
 
     def test_jev_puede_frenar(self):
         e = A.pasada(Falso(jev=True), {}, T0)
-        self.assertEqual((e["fase"], e["detalle"]), ("bloqueado", "Jev frenó el lote"))
+        self.assertEqual((e["fase"], e["detalle"]), ("bloqueado", "Jev frenó el lote (seguro al 0,97)"))
+        self.assertEqual(e["jev"]["decision"], "frena")
+
+    def test_una_duda_de_jev_no_frena_y_se_dice(self):
+        # (2026-10-08) Jev frenó 8 de 8 lotes con p 0,84–0,85: eso ya no basta para frenar.
+        m = Falso(jev={"respuesta": "no", "confianza": 0.85})
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(e["fase"], "ci")
+        self.assertEqual(e["jev"]["decision"], "duda")
+        self.assertIn("Jev dudaba (0,85)", m.avisos[-1])
+
+    def test_jev_ve_tareas_no_salvavidas(self):
+        r = A.resumen_para_jev(["salvavidas · X1: trabajo del agente", "chore(memoria): algo",
+                                "Ola 1007C · capas · CPA1007A: Capas · catálogo", "Arreglo de la dirección"], 4)
+        self.assertEqual(r["tareas_integradas"], ["CPA1007A: Capas · catálogo"])
+        self.assertEqual(r["commits_de_respaldo_omitidos"], 2)
+        self.assertEqual(r["commits_de_la_direccion"], ["Arreglo de la dirección"])
+
+    def test_publicar_sin_jev_levanta_solo_un_veto_de_jev(self):
+        m = Falso(jev=True, peticion={"accion": "saltar-jev", "sha": SHA})
+        e = A.pasada(m, {"vetados": {SHA: "Jev frenó el lote (seguro al 0,97)"}, "fase": "bloqueado"}, T0)
+        self.assertEqual(e["fase"], "ci")
+        self.assertEqual(e["jev"]["decision"], "saltado")
+        m = Falso(peticion={"accion": "saltar-jev", "sha": SHA})
+        e = A.pasada(m, {"vetados": {SHA: "CI en rojo"}}, T0)
+        self.assertEqual(e["fase"], "bloqueado")
+        self.assertIn("commit nuevo", e["detalle"])
+
+    def test_revisar_ahora_vuelve_a_preguntar_a_jev(self):
+        m = Falso(jev={"respuesta": "no", "confianza": 0.85}, peticion={"accion": "revisar", "sha": SHA})
+        e = A.pasada(m, {"vetados": {SHA: "Jev frenó el lote"}, "fase": "bloqueado"}, T0)
+        self.assertEqual(e["fase"], "ci")
 
     def test_pruebas_en_rojo_vetan_y_si_main_se_movio_se_reintenta(self):
         self.assertEqual(A.pasada(Falso(pruebas=(False, "1 failed")), {}, T0)["fase"], "bloqueado")

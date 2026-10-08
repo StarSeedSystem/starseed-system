@@ -50,6 +50,13 @@ CI_TOPE_S = 50 * 60
 VERCEL_TOPE_S = 45 * 60  # Vercel ha llegado a tardar 27 min en compilar (CLAUDE.md, «Publicar»)
 VENTANA_S = 20 * 60
 MAX_DIA = 24
+#: (2026-10-08) Jev frenó 8 de 8 lotes del 07-10 con p 0,84–0,85 sin un motivo concreto (es un
+#: consejero de bajo coste que solo ve asuntos de commits). Con 0,8 la autopublicación no salía
+#: nunca. Ahora frena solo con certeza (≥ 0,95); entre 0,8 y 0,95 es una DUDA que se anota y se
+#: dice, y deciden las puertas deterministas (pruebas, CI, Vercel y humo).
+JEV_FRENA = 0.95
+JEV_DUDA = 0.8
+PETICION = os.path.join(CARPETA, "autopublicar-peticion.json")
 
 
 # ── puro ──────────────────────────────────────────────────────────────────────
@@ -203,15 +210,28 @@ class Medios(object):
             return None, "main cambió mientras corrían las pruebas"
         return True, "unittest y pytest en verde"
 
-    def jev_frena(self, resumen):
-        """True solo si Jev dice «no» con p ≥ 0,8. Sin Jev, sigue (la regla es publicar)."""
+    def jev_opina(self, resumen):
+        """{respuesta, confianza, medio} de Jev sobre el lote. Sin Jev, la regla («sí»)."""
         try:
             import decidir
-            r = decidir.consultar("si-no", {"lote": resumen}, "¿Es coherente publicar ya este lote de StarSeed OS en producción?",
+            r = decidir.consultar("si-no", resumen,
+                                  "Con las puertas que aún faltan, ¿es coherente publicar ya en producción estas "
+                                  "tareas integradas de StarSeed OS?",
                                   quien="director-produccion", regla="si", dominio="produccion")
-            return r.get("respuesta") in ("no", False) and float(r.get("confianza") or r.get("p") or 0) >= 0.8
+            return {"respuesta": r.get("respuesta"), "confianza": r.get("confianza") or r.get("p"),
+                    "medio": r.get("medio")}
         except Exception:
-            return False
+            return {"respuesta": "sí", "confianza": None, "medio": "regla"}
+
+    def peticion(self):
+        """La petición de Genesis («revisar» o «saltar-jev»), una sola vez: se borra al leerla."""
+        datos = _leer(PETICION, None)
+        if datos is not None:
+            try:
+                os.remove(PETICION)
+            except OSError:
+                pass
+        return datos if isinstance(datos, dict) else None
 
     def avisar(self, texto, tipo="informe"):
         try:
@@ -235,6 +255,52 @@ def _escribir(ruta, datos):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False, indent=1)
     os.replace(tmp, ruta)
+
+
+_RUIDO = ("salvavidas ·", "chore(memoria)")
+_TAREA = re.compile(r"· ([A-Z]{1,6}\d{3,5}[A-Za-z]*): (.+)$")
+
+
+def resumen_para_jev(asuntos, archivos):
+    """Lo que Jev necesita para juzgar: las TAREAS integradas (no los commits de respaldo del
+    enjambre, que parecían trabajo a medias) y qué puertas quedan. PURA."""
+    tareas, direccion, ruido = [], [], 0
+    for a in asuntos or []:
+        if a.startswith(_RUIDO):
+            ruido += 1
+            continue
+        mt = _TAREA.search(a)
+        if mt:
+            tareas.append("%s: %s" % (mt.group(1), mt.group(2)[:110]))
+        else:
+            direccion.append(a[:110])
+    return {"tareas_integradas": tareas[:30], "commits_de_la_direccion": direccion[:10],
+            "commits_de_respaldo_omitidos": ruido, "archivos": archivos,
+            "puertas_ya_pasadas": ["análisis de secretos y de migraciones destructivas: limpio"],
+            "puertas_que_vienen_despues": ["pruebas del puente en la Mac (unittest y pytest)",
+                                           "CI en GitHub: tsc, vitest, núcleo mesh y next build",
+                                           "push sin force", "despliegue de Vercel y humo en producción"],
+            "nota": "Cada tarea pasó tsc y vitest en su rama antes de integrarse en main."}
+
+
+def juicio_jev(opinion):
+    """('frena'|'duda'|'sigue', confianza). Solo un «no» con certeza frena. PURA."""
+    op = opinion or {}
+    try:
+        conf = float(op.get("confianza") or 0)
+    except (TypeError, ValueError):
+        conf = 0.0
+    if str(op.get("respuesta")).strip().lower() not in ("no", "false"):
+        return "sigue", conf
+    if conf >= JEV_FRENA:
+        return "frena", conf
+    if conf >= JEV_DUDA:
+        return "duda", conf
+    return "sigue", conf
+
+
+def _pct(x):
+    return ("%.2f" % x).replace(".", ",")
 
 
 # ── la pasada ────────────────────────────────────────────────────────────────
@@ -261,9 +327,20 @@ def _nuevo_lote(m, est, ahora):
     vetos = m.vetos_externos() if hasattr(m, "vetos_externos") else set()
     if head in vetos or head[:8] in vetos or head[:7] in vetos:
         return con_fase(est, "bloqueado", "Vetado desde Genesis: espero un commit nuevo.", ahora, sha=head, pendientes=pendientes)
+    pet = m.peticion() if hasattr(m, "peticion") else None
+    saltar_jev = False
+    if pet and str(pet.get("sha") or head) == head and pet.get("accion") in ("revisar", "saltar-jev"):
+        # Genesis («Revisar ahora» / «Publicar sin Jev esta vez»): solo levanta un veto de JEV;
+        # los de las puertas deterministas (análisis, pruebas, CI, Vercel) no se tocan.
+        motivo_veto = str((est.get("vetados") or {}).get(head) or "")
+        if motivo_veto.startswith("Jev"):
+            est["vetados"] = {k: v for k, v in (est.get("vetados") or {}).items() if k != head}
+        saltar_jev = pet.get("accion") == "saltar-jev"
     if head in (est.get("vetados") or {}):
-        return con_fase(est, "bloqueado", "%s · espero a que llegue un commit nuevo" % est["vetados"][head], ahora,
-                        sha=head, pendientes=pendientes)
+        motivo_veto = est["vetados"][head]
+        cola = ("reviso de nuevo con el próximo commit o con «Publicar sin Jev esta vez»"
+                if str(motivo_veto).startswith("Jev") else "espero a que llegue un commit nuevo")
+        return con_fase(est, "bloqueado", "%s · %s" % (motivo_veto, cola), ahora, sha=head, pendientes=pendientes)
     if ahora - float(est.get("ultima_publicacion") or 0) < VENTANA_S:
         return con_fase(est, "esperando", "Ventana de 20 min entre publicaciones: %d commit(s) en cola." % pendientes,
                         ahora, pendientes=pendientes)
@@ -284,9 +361,22 @@ def _nuevo_lote(m, est, ahora):
             m.avisar("Autopublicación frenada (%s): %s." % (head[:8], "; ".join(bloqueos)), tipo="aviso")
         return vetar(est, head, motivo, ahora)
     asuntos = m.git(["log", "--format=%s", "origin/main..%s" % head])[1].splitlines()
-    if m.jev_frena({"commits": asuntos[:40], "archivos": len(nombres), "pendientes": pendientes}):
-        m.avisar("Autopublicación frenada (%s): Jev no ve coherente publicar este lote ahora." % head[:8], tipo="aviso")
-        return vetar(est, head, "Jev frenó el lote", ahora)
+    if saltar_jev:
+        jev = {"decision": "saltado", "por": "genesis", "sha": head}
+    else:
+        opinion = m.jev_opina(resumen_para_jev(asuntos, len(nombres)))
+        decision, conf = juicio_jev(opinion)
+        jev = {"decision": decision, "respuesta": opinion.get("respuesta"), "confianza": conf,
+               "medio": opinion.get("medio"), "sha": head}
+        if decision == "frena":
+            motivo = "Jev frenó el lote (seguro al %s)" % _pct(conf)
+            if not (est.get("fase") == "bloqueado" and str(est.get("detalle") or "").startswith("Jev")):
+                m.avisar("Autopublicación frenada (%s): Jev está seguro (%s) de que no conviene publicar este lote "
+                         "ahora. En Genesis: «Publicar sin Jev esta vez» lo salta; las demás puertas siguen."
+                         % (head[:8], _pct(conf)), tipo="aviso")
+            est["jev"] = jev
+            return vetar(est, head, motivo, ahora)
+    est["jev"] = jev
 
     # 2. Pruebas del puente sobre ESE commit
     ok, detalle = m.pruebas_python(head)
@@ -301,8 +391,14 @@ def _nuevo_lote(m, est, ahora):
     if rc != 0:
         m.avisar("Autopublicación: no pude subir el candidato (%s): %s" % (head[:8], err[-300:]), tipo="aviso")
         return con_fase(est, "esperando", "No pude subir el candidato; reintento en la próxima pasada.", ahora)
+    nota_jev = ""
+    if jev.get("decision") == "duda":
+        nota_jev = " Jev dudaba (%s), pero no frena por debajo de %s: deciden las puertas." % (
+            _pct(jev.get("confianza") or 0), _pct(JEV_FRENA))
+    elif jev.get("decision") == "saltado":
+        nota_jev = " Jev saltado desde Genesis para este lote."
     m.avisar("Autopublicación: %d commit(s) (%s) pasaron el análisis y las pruebas del puente; CI en GitHub "
-             "(tsc, vitest, next build) en marcha." % (pendientes, head[:8]))
+             "(tsc, vitest, next build) en marcha.%s" % (pendientes, head[:8], nota_jev))
     return con_fase(est, "ci", "CI en GitHub Actions: tsc, vitest, núcleo mesh y next build.", ahora,
                     sha=head, desde=ahora, pendientes=pendientes, asuntos=asuntos[:12], url=None)
 

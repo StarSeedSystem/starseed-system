@@ -53,6 +53,10 @@ function rutaAutopublicar(): string {
 function rutaEstadoAutopublicar(): string {
     return path.join(os.homedir(), ".starseed", "produccion", "autopublicar-estado.json");
 }
+/** (2026-10-08) «Revisar ahora» y «Publicar sin Jev esta vez»: el director la lee y la borra. */
+function rutaPeticionAutopublicar(): string {
+    return path.join(os.homedir(), ".starseed", "produccion", "autopublicar-peticion.json");
+}
 
 /** Solo lo que la tarjeta pinta: nunca rutas ni salidas largas. */
 function estadoAutopublicarVisible(crudo: unknown): Record<string, unknown> | null {
@@ -74,6 +78,13 @@ function estadoAutopublicarVisible(crudo: unknown): Record<string, unknown> | nu
         url: texto(crudo.url, 300) ?? null,
         actualizado: texto(crudo.actualizado, 40),
         pendientes: typeof crudo.pendientes === "number" ? crudo.pendientes : undefined,
+        jev: esObjeto(crudo.jev)
+            ? {
+                  decision: texto(crudo.jev.decision, 20),
+                  confianza: typeof crudo.jev.confianza === "number" ? crudo.jev.confianza : undefined,
+                  sha: texto(crudo.jev.sha, 40),
+              }
+            : undefined,
         historial,
     };
 }
@@ -174,6 +185,25 @@ export async function POST(peticion: Request): Promise<Response> {
         }
         if (cuerpo.activo) lanzarPasadaAutopublicar();
         return Response.json({ ok: true, activo: cuerpo.activo }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (accion === "autopublicar-revisar" || accion === "autopublicar-saltar-jev") {
+        // Solo actúa sobre el lote que Genesis está viendo (sha del estado): si main avanzó entre
+        // medias, el director lo ignora y evalúa el lote nuevo con todas sus puertas.
+        try {
+            const estadoAuto = await leerJson(rutaEstadoAutopublicar());
+            const sha = esObjeto(estadoAuto) && typeof estadoAuto.sha === "string" ? estadoAuto.sha : null;
+            await escribirAtomico(rutaPeticionAutopublicar(), {
+                accion: accion === "autopublicar-revisar" ? "revisar" : "saltar-jev",
+                sha,
+                quien: "genesis",
+                t: ahora,
+            });
+        } catch {
+            return Response.json({ error: "No se pudo guardar la petición." }, { status: 500 });
+        }
+        lanzarPasadaAutopublicar();
+        return Response.json({ ok: true, accion }, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (accion === "vetar") {

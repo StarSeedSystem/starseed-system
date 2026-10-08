@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { faseVisible, InterruptorAutopublicacion } from "../interruptor-autopublicacion";
+import { faseVisible, InterruptorAutopublicacion, lineaJev } from "../interruptor-autopublicacion";
 
 function respuesta(cuerpo: unknown, status = 200) {
     return Promise.resolve(new Response(JSON.stringify(cuerpo), { status, headers: { "Content-Type": "application/json" } }));
@@ -63,6 +63,46 @@ describe("InterruptorAutopublicacion", () => {
         render(<InterruptorAutopublicacion compacto />);
         expect(await screen.findByText("CI en GitHub")).toBeInTheDocument();
         expect(screen.queryByLabelText("Últimas publicaciones")).toBeNull();
+    });
+
+    it("frenada por Jev: enseña «Publicar sin Jev esta vez» y «Revisar ahora» manda su acción", async () => {
+        activo = true;
+        vi.stubGlobal("fetch", vi.fn((_url: string, init?: RequestInit) => {
+            if (init?.method === "POST") {
+                posts.push(JSON.parse(String(init.body)));
+                return respuesta({ ok: true });
+            }
+            return respuesta({
+                autopublicar: { activo: true },
+                autopublicarEstado: {
+                    fase: "bloqueado",
+                    detalle: "Jev frenó el lote (seguro al 0,97) · reviso de nuevo con el próximo commit",
+                    sha: "0123456789abcdef",
+                    jev: { decision: "frena", confianza: 0.97, sha: "0123456789abcdef" },
+                },
+            });
+        }));
+        render(<InterruptorAutopublicacion compacto />);
+        fireEvent.click(await screen.findByRole("button", { name: "Revisar ahora" }));
+        await waitFor(() => expect(posts).toEqual([{ accion: "autopublicar-revisar" }]));
+        fireEvent.click(await screen.findByRole("button", { name: "Publicar sin Jev esta vez" }));
+        await waitFor(() => expect(posts).toContainEqual({ accion: "autopublicar-saltar-jev" }));
+        expect(screen.getAllByText(/Jev frenó el lote \(seguro al 0,97\)/).length).toBeGreaterThan(0);
+    });
+
+    it("sin freno de Jev no ofrece saltarlo", async () => {
+        activo = true;
+        render(<InterruptorAutopublicacion compacto />);
+        expect(await screen.findByRole("button", { name: "Revisar ahora" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Publicar sin Jev esta vez" })).toBeNull();
+    });
+
+    it("lineaJev dice la duda, el freno y el salto sin inventar", () => {
+        expect(lineaJev({ jev: { decision: "duda", confianza: 0.85 } })).toContain("Jev dudaba (0,85)");
+        expect(lineaJev({ jev: { decision: "frena", confianza: 0.97 } })).toBe("Jev frenó el lote (seguro al 0,97).");
+        expect(lineaJev({ jev: { decision: "saltado" } })).toContain("saltado");
+        expect(lineaJev({ jev: { decision: "sigue", confianza: 0.9 } })).toBeNull();
+        expect(lineaJev(null)).toBeNull();
     });
 
     it("faseVisible conoce todas las fases y no inventa", () => {

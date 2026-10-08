@@ -23,6 +23,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "@/components/mando/bloqueadas-panel";
+import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 
 export type TonoMedidor = "normal" | "aviso" | "peligro" | "ok";
@@ -641,6 +642,13 @@ export function PanelMedidor({
                             </li>
                         ))}
                     </ul>
+                </div>
+            ) : null}
+
+            {clave === "sin-publicar" ? (
+                // (2026-10-08) Alex: «añade el ajuste de publicación automática dentro del medidor».
+                <div className="mt-2" data-testid="autopublicacion-en-medidor">
+                    <InterruptorAutopublicacion compacto />
                 </div>
             ) : null}
 
