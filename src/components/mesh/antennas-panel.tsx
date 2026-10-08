@@ -28,6 +28,8 @@ import {
   useMeshState,
   type BandGoal,
 } from "@/ai/astraura/mesh";
+import { ESCALERA_LORA, recomendar } from "@/ai/astraura/mesh/camr/radio-cognitiva";
+import type { Medicion, ParametrosRadio } from "@/ai/astraura/mesh/camr/tipos";
 
 const ANTENNA_ICONS: Record<string, typeof Antenna> = {
   lora: RadioTower,
@@ -55,17 +57,75 @@ export function AntennasPanel() {
   const reco = useMemo(() => {
     const online = state.nodes.filter((n) => !n.isSelf && n.presence === "online");
     const snrs = online.map((n) => n.snr).filter((v): v is number => typeof v === "number");
-    return recommendPreset(
-      goal,
+    const avgSnr = snrs.length ? snrs.reduce((a, b) => a + b, 0) / snrs.length : null;
+    const cur = activePreset === "UNSET" ? null : activePreset;
+    if (goal !== "auto") {
+      return recommendPreset(
+        goal,
+        {
+          avgSnr,
+          onlineNodes: online.length,
+          channelUtilPct: state.self?.channelUtilization ?? null,
+          region: state.region,
+        },
+        cur,
+      );
+    }
+    if (avgSnr === null) {
+      return { presetKey: cur ?? "LONG_FAST", reason: "Sin señales claras: LongFast, el preset interoperable por defecto.", changes: false };
+    }
+    const nivelActual = ESCALERA_LORA.find((n) => n.preset === cur) ?? ESCALERA_LORA[6];
+    const actual: ParametrosRadio = {
+      frecuenciaMhz: (band.freqStartMhz + band.freqEndMhz) / 2,
+      potenciaDbm: band.powerDbm,
+      anchoBandaMhz: nivelActual.anchoBandaMhz,
+      spreadFactor: nivelActual.spreadFactor,
+      codingRate: nivelActual.codingRate,
+    };
+    const historial: Medicion[] = snrs.map((s) => ({
+      rssiDbm: null,
+      snrDb: s,
+      ber: null,
+      ruidoDbm: null,
+      latenciaMs: null,
+      perdida: null,
+      tiempoAireUsado:
+        state.self?.channelUtilization != null ? state.self.channelUtilization / 100 : null,
+      vecinos: online.length,
+      anchoBandaKbps: null,
+      at: Date.now(),
+    }));
+    const r = recomendar(
+      historial,
+      online.map((n) => ({
+        id: n.id ?? `!${n.num.toString(16)}`,
+        snrDb: n.snr ?? null,
+        rssiDbm: null,
+        esPuenteUnico: false,
+      })),
       {
-        avgSnr: snrs.length ? snrs.reduce((a, b) => a + b, 0) / snrs.length : null,
-        onlineNodes: online.length,
-        channelUtilPct: state.self?.channelUtilization ?? null,
-        region: state.region,
+        legal: { regionLora: state.region, regionWifi: null, indicativo: null },
+        banda: band.key,
+        esWifi: false,
+        orientable: false,
+        gananciaAntenaDbi: 2,
+        perdidasDb: 0.5,
+        objetivoSnrDb: -10,
+        potenciaMaxEquipoDbm: band.powerDbm,
       },
-      activePreset === "UNSET" ? null : activePreset,
+      actual,
     );
-  }, [goal, state.nodes, state.self?.channelUtilization, state.region, activePreset]);
+    const idx = ESCALERA_LORA.findIndex(
+      (n) => n.spreadFactor === r.params.spreadFactor && n.anchoBandaMhz === r.params.anchoBandaMhz,
+    );
+    let presetKey = idx >= 0 ? ESCALERA_LORA[idx].preset : (cur ?? "LONG_FAST");
+    if (band.dutyPct !== 100 && !PRESET_SPECS[presetKey]?.universal) {
+      const desde = Math.max(0, PRESET_ORDER.indexOf(presetKey));
+      presetKey =
+        PRESET_ORDER.slice(desde).find((k) => PRESET_SPECS[k]?.universal) ?? "LONG_FAST";
+    }
+    return { presetKey, reason: r.porque.join(" "), changes: presetKey !== (cur ?? "LONG_FAST") };
+  }, [goal, state.nodes, state.self?.channelUtilization, state.region, activePreset, band]);
 
   const apply = useCallback(async () => {
     setApplying(true);
