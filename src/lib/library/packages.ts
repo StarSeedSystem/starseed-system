@@ -355,6 +355,16 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/senales" },
   },
   {
+    // Ola 1010E · ES1010R: Estaciones — transmisiones en directo libres de
+    // la red: directorio con reproductor autoadaptable (audio, vídeo, XR,
+    // eventos, juegos…), faros por la malla y estudio de producción con IA.
+    id: "app-estaciones", kind: "app", name: "Estaciones",
+    description: "Transmisiones en directo libres de la red: audio, vídeo, XR, eventos, juegos, pizarras y dashboards, con reproductor autoadaptable, faros por la malla y estudio de producción con IA.",
+    icon: "Radio", tags: ["directo", "radio", "vídeo", "xr", "malla", "estudio"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/estaciones" },
+  },
+  {
     // 2026-09-28: Contactos, como paquete instalable para tener paridad con el
     // dock y el catálogo de apps.
     id: "app-contactos", kind: "app", name: "Contactos",
