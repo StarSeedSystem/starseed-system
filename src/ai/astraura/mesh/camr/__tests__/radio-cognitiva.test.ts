@@ -16,6 +16,7 @@ import {
   recomendar,
   vigilarCambio,
 } from "../radio-cognitiva";
+import { dentroDeLey } from "../regulacion";
 import type { PerfilCognitivo, VecinoCognitivo } from "../radio-cognitiva";
 import type { Medicion, ParametrosRadio } from "../tipos";
 
@@ -85,6 +86,21 @@ describe("histéresis (oscilación)", () => {
     expect(r.params.spreadFactor).toBe(12);
     expect(r.cambio).toBe(true);
   });
+  it("alternando bueno/malo no oscila: se queda en el peldaño (histéresis)", () => {
+    const oscilante = [0, -18, 2, -18, 2].map((snrDb, i) =>
+      med({ snrDb, ber: 0 }, T0 + i * 1000),
+    );
+    const r = recomendar(oscilante, [], perfilEu(), actualBase);
+    expect(r.params.spreadFactor).toBe(actualBase.spreadFactor);
+    expect(r.cambio).toBe(false);
+    expect(r.porque.join(" ")).toContain("histéresis");
+  });
+  it("la escalera LoRa crece en robustez y baja su SNR mínimo de forma monótona", () => {
+    for (let i = 1; i < ESCALERA_LORA.length; i++) {
+      expect(ESCALERA_LORA[i].snrMinDb).toBeLessThanOrEqual(ESCALERA_LORA[i - 1].snrMinDb);
+      expect(ESCALERA_LORA[i].spreadFactor).toBeGreaterThanOrEqual(ESCALERA_LORA[i - 1].spreadFactor);
+    }
+  });
 });
 
 describe("TPC comunitario (vecino que se aleja)", () => {
@@ -101,6 +117,11 @@ describe("TPC comunitario (vecino que se aleja)", () => {
   it("baja 1 dB cuando sobra señal", () => {
     const r = potenciaComunitaria(14, [vecino({ snrDb: -3 })], perfilEu(), 869.5);
     expect(r.potenciaDbm).toBe(13);
+  });
+  it("mantiene la potencia cuando ya está equilibrada al margen objetivo", () => {
+    const r = potenciaComunitaria(14, [vecino({ snrDb: -10 })], perfilEu(), 869.5);
+    expect(r.potenciaDbm).toBe(14);
+    expect(r.nota).toContain("equilibrada");
   });
   it("nunca supera el tope legal (EU_868: 27 dBm)", () => {
     const v = [vecino({ snrDb: -40, esPuenteUnico: true })];
@@ -131,6 +152,26 @@ describe("espectro limpio (interferencia en un canal)", () => {
     expect(r.anuncioPrevio).toBe(true);
     expect(r.params.frecuenciaMhz).toBe(869.55);
     expect(r.cambio).toBe(true);
+  });
+  it("ninguna recomendación sale de la ley: recorta la potencia al tope", () => {
+    const r = recomendar([med({ snrDb: -6, ber: 0 }, T0)], [], perfilEu(), {
+      ...actualBase,
+      potenciaDbm: 30,
+    });
+    expect(r.params.potenciaDbm).toBeLessThanOrEqual(27);
+    expect(
+      dentroDeLey({ banda: "EU_868", radio: r.params }, perfilEu().legal).ok,
+    ).toBe(true);
+  });
+  it("con la métrica ya en el nivel actual no propone cambio", () => {
+    const estable = [0, 1, 2].map((i) => med({ snrDb: -14, ber: 0 }, T0 + i * 1000));
+    const r = recomendar(estable, [], perfilEu(), actualBase);
+    expect(r.cambio).toBe(false);
+    expect(r.params).toMatchObject({
+      frecuenciaMhz: actualBase.frecuenciaMhz,
+      potenciaDbm: actualBase.potenciaDbm,
+      spreadFactor: actualBase.spreadFactor,
+    });
   });
 });
 
