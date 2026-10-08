@@ -1,0 +1,71 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-07 19:27:44",
+  "desde": "2026-09-29 16:09:57",
+  "ultimo_429": "2026-10-06 13:39:28",
+  "sin_cupo_hasta": "2026-10-07 18:00:24",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-07 19:27:45",
+  "desde": "2026-10-01 15:50:18",
+  "ultimo_429": "2026-10-07 17:55:31",
+  "sin_cupo_hasta": "2026-10-07 05:34:15",
+  "motivo": "pasarela: $ opencode run --model nvidia/moonshotai/kimi-k3 · 2026-10-07 05:11:24 \u001b[0m \u001b[0m > build · moonshotai/kimi-k3 \u001b[0m$ \u001b[0mls && cat MENSAJES-D"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-07 02:22:01",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-08 02:22:57",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-07 19:27:45",
+  "desde": "2026-09-04 21:02:32",
+  "ultimo_429": "2026-10-06 20:00:05",
+  "sin_cupo_hasta": "2026-10-07 18:00:24",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-07 19:27:45",
+  "desde": "2026-09-30 03:07:41",
+  "ultimo_429": "2026-10-07 17:55:39"
+ },
+ "ultimo_revisor_ok": "xkiro/qwen/qwen3.7-plus:free",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-07 19:27:45",
+  "desde": "2026-10-04 11:16:01",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "2 modelos piden suscripción de pago",
+  "ultimo_429": "2026-09-21 03:38:33",
+  "sin_cupo_hasta": "2026-10-07 23:07:52"
+ },
+ "google": {
+  "estado": "vivo",
+  "sin_cupo_hasta": "2026-10-07 18:00:09",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "codex": {
+  "motivo": "$ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/CPA1007J · 2026-10-07 19:17:31 · p",
+  "sin_cupo_hasta": "2026-10-08 19:17:49"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-07 19:27:45",
+  "desde": "2026-10-07 15:26:19",
+  "sin_cupo_hasta": "2026-10-07 00:37:29",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-07 00:18:49 \u001b[0m \u001b[0m > build · auto \u001b[0m$ \u001b[0mls -la total 3032 drwxr-xr-x@ 135 alex staff"
+ }
+}

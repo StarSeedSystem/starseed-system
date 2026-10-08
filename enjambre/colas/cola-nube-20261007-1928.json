@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "CPA1007B",
+   "ola": "Ola 1007C · Capas autoadaptables de Astraura: Needle 3, Bonsai 1.58 y BitNet por tarea y por medio, repartidas por la malla y aprendiendo por ámbito",
+   "depende": [],
+   "titulo": "Capas · perfil del medio: WebGPU, WASM, cuota de almacenamiento, plataforma instalada y 2.º plano → presupuesto",
+   "archivos": [
+    "src/lib/astraura/capas/perfil-medio.ts",
+    "src/lib/astraura/capas/__tests__/perfil-medio.test.ts"
+   ],
+   "dificultad": "media",
+   "privado": false,
+   "prompt": "CONTRATO: `architecture/capas-autoadaptables.md`. Léelo ENTERO antes de empezar (sobre todo §4): es la fuente de verdad, y lo que no esté ahí no se inventa. Construye sobre lo que ya existe (§2), no lo dupliques; si el código real choca con el contrato, dilo en tu informe. Petición de Alex (2026-10-07): que Astraura cargue en cada medio y para cada tarea las capas de modelos más óptimas (Needle 3, Bonsai 1.58, BitNet), que las apps guarden más capas que la web, que todo se sincronice y descargue bajo demanda por la malla y los servidores, por ámbito y con aprendizaje colectivo.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Módulos PUROS donde el contrato lo pide (sin `node:*` en lo que importa el navegador; la puerta `sin-node-en-cliente.test.ts` lo vigila). Pruebas sin red, sin descargar modelos y sin archivos reales (todo lo externo se inyecta). Claves SOLO de `process.env`/`os.environ`, nunca se imprimen. Sin dependencias nuevas de npm ni pip. Una capa sin su SHA en el catálogo no se usa jamás (§6).\n\nTU TAREA (CPA1007B): PURO con un `EntornoMedio` inyectable (no leas `navigator` dentro de las funciones puras; da además `entornoDelNavegador()` que lo lee con `typeof` defensivo). Amplía `medirPerfil` de `perfil-hardware.ts` (impórtalo, no lo copies) con: WebGPU disponible y `maxBufferSize`, WASM con SIMD e hilos (`crossOriginIsolated`), `storage.estimate()` (cuota y uso), si `persist()` está concedido, plataforma (web|pwa|tauri|android|ios|servidor, detectando PWA por `display-mode: standalone` y Tauri por `__TAURI__`), batería, `saveData`, tipo de conexión y visibilidad. `presupuestoMedio(perfil, ajustes?)` devuelve `{disco_mb, ram_mb, capas_guardables[], segundo_plano, motivo}` con la tabla de §4 (web ≤ 12 MB de reflejo; PWA ≤ 1 GB; nativo ≤ 15 % del disco libre con tope de 8 GB; servidor según RAM) y las reglas de 2.º plano. Pruebas con un entorno falso por cada fila de la tabla y por cada regla de 2.º plano."
+  },
+  {
+   "id": "OR1007G",
+   "ola": "Ola 1007O · Oracle Always Free: la nube 24/7 de StarSeed OS (Astraura 1.58, malla, llamadas, enjambre y Genesis)",
+   "depende": [],
+   "titulo": "Oracle · `oracle_desplegar.py`: red, 3 máquinas Always Free y alerta de 1 USD, en simulación por defecto",
+   "archivos": [
+    "scripts/puente/oracle_desplegar.py",
+    "scripts/puente/test_oracle_desplegar.py"
+   ],
+   "dificultad": "alta",
+   "privado": false,
+   "prompt": "CONTRATO: `architecture/oracle-nube.md`. Léelo ENTERO antes de empezar (sobre todo §1, §3 y §5): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, dilo en tu informe en vez de improvisar. Petición de Alex (2026-10-07): activar la cuenta Oracle Cloud Free para la nube 24/7 (Astraura 1.58 con sus capas y aprendizaje continuo, funciones en línea para todos, enjambre) y que Genesis y el OS la recuerden.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin `oci` real, sin SSH y sin archivos reales de la casa (todo lo externo se inyecta; HOME y rutas a un directorio temporal). Claves SOLO de `os.environ`/`process.env`, nunca se imprimen. NINGÚN OCID (tenancy, usuario, compartimento, instancia) en salidas, registros, JSON de estado ni pruebas con valores reales: en pruebas usa `ocid1.tenancy.oc1..falso`. Sin dependencias nuevas (ni npm ni pip). Rutas de proceso en macOS: nunca `pgrep -l`.\n\nTU TAREA (OR1007G): Plan idempotente con `oci` inyectable: VCN `starseed-vcn`, subred pública, puerta a internet, tabla de rutas, lista de seguridad con EXACTAMENTE los puertos de §3, el A1 (2 OCPU, 12 GB, 100 GB, Ubuntu 24.04 aarch64 más reciente) y las 2 micro (50 GB), cada una con su cloud-init de `deploy/oracle/` y la llave `~/.ssh/starseed_oracle_ed25519.pub`, y un presupuesto con alerta a 1 USD al correo de la cuenta. `--simular` (por defecto) imprime el plan humano sin llamar a nada que cree; `--aplicar` crea. Guardias que fallan ANTES de crear nada: solo formas `VM.Standard.A1.Flex` y `VM.Standard.E2.1.Micro`; la suma de A1 existente + nuevo ≤ 2 OCPU y ≤ 12 GB; ≤ 2 micro; disco total ≤ 200 GB. Lo que ya existe (por nombre) no se duplica. Ante «Out of host capacity» reintenta cada 10 min hasta 24 h (reloj inyectable) y lo dice en el Chat Director. Al terminar llama a `oracle_nube.comprobar`. Pruebas con un `correr` falso: simulación sin creaciones, guardias, idempotencia, reintento por capacidad, y ningún OCID en la salida.",
+   "dependencias_ya_en_main": [
+    "OR1007A",
+    "OR1007E"
+   ]
+  },
+  {
+   "id": "OR1007J",
+   "ola": "Ola 1007O · Oracle Always Free: la nube 24/7 de StarSeed OS (Astraura 1.58, malla, llamadas, enjambre y Genesis)",
+   "depende": [],
+   "titulo": "Oracle · `oracle_claves.py`: Alex lleva las claves a cada máquina por SSH sin que se impriman",
+   "archivos": [
+    "scripts/puente/oracle_claves.py",
+    "scripts/puente/test_oracle_claves.py"
+   ],
+   "dificultad": "media",
+   "privado": false,
+   "prompt": "CONTRATO: `architecture/oracle-nube.md`. Léelo ENTERO antes de empezar (sobre todo §5, §8 y §10): es la fuente de verdad, y lo que no esté ahí no se inventa. Si el código real choca con el contrato, dilo en tu informe en vez de improvisar. Petición de Alex (2026-10-07): activar la cuenta Oracle Cloud Free para la nube 24/7 (Astraura 1.58 con sus capas y aprendizaje continuo, funciones en línea para todos, enjambre) y que Genesis y el OS la recuerden.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Pruebas sin red, sin `oci` real, sin SSH y sin archivos reales de la casa (todo lo externo se inyecta; HOME y rutas a un directorio temporal). Claves SOLO de `os.environ`/`process.env`, nunca se imprimen. NINGÚN OCID (tenancy, usuario, compartimento, instancia) en salidas, registros, JSON de estado ni pruebas con valores reales: en pruebas usa `ocid1.tenancy.oc1..falso`. Sin dependencias nuevas (ni npm ni pip). Rutas de proceso en macOS: nunca `pgrep -l`.\n\nTU TAREA (OR1007J): Herramienta que corre Alex: `oracle_claves.py <maquina> VAR1 VAR2 …` lee SOLO esas variables de `~/.starseed/env`, construye en memoria el archivo y lo deja en `/etc/starseed/env` de la máquina (IP desde `~/.starseed/oracle.json`, llave `~/.ssh/starseed_oracle_ed25519`, usuario `starseed`, `sudo install -m 600 -o root`), por la entrada estándar de ssh, sin archivos temporales locales. Nunca imprime valores: solo «VAR1 ✓, VAR2 (no está en tu env)». Rechaza nombres que no sean `[A-Z][A-Z0-9_]+`. `--simular` dice qué haría. Pruebas con un ssh falso que captura la entrada (para comprobar el contenido) y una comprobación de que la salida impresa no contiene ningún valor.",
+   "dependencias_ya_en_main": [
+    "OR1007A"
+   ]
+  }
+ ]
+}
