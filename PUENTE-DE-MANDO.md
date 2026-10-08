@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 00:57:46 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 10:07:15 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,44 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 18 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 35 |
-| HEAD | `8e2eb542 chore(memoria): aprendizaje de la ola auto-1008-000433` |
-| Sin publicar | 1 commits |
+| HEAD | `f66e1f7b chore(memoria): aprendizaje de la ola auto-1008-060009` |
+| Sin publicar | 23 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1008-000433.json`, hace 6s)
+## Quién escribe ahora (latido de `cola-auto-1008-060009.json`, hace 8s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RSC1006Js` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 32 s | 248537 |
+| `RTCAMR1005Bb` | hecho | freellmapi/auto | 5 min | 272 s | 39117 |
+| `ES1010Rb` | hecho | freellmapi/auto | 11 min | 653 s | 42447 |
+| `PT1009C` | hecho | freellmapi/auto | 16 min | 959 s | 90939 |
+| `CAMR1005D` | hecho | freellmapi/auto | 18 min | 1087 s | 167177 |
+| `ES1010Qb` | hecho | freellmapi/auto | 19 min | 1127 s | 44612 |
+| `RTCAMR1005B` | hecho | freellmapi/auto | 35 min | 2120 s | 815 |
+| `CPA1007K` | hecho | freellmapi/auto | 36 min | 2188 s | 159376 |
+| `CAMR1005C` | hecho | nvidia/moonshotai/kimi-k3 | 76 min | 4568 s | 56681 |
+| `CAMR1005B` | hecho | nvidia/moonshotai/kimi-k3 | 78 min | 4674 s | 154348 |
+| `FLU1005Hc` | hecho | nvidia/moonshotai/kimi-k3 | 81 min | 4886 s | 251607 |
+| `DIS1005E` | hecho | nvidia/moonshotai/kimi-k3 | 102 min | 6094 s | 341069 |
+| `CU3bs` | hecho | freellmapi/auto | 106 min | 6361 s | 237131 |
+| `CPA1007Jb` | hecho | freellmapi/auto | 121 min | 7233 s | 111225 |
+| `TK2c` | hecho | nvidia/moonshotai/kimi-k3 | 134 min | 8035 s | 1362808 |
+| `p316Ic` | hecho | codex/gpt-5.6-sol | 135 min | 8078 s | 2285416 |
+| `RM4` | hecho | nvidia/moonshotai/kimi-k3 | 143 min | 8560 s | 1567457 |
+| `R7c` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 145 min | 8724 s | 353723 |
+| `DR0919-1` | hecho | freellmapi/auto | 146 min | 8736 s | 111316 |
+| `PRD1005S` | hecho | apinex/free/gemini-3.8-flash | 153 min | 9172 s | 613895 |
+| `p314Acs` | hecho | nvidia/moonshotai/kimi-k3 | 157 min | 9418 s | 893080 |
+| `CDV1004Cs` | hecho | nvidia/moonshotai/kimi-k3 | 164 min | 9825 s | 1049031 |
+| `RM3` | hecho | nvidia/moonshotai/kimi-k3 | 172 min | 10292 s | 1692156 |
+| `DIS1005N` | hecho | freellmapi/auto | 186 min | 11155 s | 93143 |
+| `PT1009A` | hecho | freellmapi/auto | 198 min | 11884 s | 181010 |
+| `DR1007-1` | hecho | codex/gpt-5.6-sol | 203 min | 12190 s | 21922 |
+| `DR1007-2` | hecho | nvidia/moonshotai/kimi-k3 | 204 min | 12247 s | 34518 |
+| `PT1008C` | hecho | codex/gpt-5.6-sol | 210 min | 12606 s | 604186 |
+| `p318Jc` | hecho | nvidia/deepseek-ai/deepseek-v4-pro | 210 min | 12622 s | 549483 |
+| `PRD1005T` | hecho | freellmapi/auto | 216 min | 12932 s | 1028482 |
+| `CAMR1005A` | hecho | codex/gpt-5.6-sol | 237 min | 14199 s | 2065370 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
