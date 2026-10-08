@@ -38,6 +38,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useServerChannel } from "@/lib/servers/server-channel";
 import { fetchServerById, type AppServerSummary } from "@/lib/servers/app-servers";
 import { getCurrentUserId } from "@/lib/os-social";
+import { obtenerIceServidores, STUN_POR_DEFECTO } from "@/lib/llamadas/ice";
 
 // ───────────────────────────── Estado compartido del canal ─────────────────
 
@@ -187,9 +188,19 @@ function useExperimentalMediaShare(serverId: string | null, isBroadcaster: boole
     const [active, setActive] = useState(false);
     const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
     const [error, setError] = useState<string | null>(null);
+    const [iceServers, setIceServers] = useState<RTCIceServer[]>(STUN_POR_DEFECTO);
     const localStreamRef = useRef<MediaStream | null>(null);
     const peersRef = useRef<Record<string, RTCPeerConnection>>({});
     const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        void obtenerIceServidores({ timeoutMs: 3000 }).then((ice) => {
+            if (ice.iceServers.length > 0) setIceServers(ice.iceServers);
+        }).catch(() => {
+            setIceServers(STUN_POR_DEFECTO);
+        });
+    }, []);
 
     const send = useCallback((sig: RtcSignal) => {
         try {
@@ -201,7 +212,8 @@ function useExperimentalMediaShare(serverId: string | null, isBroadcaster: boole
 
     const makePeer = useCallback(
         (peerId: string) => {
-            const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+            const servidores = iceServers.length > 0 ? iceServers : STUN_POR_DEFECTO;
+            const pc = new RTCPeerConnection({ iceServers: servidores });
             peersRef.current[peerId] = pc;
             pc.onicecandidate = (ev) => {
                 if (ev.candidate) send({ type: "ice", from: meId, to: peerId, candidate: ev.candidate.toJSON() });
@@ -216,7 +228,7 @@ function useExperimentalMediaShare(serverId: string | null, isBroadcaster: boole
             }
             return pc;
         },
-        [isBroadcaster, meId, send],
+        [isBroadcaster, meId, send, iceServers],
     );
 
     useEffect(() => {

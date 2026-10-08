@@ -21,8 +21,8 @@ export interface EntornoTurn {
 }
 
 /** De dónde salieron los servidores ICE. */
-export type FuenteIce = "cloudflare" | "metered" | "estatico" | "stun";
-export const FUENTES_ICE: readonly FuenteIce[] = ["cloudflare", "metered", "estatico", "stun"];
+export type FuenteIce = "cloudflare" | "metered" | "estatico" | "rest" | "stun";
+export const FUENTES_ICE: readonly FuenteIce[] = ["cloudflare", "metered", "estatico", "rest", "stun"];
 
 /** Lo que devuelve `GET /api/llamadas/ice`. `ttl` en segundos. */
 export interface RespuestaIce {

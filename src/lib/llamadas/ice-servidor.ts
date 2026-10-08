@@ -19,6 +19,7 @@
  * Sin `"use server"` ni APIs de Node: funciones puras con `fetch` inyectable (probadas con
  * dobles en `__tests__/ice-servidor.test.ts`).
  */
+import { createHmac } from "node:crypto";
 import { contieneTurn, normalizarIceServers, servidoresIce, STUN_POR_DEFECTO, unirConStun, type FuenteIce, type RespuestaIce } from "@/lib/llamadas/ice";
 
 /** Vida de las credenciales pedidas a Cloudflare (una llamada larga cabe de sobra). */
@@ -31,6 +32,11 @@ export const TTL_STUN_S = 300;
 
 export const URL_CLOUDFLARE_TURN = "https://rtc.live.cloudflare.com/v1/turn/keys";
 
+/** Credencial REST de coturn: base64(HMAC-SHA1(secret, usuario)). */
+export function credencialRest(secret: string, usuario: string): string {
+    return createHmac("sha1", secret).update(usuario).digest("base64");
+}
+
 export interface EntornoIceServidor {
     cloudflareKeyId?: string | null;
     cloudflareToken?: string | null;
@@ -39,6 +45,8 @@ export interface EntornoIceServidor {
     turnUrl?: string | null;
     turnUser?: string | null;
     turnCred?: string | null;
+    turnSecret?: string | null;
+    turnUrls?: string[] | null;
 }
 
 type Env = Record<string, string | undefined>;
@@ -50,6 +58,8 @@ function limpio(v: string | undefined | null): string | null {
 
 /** Lee solo los NOMBRES de variable acordados (ver `architecture/llamadas-turn-y-canales-privados.md`). */
 export function entornoIceServidor(env: Env = process.env as Env): EntornoIceServidor {
+    const urlsRaw = limpio(env.TURN_URLS) ?? limpio(env.NEXT_PUBLIC_TURN_URLS);
+    const turnUrls = urlsRaw ? urlsRaw.split(",").map((s) => s.trim()).filter(Boolean) : null;
     return {
         cloudflareKeyId: limpio(env.CLOUDFLARE_TURN_KEY_ID),
         cloudflareToken: limpio(env.CLOUDFLARE_TURN_KEY_API_TOKEN),
@@ -58,12 +68,15 @@ export function entornoIceServidor(env: Env = process.env as Env): EntornoIceSer
         turnUrl: limpio(env.TURN_URL) ?? limpio(env.NEXT_PUBLIC_TURN_URL),
         turnUser: limpio(env.TURN_USER) ?? limpio(env.NEXT_PUBLIC_TURN_USER),
         turnCred: limpio(env.TURN_CRED) ?? limpio(env.NEXT_PUBLIC_TURN_CRED),
+        turnSecret: limpio(env.TURN_SECRET),
+        turnUrls: turnUrls?.length ? turnUrls : null,
     };
 }
 
 export type ProveedorIce =
     | { tipo: "cloudflare"; keyId: string; token: string }
     | { tipo: "metered"; dominio: string; apiKey: string }
+    | { tipo: "rest"; urls: string[]; secret: string }
     | { tipo: "estatico"; url: string; user: string; cred: string };
 
 const RE_ID_CLAVE = /^[A-Za-z0-9_-]{6,128}$/;
@@ -73,6 +86,9 @@ const RE_DOMINIO = /^(?=.{3,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0
 /** Proveedores configurados y completos, en orden de preferencia. */
 export function proveedoresIce(env: EntornoIceServidor): ProveedorIce[] {
     const lista: ProveedorIce[] = [];
+    if (env.turnSecret && env.turnUrls && env.turnUrls.length > 0) {
+        lista.push({ tipo: "rest", urls: env.turnUrls, secret: env.turnSecret });
+    }
     if (env.cloudflareKeyId && env.cloudflareToken && RE_ID_CLAVE.test(env.cloudflareKeyId)) {
         lista.push({ tipo: "cloudflare", keyId: env.cloudflareKeyId, token: env.cloudflareToken });
     }
@@ -131,11 +147,31 @@ function avisar(tipo: ProveedorIce["tipo"], detalle: string, registrar: (m: stri
 /** Pide credenciales a UN proveedor. null si no dio un TURN utilizable. */
 export async function pedirAProveedor(
     p: ProveedorIce,
-    opciones: { fetch?: Fetch; timeoutMs?: number; registrar?: (m: string) => void } = {},
+    opciones: { fetch?: Fetch; timeoutMs?: number; registrar?: (m: string) => void; uid?: string } = {},
 ): Promise<RespuestaIce | null> {
     const f = opciones.fetch ?? (typeof fetch === "function" ? fetch : null);
     const ms = opciones.timeoutMs ?? 5000;
     const registrar = opciones.registrar ?? ((m: string) => console.warn(m));
+    if (p.tipo === "rest") {
+        const expira = Math.floor(Date.now() / 1000) + 3600;
+        const uid = opciones.uid ?? "anon";
+        const usuario = `${expira}:${uid}`;
+        const cred = credencialRest(p.secret, usuario);
+        const lista: RTCIceServer[] = [];
+        for (const u of p.urls) {
+            const urls = normalizarIceServers([{ urls: u, username: usuario, credential: cred }]);
+            lista.push(...urls);
+        }
+        const listaUnica = Array.from(new Set(lista.map((s) => JSON.stringify(s)))).map((s) => JSON.parse(s) as RTCIceServer);
+        const final: RTCIceServer[] = [];
+        for (const s of listaUnica) {
+            if (final.length >= 8) break;
+            final.push(s);
+        }
+        const turnPresent = final.filter((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => /^turns?:/i.test(u as string))).length > 0;
+        if (!turnPresent) return null;
+        return { iceServers: unirConStun(final), fuente: "rest", ttl: 3600 };
+    }
     if (p.tipo === "estatico") {
         const lista = servidoresIce({ url: p.url, user: p.user, cred: p.cred });
         return contieneTurn(lista) ? { iceServers: lista, fuente: "estatico", ttl: TTL_ESTATICO_S } : null;
@@ -188,7 +224,7 @@ export async function pedirAProveedor(
  */
 export async function generarIceServidor(
     env: EntornoIceServidor,
-    opciones: { fetch?: Fetch; timeoutMs?: number; registrar?: (m: string) => void } = {},
+    opciones: { fetch?: Fetch; timeoutMs?: number; registrar?: (m: string) => void; uid?: string } = {},
 ): Promise<RespuestaIce> {
     for (const p of proveedoresIce(env)) {
         const r = await pedirAProveedor(p, opciones);

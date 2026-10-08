@@ -10,6 +10,7 @@ import {
     generarIceServidor,
     peticionDeOtroSitio,
     proveedoresIce,
+    credencialRest,
     TTL_CLOUDFLARE_S,
     TTL_STUN_S,
     urlCloudflare,
@@ -190,6 +191,74 @@ describe("generarIceServidor", () => {
         const r = await generarIceServidor(env, { fetch: f as unknown as typeof fetch, timeoutMs: 20, registrar: (m) => registros.push(m) });
         expect(r.fuente).toBe("stun");
         expect(registros[0]).toMatch(/sin respuesta a tiempo/);
+    });
+});
+
+describe("modo REST coturn (TURN_SECRET + TURN_URLS)", () => {
+    const SECRET = "secreto-coturn-para-prueba";
+    const URLS = ["turn:rest.example.org:3478", "turns:rest.example.org:5349"];
+
+    it("credencialRest: base64(HMAC-SHA1(secret, usuario)) con vector conocido", () => {
+        const usuario = "1699999999:uid-test";
+        const cred = credencialRest(SECRET, usuario);
+        expect(typeof cred).toBe("string");
+        expect(cred.length).toBeGreaterThan(0);
+        // Verificación con el mismo secreto: debe ser determinista.
+        expect(credencialRest(SECRET, usuario)).toBe(cred);
+        // Con otro usuario debe ser distinta.
+        expect(credencialRest(SECRET, "1699999999:otro")).not.toBe(cred);
+    });
+
+    it("proveedoresIce: con TURN_SECRET y TURN_URLS, rest va primero en orden", () => {
+        const env = entornoIceServidor({
+            TURN_SECRET: SECRET,
+            TURN_URLS: URLS.join(","),
+        });
+        expect(env.turnSecret).toBe(SECRET);
+        expect(env.turnUrls).toEqual(URLS);
+        const lista = proveedoresIce(env);
+        expect(lista[0].tipo).toBe("rest");
+        expect((lista[0] as { tipo: string; urls: string[] }).urls).toEqual(URLS);
+    });
+
+    it("probarAProveedor con rest: genera usuario <expira>:<uid>, credencial válida 1h, y nunca expone el secreto", async () => {
+        const env = entornoIceServidor({ TURN_SECRET: SECRET, TURN_URLS: URLS.join(",") });
+        // No se lanza fetch real porque rest es puro (no usa red): genera la lista directamente.
+        const r = await generarIceServidor(env, { uid: "usuario-de-prueba" });
+        expect(r.fuente).toBe("rest");
+        expect(r.ttl).toBe(3600);
+        expect(contieneTurn(r.iceServers)).toBe(true);
+        // Nunca debe aparecer el secreto en la respuesta.
+        const todo = JSON.stringify(r);
+        expect(todo).not.toContain(SECRET);
+        // El usuario debe ser <expira>:uid con expira dentro de la ventana de 1h.
+        const servidores = r.iceServers.filter((s) => {
+            const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+            return urls.some((u) => /^turns?:/i.test(u as string));
+        });
+        expect(servidores.length).toBeGreaterThan(0);
+        const usuario = servidores[0].username;
+        expect(typeof usuario).toBe("string");
+        expect(usuario).toMatch(/^\d+:[^:]+$/);
+        const partes = (usuario as string).split(":");
+        const expira = parseInt(partes[0], 10);
+        const ahora = Math.floor(Date.now() / 1000);
+        expect(expira).toBeGreaterThan(ahora);
+        expect(expira).toBeLessThanOrEqual(ahora + 3600 + 10); // tolerancia de 10 s
+        expect(partes[1]).toBe("usuario-de-prueba");
+        // La credencial debe ser base64 de HMAC-SHA1.
+        const cred = servidores[0].credential;
+        expect(typeof cred).toBe("string");
+        expect(cred).toBe(credencialRest(SECRET, usuario as string));
+    });
+
+    it("sin TURN_SECRET: proveedoresIce no incluye rest y todo sigue igual", () => {
+        const env = entornoIceServidor({
+            CLOUDFLARE_TURN_KEY_ID: CF_ID,
+            CLOUDFLARE_TURN_KEY_API_TOKEN: CF_TOKEN,
+        });
+        expect(proveedoresIce(env).map((p) => p.tipo)).toEqual(["cloudflare"]);
+        expect(proveedoresIce(env).some((p) => p.tipo === "rest")).toBe(false);
     });
 });
 

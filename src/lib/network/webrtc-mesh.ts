@@ -133,6 +133,9 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun1.l.google.com:19302" },
 ];
 
+/** Respaldo STUN (el que usa el endpoint cuando no hay TURN configurado). */
+export const ICE_STUN_RESPLADO = ICE_SERVERS;
+
 /** Nombre del data channel P2P. */
 const DATA_CHANNEL_LABEL = "starseed";
 
@@ -215,7 +218,7 @@ interface PeerRecord {
  * NUNCA lanza. Si la señalización no arranca, el mesh existe pero no podrá
  * negociar (los intentos devolverán estado 'failed' con honestidad).
  */
-export function createMesh(myDeviceId: string, contextId: string, transport: SignalTransport): MeshHandle | null {
+export function createMesh(myDeviceId: string, contextId: string, transport: SignalTransport, iceServers?: RTCIceServer[]): MeshHandle | null {
   if (!isWebRtcSupported()) return null;
   if (!myDeviceId || !contextId) return null;
 
@@ -358,7 +361,8 @@ export function createMesh(myDeviceId: string, contextId: string, transport: Sig
 
   const createPeer = (deviceId: string, isCaller: boolean): PeerRecord | null => {
     try {
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const servidores = iceServers && iceServers.length > 0 ? iceServers : ICE_SERVERS;
+      const pc = new RTCPeerConnection({ iceServers: servidores });
       const p: PeerRecord = {
         deviceId,
         pc,
@@ -814,10 +818,10 @@ export function createMesh(myDeviceId: string, contextId: string, transport: Sig
  * usaban `lan-sync.ts`/`malla-neuronas.ts`, ahora construida sobre el núcleo
  * compartido en vez de duplicar su lógica de negociación.
  */
-export function initMesh(myDeviceId: string, userId: string): MeshHandle | null {
+export function initMesh(myDeviceId: string, userId: string, iceServers?: RTCIceServer[]): MeshHandle | null {
   if (!myDeviceId || !userId) return null;
   return createMesh(myDeviceId, userId, {
     send: sendSignal,
     subscribe: (self, cb) => subscribeSignals(userId, self, cb),
-  });
+  }, iceServers);
 }
