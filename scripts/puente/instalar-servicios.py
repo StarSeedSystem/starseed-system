@@ -33,7 +33,10 @@ LANZ = [PY3, P("lanzador-tcc.py")]
 # PY3, y dejó en ~/Library/LaunchAgents un com.starseed.produccion con ProgramArguments
 # ["-s", "discover/…"] (exit 78: el director de producción nunca corrió). Con argumentos que
 # no son una raíz y un python reales, no se toca nada.
-if not (os.path.isabs(RAIZ) and os.path.isdir(os.path.join(RAIZ, "scripts", "puente")) and os.path.isabs(PY3)):
+# La guarda solo vale ejecutándolo como guion: al importarse (pruebas) _ARGV ya es [] y la
+# RAIZ por defecto es correcta; aquel sys.exit salía también en las pruebas y la entrada
+# «produccion» nunca llegaba a existir (PRD1005J).
+if __name__ == "__main__" and not (os.path.isabs(RAIZ) and os.path.isdir(os.path.join(RAIZ, "scripts", "puente")) and os.path.isabs(PY3)):
     sys.exit("instalar-servicios: RAIZ (%r) o PY3 (%r) no son rutas válidas; no instalo nada." % (RAIZ, PY3))
 
 # nombre -> (orden, log, vive_siempre)
@@ -189,19 +192,20 @@ esc = lambda t: t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"
 
 def instalar(etiqueta, orden, log, siempre):
     ruta = os.path.join(AG, etiqueta + ".plist")
-    open(ruta, "w").write(
-        PLANTILLA
-        % {
-            "etiqueta": etiqueta,
-            "raiz": RAIZ,
-            "log": log,
-            "home": HOME,
-            "args": "\n".join("    <string>%s</string>" % esc(a) for a in orden),
-            "vivo": "<key>KeepAlive</key><true/>"
-            if siempre
-            else "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>",
-        }
-    )
+    with open(ruta, "w") as f:
+        f.write(
+            PLANTILLA
+            % {
+                "etiqueta": etiqueta,
+                "raiz": RAIZ,
+                "log": log,
+                "home": HOME,
+                "args": "\n".join("    <string>%s</string>" % esc(a) for a in orden),
+                "vivo": "<key>KeepAlive</key><true/>"
+                if siempre
+                else "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>",
+            }
+        )
     ok = subprocess.run(["plutil", "-lint", ruta], capture_output=True).returncode == 0
     subprocess.run(["launchctl", "unload", ruta], capture_output=True)
     r = subprocess.run(["launchctl", "load", ruta], capture_output=True, text=True)
