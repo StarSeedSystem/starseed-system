@@ -50,6 +50,11 @@ class EvaluarTest(unittest.TestCase):
         exp = _exp()
         self.assertEqual(_mod.evaluar(exp, 99.0, AHORA + 3600), "esperar")
 
+    def test_confirmar_si_no_cambio(self):
+        exp = _exp()
+        fuera = AHORA + 121 * 60
+        self.assertEqual(_mod.evaluar(exp, 4.0, fuera), "confirmar")
+
     def test_confirmar_con_mas_de_diez_por_ciento(self):
         exp = _exp()  # base 4.0, Integradas/h "mas"
         fuera = AHORA + 121 * 60

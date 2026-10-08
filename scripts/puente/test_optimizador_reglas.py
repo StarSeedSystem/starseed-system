@@ -132,6 +132,20 @@ class ReglasOptimizadorTest(unittest.TestCase):
         r7 = [h for h in hallazgos if h["id"] == "R7"]
         self.assertFalse(any(r7), "R7 no debe disparar sin nube en pausa o sin baja tasa")
 
+    def test_r7_no_dispara_listas_insuficientes(self):
+        # Nube en pausa pero listas < 2*vivos → R7 no dispara
+        hallazgos = _mod.diagnosticar(
+            self._m(
+                nube={"pausada": True, "motivo": "otra-persona", "contenedores_libres": 2},
+                listas=1,
+                trabajadores={"tope_gobernador": 2, "vivos": 2, "escribiendo": 0, "en_puerta": 0, "ociosos": 0},
+                modelos={"m1": {"intentos": 6, "tasa": 0.1, "sin_cambios": 5, "colgados": 0}},
+            ),
+            {}, [], 1000
+        )
+        r7 = [h for h in hallazgos if h["id"] == "R7"]
+        self.assertFalse(any(r7), "R7 no debe disparar si listas < 2*vivos aun cuando nube en pausa")
+
     def test_r8_dispara_rojo(self):
         hallazgos = _mod.diagnosticar(self._m(coste={"jev_dia_usd": 0.85, "opus_semana_pct": 30, "supabase_pct_dia": 20}), {"tope_jev_dia_usd": 1.0}, [], 1000)
         r8 = [h for h in hallazgos if h["id"] == "R8"]
