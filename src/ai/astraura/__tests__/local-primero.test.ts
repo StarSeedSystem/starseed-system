@@ -50,6 +50,17 @@ describe("localPrimeroDelta (empujón a las fuentes locales genéricas)", () => 
   it("preferirLocal apagado por el usuario: sin empujón en ningún caso", () => {
     expect(localPrimeroDelta({ ...base, tier: "local", preferirLocal: false })).toEqual({ delta: 0 });
   });
+
+  it("strongThreshold por debajo de 0.3 se acota a 0.3", () => {
+    expect(localPrimeroDelta({ ...base, tier: "local", strongThreshold: 0.1, difficulty: 0.2 })).toEqual({ delta: EMPUJON_LOCAL, note: "local primero" });
+    expect(localPrimeroDelta({ ...base, tier: "local", strongThreshold: 0.1, difficulty: 0.29 })).toEqual({ delta: EMPUJON_LOCAL, note: "local primero" });
+    expect(localPrimeroDelta({ ...base, tier: "local", strongThreshold: 0.1, difficulty: 0.31 })).toEqual({ delta: 0 });
+  });
+
+  it("strongThreshold por encima de 0.95 se acota y permite hasta 0.95", () => {
+    expect(localPrimeroDelta({ ...base, tier: "local", strongThreshold: 1.2, difficulty: 0.94 })).toEqual({ delta: EMPUJON_LOCAL, note: "local primero" });
+    expect(localPrimeroDelta({ ...base, tier: "local", strongThreshold: 1.2, difficulty: 0.95 })).toEqual({ delta: 0 });
+  });
 });
 
 describe("migrarLocalPrimero (migración de una sola vez)", () => {
@@ -84,5 +95,13 @@ describe("migrarLocalPrimero (migración de una sola vez)", () => {
     const r = migrarLocalPrimero({ mode: "auto" });
     expect(r.migracionLocal).toBe(1);
     expect(r.omniRoute).toEqual({ enabled: false });
+  });
+
+  it("no muta el objeto original", () => {
+    const antes = { omniRoute: { enabled: true, endpoint: "http://localhost:20128" } };
+    const copia = JSON.stringify(antes);
+    migrarLocalPrimero(antes);
+    expect(JSON.stringify(antes)).toBe(copia);
+    expect((antes.omniRoute as Record<string, unknown>).enabled).toBe(true);
   });
 });
