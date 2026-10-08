@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { RadioTower, Wifi, Shield } from "lucide-react";
+import { RadioTower } from "lucide-react";
 import { RedMeshSection } from "./red-mesh-section";
 
 export interface NetworkSectionProps {

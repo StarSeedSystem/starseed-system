@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { RadioTower, Cpu, Volume2, Antenna, ShieldCheck, Sparkles, ExternalLink } from "lucide-react";
+import { RadioTower, Cpu, Volume2, Antenna, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
