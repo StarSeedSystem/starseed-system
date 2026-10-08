@@ -2,12 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   nueva, anotar, cerrar, leer, exportar, recortar,
 } from "../experiencias";
-import type { Almacen, Experiencia, CierreExperiencia } from "../experiencias";
+import type { Almacen, LineaExperiencias } from "../experiencias";
 import { paraNeedle, calibracion, registrarValoracion, servidorDe, puedeCompartirse, pendientesDeSubir, subirPendientes } from "../experiencias-aprendizaje";
 import type { AjustesAprendizaje } from "../experiencias-aprendizaje";
 
 function almacenMemoria(): Almacen {
-  const datos: (Experiencia | CierreExperiencia)[] = [];
+  const datos: LineaExperiencias[] = [];
   return {
     poner: async (l) => { datos.push(l); },
     lineas: async () => [...datos],

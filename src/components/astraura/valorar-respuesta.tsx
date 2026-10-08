@@ -7,8 +7,9 @@ import { useCallback, useRef, useState } from "react";
 import { ThumbsUp, ThumbsDown, Pencil, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Almacen, Capa, Valoracion, ResultadoHerramienta } from "@/lib/astraura/experiencias";
-import { registrarValoracion } from "@/lib/astraura/experiencias-aprendizaje";
+import { registrarValoracion, subirPendientes, AJUSTES_APRENDIZAJE_DEFECTO } from "@/lib/astraura/experiencias-aprendizaje";
 import { almacenIDB } from "@/lib/astraura/experiencias-idb";
+import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 
 export interface ValorarRespuestaProps {
   /** Lo que la persona preguntó. */
@@ -48,6 +49,7 @@ export function ValorarRespuesta(props: ValorarRespuestaProps) {
     (valoracion: Valoracion, correccion?: string) => {
       setEstado("guardado");
       onValorada?.(valoracion, correccion);
+      const almacen = obtenerAlmacen();
       void registrarValoracion(
         {
           ambito,
@@ -59,10 +61,41 @@ export function ValorarRespuesta(props: ValorarRespuestaProps) {
           correccion,
           herramientas,
         },
-        obtenerAlmacen(),
-      ).catch(() => {
-        /* el aprendizaje nunca rompe el chat */
-      });
+        almacen,
+      )
+        .then(() => {
+          // Subida al corpus del ámbito (§8): solo con el interruptor colectiva
+          // encendido. En el ámbito «cuenta» decide la persona (privacidad de
+          // ámbito); en grupos y comunidades lo fijan sus admins y su config
+          // (`capas-ambito`) aún no existe, así que ahí no se sube nada.
+          if (ambito !== "cuenta") return;
+          const pref = preferenciaCapasGuardada();
+          void subirPendientes(
+            almacen,
+            {
+              ...AJUSTES_APRENDIZAJE_DEFECTO,
+              aprendizajeColectivo: pref.activo && pref.capas.colectiva,
+              porAmbito: { cuenta: { permite: true, privacidad: "ambito" } },
+            },
+            async (url, experiencias) => {
+              try {
+                const r = await fetch(url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ experiencias }),
+                });
+                return r.ok;
+              } catch {
+                return false;
+              }
+            },
+          ).catch(() => {
+            /* lo pendiente se reintenta en la próxima valoración */
+          });
+        })
+        .catch(() => {
+          /* el aprendizaje nunca rompe el chat */
+        });
     },
     [ambito, capa, modelo, entrada, respuesta, herramientas, obtenerAlmacen, onValorada],
   );
