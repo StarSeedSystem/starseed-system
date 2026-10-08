@@ -3918,3 +3918,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CPA1007G` — pruebas en rojo: vitest falla (rama conservada)
 - `CPA1007J` — otra cosa: sin decisión en 0 h; rama ola/CPA1007J conservada
 - `CPA1007B` — los tipos no compilan: 1 errores tsc (rama ola/CPA1007B conservada)
+
+## 2026-10-07 22:12 · auto-1007-202759
+
+**Lo que se pidió.** añade una página, sección y función principal de StarSeed OS de "Estaciones" donde sean enlaces de transmisiones en directo públicas que pueden estar reproduciendo cualquier contenido de cualquier tipo de formato y archivo de programa, fundamentalmente siendo enlaces en línea de contenido libre en directo en tiempo real ya sea audio, vídeos, espacios de realidad virtual, eventos, anuncios, juegos con servidores públicos, pizarras, dashboards, programas, apps, cualquier tipo de programa incluyendo las opciones de transmisión con antenas de redes mesh o toda libertad de estudios de producción audiovisual con IA diseñado para producción en directo en StarSeed OS con cualquier formato autoadaptable
+
+**Resultado.** 6 de 14 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — no escribió nada (RSC1006Fs, RSC1006D, RSC1006J, ES1010L). Es 29 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `ES1010Hb` — pruebas en rojo: vitest falla (rama conservada)
+- `CPA1007B` — otra cosa: continúa como CPA1007Bb desde la rama nube/37703610203 (traer_nube)
+- `CPA1007D` — los tipos no compilan: 1 errores tsc (rama ola/CPA1007D conservada)
+- `RSC1006Cs` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RSC1006Cs conservada)
+- `RSC1006Fs` — no escribió nada
+- `RSC1006D` — no escribió nada
+- `RSC1006J` — no escribió nada
+- `ES1010L` — no escribió nada
