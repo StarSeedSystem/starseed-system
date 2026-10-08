@@ -140,7 +140,11 @@ if [ -n "$HASH_AHORA" ] && [ "$HASH_AHORA" = "${CACHE_HASH:-}" ] && [ "${CACHE_R
 fi
 
 echo "tsc-turno: turno tomado (pid $$), compilando…" >&2
-NODE_OPTIONS=--max-old-space-size=2560 npx tsc --noEmit --skipLibCheck
+# 5120 MB de montón (2026-10-08): en contenedores de 16 GB el repo se quedaba
+# sin memoria a 2560 (OOM justo en el tope). Un tope mayor no fuerza más uso:
+# donde 2560 bastaba (la Mac de 8 GB), sigue bastando. Es el valor del build
+# en la nube (CLAUDE.md §«Publicar»).
+NODE_OPTIONS=--max-old-space-size=5120 npx tsc --noEmit --skipLibCheck
 RC=$?
 if [ -n "$HASH_AHORA" ]; then
     printf '%s\n%s\n' "$HASH_AHORA" "$RC" > "$CACHE"
