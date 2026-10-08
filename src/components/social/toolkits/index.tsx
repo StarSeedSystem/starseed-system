@@ -19,6 +19,7 @@ import { AsambleaToolkit } from "./AsambleaToolkit";
 import { ComunidadToolkit } from "./ComunidadToolkit";
 import { GrupoToolkit } from "./GrupoToolkit";
 import { EventoToolkit } from "./EventoToolkit";
+import { EstacionesEntidad } from "./estaciones-entidad";
 
 export interface GovernanceToolkitProps {
     /** Tipo de entidad en cualquier vocabulario (se normaliza). */
@@ -153,5 +154,7 @@ export function GovernanceToolkit({ kind, slug, accent, name, entityKind }: Gove
             );
     }
 }
+
+export { EstacionesEntidad } from "./estaciones-entidad";
 
 export default GovernanceToolkit;
