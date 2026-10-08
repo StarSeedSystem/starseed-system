@@ -5887,23 +5887,32 @@ def reservar_tarea(tarea):
             wt_previo if os.path.isdir(wt_previo) else os.path.join(WT_BASE, tarea_id)
         )
         para_plan["reanudar"] = tarea_id in vencidos
-        # Elegir medio mediante Jev
-        orden = ordenar_medios(tarea, aptos, datos["historial"])
-        if not orden:
-            return None
-        elegido, motivo = _jev_enrutado.elegir_medio(tarea, orden, datos["historial"], jev=None)
-        arriendo = {
-            "tarea": tarea_id,
-            "medio": elegido,
-            "area": area_de_tarea(tarea),
-            "desde": instante,
-            "renovado": instante,
-            "vence": instante + ARRIENDO_S,
-            "worktree": para_plan["worktree"],
-            "reanudar": para_plan["reanudar"],
-            "motivo": motivo,
-        }
-        datos["arriendos"][tarea_id] = arriendo
+        # (2026-10-08) JF2b cambió `repartir` por `ordenar_medios` sobre el registro CRUDO, que
+        # no lleva `estado` ni `libres` (los calcula `normalizar_medios`): devolvía [] SIEMPRE y
+        # ninguna tarea conseguía arriendo. Desde que se instaló (16:01) el orquestador no
+        # empezó ni una tarea con 3 listas y 3 trabajadores libres, latiendo «sin tareas
+        # activas». Se vuelve a `repartir`, que normaliza, cuenta la ocupación real y respeta
+        # los arriendos vivos; Jev solo deja escrito el porqué (sobre los medios normalizados).
+        plan = repartir(
+            [para_plan],
+            aptos,
+            vigentes,
+            datos["historial"],
+            instante,
+            ARRIENDO_S,
+            LATIDO_MEDIO_MAX_S,
+            COLGADO_S,
+        )
+        datos["arriendos"] = plan["arriendos"]
+        arriendo = datos["arriendos"].get(tarea_id)
+        if arriendo is not None:
+            try:
+                sanos = normalizar_medios(aptos, instante, LATIDO_MEDIO_MAX_S, COLGADO_S)
+                orden = ordenar_medios(tarea, sanos, datos["historial"])
+                _, motivo = _jev_enrutado.elegir_medio(tarea, orden, datos["historial"], jev=None)
+                arriendo["motivo"] = motivo
+            except Exception:  # el porqué es informativo: nunca frena el reparto
+                pass
         return arriendo
 
     arriendo = _cambiar_medios(cambio)[0]
