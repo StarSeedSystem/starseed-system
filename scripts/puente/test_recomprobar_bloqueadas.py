@@ -81,6 +81,18 @@ class Recomprobar(unittest.TestCase):
         corr, _, _ = R.recomprobar(self.progreso(), TAREAS, ASUNTOS, AHORA, {}, jev=lambda c, t: {"RM3": 0.85})
         self.assertEqual(corr["RM3"]["estado"], "pendiente")
 
+    def test_ola_cerrada_no_se_reabre_para_morir_huerfana(self):
+        # (2026-10-08) 10 de 34 reabiertas murieron al momento como «huérfanas».
+        prog = {"JV8": {"estado": "bloqueante", "nota": "(libre×8)"}, "JV8b": {"estado": "commit"},
+                "FLU1005H": {"estado": "bloqueante", "nota": "(libre×8)"}, "FLU1005Hb": {"estado": "sustituida"},
+                "RM3": {"estado": "bloqueante", "nota": "(libre×8)"}}
+        corr, inf, _ = R.recomprobar(prog, {}, [], AHORA, {}, jev=lambda c, t: {}, fuentes={"RM3"})
+        self.assertEqual(corr["JV8"]["estado"], "sustituida")
+        self.assertIn("JV8b", corr["JV8"]["nota"])
+        self.assertNotIn("FLU1005H", corr)
+        self.assertTrue(any(s["id"] == "FLU1005H" and "ola está cerrada" in s["motivo"] for s in inf["siguen"]))
+        self.assertEqual(corr["RM3"]["estado"], "pendiente")
+
     def test_resumen_dice_cuantas(self):
         _, inf, _ = R.recomprobar(self.progreso(), TAREAS, ASUNTOS, AHORA, {}, jev=lambda c, t: {})
         texto = R.resumen(inf)

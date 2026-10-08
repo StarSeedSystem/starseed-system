@@ -97,11 +97,30 @@ def en_main(tid, tarea, asuntos):
     return any(patron.search(a or "") for a in asuntos or [])
 
 
-def clasificar(tid, entrada, tarea, asuntos, ahora, ultima_reapertura=None):
-    """('commit'|'reabrir'|'sigue', motivo). PURA."""
+def sucesora_integrada(tid, progreso):
+    """La primera sucesora (mismo id + sufijo en minúsculas: BLQ1005A → BLQ1005Ad) en «commit»."""
+    for k, v in sorted((progreso or {}).items()):
+        if k != tid and k.startswith(tid) and re.fullmatch(r"[a-z]+", k[len(tid):] or "-") \
+                and isinstance(v, dict) and v.get("estado") == "commit":
+            return k
+    return None
+
+
+def clasificar(tid, entrada, tarea, asuntos, ahora, ultima_reapertura=None, fuentes=None, progreso=None):
+    """('commit'|'sustituida'|'reabrir'|'sigue', motivo). PURA.
+
+    `fuentes`: ids definidos por alguna cola FUENTE viva (no `cola-auto-*`). (2026-10-08) Reabrir
+    una tarea que solo vive en copias `auto` no sirve: el reconciliador la cierra al momento como
+    «huérfana» (pasó con 10 de 34). Esas se dicen por su nombre: o ya las hizo una sucesora, o
+    hay que rehacerlas en una cola nueva."""
     nota = str((entrada or {}).get("nota") or "")
     if en_main(tid, tarea, asuntos):
         return "commit", "ya estaba integrada en main"
+    if fuentes is not None and tid not in fuentes:
+        suc = sucesora_integrada(tid, progreso)
+        if suc:
+            return "sustituida", "la hizo su sucesora %s (ya en main)" % suc
+        return "sigue", "su ola está cerrada (ninguna cola fuente la define): hay que rehacerla en una cola nueva"
     if ultima_reapertura and ahora - float(ultima_reapertura) < UNA_VEZ_CADA_S:
         return "sigue", "ya se reabrió por aquí hace menos de 24 h"
     if _TAREA.search(nota) and not re.search(r"libre×", nota):
@@ -153,24 +172,28 @@ def opinion_jev(candidatas, titulos, asuntos, consultar_lote=None):
     return salida
 
 
-def recomprobar(progreso, tareas, asuntos, ahora, memoria, jev=None):
+def recomprobar(progreso, tareas, asuntos, ahora, memoria, jev=None, fuentes=None):
     """Decide todo. Devuelve (correcciones, informe, memoria_nueva). PURA salvo `jev`."""
     bloqueadas = {k: v for k, v in (progreso or {}).items()
                   if isinstance(v, dict) and v.get("estado") in ESTADOS_BLOQUEADOS}
     decisiones = {}
     for tid, v in sorted(bloqueadas.items()):
-        decisiones[tid] = clasificar(tid, v, tareas.get(tid), asuntos, ahora, (memoria or {}).get(tid))
+        decisiones[tid] = clasificar(tid, v, tareas.get(tid), asuntos, ahora, (memoria or {}).get(tid),
+                                     fuentes=fuentes, progreso=progreso)
     viejas = [t for t, (d, _) in decisiones.items() if d == "reabrir" and antigua(bloqueadas[t], ahora)]
     titulos = {t: str((tareas.get(t) or {}).get("titulo") or "") for t in viejas}
     obsoletas = {t: p for t, p in (jev(viejas, titulos) if jev else {}).items() if p >= JEV_OBSOLETA}
     hora = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora))
-    correcciones, informe, memoria_nueva = {}, {"integradas": [], "reabiertas": [], "siguen": []}, dict(memoria or {})
+    correcciones, informe, memoria_nueva = {}, {"integradas": [], "sustituidas": [], "reabiertas": [], "siguen": []}, dict(memoria or {})
     for tid, (decision, motivo) in decisiones.items():
         if decision == "reabrir" and tid in obsoletas:
             decision, motivo = "sigue", "Jev la ve obsoleta (%.2f): decide Alex si se archiva o se reintenta" % obsoletas[tid]
         if decision == "commit":
             correcciones[tid] = {"estado": "commit", "nota": "recomprobada por los directores: %s" % motivo, "t": hora}
             informe["integradas"].append(tid)
+        elif decision == "sustituida":
+            correcciones[tid] = {"estado": "sustituida", "nota": "recomprobada por los directores: %s" % motivo, "t": hora}
+            informe["sustituidas"].append(tid)
         elif decision == "reabrir":
             correcciones[tid] = {"estado": "pendiente", "medio": "mac", "t": hora,
                                  "nota": "recomprobada por los directores: %s; vuelve a la cola de la Mac" % motivo}
@@ -186,6 +209,8 @@ def resumen(informe):
     partes = ["%d bloqueadas recomprobadas" % informe.get("total", 0)]
     if informe["integradas"]:
         partes.append("%d ya estaban en main (%s)" % (len(informe["integradas"]), ", ".join(informe["integradas"][:6])))
+    if informe.get("sustituidas"):
+        partes.append("%d ya las hizo una sucesora" % len(informe["sustituidas"]))
     if informe["reabiertas"]:
         partes.append("%d vuelven a la cola (fallo del medio)" % len(informe["reabiertas"]))
     if informe["siguen"]:
@@ -202,9 +227,14 @@ def main(argv=None):
     asuntos = subprocess.run(["git", "log", "main", "--format=%s"], cwd=RAIZ, capture_output=True,
                              text=True, timeout=60).stdout.splitlines()
     memoria = _leer(MEMORIA, {})
+    try:
+        import reconciliar_progreso
+        fuentes = reconciliar_progreso.ids_de_colas_fuente(OLAS)
+    except Exception:
+        fuentes = None  # «no sé»: no se usa la regla de la ola cerrada
     correcciones, informe, memoria_nueva = recomprobar(
         progreso, tareas, asuntos, ahora, memoria,
-        jev=lambda c, t: opinion_jev(c, t, asuntos))
+        jev=lambda c, t: opinion_jev(c, t, asuntos), fuentes=fuentes)
     informe["resumen"] = resumen(informe)
     informe["t"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     informe["simulado"] = simular
