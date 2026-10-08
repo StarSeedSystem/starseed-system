@@ -124,3 +124,11 @@ en la raíz del repo.
 Producción: pon el servidor tras HTTPS + un dominio, define `STARSEED_TOKENS`, usa
 Postgres y (opcional) `STARSEED_PEERS` + `STARSEED_MAX_HOPS`/`STARSEED_VERIFY` para federar
 con otros nodos de tu comunidad de forma segura.
+
+## En Oracle
+
+Para desplegar el servidor de malla en la nube Oracle Cloud Always Free, ver el
+archivo [`deploy/oracle/LEEME.md`](../../../deploy/oracle/LEEME.md) con la configuración
+del servicio de malla (`mem_limit`, red interna, volumen `/datos` y puertos internos).
+El Dockerfile de referencia (`Dockerfile`) ya usa `node:22-alpine`, usuario no root,
+data persistente en `/datos` y `HEALTHCHECK` contra `/mesh/public`.
