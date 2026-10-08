@@ -42,7 +42,7 @@ from escalada_logica import (
     en_asuntos,
     ESTADOS_RECUPERABLES,
 )
-from vigilante_logica import id_en_asuntos
+from vigilante_logica import base_de_cadena, id_en_asuntos
 import desatascar as _desatascar
 from config_director import cargar as cargar_config
 import prioridad_logica
@@ -402,12 +402,22 @@ def continuar_estancadas(tope=20):
         from datetime import datetime
 
         por_id = _tareas_de_colas()
+        # (2026-10-08) Un eslabón que ya tiene sucesora (CAMR1005Db → CAMR1005Dc) no se reabre:
+        # la cadena sigue por la sucesora. Reabrir los dos era hacer dos veces lo mismo.
+        ultimo_de = {}
+        for k in p:
+            b = base_de_cadena(k)
+            orden = 0 if b == k else ord(k[-1]) - 97
+            if orden >= ultimo_de.get(b, (-1, ""))[0]:
+                ultimo_de[b] = (orden, k)
+        con_sucesora = {k for k in p if ultimo_de.get(base_de_cadena(k), (0, k))[1] != k}
         candidatas = [
             tid
             for tid, entrada in p.items()
             if isinstance(entrada, dict)
             and entrada.get("estado") in ESTADOS_RECUPERABLES
             and not id_en_asuntos(tid, asuntos)
+            and tid not in con_sucesora
         ]
         tareas_cand = [por_id.get(tid) or {"id": tid} for tid in candidatas]
         listas, _bloq = prioridad_logica.ordenar(tareas_cand, p, datetime.now())

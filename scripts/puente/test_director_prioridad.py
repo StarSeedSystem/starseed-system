@@ -109,6 +109,17 @@ class ConOrquestadorVivo(Base):
             self.assertEqual(c[tid]["intentos_auto"], 1)
             self.assertIn("director:", c[tid]["nota"])
 
+    def test_un_eslabon_con_sucesora_no_se_reabre(self):
+        with open(os.path.join(self.olas, "progreso.json"), encoding="utf-8") as fh:
+            p = json.load(fh)
+        p["tAb"] = {"estado": "sin_cambios"}  # tA ya tiene sucesora: solo se retoma tAb
+        with open(os.path.join(self.olas, "progreso.json"), "w", encoding="utf-8") as fh:
+            json.dump(p, fh)
+        with mock.patch.object(director, "orquestador_vivo", return_value=True):
+            tocadas = director.continuar_estancadas(tope=10)
+        self.assertNotIn("tA", tocadas)
+        self.assertIn("tAb", tocadas)
+
     def test_la_correccion_lleva_la_cuenta_de_la_escalera(self):
         import sys as _s
         _s.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
