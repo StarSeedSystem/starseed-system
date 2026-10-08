@@ -387,6 +387,16 @@ describe("qué cuenta de verdad como «lista para trabajar»", () => {
         expect(ejecutablesDeColas(colas, {}, "").map((t) => t.id)).toEqual(["p324F"]);
     });
 
+    it("ignora las colas de sueños, que el vigilante no lee; la copia en una cola de código sí cuenta", () => {
+        // (2026-10-08) «7 se pueden coger ya» y «Buscar más capacidad» con 0 listas para la Mac.
+        const colas = [
+            { id: "c313_QW4", titulo: "solo en sueños", cola: "suenos-ola1" },
+            { id: "TK1c", titulo: "en sueños", cola: "suenos-ola1" },
+            { id: "TK1c", titulo: "y en código", cola: "recomprobadas-1008b" },
+        ];
+        expect(ejecutablesDeColas(colas, {}, "").map((t) => `${t.id}:${t.titulo}`)).toEqual(["TK1c:y en código"]);
+    });
+
     it("solo cuenta lo que el vigilante relanzaría: ni bloqueada, ni rechazada, ni commit", () => {
         const colas = [
             { id: "A", titulo: "", cola: "c" },

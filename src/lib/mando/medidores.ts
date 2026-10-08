@@ -981,6 +981,10 @@ export function ejecutablesDeColas(
     for (const t of colas) {
         if (!t.id || vistos.has(t.id)) continue;
         if ((t.cola ?? "").startsWith("auto-")) continue;
+        // (2026-10-08) Las colas de SUEÑOS tampoco: el vigilante no las lee (`es_cola_de_codigo`),
+        // así que aquí salían «7 se pueden coger ya» mientras «Buscar más capacidad» veía 0
+        // listas para la Mac. Si la misma tarea vive también en una cola de código, cuenta esa.
+        if ((t.cola ?? "").startsWith("suenos-")) continue;
         vistos.add(t.id);
         if (!ABIERTOS.has(progreso[t.id]?.estado ?? "")) continue;
         if (idIntegradoEnAsuntos(t.id, asuntosDeMain)) continue;

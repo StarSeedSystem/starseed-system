@@ -815,7 +815,7 @@ export async function POST(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
 
-    let cuerpo: { clave?: string; accion?: string; id?: string; texto?: string };
+    let cuerpo: { clave?: string; accion?: string; id?: string; texto?: string; ids?: unknown };
     try {
         cuerpo = (await peticion.json()) as typeof cuerpo;
     } catch {
@@ -924,6 +924,36 @@ export async function POST(peticion: Request): Promise<Response> {
         } catch (e) {
             const msj = e instanceof Error ? e.message : String(e);
             return Response.json({ error: `No pude recomprobar las bloqueadas: ${msj.slice(0, 300)}` }, { status: 500 });
+        }
+    }
+
+    // (2026-10-08) Alex: «al lado de Recomprobar todas con los directores pon uno para borrarlas,
+    // antes revisa que no sean reaplicables». El mismo script recomprueba primero con los
+    // directores y solo borra (estado «rechazada», rama conservada) lo que no se puede reaplicar.
+    if (accion === "borrar-bloqueadas") {
+        const ids = (Array.isArray(cuerpo.ids) ? cuerpo.ids : [])
+            .filter((x: unknown): x is string => typeof x === "string" && /^[A-Za-z0-9_.-]{1,40}$/.test(x))
+            .slice(0, 200);
+        try {
+            const args = ["scripts/puente/recomprobar_bloqueadas.py", "--borrar", "--json"];
+            if (ids.length) args.push("--ids", ids.join(","));
+            const { stdout } = await correr("python3", args, { cwd: RAÍZ, timeout: 180_000, windowsHide: true });
+            const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as {
+                resumen?: string;
+                borradas?: { id: string; motivo: string }[];
+                quedan?: { id: string; motivo: string }[];
+            };
+            const borradas = (r.borradas ?? []).slice(0, 8).map((x) => `− ${x.id}: ${x.motivo}`);
+            const quedan = (r.quedan ?? []).slice(0, 8).map((x) => `· se queda ${x.id}: ${x.motivo}`);
+            return Response.json({
+                ok: true,
+                resumen: [r.resumen || "Revisadas.", ...borradas, ...quedan].join("\n"),
+                borradas: (r.borradas ?? []).map((x) => x.id),
+                quedan: (r.quedan ?? []).map((x) => x.id),
+            });
+        } catch (e) {
+            const msj = e instanceof Error ? e.message : String(e);
+            return Response.json({ error: `No pude revisar ni borrar las bloqueadas: ${msj.slice(0, 300)}` }, { status: 500 });
         }
     }
 

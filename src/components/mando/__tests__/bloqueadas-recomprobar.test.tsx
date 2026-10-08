@@ -49,3 +49,35 @@ describe("BloqueadasPanel · recomprobar todas", () => {
         expect(await screen.findByText(/No pude recomprobar/)).toBeInTheDocument();
     });
 });
+
+describe("BloqueadasPanel · borrar las que no se pueden reaplicar", () => {
+    afterEach(() => {
+        cleanup();
+        vi.unstubAllGlobals();
+    });
+
+    it("pide confirmación y solo al segundo clic manda «borrar-bloqueadas» con los ids", async () => {
+        const cuerpos: unknown[] = [];
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (_url: string, init?: RequestInit) => {
+                cuerpos.push(JSON.parse(String(init?.body)));
+                return new Response(
+                    JSON.stringify({ ok: true, resumen: "Borré 1 que no se pueden reaplicar (CU3br) · 1 se quedan porque sí se pueden reaplicar" }),
+                    { status: 200, headers: { "Content-Type": "application/json" } },
+                );
+            }),
+        );
+        render(<BloqueadasPanel items={filas.map((f) => itemDesdeFilaMedidor(f, filas.map((x) => x.id)))} />);
+        const boton = screen.getByTestId("borrar-no-reaplicables");
+        expect(boton).toHaveTextContent("Borrar las que no se pueden reaplicar");
+        fireEvent.click(boton);
+        expect(cuerpos).toEqual([]);
+        expect(boton).toHaveTextContent(/¿Seguro\?/);
+        fireEvent.click(boton);
+        await waitFor(() =>
+            expect(cuerpos).toEqual([{ clave: "bloqueadas", accion: "borrar-bloqueadas", ids: ["RM3", "CU3br"] }]),
+        );
+        expect(await screen.findByText(/Borré 1 que no se pueden reaplicar \(CU3br\)/)).toBeInTheDocument();
+    });
+});

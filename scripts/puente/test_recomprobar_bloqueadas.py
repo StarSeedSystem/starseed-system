@@ -100,5 +100,69 @@ class Recomprobar(unittest.TestCase):
         self.assertIn("1 ya estaban en main (AGR2c)", texto)
 
 
+class Borrar(unittest.TestCase):
+    """(2026-10-08) «pon uno para borrarlas, antes revisa que no sean reaplicables»."""
+
+    def test_borra_solo_lo_que_no_se_puede_reaplicar(self):
+        prog = {
+            "MAL": {"estado": "bloqueada", "nota": "no toco NINGUNO de los 2 archivos"},
+            "MEDIO": {"estado": "bloqueante", "nota": "(libre×8)"},
+            "HOY": {"estado": "bloqueante", "nota": "(libre×8)"},
+            "HIJA": {"estado": "pendiente"},       # espera a MAL, que se borra
+            "NIETA": {"estado": "pendiente"},      # espera a HIJA: cae en cascada
+            "VIVA": {"estado": "pendiente"},       # espera a MEDIO, que vuelve a la cola
+            "NUEVA": {"estado": "pendiente"},      # espera a D1b, recién definida y sin empezar
+            "D1": {"estado": "rechazada"},
+        }
+        tareas = {"HIJA": {"depende": ["MAL"]}, "NIETA": {"depende": ["HIJA"]},
+                  "VIVA": {"depende": ["MEDIO"]}, "NUEVA": {"depende": ["D1b"]}}
+        _, inf, _ = R.recomprobar(prog, tareas, [], AHORA, {"HOY": AHORA - 3600}, jev=lambda c, t: {})
+        borrar, quedan = R.borrables(prog, tareas, [], inf, {"MAL", "MEDIO", "HOY", "HIJA", "NIETA", "VIVA", "NUEVA"},
+                                     definidas={"D1b"})
+        self.assertEqual(sorted(borrar), ["HIJA", "MAL", "NIETA"])
+        self.assertIn("MAL", borrar["HIJA"])
+        self.assertEqual(sorted(quedan), ["HOY", "MEDIO", "NUEVA", "VIVA"])
+
+    def test_una_dependencia_rechazada_con_sucesora_viva_no_mata(self):
+        prog = {"A": {"estado": "rechazada"}, "Ab": {"estado": "pendiente"}, "B": {"estado": "pendiente"},
+                "C": {"estado": "pendiente"}}
+        tareas = {"B": {"depende": ["A"]}, "C": {"depende": ["Z"]}}
+        inf = {"integradas": [], "sustituidas": [], "reabiertas": [], "siguen": []}
+        borrar, quedan = R.borrables(prog, tareas, [], inf, {"B", "C"})
+        self.assertEqual(list(borrar), ["C"])  # Z no existe en ninguna parte
+        self.assertIn("B", quedan)
+
+    def test_resumen_de_borrado(self):
+        inf = {"integradas": [], "sustituidas": [], "reabiertas": ["R"], "siguen": [],
+               "borradas": [{"id": "X", "motivo": "m"}], "quedan": [{"id": "R", "motivo": "m"}]}
+        texto = R.resumen(inf)
+        self.assertIn("Borré 1 que no se pueden reaplicar (X)", texto)
+        self.assertIn("1 se quedan porque sí se pueden reaplicar", texto)
+
+
+class ColaDeSuenos(unittest.TestCase):
+    def test_una_reabierta_que_solo_vive_en_suenos_pasa_a_una_cola_de_codigo(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            antes = R.OLAS
+            R.OLAS = d
+            try:
+                with open(os.path.join(d, "cola-suenos-ola1.json"), "w") as f:
+                    json.dump([{"id": "TK1c", "titulo": "t"}], f)
+                with open(os.path.join(d, "cola-otra.json"), "w") as f:
+                    json.dump([{"id": "RM3", "titulo": "r"}], f)
+                codigo = R.ids_de_colas_de_codigo(d)
+                self.assertEqual(codigo, {"RM3"})
+                ruta = R.encolar_para_codigo(["TK1c", "RM3"], {"TK1c": {"id": "TK1c", "titulo": "t", "estado": "x"},
+                                                              "RM3": {"id": "RM3"}}, codigo, AHORA)
+                self.assertTrue(os.path.basename(ruta).startswith("cola-recomprobadas-"))
+                with open(ruta) as f:
+                    self.assertEqual(json.load(f), [{"id": "TK1c", "titulo": "t"}])
+                self.assertIsNone(R.encolar_para_codigo(["RM3"], {"RM3": {"id": "RM3"}}, codigo, AHORA))
+            finally:
+                R.OLAS = antes
+
+
 if __name__ == "__main__":
     unittest.main()

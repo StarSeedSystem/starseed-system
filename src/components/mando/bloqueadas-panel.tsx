@@ -350,6 +350,40 @@ export function BloqueadasPanel({
         }
     }, [alHecho]);
 
+    // (2026-10-08) Alex: «al lado de Recomprobar todas con los directores pon uno para borrarlas,
+    // antes revisa que no sean reaplicables». Dos pasos: el primer clic pide confirmación; el
+    // segundo recomprueba con los directores y SOLO borra (rechazada, rama conservada) lo que no
+    // se puede reaplicar. Lo que vuelve a la cola o espera a algo vivo se queda, con su motivo.
+    const [borrando, setBorrando] = useState(false);
+    const [confirmarBorrar, setConfirmarBorrar] = useState(false);
+    const borrarNoReaplicables = useCallback(async () => {
+        if (!confirmarBorrar) {
+            setConfirmarBorrar(true);
+            return;
+        }
+        setConfirmarBorrar(false);
+        setBorrando(true);
+        setResultado(null);
+        try {
+            const r = await fetch("/api/mando/medidores", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clave: "bloqueadas", accion: "borrar-bloqueadas", ids: items.map((i) => i.id) }),
+            });
+            const d = (await r.json().catch(() => ({}))) as { resumen?: string; error?: string };
+            setResultado(
+                r.ok && !d.error
+                    ? { ok: true, texto: d.resumen || "Revisadas." }
+                    : { ok: false, texto: d.error || `No respondió (${r.status}).` },
+            );
+        } catch {
+            setResultado({ ok: false, texto: "La consola local no respondió." });
+        } finally {
+            setBorrando(false);
+            alHecho?.();
+        }
+    }, [alHecho, confirmarBorrar, items]);
+
     const repararTodas = useCallback(async () => {
         setEnviando(true);
         setResultado(null);
@@ -373,12 +407,27 @@ export function BloqueadasPanel({
             <p className="mt-2.5 flex flex-wrap items-center justify-center gap-2 border-t border-white/10 pt-2.5">
                 <button
                     type="button"
-                    disabled={recomprobando || enviando}
+                    disabled={recomprobando || enviando || borrando}
                     onClick={() => void recomprobarTodas()}
                     className="cursor-pointer rounded-md border border-cyan-300/40 bg-cyan-500/15 px-3 py-1.5 text-[11px] font-medium text-cyan-100 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                     data-testid="recomprobar-todas"
                 >
                     {recomprobando ? "Recomprobando con los directores…" : `Recomprobar todas con los directores (${items.length})`}
+                </button>
+                <button
+                    type="button"
+                    disabled={recomprobando || enviando || borrando}
+                    onClick={() => void borrarNoReaplicables()}
+                    onBlur={() => setConfirmarBorrar(false)}
+                    className="cursor-pointer rounded-md border border-rose-400/40 bg-rose-500/15 px-3 py-1.5 text-[11px] font-medium text-rose-100 hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                    data-testid="borrar-no-reaplicables"
+                    title="Recomprueba con los directores y borra solo las que no se pueden reaplicar (las ramas se conservan)"
+                >
+                    {borrando
+                        ? "Revisando y borrando…"
+                        : confirmarBorrar
+                          ? "¿Seguro? Pulsa otra vez: solo se borran las que no se pueden reaplicar"
+                          : "Borrar las que no se pueden reaplicar"}
                 </button>
                 {reparables.length > 0 ? (
                     <button

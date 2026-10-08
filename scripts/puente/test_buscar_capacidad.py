@@ -283,8 +283,27 @@ class Reaperturas(unittest.TestCase):
         self.assertEqual([t["id"] for t in RN.elegir(colas, {}, [], "", envios=efectivos)], ["A"])
 
 
-if __name__ == "__main__":
-    unittest.main()
+class SinTrabajoListo(unittest.TestCase):
+    """(2026-10-08) «aún hay tareas listas… pero Buscar más capacidad dice que no cabe más»."""
+
+    def test_con_sitio_y_sin_listas_no_dice_sin_hueco(self):
+        t = B.texto_mac({"ocupados": [], "tope": 3, "listas": []}, {}, [])
+        self.assertIn("hay sitio, pero ninguna tarea está lista para la Mac", t)
+        self.assertNotIn("sin hueco", t)
+
+    def test_llena_sigue_diciendo_sin_hueco(self):
+        t = B.texto_mac({"ocupados": ["A", "B", "C"], "tope": 3, "listas": []}, {}, [])
+        self.assertIn("sin hueco", t)
+
+    def test_explica_por_que_no_hay_trabajo(self):
+        prog = {"RM3": {"estado": "pendiente_aprobacion"}, "R7c": {"estado": "bloqueante"},
+                "DR1": {"estado": "bloqueada"}, "OK": {"estado": "commit"}}
+        linea = B.texto_sin_trabajo(prog)
+        self.assertIn("1 esperan visto bueno de la dirección (RM3)", linea)
+        self.assertIn("2 bloqueadas (DR1, R7c)", linea)
+        texto = B.resumen([linea], 0, sin_trabajo=True)
+        self.assertIn("no hay más trabajo listo", texto)
+        self.assertNotIn("no cabe más", texto)
 
 
 class EscritoresDelBoton(unittest.TestCase):
@@ -336,3 +355,7 @@ class EscritoresDelBoton(unittest.TestCase):
 
     def test_sin_resultados_no_alarma(self):
         self.assertEqual(B.texto_escritores([]), ("Escritores: no pude sondearlos", True))
+
+
+if __name__ == "__main__":
+    unittest.main()

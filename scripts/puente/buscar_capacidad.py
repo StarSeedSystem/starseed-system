@@ -160,6 +160,10 @@ def texto_mac(estado, decision, hechas):
     motivo = str(estado.get("motivo_tope") or "").strip()
     if (decision or {}).get("huecos"):
         return base + " · " + str((decision or {}).get("resumen") or "hay hueco").rstrip(".")
+    # (2026-10-08) Con 0 de 3 trabajando y 0 listas decía «sin hueco: 3 es el máximo»: el hueco
+    # estaba, lo que faltaba era trabajo listo. Se dice lo que pasa de verdad.
+    if not listas and (tope is None or ocupados < int(tope)):
+        return base + " · hay sitio, pero ninguna tarea está lista para la Mac"
     return base + " · sin hueco: %s es el máximo de esta Mac%s" % (
         tope if tope is not None else "su tope", " (gobernador: %s)" % motivo if motivo else "")
 
@@ -312,8 +316,30 @@ def texto_escritores(resultados, ahora=None):
     return linea, bool(pueden)
 
 
-def resumen(lineas, sumados, sin_escritores=False):
+def texto_sin_trabajo(progreso):
+    """PURA: por qué no hay nada listo, con nombres. (2026-10-08) Alex: «aún hay tareas listas para
+    trabajar pero al seleccionar Buscar más capacidad dice que no cabe más ahora mismo»."""
+    grupos = {"pendiente_aprobacion": [], "bloqueada": [], "bloqueante": []}
+    for tid, v in sorted((progreso or {}).items()):
+        e = (v or {}).get("estado") if isinstance(v, dict) else None
+        if e in grupos:
+            grupos[e].append(tid)
+    partes = []
+    if grupos["pendiente_aprobacion"]:
+        ids = grupos["pendiente_aprobacion"]
+        partes.append("%d esperan visto bueno de la dirección (%s)" % (len(ids), ", ".join(ids[:6])))
+    bloq = grupos["bloqueada"] + grupos["bloqueante"]
+    if bloq:
+        partes.append("%d bloqueadas (%s): «Bloqueadas» → Recomprobar o Borrar" % (len(bloq), ", ".join(bloq[:6])))
+    return "Sin trabajo listo: " + (" · ".join(partes) if partes else "las colas están vacías o esperan a otra tarea")
+
+
+def resumen(lineas, sumados, sin_escritores=False, sin_trabajo=False):
     """PURA: el texto entero que enseña el medidor (una línea por medio)."""
+    if sin_trabajo and not sumados:
+        cabeza = ("Busqué en todos los medios · no hay más trabajo listo para repartir "
+                  "(mira la línea «Sin trabajo listo»)")
+        return "\n".join([cabeza] + ["· " + l for l in lineas if l])
     if sin_escritores:
         cabeza = ("Busqué en todos los medios · el límite NO son los huecos: ningún modelo gratuito "
                   "tiene cupo ahora mismo; los agentes esperan y retoman solos cuando vuelva alguno")
@@ -549,7 +575,14 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         if futuro_medios is not None:
             lineas += [texto_medio(m) for m in futuro_medios.result()]
 
-    texto = resumen(lineas, sumados, sin_escritores=sin_escritores)
+    sin_trabajo = (not (estado_mac.get("listas") or []) and not (nube["clases"].get("elegibles") or [])
+                   and not plan.get("reabrir"))
+    if sin_trabajo:
+        try:
+            lineas.insert(1, texto_sin_trabajo(_leer_json(os.path.join(LATIDOS, "progreso.json"), {})))
+        except Exception:
+            pass
+    texto = resumen(lineas, sumados, sin_escritores=sin_escritores, sin_trabajo=sin_trabajo)
     estado_prev.update(visto=time.strftime("%Y-%m-%d %H:%M:%S"), origen=origen, sumados=sumados,
                        hechas=hechas, resumen=texto)
     if aplicar:
