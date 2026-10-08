@@ -133,6 +133,31 @@ class Textos(unittest.TestCase):
         t = B.texto_medio({"id": "hf", "estado": "requiere_alex", "siguiente_paso": "solo con PRO"})
         self.assertEqual(t, "Hugging Face: te necesita · solo con PRO")
 
+    CAPACIDAD_ORACLE = "A1 2 OCPU · 12 GB · 2 micro 1 GB · 10 TB/mes"
+
+    def test_oracle_requiere_alex_ensenia_capacidad_y_vinculo(self):
+        t = B.texto_medio({"id": "oracle", "estado": "requiere_alex",
+                           "capacidad": self.CAPACIDAD_ORACLE,
+                           "detalle": "cuenta sin vincular",
+                           "siguiente_paso": "vincular: `oci setup bootstrap` en la Terminal"})
+        self.assertEqual(t, "Oracle Always Free: te necesita · %s · vincular: `oci setup bootstrap` en la Terminal"
+                         % self.CAPACIDAD_ORACLE)
+        self.assertNotIn("descartado", t)
+
+    def test_oracle_usable_sin_a1(self):
+        t = B.texto_medio({"id": "oracle", "estado": "usable", "capacidad": self.CAPACIDAD_ORACLE,
+                           "detalle": "vinculada (región madrid) sin máquina A1 en marcha",
+                           "siguiente_paso": "desplegar el A1 y su orquestador"})
+        self.assertEqual(t, "Oracle Always Free: disponible · %s · desplegar el A1 y su orquestador"
+                         % self.CAPACIDAD_ORACLE)
+
+    def test_oracle_listo_con_a1_en_marcha(self):
+        t = B.texto_medio({"id": "oracle", "estado": "listo", "capacidad": self.CAPACIDAD_ORACLE,
+                           "detalle": "A1 RUNNING y orquestador anunciado por el bus hace 30 s",
+                           "siguiente_paso": ""})
+        self.assertEqual(t, "Oracle Always Free: trabajando · %s · A1 RUNNING y orquestador anunciado por el bus hace 30 s"
+                         % self.CAPACIDAD_ORACLE)
+
     def test_resumen(self):
         self.assertTrue(B.resumen(["a", "b"], 3).startswith("Busqué en todos los medios · 3 agente(s) más"))
         self.assertIn("no cabe más", B.resumen(["a"], 0))
