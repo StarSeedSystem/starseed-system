@@ -21,6 +21,18 @@ import {
   AIRTIME_P0_RESERVE_MS,
   MESH_ALERT_EVENT,
 } from "./constants";
+import { REGION_BANDS } from "./antennas";
+import {
+  BANDAS_RADIOAFICIONADO,
+  VENTANA_CICLO_MS,
+  aireConsumidoMs,
+  cabeEnCiclo,
+  dentroDeLey,
+  esBandaRadioaficionado,
+  permiteCifrado,
+  registraTransmision,
+  ventanaCicloVacia,
+} from "./camr/regulacion";
 import { encodeMessage } from "./codec";
 // Adenda 149 · puerta de antenas por personalidad (pestaña «Señales»).
 import { inboundAllowed, meshInboundAllowed } from "./persona-antenna-gate";
@@ -67,6 +79,31 @@ export function filterBody(type: MeshPayloadType, body: unknown): Record<string,
 
 let lastRefillAt = 0;
 let activePreset = "UNSET";
+let ventanaLegal = ventanaCicloVacia();
+
+function radioLegalDe(banda: string) {
+  const region = REGION_BANDS[banda];
+  if (region) {
+    return {
+      radio: {
+        frecuenciaMhz: (region.freqStartMhz + region.freqEndMhz) / 2,
+        potenciaDbm: region.powerDbm,
+      },
+      perfil: { regionLora: region.key, regionWifi: null, indicativo: null },
+    };
+  }
+  if (esBandaRadioaficionado(banda)) {
+    const amateur = BANDAS_RADIOAFICIONADO[banda];
+    return {
+      radio: {
+        frecuenciaMhz: (amateur.freqStartMhz + amateur.freqEndMhz) / 2,
+        potenciaDbm: amateur.potenciaDbm,
+      },
+      perfil: { regionLora: null, regionWifi: null, indicativo: null },
+    };
+  }
+  return null;
+}
 
 /** Fija el preset del módem activo (lo informa el adaptador/panel). */
 export function setActiveModemPreset(preset: string): void {
@@ -107,6 +144,14 @@ function refillBudget(): AirtimeBudget {
 export function airtimeAvailableFor(cls: TrafficClass, chunks: number): boolean {
   const b = refillBudget();
   const cost = chunks * estimateChunkAirtimeMs();
+  const region = REGION_BANDS[getMeshState().region];
+  if (region) {
+    const ahora = Date.now();
+    const consumido = aireConsumidoMs(ventanaLegal, region.key, ahora);
+    const maximoLegal = (region.dutyPct / 100) * VENTANA_CICLO_MS;
+    if (consumido + cost > maximoLegal) return false;
+    if (!cabeEnCiclo(ventanaLegal, region.key, region.dutyPct, cost, ahora)) return false;
+  }
   if (cls === "P0") return b.availableMs >= cost;
   // Las clases no críticas dejan intacta la reserva de P0.
   return b.availableMs - b.reservedP0Ms >= cost;
@@ -235,6 +280,35 @@ async function drainOnce(): Promise<void> {
     }
     if (!airtimeAvailableFor(item.cls, encoded.frames.length)) return; // esperar tokens
 
+    const ahora = Date.now();
+    const duracionMs = encoded.frames.length * estimateChunkAirtimeMs();
+    const configuracion = radioLegalDe(s.region);
+    const contenidoCifrado = item.type === "message" || item.type === "state-delta";
+    const cifradoLegal = !contenidoCifrado || permiteCifrado(s.region);
+    const veredicto = configuracion
+      ? dentroDeLey(
+          {
+            banda: s.region,
+            radio: configuracion.radio,
+            durMs: duracionMs,
+            ahora,
+            ventana: ventanaLegal,
+            cifrado: contenidoCifrado,
+          },
+          configuracion.perfil,
+        )
+      : { ok: false, motivos: [`banda desconocida: ${s.region}`] };
+    if ((s.region === "UNSET" && s.transport !== "simulator") || !cifradoLegal || !veredicto.ok) {
+      const motivos = s.region === "UNSET" && s.transport !== "simulator"
+        ? ["la región del radio no está fijada"]
+        : !cifradoLegal
+          ? [`la banda ${s.region} no permite contenido cifrado`]
+          : veredicto.motivos;
+      const detail = `TX bloqueada por regulación: ${motivos.join("; ")}`;
+      if (s.lastError !== detail) setMeshState({ lastError: detail });
+      return;
+    }
+
     queues[cls].shift();
     publishCounts();
 
@@ -247,7 +321,9 @@ async function drainOnce(): Promise<void> {
       const receipt = await transport.send(frame, sendOpts);
       if (receipt.ok) {
         sentChunks += 1;
-        consumeAirtime(estimateChunkAirtimeMs());
+        const aireMs = estimateChunkAirtimeMs();
+        consumeAirtime(aireMs);
+        ventanaLegal = registraTransmision(ventanaLegal, s.region, Date.now(), aireMs);
         // Espaciar trozos: cortesía con la malla (CSMA ya lo hace, doblamos).
         if (encoded.frames.length > 1) {
           await new Promise((r) => setTimeout(r, 400));

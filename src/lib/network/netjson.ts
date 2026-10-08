@@ -33,6 +33,16 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
+import { PERFILES_WIFI } from "@/ai/astraura/mesh/camr/regulacion";
+
+const REGION_WIFI_POR_PAIS: Record<string, keyof typeof PERFILES_WIFI> = {
+  US: "US", JP: "JP",
+  AT: "EU", BE: "EU", BG: "EU", HR: "EU", CY: "EU", CZ: "EU", DE: "EU",
+  DK: "EU", EE: "EU", ES: "EU", FI: "EU", FR: "EU", GR: "EU", HU: "EU",
+  IE: "EU", IT: "EU", LT: "EU", LU: "EU", LV: "EU", MT: "EU", NL: "EU",
+  PL: "EU", PT: "EU", RO: "EU", SE: "EU", SI: "EU", SK: "EU",
+};
+
 /* ───────────────────────── Tipos NetJSON: DeviceConfiguration ───────────────────────── */
 
 /** Modos wireless válidos en NetJSON/OpenWrt. */
@@ -276,9 +286,15 @@ export function buildRadio(opts: {
 }): NetJsonRadio {
   const band: "2.4" | "5" = opts?.band === "5" ? "5" : "2.4";
   const name = (opts?.name ?? "").toString().trim() || (band === "5" ? "radio1" : "radio0");
+  const country = (opts?.country ?? "").toString().trim().toUpperCase().slice(0, 2);
+  const perfil = PERFILES_WIFI[REGION_WIFI_POR_PAIS[country]];
+  const canalesLegales = band === "5" ? perfil?.g5 : perfil?.g24;
   const channelRaw = opts?.channel;
   const widthRaw = opts?.width;
-  const channel = Number.isFinite(channelRaw) ? Number(channelRaw) : band === "5" ? 36 : 1;
+  const solicitado = Number.isFinite(channelRaw) ? Number(channelRaw) : band === "5" ? 36 : 1;
+  const channel = canalesLegales?.some((c) => c.canal === solicitado)
+    ? solicitado
+    : (canalesLegales?.[0]?.canal ?? solicitado);
   const channel_width = Number.isFinite(widthRaw) ? Number(widthRaw) : band === "5" ? 80 : 20;
   const radio: NetJsonRadio = {
     name,
@@ -286,8 +302,7 @@ export function buildRadio(opts: {
     channel,
     channel_width,
   };
-  const country = (opts?.country ?? "").toString().trim();
-  if (country) radio.country = country.toUpperCase().slice(0, 2);
+  if (country) radio.country = country;
   return radio;
 }
 

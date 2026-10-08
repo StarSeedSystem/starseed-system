@@ -26,8 +26,14 @@ import {
   WIFI_RECOVER_SCORE,
 } from "./constants";
 import {
+  ALFA_RESILIENCIA,
+  PESOS_POR_CLASE,
   actualizaResiliencia,
+  observacionResiliencia,
   puntuacionHibrida,
+  puntuaAnchoBanda,
+  puntuaLatencia,
+  puntuaTiempoAire,
   type EstadoResiliencia,
 } from "./camr/metrica";
 import { getConnectivitySettings } from "./connectivity";
@@ -53,6 +59,42 @@ const CLASE_CAMR: Record<TrafficClass, ClaseTrafico> = {
   P2: "tiempo-real",
   P3: "masivo",
 };
+
+/**
+ * Aplica CAMR sin fingir mediciones: la parte observada usa sus puntuadores y
+ * la parte ausente conserva la salud que ya calculaban las sondas del enlace.
+ */
+function puntuacionCamr(
+  m: Medicion,
+  capacidadKbps: number,
+  clase: ClaseTrafico,
+  resiliencia: EstadoResiliencia,
+  saludPrevia: number,
+): number {
+  const pesos = PESOS_POR_CLASE[clase];
+  const resilienciaObservada = m.perdida !== null || m.snrDb !== null;
+  const componentes = {
+    latencia: puntuaLatencia(m.latenciaMs),
+    anchoBanda: puntuaAnchoBanda(m.anchoBandaKbps, capacidadKbps),
+    resiliencia: resiliencia.n > 0 ? resiliencia.ema : observacionResiliencia(m),
+    tiempoAire: puntuaTiempoAire(m.tiempoAireUsado),
+  };
+  const cobertura =
+    (m.latenciaMs !== null ? pesos.latencia : 0) +
+    (m.anchoBandaKbps !== null ? pesos.anchoBanda : 0) +
+    (resilienciaObservada ? pesos.resiliencia : 0) +
+    (m.tiempoAireUsado !== null ? pesos.tiempoAire : 0);
+  if (cobertura < ALFA_RESILIENCIA) return saludPrevia;
+  if (cobertura >= 1 - Number.EPSILON) {
+    return puntuacionHibrida(m, capacidadKbps, clase, resiliencia);
+  }
+  const observada =
+    (m.latenciaMs !== null ? pesos.latencia * componentes.latencia : 0) +
+    (m.anchoBandaKbps !== null ? pesos.anchoBanda * componentes.anchoBanda : 0) +
+    (resilienciaObservada ? pesos.resiliencia * componentes.resiliencia : 0) +
+    (m.tiempoAireUsado !== null ? pesos.tiempoAire * componentes.tiempoAire : 0);
+  return Math.max(0, Math.min(1, observada + (1 - cobertura) * saludPrevia));
+}
 
 /** Solo pruebas: resetea la histéresis. */
 export function _resetRouterHysteresis(): void {
@@ -148,10 +190,10 @@ export function decideRoute(input: DecideRouteInput): RouteDecision {
   }
   const claseCamr = CLASE_CAMR[input.cls];
   const wifiScore = s.wifiHealth.at > 0
-    ? puntuacionHibrida(medicionWifi, capacidadWifiKbps, claseCamr, resilienciaWifi)
+    ? puntuacionCamr(medicionWifi, capacidadWifiKbps, claseCamr, resilienciaWifi, s.wifiHealth.score)
     : s.wifiHealth.score;
   const meshScore = s.meshHealth.at > 0
-    ? puntuacionHibrida(medicionMesh, capacidadMeshKbps, claseCamr, resilienciaMesh)
+    ? puntuacionCamr(medicionMesh, capacidadMeshKbps, claseCamr, resilienciaMesh, s.meshHealth.score)
     : s.meshHealth.score;
   const meshReady = s.status === "ready" || s.status === "degraded";
   const rules = input.neuronRules ?? null;
