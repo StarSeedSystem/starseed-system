@@ -3981,3 +3981,35 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `RSC1006Js` — otra cosa: sin decisión en 0 h; rama ola/RSC1006Js conservada
+
+## 2026-10-08 10:07 · auto-1008-060009
+
+**Lo que se pidió.** Todo Genesis debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.
+
+**Resultado.** 15 de 32 integradas. 17 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 9 tareas se fueron por lo mismo — otra cosa (PT1008C, PRD1005T, DR1007-2, RM3, CAMR1005D, ES1010Q). Es 28 % de la ola.
+- 3 tareas se fueron por lo mismo — los tipos no compilan (p318Jc, R7c, CPA1007K). Es 9 % de la ola.
+- 3 tareas se fueron por lo mismo — no escribió nada (DR1007-1, PRD1005S, DR0919-1). Es 9 % de la ola.
+- sin modelo anotado no integró ninguna de sus 7 tareas.
+- nvidia/deepseek-ai/deepseek-v4-pro-0813 no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `PT1008C` — otra cosa: sin decisión en 0 h; rama ola/PT1008C conservada
+- `PRD1005T` — otra cosa: degenerado: deploy/n8n-hf/flujos/pieza-lista.json: encogió de 51 a 1 líneas (más de la mitad); deploy/n8n-hf/flujos/publicada.json: encogió 
+- `p318Jc` — los tipos no compilan: 4 errores tsc (rama ola/p318Jc conservada)
+- `DR1007-1` — no escribió nada
+- `DR1007-2` — otra cosa: red caída: $ opencode run --model nvidia/moonshotai/kimi-k3 · 2026-10-08 06:37:20 [0m > build · moonshotai/kimi-k3 [0m[0m$ [0mls ~/Docum
+- `RM3` — otra cosa: sin decisión en 0 h; rama ola/RM3 conservada
+- `RM4` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RM4 conservada)
+- `PRD1005S` — no escribió nada
+- `DR0919-1` — no escribió nada
+- `R7c` — los tipos no compilan: 14 errores tsc (rama ola/R7c conservada)
+- `FLU1005Hc` — pruebas en rojo: vitest falla (rama conservada)
+- `CAMR1005D` — otra cosa: sin decisión en 0 h; rama ola/CAMR1005D conservada
+- `ES1010Q` — otra cosa: continúa como ES1010Qb desde la rama nube/37779993996 (traer_nube)
+- `ES1010R` — otra cosa: continúa como ES1010Rb desde la rama nube/37779993996 (traer_nube)
+- `PT1009C` — otra cosa: sin decisión en 0 h; rama ola/PT1009C conservada
+- `CPA1007K` — los tipos no compilan: 5 errores tsc (rama ola/CPA1007K conservada)
+- `RTCAMR1005B` — otra cosa: continúa como RTCAMR1005Bb desde la rama nube/37801771584 (traer_nube)
