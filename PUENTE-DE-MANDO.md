@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 20:25:06 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 22:12:49 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,30 +16,28 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 18 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 35 |
-| HEAD | `b70c161f chore(memoria): aprendizaje de la ola auto-1007-174338` |
-| Sin publicar | 6 commits |
+| HEAD | `52d2df59 chore(memoria): aprendizaje de la ola auto-1007-202759` |
+| Sin publicar | 8 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1007-174338.json`, hace 9s)
+## Quién escribe ahora (latido de `cola-auto-1007-202759.json`, hace 6s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CPA1007B` | hecho | openrouter/thinkingmachines/inklin | 1 min | 43 s | 89049 |
-| `OR1007J` | hecho | openrouter/thinkingmachines/inklin | 13 min | 756 s | 134304 |
-| `CPA1007J` | hecho | openrouter/thinkingmachines/inklin | 29 min | 1749 s | 140186 |
-| `CPA1007G` | hecho | nvidia/moonshotai/kimi-k3 | 30 min | 1807 s | 180654 |
-| `OR1007G` | hecho | openrouter/thinkingmachines/inklin | 31 min | 1850 s | 139957 |
-| `CPA1007D` | hecho | nvidia/moonshotai/kimi-k3 | 51 min | 3043 s | 72724 |
-| `OR1007H` | hecho | nvidia/moonshotai/kimi-k3 | 68 min | 4060 s | 202677 |
-| `OR1007Bs` | hecho | openrouter/thinkingmachines/inklin | 76 min | 4567 s | 81167 |
-| `OR1007F` | hecho | openrouter/thinkingmachines/inklin | 83 min | 4998 s | 81097 |
-| `OR1007I` | hecho | openrouter/thinkingmachines/inklin | 91 min | 5489 s | 167144 |
-| `OR1007E` | hecho | openrouter/thinkingmachines/inklin | 106 min | 6389 s | 154241 |
-| `CPA1007I` | hecho | nvidia/moonshotai/kimi-k3 | 115 min | 6924 s | 153468 |
-| `OR1007D` | hecho | openrouter/thinkingmachines/inklin | 129 min | 7747 s | 122709 |
-| `CPA1007A` | hecho | nvidia/moonshotai/kimi-k3 | 138 min | 8300 s | 93546 |
-| `OR1007B` | hecho | nvidia/moonshotai/kimi-k3 | 142 min | 8548 s | 87310 |
-| `RSC1006J` | hecho | freellmapi/auto | 156 min | 9382 s | 483142 |
+| `CPA1007H` | hecho | codex/gpt-5.6-sol | 1 min | 61 s | 1245311 |
+| `ES1010S` | hecho | freellmapi/auto | 21 min | 1246 s | 209418 |
+| `CPA1007C` | hecho | codex/gpt-5.6-sol | 26 min | 1565 s | 853863 |
+| `CPA1007Bb` | hecho | freellmapi/auto | 27 min | 1646 s | 46129 |
+| `RSC1006Cs` | hecho | freellmapi/auto | 52 min | 3134 s | 238615 |
+| `ES1010L` | hecho | freellmapi/auto | 54 min | 3246 s | 3194 |
+| `RSC1006J` | hecho | freellmapi/auto | 55 min | 3316 s | 487755 |
+| `RSC1006D` | hecho | freellmapi/auto | 58 min | 3478 s | 119338 |
+| `CPA1007B` | hecho | nvidia/moonshotai/kimi-k3 | 61 min | 3659 s | 126682 |
+| `CPA1007G` | hecho | nvidia/moonshotai/kimi-k3 | 64 min | 3834 s | 284989 |
+| `RSC1006Fs` | hecho | freellmapi/auto | 76 min | 4547 s | 17004 |
+| `CPA1007D` | hecho | nvidia/moonshotai/kimi-k3 | 95 min | 5673 s | 92533 |
+| `ES1010K` | hecho | openrouter/thinkingmachines/inklin | 99 min | 5945 s | 251435 |
+| `ES1010Hb` | hecho | codex/gpt-5.6-sol | 101 min | 6049 s | 198899 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
