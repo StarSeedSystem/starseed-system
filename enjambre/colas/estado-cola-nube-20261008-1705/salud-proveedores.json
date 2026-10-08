@@ -1,0 +1,71 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-08 17:04:50",
+  "desde": "2026-09-29 16:09:57",
+  "ultimo_429": "2026-10-07 20:50:54",
+  "sin_cupo_hasta": "2026-10-08 18:00:35",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-08 10:24:38",
+  "desde": "2026-10-01 15:50:18",
+  "ultimo_429": "2026-10-08 06:55:33",
+  "motivo": "$ opencode run --model nvidia/moonshotai/kimi-k3 · 2026-10-08 10:21:52 \u001b[0m > build · moonshotai/kimi-k3 \u001b[0m \u001b[0m$ \u001b[0mls; ls starseed_memo",
+  "sin_cupo_hasta": "2026-10-09 10:25:06"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-08 06:09:44",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-09 06:09:51",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-08 17:04:52",
+  "desde": "2026-09-04 21:02:32",
+  "ultimo_429": "2026-10-06 20:00:05",
+  "sin_cupo_hasta": "2026-10-08 18:00:35",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-08 17:04:53",
+  "desde": "2026-09-30 03:07:41",
+  "ultimo_429": "2026-10-08 15:28:37"
+ },
+ "ultimo_revisor_ok": "groq/openai/gpt-oss-120b",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-08 17:04:53",
+  "desde": "2026-10-04 11:16:01",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "sonda del botón: sin crédito (402)",
+  "ultimo_429": "2026-09-21 03:38:33",
+  "sin_cupo_hasta": "2026-10-09 13:58:23"
+ },
+ "google": {
+  "estado": "vivo",
+  "sin_cupo_hasta": "2026-10-08 18:00:35",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "codex": {
+  "motivo": "$ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/RM6b · 2026-10-08 17:04:12 · promp",
+  "sin_cupo_hasta": "2026-10-09 17:04:19"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-08 17:04:53",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-08 10:37:09 \u001b[0m > build · auto\u001b[0m \u001b[0m→ \u001b[0mRead CLAUDE.md \u001b[0m→ \u001b[0mRead memory/workflow",
+  "sin_cupo_hasta": "2026-10-08 10:54:05"
+ }
+}

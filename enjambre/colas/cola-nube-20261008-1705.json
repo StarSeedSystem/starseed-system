@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261008",
+ "tareas": [
+  {
+   "id": "RM7",
+   "ola": 363,
+   "titulo": "Ajustes y configuracion de red mesh en el panel de ajustes (Senales y redes)",
+   "archivos": [
+    "src/components/settings/accordion/network-section.tsx",
+    "src/components/settings/accordion/red-mesh-section.tsx"
+   ],
+   "depende": [],
+   "prompt": "El usuario debe poder configurar la red mesh y la voz de borde desde Ajustes, no solo desde la pagina Senales. Abre el panel existente en `src/components/settings/accordion/` (por ejemplo `network-section.tsx` o el equivalente existente) y respeta su estructura y claves.\nCrea/amplia una seccion Red Mesh con: (a) Transporte: selector de transporte preferido entre `TRANSPORTES_BWP` (RM3). (b) Autodeteccion: interruptor ON/OFF ligado a `setAutoDetectPref`/`getAutoDetect` de `src/lib/network/device-registry.ts`. (c) Inferencia local: permitir/denegar que este nodo sirva inferencia a la flota (persiste en `starseed.mesh.inferencia-local.v1`, RM1). (d) Voz de borde: activar/desactivar el nivel suptonico (liga a `nivelParaVoz`, RM4) y elegir idioma preferido. (e) Antenas: constancia de que existe el panel de antenas (no duplicarlo; enlazar).\nTodo con TOGGLES VIVOS (preferencia de Alex: UI operativa). Sin any, espanol con acentos, tsc limpio.",
+   "dependencias_ya_en_main": [
+    "RM5"
+   ]
+  }
+ ]
+}
