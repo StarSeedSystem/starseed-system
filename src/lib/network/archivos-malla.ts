@@ -108,6 +108,8 @@ export interface CanalArchivos {
 
 /* ══════════════════════════ 2) Protocolo (puro) ══════════════════════════ */
 
+export type ModoTransferencia = "base64" | "binario";
+
 export type DestinoArchivoTipo = "dispositivo" | "cerebro" | "biblioteca";
 
 export interface DestinoArchivo {
@@ -130,12 +132,16 @@ export interface MsgOferta {
   destino: DestinoArchivo;
   /** Etiqueta legible de quién ofrece (nombre de dispositivo), para la tarjeta de confirmación. */
   origen?: string;
+  /** Modo de transferencia negociado: "binario" = trozos ArrayBuffer sin base64; "base64" = JSON con datosB64 (heredado). */
+  modo?: ModoTransferencia;
 }
 export interface MsgAceptar {
   t: "archivo.aceptar";
   id: string;
   /** Índice del primer trozo que falta (reanudación). Ausente = desde el principio. */
   desde?: number;
+  /** Modo de transferencia confirmado por el receptor. */
+  modo?: ModoTransferencia;
 }
 export interface MsgRechazar {
   t: "archivo.rechazar";
@@ -285,6 +291,47 @@ export function b64ABuf(b64: string): ArrayBuffer {
   const bytes = new Uint8Array(binario.length);
   for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
   return bytes.buffer;
+}
+
+/* ══════════════════════════ 3b) Codificación binaria de trozos ══════════════════════════ */
+
+/** Codifica un trozo binario con cabecera: [id_len:u32][id:utf8][index:u32][datos]. */
+export function encodeChunkBinario(id: string, index: number, datos: ArrayBuffer): ArrayBuffer {
+  const idBytes = new TextEncoder().encode(id);
+  const headerLen = 4 + idBytes.length + 4;
+  const totalLen = headerLen + datos.byteLength;
+  const out = new Uint8Array(totalLen);
+  const view = new DataView(out.buffer);
+  let offset = 0;
+  view.setUint32(offset, idBytes.length, false);
+  offset += 4;
+  out.set(idBytes, offset);
+  offset += idBytes.length;
+  view.setUint32(offset, index, false);
+  offset += 4;
+  out.set(new Uint8Array(datos), offset);
+  return out.buffer;
+}
+
+/** Decodifica un trozo binario codificado con `encodeChunkBinario`. */
+export function decodeChunkBinario(buf: ArrayBuffer): { id: string; index: number; datos: ArrayBuffer } | null {
+  try {
+    const view = new DataView(buf);
+    let offset = 0;
+    const idLen = view.getUint32(offset, false);
+    offset += 4;
+    if (offset + idLen > buf.byteLength) return null;
+    const idBytes = new Uint8Array(buf, offset, idLen);
+    const id = new TextDecoder().decode(idBytes);
+    offset += idLen;
+    if (offset + 4 > buf.byteLength) return null;
+    const index = view.getUint32(offset, false);
+    offset += 4;
+    const datos = buf.slice(offset);
+    return { id, index, datos };
+  } catch {
+    return null;
+  }
 }
 
 /* ══════════════════════════ 4) Almacenamiento de trozos ══════════════════════════ */
@@ -698,6 +745,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   const ofertasEntrantes = new Map<string, MsgOferta>();
   const cancelados = new Set<string>();
   const blobsRecibidos = new Map<string, Blob>();
+  const modoPorId = new Map<string, ModoTransferencia>();
 
   const estados = new Map<string, EstadoTransferencia>();
   let version = 0;
@@ -789,6 +837,10 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
 
     const aviso = tamano > AVISO_BYTES ? `Archivo grande (${(tamano / 1024 / 1024).toFixed(0)} MB): la transferencia puede tardar.` : undefined;
 
+    // Negociar modo: si el canal soporta binario, usamos binario; si no, base64.
+    const modo: ModoTransferencia = canal.enviarBinario ? "binario" : "base64";
+    modoPorId.set(id, modo);
+
     emitir({
       id,
       rol: "enviar",
@@ -814,6 +866,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       trozos,
       tamanoTrozo: TAM_TROZO,
       destino,
+      modo,
     };
     canal.enviar(JSON.stringify(oferta));
     return { ok: true, id, aviso };
@@ -826,6 +879,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (!canal || !archivo || !estado) return;
     actualizarFase(id, "transfiriendo");
     const desde = desdePorId.get(id) ?? 0;
+    const modo = modoPorId.get(id) ?? "base64";
     for (let i = desde; i < estado.trozos; i++) {
       if (cancelados.has(id)) {
         actualizarFase(id, "cancelada");
@@ -843,14 +897,15 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       const inicio = i * TAM_TROZO;
       const fin = Math.min(archivo.size, inicio + TAM_TROZO);
       const datos = await archivo.slice(inicio, fin).arrayBuffer();
-      const msg: MsgChunk = { t: "archivo.chunk", id, index: i, datosB64: bufAB64(datos) };
-      const enviado = canal.enviar(JSON.stringify(msg));
+      let enviado = false;
+      if (modo === "binario" && canal.enviarBinario) {
+        const chunkBin = encodeChunkBinario(id, i, datos);
+        enviado = canal.enviarBinario(chunkBin);
+      } else {
+        const msg: MsgChunk = { t: "archivo.chunk", id, index: i, datosB64: bufAB64(datos) };
+        enviado = canal.enviar(JSON.stringify(msg));
+      }
       if (!enviado) {
-        // El canal está caído (p. ej. peer desconectado a mitad de envío). NO se
-        // marca ese trozo como progreso (sería mentira): se corta con un error
-        // honesto. Reintentar más tarde (misma `idTransferencia`) reanuda desde
-        // el último trozo que el RECEPTOR confirme tener (`archivo.aceptar.desde`),
-        // nunca desde lo que el remitente CREE haber mandado.
         actualizarFase(id, "error", "No se pudo enviar el trozo: el canal está caído. Puedes reintentar; se reanuda desde el último trozo confirmado.");
         return;
       }
@@ -865,6 +920,10 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const estado = estados.get(msg.id);
     if (!estado || estado.rol !== "enviar") return;
     desdePorId.set(msg.id, msg.desde ?? 0);
+    // Respetar el modo confirmado por el receptor.
+    if (msg.modo) {
+      modoPorId.set(msg.id, msg.modo);
+    }
     void transmitir(msg.id);
   }
 
@@ -907,6 +966,10 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };
     const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
 
+    // Negociar modo: si el oferente pide binario y nuestro canal lo soporta, usamos binario.
+    const modo: ModoTransferencia = msg.modo === "binario" && canal.enviarBinario ? "binario" : "base64";
+    modoPorId.set(msg.id, modo);
+
     const estadoBase: EstadoTransferencia = {
       id: msg.id,
       rol: "recibir",
@@ -933,7 +996,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       hashesEsperados.set(msg.id, msg.sha256);
       recibidosPorId.set(msg.id, new Set(yaGuardados));
       emitir({ ...estadoBase, fase: "transfiriendo" });
-      canal.enviar(JSON.stringify({ t: "archivo.aceptar", id: msg.id, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
+      canal.enviar(JSON.stringify({ t: "archivo.aceptar", id: msg.id, modo, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
       return;
     }
 
@@ -958,7 +1021,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     recibidosPorId.set(id, yaGuardados);
     const desde = yaGuardados.size ? Math.max(...Array.from(yaGuardados)) + 1 : 0;
     actualizarFase(id, "transfiriendo");
-    canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
+    // Incluir modo negociado en la aceptación manual.
+    const modo = modoPorId.get(id) ?? "base64";
+    canal.enviar(JSON.stringify({ t: "archivo.aceptar", id, modo, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
   }
 
   function rechazarOferta(id: string, motivo = "Rechazado por el usuario."): void {
@@ -1023,36 +1088,53 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   /* ---------------- despacho ---------------- */
 
   function manejarMensaje(canal: CanalArchivos, data: string | ArrayBuffer, contexto?: ContextoRecepcion): void {
-    if (typeof data !== "string") return; // el camino binario no está implementado hoy (ver cabecera)
-    const msg = parseArchivoMallaMensaje(data);
-    if (!msg) return;
-    switch (msg.t) {
-      case "archivo.oferta":
-        void manejarOferta(canal, msg, contexto);
-        break;
-      case "archivo.aceptar":
-        manejarAceptar(msg);
-        break;
-      case "archivo.rechazar":
-        manejarRechazar(msg);
-        break;
-      case "archivo.chunk":
-        void manejarChunk(msg);
-        break;
-      case "archivo.fin":
-        void manejarFin(canal, msg);
-        break;
-      case "archivo.ok":
-        manejarOk(msg);
-        break;
-      case "archivo.error":
-        manejarErrorRemoto(msg);
-        break;
-      case "archivo.cancelar":
-        manejarCancelarRemoto(msg);
-        break;
-      default:
-        break;
+    if (typeof data === "string") {
+      const msg = parseArchivoMallaMensaje(data);
+      if (!msg) return;
+      switch (msg.t) {
+        case "archivo.oferta":
+          void manejarOferta(canal, msg, contexto);
+          break;
+        case "archivo.aceptar":
+          manejarAceptar(msg);
+          break;
+        case "archivo.rechazar":
+          manejarRechazar(msg);
+          break;
+        case "archivo.chunk":
+          void manejarChunk(msg);
+          break;
+        case "archivo.fin":
+          void manejarFin(canal, msg);
+          break;
+        case "archivo.ok":
+          manejarOk(msg);
+          break;
+        case "archivo.error":
+          manejarErrorRemoto(msg);
+          break;
+        case "archivo.cancelar":
+          manejarCancelarRemoto(msg);
+          break;
+        default:
+          break;
+      }
+    } else {
+      // Camino binario: trozo codificado con encodeChunkBinario.
+      const dec = decodeChunkBinario(data);
+      if (!dec) return;
+      // Procesar trozo binario igual que manejarChunk pero con datos ya decodificados.
+      if (cancelados.has(dec.id)) return;
+      let set = recibidosPorId.get(dec.id);
+      if (!set) {
+        set = new Set<number>();
+        recibidosPorId.set(dec.id, set);
+      }
+      if (set.has(dec.index)) return; // duplicado
+      // Guardar trozo directamente (ya es ArrayBuffer crudo).
+      almacen.guardarTrozo(dec.id, dec.index, dec.datos);
+      set.add(dec.index);
+      actualizarProgreso(dec.id, set.size);
     }
   }
 
