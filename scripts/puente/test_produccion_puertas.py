@@ -70,6 +70,33 @@ def test_escanear_no_confunde_marcadores_de_documentacion_con_claves():
     assert [h["tipo"] for h in pp.escanear_secretos(real)] == ["variable-entorno"]
 
 
+def test_escanear_no_frena_claves_falsas_de_pruebas_ni_plantillas():
+    # (2026-10-08) `test_destilacion_corpus.py` lleva claves falsas para comprobar que se tachan
+    # y frenó 43 commits. Los valores se montan aquí en tiempo de ejecución por la misma razón.
+    falsas = ['API_KEY: "' + "sk-" + "test1234567890ab" + '"',
+              '"apiKey": "' + "sk-" + "proj-1234567890" + '"',
+              '"apiKey": "' + "sk-" + "proj-9876543210" + '"',
+              'aws = "' + "AKIA" + "IOSFODNN7EXAMPLE" + '"']
+    for ruta in ("scripts/puente/test_destilacion_corpus.py", "src/lib/__tests__/x.ts",
+                 "src/lib/a.test.tsx", ".env.example"):
+        assert pp.escanear_secretos(_diff(ruta, falsas)) == [], ruta
+    # Una plantilla con marcadores no frena; un `.env` de verdad sí, por el nombre.
+    assert pp.escanear_secretos(_diff(".env.example", ["OPENAI_API_KEY=" + "tu-clave-aqui"])) == []
+    assert [h["tipo"] for h in pp.escanear_secretos(_diff(".env.production", ["X=1"]))] == ["archivo-env"]
+
+
+def test_escanear_sigue_frenando_claves_reales_en_pruebas_y_codigo():
+    real = "sk-" + "Zq8vR2mL9pXw4Tn7Kd3B"  # forma aleatoria, sin marcador
+    for ruta in ("scripts/puente/test_x.py", "src/lib/x.ts", ".env.example"):
+        assert [h["tipo"] for h in pp.escanear_secretos(_diff(ruta, ['k = "' + real + '"']))] == ["sk"], ruta
+    # Fuera de pruebas, un marcador NO libra: el código de producción no debe llevar claves.
+    falsa = "sk-" + "test1234567890ab"
+    assert [h["tipo"] for h in pp.escanear_secretos(_diff("src/lib/x.ts", ['k = "' + falsa + '"']))] == ["sk"]
+    # El nombre de la variable no libra: cuenta el VALOR.
+    assert [h["tipo"] for h in pp.escanear_secretos(
+        _diff("scripts/puente/test_y.py", ["TEST_API_KEY=" + "Zq8vR2mL9pXw"]))] == ["variable-entorno"]
+
+
 def test_migracion_destructiva():
     assert pp.migracion_destructiva("DROP TABLE users;")[0] is True
     assert pp.migracion_destructiva("truncate t;")[0] is True

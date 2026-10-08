@@ -33,6 +33,24 @@ _SECRETOS = [
 ]
 
 _ENV_NOMBRE = re.compile(r"(^|/)\.env(\.|$)")
+# (2026-10-08) Una PLANTILLA de variables (`.env.example`) no es un `.env`: se revisa línea a
+# línea como cualquier archivo, no se frena entera por el nombre.
+_ENV_PLANTILLA = re.compile(r"(^|/)\.env\.(example|sample|template|dist)$")
+# (2026-10-08) Las pruebas y las plantillas llevan claves FALSAS a propósito («sk-test…»,
+# «sk-proj-…» con dígitos en serie, «AKIA…EXAMPLE») para comprobar que se tachan. Frenaban la autopublicación
+# de 43 commits por `test_destilacion_corpus.py`. En esos archivos —y solo en ellos— un valor
+# con forma de marcador no cuenta; un valor aleatorio de verdad sigue frenando.
+_ARCHIVO_DE_PRUEBA = re.compile(
+    r"(^|/)(test_[^/]*\.py|[^/]*_test\.py|__tests__/.*|[^/]*\.(test|spec)\.[cm]?[jt]sx?)$")
+_MARCADOR = re.compile(
+    r"test|prueba|fake|falso|ejemplo|example|dummy|sample|placeholder|changeme|cambia|your|"
+    r"tu[-_]?clave|aqu[ií]|here|abcdef|123456|456789|987654|654321|xxxx|0000|\.\.\.|…", re.I)
+
+
+def _es_marcador(coincidencia: str) -> bool:
+    """El VALOR (lo que va tras `=` si lo hay) tiene forma de marcador, no de clave."""
+    valor = coincidencia.split("=", 1)[-1]
+    return bool(_MARCADOR.search(valor))
 
 
 def escanear_secretos(diff: str) -> List[Dict[str, Any]]:
@@ -43,6 +61,7 @@ def escanear_secretos(diff: str) -> List[Dict[str, Any]]:
     archivo = ""
     linea_nueva = 0
     env_reportado = False
+    de_prueba = False
     for bruta in str(diff or "").splitlines():
         if bruta.startswith("+++ "):
             archivo = bruta[4:].strip()
@@ -50,7 +69,8 @@ def escanear_secretos(diff: str) -> List[Dict[str, Any]]:
                 archivo = archivo[2:]
             linea_nueva = 0
             env_reportado = False
-            if _ENV_NOMBRE.search(archivo):
+            de_prueba = bool(_ARCHIVO_DE_PRUEBA.search(archivo) or _ENV_PLANTILLA.search(archivo))
+            if _ENV_NOMBRE.search(archivo) and not _ENV_PLANTILLA.search(archivo):
                 hallazgos.append({"archivo": archivo, "linea": 0, "tipo": "archivo-env"})
                 env_reportado = True
             continue
@@ -68,7 +88,10 @@ def escanear_secretos(diff: str) -> List[Dict[str, Any]]:
             for tipo, patron in _SECRETOS:
                 if patron is None:
                     continue
-                if patron.search(texto):
+                m = patron.search(texto)
+                if m and de_prueba and _es_marcador(m.group(0)):
+                    continue
+                if m:
                     hallazgos.append({"archivo": archivo, "linea": linea_nueva, "tipo": tipo})
                     break  # una línea, un hallazgo
         elif not bruta.startswith("-"):
