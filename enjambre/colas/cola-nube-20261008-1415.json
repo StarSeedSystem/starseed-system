@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261008",
+ "tareas": [
+  {
+   "id": "RM5",
+   "ola": 363,
+   "titulo": "Cableado: Senales unifica transporte, inferencia local y voz (paridad en el hub)",
+   "archivos": [
+    "src/components/mesh/signals-center.tsx",
+    "src/app/(app)/senales/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Unifica en la pagina Senales las tres capacidades nuevas sin romper lo existente. Abre `src/app/(app)/senales/page.tsx`, `src/components/mesh/signals-center.tsx` (props `embedded`,`compact`), `src/ai/astraura/mesh/transporte-bwp.ts` (RM3), `src/lib/network/inferencia-local.ts` (RM1) y `src/lib/aurora/voz-starseed/supertonic.ts` (RM4).\n1) En `SignalsCenter` anade: (a) Transporte: resumen de `TRANSPORTES_BWP` con `estadoTransporte` sobre los vinculos activos. (b) Inferencia: `PanelInferencia` (RM2) con su `compact` ligado a la prop homonima. (c) Voz de borde: indicador Voz suptonica/1.58 local con `soporteSupertonic` y `nivelParaVoz` y un boton que dispara una sintesis corta si el runtime esta (si no, en gris con motivo).\n2) PARIDAD: todo debe aparecer tambien en el hub de conexiones con el modo `embedded`, no solo en la pagina. 3) Manten `startMeshSubsystem()` en la pagina; cualquier ajuste persistente bajo claves ya existentes (`starseed.*`) o nuevas v1. Anade sin eliminar nada. tsc limpio.",
+   "dependencias_ya_en_main": [
+    "RM2",
+    "RM3",
+    "RM4"
+   ]
+  }
+ ]
+}
