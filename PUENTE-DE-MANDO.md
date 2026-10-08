@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 23:48:16 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-07 23:59:42 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,24 +16,16 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 18 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 35 |
-| HEAD | `bbd4fa46 chore(memoria): aprendizaje de la ola auto-1007-221612` |
-| Sin publicar | 7 commits |
+| HEAD | `0cb90004 chore(memoria): aprendizaje de la ola auto-1007-234918` |
+| Sin publicar | 8 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1007-221612.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1007-234918.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CPA1007E` | hecho | nvidia/moonshotai/kimi-k3 | 1 min | 45 s | 132160 |
-| `RSC1006Ds` | hecho | freellmapi/auto | 4 min | 254 s | 110143 |
-| `RSC1006Js` | hecho | apinex/free/deepseek-v4-pro-0813 | 10 min | 622 s | 86015 |
-| `RSC1006J` | hecho | freellmapi/auto | 29 min | 1769 s | 593027 |
-| `CPA1007F` | hecho | freellmapi/auto | 32 min | 1916 s | 102774 |
-| `ES1010L` | hecho | freellmapi/auto | 33 min | 1973 s | 117975 |
-| `RSC1006Fs` | hecho | freellmapi/auto | 64 min | 3812 s | 93033 |
-| `RSC1006D` | hecho | freellmapi/auto | 66 min | 3930 s | 141580 |
-| `CPA1007D` | hecho | nvidia/moonshotai/kimi-k3 | 80 min | 4781 s | 129428 |
-| `ES1010Hb` | hecho | nvidia/moonshotai/kimi-k3 | 87 min | 5217 s | 255595 |
+| `RSC1006Js` | hecho | freellmapi/auto | 1 min | 33 s | 98191 |
+| `ES1010Hb` | hecho | nvidia/moonshotai/kimi-k3 | 7 min | 408 s | 301645 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
