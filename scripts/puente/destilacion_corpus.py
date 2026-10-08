@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Destilación de respuestas del enjambre para el entrenamiento de Astraura.
+"""Corpus de destilación: el enjambre ya es el maestro de Astraura.
 
-Extrae diffs limpios de git y filtra cualquier secreto o revisión bloqueante
-para garantizar la seguridad y calidad del corpus de entrenamiento.
+Cada tarea integrada es una demostración supervisada: encargo, respuesta de un
+modelo fuerte y un diff que pasó las puertas. Este módulo recoge esos ejemplos
+en starseed_memory_root/destilacion/corpus.jsonl SIN secretos: cualquier línea
+sospechosa se sustituye por una marca, nunca se escribe el valor.
 """
 
 import json
@@ -10,162 +12,226 @@ import os
 import re
 import subprocess
 
-# Regla 1: Nombres de claves sensibles seguidos de : o =
+# Regla 1: nombre de variable sensible seguido de = o : (JSON, YAML, env, código)
 PATRON_CLAVE_SENSIBLE = re.compile(
     r'(?i)["\']?[\w\.-]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)[\w\.-]*["\']?\s*[:=]'
 )
 
-# Regla 2: Prefijos explícitos de tokens conocidos
+# Regla 2: prefijos inequívocos de tokens conocidos (OpenAI, GitHub, Slack, Google…)
 PATRON_TOKEN_EXPLICITO = re.compile(
-    r"(?:sk-[a-zA-Z0-9_\-]*"
-    r"|ghp_[a-zA-Z0-9_\-]*"
-    r"|gho_[a-zA-Z0-9_\-]*"
-    r"|github_pat_[a-zA-Z0-9_\-]*"
-    r"|xoxb-[a-zA-Z0-9_\-]*"
-    r"|AIza[0-9A-Za-z\-_]*"
+    r"(?:sk-[a-zA-Z0-9_\-]+"
+    r"|ghp_[a-zA-Z0-9_\-]+"
+    r"|gho_[a-zA-Z0-9_\-]+"
+    r"|github_pat_[a-zA-Z0-9_\-]+"
+    r"|xox[bap]-[a-zA-Z0-9_\-]+"
+    r"|AIza[0-9A-Za-z\-_]+"
+    r"|eyJ[a-zA-Z0-9_\-\.]+"  # JWT
+    r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
     r"|Bearer\s+\S+)"
 )
 
-# Regla 3: Hashes o base64 de 32+ caracteres asociados a credenciales
-PATRON_HASH_LARGO = re.compile(
-    r"(?i)(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|Bearer).*?[a-zA-Z0-9_\-/+=]{32,}"
-)
+# Marca que sustituye a la línea retirada: deja constancia sin filtrar el valor
+MARCA_SECRETO = "# [SECRETO ELIMINADO DEL CORPUS]"
 
 
 def es_linea_secreta(linea: str) -> bool:
-    """Comprueba si una línea contiene alguna forma de secreto o clave.
-
-    Aplica tres capas de filtrado:
-    1. Presencia de nombres clave de credenciales (KEY, TOKEN, SECRET, etc.) con = o :
-    2. Prefijos explícitos de tokens conocidos (sk-, ghp_, gho_, github_pat_, xoxb-, AIza, Bearer)
-    3. Cadenas de 32+ caracteres asociadas a términos sensibles.
-    """
     if not linea:
         return False
-    if PATRON_CLAVE_SENSIBLE.search(linea):
-        return True
-    if PATRON_TOKEN_EXPLICITO.search(linea):
-        return True
-    if PATRON_HASH_LARGO.search(linea):
-        return True
-    return False
+    return bool(
+        PATRON_CLAVE_SENSIBLE.search(linea)
+        or PATRON_TOKEN_EXPLICITO.search(linea)
+    )
 
 
-def filtrar_lineas_secretas(texto: str) -> str:
-    """Elimina del texto cualquier línea que contenga secretos.
-
-    Ante la duda, descarta la línea completa para evitar fuga de secretos al corpus.
-    """
+def limpiar_secretos(texto: str) -> str:
+    """Sustituye cada línea con secreto por la marca; ante la duda, fuera."""
     if not texto:
         return ""
-    lineas = texto.splitlines()
-    lineas_limpias = [l for l in lineas if not es_linea_secreta(l)]
-    return "\n".join(lineas_limpias)
+    return "\n".join(
+        MARCA_SECRETO if es_linea_secreta(l) else l for l in texto.splitlines()
+    )
 
 
-def contiene_secreto(texto: str) -> bool:
-    """Indica si el texto contiene alguna línea con secreto."""
-    if not texto:
-        return False
-    return any(es_linea_secreta(l) for l in texto.splitlines())
+def _es_revision_bloqueante(entrada_progreso: dict) -> bool:
+    """Bloqueante solo por campo estructurado; las notas en prosa no deciden.
 
-
-def obtener_diff_limpio(sha: str, cwd: str = ".") -> str:
-    """Obtiene el diff de código sin cabecera de commit usando git show --format=.
-
-    El parámetro --format= suprime el mensaje de commit y metadatos de git show,
-    dejando únicamente los cambios de código puros.
+    Así «no es bloqueante» no descarta un ejemplo válido, y una objeción
+    redactada con otras palabras tampoco cuela: manda el campo, no el texto.
     """
-    if not sha or not isinstance(sha, str):
-        return ""
-    try:
-        resultado = subprocess.run(
-            ["git", "show", "--format=", sha],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return resultado.stdout.strip()
-    except Exception:
-        return ""
+    revision = entrada_progreso.get("revision")
+    if isinstance(revision, dict):
+        if revision.get("bloqueante") is True:
+            return True
+        verdict = str(revision.get("veredicto", "")).lower()
+        return verdict == "bloqueante"
+    if isinstance(revision, str):
+        return revision.lower() == "bloqueante"
+    return str(entrada_progreso.get("revisor", "")).lower() == "bloqueante"
 
 
-def procesar_entrada_progreso(entrada: dict, cwd: str = ".") -> dict | None:
-    """Procesa un registro de progreso.json excluyendo bloqueantes y secretos.
+def ejemplo_de_tarea(tarea: dict, entrada_progreso: dict, diff: str) -> dict | None:
+    """Convierte una tarea integrada en ejemplo de destilación, o None.
 
-    Usa el campo estricto 'revisor' (debe no ser 'bloqueante') y filtra
-    el diff obtenido excluyendo cualquier línea con potenciales secretos.
+    Solo entra calidad demostrada: estado `commit` y revisión no bloqueante.
+    Una tarea rechazada no es un mal ejemplo, es ruido: fuera.
     """
-    if not isinstance(entrada, dict):
+    if not isinstance(tarea, dict) or not isinstance(entrada_progreso, dict):
         return None
 
-    # Exclusión de revisiones bloqueantes usando el campo exacto del registro
-    if entrada.get("revisor") == "bloqueante":
+    estado = str(entrada_progreso.get("estado", "")).lower()
+    sha = entrada_progreso.get("sha") or entrada_progreso.get("commit") or ""
+    # Si hay estado registrado debe ser `commit`; sin estado, el sha lo avala
+    if estado and estado != "commit":
         return None
-
-    sha = entrada.get("commit") or entrada.get("sha")
     if not sha:
         return None
-
-    diff_raw = obtener_diff_limpio(sha, cwd=cwd)
-    if not diff_raw:
+    # Validación del SHA: cierra la inyección de opciones a git show
+    if not re.fullmatch(r"[0-9a-fA-F]{7,40}", str(sha)):
+        return None
+    if _es_revision_bloqueante(entrada_progreso):
         return None
 
-    # Si la descripción de la tarea contiene secretos, descartamos la entrada
-    descripcion = entrada.get("tarea") or entrada.get("descripcion") or ""
-    if contiene_secreto(descripcion):
-        return None
+    encargo = tarea.get("encargo") or tarea.get("titulo") or tarea.get("descripcion") or ""
+    if es_linea_secreta(encargo):
+        return None  # un encargo con clave contamina el par entero
 
-    # Filtramos líneas con secretos dentro del diff
-    diff_limpio = filtrar_lineas_secretas(diff_raw)
-    if not diff_limpio:
+    respuesta = limpiar_secretos(diff or "")
+    if not respuesta.strip():
         return None
 
     return {
-        "id": entrada.get("id", ""),
-        "tarea": descripcion,
-        "sha": sha,
-        "diff": diff_limpio,
+        "encargo": encargo,
+        "respuesta": respuesta,
+        "modelo": tarea.get("modelo") or entrada_progreso.get("modelo") or "",
+        "area": tarea.get("area") or entrada_progreso.get("area") or "",
+        "calidad": "cuatro-puertas",
+        "sha": str(sha),
     }
 
 
-def generar_corpus(progreso_path: str, output_path: str, cwd: str = ".") -> int:
-    """Genera el corpus de destilación en formato JSONL a partir de progreso.json.
-
-    Lee el archivo de progreso, filtra entradas bloqueantes o inseguras,
-    y escribe los ejemplos válidos en un archivo JSONL.
-
-    Retorna el número de ejemplos exportados.
-    """
-    if not os.path.exists(progreso_path):
-        return 0
-
-    try:
-        with open(progreso_path, "r", encoding="utf-8") as f:
-            datos = json.load(f)
-    except Exception:
-        return 0
-
+def _normalizar_registros(datos) -> list[dict]:
+    """Acepta lista de entradas o dict con colección y devuelve lista plana."""
+    if isinstance(datos, list):
+        return [d for d in datos if isinstance(d, dict)]
     if isinstance(datos, dict):
-        entradas = datos.get("tareas", []) or datos.get("registros", []) or [datos]
-    elif isinstance(datos, list):
-        entradas = datos
-    else:
-        return 0
+        for clave in ("tareas", "registros", "entradas"):
+            if isinstance(datos.get(clave), list):
+                return [d for d in datos[clave] if isinstance(d, dict)]
+        return [datos]
+    return []
 
-    ejemplos_validos = []
+
+def recoger(progreso, tareas, leer_diff) -> list[dict]:
+    """Recorre el progreso y devuelve ejemplos, sin duplicados por sha.
+
+    Pura salvo por `leer_diff(sha)`, que se inyecta: así las pruebas no
+    tocan git y el orquestador decide cómo leer el diff.
+    """
+    entradas = _normalizar_registros(progreso)
+    catalogo = {t.get("id"): t for t in _normalizar_registros(tareas) if t.get("id")}
+
+    ejemplos: list[dict] = []
+    shas_vistos: set[str] = set()
     for entrada in entradas:
-        ejemplo = procesar_entrada_progreso(entrada, cwd=cwd)
-        if ejemplo:
-            ejemplos_validos.append(ejemplo)
+        tarea = catalogo.get(entrada.get("id"), entrada)
+        sha = str(entrada.get("sha") or entrada.get("commit") or "")
+        if sha and sha in shas_vistos:
+            continue  # un sha = un ejemplo; el primero gana
+        diff = leer_diff(sha) if sha else ""
+        ejemplo = ejemplo_de_tarea(tarea, entrada, diff)
+        if ejemplo is None:
+            continue
+        shas_vistos.add(ejemplo["sha"])
+        ejemplos.append(ejemplo)
+    return ejemplos
 
-    if ejemplos_validos and output_path:
-        dir_salida = os.path.dirname(output_path)
-        if dir_salida:
-            os.makedirs(dir_salida, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            for ex in ejemplos_validos:
-                f.write(json.dumps(ex, ensure_ascii=False) + "\n")
 
-    return len(ejemplos_validos)
+RAIZ_MEMORIA = os.environ.get(
+    "STARSEED_MEMORY_ROOT",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "starseed_memory_root"),
+)
+RUTA_CORPUS = os.path.join(RAIZ_MEMORIA, "destilacion", "corpus.jsonl")
+
+
+def obtener_diff_limpio(sha: str, cwd: str = ".") -> str:
+    """git show --format= : solo el diff, sin mensaje de commit ni metadatos,
+    porque el corpus debe contener código y no prosa de integración."""
+    if not re.fullmatch(r"[0-9a-fA-F]{7,40}", str(sha or "")):
+        return ""
+    try:
+        r = subprocess.run(
+            ["git", "show", "--format=", sha],
+            cwd=cwd, capture_output=True, text=True, check=True,
+        )
+        return r.stdout.strip()
+    except Exception:
+        return ""
+
+
+def _leer_json(ruta: str):
+    if not ruta or not os.path.exists(ruta):
+        return []
+    try:
+        with open(ruta, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _shas_ya_en_corpus(ruta: str) -> set[str]:
+    shas: set[str] = set()
+    if not os.path.exists(ruta):
+        return shas
+    with open(ruta, "r", encoding="utf-8") as f:
+        for linea in f:
+            try:
+                sha = json.loads(linea).get("sha")
+                if sha:
+                    shas.add(sha)
+            except Exception:
+                continue
+    return shas
+
+
+def main() -> None:
+    """Añade al corpus solo los ejemplos nuevos y resume área y maestro."""
+    destino = os.path.join(RAIZ_MEMORIA, "olas", "destilacion")
+    progreso = _leer_json(os.path.join(destino, "progreso.json"))
+    if not progreso:
+        progreso = _leer_json(os.path.join(RAIZ_MEMORIA, "olas", "progreso.json"))
+    tareas = _leer_json(os.path.join(destino, "tareas.json"))
+
+    nuevos = recoger(progreso, tareas, obtener_diff_limpio)
+    existentes = _shas_ya_en_corpus(RUTA_CORPUS)
+    anadir = [e for e in nuevos if e["sha"] not in existentes]
+
+    os.makedirs(os.path.dirname(RUTA_CORPUS), exist_ok=True)
+    with open(RUTA_CORPUS, "a", encoding="utf-8") as f:
+        for e in anadir:
+            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+
+    # Resumen por área y por modelo maestro sobre TODO el corpus
+    por_area: dict[str, int] = {}
+    por_modelo: dict[str, int] = {}
+    total = 0
+    with open(RUTA_CORPUS, "r", encoding="utf-8") as f:
+        for linea in f:
+            try:
+                e = json.loads(linea)
+            except Exception:
+                continue
+            total += 1
+            por_area[e.get("area") or "sin-area"] = por_area.get(e.get("area") or "sin-area", 0) + 1
+            mod = e.get("modelo") or "sin-modelo"
+            por_modelo[mod] = por_modelo.get(mod, 0) + 1
+
+    print(f"Corpus: {total} ejemplos ({len(anadir)} nuevos) en {RUTA_CORPUS}")
+    for area, n in sorted(por_area.items()):
+        print(f"  área {area}: {n}")
+    for modelo, n in sorted(por_modelo.items()):
+        print(f"  maestro {modelo}: {n}")
+
+
+if __name__ == "__main__":
+    main()
