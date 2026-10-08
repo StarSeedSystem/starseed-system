@@ -41,6 +41,7 @@ from medios import (
     renovar_arriendo,
     repartir,
     vencer_arriendos,
+    ordenar_medios,
 )
 
 # Qué pasarelas caben para un prompt de este tamaño. Fuera del archivo para poder probar la
@@ -1791,9 +1792,23 @@ except Exception:  # sin el módulo, se comporta como antes: bloquear siempre
         @staticmethod
         def motivo(ids, estados, v):
             return "dependencia no integrada: " + ", ".join(
-                "%s (%s)" % (i, e) for i, e in zip(ids, estados) if e != "commit"
-            )
+                 "%s (%s)" % (i, e) for i, e in zip(ids, estados) if e != "commit"
+             )
 
+try:
+    _rp = os.path.join(ROOT, "scripts", "puente")
+    if _rp not in sys.path:
+        sys.path.insert(0, _rp)
+    import jev_enrutado as _jev_enrutado
+except Exception:  # sin el módulo, se comporta como antes: usar orden determinista
+    class _jev_enrutado(object):  # noqa: N801
+        @staticmethod
+        def elegir_medio(tarea, candidatos, historial, jev=None):
+            if not candidatos:
+                return "", "orden determinista"
+            if len(candidatos) == 1:
+                return candidatos[0], "orden determinista"
+            return candidatos[0], "orden determinista"
 
 def dependencias_ok(t):
     """¿Están INTEGRADAS las dependencias duras de esta tarea? (2026-09-07, Ola 261)
@@ -5872,18 +5887,24 @@ def reservar_tarea(tarea):
             wt_previo if os.path.isdir(wt_previo) else os.path.join(WT_BASE, tarea_id)
         )
         para_plan["reanudar"] = tarea_id in vencidos
-        plan = repartir(
-            [para_plan],
-            aptos,
-            vigentes,
-            datos["historial"],
-            instante,
-            ARRIENDO_S,
-            LATIDO_MEDIO_MAX_S,
-            COLGADO_S,
-        )
-        datos["arriendos"] = plan["arriendos"]
-        return datos["arriendos"].get(tarea_id)
+        # Elegir medio mediante Jev
+        orden = ordenar_medios(tarea, aptos, datos["historial"])
+        if not orden:
+            return None
+        elegido, motivo = _jev_enrutado.elegir_medio(tarea, orden, datos["historial"], jev=None)
+        arriendo = {
+            "tarea": tarea_id,
+            "medio": elegido,
+            "area": area_de_tarea(tarea),
+            "desde": instante,
+            "renovado": instante,
+            "vence": instante + ARRIENDO_S,
+            "worktree": para_plan["worktree"],
+            "reanudar": para_plan["reanudar"],
+            "motivo": motivo,
+        }
+        datos["arriendos"][tarea_id] = arriendo
+        return arriendo
 
     arriendo = _cambiar_medios(cambio)[0]
     if not arriendo or arriendo.get("medio") not in MEDIOS_LOCALES.values():
