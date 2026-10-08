@@ -29,6 +29,24 @@ describe("transporte BWP", () => {
     ]);
   });
 
+  it("mantiene el orden original si el preferido no se especifica o no está disponible", () => {
+    const disponibles: TransporteBwp[] = ["wifi-mesh", "usb-serial"];
+
+    expect(transportesOrdenados(disponibles)).toEqual(["wifi-mesh", "usb-serial"]);
+    expect(transportesOrdenados(disponibles, "wifi-halo")).toEqual([
+      "wifi-mesh",
+      "usb-serial",
+    ]);
+  });
+
+  it("devuelve offline si no hay vínculos", () => {
+    expect(estadoTransporte([])).toEqual({
+      online: false,
+      mejor: null,
+      totalKbps: 0,
+    });
+  });
+
   it("suma las tasas y elige el mejor vínculo por prioridad", () => {
     expect(
       estadoTransporte([

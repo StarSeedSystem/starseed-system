@@ -844,6 +844,15 @@ export type {
   TrafficClass,
   MeshPayloadType,
 } from "./types";
+export {
+  TRANSPORTES_BWP,
+  transportesOrdenados,
+  estadoTransporte,
+  type TransporteBwp,
+  type DescripcionTransporteBwp,
+  type VinculoBwp,
+  type EstadoTransporteBwp,
+} from "./transporte-bwp";
 export { estimateChunkAirtimeMs };
 export {
   NODOS_INFERENCIA_LOCAL_STORAGE,
