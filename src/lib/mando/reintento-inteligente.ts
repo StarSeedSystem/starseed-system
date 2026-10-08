@@ -259,6 +259,11 @@ export interface EjecucionReintentoResultado {
     reencoladas: TareaReencolada[];
 }
 
+/** Una sucesora que nadie llegó a hacer: su cola desapareció antes (`reconciliar_progreso.py`). */
+export function esHuerfana(tarea: Pick<TareaAnalizar, "estado" | "nota">): boolean {
+    return String(tarea.estado ?? "").toLowerCase() === "sustituida" && /^\s*huérfana/i.test(String(tarea.nota ?? ""));
+}
+
 export function ejecutarReintentoInteligente(p: EjecucionReintentoParams): EjecucionReintentoResultado {
     const colas = p.colasTareas ?? [];
     const universo = [...extraerIdsProgreso(p.progreso), ...colas.map((t) => t.id)];
@@ -269,7 +274,14 @@ export function ejecutarReintentoInteligente(p: EjecucionReintentoParams): Ejecu
         const base = obtenerBaseId(pedido);
         if (cadenasProcesadas.has(base)) continue;
         cadenasProcesadas.add(base);
-        const cadena = idsCadena(pedido, universo);
+        // (2026-10-08) Una sucesora «huérfana» (la creó una reparación, pero su cola desapareció
+        // antes de que nadie la cogiera: «huérfana: ninguna cola fuente la define ya») no es el
+        // final de la cadena: nadie la hizo. Contarla como último eslabón dejaba la cadena
+        // muerta para siempre —PRD1005S esperaba aprobación con revisión bloqueante, su
+        // sucesora PRD1005Sb era huérfana del 10-05, y «reparar» respondía «ya vive con otro
+        // id»—. Se salta y se repara desde el último eslabón real, con un id nuevo.
+        const cadena = idsCadena(pedido, universo).filter((id) => id === pedido || !esHuerfana(
+            obtenerTareaAnalizar(id, p.progreso, colas)));
         const ultimoId = cadena.at(-1) ?? pedido;
         const tarea = obtenerTareaAnalizar(ultimoId, p.progreso, colas);
         if (ultimoId !== pedido && VIVOS.has(String(tarea.estado ?? "").toLowerCase())) {

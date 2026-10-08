@@ -1,9 +1,27 @@
-"""Servicio de Flujos de Genesis: bucle, reanudación y avisos."""
+"""Servicio de Flujos de Genesis: bucle, reanudación y avisos.
+
+Lo lanza launchd como SCRIPT (`python3 …/flujos/servicio.py`, `instalar-servicios.py`), no como
+módulo. (2026-10-08, medido) Con los imports relativos de abajo eso moría al arrancar con
+«attempted relative import with no known parent package» y launchd lo relanzaba cada 30 s:
+`com.starseed.flujos` llevaba días en un bucle de caídas (último estado 1) en una Mac sin RAM,
+y la autocuración se colgaba 30 s intentando reiniciarlo. Si no hay paquete, se monta el de
+`scripts.puente.flujos` desde la raíz del repo antes de importar nada.
+"""
 from __future__ import annotations
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+
+if not __package__:
+    _RAIZ = str(Path(__file__).resolve().parents[3])
+    if _RAIZ not in sys.path:
+        sys.path.insert(0, _RAIZ)
+    import importlib
+
+    importlib.import_module("scripts.puente.flujos")
+    __package__ = "scripts.puente.flujos"
 
 from .disparadores import pendientes
 from .modelo import RAIZ_FLUJOS
@@ -61,5 +79,10 @@ def main() -> None:
         time.sleep(INTERVALO)
 
 if __name__ == "__main__":
+    if "--comprobar" in sys.argv:
+        # Arranque en seco: importa todo y sale. Lo usa la prueba y quien quiera saber si
+        # el servicio puede arrancar sin dejarlo en bucle.
+        print("flujos: listo")
+        sys.exit(0)
     main()
 

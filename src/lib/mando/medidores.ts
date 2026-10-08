@@ -12,6 +12,7 @@
 // -----------------------------------------------------------------------------
 
 import { ETAPAS, etapaDeFase } from "@/lib/mando/etapas";
+import { estadoDeDependencia } from "@/lib/mando/cadenas";
 import { resumenDeCambios, type ArchivoCambiado, type Ubicacion } from "@/lib/mando/integradas";
 import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-operativo";
 
@@ -554,6 +555,7 @@ export function fichaDeBloqueada(
     estadoDe: (id: string) => string | undefined,
     titulo: (id: string) => string,
     entrada?: DatosMedidores["progreso"][string],
+    via?: (id: string) => string | undefined,
 ): { ficha: DatoDeFicha[]; veredicto: string; muerta: boolean } {
     const ficha: DatoDeFicha[] = [];
     const deps = dependenciaDeNota(nota);
@@ -597,8 +599,10 @@ export function fichaDeBloqueada(
                 : esMuerta
                   ? `${est} — no se va a integrar sola`
                   : TERMINALES.has(est)
-                    ? `${est} — ya está: esto puede desbloquearse`
-                    : est,
+                    ? `${est} — ya está${via?.(dep) ? ` (la integró ${via(dep)})` : ""}: esto puede desbloquearse`
+                    : via?.(dep)
+                      ? `${est} — la rehace ${via(dep)}: llega cuando ${via(dep)} se integre`
+                      : est,
             aviso: esFantasma || esMuerta,
         });
     }
@@ -917,43 +921,33 @@ export function agruparPorTarea<T extends { tarea: string; minutos: number }>(
     return [...porTarea.values()];
 }
 
-/** Estados en los que una dependencia ya está hecha y no frena a nadie. */
-const DEPENDENCIA_CUMPLIDA = new Set(["commit", "hecho"]);
-
-/**
- * Estados en los que una dependencia NO VA A LLEGAR NUNCA, y por tanto tampoco frena.
- *
- * (2026-09-22, medido) JF2 esperaba a JF1, y JF1 estaba así en el progreso:
- *   {"estado": "sustituida", "nota": "huérfana: ninguna cola fuente la define ya"}
- * Es decir: JF1 ya no existe. Esperar a algo que nadie va a hacer no es una dependencia,
- * es un candado. Con la regla vieja, JF2 se quedaba «lista» para siempre sin que nadie
- * pudiera cogerla, y Genesis lo contaba como trabajo disponible.
- */
-const DEPENDENCIA_IMPOSIBLE = new Set(["sustituida", "descartada", "rechazada"]);
-
 /** El estado con el que se marca una tarea que no se puede coger porque espera a otra. */
 export const ESPERA_A_OTRA = "espera a otra tarea";
 
 /**
  * Qué dependencias le faltan a una tarea para poder empezar. PURA.
  *
- * Vale [] cuando no depende de nada o cuando todas están integradas. Una dependencia que
- * no existe en el progreso cuenta como NO cumplida: es justo el caso de `p318Jb`, que
- * espera a un `p318I` que nunca se creó, y llevaba semanas apareciendo como «lista».
+ * Vale [] cuando no depende de nada o cuando todas están integradas. (2026-10-08) La regla es
+ * la del orquestador y la del vigilante, no una propia (`cadenas.ts`): una dependencia solo deja
+ * de frenar cuando ELLA o una SUCESORA de su cadena está en main. Antes «sustituida»,
+ * «descartada» y «rechazada» se daban por cumplidas (el caso JF1 del 2026-09-22) y Genesis
+ * enseñaba «RM7 · se puede coger ya» con RM6 rehaciéndose en RM6b: el orquestador no la iba a
+ * coger nunca. Una dependencia que no va a llegar no se esconde: frena, y «Bloqueadas» dice que
+ * no tiene salida para repararla o borrarla. Una que no existe en el progreso también frena
+ * (`p318Jb` esperando a un `p318I` que nunca se creó).
  */
 export function dependenciasQueFaltan(
     depende: string[] | undefined,
     progreso: Record<string, { estado?: string } | undefined>,
     asuntosDeMain?: string | null,
+    otrosIds: Iterable<string> = [],
 ): string[] {
+    const ids = [...Object.keys(progreso), ...otrosIds];
+    const enMain = (id: string) => typeof asuntosDeMain === "string" && idIntegradoEnAsuntos(id, asuntosDeMain);
     return (depende ?? []).filter((dep) => {
         const id = String(dep || "").trim();
         if (!id) return false;
-        const estadoDep = progreso[id]?.estado ?? "";
-        if (DEPENDENCIA_CUMPLIDA.has(estadoDep)) return false;
-        if (DEPENDENCIA_IMPOSIBLE.has(estadoDep)) return false;
-        if (typeof asuntosDeMain === "string" && idIntegradoEnAsuntos(id, asuntosDeMain)) return false;
-        return true;
+        return !estadoDeDependencia(id, (k) => progreso[k]?.estado, ids, enMain).cumplida;
     });
 }
 
@@ -978,6 +972,7 @@ export function ejecutablesDeColas(
 ): { id: string; titulo: string; ola?: string; esperaA?: string[] }[] {
     const vistos = new Set<string>();
     const salida: { id: string; titulo: string; ola?: string; esperaA?: string[] }[] = [];
+    const idsDeColas = colas.map((t) => t.id).filter(Boolean);
     for (const t of colas) {
         if (!t.id || vistos.has(t.id)) continue;
         if ((t.cola ?? "").startsWith("auto-")) continue;
@@ -988,7 +983,7 @@ export function ejecutablesDeColas(
         vistos.add(t.id);
         if (!ABIERTOS.has(progreso[t.id]?.estado ?? "")) continue;
         if (idIntegradoEnAsuntos(t.id, asuntosDeMain)) continue;
-        const faltan = dependenciasQueFaltan(t.dependencias, progreso, asuntosDeMain);
+        const faltan = dependenciasQueFaltan(t.dependencias, progreso, asuntosDeMain, idsDeColas);
         salida.push({
             id: t.id,
             titulo: t.titulo ?? "",
@@ -1464,8 +1459,22 @@ export function detalleDeMedidor(
             // reparar bloqueos que se resuelven solos.
             const vivaEnCola = (id: string) =>
                 Boolean(d.fila?.some((t) => t.id === id)) || d.ejecutables.some((t) => t.id === id);
-            const estadoDeBloqueadas = (id: string) =>
+            // (2026-10-08) El estado de una dependencia es el de su CADENA (`cadenas.ts`, la regla
+            // del orquestador): «RM6 sustituida» con RM6b rehaciéndola es una espera viva, no una
+            // muerta; y una sucesora ya integrada la cumple.
+            const estadoPropio = (id: string) =>
                 d.progreso[id]?.estado ?? (vivaEnCola(id) ? "en cola" : undefined);
+            const idsConocidos = [
+                ...Object.keys(d.progreso),
+                ...(d.fila?.map((t) => t.id) ?? []),
+                ...d.ejecutables.map((t) => t.id),
+            ];
+            const enCadena = (id: string) => estadoDeDependencia(id, estadoPropio, idsConocidos);
+            const estadoDeBloqueadas = (id: string) => {
+                const r = enCadena(id);
+                return r.via ? r.estado : estadoPropio(id);
+            };
+            const viaDe = (id: string) => enCadena(id).via;
             const idsBloqueadosOperativos = d.fila
                 ? obtenerIdsBloqueados(d.fila, d.latidos)
                 : null;
@@ -1485,7 +1494,7 @@ export function detalleDeMedidor(
                         const b =
                             v.estado === "bloqueante"
                                 ? null
-                                : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v);
+                                : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v, viaDe);
                         filasOperativas.push({
                             id,
                             titulo: titulo(id),
@@ -1529,7 +1538,7 @@ export function detalleDeMedidor(
                         const b = pend.length
                             ? fichaDeBloqueada(`dependencia no integrada: ${pend.join(", ")}`, estadoDeBloqueadas, titulo, {
                                   estado: "bloqueada",
-                              })
+                              }, viaDe)
                             : null;
                         filasOperativas.push({
                             id,
@@ -1554,7 +1563,7 @@ export function detalleDeMedidor(
                 // mismo; lo detectaron dos pruebas, no una revisión.
                 for (const [id, v] of todasBloqueadasProgreso) {
                     const b =
-                        v.estado === "bloqueante" ? null : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v);
+                        v.estado === "bloqueante" ? null : fichaDeBloqueada(v.nota, estadoDeBloqueadas, titulo, v, viaDe);
                     filasOperativas.push({
                         id,
                         titulo: titulo(id),

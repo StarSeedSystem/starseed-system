@@ -499,38 +499,56 @@ describe("un agente sin pasarela NO está escribiendo (2026-09-22)", () => {
     });
 });
 
-describe("una dependencia que no va a llegar nunca no es un candado", () => {
-    // (2026-09-22, medido) JF2 esperaba a JF1, y JF1 estaba así en el progreso:
-    //   {"estado": "sustituida", "nota": "huérfana: ninguna cola fuente la define ya"}
-    // Esperar a algo que nadie va a hacer no es una dependencia, es un candado: JF2 se
-    // quedaba «lista» para siempre sin que ningún agente pudiera cogerla.
-    it("una dependencia sustituida deja de frenar", () => {
-        expect(dependenciasQueFaltan(["JF1"], { JF1: { estado: "sustituida" } })).toEqual([]);
+describe("las dependencias se miden con la regla del orquestador (cadenas)", () => {
+    // (2026-10-08, medido) «Listas» decía «RM7 · se puede coger ya» y el orquestador la tenía
+    // bloqueada: RM6 estaba «sustituida» (la rehace RM6b) y Genesis daba por hecha cualquier
+    // dependencia sustituida. El orquestador solo acepta una dependencia INTEGRADA, y el
+    // vigilante acepta además una sucesora de su cadena integrada. Una sola regla.
+    it("una dependencia sustituida con su sucesora viva sigue frenando", () => {
+        const progreso = { RM6: { estado: "sustituida" }, RM6b: { estado: "reasignada" } };
+        expect(dependenciasQueFaltan(["RM6"], progreso)).toEqual(["RM6"]);
     });
 
-    it("también si fue descartada o rechazada", () => {
+    it("una sucesora integrada cumple la dependencia", () => {
+        const progreso = { CAMR1005Db: { estado: "fallo_tsc" }, CAMR1005Dc: { estado: "commit" } };
+        expect(dependenciasQueFaltan(["CAMR1005Db"], progreso)).toEqual([]);
+        // también si solo consta en los asuntos de main
         expect(
-            dependenciasQueFaltan(["A", "B"], {
-                A: { estado: "descartada" },
-                B: { estado: "rechazada" },
-            }),
+            dependenciasQueFaltan(["RM6"], { RM6: { estado: "sustituida" }, RM6b: { estado: "reasignada" } }, "Ola 363 · RM6b: red mesh"),
         ).toEqual([]);
     });
 
-    it("una que sigue viva SÍ frena: todavía puede llegar", () => {
+    it("una que no va a llegar frena y se ve: va a «Bloqueadas» sin salida, no a «Listas»", () => {
+        // El caso JF1 (huérfana) ya no se esconde dándolo por hecho: el orquestador nunca
+        // arrancaría la que espera, así que «lista» era mentira.
+        expect(dependenciasQueFaltan(["JF1"], { JF1: { estado: "sustituida" } })).toEqual(["JF1"]);
+        expect(
+            dependenciasQueFaltan(["A", "B"], { A: { estado: "descartada" }, B: { estado: "rechazada" } }),
+        ).toEqual(["A", "B"]);
+    });
+
+    it("una que sigue viva frena: todavía puede llegar", () => {
         expect(dependenciasQueFaltan(["RM3"], { RM3: { estado: "reasignada" } })).toEqual(["RM3"]);
         expect(dependenciasQueFaltan(["RM3"], { RM3: { estado: "pendiente" } })).toEqual(["RM3"]);
         expect(dependenciasQueFaltan(["RM3"], { RM3: { estado: "en_curso" } })).toEqual(["RM3"]);
     });
 
     it("una que no existe en el progreso sigue frenando", () => {
-        // p318Jb esperaba a un p318I que nunca se creó. Eso no es «imposible por estado»:
-        // es una cola mal escrita, y hay que verlo, no esconderlo.
         expect(dependenciasQueFaltan(["p318I"], {})).toEqual(["p318I"]);
     });
 
     it("una ya integrada no frena, como siempre", () => {
         expect(dependenciasQueFaltan(["A"], { A: { estado: "commit" } })).toEqual([]);
+    });
+
+    it("«Listas» no ofrece lo que el orquestador no cogería (RM7 con RM6 rehaciéndose)", () => {
+        const colas = [{ id: "RM7", titulo: "Ajustes de red mesh", cola: "363", dependencias: ["RM5", "RM6"] }];
+        const progreso = { RM5: { estado: "commit" }, RM6: { estado: "sustituida" }, RM6b: { estado: "reasignada" } };
+        expect(ejecutablesDeColas(colas, progreso, "")).toEqual([
+            { id: "RM7", titulo: "Ajustes de red mesh", ola: undefined, esperaA: ["RM6"] },
+        ]);
+        const integrada = { ...progreso, RM6b: { estado: "commit" } };
+        expect(ejecutablesDeColas(colas, integrada, "")[0].esperaA).toBeUndefined();
     });
 });
 

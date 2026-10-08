@@ -139,6 +139,27 @@ describe("ramas que esperaron un visto bueno (2026-10-08)", () => {
         expect(r.reencoladas[0].prompt).toContain("internal://inferencia-distribuida-local");
     });
 
+    it("una sucesora huérfana no cierra la cadena: se repara desde el último eslabón real", () => {
+        // PRD1005S (10-08) esperaba aprobación con revisión bloqueante; PRD1005Sb (del 10-05)
+        // quedó huérfana sin que nadie la hiciera. Antes: «descartada · ya vive con otro id».
+        const progreso = {
+            RM6: { estado: "pendiente_aprobacion", revisor: "bloqueante", prompt: "Registra RM6." },
+            RM6b: { estado: "sustituida", nota: "huérfana: ninguna cola fuente la define ya (estaba pendiente)" },
+        };
+        const r = ejecutarReintentoInteligente({ ids: ["RM6"], progreso, revisionesMd: md });
+        expect(r.reintentadas).toEqual(["RM6c"]);
+        expect(r.reencoladas[0].prompt).toContain("Registra RM6.");
+        expect(r.reencoladas[0].prompt).toContain("internal://inferencia-distribuida-local");
+    });
+
+    it("una sustituida de verdad (no huérfana) sigue cerrando la cadena", () => {
+        const progreso = {
+            RM6: { estado: "pendiente_aprobacion", revisor: "bloqueante" },
+            RM6b: { estado: "sustituida", nota: "reparada: pasa a RM6c" },
+        };
+        expect(ejecutarReintentoInteligente({ ids: ["RM6"], progreso, revisionesMd: md }).reintentadas).toEqual([]);
+    });
+
     it("en verde espera a una persona y no entra en «reparar todas»", () => {
         const progreso = { X: { estado: "pendiente_aprobacion", revisor: "ok" } };
         expect(ejecutarReintentoInteligente({ ids: ["X"], progreso, revisionesMd: "" }).reintentadas).toEqual([]);

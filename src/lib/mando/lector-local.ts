@@ -31,6 +31,7 @@ import type {
     TareaOla,
 } from "@/lib/mando/tipos";
 import { idEnAsuntos } from "@/lib/mando/medidores";
+import { estadoDeDependencia } from "@/lib/mando/cadenas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { filasRecientes } from "@/lib/mando/bus-remoto";
 import { parsearVeredictos, type ListaVeredictos } from "@/lib/mando/veredictos";
@@ -354,6 +355,7 @@ export function colaInteligente(
     const terminada = (id: string): boolean =>
         ["commit", "sin_cambios", "sustituida", "reasignada", "informe"].includes(estadoDe(id));
     const enMarcha = new Set(latidos.map((l) => l.tarea));
+    const idsConocidos = [...Object.keys(progreso), ...tareas.map((t) => t.id)];
 
     const fila: TareaEnFila[] = [];
     for (const tarea of tareas) {
@@ -362,7 +364,12 @@ export function colaInteligente(
         // la tarea está interrumpida, no en curso.
         const bruto = estadoDe(tarea.id);
         const estado = bruto === "en_curso" && !enMarcha.has(tarea.id) ? "interrumpida" : bruto;
-        const pendientes = tarea.dependencias.filter((d) => !terminada(d));
+        // (2026-10-08) Una dependencia frena hasta que ELLA o una sucesora de su cadena está
+        // integrada: la regla del orquestador (`cadenas.ts`). Antes bastaba con «terminada»
+        // (sustituida, reasignada, sin_cambios) y RM7 salía «lista» con RM6 rehaciéndose en RM6b.
+        const pendientes = tarea.dependencias.filter(
+            (d) => !estadoDeDependencia(d, estadoDe, idsConocidos, () => false).cumplida,
+        );
         const fallidos = Array.isArray(objeto(progreso[tarea.id]).modelos_fallidos)
             ? (objeto(progreso[tarea.id]).modelos_fallidos as unknown[]).length
             : 0;
