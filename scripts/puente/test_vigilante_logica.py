@@ -166,6 +166,17 @@ class Correcciones(unittest.TestCase):
         self.assertNotIn("D", nuevo)
         self.assertEqual(prog["A"]["estado"], "commit")
 
+    def test_una_correccion_vieja_no_desintegra(self):
+        from vigilante_logica import aplicar_correcciones
+        prog = {"PT1009Cb": {"estado": "commit", "t": "2026-10-08 17:50:00"}}
+        vieja = {"PT1009Cb": {"estado": "pendiente", "nota": "director: reintento", "t": "2026-10-08 17:22:49"}}
+        nuevo, aplicadas = aplicar_correcciones(prog, vieja)
+        self.assertEqual(aplicadas, [])
+        self.assertEqual(nuevo["PT1009Cb"]["estado"], "commit")
+        # una posterior (reabrirla a propósito) sí manda
+        nueva = {"PT1009Cb": {"estado": "pendiente", "t": "2026-10-08 18:10:00"}}
+        self.assertEqual(aplicar_correcciones(prog, nueva)[1], ["PT1009Cb"])
+
     def test_vacio_devuelve_lo_mismo(self):
         from vigilante_logica import aplicar_correcciones
         prog = {"A": {"estado": "commit"}}

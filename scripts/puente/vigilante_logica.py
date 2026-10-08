@@ -236,6 +236,15 @@ def aplicar_correcciones(progreso, correcciones):
         if not isinstance(c, dict) or not str(c.get("estado") or "").strip():
             continue
         e = salida.get(tid) if isinstance(salida.get(tid), dict) else {}
+        # (2026-10-08) Una corrección de una tarea de la tanda viva espera a que la tanda
+        # muera; si entretanto la tarea se INTEGRÓ, aplicarla la devolvería a «pendiente»
+        # (la escalera del director reabrió PT1009Cb y CPA1007Kb a las 17:22 y su
+        # corrección seguía en el archivo). Una corrección ANTERIOR a la integración no la
+        # deshace; una posterior (alguien la reabre a propósito) sí manda.
+        t_c, t_e = str(c.get("t") or ""), str(e.get("t") or "")
+        if (e.get("estado") in ("commit", "hecho") and c.get("estado") not in ("commit", "hecho")
+                and t_c and t_e and t_c < t_e):
+            continue
         for campo in CAMPOS_CORRECCION:
             if campo in c:
                 e[campo] = c[campo]
