@@ -38,7 +38,8 @@ import { createClient } from "@/utils/supabase/client";
 import { useServerChannel } from "@/lib/servers/server-channel";
 import { fetchServerById, type AppServerSummary } from "@/lib/servers/app-servers";
 import { getCurrentUserId } from "@/lib/os-social";
-import { obtenerIceServidores, STUN_POR_DEFECTO } from "@/lib/llamadas/ice";
+import { obtenerIceServidores } from "@/lib/llamadas/ice";
+import { ICE_STUN_RESPLADO } from "@/lib/network/webrtc-mesh";
 
 // ───────────────────────────── Estado compartido del canal ─────────────────
 
@@ -188,7 +189,7 @@ function useExperimentalMediaShare(serverId: string | null, isBroadcaster: boole
     const [active, setActive] = useState(false);
     const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
     const [error, setError] = useState<string | null>(null);
-    const [iceServers, setIceServers] = useState<RTCIceServer[]>(STUN_POR_DEFECTO);
+    const [iceServers, setIceServers] = useState<RTCIceServer[]>(ICE_STUN_RESPLADO);
     const localStreamRef = useRef<MediaStream | null>(null);
     const peersRef = useRef<Record<string, RTCPeerConnection>>({});
     const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
@@ -198,7 +199,7 @@ function useExperimentalMediaShare(serverId: string | null, isBroadcaster: boole
         void obtenerIceServidores({ timeoutMs: 3000 }).then((ice) => {
             if (ice.iceServers.length > 0) setIceServers(ice.iceServers);
         }).catch(() => {
-            setIceServers(STUN_POR_DEFECTO);
+            setIceServers(ICE_STUN_RESPLADO);
         });
     }, []);
 
@@ -212,7 +213,7 @@ function useExperimentalMediaShare(serverId: string | null, isBroadcaster: boole
 
     const makePeer = useCallback(
         (peerId: string) => {
-            const servidores = iceServers.length > 0 ? iceServers : STUN_POR_DEFECTO;
+            const servidores = iceServers.length > 0 ? iceServers : ICE_STUN_RESPLADO;
             const pc = new RTCPeerConnection({ iceServers: servidores });
             peersRef.current[peerId] = pc;
             pc.onicecandidate = (ev) => {

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { clientIp, rateLimit } from "@/lib/security/rate-limit";
-import { entornoIceServidor, generarIceServidor, peticionDeOtroSitio } from "@/lib/llamadas/ice-servidor";
+import { entornoIceServidor, generarIceServidor, peticionDeOtroSitio, credencialRest } from "@/lib/llamadas/ice-servidor";
 import { createClient } from "@/utils/supabase/client";
 
 /**

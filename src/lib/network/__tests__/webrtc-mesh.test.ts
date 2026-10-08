@@ -117,7 +117,7 @@ async function tick(n = 3) {
 describe("webrtc-mesh — ICE que adelanta a la oferta", () => {
   test("un candidato ICE llegado ANTES de la oferta ya no se pierde", async () => {
     const { initMesh } = await import("@/lib/network/webrtc-mesh");
-    const mesh = initMesh("dev-B", "user-1")!;
+    const mesh = (await initMesh("dev-B", "user-1"))!;
     expect(mesh).toBeTruthy();
     await tick();
     const onSignal = buses.get("dev-B")!;
@@ -157,7 +157,7 @@ describe("webrtc-mesh — glare (ofertas cruzadas)", () => {
   test("el de id MAYOR (descortés) ignora la oferta entrante y conserva la suya", async () => {
     const { initMesh } = await import("@/lib/network/webrtc-mesh");
     // "zzz" > "aaa" ⇒ "zzz" es el descortés (no cede).
-    const mesh = initMesh("zzz", "user-1")!;
+    const mesh = (await initMesh("zzz", "user-1"))!;
     await tick();
     void mesh.connectToDevice("aaa");
     await tick(5);
@@ -183,7 +183,7 @@ describe("webrtc-mesh — glare (ofertas cruzadas)", () => {
   test("el de id MENOR (cortés) cede su oferta y responde como callee", async () => {
     const { initMesh } = await import("@/lib/network/webrtc-mesh");
     // "aaa" < "zzz" ⇒ "aaa" es el cortés (cede).
-    const mesh = initMesh("aaa", "user-1")!;
+    const mesh = (await initMesh("aaa", "user-1"))!;
     await tick();
     void mesh.connectToDevice("zzz");
     await tick(5);
@@ -211,7 +211,7 @@ describe("webrtc-mesh — oferta perdida: reintento con backoff", () => {
   test("sin respuesta, reintenta hasta agotar y se marca 'failed' con motivo y nº de intentos", async () => {
     vi.useFakeTimers();
     const { initMesh } = await import("@/lib/network/webrtc-mesh");
-    const mesh = initMesh("dev-A", "user-1")!;
+    const mesh = (await initMesh("dev-A", "user-1"))!;
     await vi.advanceTimersByTimeAsync(0);
 
     void mesh.connectToDevice("dev-B");
@@ -236,7 +236,7 @@ describe("webrtc-mesh — oferta perdida: reintento con backoff", () => {
   test("un connectToDevice MANUAL tras agotar los intentos resetea el contador", async () => {
     vi.useFakeTimers();
     const { initMesh } = await import("@/lib/network/webrtc-mesh");
-    const mesh = initMesh("dev-A", "user-1")!;
+    const mesh = (await initMesh("dev-A", "user-1"))!;
     await vi.advanceTimersByTimeAsync(0);
     void mesh.connectToDevice("dev-B");
     await vi.advanceTimersByTimeAsync(0);

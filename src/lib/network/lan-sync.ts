@@ -186,7 +186,7 @@ export async function ensureMesh(self: DeviceInfo | null): Promise<MeshHandle | 
       sharedMeshKey = null;
     }
 
-    const mesh = initMesh(self.id, userId);
+    const mesh = await initMesh(self.id, userId);
     if (!mesh) return null;
     sharedMesh = mesh;
     sharedMeshKey = key;

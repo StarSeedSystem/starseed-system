@@ -38,6 +38,7 @@
  */
 
 import { subscribeSignals, sendSignal, type Signal, type SignalSubscription } from "@/lib/network/signaling";
+import { obtenerIceServidores } from "@/lib/llamadas/ice";
 
 /**
  * SignalTransport — el contrato mínimo que el núcleo de conexión (`createMesh`,
@@ -818,10 +819,19 @@ export function createMesh(myDeviceId: string, contextId: string, transport: Sig
  * usaban `lan-sync.ts`/`malla-neuronas.ts`, ahora construida sobre el núcleo
  * compartido en vez de duplicar su lógica de negociación.
  */
-export function initMesh(myDeviceId: string, userId: string, iceServers?: RTCIceServer[]): MeshHandle | null {
+export async function initMesh(myDeviceId: string, userId: string, iceServers?: RTCIceServer[]): Promise<MeshHandle | null> {
   if (!myDeviceId || !userId) return null;
+  let servidores = iceServers;
+  if (!servidores || servidores.length === 0) {
+    try {
+      const ice = await obtenerIceServidores({ timeoutMs: 3000 });
+      servidores = ice.iceServers.length > 0 ? ice.iceServers : ICE_STUN_RESPLADO;
+    } catch {
+      servidores = ICE_STUN_RESPLADO;
+    }
+  }
   return createMesh(myDeviceId, userId, {
     send: sendSignal,
     subscribe: (self, cb) => subscribeSignals(userId, self, cb),
-  }, iceServers);
+  }, servidores);
 }
