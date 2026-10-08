@@ -3900,3 +3900,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CPA1007A` — otra cosa
 - `CPA1007B` — otra cosa: reasignada a la nube 20261007
 - `CPA1007I` — otra cosa
+
+## 2026-10-07 20:25 · auto-1007-174338
+
+**Lo que se pidió.** oracle
+
+**Resultado.** 10 de 16 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (OR1007F, CPA1007J). Es 12 % de la ola.
+- 2 tareas se fueron por lo mismo — los tipos no compilan (CPA1007D, CPA1007B). Es 12 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RSC1006J` — no escribió nada
+- `OR1007F` — otra cosa: sin decisión en 0 h; rama ola/OR1007F conservada
+- `CPA1007D` — los tipos no compilan: 1 errores tsc (rama ola/CPA1007D conservada)
+- `CPA1007G` — pruebas en rojo: vitest falla (rama conservada)
+- `CPA1007J` — otra cosa: sin decisión en 0 h; rama ola/CPA1007J conservada
+- `CPA1007B` — los tipos no compilan: 1 errores tsc (rama ola/CPA1007B conservada)
