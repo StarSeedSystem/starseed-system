@@ -1,11 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChatDirector } from "../chat-director";
 
+/** Entregas que devolverá el feed en la lectura en curso de cada prueba. */
+let entregasFeed: Record<string, Record<string, string>> = {};
+
 /** Feed mínimo que devuelve la API local del chat del director. */
 function feed(mensajes: unknown[] = [], ultimoModelo = "") {
-  return { ok: true, json: async () => ({ mensajes, entregas: {}, ultimoModelo }) };
+  return { ok: true, json: async () => ({ mensajes, entregas: entregasFeed, ultimoModelo }) };
 }
 
 const nativoFetch = globalThis.fetch;
@@ -15,6 +18,7 @@ describe("ChatDirector", () => {
 
   beforeEach(() => {
     llamadas.length = 0;
+    entregasFeed = {};
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       llamadas.push({ url, init });
@@ -75,5 +79,47 @@ describe("ChatDirector", () => {
     await new Promise((r) => setTimeout(r, 300));
     const lecturas = llamadas.filter((l) => l.url.includes("/api/mando/director-chat") && !l.init?.method);
     expect(lecturas).toHaveLength(1);
+  });
+
+  it("mientras alguien va a contestar (entrega pendiente) suena cada 3 s, no a los 10 s", async () => {
+    entregasFeed = { "md-1-aaaa": { hermes: "pendiente" } };
+    vi.useFakeTimers();
+    try {
+      render(<ChatDirector />);
+      await act(async () => { await Promise.resolve(); });
+      const lecturas = () =>
+        llamadas.filter((l) => l.url.includes("/api/mando/director-chat") && !l.init?.method).length;
+      expect(lecturas()).toBe(1);
+      await act(async () => { vi.advanceTimersByTime(3_200); });
+      expect(lecturas()).toBe(2);
+      await act(async () => { vi.advanceTimersByTime(3_000); });
+      expect(lecturas()).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("sin entregas pendientes, a los 3 s todavía no ha vuelto a leer", async () => {
+    vi.useFakeTimers();
+    try {
+      render(<ChatDirector />);
+      await act(async () => { await Promise.resolve(); });
+      const lecturas = () =>
+        llamadas.filter((l) => l.url.includes("/api/mando/director-chat") && !l.init?.method).length;
+      expect(lecturas()).toBe(1);
+      await act(async () => { vi.advanceTimersByTime(3_500); });
+      expect(lecturas()).toBe(1);
+      await act(async () => { vi.advanceTimersByTime(7_000); });
+      expect(lecturas()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("con entrega pendiente enseña el aviso de que alguien está respondiendo", async () => {
+    entregasFeed = { "md-1-aaaa": { hermes: "pendiente" } };
+    render(<ChatDirector />);
+    const estado = await screen.findByRole("status");
+    expect(estado).toHaveTextContent(/Hermes está respondiendo/);
   });
 });
