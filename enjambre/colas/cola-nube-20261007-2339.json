@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261007",
+ "tareas": [
+  {
+   "id": "RSC1006Js",
+   "ola": "Ola 1006R · Rescate de las ramas de la nube (revisión con Jev, 2026-10-06)",
+   "depende": [],
+   "titulo": "Rescate · Directores en el Mando y rotación optimizada (OPT1004H/F) · lo que faltó: scripts/enjambre/test_rotacion_optimizada.py",
+   "archivos": [
+    "scripts/enjambre/test_rotacion_optimizada.py"
+   ],
+   "prompt": "SEGUIMIENTO de RSC1006J, que ya está integrada (sha 00e3e16ef0e2). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/enjambre/test_rotacion_optimizada.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Rescate · Directores en el Mando y rotación optimizada (OPT1004H/F)\n\n--- encargo original, como contexto ---\nORIGEN: revisión de las ramas de la nube del 2026-10-06 (claude-cowork con Jev). Las tareas OPT1004F, OPT1004H se hicieron en main por otro camino; sus ramas de la nube (nube/37244680264/ola/OPT1004H, nube/37245946095/ola/OPT1004F) quedan archivadas en `refs/archivo/nube/…` y en `starseed_memory_root/archivo/ramas-nube-2026-10-06.bundle`, y traían casos de prueba que la prueba de main no tiene con ese nombre. Nada se tira: lo que valga entra en main con esta tarea.\nDecisión: rescatar por la regla. Jev se inclinaba por «archivar» con p=0.64, por debajo de 0,8, así que manda la regla; tómalo como aviso: muchos casos pueden estar ya cubiertos con otro nombre.\nDecisión: rescatar por la regla. Jev se inclinaba por «archivar» con p=0.63, por debajo de 0,8, así que manda la regla; tómalo como aviso: muchos casos pueden estar ya cubiertos con otro nombre.\n\nTU TAREA (RSC1006J · solo estos archivos: src/lib/mando/__tests__/director-datos.test.ts, scripts/enjambre/test_rotacion_optimizada.py):\n1. Lee el código ACTUAL de main que se prueba (src/lib/mando/director-datos.ts, aplicar_rotacion_optimizada de scripts/enjambre/starseed-enjambre.py) y su prueba (src/lib/mando/__tests__/director-datos.test.ts y scripts/enjambre/test_rotacion_optimizada.py).\n2. De los casos de abajo, añade a `src/lib/mando/__tests__/director-datos.test.ts y scripts/enjambre/test_rotacion_optimizada.py` SOLO los que prueban un comportamiento que la prueba de main todavía no cubre, adaptados a la API de main (nombres, firmas, módulos). Un caso ya cubierto con otro nombre NO se duplica; un caso que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso rescatado destapa un fallo REAL del código de main, arregla el código (cambio quirúrgico) y dilo en tu respuesta.\n4. Si al final ningún caso aporta, responde `NO APLICA: <motivo>` y para: no inventes trabajo.\n5. Ejecuta la prueba del archivo y léela entera antes de terminar.\nPruebas TS: solo funciones puras o componentes con @testing-librar",
+   "origen": "seguimiento de alcance parcial",
+   "depende_de": []
+  }
+ ]
+}
