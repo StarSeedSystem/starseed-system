@@ -61,10 +61,12 @@ describe("instalables", () => {
         expect(lista.map((x) => x.sistema).sort()).toEqual(["android", "linux", "linux", "macos", "windows"]);
     });
 
-    it("el respaldo de las dos apps oficiales produce instaladores para los cuatro sistemas", () => {
+    it("el respaldo de cada app oficial produce instaladores para sus sistemas", () => {
         for (const app of Object.values(APPS_OFICIALES)) {
             const sistemas = new Set(instalables(app.respaldo.assets).map((x) => x.sistema));
-            expect([...sistemas].sort()).toEqual(["android", "linux", "macos", "windows"]);
+            // Astraura escritorio (Electron) no tiene app móvil: en el móvil, su web.
+            const esperados = app.id === "astraura" ? ["linux", "macos", "windows"] : ["android", "linux", "macos", "windows"];
+            expect([...sistemas].sort(), app.id).toEqual(esperados);
         }
     });
 });

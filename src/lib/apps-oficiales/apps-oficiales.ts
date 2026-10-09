@@ -56,6 +56,7 @@ function asset(repo: string, tag: string, nombre: string, mb: number): AssetRele
 
 const AUDIOMORPHIC_REPO = "StarSeedSystem/Audiomorphic-AR-app";
 const OMNI_REPO = "StarSeedSystem/generador_frecuencias";
+const ASTRAURA_REPO = "StarSeedSystem/astraura";
 export const OS_REPO = "StarSeedSystem/starseed-system";
 
 /**
@@ -118,6 +119,29 @@ export const APPS_OFICIALES: Record<string, AppOficial> = {
             publicado: "",
             url: `https://github.com/${OS_REPO}/releases/tag/${NATIVE_TAG}`,
             assets: nativeInstallerAssets(undefined, undefined, "cafe").map((a) => ({ nombre: a.filename, url: a.href, bytes: 0 })),
+        },
+    },
+    // (2026-10-09) App de escritorio de Astraura 1.58 (Electron): CI propio en su repo y
+    // actualización automática con SHA-256. Usa el motor local si está instalado y, si no,
+    // el nodo en línea. Sin Android/iOS: en el móvil, la web.
+    astraura: {
+        id: "astraura",
+        nombre: "Astraura 1.58",
+        repo: ASTRAURA_REPO,
+        web: "https://astraura.vercel.app",
+        permisos: "microphone; clipboard-write; fullscreen; autoplay",
+        respaldo: {
+            tag: "v1.6.0",
+            publicado: "",
+            url: `https://github.com/${ASTRAURA_REPO}/releases/tag/v1.6.0`,
+            assets: [
+                asset(ASTRAURA_REPO, "v1.6.0", "Astraura-1.6.0-arm64-mac.dmg", 0),
+                asset(ASTRAURA_REPO, "v1.6.0", "Astraura-1.6.0-x64-mac.dmg", 0),
+                asset(ASTRAURA_REPO, "v1.6.0", "Astraura-1.6.0-x64-win.exe", 0),
+                asset(ASTRAURA_REPO, "v1.6.0", "Astraura-1.6.0-x86_64-linux.AppImage", 0),
+                asset(ASTRAURA_REPO, "v1.6.0", "Astraura-1.6.0-amd64-linux.deb", 0),
+                asset(ASTRAURA_REPO, "v1.6.0", "Astraura-1.6.0-x86_64-linux.rpm", 0),
+            ],
         },
     },
     audiomorphic: {

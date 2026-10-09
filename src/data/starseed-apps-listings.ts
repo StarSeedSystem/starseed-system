@@ -170,6 +170,25 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
             { label: "Descargas", url: "https://github.com/StarSeedSystem/starseed-system/releases/latest" },
         ],
     },
+    {
+        id: "astraura",
+        name: "Astraura 1.58",
+        tagline: "La inteligencia ternaria de StarSeed, en tu propio equipo.",
+        description:
+            "Astraura 1.58-Bit: el motor de IA de StarSeed sobre BitNet b1.58, con sus personalidades, memoria, imaginación y enjambre. La app de escritorio para macOS (Apple Silicon e Intel), Windows y Linux usa el motor local si lo tienes instalado y, si no, su nodo en línea; se actualiza sola comprobando cada descarga. En el móvil, úsala desde su web.",
+        iconUrl: "/app-icons/agent.png",
+        accent: "#00F0FF",
+        author: "StarSeedSystem",
+        web: "https://astraura.vercel.app",
+        route: "/agent",
+        repo: "https://github.com/StarSeedSystem/astraura",
+        tags: ["ia 1.58-bit", "bitnet", "escritorio", "código abierto"],
+        links: [
+            { label: "Web", url: "https://astraura.vercel.app" },
+            { label: "Código fuente (GitHub)", url: "https://github.com/StarSeedSystem/astraura" },
+            { label: "Descargas", url: "https://github.com/StarSeedSystem/astraura/releases/latest" },
+        ],
+    },
     // (2026-09-25) Audiomorphic y Omnifrecuencias: se abren DENTRO del OS en su versión
     // oficial en línea (ruta propia → AppOficial) y se instalan desde su último release de
     // GitHub. La versión NO se escribe aquí: la lee en vivo `useUltimaVersion` (la barra de la
