@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 16:00:02 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 18:31:02 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -9,26 +9,30 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 ## Estado ahora mismo
 
-Genesis está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`
-y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.
-| HEAD | `58a393fe chore(memoria): aprendizaje de la ola auto-1008-140757` |
+| | |
+|---|---|
+| Genesis | **encendido** en http://127.0.0.1:9002/mando |
+| Ola arriba | Ola Dream 2026-09-27 · lo que el análisis nocturno encontró |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 15 |
+| HEAD | `4c8ae7a8 chore(memoria): aprendizaje de la ola auto-1008-163740` |
 | Sin publicar | 5 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1008-140757.json`, hace 13s)
+## Quién escribe ahora (latido de `cola-auto-1008-163740.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RM6` | hecho | freellmapi/auto | 4 min | 254 s | 52535 |
-| `PRD1005S` | hecho | freellmapi/auto | 11 min | 675 s | 719291 |
-| `RM5s` | hecho | freellmapi/auto | 15 min | 909 s | 88386 |
-| `RM5` | hecho | codex/gpt-5.6-sol | 38 min | 2259 s | 322501 |
-| `CAMR1005Db` | hecho | freellmapi/auto | 51 min | 3038 s | 172026 |
-| `PT1009Cb` | hecho | freellmapi/auto | 57 min | 3418 s | 63177 |
-| `CPA1007Kb` | hecho | freellmapi/auto | 61 min | 3670 s | 209285 |
-| `PT1008E` | hecho | codex/gpt-5.6-sol | 85 min | 5085 s | 1139834 |
-| `JF2b` | hecho | freellmapi/auto | 86 min | 5181 s | 247532 |
-| `TK1c` | hecho | codex/gpt-5.6-sol | 86 min | 5188 s | 2064706 |
+| `PRD1005Sc` | hecho | freellmapi/auto | 1 min | 55 s | 121940 |
+| `RM8` | hecho | freellmapi/auto | 22 min | 1319 s | 39041 |
+| `PT1009Cb` | hecho | codex/gpt-5.6-sol | 37 min | 2225 s | 218679 |
+| `RM7` | hecho | freellmapi/auto | 37 min | 2239 s | 152812 |
+| `CAMR1005Dc` | hecho | codex/gpt-5.6-sol | 38 min | 2265 s | 151935 |
+| `CPA1007Kb` | hecho | freellmapi/auto | 38 min | 2303 s | 603487 |
+| `PRD1005U` | hecho | freellmapi/auto | 58 min | 3486 s | 1331 |
+| `RM6b` | hecho | freellmapi/auto | 70 min | 4196 s | 116231 |
+| `CAMR1005Db` | hecho | codex/gpt-5.6-sol | 112 min | 6717 s | 197892 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
