@@ -12,7 +12,7 @@ export type CanalRelease = "alpha" | "beta" | "estable";
 export const OS_CANAL: CanalRelease = "alpha";
 
 export const OS_NOTAS =
-  "Apps nativas 0.3.0 de StarSeed OS, Nexus y Café para macOS, Windows, Linux y Android: cada app de escritorio instalada se actualiza sola desde su propio canal (hasta ahora solo lo hacía StarSeed OS) y la Biblioteca ofrece el instalador de cada una para tu sistema. Genesis, el antiguo Puente de Mando, llega a personas, grupos y comunidades, se repara solo y publica tras sus pruebas. Nuevas Estaciones con transmisiones en directo libres. Las capas de Astraura (Needle 3, Bonsai 1.58 y BitNet) se eligen por tarea y por dispositivo, cada una con su huella verificada, y sus nodos dicen su salud real. La malla suma el enrutamiento cognitivo multiespectro (CAMR), y los widgets caben en su tarjeta en todos los tamaños.";
+  "Apps nativas 0.3.0 de StarSeed OS, Nexus y Café para macOS, Windows, Linux y Android: cada app de escritorio instalada se actualiza sola desde su propio canal (hasta ahora solo lo hacía StarSeed OS) y la Biblioteca ofrece el instalador de cada una para tu sistema. Genesis llega a personas, grupos y comunidades, se repara solo y publica tras sus pruebas. Nuevas Estaciones con transmisiones en directo libres. Las capas de Astraura (Needle 3, Bonsai 1.58 y BitNet) se eligen por tarea y por dispositivo, cada una con su huella verificada, y sus nodos dicen su salud real. La malla suma el enrutamiento cognitivo multiespectro (CAMR), y los widgets caben en su tarjeta en todos los tamaños.";
 
 /**
  * Versión del PAQUETE NATIVO (Tauri 2, proyecto `native/`): el shell de

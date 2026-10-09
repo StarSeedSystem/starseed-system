@@ -186,7 +186,7 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
         kind: "update-app",
         title: "StarSeed OS 0.3.0: apps que se actualizan solas, Genesis y Estaciones",
         detail:
-          "StarSeed OS, Nexus y Café tienen app para macOS, Windows, Linux y Android, y la de escritorio se actualiza sola. Genesis, el antiguo Puente de Mando, llega a personas, grupos y comunidades. Nuevas Estaciones con transmisiones en directo. Las capas de Astraura se eligen por tarea y por dispositivo. En el navegador basta con recargar.",
+          "StarSeed OS, Nexus y Café tienen app para macOS, Windows, Linux y Android, y la de escritorio se actualiza sola. Genesis llega a personas, grupos y comunidades. Nuevas Estaciones con transmisiones en directo. Las capas de Astraura se eligen por tarea y por dispositivo. En el navegador basta con recargar.",
         priority: 10,
       });
     }
