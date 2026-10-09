@@ -5,7 +5,7 @@
  * preguntaba una sola vez, justo al lanzarla, veía «sin terminar» y no volvía a preguntar;
  * y aunque hubiera vuelto, solo enseñaba la hora, nunca el veredicto.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -39,8 +39,9 @@ beforeEach(() => {
             return new Response(
                 JSON.stringify({
                     comprobacion: {
-                        empezado: "2026-09-23T01:00:00Z",
-                        terminado: terminada ? "2026-09-23T01:00:17Z" : null,
+                        // Una comprobación de AHORA: pasados 15 min ya no se enseña como actual.
+                        empezado: new Date(Date.now() - 20_000).toISOString(),
+                        terminado: terminada ? new Date(Date.now() - 3_000).toISOString() : null,
                         resumen: "Comprobación de «en-curso» terminada: 1 colgado(s), 1 vivo(s)",
                         veredictos: [
                             { proceso: "Medidor", estado: "vivo", detalle: "contesta" },
@@ -59,6 +60,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    cleanup();
     globalThis.fetch = fetchOriginal;
 });
 
@@ -72,4 +74,31 @@ describe("Comprobar ahora", () => {
         expect(screen.getByText(/1 colgado\(s\), 1 vivo\(s\)/)).toBeTruthy();
         expect(lecturas).toBeGreaterThan(2);
     }, 12_000);
+});
+
+describe("una comprobación vieja no se enseña como actual (2026-10-09)", () => {
+    it("pasados 15 min dice que ya no vale y no pinta sus veredictos", async () => {
+        globalThis.fetch = vi.fn(async (entrada: RequestInfo | URL) => {
+            const url = String(entrada);
+            if (url.startsWith("/api/mando/medidores")) return new Response(JSON.stringify({ detalle }));
+            if (url.startsWith("/api/mando/comprobar")) {
+                return new Response(
+                    JSON.stringify({
+                        comprobacion: {
+                            empezado: new Date(Date.now() - 61 * 60_000).toISOString(),
+                            terminado: new Date(Date.now() - 60 * 60_000).toISOString(),
+                            resumen: "Comprobación de «agentes» terminada: 1 colgado(s)",
+                            veredictos: [{ proceso: "Agentes medidos", estado: "colgado", detalle: "NO COINCIDEN" }],
+                        },
+                    }),
+                );
+            }
+            return new Response("{}");
+        }) as typeof fetch;
+        render(<PanelMedidor clave="en-curso" alCerrar={() => undefined} />);
+        await screen.findByText("Tareas en curso");
+        await waitFor(() => expect(screen.getByTestId("comprobacion-antigua")).toBeTruthy(), { timeout: 4_000 });
+        expect(screen.queryByTestId("veredictos-comprobacion")).toBeNull();
+        expect(screen.queryByText(/NO COINCIDEN/)).toBeNull();
+    });
 });

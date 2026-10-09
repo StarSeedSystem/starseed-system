@@ -666,6 +666,24 @@ export async function leerVistaPrevia(): Promise<VistaPreviaLocal> {
     } catch {
         // Repo no legible en esta máquina: atrasado.
     }
+    // (2026-10-09) «Vista previa local · build 5ac628e · hace 30 d · por detrás de HEAD» con el
+    // build instalado hacía diez minutos: `build-local.json` solo lo escribe «Reconstruir y abrir»,
+    // y los builds compilados en la nube (instalar_build.py) o por el reconstructor no lo tocan.
+    // La verdad de qué se sirve la lleva `reconstruccion.json` (reconstruir_mando.py): si dice
+    // «al-dia» y es más nuevo, manda él.
+    try {
+        const rec = JSON.parse(
+            await readFile(path.join(raizDelProyecto(), "starseed_memory_root", "mando", "reconstruccion.json"), "utf8"),
+        ) as { estado?: unknown; t?: unknown };
+        const tRec = typeof rec.t === "number" ? rec.t * 1000 : NaN;
+        const tLocal = buildT ? Date.parse(buildT) : NaN;
+        if (Number.isFinite(tRec) && (!Number.isFinite(tLocal) || tRec > tLocal)) {
+            buildT = new Date(tRec).toISOString();
+            buildCommit = rec.estado === "al-dia" ? head : buildCommit;
+        }
+    } catch {
+        // Sin reconstructor en esta máquina: se queda lo de build-local.json.
+    }
     let sirviendo = false;
     try {
         const control = new AbortController();

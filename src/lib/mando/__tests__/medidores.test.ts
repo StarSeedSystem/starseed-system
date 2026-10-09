@@ -213,12 +213,27 @@ describe("detalleDeMedidor · agentes (el trabajador)", () => {
 
     it("«escribiendo» sin proceso detrás es un fantasma: no cuenta y se nombra", () => {
         const d = detalleDeMedidor("agentes", {
-            latidos: [latido, { ...latido, tarea: "T2" }],
+            latidos: [latido, { ...latido, tarea: "T2", quietoSegundos: 600 }],
             escritores: { T1: { pid: 123, minutos: 4 } },
         });
         expect(d.filas.map((f) => f.id)).toEqual(["T1"]);
         expect(d.filas[0].porque).toContain("proceso 123");
         expect(d.resumen).toContain("1 latido(s) viejo(s) descartado(s): T2");
+    });
+
+    it("una rama esperando aprobación no es un fantasma aunque no tenga proceso", () => {
+        const d = detalleDeMedidor("agentes", {
+            latidos: [{ ...latido, fase: "esperando aprobación", quietoSegundos: 900 }],
+            escritores: {},
+            progreso: { T1: { estado: "esperando_aprobacion", revisor: "bloqueante" } },
+        });
+        expect(d.filas[0].estado).toBe("esperando aprobación");
+        expect(d.filas[0].porque).toContain("BLOQUEANTE");
+    });
+
+    it("un escritor que acaba de arrancar (sin proceso todavía) no se da por fantasma", () => {
+        const d = detalleDeMedidor("agentes", { latidos: [{ ...latido, quietoSegundos: 20 }], escritores: {} });
+        expect(d.filas[0].estado).toBe("escribiendo");
     });
 
     it("en tsc no escribe ningún modelo: «comprobando», no «callado»", () => {

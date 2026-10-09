@@ -1198,6 +1198,8 @@ export interface DatosMedidores {
      *  `codex exec` sobre `starseed-wt/<id>`), leídos de `ps`. `null` = no se pudo leer:
      *  entonces no se acusa a nadie de fantasma. */
     escritores?: Record<string, { pid: number; minutos: number }> | null;
+    /** (2026-10-09) Tareas cuyo latido decía «escribiendo» sin proceso: ya quitadas de `latidos`. */
+    fantasmas?: string[];
     historiales?: Record<string, SucesoDeFila[]>;
     /** Archivos que la cola DECLARÓ para cada tarea, para poder comparar con los tocados. */
     declarados?: Record<string, string[]>;
@@ -1785,6 +1787,14 @@ export function detalleDeMedidor(
                 } else if (sonando) {
                     estado = "soñando";
                     porque = `sueño profundo · ${l.subfase || "analizando"} (lee, no escribe código)`;
+                } else if (/esperando aprobaci|visto bueno/.test(fase)) {
+                    // La rama está hecha y espera una decisión: no escribe nadie, y no es un fantasma.
+                    estado = "esperando aprobación";
+                    const revisor = (d.progreso[l.tarea] as { revisor?: string } | undefined)?.revisor;
+                    porque =
+                        revisor === "bloqueante"
+                            ? "rama lista con revisión BLOQUEANTE: la reparación automática la rehace o la decide el director"
+                            : "rama lista y en verde: espera tu visto bueno";
                 } else if (esperandoProveedor) {
                     estado = "esperando modelo";
                     porque = `ningún modelo con cupo ahora mismo: espera su turno (lleva ${l.minutos} min)`;
@@ -1793,7 +1803,7 @@ export function detalleDeMedidor(
                     porque = proceso
                         ? `el modelo corrige lo que falló en ${fase} · proceso ${proceso.pid} vivo`
                         : `el orquestador pasa ${fase === "tsc" ? "los tipos (tsc)" : fase.startsWith("test") || fase === "probando" ? "las pruebas" : fase.startsWith("revis") ? "la revisión" : fase}: no escribe ningún modelo`;
-                } else if (enLaMac && escritores && !proceso) {
+                } else if (enLaMac && escritores && !proceso && (quieto === null || quieto > 90)) {
                     estado = "sin proceso";
                     porque = "el latido dice que escribe, pero no hay ningún proceso escribiendo esta tarea: es un latido viejo";
                 } else if (quieto !== null && quieto > 180) {
@@ -1820,7 +1830,10 @@ export function detalleDeMedidor(
                 };
                 return fila;
             });
-            const fantasmas = filasTodas.filter((f) => f.estado === "sin proceso");
+            const fantasmas = [
+                ...filasTodas.filter((f) => f.estado === "sin proceso"),
+                ...(d.fantasmas ?? []).map((id) => ({ id })),
+            ];
             const filas = filasTodas.filter((f) => f.estado !== "sin proceso");
             const cuenta = (e: string) => filas.filter((f) => f.estado === e).length;
             const partes = [
@@ -1829,6 +1842,7 @@ export function detalleDeMedidor(
                 [cuenta("sin escribir"), "sin escribir"],
                 [cuenta("comprobando"), "comprobando"],
                 [cuenta("esperando modelo"), "esperando modelo"],
+                [cuenta("esperando aprobación"), "esperando aprobación"],
                 [cuenta("soñando"), "soñando"],
                 [cuenta("trabajando fuera"), "fuera"],
             ]

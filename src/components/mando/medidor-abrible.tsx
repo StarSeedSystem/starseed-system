@@ -647,7 +647,15 @@ export function PanelMedidor({
                         : `lanzada ${haceMinutos(ultimaComprobacion) ?? "hace un momento"} y SIN TERMINAR`
                     : "nunca se ha comprobado"}
             </p>
-            {comprobacionCerrada && veredictos.length ? (
+            {/* (2026-10-09) Una comprobación de hace una hora pintaba en rojo «NO COINCIDEN» junto
+                a datos de ahora: dos momentos distintos leídos como uno. Lo viejo no se enseña como
+                actual: pasados 15 min solo se dice cuándo fue, y «Comprobar ahora» lo renueva. */}
+            {comprobacionCerrada && veredictos.length && ultimaComprobacion &&
+            Date.now() - Date.parse(ultimaComprobacion) > 15 * 60_000 ? (
+                <p className="mc-centrado mt-1 text-[10px] text-white/40" data-testid="comprobacion-antigua">
+                    esa comprobación ya no vale para lo de ahora: pulsa «Comprobar ahora»
+                </p>
+            ) : comprobacionCerrada && veredictos.length ? (
                 <div className="mc-centrado mt-1 flex flex-col items-center gap-0.5" data-testid="veredictos-comprobacion">
                     {resumenComprobacion ? (
                         <p className="text-[10px] font-semibold text-white/60">{resumenComprobacion}</p>

@@ -1842,7 +1842,10 @@ export function CentroMando() {
                                     ? medidoresResumen.creditos.filter((f) => !/^claude\b/i.test(f.titulo))
                                     : [{ id: "sin-lectura", titulo: "Créditos de pago", porque: "sin lectura", acciones: [] }]
                             ).map((fila) => {
-                                const [valor = "sin lectura", ...detalle] = (fila.porque ?? "sin lectura").split(" · ");
+                                const [valorBruto = "sin lectura", ...detalle] = (fila.porque ?? "sin lectura").split(" · ");
+                                // (2026-10-09) «0 % 43200min»: la ventana del plan (30 días en minutos)
+                                // se colaba en el valor. Arriba solo el uso.
+                                const valor = valorBruto.replace(/\s+\d+\s*min$/, "").replace(/^(\d+ %)$/, "$1 usado");
                                 const tono: TonoMedidor =
                                     fila.estado === "peligro"
                                         ? "peligro"
@@ -2064,7 +2067,7 @@ export function CentroMando() {
                                       {
                                           clave: "disco" as const,
                                           titulo: "Disco",
-                                          valor: `${discoLibreTexto(almacenamiento.disco.libreMb)} libres`,
+                                          valor: `${discoLibreTexto(almacenamiento.disco.libreMb).replace(".", ",")} libres`,
                                           tono: tonoDiscoLibre(almacenamiento.disco.libreMb) as TonoMedidor,
                                           detalle: `${almacenamiento.disco.usadoPct} % ocupado`,
                                       },

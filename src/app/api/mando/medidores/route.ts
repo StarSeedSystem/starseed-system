@@ -543,13 +543,14 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             tiempos[fuente] = Date.now() - inicio;
             throw e;
         });
-    const [progreso, colas, bus, latidosMacTodos, vivo, commitsGit] = await Promise.all([
+    const [progreso, colas, bus, latidosMacTodos, vivo, commitsGit, escritores] = await Promise.all([
         midiendo("progreso", leerEntradas()),
         midiendo("colas", leerColas().catch(() => [])),
         midiendo("bus", leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] }))),
         midiendo("latidos", leerLatidos().catch(() => [])),
         midiendo("enjambre", enjambreEnMarcha().catch(() => false)),
         midiendo("commitsOlas", leerCommitsDeOlas().catch(() => new Map())),
+        midiendo("escritores", leerEscritores().catch(() => null)),
     ]);
     // La pausa de Genesis vive fuera de git, en la config del director.
     let pausado = false;
@@ -614,7 +615,26 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     // (2026-10-09) Un latido de una tarea que el progreso ya CERRÓ (falló, se integró, se
     // sustituyó…) es de una tanda vieja: CPA1007Kb salía tres veces con su tanda ya terminada.
     const CERRADA = /^(commit|hecho|fallo.*|sin_cambios|sustituida|rechazada|bloqueante|descartada|conflicto|interrumpida|pendiente_aprobacion)$/;
-    const latidosMac = latidosMacTodos.filter((l) => !CERRADA.test(String(progreso[l.tarea]?.estado ?? "")));
+    // (2026-10-09) Y un latido que dice «escribiendo» sin ningún `opencode run`/`codex exec`
+    // detrás es un fantasma: se quita AQUÍ para que Agentes, En curso, Ola en marcha y Tokens
+    // cuenten lo mismo (la primera versión solo lo quitaba de Agentes: «En curso 3 · Agentes 2»).
+    const escribe = (fase: string) =>
+        !/^(tsc|tests?|testing|probando|revision|revisión|integrando|cableado|alcance|impacto|verificando|analizando|esperando.*|hecho)$/i.test(
+            fase.trim(),
+        );
+    const fantasmas: string[] = [];
+    const latidosMac = latidosMacTodos.filter((l) => {
+        if (CERRADA.test(String(progreso[l.tarea]?.estado ?? ""))) return false;
+        const fantasma =
+            escritores !== null &&
+            (l.donde || "mac") === "mac" &&
+            !String(l.cola ?? "").startsWith("externo-") &&
+            escribe(String(l.fase ?? "")) &&
+            (l.quietoSegundos ?? 0) > 90 &&
+            !escritores[l.tarea];
+        if (fantasma) fantasmas.push(l.tarea);
+        return !fantasma;
+    });
     const deAqui = new Set(latidosMac.map((l) => l.tarea));
     const latidosCompletos = [...latidosMac, ...bus.latidos.filter((l) => !deAqui.has(l.tarea))];
     const latidosDeAqui = [
@@ -669,7 +689,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         if (t.id && t.archivos?.length && !declarados[t.id]) declarados[t.id] = t.archivos;
     }
     const envios = await midiendo("enviosNube", enviosALaNube()).catch(() => ({}) as Record<string, number>);
-    const [obras, historiales, agentesNube, contenedores, proveedores, tokens, olasNube, escritores] = await Promise.all([
+    const [obras, historiales, agentesNube, contenedores, proveedores, tokens, olasNube] = await Promise.all([
         midiendo("obras", leerObras(idsVivas).catch(() => ({}))),
         midiendo("historiales", leerHistoriales(idsVivas).catch(() => ({}))),
         midiendo("agentesNube", leerAgentesDeLaNube().catch(() => [])),
@@ -677,7 +697,6 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         midiendo("proveedores", leerProveedores().catch(() => [])),
         midiendo("tokens", leerTokens().catch(() => null)),
         midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
-        midiendo("escritores", leerEscritores().catch(() => null)),
     ]);
 
     // (2026-09-23) Las olas en marcha, de la Mac y de la nube, con sus tareas. Y el encargo
@@ -726,6 +745,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // toda la capacidad viva, no solo la de esta máquina.
         latidos: [...latidosDeAqui, ...agentesNube],
         escritores,
+        fantasmas,
         contenedores,
         creditoClaude: await leerCreditoClaude().catch(() => null),
         limitesClaude: await leerLimitesClaude().catch(() => null),
