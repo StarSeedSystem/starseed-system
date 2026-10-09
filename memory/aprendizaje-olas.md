@@ -4245,3 +4245,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `PRD1005U` — otra cosa: sin decisión en 0 h; rama ola/PRD1005U conservada
 - `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-09 00:18 · auto-1008-235631
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- codex/gpt-5.6-sol no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `PRD1005U` — otra cosa: sin decisión en 0 h; rama ola/PRD1005U conservada
+- `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
