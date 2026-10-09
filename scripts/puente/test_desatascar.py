@@ -540,7 +540,12 @@ class CopiasDeCadena(unittest.TestCase):
             "CAMR1005Fc": {"estado": "esperando_aprobacion"},
         }
         ordenes = []
-        D.director_chat.publicar = lambda *a, **k: None
+        # Parcheado SOLO en esta prueba: reasignar `director_chat.publicar` a pelo lo dejaba roto
+        # para todo el `unittest discover` (12 pruebas de director_chat en rojo en la puerta).
+        from unittest import mock
+        parche = mock.patch.object(D.director_chat, "publicar", lambda *a, **k: None)
+        parche.start()
+        self.addCleanup(parche.stop)
         frases, ids = D.retirar_redundantes(raiz=raiz, progreso=progreso, tareas=self.tareas(), asuntos=[],
                                             correr=lambda o: ordenes.append(o))
         self.assertEqual({"CAMR1005Fb", "CAMR1005Fc"}, ids)
