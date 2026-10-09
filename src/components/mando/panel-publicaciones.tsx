@@ -56,10 +56,21 @@ const TEXTO_ESTADO_RECONSTRUCCION: Record<TrabajoReconstruccion["estado"], strin
     fallo: "Falló",
 };
 
-/** Estado legible de la vista previa local: «build X · hace Y · al día / por detrás». */
-function estadoVistaPrevia(vp: VistaPreviaLocal): string {
-    if (!vp.buildCommit) return "sin build local registrado";
-    return `build ${vp.buildCommit.slice(0, 7)} · ${hace(vp.buildT)} · ${vp.atrasado ? "por detrás de HEAD" : "al día"}`;
+/**
+ * Estado legible de la vista previa local. (2026-10-09) Nunca junta un commit viejo con la
+ * hora de un build nuevo: al día → el commit que sirve; si no → el build que se sirve, cuándo
+ * se compiló, que hay código nuevo sin compilar y por qué aún no (el freno del reconstructor).
+ */
+export function estadoVistaPrevia(vp: VistaPreviaLocal): string {
+    if (!vp.atrasado && vp.buildCommit) return `al día · build de ${vp.buildCommit.slice(0, 7)} · compilado ${hace(vp.buildT)}`;
+    if (!vp.buildT && !vp.buildCommit && !vp.buildId) return "sin build local registrado";
+    const cual = vp.buildId ? `build ${vp.buildId.slice(0, 8)}` : vp.buildCommit ? `build de ${vp.buildCommit.slice(0, 7)}` : "build";
+    const freno = !vp.freno
+        ? ""
+        : /enjambre/i.test(vp.freno)
+          ? " · se compila cuando pare el enjambre"
+          : ` · en espera: ${vp.freno.split(":")[0].slice(0, 80)}`;
+    return `${cual} · compilado ${hace(vp.buildT)} · hay código nuevo sin compilar${freno}`;
 }
 
 /** Texto corto del estado de un trabajo de publicación. */

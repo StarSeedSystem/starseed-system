@@ -23,20 +23,57 @@ ESTADOS_RECUPERABLES = {"sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "con
 NIVELES = ("libre", "libre", "haiku", "haiku", "sonnet")
 
 
-def niveles_de(config):
+#: El escritor capaz que no gasta créditos de API: Codex con la suscripción de ChatGPT de Alex.
+MODELO_CODEX = "codex/gpt-5.6-sol"
+
+
+def niveles_de(config, codex_ok=False):
     """Escalera efectiva. Manda config['escalada']['niveles']; si no, NIVELES.
 
     Regla del area (memoria): el trabajo lo hace la flota gratuita. Los
     niveles de pago solo se pisan si la persona los pone en la configuracion,
     y ademas requieren escalada.activa.
+
+    (2026-10-09) Alex: «Fallidas sin resolver tampoco se han autoresuelto». CPA1007Kb falló
+    las pruebas OCHO veces con la flota gratuita y la escalera acabó en «requiere una
+    persona», con Codex —un escritor capaz que va por la suscripción de ChatGPT, no por
+    créditos— libre y con cupo. Ahora, cuando Codex puede escribir, la escalera suma
+    `escalada.codex` peldaños (2 por defecto; 0 los quita) DESPUÉS de los gratuitos y antes
+    de rendirse. Si la configuración ya nombra «codex», manda la configuración.
     """
     niveles = (config or {}).get("escalada", {}).get("niveles")
     if isinstance(niveles, (list, tuple)) and niveles:
-        return tuple(str(x) for x in niveles)
-    return NIVELES
+        base = tuple(str(x) for x in niveles)
+    else:
+        base = NIVELES
+    if "codex" in base:
+        return base if codex_ok else tuple(x for x in base if x != "codex")
+    n_codex = (config or {}).get("escalada", {}).get("codex", 2)
+    if codex_ok and isinstance(n_codex, int) and not isinstance(n_codex, bool) and n_codex > 0:
+        return base + ("codex",) * n_codex
+    return base
 
 
-def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None):
+def reabrible(entrada, niveles):
+    """¿Esta entrada puede seguir subiendo la escalera?
+
+    Lo recuperable, siempre. Y además una «bloqueante» que puso la PROPIA escalera
+    (nota «director: …») cuando ahora hay peldaños que entonces no había (Codex volvió a
+    tener cupo, o se añadieron niveles): esa no la decidió una persona, la decidió la falta
+    de escalones."""
+    if not isinstance(entrada, dict):
+        return False
+    estado = entrada.get("estado")
+    if estado in ESTADOS_RECUPERABLES:
+        return True
+    return (
+        estado == "bloqueante"
+        and str(entrada.get("nota") or "").startswith("director: ")
+        and entrada.get("intentos_auto", 0) < len(niveles)
+    )
+
+
+def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None, codex_ok=False):
     """Calcula el siguiente paso para reintentar una tarea estancada.
 
     Args:
@@ -54,10 +91,10 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None):
     El estado devuelto puede ser 'pendiente' (seguir reintentando) o
     'bloqueante' (requiere una persona).
     """
-    if not isinstance(entrada, dict) or entrada.get("estado") not in ESTADOS_RECUPERABLES:
+    niveles = niveles_de(config, codex_ok)
+    if not reabrible(entrada, niveles):
         return None
 
-    niveles = niveles_de(config)
     n = entrada.get("intentos_auto", 0)
     if n >= len(niveles):
         resumen = ", ".join("%s×%d" % (x, niveles.count(x)) for x in sorted(set(niveles), key=niveles.index))
@@ -77,6 +114,17 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None):
             "modelo": None,
             "cuenta": None,
             "motivo": "reintento gratuito %d/%d" % (n + 1, niveles.count("libre")),
+        }
+
+    # Nivel "codex": escritor capaz por suscripción (sin créditos de API).
+    if nivel == "codex":
+        k = niveles[: n + 1].count("codex")
+        return {
+            "estado": "pendiente",
+            "modelo": MODELO_CODEX,
+            "cuenta": "codex",
+            "motivo": "escalada a Codex (suscripción, sin créditos) %d/%d tras %d intentos gratuitos"
+            % (k, niveles.count("codex"), niveles.count("libre")),
         }
 
     # Nivel "haiku" o "sonnet": escalada a pago

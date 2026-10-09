@@ -11,6 +11,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import desatascar as d
+import desatascar as D
 
 
 def _hace(minutos, ahora):
@@ -486,3 +487,71 @@ class TestMotivoSinSucesora(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CopiasDeCadena(unittest.TestCase):
+    """(2026-10-09) CAMR1005F entró en main mientras sus copias Fb (fallo tsc) y Fc (esperando
+    visto bueno) seguían vivas: se retiran, y nunca una de seguimiento ni una con otro alcance."""
+
+    ARCH = ["src/ai/astraura/mesh/camr/bucle.ts", "src/ai/astraura/mesh/decision-router.ts"]
+
+    def tareas(self):
+        return {
+            "CAMR1005F": {"id": "CAMR1005F", "archivos": list(self.ARCH)},
+            "CAMR1005Fb": {"id": "CAMR1005Fb", "archivos": list(reversed(self.ARCH))},
+            "CAMR1005Fc": {"id": "CAMR1005Fc", "archivos": list(self.ARCH)},
+            "X1": {"id": "X1", "archivos": ["a.ts"]},
+            "X1b": {"id": "X1b", "archivos": ["a.ts", "b.ts"]},
+            "Y1": {"id": "Y1", "archivos": ["c.ts", "d.ts"]},
+            "Y1s": {"id": "Y1s", "archivos": ["c.ts", "d.ts"], "origen": "seguimiento de alcance parcial"},
+        }
+
+    def test_retira_las_copias_de_lo_integrado(self):
+        progreso = {
+            "CAMR1005F": {"estado": "commit", "nota": "ab6023ce · revisión ok"},
+            "CAMR1005Fb": {"estado": "fallo_tsc"},
+            "CAMR1005Fc": {"estado": "esperando_aprobacion", "revisor": "bloqueante"},
+            "X1": {"estado": "commit"}, "X1b": {"estado": "fallo_tsc"},
+            "Y1": {"estado": "commit"}, "Y1s": {"estado": "pendiente"},
+        }
+        r = D.redundantes_de_cadena(progreso, self.tareas())
+        self.assertEqual([("CAMR1005Fb", "CAMR1005F", "fallo_tsc"),
+                          ("CAMR1005Fc", "CAMR1005F", "esperando_aprobacion")], r)
+
+    def test_sin_integrada_no_retira_nada(self):
+        progreso = {"CAMR1005F": {"estado": "fallo_tsc"}, "CAMR1005Fb": {"estado": "pendiente"}}
+        self.assertEqual([], D.redundantes_de_cadena(progreso, self.tareas()))
+
+    def test_integrada_por_asunto_de_main_tambien_cuenta(self):
+        progreso = {"CAMR1005F": {"estado": "sustituida"}, "CAMR1005Fb": {"estado": "fallo_tsc"}}
+        asuntos = ["Ola 1005C · CAMR · CAMR1005F: bucle autónomo"]
+        # Fc no tiene progreso: está pendiente en su cola y también es copia.
+        self.assertEqual([("CAMR1005Fb", "CAMR1005F", "fallo_tsc"), ("CAMR1005Fc", "CAMR1005F", "pendiente")],
+                         D.redundantes_de_cadena(progreso, self.tareas(), asuntos))
+
+    def test_retirar_escribe_la_correccion_y_libera_el_trabajador(self):
+        import tempfile
+        raiz = tempfile.mkdtemp()
+        olas = os.path.join(raiz, "starseed_memory_root", "olas")
+        os.makedirs(olas)
+        progreso = {
+            "CAMR1005F": {"estado": "commit", "nota": "ab6023ce · revisión ok"},
+            "CAMR1005Fb": {"estado": "fallo_tsc"},
+            "CAMR1005Fc": {"estado": "esperando_aprobacion"},
+        }
+        ordenes = []
+        D.director_chat.publicar = lambda *a, **k: None
+        frases, ids = D.retirar_redundantes(raiz=raiz, progreso=progreso, tareas=self.tareas(), asuntos=[],
+                                            correr=lambda o: ordenes.append(o))
+        self.assertEqual({"CAMR1005Fb", "CAMR1005Fc"}, ids)
+        self.assertEqual([["starseed-puente", "rechazar", "CAMR1005Fc"]], ordenes)
+        with open(os.path.join(olas, "progreso-correcciones.json"), encoding="utf-8") as f:
+            corr = json.load(f)
+        self.assertEqual("sustituida", corr["CAMR1005Fb"]["estado"])
+        self.assertIn("ab6023ce", corr["CAMR1005Fc"]["nota"])
+        # Una segunda pasada no repite órdenes ni avisos.
+        ordenes.clear()
+        frases2, _ = D.retirar_redundantes(raiz=raiz, progreso=progreso, tareas=self.tareas(), asuntos=[],
+                                           correr=lambda o: ordenes.append(o))
+        self.assertEqual([], ordenes)
+        self.assertEqual([], frases2)

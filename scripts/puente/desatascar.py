@@ -32,6 +32,7 @@ tocó ninguno de sus archivos, se sigue rechazando.
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -170,6 +171,127 @@ def sucesora_viva(tid, progreso, tareas):
         if ((progreso or {}).get(k) or {}).get("estado") in _SUCESORA_VIVA:
             return k
     return None
+
+
+#: Estados de un eslabón que todavía cuesta: va a correr, ocupa un trabajador esperando un visto
+#: bueno, o falló y alguien lo repararía creando OTRA copia más.
+_RETIRABLES = ("pendiente", "bloqueada", "fallo", "fallo_motor", "fallo_tsc", "fallo_tests", "sin_cambios",
+               "interrumpida", "conflicto", "bloqueante", "esperando_aprobacion", "pendiente_aprobacion")
+
+
+def _asunto_integra(tid, asuntos):
+    patron = re.compile(r"(?:^|·\s*)%s\s*:" % re.escape(tid))
+    return any(patron.search(a) for a in (asuntos or ()))
+
+
+def redundantes_de_cadena(progreso, tareas, asuntos=()):
+    """PURA. [(id, integrada, estado)]: eslabones que repiten un encargo que YA entró en main
+    por otro eslabón de su cadena.
+
+    (2026-10-09, medido) CAMR1005F se integró (ab6023ce) mientras sus copias CAMR1005Fb (fallo
+    tsc) y CAMR1005Fc (esperando visto bueno con revisión bloqueante, ocupando un trabajador)
+    seguían vivas: «Fallidas» las enseñaba sin dueño y el desatascador iba a crear CAMR1005Fd
+    para «reparar» la objeción de Fc. Rehacer lo que ya está en main es gasto puro.
+
+    Prudente a propósito: solo cuenta como copia la que declara EXACTAMENTE los mismos archivos
+    que la integrada, y nunca una tarea de seguimiento (esa lleva lo que faltó)."""
+    progreso = progreso or {}
+    tareas = tareas or {}
+    por_base = {}
+    for k in set(progreso) | set(tareas):
+        por_base.setdefault(_base_id(k), []).append(k)
+    salida = []
+    for _base, ids in sorted(por_base.items()):
+        if len(ids) < 2:
+            continue
+        integradas = [k for k in sorted(ids)
+                      if (progreso.get(k) or {}).get("estado") in ("commit", "hecho") or _asunto_integra(k, asuntos)]
+        if not integradas:
+            continue
+        for k in sorted(ids):
+            if k in integradas or _asunto_integra(k, asuntos):
+                continue
+            est = (progreso.get(k) or {}).get("estado") or "pendiente"
+            if est not in _RETIRABLES:
+                continue
+            t = tareas.get(k) or {}
+            if str(t.get("origen") or "").startswith("seguimiento") or str(t.get("prompt") or "").startswith("SEGUIMIENTO"):
+                continue
+            mios = sorted({str(x) for x in (t.get("archivos") or [])})
+            if not mios:
+                continue
+            for i in integradas:
+                suyos = sorted({str(x) for x in ((tareas.get(i) or {}).get("archivos") or [])})
+                if suyos == mios:
+                    salida.append((k, i, est))
+                    break
+    return salida
+
+
+def retirar_redundantes(raiz=None, ahora=None, progreso=None, tareas=None, asuntos=None,
+                        binario="starseed-puente", correr=None):
+    """Retira las copias de `redundantes_de_cadena`: quedan «sustituidas» (rama conservada) y,
+    si están en la tanda viva, se les da la orden que libera su trabajador (`rechazar` a la que
+    espera un visto bueno, `soltar` a la que aún no empezó). Devuelve (frases, ids)."""
+    raiz = raiz or RAIZ
+    ahora = ahora or time.time()
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    if progreso is None:
+        try:
+            with open(os.path.join(olas, "progreso.json"), encoding="utf-8") as f:
+                progreso = json.load(f)
+        except Exception:
+            return [], set()
+    tareas = tareas if tareas is not None else _tareas_de_las_colas(olas)
+    if asuntos is None:
+        try:
+            asuntos = subprocess.run(["git", "log", "main", "-n", "3000", "--format=%s"], cwd=raiz,
+                                     capture_output=True, text=True, timeout=30).stdout.splitlines()
+        except Exception:
+            asuntos = []
+    correr = correr or (lambda orden: subprocess.run(orden, capture_output=True, text=True, timeout=30,
+                                                     env=dict(os.environ, STARSEED_IDE="desatascador")))
+    try:
+        with open(os.path.join(olas, "progreso-correcciones.json"), encoding="utf-8") as f:
+            ya = json.load(f)
+    except Exception:
+        ya = {}
+    ya = ya if isinstance(ya, dict) else {}
+    frases, correcciones, ids = [], {}, set()
+    for tid, integrada, est in redundantes_de_cadena(progreso, tareas, asuntos):
+        ids.add(tid)
+        if (ya.get(tid) or {}).get("estado") == "sustituida":
+            continue  # ya decidido en una pasada anterior: falta solo que el vigilante lo aplique
+        accion = "rechazar" if est in ("esperando_aprobacion",) else "soltar" if est in ("pendiente", "bloqueada") else None
+        if accion:
+            try:
+                correr([binario, accion, tid])
+            except Exception:
+                pass
+        sha = str((progreso.get(integrada) or {}).get("nota") or "").split(" ")[0]
+        correcciones[tid] = {
+            "estado": "sustituida",
+            "t": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)),
+            "nota": "superada: el mismo encargo entró en main con %s%s; esta copia ya no hace falta "
+                    "(rama ola/%s conservada)" % (integrada, (" (%s)" % sha) if re.match(r"^[0-9a-f]{7,40}$", sha) else "", tid),
+        }
+        frases.append("retiro %s (%s): copia de %s, que ya está en main" % (tid, est, integrada))
+    if correcciones:
+        ruta = os.path.join(olas, "progreso-correcciones.json")
+        ya.update(correcciones)
+        tmp = ruta + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(ya, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, ruta)
+        try:
+            director_chat.publicar(
+                "*Copias retiradas*\n" + "\n".join("· " + f for f in frases)
+                + "\n\nEl encargo ya está integrado por otro eslabón de su cadena; rehacerlo era gasto. "
+                  "Las ramas quedan conservadas.",
+                de="desatascador", rol="sistema", tipo="hecho", canal="mando", canales=["claude-cowork"])
+        except Exception:
+            pass
+    return frases, ids
 
 
 def aprobaciones_pendientes_a_reparar(progreso, tareas, ahora, tope_min=5):
@@ -995,6 +1117,17 @@ def desatascar(raiz, vivo, n_agentes, progreso, ahora=None, ruta_estado=None):
         os.path.expanduser("~"), ".starseed", "desatascar-estado.json"
     )
     frases = []
+
+    # (2026-10-09) Antes que nada, las copias de algo ya integrado salen de en medio: si no, las
+    # reparaciones de abajo crearían OTRA copia más para «arreglar» lo que ya está en main.
+    try:
+        retiradas, ids_retirados = retirar_redundantes(raiz=raiz, ahora=ahora, progreso=progreso)
+        frases += retiradas
+        if ids_retirados and isinstance(progreso, dict):
+            progreso = {k: (dict(v, estado="sustituida") if k in ids_retirados and isinstance(v, dict) else v)
+                        for k, v in progreso.items()}
+    except Exception as e:  # noqa: BLE001
+        frases.append("no pude revisar las copias de cadena: %s" % type(e).__name__)
 
     procesos = trabajadores_opencode(ahora)
     frases += matar_colgados(procesos, ahora)

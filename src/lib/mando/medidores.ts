@@ -1200,6 +1200,8 @@ export interface DatosMedidores {
     escritores?: Record<string, { pid: number; minutos: number }> | null;
     /** (2026-10-09) Tareas cuyo latido decía «escribiendo» sin proceso: ya quitadas de `latidos`. */
     fantasmas?: string[];
+    /** (2026-10-09) Decisiones del director aún sin aplicar (`progreso-correcciones.json`). */
+    correcciones?: Record<string, { estado?: string; nota?: string; t?: string }>;
     historiales?: Record<string, SucesoDeFila[]>;
     /** Archivos que la cola DECLARÓ para cada tarea, para poder comparar con los tocados. */
     declarados?: Record<string, string[]>;
@@ -1882,9 +1884,14 @@ export function detalleDeMedidor(
                 if (Number.isFinite(t) && t < limite) continue;
                 const sucesoras = sucesorasDe(id, ids);
                 if (sucesoras.some((k) => INTEGRADOS.has(d.progreso[k]?.estado ?? "") || enMain(k))) continue;
+                // (2026-10-09) Lo que el director ya resolvió (la retiró por copia de algo integrado,
+                // la rechazó) no es una fallida sin dueño aunque el vigilante aún no lo haya aplicado.
+                const decidida = d.correcciones?.[id];
+                if (decidida && /^(sustituida|rechazada|commit|hecho)$/.test(decidida.estado ?? "")) continue;
                 const viva = sucesoras.find((k) => !MUERTOS_CADENA.has(d.progreso[k]?.estado ?? ""));
-                const nota = String(v?.nota ?? "");
+                const nota = decidida?.nota && decidida.estado !== est ? decidida.nota : String(v?.nota ?? "");
                 const intento = /reintento gratuito (\d+)\/(\d+)/.exec(nota);
+                const codex = /escalada a Codex[^·]*/.exec(nota);
                 filas.push({
                     id,
                     titulo: titulo(id) !== id ? titulo(id) : "sin título en su cola",
@@ -1894,7 +1901,11 @@ export function detalleDeMedidor(
                         ? `la rehace ${viva} (${d.progreso[viva]?.estado || "pendiente"})`
                         : intento
                           ? `la escalera del director la reintenta (intento ${intento[1]} de ${intento[2]}) · ${nota.slice(0, 120)}`
-                          : nota.slice(0, 160) || "sin nota",
+                          : codex
+                            ? `la escalera del director la pasa a un modelo capaz: ${codex[0].trim()}`
+                            : decidida?.estado === "bloqueante"
+                              ? `necesita una persona: ${nota.replace(/^director:\s*/, "").slice(0, 140)}`
+                              : nota.slice(0, 160) || "sin nota",
                     acciones: accionesDeBloqueada({ estado: est }),
                 });
             }
@@ -1903,7 +1914,14 @@ export function detalleDeMedidor(
                 clave,
                 titulo: "Fallidas sin resolver",
                 resumen: filas.length
-                    ? `${filas.length} sin resolver en 3 días · ${filas.filter((f) => /rehace|escalera/.test(f.porque ?? "")).length} ya con reparación en marcha`
+                    ? [
+                          `${filas.length} sin resolver en 3 días`,
+                          `${filas.filter((f) => /rehace|escalera/.test(f.porque ?? "")).length} ya con reparación en marcha`,
+                          ...(() => {
+                              const n = filas.filter((f) => /^necesita una persona/.test(f.porque ?? "")).length;
+                              return n ? [`${n} ${n === 1 ? "necesita" : "necesitan"} a alguien`] : [];
+                          })(),
+                      ].join(" · ")
                     : "nada fallado sin resolver en los últimos 3 días",
                 filas,
                 acciones: [IR_A("Ver la ramificación", "procesos")],

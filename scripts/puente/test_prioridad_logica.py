@@ -183,3 +183,31 @@ class CapacidadPrimero(unittest.TestCase):
     def test_una_tarea_normal_no_se_cuela_por_parecerse(self):
         _, razones = puntuar({"id": "Y", "archivos": ["src/lib/mando/medidores.ts"]}, {}, 0, None)
         self.assertFalse(any("techo del sistema" in r for r in razones))
+
+
+class DependenciasDeCadena(unittest.TestCase):
+    """(2026-10-09) PRD1005U esperaba a PRD1005S, que integró su sucesora PRD1005Sc: la
+    dependencia está cumplida y U no puede quedarse «bloqueada» para siempre."""
+
+    def test_una_sucesora_integrada_cierra_la_dependencia(self):
+        progreso = {
+            "PRD1005I": {"estado": "commit"},
+            "PRD1005S": {"estado": "sustituida"},
+            "PRD1005Sb": {"estado": "sustituida"},
+            "PRD1005Sc": {"estado": "commit"},
+            "PRD1005U": {"estado": "fallo_tsc"},
+        }
+        listas, bloqueadas = ordenar([tarea("PRD1005U", ["PRD1005I", "PRD1005S"])], progreso, AHORA)
+        self.assertEqual(["PRD1005U"], [t["id"] for t, _p, _r in listas])
+        self.assertEqual([], bloqueadas)
+
+    def test_una_sucesora_viva_no_basta(self):
+        progreso = {"A1": {"estado": "fallo_tsc"}, "A1b": {"estado": "pendiente"}}
+        _listas, bloqueadas = ordenar([tarea("B1", ["A1"])], progreso, AHORA)
+        self.assertEqual(["B1"], [t["id"] for t, _m in bloqueadas])
+
+    def test_una_anterior_integrada_no_cierra_a_la_posterior(self):
+        # Depender de A1c no se cumple porque A1 entrara: la regla mira hacia delante.
+        progreso = {"A1": {"estado": "commit"}, "A1c": {"estado": "pendiente"}}
+        _listas, bloqueadas = ordenar([tarea("B1", ["A1c"])], progreso, AHORA)
+        self.assertEqual(1, len(bloqueadas))

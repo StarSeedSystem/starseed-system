@@ -62,4 +62,23 @@ describe("medidor «fallidas»: lo que falló y nadie ha resuelto", () => {
         expect(d.filas.find((f) => f.id === "PT1009Cb")?.porque).toContain("intento 2 de 8");
         expect(d.resumen).toBe("2 sin resolver en 3 días · 2 ya con reparación en marcha");
     });
+
+    it("lee lo que el director ya decidió aunque el vigilante no lo haya aplicado (2026-10-09)", () => {
+        const p = {
+            CAMR1005F: { estado: "commit", t: "2026-10-08 17:45:04" },
+            CAMR1005Fb: { estado: "fallo_tsc", nota: "2 errores tsc", t: "2026-10-08 17:18:24" },
+            CPA1007Kb: { estado: "fallo_tests", nota: "vitest falla", t: "2026-10-08 17:47:29" },
+            OTRA: { estado: "fallo_tsc", nota: "3 errores tsc", t: "2026-10-08 17:00:00" },
+        };
+        const correcciones = {
+            CAMR1005Fb: { estado: "sustituida", nota: "superada: el mismo encargo entró en main con CAMR1005F" },
+            CPA1007Kb: { estado: "pendiente", nota: "director: escalada a Codex (suscripción, sin créditos) 1/2 tras 8 intentos gratuitos" },
+            OTRA: { estado: "bloqueante", nota: "director: escalada agotada tras 10 intentos: requiere una persona" },
+        };
+        const r = detalleDeMedidor("fallidas", { progreso: p, correcciones }, ahora);
+        expect(r.filas.map((f) => f.id).sort()).toEqual(["CPA1007Kb", "OTRA"]);
+        expect(r.filas.find((f) => f.id === "CPA1007Kb")?.porque).toContain("modelo capaz: escalada a Codex");
+        expect(r.filas.find((f) => f.id === "OTRA")?.porque).toMatch(/^necesita una persona/);
+        expect(r.resumen).toBe("2 sin resolver en 3 días · 1 ya con reparación en marcha · 1 necesita a alguien");
+    });
 });

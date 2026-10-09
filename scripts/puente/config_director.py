@@ -129,7 +129,7 @@ def _es_lista_str(v):
     return isinstance(v, list) and all(isinstance(x, str) for x in v)
 
 
-NIVELES_VALIDOS = ("libre", "haiku", "sonnet")
+NIVELES_VALIDOS = ("libre", "codex", "haiku", "sonnet")
 
 
 def _es_numero(v):
@@ -242,7 +242,7 @@ def _validar_escalada(escalada):
     if not isinstance(escalada, dict):
         return ["'escalada' debe ser un objeto"]
     for k, v in escalada.items():
-        if k in {"tope_haiku_dia", "tope_sonnet_dia"} and not _es_entero_no_negativo(v):
+        if k in {"tope_haiku_dia", "tope_sonnet_dia", "codex"} and not _es_entero_no_negativo(v):
             errores.append("'escalada.%s' debe ser un entero >= 0" % k)
         elif k == "activa" and not isinstance(v, bool):
             errores.append("'escalada.activa' debe ser un booleano")
@@ -284,11 +284,11 @@ def cargar(ruta=None):
         esc = dict(DEFAULTS["escalada"])
         e = con["escalada"]
         for k, v in e.items():
-            if k in ("tope_haiku_dia", "tope_sonnet_dia"):
+            if k in ("tope_haiku_dia", "tope_sonnet_dia", "codex"):
                 if _es_entero_no_negativo(v):
                     esc[k] = v
                 else:
-                    avisos.append("'escalada.%s' inválido, se usa %s" % (k, esc[k]))
+                    avisos.append("'escalada.%s' inválido, se usa %s" % (k, esc.get(k, 2)))
             elif k == "activa" and isinstance(v, bool):
                 esc[k] = v
             elif k == "niveles":

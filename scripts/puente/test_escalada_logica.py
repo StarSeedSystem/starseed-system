@@ -4,6 +4,7 @@
 
 import unittest
 import escalada_logica
+import escalada_logica as E
 from datetime import datetime
 from escalada_logica import (
     siguiente_paso,
@@ -394,3 +395,43 @@ class TestNivelesConfigurables(unittest.TestCase):
         )
         self.assertEqual(paso["estado"], "bloqueante")
         self.assertIn("libre×8", paso["motivo"])
+
+
+class PeldanoCodex(unittest.TestCase):
+    """(2026-10-09) Alex: «Fallidas sin resolver tampoco se han autoresuelto». CPA1007Kb falló
+    ocho veces con la flota gratuita y se rindió con Codex libre y con cupo."""
+
+    CFG = {"escalada": {"activa": False, "niveles": ["libre"] * 8, "tope_haiku_dia": 0, "tope_sonnet_dia": 0}}
+
+    def entrada(self, n, estado="fallo_tests", nota="vitest falla (rama conservada)"):
+        return {"estado": estado, "intentos_auto": n, "nota": nota}
+
+    def test_agotados_los_gratuitos_sube_a_codex(self):
+        paso = E.siguiente_paso(self.entrada(8), {}, self.CFG, "2026-10-09", [], codex_ok=True)
+        self.assertEqual("pendiente", paso["estado"])
+        self.assertEqual(E.MODELO_CODEX, paso["modelo"])
+        self.assertEqual("codex", paso["cuenta"])
+        self.assertIn("Codex", paso["motivo"])
+
+    def test_sin_codex_se_rinde_como_antes(self):
+        paso = E.siguiente_paso(self.entrada(8), {}, self.CFG, "2026-10-09", [], codex_ok=False)
+        self.assertEqual("bloqueante", paso["estado"])
+
+    def test_tras_los_dos_de_codex_requiere_una_persona(self):
+        paso = E.siguiente_paso(self.entrada(10), {}, self.CFG, "2026-10-09", [], codex_ok=True)
+        self.assertEqual("bloqueante", paso["estado"])
+
+    def test_una_bloqueante_de_la_escalera_vuelve_a_subir_si_aparece_codex(self):
+        e = self.entrada(8, "bloqueante", "director: escalada agotada tras 8 intentos (libre×8): requiere una persona")
+        self.assertTrue(E.reabrible(e, E.niveles_de(self.CFG, True)))
+        self.assertFalse(E.reabrible(e, E.niveles_de(self.CFG, False)))
+        paso = E.siguiente_paso(e, {}, self.CFG, "2026-10-09", [], codex_ok=True)
+        self.assertEqual(E.MODELO_CODEX, paso["modelo"])
+
+    def test_una_bloqueante_puesta_por_una_persona_no_se_toca(self):
+        e = self.entrada(2, "bloqueante", "Alex: no la quiero así")
+        self.assertIsNone(E.siguiente_paso(e, {}, self.CFG, "2026-10-09", [], codex_ok=True))
+
+    def test_codex_0_quita_el_peldano(self):
+        cfg = {"escalada": dict(self.CFG["escalada"], codex=0)}
+        self.assertNotIn("codex", E.niveles_de(cfg, True))

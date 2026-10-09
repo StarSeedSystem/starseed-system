@@ -211,6 +211,34 @@ def puntuar(
     return puntos, razones
 
 
+def base_de_cadena(tid: Any) -> str:
+    """«PRD1005Sc» → «PRD1005S»: una minúscula b-z al final, detrás de mayúscula o cifra, marca
+    un reintento de la misma tarea (la regla de `obtenerBaseId` de Genesis)."""
+    tid = str(tid or "")
+    if len(tid) > 1 and tid[-1] in "bcdefghijklmnopqrstuvwxyz" and (tid[-2].isdigit() or tid[-2].isupper()):
+        return tid[:-1]
+    return tid
+
+
+def dependencia_cerrada(dep: Any, progreso: Dict[str, Any]) -> bool:
+    """Una dependencia está cerrada si ELLA o una sucesora de su cadena está integrada.
+
+    (2026-10-09, medido) PRD1005U esperaba a PRD1005S; S acabó «sustituida» y la integró su
+    sucesora PRD1005Sc (2f9bf74e). Aquí solo se miraba S, así que U quedaba «bloqueada» para
+    la escalera del director y para el vigilante: nadie la reintentó en horas tras su fallo.
+    """
+    dep = str(dep or "")
+    if str((progreso.get(dep) or {}).get("estado") or "") in ESTADOS_CERRADOS:
+        return True
+    base = base_de_cadena(dep)
+    for k, v in progreso.items():
+        if k == dep or k <= dep or base_de_cadena(k) != base:
+            continue
+        if isinstance(v, dict) and str(v.get("estado") or "") in ESTADOS_CERRADOS:
+            return True
+    return False
+
+
 def ordenar(
     tareas: Sequence[Dict[str, Any]],
     progreso: Dict[str, Any],
@@ -246,8 +274,7 @@ def ordenar(
             deps = [deps]
         abierta = None
         for dep in deps:
-            estado_dep = str((progreso.get(dep) or {}).get("estado") or "")
-            if estado_dep not in ESTADOS_CERRADOS:
+            if not dependencia_cerrada(dep, progreso):
                 abierta = dep
                 break
         if abierta is not None:

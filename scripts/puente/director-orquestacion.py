@@ -40,6 +40,8 @@ from escalada_logica import (
     aplicar,
     contar_gasto,
     en_asuntos,
+    niveles_de,
+    reabrible,
     ESTADOS_RECUPERABLES,
 )
 from vigilante_logica import base_de_cadena, id_en_asuntos
@@ -298,6 +300,26 @@ def reconciliar_estados():
         return []
 
 
+def codex_puede_escribir():
+    """¿Puede Codex escribir AHORA en esta Mac? Binario, sesión de ChatGPT (solo se mira
+    `auth_mode`, nunca los tokens) y cupo (`cupo_codex`). Cualquier duda = no."""
+    try:
+        import shutil
+
+        if os.environ.get("STARSEED_CODEX_ESCRITOR", "1").strip().lower() in ("0", "no", "false"):
+            return False
+        if not (shutil.which("codex") or os.path.exists(os.path.expanduser("~/.local/bin/codex"))):
+            return False
+        with open(os.path.expanduser("~/.codex/auth.json"), encoding="utf-8") as fh:
+            if (json.load(fh) or {}).get("auth_mode") != "chatgpt":
+                return False
+        import cupo_codex
+
+        return bool(cupo_codex.puede_escribir())
+    except Exception:
+        return False
+
+
 def correccion_de(entrada):
     """PURA. Los campos que la escalera cambió, con la forma de `progreso-correcciones.json`.
     `modelo_siguiente` va siempre (None = sin modelo clavado: lo elige el orquestador) y
@@ -411,11 +433,26 @@ def continuar_estancadas(tope=20):
             if orden >= ultimo_de.get(b, (-1, ""))[0]:
                 ultimo_de[b] = (orden, k)
         con_sucesora = {k for k in p if ultimo_de.get(base_de_cadena(k), (0, k))[1] != k}
+        # (2026-10-09) Lo que ya está decidido y solo espera a que el vigilante lo aplique (una
+        # copia retirada, una rechazada) no se reabre: si no, la escalera la resucitaba.
+        try:
+            with open(os.path.join(OLAS, "progreso-correcciones.json"), encoding="utf-8") as fh:
+                decididas = {k for k, v in (json.load(fh) or {}).items()
+                             if isinstance(v, dict) and v.get("estado") in ("sustituida", "rechazada", "commit", "hecho")}
+        except Exception:
+            decididas = set()
+        con_sucesora |= decididas
+        # (2026-10-09) Codex (suscripción de ChatGPT, sin créditos) es el peldaño capaz antes de
+        # «requiere una persona». Solo si de verdad puede escribir ahora: binario, sesión de
+        # ChatGPT y cupo. Y una «bloqueante» que puso la propia escalera vuelve a subir cuando
+        # aparece un peldaño que entonces no estaba.
+        codex_ok = codex_puede_escribir()
+        niveles = niveles_de(cfg, codex_ok)
         candidatas = [
             tid
             for tid, entrada in p.items()
             if isinstance(entrada, dict)
-            and entrada.get("estado") in ESTADOS_RECUPERABLES
+            and reabrible(entrada, niveles)
             and not id_en_asuntos(tid, asuntos)
             and tid not in con_sucesora
         ]
@@ -427,7 +464,7 @@ def continuar_estancadas(tope=20):
         gasto_nuevo = dict(gasto)
         tocadas = []
         bloqueantes_motivos = {}
-        cuenta_por_tipo = {"libre": [], "haiku": [], "sonnet": [], "bloqueante": []}
+        cuenta_por_tipo = {"libre": [], "codex": [], "haiku": [], "sonnet": [], "bloqueante": []}
 
         for tid in ordenadas:
             entrada = p.get(tid)
@@ -437,7 +474,7 @@ def continuar_estancadas(tope=20):
                 break
 
             paso = siguiente_paso(
-                entrada, gasto_nuevo, cfg, hoy, modelos_anthropic, ahora
+                entrada, gasto_nuevo, cfg, hoy, modelos_anthropic, ahora, codex_ok=codex_ok
             )
             if paso is None:
                 continue
@@ -477,6 +514,8 @@ def continuar_estancadas(tope=20):
             partes = []
             if cuenta_por_tipo["libre"]:
                 partes.append("libre: %s" % ", ".join(cuenta_por_tipo["libre"][:3]))
+            if cuenta_por_tipo["codex"]:
+                partes.append("codex: %s" % ", ".join(cuenta_por_tipo["codex"][:3]))
             if cuenta_por_tipo["haiku"]:
                 partes.append("haiku: %s" % ", ".join(cuenta_por_tipo["haiku"][:3]))
             if cuenta_por_tipo["sonnet"]:

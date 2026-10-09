@@ -18,6 +18,7 @@ import { promisify } from "node:util";
 
 import { limpiarRegenerables, medirDisco, medirRegenerables } from "@/lib/mando/almacenamiento";
 import { orquestadoresVivos } from "@/lib/mando/procesos-orquestador";
+import { pushReparable } from "@/lib/mando/push-reparable";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export type RepoPublicable = "os" | "astraura";
@@ -80,6 +81,10 @@ export type TrabajoPublicacion = {
     fin: string | null;
     salida: string; // últimas 40 líneas
     enlaces: EnlacesPublicacion;
+    /** Cuenta de GitHub con la que salió el push, si no fue la activa (solo el nombre). */
+    cuenta?: string;
+    /** Frase de la autorreparación aplicada, si la hubo. */
+    reparado?: string;
 };
 
 export type ModoPublicacion = "produccion" | "vista-previa" | "paquete";
@@ -179,6 +184,15 @@ export type ArgumentosPublicacion = {
     args: string[];
     refTemporal: string | null;
 };
+
+/**
+ * PURA. Commits que sube publicar `hasta`: él y todos los anteriores sin publicar. `idx` es su
+ * posición en la lista de pendientes (de nuevo a viejo); -1 = no está en la lista (es HEAD).
+ */
+export function commitsQuePublica(delante: number, idx: number): number {
+    if (idx < 0) return delante;
+    return Math.max(1, delante - idx);
+}
 
 /**
  * Función pura que decide la orden de git de una publicación. «esHead» indica que
@@ -375,6 +389,12 @@ export type VistaPreviaLocal = {
     head: string | null;
     atrasado: boolean;
     sirviendo: boolean;
+    /** BUILD_ID del build que se sirve de verdad (`reconstruccion.json` → `build_servido`). */
+    buildId?: string | null;
+    /** De dónde salió ese build («compilado en la nube (…)», «compilado aquí»). */
+    origen?: string | null;
+    /** Por qué no se ha recompilado aún, si hay código nuevo (el freno del reconstructor). */
+    freno?: string | null;
 };
 
 export type ResumenPublicaciones = {
@@ -445,7 +465,15 @@ async function ejecutarTrabajo(
             salida = `no se pudo crear la ref temporal ${refTemporal}: ${err.stderr ?? err.message ?? "error"}`;
         }
     }
-    if (estado === "publicado") {
+    if (estado === "publicado" && args[0] === "push") {
+        // (2026-10-09) El push se repara solo: cuenta de gh con permiso, cortes de red, y si no
+        // hay arreglo posible, qué hace falta con el enlace exacto. Ver push-reparable.ts.
+        const r = await pushReparable({ cwd, args, carpetaMemoria: carpetaAbs });
+        estado = r.ok ? "publicado" : "fallo";
+        salida = r.salida;
+        if (r.cuenta) trabajo.cuenta = r.cuenta;
+        if (r.reparado) trabajo.reparado = r.reparado;
+    } else if (estado === "publicado") {
         try {
             const { stdout, stderr } = await execFileAsync("git", args, { cwd, timeout: 55000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
             salida = `${stdout}\n${stderr}`.trim();
@@ -528,10 +556,11 @@ export async function publicar(p: PeticionPublicar): Promise<RespuestaPublicacio
     } else {
         hasta = headSha;
     }
-    // Cuántos commits publica esta orden: del más nuevo al `hasta`, ambos incluidos
-    // (el log viene de nuevo a viejo; si `hasta` no está en la lista es HEAD y los cuenta todos).
+    // Cuántos commits publica esta orden. El log viene de nuevo a viejo y `hasta:main` sube
+    // `hasta` Y TODOS SUS ANTERIORES: de su posición al final de la lista. (2026-10-09: decía
+    // «1 commit» al publicar HEAD con 11 delante, porque contaba del más nuevo a `hasta`.)
     const idxHasta = estado.commits.findIndex((c) => c.sha === hasta);
-    const seleccionados = idxHasta === -1 ? estado.delante : idxHasta + 1;
+    const seleccionados = commitsQuePublica(estado.delante, idxHasta);
     const desde = estado.base.sha;
 
     // Trabajo desacoplado: se responde al instante y el push madura en segundo plano
@@ -661,6 +690,10 @@ export async function leerVistaPrevia(): Promise<VistaPreviaLocal> {
         // Sin build registrado: aún no se ha reconstruido nunca (atrasado).
     }
     let head: string | null = null;
+    let buildId: string | null = null;
+    let origen: string | null = null;
+    let freno: string | null = null;
+    let alDia: boolean | null = null;
     try {
         head = (await git(raizDelProyecto(), ["rev-parse", "HEAD"])).trim() || null;
     } catch {
@@ -674,12 +707,19 @@ export async function leerVistaPrevia(): Promise<VistaPreviaLocal> {
     try {
         const rec = JSON.parse(
             await readFile(path.join(raizDelProyecto(), "starseed_memory_root", "mando", "reconstruccion.json"), "utf8"),
-        ) as { estado?: unknown; t?: unknown };
+        ) as { estado?: unknown; t?: unknown; build_servido?: unknown; origen?: unknown; freno?: unknown };
         const tRec = typeof rec.t === "number" ? rec.t * 1000 : NaN;
         const tLocal = buildT ? Date.parse(buildT) : NaN;
         if (Number.isFinite(tRec) && (!Number.isFinite(tLocal) || tRec > tLocal)) {
             buildT = new Date(tRec).toISOString();
-            buildCommit = rec.estado === "al-dia" ? head : buildCommit;
+            // (2026-10-09) «build 5ac628e · hace 1 h · por detrás de HEAD»: juntaba la hora del
+            // build nuevo con el commit del viejo. Si no está al día, NO se inventa commit: se
+            // dice qué build se sirve (su BUILD_ID) y que hay código nuevo sin compilar.
+            buildCommit = rec.estado === "al-dia" ? head : null;
+            buildId = typeof rec.build_servido === "string" ? rec.build_servido : null;
+            origen = typeof rec.origen === "string" ? rec.origen : null;
+            freno = rec.estado === "al-dia" || typeof rec.freno !== "string" ? null : rec.freno;
+            alDia = rec.estado === "al-dia";
         }
     } catch {
         // Sin reconstructor en esta máquina: se queda lo de build-local.json.
@@ -697,7 +737,8 @@ export async function leerVistaPrevia(): Promise<VistaPreviaLocal> {
     } catch {
         // Sin servidor ligero en :9002: no se sirve nada.
     }
-    return { url, buildCommit, buildT, head, atrasado: interpretarVistaPrevia({ buildCommit, head }), sirviendo };
+    const atrasado = alDia === null ? interpretarVistaPrevia({ buildCommit, head }) : !alDia;
+    return { url, buildCommit, buildT, head, atrasado, sirviendo, buildId, origen, freno };
 }
 
 /**

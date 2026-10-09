@@ -89,6 +89,28 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
     };
 }
 
+/** Correcciones pendientes de aplicar (`olas/progreso-correcciones.json`): solo estado y nota. */
+async function leerCorrecciones(): Promise<Record<string, { estado?: string; nota?: string; t?: string }>> {
+    try {
+        const crudo = JSON.parse(
+            await readFile(path.join(RAÍZ, "starseed_memory_root", "olas", "progreso-correcciones.json"), "utf8"),
+        ) as Record<string, unknown>;
+        const salida: Record<string, { estado?: string; nota?: string; t?: string }> = {};
+        for (const [id, v] of Object.entries(crudo ?? {})) {
+            if (!v || typeof v !== "object") continue;
+            const e = v as { estado?: unknown; nota?: unknown; t?: unknown };
+            salida[id] = {
+                estado: typeof e.estado === "string" ? e.estado : undefined,
+                nota: typeof e.nota === "string" ? e.nota.slice(0, 300) : undefined,
+                t: typeof e.t === "string" ? e.t : undefined,
+            };
+        }
+        return salida;
+    } catch {
+        return {};
+    }
+}
+
 /**
  * Qué está tocando AHORA cada tarea viva, leído de su worktree.
  *
@@ -746,6 +768,9 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         latidos: [...latidosDeAqui, ...agentesNube],
         escritores,
         fantasmas,
+        // (2026-10-09) Lo que el director ya decidió y el vigilante aún no aplicó (espera a que
+        // acabe la tanda): sin esto «Fallidas» seguía enseñando como sin dueño lo ya resuelto.
+        correcciones: await leerCorrecciones(),
         contenedores,
         creditoClaude: await leerCreditoClaude().catch(() => null),
         limitesClaude: await leerLimitesClaude().catch(() => null),
