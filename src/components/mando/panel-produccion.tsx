@@ -6,8 +6,8 @@
  * Contrato `architecture/director-produccion.md` §7: el lote en curso puerta a
  * puerta (verde · ámbar · rojo · omitida), los medios con el `sha` que sirven,
  * las últimas 10 publicaciones y reversiones, el modo y los botones
- * Pausar/Reanudar y Vetar. Sondea `/api/mando/produccion` cada 5 s, pero solo
- * con la pestaña visible.
+ * Pausar/Reanudar, Vetar y activar/apartar puentes. Sondea
+ * `/api/mando/produccion` cada 5 s, pero solo con la pestaña visible.
  */
 
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";

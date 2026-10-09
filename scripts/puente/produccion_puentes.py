@@ -64,6 +64,19 @@ def actualizar_estado(bid: str, exito: bool, latencia: Optional[float], ahora: d
         e["peso"]=max(0.05,e["peso"]-0.15)
     _guardar(estado)
 
+def activar_puente(nombre: str, activo: bool):
+    estado = _cargar()
+    if nombre not in estado:
+        estado[nombre] = {}
+    estado[nombre]["activo"] = activo
+    estado[nombre]["actualizado"] = datetime.utcnow().isoformat()
+    _guardar(estado)
+    return {"ok": True, "nombre": nombre, "activo": activo}
+
+def obtener_puentes_estado():
+    return _cargar()
+
+
 def _cupo_libre(puente, estado):
     cupo=puente.get("cupo")
     if not cupo: return True
@@ -99,3 +112,16 @@ def enrutar(evento: str, capacidad: str, datos: Any, entorno: Optional[Dict[str,
             return {"puente":b["id"],"ok":True}
     return {"puente":None,"ok":False,"motivo":"sin puentes"}
 
+
+def activar_puente(nombre: str, activo: bool):
+    estado = _cargar()
+    if nombre not in estado:
+        estado[nombre] = {}
+    estado[nombre]["activo"] = activo
+    estado[nombre]["actualizado"] = datetime.utcnow().isoformat()
+    _guardar(estado)
+    return {"ok": True, "nombre": nombre, "activo": activo}
+
+
+def obtener_puentes_estado():
+    return _cargar()

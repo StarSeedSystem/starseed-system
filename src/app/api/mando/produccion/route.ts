@@ -27,6 +27,7 @@ import path from "node:path";
 import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { DEFAULTS, fusionar, type ProduccionConfig } from "@/lib/mando/director-config";
+import { obtenerPuentes, BRIDGES, actualizarEstadoPuente } from "@/lib/mando/produccion-puentes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -164,6 +165,38 @@ export async function POST(peticion: Request): Promise<Response> {
     }
     const accion = typeof cuerpo.accion === "string" ? cuerpo.accion : "";
     const ahora = new Date().toISOString();
+
+    if (accion === "puente") {
+        const nombre = typeof cuerpo.nombre === "string" ? cuerpo.nombre.trim() : "";
+        const activo = typeof cuerpo.activo === "boolean" ? cuerpo.activo : false;
+        if (!nombre) return Response.json({ error: "Falta el nombre del puente." }, { status: 400 });
+        const puenteValido = BRIDGES.some((p) => p.id === nombre);
+        if (!puenteValido) return Response.json({ error: `El puente '${nombre}' no está en la lista de puentes conocidos.` }, { status: 400 });
+        try {
+            const puentePath = path.join(os.homedir(), ".starseed", "produccion", "puentes.json");
+            let estado: Record<string, unknown> = {};
+            try {
+                const contenido = await readFile(puentePath, "utf-8");
+                estado = JSON.parse(contenido);
+            } catch {
+                estado = {};
+            }
+            estado[nombre] = {
+                ...(estado[nombre] || {}),
+                ...({
+                    actualizado: ahora,
+                    activo: activo,
+                } as Record<string, unknown>),
+            };
+            await mkdir(path.dirname(puentePath), { recursive: true });
+            const temporal = `${puentePath}.tmp-${process.pid}-${Date.now()}`;
+            await writeFile(temporal, `${JSON.stringify(estado, null, 2)}\n`, "utf-8");
+            await rename(temporal, puentePath);
+        } catch {
+            return Response.json({ error: "No se pudo guardar el puente." }, { status: 500 });
+        }
+        return Response.json({ ok: true, nombre, activo }, { headers: { "Cache-Control": "no-store" } });
+    }
 
     if (accion === "pausar" || accion === "reanudar") {
         try {
