@@ -195,4 +195,10 @@ describe("resumenEnjambre", () => {
     expect(r).toContain("nube-propia");
     expect(r).toContain("—");
   });
+
+  it("resumenEnjambre nunca expone un token (fallo del servidor no muestra token)", () => {
+    const r = resumenEnjambre(datosBase());
+    expect(r).not.toContain("token-demo");
+    expect(r).not.toContain("token:");
+  });
 });

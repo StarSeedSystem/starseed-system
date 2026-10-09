@@ -46,7 +46,7 @@ export function validarPaso(paso: number, datos: DatosAsistente): ResultadoPaso 
       const dirs = datos.directores ?? {};
       const activos = Object.values(dirs).filter(Boolean).length;
       if (activos === 0) errores.push("activa al menos un director");
-      if (!datos.plantilla || datos.plantilla === "") errores.push("elige una plantilla de ola");
+      if (!datos.plantilla || (datos.plantilla as string).trim().length === 0) errores.push("elige una plantilla de ola");
       break;
     }
     case 5: {

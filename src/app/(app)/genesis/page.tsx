@@ -12,6 +12,7 @@
  */
 
 import { CentroMando } from "@/components/mando/centro-mando";
+import { CrearEnjambre } from "@/components/mando/crear-enjambre";
 
 export default function MandoPage() {
     return (
@@ -24,6 +25,9 @@ export default function MandoPage() {
                 </p>
             </header>
             <CentroMando />
+            <div className="mt-8 max-w-xl mx-auto">
+                <CrearEnjambre />
+            </div>
         </main>
     );
 }
