@@ -28,6 +28,8 @@ export interface EntradaBucle {
   vecinos?: import("./radio-cognitiva").VecinoCognitivo[];
   // Perfil legal (§5) para validar cualquier cambio aplicado.
   legal?: import("./regulacion").PerfilLegal;
+  // Clase de tráfico (§3) para el registro de decisiones.
+  clase?: import("./tipos").ClaseTrafico;
 }
 
 export interface EstadoBucle {
@@ -189,21 +191,19 @@ export async function cicloBucle(
   estado: EstadoBucle,
   entrada: EntradaBucle,
   config: ConfigBucle = CONFIG_DEFECTO,
-): ResultadoCiclo {
+): Promise<ResultadoCiclo> {
   const enlaces = entrada.enlaces;
   const vecinos = entrada.vecinos ?? [];
 
   // 1. Medir
   const { mediciones, porEnlace } = medirTodos(enlaces);
 
-  // 2. Recomendar (una recomendación por enlace; usamos el primero de cada tecnología como muestra)
+  // 2. Recomendar para cada enlace (no solo el primero)
   const recomendaciones: Record<string, import("./radio-cognitiva").Recomendacion> = {};
-  // Elegimos un enlace representativo (el primero activo) para la recomendación global del bucle.
-  const enlaceActivo = enlaces.find((e) => e.estado === "activo" || e.estado === "degradado") ?? enlaces[0];
-  if (enlaceActivo) {
-    const historial = estado.historialMediciones.length > 0 ? estado.historialMediciones : [mediciones[0]];
-    const actual = estado.ultimaAplicacion ?? {
-      frecuenciaMhz: enlaceActivo.frecuenciaMhz,
+  for (const enlace of enlaces) {
+    const historial = estado.historialMediciones.length > 0 ? estado.historialMediciones : (mediciones.length > 0 ? [mediciones[0]] : []);
+    const actual: ParametrosRadio = estado.ultimaAplicacion ?? {
+      frecuenciaMhz: enlace.frecuenciaMhz,
       potenciaDbm: 14,
       anchoBandaMhz: 0.25,
       spreadFactor: 9,
@@ -218,33 +218,80 @@ export async function cicloBucle(
       actual,
       entrada.canales,
     );
-    recomendaciones[enlaceActivo.id] = recResult.recomendacion;
+    recomendaciones[enlace.id] = recResult.recomendacion;
   }
 
-  // 3. Aplicar (según modo)
+  // 3. Aplicar según modo por enlace
   const aplicados: Array<{ enlaceId: string; ok: boolean; error?: string }> = [];
-  for (const [enlaceId, rec] of Object.entries(recomendaciones)) {
-    const enlace = enlaces.find((e) => e.id === enlaceId);
-    if (!enlace) continue;
+  let ultimaAplicacionActualizada: ParametrosRadio | undefined = estado.ultimaAplicacion;
+  for (const enlace of enlaces) {
+    const rec = recomendaciones[enlace.id];
+    if (!rec) continue;
     const res = await pasoAplicar(enlace, rec, config.modo, entrada.legal);
-    aplicados.push({ enlaceId, ok: res.ok, error: res.error });
+    aplicados.push({ enlaceId: enlace.id, ok: res.ok, error: res.error });
+    if (res.aplicado && res.ok) {
+      ultimaAplicacionActualizada = rec.params;
+    }
   }
 
-  // 4. Vigilar (simplificado: no hay mediciones posteriores en una sola vuelta)
+  // 4. Vigilar (usamos la medición actual como referencia; en una sola vuelta
+  //    no hay posteriores reales, así que revertimos solo si hay señal previa
+  //    de empeoramiento sostenido en el historial.)
   const revertidos: Array<{ enlaceId: string; porque: string }> = [];
+  let cambiosRevertidosActualizado = estado.cambiosRevertidos;
+  for (const enlace of enlaces) {
+    const rec = recomendaciones[enlace.id];
+    if (!rec) continue;
+    // Vigilancia simplificada: si ya hay historial, comparamos la última
+    // medición del historial con la actual. Si hay empeoramiento sostenido
+    // en las últimas medidas del historial (simulado con pasoVigilar),
+    // registramos una reversión.
+    if (estado.historialMediciones.length > 0 && estado.ultimaAplicacion) {
+      const anterior = estado.historialMediciones[estado.historialMediciones.length - 1];
+      const posteriores = [mediciones.find((m) => m.at >= anterior.at) ?? mediciones[0]];
+      const v = pasoVigilar(anterior, posteriores, estado.ultimaAplicacion, config.vigilarMs);
+      if (v.revertir) {
+        revertidos.push({ enlaceId: enlace.id, porque: v.porque });
+        cambiosRevertidosActualizado += 1;
+      }
+    }
+  }
+
+  // 5. Registrar decisiones (últimas maxDecisiones) con su porqué
+  const clasePorDefecto: import("./tipos").ClaseTrafico = "mensajes";
+  let decisionesActualizadas = [...estado.decisiones];
+  for (const enlace of enlaces) {
+    const rec = recomendaciones[enlace.id];
+    if (!rec) continue;
+    const motivo = rec.porque.join("; ");
+    const estadoConDecision = registrarDecision(
+      { ...estado, decisiones: decisionesActualizadas },
+      enlace.id,
+      (entrada as { clase?: import("./tipos").ClaseTrafico }).clase ?? clasePorDefecto,
+      motivo,
+      rec.porque.length > 0 ? 1 : 0,
+    );
+    decisionesActualizadas = estadoConDecision.decisiones;
+  }
+  // Limitar a maxDecisiones (el registro ya limita a 500, pero respetamos config)
+  if (decisionesActualizadas.length > config.maxDecisiones) {
+    decisionesActualizadas = decisionesActualizadas.slice(0, config.maxDecisiones);
+  }
 
   // Actualizar historial
   const historialActualizado = [...estado.historialMediciones, ...mediciones];
-  // Limitar historial a las últimas 1.000 para no crecer sin límite.
   const historialCortado = historialActualizado.slice(-1000);
 
+  const estadoActualizado: EstadoBucle = {
+    ...estado,
+    decisiones: decisionesActualizadas,
+    historialMediciones: historialCortado,
+    ultimaAplicacion: ultimaAplicacionActualizada,
+    cambiosRevertidos: cambiosRevertidosActualizado,
+  };
+
   return {
-    estado: {
-      ...estado,
-      decisiones: estado.decisiones,
-      historialMediciones: historialCortado,
-      cambiosRevertidos: estado.cambiosRevertidos,
-    },
+    estado: estadoActualizado,
     mediciones,
     recomendaciones,
     aplicados,

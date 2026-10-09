@@ -42,6 +42,8 @@ import { preferredRouteFor } from "./persona-antenna-gate";
 import { getMeshState, pushRouteDecision } from "./store";
 import type { PreferredRoute } from "./connectivity";
 import type { ClaseTrafico, Medicion } from "./camr/tipos";
+import { planificar, type PaquetePlan, type MetricasPlan, type CuotasPlan } from "./camr/planificador";
+import { crearAdaptadorSimulado } from "./camr/enlaces";
 import type { MeshRules, RouteDecision, TrafficClass } from "./types";
 
 /* ── Histéresis (memoria mínima del router) ────────────────────────────────── */
@@ -123,6 +125,37 @@ export function feedWifiSample(score: number): void {
   }
 }
 
+/* ── CAMR: planificador multitrayecto (§3) — activo cuando hay transporte ─── */
+
+function planificarCamr(
+  cls: TrafficClass,
+  sizeBytes: number,
+  meshState: ReturnType<typeof getMeshState>,
+  medicionWifi: Medicion,
+  medicionMesh: Medicion,
+): ReturnType<typeof planificar> | null {
+  try {
+    // CAMR activo: hay transporte (simulado o real) y datos para construir enlaces.
+    if (!meshState.transport) return null;
+    const claseCamr = CLASE_CAMR[cls];
+    const paquete: PaquetePlan = { bytes: sizeBytes, cifrado: false };
+    // Enlace simulado básico derivado del estado del mesh.
+    const enlaceSim = crearAdaptadorSimulado("camr-enlace", meshState.self?.region ?? "EU_868", 869.5, 1000, 250, true);
+    const enlaces: typeof enlaceSim[] = [enlaceSim];
+    const metricas: MetricasPlan = {
+      medicion: {
+        "mesh-sim": medicionMesh,
+        "wifi-sim": medicionWifi,
+      },
+    };
+    const cuotas: CuotasPlan = { cupoMs: {}, consumidoMs: {} };
+    const rutas = planificar(paquete, claseCamr, enlaces, metricas, cuotas);
+    return rutas;
+  } catch {
+    return null;
+  }
+}
+
 /* ── Decisión ──────────────────────────────────────────────────────────────── */
 
 export interface DecideRouteInput {
@@ -189,6 +222,10 @@ export function decideRoute(input: DecideRouteInput): RouteDecision {
     ultimaMedicionMesh = medicionMesh.at;
   }
   const claseCamr = CLASE_CAMR[input.cls];
+  // CAMR activo (§3): los mensajes con clase de tráfico pasan por `planificar`.
+  // Si CAMR no está activo (sin transporte), `planificarCamr` devuelve null
+  // y el comportamiento de hoy queda igual.
+  const rutasCamr = planificarCamr(input.cls, input.sizeBytes, s, medicionWifi, medicionMesh);
   const wifiScore = s.wifiHealth.at > 0
     ? puntuacionCamr(medicionWifi, capacidadWifiKbps, claseCamr, resilienciaWifi, s.wifiHealth.score)
     : s.wifiHealth.score;
