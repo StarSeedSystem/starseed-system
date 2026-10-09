@@ -4282,3 +4282,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** Genesis
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-10-09 03:20 · auto-1009-030124
+
+**Lo que se pidió.** ninguna capa se usa sin su SHA en config/capas-astraura.json
+
+**Resultado.** 1 de 1 integradas.
