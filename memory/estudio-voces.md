@@ -102,6 +102,8 @@ En `src/lib/voces/vinculos.ts`, idempotente:
   del nodo y la superficie. Falta el suscriptor del host del runtime
   `voz-supertonic` que reciba la petición elegida y devuelva el audio.
 
+**Documentación de cierre de ola**: síntesis on-device en ONNX sin GPU, convive con el núcleo 1.58-bit y Needle mediante el mismo contrato de `src/lib/aurora/voz-starseed/niveles.ts` sin duplicar la cadena de niveles; `IDIOMAS_SUPERTONIC` cubre 31 idiomas. La mesh reparte la vía mediante `src/lib/network/inferencia-local.ts` y `src/components/mesh/panel-inferencia.tsx`: un nodo sin GPU con RAM suficiente puede asumir la voz de la flota. Verificado leyendo `src/lib/network/inferencia-local.ts`, `src/ai/astraura/mesh/transporte-bwp.ts`, `src/lib/aurora/voz-starseed/supertonic.ts` y `src/components/mesh/**`.
+
 ## Componentes de la ola
 
 `src/components/voces/`: `panel-versiones.tsx` (lista CRUD + JSON),

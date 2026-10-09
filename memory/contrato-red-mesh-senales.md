@@ -90,10 +90,7 @@ C. **Supertonic como voz de borde on-device.** No necesita GPU → encaja con el
 
 ### Pendiente para cerrar la integración operativa
 
-- [ ] Aterrizar los adaptadores Reticulum y Wi-Fi HaLow sobre
-  `src/ai/astraura/mesh/meshtastic-adapter.ts`. El catálogo y la selección de
-  transporte BWP ya existen; falta conectar esos dos vínculos físicos al mismo
-  bus de paquetes que hoy usa Meshtastic.
+- [ ] Aterrizar los adaptadores Reticulum y Wi-Fi HaLow — aterrizaje del adaptador Reticulum/wifi-Halo sobre `src/ai/astraura/mesh/meshtastic-adapter.ts` — (el transporte BWP ya existe en `src/ai/astraura/mesh/transporte-bwp.ts`). Falta conectar esos dos vínculos físicos al mismo bus de paquetes que hoy usa Meshtastic.
 - [ ] Ejecutar una prueba **real con dos nodos en la misma red**: descubrimiento,
   consulta de `/v1/models`, elección PAIR, petición, respuesta y relevo al caer
   el nodo elegido. Las pruebas unitarias no sustituyen esta comprobación.
@@ -101,3 +98,5 @@ C. **Supertonic como voz de borde on-device.** No necesita GPU → encaja con el
   el modelo suptónico, recibir la petición que PAIR asigne, sintetizar por ONNX
   y devolver el audio. Hasta entonces la mesh selecciona y muestra el nodo,
   pero no despacha síntesis suptónica remota de extremo a extremo.
+
+*Actualizado tras lectura de `src/lib/network/inferencia-local.ts`, `src/ai/astraura/mesh/transporte-bwp.ts`, `src/lib/aurora/voz-starseed/supertonic.ts` y componentes `src/components/mesh/**`. Estado documentado 2026-10-08.*
