@@ -31,7 +31,7 @@ import { computeSuggestions, type Suggestion } from "@/ai/astraura/autonomy";
  * si NO coincide con la última vista por el usuario, se genera el aviso
  * "hay una actualización importante del sistema".
  */
-export const CURRENT_RELEASE = "2026-09-26-os-0.2.2";
+export const CURRENT_RELEASE = "2026-10-09-os-0.3.0";
 
 /** Clave de "avisos ya vistos" (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEEN_KEY = "starseed.updates.seen.v1";
@@ -184,9 +184,9 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
       out.push({
         id,
         kind: "update-app",
-        title: "StarSeed OS 0.2.2: capas de conciencia de Astraura e iconos completos",
+        title: "StarSeed OS 0.3.0: apps que se actualizan solas, Genesis y Estaciones",
         detail:
-          "Junto a cada chat de Astraura verás sus capas de conciencia, con un interruptor para cada una y un nivelador. Las apps llevan el icono completo, sin recortes. El escritorio va fluido al mover y cambiar de tamaño las ventanas. En el navegador basta con recargar; las apps instaladas se actualizan solas.",
+          "StarSeed OS, Nexus y Café tienen app para macOS, Windows, Linux y Android, y la de escritorio se actualiza sola. Genesis, el antiguo Puente de Mando, llega a personas, grupos y comunidades. Nuevas Estaciones con transmisiones en directo. Las capas de Astraura se eligen por tarea y por dispositivo. En el navegador basta con recargar.",
         priority: 10,
       });
     }

@@ -3,16 +3,16 @@
 // Cualquier medio que muestre la versión debe leer de aquí y jamás escribir
 // su propia fecha (ver el test medios-version-coherentes y el checkpoint).
 
-export const OS_VERSION = "2026.09.26";
+export const OS_VERSION = "2026.10.09";
 
-export const OS_FECHA = "2026-09-26";
+export const OS_FECHA = "2026-10-09";
 
 export type CanalRelease = "alpha" | "beta" | "estable";
 
 export const OS_CANAL: CanalRelease = "alpha";
 
 export const OS_NOTAS =
-  "Apps nativas 0.2.2 con el icono completo en todas las versiones: en Android se adapta a la forma de cada lanzador sin recortarse ni estirarse, y en el escritorio, el iPhone y la app web se ve entero. Astraura 1.58 responde en la web y en la app sin servidores de pago: llega a tu neurona por un túnel seguro. Junto a cada chat de Astraura aparecen sus capas de conciencia (local, mesh, nube y colectiva), con un interruptor para cada una y un nivelador para preferir las capas 1.58, un modelo concreto o el enrutador libre de modelos gratuitos. El escritorio ya no se reinicia al mover o cambiar de tamaño las ventanas, el fondo del Exocortex no parpadea en el móvil, la portada del perfil se ve al subirla y una pestaña abierta se pone al día sola cuando sale una versión nueva.";
+  "Apps nativas 0.3.0 de StarSeed OS, Nexus y Café para macOS, Windows, Linux y Android: cada app de escritorio instalada se actualiza sola desde su propio canal (hasta ahora solo lo hacía StarSeed OS) y la Biblioteca ofrece el instalador de cada una para tu sistema. Genesis, el antiguo Puente de Mando, llega a personas, grupos y comunidades, se repara solo y publica tras sus pruebas. Nuevas Estaciones con transmisiones en directo libres. Las capas de Astraura (Needle 3, Bonsai 1.58 y BitNet) se eligen por tarea y por dispositivo, cada una con su huella verificada, y sus nodos dicen su salud real. La malla suma el enrutamiento cognitivo multiespectro (CAMR), y los widgets caben en su tarjeta en todos los tamaños.";
 
 /**
  * Versión del PAQUETE NATIVO (Tauri 2, proyecto `native/`): el shell de
@@ -21,7 +21,7 @@ export const OS_NOTAS =
  * `package.json` en cada release nativa — los cuatro sitios deben coincidir
  * (ver native/README.md §11 «Cómo publicar una release»).
  */
-export const NATIVE_VERSION = "0.2.2";
+export const NATIVE_VERSION = "0.3.0";
 
 /** Etiqueta de tag/Release de GitHub para el paquete nativo (`v<NATIVE_VERSION>`). */
 export const NATIVE_TAG = `v${NATIVE_VERSION}`;
@@ -116,10 +116,19 @@ export function etiquetaBuild(): string {
  *   · iOS     → job `build-ios`, `.ipa` SIN FIRMAR, best-effort: hoy NO produce una app
  *               válida (sin ejecutable), así que no se ofrece; en iPhone/iPad, la PWA.
  *
- * Solo cubre el sistema OS (identifier `app.starseed.os`): es el único que
- * declara updater (ver capabilities/desktop.json) y el único enlazado desde
- * la Biblioteca/instalar del propio OS.
+ * Por defecto, el sistema OS; con `sistema` = "nexus" | "cafe", los de esas
+ * apps (mismo Release, otro prefijo: `StarSeed.Nexus_…`, `StarSeed-cafe-…apk`).
+ * Desde la 0.3.0 los tres tienen canal de actualización propio.
  */
+
+export type SistemaNativo = "os" | "nexus" | "cafe";
+
+/** Prefijos de archivo de cada sistema en el Release (escritorio · Android). */
+export const PREFIJOS_SISTEMA: Record<SistemaNativo, { escritorio: string; apk: string }> = {
+  os: { escritorio: "StarSeed.OS", apk: "StarSeed-os" },
+  nexus: { escritorio: "StarSeed.Nexus", apk: "StarSeed-nexus" },
+  cafe: { escritorio: "StarSeed.Cafe", apk: "StarSeed-cafe" },
+};
 
 export type NativeAssetOS = "macos" | "windows" | "linux" | "android" | "ios";
 
@@ -147,8 +156,10 @@ const NATIVE_RELEASES_DOWNLOAD_BASE =
 export function nativeInstallerAssets(
   version: string = NATIVE_VERSION,
   tag: string = NATIVE_TAG,
+  sistema: SistemaNativo = "os",
 ): NativeInstallerAsset[] {
   const base = `${NATIVE_RELEASES_DOWNLOAD_BASE}/${tag}`;
+  const { escritorio: P, apk: A } = PREFIJOS_SISTEMA[sistema];
   const asset = (
     id: string,
     os: NativeAssetOS,
@@ -161,39 +172,39 @@ export function nativeInstallerAssets(
       "macos-universal",
       "macos",
       "macOS (Apple Silicon e Intel) — imagen de disco .dmg",
-      `StarSeed.OS_${version}_universal.dmg`,
+      `${P}_${version}_universal.dmg`,
     ),
     asset(
       "windows-x64-exe",
       "windows",
       "Windows x64 — instalador .exe",
-      `StarSeed.OS_${version}_x64-setup.exe`,
+      `${P}_${version}_x64-setup.exe`,
     ),
     asset(
       "windows-x64-msi",
       "windows",
       "Windows x64 — paquete .msi",
-      `StarSeed.OS_${version}_x64_en-US.msi`,
+      `${P}_${version}_x64_en-US.msi`,
     ),
     asset(
       "linux-x64-appimage",
       "linux",
       "Linux x64 — .AppImage",
-      `StarSeed.OS_${version}_amd64.AppImage`,
+      `${P}_${version}_amd64.AppImage`,
     ),
     asset(
       "linux-x64-deb",
       "linux",
       "Linux x64 — paquete .deb",
-      `StarSeed.OS_${version}_amd64.deb`,
+      `${P}_${version}_amd64.deb`,
     ),
     asset(
       "linux-x64-rpm",
       "linux",
       "Linux x64 — paquete .rpm",
-      `StarSeed.OS-${version}-1.x86_64.rpm`,
+      `${P}-${version}-1.x86_64.rpm`,
     ),
-    asset("android-apk", "android", "Android — .apk", `StarSeed-os-${version}.apk`),
+    asset("android-apk", "android", "Android — .apk", `${A}-${version}.apk`),
     // (2026-09-25) Sin iOS: la compilación sin firma de CI sale vacía (un .ipa de 348 bytes
     // sin ejecutable) y ese archivo ya no se sube. En iPhone/iPad, la web instalable (PWA).
   ];

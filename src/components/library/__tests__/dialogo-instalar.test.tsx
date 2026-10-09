@@ -98,11 +98,11 @@ function datos(parcial: Partial<DatosInstalacion> = {}): DatosInstalacion {
     };
 }
 
-function montar(appId = "omnifrecuencias") {
+function montar(appId: string | Parameters<typeof DialogoInstalar>[0]["app"] = "omnifrecuencias") {
     const onOpenChange = vi.fn();
     render(
         <AppearanceProvider>
-            <DialogoInstalar app={appPorId(appId)} open onOpenChange={onOpenChange} />
+            <DialogoInstalar app={typeof appId === "string" ? appPorId(appId) : appId} open onOpenChange={onOpenChange} />
         </AppearanceProvider>,
     );
     return { onOpenChange };
@@ -188,9 +188,10 @@ describe("DialogoInstalar", () => {
     });
 
     it("una app sin instaladores ofrece Lanzador y su web", () => {
-        montar("cafe");
+        // (0.3.0) Café y Nexus ya tienen instaladores: se prueba con una web sin releases.
+        montar({ id: "portal-prueba", nombre: "Portal de prueba", web: "https://portal-prueba.example" });
         expect(screen.getByText(/se añadirá a tu Lanzador/)).toBeTruthy();
         fireEvent.click(screen.getByRole("button", { name: /Abrir su web/ }));
-        expect(est.webAbierta).toBe("https://starseed-cafe.vercel.app");
+        expect(est.webAbierta).toBe("https://portal-prueba.example");
     });
 });

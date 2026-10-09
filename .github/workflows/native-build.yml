@@ -10,9 +10,10 @@
 #   · ejecución manual (workflow_dispatch)        → elige qué sistema(s) construir
 #
 # El latest.json que consume el updater in-app SOLO lo sube el sistema OS
-# (`includeUpdaterJson` condicionado a `matrix.system == 'os'`): es el único
-# con canal de updater configurado hoy (pubkey + endpoints reales). Antes los
-# tres sistemas lo subían a la MISMA release y se pisaban entre sí.
+# (`includeUpdaterJson` condicionado a `matrix.system == 'os'`): antes los tres
+# sistemas lo subían a la MISMA release y se pisaban entre sí. Nexus y Café
+# tienen desde la 0.3.0 su propio canal (latest-nexus.json / latest-cafe.json),
+# que genera el job `canales-updater` a partir de sus .sig reales.
 #
 # Produce por SO:
 #   · macOS   → .dmg + .app  (+ .app.tar.gz para el updater)
@@ -171,18 +172,41 @@ jobs:
           # Un Release por etiqueta; la acción sube los instaladores y el latest.json.
           tagName: ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
           releaseName: "StarSeed Native ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || github.run_number }}"
-          releaseBody: "Instaladores nativos de StarSeed — versión ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }} (OS · Nexus · Café), generados desde native/ por CI. El updater incremental in-app (solo sistema OS) usa el latest.json de este release."
+          releaseBody: "Instaladores nativos de StarSeed — versión ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }} (OS · Nexus · Café), generados desde native/ por CI. Cada app de escritorio instalada se actualiza sola desde su canal: StarSeed OS con latest.json, Nexus con latest-nexus.json y Café con latest-cafe.json."
           releaseDraft: true
           prerelease: false
-          # SOLO el sistema OS sube/actualiza latest.json: es el único con canal
-          # de updater configurado (pubkey + endpoints reales en tauri.conf.json;
-          # Nexus/Café aún no declaran plugins.updater). Antes, los TRES sistemas
-          # subían un latest.json a la MISMA release y se pisaban entre sí (el
-          # latest.json de v0.1.0 llegó a apuntar Linux a StarSeed.Nexus) — con
-          # esto, el latest.json del release SIEMPRE es el del OS.
+          # SOLO el sistema OS sube/actualiza latest.json. Antes, los TRES
+          # sistemas subían un latest.json a la MISMA release y se pisaban entre
+          # sí (el latest.json de v0.1.0 llegó a apuntar Linux a StarSeed.Nexus).
+          # Nexus y Café tienen su canal propio: lo escribe `canales-updater`.
           includeUpdaterJson: ${{ matrix.system == 'os' }}
           # Config extra por sistema + args de target de la matriz.
           args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CANALES DE ACTUALIZACIÓN por sistema (2026-10-09). tauri-action solo sabe
+  # escribir `latest.json` (el del OS); este job crea `latest-nexus.json` y
+  # `latest-cafe.json` en el mismo Release con las URLs y firmas (.sig) reales de
+  # Nexus y Café, para que cada app instalada se actualice con SU instalador (ver
+  # native/scripts/canales-updater.mjs). Corre aunque algún build haya fallado:
+  # entonces el script dice qué plataforma falta y sale en rojo.
+  # ═══════════════════════════════════════════════════════════════════════════
+  canales-updater:
+    name: canales de actualización (nexus · cafe)
+    needs: build-desktop
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Generar y subir latest-nexus.json y latest-cafe.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}
+        run: node native/scripts/canales-updater.mjs
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ANDROID (.apk sideload) — APK firmado con un keystore self-signed (gratis).

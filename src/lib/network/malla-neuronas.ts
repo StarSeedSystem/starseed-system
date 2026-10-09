@@ -106,7 +106,7 @@ export const RADAR_REENVIO_MS = 5 * 60_000;
 /** Un faro más viejo que esto no cuenta como "neurona cercana detectada" (se renueva cada 20 min). */
 const BEACON_CONSIDERADO_RECIENTE_MS = 30 * 60_000;
 /** Versión estática del OS para la ficha (ver `package.json`; no auto-sincronizada). */
-const OS_VERSION = "0.2.2";
+const OS_VERSION = "0.3.0";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                              */

@@ -136,7 +136,7 @@ describe("InstalacionesPendientes", () => {
     });
 
     it("«Ahora no» cancela el pedido sin ejecutar nada", async () => {
-        est.lista = [pedido({ id: "p2", appId: "cafe", appNombre: "StarSeed Café" })];
+        est.lista = [pedido({ id: "p2", appId: "clima", appNombre: "Clima Espacial" })];
         await act(async () => {
             montar();
         });

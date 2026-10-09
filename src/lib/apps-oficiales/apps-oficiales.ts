@@ -64,6 +64,10 @@ export const OS_REPO = "StarSeedSystem/starseed-system";
  * (`StarSeed.Nexus_…`, `StarSeed.Cafe_…`, `StarSeed-nexus-…apk`) no casan.
  */
 export const PATRON_ASSETS_OS = /^StarSeed(?:\.OS[_-]|-os-)/i;
+/** Archivos de StarSeed Nexus en el mismo Release (desde la 0.3.0 se actualizan solos). */
+export const PATRON_ASSETS_NEXUS = /^StarSeed(?:\.Nexus[_-]|-nexus-)/i;
+/** Archivos de StarSeed Café en el mismo Release. */
+export const PATRON_ASSETS_CAFE = /^StarSeed(?:\.Cafe[_-]|-cafe-)/i;
 
 export const APPS_OFICIALES: Record<string, AppOficial> = {
     // (2026-09-25) Alex: «al seleccionar el botón de instalar para la app de StarSeed OS debe
@@ -82,6 +86,38 @@ export const APPS_OFICIALES: Record<string, AppOficial> = {
             publicado: "",
             url: `https://github.com/${OS_REPO}/releases/tag/${NATIVE_TAG}`,
             assets: nativeInstallerAssets().map((a) => ({ nombre: a.filename, url: a.href, bytes: 0 })),
+        },
+    },
+    // (2026-10-09) Nexus y Café: sus instaladores viven en el MISMO Release que el OS
+    // (`StarSeed.Nexus_…`, `StarSeed-cafe-…apk`); el filtro elige solo los suyos. Las ids
+    // son las de sus listados de la Biblioteca («nexus», «cafe»), así el diálogo de
+    // instalar ofrece el archivo de cada sistema operativo.
+    nexus: {
+        id: "nexus",
+        nombre: "StarSeed Nexus",
+        repo: OS_REPO,
+        web: "https://starseed-nexus.vercel.app",
+        permisos: "",
+        soloAssets: PATRON_ASSETS_NEXUS,
+        respaldo: {
+            tag: NATIVE_TAG,
+            publicado: "",
+            url: `https://github.com/${OS_REPO}/releases/tag/${NATIVE_TAG}`,
+            assets: nativeInstallerAssets(undefined, undefined, "nexus").map((a) => ({ nombre: a.filename, url: a.href, bytes: 0 })),
+        },
+    },
+    cafe: {
+        id: "cafe",
+        nombre: "StarSeed Café",
+        repo: OS_REPO,
+        web: "https://starseed-cafe.vercel.app",
+        permisos: "",
+        soloAssets: PATRON_ASSETS_CAFE,
+        respaldo: {
+            tag: NATIVE_TAG,
+            publicado: "",
+            url: `https://github.com/${OS_REPO}/releases/tag/${NATIVE_TAG}`,
+            assets: nativeInstallerAssets(undefined, undefined, "cafe").map((a) => ({ nombre: a.filename, url: a.href, bytes: 0 })),
         },
     },
     audiomorphic: {

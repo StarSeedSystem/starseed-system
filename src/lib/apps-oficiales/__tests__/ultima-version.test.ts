@@ -122,7 +122,7 @@ describe("obtenerUltimaVersion", () => {
 
     it("un id que no es de app oficial devuelve null sin tocar la red", async () => {
         const f = fetchQueResponde(RESPUESTA_V3);
-        expect(await obtenerUltimaVersion("cafe", { fetch: f })).toBeNull();
+        expect(await obtenerUltimaVersion("clima", { fetch: f })).toBeNull();
         expect(f).not.toHaveBeenCalled();
     });
 

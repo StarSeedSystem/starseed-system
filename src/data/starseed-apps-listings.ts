@@ -94,6 +94,13 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
                 url: "https://starseed-os.vercel.app",
             },
             {
+                version: "2026.09.26",
+                date: "2026-09-26",
+                notes:
+                    "Apps nativas 0.2.2 con el icono completo en todas las versiones: en Android se adapta a la forma de cada lanzador sin recortarse ni estirarse, y en el escritorio, el iPhone y la app web se ve entero. Astraura 1.58 responde en la web y en la app sin servidores de pago: llega a tu neurona por un túnel seguro. Junto a cada chat de Astraura aparecen sus capas de conciencia (local, mesh, nube y colectiva), con un interruptor para cada una y un nivelador para preferir las capas 1.58, un modelo concreto o el enrutador libre de modelos gratuitos. El escritorio ya no se reinicia al mover o cambiar de tamaño las ventanas, el fondo del Exocortex no parpadea en el móvil, la portada del perfil se ve al subirla y una pestaña abierta se pone al día sola cuando sale una versión nueva.",
+                url: "https://starseed-os.vercel.app",
+            },
+            {
                 version: "2026.09.25",
                 date: "2026-09-25",
                 notes:
@@ -134,26 +141,34 @@ export const STARSEED_APP_LISTINGS: StarSeedAppListing[] = [
         name: "StarSeed Nexus",
         tagline: "Portal del ecosistema bajo una cuenta soberana.",
         description:
-            "Portal de marca del ecosistema StarSeed: las áreas (Inicio, Sociedad, Cafetería, Aplicaciones, Estudio) y Audiomorphic bajo la misma cuenta soberana que el OS.",
+            "Portal de marca del ecosistema StarSeed: las áreas (Inicio, Sociedad, Cafetería, Aplicaciones, Estudio) y Audiomorphic bajo la misma cuenta soberana que el OS. Úsalo en línea o instala la app para macOS, Windows, Linux o Android desde el botón Instalar: la de escritorio se actualiza sola.",
         iconUrl: "/app-icons/nexus.png",
         accent: "#39FF14",
         author: "StarSeed",
         web: "https://starseed-nexus.vercel.app",
+        repo: "https://github.com/StarSeedSystem/starseed-system",
         tags: ["portal", "ecosistema"],
-        links: [{ label: "Web oficial", url: "https://starseed-nexus.vercel.app" }],
+        links: [
+            { label: "Web oficial", url: "https://starseed-nexus.vercel.app" },
+            { label: "Descargas", url: "https://github.com/StarSeedSystem/starseed-system/releases/latest" },
+        ],
     },
     {
         id: "cafe",
         name: "StarSeed Café",
         tagline: "Menú vivo, Alquimista 3D y economía de Granos.",
         description:
-            "La cafetería del ecosistema: menú vivo de elixires, Alquimista 3D, Exocórtex de mesa y economía de Granos. Puerta física y digital a la comunidad StarSeed.",
+            "La cafetería del ecosistema: menú vivo de elixires, Alquimista 3D, Exocórtex de mesa y economía de Granos. Puerta física y digital a la comunidad StarSeed. Úsala en línea o instala la app para macOS, Windows, Linux o Android desde el botón Instalar: la de escritorio se actualiza sola.",
         iconUrl: "/app-icons/cafe.png",
         accent: "#D4AF37",
         author: "StarSeed",
         web: "https://starseed-cafe.vercel.app",
+        repo: "https://github.com/StarSeedSystem/starseed-system",
         tags: ["cafetería", "comunidad"],
-        links: [{ label: "Web oficial", url: "https://starseed-cafe.vercel.app" }],
+        links: [
+            { label: "Web oficial", url: "https://starseed-cafe.vercel.app" },
+            { label: "Descargas", url: "https://github.com/StarSeedSystem/starseed-system/releases/latest" },
+        ],
     },
     // (2026-09-25) Audiomorphic y Omnifrecuencias: se abren DENTRO del OS en su versión
     // oficial en línea (ruta propia → AppOficial) y se instalan desde su último release de

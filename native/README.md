@@ -334,7 +334,7 @@ Y el workflow: `.github/workflows/native-build.yml`.
 | App nativa **Android** (OS)        | La web compara versión instalada vs. último Release de GitHub (caché 6h) y enlaza al `.apk` cuando hay uno más nuevo. Sin instalación automática (Android no lo permite fuera de tiendas). |
 | App nativa **iOS**                 | Sin canal: el `.ipa` es sin firmar (solo pruebas, re-firmar con AltStore/Sideloadly).      |
 | **Web** (navegador / PWA)          | Cada `git push` a `main` → Vercel despliega → `register-sw.tsx` detecta el build nuevo (SW + `/version.json`) y recarga sola. Nada que ver con Releases de GitHub. |
-| Nexus / Café (shell nativo)        | Aún sin canal de updater propio (no declaran `plugins.updater`); su contenido web sí se actualiza como cualquier despliegue. |
+| Nexus / Café (escritorio)          | Desde la 0.3.0, igual que el OS pero con su canal: `latest-nexus.json` / `latest-cafe.json` (los escribe el job `canales-updater` con `native/scripts/canales-updater.mjs`). Las 0.2.x instaladas no vigilaban: necesitan instalar la 0.3.0 una vez a mano; desde ahí, solas. |
 
 ### Clave de firma del updater
 

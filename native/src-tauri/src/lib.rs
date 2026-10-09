@@ -28,11 +28,11 @@ use serde::Serialize;
 use tauri_plugin_shell::ShellExt;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Actualización automática INTELIGENTE del shell nativo (SOLO escritorio,
-// SOLO sistema OS — Nexus/Café aún no declaran canal de updater propio: ver
-// `capabilities/desktop.json`, que solo concede `updater:*` a `windows:
-// ["main"]` de ESTE crate, y `tauri.conf.json` del OS es el único con
-// `plugins.updater.active: true` + `pubkey` real).
+// Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
+// Desde la 0.3.0 la usan los tres sistemas, cada uno con su canal: OS →
+// `latest.json`, Nexus → `latest-nexus.json`, Café → `latest-cafe.json` (misma
+// `pubkey`, heredada de tauri.conf.json; distintos `endpoints`, en cada
+// tauri.<sistema>.conf.json).
 //
 // Todo bajo `#[cfg(desktop)]`: en Android/iOS ni compila (tauri-plugin-updater
 // es dependencia solo-escritorio, ver Cargo.toml) ni se registra ningún
@@ -485,22 +485,20 @@ pub fn run() {
         // Enlaces profundos starseed://
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
-            // Estado compartido + vigilancia de actualizaciones: SOLO escritorio
-            // y SOLO el sistema OS (identifier `app.starseed.os`). Nexus/Café
-            // (`app.starseed.nexus` / `app.starseed.cafe`) comparten este mismo
-            // binario pero NO declaran `plugins.updater` en sus
-            // tauri.<sistema>.conf.json ni tienen permisos `updater:*` propios
-            // en capabilities/desktop.json — arrancar la vigilancia para ellos
-            // llamaría a un updater sin endpoint propio configurado a propósito
-            // (aún no tienen canal de releases independiente). Cuando lo tengan,
-            // basta con quitar esta condición y darles su propio pubkey/endpoint.
+            // Estado compartido + vigilancia de actualizaciones: SOLO escritorio,
+            // y desde la 0.3.0 para los TRES sistemas. Cada uno lee su propio
+            // canal (2026-10-09): el OS `latest.json` (el de siempre, para que
+            // las 0.2.x instaladas sigan encontrándolo), Nexus `latest-nexus.json`
+            // y Café `latest-cafe.json` — declarados en su tauri.<sistema>.conf.json
+            // y generados por el job `canales` de native-build.yml. Antes solo
+            // vigilaba el OS: Nexus y Café heredaban el endpoint del OS por la
+            // fusión de configuración y, si se hubieran actualizado, se habrían
+            // convertido en StarSeed OS; por eso se les dejó sin actualizar.
             #[cfg(desktop)]
             {
                 use tauri::Manager;
                 app.manage(actualizacion::EstadoCompartido::default());
-                if app.config().identifier == "app.starseed.os" {
-                    actualizacion::iniciar_vigilancia_en_segundo_plano(app.handle().clone());
-                }
+                actualizacion::iniciar_vigilancia_en_segundo_plano(app.handle().clone());
             }
             #[cfg(not(desktop))]
             {

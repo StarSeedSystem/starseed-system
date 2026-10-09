@@ -48,7 +48,9 @@ describe("appPorId", () => {
             ruta: "/omnifrecuencias",
             oficialId: "omnifrecuencias",
         });
-        expect(cafe.oficialId).toBeUndefined();
+        // (0.3.0) Café ya publica instaladores en el Release del OS; una app sin releases, no.
+        expect(cafe.oficialId).toBe("cafe");
+        expect(appPorId("clima")!.oficialId).toBeUndefined();
         expect(appPorId("no-existe")).toBeNull();
     });
 });

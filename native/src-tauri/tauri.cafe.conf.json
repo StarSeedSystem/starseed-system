@@ -18,5 +18,12 @@
   "bundle": {
     "shortDescription": "StarSeed Café — la cafetería del ecosistema",
     "longDescription": "StarSeed Café — la cafetería social del ecosistema StarSeed, empaquetada como aplicación nativa con actualización incremental in-app."
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/StarSeedSystem/starseed-system/releases/latest/download/latest-cafe.json"
+      ]
+    }
   }
 }
