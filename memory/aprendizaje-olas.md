@@ -4235,3 +4235,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CAMR1005Fc` — otra cosa: sin decisión en 0 h; rama ola/CAMR1005Fc conservada
 - `CAMR1005Fb` — los tipos no compilan: 2 errores tsc (rama ola/CAMR1005Fb conservada)
 - `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-08 23:55 · auto-1008-232339
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `PRD1005U` — otra cosa: sin decisión en 0 h; rama ola/PRD1005U conservada
+- `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
