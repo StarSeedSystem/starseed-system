@@ -57,7 +57,10 @@ class JevLocal(unittest.TestCase):
         }
         jev_local.TRANSPORTE = transporte
         self.assertEqual(set(jev_local.decidir(estado, preguntas)), {"uno", "dos"})
-        self.assertEqual(len(recibido), 2)
+        # (2026-10-09) Dos órdenes por pregunta (simétrico): 2 preguntas → 4 consultas.
+        self.assertEqual(len(recibido), 4)
+        self.assertIn("A. si\nB. no", recibido[0]["prompt"])
+        self.assertIn("A. no\nB. si", recibido[1]["prompt"])
         for cuerpo in recibido:
             self.assertEqual(
                 set(cuerpo),
@@ -73,7 +76,7 @@ class JevLocal(unittest.TestCase):
             self.assertTrue(cuerpo["prompt"].endswith("Respuesta: "))
         self.assertEqual(
             recibido[0]["prompt"].split("\n\n", 1)[0],
-            recibido[1]["prompt"].split("\n\n", 1)[0],
+            recibido[2]["prompt"].split("\n\n", 1)[0],
         )
 
     def test_sin_letra_valida_devuelve_none(self):
@@ -151,3 +154,40 @@ class JevLocalSeApartaEnConversacion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JevLocalFormatoYOrden(unittest.TestCase):
+    """(2026-10-09) El llama-server actual da `top_logprobs` en un dict (Jev local devolvía
+    siempre None) y BitNet favorece la última opción: se pregunta en los dos órdenes."""
+
+    def tearDown(self):
+        jev_local.TRANSPORTE = None
+
+    def test_formato_actual_top_logprobs(self):
+        def transporte(cuerpo):
+            return {"completion_probabilities": [{"top_logprobs": [
+                {"token": " A", "logprob": -0.1}, {"token": " B", "logprob": -2.5}]}]}
+        jev_local.TRANSPORTE = transporte
+        r = jev_local.decidir({"x": 1}, {"q": {"type": "choice", "instructions": "¿?",
+                                                "criteria": {"a": "uno", "b": "dos"}}})
+        self.assertIsNotNone(r)
+
+    def test_un_sesgo_de_posicion_no_decide(self):
+        # Un modelo que SIEMPRE elige la última letra no debe poder decidir nada.
+        def transporte(cuerpo):
+            return {"completion_probabilities": [{"top_logprobs": [
+                {"token": " B", "logprob": -0.05}, {"token": " A", "logprob": -3.0}]}]}
+        jev_local.TRANSPORTE = transporte
+        r = jev_local.decidir({"x": 1}, {"q": {"type": "noul", "instructions": "¿urgente?"}})
+        self.assertAlmostEqual(r["q"]["noul"], 0.5, places=6)
+
+    def test_una_preferencia_real_sobrevive_al_cambio_de_orden(self):
+        # El modelo prefiere «sí» esté donde esté.
+        def transporte(cuerpo):
+            sí_es_a = "A. sí" in cuerpo["prompt"]
+            return {"completion_probabilities": [{"top_logprobs": [
+                {"token": " A" if sí_es_a else " B", "logprob": -0.1},
+                {"token": " B" if sí_es_a else " A", "logprob": -2.5}]}]}
+        jev_local.TRANSPORTE = transporte
+        r = jev_local.decidir({"x": 1}, {"q": {"type": "noul", "instructions": "¿urgente?"}})
+        self.assertGreater(r["q"]["noul"], 0.85)

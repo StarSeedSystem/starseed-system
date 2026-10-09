@@ -78,9 +78,9 @@ def _opciones(pregunta):
     return None
 
 
-def _prompt(estado, pregunta):
+def _prompt(estado, pregunta, opciones=None):
     """Construye un prompt con el estado al principio y respuesta tipada."""
-    opciones = _opciones(pregunta)
+    opciones = opciones if opciones is not None else _opciones(pregunta)
     if opciones is None:
         return None
     estado_json = json.dumps(estado, ensure_ascii=False, sort_keys=True)
@@ -100,6 +100,12 @@ def _probabilidades(respuesta, letras):
         primeras = completions[0]
     except (IndexError, TypeError):
         return None
+    # (2026-10-09) Dos formatos de llama-server: el actual da por posición un dict con
+    # `top_logprobs` ([{token, logprob}]); el antiguo, una lista (o `probs`: [{tok_str, prob}]).
+    # Aquí solo se aceptaba la lista, y el BitNet de la Mac usa el actual: Jev local devolvía
+    # SIEMPRE None («local 0» en Genesis) y cada decisión acababa en OpenRouter o en la caché.
+    if isinstance(primeras, dict):
+        primeras = primeras.get("top_logprobs") or primeras.get("probs") or []
     if not isinstance(primeras, list):
         return None
     valores = {}
@@ -107,14 +113,19 @@ def _probabilidades(respuesta, letras):
         if not isinstance(item, dict):
             continue
         token = item.get("token")
+        if not isinstance(token, str):
+            token = item.get("tok_str")
         logprob = item.get("logprob")
+        if not isinstance(logprob, (int, float)) and isinstance(item.get("prob"), (int, float)):
+            logprob = math.log(max(float(item["prob"]), 1e-12))
         letra = token.strip() if isinstance(token, str) else ""
         if letra not in letras or not isinstance(logprob, (int, float)):
             continue
         valor = float(logprob)
         if not math.isfinite(valor):
             continue
-        valores[letra] = valor
+        if letra not in valores:  # la primera aparición es la más probable
+            valores[letra] = valor
     if not valores:
         return None
     letras_validas = [l for l in letras if l in valores]
@@ -124,27 +135,68 @@ def _probabilidades(respuesta, letras):
     return {l: p for l, p in zip(letras_validas, normalizadas)}
 
 
-def _resuelve_pregunta(nombre, pregunta, prompt, transporte):
-    """Consulta una pregunta y devuelve su respuesta tipada, o None."""
-    try:
-        respuesta = transporte(
-            {
-                "prompt": prompt,
-                "n_predict": 1,
-                "n_probs": 20,
-                "temperature": 0,
-                "cache_prompt": True,
-            }
-        )
-    except Exception:
+#: (2026-10-09) Se pregunta en los DOS órdenes de opciones y se promedia por opción. Medido en
+#: la Mac con BitNet b1.58-2B: «¿es urgente que producción no responda?» daba «no» (0,82) con
+#: [sí, no] y «sí» (0,97) con [no, sí]; el modelo favorece la última opción. En 10 preguntas de
+#: sí/no el promedio de los dos órdenes da la MISMA respuesta en cualquier orden (8/10 en
+#: castellano; 9/10 en inglés). Cuesta un segundo paso de un token. STARSEED_JEV_SIMETRICO=0 lo quita.
+SIMETRICO = os.environ.get("STARSEED_JEV_SIMETRICO", "1").strip().lower() not in ("0", "no", "false")
+
+
+def _consulta(prompt, transporte):
+    return transporte(
+        {
+            "prompt": prompt,
+            "n_predict": 1,
+            "n_probs": 20,
+            "temperature": 0,
+            "cache_prompt": True,
+        }
+    )
+
+
+def probabilidades_simetricas(por_orden):
+    """PURA. Promedia por OPCIÓN las probabilidades medidas en varios órdenes.
+    `por_orden` = [(opciones_en_ese_orden, {letra: prob})]. Devuelve {opcion: prob} o None."""
+    sumas, cuentas = {}, {}
+    for opciones, probs in por_orden:
+        if not probs:
+            return None
+        for letra, opcion in zip(_letras(len(opciones)), opciones):
+            sumas[opcion] = sumas.get(opcion, 0.0) + float(probs.get(letra, 0.0))
+            cuentas[opcion] = cuentas.get(opcion, 0) + 1
+    if not sumas:
         return None
+    medias = {o: sumas[o] / cuentas[o] for o in sumas}
+    total = sum(medias.values())
+    return {o: v / total for o, v in medias.items()} if total else None
+
+
+def _resuelve_pregunta(nombre, pregunta, prompt, transporte, estado=None):
+    """Consulta una pregunta y devuelve su respuesta tipada, o None."""
     opciones = _opciones(pregunta)
     if opciones is None:
         return None
     letras = _letras(len(opciones))
-    probabilidades = _probabilidades(respuesta, letras)
-    if not probabilidades:
+    ordenes = [list(opciones)]
+    if SIMETRICO and estado is not None and len(opciones) > 1:
+        ordenes.append(list(reversed(opciones)))
+    por_orden = []
+    for orden in ordenes:
+        texto = prompt if orden == list(opciones) else _prompt(estado, pregunta, orden)
+        try:
+            respuesta = _consulta(texto, transporte)
+        except Exception:
+            return None
+        probs = _probabilidades(respuesta, letras)
+        if not probs:
+            return None
+        por_orden.append((orden, probs))
+    por_opcion = probabilidades_simetricas(por_orden)
+    if not por_opcion:
         return None
+    # De vuelta a las letras del orden original, que es lo que esperan los llamadores.
+    probabilidades = {letra: por_opcion.get(opcion, 0.0) for letra, opcion in zip(letras, opciones)}
     maxima = max(probabilidades, key=probabilidades.get)
     indice = letras.index(maxima)
     tipo = pregunta.get("type")
@@ -184,7 +236,7 @@ def decidir(estado, preguntas, tiempo_s=6):
         prompt = _prompt(estado, pregunta)
         if prompt is None:
             return None
-        respuesta = _resuelve_pregunta(nombre, pregunta, prompt, transporte)
+        respuesta = _resuelve_pregunta(nombre, pregunta, prompt, transporte, estado)
         if respuesta is None:
             return None
         respuestas[nombre] = respuesta
