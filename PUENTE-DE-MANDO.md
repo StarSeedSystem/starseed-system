@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 21:37:37 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 21:40:44 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,16 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 15 |
-| HEAD | `a2f52efa chore(memoria): aprendizaje de la ola auto-1008-212444` |
-| Sin publicar | 3 commits |
+| HEAD | `b3c7e2fa chore(memoria): aprendizaje de la ola auto-1008-213821` |
+| Sin publicar | 5 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1008-212444.json`, hace 4s)
+## Quién escribe ahora (latido de `cola-auto-1008-213821.json`, hace 4s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CAMR1005F` | hecho | openrouter/thinkingmachines/inklin | 0 min | 25 s | 116187 |
-| `CPA1007Kb` | hecho | codex/gpt-5.6-sol | 11 min | 657 s | 1677829 |
+| `CPA1007Kb` | hecho | codex/gpt-5.6-sol | 0 min | 26 s | 1833811 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
