@@ -1,7 +1,7 @@
 {
   "esquema": 1,
-  "actualizado": "2026-10-07",
-  "descripcion": "Catálogo de capas de Astraura (architecture/capas-autoadaptables.md §1 y §3). Una capa sin su SHA en este catálogo no se usa jamás (§6). Los sha256 quedan en \"por-verificar\" hasta que scripts/puente/capas_renovar.py los calcule (§9).",
+  "actualizado": "2026-10-09",
+  "descripcion": "Catálogo de capas de Astraura (architecture/capas-autoadaptables.md §1 y §3). Una capa sin su SHA en este catálogo no se usa jamás (§6). Los sha256 quedan en \"por-verificar\" hasta que scripts/puente/capas_renovar.py los rellene desde la API de Hugging Face (lfs.oid = sha256, sin descargar; §9). Las fuentes se corrigieron el 2026-10-09 a los repos que existen de verdad (los anteriores daban 401/307).",
   "capas": [
     {
       "id": "needle3-reflejo",
@@ -20,11 +20,14 @@
         { "capas": 12, "disco_mb": 20 },
         { "capas": 20, "disco_mb": 29 }
       ],
-      "sha256": "por-verificar",
+      "sha256": "c9d915eca282ed42d1a09b143b592adb4cc6744ffe2d294adf5cfc5548170c38",
       "fuente_oficial": "https://huggingface.co/Cactus-Compute/needle3",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["web", "pwa", "nativo", "servidor"]
+      "medios": ["web", "pwa", "nativo", "servidor"],
+      "archivo": "needle3.cact",
+      "tamano_bytes": 35335380,
+      "verificado": "2026-10-09"
     },
     {
       "id": "bitnet-embedding-0.6b",
@@ -37,11 +40,14 @@
       "parametros": "0.6 B",
       "disco_mb": 160,
       "ram_min_mb": 512,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/microsoft/BitNet-embedding-0.6B",
+      "sha256": "c89c64f05a2d3f83565250a6762640197fc624df866d4a1bd5853f811219af17",
+      "fuente_oficial": "https://huggingface.co/microsoft/bitnet-embedding-0.6b",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["pwa", "nativo", "servidor"]
+      "medios": ["pwa", "nativo", "servidor"],
+      "archivo": "bitnet-embeddings-0.6b-bf16-i2_s.gguf",
+      "tamano_bytes": 427935008,
+      "verificado": "2026-10-09"
     },
     {
       "id": "bitnet-embedding-270m",
@@ -54,11 +60,14 @@
       "parametros": "270 M",
       "disco_mb": 80,
       "ram_min_mb": 384,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/microsoft/BitNet-embedding-270M",
+      "sha256": "8ee5ae971b103cd55758934be54e5c9f7cc2b58b15890615acce8e649988c751",
+      "fuente_oficial": "https://huggingface.co/microsoft/bitnet-embedding-270m",
       "espejos": [],
       "estado": "respaldo",
-      "medios": ["pwa", "nativo", "servidor"]
+      "medios": ["pwa", "nativo", "servidor"],
+      "archivo": "bitnet-embeddings-270m-bf16-i2_s.gguf",
+      "tamano_bytes": 367487040,
+      "verificado": "2026-10-09"
     },
     {
       "id": "ternary-bonsai-4b",
@@ -71,11 +80,14 @@
       "parametros": "4 B",
       "disco_mb": 860,
       "ram_min_mb": 3072,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-4B",
+      "sha256": "4e0bf8b737b0431552f8c2c97695ab7c0cb214c94bcdeb4f5f267e67ddf28b8b",
+      "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-4B-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["nativo", "servidor"]
+      "medios": ["nativo", "servidor"],
+      "archivo": "Ternary-Bonsai-4B-Q2_0.gguf",
+      "tamano_bytes": 1074969344,
+      "verificado": "2026-10-09"
     },
     {
       "id": "ternary-bonsai-4b-onnx",
@@ -88,11 +100,15 @@
       "parametros": "4 B",
       "disco_mb": 860,
       "ram_min_mb": 4096,
-      "sha256": "por-verificar",
+      "sha256": "eaca74cb7b9e2f697fb4e13f7872af648dea2edb743af34a36deb26852c2ebd8",
       "fuente_oficial": "https://huggingface.co/onnx-community/Ternary-Bonsai-4B-ONNX",
       "espejos": [],
       "estado": "respaldo",
-      "medios": ["pwa"]
+      "medios": ["pwa"],
+      "archivo": "onnx/model_q2.onnx",
+      "tamano_bytes": 1158443034,
+      "archivos": { "onnx/model_q2.onnx": "eaca74cb7b9e2f697fb4e13f7872af648dea2edb743af34a36deb26852c2ebd8", "onnx/model_q2.onnx_data": "8d7acae71cc34257b36e6a01fa94ae544a6ab5d08493ead31bce91958633aa8b" },
+      "verificado": "2026-10-09"
     },
     {
       "id": "ternary-bonsai-1.7b",
@@ -105,11 +121,14 @@
       "parametros": "1.7 B",
       "disco_mb": 370,
       "ram_min_mb": 2048,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-1.7B",
+      "sha256": "d97d94eb564590c9f0300e54d3f87bbbb25a78693d0ade9f6e177973dcb8228a",
+      "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-1.7B-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["pwa", "nativo", "servidor"]
+      "medios": ["pwa", "nativo", "servidor"],
+      "archivo": "Ternary-Bonsai-1.7B-Q2_0.gguf",
+      "tamano_bytes": 463290464,
+      "verificado": "2026-10-09"
     },
     {
       "id": "ternary-bonsai-1.7b-onnx",
@@ -122,11 +141,15 @@
       "parametros": "1.7 B",
       "disco_mb": 370,
       "ram_min_mb": 4096,
-      "sha256": "por-verificar",
+      "sha256": "b9ca23940a37127a850ece4ed035c6b8fedfe1b6ca2ee71fbce58df146661812",
       "fuente_oficial": "https://huggingface.co/onnx-community/Ternary-Bonsai-1.7B-ONNX",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["web", "pwa"]
+      "medios": ["web", "pwa"],
+      "archivo": "onnx/model_q2.onnx",
+      "tamano_bytes": 505911234,
+      "archivos": { "onnx/model_q2.onnx": "b9ca23940a37127a850ece4ed035c6b8fedfe1b6ca2ee71fbce58df146661812", "onnx/model_q2.onnx_data": "5833cb460a946094cf66d2319379f673b7534bbcdd80fc35e4a7b7512eec8d28" },
+      "verificado": "2026-10-09"
     },
     {
       "id": "bonsai-1bit-1.7b",
@@ -139,11 +162,14 @@
       "parametros": "1.7 B",
       "disco_mb": 250,
       "ram_min_mb": 1536,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/prism-ml/Bonsai-1.7B",
+      "sha256": "3d7c6c90dd98717a203adb22d5eacd2581850e40aa5327e144b97766cae5f7e3",
+      "fuente_oficial": "https://huggingface.co/prism-ml/Bonsai-1.7B-gguf",
       "espejos": [],
       "estado": "respaldo",
-      "medios": ["pwa", "nativo", "servidor"]
+      "medios": ["pwa", "nativo", "servidor"],
+      "archivo": "Bonsai-1.7B.gguf",
+      "tamano_bytes": 248302272,
+      "verificado": "2026-10-09"
     },
     {
       "id": "ternary-bonsai-8b",
@@ -156,11 +182,14 @@
       "parametros": "8 B",
       "disco_mb": 1750,
       "ram_min_mb": 6144,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-8B",
+      "sha256": "3c8d70470a5d97e5a2b9410ddd899cb740116591462626c60cb2fead6448f60b",
+      "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-8B-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["nativo", "servidor"]
+      "medios": ["nativo", "servidor"],
+      "archivo": "Ternary-Bonsai-8B-Q2_0.gguf",
+      "tamano_bytes": 2182184672,
+      "verificado": "2026-10-09"
     },
     {
       "id": "bitnet-b1.58-2b-4t",
@@ -173,11 +202,14 @@
       "parametros": "2 B",
       "disco_mb": 1100,
       "ram_min_mb": 2048,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/microsoft/BitNet-b1.58-2B-4T",
+      "sha256": "4221b252fdd5fd25e15847adfeb5ee88886506ba50b8a34548374492884c2162",
+      "fuente_oficial": "https://huggingface.co/microsoft/bitnet-b1.58-2B-4T-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["nativo", "servidor"]
+      "medios": ["nativo", "servidor"],
+      "archivo": "ggml-model-i2_s.gguf",
+      "tamano_bytes": 1187801280,
+      "verificado": "2026-10-09"
     },
     {
       "id": "ternary-bonsai2-27b",
@@ -191,7 +223,7 @@
       "disco_mb": 5930,
       "ram_min_mb": 16384,
       "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B",
+      "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf",
       "espejos": [],
       "estado": "recomendado",
       "medios": ["servidor"]
@@ -207,11 +239,14 @@
       "parametros": "27 B",
       "disco_mb": 3900,
       "ram_min_mb": 12288,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/prism-ml/Bonsai-27B",
+      "sha256": "17ef842e47450caeb8eaa3ebfbbab5d2f2278b62b79be107985fb69a2f819aa0",
+      "fuente_oficial": "https://huggingface.co/prism-ml/Bonsai-27B-gguf",
       "espejos": [],
       "estado": "respaldo",
-      "medios": ["servidor"]
+      "medios": ["servidor"],
+      "archivo": "Bonsai-27B-Q1_0.gguf",
+      "tamano_bytes": 3803452480,
+      "verificado": "2026-10-09"
     },
     {
       "id": "vibeasr-cpp",
@@ -224,11 +259,16 @@
       "parametros": "voz",
       "disco_mb": 500,
       "ram_min_mb": 1024,
-      "sha256": "por-verificar",
-      "fuente_oficial": "https://huggingface.co/microsoft/VibeASR",
+      "sha256": "fbe273d8dc2f2433bb25f849e19d77ea65aaa2188d12c20cee987ab6f321e002",
+      "fuente_oficial": "https://huggingface.co/microsoft/VibeVoice-ASR-BitNet",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["nativo", "servidor"]
+      "medios": ["nativo", "servidor"],
+      "archivo": "vibeasr-lm-i2_s-embed-q6_k.gguf",
+      "archivos_extra": ["vibeasr-vae-encoder-i8_s.gguf"],
+      "tamano_bytes": 1695957664,
+      "archivos": { "vibeasr-lm-i2_s-embed-q6_k.gguf": "fbe273d8dc2f2433bb25f849e19d77ea65aaa2188d12c20cee987ab6f321e002", "vibeasr-vae-encoder-i8_s.gguf": "4941c82608c253ec066b5cc74d3dd11a5c8fef96cccbc5b87359ef0fe4338df6" },
+      "verificado": "2026-10-09"
     }
   ]
 }
