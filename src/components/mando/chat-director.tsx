@@ -285,7 +285,7 @@ export function ChatDirector() {
                             {aviso}
                         </p>
                     ) : null}
-                    <div ref={listaRef} className="flex max-h-[420px] flex-col gap-2 overflow-y-auto">
+                    <div ref={listaRef} className="flex max-h-[min(340px,40vh)] flex-col gap-2 overflow-y-auto">
                         {visibles.length === 0 ? (
                             <p className="text-[11px] text-white/40">Nadie ha hablado todavía; empieza abajo.</p>
                         ) : (

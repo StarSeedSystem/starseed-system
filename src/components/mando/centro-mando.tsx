@@ -1737,6 +1737,10 @@ export function CentroMando() {
                         comentario: «la navegación no constituye una verificación». Tenía razón:
                         cambiar de pestaña no comprueba nada. Ahora el botón verifica los
                         procesos de verdad y deja el reporte escrito. */}
+                    {/* Ola 1004 (petición de Alex, 2026-10-04): el chat de la dirección va encima del
+                        pulso. (2026-10-09) Sus mensajes ya no repiten su barra de botones entera:
+                        aparece al pasar por cada uno, y así el chat deja ver el pulso debajo. */}
+                    <ChatDirector />
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <h2 className="text-sm font-semibold text-white/80">Pulso del trabajo</h2>
                         <VerificarProcesos />
@@ -2248,8 +2252,6 @@ export function CentroMando() {
                             </div>
                         );
                     })()}
-                    {/* El chat del director, debajo del pulso: lo primero que se ve es qué pasa. */}
-                    <ChatDirector />
                     {/* (2026-09-29) Alex: «añade un medidor de esos créditos que lo verifique
                         desde Genesis». Supabase (hoy, ciclo, freno, bucles), Jev y
                         el crédito de Claude, con sus presupuestos editables. */}
