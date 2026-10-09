@@ -180,8 +180,12 @@ export function PastillaMedidor({
     const pulsable = Boolean(clave || alClic);
     const contenido = (
         <>
-            <span className="text-[10px] uppercase tracking-wider text-white/45">{titulo}</span>
-            <span className={`inline-flex items-center gap-1.5 text-lg font-semibold leading-tight ${TEXTO[tono]}`}>
+            <span className="max-w-full truncate text-[10px] uppercase tracking-wider text-white/45">{titulo}</span>
+            {/* (2026-10-09) Un valor largo (el título entero de una ola) hacía una pastilla cuatro
+                veces más alta que sus vecinas: el valor va en una línea y lo largo, al detalle. */}
+            <span
+                className={`inline-flex max-w-full items-center gap-1.5 truncate text-lg font-semibold leading-tight ${TEXTO[tono]}`}
+            >
                 {cargando ? <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-200" aria-label="en marcha" /> : null}
                 {valor}
             </span>
@@ -196,7 +200,7 @@ export function PastillaMedidor({
             ) : null}
         </>
     );
-    const clases = `mc-cristal mc-centrado flex h-full min-h-[4.75rem] w-full flex-col items-center justify-center gap-0.5 px-3 py-2 ${
+    const clases = `mc-cristal mc-centrado flex h-full min-h-[5.5rem] w-full flex-col items-center justify-center gap-0.5 px-3 py-2 ${
         pulsable ? "mc-alzar cursor-pointer" : ""
     } ${abierto ? "ring-1 ring-cyan-300/40" : ""} ${NEON[tono]}`;
 
@@ -214,6 +218,22 @@ export function PastillaMedidor({
     );
 }
 
+/** Estados que piden atención: su chip y su «porqué» van en ámbar o rojo, el resto en neutro. */
+const ESTADO_PROBLEMA = /sin escribir|sin proceso|sin salida|fallo|rechaz|conflicto|caíd|muert|colgad|agotad|sin cupo|interrumpid/i;
+
+/**
+ * Color del chip de estado. (2026-10-09) Todos los chips eran grises: «escribiendo» y «sin
+ * proceso» se leían igual. Verde = trabaja, cian = comprueba, gris = espera, ámbar/rojo = mirar.
+ */
+function claseDeEstado(estado: string): string {
+    if (/^(escribiendo|corrigiendo|vivo|integrada|hecho|ok|soñando|trabajando fuera)/i.test(estado))
+        return "border-emerald-300/30 bg-emerald-400/10 text-emerald-200";
+    if (/comprobando|verificando|probando|revisando|en curso/i.test(estado)) return "border-cyan-300/30 bg-cyan-400/10 text-cyan-100";
+    if (/sin proceso|fallo|rechaz|conflicto|caíd|muert|sin salida/i.test(estado)) return "border-rose-300/35 bg-rose-400/10 text-rose-200";
+    if (ESTADO_PROBLEMA.test(estado)) return "border-amber-300/35 bg-amber-400/10 text-amber-200";
+    return "border-white/10 text-white/50";
+}
+
 function FichaFila({
     f,
     ejecutar,
@@ -226,7 +246,7 @@ function FichaFila({
             <p className="flex flex-wrap items-baseline gap-1.5">
                 <span className="font-mono text-[11px] text-cyan-200/90">{f.id}</span>
                 {f.estado ? (
-                    <span className="rounded-full border border-white/10 px-1.5 text-[10px] text-white/45">
+                    <span className={`rounded-full border px-1.5 text-[10px] ${claseDeEstado(f.estado)}`}>
                         {f.estado}
                     </span>
                 ) : null}
@@ -250,12 +270,14 @@ function FichaFila({
                             style={{ transform: `scaleX(${Math.max(0.02, f.porcentaje / 100)})` }}
                         />
                     </span>
-                    <span className="w-14 shrink-0 text-right text-[10px] tabular-nums text-white/55">
-                        {f.porcentaje} %
-                    </span>
+                    {/* (2026-10-09) «17 %» a secas no decía nada: si hay etapa, se dice la etapa. */}
                     {f.etapa ? (
                         <span className="shrink-0 text-[10px] text-cyan-200/70">{f.etapa}</span>
-                    ) : null}
+                    ) : (
+                        <span className="w-14 shrink-0 text-right text-[10px] tabular-nums text-white/55">
+                            {f.porcentaje} %
+                        </span>
+                    )}
                 </p>
             ) : null}
 
@@ -273,7 +295,13 @@ function FichaFila({
                 ) : null;
             })()}
             {f.porque ? (
-                <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/70">{f.porque}</p>
+                <p
+                    className={`mt-0.5 text-[10px] leading-relaxed ${
+                        ESTADO_PROBLEMA.test(f.estado ?? "") ? "text-amber-200/80" : "text-white/55"
+                    }`}
+                >
+                    {f.porque}
+                </p>
             ) : null}
             {f.quien || f.desde ? (
                 <p className="mt-0.5 text-[10px] text-white/35">

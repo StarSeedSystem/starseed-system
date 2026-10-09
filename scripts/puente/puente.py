@@ -24,7 +24,7 @@ el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mi
   starseed-puente escuchar               # sigue el canal EN VIVO (chat principal)
   starseed-puente briefing               # el texto para pegar en un chat nuevo
 """
-import json, os, socket, subprocess, sys, time, urllib.request
+import json, os, socket, subprocess, sys, tempfile, time, urllib.request
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 MANDO = os.environ.get("STARSEED_MANDO_URL") or "http://127.0.0.1:9002"
@@ -85,6 +85,39 @@ def git(*args):
 # Todo lo que se dice —resultados, avances, avisos, comentarios— va aquí, y aquí
 # lo lee el chat principal de cada IDE. No hay un feed por entorno: hay UNO.
 CANAL = os.path.join(RAIZ, "starseed_memory_root", "mando", "canal.jsonl")
+#: (2026-10-08) El canal común también lo llenaban las pruebas: las que ejercitan
+#: `director-orquestacion.py` y `desatascar.py` llegan a `decir()` sin parchearlo, y al canal que
+#: leen los cuatro entornos y Telegram entraron líneas como «director: reparo tA (fallo_tsc)…»
+#: (las ids tA…tE son de `test_director_prioridad.py`). Se guarda la ruta REAL al importar: una
+#: prueba que apunta `CANAL` a una carpeta temporal sigue escribiendo; la que no, no llega al canal.
+_CANAL_REAL = CANAL
+
+
+def _en_pruebas():
+    """True en una prueba (pytest o runner de unittest en marcha); `STARSEED_CHAT_EN_PRUEBAS=1` lo anula.
+
+    Mismo criterio que `director_chat.en_pruebas`: no basta `"unittest" in sys.modules`, porque
+    `medidor_http_json.py` importa `unittest.mock` en producción."""
+    if os.environ.get("STARSEED_CHAT_EN_PRUEBAS") == "1":
+        return False
+    if "pytest" in sys.modules:
+        return True
+    if "unittest" in sys.modules:
+        senales = sys.modules.get("unittest.signals")
+        if senales is not None and len(getattr(senales, "_results", ())) > 0:
+            return True
+        arg0 = sys.argv[0] if sys.argv else ""
+        return "unittest" in arg0 or os.path.basename(arg0).startswith("test_")
+    return False
+
+
+def _canal_protegido():
+    """True si ahora mismo escribir en `CANAL` ensuciaría el canal REAL desde una prueba."""
+    destino = os.path.abspath(CANAL)
+    temporal = os.path.abspath(tempfile.gettempdir())
+    if destino == temporal or destino.startswith(temporal + os.sep):
+        return False
+    return destino == os.path.abspath(_CANAL_REAL) and _en_pruebas()
 
 
 def _quien():
@@ -93,11 +126,13 @@ def _quien():
 
 def decir(texto, quien=None, tipo="mensaje", tarea=None):
     """Escribe una línea en el canal. Append puro: nadie pisa a nadie."""
-    os.makedirs(os.path.dirname(CANAL), exist_ok=True)
     fila = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "epoch": time.time(),
             "quien": quien or _quien(), "tipo": tipo, "texto": texto}
     if tarea:
         fila["tarea"] = tarea
+    if _canal_protegido():
+        return fila  # una prueba no escribe en el canal real (ver `_CANAL_REAL`)
+    os.makedirs(os.path.dirname(CANAL), exist_ok=True)
     with open(CANAL, "a", encoding="utf-8") as f:
         f.write(json.dumps(fila, ensure_ascii=False) + "\n")
     return fila

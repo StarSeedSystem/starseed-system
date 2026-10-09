@@ -6,6 +6,8 @@ import fcntl
 import json
 import os
 import re
+import sys
+import tempfile
 import time
 import uuid
 from datetime import datetime, timezone
@@ -53,6 +55,57 @@ def _directorio(raiz=None):
     return _raiz(raiz) / "starseed_memory_root" / "mando" / "director"
 
 
+#: (2026-10-08) El Chat Director de Alex recibió «Flujo falló: f1 · Ejecución: e1 · Error: error»
+#: (`flujos/test_servicio.py` llamaba a la `publicar` de verdad) y, medido en la carpeta real,
+#: «Reparación automática · RM6» y «Eslabón roto reparado · CAMR1005Db → CAMR1005Dc» (las pruebas
+#: de `desatascar.py` no parchean `publicar`): una prueba sin `raiz=` escribe en la carpeta REAL
+#: (`~/Documents/starseed-os-main/…/director/`) porque `_raiz()` cae al valor por defecto. Aquí se
+#: fijan, AL IMPORTAR, las carpetas reales: una prueba que redirige con `raiz=` o con
+#: `STARSEED_ROOT` (después de importar) a una carpeta temporal sigue escribiendo; la que no
+#: redirige no llega al chat de Alex. El canal común (`puente.decir`) tiene la misma guarda.
+_DIRECTORIOS_REALES = tuple(
+    {
+        str(_directorio()),
+        str(Path.home() / "Documents" / "starseed-os-main" / "starseed_memory_root" / "mando" / "director"),
+    }
+)
+
+
+def en_pruebas():
+    """True si este proceso es una prueba (pytest o un runner de unittest en marcha).
+
+    `STARSEED_CHAT_EN_PRUEBAS=1` lo desactiva (una prueba que de verdad quiere escribir en el
+    chat real). OJO: no basta `"unittest" in sys.modules`: `medidor_http_json.py` hace
+    `import unittest.mock` al importarse (producción, `medidores_credito.py`) y cualquier
+    servicio que lo trajera dejaría de publicar en silencio. Un runner de unittest registra su
+    resultado en `unittest.signals._results` mientras ejecuta; eso sí distingue una prueba.
+    """
+    if os.environ.get("STARSEED_CHAT_EN_PRUEBAS") == "1":
+        return False
+    if "pytest" in sys.modules:
+        return True
+    if "unittest" in sys.modules:
+        senales = sys.modules.get("unittest.signals")
+        if senales is not None and len(getattr(senales, "_results", ())) > 0:
+            return True
+        # Sin resultado registrado aún (carga de módulos de prueba) o prueba lanzada a mano.
+        arg0 = sys.argv[0] if sys.argv else ""
+        return "unittest" in arg0 or os.path.basename(arg0).startswith("test_")
+    return False
+
+
+def _es_chat_real(ruta):
+    """True si `ruta` cae dentro de la carpeta REAL del Chat Director (y no es temporal)."""
+    destino = os.path.abspath(str(ruta))
+    temporal = os.path.abspath(tempfile.gettempdir())
+    if destino == temporal or destino.startswith(temporal + os.sep):
+        return False
+    return any(
+        destino == real or destino.startswith(real + os.sep)
+        for real in map(os.path.abspath, _DIRECTORIOS_REALES)
+    )
+
+
 def _chat(raiz=None):
     return _directorio(raiz) / "chat.jsonl"
 
@@ -77,6 +130,10 @@ def _nuevo_id():
 
 
 def _anadir(ruta, registros):
+    # (2026-10-08) Único punto por el que `publicar`, `entrega` y las bandejas escriben: una
+    # prueba nunca añade nada al chat real de Alex (ver `_DIRECTORIOS_REALES`).
+    if en_pruebas() and _es_chat_real(ruta):
+        return
     ruta.parent.mkdir(parents=True, exist_ok=True)
     with open(ruta, "a", encoding="utf-8") as f:
         fcntl.flock(f, fcntl.LOCK_EX)

@@ -106,7 +106,10 @@ export function interpretarDf(stdout: string): { totalMb: number; libreMb: numbe
     return {
         totalMb: Math.round(totalKb / 1024),
         libreMb: Math.round(libreKb / 1024),
-        usadoPct: Math.round((usadoKb / totalKb) * 100),
+        // (2026-10-09) En APFS «Used» es SOLO este volumen y «Available» lo libre del contenedor
+        // entero (que comparten Sistema, VM, Preboot…): 190 de 228 GB «usados» daba 83 % con
+        // 6 GB libres, cuando lo ocupado de verdad es el 97 %. Ocupado = lo que no está libre.
+        usadoPct: Math.round(((totalKb - libreKb) / totalKb) * 100),
     };
 }
 

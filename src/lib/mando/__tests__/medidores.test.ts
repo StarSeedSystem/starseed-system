@@ -173,29 +173,70 @@ describe("detalleDeMedidor · agentes (el trabajador)", () => {
         cola: "cola-auto-1",
     };
 
-    it("el sujeto es el agente, no la tarea", () => {
+    it("cada tarjeta es una TAREA viva, titulada por la tarea (2026-10-09)", () => {
         const d = detalleDeMedidor("agentes", { latidos: [latido], titulos: { T1: "Hacer algo" } });
-        expect(d.filas[0].id).toContain("kimi-k3");
-        expect(d.filas[0].titulo).toContain("mac");
-        expect(d.filas[0].titulo).not.toBe("Hacer algo");
+        expect(d.filas[0].id).toBe("T1");
+        expect(d.filas[0].titulo).toBe("Hacer algo");
+        expect(d.filas[0].quien).toContain("nim/kimi-k3");
+        expect(d.filas[0].quien).toContain("tanda auto-1");
+        expect(d.filas[0].quien).not.toContain("cola cola-");
     });
 
-    it("dice en qué tarea trabaja y cuánto lleva escrito", () => {
+    it("dice en qué etapa va y cuánto lleva escrito, sin botones por tarjeta", () => {
         const d = detalleDeMedidor("agentes", { latidos: [latido] });
-        expect(d.filas[0].etapa).toContain("T1");
+        expect(d.filas[0].etapa).toBe("etapa 1 de 6 · escribiendo");
         expect(d.filas[0].porque).toContain("KB escritos");
+        expect(d.filas[0].acciones).toEqual([]);
     });
 
     it("un agente que lleva rato sin escribir no se llama «escribiendo»", () => {
         const d = detalleDeMedidor("agentes", {
             latidos: [{ ...latido, quietoSegundos: 600 }],
         });
-        expect(d.filas[0].estado).toBe("callado");
-        expect(d.filas[0].porque).toContain("sin escribir");
-        // (2026-09-22) El resumen ahora empieza por los que ESCRIBEN y llama «callado(s)» a los
-        // que no: «3 agentes · 3 sin escribir» se leía como tres trabajando.
-        expect(d.resumen).toContain("0 escribiendo");
-        expect(d.resumen).toContain("1 callado(s)");
+        expect(d.filas[0].estado).toBe("sin escribir");
+        expect(d.filas[0].porque).toContain("10 min sin escribir");
+        expect(d.resumen).toBe("1 en total · 1 sin escribir");
+    });
+
+    it("tres latidos de la MISMA tarea (tandas viejas) son UN agente", () => {
+        const d = detalleDeMedidor("agentes", {
+            latidos: [
+                { ...latido, tarea: "CPA1007Kb", quietoSegundos: 540, cola: "cola-auto-1008-140757" },
+                { ...latido, tarea: "CPA1007Kb", quietoSegundos: 30, cola: "cola-auto-1008-163740" },
+                { ...latido, tarea: "CPA1007Kb", quietoSegundos: 660, cola: "cola-auto-1008-160157" },
+            ],
+        });
+        expect(d.filas).toHaveLength(1);
+        expect(d.filas[0].quien).toContain("1008-163740");
+        expect(d.resumen.startsWith("1 en total")).toBe(true);
+    });
+
+    it("«escribiendo» sin proceso detrás es un fantasma: no cuenta y se nombra", () => {
+        const d = detalleDeMedidor("agentes", {
+            latidos: [latido, { ...latido, tarea: "T2" }],
+            escritores: { T1: { pid: 123, minutos: 4 } },
+        });
+        expect(d.filas.map((f) => f.id)).toEqual(["T1"]);
+        expect(d.filas[0].porque).toContain("proceso 123");
+        expect(d.resumen).toContain("1 latido(s) viejo(s) descartado(s): T2");
+    });
+
+    it("en tsc no escribe ningún modelo: «comprobando», no «callado»", () => {
+        const d = detalleDeMedidor("agentes", {
+            latidos: [{ ...latido, fase: "tsc", quietoSegundos: 900 }],
+            escritores: {},
+        });
+        expect(d.filas[0].estado).toBe("comprobando");
+        expect(d.filas[0].porque).toContain("los tipos (tsc)");
+        expect(d.filas[0].etapa).toBe("etapa 2 de 6 · verificando");
+    });
+
+    it("si un modelo corrige tsc con su proceso vivo, se dice «corrigiendo»", () => {
+        const d = detalleDeMedidor("agentes", {
+            latidos: [{ ...latido, fase: "tsc" }],
+            escritores: { T1: { pid: 9, minutos: 1 } },
+        });
+        expect(d.filas[0].estado).toBe("corrigiendo");
     });
 
     it("no enseña las tareas rancias: eso es del medidor de tareas", () => {
@@ -209,7 +250,11 @@ describe("detalleDeMedidor · agentes (el trabajador)", () => {
         const ec = detalleDeMedidor("en-curso", datos);
         expect(ag.titulo).not.toBe(ec.titulo);
         expect(ag.resumen).not.toBe(ec.resumen);
-        expect(ag.filas[0].id).not.toBe(ec.filas[0].id);
+        // (2026-10-09) Las dos hablan de la misma TAREA (T1), pero «Agentes» dice cómo está el
+        // trabajador (escribiendo, sin escribir, comprobando…) y «En curso» cómo va el trabajo.
+        expect(ag.filas[0].estado).toBe("escribiendo");
+        expect(ec.filas[0].estado).toBe("escribiendo");
+        expect(ag.filas[0].etapa).toContain("etapa 1 de 6");
     });
 });
 
@@ -469,11 +514,11 @@ describe("un agente sin pasarela NO está escribiendo (2026-09-22)", () => {
         tarea, fase, modelo: "-", minutos: 35, donde: "mac", ...extra,
     });
 
-    it("se nombra «esperando pasarela» y dice por qué", () => {
+    it("se nombra «esperando modelo» y dice por qué", () => {
         const d = detalleDeMedidor("agentes", { latidos: [latido("W1", "esperando proveedor")] });
-        expect(d.filas[0].estado).toBe("esperando pasarela");
-        expect(d.filas[0].porque).toContain("NO está escribiendo");
-        expect(d.filas[0].porque).toContain("sin cupo");
+        expect(d.filas[0].estado).toBe("esperando modelo");
+        expect(d.filas[0].porque).toContain("ningún modelo con cupo");
+        expect(d.filas[0].quien).toContain("sin modelo asignado");
     });
 
     it("el resumen cuenta primero los que ESCRIBEN", () => {
@@ -485,9 +530,7 @@ describe("un agente sin pasarela NO está escribiendo (2026-09-22)", () => {
                 latido("X1", "escribiendo", { modelo: "nim/kimi-k3", quietoSegundos: 5 }),
             ],
         });
-        expect(d.resumen).toContain("1 escribiendo");
-        expect(d.resumen).toContain("2 sin pasarela libre");
-        expect(d.resumen).toContain("3 en total");
+        expect(d.resumen).toBe("3 en total · 1 escribiendo · 2 esperando modelo");
     });
 
     it("un agente que escribe de verdad sigue contando como tal", () => {

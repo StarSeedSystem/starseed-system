@@ -12,7 +12,7 @@
 // -----------------------------------------------------------------------------
 
 import { ETAPAS, etapaDeFase } from "@/lib/mando/etapas";
-import { estadoDeDependencia } from "@/lib/mando/cadenas";
+import { estadoDeDependencia, INTEGRADOS, MUERTOS as MUERTOS_CADENA, sucesorasDe } from "@/lib/mando/cadenas";
 import { resumenDeCambios, type ArchivoCambiado, type Ubicacion } from "@/lib/mando/integradas";
 import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-operativo";
 
@@ -40,7 +40,10 @@ export type ClaveMedidor =
     // 250 $ de crédito de Claude en la nube». Ver `credito-claude.ts`.
     | "credito-claude"
     // (2026-10-06) Alex: «El medidor de Claude debe usar la terminal para autoactualizarse y contar con un medidor para cada crédito del usuario en sus APIs y modelos de pago». MC1007G
-    | "creditos";
+    | "creditos"
+    // (2026-10-09) «Fallidas 0» con PT1009Cb en fallo_tsc: la pastilla contaba solo la ola
+    // activa. Este medidor cuenta lo que ha fallado HOY y nadie ha resuelto todavía.
+    | "fallidas";
 
 export type ClaseAccion =
     | "descartar"
@@ -641,6 +644,20 @@ export function enlaceDeCommit(repo?: string, sha?: string): string | undefined 
     return `https://github.com/${repo}/commit/${sha}`;
 }
 
+/** Un latido por tarea (el que avanzó más tarde). PURA. Ver `unLatidoPorTarea` en lector-local. */
+function unaPorTarea<T extends { tarea: string; donde?: string; quietoSegundos?: number; minutos?: number }>(latidos: T[]): T[] {
+    // Solo en la Mac una tarea = un agente. Un run de la nube lleva VARIOS agentes bajo el
+    // mismo id (`nube/<run>`) y no se sabe qué tarea lleva cada uno: ahí cada latido cuenta.
+    const porTarea = new Map<string, T>();
+    latidos.forEach((l, i) => {
+        const clave = (l.donde ?? "mac") === "mac" ? l.tarea : `${l.tarea}#${i}`;
+        const previo = porTarea.get(clave);
+        const q = (x: T) => x.quietoSegundos ?? Number.POSITIVE_INFINITY;
+        if (!previo || q(l) < q(previo)) porTarea.set(clave, l);
+    });
+    return [...porTarea.values()];
+}
+
 /**
  * La ficha de un AGENTE: quién es, dónde trabaja y por dónde ha pasado.
  *
@@ -1177,6 +1194,10 @@ export interface DatosMedidores {
     /** (2026-09-22) Lo que cada tarea viva está tocando AHORA en su worktree, y su
      *  historial de mensajes. Lo lee la ruta (toca disco) y aquí solo se pinta. */
     obras?: Record<string, { rama?: string; archivos?: string[]; ruta?: string }>;
+    /** (2026-10-09) Procesos que ESCRIBEN ahora en esta Mac, por tarea (`opencode run` o
+     *  `codex exec` sobre `starseed-wt/<id>`), leídos de `ps`. `null` = no se pudo leer:
+     *  entonces no se acusa a nadie de fantasma. */
+    escritores?: Record<string, { pid: number; minutos: number }> | null;
     historiales?: Record<string, SucesoDeFila[]>;
     /** Archivos que la cola DECLARÓ para cada tarea, para poder comparar con los tocados. */
     declarados?: Record<string, string[]>;
@@ -1728,93 +1749,151 @@ export function detalleDeMedidor(
         //     de verdad esta escribiendo o lleva rato callado.
         // El mismo latido alimenta las dos, pero cada una enseña su lado.
         case "agentes": {
-            const filas: FilaMedidor[] = d.latidos.map((l) => {
+            // (2026-10-09) Alex, con la captura delante: «basta de ilusiones». Esta ventana
+            // enseñaba tres tarjetas «freellmapi · auto · callado · trabaja en CPA1007Kb» (latidos
+            // de tres tandas), «3 en total» con cinco tarjetas debajo, «callado» para un agente
+            // que en realidad pasaba tsc, y una «comprobación» que decía «0 en la Mac». Reglas:
+            //   · una tarjeta = UNA TAREA viva, titulada por la tarea (no por el proveedor);
+            //   · lo que dice cada tarjeta se contrasta con el proceso REAL (`ps`, `escritores`);
+            //   · un latido que dice «escribiendo» sin proceso detrás es un fantasma: no cuenta
+            //     como agente y se nombra aparte;
+            //   · en tsc/pruebas/revisión no escribe ningún modelo: es el orquestador comprobando,
+            //     y se dice así, no «callado».
+            const escritores = d.escritores ?? null;
+            const filasTodas = unaPorTarea(d.latidos).map((l) => {
                 const proveedor = l.proveedor ?? l.modelo.split("/")[0];
                 const modelo = l.modelo.split("/").slice(-1)[0];
+                const sinModelo = !l.modelo || /^[-–\s]*$/.test(l.modelo);
+                const modeloTexto = sinModelo ? "sin modelo asignado" : proveedor && modelo && proveedor !== modelo ? `${proveedor}/${modelo}` : l.modelo;
                 const quieto = l.quietoSegundos ?? null;
-                // «Escribiendo» solo si ha tocado el log hace poco. Un agente que lleva cinco
-                // minutos sin escribir un byte no esta trabajando, esta pensando o colgado, y
-                // llamarle «escribiendo» es justo lo que impide verlo.
-                const callado = quieto !== null && quieto > 180;
-                // (2026-09-22) Un agente en «esperando proveedor» NO está trabajando: está
-                // parado porque todas las pasarelas útiles están caídas o sin cupo. Esta
-                // noche tres de ellos estuvieron 28, 31 y 35 minutos así, sin modelo y sin
-                // escribir un byte, y Genesis los contaba como «agentes escribiendo
-                // ahora». Alex lo llamó mentira y lo era. Ahora se dicen por su nombre.
-                // (2026-09-29) Un sueño profundo lee y analiza: no se dice «escribiendo». Su
-                // espera de proveedor viaja en la subfase, no en la fase.
-                const sonando = l.fase === "analizando";
+                const fase = String(l.fase ?? "").toLowerCase();
+                const sonando = fase === "analizando";
                 const esperandoProveedor =
-                    /esperando proveedor/i.test(String(l.fase ?? "")) ||
-                    (sonando && /esperando proveedor/i.test(String(l.subfase ?? "")));
-                // (2026-09-25) Los agentes de FUERA (Claude en Cowork, sus subagentes, Hermes)
-                // laten con `latido_externo.py` al cambiar de fase: no escriben un log aquí, así
-                // que «callado» mentiría. Se dicen por su nombre: trabajando fuera, y en qué fase.
+                    /esperando proveedor/i.test(fase) || (sonando && /esperando proveedor/i.test(String(l.subfase ?? "")));
                 const externo = String(l.cola ?? "").startsWith("externo-");
-                const obra = d.obras?.[l.tarea];
-                return {
-                    id: `${proveedor} · ${modelo}`,
-                    titulo: esperandoProveedor
-                        ? `sin pasarela libre · ${l.tarea} en ${l.donde}`
-                        : `${proveedor} · ${modelo} en ${l.donde}`,
-                    estado: externo
-                        ? "trabajando fuera"
-                        : esperandoProveedor
-                          ? "esperando pasarela"
-                          : callado
-                            ? "callado"
-                            : sonando
-                              ? "soñando"
-                              : "escribiendo",
-                    // El avance del agente es el de su tarea: es lo unico que ha avanzado.
-                    porcentaje: avanceDe(l.fase, estadoDe(l.tarea)).porcentaje,
-                    etapa: `trabaja en ${externo && l.titulo ? l.titulo : l.tarea}`,
-                    quien: l.cola ? `cola ${l.cola}` : l.medio ?? l.donde,
+                const enLaMac = (l.donde ?? "mac") === "mac";
+                const proceso = escritores?.[l.tarea];
+                const puerta = /^(tsc|tests?|testing|probando|revision|revisión|integrando|cableado|alcance|impacto|verificando)$/.test(fase);
+                const etapa = avanceDe(l.fase, estadoDe(l.tarea));
+                const nEtapa = etapa.etapa ? ETAPAS.indexOf(etapa.etapa as (typeof ETAPAS)[number]) + 1 : 0;
+                const etapaTexto = etapa.etapa ? `etapa ${nEtapa} de ${ETAPAS.length} · ${etapa.etapa}` : "sin empezar";
+                let estado: string;
+                let porque: string;
+                if (externo) {
+                    estado = "trabajando fuera";
+                    porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;
+                } else if (sonando) {
+                    estado = "soñando";
+                    porque = `sueño profundo · ${l.subfase || "analizando"} (lee, no escribe código)`;
+                } else if (esperandoProveedor) {
+                    estado = "esperando modelo";
+                    porque = `ningún modelo con cupo ahora mismo: espera su turno (lleva ${l.minutos} min)`;
+                } else if (puerta) {
+                    estado = proceso ? "corrigiendo" : "comprobando";
+                    porque = proceso
+                        ? `el modelo corrige lo que falló en ${fase} · proceso ${proceso.pid} vivo`
+                        : `el orquestador pasa ${fase === "tsc" ? "los tipos (tsc)" : fase.startsWith("test") || fase === "probando" ? "las pruebas" : fase.startsWith("revis") ? "la revisión" : fase}: no escribe ningún modelo`;
+                } else if (enLaMac && escritores && !proceso) {
+                    estado = "sin proceso";
+                    porque = "el latido dice que escribe, pero no hay ningún proceso escribiendo esta tarea: es un latido viejo";
+                } else if (quieto !== null && quieto > 180) {
+                    estado = "sin escribir";
+                    porque = `lleva ${Math.round(quieto / 60)} min sin escribir${proceso ? ` · el proceso ${proceso.pid} sigue vivo` : ""}`;
+                } else {
+                    estado = "escribiendo";
+                    porque = `${bytesLegibles(l.bytesLog)}${proceso ? ` · proceso ${proceso.pid}` : ""}`;
+                }
+                const cola = String(l.cola ?? "").replace(/^cola-/, "");
+                const fila: FilaMedidor = {
+                    id: (l.donde ?? "mac") === "mac" ? l.tarea : `${l.tarea} · ${l.donde} · ${modelo || "agente"} · ${l.minutos} min`,
+                    // El id ya va en la cabecera de la tarjeta: aquí, solo QUÉ es la tarea.
+                    titulo: externo && l.titulo ? l.titulo : titulo(l.tarea) !== l.tarea ? titulo(l.tarea) : "sin título en su cola",
+                    estado,
+                    porcentaje: etapa.porcentaje,
+                    etapa: etapaTexto,
+                    quien: `${modeloTexto} · ${l.donde}${cola ? ` · tanda ${cola}` : ""}`,
                     desde: `${l.minutos} min`,
-                    porque: externo
-                        ? `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe log en la Mac)`
-                        : esperandoProveedor
-                        ? `NO está escribiendo: todas las pasarelas útiles están caídas o sin cupo (lleva ${l.minutos} min esperando)`
-                        : callado
-                          ? `sin escribir desde hace ${Math.round((quieto ?? 0) / 60)} min`
-                          : sonando
-                            ? `sueño profundo · ${l.subfase || "analizando"} (lee, no escribe código)`
-                            : bytesLegibles(l.bytesLog),
-                    ficha: fichaDeAgente(l, d.progreso[l.tarea], obra, d.repoGitHub),
+                    porque,
+                    ficha: fichaDeAgente(l, d.progreso[l.tarea], d.obras?.[l.tarea], d.repoGitHub),
                     historial: d.historiales?.[l.tarea]?.slice(0, 6),
-                    acciones: [
-                        { clase: "comprobar-agente", texto: "Comprobar este agente", destructiva: false, objetivo: l.tarea },
-                    ],
+                    acciones: [],
                 };
+                return fila;
             });
-            const callados = filas.filter((f) => f.estado === "callado").length;
-            const esperando = filas.filter((f) => f.estado === "esperando pasarela").length;
-            const escribiendo = filas.filter((f) => f.estado === "escribiendo").length;
-            const sonandoN = filas.filter((f) => f.estado === "soñando").length;
-            const fuera = filas.filter((f) => f.estado === "trabajando fuera").length;
-            const medioAg = mediaDeAvance(filas);
+            const fantasmas = filasTodas.filter((f) => f.estado === "sin proceso");
+            const filas = filasTodas.filter((f) => f.estado !== "sin proceso");
+            const cuenta = (e: string) => filas.filter((f) => f.estado === e).length;
+            const partes = [
+                [cuenta("escribiendo"), "escribiendo"],
+                [cuenta("corrigiendo"), "corrigiendo"],
+                [cuenta("sin escribir"), "sin escribir"],
+                [cuenta("comprobando"), "comprobando"],
+                [cuenta("esperando modelo"), "esperando modelo"],
+                [cuenta("soñando"), "soñando"],
+                [cuenta("trabajando fuera"), "fuera"],
+            ]
+                .filter(([n]) => Number(n) > 0)
+                .map(([n, t]) => `${n} ${t}`);
             return {
                 clave,
-                titulo: "Agentes trabajando",
-                // El primer número es el que importa: cuántos ESCRIBEN. Lo demás se nombra
-                // aparte para que «3 agentes» no se lea como «3 trabajando» cuando no lo están.
+                titulo: "Agentes",
                 resumen:
                     filas.length === 0
-                        ? "ningún agente escribiendo"
-                        : `${escribiendo} escribiendo${sonandoN ? ` · ${sonandoN} soñando` : ""}${fuera ? ` · ${fuera} trabajando fuera` : ""}${
-                              esperando ? ` · ${esperando} sin pasarela libre` : ""
-                          }${
-                              callados ? ` · ${callados} callado(s)` : ""
-                          } · ${filas.length} en total · ${new Set(d.latidos.map((l) => l.donde)).size} medio(s)`,
+                        ? `ningún agente trabajando${fantasmas.length ? ` · ${fantasmas.length} latido(s) viejo(s) descartado(s)` : ""}`
+                        : `${filas.length} en total · ${partes.join(" · ")}${
+                              fantasmas.length ? ` · ${fantasmas.length} latido(s) viejo(s) descartado(s): ${fantasmas.map((f) => f.id).join(", ")}` : ""
+                          }`,
                 filas,
-                porcentajeMedio: medioAg,
-                // (2026-09-22) Alex pidió DOS VECES un botón aquí «para buscar en todos los
-                // medios de contenedores disponibles de agentes en la nube manualmente».
-                // Van en esta ventana y no solo en la de contenedores porque es aquí donde
-                // se mira cuando faltan agentes.
-                // (2026-10-05) Un solo botón general: ver ACCIONES_ASIGNAR.
+                porcentajeMedio: mediaDeAvance(filas),
                 acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
-                vacio: "Ningún agente está escribiendo ahora mismo.",
+                vacio: fantasmas.length
+                    ? `Ningún agente trabajando. ${fantasmas.length} latido(s) decían lo contrario sin ningún proceso detrás: descartados.`
+                    : "Ningún agente trabajando ahora mismo.",
+            };
+        }
+
+        case "fallidas": {
+            // (2026-10-09) Lo que falló en los últimos 3 días y sigue sin resolver: ni está en
+            // main ni lo ha cumplido una sucesora de su cadena. Con quién lo retoma, para que
+            // un fallo no sea un número rojo sin dueño.
+            const FALLO = /^(fallo.*|sin_cambios|conflicto|interrumpida)$/;
+            const limite = (ahora ?? Date.now()) - 3 * 24 * 3600 * 1000;
+            const ids = Object.keys(d.progreso);
+            const enMain = (id: string) => typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(id, d.asuntosDeMain);
+            const filas: FilaMedidor[] = [];
+            for (const [id, v] of Object.entries(d.progreso)) {
+                const est = String(v?.estado ?? "");
+                if (!FALLO.test(est) || enMain(id)) continue;
+                const t = Date.parse(String(v?.t ?? "").replace(" ", "T"));
+                if (Number.isFinite(t) && t < limite) continue;
+                const sucesoras = sucesorasDe(id, ids);
+                if (sucesoras.some((k) => INTEGRADOS.has(d.progreso[k]?.estado ?? "") || enMain(k))) continue;
+                const viva = sucesoras.find((k) => !MUERTOS_CADENA.has(d.progreso[k]?.estado ?? ""));
+                const nota = String(v?.nota ?? "");
+                const intento = /reintento gratuito (\d+)\/(\d+)/.exec(nota);
+                filas.push({
+                    id,
+                    titulo: titulo(id) !== id ? titulo(id) : "sin título en su cola",
+                    estado: est.replace(/_/g, " "),
+                    desde: v?.t,
+                    porque: viva
+                        ? `la rehace ${viva} (${d.progreso[viva]?.estado || "pendiente"})`
+                        : intento
+                          ? `la escalera del director la reintenta (intento ${intento[1]} de ${intento[2]}) · ${nota.slice(0, 120)}`
+                          : nota.slice(0, 160) || "sin nota",
+                    acciones: accionesDeBloqueada({ estado: est }),
+                });
+            }
+            filas.sort((a, b) => String(b.desde ?? "").localeCompare(String(a.desde ?? "")));
+            return {
+                clave,
+                titulo: "Fallidas sin resolver",
+                resumen: filas.length
+                    ? `${filas.length} sin resolver en 3 días · ${filas.filter((f) => /rehace|escalera/.test(f.porque ?? "")).length} ya con reparación en marcha`
+                    : "nada fallado sin resolver en los últimos 3 días",
+                filas,
+                acciones: [IR_A("Ver la ramificación", "procesos")],
+                vacio: "Nada ha fallado sin resolverse en los últimos 3 días.",
             };
         }
 

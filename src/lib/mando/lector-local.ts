@@ -580,7 +580,75 @@ export async function leerLatidos(): Promise<LatidoTarea[]> {
         }
     }
 
-    return latidos.sort((a, b) => a.tarea.localeCompare(b.tarea));
+    return unLatidoPorTarea(latidos).sort((a, b) => a.tarea.localeCompare(b.tarea));
+}
+
+/**
+ * Procesos que ESCRIBEN ahora, por tarea. PURA sobre la salida de `ps -axo pid=,etime=,args=`.
+ *
+ * (2026-10-09) Para no enseñar fantasmas: un agente «escribiendo» tiene un `opencode run` (o
+ * `codex exec`) vivo sobre su worktree `starseed-wt/<id>`. Se mira el EJECUTABLE y su primer
+ * argumento, nunca palabras sueltas del prompt (la comprobación vieja descartaba cualquier
+ * línea que contuviera «cat» o «grep», y el prompt de un agente las contiene siempre). El
+ * ayudante `opencode … eslintServer.js --stdio` no es un escritor.
+ */
+export function escritoresDePs(salida: string): Record<string, { pid: number; minutos: number }> {
+    const fuera: Record<string, { pid: number; minutos: number }> = {};
+    for (const linea of salida.split("\n")) {
+        const m = /^\s*(\d+)\s+(\S+)\s+(\S+)(?:\s+(\S+))?(.*)$/.exec(linea);
+        if (!m) continue;
+        const [, pid, etime, exe, primero = "", resto = ""] = m;
+        const nombre = exe.split("/").pop() ?? "";
+        const escribe = (nombre === "opencode" && primero === "run") || (nombre === "codex" && primero === "exec");
+        if (!escribe) continue;
+        const tarea = /starseed-wt\/([A-Za-z0-9_.-]+)/.exec(`${primero} ${resto}`)?.[1];
+        if (!tarea) continue;
+        const partes = etime.split(/[-:]/).map(Number);
+        let segundos = 0;
+        if (etime.includes("-")) segundos = partes[0] * 86400 + (partes[1] ?? 0) * 3600 + (partes[2] ?? 0) * 60 + (partes[3] ?? 0);
+        else if (partes.length === 3) segundos = partes[0] * 3600 + partes[1] * 60 + partes[2];
+        else segundos = (partes[0] ?? 0) * 60 + (partes[1] ?? 0);
+        const minutos = Math.round(segundos / 60);
+        if (!fuera[tarea] || fuera[tarea].minutos > minutos) fuera[tarea] = { pid: Number(pid), minutos };
+    }
+    return fuera;
+}
+
+/** `escritoresDePs` sobre el `ps` de esta máquina; `null` si no se pudo leer. */
+export async function leerEscritores(): Promise<Record<string, { pid: number; minutos: number }> | null> {
+    try {
+        const { stdout } = await promisify(execFile)("ps", ["-axo", "pid=,etime=,args="], {
+            timeout: 8000,
+            maxBuffer: 16 * 1024 * 1024,
+        });
+        return escritoresDePs(stdout);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Un latido por tarea: el más reciente. PURA.
+ *
+ * (2026-10-09, medido) «Agentes trabajando» enseñaba TRES tarjetas «callado · trabaja en
+ * CPA1007Kb» y la cabecera decía «3 en total» con cinco tarjetas debajo: la misma tarea
+ * estaba en los archivos de latidos de tres tandas (`latidos-cola-auto-1008-140757`,
+ * `-160157` y `-163740`) que alguien seguía tocando, y cada una contaba como un agente.
+ * Un agente es una tarea viva, no un archivo: manda el latido que avanzó más tarde.
+ */
+export function unLatidoPorTarea<T extends { tarea: string; quietoSegundos?: number; minutos?: number }>(latidos: T[]): T[] {
+    const porTarea = new Map<string, T>();
+    for (const l of latidos) {
+        const previo = porTarea.get(l.tarea);
+        if (!previo) {
+            porTarea.set(l.tarea, l);
+            continue;
+        }
+        const quietoL = l.quietoSegundos ?? Number.POSITIVE_INFINITY;
+        const quietoP = previo.quietoSegundos ?? Number.POSITIVE_INFINITY;
+        if (quietoL < quietoP || (quietoL === quietoP && (l.minutos ?? 0) < (previo.minutos ?? 0))) porTarea.set(l.tarea, l);
+    }
+    return [...porTarea.values()];
 }
 
 /**

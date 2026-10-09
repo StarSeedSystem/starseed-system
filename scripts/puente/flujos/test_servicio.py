@@ -7,7 +7,18 @@ from scripts.puente.flujos.servicio import _ejecutar_pares, _avisar_fallo
 
 class ServicioTest(unittest.TestCase):
     def test_avisar_fallo_no_lanza(self):
-        _avisar_fallo("f1", "e1", "error")
+        # (2026-10-08) Sin este parche llamaba a la `publicar` de verdad y el Chat Director de
+        # Alex recibió «Flujo falló: f1 · Ejecución: e1 · Error: error» desde una prueba.
+        with patch("scripts.puente.director_chat.publicar") as publicar_mock:
+            _avisar_fallo("f1", "e1", "error")
+        publicar_mock.assert_called_once()
+        texto = publicar_mock.call_args.args[0]
+        self.assertIn("Flujo falló: f1", texto)
+        self.assertEqual(publicar_mock.call_args.kwargs["de"], "flujos-servicio")
+
+    def test_avisar_fallo_traga_el_error_del_chat(self):
+        with patch("scripts.puente.director_chat.publicar", side_effect=RuntimeError("sin chat")):
+            _avisar_fallo("f1", "e1", "error")  # no lanza
 
     def test_ejecutar_pares_llama_motor_y_avisa(self):
         flujo = Flujo(id="f1", nombre="f1", nodos=[Nodo(id="n1", tipo="log")])

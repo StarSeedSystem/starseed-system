@@ -170,3 +170,27 @@
         transform: none;
     }
 }
+
+/* (2026-10-09) Acciones que solo estorban hasta que se necesitan: con ratón aparecen al
+ * pasar por su tarjeta (o al entrar con el teclado); en pantallas táctiles, siempre. */
+@media (hover: hover) {
+  .mc-acciones-al-pasar {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    border-top-color: transparent !important;
+    transition: opacity 180ms ease;
+  }
+  .group:hover .mc-acciones-al-pasar,
+  .group:focus-within .mc-acciones-al-pasar {
+    max-height: 8rem;
+    opacity: 1;
+    overflow: visible;
+    margin-top: 0.5rem !important;
+    padding-top: 0.5rem !important;
+    border-top-color: rgb(255 255 255 / 0.08) !important;
+  }
+}
+

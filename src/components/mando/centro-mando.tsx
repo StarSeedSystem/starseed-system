@@ -16,7 +16,7 @@
  */
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, Copy, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -229,6 +229,38 @@ function InsigniaReportes({ activa }: { activa: boolean }) {
     );
 }
 
+/** Las cuatro familias del pulso, en el orden en que se miran (2026-10-09). */
+type GrupoPulso = "trabajo" | "entrega" | "modelos" | "maquina";
+const GRUPOS_PULSO: { id: GrupoPulso; titulo: string }[] = [
+    { id: "trabajo", titulo: "El trabajo ahora" },
+    { id: "entrega", titulo: "Lo que sale" },
+    { id: "modelos", titulo: "Modelos y créditos" },
+    { id: "maquina", titulo: "Esta Mac" },
+];
+/** Dónde va cada pastilla: por su `clave` o, si no abre medidor, por su título. */
+const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
+    "ola-activa": ["trabajo", 0],
+    "en-curso": ["trabajo", 1],
+    agentes: ["trabajo", 2],
+    listas: ["trabajo", 3],
+    bloqueadas: ["trabajo", 4],
+    fallidas: ["trabajo", 5],
+    integradas: ["entrega", 0],
+    "sin-publicar": ["entrega", 1],
+    "Tu visto bueno": ["entrega", 2],
+    "Te toca a ti": ["entrega", 3],
+    proveedores: ["modelos", 0],
+    tokens: ["modelos", 1],
+    Jev: ["modelos", 2],
+    "credito-claude": ["modelos", 3],
+    creditos: ["modelos", 4],
+    contenedores: ["modelos", 5],
+    memoria: ["maquina", 0],
+    disco: ["maquina", 1],
+    "BitNet 1.58": ["maquina", 2],
+    "Google Drive": ["maquina", 3],
+};
+
 /**
  * Pestañas de Genesis, AGRUPADAS por lo que vas a hacer (2026-09-15).
  *
@@ -243,14 +275,14 @@ const PESTANAS = [
     { id: "director", etiqueta: "Director", grupo: "Trabajo" },
     { id: "olas", etiqueta: "Olas e informes", grupo: "Trabajo" },
     // Lo que sale de aquí hacia el repositorio.
-    { id: "commits", etiqueta: "Commits pendientes", grupo: "Salida" },
-    { id: "publicar", etiqueta: "Publicar", grupo: "Salida" },
+    { id: "commits", etiqueta: "Commits pendientes", grupo: "Publicación" },
+    { id: "publicar", etiqueta: "Publicar", grupo: "Publicación" },
     // Con qué se trabaja: modelos, memoria, voz, aprendizaje.
-    { id: "flota", etiqueta: "Flota", grupo: "Infraestructura" },
-    { id: "neurona", etiqueta: "Neurona", grupo: "Infraestructura" },
-    { id: "servidor", etiqueta: "Servidor 1.58", grupo: "Infraestructura" },
-    { id: "voces", etiqueta: "Voces", grupo: "Infraestructura" },
-    { id: "aprendizaje", etiqueta: "Aprendizaje", grupo: "Infraestructura" },
+    { id: "flota", etiqueta: "Flota", grupo: "Medios" },
+    { id: "neurona", etiqueta: "Neurona", grupo: "Medios" },
+    { id: "servidor", etiqueta: "Servidor 1.58", grupo: "Medios" },
+    { id: "voces", etiqueta: "Voces", grupo: "Medios" },
+    { id: "aprendizaje", etiqueta: "Aprendizaje", grupo: "Medios" },
     // Cómo piensan y qué saben los agentes.
     { id: "astra", etiqueta: "Astra", grupo: "Agentes" },
     { id: "taller", etiqueta: "Taller del agente", grupo: "Agentes" },
@@ -261,14 +293,16 @@ const PESTANAS = [
     { id: "reportes", etiqueta: "Reportes", grupo: "Agentes" },
     { id: "chat", etiqueta: "Chat", grupo: "Agentes" },
     // Hacia fuera.
-    { id: "canales", etiqueta: "Canales StarSeed", grupo: "Fuera" },
-    { id: "oficina", etiqueta: "Oficina 3D", grupo: "Fuera" },
+    { id: "canales", etiqueta: "Canales StarSeed", grupo: "Comunidad" },
+    { id: "oficina", etiqueta: "Oficina 3D", grupo: "Comunidad" },
     // Configuración.
-    { id: "ajustes_director", etiqueta: "Ajustes Director", grupo: "Ajustes" },
-    { id: "ajustes", etiqueta: "Ajustes", grupo: "Ajustes" },
+    { id: "ajustes_director", etiqueta: "Directores", grupo: "Ajustes" },
+    { id: "ajustes", etiqueta: "General", grupo: "Ajustes" },
 ] as const;
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
+/** Las familias de pestañas, en su orden (sin repetir). */
+const GRUPOS_PESTANAS = [...new Set(PESTANAS.map((p) => p.grupo))];
 
 // Móvil (< 640px): 20 pestañas en fila son demasiadas para arrastrar — un solo
 // botón con la pestaña actual abre la lista completa (nombre entero + el grupo
@@ -867,7 +901,12 @@ export function CentroMando() {
         integradasResumen: string | null;
         /** Pasarelas sin cupo o caídas, según el archivo que el enjambre OBEDECE. */
         agotados: number | null;
+        /** (2026-10-09) Modelos con cupo: la pastilla dice lo que HAY, no lo que falta. */
+        vivos: number | null;
         proveedoresResumen: string | null;
+        /** (2026-10-09) Fallidas sin resolver de los últimos 3 días (medidor «fallidas»). */
+        fallidas: number | null;
+        fallidasResumen: string | null;
         /** (2026-09-27) Crédito de Claude en la nube: «$250 de $250 · vence en…». */
         credito: string | null;
         creditoResumen: string | null;
@@ -879,7 +918,7 @@ export function CentroMando() {
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
         if (!forzar && document.visibilityState === "hidden") return;
         try {
-            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas, resCredito, resCreditos] =
+            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas, resCredito, resCreditos, resFallidas] =
                 await Promise.allSettled([
                     fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
@@ -892,6 +931,7 @@ export function CentroMando() {
                     fetch("/api/mando/medidores?clave=integradas", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=credito-claude", { cache: "no-store" }),
                     fetch("/api/mando/medidores?clave=creditos", { cache: "no-store" }),
+                    fetch("/api/mando/medidores?clave=fallidas", { cache: "no-store" }),
                 ]);
 
             let listas: number | null = null;
@@ -911,7 +951,10 @@ export function CentroMando() {
             let contenedores: number | null = null;
             let contenedoresResumen: string | null = null;
             let agotados: number | null = null;
+            let vivos: number | null = null;
             let proveedoresResumen: string | null = null;
+            let fallidas: number | null = null;
+            let fallidasResumen: string | null = null;
             let credito: string | null = null;
             let creditoResumen: string | null = null;
             let creditoTono: TonoMedidor = "normal";
@@ -979,6 +1022,7 @@ export function CentroMando() {
                     // come un 429 es `salud-proveedores.json`, y es el que alimenta este
                     // medidor. Ahora la pastilla y su ventana salen del mismo sitio.
                     agotados = dataProv.detalle.filas.filter((f) => f.estado !== "vivo").length;
+                    vivos = dataProv.detalle.filas.length - agotados;
                     proveedoresResumen = dataProv.detalle.resumen ?? null;
                 }
             }
@@ -1035,6 +1079,14 @@ export function CentroMando() {
                 }
             }
 
+            if (resFallidas.status === "fulfilled" && resFallidas.value.ok) {
+                const dataFallidas = (await resFallidas.value.json()) as { detalle?: DetalleMedidor };
+                if (dataFallidas.detalle) {
+                    fallidas = dataFallidas.detalle.filas.length;
+                    fallidasResumen = dataFallidas.detalle.resumen ?? null;
+                }
+            }
+
             if (resCreditos.status === "fulfilled" && resCreditos.value.ok) {
                 const dataCreditos = (await resCreditos.value.json()) as { detalle?: DetalleMedidor };
                 creditos = dataCreditos.detalle?.filas ?? [];
@@ -1058,7 +1110,10 @@ export function CentroMando() {
                 integradas,
                 integradasResumen,
                 agotados,
+                vivos,
                 proveedoresResumen,
+                fallidas,
+                fallidasResumen,
                 credito,
                 creditoResumen,
                 creditoTono,
@@ -1083,7 +1138,10 @@ export function CentroMando() {
                 integradas: null,
                 integradasResumen: null,
                 agotados: null,
+                vivos: null,
                 proveedoresResumen: null,
+                fallidas: null,
+                fallidasResumen: null,
                 credito: null,
                 creditoResumen: null,
                 creditoTono: "normal",
@@ -1580,20 +1638,25 @@ export function CentroMando() {
         const disponibleMb = (m.libreMb ?? 0) + (m.inactivaMb ?? 0);
         const memoriaTono: "peligro" | "aviso" | "normal" =
             disponibleMb < 800 ? "peligro" : disponibleMb < 1500 ? "aviso" : "normal";
-        const bitnetTono: "ok" | "aviso" = neurona.bitnet.estado === "vivo" ? "ok" : "aviso";
+        // (2026-10-09) «2569 MB · swap 6932 MB» no decía qué era cada número ni si era bueno.
+        const gb = (mb: number) => `${(mb / 1024).toFixed(1).replace(".", ",")} GB`;
+        const swap = m.swapUsadoMb ?? null;
+        const bitnetTono: "ok" | "normal" = neurona.bitnet.estado === "vivo" ? "ok" : "normal";
         return {
-            memoriaValor: `${Math.round(disponibleMb)} MB`,
-            memoriaTono,
+            memoriaValor: `${gb(disponibleMb)} libres`,
+            memoriaTono: swap !== null && swap > 6144 && memoriaTono === "normal" ? ("aviso" as const) : memoriaTono,
             memoriaDetalle:
-                m.swapUsadoMb !== null && m.swapUsadoMb !== undefined
-                    ? `swap ${Math.round(m.swapUsadoMb)} MB`
-                    : undefined,
-            bitnetValor: neurona.bitnet.estado,
+                swap !== null
+                    ? `de 8 GB · intercambio ${gb(swap)}${swap > 6144 ? " (alto: la Mac va lenta)" : ""}`
+                    : "de 8 GB",
+            bitnetValor: neurona.bitnet.estado === "vivo" ? "encendido" : neurona.bitnet.estado,
             bitnetTono,
             bitnetDetalle:
                 neurona.bitnet.crashes24h && neurona.bitnet.crashes24h > 0
-                    ? `${neurona.bitnet.crashes24h} crashes en 24 h`
-                    : undefined,
+                    ? `${neurona.bitnet.crashes24h} caídas en 24 h`
+                    : neurona.bitnet.estado === "vivo"
+                      ? "motor local: Jev decide gratis aquí"
+                      : "motor local parado: Jev usa la caché y OpenRouter",
         };
     }, [neurona]);
 
@@ -1674,10 +1737,8 @@ export function CentroMando() {
                         comentario: «la navegación no constituye una verificación». Tenía razón:
                         cambiar de pestaña no comprueba nada. Ahora el botón verifica los
                         procesos de verdad y deja el reporte escrito. */}
-                    {/* Ola 1004: el chat del director va justo encima del pulso. */}
-                    <ChatDirector />
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <h2 className="text-sm font-semibold text-white/70">Pulso del trabajo</h2>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h2 className="text-sm font-semibold text-white/80">Pulso del trabajo</h2>
                         <VerificarProcesos />
                     </div>
                     {/* (2026-09-15) La cabecera era una fila que se envuelve, y el panel de detalle
@@ -1685,21 +1746,8 @@ export function CentroMando() {
                         reorganizaba toda la cabecera —huecos enormes, medidores saltando de sitio—.
                         Ahora las pastillas viven en una REJILLA de celdas iguales y el panel se pinta
                         una sola vez, debajo de todas y a lo ancho. Abrir ya no mueve nada. */}
-                    <ul
-                        className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6"
-                        aria-label="Pulso del trabajo"
-                    >
-                        <li>
-                            <PastillaIdes
-                                abierto={idesAbierto}
-                                alPulsar={() => {
-                                    setMedidorAbierto(null);
-                                    setJevAbierto(false);
-                                    setIdesAbierto((a) => !a);
-                                }}
-                            />
-                        </li>
-                        {[
+                    {(() => {
+                        const pastillas = [
                             {
                                 clave: "ola-activa" as const,
                                 // (2026-09-23) Alex: «tampoco aparecen las olas activas en el
@@ -1707,20 +1755,26 @@ export function CentroMando() {
                                 // Mac) y la ventana un campo que nadie rellenaba: dos fuentes y
                                 // ninguna veía la nube. Ahora pastilla y ventana leen el mismo
                                 // medidor; `pulso` solo si el medidor no contesta.
-                                titulo: (medidoresResumen?.olas ?? 0) > 1 ? "Olas activas" : "Ola activa",
+                                titulo: (medidoresResumen?.olas ?? 0) > 1 ? "Olas en marcha" : "Ola en marcha",
+                                // (2026-10-09) El título entero de la ola («Ola 1005B · Producción:
+                                // puentes propios…») hacía la pastilla cuatro veces más alta que las
+                                // demás. Arriba el nombre corto; debajo, de qué va.
                                 valor:
                                     medidoresResumen?.olas === null || medidoresResumen?.olas === undefined
                                         ? pulso.olaActiva
                                         : medidoresResumen.olas === 0
-                                          ? "Sin olas activas"
+                                          ? "ninguna"
                                           : medidoresResumen.olas === 1
-                                            ? (medidoresResumen.olaTitulo ?? "1 ola")
+                                            ? (medidoresResumen.olaTitulo ?? "1 ola").split(" · ")[0]
                                             : `${medidoresResumen.olas} olas`,
-                                detalle: medidoresResumen?.olasResumen ?? undefined,
+                                detalle:
+                                    medidoresResumen?.olas === 1 && medidoresResumen.olaTitulo?.includes(" · ")
+                                        ? medidoresResumen.olaTitulo.split(" · ").slice(1).join(" · ")
+                                        : (medidoresResumen?.olasResumen ?? undefined),
                             },
                             {
                                 clave: "en-curso" as const,
-                                titulo: "Tareas en curso",
+                                titulo: "En curso",
                                 // La cifra sale del MISMO medidor que se abre al pulsar, como
                                 // «Agentes». `pulso.tareasEnCurso` cuenta latidos de la Mac y
                                 // los agentes de la nube no laten ahí: por eso decía 0 con
@@ -1757,10 +1811,10 @@ export function CentroMando() {
                                 // número de servicios: lo que se quiere saber de un vistazo es
                                 // cuántos agentes más caben ahora mismo.
                                 clave: "contenedores" as const,
-                                titulo: "Contenedores en la nube",
+                                titulo: "Nube",
                                 valor:
                                     medidoresResumen?.contenedores !== null && medidoresResumen?.contenedores !== undefined
-                                        ? String(medidoresResumen.contenedores)
+                                        ? `${medidoresResumen.contenedores} libres`
                                         : "—",
                                 tono: (medidoresResumen?.contenedores ? "ok" : "normal") as TonoMedidor,
                                 detalle: medidoresResumen?.contenedoresResumen ?? "sitio libre para más agentes",
@@ -1772,14 +1826,16 @@ export function CentroMando() {
                                 // manualmente desde claude.ai → Ajustes → Uso y los guarda con
                                 // scripts/puente/limites_claude.py declarar …»
                                 clave: "credito-claude" as const,
-                                titulo: "Claude · límites",
+                                titulo: "Claude",
                                 valor: medidoresResumen?.credito ?? "sin lectura",
                                 tono: medidoresResumen?.creditoTono ?? "normal",
                                 detalle: medidoresResumen?.creditoResumen ?? "lotes del plan de Claude (sesión ~5 h, semanal)",
                             },
+                            // (2026-10-09) «Claude · plan» repetía la pastilla «Claude» (las dos
+                            // con el 63 % de la semana): Claude sale una vez.
                             ...(
                                 medidoresResumen?.creditos.length
-                                    ? medidoresResumen.creditos
+                                    ? medidoresResumen.creditos.filter((f) => !/^claude\b/i.test(f.titulo))
                                     : [{ id: "sin-lectura", titulo: "Créditos de pago", porque: "sin lectura", acciones: [] }]
                             ).map((fila) => {
                                 const [valor = "sin lectura", ...detalle] = (fila.porque ?? "sin lectura").split(" · ");
@@ -1812,7 +1868,7 @@ export function CentroMando() {
                                 // que TIENE contador; lo que no lo tiene (opencode, codex, las
                                 // pasarelas) se nombra dentro, no se estima.
                                 clave: "tokens" as const,
-                                titulo: "Tokens por segundo",
+                                titulo: "Tokens/s",
                                 valor:
                                     medidoresResumen?.tokens !== null && medidoresResumen?.tokens !== undefined
                                         ? medidoresResumen.tokens === 0 && medidoresResumen.tokensCiegos
@@ -1828,7 +1884,7 @@ export function CentroMando() {
                             },
                             {
                                 clave: "listas" as const,
-                                titulo: "Listas para trabajar",
+                                titulo: "Listas",
                                 valor:
                                     medidoresResumen?.listas !== null && medidoresResumen?.listas !== undefined
                                         ? String(medidoresResumen.listas)
@@ -1901,12 +1957,18 @@ export function CentroMando() {
                             },
                             {
                                 clave: "proveedores" as const,
-                                titulo: "Proveedores agotados",
+                                // (2026-10-09) «Proveedores agotados 10» contaba lo que NO hay. Lo que
+                                // decide si el enjambre escribe es cuántos modelos tienen cupo.
+                                titulo: "Modelos con cupo",
                                 valor:
                                     medidoresResumen?.agotados !== null && medidoresResumen?.agotados !== undefined
-                                        ? String(medidoresResumen.agotados)
+                                        ? `${medidoresResumen.vivos ?? 0} de ${(medidoresResumen.vivos ?? 0) + medidoresResumen.agotados}`
                                         : "—",
-                                tono: (medidoresResumen?.agotados ? "peligro" : "normal") as TonoMedidor,
+                                tono: ((medidoresResumen?.vivos ?? 0) === 0
+                                    ? "peligro"
+                                    : (medidoresResumen?.agotados ?? 0) > (medidoresResumen?.vivos ?? 0)
+                                      ? "aviso"
+                                      : "ok") as TonoMedidor,
                                 detalle: medidoresResumen?.proveedoresResumen ?? `${pulso.disponibles} disponibles`,
                             },
                             {
@@ -1916,7 +1978,13 @@ export function CentroMando() {
                                 // a estar roto. El contador del día se reinicia a medianoche y
                                 // la pantalla no lo decía. Ahora, cuando hoy va a cero, la
                                 // pastilla enseña el mes, que es el número que sigue vivo.
-                                valor: jev ? String(jev.hoy.llamadas || jev.mes.llamadas) : "—",
+                                // (2026-10-09) Enseñaba «187» (las de OpenRouter) con «421 gratis» debajo:
+                                // el número grande no era el total. Ahora: decisiones de hoy, todas.
+                                valor: jev
+                                    ? jev.hoy.llamadas + jev.hoy.cache > 0
+                                        ? `${jev.hoy.local + jev.hoy.laya + jev.hoy.cache + jev.hoy.openrouter} hoy`
+                                        : `${jev.mes.llamadas} este mes`
+                                    : "—",
                                 // Verde si hay un medio gratis de verdad contestando (local o Laya).
                                 tono: (jev && ((jev.local_vivo && !jev.local_pausado_hasta) || jev.laya_viva)
                                     ? "ok"
@@ -1934,24 +2002,36 @@ export function CentroMando() {
                             },
                             {
                                 titulo: "Te toca a ti",
-                                valor: String(accionesAlex?.acciones.length ?? 0),
-                                tono: (accionesAlex && accionesAlex.acciones.length > 0 ? "aviso" : "ok") as TonoMedidor,
+                                // (2026-10-09) Decía «0 · nada que necesite tus manos» con 11 commits de
+                                // Astraura esperando TU firma: publicar Astraura es cosa tuya y cuenta.
+                                valor: String((accionesAlex?.acciones.length ?? 0) + ((sinPublicar?.astraura ?? 0) > 0 ? 1 : 0)),
+                                tono: ((accionesAlex?.acciones.length ?? 0) + ((sinPublicar?.astraura ?? 0) > 0 ? 1 : 0) > 0
+                                    ? "aviso"
+                                    : "ok") as TonoMedidor,
                                 // (2026-09-22) Alex: «lo de te toca a ti no entiendo qué es».
                                 // Decía «0 urgentes» con un 1 al lado, que no explica nada.
                                 // Son las cosas que el enjambre NO puede hacer solo porque
                                 // hacen falta las manos o la cuenta de Alex (renovar una clave,
                                 // un check-in diario, subir un secreto). Aquí se nombra la
                                 // primera: un número sin nombre no le dice a nadie qué hacer.
-                                detalle: accionesAlex
-                                    ? accionesAlex.acciones.length > 0
-                                        ? `${accionesAlex.acciones[0].titulo}${
-                                              accionesAlex.acciones.length > 1
-                                                  ? ` y ${accionesAlex.acciones.length - 1} más`
-                                                  : ""
-                                          }`
-                                        : "nada que necesite tus manos"
-                                    : "cargando…",
+                                detalle: (() => {
+                                    const cosas = [
+                                        ...((sinPublicar?.astraura ?? 0) > 0
+                                            ? [`firmar la publicación de Astraura 1.58 (${sinPublicar?.astraura} commits)`]
+                                            : []),
+                                        ...(accionesAlex?.acciones.map((x) => x.titulo) ?? []),
+                                    ];
+                                    if (!accionesAlex && !sinPublicar) return "cargando…";
+                                    return cosas.length
+                                        ? `${cosas[0]}${cosas.length > 1 ? ` y ${cosas.length - 1} más` : ""}`
+                                        : "nada que necesite tus manos";
+                                })(),
                                 alClic: () => {
+                                    // Sin otras acciones, lo único pendiente es Astraura: va directo a firmarla.
+                                    if (!(accionesAlex?.acciones.length ?? 0) && (sinPublicar?.astraura ?? 0) > 0) {
+                                        alIrADesdeMedidor("commits#publicar-astraura");
+                                        return;
+                                    }
                                     setMedidorAbierto(null);
                                     setIdesAbierto(false);
                                     setJevAbierto(false);
@@ -1979,10 +2059,10 @@ export function CentroMando() {
                                 ? [
                                       {
                                           clave: "disco" as const,
-                                          titulo: "Disco libre",
-                                          valor: discoLibreTexto(almacenamiento.disco.libreMb),
+                                          titulo: "Disco",
+                                          valor: `${discoLibreTexto(almacenamiento.disco.libreMb)} libres`,
                                           tono: tonoDiscoLibre(almacenamiento.disco.libreMb) as TonoMedidor,
-                                          detalle: `${almacenamiento.disco.usadoPct} % usado`,
+                                          detalle: `${almacenamiento.disco.usadoPct} % ocupado`,
                                       },
                                   ]
                                 : []),
@@ -2000,7 +2080,7 @@ export function CentroMando() {
                                           detalle:
                                               cuotaGoogle?.totalGb != null
                                                   ? `de ${(cuotaGoogle.totalGb / 1024).toFixed(2)} TB`
-                                                  : cuotaGoogle?.motivo || "abre la carpeta de StarSeed en Drive",
+                                                  : "espejo de la memoria · la cuota sale al conectar la cuenta en Almacenamiento",
                                           alClic: () =>
                                               window.open(
                                                   "https://drive.google.com/drive/search?q=StarSeed_Memory_Root",
@@ -2026,10 +2106,16 @@ export function CentroMando() {
                                               `últimas ${estado.cuentas.ultimas.olas} olas: ${estado.cuentas.ultimas.integradas}`,
                                       },
                                       {
+                                          // (2026-10-09) Decía «Fallidas 0 · últimas olas: 0» con
+                                          // PT1009Cb en fallo_tsc: contaba solo la ola activa. Ahora
+                                          // sale del medidor «fallidas» (3 días, sin resolver) y se abre.
+                                          clave: "fallidas" as const,
                                           titulo: "Fallidas",
-                                          valor: String(estado.cuentas.fallidas),
-                                          tono: (estado.cuentas.fallidas > 0 ? "peligro" : "normal") as TonoMedidor,
-                                          detalle: `últimas olas: ${estado.cuentas.ultimas.fallidas}`,
+                                          valor: String(medidoresResumen?.fallidas ?? estado.cuentas.fallidas),
+                                          tono: ((medidoresResumen?.fallidas ?? 0) > 0 ? "aviso" : "ok") as TonoMedidor,
+                                          detalle:
+                                              medidoresResumen?.fallidasResumen?.replace(/^\d+ sin resolver en 3 días · /, "") ??
+                                              "sin resolver, últimos 3 días",
                                       },
                                   ]
                                 : []),
@@ -2043,41 +2129,29 @@ export function CentroMando() {
                                       },
                                   ]
                                 : []),
-                        ].map((m) =>
-                            "compacto" in m ? (
-                                <li key={m.titulo} className="flex items-center justify-center">
-                                    <button
-                                        type="button"
-                                        disabled={m.cargando}
-                                        onClick={m.alClic}
-                                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-cyan-300/30 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] text-cyan-100 transition-colors hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        <RefreshCw className={`h-3 w-3 ${m.cargando ? "animate-spin" : ""}`} aria-hidden />
-                                        {m.cargando ? "Actualizando…" : "Actualizar ahora"}
-                                    </button>
-                                </li>
-                            ) : (
-                                <li key={m.titulo}>
-                                    <PastillaMedidor
-                                        clave={"clave" in m ? m.clave : undefined}
-                                        titulo={m.titulo}
-                                        valor={m.valor}
-                                        detalle={"detalle" in m ? m.detalle : undefined}
-                                        tono={"tono" in m ? m.tono : undefined}
-                                        abierto={"abierto" in m ? m.abierto : "clave" in m && medidorAbierto === m.clave}
-                                        alPulsar={(c) => {
-                                            setIdesAbierto(false);
-                                            setJevAbierto(false);
-                                            setMedidorAbierto((a) => (a === c ? null : c));
-                                        }}
-                                        alClic={"alClic" in m ? m.alClic : undefined}
-                                        cargando={"cargando" in m ? Boolean(m.cargando) : false}
-                                    />
-                                </li>
-                            ),
-                        )}
-                    </ul>
-                    {idesAbierto ? (
+                        ];
+                        // (2026-10-09) Alex: «las posiciones y órdenes de los botones y los estilos y
+                        // formas y los conceptos y nombres de cada sección están feos». Eran 22
+                        // pastillas en UNA rejilla, en el orden en que se fueron añadiendo: la RAM al
+                        // lado de «Te toca a ti», Codex entre Claude y los tokens, un botón suelto
+                        // ocupando una celda y huecos al final. Ahora van en cuatro familias con
+                        // nombre, en el orden en que se mira —qué pasa con el trabajo, qué sale, con
+                        // qué se trabaja y en qué máquina—, y el detalle se abre debajo de SU familia.
+                        const llaveDe = (m: (typeof pastillas)[number]) =>
+                            "clave" in m && m.clave ? (m.clave as string) : m.titulo;
+                        const lugar = (m: (typeof pastillas)[number]) =>
+                            LUGAR_EN_PULSO[llaveDe(m)] ?? (["modelos", 9] as [GrupoPulso, number]);
+                        const grupoAbierto: GrupoPulso | null = idesAbierto
+                            ? "maquina"
+                            : jevAbierto
+                              ? "modelos"
+                              : accionesAlexAbierto
+                                ? "entrega"
+                                : medidorAbierto
+                                  ? (LUGAR_EN_PULSO[medidorAbierto]?.[0] ?? "trabajo")
+                                  : null;
+                        const panel = (
+                            <>{idesAbierto ? (
                         <PanelIdes alCerrar={() => setIdesAbierto(false)} />
                     ) : jevAbierto && jev ? (
                         <PanelMedidorJev datos={jev} alCerrar={() => setJevAbierto(false)} />
@@ -2103,7 +2177,79 @@ export function CentroMando() {
                                     .catch(() => {});
                             }}
                         />
-                    ) : null}
+                    ) : null}</>
+                        );
+                        return (
+                            <div className="flex flex-col gap-4">
+                                {GRUPOS_PULSO.map((g) => {
+                                    const deEste = pastillas
+                                        .filter((m) => !("compacto" in m) && lugar(m)[0] === g.id)
+                                        .sort((x, y) => lugar(x)[1] - lugar(y)[1]);
+                                    return (
+                                        <section key={g.id} aria-label={g.titulo} className="flex flex-col gap-1.5">
+                                            <div className="flex items-center justify-between gap-2 px-0.5">
+                                                <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                                                    {g.titulo}
+                                                </h3>
+                                                {g.id === "modelos" ? (
+                                                    <button
+                                                        type="button"
+                                                        disabled={actualizandoCreditos}
+                                                        onClick={() => void actualizarCreditos()}
+                                                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] text-cyan-200/80 transition-colors hover:bg-cyan-400/10 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        <RefreshCw
+                                                            className={`h-3 w-3 ${actualizandoCreditos ? "animate-spin" : ""}`}
+                                                            aria-hidden
+                                                        />
+                                                        {actualizandoCreditos ? "Leyendo créditos…" : "Releer créditos"}
+                                                    </button>
+                                                ) : null}
+                                            </div>
+                                            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                                                {deEste.map((m) => (
+                                                    <li key={m.titulo}>
+                                                        <PastillaMedidor
+                                                            clave={"clave" in m ? m.clave : undefined}
+                                                            titulo={m.titulo}
+                                                            valor={m.valor}
+                                                            detalle={"detalle" in m ? m.detalle : undefined}
+                                                            tono={"tono" in m ? m.tono : undefined}
+                                                            abierto={"abierto" in m ? m.abierto : "clave" in m && medidorAbierto === m.clave}
+                                                            alPulsar={(c) => {
+                                                                setIdesAbierto(false);
+                                                                setJevAbierto(false);
+                                                                setAccionesAlexAbierto(false);
+                                                                setMedidorAbierto((x) => (x === c ? null : c));
+                                                            }}
+                                                            alClic={"alClic" in m ? m.alClic : undefined}
+                                                            cargando={"cargando" in m ? Boolean(m.cargando) : false}
+                                                        />
+                                                    </li>
+                                                ))}
+                                                {g.id === "maquina" ? (
+                                                    <li>
+                                                        <PastillaIdes
+                                                            abierto={idesAbierto}
+                                                            alPulsar={() => {
+                                                                setMedidorAbierto(null);
+                                                                setJevAbierto(false);
+                                                                setAccionesAlexAbierto(false);
+                                                                setIdesAbierto((x) => !x);
+                                                            }}
+                                                        />
+                                                    </li>
+                                                ) : null}
+                                            </ul>
+                                            {grupoAbierto === g.id ? panel : null}
+                                        </section>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })()}
+                    {/* El chat del director, debajo del pulso: lo primero que se ve es qué pasa. */}
+                    <ChatDirector />
                     {/* (2026-09-29) Alex: «añade un medidor de esos créditos que lo verifique
                         desde Genesis». Supabase (hoy, ciclo, freno, bucles), Jev y
                         el crédito de Claude, con sus presupuestos editables. */}
@@ -2134,22 +2280,33 @@ export function CentroMando() {
                         className="w-full"
                     />
                 </div>
-                <TabsList aria-label="Pestañas de Genesis" className="mc-cristal hidden flex-wrap gap-y-1 sm:flex">
-                    {PESTANAS.map((p, i) => (
-                        <Fragment key={p.id}>
-                            {i > 0 && PESTANAS[i - 1].grupo !== p.grupo ? (
-                                <span
-                                    aria-hidden
-                                    className="mx-1.5 self-center text-[9px] uppercase tracking-widest text-white/25"
-                                >
-                                    {p.grupo}
-                                </span>
-                            ) : null}
-                            <TabsTrigger value={p.id} className="mc-alzar cursor-pointer">
-                                {p.etiqueta}
-                                {p.id === "reportes" ? <InsigniaReportes activa={pestana === "reportes"} /> : null}
-                            </TabsTrigger>
-                        </Fragment>
+                {/* (2026-10-09) Alex: «las posiciones y órdenes de los botones… y los nombres de cada
+                    sección están feos». Las familias se nombraban DENTRO de la fila, entre pestañas
+                    («salida», «fuera»…), la barra se partía en tres filas desiguales y «Ajustes» eran
+                    dos botones de media pantalla. Ahora cada familia es un bloque con su nombre
+                    encima y sus pestañas debajo, todas del mismo tamaño. */}
+                <TabsList
+                    aria-label="Pestañas de Genesis"
+                    className="mc-cristal hidden h-auto w-full flex-wrap items-start justify-start gap-x-5 gap-y-3 px-3 py-2.5 sm:flex"
+                >
+                    {GRUPOS_PESTANAS.map((g) => (
+                        <div key={g} role="group" aria-label={g} className="flex flex-col gap-1">
+                            <span aria-hidden className="px-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                                {g}
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                                {PESTANAS.filter((p) => p.grupo === g).map((p) => (
+                                    <TabsTrigger
+                                        key={p.id}
+                                        value={p.id}
+                                        className="mc-alzar flex-none cursor-pointer px-3 py-1.5 text-xs"
+                                    >
+                                        {p.etiqueta}
+                                        {p.id === "reportes" ? <InsigniaReportes activa={pestana === "reportes"} /> : null}
+                                    </TabsTrigger>
+                                ))}
+                            </div>
+                        </div>
                     ))}
                 </TabsList>
 

@@ -23,15 +23,17 @@ describe("medidor de agentes · agentes de fuera", () => {
     it("un externo quieto sale como «trabajando fuera», con su título y su fase", () => {
         const d = detalleDeMedidor("agentes", { latidos: [externo] });
         expect(d.filas[0].estado).toBe("trabajando fuera");
-        expect(d.filas[0].etapa).toBe("trabaja en Fondo del OS: 3 calidades adaptativas");
+        expect(d.filas[0].titulo).toBe("Fondo del OS: 3 calidades adaptativas");
         expect(d.filas[0].porque).toContain("fase: verificando");
-        expect(d.resumen).toContain("1 trabajando fuera");
-        expect(d.resumen).not.toContain("callado");
+        expect(d.resumen).toContain("1 fuera");
+        expect(d.resumen).not.toContain("sin escribir");
     });
 
-    it("un agente de la Mac quieto sigue saliendo como «callado»", () => {
+    it("un agente de la Mac quieto sale como «sin escribir» (o «comprobando» si pasa las puertas)", () => {
         const mac = { ...externo, tarea: "T1", cola: "auto-1", donde: "mac", titulo: undefined };
-        const d = detalleDeMedidor("agentes", { latidos: [mac] });
-        expect(d.filas[0].estado).toBe("callado");
+        const d = detalleDeMedidor("agentes", { latidos: [{ ...mac, fase: "escribiendo" }] });
+        expect(d.filas[0].estado).toBe("sin escribir");
+        const enPuertas = detalleDeMedidor("agentes", { latidos: [mac] });
+        expect(enPuertas.filas[0].estado).toBe("comprobando");
     });
 });

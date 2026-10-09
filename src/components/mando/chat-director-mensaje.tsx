@@ -98,7 +98,7 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
       data-testid="mensaje-director"
       data-autor={autorData}
       className={[
-        "rounded-xl border p-3 text-xs transition-colors duration-200",
+        "group rounded-xl border p-3 text-xs transition-colors duration-200",
         esAlex ? "self-end ml-auto max-w-[85%] border-cyan-400/30 bg-cyan-500/10" : (esSistema ? "rounded-md border-amber-500/30 bg-amber-900/30 p-2 text-[11px]" : "bg-zinc-900/70 border-violet-500/20"),
       ].filter(Boolean).join(" ")}
     >
@@ -167,7 +167,12 @@ export function MensajeDelDirector({ mensaje, entregas, modelos, modeloPorDefect
       )}
 
       {!esSistema && (
-        <div className={["mt-2 flex flex-wrap items-center gap-2 border-t pt-2", esAlex ? "border-cyan-400/20" : "border-zinc-800"].filter(Boolean).join(" ")}>
+        // (2026-10-09) Alex: «las posiciones y órdenes de los botones… están feos». Cada mensaje
+        // llevaba SIEMPRE su barra entera (modelo, Responder, Canales, Enviar): veinte mensajes
+        // eran veinte barras iguales y el chat ocupaba toda la primera pantalla. La barra sigue
+        // ahí (teclado, móvil y lectores de pantalla la tienen siempre), pero con ratón aparece
+        // al pasar por el mensaje: `mc-acciones-al-pasar` en mando-cristal.css.
+        <div className={["mc-acciones-al-pasar mt-2 flex flex-wrap items-center gap-2 border-t pt-2", esAlex ? "border-cyan-400/20" : "border-zinc-800"].filter(Boolean).join(" ")}>
         <select
           value={modelo}
           onChange={(e) => { tocadoRef.current = true; setModelo(e.target.value); }}

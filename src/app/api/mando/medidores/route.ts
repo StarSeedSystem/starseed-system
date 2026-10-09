@@ -28,6 +28,7 @@ import {
     leerColas,
     leerCommitsDeOlas,
     leerLatidos,
+    leerEscritores,
     leerLatidosDelBus,
     leerProgreso,
     tareasDeCola,
@@ -542,7 +543,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             tiempos[fuente] = Date.now() - inicio;
             throw e;
         });
-    const [progreso, colas, bus, latidosMac, vivo, commitsGit] = await Promise.all([
+    const [progreso, colas, bus, latidosMacTodos, vivo, commitsGit] = await Promise.all([
         midiendo("progreso", leerEntradas()),
         midiendo("colas", leerColas().catch(() => [])),
         midiendo("bus", leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] }))),
@@ -565,7 +566,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     for (const t of colas) titulos[t.id] = t.titulo;
     // (2026-09-25) Agentes externos (Claude en Cowork, subagentes, Hermes): su título viene
     // en el propio latido porque no salen de ninguna cola.
-    for (const l of latidosMac) if (l.titulo && !titulos[l.tarea]) titulos[l.tarea] = l.titulo;
+    for (const l of latidosMacTodos) if (l.titulo && !titulos[l.tarea]) titulos[l.tarea] = l.titulo;
     // (2026-10-03) Colas archivadas por la higiene: su índice (pequeño, sin prompts) rellena
     // títulos e ids conocidos, para que «Integradas» no baje al mover colas de `olas/`.
     try {
@@ -610,6 +611,10 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     // y el panel, justo debajo, «ningún agente escribiendo» sobre la misma tarea: el
     // orquestador local escribe `olas/latidos-*.json` cada 20 s y solo publica en el bus
     // de vez en cuando, así que el bus siempre va por detrás o directamente vacío.
+    // (2026-10-09) Un latido de una tarea que el progreso ya CERRÓ (falló, se integró, se
+    // sustituyó…) es de una tanda vieja: CPA1007Kb salía tres veces con su tanda ya terminada.
+    const CERRADA = /^(commit|hecho|fallo.*|sin_cambios|sustituida|rechazada|bloqueante|descartada|conflicto|interrumpida|pendiente_aprobacion)$/;
+    const latidosMac = latidosMacTodos.filter((l) => !CERRADA.test(String(progreso[l.tarea]?.estado ?? "")));
     const deAqui = new Set(latidosMac.map((l) => l.tarea));
     const latidosCompletos = [...latidosMac, ...bus.latidos.filter((l) => !deAqui.has(l.tarea))];
     const latidosDeAqui = [
@@ -664,7 +669,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         if (t.id && t.archivos?.length && !declarados[t.id]) declarados[t.id] = t.archivos;
     }
     const envios = await midiendo("enviosNube", enviosALaNube()).catch(() => ({}) as Record<string, number>);
-    const [obras, historiales, agentesNube, contenedores, proveedores, tokens, olasNube] = await Promise.all([
+    const [obras, historiales, agentesNube, contenedores, proveedores, tokens, olasNube, escritores] = await Promise.all([
         midiendo("obras", leerObras(idsVivas).catch(() => ({}))),
         midiendo("historiales", leerHistoriales(idsVivas).catch(() => ({}))),
         midiendo("agentesNube", leerAgentesDeLaNube().catch(() => [])),
@@ -672,6 +677,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         midiendo("proveedores", leerProveedores().catch(() => [])),
         midiendo("tokens", leerTokens().catch(() => null)),
         midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
+        midiendo("escritores", leerEscritores().catch(() => null)),
     ]);
 
     // (2026-09-23) Las olas en marcha, de la Mac y de la nube, con sus tareas. Y el encargo
@@ -719,6 +725,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // Los de la nube se SUMAN a los de la Mac: el medidor de agentes tiene que contar
         // toda la capacidad viva, no solo la de esta máquina.
         latidos: [...latidosDeAqui, ...agentesNube],
+        escritores,
         contenedores,
         creditoClaude: await leerCreditoClaude().catch(() => null),
         limitesClaude: await leerLimitesClaude().catch(() => null),

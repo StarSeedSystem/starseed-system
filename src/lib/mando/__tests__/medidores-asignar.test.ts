@@ -36,10 +36,12 @@ describe("botones de asignar", () => {
         expect(d.acciones.map((a) => a.clase)).toEqual(["buscar-capacidad", "ir-a"]);
     });
 
-    it("Agentes: cada agente se comprueba por su TAREA, no por «proveedor · modelo»", () => {
+    it("Agentes: la tarjeta ES la tarea y se contrasta con su proceso; un solo botón general", () => {
+        // (2026-10-09) Ya no hay «Comprobar este agente» en cada tarjeta: cada una se contrasta
+        // sola con `ps` (escritores) al medir, y el botón general sigue arriba.
         const d = detalleDeMedidor("agentes", { latidos: [latido] });
-        const a = d.filas[0].acciones.find((x) => x.clase === "comprobar-agente");
-        expect(a?.objetivo).toBe("LY1");
+        expect(d.filas[0].id).toBe("LY1");
+        expect(d.filas[0].acciones).toEqual([]);
         expect(d.acciones.map((x) => x.clase)).toContain("buscar-capacidad");
     });
 
