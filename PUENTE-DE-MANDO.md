@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 19:40:57 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 20:29:08 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,19 +16,17 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 15 |
-| HEAD | `30c84355 chore(memoria): aprendizaje de la ola auto-1008-183219` |
-| Sin publicar | 2 commits |
+| HEAD | `373d8859 chore(memoria): aprendizaje de la ola auto-1008-194153` |
+| Sin publicar | 3 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1008-183219.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1008-194153.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `PRD1005U` | hecho | freellmapi/auto | 1 min | 31 s | 511871 |
-| `CPA1007Kb` | hecho | freellmapi/auto | 10 min | 608 s | 1112881 |
-| `PT1009Cb` | hecho | openrouter/thinkingmachines/inklin | 43 min | 2577 s | 387883 |
-| `CAMR1005Dc` | hecho | codex/gpt-5.6-sol | 44 min | 2657 s | 261995 |
-| `PRD1005Sc` | hecho | codex/gpt-5.6-sol | 47 min | 2816 s | 176397 |
+| `CAMR1005Dc` | hecho | openrouter/thinkingmachines/inklin | 1 min | 32 s | 378821 |
+| `PT1009Cb` | hecho | openrouter/thinkingmachines/inklin | 27 min | 1620 s | 502624 |
+| `CPA1007Kb` | hecho | openrouter/thinkingmachines/inklin | 31 min | 1867 s | 1351968 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
