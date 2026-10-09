@@ -4160,3 +4160,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `PT1009Cb` — los tipos no compilan: 6 errores tsc (rama ola/PT1009Cb conservada)
 - `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
 - `PRD1005U` — los tipos no compilan: 10 errores tsc (rama ola/PRD1005U conservada)
+
+## 2026-10-08 20:29 · auto-1008-194153
+
+**Lo que se pidió.** Todo Genesis debe estar diseñado para funcionar de forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a cada contexto, pero con las mismas características, formatos, estructuras y funciones que ya hemos desarrollado. Así, cualquier usuario podrá crear sus enjambres de agentes vinculados a Starseed OS, con control total de sus perfiles y cuenta dentro de Starseed OS, de manera segura… y también diseñados para grupos y páginas públicas y privadas de todo tipo de todo Starseed OS.
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
+- `CAMR1005F` — otra cosa
