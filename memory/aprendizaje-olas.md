@@ -4170,3 +4170,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
 - `CAMR1005F` — otra cosa
+
+## 2026-10-08 21:23 · auto-1008-203016
+
+**Lo que se pidió.** sin medir
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005F` — los tipos no compilan: 6 errores tsc (rama ola/CAMR1005F conservada)
+- `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
