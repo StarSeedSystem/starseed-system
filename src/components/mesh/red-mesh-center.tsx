@@ -24,6 +24,7 @@ import { AntennasPanel } from "@/components/mesh/antennas-panel";
 import { MeshPrivacyPanel } from "@/components/mesh/mesh-privacy-panel";
 import { PeersPanel } from "@/components/mesh/peers-panel";
 import { MeshStatusChip } from "@/components/mesh/mesh-status-chip";
+import { CamrPanel } from "@/components/mesh/camr-panel";
 import { startMeshSubsystem } from "@/ai/astraura/mesh";
 // Malla de neuronas (Ola 366): dispositivos StarSeed auto-vinculados por
 // WebRTC — DISTINTO de los peers de radio LoRa que pinta PeersPanel arriba.
@@ -137,13 +138,7 @@ export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = 
       <div className="grid gap-3 xl:grid-cols-2">
         <AntennasPanel />
         <section className="rounded-2xl border border-white/10 bg-black/20 p-3">
-          <h3 className="mb-2 text-sm font-semibold text-white/85">Enrutamiento cognitivo (CAMR)</h3>
-          <p className="text-[11px] text-white/50">Capa física unificada: Meshtastic, simulado y agente local conectados. Modo: <span className="font-semibold text-emerald-200">{camrEstado.modo}</span> · ciclo: {camrEstado.cicloMs} ms · decisiones: {camrEstado.decisiones.length} · historial: {camrEstado.historialMediciones.length}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-200">Meshtastic</span>
-            <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 py-0.5 text-[9px] font-bold text-fuchsia-200">Simulado</span>
-            <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[9px] font-bold text-sky-200">Agente</span>
-          </div>
+          <CamrPanel embedded />
         </section>
       </div>
 
