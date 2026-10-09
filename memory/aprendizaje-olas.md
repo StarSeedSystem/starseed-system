@@ -4123,3 +4123,22 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CPA1007Kb` — los tipos no compilan: 4 errores tsc (rama ola/CPA1007Kb conservada)
 - `PRD1005S` — otra cosa: sin decisión en 0 h; rama ola/PRD1005S conservada
 - `RM6` — otra cosa: sin decisión en 0 h; rama ola/RM6 conservada
+
+## 2026-10-08 18:31 · auto-1008-163740
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 3 de 9 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (PRD1005Sc, CAMR1005Dc, CAMR1005Db, PRD1005U). Es 44 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- codex/gpt-5.6-sol no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `PRD1005Sc` — otra cosa: sin decisión en 0 h; rama ola/PRD1005Sc conservada
+- `CAMR1005Dc` — otra cosa: ningún proveedor respondió (model not found)
+- `CAMR1005Db` — otra cosa: movida a su sucesora CAMR1005Dc (la cadena sigue por ella) desde Genesis
+- `PT1009Cb` — los tipos no compilan: 5 errores tsc (rama ola/PT1009Cb conservada)
+- `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005U` — otra cosa: vuelve a esperar a PRD1005S: la rehace PRD1005Sc; arranca cuando se integre
