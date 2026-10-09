@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 18:31:02 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-08 19:40:57 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,23 +16,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
 | Últimas 4 olas | en curso 0 · pendientes 0 · integradas 15 |
-| HEAD | `4c8ae7a8 chore(memoria): aprendizaje de la ola auto-1008-163740` |
-| Sin publicar | 5 commits |
+| HEAD | `30c84355 chore(memoria): aprendizaje de la ola auto-1008-183219` |
+| Sin publicar | 2 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1008-163740.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1008-183219.json`, hace 5s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `PRD1005Sc` | hecho | freellmapi/auto | 1 min | 55 s | 121940 |
-| `RM8` | hecho | freellmapi/auto | 22 min | 1319 s | 39041 |
-| `PT1009Cb` | hecho | codex/gpt-5.6-sol | 37 min | 2225 s | 218679 |
-| `RM7` | hecho | freellmapi/auto | 37 min | 2239 s | 152812 |
-| `CAMR1005Dc` | hecho | codex/gpt-5.6-sol | 38 min | 2265 s | 151935 |
-| `CPA1007Kb` | hecho | freellmapi/auto | 38 min | 2303 s | 603487 |
-| `PRD1005U` | hecho | freellmapi/auto | 58 min | 3486 s | 1331 |
-| `RM6b` | hecho | freellmapi/auto | 70 min | 4196 s | 116231 |
-| `CAMR1005Db` | hecho | codex/gpt-5.6-sol | 112 min | 6717 s | 197892 |
+| `PRD1005U` | hecho | freellmapi/auto | 1 min | 31 s | 511871 |
+| `CPA1007Kb` | hecho | freellmapi/auto | 10 min | 608 s | 1112881 |
+| `PT1009Cb` | hecho | openrouter/thinkingmachines/inklin | 43 min | 2577 s | 387883 |
+| `CAMR1005Dc` | hecho | codex/gpt-5.6-sol | 44 min | 2657 s | 261995 |
+| `PRD1005Sc` | hecho | codex/gpt-5.6-sol | 47 min | 2816 s | 176397 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
