@@ -5523,16 +5523,30 @@ def atender_control():
             # respondida) y la tarea vive en esta cola, así que `progreso.json` no basta:
             # la copia en memoria de este proceso manda. Se reabre aquí.
             REABRIR.add(tid)
+            # (2026-10-09) La escalera del director sube de peldaño (más intentos, otro modelo):
+            # la orden trae el contador y el modelo, y aquí se respetan. Sin esto la copia en
+            # memoria pisaba el contador al guardar y CPA1007Kb repetía «Codex 1/2» para siempre.
+            extra = {}
+            n = orden.get("intentos_auto")
+            if isinstance(n, int) and not isinstance(n, bool) and n >= 0:
+                extra["intentos_auto"] = n
             set_estado(
                 tid,
                 estado="pendiente",
                 nota=str(orden.get("motivo") or "reabierta por el director")[:160],
+                **extra
             )
+            modelo_pedido = str(orden.get("modelo") or "").strip()
+            if modelo_pedido and "/" in modelo_pedido and asegurar_modelo_opencode(modelo_pedido):
+                REASIGNADOS[tid] = modelo_pedido
             evento(
                 "aviso",
                 tid,
-                "reabierta por el director: %s"
-                % (orden.get("motivo") or "vuelve a la tanda"),
+                "reabierta por el director: %s%s"
+                % (
+                    orden.get("motivo") or "vuelve a la tanda",
+                    (" · con %s" % modelo_pedido) if tid in REASIGNADOS else "",
+                ),
             )
             continue
         if accion == "soltar":

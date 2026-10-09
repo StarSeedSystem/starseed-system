@@ -161,6 +161,27 @@ def aplicar_correcciones_pendientes():
 
 
 _AVISADAS = set()
+def orden_reabrir(correccion):
+    """PURA. La orden `reabrir` para la tanda viva a partir de la corrección del director.
+
+    (2026-10-09) Lleva también el peldaño de la escalera: `intentos_auto` (para que el contador
+    no se pierda al guardar la copia en memoria del orquestador) y el modelo del peldaño
+    (`modelo_siguiente`, p. ej. Codex), que antes solo llegaba a una tanda NUEVA."""
+    v = correccion if isinstance(correccion, dict) else {}
+    orden = {
+        "accion": "reabrir",
+        "quien": "director",
+        "motivo": str(v.get("nota") or "")[:160],
+        "t": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    n = v.get("intentos_auto")
+    if isinstance(n, int) and not isinstance(n, bool) and n >= 0:
+        orden["intentos_auto"] = n
+    if isinstance(v.get("modelo_siguiente"), str) and "/" in v["modelo_siguiente"]:
+        orden["modelo"] = v["modelo_siguiente"]
+    return orden
+
+
 _REABIERTAS = set()  # ya se pidió `reabrir` en esta tanda: no repetir la orden
 
 
@@ -259,12 +280,7 @@ def alimentar_tanda_viva():
                 except Exception:
                     ordenes = {}
                 for tid, v in propias.items():
-                    ordenes[tid] = {
-                        "accion": "reabrir",
-                        "quien": "director",
-                        "motivo": str((v or {}).get("nota") or "")[:160],
-                        "t": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    }
+                    ordenes[tid] = orden_reabrir(v)
                 tmp = ruta_ctrl + ".tmp"
                 json.dump(
                     ordenes,

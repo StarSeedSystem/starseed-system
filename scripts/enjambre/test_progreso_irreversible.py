@@ -38,3 +38,27 @@ class ProgresoIrreversibleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReabrirConPeldanoTest(unittest.TestCase):
+    """(2026-10-09) `reabrir` respeta el contador y el modelo que manda la escalera."""
+
+    def test_reabrir_aplica_contador_y_modelo(self):
+        from unittest import mock
+
+        enjambre.MIAS.add("T9")
+        enjambre.PROG["T9"] = {"estado": "fallo_tests", "intentos_auto": 8}
+        orden = {"T9": {"accion": "reabrir", "motivo": "escalada a Codex", "intentos_auto": 9,
+                        "modelo": "codex/gpt-5.6-sol"}}
+        with mock.patch.object(enjambre, "consumir_control", return_value=orden), \
+                mock.patch.object(enjambre, "entregar_mensajes"), \
+                mock.patch.object(enjambre, "guardar_prog"), \
+                mock.patch.object(enjambre, "evento"), \
+                mock.patch.object(enjambre, "asegurar_modelo_opencode", return_value=True):
+            enjambre.atender_control()
+        self.assertEqual("pendiente", enjambre.PROG["T9"]["estado"])
+        self.assertEqual(9, enjambre.PROG["T9"]["intentos_auto"])
+        self.assertEqual("codex/gpt-5.6-sol", enjambre.REASIGNADOS.pop("T9"))
+        enjambre.MIAS.discard("T9")
+        enjambre.PROG.pop("T9", None)
+        enjambre.REABRIR.discard("T9")

@@ -64,3 +64,20 @@ class TestUltimoByteDeAcotado(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OrdenReabrirLlevaElPeldano(unittest.TestCase):
+    """(2026-10-09) CPA1007Kb repetía «Codex 1/2»: la orden `reabrir` no llevaba ni el
+    contador de la escalera ni su modelo, y la copia en memoria del orquestador los pisaba."""
+
+    def test_lleva_contador_y_modelo(self):
+        o = vig.orden_reabrir({"estado": "pendiente", "nota": "director: escalada a Codex 1/2",
+                               "intentos_auto": 9, "modelo_siguiente": "codex/gpt-5.6-sol"})
+        self.assertEqual("reabrir", o["accion"])
+        self.assertEqual(9, o["intentos_auto"])
+        self.assertEqual("codex/gpt-5.6-sol", o["modelo"])
+
+    def test_sin_peldano_queda_como_antes(self):
+        o = vig.orden_reabrir({"estado": "pendiente", "nota": "x", "modelo_siguiente": None})
+        self.assertNotIn("modelo", o)
+        self.assertNotIn("intentos_auto", o)
