@@ -4258,3 +4258,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `PRD1005U` — otra cosa: sin decisión en 0 h; rama ola/PRD1005U conservada
 - `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-09 00:21 · auto-1009-001909
+
+**Lo que se pidió.** sin medir
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
