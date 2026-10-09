@@ -44,6 +44,7 @@ import type { PreferredRoute } from "./connectivity";
 import type { ClaseTrafico, Medicion } from "./camr/tipos";
 import { planificar, type PaquetePlan, type MetricasPlan, type CuotasPlan } from "./camr/planificador";
 import { crearAdaptadorSimulado } from "./camr/enlaces";
+import { CONFIG_DEFECTO, crearEstado, cicloBucle, registrarDecision, medirTodos, pasoRecomendar, pasoAplicar, pasoVigilar } from "./camr/bucle";
 import type { MeshRules, RouteDecision, TrafficClass } from "./types";
 
 /* ── Histéresis (memoria mínima del router) ────────────────────────────────── */
@@ -125,6 +126,12 @@ export function feedWifiSample(score: number): void {
   }
 }
 
+/* Configuración CAMR conectada al bucle autónomo (§2). */
+const CAMR_CONFIG_DEFECTO = CONFIG_DEFECTO;
+
+/* Estado CAMR inicial conectado al bucle (§2, §6). */
+const CAMR_ESTADO_INICIAL = crearEstado(CONFIG_DEFECTO);
+
 /* ── CAMR: planificador multitrayecto (§3) — activo cuando hay transporte ─── */
 
 function planificarCamr(
@@ -140,7 +147,7 @@ function planificarCamr(
     const claseCamr = CLASE_CAMR[cls];
     const paquete: PaquetePlan = { bytes: sizeBytes, cifrado: false };
     // Enlace simulado básico derivado del estado del mesh.
-    const enlaceSim = crearAdaptadorSimulado("camr-enlace", meshState.self?.region ?? "EU_868", 869.5, 1000, 250, true);
+    const enlaceSim = crearAdaptadorSimulado("camr-enlace", meshState.region ?? "EU_868", 869.5, 1000, 250, true);
     const enlaces: typeof enlaceSim[] = [enlaceSim];
     const metricas: MetricasPlan = {
       medicion: {
@@ -150,6 +157,9 @@ function planificarCamr(
     };
     const cuotas: CuotasPlan = { cupoMs: {}, consumidoMs: {} };
     const rutas = planificar(paquete, claseCamr, enlaces, metricas, cuotas);
+    // Conectado con el bucle CAMR: registro de decisiones con su porqué (§2, §6).
+    const estadoBucle = CAMR_ESTADO_INICIAL;
+    registrarDecision(estadoBucle, enlaceSim.id, claseCamr, rutas.map((r) => r.motivo).join("; "), rutas[0]?.puntuacion ?? 0);
     return rutas;
   } catch {
     return null;

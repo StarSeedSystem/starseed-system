@@ -151,7 +151,7 @@ describe("bucle CAMR — ciclo completo (§2, §3, §5)", () => {
   });
 
   it("registrarDecision guarda con porqué y limita a 500 (§2, §6)", () => {
-    let estado = crearEstado({ maxDecisiones: 500 });
+    let estado = crearEstado({ ...CONFIG_DEFECTO, maxDecisiones: 500 });
     for (let i = 0; i < 510; i++) {
       estado = registrarDecision(estado, `e${i}`, "mensajes", `motivo ${i}`, 0.8);
     }
@@ -166,7 +166,7 @@ describe("bucle CAMR — ciclo completo (§2, §3, §5)", () => {
       perfil: perfilEu(),
       clase: "mensajes",
     };
-    const estadoInicial = crearEstado({ modo: "recomendar" });
+    const estadoInicial = crearEstado({ ...CONFIG_DEFECTO, modo: "recomendar" });
     const resultado = await cicloBucle(estadoInicial, entrada, { ...CONFIG_DEFECTO, modo: "recomendar" });
     expect(resultado.mediciones.length).toBe(1);
     expect(resultado.aplicados.length).toBe(1);
@@ -186,7 +186,7 @@ describe("bucle CAMR — ciclo completo (§2, §3, §5)", () => {
       legal: perfilEu().legal,
       clase: "control-critico",
     };
-    const estadoInicial = crearEstado({ modo: "automatico" });
+    const estadoInicial = crearEstado({ ...CONFIG_DEFECTO, modo: "automatico" });
     const resultado = await cicloBucle(estadoInicial, entrada, { ...CONFIG_DEFECTO, modo: "automatico" });
     expect(resultado.aplicados.length).toBe(1);
     expect(resultado.aplicados[0].ok).toBe(true);
@@ -203,7 +203,7 @@ describe("bucle CAMR — ciclo completo (§2, §3, §5)", () => {
     };
     // Simulamos un historial con buena calidad y luego una medición mala.
     const estadoConHistoria = {
-      ...crearEstado({ modo: "automatico" }),
+      ...crearEstado({ ...CONFIG_DEFECTO, modo: "automatico" }),
       historialMediciones: [
         {
           rssiDbm: -50, snrDb: 0, ber: 0.01, ruidoDbm: -100,
@@ -230,7 +230,7 @@ describe("bucle CAMR — ciclo completo (§2, §3, §5)", () => {
       clase: "masivo",
     };
     const estadoConMuchas = {
-      ...crearEstado({ modo: "recomendar", maxDecisiones: 10 }),
+      ...crearEstado({ ...CONFIG_DEFECTO, modo: "recomendar", maxDecisiones: 10 }),
       decisiones: Array.from({ length: 15 }, (_, i) => ({
         enlaceId: `prev${i}`, clase: "mensajes" as ClaseTrafico,
         motivo: `prev`, puntuacion: 0.5, at: i,

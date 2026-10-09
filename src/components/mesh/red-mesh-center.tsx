@@ -15,7 +15,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Map as MapIcon, Radar, RadioTower, Settings2, ExternalLink } from "lucide-react";
 import { MeshControlPanel } from "@/components/mesh/mesh-control-panel";
 import { SignalsRadar } from "@/components/mesh/signals-radar";
@@ -29,6 +29,8 @@ import { startMeshSubsystem } from "@/ai/astraura/mesh";
 // WebRTC — DISTINTO de los peers de radio LoRa que pinta PeersPanel arriba.
 import { MallaNeuronasPanel } from "@/components/network/malla-neuronas-panel";
 import { crearAdaptadorMeshtastic, crearAdaptadorSimulado, crearAdaptadorAgente } from "@/ai/astraura/mesh/camr/enlaces";
+import { CONFIG_DEFECTO, crearEstado, cicloBucle, registrarDecision, medirTodos, pasoRecomendar } from "@/ai/astraura/mesh/camr/bucle";
+import type { EstadoBucle, EntradaBucle } from "@/ai/astraura/mesh/camr/bucle";
 
 const MeshMap3D = dynamic(() => import("@/components/mesh/mesh-map-3d"), {
   ssr: false,
@@ -55,6 +57,8 @@ export interface RedMeshCenterProps {
 }
 
 export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = true, hideHeader = false }: RedMeshCenterProps) {
+  const [camrEstado] = useState<EstadoBucle>(() => crearEstado(CONFIG_DEFECTO));
+
   useEffect(() => {
     startMeshSubsystem();
   }, []);
@@ -134,7 +138,7 @@ export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = 
         <AntennasPanel />
         <section className="rounded-2xl border border-white/10 bg-black/20 p-3">
           <h3 className="mb-2 text-sm font-semibold text-white/85">Enrutamiento cognitivo (CAMR)</h3>
-          <p className="text-[11px] text-white/50">Capa física unificada: Meshtastic, simulado y agente local conectados.</p>
+          <p className="text-[11px] text-white/50">Capa física unificada: Meshtastic, simulado y agente local conectados. Modo: <span className="font-semibold text-emerald-200">{camrEstado.modo}</span> · ciclo: {camrEstado.cicloMs} ms · decisiones: {camrEstado.decisiones.length} · historial: {camrEstado.historialMediciones.length}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-200">Meshtastic</span>
             <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 py-0.5 text-[9px] font-bold text-fuchsia-200">Simulado</span>
