@@ -4267,3 +4267,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-09 02:14 · auto-1009-002513
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `PRD1005Ub` — otra cosa: red caída: $ opencode run --model openrouter/nex-agi/nex-n2.5-pro:free · 2026-10-09 01:38:07 [0m [0m> build · nex-agi/nex-n2.5-pro:free [
