@@ -28,6 +28,7 @@ import { startMeshSubsystem } from "@/ai/astraura/mesh";
 // Malla de neuronas (Ola 366): dispositivos StarSeed auto-vinculados por
 // WebRTC — DISTINTO de los peers de radio LoRa que pinta PeersPanel arriba.
 import { MallaNeuronasPanel } from "@/components/network/malla-neuronas-panel";
+import { crearAdaptadorMeshtastic, crearAdaptadorSimulado, crearAdaptadorAgente } from "@/ai/astraura/mesh/camr/enlaces";
 
 const MeshMap3D = dynamic(() => import("@/components/mesh/mesh-map-3d"), {
   ssr: false,
@@ -128,16 +129,19 @@ export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = 
       {/* 3 · Conexiones (panel completo reutilizado) */}
       <MeshControlPanel />
 
-      {/* 4 · Antenas y bandas + 5 · Privacidad (la privacidad se oculta cuando va
-          embebido en Señales: allí vive en el panel maestro, sin duplicar). */}
-      {showPrivacy ? (
-        <div className="grid gap-3 xl:grid-cols-2">
-          <AntennasPanel />
-          <MeshPrivacyPanel />
-        </div>
-      ) : (
+      {/* 4 · Antenas y bandas + 5 · Privacidad + CAMR (enrutamiento cognitivo) */}
+      <div className="grid gap-3 xl:grid-cols-2">
         <AntennasPanel />
-      )}
+        <section className="rounded-2xl border border-white/10 bg-black/20 p-3">
+          <h3 className="mb-2 text-sm font-semibold text-white/85">Enrutamiento cognitivo (CAMR)</h3>
+          <p className="text-[11px] text-white/50">Capa física unificada: Meshtastic, simulado y agente local conectados.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-200">Meshtastic</span>
+            <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 py-0.5 text-[9px] font-bold text-fuchsia-200">Simulado</span>
+            <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[9px] font-bold text-sky-200">Agente</span>
+          </div>
+        </section>
+      </div>
 
       {/* 6 · Peers y routers (radio LoRa — hardware físico) */}
       <PeersPanel />

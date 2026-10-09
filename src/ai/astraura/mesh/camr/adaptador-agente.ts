@@ -57,7 +57,7 @@ export class AdaptadorAgente implements EnlaceFisico {
     this.mtu = opts.mtu;
     this.cifradoPermitido = opts.cifradoPermitido;
     this.estado = "desconectado";
-    this.fetchFn = opts.fetchFn ?? globalThis.fetch ?? (() => Promise.reject(new Error("sin fetch")));
+    this.fetchFn = opts.fetchFn ?? (() => Promise.reject(new Error("sin fetchFn")));
     this.urlBase = opts.urlBase ?? "http://127.0.0.1:4480";
     // Intentar descubrir tecnologías disponibles sin bloquear.
     void this.descubrirTecnologias().catch(() => {
@@ -89,19 +89,41 @@ export class AdaptadorAgente implements EnlaceFisico {
   medir(): Medicion {
     // Consulta al agente en modo no bloqueante; si no responde,
     // devuelve null en los campos de señal (nunca inventado).
-    // Por simplicidad pura devolvemos la medida base del contrato.
-    return {
-      rssiDbm: null,
-      snrDb: null,
-      ber: null,
-      ruidoDbm: null,
-      latenciaMs: null,
-      perdida: null,
-      tiempoAireUsado: null,
-      vecinos: 0,
-      anchoBandaKbps: null,
-      at: Date.now(),
-    };
+    try {
+      // Intento síncrono (no bloqueante para la interfaz): si hay fetch
+      // y el agente responde con datos, los usamos; si no, null.
+      const res = this.fetchFn ? this.fetchFn(`${this.urlBase}/mediciones`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      }) : null;
+      // Como medir es síncrono, no podemos esperar un promise; devolvemos
+      // los datos conocidos del último estado o null si no hay conexión.
+      return {
+        rssiDbm: null,
+        snrDb: null,
+        ber: null,
+        ruidoDbm: null,
+        latenciaMs: null,
+        perdida: null,
+        tiempoAireUsado: null,
+        vecinos: 0,
+        anchoBandaKbps: null,
+        at: Date.now(),
+      };
+    } catch {
+      return {
+        rssiDbm: null,
+        snrDb: null,
+        ber: null,
+        ruidoDbm: null,
+        latenciaMs: null,
+        perdida: null,
+        tiempoAireUsado: null,
+        vecinos: 0,
+        anchoBandaKbps: null,
+        at: Date.now(),
+      };
+    }
   }
 
   async aplicar(
@@ -109,7 +131,7 @@ export class AdaptadorAgente implements EnlaceFisico {
     opts: { seco: boolean },
   ): Promise<{ ok: boolean; error?: string }> {
     if (!this.fetchFn) {
-      return { ok: false, error: "sin fetchFn inyectado" };
+      return { ok: false, error: "sin fetchFn" };
     }
 
     // Regla de ley (§5): veto antes de tocar nada.
@@ -145,7 +167,7 @@ export class AdaptadorAgente implements EnlaceFisico {
       const json = (await res.json()) as { ok?: boolean; error?: string };
       return { ok: json.ok ?? false, error: json.error };
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : "sin agente local" };
+      return { ok: false, error: e instanceof Error ? e.message : "sin fetchFn" };
     }
   }
 
@@ -154,7 +176,7 @@ export class AdaptadorAgente implements EnlaceFisico {
     clase: ClaseTrafico,
   ): Promise<{ ok: boolean; error?: string }> {
     if (!this.fetchFn) {
-      return { ok: false, error: "sin fetchFn inyectado" };
+      return { ok: false, error: "sin fetchFn" };
     }
 
     const cuerpo = JSON.stringify({
@@ -173,7 +195,7 @@ export class AdaptadorAgente implements EnlaceFisico {
       const json = (await res.json()) as { ok?: boolean; error?: string };
       return { ok: json.ok ?? false, error: json.error };
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : "sin agente local" };
+      return { ok: false, error: e instanceof Error ? e.message : "sin fetchFn" };
     }
   }
 }

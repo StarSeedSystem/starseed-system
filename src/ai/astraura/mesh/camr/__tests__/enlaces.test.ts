@@ -75,8 +75,8 @@ describe("AdaptadorMeshtastic.medir()", () => {
 
 describe("AdaptadorMeshtastic.aplicar()", () => {
   it("simula sin tocar hardware con seco=true", async () => {
-    const e = crearAdaptadorMeshtastic("m", "EU_868", 868.1, 20, 256, true);
-    const res = await e.aplicar({ frecuenciaMhz: 868.1, potenciaDbm: 14 }, { seco: true });
+    const e = crearAdaptadorMeshtastic("m", "EU_868", 869.5, 20, 256, true);
+    const res = await e.aplicar({ frecuenciaMhz: 869.5, potenciaDbm: 14 }, { seco: true });
     expect(res.ok).toBe(true);
   });
 
@@ -90,8 +90,8 @@ describe("AdaptadorMeshtastic.aplicar()", () => {
 
 describe("AdaptadorAgente", () => {
   it("sin fetchFn devuelve ok:false en aplicar", async () => {
-    const e = crearAdaptadorAgente("ag", "rns", 144.0, 100, 1280, true);
-    const res = await e.aplicar({ frecuenciaMhz: 144.0, potenciaDbm: 10 }, { seco: true });
+    const e = crearAdaptadorAgente("ag", "EU_868", 869.5, 100, 1280, true);
+    const res = await e.aplicar({ frecuenciaMhz: 869.5, potenciaDbm: 10 }, { seco: true });
     expect(res.ok).toBe(false);
     expect(res.error).toContain("sin fetchFn");
   });
@@ -99,7 +99,7 @@ describe("AdaptadorAgente", () => {
   it("con fetch falso aplica y recibe cuerpo con paquete", async () => {
     const mockFetch = vi.fn<typeof fetch>((url: string | URL | Request, init?: RequestInit) => {
       const initObj = init as { body?: string } | undefined;
-      const cuerpoStr = initObj?.body ?? "{}";
+      const cuerpoStr = initObj?.body ? (initObj.body as string) : "{}";
       const cuerpo = JSON.parse(cuerpoStr);
       expect(cuerpo.seco).toBe(true);
       expect(cuerpo.params).toBeDefined();
@@ -111,8 +111,8 @@ describe("AdaptadorAgente", () => {
         json: async () => ({ ok: true }),
       } as Response);
     });
-    const e = crearAdaptadorAgente("ag", "rns", 144.0, 100, 1280, true, mockFetch);
-    const res = await e.aplicar({ frecuenciaMhz: 144.0, potenciaDbm: 10 }, { seco: true });
+    const e = crearAdaptadorAgente("ag", "EU_868", 869.5, 100, 1280, true, mockFetch);
+    const res = await e.aplicar({ frecuenciaMhz: 869.5, potenciaDbm: 10 }, { seco: true });
     expect(res.ok).toBe(true);
     expect(mockFetch).toHaveBeenCalled();
   });
@@ -121,7 +121,7 @@ describe("AdaptadorAgente", () => {
     let cuerpoRecibido: unknown = null;
     const mockFetch = vi.fn<typeof fetch>((url: string | URL | Request, init?: RequestInit) => {
       const initObj = init as { body?: string } | undefined;
-      cuerpoRecibido = initObj?.body ? JSON.parse(initObj.body) : null;
+      cuerpoRecibido = initObj?.body ? JSON.parse(initObj.body as string) : null;
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -130,7 +130,7 @@ describe("AdaptadorAgente", () => {
         json: async () => ({ ok: true }),
       } as Response);
     });
-    const e = crearAdaptadorAgente("ag", "rns", 144.0, 100, 1280, true, mockFetch);
+    const e = crearAdaptadorAgente("ag", "EU_868", 869.5, 100, 1280, true, mockFetch);
     const paquete = new Uint8Array([1, 2, 3]);
     const res = await e.enviar(paquete, "mensajes");
     expect(res.ok).toBe(true);

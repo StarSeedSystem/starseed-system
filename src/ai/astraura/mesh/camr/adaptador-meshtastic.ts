@@ -53,6 +53,9 @@ export class AdaptadorMeshtastic implements EnlaceFisico {
   private transporte: ReturnType<typeof createMeshtasticTransport>;
   private perfilLegal: PerfilLegal;
   private eventosMinimos: MeshTransportEvents;
+  private ultimoRssi: number | null = null;
+  private ultimoSnr: number | null = null;
+  private ultimoVecinos = 0;
 
   constructor(opts: AdaptadorMeshtasticOpts) {
     this.id = opts.id;
@@ -74,6 +77,17 @@ export class AdaptadorMeshtastic implements EnlaceFisico {
         else if (s === "degraded") this.estado = "degradado";
         else if (s === "disconnected" || s === "error") this.estado = "desconectado";
       },
+      onAppPayload: (bytes, meta) => {
+        if (typeof meta.snr === "number") this.ultimoSnr = meta.snr;
+        if (typeof meta.rssi === "number") this.ultimoRssi = meta.rssi;
+        if (meta.from !== undefined) this.ultimoVecinos = Math.max(this.ultimoVecinos, 1);
+      },
+      onNode: (node) => {
+        const n = node as Partial<{ num: number; snr?: number; rssi?: number }>; // duck-type de MeshNodeInfo
+        if (n.num !== undefined) this.ultimoVecinos = Math.max(this.ultimoVecinos, 1);
+        if (typeof n.snr === "number") this.ultimoSnr = n.snr;
+        if (typeof n.rssi === "number") this.ultimoRssi = n.rssi;
+      },
     };
     this.transporte = createMeshtasticTransport(
       "daemon",
@@ -83,17 +97,17 @@ export class AdaptadorMeshtastic implements EnlaceFisico {
   }
 
   medir(): Medicion {
-    // Nunca inventamos datos; si el transporte no está conectado,
-    // los campos de señal son null y los contadores son 0.
+    // Envuelve el transporte real: datos del último evento recibido o null
+    // si no hay conexión / datos aún. Nunca inventa números fijos.
     return {
-      rssiDbm: null,
-      snrDb: null,
+      rssiDbm: this.ultimoRssi,
+      snrDb: this.ultimoSnr,
       ber: null,
       ruidoDbm: null,
       latenciaMs: null,
       perdida: null,
       tiempoAireUsado: null,
-      vecinos: 0,
+      vecinos: this.ultimoVecinos,
       anchoBandaKbps: null,
       at: Date.now(),
     };
