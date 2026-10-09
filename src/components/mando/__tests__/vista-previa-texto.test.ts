@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { estadoVistaPrevia } from "@/components/mando/panel-publicaciones";
-import type { VistaPreviaLocal } from "@/lib/mando/publicaciones";
+import { estadoVistaPrevia, ordenarBitacora } from "@/components/mando/panel-publicaciones";
+import type { LineaBitacora, VistaPreviaLocal } from "@/lib/mando/publicaciones";
 
 const hace = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 
@@ -33,5 +33,25 @@ describe("Vista previa local: el texto nunca junta un commit viejo con una hora 
 
     it("sin nada registrado lo dice", () => {
         expect(estadoVistaPrevia(base)).toBe("sin build local registrado");
+    });
+});
+
+describe("Bitácora de publicaciones", () => {
+    const linea = (t: string, repo: "os" | "astraura", estado: "publicado" | "fallo"): LineaBitacora => ({
+        t, id: `pub-${t}`, repo, modo: "produccion", desde: "a", hasta: "b", commits: 1, estado, quien: "alex", medio: "mando",
+    });
+
+    it("va de lo más nuevo a lo más viejo y marca los fallos que una publicación posterior resolvió", () => {
+        const r = ordenarBitacora([
+            linea("2026-10-09T05:00:41Z", "astraura", "fallo"),
+            linea("2026-10-09T05:01:02Z", "os", "publicado"),
+            linea("2026-10-09T05:32:23Z", "astraura", "publicado"),
+            linea("2026-10-09T05:40:00Z", "os", "fallo"),
+        ]);
+        expect(r.map((l) => l.t)).toEqual([
+            "2026-10-09T05:40:00Z", "2026-10-09T05:32:23Z", "2026-10-09T05:01:02Z", "2026-10-09T05:00:41Z",
+        ]);
+        expect(r[3].resueltaPor?.t).toBe("2026-10-09T05:32:23Z");
+        expect(r[0].resueltaPor).toBeUndefined();
     });
 });

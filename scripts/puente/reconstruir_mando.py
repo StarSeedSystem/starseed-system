@@ -132,9 +132,17 @@ def cuantas_mas_nuevas(mtime_build, entradas) -> int:
     build suyo deja la pantalla al día y este servicio ya no repite otro build de diez
     minutos detrás. `None` en `mtime_build` (no hay build) cuenta todo como más nuevo.
     """
+    entradas = [e for e in entradas if e[0] not in GENERADOS_TRAS_BUILD]
     if mtime_build is None:
-        return sum(1 for _ in entradas)
+        return len(entradas)
     return sum(1 for _, mtime, _tam in entradas if mtime > mtime_build)
+
+
+#: (2026-10-09) Archivos que se escriben JUSTO DESPUÉS de poner un build en su sitio
+#: (`gen-version` sella public/version.json). Contarlos como «más nuevos que el build» hacía
+#: que un build recién instalado se viera atrasado: Genesis decía «hay código nuevo sin
+#: compilar» con el código exacto que acababa de compilar.
+GENERADOS_TRAS_BUILD = frozenset({"public/version.json"})
 
 
 def mtime_del_build(raiz=RAIZ):
@@ -420,6 +428,11 @@ def decidir(huella_actual, estado, ahora, espera_tras_fallo_s=ESPERA_TRAS_FALLO_
     construida = estado.get("huella_construida")
     if fallo_por_disco(estado):
         espera_tras_fallo_s = min(espera_tras_fallo_s, ESPERA_TRAS_DISCO_S)
+    # (2026-10-09) Si las fuentes son EXACTAMENTE las que se compilaron (misma huella: rutas,
+    # fechas y tamaños) y ese build salió bien, la pantalla está al día, digan lo que digan
+    # las fechas de los archivos que se tocan al instalar.
+    if construida and construida == huella_actual and estado.get("ok") is not False:
+        return False, "la pantalla está al día"
     if mas_nuevas is not None:
         if mas_nuevas == 0:
             return False, "la pantalla está al día"

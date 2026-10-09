@@ -193,10 +193,22 @@ class MirarElBuildEnVezDeUnCuaderno(unittest.TestCase):
         self.assertIn("al día", motivo)
 
     def test_con_fuentes_mas_nuevas_se_reconstruye_y_se_dice_cuantas(self):
-        hazlo, motivo = R.decidir("bbb", {"huella_construida": "bbb", "ok": True},
+        hazlo, motivo = R.decidir("bbb", {"huella_construida": "aaa", "ok": True},
                                   ahora=1000, mas_nuevas=3)
         self.assertTrue(hazlo)
         self.assertIn("3 archivo", motivo)
+
+    def test_misma_huella_que_lo_compilado_es_estar_al_dia(self):
+        # (2026-10-09) instalar_build anota la huella tras sellar public/version.json: las
+        # fechas de lo tocado al instalar no convierten un build recién puesto en «atrasado».
+        hazlo, motivo = R.decidir("bbb", {"huella_construida": "bbb", "ok": True},
+                                  ahora=1000, mas_nuevas=1)
+        self.assertFalse(hazlo)
+        self.assertIn("al día", motivo)
+
+    def test_el_sello_de_version_no_cuenta_como_fuente_nueva(self):
+        entradas = [("public/version.json", 50, 1), ("src/a.ts", 5, 1)]
+        self.assertEqual(R.cuantas_mas_nuevas(10, entradas), 0)
 
     def test_el_build_rojo_sigue_sin_repetirse(self):
         estado = {"huella_construida": "aaa", "ok": False, "huella_intentada": "bbb", "t": 900}

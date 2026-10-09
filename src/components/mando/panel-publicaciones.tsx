@@ -73,6 +73,27 @@ export function estadoVistaPrevia(vp: VistaPreviaLocal): string {
     return `${cual} · compilado ${hace(vp.buildT)} · hay código nuevo sin compilar${freno}`;
 }
 
+/** Hora local legible («09/10 05:32»): la bitácora guarda UTC y Alex lee en su hora. */
+export function horaLocal(iso: string): string {
+    const ms = Date.parse(iso);
+    if (!Number.isFinite(ms)) return iso.slice(0, 16).replace("T", " ");
+    return new Date(ms).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * PURA. La bitácora de lo más nuevo a lo más viejo y, en cada fallo, si una publicación
+ * posterior del mismo repo y modo salió bien (lo resolvió). (2026-10-09) Tres «✗ astraura»
+ * seguían arriba sin decir que la de las 05:32 ya lo había publicado todo.
+ */
+export function ordenarBitacora(lineas: LineaBitacora[]): Array<LineaBitacora & { resueltaPor?: LineaBitacora }> {
+    const orden = [...lineas].sort((a, b) => b.t.localeCompare(a.t));
+    return orden.map((l) => {
+        if (l.estado !== "fallo") return l;
+        const despues = orden.find((o) => o.estado === "publicado" && o.repo === l.repo && o.modo === l.modo && o.t > l.t);
+        return despues ? { ...l, resueltaPor: despues } : l;
+    });
+}
+
 /** Texto corto del estado de un trabajo de publicación. */
 const TEXTO_ESTADO_TRABAJO: Record<TrabajoPublicacion["estado"], string> = {
     en_curso: "En curso",
@@ -577,15 +598,24 @@ export function PanelPublicaciones({
                 <h3 className="text-sm font-semibold text-white">Bitácora</h3>
                 {resumen?.bitacora.length ? (
                     <ul className="mt-2 space-y-1">
-                        {resumen.bitacora.map((l) => (
-                            <li key={l.id} className="flex items-center gap-2 font-mono text-[11px] text-white/50">
-                                <span className={l.estado === "publicado" ? "text-emerald-400" : "text-red-400"}>
+                        {ordenarBitacora(resumen.bitacora).map((l) => (
+                            <li key={l.id} className="flex flex-wrap items-center gap-x-2 font-mono text-[11px] text-white/50">
+                                <span
+                                    className={
+                                        l.estado === "publicado" ? "text-emerald-400" : l.resueltaPor ? "text-white/30" : "text-red-400"
+                                    }
+                                >
                                     {l.estado === "publicado" ? "✓" : "✗"}
                                 </span>
-                                <span>{l.t.slice(0, 19).replace("T", " ")}</span>
-                                <span className="text-white/70">{l.repo}</span>
-                                <span>{l.modo}</span>
-                                <span className="text-white/40">{l.commits} commits · {l.quien}</span>
+                                <span>{horaLocal(l.t)}</span>
+                                <span className="text-white/70">{l.repo === "astraura" ? "Astraura" : "OS"}</span>
+                                <span>{l.modo === "produccion" ? "producción" : l.modo}</span>
+                                <span className="text-white/40">
+                                    {l.commits} {l.commits === 1 ? "commit" : "commits"} · {l.quien}
+                                </span>
+                                {l.resueltaPor ? (
+                                    <span className="text-white/35">· resuelto: salió a las {horaLocal(l.resueltaPor.t).slice(-5)}</span>
+                                ) : null}
                             </li>
                         ))}
                     </ul>
