@@ -4142,3 +4142,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `PT1009Cb` — los tipos no compilan: 5 errores tsc (rama ola/PT1009Cb conservada)
 - `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
 - `PRD1005U` — otra cosa: vuelve a esperar a PRD1005S: la rehace PRD1005Sc; arranca cuando se integre
+
+## 2026-10-08 19:40 · auto-1008-183219
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (CAMR1005Dc, PRD1005Sc). Es 40 % de la ola.
+- 2 tareas se fueron por lo mismo — los tipos no compilan (PT1009Cb, PRD1005U). Es 40 % de la ola.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005Dc` — otra cosa: ningún proveedor respondió (model not found)
+- `PRD1005Sc` — otra cosa: sin decisión en 0 h; rama ola/PRD1005Sc conservada
+- `PT1009Cb` — los tipos no compilan: 6 errores tsc (rama ola/PT1009Cb conservada)
+- `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
+- `PRD1005U` — los tipos no compilan: 10 errores tsc (rama ola/PRD1005U conservada)
