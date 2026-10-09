@@ -4209,3 +4209,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `CAMR1005F` — los tipos no compilan: 6 errores tsc (rama ola/CAMR1005F conservada)
+
+## 2026-10-08 22:16 · auto-1008-214429
+
+**Lo que se pidió.** sin medir
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (CAMR1005Fb, CAMR1005F). Es 67 % de la ola.
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAMR1005Fb` — los tipos no compilan: 2 errores tsc (rama ola/CAMR1005Fb conservada)
+- `CAMR1005F` — los tipos no compilan: 6 errores tsc (rama ola/CAMR1005F conservada)
+- `CPA1007Kb` — pruebas en rojo: vitest falla (rama conservada)
