@@ -43,6 +43,7 @@ import { PanelContextos } from "@/components/mando/panel-contextos";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { MetaGenesisAccesos } from "@/components/mando/metagenesis-accesos";
+import { TunelMetagenesisEstado } from "@/components/mando/tunel-metagenesis-estado";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelServidor } from "@/components/mando/panel-servidor";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
@@ -2422,9 +2423,10 @@ export function CentroMando() {
                 <TabsContent value="ajustes">
                     <PanelAjustes />
                 </TabsContent>
-                <TabsContent value="accesos">
-                    <MetaGenesisAccesos />
-                </TabsContent>
+                 <TabsContent value="accesos">
+                     <TunelMetagenesisEstado />
+                     <MetaGenesisAccesos />
+                 </TabsContent>
             </Tabs>
             {/* Control de la voz junto a la orbe: activar/silenciar sin abrir la pestaña. */}
             <ControlVozDelMando />

@@ -10,6 +10,11 @@ export function TunelMetagenesisEstado() {
     medidoEn: string;
   } | null>(null);
 
+  // Helper function to mask trycloudflare URLs
+  const maskTrycloudflareUrls = (text: string): string => {
+    return text.replace(/https:\/\/[^/]+\.trycloudflare\.com/g, "[túnel]");
+  };
+
   useEffect(() => {
     let fetchInterval: NodeJS.Timeout;
     const fetchData = async () => {
@@ -68,7 +73,7 @@ export function TunelMetagenesisEstado() {
           <p className="mb-1 font-semibold text-white/80">Últimas líneas:</p>
           <pre className="text-[10px] overflow-auto max-h-24 bg-black/40 p-2 rounded">
             {estado.ultimasLineas.map((line, idx) => (
-              <div key={idx}>{line}</div>
+              <div key={idx}>{maskTrycloudflareUrls(line)}</div>
             ))}
           </pre>
         </div>

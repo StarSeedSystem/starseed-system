@@ -18,7 +18,7 @@ export async function estadoTunelMetaGenesis(): Promise<{
   motivo?: string;
 }> {
   // If not macOS, return not loaded
-  if (platform() !== "darwin") {
+  if (platform !== "darwin") {
     return {
       cargado: false,
       pid: null,
