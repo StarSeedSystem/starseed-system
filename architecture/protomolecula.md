@@ -445,3 +445,18 @@ Orden recomendado al lanzar: F0 entera → verificar en localhost (`/protomolecu
 - Una sala `molecula` en `salas/sala.ts` (hoy se usaría `pizarra`/`escena3d`).
 - Si el motor de pizarras «tldraw» recibe también el bloque (hoy, no).
 - Qué neuronas ofrecen cómputo a terceros y con qué cupo (F5).
+
+## Integración del 10-10 (INT1010D): el núcleo llegó después que el enjambre
+
+Las tareas PM1010F0* empezaron con el núcleo de este contrato solo en el contenedor, así que escribieron
+versiones mínimas con el mismo nombre (`tienePermiso() { return true }`, `herramientas = {}`, una `Molecula`
+con `Capa {nombre}` y `AtomoEnUso {tipo}`) y construyeron encima `molecula-estado.ts` y `almacen-moleculas.ts`.
+Al integrar ganó el núcleo del contrato (tipos, parámetros, dictado, permisos, vínculos y catálogo, con su
+guardia de pureza) y la primera versión del enjambre quedó en `src/lib/protomolecula/molecula-estado-tipos.ts`,
+que solo importan esos dos módulos y sus pruebas (489 pruebas de los dos lados en verde).
+
+**Pendiente para la cola:** portar `molecula-estado`/`almacen-moleculas` a `tipos.ts`/`parametros.ts` y borrar
+`molecula-estado-tipos.ts`. Regla: una tarea que necesita un tipo del núcleo lo importa de `tipos.ts`; si no
+existe, la tarea se para y lo pide — nunca se crea un `tipos.ts` mínimo con el mismo nombre.
+El actualizador del catálogo del enjambre (leía `repositorio:`, campo que el catálogo real no tiene) se guardó
+en `.transfer/conflictos-1010d/` de la Mac; queda `scripts/protomolecula/actualizar_catalogo.py` del contrato.

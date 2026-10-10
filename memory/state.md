@@ -4356,3 +4356,22 @@ consentimiento explícito de ambos lados y un canal P2P directo y cifrado.
 - `produccion_medios_impl.py` extrae la lógica pura del archivo principal para cumplir la regla de ≤120 líneas por archivo.
 - `scripts/puente/produccion_medios.py` usa `subprocess.run` inyectado (`self.ejecutor`) para que sea comprobable sin lanzar procesos reales.
 - La regla del contrato (§8 — lo que sigue siendo de Alex): migraciones destructivas, credenciales y redes sociales siguen fuera del alcance automático.
+
+## 2026-10-10 — INT1010D: el trabajo del día del contenedor, en el main vivo de la Mac
+**Sesión por:** Claude Opus 5.5 (integrador final, nube-cowork)
+**Resumen ejecutivo:** 9 commits por tema + 4 arreglos encima del main vivo (sin reescribir nada del enjambre),
+build compilada en la nube e instalada en Genesis; verificado en localhost:9002.
+
+### Hecho
+- Consumo (CON1010), Bienvenida + aprobador + escáner (DSB1010), Bloqueadas por grupos (OPB1011b), Oracle A1
+  (OPO1011), MetaGeminis, MetaGenesis remoto (OPA1011), Protomolécula/XR, nativas + mejoras + médico.
+- Bienvenida: además de cerrar con la X, se recuerda cerrada por cuenta en el aparato
+  (`starseed.bienvenida.cerrada.v1`): con el freno diario de Supabase la cuenta no se puede leer y volvía en cada página.
+- Autopublicación: dos valores de prueba con forma de clave (test_metageminis.py, test_puerta_datos.py) frenaban el lote.
+
+### Notas / aprendizajes
+- **Una build de la nube en un worktree necesita `.env.production.local`** (las `NEXT_PUBLIC_*` se graban al
+  compilar). Sin él, el navegador habla con `dummy.supabase.co`. Comprobar «- Environments: .env.production.local»
+  en la cabecera del `next build` antes de instalar.
+- Para integrar sin que main se mueva entre compilar e instalar: sostener el cerrojo `integrar`
+  (`.transfer/cerrojo-1010d.py`) y aplicar con `.transfer/aplicar-1010d.py` (ff que no pisa trabajo sin commit de nadie).

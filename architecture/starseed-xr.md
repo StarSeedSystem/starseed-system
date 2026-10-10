@@ -414,3 +414,11 @@ Tomadas aquí (con motivo): P2P antes que servidor; una entidad con dos capas; R
 - Ids `XR1010A…`, cada tarea ≤ 3 archivos y ≤ 120 líneas por archivo; la lógica va en funciones puras (probables sin WebGL) y los componentes R3F son cascarones. Las tareas que dependen de paquetes dependen de `XR1010A`; las de la Protomolécula, del núcleo de `architecture/protomolecula.md` (si aún no está en `main`, dejan su pieza y dicen `PENDIENTE-DE`).
 - Contenido de la cola (verificado: JSON válido, 45 ids únicos, todas las dependencias existen, sin ciclos, 14 niveles): `A` dependencias (con `aprobacion`), `B`–`G` sondeo, prefs, almacén, botón, entrada global y `/xr/os`; `H`–`L` cristal, movimiento, rig Trinity, gestos y acciones; `M`–`T` dock, menú de mano, orbe, voz, tarjeta, ejecutores y flujo; `U`–`Z` motor de reglas, render, física, zonas, pantallas/pizarras y avatares; `AA`–`AG` P2P, audio, presencia, privacidad, calidad dinámica, comodidad y panel Logic; `AH`–`AL` PWA/Quest, diagnóstico, IWER, `plataformaDe` y guardas; `AM`–`AR` splats, UiSpec 3D, Horizon, Protomolécula 3D y migración de los hooks viejos; `AS` el montaje final que cablea todo (la única que vuelve a tocar `escena-os.tsx`). Sin dependencias de partida: `A`, `B`, `C`, `K`, `U`, `AA`. Se lanza con el orden de dependencias; `AL` (guardas y medición del paquete) va la última.
 - Estado verificado el 2026-10-10: `npx vitest run src/lib/xr` → 11 archivos, 214 pruebas en verde; `tsc` acotado a `src/lib/xr` limpio.
+
+## Integración del 10-10 (INT1010D): motor de entrada del enjambre sobre stubs
+
+Las tareas XR1010* escribieron `gestos.ts`, `entrada-eventos.ts` y `mundo-motor.ts` contra versiones mínimas
+de `tipos.ts` (`Vec3 = {x,y,z}`), `espacio-trinity.ts` (`activacionMenu`) y `vinculos-xr.ts` (mapa como lista).
+Ganó el núcleo del contrato (`Vec3` tupla, mapas por acción); la primera versión del enjambre vive en
+`src/lib/xr/entrada-tipos.ts`, que solo importan esos tres módulos y `entrada-xr.test.ts`.
+**Pendiente para la cola:** portar el motor de entrada a `vinculos-xr.ts`/`tipos.ts` y retirar `entrada-tipos.ts`.
