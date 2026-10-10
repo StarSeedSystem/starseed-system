@@ -99,7 +99,9 @@ def huella_maquina() -> str:
         except OSError:
             pass
     if sys.platform == "darwin":
-        rc, out = _sh(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"], tope=10)
+        # Ruta absoluta: launchd no lleva /usr/sbin en el PATH y, sin ioreg, el id del nodo cambiaba
+        # (medido el 2026-10-10: «mac-ec4458» bajo launchd frente a «mac-5a1bb4» en la terminal).
+        rc, out = _sh(["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"], tope=10)
         m = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', out)
         if m:
             return m.group(1)

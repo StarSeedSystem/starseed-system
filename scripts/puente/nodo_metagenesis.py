@@ -643,7 +643,7 @@ def instalar(seco: bool) -> int:
             "ProgramArguments": [python, "-u", script, "servir"] + (["--seco"] if seco else []),
             "RunAtLoad": True, "KeepAlive": True, "ThrottleInterval": 60, "ProcessType": "Background",
             "StandardOutPath": "/tmp/starseed-nodo-metagenesis.log", "StandardErrorPath": "/tmp/starseed-nodo-metagenesis.log",
-            "EnvironmentVariables": {"STARSEED_ROOT": raiz, "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:"
+            "EnvironmentVariables": {"STARSEED_ROOT": raiz, "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:"
                                      + os.path.expanduser("~/.local/bin")},
             "WorkingDirectory": raiz,
         }
@@ -652,7 +652,18 @@ def instalar(seco: bool) -> int:
             plistlib.dump(plist, f)
         uid = os.getuid()
         M._sh(["launchctl", "bootout", "gui/%d/%s" % (uid, etiqueta)], tope=30)
-        rc, out = M._sh(["launchctl", "bootstrap", "gui/%d" % uid, ruta], tope=30)
+        # `bootout` termina de verdad un poco después: sin esperar, `bootstrap` da «5: Input/output
+        # error» (medido el 2026-10-10). Se espera a que desaparezca y se reintenta.
+        for _ in range(20):
+            if M._sh(["launchctl", "print", "gui/%d/%s" % (uid, etiqueta)], tope=10)[0] != 0:
+                break
+            time.sleep(0.5)
+        rc, out = 1, ""
+        for _ in range(4):
+            rc, out = M._sh(["launchctl", "bootstrap", "gui/%d" % uid, ruta], tope=30)
+            if rc == 0:
+                break
+            time.sleep(2)
         print("launchd %s: %s" % (etiqueta, "cargado" if rc == 0 else "error %s" % out.strip()[:200]))
         return 0 if rc == 0 else 1
     unidad = os.path.expanduser("~/.config/systemd/user/starseed-nodo-metagenesis.service")
