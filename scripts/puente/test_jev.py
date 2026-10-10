@@ -23,6 +23,14 @@ def _quita_local():
     sys.modules.pop("jev_local", None)
 
 
+def _sin_motor_local():
+    """(2026-10-10) Aísla las pruebas del BitNet real de la Mac: con `jev_local` = None en
+    sys.modules, `import jev_local` falla y `jev._local()` devuelve None. Antes, si el BitNet de
+    127.0.0.1:8790 estaba despierto, respondía de verdad y estas pruebas se ponían en rojo
+    (y con ellas la autopublicación)."""
+    sys.modules["jev_local"] = None
+
+
 def _transporte_que_explota(cuerpo):
     raise AssertionError("no debía llamarse a OpenRouter")
 
@@ -50,9 +58,11 @@ class Jev(unittest.TestCase):
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
+        _sin_motor_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
+        _quita_local()
         os.environ.pop("STARSEED_JEV", None)
 
     def test_apagado_devuelve_none_sin_tocar_nada(self):
@@ -197,6 +207,7 @@ class Piramide(unittest.TestCase):
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
+        _sin_motor_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
@@ -277,7 +288,7 @@ class Piramide(unittest.TestCase):
         )
 
     def test_sin_modulo_local_sigue_funcionando_openrouter(self):
-        _quita_local()
+        _sin_motor_local()  # «sin módulo»: que el import falle, no que cargue el BitNet real
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.5}})
         r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
         self.assertEqual(r["medio"], "openrouter")

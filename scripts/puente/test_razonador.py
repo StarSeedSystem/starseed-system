@@ -1,5 +1,6 @@
 """razonador + experiencias: tres capas, una puerta, y cada decisión deja rastro (sin red)."""
 import json
+import sys
 import os
 import tempfile
 import unittest
@@ -17,8 +18,11 @@ class Base(unittest.TestCase):
         jev.CACHE = os.path.join(self._dir, "cache.json"); jev.USO = os.path.join(self._dir, "uso.json")
         os.environ["STARSEED_JEV"] = "0"
         jev.TRANSPORTE = None; razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
+        # (2026-10-10) Sin el BitNet real de la Mac: si estaba despierto respondía y el juicio no era None.
+        sys.modules["jev_local"] = None
 
     def tearDown(self):
+        sys.modules.pop("jev_local", None)
         jev.TRANSPORTE = None; razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
         os.environ.pop("STARSEED_JEV", None)
 

@@ -55,6 +55,9 @@ class TestJevLaya(unittest.TestCase):
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.CONCESION = os.path.join(self._dir, "conversacion.json")
         LayaHandler.codigo_respuesta = 200
+        # (2026-10-10) Sin el BitNet real de la Mac (ver test_jev._sin_motor_local).
+        sys.modules["jev_local"] = None
+        self.addCleanup(lambda: sys.modules.pop("jev_local", None))
         LayaHandler.cuerpo_respuesta = {
             "answers": {"q": {"type": "noul", "noul": 0.85}}
         }
