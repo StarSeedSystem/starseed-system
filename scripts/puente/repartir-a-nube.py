@@ -145,18 +145,20 @@ def main():
         procesos = ""
     colas_mac = RN.colas_de_la_tanda_viva(procesos, OLAS)
     tanda = {i for _n, ids in colas_mac for i in ids}
+    ajenas = RN.leer_prestadas()  # lo que MetaGenesis prestó a otro medio: ni se cede ni se reparte
     cedibles = []
     if args.ceder and tanda:
         try:
             import asignar_huecos
 
             est = asignar_huecos.reunir()
-            cedibles = RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
-                                               RN.esperadas_por_otras(colas, progreso))
+            cedibles = [t for t in RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
+                                                           RN.esperadas_por_otras(colas, progreso))
+                        if t not in ajenas]
         except Exception as e:  # sin la foto de la Mac no se cede nada: como antes
             print("[reparto] no pude medir la Mac para ceder (%s): no cedo nada" % type(e).__name__)
             cedibles = []
-    colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles)
+    colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
     elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope, envios=envios)
     cedidas = [t["id"] for t in elegidas if t["id"] in set(cedibles)]
     if tanda:

@@ -456,6 +456,17 @@ class CesionDeLaTandaDeLaMac(unittest.TestCase):
         self.assertEqual(RN.sin_lo_de_la_mac(colas, {"A", "B"}, ["B"]), [("c", [{"id": "B"}, {"id": "C"}])])
         self.assertEqual(RN.sin_lo_de_la_mac(colas, set(), []), colas)
 
+    def test_lo_prestado_por_metagenesis_ni_se_cede_ni_se_reparte(self):
+        """(2026-10-10, medido) MetaGenesis prestó 4 al A1 sin marcarlas y 3 acabaron también en la nube."""
+        mem = {"prestamos": [{"ids": ["S1010-ES1", "RT1b"], "ts": AHORA - 600},
+                             {"ids": ["VIEJA"], "ts": AHORA - 7 * 3600}]}
+        ajenas = RN.prestadas_vigentes(mem, AHORA)
+        self.assertEqual(ajenas, {"S1010-ES1", "RT1b"})
+        colas = [("c", [{"id": "S1010-ES1"}, {"id": "OTRA"}, {"id": "VIEJA"}])]
+        self.assertEqual(RN.sin_lo_de_la_mac(colas, set(), [], ajenas), [("c", [{"id": "OTRA"}, {"id": "VIEJA"}])])
+        self.assertEqual(RN.prestadas_vigentes(None, AHORA), set())
+        self.assertEqual(RN.leer_prestadas(AHORA, ruta="/no/existe.json"), set())
+
     def test_esperadas_por_otras_ignora_lo_cerrado(self):
         colas = [("c", [{"id": "A", "depende": ["X"]}, {"id": "B", "depende": ["Y"]}, {"id": "C", "depende_de": "Z"}])]
         self.assertEqual(RN.esperadas_por_otras(colas, {"B": {"estado": "commit"}}), {"X", "Z"})

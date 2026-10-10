@@ -149,12 +149,44 @@ def cedibles_de_la_tanda(tanda_ids, listas_mac, tope_mac, esperadas=(), rondas=R
     return [t for t in en_tanda[reserva:] if t not in esperadas]
 
 
-def sin_lo_de_la_mac(colas, tanda_ids, cedibles=()):
-    """PURA: las colas sin lo que se queda en la tanda viva de la Mac (todo menos lo cedible)."""
-    fuera = set(str(t) for t in tanda_ids or ()) - set(str(t) for t in cedibles or ())
+def sin_lo_de_la_mac(colas, tanda_ids, cedibles=(), ajenas=()):
+    """PURA: las colas sin lo que se queda en la tanda viva de la Mac (todo menos lo cedible) y sin
+    lo que ya trabaja OTRO medio (`ajenas`: lo que MetaGenesis prestó al A1, por ejemplo)."""
+    ajenas = set(str(t) for t in ajenas or ())
+    fuera = (set(str(t) for t in tanda_ids or ()) - set(str(t) for t in cedibles or ())) | ajenas
     if not fuera:
         return list(colas or [])
     return [(n, [t for t in ts if str((t or {}).get("id")) not in fuera]) for n, ts in colas or []]
+
+
+#: Memoria del nodo de MetaGenesis de ESTA máquina (sus préstamos a otros medios).
+MEMORIA_METAGENESIS = os.path.expanduser("~/.starseed/nodo-metagenesis/memoria.json")
+#: Lo mismo que `GRACIA_ASIGNACION_S` del nodo: un préstamo de hace menos de 6 h sigue vivo.
+GRACIA_PRESTAMO_S = 6 * 3600
+
+
+def prestadas_vigentes(memoria, ahora_ts, gracia_s=GRACIA_PRESTAMO_S):
+    """PURA: ids que el líder de MetaGenesis prestó a otro medio hace menos de `gracia_s`.
+
+    (2026-10-10, CAP1010, medido) MetaGenesis prestó al A1 a las 15:13 S1010-TU-LL1cobj,
+    RTOPO1011T1b, S1010-EV-WIDGET y S1010-ES1 sin marcarlas en progreso.json, y la primera
+    cesión de la tanda de la Mac mandó tres de ellas también a la nube: el mismo trabajo en dos
+    medios. Lo prestado no se cede ni se reparte."""
+    salida = set()
+    for p in ((memoria or {}).get("prestamos") or []) if isinstance(memoria, dict) else []:
+        if isinstance(p, dict) and ahora_ts - float(p.get("ts") or 0) < gracia_s:
+            salida.update(str(i) for i in p.get("ids") or [])
+    return salida
+
+
+def leer_prestadas(ahora_ts=None, ruta=None):
+    """`prestadas_vigentes` de la memoria de MetaGenesis en disco. Nunca lanza."""
+    try:
+        with open(ruta or MEMORIA_METAGENESIS, encoding="utf-8") as f:
+            memoria = json.load(f)
+    except (OSError, ValueError):
+        return set()
+    return prestadas_vigentes(memoria, time.time() if ahora_ts is None else ahora_ts)
 
 
 def ordenes_soltar(cedidas, colas_mac, donde, quien="capacidad", t=None):

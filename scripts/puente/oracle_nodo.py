@@ -795,16 +795,18 @@ def lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None, ceder=True):
         # 3 trabajando; el A1 recibía «no hay atraso» y llevaba el día sin un agente).
         colas_mac = RN.colas_de_la_tanda_viva(procesos, OLAS)
         tanda = {i for _n, ids_ in colas_mac for i in ids_}
+        ajenas = RN.leer_prestadas()  # lo que MetaGenesis ya prestó: ni se cede ni se repite
         if ceder and tanda:
             try:
                 import asignar_huecos  # noqa: PLC0415
 
                 est = asignar_huecos.reunir()
-                cedibles = RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
-                                                   RN.esperadas_por_otras(colas, progreso))
+                cedibles = [t for t in RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
+                                                               RN.esperadas_por_otras(colas, progreso))
+                            if t not in ajenas]
             except Exception:  # noqa: BLE001 — sin la foto de la Mac no se cede nada
                 cedibles = []
-        colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles)
+        colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
         elegidas = RN.elegir(colas, progreso, rep.asuntos_main(RAIZ), rep.ola_actual(colas), tope=tope, envios=envios)
     ids = [t["id"] for t in elegidas]
     cedidas = [i for i in ids if i in set(cedibles)]
