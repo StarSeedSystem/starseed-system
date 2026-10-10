@@ -356,6 +356,138 @@ class EscritoresDelBoton(unittest.TestCase):
     def test_sin_resultados_no_alarma(self):
         self.assertEqual(B.texto_escritores([]), ("Escritores: no pude sondearlos", True))
 
+    def test_un_modelo_lento_no_decide_por_el_proveedor(self):
+        """(2026-10-10, CAP1010) kimi-k3 tardaba 45 s y NIM salía «no contesta» con nemotron vivo."""
+        r = {"nvidia/viejo": (False, "modelo retirado (410)", 0, True),
+             "nvidia/kimi": (False, "no contesta en 25 s", 0.25, False),
+             "nvidia/nemo": (True, "responde", 0, False),
+             "n2/a": (False, "no contesta en 25 s", 0.25, False),
+             "n2/b": (False, "error del proveedor (503)", 0.25, False)}
+        self.assertEqual(B.veredicto_proveedor(["nvidia/viejo", "nvidia/kimi", "nvidia/nemo"], r.get)[:2],
+                         ("nvidia/nemo", True))
+        # Si ninguno contesta, el veredicto es el del primero que falló por lento (no el último).
+        self.assertEqual(B.veredicto_proveedor(["n2/a", "n2/b"], r.get)[:3],
+                         ("n2/a", False, "no contesta en 25 s"))
+
+    def test_retirados_no_se_sondean_y_se_explican(self):
+        cfg = {"provider": {"apinex": {"models": {"free/x": {}}}, "tokenrouter": {"models": {"z": {}}},
+                            "nvidia": {"models": {"a": {}}}}}
+        self.assertEqual(list(B.representantes(cfg)), ["nvidia"])
+        t = B.texto_fuera_de_escritura()
+        for p in ("apinex", "tokenrouter", "github-models", "groq (solo revisa"):
+            self.assertIn(p, t)
+
+
+class TopeNubeDinamico(unittest.TestCase):
+    """(2026-10-10, CAP1010) El tope de jobs ya no es un 2 fijo."""
+
+    def test_sin_escritor_en_la_nube_no_hay_job(self):
+        tope, motivo = B.tope_runs_nube(30, [])
+        self.assertEqual(tope, 0)
+        self.assertIn("freellmapi", motivo)
+
+    def test_sin_tareas_no_hay_job(self):
+        self.assertEqual(B.tope_runs_nube(0, ["nvidia"])[0], 0)
+
+    def test_manda_el_limite_mas_bajo(self):
+        self.assertEqual(B.tope_runs_nube(7, ["nvidia", "google"]), (2, "7 tarea(s) para la nube dan para 2 job(s) de 6"))
+        tope, motivo = B.tope_runs_nube(40, ["nvidia"])
+        self.assertEqual(tope, B.RUNS_POR_ESCRITOR)
+        self.assertIn("1 escritor(es) vivo(s) en la nube (nvidia)", motivo)
+        tope, motivo = B.tope_runs_nube(400, ["google", "nvidia", "openrouter", "xkiro"], maximo=6)
+        self.assertEqual(tope, 6)
+        self.assertIn("techo de 6", motivo)
+
+    def test_crece_con_trabajo_y_escritores(self):
+        uno = B.tope_runs_nube(36, ["nvidia"])[0]
+        dos = B.tope_runs_nube(36, ["nvidia", "xkiro"])[0]
+        self.assertGreater(dos, uno)
+        self.assertGreater(dos, B.TOPE_RUNS_NUBE)
+
+    def test_escritores_en_la_nube_desde_sondas_y_desde_salud(self):
+        sondas = [("nvidia/nvidia/nemo", True, "responde", 0), ("freellmapi/auto", True, "responde", 0),
+                  ("google/g", False, "cupo del día agotado (429)", 3)]
+        self.assertEqual(B.escritores_en_la_nube(sondas), ["nvidia"])
+        salud = {"nim": {"estado": "vivo"}, "google": {"sin_cupo_hasta": "2026-10-10 18:00:00"},
+                 "xkiro": {"estado": "caido"}, "openrouter": {"sin_cupo_hasta": "2026-10-10 10:00:00"},
+                 "freellmapi": {"estado": "vivo"}}
+        self.assertEqual(B.escritores_en_la_nube(None, salud, "2026-10-10 15:00:00"), ["nvidia", "openrouter"])
+
+    def test_plan_con_tope_cero_dice_por_que(self):
+        p = B.plan_nube(["A"], [], 0, None, {}, AHORA, tope_runs=0, motivo_tope="ningún escritor con cupo")
+        self.assertEqual(p["lanzar"], 0)
+        self.assertEqual(p["por_que"], "no lanzo: ningún escritor con cupo")
+        p = B.plan_nube(["A"], [], 3, None, {}, AHORA, tope_runs=3, motivo_tope="1 escritor")
+        self.assertIn("(1 escritor)", p["por_que"])
+
+    def test_plan_con_tope_grande_lanza_mas_de_dos(self):
+        p = B.plan_nube(["T%d" % i for i in range(24)], [], 0, None, {}, AHORA, tope_runs=4)
+        self.assertEqual(p["lanzar"], 4)
+
+    def test_ultimo_despliegue_fallido_se_dice(self):
+        e = {"ultimo_despliegue": {"t": AHORA - 60, "pedidos": 2, "lanzados": 0,
+                                   "fallo": "el reparto no creó ninguna cola"}}
+        self.assertIn("salieron 0 de 2", B.texto_ultimo_despliegue(e, AHORA))
+        self.assertEqual(B.texto_ultimo_despliegue(e, AHORA + 7200), "")
+        e["ultimo_despliegue"].update(lanzados=2)
+        self.assertEqual(B.texto_ultimo_despliegue(e, AHORA), "")
+
+    def test_texto_nube_dice_tope_y_cesion(self):
+        t = B.texto_nube({"elegibles": ["A"]}, {"por_que": "x"}, 1, mac={"tanda": 118, "se_queda": 6, "cedibles": ["A"]},
+                         tope=(4, "2 escritor(es)"))
+        self.assertIn("1 job(s) en marcha de 4 a la vez ahora (2 escritor(es))", t)
+        self.assertIn("la tanda de la Mac tiene 118: se queda 6", t)
+
+
+class CesionDeLaTandaDeLaMac(unittest.TestCase):
+    """(2026-10-10, CAP1010) 118 en la tanda, 32 listas, 3 trabajando: la nube y el A1 a cero."""
+
+    def test_la_mac_se_queda_sus_rondas_y_cede_lo_que_nadie_espera(self):
+        listas = ["L%d" % i for i in range(10)]
+        tanda = set(listas) | {"X"}
+        ced = RN.cedibles_de_la_tanda(tanda, listas, 3, esperadas={"L7"})
+        self.assertEqual(ced, ["L6", "L8", "L9"])  # 3 × 2 rondas = L0..L5 se quedan; L7 la espera alguien
+        self.assertEqual(RN.cedibles_de_la_tanda(tanda, listas[:6], 3), [])
+        self.assertEqual(RN.cedibles_de_la_tanda(set(), listas, 3), [])
+        self.assertEqual(RN.cedibles_de_la_tanda(tanda, ["Z"] + listas, 0), [t for t in listas])
+
+    def test_sin_lo_de_la_mac(self):
+        colas = [("c", [{"id": "A"}, {"id": "B"}, {"id": "C"}])]
+        self.assertEqual(RN.sin_lo_de_la_mac(colas, {"A", "B"}, ["B"]), [("c", [{"id": "B"}, {"id": "C"}])])
+        self.assertEqual(RN.sin_lo_de_la_mac(colas, set(), []), colas)
+
+    def test_esperadas_por_otras_ignora_lo_cerrado(self):
+        colas = [("c", [{"id": "A", "depende": ["X"]}, {"id": "B", "depende": ["Y"]}, {"id": "C", "depende_de": "Z"}])]
+        self.assertEqual(RN.esperadas_por_otras(colas, {"B": {"estado": "commit"}}), {"X", "Z"})
+
+    def test_ordenes_soltar_por_cola(self):
+        o = RN.ordenes_soltar(["B", "Q"], [("cola-auto-1.json", ["A", "B"]), ("cola-2.json", ["Q"])], "nube-gh", t="T")
+        self.assertEqual(o, {"cola-auto-1.json": {"B": {"accion": "soltar", "donde": "nube-gh", "quien": "capacidad", "t": "T"}},
+                             "cola-2.json": {"Q": {"accion": "soltar", "donde": "nube-gh", "quien": "capacidad", "t": "T"}}})
+
+    def test_soltar_en_la_mac_escribe_el_control_que_lee_el_orquestador(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            olas, cer = os.path.join(d, "olas"), os.path.join(d, "cer")
+            os.makedirs(olas)
+            ruta = os.path.join(olas, "control-cola-auto-1.json")
+            with open(ruta, "w") as f:
+                json.dump({"Z": {"accion": "reabrir"}}, f)
+            hechos = RN.soltar_en_la_mac({"cola-auto-1.json": {"B": {"accion": "soltar"}}}, olas, cerrojos=cer)
+            self.assertEqual(hechos, ["B"])
+            with open(ruta) as f:
+                self.assertEqual(json.load(f), {"Z": {"accion": "reabrir"}, "B": {"accion": "soltar"}})
+            self.assertTrue(os.path.exists(os.path.join(cer, "control-control-cola-auto-1.json.lock")))
+
+    def test_colas_de_la_tanda_viva(self):
+        import json
+        with tempfile.TemporaryDirectory() as olas:
+            with open(os.path.join(olas, "cola-auto-9.json"), "w") as f:
+                json.dump({"tareas": [{"id": "A"}, {"id": "B"}]}, f)
+            ps = ("/usr/bin/python3 -u /x/starseed-enjambre.py starseed_memory_root/olas/cola-auto-9.json --workers 3\n"
+                  "grep starseed-enjambre.py cola-auto-9.json\n")
+            self.assertEqual(RN.colas_de_la_tanda_viva(ps, olas), [("cola-auto-9.json", ["A", "B"])])
+
 
 if __name__ == "__main__":
     unittest.main()

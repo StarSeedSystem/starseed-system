@@ -138,16 +138,18 @@ def secretos() -> None:
 
 
 def lanzar(args: list[str]) -> None:
-    tope, trabajadores, minutos, cola = "6", "3", "300", None
+    tope, trabajadores, minutos, cola, ceder = "6", "3", "300", None, False
     it = iter(args)
     for a in it:
         if a == "--tope": tope = next(it)
         elif a == "--trabajadores": trabajadores = next(it)
         elif a == "--minutos": minutos = next(it)
         elif a == "--cola": cola = next(it)
+        elif a == "--ceder": ceder = True
     if not cola:
         antes = set(os.listdir(os.path.join(RAIZ, "enjambre", "colas")))
-        out = subprocess.run([sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"), "--tope", tope],
+        out = subprocess.run([sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"), "--tope", tope]
+                             + (["--ceder"] if ceder else []),
                              cwd=RAIZ, capture_output=True, text=True).stdout
         print(out.strip()[-300:])
         nuevas = sorted(set(os.listdir(os.path.join(RAIZ, "enjambre", "colas"))) - antes)
@@ -219,9 +221,37 @@ def lanzar(args: list[str]) -> None:
         sys.exit("el workflow se disparó pero GitHub no registró ningún run en 40 s: "
                  "mira `gh run list --workflow %s`" % WORKFLOW)
     print("lanzado:", cola, "· trabajadores", trabajadores, "· minutos", minutos, "· run", run_id)
+    soltadas = soltar_cedidas(os.path.join(RAIZ, cola), "nube-gh (run %s)" % run_id)
+    if soltadas:
+        print("la Mac suelta lo que cedió a este run: %s" % ", ".join(soltadas))
     _anotar_lanzamiento(cola, trabajadores, minutos, run_id=run_id)
     _podar_ramas_de_cola()
     print("sigue con: python3 scripts/puente/nube-gh.py estado")
+
+
+def soltar_cedidas(ruta_cola, donde):
+    """(2026-10-10, CAP1010) Las tareas que la tanda de la Mac CEDIÓ a esta cola (`--ceder`)
+    reciben la orden «soltar» en el archivo de control de su cola de la Mac, SOLO cuando el
+    run ya existe: si el lanzamiento falla, la Mac las sigue teniendo. → ids soltados."""
+    try:
+        with open(ruta_cola, encoding="utf-8") as f:
+            cedidas = (json.load(f) or {}).get("cedidas_de_la_mac") or {}
+    except (OSError, ValueError, AttributeError):
+        return []
+    if not isinstance(cedidas, dict) or not cedidas:
+        return []
+    if DIRECTORIO_PUENTE not in sys.path:
+        sys.path.insert(0, DIRECTORIO_PUENTE)
+    import repartir_nube as RN
+
+    colas_mac = [(n, [str(i) for i in ids]) for n, ids in cedidas.items() if isinstance(ids, list)]
+    todas = [i for _n, ids in colas_mac for i in ids]
+    try:
+        return RN.soltar_en_la_mac(RN.ordenes_soltar(todas, colas_mac, donde),
+                                   os.path.join(RAIZ, "starseed_memory_root", "olas"))
+    except Exception as e:  # noqa: BLE001
+        print("no pude mandar el «soltar» a la Mac (%s): el doble trabajo lo corta el arriendo" % type(e).__name__)
+        return []
 
 
 def _no_lanzada(cola):

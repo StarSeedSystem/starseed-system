@@ -23,8 +23,13 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   lanzar [--tope N] [--cola RUTA]
                          reparte N tareas del atraso (o manda la cola dada) y la deja en `colas/oracle-<fecha>`
                          (commit suelto: el código de esta neurona + la cola; main no se toca).
-  ciclo                  estado → traer → lanzar si el A1 está libre y hay atraso. La autocuración
-                         de Genesis lo corre cada 30 min; cualquier neurona con la llave puede.
+  enviar-main            deja en el A1 (por SSH, sin pasar por GitHub) un paquete git con lo que el
+                         `main` de esta neurona lleva por delante de origin/main: su guardián
+                         comprueba así el main VIVO (tsc, vitest, mesh y `next build`) y no el
+                         mismo sha publicado cada 2 h. Solo si cambió; el ciclo lo hace solo.
+  ciclo                  estado → main vivo → traer → lanzar si el A1 está libre y hay atraso →
+                         medidor de Oracle (si toca y hay sesión de la CLI). La autocuración de
+                         Genesis lo corre cada 30 min; cualquier neurona con la llave puede.
   probar-bitnet          una pregunta al BitNet del A1 por HTTPS y con clave, desde aquí.
   bitnet-pesos           le pone al A1 los pesos BitNet en layout ARM (los oficiales vienen para
                          x86 y en ARM responden basura); el ciclo lo hace solo si el A1 lo detecta.
@@ -75,6 +80,11 @@ LATIDO_VIVO_S = 600
 DEJAR_COLAS = 8
 TOPE_DEFECTO = 4
 ESPERA_ENTRE_LANZAMIENTOS_S = 20 * 60
+#: Main vivo (enviar-main): dónde lo deja la neurona en el A1, cuánto puede pesar y cada cuánto se
+#: reintenta un paquete que el A1 aún no importó.
+ENTRADA_MAIN_A1 = "/home/starseed/entrada/main-mac.bundle"
+TOPE_PAQUETE_MB = 150
+REINTENTO_MAIN_S = 30 * 60
 
 #: Las claves que viajan al A1: las MISMAS que la nube de GitHub (`nube-gh.py secretos`), todas de
 #: proveedores con modelos gratuitos, más las públicas del bus (la clave anónima de Supabase es la
@@ -86,6 +96,10 @@ CLAVES_A1 = (
     "STARSEED_PASARELA_GROQ_KEY", "STARSEED_PASARELA_GROQ_URL", "STARSEED_PASARELA_GROQ_MODELOS",
     "STARSEED_PASARELA_GROQ_RPM", "STARSEED_PASARELA_GROQ_SOLO_REVISOR",
     "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    # El nodo de MetaGenesis (OPA1011) firma y comprueba con ella las órdenes del bus: sin ella el
+    # A1 late pero no atiende órdenes ni puede dirigir cuando la Mac calla. No es una credencial de
+    # pago ni de un tercero: es el secreto compartido de las máquinas de la fundación.
+    "STARSEED_LANZADOR_SECRETO",
 )
 ARCHIVOS_ENV = ("~/.starseed/env", "~/.hermes/.env", os.path.join(RAIZ, ".env.local"))
 NOMBRE_CLAVE_BITNET = "STARSEED_ORACLE_BITNET_KEY"
@@ -281,6 +295,22 @@ def borradores_nuevos(lineas_mac, lineas_a1):
             vistas.add(h)
             nuevas.append(json.dumps(dict(fila, medio=fila.get("medio") or "oracle_a1"), ensure_ascii=False))
     return nuevas
+
+
+def main_por_enviar(sha_main, sha_origin, sha_en_a1, enviado, ahora, reintento_s=REINTENTO_MAIN_S):
+    """PURA. ¿Hay que dejarle al A1 el main de esta neurona? (sí/no, motivo).
+    No si es lo publicado (el A1 ya lo ve en origin/main), si el A1 ya lo tiene, o si se le mandó
+    hace poco y aún no lo importó (su vuelta es de 2 min: se le da margen antes de reenviar)."""
+    if not sha_main:
+        return False, "sin main en esta neurona"
+    if sha_main == sha_origin:
+        return False, "main ya publicado: el A1 lo ve en origin/main"
+    if sha_main == sha_en_a1:
+        return False, "el A1 ya tiene este main"
+    enviado = enviado or {}
+    if enviado.get("sha") == sha_main and ahora - float(enviado.get("t") or 0) < reintento_s:
+        return False, "enviado hace %d min; el A1 lo importa en su próxima vuelta" % ((ahora - float(enviado.get("t") or 0)) // 60)
+    return True, "main nuevo"
 
 
 def aviso_de_cambio(previo, nodo):
@@ -556,6 +586,57 @@ def estado(guardar=True):
     return estado_a1, nodo, servicios
 
 
+# ── main vivo ──
+
+def _ssh_bytes(orden, datos, timeout=300):
+    """ssh con datos binarios por la entrada. (rc, salida tachada)."""
+    ip = _ip()
+    if not ip:
+        return 2, "sin A1 en ~/.starseed/oracle.json"
+    try:
+        r = subprocess.run(_ssh_base() + ["%s@%s" % (USUARIO_SSH, ip), orden], input=datos,
+                           capture_output=True, timeout=timeout)
+        return r.returncode, tachar((r.stdout or b"").decode(errors="replace") + (r.stderr or b"").decode(errors="replace"), ip)
+    except Exception as e:  # noqa: BLE001
+        return 1, tachar("%s: %s" % (type(e).__name__, e), ip)
+
+
+def enviar_main(estado_a1=None):
+    """Deja en el A1 un paquete git con `origin/main..main` (solo si cambió). El A1 lo importa a
+    `refs/mac/main` y su guardián lo comprueba. Nada pasa por GitHub ni se empuja nada."""
+    def rev(ref):
+        rc, salida = _git(["rev-parse", "--verify", "-q", ref], timeout=30)
+        return salida.strip() if rc == 0 else ""
+
+    sha_main, sha_origin = rev("main"), rev("origin/main")
+    en_a1 = str(((estado_a1 or {}).get("main_mac") or {}).get("sha") or "")
+    datos = _leer(ESTADO, {}) or {}
+    ok, motivo = main_por_enviar(sha_main, sha_origin, en_a1, datos.get("main_enviado"), time.time())
+    if not ok:
+        return {"ok": True, "no": motivo}
+    _, cuenta = _git(["rev-list", "--count", "%s..%s" % (sha_origin, sha_main)] if sha_origin else ["rev-list", "--count", sha_main], timeout=60)
+    with tempfile.TemporaryDirectory(prefix="starseed-main-") as tmp:
+        paquete = os.path.join(tmp, "main-mac.bundle")
+        rc, salida = _git(["bundle", "create", "-q", paquete, "main"] + (["^" + sha_origin] if sha_origin else []), timeout=300)
+        if rc != 0 or not os.path.exists(paquete):
+            return {"ok": False, "motivo": "no pude empaquetar main: %s" % salida.strip()[-200:]}
+        peso = os.path.getsize(paquete)
+        if peso > TOPE_PAQUETE_MB * 1024 * 1024:
+            return {"ok": False, "motivo": "el paquete pesa %d MB (tope %d): el A1 seguirá con origin/main" % (peso // 1048576, TOPE_PAQUETE_MB)}
+        with open(paquete, "rb") as f:
+            contenido = f.read()
+    destino = ENTRADA_MAIN_A1
+    rc, salida = _ssh_bytes("sudo -u starseed sh -c 'mkdir -p %s && cat > %s.tmp && mv -f %s.tmp %s'"
+                            % (os.path.dirname(destino), destino, destino, destino), contenido, timeout=300)
+    if rc != 0:
+        return {"ok": False, "motivo": "no pude dejarlo en el A1: %s" % salida.strip()[-200:]}
+    datos = _leer(ESTADO, {}) or {}
+    datos["main_enviado"] = {"sha": sha_main, "t": time.time(), "bytes": peso,
+                             "commits": int(cuenta.strip()) if cuenta.strip().isdigit() else None}
+    _escribir(ESTADO, datos)
+    return {"ok": True, "enviado": sha_main[:8], "commits": datos["main_enviado"]["commits"], "kb": peso // 1024}
+
+
 # ── traer ──
 
 def traer(estado_a1=None):
@@ -678,11 +759,14 @@ def colas_sin_tomar(estado_a1):
     return sorted(r for r, sha in remotas.items() if procesadas.get(r) != sha), remotas, procesadas
 
 
-def lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None):
+def lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None, ceder=True):
     """Reparte N tareas del atraso al A1 o, con `cola_dada` (ruta a un JSON de tareas), le manda esa
-    cola tal cual (una tarea escrita para él, o una cola que alguien quiere que corra allí)."""
+    cola tal cual (una tarea escrita para él, o una cola que alguien quiere que corra allí).
+    `ceder`: la tanda viva de la Mac le cede lo que no va a alcanzar pronto (CAP1010)."""
     import repartir_nube as RN
     from vigilante_logica import es_cola_de_codigo  # noqa: F401  (el reparto la usa)
+
+    cedibles, colas_mac = [], []
 
     if RN.nube_pausada():
         return {"ok": False, "motivo": "la nube está en pausa (~/.starseed/nube-pausada.json)"}
@@ -706,11 +790,24 @@ def lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None):
             procesos = subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True, timeout=20).stdout
         except Exception:  # noqa: BLE001
             procesos = ""
-        en_la_mac = RN.ids_de_la_tanda_viva(procesos, OLAS)
-        if en_la_mac:
-            colas = [(n, [t for t in ts if str((t or {}).get("id")) not in en_la_mac]) for n, ts in colas]
+        # (2026-10-10, CAP1010) La tanda viva de la Mac ya no se queda con TODO: guarda sus
+        # próximas rondas y cede lo demás que nadie espera (medido: 118 en la tanda, 32 listas,
+        # 3 trabajando; el A1 recibía «no hay atraso» y llevaba el día sin un agente).
+        colas_mac = RN.colas_de_la_tanda_viva(procesos, OLAS)
+        tanda = {i for _n, ids_ in colas_mac for i in ids_}
+        if ceder and tanda:
+            try:
+                import asignar_huecos  # noqa: PLC0415
+
+                est = asignar_huecos.reunir()
+                cedibles = RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
+                                                   RN.esperadas_por_otras(colas, progreso))
+            except Exception:  # noqa: BLE001 — sin la foto de la Mac no se cede nada
+                cedibles = []
+        colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles)
         elegidas = RN.elegir(colas, progreso, rep.asuntos_main(RAIZ), rep.ola_actual(colas), tope=tope, envios=envios)
     ids = [t["id"] for t in elegidas]
+    cedidas = [i for i in ids if i in set(cedibles)]
     if simular or not elegidas:
         return {"ok": True, "simulado": simular, "ids": ids, "motivo": "" if elegidas else "no hay atraso que pueda ir al A1"}
     import datetime
@@ -740,6 +837,12 @@ def lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None):
     with _Cerrojo("progreso", 60):
         progreso = _leer(PROGRESO, {}) or {}
         _escribir(PROGRESO, marcar_oracle(progreso, ids, ahora.strftime("%Y%m%d"), rama), modo=0o644)
+    if cedidas:
+        # Solo con la cola ya en GitHub: si el empuje falla, la Mac las sigue teniendo.
+        try:
+            RN.soltar_en_la_mac(RN.ordenes_soltar(cedidas, colas_mac, "oracle (%s)" % rama), OLAS)
+        except Exception:  # noqa: BLE001 — sin la orden, el arriendo corta el doble trabajo
+            pass
     datos = _leer(ESTADO, {}) or {}
     datos.setdefault("lanzamientos", []).append({"rama": rama, "cola": nombre, "ids": ids, "t": time.time()})
     datos["ultimo_lanzamiento"] = time.time()
@@ -761,12 +864,38 @@ def _podar_colas(dejar=DEJAR_COLAS):
 
 # ── ciclo ──
 
+def medir_oracle(modulo=None):
+    """El medidor de Oracle (CPU/memoria/red que Oracle mira para reclamar) refrescado desde el ciclo.
+
+    (OPO1011, 2026-10-10) Nadie lo llamaba: Alex vio en MetaGenesis «2,3 días ocioso» con una lectura
+    de 7,7 h cuando Oracle ya daba CPU p95 23,95 %. `medir_si_toca` mide como mucho cada 30 min, con
+    su cerrojo, y avisa en el Chat Director si el riesgo cambia. Solo en la neurona con la sesión de
+    la CLI (`~/.oci`); en las demás no hace nada."""
+    try:
+        if modulo is None:
+            import medidor_oracle as modulo  # noqa: PLC0415 — perezoso: la neurona puede no tenerlo
+        if not modulo.disponible():
+            return {"no": "esta neurona no tiene la sesión de la CLI de Oracle"}
+        doc = modulo.medir_si_toca() or {}
+        recl = doc.get("reclamacion") or {}
+        m = (recl.get("maquinas") or [{}])[0]
+        return {"leido": doc.get("leido"), "riesgo": recl.get("riesgo"), "cpu_p95": m.get("cpu_p95"),
+                "mem_p95": m.get("mem_p95")}
+    except Exception as e:  # noqa: BLE001 — medir nunca tumba el ciclo
+        return {"error": tachar("%s: %s" % (type(e).__name__, e), _ip())[:200]}
+
+
 def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
     try:
         with _Cerrojo("oracle-nodo", 0):
             estado_a1, nodo, servicios = estado()
             res = {"nodo": {k: nodo.get(k) for k in ("vivo", "fase", "cola")},
                    "servicios": {s["nombre"]: s["ok"] for s in servicios}}
+            if estado_a1:
+                try:
+                    res["main"] = enviar_main(estado_a1)
+                except Exception as e:  # noqa: BLE001 — nunca deja sin traer ni lanzar
+                    res["main"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
             basura = [x for x in (estado_a1 or {}).get("servicios") or []
                       if x.get("nombre") == "bitnet" and "BASURA" in str(x.get("detalle") or "")]
             if basura:
@@ -778,6 +907,7 @@ def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
                 ok, motivo = decidir_lanzar(estado_a1, time.time(), _leer(CONSUMO_JSON, {}),
                                             datos.get("ultimo_lanzamiento"), sin_tomar)
                 res["lanzar"] = lanzar(tope=tope) if ok else {"ok": True, "no": motivo}
+            res["medidor"] = medir_oracle()
             return res
     except TimeoutError:
         return {"ocupado": "ya hay otro ciclo del nodo en marcha"}
@@ -852,6 +982,9 @@ def main(argv):
         r = {"nodo": nodo, "servicios": servicios}
     elif orden == "traer":
         r = traer()
+    elif orden == "enviar-main":
+        estado_a1, _, _ = estado()
+        r = enviar_main(estado_a1)
     elif orden == "lanzar":
         cola = argv[argv.index("--cola") + 1] if "--cola" in argv else None
         r = lanzar(tope=tope, simular="--simular" in argv, cola_dada=cola)

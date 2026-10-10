@@ -402,8 +402,9 @@ los medios», el único botón general de los medidores Agentes, Tareas en curso
 (Alex: «son demasiados botones… que sea solo uno fusionado funcional»; `scripts/puente/buscar_capacidad.py`):
 llena la Mac hasta su tope, vuelve a medir los contenedores, reabre en la nube lo que solo agotó sus tres envíos con los proveedores
 saturados (`~/.starseed/nube-reaperturas.json`: una reapertura devuelve un envío, como mucho dos por
-tarea en dos días y nunca dejando a la Mac sin trabajo para su tope), lanza hasta 2 jobs de GitHub
-Actions y dice medio por medio qué sumó y por qué no más. La autocuración lo repite cada 30 min.
+tarea en dos días y nunca dejando a la Mac sin trabajo para su tope), lanza los jobs de GitHub
+Actions que caben —tope dinámico: trabajo, escritores vivos en la nube y techo de 6 (§20 de la
+orquestación)— y dice medio por medio qué sumó y por qué no más. La autocuración lo repite cada 30 min.
 **Ramas de la nube: nada se tira sin revisar** (2026-10-06, `memory/aprendizaje-ramas-nube.md`): en la misma pasada de
 30 min, `traer_nube.py` trae lo integrado, repara lo que quedó a medias y `revisar_ramas_nube.py` revisa lo que main ya
 superó —las pruebas que main no tiene pasan a una tarea de rescate (regla ≥ 3 casos; Jev solo veta perder, p ≥ 0,8)—,
@@ -1150,3 +1151,14 @@ CUALQUIER empuje que lo lleve («push declined due to repository rule violations
 también las ramas `colas/nube-*` (la nube se queda sin agentes) y la publicación de main. En
 pruebas, montar esas cadenas en tiempo de ejecución (`["gh", "p_…"].join("")`). Si ya entró
 una, `nube-gh.py` dice ahora el tipo, la ruta y el enlace de GitHub para permitirla.
+
+### 13. «La nube tiene 2 jobs» que no existen y escritores que nadie probó (2026-10-10, CAP1010)
+
+El botón contaba 2 jobs «en marcha» que el reparto nunca lanzó: la tanda viva de la Mac (118
+tareas) se quedaba con TODO y el reparto daba «0 tareas»; el A1 igual. Ahora la tanda **cede** lo
+que la Mac no alcanza en sus dos próximas rondas (`repartir_nube.cedibles_de_la_tanda`, orden
+`soltar` al lanzar) y el tope de jobs sale de `tope_runs_nube` con su motivo. Un escritor entra o
+sale solo tras una **edición real con opencode y contexto de tamaño real**: nemotron-3-super y
+glm-5.3 de NIM escriben; Groq no cabe (7.000 tokens/min); apinex, tokenrouter y GitHub Models
+(retirado el 2026-07-30, contesta «200 OK» a todo) están fuera con su motivo. Detalle:
+`memory/orquestacion-economica.md` §20.

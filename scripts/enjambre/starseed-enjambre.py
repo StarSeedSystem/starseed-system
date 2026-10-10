@@ -160,18 +160,24 @@ MODELOS = [
     # GEMINI_API_KEY en ~/.starseed/env). Tiene cupo diario: al 429 el renovador lo
     # aparta («google» en el informe) y la rotación sigue sola.
     "google/gemini-3.6-flash",
-    # (2026-10-03) Medido en progreso.json: kimi-k3 integró 115 tareas con 9 fallos (37
-    # desde el 20-09: ya no se cuelga) y deepseek-v4-pro 39 con 6. Suben a la cabeza; en
-    # la Mac el orden fino lo pone `orden_por_merito`, pero la nube no tiene progreso.json
-    # y arranca con este orden tal cual (rota entre los tres primeros).
-    "nvidia/moonshotai/kimi-k3",
-    "nvidia/deepseek-ai/deepseek-v4-pro-0813",
-    # NIM medido hoy con 16 tokens: nemotron-3-super 0,7 s · nemotron-3.5-lightning
-    # 0,9 s · glm-5.3 10,8 s. kimi-k3 y deepseek-v4-flash-0731 NO contestaron en 40 s:
-    # son los «estancado 731 s… COLGADO» del log de hoy, y cada colgado cuesta 12 min.
-    # Los vivos delante; los colgados, al final de la lista.
-    "nvidia/nemotron-3-super-120b-a12b",
+    # (2026-10-10, CAP1010) NIM MEDIDO HOY con opencode 1.18.33 en el A1 (edición real de un
+    # archivo, no un chat). Con orden corta: nemotron-3-super ESCRIBE (60 s), glm-5.3 (76 s) y
+    # gpt-oss-20b (52 s); deepseek-v4.1-flash no terminó en 300 s. Con contexto de tamaño real
+    # (CLAUDE.md, ~14k tokens, leído por la herramienta): nemotron-3-super ESCRIBE (23 s) y
+    # glm-5.3 (56 s); gpt-oss-20b contestó en 9 s SIN editar → no entra. Por chat de 16 tokens
+    # desde la Mac: nemotron 0,7 s · glm-5.3 1,2 s · kimi-k3 44,9 s (la sonda de 25 s lo da por
+    # «no contesta»: saturado en NIM, no la Mac — gpt-oss-20b contesta en 0,6 s).
+    # ⚠️ El id de nemotron era «nvidia/nemotron-3-super-120b-a12b» SIN la organización: NIM lo
+    # llama «nvidia/nemotron-3-super-120b-a12b», así que en opencode es
+    # «nvidia/nvidia/nemotron-…». `validar_modelos` lo sacaba en CADA arranque como «retirado
+    # del catálogo» (run 38070585964) y la nube se quedaba sin su escritor más rápido.
+    # Fuera: deepseek-v4-pro-0813 (ya no está en el catálogo) y deepseek-v4-flash-0731 (410:
+    # fin de vida el 2026-09-21). Los que escriben hoy van delante; kimi-k3 conserva su mérito
+    # en la Mac (`orden_por_merito`), pero la nube no tiene progreso.json y arranca con este
+    # orden tal cual (rota entre los tres primeros).
+    "nvidia/nvidia/nemotron-3-super-120b-a12b",
     "nvidia/z-ai/glm-5.3",
+    "nvidia/moonshotai/kimi-k3",
     # (2026-09-16, 19:45) Grok entra con clave propia de Alex y VERIFICADO escribiendo:
     # el renovador lo sondeó con dieciséis tokens y respondió. Es de pago, así que va
     # detrás de lo gratuito que funcione, pero delante de lo que está mudo.
@@ -185,16 +191,14 @@ MODELOS = [
     # (2026-09-20, 06:20) Groq NO escribe: su tramo gratuito limita 8000 TPM (gpt-oss-120b)
     # y 7000 ITPM (qwen3.8-27b) y nuestros prompts de escritura pesan 19-22k tokens →
     # «Request too large» a los 0 s en todos. Sigue de REVISOR (prompts cortos).
-    # (2026-09-11, latido :03) Apinex: 22 modelos, 8 gratuitos y 14 de pago ($0.05-$0.50/M tokens).
-    # 5M tokens/día gratuitos. Se integra como proveedor multiagentico prioritario.
-    "apinex/free/gemini-3.8-flash",
-    "apinex/free/muse-spark-1.3",
-    "apinex/free/glm-5.3-flash",
-    "apinex/free/deepseek-v4-flash-0731",
-    "apinex/free/deepseek-v4-pro-0813",
-    "apinex/free/qwen-3.8-max",
-    "apinex/free/gpt-5.6-luna",
-    "apinex/free/gemini-3.1-pro",
+    # (2026-10-10, CAP1010) Vuelto a medir con opencode real en el A1: qwen3.8-27b «Request
+    # too large … ITPM: Limit 7000, Requested 7498» CON EL PROMPT MÍNIMO (el sistema de opencode
+    # ya pasa de 7000), y gpt-oss-120b «property 'reasoning_content' is unsupported» (opencode
+    # devuelve el razonamiento en el historial y Groq lo rechaza). Sigue de revisor.
+    # (2026-10-10, CAP1010) APINEX FUERA DE LA ROTACIÓN: sus `free/*` contestan 402 «Free 10M
+    # tokens used. Buy a subscription» y los demás «available only with a subscription»
+    # (medido desde la Mac, 15:10). No es un cupo que vuelva a medianoche: es el regalo de
+    # 10M tokens gastado. Vuelve solo si Alex compra suscripción (no se hace sin su palabra).
     # (2026-09-09, latido :52) llm7 es el UNICO proveedor que escribe SIN NINGUNA CLAVE.
     # Va primero: sin el arriba, una tarea gasta sus DOS intentos en pasarelas que sin
     # clave rechazan la generacion en ~4 s. Con claves, modelos_para rota como siempre.
@@ -204,18 +208,16 @@ MODELOS = [
     # aihubmix y tokenrouter fallaban justo aquí). Alterna proveedor para repartir la carga.
     "xkiro/qwen/qwen3-coder-plus:free",
     "xkiro/minimax/minimax-m3:free",
-    # Verificado el 2026-09-06 (Ola 261) en /tmp/prueba-escritor: opencode SÍ crea archivos con
-    # tokenrouter glm-5.3-free, y rápido (era uno de los revisores; ahora también escribe).
-    "tokenrouter/z-ai/glm-5.3-free",
+    # (2026-10-10, CAP1010) TOKENROUTER FUERA: glm-5.3-free contesta 503 «No available channel
+    # … model_not_found» (desde el 2026-10-06) y su ÚNICO modelo `:free` que queda
+    # (nemotron-3-nano-omni-30b-a3b-reasoning:free) da 403 «credit limit insufficient: $0».
+    # No hay nada gratis que opencode pueda usar ahí.
     "xkiro/qwen/qwen3.8-max:free",
     "xkiro/deepseek/deepseek-v4-pro",
     "xkiro/mistralai/devstral-medium",
     # llm7/gpt-oss también escribió en la prueba, pero con calidad baja: solo entra en la
     # rotación de una tarea si TODOS sus archivos son Markdown (ver apto_para_tarea).
     "llm7/gpt-oss",
-    # (2026-09-19) Los dos de NIM que hoy se cuelgan sin emitir nada. Siguen aquí por
-    # si NIM los recupera, pero al final: que un colgado no se coma el primer intento.
-    "nvidia/deepseek-ai/deepseek-v4-flash-0731",
 ]
 
 # (2026-09-08, Ola 296 · CX2) ESCRITORES DE COSTE CERO: Codex CLI escribe contra la suscripción
@@ -999,7 +1001,10 @@ SONDEO_S = int(os.environ.get("STARSEED_SONDEO_S", "60"))
 # generaciones, y el panel lo daba por vivo mientras tres tareas se colgaban.
 SONDAS = {
     "xkiro": ("minimax/minimax-m2.7-highspeed:free", ("XKIRO_API_KEY",)),
-    "nim": ("moonshotai/kimi-k3", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
+    # (2026-10-10, CAP1010) Antes kimi-k3: tarda ~45 s en 16 tokens y la sonda de generación
+    # (40 s) daba a NIM entero por caído («todos los proveedores útiles están caídos (llm7,
+    # nim)», run 38070585964) mientras nemotron contestaba en 0,7 s.
+    "nim": ("nvidia/nemotron-3-super-120b-a12b", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
     "aihubmix": ("coding-glm-5.3-free", ("AIHUBMIX_API_KEY",)),
     "tokenrouter": ("z-ai/glm-5.3-free", ("TOKENROUTER_API_KEY",)),
     "openrouter": ("nvidia/nemotron-3-super-120b-a12b:free", ("OPENROUTER_API_KEY",)),
@@ -1892,6 +1897,22 @@ def ahora():
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def valor_env(crudo):
+    """PURA: el valor de una línea `CLAVE=valor` tal como lo vería el shell al hacer `. archivo`.
+
+    (2026-10-10, CAP1010) El workflow de la nube escribe ~/.starseed/env con `printf '%s=%q'`, y
+    el %q de bash escapa las COMAS: STARSEED_PASARELA_GROQ_MODELOS llegaba como
+    «openai/gpt-oss-120b\\,qwen/…». El shell lo deshace; este lector solo quitaba comillas, y al
+    partir por comas cada modelo de Groq salía con una barra al final → 404 «modelo retirado» en
+    CADA run desde el 2026-10-04 (run 38070585964). Entre comillas se deja tal cual; sin
+    comillas, `\\x` vale `x`, como en el shell."""
+    v = str(crudo or "").strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        return v[1:-1]
+    v = v.strip('"').strip("'")
+    return re.sub(r"\\(.)", r"\1", v) if "\\" in v else v
+
+
 def leer_env(*rutas):
     env = {}
     for r in rutas:
@@ -1902,7 +1923,7 @@ def leer_env(*rutas):
                 l = l.strip()
                 if l and not l.startswith("#") and "=" in l:
                     k, _, v = l.partition("=")
-                    env[k.strip()] = v.strip().strip('"').strip("'")
+                    env[k.strip()] = valor_env(v)
         except Exception:
             pass
     return env

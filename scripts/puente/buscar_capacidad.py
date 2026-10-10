@@ -57,12 +57,22 @@ LATIDOS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 REGISTRO = "/tmp/starseed-capacidad.log"
 WORKFLOW = "enjambre-nube.yml"
 
-#: Jobs de GitHub Actions a la vez. El repo es público y GitHub no cobra, pero los modelos
-#: gratuitos se reparten entre todos los jobs: con más de dos, los 429 se comen la ganancia.
+#: Jobs de GitHub Actions a la vez cuando no se sabe nada más (sin sondas ni salud): el de siempre.
 TOPE_RUNS_NUBE = 2
 TRABAJADORES_JOB = 3
 #: Tareas por job: dos por trabajador, como el despliegue de siempre.
 TAREAS_POR_RUN = TRABAJADORES_JOB * 2
+#: (2026-10-10, CAP1010) El tope ya NO es un 2 fijo: crece con las tareas que la nube puede
+#: coger y con los escritores vivos que llegan a ella, hasta este techo. El plan gratuito de
+#: GitHub deja 20 jobs a la vez en un repo público de una cuenta Free; nos quedamos en 6 para
+#: dejar sitio al CI de la publicación (comparte esa cola) y no ahogar los RPM gratuitos.
+MAX_RUNS_NUBE = int(os.environ.get("STARSEED_NUBE_MAX_RUNS") or 6)
+#: Jobs por escritor vivo: un job son 3 agentes y un proveedor gratuito aguanta unos 6 a la vez
+#: antes de los 429 (NIM: 40 RPM por clave; un agente de opencode hace 3-6 llamadas por minuto).
+RUNS_POR_ESCRITOR = 2
+#: Escritores cuyas claves viajan a la nube como secretos (`nube-gh.py SECRETOS`). freellmapi
+#: (127.0.0.1 de la Mac) y Codex (sesión de la Mac) NO llegan allí; Groq llega, pero solo revisa.
+PROVEEDORES_NUBE = ("google", "nvidia", "openrouter", "xkiro")
 MINUTOS_JOB = 60
 #: Lo que se reabre en una pasada, cuánto espera una tarea entre reaperturas y cuántas
 #: lleva como mucho en la ventana de envíos (dos días).
@@ -100,11 +110,60 @@ def puede_reabrir(marcas, ahora, espera_s=REABRIR_ESPERA_S, maximo=REAPERTURAS_M
     return not marcas or ahora - marcas[-1] >= espera_s
 
 
+def tope_runs_nube(tareas, escritores, maximo=MAX_RUNS_NUBE, por_run=TAREAS_POR_RUN,
+                   por_escritor=RUNS_POR_ESCRITOR):
+    """PURA. (tope, motivo): cuántos jobs de la nube a la vez TIENEN SENTIDO ahora.
+
+    Tres límites y manda el más bajo, que es el que se dice: el trabajo (`tareas` que la nube
+    puede coger, `por_run` por job), los modelos (`escritores` vivos con su clave en la nube,
+    `por_escritor` jobs cada uno) y el techo del plan gratuito (`maximo`). Sin escritor no hay
+    job: un job sin modelo que escriba es un «cero commits» de 45 minutos."""
+    tareas = max(0, int(tareas or 0))
+    escritores = sorted(set(escritores or ()))
+    if not escritores:
+        return 0, ("ningún escritor con cupo llega a la nube (freellmapi y Codex solo viven en la Mac; "
+                   "Groq allí solo revisa)")
+    if not tareas:
+        return 0, "no hay tareas que la nube pueda coger"
+    por_trabajo = int(math.ceil(tareas / float(por_run)))
+    por_modelos = len(escritores) * int(por_escritor)
+    tope = min(int(maximo), por_trabajo, por_modelos)
+    if tope == por_trabajo:
+        motivo = "%d tarea(s) para la nube dan para %d job(s) de %d" % (tareas, por_trabajo, por_run)
+    elif tope == por_modelos:
+        motivo = "%d escritor(es) vivo(s) en la nube (%s) × %d job(s) cada uno" % (
+            len(escritores), ", ".join(escritores), por_escritor)
+    else:
+        motivo = "techo de %d jobs a la vez (STARSEED_NUBE_MAX_RUNS)" % int(maximo)
+    return tope, motivo
+
+
+def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
+    """PURA: proveedores de escritura vivos que la nube puede usar. Con sondas (`resultados`:
+    [(modelo, apto, motivo, horas)]) manda la sonda; sin ellas, la salud compartida (con cupo y
+    sin «caído»). Solo cuentan los de `PROVEEDORES_NUBE` (sus claves son secretos del repo)."""
+    if resultados:
+        return sorted({m.split("/", 1)[0] for m, apto, _m, _h in resultados
+                       if apto and m.split("/", 1)[0] in PROVEEDORES_NUBE})
+    vivos = []
+    for prov in PROVEEDORES_NUBE:
+        e = (salud or {}).get(SALUD_DE.get(prov, prov))
+        if not isinstance(e, dict):
+            continue
+        if str(e.get("estado") or "") in ("caido", "caído"):
+            continue
+        if str(e.get("sin_cupo_hasta") or "") > str(ahora_txt or ""):
+            continue
+        vivos.append(prov)
+    return vivos
+
+
 def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas_mac=0, tope_mac=0,
-              tope_runs=TOPE_RUNS_NUBE, por_run=TAREAS_POR_RUN, max_reabrir=REABRIR_POR_PASADA):
+              tope_runs=TOPE_RUNS_NUBE, por_run=TAREAS_POR_RUN, max_reabrir=REABRIR_POR_PASADA,
+              motivo_tope=""):
     """PURA. Qué hacer con la nube: {"lanzar": n, "reabrir": [ids], "trabajadores": w, "por_que": str}.
 
-    - En pausa o con los jobs al tope: nada.
+    - En pausa o con los jobs al tope: nada, diciendo por qué es ese el tope (`motivo_tope`).
     - Las elegibles van primero. Si no llenan el sitio libre, se reabren agotadas (las que
       `puede_reabrir`), pero nunca tantas que la Mac se quede sin trabajo para su tope:
       la nube suma, no le quita a la Mac lo que la Mac ya puede hacer.
@@ -114,7 +173,10 @@ def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas
         return dict(nada, por_que="la nube está en pausa (%s): no despliego" % pausa)
     libres = max(0, int(tope_runs) - int(runs_vivos))
     if libres <= 0:
-        return dict(nada, por_que="ya hay %d job(s) en marcha, el tope a la vez" % runs_vivos)
+        if int(tope_runs) <= 0 and motivo_tope:
+            return dict(nada, por_que="no lanzo: %s" % motivo_tope)
+        return dict(nada, por_que="ya hay %d job(s) en marcha, el tope a la vez%s" % (
+            runs_vivos, (" (%s)" % motivo_tope) if motivo_tope else ""))
     sitio = libres * por_run
     elegibles = list(elegibles or [])
     reabrir = []
@@ -168,14 +230,20 @@ def texto_mac(estado, decision, hechas):
         tope if tope is not None else "su tope", " (gobernador: %s)" % motivo if motivo else "")
 
 
-def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True):
+def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True, mac=None, tope=None):
     """PURA: la línea de la nube, con el porqué de lo que no coge. Sin `aplicado` (solo
-    comprobar) dice lo que HARÍA, no lo que hizo."""
+    comprobar) dice lo que HARÍA, no lo que hizo. `mac`: {"tanda", "se_queda", "cedibles"} de
+    la tanda viva de la Mac; `tope`: (tope, motivo) de `tope_runs_nube`."""
     from repartir_nube import MOTIVOS_FUERA
 
     clases = clases or {}
-    partes = ["%s: %d job(s) en marcha" % (NOMBRES["nube-gh"], runs_vivos),
-              "%d tarea(s) elegible(s)" % len(clases.get("elegibles") or [])]
+    cabeza = "%s: %d job(s) en marcha" % (NOMBRES["nube-gh"], runs_vivos)
+    if tope is not None:
+        cabeza += " de %d a la vez ahora (%s)" % (tope[0], tope[1])
+    partes = [cabeza, "%d tarea(s) elegible(s)" % len(clases.get("elegibles") or [])]
+    if mac and mac.get("tanda"):
+        partes.append("la tanda de la Mac tiene %d: se queda %d para sus próximas rondas y cede %d que nadie espera"
+                      % (mac["tanda"], mac.get("se_queda") or 0, len(mac.get("cedibles") or [])))
     if plan.get("reabrir"):
         partes.append("%s %d que agotaron sus envíos (%s)" % ("reabro" if aplicado else "se pueden reabrir",
                                                              len(plan["reabrir"]), ", ".join(plan["reabrir"])))
@@ -251,6 +319,17 @@ def esperando_pasarela(latidos, ahora, frescura_s=180):
 
 #: Proveedores de pago (por token, con la tarjeta de Alex): no se sondean como escritores.
 DE_PAGO = ("xai", "deepseek", "anthropic", "openai")
+#: (2026-10-10, CAP1010) Fuera de la escritura con su motivo MEDIDO hoy: el botón lo dice para
+#: que nadie vuelva a meterlos a ciegas. Ni se sondean.
+RETIRADOS = {
+    "apinex": "sus 10M tokens gratis ya se gastaron (402) y lo demás pide suscripción",
+    "tokenrouter": "sin modelo gratis: glm-5.3-free sin canal (503) y su único :free pide crédito (403)",
+    "github-models": "GitHub Models se retiró el 2026-07-30: su API contesta «200 OK» a todo",
+}
+#: Revisores que NO escriben, con su porqué (prueba real con opencode, 2026-10-10).
+SOLO_REVISAN = {
+    "groq": "opencode no cabe en su tramo gratis (7.000 tokens por minuto) y gpt-oss-120b rechaza su historial",
+}
 #: Proveedores de opencode que no escriben código del enjambre: revisores (groq, aihubmix,
 #: tokenrouter), solo Markdown (llm7) y la neurona local de 0,5B. FreeLLMAPI sí cuenta: el
 #: 2026-10-06 fue el único escritor vivo (RSC1006Ks), aunque a veces su «auto» devuelve las
@@ -271,7 +350,7 @@ def representantes(cfg_opencode, maximo=MODELOS_POR_PROVEEDOR):
     """PURA: {proveedor: [«prov/modelo», …]} para sondear, sin los de pago ni los que no escriben."""
     salida = {}
     for prov, bloque in sorted(((cfg_opencode or {}).get("provider") or {}).items()):
-        if prov in DE_PAGO or prov in NO_ESCRITORES or not isinstance(bloque, dict):
+        if prov in DE_PAGO or prov in NO_ESCRITORES or prov in RETIRADOS or not isinstance(bloque, dict):
             continue
         modelos = list((bloque.get("models") or {}).keys())[:maximo]
         if modelos:
@@ -279,17 +358,30 @@ def representantes(cfg_opencode, maximo=MODELOS_POR_PROVEEDOR):
     return salida
 
 
+#: Fallos que son del MODELO aunque no lo retiren: en NIM cada modelo es una función aparte y
+#: uno saturado no dice nada de los demás (2026-10-10: kimi-k3 tardaba 45 s y el botón daba a
+#: NIM entero por «no contesta en 25 s» con nemotron contestando en 0,7 s).
+FALLOS_DEL_MODELO = ("no contesta", "error del proveedor")
+
+
 def veredicto_proveedor(modelos, sondear):
     """PURA salvo `sondear(modelo) → (apto, motivo, horas, muerto)`: prueba en orden hasta que
-    uno responde (puede) o falla por algo del PROVEEDOR (cupo, saturado, sin respuesta); un
-    modelo retirado o de pago no decide y se pasa al siguiente. → (modelo, apto, motivo, horas, muerto)."""
-    ultimo = None
+    uno responde (puede) o falla por algo del PROVEEDOR (cupo del día, sin crédito, saturado);
+    un modelo retirado o de pago, o uno lento o con error propio (`FALLOS_DEL_MODELO`), no decide
+    por el proveedor y se pasa al siguiente. → (modelo, apto, motivo, horas, muerto)."""
+    ultimo, primero_lento = None, None
     for m in modelos:
         apto, motivo, horas, muerto = sondear(m)
         ultimo = (m, apto, motivo, horas, muerto)
-        if apto or not muerto:
+        if apto:
             return ultimo
-    return ultimo
+        if muerto:
+            continue
+        if str(motivo or "").startswith(FALLOS_DEL_MODELO):
+            primero_lento = primero_lento or ultimo
+            continue
+        return ultimo
+    return primero_lento or ultimo
 
 
 def texto_escritores(resultados, ahora=None):
@@ -314,6 +406,26 @@ def texto_escritores(resultados, ahora=None):
     if no:
         linea += " · sin poder: " + "; ".join(no)
     return linea, bool(pueden)
+
+
+def texto_fuera_de_escritura():
+    """PURA: quién NO escribe y por qué (medido), para que nadie los vuelva a meter a ciegas."""
+    partes = ["%s (solo revisa: %s)" % (p, m) for p, m in sorted(SOLO_REVISAN.items())]
+    partes += ["%s (%s)" % (p, m) for p, m in sorted(RETIRADOS.items())]
+    return "Fuera de la escritura: " + "; ".join(partes)
+
+
+def texto_ultimo_despliegue(estado, ahora, vigencia_s=3600):
+    """PURA: el último despliegue de la nube si NO salió entero y es reciente. (2026-10-10) El
+    botón contaba como «en marcha» dos jobs que nunca existieron: el reparto en segundo plano
+    había dicho «0 tareas» y nadie lo leía."""
+    d = (estado or {}).get("ultimo_despliegue") or {}
+    if not isinstance(d, dict) or ahora - float(d.get("t") or 0) > vigencia_s:
+        return ""
+    pedidos, lanzados = int(d.get("pedidos") or 0), int(d.get("lanzados") or 0)
+    if lanzados >= pedidos or not d.get("fallo"):
+        return ""
+    return "Último despliegue a la nube: salieron %d de %d job(s) · %s" % (lanzados, pedidos, d.get("fallo"))
 
 
 def texto_sin_trabajo(progreso):
@@ -380,12 +492,17 @@ def _repartidor():
     return mod
 
 
-def reunir_nube(ahora):
-    """Lo que la nube puede coger y por qué no coge lo demás, con las MISMAS fuentes que el
-    reparto. Nunca lanza: si algo falla, lo dice en `error`."""
+def reunir_nube(ahora, estado_mac=None, ceder=True):
+    """Lo que la nube puede coger y por qué no coge lo demás, con las MISMAS fuentes y el MISMO
+    filtro de la tanda de la Mac que el reparto (`repartir-a-nube.py --ceder`). Nunca lanza:
+    si algo falla, lo dice en `error`.
+
+    (2026-10-10, CAP1010) Antes no miraba la tanda viva de la Mac y el reparto sí: el botón
+    contaba 32 elegibles y «lanzo 2 jobs», el reparto en segundo plano daba «0 tareas» y los dos
+    jobs que se anotaban «en camino» nunca existieron."""
     import repartir_nube as RN
 
-    salida = {"clases": {}, "pausa": RN.nube_pausada(), "runs": 0, "error": None}
+    salida = {"clases": {}, "pausa": RN.nube_pausada(), "runs": 0, "error": None, "mac": {}}
     try:
         ran = _repartidor()
         colas = ran.colas_fuente()
@@ -393,6 +510,20 @@ def reunir_nube(ahora):
         asuntos = ran.asuntos_main(ran.RAIZ)
         colas = [(n, ran.aplicar_a_todas(t, progreso)) for n, t in colas]
         envios = RN.envios_vigentes(ran.DESTINO_DIR, ahora)
+        try:
+            procesos = subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True, timeout=20).stdout
+        except Exception:
+            procesos = ""
+        colas_mac = RN.colas_de_la_tanda_viva(procesos, ran.OLAS)
+        tanda = {i for _n, ids in colas_mac for i in ids}
+        cedibles = []
+        if ceder and tanda and estado_mac:
+            cedibles = RN.cedibles_de_la_tanda(tanda, estado_mac.get("listas"), estado_mac.get("tope"),
+                                               RN.esperadas_por_otras(colas, progreso))
+        listas_en_tanda = [t for t in (estado_mac or {}).get("listas") or [] if t in tanda]
+        salida["mac"] = {"tanda": len(tanda), "cedibles": cedibles,
+                         "se_queda": max(0, len(listas_en_tanda) - len(cedibles))}
+        colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles)
         salida["clases"] = RN.clasificar(colas, progreso, asuntos, ran.ola_actual(colas), envios)
     except (Exception, SystemExit) as e:  # SystemExit: el reparto aborta así si git falla
         salida["error"] = "%s: %s" % (type(e).__name__, e)
@@ -554,10 +685,13 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
 
         # 1a · Escritores: una sonda de 1 token por proveedor (solo al pulsar el botón).
         sin_escritores = False
+        sondas = []
         if origen == "boton" and sondear_medios:
             try:
-                linea_esc, alguno = texto_escritores(_sondear_escritores(), ahora)
+                sondas = _sondear_escritores()
+                linea_esc, alguno = texto_escritores(sondas, ahora)
                 lineas.append(linea_esc)
+                lineas.append(texto_fuera_de_escritura())
                 sin_escritores = not alguno
             except Exception as e:
                 lineas.append("Escritores: no pude sondearlos (%s)" % type(e).__name__)
@@ -570,14 +704,23 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             pass
 
         # 2 · Nube
-        nube = reunir_nube(ahora)
+        nube = reunir_nube(ahora, estado_mac)
         vivos = nube["runs"] + en_camino(estado_prev, ahora)
         reaperturas = RN.leer_reaperturas(ahora)
+        # (2026-10-10, CAP1010) El tope crece con el trabajo y con los escritores vivos que
+        # llegan a la nube; ya no es un 2 fijo.
+        escritores_nube = escritores_en_la_nube(sondas, _leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"))
+        reabribles = [t for t in nube["clases"].get("agotada") or [] if puede_reabrir(reaperturas.get(t), ahora)]
+        tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
+                              escritores_nube)
         plan = plan_nube(
             nube["clases"].get("elegibles"), nube["clases"].get("agotada"), vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
-            tope_mac=int(estado_mac.get("tope") or 0),
+            tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1],
         )
+        lineas_previas = texto_ultimo_despliegue(estado_prev, ahora)
+        if lineas_previas:
+            lineas.append(lineas_previas)
         lanzados = None
         if nube["error"]:
             lanzados = "no pude leer el trabajo (%s)" % nube["error"][:160]
@@ -590,7 +733,8 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             sumados += plan["lanzar"] * plan["trabajadores"]
             lanzados = "lanzando %d job(s) de %d agente(s) en segundo plano" % (plan["lanzar"], plan["trabajadores"])
             hechas.append(lanzados)
-        lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar))
+        lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar, mac=nube.get("mac"),
+                                 tope=tope))
 
         # 3 · Los demás medios
         if futuro_medios is not None:
@@ -611,26 +755,38 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
     if aplicar and (origen == "boton" or sumados):
         _avisar(("Buscar más capacidad (%s):\n" % ("botón de Genesis" if origen == "boton" else origen)) + texto)
     return {"ok": True, "resumen": texto, "lineas": lineas, "sumados": sumados, "hechas": hechas,
-            "plan_nube": plan, "runs_nube": vivos}
+            "plan_nube": plan, "runs_nube": vivos, "tope_nube": list(tope), "escritores_nube": escritores_nube,
+            "mac_cede": (nube.get("mac") or {}).get("cedibles") or []}
 
 
 def desplegar(runs, trabajadores):
     """Lanza `runs` jobs seguidos con `nube-gh.py lanzar` (cada uno reparte su propia cola) y
     deja el resultado en el Chat Director."""
-    hechos = []
+    hechos, lanzados, fallo = [], 0, ""
     for i in range(max(0, int(runs))):
+        # `--ceder` (2026-10-10, CAP1010): la tanda viva de la Mac cede lo que no alcanza pronto.
         r = subprocess.run(
             [sys.executable, os.path.join(DIRECTORIO, "nube-gh.py"), "lanzar", "--tope",
-             str(int(trabajadores) * 2), "--trabajadores", str(trabajadores), "--minutos", str(MINUTOS_JOB)],
+             str(int(trabajadores) * 2), "--trabajadores", str(trabajadores), "--minutos", str(MINUTOS_JOB),
+             "--ceder"],
             cwd=RAIZ, capture_output=True, text=True, timeout=600,
         )
         salida = ((r.stdout or "") + (r.stderr or "")).strip()
         print(salida, flush=True)
         lanzado = [l for l in salida.splitlines() if l.startswith("lanzado:")]
         if r.returncode != 0 or not lanzado:
-            hechos.append("job %d no salió: %s" % (i + 1, (salida.splitlines() or ["?"])[-1][:200]))
+            fallo = (salida.splitlines() or ["?"])[-1][:200]
+            hechos.append("job %d no salió: %s" % (i + 1, fallo))
             break
+        lanzados += 1
         hechos.append(lanzado[-1])
+    # (2026-10-10, CAP1010) Lo «en camino» pasa a ser lo que SALIÓ de verdad: antes se quedaban
+    # contados como vivos los jobs pedidos aunque el reparto hubiera dicho «0 tareas».
+    estado = _leer_json(ESTADO, {})
+    ahora = time.time()
+    estado.update(en_camino=lanzados, en_camino_hasta=(ahora + EN_CAMINO_S) if lanzados else 0,
+                  ultimo_despliegue={"t": ahora, "pedidos": int(runs), "lanzados": lanzados, "fallo": fallo})
+    _guardar(estado)
     _avisar("Capacidad en la nube: %s" % "; ".join(hechos or ["nada que lanzar"]))
     return hechos
 

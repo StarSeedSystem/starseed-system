@@ -796,3 +796,54 @@ repo público. Los directores en Python y los vigilantes no gastan nada.
   `cola-rescate-nube.json`; archivo verificado (`refs/archivo/…` + `starseed_memory_root/archivo/ramas-nube-<fecha>.bundle`),
   aprendizaje en `starseed_memory_root/archivo/aprendizaje-ramas-nube.jsonl` y borrado con `--force-with-lease`.
   Lecciones y la revisión del 2026-10-06 (72 ramas → 18 tareas): `memory/aprendizaje-ramas-nube.md`.
+
+## 20. Capacidad: escritores medidos y la tanda de la Mac que cede (regla permanente · 2026-10-10, CAP1010)
+
+Alex: «¿por qué solo hay 6 agentes en curso? ¿es posible más, en más medios, con más tareas?».
+Medido a las 15:05 (hora de la Mac): 34 listas y 75 en cadena; Mac 3 de 3 (tope del gobernador con
+8 GB, swap 7,5 de 8 GB); la nube «2 jobs en marcha = su tope»; el A1 de Oracle sin un solo agente.
+Lo que de verdad pasaba, con números:
+
+- **Los dos jobs de la nube eran fantasma.** `buscar_capacidad.py` contaba 32 elegibles y «lanzo 2
+  jobs»; el reparto en segundo plano (`repartir-a-nube.py`) daba «0 tareas» porque deja en la Mac
+  TODO lo que está en su tanda viva (118 tareas, regla RM6b), y los dos jobs pedidos se contaban
+  «en camino» 5 minutos sin existir. Y el A1 recibía «no hay atraso» por el mismo filtro.
+  **Arreglo:** la tanda de la Mac **cede** (`repartir_nube.cedibles_de_la_tanda`): la Mac se guarda
+  sus `tope × 2` listas siguientes (en su orden de prioridad) y cede las demás que ninguna tarea
+  viva espera (`esperadas_por_otras`). El reparto (`repartir-a-nube.py --ceder`, que usa el botón) y
+  el A1 (`oracle_nodo.lanzar`, por defecto) aplican el MISMO filtro que el botón cuenta
+  (`reunir_nube`), así que el plan y el reparto ya no discrepan. Lo cedido recibe la orden
+  `soltar` en `olas/control-<cola>.json` (el mismo mecanismo de «Reasignar → otro servidor») SOLO
+  cuando el run ya existe. El «en camino» es lo que salió de verdad; si un despliegue no sale, el
+  botón dice «salieron 0 de 2 job(s) · <motivo>».
+- **El tope de jobs ya no es un 2 fijo** (`tope_runs_nube`): manda el más bajo de tres límites, y es
+  el que se dice — el trabajo (1 job por cada 6 tareas que la nube puede coger), los modelos (2 jobs
+  por cada escritor VIVO cuya clave llega a la nube: google, nvidia, openrouter, xkiro) y el techo
+  `STARSEED_NUBE_MAX_RUNS` (6; GitHub deja 20 jobs a la vez en un repo público Free). Sin escritor en
+  la nube, 0 jobs y lo dice: freellmapi (127.0.0.1 de la Mac) y Codex (sesión de la Mac) no llegan
+  allí, y Groq allí solo revisa.
+- **NIM tenía escritores y la rotación no los veía.** Medido con opencode 1.18.33 en el A1 (edición
+  real de un archivo; con contexto de tamaño real, CLAUDE.md ~14k tokens): `nvidia/nvidia/nemotron-3-super-120b-a12b`
+  ESCRIBE (23 s) y `nvidia/z-ai/glm-5.3` ESCRIBE (56 s); `gpt-oss-20b` contesta sin editar;
+  `deepseek-v4.1-flash` no termina en 300 s; `kimi-k3` tarda 45 s en 16 tokens (saturado en NIM, no
+  la Mac: desde la Mac nemotron contesta en 0,7 s). El id de nemotron en `MODELOS` estaba SIN la
+  organización (`nvidia/nemotron-…` en vez de `nvidia/nvidia/nemotron-…`) y `validar_modelos` lo
+  sacaba en cada arranque; `deepseek-v4-flash-0731` (410, fin de vida 2026-09-21) y
+  `deepseek-v4-pro-0813` (fuera del catálogo) seguían en la rotación. La sonda de NIM era kimi-k3:
+  ahora nemotron. El botón ya no da a un proveedor por muerto porque UN modelo sea lento
+  (`FALLOS_DEL_MODELO`: «no contesta», 5xx → se prueba el siguiente).
+- **Groq NO escribe (medido otra vez):** qwen3.8-27b «Request too large … ITPM 7000, Requested 7498»
+  con la orden mínima (el sistema de opencode ya pasa de 7000) y gpt-oss-120b «'reasoning_content'
+  is unsupported». Sigue de revisor. **En la nube ni eso**: el workflow escribe `~/.starseed/env` con
+  `printf '%q'`, que escapa las comas, y `leer_env` partía «openai/gpt-oss-120b\» → 404 en cada run
+  desde el 10-04. Arreglado en el lector (`valor_env`, deshace los escapes del shell); el workflow no
+  se tocó (sus archivos están protegidos para las herramientas remotas: ver `para_alex` del informe).
+- **Fuera con su motivo** (`buscar_capacidad.RETIRADOS`, el botón los enseña): **apinex** (402 «Free
+  10M tokens used», el resto pide suscripción), **tokenrouter** (glm-5.3-free 503 sin canal; su único
+  `:free` 403 por crédito 0), **GitHub Models** (retirado el 2026-07-30; su API contesta `200
+  text/plain «OK»` a todo, con clave buena, mala o sin clave). Por ese «OK», la sonda de escritor ya
+  no acepta un 200 que no sea una respuesta de chat (`sonda_escritor.es_respuesta_de_chat`).
+
+**Regla:** antes de decir «el tope es N», que el número salga de `tope_runs_nube` con su motivo; y
+antes de meter o sacar un escritor, una edición REAL con opencode y contexto de tamaño real (el
+chat de 16 tokens no dice si escribe: gpt-oss-20b contesta en 0,6 s y no edita).

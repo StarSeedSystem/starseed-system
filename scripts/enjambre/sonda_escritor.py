@@ -42,10 +42,26 @@ def horas_hasta_medianoche_utc(ahora=None):
     return max(0.25, round(resto / 3600.0, 2))
 
 
+def es_respuesta_de_chat(cuerpo):
+    """PURA: ¿el cuerpo de un 200 es una respuesta de chat (JSON con `choices`)?
+
+    (2026-10-10, CAP1010) GitHub Models se retiró el 2026-07-30 y su API sigue contestando
+    `200 text/plain «OK»` a CUALQUIER petición, con clave buena, mala o sin clave (medido desde
+    la Mac y desde el contenedor). Una sonda que solo mira el código lo daría por escritor vivo
+    y cada tarea perdería su intento contra un servicio que ya no existe."""
+    try:
+        d = json.loads(cuerpo)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(d, dict) and isinstance(d.get("choices"), list)
+
+
 def clasificar(codigo, cuerpo, ahora=None):
     """PURA. (apto, motivo, horas_sin_cupo, modelo_muerto).
 
-    - 200 → apto.
+    - 200 → apto. Con cuerpo, solo si es una respuesta de chat: un 200 que no lo es (el
+      «OK» de un servicio retirado, la portada de un portal) es un proveedor que no escribe
+      (24 h, como un sin crédito). Sin cuerpo leído se da por bueno, como siempre.
     - 404/410 o «does not exist» → el MODELO ya no existe: fuera de la rotación (no el proveedor).
     - 403 de «solo de pago/premium» → ese modelo no es gratis: fuera de la rotación.
     - 429 con tope diario → proveedor sin cupo hasta las 00:00 UTC; 429 suelto → 15 min.
@@ -54,6 +70,8 @@ def clasificar(codigo, cuerpo, ahora=None):
     - Cualquier otro código → apto (que lo diga opencode: la sonda no debe frenar de más)."""
     c = (cuerpo or "").lower()
     if codigo == 200:
+        if (cuerpo or "").strip() and not es_respuesta_de_chat(cuerpo):
+            return False, "200 que no es de chat («%s»): servicio retirado o portal" % (cuerpo or "").strip()[:24], 24, False
         return True, "responde", 0, False
     if codigo in (404, 410) or "does not exist" in c or "has reached its end" in c:
         return False, "modelo retirado (%s)" % codigo, 0, True
@@ -112,7 +130,12 @@ def sondear(modelo, cfg_opencode, entorno, abrir=_abrir, ahora=None):
         "User-Agent": "starseed-enjambre/2 (+starseed-os)"})
     try:
         with abrir(req, TIEMPO_S) as r:
-            return clasificar(getattr(r, "status", 200), "", ahora)
+            leer = getattr(r, "read", None)
+            try:
+                texto = leer(65536).decode("utf-8", "replace") if callable(leer) else ""
+            except Exception:
+                texto = ""
+            return clasificar(getattr(r, "status", 200), texto, ahora)
     except urllib.error.HTTPError as e:
         try:
             texto = e.read().decode("utf-8", "replace")[:400]

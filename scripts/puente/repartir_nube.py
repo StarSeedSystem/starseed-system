@@ -82,6 +82,128 @@ def ids_de_la_tanda_viva(args_procesos, olas):
     return ids
 
 
+#: (2026-10-10, CAP1010) Rondas de trabajo que la Mac se guarda de su propia tanda antes de
+#: ceder el resto a otro medio: con 3 trabajadores, sus 6 listas siguientes.
+RONDAS_RESERVA_MAC = 2
+#: Estados con los que una tarea ya no espera a nadie ni nadie la espera a ella.
+_CERRADAS = ("commit", "sustituida", "descartada", "rechazada", "informe")
+
+
+def colas_de_la_tanda_viva(args_procesos, olas):
+    """[(nombre_de_la_cola, [ids en su orden])] de cada orquestador vivo (por sus argumentos).
+    Lo mismo que `ids_de_la_tanda_viva`, pero sabiendo de qué cola es cada id: una orden
+    `soltar` va al archivo de control de ESA cola. Nunca lanza."""
+    import json as _json
+    import os as _os
+
+    salida, vistas = [], set()
+    for linea in str(args_procesos or "").splitlines():
+        if "starseed-enjambre.py" not in linea or "grep" in linea:
+            continue
+        for trozo in linea.split():
+            nombre = _os.path.basename(trozo)
+            if not (trozo.endswith(".json") and nombre.startswith("cola-")) or nombre in vistas:
+                continue
+            ruta = trozo if _os.path.isabs(trozo) else _os.path.join(olas, nombre)
+            try:
+                with open(ruta, encoding="utf-8") as f:
+                    d = _json.load(f)
+            except (OSError, ValueError):
+                continue
+            lista = d if isinstance(d, list) else (d or {}).get("tareas") or []
+            vistas.add(nombre)
+            salida.append((nombre, [str(t.get("id")) for t in lista if isinstance(t, dict) and t.get("id")]))
+    return salida
+
+
+def esperadas_por_otras(colas, progreso):
+    """PURA: ids de los que depende alguna tarea que aún no se cerró. Ceder una de esas a otro
+    medio dejaría su cadena de la Mac esperando a un medio que quizá no la entrega."""
+    salida = set()
+    for _nombre, tareas in colas or []:
+        for t in tareas or []:
+            if not isinstance(t, dict) or not t.get("id"):
+                continue
+            e = ((progreso or {}).get(str(t["id"])) or {})
+            if isinstance(e, dict) and e.get("estado") in _CERRADAS:
+                continue
+            deps = t.get("depende") or t.get("depende_de") or []
+            salida.update(str(d) for d in (deps if isinstance(deps, list) else [deps]) if d)
+    return salida
+
+
+def cedibles_de_la_tanda(tanda_ids, listas_mac, tope_mac, esperadas=(), rondas=RONDAS_RESERVA_MAC):
+    """PURA. Ids de la tanda viva de la Mac que otro medio puede coger SIN quitarle trabajo.
+
+    (2026-10-10, CAP1010, medido a las 15:07) La tanda viva de la Mac tenía 118 tareas, 32
+    listas, y la Mac trabajaba 3 a la vez (su tope con 8 GB). Como `ids_de_la_tanda_viva`
+    deja en la Mac TODO lo que está en su tanda, el reparto a la nube y al A1 daba «0 tareas»
+    y los dos medios se quedaban parados con trabajo de sobra; el botón decía «lanzo 2 jobs»
+    y contaba dos jobs fantasma 5 minutos. La Mac se queda las `tope_mac × rondas` primeras
+    listas de su tanda (en SU orden de prioridad, `listas_mac`); de las demás listas, se ceden
+    las que ninguna otra tarea espera (`esperadas`)."""
+    tanda = set(str(t) for t in tanda_ids or ())
+    en_tanda = [str(t) for t in listas_mac or () if str(t) in tanda]
+    reserva = max(0, int(tope_mac or 0)) * max(1, int(rondas or 1))
+    esperadas = set(str(t) for t in esperadas or ())
+    return [t for t in en_tanda[reserva:] if t not in esperadas]
+
+
+def sin_lo_de_la_mac(colas, tanda_ids, cedibles=()):
+    """PURA: las colas sin lo que se queda en la tanda viva de la Mac (todo menos lo cedible)."""
+    fuera = set(str(t) for t in tanda_ids or ()) - set(str(t) for t in cedibles or ())
+    if not fuera:
+        return list(colas or [])
+    return [(n, [t for t in ts if str((t or {}).get("id")) not in fuera]) for n, ts in colas or []]
+
+
+def ordenes_soltar(cedidas, colas_mac, donde, quien="capacidad", t=None):
+    """PURA: {nombre_cola_mac: {id: orden}} para que el orquestador de la Mac suelte lo que se
+    llevó otro medio (la misma orden «soltar» que «Reasignar → otro servidor» de Genesis)."""
+    t = t or time.strftime("%Y-%m-%d %H:%M:%S")
+    cedidas = set(str(x) for x in cedidas or ())
+    salida = {}
+    for nombre, ids in colas_mac or []:
+        for tid in ids:
+            if tid in cedidas:
+                salida.setdefault(nombre, {})[tid] = {"accion": "soltar", "donde": donde, "quien": quien, "t": t}
+    return salida
+
+
+def soltar_en_la_mac(ordenes, olas, cerrojos=None):
+    """Escribe las órdenes `soltar` en `olas/control-<cola>.json` con el MISMO flock que el
+    orquestador (`~/.starseed/cerrojos/control-control-<cola>.json.lock`). → ids escritos."""
+    import fcntl
+    import json as _json
+    import os as _os
+
+    cerrojos = cerrojos or _os.path.expanduser("~/.starseed/cerrojos")
+    hechos = []
+    for nombre, por_id in (ordenes or {}).items():
+        if not por_id:
+            continue
+        ruta = _os.path.join(olas, "control-" + nombre)
+        _os.makedirs(cerrojos, exist_ok=True)
+        with open(_os.path.join(cerrojos, "control-" + _os.path.basename(ruta) + ".lock"), "a") as cer:
+            fcntl.flock(cer, fcntl.LOCK_EX)
+            try:
+                try:
+                    with open(ruta, encoding="utf-8") as f:
+                        actuales = _json.load(f)
+                except (OSError, ValueError):
+                    actuales = {}
+                actuales = actuales if isinstance(actuales, dict) else {}
+                actuales.update(por_id)
+                tmp = ruta + ".tmp-%d" % _os.getpid()
+                with open(tmp, "w", encoding="utf-8") as f:
+                    _json.dump(actuales, f, ensure_ascii=False, indent=1)
+                _os.replace(tmp, ruta)
+                hechos += list(por_id)
+            finally:
+                fcntl.flock(cer, fcntl.LOCK_UN)
+    return hechos
+
+
 def leer_colas_nube(carpeta, ahora_ts, dias=2):
     """[(nombre, ids)] de las `cola-nube-AAAAMMDD-HHMM*.json` de los últimos `dias` días.
     La única función con disco de este módulo: el resto sigue siendo puro. Nunca lanza."""

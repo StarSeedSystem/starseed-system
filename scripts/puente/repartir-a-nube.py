@@ -106,6 +106,8 @@ def main():
     ap.add_argument("--tope", type=int, default=20)
     ap.add_argument("--simular", action="store_true")
     ap.add_argument("--publicar", action="store_true")
+    ap.add_argument("--ceder", action="store_true",
+                    help="ceder a la nube lo que la tanda de la Mac no alcanza pronto (CAP1010)")
     args = ap.parse_args()
 
     # (2026-10-04) Con la nube en pausa nadie reparte: ni el director de la nube ni el vigía.
@@ -133,15 +135,33 @@ def main():
 
     envios = envios_vigentes(DESTINO_DIR)
     # (2026-10-08) Lo que ya está en la tanda viva de la Mac se queda en la Mac (RM6b, doble).
-    from repartir_nube import ids_de_la_tanda_viva
+    # (2026-10-10, CAP1010) …salvo lo que la Mac no va a alcanzar pronto, con `--ceder`: la Mac
+    # se guarda sus próximas rondas y lo demás que nadie espera se cede; el orquestador de la
+    # Mac lo suelta por su archivo de control cuando el run ya existe (`nube-gh.py lanzar`).
+    import repartir_nube as RN
     try:
         procesos = subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True, timeout=20).stdout
     except Exception:
         procesos = ""
-    en_la_mac = ids_de_la_tanda_viva(procesos, OLAS)
-    if en_la_mac:
-        colas = [(nombre, [t for t in tareas if str((t or {}).get("id")) not in en_la_mac]) for nombre, tareas in colas]
+    colas_mac = RN.colas_de_la_tanda_viva(procesos, OLAS)
+    tanda = {i for _n, ids in colas_mac for i in ids}
+    cedibles = []
+    if args.ceder and tanda:
+        try:
+            import asignar_huecos
+
+            est = asignar_huecos.reunir()
+            cedibles = RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
+                                               RN.esperadas_por_otras(colas, progreso))
+        except Exception as e:  # sin la foto de la Mac no se cede nada: como antes
+            print("[reparto] no pude medir la Mac para ceder (%s): no cedo nada" % type(e).__name__)
+            cedibles = []
+    colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles)
     elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope, envios=envios)
+    cedidas = [t["id"] for t in elegidas if t["id"] in set(cedibles)]
+    if tanda:
+        print("[reparto] tanda viva de la Mac: %d tarea(s); cedibles %d; cedidas a la nube %d (%s)"
+              % (len(tanda), len(cedibles), len(cedidas), ", ".join(cedidas) or "ninguna"))
     ahora = datetime.datetime.now()
     fecha = ahora.strftime("%Y%m%d")
     mensaje = "Reparto a la nube %s: %d tareas (%s)" % (
@@ -156,13 +176,13 @@ def main():
     os.makedirs(DESTINO_DIR, exist_ok=True)
     nombre = nombre_destino(ahora, DESTINO_DIR)
     ruta = os.path.join(DESTINO_DIR, nombre)
+    datos = {"ola": "nube-%s" % fecha, "tareas": elegidas}
+    if cedidas:
+        # Quién las tenía: `nube-gh.py lanzar` manda el «soltar» a ESAS colas de la Mac.
+        datos["cedidas_de_la_mac"] = {n: [i for i in ids if i in set(cedidas)] for n, ids in colas_mac
+                                      if any(i in set(cedidas) for i in ids)}
     with open(ruta, "w", encoding="utf-8") as f:
-        json.dump(
-            {"ola": "nube-%s" % fecha, "tareas": elegidas},
-            f,
-            ensure_ascii=False,
-            indent=1,
-        )
+        json.dump(datos, f, ensure_ascii=False, indent=1)
     nuevo = marcar(progreso, [t["id"] for t in elegidas], fecha)
     with open(PROGRESO, "w", encoding="utf-8") as f:
         json.dump(nuevo, f, ensure_ascii=False, indent=1)

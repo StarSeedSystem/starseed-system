@@ -15,20 +15,11 @@
     "z-ai/glm-5.3": {
      "name": "z-ai/glm-5.3"
     },
-    "openai/gpt-oss-120b": {
-     "name": "openai/gpt-oss-120b"
-    },
-    "deepseek-ai/deepseek-v4-flash-0731": {
-     "name": "deepseek-ai/deepseek-v4-flash-0731"
-    },
     "moonshotai/kimi-k3": {
      "name": "moonshotai/kimi-k3"
     },
     "nvidia/nemotron-3-ultra-550b-a55b": {
      "name": "nvidia/nemotron-3-ultra-550b-a55b"
-    },
-    "deepseek-ai/deepseek-v4-pro-0813": {
-     "name": "deepseek-ai/deepseek-v4-pro-0813"
     }
    }
   },

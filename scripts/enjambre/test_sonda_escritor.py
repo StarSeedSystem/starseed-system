@@ -41,6 +41,17 @@ class Clasificar(unittest.TestCase):
             a, motivo, h, m = S.clasificar(codigo, cuerpo, ahora)
             self.assertEqual((a, h, m), (apto, horas, muerto), (codigo, cuerpo, motivo))
 
+    def test_un_200_que_no_es_de_chat_no_es_un_escritor(self):
+        """(2026-10-10, CAP1010) GitHub Models retirado: `200 text/plain «OK»` a todo."""
+        apto, motivo, horas, muerto = S.clasificar(200, "OK")
+        self.assertEqual((apto, horas, muerto), (False, 24, False))
+        self.assertIn("no es de chat", motivo)
+        self.assertFalse(S.clasificar(200, "<html><body>portal</body></html>")[0])
+        self.assertTrue(S.clasificar(200, '{"id":"x","choices":[{"message":{"content":"ok"}}]}')[0])
+        self.assertTrue(S.es_respuesta_de_chat('{"choices":[]}'))
+        self.assertFalse(S.es_respuesta_de_chat('{"error":{"message":"x"}}'))
+        self.assertFalse(S.es_respuesta_de_chat(None))
+
     def test_medianoche_utc(self):
         self.assertEqual(S.horas_hasta_medianoche_utc(86400 * 5 - 1800), 0.5)
         self.assertEqual(S.horas_hasta_medianoche_utc(86400 * 5 - 60), 0.25)
@@ -93,6 +104,18 @@ class Sondear(unittest.TestCase):
         S.sondear("openrouter/x", CFG, ENV, abrir=mira)
         self.assertEqual(vistas[0][0], "Bearer k-prueba")
         self.assertNotIn("k-prueba", vistas[0][1])
+
+    def test_lee_el_cuerpo_del_200(self):
+        class _Ok(_Resp):
+            def __init__(self, cuerpo):
+                self.cuerpo = cuerpo
+
+            def read(self, n=-1):
+                return self.cuerpo
+
+        self.assertFalse(S.sondear("openrouter/x", CFG, ENV, abrir=lambda r, t: _Ok(b"OK"))[0])
+        self.assertTrue(S.sondear("openrouter/x", CFG, ENV,
+                                  abrir=lambda r, t: _Ok(b'{"choices":[{"message":{"content":""}}]}'))[0])
 
     def test_sin_destino_no_frena(self):
         self.assertEqual(S.sondear("codex/gpt-5.6-sol", CFG, ENV)[:2], (True, "sin sonda"))
