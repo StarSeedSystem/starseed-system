@@ -181,5 +181,60 @@ class SinIpEnPantalla(unittest.TestCase):
         self.assertIn("con IP pública", texto)
 
 
+class MainVivo(unittest.TestCase):
+    """`enviar-main`: el guardián del A1 comprueba el main que de verdad se escribe."""
+
+    def test_cuando_se_envia(self):
+        a, b, c = "a" * 40, "b" * 40, "c" * 40
+        self.assertEqual(N.main_por_enviar("", a, "", None, 1000)[0], False)
+        self.assertEqual(N.main_por_enviar(a, a, "", None, 1000), (False, "main ya publicado: el A1 lo ve en origin/main"))
+        self.assertEqual(N.main_por_enviar(b, a, b, None, 1000), (False, "el A1 ya tiene este main"))
+        self.assertEqual(N.main_por_enviar(b, a, c, None, 1000), (True, "main nuevo"))
+
+    def test_no_reenvia_hasta_dar_margen_al_a1(self):
+        a, b = "a" * 40, "b" * 40
+        enviado = {"sha": b, "t": 1000}
+        self.assertFalse(N.main_por_enviar(b, a, "", enviado, 1000 + 60)[0])
+        self.assertTrue(N.main_por_enviar(b, a, "", enviado, 1000 + N.REINTENTO_MAIN_S + 1)[0])
+        # Otro main distinto sale al momento aunque el anterior sea reciente.
+        self.assertTrue(N.main_por_enviar("c" * 40, a, "", enviado, 1000 + 60)[0])
+
+    def test_el_secreto_del_bus_viaja_y_nada_de_pago(self):
+        self.assertIn("STARSEED_LANZADOR_SECRETO", N.CLAVES_A1)
+        for pago in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
+            self.assertNotIn(pago, N.CLAVES_A1)
+
+
+class MedidorEnElCiclo(unittest.TestCase):
+    """El riesgo de reclamación que ve Alex no puede quedarse con una lectura de hace horas."""
+
+    def test_sin_sesion_no_mide(self):
+        class Sin:
+            @staticmethod
+            def disponible():
+                return False
+        self.assertIn("no", N.medir_oracle(Sin))
+
+    def test_resume_lo_medido(self):
+        class Con:
+            @staticmethod
+            def disponible():
+                return True
+
+            @staticmethod
+            def medir_si_toca():
+                return {"leido": "2026-10-10T20:16:00Z", "reclamacion": {"riesgo": False, "maquinas": [
+                    {"nombre": "starseed-a1", "cpu_p95": 23.41, "mem_p95": 23.33}]}}
+        self.assertEqual(N.medir_oracle(Con), {"leido": "2026-10-10T20:16:00Z", "riesgo": False,
+                                               "cpu_p95": 23.41, "mem_p95": 23.33})
+
+    def test_un_fallo_no_tumba_el_ciclo(self):
+        class Roto:
+            @staticmethod
+            def disponible():
+                raise RuntimeError("oci colgado")
+        self.assertIn("error", N.medir_oracle(Roto))
+
+
 if __name__ == "__main__":
     unittest.main()

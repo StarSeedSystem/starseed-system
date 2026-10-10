@@ -123,3 +123,53 @@ describe("el medidor de crédito «oracle» en las pastillas de Genesis", () => 
         expect(textoExtras({ ...base, extras: { freno: false, riesgo_reclamacion: false } })).toEqual([]);
     });
 });
+
+describe("el nodo de MetaGenesis del A1 en la tarjeta (OPO1011)", () => {
+    const NODO = {
+        vivo: true,
+        latido: 1,
+        leido: "2026-10-10T01:05:00Z",
+        fase: "guardian",
+        servicios_ok: 3,
+        servicios_total: 3,
+        servicios_caidos: [],
+        guardian: { ok: true, t: 1, minutos: 31.5, sha: "abc1234f", rojos: [] },
+        cpu_1h: 62.4,
+        mem_ahora: 24.1,
+        horas_sobre_umbral: 5,
+        horas_medidas: 8,
+    };
+
+    it("se lee con lista blanca y sale como fila con servicios, guardián y carga medida", () => {
+        const c = leerConsumoOracle(doc({ nodo: { ...NODO, url: "https://bitnet.1-2-3-4.sslip.io", guardian: { ...NODO.guardian, sha: "ocid1.x" } } }))!;
+        expect(c.nodo?.serviciosOk).toBe(3);
+        expect(c.nodo?.guardian?.sha).toBe("");
+        expect(JSON.stringify(c.nodo)).not.toContain("sslip");
+        const v = vistaOracle(c, AHORA);
+        const fila = v.filas.find((f) => f.id === "nodo")!;
+        expect(fila.valor).toBe("3/3 servicios");
+        expect(fila.tono).toBe("ok");
+        expect(fila.detalle).toContain("comprobando main");
+        expect(fila.detalle).toContain("guardián de main en verde");
+        expect(fila.detalle).toContain("CPU última hora 62,4 %");
+        // Va justo después de la fila del A1.
+        const ids = v.filas.map((f) => f.id);
+        expect(ids.indexOf("nodo")).toBe(ids.indexOf("a1") + 1);
+    });
+
+    it("con riesgo de reclamación dice que ya trabaja y cuántas horas lleva sobre el umbral", () => {
+        const v = vistaOracle(leerConsumoOracle(doc({ nodo: NODO }))!, AHORA);
+        expect(v.reclamacion?.texto).toContain("Ya trabaja");
+        expect(v.reclamacion?.texto).toContain("5 de 8 h");
+    });
+
+    it("guardián en rojo o servicios caídos = aviso; sin latido = peligro; sin nodo no hay fila", () => {
+        const rojo = vistaOracle(leerConsumoOracle(doc({ nodo: { ...NODO, guardian: { ...NODO.guardian, ok: false, rojos: ["tsc"] } } }))!, AHORA);
+        const f = rojo.filas.find((x) => x.id === "nodo")!;
+        expect(f.tono).toBe("aviso");
+        expect(f.detalle).toContain("ROJO (tsc)");
+        const muerto = vistaOracle(leerConsumoOracle(doc({ nodo: { ...NODO, vivo: false } }))!, AHORA);
+        expect(muerto.filas.find((x) => x.id === "nodo")).toMatchObject({ valor: "sin latido", tono: "peligro" });
+        expect(vistaOracle(leerConsumoOracle(doc())!, AHORA).filas.some((x) => x.id === "nodo")).toBe(false);
+    });
+});

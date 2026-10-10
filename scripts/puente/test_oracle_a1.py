@@ -117,5 +117,83 @@ class SinSecretos(unittest.TestCase):
             self.assertNotIn(prohibido, limpio)
 
 
+class Bandeja(unittest.TestCase):
+    """Colas que deja el nodo de MetaGenesis (OPA1011) en la bandeja del A1."""
+
+    def test_solo_colas_y_la_mas_vieja_primero(self):
+        archivos = [("cola-b.json", 200.0), ("cola-a.json", 100.0), ("cola-c.json.tmp", 50.0),
+                    ("notas.txt", 10.0), ("hechas", 1.0)]
+        self.assertEqual(A.entrantes_pendientes(archivos), ["cola-a.json", "cola-b.json"])
+        self.assertEqual(A.entrantes_pendientes(None), [])
+
+    def test_tareas_validas_sin_repetir(self):
+        datos = {"tareas": [{"id": "T1", "titulo": "a"}, {"id": "T1"}, {"id": "../mal"}, "texto", {"id": "T2"}]}
+        self.assertEqual([t["id"] for t in A.tareas_de_entrante(datos)], ["T1", "T2"])
+        self.assertEqual([t["id"] for t in A.tareas_de_entrante([{"id": "X"}])], ["X"])
+        self.assertEqual(A.tareas_de_entrante({"otra": 1}), [])
+        self.assertEqual(A.tareas_de_entrante(None), [])
+
+
+class MainVivoDeLaMac(unittest.TestCase):
+    """El paquete git que deja la neurona (`oracle_nodo.py enviar-main`) llega al guardián."""
+
+    def test_solo_un_paquete_nuevo_se_importa(self):
+        self.assertFalse(A.bundle_por_importar(0, 0))
+        self.assertFalse(A.bundle_por_importar(None, 5))
+        self.assertTrue(A.bundle_por_importar(100.0, 0))
+        self.assertFalse(A.bundle_por_importar(100.0, 100.0))
+        self.assertTrue(A.bundle_por_importar(101.0, 100.0))
+
+    def test_el_guardian_elige_el_main_vivo_si_es_el_mas_nuevo(self):
+        import shutil
+        import subprocess
+        import tempfile
+
+        tmp = tempfile.mkdtemp(prefix="a1-bundle-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        mac, a1 = os.path.join(tmp, "mac"), os.path.join(tmp, "a1")
+
+        def git(cwd, *args, fecha=None):
+            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t",
+                       GIT_COMMITTER_EMAIL="t@t")
+            if fecha:
+                env.update(GIT_AUTHOR_DATE=fecha, GIT_COMMITTER_DATE=fecha)
+            return subprocess.run(["git", *args], cwd=cwd, env=env, check=True, capture_output=True, text=True).stdout
+
+        os.makedirs(mac)
+        git(mac, "init", "-q", "-b", "main")
+        with open(os.path.join(mac, "a.txt"), "w") as f:
+            f.write("1")
+        git(mac, "add", "a.txt")
+        git(mac, "commit", "-q", "-m", "publicado", fecha="2026-10-10T10:00:00Z")
+        git(tmp, "clone", "-q", mac, a1)  # el A1 ya tiene lo publicado (origin/main)
+        with open(os.path.join(mac, "a.txt"), "w") as f:
+            f.write("2")
+        git(mac, "commit", "-q", "-am", "sin publicar", fecha="2026-10-10T12:00:00Z")
+        nuevo = git(mac, "rev-parse", "HEAD").strip()
+        paquete = os.path.join(tmp, "entrada", "main-mac.bundle")
+        os.makedirs(os.path.dirname(paquete))
+        git(mac, "bundle", "create", paquete, "main", "^" + git(a1, "rev-parse", "origin/main").strip())
+
+        viejos = (A.RAIZ, A.ENTRADA_MAIN, A.ESTADO_DIR)
+        A.RAIZ, A.ENTRADA_MAIN, A.ESTADO_DIR = a1, paquete, os.path.join(tmp, "estado")
+
+        def restaurar():
+            A.RAIZ, A.ENTRADA_MAIN, A.ESTADO_DIR = viejos
+        self.addCleanup(restaurar)
+
+        nodo = A.Nodo()
+        refs = {"main": (git(a1, "rev-parse", "origin/main").strip(), 1791626400.0)}
+        sha, origen = A.objetivo_guardian(nodo.candidatos_main(refs))
+        self.assertEqual((sha, origen), (nuevo, "main vivo de la Mac"))
+        self.assertEqual(nodo._resumen_main_mac()["sha"], nuevo)
+        # El mismo paquete no se vuelve a importar; uno roto deja el error y no cambia la ref.
+        with open(paquete, "wb") as f:
+            f.write(b"no es un paquete")
+        os.utime(paquete, (2e9, 2e9))
+        self.assertEqual(nodo.importar_main_mac()[0], nuevo)
+        self.assertTrue(nodo._resumen_main_mac()["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -306,3 +306,68 @@ python3 scripts/puente/oracle_nodo.py probar-bitnet          # una pregunta al B
 - Las puertas del orquestador se niegan a arrancar con archivos sin commitear en el árbol de main
   de la Mac: para probar el paquete sin ensuciarlo, `STARSEED_NODO_FUENTE=<carpeta>` le da a
   `oracle_nodo.py` otra fuente para los archivos nuevos.
+
+### 12.5 Trabajo sostenido de verdad: el main VIVO de la Mac, la bandeja de MetaGenesis y un vigía que se recarga (OPO1011 · 2026-10-10, tarde)
+
+**Medido antes (20:00 UTC, series de Oracle `oci_computeagent`, puntos de 1 h, ventana desde el 07-10):**
+CPU p95 **23,95 %** y memoria p95 **22,57 %** — ya por encima del 20 % gracias al guardián y a la cola del
+mediodía, pero con poco margen: las horas 13:30 y 15:30 quedaron en 19,8 % y 19,2 %, y a partir de las 19:00
+el A1 cayó a **0,5 % de CPU y 17,3 % de memoria**. Tres causas, todas medidas:
+
+1. **El guardián repetía el mismo sha.** Solo veía `origin/main` y el padre de las ramas `colas/*`; sin colas
+   para la nube (todo el atraso estaba en la tanda viva de la Mac) volvía a pasar las cuatro puertas cada 2 h
+   sobre un main ya comprobado. Trabajo poco útil y además escaso.
+2. **El ciclo de la neurona no corría.** `vigia_medidores.py` (launchd, arrancado el 09-10 a las 23:33) hace
+   `import autocuracion_mando` dentro del bucle y Python lo guarda para siempre: la línea que lanza
+   `oracle_nodo.py ciclo` (05:14 del 10-10) nunca llegó a ese proceso. Ni estado, ni traer, ni lanzar desde
+   las 12:10 UTC: `oracle.json` y `oracle-consumo.json` tenían 7,7 h. Cualquier arreglo posterior en la
+   autocuración, `desatascar` o el resto del puente sufría lo mismo.
+3. **El nodo de MetaGenesis (OPA1011) no estaba en el A1** (el paquete se instaló antes de que existiera) y
+   la bandeja por la que el líder le manda colas no tenía quien la leyera.
+
+**Lo que cambia:**
+
+- **Main vivo de la Mac → guardián** (`oracle_nodo.py enviar-main`, también dentro de `ciclo`): la neurona
+  empaqueta `origin/main..main` con `git bundle` y lo deja por SSH en `/home/starseed/entrada/main-mac.bundle`
+  (como `starseed`, escritura atómica; nada pasa por GitHub ni se empuja nada; tope 150 MB; no reenvía el
+  mismo sha antes de 30 min). `oracle_a1.py` lo importa a `refs/mac/main` y lo suma a los candidatos del
+  guardián, que elige el más reciente: el A1 comprueba **el main que de verdad se está escribiendo** con
+  tsc, vitest, núcleo mesh y `next build` (la puerta que la Mac no puede pasar), como mucho cada 45 min si
+  cambió. Un rojo llega al Chat Director (`aviso_de_cambio`). `estado.json` gana `main_mac`
+  (sha, fecha, error de importación) para que la neurona no reenvíe lo que el A1 ya tiene.
+- **Bandeja del nodo de MetaGenesis** (`~/.starseed/nodo-metagenesis/entrantes/cola-*.json`, lo que escribe
+  `nodo_metagenesis_medio.lanzar_cola` en el A1): después de las `colas/oracle-*` y antes que el guardián; la
+  cola sale de la bandeja ANTES de correr (a `hechas/`), se trabaja sobre el main más reciente que conoce el
+  nodo y se entrega por las mismas ramas `nube/a1-*`. Con 4 pruebas nuevas.
+- **`starseed-metagenesis.service` instalado en el A1** (el paquete ya lleva `nodo_metagenesis*.py`) y
+  `STARSEED_LANZADOR_SECRETO` en la lista blanca de `claves`: sin él el nodo late pero no puede firmar ni
+  comprobar órdenes del bus, ni dirigir cuando la Mac calla. No es una credencial de pago ni de terceros.
+- **El vigía se recarga solo** (`vigia_medidores.huellas_del_puente` / `codigo_cambiado`): entre pasadas mira
+  la fecha y el tamaño de los módulos de `scripts/puente/` que ya cargó y, si alguno cambió, se vuelve a
+  ejecutar con `os.execv` (mismo PID para launchd y el mismo python, que es el que tiene el permiso de disco).
+- **El medidor de Oracle se refresca en el ciclo** (`oracle_nodo.medir_oracle` → `medidor_oracle.medir_si_toca`,
+  como mucho cada 30 min y solo en la neurona con `~/.oci`): la tarjeta de MetaGenesis enseñaba «2,3 días
+  ocioso» con una lectura de 7,7 h cuando Oracle ya daba 23,95 %. Si el riesgo cambia, avisa en el Chat Director.
+- **MetaGeminis del A1 sin borradores repetidos** (`sitios_con_borrador_pendiente`, OPO1010): un sitio que ya
+  espera la decisión de Alex no recibe otro borrador casi igual en la siguiente vuelta.
+
+**Medido después (2026-10-10, hora UTC):**
+
+- 20:08 — paquete reinstalado: **5/5 servicios en verde** (BitNet local y por HTTPS con clave, Caddy, MetaGeminis,
+  nodo de MetaGenesis). El nodo del A1 (`oracle-a1-…`) ve al líder `mac-…` (término 1) y se queda de relevo:
+  «Nodos vivos: mac, oracle-a1».
+- 20:08–20:22 — pasada del guardián: tsc 20 s · vitest 549 s · mesh 5 s · `next build` 266 s, **verde** (14,1 min).
+- 20:09 — primer paquete del main de la Mac: 6 commits, 11 KB; 20:24 importado en el A1 (`refs/mac/main` = el
+  main de la Mac de ese momento). La siguiente pasada del guardián ya es sobre ese main.
+- 20:15 — el vigía se recargó solo por primera vez («código nuevo en vigilante_logica.py: me recargo»).
+- 20:19 — primer ciclo lanzado por la autocuración desde las 12:10: subió a GitHub las dos ramas `nube/a1-*`
+  de la cola del mediodía (llevaban 8 h esperando), copió 9 borradores de MetaGeminis a la cola de la Mac y no
+  lanzó cola (todo el atraso está en la tanda viva de la Mac).
+- Carga en el A1 (su propia medida): hora de las 20:00 con **CPU 51 % y memoria 27 %**, frente a 0,6 % y 17 %
+  la hora anterior. Oracle (medidor forzado a las 20:16, 70 puntos, 2,9 días): **CPU p95 23,41 % · memoria p95
+  23,33 % · sin riesgo**.
+
+**Lo que queda abierto:** sacar trabajo de la tanda viva de la Mac para el A1 (orden `soltar` del orquestador
+sin que su `fusionar_progreso` pise el estado) sigue siendo trabajo aparte: hoy el límite real del enjambre son
+los cupos de los proveedores gratuitos, que el A1 comparte, no los huecos.
+

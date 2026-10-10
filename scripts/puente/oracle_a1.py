@@ -24,6 +24,20 @@ oct … solucionala». La regla de Oracle: una máquina Always Free se reclama s
 3. **Estado** cada minuto en `/var/lib/starseed/nodo/estado.json`, sin IPs, claves ni ids:
    servicios (BitNet, Caddy, MetaGeminis…), orquestador, guardián, colas, entregas y la carga
    medida aquí (CPU y memoria por hora), que es lo que Oracle mira.
+4. **Bandeja del nodo de MetaGenesis** (OPA1011). Cuando el líder de MetaGenesis manda una cola
+   a este medio (relevo si la Mac calla), la deja en `~/.starseed/nodo-metagenesis/entrantes/
+   cola-*.json`. Se trabaja igual que una `colas/oracle-*`, sobre el main más reciente que se
+   conoce, y se entrega por las mismas ramas `nube/a1-*`. La bandeja nunca adelanta a una cola
+   que trae su propio código: va después de las `colas/oracle-*` y antes que el guardián.
+5. **Main VIVO de la Mac** (OPO1011, tarde del 10-10). En cada ciclo la neurona deja en
+   `~/entrada/main-mac.bundle` un paquete git con lo que su `main` lleva por delante de
+   `origin/main` (`oracle_nodo.py enviar-main`, por SSH; nada pasa por GitHub). El guardián lo
+   importa a `refs/mac/main` y lo cuenta como candidato: así comprueba el main que de verdad se
+   está escribiendo (cada 45 min si cambió) y no el mismo sha publicado cada 2 h. Medido antes:
+   sin colas para la nube, el guardián solo veía `origin/main` y el A1 bajaba al 0,5 % de CPU.
+
+Cuando su propio archivo cambia (una neurona reinstaló el nodo), se reinicia solo al quedar libre:
+con una cola en marcha la instalación no lo corta, y el código nuevo entra en cuanto termina.
 
 Decisiones PURAS con sus pruebas en `test_oracle_a1.py`. Solo biblioteca estándar (el A1 no tiene
 el venv de la Mac). Uso (lo arranca systemd: `starseed-medio.service`):
@@ -33,6 +47,7 @@ el venv de la Mac). Uso (lo arranca systemd: `starseed-medio.service`):
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -49,6 +64,14 @@ LOGS = os.path.join(HOME, "registros")
 ARCHIVO_OLAS = os.path.join(HOME, "archivo-olas")
 PREFIJO_COLA = "colas/oracle-"
 PREFIJO_ENTREGA = "nube/a1-"
+#: Bandeja del nodo de MetaGenesis (OPA1011, `nodo_metagenesis_medio.lanzar_cola`).
+BANDEJA = os.environ.get("STARSEED_A1_BANDEJA") or os.path.join(HOME, ".starseed", "nodo-metagenesis", "entrantes")
+PREFIJO_BANDEJA = "entrantes/"
+RE_ENTRANTE = re.compile(r"^cola-[A-Za-z0-9._-]{1,80}\.json$")
+RE_ID_TAREA = re.compile(r"^[A-Za-z0-9._-]{1,60}$")
+#: Main vivo de la Mac (punto 5): paquete git que deja la neurona y la ref local donde se importa.
+ENTRADA_MAIN = os.environ.get("STARSEED_A1_ENTRADA_MAIN") or os.path.join(HOME, "entrada", "main-mac.bundle")
+REF_MAIN_MAC = "refs/mac/main"
 TRABAJADORES = int(os.environ.get("STARSEED_A1_TRABAJADORES", "2"))
 MINUTOS_COLA = int(os.environ.get("STARSEED_A1_MINUTOS", "180"))
 GUARDIAN_CADA_S = int(float(os.environ.get("STARSEED_GUARDIAN_CADA_H", "2")) * 3600)
@@ -98,6 +121,39 @@ def cola_de_commit(nombres):
         if re.match(r"^enjambre/colas/cola-[^/]+\.json$", n):
             return n
     return None
+
+
+def entrantes_pendientes(archivos):
+    """PURA. Las colas que el nodo de MetaGenesis dejó en la bandeja, la más vieja primero.
+    `archivos`: [(nombre, mtime)]. Solo `cola-*.json` (lo que escribe `lanzar_cola`); un
+    temporal a medio escribir (`.tmp`) o cualquier otro archivo no cuenta."""
+    validos = [(float(t or 0), str(n)) for n, t in archivos or [] if RE_ENTRANTE.match(str(n))]
+    return [n for _, n in sorted(validos)]
+
+
+def tareas_de_entrante(datos):
+    """PURA. Las tareas de una cola de la bandeja: una lista de tareas o `{"tareas": [...]}`.
+    Solo diccionarios con un id válido y sin repetir (un id solo puede vivir en una cola, CLAUDE.md
+    trampa 2). Lista vacía si no queda ninguna: esa cola no se trabaja."""
+    lista = datos.get("tareas") if isinstance(datos, dict) else datos
+    salida, vistos = [], set()
+    for t in lista if isinstance(lista, list) else []:
+        if not isinstance(t, dict):
+            continue
+        tid = str(t.get("id") or "")
+        if not RE_ID_TAREA.match(tid) or tid in vistos:
+            continue
+        vistos.add(tid)
+        salida.append(t)
+    return salida
+
+
+def bundle_por_importar(mtime_archivo, mtime_importado):
+    """PURA. ¿Hay un paquete del main de la Mac sin importar? Solo si existe y es otro (por su
+    hora de escritura) que el último importado con éxito: uno que falló se reintenta solo."""
+    if not mtime_archivo:
+        return False
+    return float(mtime_archivo) != float(mtime_importado or 0)
 
 
 def objetivo_guardian(candidatos):
@@ -278,6 +334,8 @@ class Nodo:
         self._salir = False
         self._calidad = {"t": 0.0, "ok": None, "texto": ""}
         self._sha_modelo = ""
+        self._mi_huella = self._huella_propia()
+        self._main_mac = {"mtime": 0.0, "error": ""}
         previo = _leer(os.path.join(ESTADO_DIR, "carga.json"), {})
         self.muestras = [tuple(m) for m in previo.get("muestras") or [] if isinstance(m, list) and len(m) == 3]
 
@@ -423,11 +481,19 @@ class Nodo:
             "colas": {"procesadas": len(colas.get("procesadas") or {}), "ultima": ultima},
             "entregas": colas.get("entregas") or [],
             "guardian": guardian.get("ultimo"),
+            "main_mac": self._resumen_main_mac(),
             "carga": {"load": load, "cpu_1h": horas[-1]["cpu"] if horas else None,
                       "mem_ahora": self.muestras[-1][2] if self.muestras else None,
                       "cpu_p95_7d": p95, "horas": horas[-48:]},
             "disco_libre_gb": disco_gb,
         })
+
+    def _resumen_main_mac(self):
+        """Lo que la neurona necesita para no reenviar el mismo paquete (sin rutas ni claves)."""
+        _, linea = _git(["log", "-1", "--format=%H|%ct", REF_MAIN_MAC])
+        sha, t = (linea.strip().split("|", 1) + [""])[:2] if "|" in linea else ("", "")
+        return {"sha": sha, "fecha": float(t or 0) if t else None,
+                "importado": self._main_mac.get("mtime") or None, "error": self._main_mac.get("error") or ""}
 
     # ── correr un proceso largo latiendo ──
     def correr(self, orden, log, tope_s, env=None, cwd=None):
@@ -543,8 +609,6 @@ class Nodo:
         if _git(["checkout", "-q", "-B", "main", sha])[0] != 0:
             self._anotar_cola(rama, sha, {"inicio": time.time(), "fin": time.time(), "rc": "checkout", "entregas": []})
             return
-        _, base = _git(["rev-parse", "HEAD"])
-        base = base.strip()
         # El estado de la Mac que viajó con la cola (rotación y salud de modelos, sin claves).
         estado_dir = os.path.join(RAIZ, "enjambre", "colas", "estado-" + os.path.splitext(os.path.basename(cola))[0])
         if os.path.isdir(estado_dir):
@@ -552,18 +616,25 @@ class Nodo:
             for n in os.listdir(estado_dir):
                 if n.endswith(".json"):
                     subprocess.run(["cp", os.path.join(estado_dir, n), os.path.join(HOME, ".starseed", n)], check=False)
+        self._correr_cola(rama, sha, cola)
+
+    def _correr_cola(self, clave, sha, cola):
+        """Corre el orquestador sobre `cola` (ruta relativa a RAIZ) con `main` ya en su sitio y
+        entrega lo hecho. `clave`/`sha` identifican la cola en `colas.json` (rama o bandeja)."""
+        _, base = _git(["rev-parse", "HEAD"])
+        base = base.strip()
         os.makedirs(os.path.join(RAIZ, "starseed_memory_root", "olas"), exist_ok=True)
         inicio = time.time()
-        _escribir(os.path.join(ESTADO_DIR, "en-curso.json"), {"rama": rama, "sha": sha, "base": base, "cola": cola, "inicio": inicio})
+        _escribir(os.path.join(ESTADO_DIR, "en-curso.json"), {"rama": clave, "sha": sha, "base": base, "cola": cola, "inicio": inicio})
         self.vivo = {"fase": "cola", "desde": inicio, "cola": os.path.basename(cola)}
         self.escribir_estado(forzar=True)
-        log = os.path.join(LOGS, "cola-%s.log" % rama.replace("/", "_"))
+        log = os.path.join(LOGS, "cola-%s.log" % clave.replace("/", "_"))
         rc, dur = self.correr(["timeout", "-k", "60", "%dm" % MINUTOS_COLA, "python3", "-u", ORQUESTADOR, cola,
                                "--workers", str(TRABAJADORES)], log, MINUTOS_COLA * 60 + 180)
         ts = time.strftime("%Y%m%d-%H%M%S")
         creadas = self.entregar(base, ts)
-        self._anotar_cola(rama, sha, {"inicio": inicio, "fin": time.time(), "rc": rc, "minutos": round(dur / 60, 1),
-                                      "entregas": creadas, "cola": os.path.basename(cola)})
+        self._anotar_cola(clave, sha, {"inicio": inicio, "fin": time.time(), "rc": rc, "minutos": round(dur / 60, 1),
+                                       "entregas": creadas, "cola": os.path.basename(cola)})
         self.limpiar_tras_cola()
         try:
             os.remove(os.path.join(ESTADO_DIR, "en-curso.json"))
@@ -571,9 +642,88 @@ class Nodo:
             pass
         self.vivo = {"fase": "espera", "desde": time.time()}
 
+    # ── bandeja del nodo de MetaGenesis ──
+    def entrantes(self):
+        try:
+            archivos = [(n, os.path.getmtime(os.path.join(BANDEJA, n))) for n in os.listdir(BANDEJA)
+                        if os.path.isfile(os.path.join(BANDEJA, n))]
+        except OSError:
+            return []
+        return entrantes_pendientes(archivos)
+
+    def procesar_entrante(self, nombre, refs):
+        """Una cola que dejó el líder de MetaGenesis: sale de la bandeja ANTES de correr (si el
+        servicio muere a mitad, `reanudar_interrumpida` entrega lo hecho y no se repite) y se
+        trabaja sobre el main más reciente que conoce este nodo."""
+        ruta = os.path.join(BANDEJA, nombre)
+        datos = _leer(ruta, None)
+        tareas = tareas_de_entrante(datos)
+        huella = hashlib.sha256(json.dumps(datos, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+        clave = PREFIJO_BANDEJA + nombre
+        hechas = os.path.join(BANDEJA, "hechas")
+        os.makedirs(hechas, exist_ok=True)
+        try:
+            os.replace(ruta, os.path.join(hechas, "%s.%s" % (nombre, time.strftime("%Y%m%d-%H%M%S"))))
+        except OSError:
+            pass
+        ahora = time.time()
+        if not tareas:
+            self._anotar_cola(clave, huella, {"inicio": ahora, "fin": ahora, "rc": "sin-tareas", "entregas": []})
+            return
+        sha, _ = objetivo_guardian(self.candidatos_main(refs))
+        _git(["reset", "-q", "--hard"])
+        _git(["clean", "-fdq"])
+        if not sha or _git(["checkout", "-q", "-B", "main", sha])[0] != 0:
+            self._anotar_cola(clave, huella, {"inicio": ahora, "fin": ahora, "rc": "checkout", "entregas": []})
+            return
+        # Las colas vivas no se versionan (`starseed_memory_root/olas/`): el árbol sigue limpio y el
+        # orquestador arranca como en la Mac.
+        cola = os.path.join("starseed_memory_root", "olas", nombre)
+        _escribir(os.path.join(RAIZ, cola), tareas)
+        self._correr_cola(clave, huella, cola)
+
+    # ── autorrecarga ──
+    @staticmethod
+    def _huella_propia():
+        try:
+            st = os.stat(os.path.abspath(__file__))
+            return "%d-%d" % (int(st.st_mtime), st.st_size)
+        except OSError:
+            return ""
+
+    def codigo_nuevo(self):
+        """¿Reinstalaron este archivo mientras corría? (`preparar-a1.sh` no corta una cola)."""
+        actual = self._huella_propia()
+        return bool(actual and self._mi_huella and actual != self._mi_huella)
+
     # ── guardián ──
-    def guardian(self, refs, forzar=False):
+    def importar_main_mac(self):
+        """Trae a `refs/mac/main` el paquete que dejó la neurona (si es nuevo). (sha, fecha) o None.
+        Un paquete cuyos prerrequisitos aún no están aquí (origin/main más nuevo en la Mac) falla
+        sin daño: se reintenta en la próxima vuelta, después del `fetch` de origin."""
+        try:
+            mtime = os.path.getmtime(ENTRADA_MAIN)
+        except OSError:
+            mtime = 0.0
+        if bundle_por_importar(mtime, self._main_mac.get("mtime")):
+            rc, salida = _git(["fetch", "-q", ENTRADA_MAIN, "+refs/heads/main:" + REF_MAIN_MAC], timeout=300)
+            if rc == 0:
+                self._main_mac = {"mtime": mtime, "error": ""}
+            else:
+                self._main_mac["error"] = sin_secretos(salida.strip())[-200:]
+        _, linea = _git(["log", "-1", "--format=%H|%ct", REF_MAIN_MAC])
+        if "|" not in linea:
+            return None
+        sha, t = linea.strip().split("|", 1)
+        return sha, float(t or 0)
+
+    def candidatos_main(self, refs):
+        """origin/main, el main de la Mac que lleva cada rama de cola (su padre) y el main VIVO
+        de la Mac que deja la neurona (punto 5)."""
         candidatos = []
+        viva = self.importar_main_mac()
+        if viva:
+            candidatos.append((viva[0], viva[1], "main vivo de la Mac"))
         if "main" in refs:
             candidatos.append((refs["main"][0], refs["main"][1], "origin/main"))
         for rama, (sha, _) in refs.items():
@@ -582,7 +732,10 @@ class Nodo:
                 if "|" in linea:
                     p_sha, p_t = linea.strip().split("|", 1)
                     candidatos.append((p_sha, float(p_t or 0), "main de la Mac (%s)" % rama))
-        sha, origen = objetivo_guardian(candidatos)
+        return candidatos
+
+    def guardian(self, refs, forzar=False):
+        sha, origen = objetivo_guardian(self.candidatos_main(refs))
         datos = _leer(os.path.join(ESTADO_DIR, "guardian.json"), {})
         if not forzar and not guardian_toca(datos.get("ultimo"), time.time(), sha):
             return False
@@ -617,7 +770,7 @@ class Nodo:
             # Una cola del enjambre manda sobre el guardián: si llegó una, se le cede la máquina
             # (la pasada se descarta sin veredicto y se repite cuando toque).
             procesadas = (_leer(os.path.join(ESTADO_DIR, "colas.json"), {}) or {}).get("procesadas") or {}
-            if colas_pendientes(self.refs_remotas(), procesadas):
+            if colas_pendientes(self.refs_remotas(), procesadas) or self.entrantes():
                 cedida = True
                 break
             parcial = os.path.join(LOGS, "guardian-%s.log" % nombre)
@@ -663,6 +816,15 @@ class Nodo:
                     rama = pendientes[0]
                     self.procesar_cola(rama, refs[rama][0])
                     continue
+                entrantes = self.entrantes()
+                if entrantes:
+                    self.procesar_entrante(entrantes[0], refs)
+                    continue
+                if self.codigo_nuevo():
+                    # Libre y con código nuevo en disco: systemd (Restart=always) lo arranca ya nuevo.
+                    self.vivo = {"fase": "recargando", "desde": time.time()}
+                    self.escribir_estado(forzar=True)
+                    return
                 self.guardian(refs)
             except Exception as e:  # noqa: BLE001 — el nodo no se cae por una pasada
                 with open(os.path.join(LOGS, "nodo-errores.log"), "a", encoding="utf-8") as f:

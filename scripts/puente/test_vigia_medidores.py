@@ -118,6 +118,33 @@ class LeerMinutos(unittest.TestCase):
         self.assertEqual(V._min_de("hace un rato"), 0)
 
 
+class SeRecargaConCodigoNuevo(unittest.TestCase):
+    """(OPO1011) El vigía no puede seguir días con el código de cuando arrancó."""
+
+    def test_solo_cuenta_lo_ya_cargado_que_cambio(self):
+        antes = {"/p/a.py": (1, 10), "/p/b.py": (2, 20)}
+        self.assertEqual(V.codigo_cambiado(antes, dict(antes)), [])
+        self.assertEqual(V.codigo_cambiado(antes, {"/p/a.py": (3, 10), "/p/b.py": (2, 20)}), ["/p/a.py"])
+        self.assertEqual(V.codigo_cambiado(antes, {"/p/a.py": (1, 10)}), ["/p/b.py"])
+        self.assertEqual(V.codigo_cambiado({}, {"/p/a.py": (1, 10)}), [])
+
+    def test_huellas_solo_del_puente(self):
+        import os
+        import types
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            dentro = os.path.join(d, "mod.py")
+            with open(dentro, "w") as f:
+                f.write("x = 1\n")
+            fuera = types.ModuleType("fuera")
+            fuera.__file__ = os.path.join(os.path.dirname(d), "otro.py")
+            m = types.ModuleType("mod")
+            m.__file__ = dentro
+            sin = types.ModuleType("sin")
+            h = V.huellas_del_puente({"mod": m, "fuera": fuera, "sin": sin}, directorio=d)
+            self.assertEqual(list(h), [os.path.abspath(dentro)])
+
+
 if __name__ == "__main__":
     unittest.main()
 

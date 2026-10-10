@@ -365,16 +365,55 @@ def una_pasada(aplicar_remedios=True) -> dict:
     return datos
 
 
+DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
+
+
+def huellas_del_puente(modulos=None, directorio=DIRECTORIO) -> dict:
+    """{archivo: (mtime, tamaño)} de los módulos de `scripts/puente/` que este proceso ya cargó.
+
+    (OPO1011, 2026-10-10) El vigía vive días en el mismo proceso y Python guarda cada `import`
+    para siempre: medido hoy, el vigía arrancado el 09-10 a las 23:33 seguía corriendo la
+    autocuración de antes de las 05:14, así que el ciclo del A1 de Oracle (y cualquier arreglo
+    posterior en `autocuracion_mando`, `desatascar`…) NO se ejecutaba aunque estuviera en main.
+    """
+    salida = {}
+    for m in list((modulos if modulos is not None else sys.modules).values()):
+        ruta = getattr(m, "__file__", None) or ""
+        if not ruta.endswith(".py") or os.path.dirname(os.path.abspath(ruta)) != directorio:
+            continue
+        try:
+            st = os.stat(ruta)
+        except OSError:
+            continue
+        salida[os.path.abspath(ruta)] = (int(st.st_mtime), st.st_size)
+    return salida
+
+
+def codigo_cambiado(antes: dict, ahora: dict) -> list:
+    """PURA. Los archivos ya cargados cuyo contenido cambió en disco (o desaparecieron)."""
+    return sorted(r for r, h in (antes or {}).items() if (ahora or {}).get(r) != h)
+
+
 def main() -> int:
     if "--una-vez" in sys.argv:
         una_pasada(aplicar_remedios="--solo-mirar" not in sys.argv)
         return 0
     print("Vigía de medidores · cada %d s · mira %s" % (INTERVALO_S, ", ".join(MEDIDORES)), flush=True)
+    huellas = {}
     while True:
         try:
             una_pasada()
         except Exception as e:
             print("vigia-medidores: %s: %s" % (type(e).__name__, e), flush=True)
+        # Entre pasadas: si cambió el código de algo que ya importó, se vuelve a ejecutar a sí
+        # mismo (mismo PID para launchd, mismo python con su permiso de disco) con el código nuevo.
+        ahora = huellas_del_puente()
+        cambiados = codigo_cambiado(huellas, ahora) if huellas else []
+        if cambiados:
+            print("vigia-medidores: código nuevo en %s: me recargo" % ", ".join(os.path.basename(c) for c in cambiados[:6]),
+                  flush=True)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        huellas = {**ahora, **{r: h for r, h in huellas.items() if r not in ahora}}
         time.sleep(INTERVALO_S)
 
 

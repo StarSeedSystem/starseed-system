@@ -53,6 +53,23 @@ export interface InstanciaConsumo {
     estado: string;
 }
 
+/** El nodo de MetaGenesis del A1 (OPO1011): lo resume `medidor_oracle.py` de ~/.starseed/oracle.json,
+ *  que escribe `oracle_nodo.py estado`. La carga es la MEDIDA en el A1: Oracle la verá en su p95
+ *  de 7 días con retraso, por eso se enseña aparte del riesgo. */
+export interface NodoA1 {
+    vivo: boolean;
+    fase: string;
+    leido: string | null;
+    serviciosOk: number;
+    serviciosTotal: number;
+    serviciosCaidos: string[];
+    guardian: { ok: boolean; minutos: number | null; sha: string; rojos: string[] } | null;
+    cpu1h: number | null;
+    memAhora: number | null;
+    horasSobreUmbral: number;
+    horasMedidas: number;
+}
+
 export interface ConsumoOracle {
     leido: string | null;
     ok: boolean;
@@ -71,6 +88,7 @@ export interface ConsumoOracle {
     margen: { apto: boolean; motivo: string; cpuLibrePct: number | null; memLibreGb: number | null };
     errores: { parte: string; error: string }[];
     obsoletas: string[];
+    nodo: NodoA1 | null;
 }
 
 /** Límites Always Free (architecture/oracle-nube.md §1). */
@@ -124,6 +142,8 @@ export function leerConsumoOracle(json: unknown): ConsumoOracle | null {
     const r = obj(d.reclamacion);
     const f = obj(d.freno);
     const m = obj(d.margen);
+    const nd = obj(d.nodo);
+    const ng = obj(nd?.guardian);
     const consola = txt(d.consola);
 
     return {
@@ -218,6 +238,28 @@ export function leerConsumoOracle(json: unknown): ConsumoOracle | null {
             .map((e) => ({ parte: txt(e.parte, 30), error: txt(e.error, 240) }))
             .filter((e) => e.error),
         obsoletas: (Array.isArray(d.obsoletas) ? d.obsoletas : []).map((x) => txt(x, 30)).filter(Boolean),
+        nodo: nd
+            ? {
+                  vivo: nd.vivo === true,
+                  fase: txt(nd.fase, 20),
+                  leido: fecha(nd.leido),
+                  serviciosOk: num(nd.servicios_ok) ?? 0,
+                  serviciosTotal: num(nd.servicios_total) ?? 0,
+                  serviciosCaidos: (Array.isArray(nd.servicios_caidos) ? nd.servicios_caidos : []).map((x) => txt(x, 40)).filter(Boolean).slice(0, 6),
+                  guardian: ng
+                      ? {
+                            ok: ng.ok === true,
+                            minutos: num(ng.minutos),
+                            sha: /^[0-9a-f]{0,12}$/.test(txt(ng.sha, 12)) ? txt(ng.sha, 12) : "",
+                            rojos: (Array.isArray(ng.rojos) ? ng.rojos : []).map((x) => txt(x, 20)).filter(Boolean).slice(0, 4),
+                        }
+                      : null,
+                  cpu1h: num(nd.cpu_1h),
+                  memAhora: num(nd.mem_ahora),
+                  horasSobreUmbral: num(nd.horas_sobre_umbral) ?? 0,
+                  horasMedidas: num(nd.horas_medidas) ?? 0,
+              }
+            : null,
     };
 }
 
@@ -330,6 +372,25 @@ export function vistaOracle(c: ConsumoOracle, ahora: number): VistaOracle {
             detalle: `${comp.a1Estado || "sin máquina"} · ${uso} · ${comp.micro}/${LIMITES_ORACLE.micro} micro`,
         });
     }
+    const nodo = c.nodo;
+    if (nodo) {
+        const g = nodo.guardian;
+        const guardian = g ? (g.ok ? "guardián de main en verde" : `guardián de main en ROJO (${g.rojos.join(", ") || "?"})`) : "guardián sin pasada aún";
+        const fases: Record<string, string> = { cola: "trabajando una cola del enjambre", guardian: "comprobando main", espera: "esperando trabajo", arrancando: "arrancando" };
+        const caidos = nodo.serviciosCaidos.length ? ` · caídos: ${nodo.serviciosCaidos.join(", ")}` : "";
+        const carga =
+            nodo.cpu1h !== null
+                ? ` · medido en el A1: CPU última hora ${nCorto(nodo.cpu1h)} %${nodo.memAhora !== null ? `, memoria ${nCorto(nodo.memAhora)} %` : ""}`
+                : "";
+        filas.push({
+            id: "nodo",
+            etiqueta: "Nodo de MetaGenesis (A1)",
+            valor: nodo.vivo ? `${nodo.serviciosOk}/${nodo.serviciosTotal} servicios` : "sin latido",
+            fraccion: nodo.serviciosTotal > 0 ? nodo.serviciosOk / nodo.serviciosTotal : null,
+            tono: !nodo.vivo ? "peligro" : nodo.serviciosOk < nodo.serviciosTotal || (g && !g.ok) ? "aviso" : "ok",
+            detalle: `${nodo.vivo ? fases[nodo.fase] ?? nodo.fase : "el A1 no responde"} · ${guardian}${caidos}${carga}`,
+        });
+    }
     if (c.horasA1) {
         filas.push({
             id: "horas",
@@ -389,7 +450,10 @@ export function vistaOracle(c: ConsumoOracle, ahora: number): VistaOracle {
                 `${enRiesgo.nombre} lleva ${nCorto(enRiesgo.dias ?? 0)} días ocioso (CPU p95 ${nCorto(enRiesgo.cpuP95 ?? 0)} %, memoria ${nCorto(enRiesgo.memP95 ?? 0)} %${red}; umbral 20 %). ` +
                 (enRiesgo.nivel === "alto"
                     ? "Oracle ya puede reclamarlo. Darle trabajo lo evita."
-                    : `Si sigue así, Oracle puede reclamarlo desde el ${diaCorto(enRiesgo.reclamableDesde)}. Darle trabajo (servicios o un agente del enjambre) lo evita.`),
+                    : `Si sigue así, Oracle puede reclamarlo desde el ${diaCorto(enRiesgo.reclamableDesde)}. Darle trabajo (servicios o un agente del enjambre) lo evita.`) +
+                (c.nodo?.vivo && c.nodo.horasMedidas > 0
+                    ? ` Ya trabaja: el nodo de MetaGenesis lleva ${c.nodo.horasSobreUmbral} de ${c.nodo.horasMedidas} h por encima del 20 % de CPU; el p95 de Oracle (7 días, puntos de 1 h) lo refleja en cuanto pasen ~9 h así.`
+                    : ""),
         };
     } else if (maquinas.some((m) => m.medida)) {
         const m = maquinas.find((x) => x.medida)!;
