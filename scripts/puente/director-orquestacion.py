@@ -658,6 +658,24 @@ def revisar():
     except Exception as e:
         print("desatascar: %s: %s" % (type(e).__name__, e), flush=True)
 
+    # (2026-10-10, DSB1010) Alex: «que se procesen automáticamente con todos los directores».
+    # El aprobador automático decide TODO lo que espera un visto bueno —dictamen del revisor,
+    # puertas, radio de impacto, intento de la cadena, Jev solo como veto— y deja para Alex
+    # únicamente dependencias de producción, migraciones, claves y publicación nativa
+    # (scripts/puente/aprobador_logica.py). Si corre, sustituye a la aprobación de abajo.
+    aprobador_ok = False
+    try:
+        import aprobador_automatico
+
+        frases_ap, _ = aprobador_automatico.pasada(raiz=RAIZ)
+        for frase in frases_ap:
+            _p.decir(frase, "director", "hecho")
+        if frases_ap:
+            hecho.append("aprobador %d" % len(frases_ap))
+        aprobador_ok = True
+    except Exception as e:
+        print("aprobador: %s: %s" % (type(e).__name__, e), flush=True)
+
     _, latidos_dict, _ = cola_viva()
     latidos_tareas = (latidos_dict or {}).get("tareas", {})
 
@@ -687,6 +705,8 @@ def revisar():
             "aviso",
         )
 
+    if aprobador_ok:
+        maduras, sin_revision = [], []  # ya las decidió el aprobador, cada una con su motivo
     if maduras:
         aprobar(maduras)
         _p.decir(

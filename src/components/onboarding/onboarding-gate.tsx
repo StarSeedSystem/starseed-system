@@ -29,6 +29,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
 import { etapaActual } from "@/lib/onboarding/director-rito";
+import { debeAbrirseSola } from "@/lib/onboarding/cerrar-bienvenida";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
 
 export function OnboardingGate() {
@@ -85,20 +86,16 @@ export function OnboardingGate() {
       // /bienvenida o Ajustes.
       const enBienvenidaRito = etapaActual() === "bienvenida";
 
-      if (!hasProfile) {
-        // (Adenda 209) Cuenta real con sesión y sin identidad = acaba de nacer.
-        // No depende de que la marca de sesión sobreviva a las recargas.
-        setShow(true);
-        setReady(true);
-        return;
-      }
-
-      const ob = await getOnboarding();
+      // (Adenda 209) Cuenta real con sesión y sin identidad = acaba de nacer: la guía
+      // arranca sola sin depender de que la marca de sesión sobreviva a las recargas.
       // (Ola 221) `skipped` cuenta como «pospuesto»: no se reabre solo aunque
       // la marca de recién registrado siga viva en la pestaña.
-      // Cuenta YA iniciada en un dispositivo nuevo: sus ajustes de neurona los abre
+      // (DSB1010 · 2026-10-10) Lo pospuesto o completado EN LA CUENTA manda también sin
+      // perfil: antes quien cerraba la bienvenida sin @handle la veía en cada página de cada
+      // medio. Cuenta YA iniciada en un dispositivo nuevo: sus ajustes de neurona los abre
       // el orquestador del primer arranque (ver cabecera).
-      setShow(!ob.completed && !ob.skipped && enBienvenidaRito);
+      const ob = await getOnboarding();
+      setShow(debeAbrirseSola({ tienePerfil: hasProfile, estado: ob, ritoEnBienvenida: enBienvenidaRito }));
     } catch {
       setShow(false);
     } finally {

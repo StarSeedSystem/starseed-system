@@ -28,8 +28,10 @@ _SECRETOS = [
         r"\bNEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|KEY|TOKEN)[A-Z0-9_]*\s*=\s*[\"']?[^\s\"']+")),
     # (2026-10-07) Un marcador de documentación (`STARSEED_MOTOR_TOKEN=<token>`, `=${VAR}`,
     # `=$(…)`, `={…}`) no es una clave: frenaba la autopublicación de 81 commits por un texto de ayuda.
+    # (2026-10-10) `[A-Z][A-Z0-9_]*` y no `{2,}`: `DB_PASSWORD=…` o `X_TOKEN=…` (prefijo de 1-2
+    # letras) se escapaban sin que nadie lo viera.
     ("variable-entorno", re.compile(
-        r"\b[A-Z][A-Z0-9_]{2,}(?:_KEY|_TOKEN|_SECRET|_PASSWORD)\s*=\s*[\"']?(?![<$({%\[])[^\s\"']{8,}")),
+        r"\b[A-Z][A-Z0-9_]*(?:_KEY|_TOKEN|_SECRET|_PASSWORD)\s*=\s*[\"']?(?![<$({%\[])[^\s\"']{8,}")),
 ]
 
 _ENV_NOMBRE = re.compile(r"(^|/)\.env(\.|$)")
@@ -51,6 +53,113 @@ def _es_marcador(coincidencia: str) -> bool:
     """El VALOR (lo que va tras `=` si lo hay) tiene forma de marcador, no de clave."""
     valor = coincidencia.split("=", 1)[-1]
     return bool(_MARCADOR.search(valor))
+
+
+# (2026-10-10, DSB1010) `PROTO_ORB_POS_KEY = "starseed.protomolecula.orbe.pos.v1"` frenó la
+# autopublicación de 6 commits: el patrón `NOMBRE_KEY = valor` no distinguía una CLAVE DE
+# ALMACENAMIENTO (localStorage) ni el NOMBRE de una variable de un secreto. Medido sobre el repo
+# entero: 278 coincidencias de «variable-entorno», todas de ese tipo. Solo se libran cuatro formas
+# que un secreto real no tiene; todo lo demás sigue frenando como antes.
+_NOMBRES_CON_VALOR = ("variable-entorno", "next-public-clave")
+# Un trozo legible: palabra en minúsculas o camelCase con hasta 3 dígitos al final, «v12» o un
+# número corto. Un trozo aleatorio («Zq8vR2mL9p», «a1b2c3d4») no encaja.
+_TROZO_PALABRA = re.compile(r"^(?:[a-z]+(?:[A-Z][a-z]+)*[0-9]{0,3}|v[0-9]{1,3}|[0-9]{1,3})$")
+_TROZO_CORTO = re.compile(r"^[a-z0-9]{1,4}$")
+_TROZO_MAYUS = re.compile(r"^[A-Z]+[0-9]{0,2}$")
+_SEPARADORES = re.compile(r"[._:/\-]")
+_LECTURA_DE_ENTORNO = re.compile(
+    r"^(?:process\.env|import\.meta\.env|os\.environ|os\.getenv\(|Deno\.env|Bun\.env|env\[|env\.)")
+_LLAMADA_DE_CODIGO = re.compile(r"^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*(?:\(|\[)")
+
+
+def _trozo_legible(trozo: str) -> bool:
+    if not trozo or len(trozo) > 24:
+        return False
+    if _TROZO_CORTO.match(trozo):  # «n8n», «a11y», «p2p», «3d»
+        return True
+    if not _TROZO_PALABRA.match(trozo):
+        return False
+    # Una tira larga de letras sin vocales es ruido, no una palabra («qwrtzpkd»).
+    letras = re.sub(r"[^a-z]", "", trozo.lower())
+    return len(letras) < 5 or bool(re.search(r"[aeiouy]", letras))
+
+
+def _identificador_legible(valor: str, minimo_trozos: int) -> bool:
+    """Palabras separadas por `. : _ / -`, todas legibles, al menos una con 3 letras y ningún
+    trozo de 4 o más cifras seguidas (un año o un PIN sí pueden ser parte de una contraseña)."""
+    trozos = _SEPARADORES.split(valor)
+    return (len(trozos) >= minimo_trozos and all(_trozo_legible(t) for t in trozos)
+            and any(len(re.sub(r"[^a-zA-Z]", "", t)) >= 3 for t in trozos)
+            and not any(re.fullmatch(r"[0-9]{4,}", t) for t in trozos))
+
+
+def _valor_de(coincidencia: str) -> "tuple[str, bool]":
+    """(valor sin comillas ni puntuación final, iba entre comillas)."""
+    crudo = coincidencia.split("=", 1)[-1].lstrip()
+    entre_comillas = crudo[:1] in ("'", '"')
+    return crudo.strip("\"'").rstrip(";,)"), entre_comillas
+
+
+_NOMBRE_DE_CREDENCIAL = re.compile(r"SECRET|PASSWORD|PASSWD|PRIVATE|SERVICE_ROLE|TOKEN$")
+_SUFIJO_DE_VARIABLE = ("KEY", "TOKEN", "SECRET", "PASSWORD", "URL", "ID", "ENV", "NAME", "HOST",
+                       "PORT", "PATH", "DIR", "USER", "MODEL", "MODELS", "RPM", "BASE", "REGION")
+_PALABRA_DE_CLAVE = re.compile(r"clave|secret|passw|contrase|token|pwd", re.I)
+
+
+def _nombre_de_variable(valor: str, nombre: str) -> bool:
+    """`OPENAI_API_KEY`, `STARSEED_PASARELA_X_URL`: MAYÚSCULAS con guiones bajos y palabras con
+    vocales (`QZXW_PLMK_RTVB` no). Bajo un nombre de credencial (`…_SECRET`, `…_PASSWORD`) solo
+    si además acaba como acaba una variable: «MI_CLAVE_SECRETA» puede ser una contraseña."""
+    trozos = valor.split("_")
+    if len(trozos) < 2 or not all(_TROZO_MAYUS.match(t) for t in trozos):
+        return False
+    sin_vocal = sum(1 for t in trozos if not re.search(r"[AEIOUY]", t))
+    if sin_vocal * 2 > len(trozos):
+        return False
+    if _NOMBRE_DE_CREDENCIAL.search(nombre):
+        return trozos[-1] in _SUFIJO_DE_VARIABLE
+    return True
+
+
+def _no_es_secreto(tipo: str, coincidencia: str) -> bool:
+    """True si el VALOR de `NOMBRE_KEY = valor` es, sin duda, otra cosa que un secreto.
+    Nunca se aplica a los patrones con forma de clave (sk-, ghp_, eyJ…, AKIA, PEM)."""
+    if tipo not in _NOMBRES_CON_VALOR:
+        return False
+    valor, entre_comillas = _valor_de(coincidencia)
+    if not valor or len(valor) > 96:
+        return False
+    nombre = coincidencia.split("=", 1)[0].strip().upper()
+    # 0) Referencia o marcador (`=$VAR`, `=<token>`, `={{ secrets.X }}`): la misma regla que ya
+    #    tenía «variable-entorno» en su patrón, ahora también para `NEXT_PUBLIC_…`.
+    if valor[:1] in ("$", "<", "{", "%", "["):
+        return True
+    de_almacenamiento = nombre.endswith("_KEY") and not _NOMBRE_DE_CREDENCIAL.search(nombre)
+    # 1) Clave de almacenamiento del OS bajo un nombre `…_KEY`: «starseed.<palabras>.v1»,
+    #    «starseed:hub:mapa», «starseed_dock_items». (Un `…_TOKEN = "starseed-2024"` sigue frenando.)
+    if de_almacenamiento and re.match(r"^starseed[._:/\-]", valor, re.I) \
+            and _identificador_legible(valor[9:], 1):
+        return True
+    # 2) El NOMBRE de otra variable, no su valor.
+    if _nombre_de_variable(valor, nombre):
+        return True
+    # 3) Código que LEE el valor de otro sitio (sin comillas): `process.env.X`, `cfg.get(…)`.
+    if not entre_comillas and (_LECTURA_DE_ENTORNO.match(valor) or _LLAMADA_DE_CODIGO.match(valor)):
+        return True
+    # 3b) Una expresión regular como valor (`/^[A-Za-z0-9_-]{20}$/`): lleva `^ [ ] { } ( ) \`,
+    #     que ninguna clave en base64 ni hexadecimal puede llevar.
+    if not entre_comillas and re.fullmatch(r"/.*[\\^\[\]{}()\\\\].*/[dgimsuy]*", valor):
+        return True
+    # 4) Solo bajo un nombre `…_KEY` de almacenamiento: palabras separadas que no hablan de
+    #    claves («aurora-guide-seen», «hub:mapa», «omni_last_session»). Para `_TOKEN`, `_SECRET`
+    #    y `_PASSWORD` NO se libra: una contraseña puede ser «caballo-correcto-pila».
+    if de_almacenamiento and _identificador_legible(valor, 2) and not _PALABRA_DE_CLAVE.search(valor):
+        return True
+    # 5) Un valor recortado con puntos suspensivos («xkeysib-...», «tu_clave_…») es un ejemplo
+    #    de documentación: con lo que queda delante no se entra en ninguna parte.
+    if (valor.endswith("...") or valor.endswith("…")) and len(valor.rstrip(".…")) <= 16:
+        return True
+    return False
 
 
 def escanear_secretos(diff: str) -> List[Dict[str, Any]]:
@@ -88,9 +197,11 @@ def escanear_secretos(diff: str) -> List[Dict[str, Any]]:
             for tipo, patron in _SECRETOS:
                 if patron is None:
                     continue
-                m = patron.search(texto)
-                if m and de_prueba and _es_marcador(m.group(0)):
-                    continue
+                # Todas las coincidencias de la línea: librar la primera (una clave de
+                # almacenamiento) no puede tapar un secreto que venga detrás en la misma línea.
+                m = next((c for c in patron.finditer(texto)
+                          if not (de_prueba and _es_marcador(c.group(0)))
+                          and not _no_es_secreto(tipo, c.group(0))), None)
                 if m:
                     hallazgos.append({"archivo": archivo, "linea": linea_nueva, "tipo": tipo})
                     break  # una línea, un hallazgo

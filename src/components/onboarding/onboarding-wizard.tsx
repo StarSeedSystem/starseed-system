@@ -47,7 +47,8 @@ import { buildSystemPrompt, DEFAULT_PERSONALITY } from "@/lib/aurora/types";
 import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { hablarRito, callarRito, instalarVozPropia, anticiparRito, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
-import { terminarEtapa, navegarSuave } from "@/lib/onboarding/director-rito";
+import { terminarEtapa, navegarSuave, abandonarRito } from "@/lib/onboarding/director-rito";
+import { cerrarBienvenida } from "@/lib/onboarding/cerrar-bienvenida";
 import { PasoAnimado, useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { ResumenGestos } from "@/components/onboarding/demo-gestos-hibridos";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
@@ -605,16 +606,21 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   }, [closeAll, router]);
 
   const skip = useCallback(async () => {
-    callarRito();
     // (Ola 221) «Saltar por ahora» = POSPUESTO, no completado: así puede
     // reabrirse desde la guía/Ajustes y la lógica de «sin terminar» lo trata
     // como pendiente sin reabrirlo en bucle.
-    await saveOnboarding({
-      completed: false,
-      skipped: true,
-      skippedAt: new Date().toISOString(),
+    // (DSB1010 · 2026-10-10) La X y Esc hacen lo mismo (`cerrarBienvenida`): se oculta
+    // PRIMERO, se abandona el rito de esta pestaña (una recarga ya no la reabre) y queda
+    // pospuesta EN LA CUENTA, así que tampoco reaparece en otros medios.
+    const guardado = await cerrarBienvenida({
+      callarVoz: callarRito,
+      ocultar: closeAll,
+      abandonarRito,
+      guardar: saveOnboarding,
     });
-    closeAll();
+    toast(guardado
+      ? "Bienvenida cerrada. La retomas cuando quieras desde la guía o Ajustes."
+      : "Bienvenida cerrada. No pude guardarlo en tu cuenta ahora mismo: en otro dispositivo podría aparecer una vez más.");
   }, [closeAll]);
 
   const progress = Math.round(((step + 1) / STEPS.length) * 100);
@@ -657,14 +663,16 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     </div>
   );
 
-  // (Adenda 190) El rito NO se cierra con Esc, clic fuera ni la X: solo
-  // «Saltar por ahora» o «Finalizar». Así nadie queda a medias sin querer.
+  // (Adenda 190) Un clic FUERA no cierra el rito: nadie lo pierde sin querer.
+  // (DSB1010 · 2026-10-10) La X común del OS y Esc SÍ lo cierran: antes la X se veía (la
+  // regla que escondía los `button.absolute` ya no la encontraba desde la X nueva del
+  // 2026-09-25) y no hacía nada. Cerrar = «Saltar por ahora»: pospuesto en la cuenta.
   return (
-    <Dialog open={open} onOpenChange={() => { /* cierre solo vía Saltar/Finalizar */ }}>
+    <Dialog open={open} onOpenChange={(abierto) => { if (!abierto) void skip(); }}>
       <DialogContent
-        className="w-[95vw] sm:max-w-2xl max-h-[92dvh] gap-0 overflow-hidden p-0 [&>button.absolute]:hidden"
+        className="w-[95vw] sm:max-w-2xl max-h-[92dvh] gap-0 overflow-hidden p-0"
         onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        data-bienvenida=""
       >
         {/* ── (Adenda 201) BANDA SUPERIOR ─────────────────────────────────────
             Antes el título, el subtítulo y la barra de progreso se apilaban

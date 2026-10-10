@@ -19,10 +19,11 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
 import AuthGate from "@/components/auth/auth-gate";
-import { etapaActual, iniciarRito } from "@/lib/onboarding/director-rito";
+import { etapaActual, iniciarRito, navegarSuave } from "@/lib/onboarding/director-rito";
 
 type Estado = "comprobando" | "sin-cuenta" | "con-cuenta";
 
@@ -35,6 +36,10 @@ function esperar(ms: number): Promise<void> {
 
 export default function BienvenidaPage() {
   const [estado, setEstado] = useState<Estado>("comprobando");
+  const router = useRouter();
+  // (DSB1010 · 2026-10-10) Al cerrar la guía con la X, Esc o «Saltar por ahora» no se queda
+  // una página vacía con el título: se vuelve al Escritorio (navegación suave del rito).
+  const alCerrar = useCallback(() => navegarSuave(router, "/escritorios"), [router]);
 
   const comprobar = useCallback(async () => {
     try {
@@ -169,7 +174,7 @@ export default function BienvenidaPage() {
           Repasa cómo vincular, conectar, crear, publicar y usar cada área de la red. Crea tu identidad (@handle),
           tu dirección StarSeed y tu recuperación, o empieza con la voz de Aurora.
         </p>
-        <OnboardingWizard />
+        <OnboardingWizard onClose={alCerrar} />
       </div>
     </main>
   );

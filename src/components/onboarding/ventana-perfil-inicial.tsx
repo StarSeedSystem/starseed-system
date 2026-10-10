@@ -230,11 +230,12 @@ export function VentanaPerfilInicial({ onCerrar }: { onCerrar?: () => void }) {
   if (!abierta) return null;
 
   return (
-    <Dialog open={abierta} onOpenChange={() => { /* se cierra con sus botones */ }}>
+    // (DSB1010 · 2026-10-10) Misma avería que la bienvenida: la X común del OS se veía y no
+    // hacía nada. Ahora la X y Esc equivalen a «Saltar» (el clic fuera sigue sin cerrar).
+    <Dialog open={abierta} onOpenChange={(abiertaAhora) => { if (!abiertaAhora) saltar(); }}>
       <DialogContent
-        className="w-[95vw] sm:max-w-2xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6 [&>button.absolute]:hidden"
+        className="w-[95vw] sm:max-w-2xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6"
         onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader className="items-center text-center">
           <IconoStarSeed className="mx-auto" />

@@ -97,6 +97,63 @@ def test_escanear_sigue_frenando_claves_reales_en_pruebas_y_codigo():
         _diff("scripts/puente/test_y.py", ["TEST_API_KEY=" + "Zq8vR2mL9pXw"]))] == ["variable-entorno"]
 
 
+def test_escanear_no_frena_claves_de_almacenamiento_ni_nombres_de_variable():
+    # (2026-10-10, DSB1010) Las dos líneas EXACTAS de src/lib/protomolecula/orbe-bus.ts que
+    # frenaron la autopublicación de 6 commits: son claves de localStorage, no secretos.
+    reales = [
+        'export const PROTO_ORB_POS_KEY = "starseed.protomolecula.orbe.pos.v1";',
+        'export const PROTO_ORB_FAB_KEY = "starseed.protomolecula.orbe.enabled.v1";',
+    ]
+    assert pp.escanear_secretos(_diff("src/lib/protomolecula/orbe-bus.ts", reales)) == []
+    otras = [
+        'const DOCK_KEY = "starseed.dock.items.v2";',
+        "const HUB_KEY = 'starseed:hub:mapa-3d';",
+        'const OMNI_KEY = "starseed_omni_last_session";',
+        'export const A11Y_STORAGE_KEY = "starseed.a11y.prefs.v1";',
+        'const HOOKS_KEY = "starseed.n8n.hooks.v1";',
+        'const LS_KEY = "aurora-guide-seen";',
+        'const ENV_KEY = "OPENAI_API_KEY";',
+        'const NOMBRE_SECRET = "GOOGLE_OAUTH_CLIENT_SECRET";',
+        "const MOTOR_TOKEN = process.env.STARSEED_MOTOR_TOKEN ?? '';",
+        "MOTOR_TOKEN = os.getenv('STARSEED_MOTOR_TOKEN')",
+        "NEXT_PUBLIC_GOOGLE_API_KEY=$GOOGLE_API_KEY",
+        "BREVO_API_KEY=xkeysib-...",
+        "const RE_TOKEN = /^[A-Za-z0-9_-]{20}$/;",
+    ]
+    assert pp.escanear_secretos(_diff("src/lib/x.ts", otras)) == []
+
+
+def test_escanear_sigue_frenando_secretos_con_nombre_de_clave():
+    # Los valores se montan en tiempo de ejecución: nunca un literal con forma real en el repo.
+    aleatorio = "".join(["Zq8v", "R2mL", "9pXw", "K3dT"])
+    casos = {
+        # Un trozo aleatorio dentro del espacio «starseed.» no es una clave de almacenamiento.
+        "prefijo-con-aleatorio": 'const PROTO_KEY = "' + "starseed_" + aleatorio + '";',
+        # Bajo `_TOKEN`, `_SECRET` y `_PASSWORD` las palabras con guiones no libran.
+        "contrasena-de-palabras": "DB_PASSWORD=" + "-".join(["caballo", "correcto", "pila"]),
+        "token-de-palabras": 'API_TOKEN="' + "-".join(["hola", "que", "tal"]) + '"',
+        "token-starseed-con-ano": "MOTOR_TOKEN=" + "starseed-" + "2024",
+        "secreto-en-mayusculas": 'X_SECRET = "' + "_".join(["MI", "CLAVE", "SECRETA"]) + '"',
+        "mayusculas-sin-vocales": 'X_KEY = "' + "_".join(["QZXW", "PLMK", "RTVB"]) + '"',
+        # Un UUID o un hexadecimal largo con guiones sigue siendo una credencial.
+        "uuid": 'SERVICE_KEY = "' + "-".join(["3f9a2c1e", "7b4d", "4e8a", "9c2f", "1a2b3c4d5e6f"]) + '"',
+        # Palabras que HABLAN de claves bajo `_KEY` no se libran por la regla genérica.
+        "palabras-de-clave": 'ADMIN_KEY = "' + "-".join(["mi", "clave", "secreta"]) + '"',
+        "service-role": 'SUPABASE_SERVICE_ROLE_KEY="' + "-".join(["clave", "de", "servicio"]) + '"',
+        # Una línea con una clave de almacenamiento Y un secreto detrás sigue frenando.
+        "misma-linea": 'A_KEY = "starseed.x.v1"; B_TOKEN = "' + aleatorio + '"',
+        # Un valor de texto dentro de una cadena de ayuda no se toma por código.
+        "ayuda-con-valor": '"exporta MOTOR_TOKEN=' + "abc123" + "def456ghi" + ' en tu shell"',
+    }
+    for caso, linea in casos.items():
+        tipos = [h["tipo"] for h in pp.escanear_secretos(_diff("src/lib/x.ts", [linea]))]
+        assert tipos == ["variable-entorno"], (caso, tipos)
+    # Los patrones con forma de clave nunca se libran por el nombre de la variable.
+    sk = "sk-" + aleatorio
+    assert [h["tipo"] for h in pp.escanear_secretos(
+        _diff("src/lib/x.ts", ['const STORAGE_KEY = "' + sk + '";']))] == ["sk"]
+
+
 def test_migracion_destructiva():
     assert pp.migracion_destructiva("DROP TABLE users;")[0] is True
     assert pp.migracion_destructiva("truncate t;")[0] is True
