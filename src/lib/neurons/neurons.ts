@@ -652,6 +652,7 @@ export function _detenerLatidoParaPruebas(): void {
   cacheLista = null;
   listaParada = false;
   listaAvisada = false;
+  ultimaListaBuena = null;
 }
 
 /**
@@ -786,6 +787,12 @@ interface CacheLista {
   filas: Array<Record<string, unknown>>;
 }
 let cacheLista: CacheLista | null = null;
+/**
+ * (2026-10-09) Última lista leída con éxito, que `invalidarListaNeuronas()` NO borra: si justo
+ * después de una mutación la lectura falla (red, cerrojo de sesión ocupado), se enseña esta —con
+ * las neuronas ya fusionadas fuera— en vez de quedarse solo con «este dispositivo».
+ */
+let ultimaListaBuena: CacheLista | null = null;
 let listaEnVuelo: Promise<{ filas: Array<Record<string, unknown>> | null; fallo: FalloConsulta | null }> | null = null;
 /** La lectura de `neuron_devices` devolvió 400/404: no se vuelve a pedir hasta recargar. */
 let listaParada = false;
@@ -850,7 +857,7 @@ export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]
     const puedeLeer = !frenado && !listaParada;
     const hayQueLeer = !cache || !!opts?.fresco || (!vigente && !pestanaOculta());
     if (!puedeLeer || !hayQueLeer) {
-      filas = cache?.filas ?? null;
+      filas = cache?.filas ?? (ultimaListaBuena?.owner === owner ? ultimaListaBuena.filas : null);
     } else {
       const { filas: leidas, fallo } = await leerFilasNeuronas();
       if (fallo && (fallo.status === 400 || fallo.status === 404)) {
@@ -864,11 +871,18 @@ export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]
           );
         }
       }
-      if (leidas) cacheLista = { owner, en: Date.now(), filas: leidas };
-      filas = leidas ?? cache?.filas ?? null;
+      if (leidas) {
+        cacheLista = { owner, en: Date.now(), filas: leidas };
+        ultimaListaBuena = cacheLista;
+      }
+      filas = leidas ?? cache?.filas ?? (ultimaListaBuena?.owner === owner ? ultimaListaBuena.filas : null);
     }
     if (!filas) return local ? [local] : [];
-    const data = filas;
+    // Las neuronas ya fusionadas en otra no se enseñan aunque vengan de una lista vieja.
+    const data = filas.filter((row) => {
+      const id = String((row as { id?: unknown }).id ?? "");
+      try { return neuronaVigente(id) === id; } catch { return true; }
+    });
     const prefs = readPrefs();
     const now = Date.now();
     const out = data.map((row: any): Neuron => ({

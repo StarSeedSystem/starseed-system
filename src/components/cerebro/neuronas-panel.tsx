@@ -271,7 +271,14 @@ export default function NeuronasPanel({
       {/* ── Aparatos en vivo: estado, medios, señales y fusión de repetidas (2026-10-09) ── */}
       {neurons.length > 0 && (
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <AparatosEnVivo neuronas={neurons} onCambio={() => void refresh(true)} />
+          <AparatosEnVivo
+            neuronas={neurons}
+            onCambio={() => {
+              // Ya y otra vez a los 4 s: justo tras fusionar, la sesión y la red aún están ocupadas.
+              void refresh(true);
+              setTimeout(() => void refresh(true), 4000);
+            }}
+          />
         </div>
       )}
 
