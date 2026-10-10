@@ -143,10 +143,33 @@ CAPACIDAD_ORACLE = "A1 2 OCPU · 12 GB · 2 micro 1 GB · 10 TB/mes"
 RUTA_ORACLE_JSON = "~/.starseed/oracle.json"
 
 
-def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float) -> dict:
+def _oracle_consumo(consumo: dict | None) -> tuple[bool, str, str]:
+    """PURA (OC1010): de ~/.starseed/oracle-consumo.json → (freno, capacidad libre, aviso).
+    Lo escribe `medidor_oracle.py` cada 30 min; aquí solo se lee, nunca se llama a Oracle."""
+    if not isinstance(consumo, dict) or not consumo.get("leido"):
+        return False, "", ""
+    freno = consumo.get("freno") or {}
+    if freno.get("activo"):
+        return True, "", str(freno.get("motivo") or "el gasto del mes pasó de 0")
+    margen = consumo.get("margen") or {}
+    libre = ""
+    if isinstance(margen.get("mem_libre_gb"), (int, float)):
+        libre = "libre ahora: %s %% CPU · %s GB" % (
+            str(margen.get("cpu_libre_pct")).replace(".", ","), str(margen.get("mem_libre_gb")).replace(".", ","))
+    aviso = ""
+    recl = consumo.get("reclamacion") or {}
+    if recl.get("riesgo"):
+        m = next((x for x in recl.get("maquinas") or [] if isinstance(x, dict) and x.get("riesgo")), {})
+        aviso = "A1 ocioso: Oracle puede reclamarlo desde el %s si no recibe trabajo" % str(m.get("reclamable_desde") or "?")[:10]
+    return False, libre, aviso
+
+
+def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float, consumo: dict | None = None) -> dict:
     """PURA. Estado de Oracle según el contrato §9: `requiere_alex` sin vincular,
     `usable` vinculada sin A1 en marcha y `listo` con el A1 RUNNING y su orquestador
-    del enjambre anunciado en medios.json (latido fresco, como el contenedor de Claude)."""
+    del enjambre anunciado en medios.json (latido fresco, como el contenedor de Claude).
+    (OC1010) Con la lectura del medidor de consumo: gasto > 0 = `requiere_alex` (freno: no se
+    le manda trabajo); si no, la capacidad libre medida y el riesgo de reclamación van al detalle."""
     if not datos or not datos.get("vinculada"):
         return medio(
             "oracle", "Oracle Always Free", "requiere_alex", CAPACIDAD_ORACLE,
@@ -156,6 +179,15 @@ def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float) -> 
     instancias = datos.get("instancias") or []
     a1 = next((i for i in instancias if isinstance(i, dict)
                and "a1" in (str(i.get("nombre")) + str(i.get("forma"))).lower()), {})
+    frenado, libre, aviso = _oracle_consumo(consumo)
+    if frenado:
+        return medio(
+            "oracle", "Oracle Always Free", "requiere_alex", CAPACIDAD_ORACLE,
+            "freno: %s" % aviso,
+            "revisar el gasto en la consola: https://cloud.oracle.com/?region=%s" % (datos.get("region") or "mx-queretaro-1"),
+        )
+    capacidad = " · ".join(p for p in (CAPACIDAD_ORACLE, libre) if p)
+    extra = (" · " + aviso) if aviso else ""
     if str(a1.get("estado") or "").upper() != "RUNNING":
         return medio(
             "oracle", "Oracle Always Free", "usable", CAPACIDAD_ORACLE,
@@ -167,13 +199,13 @@ def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float) -> 
     ultimo = max(latidos) if latidos else 0.0
     if ultimo and ahora - ultimo < 600:
         return medio(
-            "oracle", "Oracle Always Free", "listo", CAPACIDAD_ORACLE,
-            "A1 RUNNING y orquestador anunciado por el bus hace %d s" % int(ahora - ultimo), "",
+            "oracle", "Oracle Always Free", "listo", capacidad,
+            "A1 RUNNING y orquestador anunciado por el bus hace %d s%s" % (int(ahora - ultimo), extra), "",
         )
     return medio(
-        "oracle", "Oracle Always Free", "usable", CAPACIDAD_ORACLE,
-        "A1 RUNNING (región %s) pero su orquestador no se ha anunciado en medios.json"
-        % (datos.get("region") or "?"),
+        "oracle", "Oracle Always Free", "usable", capacidad,
+        "A1 RUNNING (región %s) pero su orquestador no se ha anunciado en medios.json%s"
+        % (datos.get("region") or "?", extra),
         "arrancar el orquestador del enjambre en el A1 (se anuncia solo por el bus)",
     )
 
@@ -244,7 +276,13 @@ def sondear() -> dict:
             oracle_datos = json.load(f)
     except (OSError, ValueError):
         oracle_datos = None
-    medios.append(clasificar_oracle(oracle_datos, reg, ahora))
+    try:
+        with open(os.path.expanduser(os.environ.get("ORACLE_CONSUMO_JSON") or "~/.starseed/oracle-consumo.json"),
+                  encoding="utf-8") as f:
+            oracle_consumo = json.load(f)
+    except (OSError, ValueError):
+        oracle_consumo = None
+    medios.append(clasificar_oracle(oracle_datos, reg, ahora, oracle_consumo))
     return {"generado": time.strftime("%Y-%m-%dT%H:%M:%S"), "medios": medios}
 
 

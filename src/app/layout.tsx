@@ -82,6 +82,9 @@ import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider
 import { MallaNeuronasMount } from "@/components/network/malla-neuronas-mount";
 import { PresenciaNeuronasMount } from "@/components/neurons/presencia-neuronas-mount";
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
+// Estaciones EN VIVO (Omnifrecuencias/Audiomorphic): montaje diminuto; el motor, el minicontrol y el
+// puente con la app oficial se cargan solo al sintonizar. SOP architecture/estaciones-en-vivo-parametricas.md.
+import { EstacionVivoMontaje } from "@/components/estaciones/en-vivo/montaje-estacion-vivo";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
 // Aviso de actualización del SHELL NATIVO (apps Tauri de escritorio/Android):
@@ -326,6 +329,8 @@ export default function RootLayout({
                         <PresenciaNeuronasMount />
                         {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
                         <SoloFueraDeConsola><OmniAppHost /></SoloFueraDeConsola>
+                        {/* Estación en vivo sonando en todo el OS + puente postMessage con la app oficial. */}
+                        <SoloFueraDeConsola><EstacionVivoMontaje /></SoloFueraDeConsola>
                         {/* Ventana de configuración del fondo Audiomorphic (escucha 'starseed:open-audiomorphic-config'). */}
                         <SoloFueraDeConsola><AudiomorphicConfigHost /></SoloFueraDeConsola>
                         {/* Receptor de solicitudes de archivo entre neuronas de la cuenta (defensivo, sin UI hasta que llega una). */}

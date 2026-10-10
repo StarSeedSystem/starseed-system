@@ -13,12 +13,11 @@
  *     ligeras (p. ej. el popover compacto de la barra superior).
  */
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Map as MapIcon, Radar, RadioTower, Settings2, ExternalLink } from "lucide-react";
+import { RadioTower, Settings2, ExternalLink } from "lucide-react";
 import { MeshControlPanel } from "@/components/mesh/mesh-control-panel";
-import { SignalsRadar } from "@/components/mesh/signals-radar";
+import { MapaSenales } from "@/components/mesh/mapa-senales/mapa-senales";
 import { DetectedSignalsPanel } from "@/components/mesh/detected-signals-panel";
 import { AntennasPanel } from "@/components/mesh/antennas-panel";
 import { MeshPrivacyPanel } from "@/components/mesh/mesh-privacy-panel";
@@ -32,15 +31,6 @@ import { MallaNeuronasPanel } from "@/components/network/malla-neuronas-panel";
 import { crearAdaptadorMeshtastic, crearAdaptadorSimulado, crearAdaptadorAgente } from "@/ai/astraura/mesh/camr/enlaces";
 import { CONFIG_DEFECTO, crearEstado, cicloBucle, registrarDecision, medirTodos, pasoRecomendar } from "@/ai/astraura/mesh/camr/bucle";
 import type { EstadoBucle, EntradaBucle } from "@/ai/astraura/mesh/camr/bucle";
-
-const MeshMap3D = dynamic(() => import("@/components/mesh/mesh-map-3d"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[420px] w-full items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-sm text-white/40">
-      Cargando el mapa 3D de la malla…
-    </div>
-  ),
-});
 
 export interface RedMeshCenterProps {
   /** Montado dentro del hub (sin cabecera grande de página). */
@@ -106,30 +96,28 @@ export function RedMeshCenter({ embedded = false, showMap = true, showPrivacy = 
         </div>
       )}
 
-      {/* 1 · Mapa 3D (opcional en superficies ligeras) */}
-      {showMap && (
+      {/* 1 · MAPA 3D DE SEÑALES REALES: el Mapa 3D de neuronas activas y el Radar de
+          señales reales fundidos en un solo instrumento. Todo lo que esta neurona
+          oye —nodos LoRa por RF, faros del relé, neuronas de la cuenta con su enlace
+          P2P, portadora IP, BLE y puertos serie— con su RANGO DE PRECISIÓN, en
+          perspectiva y con filtros, lista y ficha. Incluye la vista de radar plano
+          (también como red de seguridad si WebGL no está disponible). */}
+      {showMap ? (
+        <>
+          <MapaSenales />
+          {/* Inventario por familia de antena, con las acciones reales de cada una */}
+          <DetectedSignalsPanel />
+        </>
+      ) : (
+        /* Superficies ligeras (sin WebGL): el mapa fusionado en vista plana compacta + inventario. */
         <section>
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-white/85">
-            <MapIcon className="h-4 w-4 text-emerald-300" /> Mapa 3D de neuronas activas
-          </h2>
-          <MeshMap3D />
+          <h2 className="sr-only">Mapa de señales reales</h2>
+          <div className="grid gap-3 xl:grid-cols-2">
+            <MapaSenales compacto soloPlano />
+            <DetectedSignalsPanel />
+          </div>
         </section>
       )}
-
-      {/* 2 · RADAR DE SEÑALES REALES (Adenda 150): todo lo que esta neurona oye
-          —nodos LoRa por RF, faros del relé, neuronas de la cuenta, portadora IP,
-          BLE escaneado con gesto y puertos serie— con su RANGO DE PRECISIÓN. */}
-      <section>
-        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-white/85">
-          <Radar className="h-4 w-4 text-sky-300" /> Radar de señales reales
-        </h2>
-        <div className="grid gap-3 xl:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-            <SignalsRadar height={280} showLegend />
-          </div>
-          <DetectedSignalsPanel />
-        </div>
-      </section>
 
       {/* 3 · Conexiones (panel completo reutilizado) */}
       <MeshControlPanel />

@@ -1,8 +1,13 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
+import { aplicarCorsMando, preflightCorsMando } from '@/lib/metagenesis/cors-mando'
 
 export async function middleware(request: NextRequest) {
-    return await updateSession(request)
+    // (2026-10-10) MetaGenesis desde otras neuronas: CORS de /api/mando/* solo para los
+    // orígenes del OS, sin cookies entre orígenes. Para la propia Mac no cambia nada.
+    const preflight = preflightCorsMando(request)
+    if (preflight) return preflight
+    return aplicarCorsMando(request, await updateSession(request))
 }
 
 export const config = {

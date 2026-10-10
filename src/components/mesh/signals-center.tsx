@@ -21,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePrompt } from "@/components/ui/confirm-dialog";
-import { SignalsRadar } from "./signals-radar";
+import { MapaSenales } from "./mapa-senales/mapa-senales";
 import { DetectedSignalsPanel } from "./detected-signals-panel";
 import { PanelInferencia } from "./panel-inferencia";
 import { RedMeshCenter } from "./red-mesh-center";
@@ -383,9 +383,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       {/* Radar unificado: TODAS las señales reales detectadas (nodos LoRa por RF,
           faros del relé, neuronas de la cuenta, portadora IP, BLE, puertos serie)
           con su rango de precisión. Pulsar un blip abre su ficha completa. */}
-      <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-        <SignalsRadar height={compact ? 200 : 260} showLegend onOpenMesh={() => setTab("redmesh")} />
-      </div>
+      <MapaSenales compacto={compact || undefined} onOpenMesh={() => setTab("redmesh")} />
 
       {/* Inventario completo de señales detectadas, por familia de antena, con
           acciones reales de interconexión/sincronización y estados vacíos. */}

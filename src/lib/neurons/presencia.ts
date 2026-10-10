@@ -29,6 +29,8 @@ import { uidActual } from "@/lib/consumo/usuario";
 import { describirMedio, type TipoMedio } from "@/lib/neurons/medio";
 import { medirSenales, firmaSenales, type SenalesMedio } from "@/lib/neurons/senales-medio";
 import { CLAVE_FUSIONES, EVENTO_FUSIONES } from "@/lib/neurons/fusion-alias";
+import type { VersionesPorCapa } from "@/lib/actualizaciones/capas";
+import { firmaVersiones } from "@/lib/actualizaciones/versiones-capa";
 
 export const CLAVE_CANAL_NEURONAS = "starseed.neuronas.canal.v1";
 const MIN_REENVIO_MS = 15_000;
@@ -42,6 +44,8 @@ export interface PresenciaMedio {
   m: string;
   tipo: TipoMedio;
   etiqueta: string;
+  /** syncDeviceId de ESTE medio: el id con el que acepta el canal WebRTC de la malla. */
+  sid?: string;
   plataforma?: string;
   /** La pestaña o la app está a la vista (false = abierta en segundo plano). */
   visible: boolean;
@@ -50,6 +54,8 @@ export interface PresenciaMedio {
   /** Hora de este anuncio (epoch ms). */
   t: number;
   s: SenalesMedio;
+  /** (2026-10-10) Versión de cada capa que tiene este medio (lib/actualizaciones/versiones-locales.ts). */
+  v?: VersionesPorCapa;
 }
 
 export interface EstadoPresencia {
@@ -124,6 +130,18 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     const medio = describirMedio();
     if (!n || !medio.id) return null;
     const s = await medirSenales();
+    let sid: string | undefined;
+    try {
+      sid = (await import("@/lib/network/identidad-dispositivo")).identidadDispositivo().syncDeviceId || undefined;
+    } catch {
+      sid = undefined;
+    }
+    let v: VersionesPorCapa | undefined;
+    try {
+      v = await (await import("@/lib/actualizaciones/versiones-locales")).versionesDeEsteMedio();
+    } catch {
+      v = undefined;
+    }
     let plataforma: string | undefined;
     try {
       const ua = navigator.userAgent || "";
@@ -136,11 +154,13 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       m: medio.id,
       tipo: medio.tipo,
       etiqueta: medio.etiqueta,
+      ...(sid ? { sid } : {}),
       plataforma,
       visible: typeof document === "undefined" ? true : document.visibilityState !== "hidden",
       desde,
       t: Date.now(),
       s,
+      ...(v && Object.keys(v).length ? { v } : {}),
     };
   } catch {
     return null;
@@ -151,7 +171,7 @@ async function enviar(forzar = false): Promise<void> {
   if (!canal) return;
   const a = await anuncio();
   if (!a || !canal) return;
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}`;
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {

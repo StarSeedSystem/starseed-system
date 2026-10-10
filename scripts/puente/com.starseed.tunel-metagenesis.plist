@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Túnel de MetaGenesis (2026-10-10): puerta solo /api/mando + cloudflared + fila del motor en
+     Supabase con latido cada 60 s. python3 de Homebrew directo: tiene el permiso de disco, así
+     que no hace falta lanzador-tcc.py. SOP: architecture/metagenesis-remoto-tunel.md -->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.starseed.tunel-metagenesis</string>
+  <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>/Users/alex/Documents/starseed-os-main/scripts/puente/tunel_metagenesis.py</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>ExitTimeOut</key><integer>40</integer>
+  <key>Nice</key><integer>5</integer>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/Users/alex/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>STARSEED_ROOT</key><string>/Users/alex/Documents/starseed-os-main</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+  <key>StandardOutPath</key><string>/tmp/starseed-tunel-metagenesis.log</string>
+  <key>StandardErrorPath</key><string>/tmp/starseed-tunel-metagenesis.log</string>
+  <key>WorkingDirectory</key><string>/Users/alex/Documents/starseed-os-main</string>
+</dict></plist>

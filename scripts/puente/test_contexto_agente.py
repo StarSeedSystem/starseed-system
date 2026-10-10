@@ -195,3 +195,30 @@ class Deriva(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Nube(unittest.TestCase):
+    """(OC1010) Oracle medido entra en el contexto de supervisores y subagentes, no en el de escritores."""
+
+    ORACLE = {"leido": "2026-10-10T01:00:00Z", "region": "mx-queretaro-1",
+              "gasto": {"mes": 0.0, "previsto": 0.0, "presupuesto": 1.0, "moneda": "MXN"},
+              "computo": {"a1_nombre": "starseed-a1", "a1_estado": "RUNNING"},
+              "margen": {"apto": True, "motivo": "hay margen gratis: 99,5 % de CPU y 11,4 GB libres"},
+              "freno": {"activo": False},
+              "reclamacion": {"riesgo": True, "maquinas": [{"nombre": "starseed-a1", "riesgo": True, "cpu_p95": 0.5,
+                                                             "mem_p95": 5.3, "reclamable_desde": "2026-10-14T23:00:00Z"}]}}
+
+    def test_supervisor_recibe_margen_gasto_y_riesgo(self):
+        d = construir("supervisor", oracle=self.ORACLE)
+        self.assertIn("nube", d["secciones"])
+        self.assertIn("## Oracle Cloud", d["texto"])
+        self.assertIn("hay margen gratis", d["texto"])
+        self.assertIn("2026-10-14", d["texto"])
+
+    def test_freno_si_el_gasto_pasa_de_cero(self):
+        o = dict(self.ORACLE, freno={"activo": True}, margen={"apto": False, "motivo": "freno"})
+        self.assertIn("FRENO", construir("subagente", oracle=o)["texto"])
+
+    def test_sin_lectura_o_escritor_no_hay_seccion(self):
+        self.assertNotIn("nube", construir("supervisor")["secciones"])
+        self.assertNotIn("Oracle Cloud", construir("escritor", oracle=self.ORACLE)["texto"])

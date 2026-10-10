@@ -22,6 +22,10 @@ import { createClient as clienteConToken } from "@supabase/supabase-js";
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 import type { CapacidadAmbito } from "./ambito";
+import { crearCacheVerificaciones, expDelToken, huellaToken } from "@/lib/metagenesis/cache-verificacion";
+
+/** Tokens de MetaGenesis remoto verificados hace poco (huella → miembro), en memoria del proceso. */
+const verificados = crearCacheVerificaciones();
 
 export type DecisionAcceso = 200 | 401 | 403 | 404 | 503;
 
@@ -91,7 +95,15 @@ export async function guardianMando(
     let esMiembro = false;
     let rpcFallo = false;
 
-    if (habilitado && produccion && !esLocal) {
+    // (2026-10-10) Token ya verificado hace menos de 60 s (y sin caducar): no se vuelve a preguntar
+    // a Supabase en cada lectura remota. Ver `src/lib/metagenesis/cache-verificacion.ts`.
+    const tokenRemoto = habilitado && produccion && !esLocal && !(bandera && conAmbito) ? tokenDe(req) : null;
+    const huella = tokenRemoto ? await huellaToken(tokenRemoto).catch(() => null) : null;
+    const recordado = huella ? verificados.leer(huella) : null;
+    if (recordado) {
+        hayUsuario = true;
+        esMiembro = recordado.miembro;
+    } else if (habilitado && produccion && !esLocal) {
         try {
             // Sesión: cookie (misma web) o token (MetaGenesis desde otra neurona por el túnel).
             const token = tokenDe(req);
@@ -121,7 +133,10 @@ export async function guardianMando(
                 } else {
                     const { data: ok, error: errRpc } = await supabase.rpc("es_metagenesis");
                     if (errRpc) rpcFallo = true;
-                    else esMiembro = ok === true;
+                    else {
+                        esMiembro = ok === true;
+                        if (huella && tokenRemoto) verificados.guardar(huella, { usuario: usuarioId, miembro: esMiembro }, expDelToken(tokenRemoto));
+                    }
                 }
             } catch {
                 rpcFallo = true;

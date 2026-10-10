@@ -20,6 +20,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus, Loader2, Globe, Users, GraduationCap, CalendarDays, Landmark } from "lucide-react";
 import { toast } from "sonner";
+import { PasoActualizaciones, TIPO_DE_CLASE } from "@/components/actualizaciones/paso-actualizaciones";
+import { guardarPoliticaSistema, idSistema } from "@/lib/actualizaciones/almacen-politicas";
+import { politicaPorDefecto, type PoliticaSistema } from "@/lib/actualizaciones/politica";
 
 type EntityKindId = "page" | "group" | "community" | "study" | "event";
 
@@ -46,6 +49,12 @@ export function CreateEntityDialog({ triggerClassName }: { triggerClassName?: st
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [busy, setBusy] = useState(false);
+    // (2026-10-10) Paso «Actualizaciones»: null = la política por defecto de su tipo.
+    const [politicaAct, setPoliticaAct] = useState<PoliticaSistema | null>(null);
+    const recordarPolitica = (slug: string) => {
+        const tipo = TIPO_DE_CLASE[kind];
+        guardarPoliticaSistema(idSistema(tipo, slug), tipo, politicaAct ?? politicaPorDefecto(tipo));
+    };
 
     async function crear() {
         const nombre = name.trim();
@@ -71,6 +80,7 @@ export function CreateEntityDialog({ triggerClassName }: { triggerClassName?: st
                 } as never);
                 if (error) throw error;
                 try { await supabase.from("os_event_attendance").insert({ event_slug: slug, user_id: uid } as never); } catch { /* opcional */ }
+                recordarPolitica(slug);
                 toast.success("Evento creado");
                 setOpen(false);
                 router.push(`/evento/${slug}`);
@@ -94,6 +104,7 @@ export function CreateEntityDialog({ triggerClassName }: { triggerClassName?: st
                 await supabase.from("os_memberships").insert({ user_id: uid, group_slug: slug, role: "owner" } as never);
             } catch { /* si ya existe o la policy lo cubre por owner, seguimos */ }
 
+            recordarPolitica(slug);
             toast.success(kind === "page" ? "Página creada" : "Creado con éxito");
             setOpen(false);
             setName(""); setDescription("");
@@ -129,7 +140,7 @@ export function CreateEntityDialog({ triggerClassName }: { triggerClassName?: st
                             <button
                                 key={k.id}
                                 type="button"
-                                onClick={() => setKind(k.id)}
+                                onClick={() => { setKind(k.id); setPoliticaAct(null); }}
                                 className={`cursor-pointer rounded-xl border p-3 text-left transition-colors duration-200 ${
                                     active ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50"
                                 }`}
@@ -152,6 +163,7 @@ export function CreateEntityDialog({ triggerClassName }: { triggerClassName?: st
                         <Textarea id="ce-desc" value={description} onChange={(e) => setDescription(e.target.value)}
                             placeholder="Propósito, temas, a quién invita…" rows={3} maxLength={400} />
                     </div>
+                    <PasoActualizaciones tipo={TIPO_DE_CLASE[kind]} valor={politicaAct} onCambiar={setPoliticaAct} />
                     <Button onClick={crear} disabled={busy} className="w-full">
                         {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                         Crear {KINDS.find((k) => k.id === kind)?.label.toLowerCase()}

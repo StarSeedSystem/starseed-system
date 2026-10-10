@@ -173,6 +173,14 @@ SERVICIOS = {
         "/tmp/starseed-flujos.log",
         True,
     ),
+    # (2026-10-10) MetaGenesis desde cualquier neurona: puerta solo /api/mando en :9012 +
+    # túnel de cloudflared + URL y latido en la tabla `metagenesis_motor` (solo miembros).
+    # python3 directo (tiene el permiso de disco). SOP: architecture/metagenesis-remoto-tunel.md
+    "tunel-metagenesis": (
+        [PY3, "-u", P("tunel_metagenesis.py")],
+        "/tmp/starseed-tunel-metagenesis.log",
+        True,
+    ),
 }
 
 PLANTILLA = """<?xml version="1.0" encoding="UTF-8"?>

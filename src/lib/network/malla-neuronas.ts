@@ -47,6 +47,7 @@ import {
   type NeuronKind,
 } from "@/lib/neurons/neurons";
 import { identidadDispositivo } from "@/lib/network/identidad-dispositivo";
+import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import { ensureMesh, getSharedMesh, capaMeshCompartiendo, setupConcienciaSync } from "@/lib/network/lan-sync";
 import type { MeshHandle, PeerSnapshot, PeerState } from "@/lib/network/webrtc-mesh";
 import { resumirRuta, type RutaEnlace } from "@/lib/network/estadisticas-enlace";
@@ -584,6 +585,8 @@ export function useMallaNeuronas(deps?: {
 }): MallaNeuronasState {
   const listNeuronsFn = deps?.listNeurons ?? listNeurons;
   const ensureMeshFn = deps?.ensureMesh ?? ensureMesh;
+  // (2026-10-10) Medios abiertos ahora en otros aparatos (presencia en vivo): objetivos del auto-vínculo.
+  const presencia = usePresenciaNeuronas();
 
   const [neuronas, setNeuronas] = useState<Neuron[]>([]);
   const [peers, setPeers] = useState<Record<string, PeerSnapshot>>({});
@@ -714,7 +717,7 @@ export function useMallaNeuronas(deps?: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ---- 3) decisión de auto-vínculo: cada vez que cambian neuronas/peers ---- */
+  /* ---- 3) decisión de auto-vínculo: cada vez que cambian neuronas/peers/presencia ---- */
   useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
@@ -725,11 +728,20 @@ export function useMallaNeuronas(deps?: {
       online: !!n.online,
       isThisDevice: n.id === misIds.neuronDeviceId || !!n.isThisDevice,
     }));
+    // (2026-10-10 · prueba Mac ⇄ tablet) Desde «una neurona por aparato», la fila guarda el
+    // syncDeviceId de UNO de sus medios (el último que subió la ficha), que puede estar cerrado:
+    // la Mac intentaba llamar a la pestaña de Chrome de la tablet mientras lo abierto era la app
+    // nativa, y no había enlace. La presencia en vivo dice qué medios están ABIERTOS ahora y con
+    // qué syncDeviceId: esos son los objetivos buenos (uno por medio abierto de otro aparato).
+    for (const m of presencia.medios) {
+      if (!m.sid || m.sid === misIds.syncDeviceId) continue;
+      ligero.push({ neuronId: `${m.n}#${m.m}`, syncDeviceId: m.sid, online: true, isThisDevice: m.n === misIds.neuronDeviceId && m.sid === misIds.syncDeviceId });
+    }
     const peersLite: Record<string, PeerEstadoLite> = {};
     for (const [id, snap] of Object.entries(peers)) peersLite[id] = { state: snap.state };
     const objetivos = decidirAutovinculo(ligero, peersLite);
     for (const target of objetivos) void mesh.connectToDevice(target);
-  }, [neuronas, peers]);
+  }, [neuronas, peers, presencia.medios]);
 
   /* ---- 4) heartbeat (ficha inicial + late cada 30s) por cada peer conectado ---- */
   useEffect(() => {

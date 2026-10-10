@@ -46,6 +46,12 @@ function hostSinPuerto(host: string | null): string | null {
 export function esDespliegueLocal(req: Request): boolean {
     // En Vercel nunca se abre la puerta: ahí la autenticación es obligatoria.
     if (process.env.VERCEL === "1") return false;
+    // (2026-10-10) Lo que llega por un túnel (Cloudflare) o por un proxy desde otra IP NUNCA es
+    // local, aunque la Mac tenga STARSEED_LOCAL=1: un túnel abierto dejaba pasar sin sesión la voz,
+    // los proxies de IA con claves compartidas y Jev a quien tuviera su URL.
+    if (req.headers.get("cf-connecting-ip") || req.headers.get("cf-ray")) return false;
+    const reenviado = hostSinPuerto(req.headers.get("x-forwarded-host"));
+    if (reenviado && !HOSTS_LOCALES.has(reenviado) && !reenviado.endsWith(".local")) return false;
     if (process.env.STARSEED_LOCAL === "1") return true;
 
     const host = hostSinPuerto(req.headers.get("x-forwarded-host") ?? req.headers.get("host"));

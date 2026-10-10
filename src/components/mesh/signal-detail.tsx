@@ -28,6 +28,8 @@ import {
   addMeshServer, connectMesh, connectWifiNode, getConnectivitySettings, transmit,
 } from "@/ai/astraura/mesh";
 import type { DetectedSignal, SignalActionKind } from "@/ai/astraura/mesh/signals";
+import type { FichaMapa } from "@/lib/senales/tipos-vivo";
+import { FichaSecciones } from "./mapa-senales/secciones-ficha";
 
 function fmtAge(at: number | null): string {
   if (!at) return "sin dato";
@@ -58,13 +60,19 @@ const MODE_CLS: Record<DetectedSignal["placement"]["mode"], string> = {
 
 export interface SignalDetailCardProps {
   signal: DetectedSignal;
+  /**
+   * Ficha del Mapa 3D (`fichaDeSenal`): cada valor con su fuente y «no medido» donde no hay dato.
+   * Con ella, la tarjeta pinta la ficha en lugar de los bloques de posición, datos y cuenta, y
+   * sigue pintando la barra de calidad, la compatibilidad y las acciones reales de la señal.
+   */
+  ficha?: FichaMapa;
   onClose?: () => void;
   /** Abrir la Red Mesh (pestaña o página) desde la ficha. */
   onOpenMesh?: () => void;
   className?: string;
 }
 
-export function SignalDetailCard({ signal, onClose, onOpenMesh, className }: SignalDetailCardProps) {
+export function SignalDetailCard({ signal, ficha, onClose, onOpenMesh, className }: SignalDetailCardProps) {
   const router = useRouter();
   const prompt = usePrompt();
   const [busy, setBusy] = useState<string | null>(null);
@@ -205,7 +213,7 @@ export function SignalDetailCard({ signal, onClose, onOpenMesh, className }: Sig
         )}
       </div>
 
-      <p className="mt-1.5 text-[11px] leading-snug text-white/60">{signal.detail}</p>
+      <p className="mt-1.5 text-[11px] leading-snug text-white/60">{ficha ? ficha.resumen : signal.detail}</p>
 
       {/* Calidad real */}
       <div className="mt-2 rounded-xl border border-white/8 bg-white/[0.02] px-2.5 py-2">
@@ -228,6 +236,20 @@ export function SignalDetailCard({ signal, onClose, onOpenMesh, className }: Sig
         <p className="mt-1 text-[10px] leading-snug text-white/45">{signal.qualityDetail}</p>
       </div>
 
+      {ficha ? (
+        <div className="mt-2 space-y-2">
+          <FichaSecciones ficha={ficha} omitir={["calidad"]} />
+          {signal.starseed?.via === "neuron-registry" && (
+            <Link
+              href="/agent?tab=neuronas"
+              className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-violet-200/85 transition-colors duration-200 hover:text-violet-100"
+            >
+              <ExternalLink className="h-3 w-3" /> Abrir panel de neuronas
+            </Link>
+          )}
+        </div>
+      ) : (
+        <>
       {/* Posición + anillo de precisión */}
       <div className="mt-2 rounded-xl border border-white/8 bg-white/[0.02] px-2.5 py-2">
         <div className="flex flex-wrap items-center justify-between gap-1.5">
@@ -289,6 +311,7 @@ export function SignalDetailCard({ signal, onClose, onOpenMesh, className }: Sig
             <span className="text-right text-white/70">
               {signal.starseed.via === "neuron-registry" ? "registro de neuronas de la cuenta"
                 : signal.starseed.via === "federation" ? "federación de topología (mismo nº de nodo)"
+                : signal.starseed.via === "direct-link" ? "enlace directo sin internet (lo declara el otro lado)"
                 : "faro firmado del relé"}
             </span>
             {signal.starseed.platform && (<>
@@ -340,6 +363,9 @@ export function SignalDetailCard({ signal, onClose, onOpenMesh, className }: Sig
           <ShieldQuestion className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/35" />
           Sin cuenta StarSeed vinculada: esta señal no declara identidad de la red, así que no hay perfil público que mostrar.
         </div>
+      )}
+
+        </>
       )}
 
       {/* Compatibilidad y opciones */}

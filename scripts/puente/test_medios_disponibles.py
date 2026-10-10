@@ -126,3 +126,26 @@ class Oracle(unittest.TestCase):
         datos = {"vinculada": True, "instancias": [self.A1]}
         reg = {"medios": {"o1": {"origen": "oracle", "latido": ahora - 4000}}}
         self.assertEqual("usable", M.clasificar_oracle(datos, reg, ahora)["estado"])
+
+    # (OC1010) El medidor de consumo (~/.starseed/oracle-consumo.json) decide el freno y el margen.
+    CONSUMO = {"leido": "2026-10-10T01:00:00Z", "freno": {"activo": False, "motivo": ""},
+               "margen": {"apto": True, "cpu_libre_pct": 99.5, "mem_libre_gb": 11.4},
+               "reclamacion": {"riesgo": True, "maquinas": [{"nombre": "starseed-a1", "riesgo": True,
+                                                              "reclamable_desde": "2026-10-14T23:00:00Z"}]}}
+
+    def test_con_consumo_dice_el_margen_libre_y_el_riesgo_de_reclamacion(self):
+        datos = {"vinculada": True, "region": "mx-queretaro-1", "instancias": [self.A1]}
+        d = M.clasificar_oracle(datos, {"medios": {}}, 1_000_000.0, self.CONSUMO)
+        self.assertEqual("usable", d["estado"])
+        self.assertIn("libre ahora: 99,5 % CPU · 11,4 GB", d["capacidad"])
+        self.assertIn("reclamarlo desde el 2026-10-14", d["detalle"])
+
+    def test_gasto_mayor_que_cero_frena_el_medio(self):
+        ahora = 1_000_000.0
+        datos = {"vinculada": True, "region": "mx-queretaro-1", "instancias": [self.A1]}
+        reg = {"medios": {"o1": {"origen": "oracle", "latido": ahora - 60}}}
+        consumo = dict(self.CONSUMO, freno={"activo": True, "motivo": "el gasto del mes es 0.4 MXN"})
+        d = M.clasificar_oracle(datos, reg, ahora, consumo)
+        self.assertEqual("requiere_alex", d["estado"])
+        self.assertIn("freno", d["detalle"])
+        self.assertIn("cloud.oracle.com", d["siguiente_paso"])

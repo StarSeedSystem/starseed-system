@@ -77,6 +77,9 @@ export function textoExtras(m:MedidorCredito):string[]{
   if(r>0&&v){ const f=new Date(v); const dia=fmt(f,{day:'numeric',month:'short'}).replace(/\.$/,''); out.push(`${r} reinicio${r>1?'s':''} gratis hasta el ${dia}`) }
   if(typeof e.bloqueado==='string') out.push(`bloqueado: ${e.bloqueado}`)
   if(e.uso_normal===false) out.push('uso normal cortado')
+  // (OC1010) Oracle: el freno por gasto > 0 y el riesgo de reclamación del A1 ocioso.
+  if(e.freno===true) out.push('freno: el gasto pasó de 0')
+  if(e.riesgo_reclamacion===true){ const d=typeof e.reclamable_desde==='string'?new Date(e.reclamable_desde as string):null; out.push(d&&!Number.isNaN(d.getTime())?`riesgo de reclamación desde el ${fmt(d,{day:'numeric',month:'short',timeZone:'UTC'}).replace(/\.$/,'')}`:'riesgo de reclamación') }
   if(typeof m.error==='string'&&m.error){ const corto=m.error.length>80?m.error.slice(0,77)+'…':m.error; out.push(`error: ${corto}`) }
   return out
 }

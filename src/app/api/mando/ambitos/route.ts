@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { guardianMando } from "@/lib/mando/guardian";
 import { AMBITO_LOCAL } from "@/lib/mando/ambito";
-import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
+import { esPeticionDeEstaMaquina as esDespliegueLocal } from "@/lib/seguridad/misma-maquina"; // (2026-10-10) solo la propia máquina cuenta como dueña local
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

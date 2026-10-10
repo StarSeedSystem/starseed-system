@@ -87,6 +87,9 @@ REGLAS = [
     ("no-publicar", ("supervisor", "subagente"),
      "Nunca `git push` ni publicar sin la palabra explícita de Alex; nunca borrar datos o cuentas sin copia.",
      "CLAUDE.md · Publicar"),
+    ("oracle-gratis", ("supervisor", "subagente"),
+     "Oracle: solo Always Free. Con margen medido, lo pesado y lo 24/7 va al A1 (gratis y lo libra de la reclamación por inactividad); si el gasto del mes pasa de 0, freno: nada nuevo allí y aviso en el canal.",
+     "architecture/oracle-consumo.md · §5"),
     ("capacidad", ("supervisor",),
      "Lo que sube el TECHO del sistema (más agentes a la vez, mejores modelos) va primero en cualquier cola.",
      "CLAUDE.md · Regla permanente de prioridad"),
@@ -185,8 +188,8 @@ ORDEN = {
     "escritor": ("reglas", "protocolo", "herramientas", "area", "relevo"),
     "revisor": ("reglas", "area", "protocolo", "herramientas"),
     "analista": ("reglas", "area", "protocolo", "herramientas"),
-    "supervisor": ("reglas", "protocolo", "herramientas", "area", "relevo"),
-    "subagente": ("reglas", "protocolo", "herramientas", "relevo", "area"),
+    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "relevo"),
+    "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area"),
 }
 
 _SECRETOS = [
@@ -329,6 +332,31 @@ def seccion_area(area, areas, raices, existe):
     return "\n".join(lineas)
 
 
+def seccion_nube(oracle):
+    """(OC1010) Oracle medido (capacidad libre del A1, gasto, prueba, riesgo de reclamación) para que
+    directores y subagentes enruten al A1 cuando hay margen gratis y frenen si el gasto pasa de 0.
+    Lee lo que ya midió `medidor_oracle.py`; nunca llama a Oracle. Vacío si no hay lectura."""
+    if not isinstance(oracle, dict) or not oracle.get("leido"):
+        return ""
+    try:
+        import medidor_oracle as _mo
+
+        return _mo.resumen_agentes(oracle)
+    except Exception:
+        return ""
+
+
+def _oracle_del_disco():
+    """La última lectura de ~/.starseed/oracle-consumo.json (o None). Solo la CLI y `texto()`."""
+    try:
+        with open(os.path.expanduser(os.environ.get("ORACLE_CONSUMO_JSON") or "~/.starseed/oracle-consumo.json"),
+                  encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
 def seccion_relevo(texto):
     if not texto:
         return ""
@@ -346,7 +374,7 @@ def _recortar(texto, n):
 
 
 def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, existe=None, excluir=(),
-              extras=None, raices=None):
+              extras=None, raices=None, oracle=None):
     """El contexto común de un agente (markdown) y sus metadatos. PURA con `leer`/`existe`.
 
     Devuelve {texto, rol, area, secciones, recortadas, caracteres}. `area` puede inferirse de
@@ -374,6 +402,7 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
         "herramientas": lambda: seccion_herramientas(rol, existe, compacto),
         "area": lambda: seccion_area(area, areas, raices, existe),
         "relevo": lambda: seccion_relevo(leer(RELEVO)),
+        "nube": lambda: seccion_nube(oracle),
     }
     partes, puestas, recortadas = [cabecera], [], []
     usado = len(cabecera)
@@ -412,7 +441,7 @@ def texto(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, raiz=None, exclui
 
     try:
         return construir(rol, area, tarea, max_chars, leer, lambda r: os.path.exists(os.path.join(raiz, r)),
-                         excluir)["texto"]
+                         excluir, oracle=_oracle_del_disco())["texto"]
     except Exception:
         return ""
 
@@ -425,7 +454,7 @@ def main(argv=None, salida=None):
     ap.add_argument("--area", default=None)
     ap.add_argument("--tarea", default="")
     ap.add_argument("--max", type=int, default=MAX_POR_DEFECTO)
-    ap.add_argument("--excluir", default="", help="secciones a omitir: reglas,protocolo,herramientas,area,relevo")
+    ap.add_argument("--excluir", default="", help="secciones a omitir: reglas,protocolo,herramientas,nube,area,relevo")
     ap.add_argument("--raiz", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
@@ -439,7 +468,7 @@ def main(argv=None, salida=None):
             return None
 
     d = construir(a.rol, a.area, a.tarea, a.max, leer, lambda r: os.path.exists(os.path.join(raiz, r)),
-                  tuple(x.strip() for x in a.excluir.split(",") if x.strip()))
+                  tuple(x.strip() for x in a.excluir.split(",") if x.strip()), oracle=_oracle_del_disco())
     salida.write((json.dumps(d, ensure_ascii=False, indent=1) if a.json else d["texto"]) + "\n")
     return 0
 

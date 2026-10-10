@@ -232,7 +232,8 @@ describe("PrimerArranque · con cuenta", () => {
         montar();
         await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
         expect(est.consultas).toEqual(expect.arrayContaining(["profiles", "neuron_devices"]));
-        expect(screen.getByTestId("resumen-sincronizado").textContent).toContain("2 escritorios");
+        // El resumen se calcula tras el título; con la máquina cargada llega un instante después.
+        await waitFor(() => expect(screen.getByTestId("resumen-sincronizado").textContent).toContain("2 escritorios"));
 
         fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
         await screen.findByRole("heading", { name: "Qué puede hacer esta neurona" });

@@ -85,6 +85,11 @@ const PanelTaller = dynamic(
     () => import("@/components/mando/panel-taller").then((m) => m.PanelTaller),
     { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando el taller…</p> },
 );
+// (2026-10-10) Actualizaciones por capas y nivel: diferida y montada solo al abrir la pestaña.
+const ActualizacionesMetaGenesis = dynamic(
+    () => import("@/components/actualizaciones/panel-actualizaciones").then((m) => m.ActualizacionesMetaGenesis),
+    { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando las actualizaciones…</p> },
+);
 const PanelCanales = dynamic(
     () => import("@/components/mando/panel-canales").then((m) => m.PanelCanales),
     {
@@ -278,6 +283,8 @@ const PESTANAS = [
     // Lo que sale de aquí hacia el repositorio.
     { id: "commits", etiqueta: "Commits pendientes", grupo: "Publicación" },
     { id: "publicar", etiqueta: "Publicar", grupo: "Publicación" },
+    // (2026-10-10) Cómo llega cada capa del OS a cada neurona (architecture/actualizaciones-por-capas-sop.md).
+    { id: "actualizaciones", etiqueta: "Actualizaciones", grupo: "Publicación" },
     // Con qué se trabaja: modelos, memoria, voz, aprendizaje.
     { id: "flota", etiqueta: "Flota", grupo: "Medios" },
     { id: "neurona", etiqueta: "Neurona", grupo: "Medios" },
@@ -2342,6 +2349,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="publicar">
                     <PanelPublicacion />
+                </TabsContent>
+                <TabsContent value="actualizaciones">
+                    {pestana === "actualizaciones" ? <ActualizacionesMetaGenesis /> : null}
                 </TabsContent>
                 <TabsContent value="canales">
                     {/* Ola 285 · K3: el panel de canales solo se monta al abrir

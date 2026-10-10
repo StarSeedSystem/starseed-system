@@ -1,34 +1,24 @@
 "use client";
 
 /**
- * /mando — GENESIS (Ola 231).
+ * /genesis — la entrada de Genesis con sus tres niveles (2026-10-10).
  * ─────────────────────────────────────────────────────────────────────────────
- * Consola de producción y desarrollo del StarSeed OS: el pulso del trabajo
- * (olas, tareas, commits, flota de proveedores), los procesos en marcha, los
- * informes de cierre de ola y el chat de orquestación, todo bajo pestañas.
- *
- * Solo funciona en local: las rutas `/api/mando/*` responden 404 en el
- * despliegue público y la consola lo explica con un aviso claro.
+ *   · Mi Genesis: cada persona cambia SU cuenta con operaciones tipadas (agente de modelos
+ *     gratuitos que propone, vista previa, confirmación y deshacer).
+ *   · PoliGenesis: lo mismo para los grupos y páginas que gestiona (rol de os_entity_roles;
+ *     en modo democrático cada cambio es una propuesta que se vota).
+ *   · MetaGenesis: la consola de los desarrolladores del OS (olas, enjambre, publicación). Solo
+ *     aparece en esta máquina o para las cuentas miembro; `/genesis?pestana=…` sigue abriéndola.
+ * Contrato: architecture/genesis-niveles-malla-universal-estaciones.md §A.
+ * SOP: architecture/genesis-personas-poligenesis.md
  */
 
-import { CentroMando } from "@/components/mando/centro-mando";
-import { CrearEnjambre } from "@/components/mando/crear-enjambre";
+import { SelectorNivelGenesis } from "@/components/genesis/selector-nivel";
 
-export default function MandoPage() {
+export default function GenesisPage() {
     return (
         <main className="min-h-screen px-4 py-8 md:px-8">
-            <header className="mb-6">
-                <h1 className="text-2xl font-semibold">MetaGenesis · StarSeed OS</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    El Genesis de los desarrolladores: olas, tareas, flota de proveedores y
-                    el relevo entre agentes, en vivo. Quién entra desde otras neuronas se
-                    decide en Ajustes › Accesos.
-                </p>
-            </header>
-            <CentroMando />
-            <div className="mt-8 max-w-xl mx-auto">
-                <CrearEnjambre />
-            </div>
+            <SelectorNivelGenesis />
         </main>
     );
 }

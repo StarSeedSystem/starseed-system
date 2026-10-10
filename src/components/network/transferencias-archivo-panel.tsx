@@ -61,7 +61,11 @@ export function EnviarArchivoBoton({ deviceId, etiqueta }: { deviceId: string; e
     if (!mesh) return;
     setEnviando(true);
     try {
-      const canal = canalDesdeMesh(mesh, deviceId);
+      // (2026-10-10) Transporte universal: si este aparato también tiene un enlace directo sin
+      // internet abierto, los trozos van por los dos a la vez; si no, el canal de siempre.
+      const tu = await import("@/lib/malla/transporte-universal").catch(() => null);
+      const elegido = tu ? await tu.canalParaArchivo({ syncDeviceId: deviceId }).catch(() => null) : null;
+      const canal = elegido?.canal ?? canalDesdeMesh(mesh, deviceId);
       const motor = motorArchivosCompartido();
       for (const file of Array.from(files)) {
         await motor.enviarArchivo(canal, file, file.name, { tipo: "dispositivo", id: deviceId });

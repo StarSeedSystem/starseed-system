@@ -11,7 +11,7 @@
 import { rename, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { guardianMando } from "@/lib/mando/guardian";
-import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
+import { esPeticionDeEstaMaquina as esDespliegueLocal } from "@/lib/seguridad/misma-maquina"; // (2026-10-10) solo la propia máquina cuenta como dueña local
 import { leerEstadoDeIdes } from "@/lib/mando/ides";
 import { DESARROLLADORES_INICIALES, puede, rolDe,
     type Capacidad, type Invitacion, type Genesis, type Rol } from "@/lib/mando/permisos";

@@ -14,6 +14,10 @@
  *                      primero: la ubicación es de las cosas más sensibles).
  *   · shareName      → si el nombre legible de mis nodos viaja a la federación
  *                      (OFF = solo números de nodo).
+ *   · shareAvatar    → si la FOTO de mi perfil viaja en el faro del radar público
+ *                      (solo con publicRadar="visible"; OFF por defecto).
+ *   · shareDevice    → si el TIPO de mi aparato (móvil, portátil…) viaja en el faro
+ *                      del radar público (solo con publicRadar="visible"; OFF por defecto).
  *   · relayUse       → PERMISO DE USO de esta neurona como relé de la malla a
  *                      nivel de app: "all" (cualquier sobre StarSeed oído),
  *                      "alerts" (solo alertas P0 · por defecto), "none".
@@ -47,6 +51,10 @@ export interface MeshPrivacySettings {
   visibility: MeshVisibility;
   sharePosition: boolean;
   shareName: boolean;
+  /** La foto del perfil viaja en el faro (radar público, solo en modo «visible»). */
+  shareAvatar: boolean;
+  /** El tipo de aparato viaja en el faro (radar público, solo en modo «visible»). */
+  shareDevice: boolean;
   relayUse: MeshRelayUse;
   /** Cómo aparece esta neurona en el radar público de la malla (entre cuentas). */
   publicRadar: PublicRadarMode;
@@ -66,6 +74,8 @@ export const DEFAULT_MESH_PRIVACY: MeshPrivacySettings = {
   visibility: "account",
   sharePosition: false, // privacidad primero: la ubicación no viaja salvo opt-in
   shareName: true,
+  shareAvatar: false, // la foto solo sale con opt-in explícito
+  shareDevice: false, // el tipo de aparato también
   relayUse: RELAY_ALWAYS_ON, // no configurable
   publicRadar: "anonymous", // participa en la malla pública sin exponer usuario/ubicación
 };
@@ -79,6 +89,8 @@ export function getMeshPrivacy(): MeshPrivacySettings {
       visibility: j.visibility === "private" ? "private" : "account",
       sharePosition: typeof j.sharePosition === "boolean" ? j.sharePosition : DEFAULT_MESH_PRIVACY.sharePosition,
       shareName: typeof j.shareName === "boolean" ? j.shareName : DEFAULT_MESH_PRIVACY.shareName,
+      shareAvatar: typeof j.shareAvatar === "boolean" ? j.shareAvatar : DEFAULT_MESH_PRIVACY.shareAvatar,
+      shareDevice: typeof j.shareDevice === "boolean" ? j.shareDevice : DEFAULT_MESH_PRIVACY.shareDevice,
       // El relé SIEMPRE activo: no se lee del almacenamiento ni se puede apagar.
       relayUse: RELAY_ALWAYS_ON,
       publicRadar:

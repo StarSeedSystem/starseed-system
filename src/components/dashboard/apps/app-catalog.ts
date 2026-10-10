@@ -194,12 +194,24 @@ export const APP_CATALOG: StarseedApp[] = [
         id: "mando",
         name: "Genesis",
         short: "Genesis",
-        description: "Genesis: pulso del desarrollo (olas, tareas, commits, flota de proveedores) y relevo entre agentes. Solo en tu máquina.",
+        description: "Genesis: cambia tu cuenta (perfil, páginas, apariencia, dock, tableros y agentes) con un agente que propone y tú decides; PoliGenesis para tus grupos y MetaGenesis para quien desarrolla el OS.",
         icon: Gauge,
         accent: "#FFBF00",
         category: "sistema",
         status: "native",
         open: { primary: "route", allowed: ["route"], route: "/genesis" },
+    },
+    {
+        // 2026-10-10: PoliGenesis — el Genesis de los grupos y páginas que gestionas.
+        id: "poligenesis",
+        name: "PoliGenesis",
+        short: "PoliGenesis",
+        description: "Gestiona tus grupos y páginas con tu rol: perfil y agentes de la entidad; en modo democrático cada cambio se vota.",
+        icon: Users,
+        accent: "#22D3EE",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/poligenesis" },
     },
     {
         // Ola 234: Mundo de los avatares — escena 3D viva de los habitantes.
@@ -509,7 +521,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "mundo-avatares", "laboratorio"],
+    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };

@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, MapPin, Share2, ShieldCheck, Tag } from "lucide-react";
+import { Eye, EyeOff, MapPin, Share2, ShieldCheck, Smartphone, Tag, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -91,6 +91,32 @@ export function MeshPrivacyPanel() {
             </span>
           </span>
           <Switch checked={p.shareName} onCheckedChange={(v) => update({ shareName: v })} />
+        </label>
+
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-colors duration-200 hover:border-emerald-400/25">
+          <span className="flex min-w-0 items-center gap-2.5">
+            <UserRound className={cn("h-4 w-4 shrink-0", p.shareAvatar ? "text-emerald-300" : "text-white/40")} />
+            <span className="min-w-0">
+              <span className="block text-[12px] font-medium text-white/90">Mostrar la foto de mi perfil en el radar público</span>
+              <span className="block text-[10px] text-white/45">
+                OFF por defecto. Solo cuenta si apareces como «Visible» en el radar público (se publica la dirección de tu foto)
+              </span>
+            </span>
+          </span>
+          <Switch checked={p.shareAvatar} onCheckedChange={(v) => update({ shareAvatar: v })} />
+        </label>
+
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-colors duration-200 hover:border-emerald-400/25">
+          <span className="flex min-w-0 items-center gap-2.5">
+            <Smartphone className={cn("h-4 w-4 shrink-0", p.shareDevice ? "text-emerald-300" : "text-white/40")} />
+            <span className="min-w-0">
+              <span className="block text-[12px] font-medium text-white/90">Mostrar el tipo de mi aparato en el radar público</span>
+              <span className="block text-[10px] text-white/45">
+                OFF por defecto. Móvil, tablet o equipo de escritorio; solo en modo «Visible»
+              </span>
+            </span>
+          </span>
+          <Switch checked={p.shareDevice} onCheckedChange={(v) => update({ shareDevice: v })} />
         </label>
 
         {/* Relé SIEMPRE activo · no configurable (procomún de la red) */}

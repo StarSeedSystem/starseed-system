@@ -39,6 +39,11 @@ const TransferenciasArchivoToast = dynamic(
   { ssr: false },
 );
 const MallaVinculosMotor = dynamic(() => import("@/components/network/malla-vinculos-motor"), { ssr: false });
+// (2026-10-10) Llamada directa sin internet (timbre y llamada en curso), por enlaces emparejados.
+const LlamadaDirectaFlotante = dynamic(
+  () => import("@/components/network/llamada-directa-flotante").then((m) => m.LlamadaDirectaFlotante),
+  { ssr: false },
+);
 
 /** Arranca un motor cargado a demanda y devuelve su parada (si la tiene). */
 function useMotorPerezoso(cargar: () => Promise<() => void | (() => void)>) {
@@ -80,6 +85,9 @@ function MallaNeuronasEngine() {
   // cerrado; el resto de la UI (botón «Enviar archivo», lista de
   // transferencias) vive en `MallaNeuronasPanel`.
   useMotorPerezoso(() => import("@/lib/network/archivos-malla").then((m) => m.iniciarMotorArchivosPorMalla));
+  // (2026-10-10) Transporte universal: recepción de mensajes `tu.*` por la malla de la cuenta,
+  // vínculos, enlaces locales sin internet, relé y LoRa (`architecture/transporte-universal-sin-internet.md`).
+  useMotorPerezoso(() => import("@/lib/malla/transporte-universal").then((m) => m.iniciarTransporteUniversal));
   // (Ola 370) Motor de vínculos ENTRE cuentas: sondea mis solicitudes/vínculos
   // y abre (o cierra) el mesh de par dedicado de cada uno ya `aceptado`. Mesh
   // COMPLETAMENTE separado del intra-cuenta de arriba — ver
@@ -88,6 +96,7 @@ function MallaNeuronasEngine() {
     <>
       <MallaVinculosMotor />
       <TransferenciasArchivoToast />
+      <LlamadaDirectaFlotante />
     </>
   );
 }

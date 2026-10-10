@@ -7,12 +7,18 @@
  */
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, Eye, Share2 } from "lucide-react";
 import { obtenerEstacion } from "@/lib/estaciones/datos";
 import { estacionesInternas } from "@/lib/estaciones/internas";
 import { ETIQUETA_LICENCIA, ETIQUETA_TIPO, type Estacion } from "@/lib/estaciones/tipos";
 import { ReproductorEstacion } from "./reproductor-estacion";
+import { esEnlaceEnVivo } from "@/lib/estaciones/transmision-parametrica";
+
+// Estaciones EN VIVO sincronizadas (Omnifrecuencias / Audiomorphic): su panel trae el reloj
+// común y los canales, así que se carga solo cuando la estación es de ese tipo.
+const PanelEnVivo = dynamic(() => import("./en-vivo/panel-en-vivo").then((m) => m.PanelEnVivo), { ssr: false });
 
 export function DetalleEstacion({ id }: { id: string }) {
   const [estacion, setEstacion] = useState<Estacion | null | undefined>();
@@ -56,7 +62,9 @@ export function DetalleEstacion({ id }: { id: string }) {
       <Link href="/estaciones" className="inline-flex h-11 w-fit cursor-pointer items-center gap-2 text-sm text-white/60 hover:text-white">
         <ArrowLeft className="h-4 w-4" /> Estaciones
       </Link>
-      <ReproductorEstacion estacion={estacion} className="w-full" />
+      {esEnlaceEnVivo(estacion.enlace)
+        ? <PanelEnVivo href={estacion.enlace} />
+        : <ReproductorEstacion estacion={estacion} className="w-full" />}
       <header className="flex flex-col gap-2">
         <h1 className="text-lg font-semibold">{estacion.titulo}</h1>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

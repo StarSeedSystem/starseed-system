@@ -127,7 +127,12 @@ export function RegisterSW() {
           if (!res.ok) return;
           const v = (await res.json())?.build as string | undefined;
           if (!v) return;
-          if (initial === null) { initial = v; return; } // primera lectura: ancla
+          if (initial === null) {
+            initial = v;
+            // (2026-10-10) El panel de Actualizaciones compara con el build con el que arrancó la pestaña.
+            try { (window as unknown as { STARSEED_BUILD_INICIAL?: string }).STARSEED_BUILD_INICIAL = v; } catch { /* */ }
+            return;
+          } // primera lectura: ancla
           if (v === initial) return;
           // Si la persona está escribiendo o hay algo sin guardar, no recargamos:
           // avisamos al banner «Nueva versión» y ella decide cuándo aplicar.
@@ -135,6 +140,16 @@ export function RegisterSW() {
             try { window.dispatchEvent(new Event("starseed:update-ready")); } catch { /* */ }
             return;
           }
+          // (2026-10-10) Actualizaciones por capas: la política de la capa «interfaz» de esta
+          // neurona (por defecto automática, como antes) y el momento (llamada, directo, batería)
+          // deciden si se recarga sola o se avisa. Carga perezosa: no pesa en el arranque.
+          try {
+            const { decidirCapaLocal } = await import("@/lib/actualizaciones/decision-local");
+            if ((await decidirCapaLocal("interfaz")).decision !== "aplicar") {
+              try { window.dispatchEvent(new Event("starseed:update-ready")); } catch { /* */ }
+              return;
+            }
+          } catch { /* sin módulo: comportamiento de siempre */ }
           applyUpdate();
         } catch { /* */ }
       };

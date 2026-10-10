@@ -45,6 +45,7 @@ import { CanalesTelegram } from "@/components/connectivity/canales-telegram";
 // WebRTC + radar de neuronas cercanas de otras cuentas. Panel de solo lectura
 // (el motor ya corre globalmente vía MallaNeuronasMount).
 import { MallaNeuronasPanel } from "@/components/network/malla-neuronas-panel";
+import dynamic from "next/dynamic";
 import {
   bluetoothLink,
   connectMesh,
@@ -61,6 +62,13 @@ import {
   type ConnectivitySettings,
   type PreferredRoute,
 } from "@/ai/astraura/mesh";
+
+// (2026-10-10) «Vincular sin internet»: emparejado por código/QR + notas, archivos y llamadas
+// directas. Perezoso: no pesa en el Centro de Control hasta que se abre la pestaña «Malla».
+const VincularSinInternet = dynamic(
+  () => import("@/components/network/vincular-sin-internet").then((m) => m.VincularSinInternet),
+  { ssr: false },
+);
 
 const ROUTE_OPTIONS: Array<{ id: PreferredRoute; label: string; hint: string }> = [
   { id: "auto", label: "Auto", hint: "el router inteligente decide por clase de tráfico" },
@@ -334,7 +342,10 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
       {tab === "canales" ? (
         <CanalesTelegram compact={compact} />
       ) : tab === "malla" ? (
-        <MallaNeuronasPanel compact={compact} />
+        <div className="space-y-3">
+          <VincularSinInternet compact={compact} />
+          <MallaNeuronasPanel compact={compact} />
+        </div>
       ) : (
         <SignalsCenter embedded compact={compact} />
       )}

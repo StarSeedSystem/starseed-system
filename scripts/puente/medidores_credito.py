@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Recolector de medidores de crédito (MC1007D · contrato architecture/medidores-credito.md §4.1).
 
-Une los adaptadores (claude_terminal, codex_terminal, http_json, declarado), escribe
+Une los adaptadores (claude_terminal, codex_terminal, http_json, declarado, oracle_cli), escribe
 ~/.starseed/medidores-credito.json, puentea a limites_claude y a la salud de proveedores.
 Cero tokens, solo números y fechas; un fallo no borra lo bueno.
 """
@@ -19,6 +19,7 @@ import limites_claude
 import medidor_claude_terminal
 import medidor_codex_terminal
 import medidor_http_json
+import medidor_oracle
 
 DIR = os.path.expanduser("~/.starseed")
 ARCHIVO_SALIDA = os.path.join(DIR, "medidores-credito.json")
@@ -27,7 +28,7 @@ ARCHIVO_STATUSLINE = os.path.join(DIR, "medidores-entrada", "claude-statusline.j
 ARCHIVO_SALUD = os.path.join(DIR, "salud-proveedores.json")
 ARCHIVO_CERROJO = os.path.join(DIR, "cerrojos", "salud.lock")
 
-TOPES_S = {"claude_terminal": 60, "codex_terminal": 30}  # el resto: 20
+TOPES_S = {"claude_terminal": 60, "codex_terminal": 30, "oracle_cli": 200}  # el resto: 20
 HISTORIAL_MAX = 300
 
 ADAPTADORES = {
@@ -35,6 +36,8 @@ ADAPTADORES = {
     "codex_terminal": lambda cfg, ahora: medidor_codex_terminal.leer(cfg, ahora),
     "http_json": lambda cfg, ahora: medidor_http_json.leer_http_json(cfg, ahora),
     "declarado": lambda cfg, ahora: medidor_http_json.leer_declarado(cfg, ahora),
+    # (OC1010) Oracle Cloud por su CLI: gasto, prueba, límites gratis y reclamación (cada ≥ 15 min).
+    "oracle_cli": lambda cfg, ahora: medidor_oracle.leer_medidor(cfg, ahora),
 }
 
 
@@ -71,6 +74,8 @@ def cargar_config(ruta: str = ARCHIVO_CONFIG) -> list[dict]:
         entradas.append({"id": "claude", "tipo": "claude_terminal"})
     if "codex" not in ids_activos and "codex" not in apagados and _binario_existe("codex"):
         entradas.append({"id": "codex", "tipo": "codex_terminal"})
+    if "oracle" not in ids_activos and "oracle" not in apagados and medidor_oracle.disponible():
+        entradas.append({"id": "oracle", "tipo": "oracle_cli", "cada_min": medidor_oracle.CADA_MIN})
     return [e for e in entradas if e.get("activo", True) is not False]
 
 

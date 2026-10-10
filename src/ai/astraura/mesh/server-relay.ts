@@ -21,6 +21,8 @@
 
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import { getMeshPrivacy } from "./privacy";
+import { avatarDeCache, avatarUrlSegura, CLAVE_PERFIL_CACHE } from "@/lib/senales/perfil-centro";
+import { cargaPublicaFaro, leerCargaPublica, tipoAparatoDesdeAgente } from "@/lib/senales/radar-publico";
 import { getConnectivitySettings } from "./connectivity";
 import { getMeshServer } from "./servers";
 import {
@@ -505,6 +507,15 @@ export interface RelayBeacon {
   neuronId?: string;
   /** Id de sync (`starseed.device.id`) del emisor, si lo incluyó (Ola 366). */
   syncId?: string;
+  /**
+   * (2026-10-10) El emisor eligió mostrarse («visible») en el radar público. Solo entonces su nombre y lo
+   * que marcó compartir (foto, tipo de aparato) pueden verse; sin esto, una cuenta ajena es anónima.
+   */
+  publico?: boolean;
+  /** Foto de perfil que el emisor decidió compartir (ya validada: https público). */
+  avatarUrl?: string;
+  /** Tipo de aparato que el emisor decidió compartir. */
+  tipoAparato?: string;
 }
 
 /**
@@ -518,6 +529,22 @@ function myIdentityTag(): { nid?: string; sid?: string } {
     const nid = safeGet("starseed.neuron.device-id") || undefined;
     const sid = safeGet("starseed.device.id") || undefined;
     return { ...(nid ? { nid } : {}), ...(sid ? { sid } : {}) };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Lo que cuelga del faro de ESTA neurona en el radar público (campo `pub`): solo en modo «visible» y solo
+ * lo que la persona marcó (foto, tipo de aparato). El nombre viaja en `label`. Nunca lanza.
+ */
+function miCargaPublica(privacy: ReturnType<typeof getMeshPrivacy>): { pub?: { a?: string; d?: string } } {
+  try {
+    const foto = avatarDeCache(safeGet(CLAVE_PERFIL_CACHE));
+    const tactil = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
+    const tipo = typeof navigator !== "undefined" ? tipoAparatoDesdeAgente(navigator.userAgent || "", tactil) : null;
+    const carga = cargaPublicaFaro(privacy, foto, tipo);
+    return carga ? { pub: carga } : {};
   } catch {
     return {};
   }
@@ -581,7 +608,7 @@ export async function emitBeaconDetallado(): Promise<{ ok: boolean; fallo: Fallo
       // de identidad {nid,sid} (Ola 366) para que la malla de neuronas case este
       // faro con una neurona/deviceId de sync ya conocidos, sin PII adicional
       // (son los MISMOS ids opacos que ya viajaban en `neuron_devices`/sync).
-      payload: { ...myPublicOffer(), ...myIdentityTag() },
+      payload: { ...myPublicOffer(), ...myIdentityTag(), ...(anonymous ? {} : miCargaPublica(privacy)) },
       // Anónimo → sin etiqueta de usuario. Visible → según shareName.
       label: anonymous ? null : privacy.shareName ? s.self?.shortName || s.self?.longName || "Neurona" : null,
       region: s.region,
@@ -705,6 +732,7 @@ export async function pullBeaconsDetallado(): Promise<{ faros: RelayBeacon[]; fa
       if (!dev || dev === me || seen.has(dev)) continue; // ni yo ni duplicados
       seen.add(dev);
       const offer = (row.payload ?? null) as { offersPublic?: boolean; port?: number; nid?: string; sid?: string } | null;
+      const abierto = leerCargaPublica(row.payload, avatarUrlSegura);
       out.push({
         deviceId: dev,
         label: row.label ? String(row.label) : null,
@@ -717,6 +745,9 @@ export async function pullBeaconsDetallado(): Promise<{ faros: RelayBeacon[]; fa
         port: typeof offer?.port === "number" ? offer.port : undefined,
         neuronId: typeof offer?.nid === "string" ? offer.nid : undefined,
         syncId: typeof offer?.sid === "string" ? offer.sid : undefined,
+        ...(abierto.publico ? { publico: true } : {}),
+        ...(abierto.avatarUrl ? { avatarUrl: abierto.avatarUrl } : {}),
+        ...(abierto.tipoAparato ? { tipoAparato: abierto.tipoAparato } : {}),
       });
     }
     return { faros: out, fallo: null };

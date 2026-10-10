@@ -15,11 +15,17 @@
 -- entidad. Denuncias: insertar la propia; leer las propias y las de estaciones
 -- de las que eres dueño. NO SE APLICA a ninguna base de datos en esta ola.
 --
+-- REVISADA 2026-10-10 (integrador): autoría congelada, escritura de entidad solo para quien la
+-- gestiona, «grupo» exige entidad, la dueña siempre lee y borra lo suyo, y solo se denuncia
+-- lo visible. Prueba de RLS con dos cuentas anotada al final del archivo.
+--
 -- IDEMPOTENTE: `create table if not exists`, `drop policy if exists`, índices
 -- `if not exists`, `create or replace function`, bloque `DO` para realtime.
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- ── Trigger de updated_at: función nueva, propia del módulo (sin tocar otras). ──
+-- Revisión 2026-10-10: además de refrescar la marca, congela quién la publicó y cuándo
+-- (nadie "traspasa" la autoría de una estación editándola).
 create or replace function public.os_estaciones_set_updated_at()
 returns trigger
 language plpgsql
@@ -27,6 +33,8 @@ set search_path = public
 as $$
 begin
   new.updated_at := now();
+  new.owner_id := old.owner_id;
+  new.created_at := old.created_at;
   return new;
 end;
 $$;
@@ -65,7 +73,9 @@ create table if not exists public.os_estaciones (
   updated_at    timestamptz not null default now(),
   -- Si el ámbito es una entidad, entidad_ref es obligatoria; si es persona, null.
   check ((ambito_tipo = 'persona' and entidad_ref is null)
-      or (ambito_tipo = 'entidad' and entidad_ref is not null))
+      or (ambito_tipo = 'entidad' and entidad_ref is not null)),
+  -- Revisión 2026-10-10: «solo el grupo» exige un grupo; sin él nadie (ni su dueña) podría leerla.
+  constraint os_estaciones_grupo_con_entidad check (visibilidad = 'publica' or ambito_tipo = 'entidad')
 );
 
 -- Índices de listado: recencia, por tipo con recencia, latidos y ámbito.
@@ -107,7 +117,11 @@ as $$
   );
 $$;
 
--- owner/admin/editor de la entidad (pueden escribir estaciones de su ámbito).
+-- Quién puede ESCRIBIR una estación (revisión 2026-10-10):
+--   · ámbito persona  → solo su dueña;
+--   · ámbito entidad  → owner/admin/editor ACTIVO de esa entidad. Ser «dueña» de la fila no basta:
+--     si no, cualquiera publicaría «en nombre de» un grupo ajeno poniendo su slug (y los miembros
+--     de ese grupo la verían como del grupo).
 create or replace function public.os_estacion_puede_escribir(_owner uuid, _ambito_tipo text, _entidad_ref text)
 returns boolean
 language sql
@@ -116,7 +130,7 @@ security definer
 set search_path = public
 as $$
   select auth.uid() is not null and (
-    _owner = auth.uid()
+    (_ambito_tipo = 'persona' and _owner = auth.uid())
     or (_ambito_tipo = 'entidad' and _entidad_ref is not null and exists (
       select 1 from public.os_memberships m
       where m.group_slug = _entidad_ref
@@ -142,6 +156,7 @@ create policy os_estaciones_select
   to anon, authenticated
   using (
     visibilidad = 'publica'
+    or owner_id = (select auth.uid())
     or (visibilidad = 'grupo' and public.os_estacion_es_miembro(entidad_ref))
   );
 
@@ -149,7 +164,7 @@ drop policy if exists os_estaciones_insert_own on public.os_estaciones;
 create policy os_estaciones_insert_own
   on public.os_estaciones for insert
   to authenticated
-  with check (public.os_estacion_puede_escribir(owner_id, ambito_tipo, entidad_ref));
+  with check (owner_id = (select auth.uid()) and public.os_estacion_puede_escribir(owner_id, ambito_tipo, entidad_ref));
 
 drop policy if exists os_estaciones_update_own on public.os_estaciones;
 create policy os_estaciones_update_own
@@ -162,7 +177,7 @@ drop policy if exists os_estaciones_delete_own on public.os_estaciones;
 create policy os_estaciones_delete_own
   on public.os_estaciones for delete
   to authenticated
-  using (public.os_estacion_puede_escribir(owner_id, ambito_tipo, entidad_ref));
+  using (owner_id = (select auth.uid()) or public.os_estacion_puede_escribir(owner_id, ambito_tipo, entidad_ref));
 
 -- ── Tabla de DENUNCIAS (moderación restaurativa, §6.4): una por cuenta y ─────
 -- estación; denunciar oculta solo para quien denuncia, nada se borra solo.
@@ -195,7 +210,12 @@ drop policy if exists os_estaciones_denuncias_insert_own on public.os_estaciones
 create policy os_estaciones_denuncias_insert_own
   on public.os_estaciones_denuncias for insert
   to authenticated
-  with check (autor_id = auth.uid());
+  -- Solo se denuncia lo que se puede ver (el subselect pasa por la RLS de os_estaciones):
+  -- así nadie sondea con denuncias si existe una estación «solo del grupo».
+  with check (
+    autor_id = (select auth.uid())
+    and exists (select 1 from public.os_estaciones e where e.id = estacion_id)
+  );
 
 drop policy if exists os_estaciones_denuncias_delete_own on public.os_estaciones_denuncias;
 create policy os_estaciones_denuncias_delete_own
@@ -238,3 +258,14 @@ comment on table public.os_estaciones is
   'Estaciones StarSeed (Ola 1010E): transmisiones en directo públicas de contenido libre (audio, vídeo, XR, juegos, dashboards, malla, estudio IA). Lectura pública de las públicas; escritura del dueño o owner/admin/editor de la entidad.';
 comment on table public.os_estaciones_denuncias is
   'Denuncias de estaciones (moderación restaurativa): una por cuenta y estación; oculta solo para quien denuncia y avisa al ámbito, sin borrado automático.';
+
+-- ═══ APLICADA Y PROBADA (2026-10-10, integrador, con el visto bueno de Alex del 2026-10-10) ═══
+-- Aplicada en la base viva dos veces seguidas (la segunda no cambió nada: idempotente). Prueba de
+-- RLS impersonando a Alex (a5a21893…) y a otra cuenta (ba2b2556…) y como anónimo, todo dentro de una
+-- transacción que no dejó nada (supabase/pruebas/rls-1010c.sql). Verde, 62 de 62 en el conjunto:
+--   · una cuenta no publica a nombre de otra ni «en nombre de» un grupo ajeno;
+--   · «solo grupo» sin grupo se rechaza; la autoría (owner_id) queda congelada al editar;
+--   · lee las públicas cualquiera (anónimo incluido); las de grupo, solo miembros activos
+--     (la membresía «pending» no cuenta; «editor» sí) o admin por os_entity_roles (ref = uuid);
+--   · otra cuenta no edita ni borra la estación ajena; solo se denuncia lo visible;
+--   · la dueña lee las denuncias de su estación (decisión del contrato §6.4; ojo: ve quién denunció).

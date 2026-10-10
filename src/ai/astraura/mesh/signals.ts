@@ -344,7 +344,7 @@ export interface SignalActionKind {
 /** Datos PÚBLICOS de la cuenta StarSeed vinculada a la señal (nada privado). */
 export interface StarseedIdentity {
   /** Fuente VERIFICADA del vínculo (cada una tiene su propio espacio de ids). */
-  via: "neuron-registry" | "federation" | "relay-beacon";
+  via: "neuron-registry" | "federation" | "relay-beacon" | "direct-link";
   /** Id del registro de origen (opaco). */
   sourceId: string;
   neuronId?: string;
@@ -367,6 +367,15 @@ export interface StarseedIdentity {
   /** Ofrece internet público del OS con sus recursos + puerto anunciado. */
   offersPublic?: boolean;
   port?: number;
+  /**
+   * (2026-10-10) El emisor eligió mostrarse en el radar público («visible»). Solo entonces su nombre y
+   * lo que marcó compartir (foto, tipo de aparato) pueden verse; sin esto, una cuenta ajena es anónima.
+   */
+  publico?: boolean;
+  /** Foto de perfil que el emisor decidió compartir (https). */
+  avatarUrl?: string;
+  /** Tipo de aparato que el emisor decidió compartir (mobile, tablet, laptop, desktop, server, other). */
+  tipoAparato?: string;
 }
 
 /** Una señal DETECTADA, con todo lo que se sabe de ella de verdad. */
@@ -779,6 +788,10 @@ export interface BeaconView {
   own: boolean;
   offersPublic?: boolean;
   port?: number;
+  /** El emisor eligió mostrarse en el radar público. */
+  publico?: boolean;
+  avatarUrl?: string;
+  tipoAparato?: string;
 }
 
 /** Vista PÚBLICA de una neurona de la cuenta (subconjunto de `Neuron`). */
@@ -937,7 +950,7 @@ function beaconSignals(input: DetectedSignalsInput, now: number): DetectedSignal
       antenna: "relay" as AntennaKind,
       antennaLabel: ANTENNA_LABEL.relay,
       signalType: "Faro de presencia · red sináptica (IP)",
-      label: b.label || (b.own ? "Neurona de tu cuenta (anónima)" : "Neurona StarSeed (anónima)"),
+      label: b.label || (b.own ? "Neurona de tu cuenta (anónima)" : b.publico ? "Neurona pública sin nombre" : "Neurona StarSeed (anónima)"),
       detail: b.own
         ? "Otra neurona de TU cuenta anunciándose en el relé StarSeed."
         : "Neurona StarSeed de otra cuenta en el radar público. Su nombre solo aparece si comparte etiqueta.",
@@ -957,6 +970,9 @@ function beaconSignals(input: DetectedSignalsInput, now: number): DetectedSignal
         ],
         region: b.region, preset: b.preset, onlineCount: b.onlineCount,
         offersPublic: b.offersPublic, port: b.port,
+        ...(b.publico ? { publico: true } : {}),
+        ...(b.publico && b.avatarUrl ? { avatarUrl: b.avatarUrl } : {}),
+        ...(b.publico && b.tipoAparato ? { deviceKind: b.tipoAparato } : {}),
       },
       // El faro viaja por servidor: NO hay distancia física medible. Sector.
       placement: placeBySector("relay", `beacon:${b.deviceId}`, quality),
@@ -1144,7 +1160,8 @@ function bleSignals(input: DetectedSignalsInput, now: number): DetectedSignal[] 
     const meters = d.rssi != null ? clampM(Math.pow(10, (-40 - d.rssi) / 20)) : null;
     const placement = meters != null
       ? {
-          ...placeByRf("ble", `ble:${d.id}`, Math.max(30, meters), quality),
+          // Metros REALES del modelo (≥ 0,5 m): el radio del mapa los coloca en la escala corta.
+          ...placeByRf("ble", `ble:${d.id}`, meters, quality),
           // El modelo BLE es MUCHO más burdo que el LoRa: lo decimos.
           detail: `Distancia orientativa por RSSI BLE (trayecto libre a 2,4 GHz): del orden de ${fmtMeters(Math.max(1, meters))}. Paredes y cuerpos la falsean con facilidad; el rumbo es desconocido.`,
         }

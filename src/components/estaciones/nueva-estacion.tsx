@@ -13,6 +13,18 @@ import { detectarFormato, tipoSugerido } from "@/lib/estaciones/formato";
 import { validarEstacion } from "@/lib/estaciones/tipos";
 import { publicarEstacion, editarEstacion } from "@/lib/estaciones/datos";
 import { anunciarEnMalla } from "@/lib/estaciones/malla";
+import { Link2, Orbit, Waves } from "lucide-react";
+import { FuenteEnVivo } from "./en-vivo/fuente-en-vivo";
+import type { FuenteTransmision } from "@/lib/estaciones/transmision-parametrica";
+
+/** De dónde sale la estación: un enlace (lo de siempre) o una sesión EN VIVO sincronizada. */
+export type ModoNuevaEstacion = "enlace" | FuenteTransmision;
+
+const MODOS: { id: ModoNuevaEstacion; etiqueta: string; Icono: typeof Link2 }[] = [
+  { id: "enlace", etiqueta: "Enlace o ruta", Icono: Link2 },
+  { id: "omnifrecuencias", etiqueta: "Entonación de Omnifrecuencias en vivo", Icono: Waves },
+  { id: "audiomorphic", etiqueta: "Espirales de Audiomorphic en vivo", Icono: Orbit },
+];
 
 export interface NuevaEstacionProps {
   abierto: boolean;
@@ -20,9 +32,13 @@ export interface NuevaEstacionProps {
   inicial?: Partial<BorradorEstacion> & { id?: string };
   ambitos?: { tipo: "persona" | "entidad"; ref: string | null; nombre: string }[];
   onGuardada?: (e: Estacion) => void;
+  /** Fuente con la que se abre (p. ej. «omnifrecuencias» desde la app oficial). */
+  modoInicial?: ModoNuevaEstacion;
 }
 
-export function NuevaEstacion({ abierto, onCerrar, inicial, ambitos = [], onGuardada }: NuevaEstacionProps) {
+export function NuevaEstacion({ abierto, onCerrar, inicial, ambitos = [], onGuardada, modoInicial = "enlace" }: NuevaEstacionProps) {
+  const [modo, setModo] = useState<ModoNuevaEstacion>(modoInicial);
+  useEffect(() => { if (abierto) setModo(inicial?.id ? "enlace" : modoInicial); }, [abierto, modoInicial, inicial?.id]);
   const [form, setForm] = useState<BorradorEstacion>({ titulo:"", enlace:"", tipo:"mixto", fuente:"enlace", licencia:"cc-by", idioma:"es", visibilidad:"publica", en_malla:false, ambito_tipo:"persona", entidad_ref:null });
   const [cats, setCats] = useState("");
   const [motivo, setMotivo] = useState("");
@@ -59,6 +75,25 @@ export function NuevaEstacion({ abierto, onCerrar, inicial, ambitos = [], onGuar
     <Dialog open={abierto} onOpenChange={o=>!o && onCerrar()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader><DialogTitle>{inicial?.id ? "Editar estación" : "Nueva estación"}</DialogTitle></DialogHeader>
+        {!inicial?.id && (
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Fuente de la estación">
+            {MODOS.map(({ id, etiqueta, Icono }) => (
+              <button key={id} type="button" role="radio" aria-checked={modo === id} onClick={() => setModo(id)}
+                className={`inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs transition-colors duration-200 ${modo === id ? "border-emerald-400/50 bg-emerald-500/10 text-emerald-200" : "border-white/10 text-white/70 hover:border-white/30"}`}>
+                <Icono className="h-3.5 w-3.5" aria-hidden /> {etiqueta}
+              </button>
+            ))}
+          </div>
+        )}
+        {modo !== "enlace" ? (
+          <div className="max-h-[70vh] overflow-auto py-2">
+            <FuenteEnVivo
+              fuente={modo}
+              ambito={form.ambito_tipo === "entidad" ? { tipo: "entidad", ref: form.entidad_ref ?? null } : { tipo: "persona", ref: null }}
+              onPublicada={(e) => { if (e) onGuardada?.(e); }}
+            />
+          </div>
+        ) : (
         <div className="grid gap-4 py-2 max-h-[70vh] overflow-auto">
           <Label>Enlace</Label>
           <Input value={form.enlace ?? ""} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
@@ -101,7 +136,8 @@ export function NuevaEstacion({ abierto, onCerrar, inicial, ambitos = [], onGuar
           <div className="flex items-center gap-2"><input type="checkbox" checked={!!form.en_malla} onChange={e=>setForm(f=>({...f,en_malla:e.target.checked}))} className="cursor-pointer"/><Label className="cursor-pointer">Anunciar también por la malla</Label></div>
           {err.general && <p className="text-xs text-red-600">{err.general[0]}</p>}
         </div>
-        <DialogFooter><Button variant="outline" onClick={onCerrar}>Cancelar</Button><Button onClick={guardar}>Guardar</Button></DialogFooter>
+        )}
+        <DialogFooter><Button variant="outline" onClick={onCerrar}>{modo === "enlace" ? "Cancelar" : "Cerrar"}</Button>{modo === "enlace" && <Button onClick={guardar}>Guardar</Button>}</DialogFooter>
       </DialogContent>
     </Dialog>
   );

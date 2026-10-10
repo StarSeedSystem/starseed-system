@@ -23,6 +23,8 @@
  * recibe el aborto y los demás siguen esperando la misma respuesta.
  */
 
+import { crearFetchRemoto, type ModoRemoto } from "@/lib/metagenesis/remoto";
+
 /** Marca para no envolver dos veces el mismo `fetch`. */
 const MARCA = "__starseedGuardiaFetchMando";
 
@@ -210,8 +212,34 @@ let fetchDeVerdad: typeof fetch | null = null;
  */
 let instancia: FetchGuardado | null = null;
 
+/**
+ * (2026-10-10) MODO REMOTO de MetaGenesis: con él puesto, TODA petición a `/api/mando/*` de esta
+ * página (lecturas en cola, acciones POST, la sonda de la autocuración) va al motor de la Mac por
+ * el túnel, con `Authorization: Bearer <token de la sesión>` y sin cookies. Lo pone y lo quita la
+ * envoltura de /metagenesis (`metagenesis-remoto.tsx`); la reescritura vive en
+ * `src/lib/metagenesis/remoto.ts`. Sin modo remoto, todo queda exactamente como antes.
+ */
+let modoRemoto: ModoRemoto | null = null;
+/** `fetch` de verdad + reescritura del modo remoto (debajo de la cola). */
+let fetchBase: typeof fetch | null = null;
+
+/** Pone (o quita, con null) el modo remoto de Genesis en esta página. */
+export function ponerModoRemoto(modo: ModoRemoto | null): void {
+    const cambia = (modoRemoto?.base ?? null) !== (modo?.base ?? null);
+    modoRemoto = modo;
+    if (modo) instalarGuardiaFetchMando();
+    // Lo que estaba en vuelo iba al destino anterior: se suelta para que nadie lea de dos sitios.
+    if (cambia) instancia?.reiniciar("cambió el destino de Genesis");
+}
+
+/** El modo remoto puesto en esta página, o null. */
+export function modoRemotoDeGenesis(): ModoRemoto | null {
+    return modoRemoto;
+}
+
 /** El `fetch` sin guardia (para la sonda de la autocuración, que no debe hacer cola). */
 export function fetchSinGuardia(): typeof fetch {
+    if (fetchBase) return fetchBase;
     if (fetchDeVerdad) return fetchDeVerdad;
     return typeof window !== "undefined" ? window.fetch.bind(window) : fetch;
 }
@@ -228,7 +256,8 @@ export function instalarGuardiaFetchMando(): void {
     if (typeof window === "undefined" || typeof window.fetch !== "function") return;
     if (instancia || estaGuardado(window.fetch)) return;
     fetchDeVerdad = window.fetch.bind(window);
-    instancia = crearFetchGuardado(fetchDeVerdad);
+    fetchBase = crearFetchRemoto(fetchDeVerdad, () => modoRemoto, () => window.location.origin);
+    instancia = crearFetchGuardado(fetchBase);
     window.fetch = instancia as typeof fetch;
     // Para mirar su salud desde la consola o una sonda: `window.__starseedGuardiaMando.salud()`.
     (window as unknown as Record<string, unknown>).__starseedGuardiaMando = instancia;

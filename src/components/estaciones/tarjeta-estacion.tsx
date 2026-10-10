@@ -11,9 +11,10 @@ import type { LucideIcon } from "lucide-react";
 import {
   AudioLines, Clapperboard, Headset, CalendarDays, Megaphone, Gamepad2,
   Presentation, Gauge, Tv, LayoutGrid, Layers, Eye, EllipsisVertical, Radio,
-  Flag, EyeOff, Pencil, Pause, Play, Square, TriangleAlert,
+  Flag, EyeOff, Pencil, Pause, Play, Square, TriangleAlert, Waves,
 } from "lucide-react";
 import { estadoDirecto } from "@/lib/estaciones/directo";
+import { esEnlaceEnVivo } from "@/lib/estaciones/transmision-parametrica";
 import {
   ETIQUETA_TIPO, ETIQUETA_LICENCIA,
   type Estacion, type EstadoDirecto, type TipoEstacion,
@@ -92,6 +93,10 @@ export function TarjetaEstacion({
             ? `${ETIQUETA_ESTADO.programada} · ${horaProgramada(e.empieza_en)}`
             : ETIQUETA_ESTADO[estado]}
         </span>
+        {esEnlaceEnVivo(e.enlace) && (
+          <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[11px] text-cyan-200 backdrop-blur-sm">
+            <Waves className="h-3 w-3" aria-hidden /> sincronizada
+          </span>)}
         {e.oidaPorMalla && (
           <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[11px] text-emerald-200 backdrop-blur-sm">
             <Radio className="h-3 w-3" /> malla

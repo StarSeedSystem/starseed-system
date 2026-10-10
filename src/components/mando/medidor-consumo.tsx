@@ -25,6 +25,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type R
 import {
     Bot,
     Check,
+    Cloud,
     Copy,
     Database,
     ExternalLink,
@@ -52,6 +53,7 @@ import {
     type Presupuestos,
     type TonoConsumo,
 } from "@/lib/mando/consumo-tipos";
+import { esConsumoOracle, vistaOracle, type ConsumoOracle } from "@/lib/mando/oracle-consumo-tipos";
 
 export const SONDEO_MS = 60_000;
 const RUTA = "/api/mando/consumo";
@@ -532,6 +534,184 @@ function FilaLimitesClaude({ c, ahora }: { c: DatosConsumo["claude"]; ahora: num
     );
 }
 
+// ─── Oracle Cloud (OC1010 · architecture/oracle-consumo.md) ───
+
+const RUTA_ORACLE = "/api/mando/oracle/consumo";
+const SONDEO_ORACLE_MS = 120_000;
+
+/** Lee lo último medido (GET cada 2 min con la pestaña visible) y mide al pulsar (POST). */
+export function useConsumoOracle() {
+    const [datos, setDatos] = useState<ConsumoOracle | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [mensaje, setMensaje] = useState<string | null>(null);
+    const [cargando, setCargando] = useState(false);
+    const [midiendo, setMidiendo] = useState(false);
+    const vivo = useRef(true);
+
+    const recargar = useCallback(async () => {
+        setCargando(true);
+        try {
+            const r = await fetch(RUTA_ORACLE, { cache: "no-store" });
+            const d = (await r.json().catch(() => ({}))) as { datos?: unknown; error?: string };
+            if (!vivo.current) return;
+            if (r.ok && esConsumoOracle(d.datos)) {
+                setDatos(d.datos);
+                setError(null);
+            } else {
+                setError(d.error ?? `El medidor de Oracle no respondió (HTTP ${r.status}).`);
+            }
+        } catch {
+            if (vivo.current) setError("No se pudo leer el medidor de Oracle.");
+        } finally {
+            if (vivo.current) setCargando(false);
+        }
+    }, []);
+
+    const actualizar = useCallback(async () => {
+        setMidiendo(true);
+        setMensaje(null);
+        try {
+            const r = await fetch(RUTA_ORACLE, { method: "POST", cache: "no-store" });
+            const d = (await r.json().catch(() => ({}))) as { datos?: unknown; mensaje?: string; error?: string };
+            if (!vivo.current) return;
+            if (esConsumoOracle(d.datos)) setDatos(d.datos);
+            setMensaje(d.error ?? d.mensaje ?? null);
+            setError(null);
+        } catch {
+            if (vivo.current) setError("No se pudo pedir la medición a Genesis.");
+        } finally {
+            if (vivo.current) setMidiendo(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        vivo.current = true;
+        let id: number | null = null;
+        const arrancar = () => {
+            if (id === null) id = window.setInterval(() => void recargar(), SONDEO_ORACLE_MS);
+        };
+        const parar = () => {
+            if (id !== null) window.clearInterval(id);
+            id = null;
+        };
+        const alCambiar = () => {
+            if (document.visibilityState === "hidden") parar();
+            else {
+                void recargar();
+                arrancar();
+            }
+        };
+        if (document.visibilityState !== "hidden") {
+            void recargar();
+            arrancar();
+        }
+        document.addEventListener("visibilitychange", alCambiar);
+        return () => {
+            vivo.current = false;
+            parar();
+            document.removeEventListener("visibilitychange", alCambiar);
+        };
+    }, [recargar]);
+
+    return { datos, error, mensaje, cargando, midiendo, actualizar };
+}
+
+function FilaOracle() {
+    const { datos, error, mensaje, cargando, midiendo, actualizar } = useConsumoOracle();
+    const ahora = Date.now();
+    const v = datos ? vistaOracle(datos, ahora) : null;
+    const recl = v?.reclamacion ?? null;
+    return (
+        <div className="mt-2.5" data-testid="medidor-oracle">
+            <Tarjeta
+                etiqueta="Oracle Cloud"
+                icono={<Cloud className="h-4 w-4 text-cyan-200/80" aria-hidden />}
+                titulo="Oracle Cloud · Always Free"
+                estado={
+                    v ? (
+                        <Estado texto={v.estado.texto} tono={v.estado.tono} />
+                    ) : (
+                        <Estado texto={cargando ? "Leyendo…" : "Sin lectura"} tono="neutro" />
+                    )
+                }
+            >
+                {datos?.freno.activo ? (
+                    <p role="alert" className="flex items-start gap-2 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-[12px] text-rose-100">
+                        <OctagonAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                        <span>Gasto mayor que 0: {datos.freno.motivo}</span>
+                    </p>
+                ) : null}
+                {v ? (
+                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                        {v.filas.map((f) => (
+                            <Barra key={f.id} etiqueta={f.etiqueta} valor={f.valor} fraccion={f.fraccion} tono={f.tono} detalle={f.detalle || null} />
+                        ))}
+                    </div>
+                ) : null}
+                {recl ? (
+                    <p className="flex items-start gap-1.5 text-[12px] leading-snug" data-testid="oracle-reclamacion">
+                        {recl.tono === "ok" ? (
+                            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
+                        ) : (
+                            <TriangleAlert className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${recl.tono === "peligro" ? "text-rose-300" : "text-amber-300"}`} aria-hidden />
+                        )}
+                        <span className={recl.tono === "ok" ? "text-white/55" : recl.tono === "peligro" ? "text-rose-100" : "text-amber-100/90"}>{recl.texto}</span>
+                    </p>
+                ) : null}
+                {datos ? (
+                    <p className="flex items-start gap-1.5 text-[11px] leading-snug text-white/55">
+                        <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-200/70" aria-hidden />
+                        <span>
+                            Directores y agentes:{" "}
+                            {datos.margen.apto
+                                ? `envían trabajo al A1 (${datos.margen.motivo || "hay margen gratis"}).`
+                                : `no envían trabajo a Oracle (${datos.margen.motivo || "sin margen medido"}).`}
+                        </span>
+                    </p>
+                ) : null}
+                {datos?.errores.length ? (
+                    <ul className="space-y-0.5 text-[11px] text-amber-200/85">
+                        {datos.errores.map((e) => (
+                            <li key={`${e.parte}-${e.error}`}>{e.error}</li>
+                        ))}
+                    </ul>
+                ) : null}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-white/45">
+                        {datos ? `medido ${hace(datos.leido, ahora)} con la CLI de Oracle · cada 30 min` : (error ?? "")}
+                        {v?.viejo && datos ? <span className="text-amber-200/85"> · lectura vieja</span> : null}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => void actualizar()}
+                            disabled={midiendo}
+                            className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white/75 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <RefreshCw className={`h-3 w-3 ${midiendo ? "animate-spin" : ""}`} aria-hidden />
+                            {midiendo ? "Midiendo…" : "Actualizar ahora"}
+                        </button>
+                        <a
+                            href={datos?.consola || "https://cloud.oracle.com/?region=mx-queretaro-1"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mc-alzar inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-100"
+                        >
+                            <ExternalLink className="h-3 w-3" aria-hidden />
+                            Abrir la consola de Oracle
+                        </a>
+                    </div>
+                </div>
+                {mensaje ? (
+                    <p role="status" className="text-[11px] text-cyan-100/80">
+                        {mensaje}
+                    </p>
+                ) : null}
+            </Tarjeta>
+        </div>
+    );
+}
+
 // ─── formulario de presupuestos ───
 
 const CAMPOS_NUMERICOS = Object.keys(LIMITES_PRESUPUESTOS) as (keyof typeof LIMITES_PRESUPUESTOS)[];
@@ -759,6 +939,9 @@ export function MedidorConsumo() {
                     Leyendo el consumo…
                 </p>
             ) : null}
+
+            {/* (2026-10-10) Alex: «añade un medidor del consumo y créditos del servicio de Oracle Cloud». */}
+            <FilaOracle />
 
             {formAbierto && datos ? (
                 <FormPresupuestos

@@ -161,10 +161,11 @@ function ChipsSenales({ s }: { s: SenalesMedio }) {
           ? ["Internet", s.internet.tipo, s.internet.efectivo, s.internet.mbps ? `${s.internet.mbps} Mb/s` : null].filter(Boolean).join(" · ")
           : "Sin internet"}
       </span>
-      <span className={cn(chip, s.malla.pares > 0 ? "border-cyan-400/30 text-cyan-200" : "border-white/10 text-white/45")}>
+      <span className={cn(chip, s.malla.pares > 0 || (s.malla.sinInternet ?? 0) > 0 ? "border-cyan-400/30 text-cyan-200" : "border-white/10 text-white/45")}>
         <Network className="h-3 w-3" aria-hidden />
         {`Malla P2P · ${s.malla.pares} ${s.malla.pares === 1 ? "par" : "pares"}`}
         {s.malla.otrasCuentas > 0 ? ` · ${s.malla.otrasCuentas} faros` : ""}
+        {s.malla.sinInternet ? ` · ${s.malla.sinInternet} sin internet` : ""}
       </span>
       <span className={cn(chip, s.lora.estado === "sin-radio" ? "border-white/10 text-white/45" : "border-violet-400/30 text-violet-200")}>
         <RadioTower className="h-3 w-3" aria-hidden />

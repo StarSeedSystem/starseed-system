@@ -1052,6 +1052,13 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (!estado) return;
     if (cancelados.has(msg.id)) return;
     actualizarFase(msg.id, "verificando");
+    // (2026-10-10 · transporte universal) Por VARIOS enlaces a la vez (`canal-multitrayecto.ts`)
+    // el «fin» puede llegar antes que el último trozo de otro camino: se espera a tenerlos todos
+    // (como mucho 15 s) antes de verificar. Con un solo canal no espera nada.
+    for (let t0 = Date.now(); (recibidosPorId.get(msg.id)?.size ?? 0) < estado.trozos && Date.now() - t0 < 15_000; ) {
+      if (cancelados.has(msg.id)) return;
+      await esperar(50);
+    }
     const leerTrozo = async (i: number) => (await almacen.leerTrozo(msg.id, i)) ?? new ArrayBuffer(0);
     const { raiz } = await calcularHashLista(leerTrozo, estado.trozos);
     const esperado = hashesEsperados.get(msg.id);

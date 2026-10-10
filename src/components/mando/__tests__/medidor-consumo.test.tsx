@@ -164,30 +164,32 @@ describe("MedidorConsumo", () => {
     });
 
     it("pregunta cada 60 s SOLO con la pestaña visible", async () => {
+        // (OC1010) La tarjeta de Oracle sondea su propia ruta: aquí se cuentan solo las de consumo.
+        const llamadas_ = () => llamadas.filter((l) => l.url === "/api/mando/consumo");
         vi.useFakeTimers();
         render(<MedidorConsumo />);
         await act(async () => {
             await Promise.resolve();
         });
-        expect(llamadas).toHaveLength(1);
+        expect(llamadas_()).toHaveLength(1);
         await act(async () => {
             vi.advanceTimersByTime(SONDEO_MS);
         });
-        expect(llamadas).toHaveLength(2);
+        expect(llamadas_()).toHaveLength(2);
         act(() => visibilidad("hidden"));
         await act(async () => {
             vi.advanceTimersByTime(SONDEO_MS * 5);
         });
-        expect(llamadas).toHaveLength(2);
+        expect(llamadas_()).toHaveLength(2);
         await act(async () => {
             visibilidad("visible");
         });
-        expect(llamadas).toHaveLength(3);
+        expect(llamadas_()).toHaveLength(3);
         cleanup();
         await act(async () => {
             vi.advanceTimersByTime(SONDEO_MS * 3);
         });
-        expect(llamadas).toHaveLength(3);
+        expect(llamadas_()).toHaveLength(3);
     });
 
     it("el formulario valida antes de enviar y guarda por POST JSON", async () => {

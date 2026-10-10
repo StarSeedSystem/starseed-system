@@ -10,7 +10,8 @@
  *
  *   · internet  → navigator.onLine + Network Information API (tipo y velocidad estimada);
  *   · malla     → pares WebRTC de la propia cuenta abiertos ahora + faros de otras cuentas
- *                 (motor `malla-neuronas`);
+ *                 (motor `malla-neuronas`) + enlaces directos emparejados SIN internet
+ *                 (`malla/registro-enlaces-locales`, 2026-10-10);
  *   · lora      → radio Meshtastic (Web Serial / Web Bluetooth): estado, transporte y nodos;
  *   · bluetooth → hay adaptador (getAvailability) — sin escanear (pide un gesto);
  *   · serie     → puertos ya autorizados (getPorts);
@@ -21,7 +22,7 @@ import type { MeshLinkStatus, MeshTransportKind } from "@/ai/astraura/mesh/types
 
 export interface SenalesMedio {
   internet: { enLinea: boolean; tipo?: string; efectivo?: string; mbps?: number };
-  malla: { pares: number; otrasCuentas: number };
+  malla: { pares: number; otrasCuentas: number; sinInternet?: number };
   lora: { estado: MeshLinkStatus | "sin-radio"; transporte?: MeshTransportKind | null; nodos: number };
   bluetooth: { disponible: boolean | null };
   serie: { disponible: boolean; puertos: number };
@@ -35,6 +36,8 @@ export interface EntradasSenales {
   enLinea: boolean;
   conexion?: { type?: string; effectiveType?: string; downlink?: number } | null;
   malla?: { propios: number; otrasCuentas: number } | null;
+  /** Enlaces directos emparejados sin internet abiertos en este medio. */
+  locales?: number;
   mesh?: { status: MeshLinkStatus; transport: MeshTransportKind | null; nodes: unknown[] } | null;
   bluetooth: boolean | null;
   serie: { api: boolean; puertos: number };
@@ -46,11 +49,16 @@ export function resumirSenales(e: EntradasSenales): SenalesMedio {
   return {
     internet: {
       enLinea: e.enLinea,
-      ...(c?.type ? { tipo: c.type } : {}),
+      // «unknown»/«other» no dicen nada (la WebView de Android lo da así): no se enseñan.
+      ...(c?.type && !["unknown", "other", "none"].includes(c.type) ? { tipo: c.type } : {}),
       ...(c?.effectiveType ? { efectivo: c.effectiveType } : {}),
       ...(typeof c?.downlink === "number" && c.downlink > 0 ? { mbps: Math.round(c.downlink * 10) / 10 } : {}),
     },
-    malla: { pares: Math.max(0, e.malla?.propios ?? 0), otrasCuentas: Math.max(0, e.malla?.otrasCuentas ?? 0) },
+    malla: {
+      pares: Math.max(0, e.malla?.propios ?? 0),
+      otrasCuentas: Math.max(0, e.malla?.otrasCuentas ?? 0),
+      ...(e.locales && e.locales > 0 ? { sinInternet: e.locales } : {}),
+    },
     lora: conectada
       ? { estado: e.mesh!.status, transporte: e.mesh!.transport, nodos: Array.isArray(e.mesh!.nodes) ? e.mesh!.nodes.length : 0 }
       : { estado: "sin-radio", nodos: 0 },
@@ -68,6 +76,7 @@ export function firmaSenales(s: SenalesMedio): string {
     s.internet.efectivo ?? "",
     s.malla.pares,
     s.malla.otrasCuentas,
+    s.malla.sinInternet ?? 0,
     s.lora.estado,
     s.lora.nodos,
     s.bluetooth.disponible === null ? "?" : s.bluetooth.disponible ? 1 : 0,
@@ -97,6 +106,12 @@ export async function medirSenales(): Promise<SenalesMedio> {
   } catch {
     mesh = null;
   }
+  let locales = 0;
+  try {
+    locales = (await import("@/lib/malla/registro-enlaces-locales")).enlacesLocalesVivos().length;
+  } catch {
+    locales = 0;
+  }
   let bluetooth: boolean | null = null;
   try {
     if (typeof nav.bluetooth?.getAvailability === "function") bluetooth = await nav.bluetooth.getAvailability();
@@ -114,6 +129,7 @@ export async function medirSenales(): Promise<SenalesMedio> {
     enLinea: typeof nav.onLine === "boolean" ? nav.onLine : true,
     conexion: nav.connection ?? null,
     malla,
+    locales,
     mesh,
     bluetooth,
     serie: { api: apiSerie, puertos },
