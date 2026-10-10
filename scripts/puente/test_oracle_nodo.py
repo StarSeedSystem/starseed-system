@@ -156,5 +156,17 @@ class Integracion(unittest.TestCase):
         self.assertNotIn("url", doc["servicios"][0])
 
 
+class SinIpEnPantalla(unittest.TestCase):
+    def test_oracle_nube_no_imprime_la_ip(self):
+        import oracle_nube as O
+
+        estado = {"vinculada": True, "perfil": "DEFAULT", "region": "mx", "limites": {},
+                  "instancias": [{"nombre": "starseed-a1", "forma": "A1", "ocpus": 2, "gb": 12,
+                                  "estado": "RUNNING", "ip_publica": "203.0.113.8"}], "servicios": []}
+        texto = "\n".join(O._lineas(estado))
+        self.assertNotIn("203.0.113.8", texto)
+        self.assertIn("con IP pública", texto)
+
+
 if __name__ == "__main__":
     unittest.main()

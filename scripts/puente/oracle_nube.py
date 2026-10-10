@@ -224,7 +224,9 @@ def _lineas(estado: dict, detalle: str = "") -> list[str]:
     lineas = [f"Oracle: {vinculo} · perfil {estado.get('perfil')} · región {estado.get('region') or 'sin definir'}",
               "Límites: A1 %s OCPU/%s GB · micro %s" % tuple(
                   estado.get("limites", {}).get(k, 0) for k in ("a1_ocpu", "a1_gb", "micro"))]
-    lineas += ["Instancia: {nombre} · {forma} · {ocpus} OCPU/{gb} GB · {estado} · IP {ip_publica}".format(**i)
+    # (OPO1011) La IP pública vive en oracle.json (0600) y no sale por pantalla: se dice si la hay.
+    lineas += ["Instancia: {nombre} · {forma} · {ocpus} OCPU/{gb} GB · {estado}".format(**i)
+               + (" · con IP pública" if i.get("ip_publica") else " · sin IP pública")
                for i in estado.get("instancias", [])]
     lineas += ["Servicio: {nombre} · {url} · {ok} · {ms} ms · {t}".format(**s)
                for s in estado.get("servicios", [])]
@@ -266,7 +268,9 @@ def main(argv: list[str] | None = None, correr: Runner | None = None,
     else:
         estado = anterior
     if args.como_json:
-        print(json.dumps(estado, ensure_ascii=False, separators=(",", ":")))
+        visible = dict(estado, instancias=[dict(i, ip_publica="<oculta>" if i.get("ip_publica") else "")
+                                           for i in estado.get("instancias", [])])
+        print(json.dumps(visible, ensure_ascii=False, separators=(",", ":")))
     else:
         print("\n".join(_lineas(estado, detalle)))
     return 0
