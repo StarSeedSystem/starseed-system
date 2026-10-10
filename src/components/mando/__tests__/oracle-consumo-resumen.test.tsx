@@ -35,7 +35,7 @@ describe("OracleConsumoResumen", () => {
     };
 
     // Mock fetch for the specific endpoint
-    globalThis.fetch = (url: string) => {
+    (globalThis.fetch as any) = (url: string) => {
       if (url.endsWith("/api/mando/oracle/consumo")) {
         return Promise.resolve({
           ok: true,
