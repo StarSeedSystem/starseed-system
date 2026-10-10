@@ -1,0 +1,71 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-10 10:56:11",
+  "desde": "2026-09-29 16:09:57",
+  "ultimo_429": "2026-10-10 07:25:19",
+  "sin_cupo_hasta": "2026-10-10 18:00:15",
+  "motivo": "sonda de escritura: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-10 10:56:11",
+  "desde": "2026-10-01 15:50:18",
+  "ultimo_429": "2026-10-08 06:55:33",
+  "motivo": "pasarela: $ opencode run --model nvidia/z-ai/glm-5.3 · 2026-10-10 07:22:03 \u001b[0m\u001b[0m > build · z-ai/glm-5.3 \u001b[0m$ \u001b[0mls -la src/lib/protomolecula/ src",
+  "sin_cupo_hasta": "2026-10-10 07:40:29"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-10 07:25:20",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-11 07:25:21",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-10 10:56:11",
+  "desde": "2026-10-09 01:27:51",
+  "ultimo_429": "2026-10-06 20:00:05",
+  "sin_cupo_hasta": "2026-10-10 18:00:00",
+  "motivo": "sonda de escritura: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-10 10:56:11",
+  "desde": "2026-10-09 01:27:54",
+  "ultimo_429": "2026-10-10 08:04:35"
+ },
+ "ultimo_revisor_ok": "nim/moonshotai/kimi-k3",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-10 10:56:11",
+  "desde": "2026-10-09 01:29:25",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "pasarela: $ opencode run --model apinex/free/qwen-3.8-max · 2026-10-10 07:38:03 \u001b[0m > build · free/qwen-3.8-max\u001b[0m \u001b[0m→ \u001b[0mRead CLAUDE.md\u001b[90m [of",
+  "ultimo_429": "2026-09-21 03:38:33",
+  "sin_cupo_hasta": "2026-10-10 07:53:20"
+ },
+ "google": {
+  "estado": "vivo",
+  "sin_cupo_hasta": "2026-10-10 17:59:46",
+  "motivo": "sonda de escritura: cupo del día agotado (429)"
+ },
+ "codex": {
+  "motivo": "$ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/PM1010F2F · 2026-10-10 10:46:26 · ",
+  "sin_cupo_hasta": "2026-10-11 10:46:37"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-10 10:56:11",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-10 09:36:12 \u001b[0m \u001b[0m > build · auto total 3112 drwxr-xr-x@ 135 alex staff 4320 Oct 10 09:3",
+  "sin_cupo_hasta": "2026-10-10 09:52:59"
+ }
+}
