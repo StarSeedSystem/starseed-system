@@ -23,8 +23,9 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
-import { Waves, Play, Square, Plus, Save, FolderOpen, Trash2, Maximize2, Headphones, Info, Sliders } from 'lucide-react';
+import { Waves, Play, Square, Plus, Save, FolderOpen, Trash2, Maximize2, Radio, Headphones, Info, Sliders } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { enlaceNuevaEnVivo } from '@/lib/estaciones/enlace-nueva-en-vivo';
 import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
 import { useAudio } from '@/components/dashboard/apps/omnifrecuencias/frecuencias/hooks/useAudio';
 import { useFileSystem } from '@/components/dashboard/apps/omnifrecuencias/frecuencias/hooks/useFileSystem';
@@ -148,6 +149,14 @@ export function OmnifrecuenciasWidget() {
         setUltimaId(null);
     }, [oscillators, removeOscillator, addOscillator, asegurarSonido]);
 
+    const transmitirEnVivo = useCallback(() => {
+        window.location.assign(enlaceNuevaEnVivo('omnifrecuencias', {
+            titulo: 'Entonación en vivo',
+            enlace: 'https://omnifrecuencias.vercel.app',
+            parametros: oscillators.map((o) => ({ frequency: o.frequency, type: o.type, volume: o.volume, panX: o.panX, panY: o.panY, panZ: o.panZ, name: o.name, type2: o.type2, typeMix: o.typeMix, transition: o.transition })),
+        }));
+    }, [oscillators]);
+
     const visibles = useMemo(() => (filtro === 'all' ? FEATURED_FREQUENCIES : FEATURED_FREQUENCIES.filter((f) => f.category === filtro)), [filtro]);
     const actual = FEATURED_FREQUENCIES.find((f) => f.id === ultimaId) ?? null;
     const unaCapa = capas === 1 ? oscillators.find((o) => o.isPlaying) : undefined;
@@ -253,6 +262,7 @@ export function OmnifrecuenciasWidget() {
         <EncabezadoE lienzo={lienzo} icono={Waves} titulo="Omnifrecuencias" vivo={suena}
             acciones={<>
                 {(base === 'm' || !notaFija) && <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Info} etiqueta={verNota ? 'Ocultar aviso' : 'Ver aviso de uso'} aria-expanded={verNota} onClick={() => setVerNota((v) => !v)} />}
+                {hayMezcla && <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Radio} onClick={transmitirEnVivo}>Transmitir en vivo</BotonE>}
                 <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Maximize2} etiqueta="Abrir la app completa" onClick={abrirAppCompleta} />
             </>} />
     );
