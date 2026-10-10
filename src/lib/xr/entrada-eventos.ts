@@ -1,7 +1,7 @@
 // Motor puro de entrada XR: convierte lecturas crudas en acciones con flancos,
 // histéresis de ejes y antirrebote del giro por saltos.
-import type { AccionXR, Gesto, MapaEntrada } from "./vinculos-xr";
-import { claveGatillo } from "./vinculos-xr";
+import type { AccionXR, Gesto, MapaEntrada } from "./entrada-tipos";
+import { claveGatillo } from "./entrada-tipos";
 import type { Mano } from "./gestos";
 
 export type { Mano };

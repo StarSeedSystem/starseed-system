@@ -3,7 +3,7 @@ import {
   crearMolecula, anadirCapa, anadirAtomo,
   cambiarEstadoAtomo, fijarValores, aplicarEnMolecula,
 } from "../molecula-estado";
-import type { Molecula, AtomoEnUso, ParametroRef, Operacion } from "../tipos";
+import type { Molecula, AtomoEnUso, ParametroRef, Operacion } from "../molecula-estado-tipos";
 
 describe("molecula-estado", () => {
   it("crea una molécula con valores por defecto", () => {
@@ -107,7 +107,7 @@ describe("molecula-estado", () => {
   it("aplicarEnMolecula sube la versión solo con cambios reales", () => {
     const m = crearMolecula({ id: "m", titulo: "T" }, 0);
     const m1 = anadirAtomo(m, { id: "a1", capaId: "c1", tipo: "t" }, 1);
-    const param: import("../tipos").Parametro = { id: "p1", tipo: "numero", rango: [0, 100] };
+    const param: import("../molecula-estado-tipos").Parametro = { id: "p1", tipo: "numero", rango: [0, 100] };
     const res = aplicarEnMolecula(
       m1,
       () => param,
@@ -121,7 +121,7 @@ describe("molecula-estado", () => {
   it("aplicarEnMolecula: un disparo no sube la versión", () => {
     const m = crearMolecula({ id: "m", titulo: "T" }, 0);
     const m1 = anadirAtomo(m, { id: "a1", capaId: "c1", tipo: "t" }, 1);
-    const param: import("../tipos").Parametro = { id: "p1", tipo: "numero" };
+    const param: import("../molecula-estado-tipos").Parametro = { id: "p1", tipo: "numero" };
     const res = aplicarEnMolecula(
       m1,
       () => param,
@@ -137,7 +137,7 @@ describe("molecula-estado", () => {
   it("aplicarEnMolecula: valor exacto fuera de rango queda acotado con acotado=true", () => {
     const m = crearMolecula({ id: "m", titulo: "T" }, 0);
     const m1 = anadirAtomo(m, { id: "a1", capaId: "c1", tipo: "t" }, 1);
-    const param: import("../tipos").Parametro = { id: "p1", tipo: "numero", rango: [0, 10] };
+    const param: import("../molecula-estado-tipos").Parametro = { id: "p1", tipo: "numero", rango: [0, 10] };
     const res = aplicarEnMolecula(
       m1,
       () => param,
@@ -145,7 +145,7 @@ describe("molecula-estado", () => {
       2,
     );
     expect(res.ok).toBe(true);
-    const cambio = (res as { ok: true; cambio: import("../tipos").Cambio }).cambio;
+    const cambio = (res as { ok: true; cambio: import("../molecula-estado-tipos").Cambio }).cambio;
     expect(cambio.acotado).toBe(true);
   });
 });

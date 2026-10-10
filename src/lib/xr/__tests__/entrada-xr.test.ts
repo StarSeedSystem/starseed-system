@@ -1,6 +1,6 @@
 // Pruebas de gestos y motor de entrada XR. Corren en node, sin navegador.
 import { describe, it, expect } from "vitest";
-import type { Vec3 } from "../tipos";
+import type { Vec3 } from "../entrada-tipos";
 import {
   crearDetector,
   distanciaPellizco,
@@ -13,7 +13,7 @@ import {
   claveGatillo,
   type AccionXR,
   type Gesto,
-} from "../vinculos-xr";
+} from "../entrada-tipos";
 
 const v = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 const VACIO: LecturaMando = { botones: [], ejes: [] };

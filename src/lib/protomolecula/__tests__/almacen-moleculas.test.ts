@@ -10,7 +10,7 @@ import {
   PREFIJO_MOLECULA,
   type AlmacenLocal,
 } from "../almacen-moleculas";
-import type { Molecula } from "../tipos";
+import type { Molecula } from "../molecula-estado-tipos";
 
 function almacenMemoria(): AlmacenLocal {
   const datos = new Map<string, string>();

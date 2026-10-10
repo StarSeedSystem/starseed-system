@@ -1,8 +1,8 @@
 import type {
   Ambito, Molecula, Capa, AtomoEnUso, Atomo,
   Parametro, Operacion, Cambio, ParametroRef,
-} from "./tipos";
-import { aplicarOperacion } from "./parametros";
+} from "./molecula-estado-tipos";
+import { aplicarOperacion } from "./molecula-estado-tipos";
 
 export function crearMolecula(
   o: { id: string; titulo: string; ambito?: Ambito },

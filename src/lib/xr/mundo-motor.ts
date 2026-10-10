@@ -1,4 +1,4 @@
-import type { Vec3 } from './tipos';
+import type { Vec3 } from './entrada-tipos';
 
 export interface CieloMundo { tipo: string; color?: string }
 

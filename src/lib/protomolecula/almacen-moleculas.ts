@@ -1,4 +1,4 @@
-import type { Ambito, Molecula } from "./tipos";
+import type { Ambito, Molecula } from "./molecula-estado-tipos";
 
 export interface AlmacenLocal {
   getItem(k: string): string | null;

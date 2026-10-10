@@ -1,8 +1,8 @@
 // Gestos de manos puros para XR: entrada = articulaciones (datos), salida = eventos.
 // Sin APIs de navegador; los nombres de articulación siguen WebXR Hand.
-import type { Vec3 } from "./tipos";
-import { activacionMenu } from "./espacio-trinity";
-import { GESTOS_RESERVADOS } from "./vinculos-xr";
+import type { Vec3 } from "./entrada-tipos";
+import { activacionMenu } from "./entrada-tipos";
+import { GESTOS_RESERVADOS } from "./entrada-tipos";
 
 export type Articulaciones = Partial<Record<string, Vec3>>;
 export type Mano = "izquierda" | "derecha";
