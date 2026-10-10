@@ -3,8 +3,9 @@ Description=StarSeed · MetaGeminis cada 6 h (borradores para aprobar) (OPO1011)
 # requiere: /opt/starseed/nodo/metageminis/scripts/sociales/metageminis.py
 
 [Timer]
-OnBootSec=15min
-OnUnitActiveSec=6h
+# Por calendario y no «6 h después de la última vez»: al reinstalar la unidad se pierde esa marca
+# y el temporizador se quedaba sin próxima vuelta (medido el 2026-10-10).
+OnCalendar=*-*-* 00/6:17:00
 RandomizedDelaySec=10min
 Persistent=true
 

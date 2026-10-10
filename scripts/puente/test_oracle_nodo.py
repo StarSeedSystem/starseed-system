@@ -156,6 +156,19 @@ class Integracion(unittest.TestCase):
         self.assertNotIn("url", doc["servicios"][0])
 
 
+class Borradores(unittest.TestCase):
+    def test_solo_los_nuevos_para_aprobar_y_con_huella(self):
+        import json
+        mac = [json.dumps({"huella": "a", "estado": "para_aprobar"}), "no-json"]
+        a1 = [json.dumps({"huella": "a", "estado": "para_aprobar"}),
+              json.dumps({"huella": "b", "estado": "para_aprobar", "sitio_id": "goteo"}),
+              json.dumps({"huella": "c", "estado": "aprobado"}),
+              json.dumps({"sin": "huella"}), "roto", json.dumps({"huella": "b"})]
+        nuevas = [json.loads(x) for x in N.borradores_nuevos(mac, a1)]
+        self.assertEqual([x["huella"] for x in nuevas], ["b"])
+        self.assertEqual(nuevas[0]["medio"], "oracle_a1")
+
+
 class SinIpEnPantalla(unittest.TestCase):
     def test_oracle_nube_no_imprime_la_ip(self):
         import oracle_nube as O

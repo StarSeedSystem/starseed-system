@@ -260,6 +260,29 @@ def resumen_para_oracle_json(estado_a1, publico, ahora):
     return nodo, servicios
 
 
+def borradores_nuevos(lineas_mac, lineas_a1):
+    """PURA. Las filas de la cola de MetaGeminis del A1 (`cola.jsonl`, una por línea) que la cola de
+    esta neurona aún no tiene, por su `huella`. Una línea que no es JSON o sin huella no viaja.
+    Solo son BORRADORES «para_aprobar»: aprobar sigue siendo cosa de Alex en MetaGenesis."""
+    vistas = set()
+    for l in lineas_mac or []:
+        try:
+            vistas.add(json.loads(l).get("huella"))
+        except (ValueError, AttributeError):
+            continue
+    nuevas = []
+    for l in lineas_a1 or []:
+        try:
+            fila = json.loads(l)
+        except ValueError:
+            continue
+        h = fila.get("huella") if isinstance(fila, dict) else None
+        if h and h not in vistas and fila.get("estado", "para_aprobar") == "para_aprobar":
+            vistas.add(h)
+            nuevas.append(json.dumps(dict(fila, medio=fila.get("medio") or "oracle_a1"), ensure_ascii=False))
+    return nuevas
+
+
 def aviso_de_cambio(previo, nodo):
     """PURA. Una frase para el Chat Director SOLO cuando algo cambia de verdad: el nodo empieza o
     deja de latir, o el guardián de main pasa de verde a rojo (o al revés). None si nada cambió."""
@@ -593,11 +616,32 @@ def traer(estado_a1=None):
     hechos = {c.get("rama") for c in colas}
     datos["lanzamientos"] = [l for l in lanzamientos if l.get("rama") not in hechos][-20:]
     _escribir(ESTADO, datos)
+    borradores = traer_borradores()
     if subidas or devueltas:
         _avisar("Oracle A1: %s%s" % (
             ("subo a GitHub %d rama(s) de trabajo del A1 (%s); traer_nube las pasa por sus puertas. " % (len(subidas), ", ".join(subidas))) if subidas else "",
             ("Vuelven a la cola de la Mac (el A1 terminó su cola): %s." % ", ".join(devueltas)) if devueltas else ""))
-    return {"ok": not errores, "subidas": subidas, "devueltas": devueltas, "errores": errores}
+    return {"ok": not errores, "subidas": subidas, "devueltas": devueltas, "borradores": borradores, "errores": errores}
+
+
+def traer_borradores():
+    """Los borradores de MetaGeminis que redactó el A1 pasan a la cola de esta neurona
+    (~/.starseed/metageminis/cola.jsonl), donde viven los suyos hasta que la tabla exista."""
+    rc, salida = ssh("sudo -u starseed cat /home/starseed/.starseed/metageminis/cola.jsonl 2>/dev/null", timeout=40)
+    if rc != 0 or not salida.strip():
+        return 0
+    ruta = os.path.join(HOME, ".starseed", "metageminis", "cola.jsonl")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            mias = f.read().splitlines()
+    except OSError:
+        mias = []
+    nuevas = borradores_nuevos(mias, salida.splitlines())
+    if nuevas:
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "a", encoding="utf-8") as f:
+            f.write("\n".join(nuevas) + "\n")
+    return len(nuevas)
 
 
 def _ruta_puente(nombre):
