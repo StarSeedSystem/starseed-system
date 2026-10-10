@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261010",
+ "tareas": [
+  {
+   "ola": "Ola 1007C · Capas autoadaptables de Astraura: Needle 3, Bonsai 1.58 y BitNet por tarea y por medio, repartidas por la malla y aprendiendo por ámbito",
+   "dificultad": "media",
+   "privado": false,
+   "modelo": "codex/gpt-5.6-sol",
+   "dependencias_ya_en_main": [
+    "CPA1007Kb-d1"
+   ],
+   "id": "CPA1007Kb-d2",
+   "titulo": "Capas · Genesis: pestaña «Capas» con catálogo, versiones, dispositivos, espejos, banco y aprendizaje por ámbito (rehecha tras revisión) (parte 2 de 2)",
+   "archivos": [
+    "src/components/mando/panel-capas-red.tsx",
+    "src/components/mando/__tests__/panel-capas-red.test.tsx",
+    "src/components/mando/centro-mando.tsx"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/capas-autoadaptables.md`. Léelo ENTERO antes de empezar (sobre todo §10): es la fuente de verdad, y lo que no esté ahí no se inventa. Construye sobre lo que ya existe (§2), no lo dupliques; si el código real choca con el contrato, dilo en tu informe. Petición de Alex (2026-10-07): que Astraura cargue en cada medio y para cada tarea las capas de modelos más óptimas (Needle 3, Bonsai 1.58, BitNet), que las apps guarden más capas que la web, que todo se sincronice y descargue bajo demanda por la malla y los servidores, por ámbito y con aprendizaje colectivo.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Módulos PUROS donde el contrato lo pide (sin `node:*` en lo que importa el navegador; la puerta `sin-node-en-cliente.test.ts` lo vigila). Pruebas sin red, sin descargar modelos y sin archivos reales (todo lo externo se inyecta). Claves SOLO de `process.env`/`os.environ`, nunca se imprimen. Sin dependencias nuevas de npm ni pip. Una capa sin su SHA en el catálogo no se usa jamás (§6).\n\nTU TAREA (CPA1007K): (a) `capas-red.ts` PURO: junta el catálogo, `~/.starseed/capas-estado.json` (CPA1007J) y las fichas de capacidades (CPA1007G) en filas por capa: versión, estado, cuántos dispositivos y servidores la tienen, espejos y último resultado del banco. (b) `/api/mando/capas` detrás del mismo guardián que las demás rutas de Genesis; GET y POST `{accion:'comprobar'|'banco'}` que lanzan `capas_renovar.py --json` o `capas_banco.py` desacoplados (patrón `lanzarPasadaAutopublicar` de `src/app/api/mando/produccion/route.ts`). (c) `panel-capas-red.tsx` en el grupo Infraestructura, con el estilo de los paneles de Genesis y sin números inventados («sin medir»). Regístralo donde se registran las demás pestañas de Genesis. Pruebas de la vista pura, la ruta y el panel con fetch falso.\n\nREVISIÓN DE LA DIRECCIÓN (2026-10-08) — el primer intento (rama ola/CPA1007K) NO se integró:\n1. BORRÓ seis pestañas del Mando en `src/components/mando/centro-mando.tsx` (Chat, Áreas,\n   Contextos, Memorias, Reportes y Entornos movidas o quitadas con su TabsContent). En\n   centro-mando.tsx SOLO puedes AÑADIR: una entrada `{ id: \"capas-red\", etiqueta: \"Capas\",\n   grupo: \"Infraestructura\" }` en PESTANAS, el import y un TabsContent con montaje condicional.\n   Ninguna otra línea de ese archivo cambia: el diff de centro-mando.tsx tiene que ser solo\n   de líneas añadidas.\n2. `fichas` llegaba siempre vacía: lee las fichas de capacidad reales de los nodos\n   (`src/lib/network/capacidades-nodo.ts`) o di «sin medir» en la interfaz; nunca ceros que\n   parezcan medidos.\n3. Reutiliza lo bueno del intento: `git show ola/CPA1007K:src/lib/mando/capas-red.ts` y la ruta\n   `src/app/api/mando/capas/route.ts` (guardianMando, no-store) están bien encaminadas.\n\n## PARTE 2 DE 2 (la dirección dividió CPA1007Kb: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/components/mando/panel-capas-red.tsx, src/components/mando/__tests__/panel-capas-red.test.tsx, src/components/mando/centro-mando.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CPA1007Kb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  }
+ ]
+}
