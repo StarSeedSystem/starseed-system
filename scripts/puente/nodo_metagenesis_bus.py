@@ -216,6 +216,20 @@ class EnlaceBus:
         return []
 
 
+class EnlaceSoloLectura(EnlaceBus):
+    """El bus para una prueba SECA en un medio vivo (OPA1011b): lee lo mismo que el nodo de verdad y no
+    escribe NADA (ni latido, ni mando, ni foto, ni órdenes): el servicio que ya corre con el mismo id
+    sigue siendo el único que habla por este medio."""
+
+    def __init__(self, rest: Rest, yo: str, ttl: int = L.TTL_LIDER_S):
+        super().__init__(rest, yo, ttl)
+        self.no_escritas: List[str] = []
+
+    def _insertar(self, tipo: str, texto: str, datos: Dict[str, Any], tarea: str = "") -> bool:
+        self.no_escritas.append(tipo)
+        return True
+
+
 class EnlaceTablas:
     """Modo tablas (migración 20261011100000): una llamada por vuelta, arriendo atómico en Postgres."""
 

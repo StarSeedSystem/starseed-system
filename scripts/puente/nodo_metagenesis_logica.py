@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -69,6 +70,9 @@ ACCIONES_ORDEN: Dict[str, Dict[str, Any]] = {
     "pausar": {"texto": "Pausar la autonomía del líder", "args": ()},
     "reanudar": {"texto": "Reanudar la autonomía del líder", "args": ()},
     "ceder": {"texto": "El líder cede el mando al siguiente", "args": ()},
+    # (OPA1011b) Interna: el líder se la pide al medio con las colas en su disco cuando no es él
+    # (la web no la manda; por eso no está en el CHECK de la tabla ni en los botones).
+    "repartir": {"texto": "Prestar tareas listas a un medio ocioso", "args": ("destino", "tope")},
 }
 
 #: Tipos de evento en el bus (`relevo_eventos.tipo`, ≤ 40 caracteres).
@@ -275,6 +279,12 @@ def args_validos(accion: str, args: Any) -> Optional[str]:
             return "nombre de cola no válido"
     if "trabajadores" in args and not (isinstance(args["trabajadores"], int) and 1 <= args["trabajadores"] <= 4):
         return "trabajadores fuera de 1–4"
+    if accion == "repartir":
+        if not id_valido(args.get("destino")):
+            return "destino no válido"
+        if "tope" in args and not (isinstance(args["tope"], int) and not isinstance(args["tope"], bool)
+                                   and 1 <= args["tope"] <= 8):
+            return "tope fuera de 1–8"
     return None
 
 
@@ -338,6 +348,339 @@ def huella_tareas(tareas: Any) -> Optional[str]:
 
 def podar_nonces(vistos: Dict[str, float], ahora: float) -> Dict[str, float]:
     return {n: t for n, t in (vistos or {}).items() if ahora - float(t or 0) < NONCE_RECUERDO_S}
+
+
+# ─── vigía de RESULTADOS (OPA1011b, 2026-10-10 tarde) ────────────────────────────────────
+#
+# Alex (14:40): «de nuevo hay muchas bloqueadas, fallidas y sin publicar que no se procesaron
+# automáticamente … solucionalo y haz que ya funcione automáticamente». Medido entonces: el líder
+# llevaba desde las 10:44 diciendo «nada que hacer» en cada vuelta, porque solo miraba si los
+# directores estaban VIVOS (lo estaban todos), no si el trabajo AVANZABA:
+#   · 33 tareas listas para los 3 trabajadores de una Mac con 736 MB libres y carga 14, y 75
+#     esperando detrás, mientras el A1 de Oracle (2 OCPU, 9,8 GB libres, carga 0) esperaba sin cola:
+#     el reparto a otros medios excluía todo lo que estaba en la tanda viva de la Mac;
+#   · la autopublicación, frenada dos horas por el mismo motivo, esperando «un commit nuevo» que no
+#     lo iba a arreglar, y a las 14:28 vetada por pruebas que fallaban en el ÁRBOL de la Mac (un
+#     cambio a medias de otro agente), no en el commit.
+# Ahora el líder mide RESULTADOS y actúa por los caminos que ya existen: presta trabajo al medio
+# ocioso sin duplicarlo, convierte una puerta de publicación en rojo en una tarea de reparación con
+# la salida exacta, y avisa una sola vez de lo que lleva horas quieto y solo puede decidir una persona.
+
+#: Estados de fallo de una tarea (los mismos que el revisor de bloqueadas, OPB1011).
+FALLOS = ("fallo", "fallo_tsc", "fallo_tests", "fallo_motor", "conflicto", "bloqueante")
+#: Una hermana en estos estados NO cuenta como «alguien la retoma».
+_HERMANA_MUERTA = FALLOS + ("rechazada", "descartada", "obsoleta", "bloqueada")
+ESPERA_VB = ("esperando_aprobacion", "pendiente_aprobacion")
+VENTANA_FALLIDAS_S = 72 * 3600
+#: Préstamo de trabajo a un medio ocioso: con cuántas listas, cuántas, cada cuánto.
+REPARTO_MIN_LISTAS = 6
+REPARTO_TOPE = 4
+REPARTO_ESPERA_S = 30 * 60
+#: Lo que lleva quieto este tiempo se escala (aviso o reparación) y no se repite antes de AVISO_ESPERA_S.
+FALLIDA_AVISO_S = 2 * 3600
+VB_AVISO_S = 3 * 3600
+PUBLICACION_ROJA_S = 60 * 60
+AVISO_ESPERA_S = 6 * 3600
+#: Lo que pide un prompt y solo tiene la Mac (su Chrome, launchd, su Genesis): no se presta.
+_SOLO_MAC = re.compile(r"\b(navegador|chrome|launchd|launchctl|localhost:9002|caffeinate|pmset|en la mac)\b", re.I)
+#: Motivos de veto de la autopublicación que se REPARAN con una tarea (hay salida con rutas).
+VETOS_REPARABLES = ("pruebas del puente en rojo", "CI en rojo")
+#: Motivos que no toca nadie más que una persona o que ya tienen su botón en Genesis.
+VETOS_DE_PERSONA = ("Vetado desde Genesis",)
+
+
+def _epoch_local(t: Any) -> Optional[float]:
+    """«AAAA-MM-DD HH:MM:SS» (hora local, como escribe el orquestador) → epoch. None si no se lee."""
+    import time as _time
+    if not isinstance(t, str) or len(t) < 19:
+        return None
+    try:
+        return _time.mktime(_time.strptime(t[:19], "%Y-%m-%d %H:%M:%S"))
+    except ValueError:
+        return None
+
+
+def base_de_tarea(tid: Any) -> str:
+    """PURA. La raíz de una cadena: `CPA1007Kb-d1b` → `CPA1007K`, `S1010-TU-LL1c` → `S1010-TU-LL1`."""
+    t = str(tid or "")
+    m = re.match(r"^(.+?)-d\d+[a-z]?$", t)
+    if m:
+        t = m.group(1)
+    while len(t) > 1 and t[-1] in "bcdefghijklmnopqrstuvwxyz" and (t[-2].isdigit() or t[-2].isupper()):
+        t = t[:-1]
+    return t
+
+
+def id_en_asuntos(tid: Any, asuntos: Sequence[str]) -> bool:
+    """PURA. ¿Hay un commit de main con «· ID:» (o empezando por «ID:»)?"""
+    patron = re.compile(r"(?:^|·\s*)%s\s*:" % re.escape(str(tid)))
+    return any(patron.search(a or "") for a in asuntos or ())
+
+
+def _posterior(k: str, tid: str) -> bool:
+    return len(k) > len(tid) or (len(k) == len(tid) and k > tid)
+
+
+def fallidas_sin_resolver(progreso: Dict[str, Any], asuntos: Sequence[str], ahora: float,
+                          ventana_s: int = VENTANA_FALLIDAS_S) -> List[Dict[str, Any]]:
+    """PURA. Tareas en fallo de los últimos `ventana_s` que NADIE retoma: ni están en main, ni
+    tienen sucesora viva o integrada (misma raíz, id posterior), ni se dieron por sustituidas.
+    La más vieja primero. [{id, estado, hace_s}]."""
+    por_base: Dict[str, List[Tuple[str, Any]]] = {}
+    for k, v in (progreso or {}).items():
+        por_base.setdefault(base_de_tarea(k), []).append((str(k), v))
+    salida = []
+    for tid, e in (progreso or {}).items():
+        if not isinstance(e, dict) or e.get("estado") not in FALLOS:
+            continue
+        t = _epoch_local(e.get("t"))
+        if t is None or ahora - t > ventana_s:
+            continue
+        if e.get("sustituida_por") or id_en_asuntos(tid, asuntos):
+            continue
+        if _sigue_otra(str(tid), por_base):
+            continue
+        salida.append({"id": str(tid), "estado": e["estado"], "hace_s": max(0, int(ahora - t))})
+    return sorted(salida, key=lambda f: -f["hace_s"])
+
+
+def _sigue_otra(tid: str, por_base: Dict[str, List[Tuple[str, Any]]]) -> bool:
+    """¿Una tarea POSTERIOR de la misma cadena sigue viva o ya cerró? (entonces esta ya no manda)."""
+    return any(k != tid and _posterior(k, tid) and isinstance(v, dict) and v.get("estado") not in _HERMANA_MUERTA
+               for k, v in por_base.get(base_de_tarea(tid), []))
+
+
+def esperando_visto_bueno(progreso: Dict[str, Any], ahora: float, asuntos: Sequence[str] = ()) -> List[Dict[str, Any]]:
+    """PURA. Tareas que de verdad esperan visto bueno (la más vieja primero): fuera las que ya están en
+    main y las que una tarea posterior de su cadena ya continúa (medido el 10-10: CNS1010Mb «esperaba»
+    6 h con CNS1010Mc ya en la tanda, y S1010-TU-LL1c con su trabajo ya integrado). [{id, hace_s}]."""
+    por_base: Dict[str, List[Tuple[str, Any]]] = {}
+    for k, v in (progreso or {}).items():
+        por_base.setdefault(base_de_tarea(k), []).append((str(k), v))
+    salida = []
+    for tid, e in (progreso or {}).items():
+        if not isinstance(e, dict) or e.get("estado") not in ESPERA_VB:
+            continue
+        if id_en_asuntos(tid, asuntos) or _sigue_otra(str(tid), por_base):
+            continue
+        t = _epoch_local(e.get("t"))
+        salida.append({"id": str(tid), "hace_s": max(0, int(ahora - t)) if t is not None else 0})
+    return sorted(salida, key=lambda f: -f["hace_s"])
+
+
+def es_integracion(asunto: str) -> bool:
+    """PURA. ¿Este asunto de main es una tarea INTEGRADA (no un salvavidas ni un commit suelto)?"""
+    a = (asunto or "").strip()
+    return a.startswith("Ola ") and bool(re.search(r"·\s*[A-Za-z0-9_-]*\d[A-Za-z0-9_-]*\s*:", a))
+
+
+def motivo_publicacion(detalle: Any) -> str:
+    """PURA. El motivo de la autopublicación sin shas ni lo que le añade cada pasada
+    («… · espero a que llegue un commit nuevo»): así se sabe si es EL MISMO motivo de antes."""
+    t = str(detalle or "").split(" · ")[0]
+    t = re.sub(r"\b[0-9a-f]{7,40}\b", "", t)
+    return re.sub(r"\s+", " ", t).strip()[:200]
+
+
+def firma_publicacion(pub: Dict[str, Any]) -> str:
+    """PURA. «fase|motivo»: cambia cuando la autopublicación cambia de verdad de situación."""
+    p = pub or {}
+    return "%s|%s" % (p.get("fase") or "", motivo_publicacion(p.get("detalle")))
+
+
+def clase_publicacion(pub: Dict[str, Any]) -> Optional[str]:
+    """PURA. Qué le toca al líder ante la publicación: None (nada), «reparar» (una puerta en rojo
+    con salida que nombra archivos) o «avisar» (frenada por algo que el enjambre no arregla)."""
+    p = pub or {}
+    if not p.get("activa") or not (p.get("sin_publicar") or 0) > 0 or p.get("fase") != "bloqueado":
+        return None
+    motivo = motivo_publicacion(p.get("detalle"))
+    if any(motivo.startswith(v) for v in VETOS_DE_PERSONA):
+        return None
+    ev = p.get("evidencia") or {}
+    if any(motivo.startswith(v) for v in VETOS_REPARABLES) and ev.get("texto"):
+        return "reparar"
+    return "avisar"
+
+
+_RE_PY_FILE = re.compile(r'File "[^"]*?/((?:scripts|deploy|servicios|backend)/[^"\s]+\.py)"')
+_RE_PY_TEST = re.compile(r"\((test_[A-Za-z0-9_]+)\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)?\)")
+_RE_TS = re.compile(r"(?:^|[\s(\"'])((?:src|scripts|native)/[\w./\-\[\]()@]+?\.(?:tsx?|mts|mjs))(?=[(:\s\"']|$)", re.M)
+
+
+def rutas_de_evidencia(texto: Any, tope: int = 3) -> List[str]:
+    """PURA. Archivos del repo que nombra la salida de una puerta en rojo (pruebas del puente,
+    tsc o vitest), en orden de aparición y sin repetir. Las pruebas de Python cuentan por su
+    archivo (`test_x.Clase.metodo` → scripts/puente/test_x.py) y por el de la traza."""
+    t = str(texto or "")
+    rutas: List[str] = []
+
+    def meter(r: str) -> None:
+        r = r.strip().lstrip("./")
+        if r and r not in rutas and ".." not in r:
+            rutas.append(r)
+
+    for m in _RE_PY_TEST.finditer(t):
+        meter("scripts/puente/%s.py" % m.group(1))
+    for m in _RE_PY_FILE.finditer(t):
+        meter(m.group(1))
+    for m in _RE_TS.finditer(t):
+        meter(m.group(1))
+    return rutas[:tope]
+
+
+def tarea_de_reparacion(pub: Dict[str, Any], archivos: Sequence[str], ahora: float) -> Optional[Dict[str, Any]]:
+    """PURA. La tarea del enjambre que arregla una puerta de publicación en rojo, con la salida
+    EXACTA de la puerta. None si no hay archivos que nombrar (no sería trabajo del enjambre)."""
+    import time as _time
+    archivos = [a for a in archivos or [] if isinstance(a, str) and a][:3]
+    ev = (pub or {}).get("evidencia") or {}
+    if not archivos or not ev.get("texto"):
+        return None
+    motivo = motivo_publicacion((pub or {}).get("detalle"))
+    huella = hashlib.sha256(("%s|%s|%s" % (motivo, "|".join(archivos), ev.get("sha") or "")).encode("utf-8")
+                            ).hexdigest()[:6].upper()
+    fecha = _time.strftime("%m%d", _time.localtime(ahora))
+    salida = tachar(str(ev.get("texto") or ""))[-1800:]
+    pruebas = [a for a in archivos if a.endswith(".py") and os.path.basename(a).startswith("test_")]
+    comprobar = ("python3 -m unittest %s" % " ".join(pruebas)) if pruebas else (
+        "npx vitest run %s" % " ".join(a for a in archivos if ".test." in a) if any(".test." in a for a in archivos)
+        else "npx tsc --noEmit")
+    return {
+        "id": "MGP%s-%s" % (fecha, huella),
+        "ola": "MetaGenesis · que lo integrado llegue a producción",
+        "titulo": "Puerta de publicación en rojo: %s" % motivo[:80],
+        "archivos": archivos,
+        "depende": [],
+        "origen": "metagenesis",
+        "prompt": (
+            "NOTA DE METAGENESIS (%s): la autopublicación lleva más de %d min frenada en %s por «%s» y "
+            "ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n%s\n```\n"
+            "Arregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la "
+            "prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No "
+            "toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una "
+            "prueba para que pase; nada de claves en el código. Comprueba con: `%s`."
+            % (_time.strftime("%Y-%m-%d %H:%M", _time.localtime(ahora)), PUBLICACION_ROJA_S // 60,
+               str(ev.get("sha") or "")[:8], motivo, salida, comprobar)),
+    }
+
+
+def prestable(t: Any) -> bool:
+    """PURA. ¿Puede trabajarse esta tarea en otro medio? (≤ 3 archivos, con prompt, sin visto bueno
+    humano y sin nada que solo tenga la Mac)."""
+    if not isinstance(t, dict) or not t.get("id"):
+        return False
+    archivos = t.get("archivos") or []
+    if not isinstance(archivos, list) or not 1 <= len(archivos) <= 3:
+        return False
+    if t.get("aprobacion") or str(t.get("medio") or t.get("donde") or "").lower() == "mac":
+        return False
+    prompt = str(t.get("prompt") or "")
+    return bool(prompt.strip()) and not _SOLO_MAC.search(prompt + " " + str(t.get("titulo") or ""))
+
+
+def elegir_reparto(candidatas: Sequence[Dict[str, Any]], excluir: Iterable[str], tope: int = REPARTO_TOPE
+                   ) -> List[Dict[str, Any]]:
+    """PURA. Qué tareas listas se prestan a otro medio SIN duplicar trabajo con la Mac.
+
+    `candidatas` llega en el orden en que la Mac las va a coger (lo que más desbloquea, primero):
+    se prestan las del FINAL, que la Mac no tocaría en horas. Cuando el otro medio las integra,
+    `traer_nube` las lleva a main y el orquestador de la Mac las salta (`cerradas_en_disco`); si
+    falla, siguen en la tanda de la Mac como siempre: nada se pierde. Las reparaciones de MetaGenesis
+    (`origen: metagenesis`) van primero: desatascan la publicación de todo lo demás."""
+    fuera = {str(x) for x in excluir or ()}
+    bases_fuera = {base_de_tarea(x) for x in fuera}
+    validas = [t for t in candidatas or () if prestable(t) and str(t.get("id")) not in fuera
+               and base_de_tarea(t.get("id")) not in bases_fuera]
+    # Una sola tarea por cadena, la más reciente (medido el 10-10: RTOPO1011T1 y RTOPO1011T1b, el mismo
+    # rescate desde dos ramas, habrían ido juntas al A1 a hacer dos veces lo mismo).
+    ultima: Dict[str, str] = {}
+    for t in validas:
+        b, tid = base_de_tarea(t.get("id")), str(t.get("id"))
+        if b not in ultima or _posterior(tid, ultima[b]):
+            ultima[b] = tid
+    validas = [t for t in validas if ultima.get(base_de_tarea(t.get("id"))) == str(t.get("id"))]
+    propias = [t for t in validas if t.get("origen") == "metagenesis"]
+    resto = [t for t in reversed(validas) if t.get("origen") != "metagenesis"]
+    return (propias + resto)[:max(0, int(tope))]
+
+
+def tarea_limpia(t: Dict[str, Any]) -> Dict[str, Any]:
+    """PURA. Lo que viaja de una tarea a otro medio (nada de rutas de disco ni de estado de la Mac)."""
+    limpia = {k: t.get(k) for k in ("id", "ola", "titulo", "archivos", "prompt", "depende", "modelo", "importancia",
+                                     "origen", "dificultad") if t.get(k) is not None}
+    return json.loads(tachar(json.dumps(limpia, ensure_ascii=False)))
+
+
+def medio_ocioso(n: str, l: Dict[str, Any]) -> Tuple[bool, str]:
+    """PURA. ¿Este nodo puede trabajar una cola prestada AHORA? (bool, por qué no)."""
+    s = l.get("salud") or {}
+    if l.get("modo") != "real":
+        return False, "seco"
+    if s.get("autoritativo"):
+        return False, "es el medio con las colas"
+    if not s.get("repo") or not s.get("orquestador"):
+        return False, "sin repo u orquestador"
+    if l.get("secreto") is not True:
+        return False, "sin secreto: no podría comprobar la orden firmada"
+    if s.get("orquestadores"):
+        return False, "ya trabaja una cola"
+    a1 = s.get("a1") or {}
+    # «guardian» = el A1 comprobando main (tsc, vitest, next build) a falta de trabajo: le CEDE la
+    # máquina a una cola en cuanto llega (oracle_a1.guardian), así que cuenta como libre.
+    if a1 and (a1.get("orquestador_vivo") or a1.get("cola")
+               or str(a1.get("fase") or "espera") not in ("espera", "", "guardian")):
+        return False, "su medio del enjambre está ocupado (%s)" % (a1.get("fase") or "cola")
+    if isinstance(s.get("disco_gb"), (int, float)) and s["disco_gb"] < 3:
+        return False, "poco disco"
+    if isinstance(s.get("ram_libre_mb"), (int, float)) and s["ram_libre_mb"] < 1500:
+        return False, "poca memoria"
+    return True, ""
+
+
+def mejor_medio_ocioso(nodos: Dict[str, Dict[str, Any]], excepto: Optional[str] = None) -> Optional[str]:
+    libres = [(n, l) for n, l in (nodos or {}).items() if n != excepto and medio_ocioso(n, l)[0]]
+    if not libres:
+        return None
+    return min(libres, key=lambda kv: _clave_mejor(kv[0], kv[1]))[0]
+
+
+def _h(texto: str) -> str:
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:8]
+
+
+def _min(s: Any) -> str:
+    s = int(s or 0)
+    return ("%d h %02d min" % (s // 3600, (s % 3600) // 60)) if s >= 3600 else "%d min" % (s // 60)
+
+
+def medidores_de_resultados(r: Dict[str, Any], prestamos: Sequence[Dict[str, Any]] = (), ahora: float = 0) -> Dict[str, str]:
+    """PURA. Las cifras de resultados como pastillas de la foto (las ve cualquier neurona)."""
+    r = r or {}
+    m: Dict[str, str] = {}
+    fall = r.get("fallidas") or []
+    n_fall = int(r.get("n_fallidas") or len(fall))
+    m["fallidas"] = ("%d sin resolver · la más vieja hace %s" % (n_fall, _min(fall[0].get("hace_s")))
+                     if n_fall and fall else "ninguna sin resolver en 3 días")
+    vb = r.get("visto_bueno") or []
+    if vb:
+        m["visto-bueno"] = "%d esperan visto bueno · la más vieja hace %s" % (
+            int(r.get("n_visto_bueno") or len(vb)), _min(vb[0].get("hace_s")))
+    pub = r.get("publicacion") or {}
+    if pub.get("sin_publicar") is not None:
+        estado = "apagada" if not pub.get("activa") else (pub.get("fase") or "—")
+        motivo = motivo_publicacion(pub.get("detalle")) if pub.get("fase") == "bloqueado" else ""
+        m["sin-publicar"] = ("%d commit(s) · autopublicación: %s%s" % (
+            int(pub.get("sin_publicar") or 0), estado, (" (%s)" % motivo[:70]) if motivo else ""))[:160]
+    if r.get("integradas_2h") is not None:
+        m["integradas"] = "%d en las últimas 2 h" % int(r.get("integradas_2h") or 0)
+    vivos = [p for p in prestamos or () if ahora - float(p.get("ts") or 0) < GRACIA_ASIGNACION_S]
+    if vivos:
+        por: Dict[str, int] = {}
+        for p in vivos:
+            por[p.get("destino") or "?"] = por.get(p.get("destino") or "?", 0) + len(p.get("ids") or [])
+        m["prestadas"] = " · ".join("%d en %s" % (k, v) for v, k in sorted(por.items()))[:160]
+    return m
 
 
 # ─── el plan del líder ───────────────────────────────────────────────────────────────────
@@ -412,12 +755,14 @@ def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> 
             anadir(accion("continuar:%s" % n, "continuar", n,
                           "%d listas y ningún orquestador desde hace %d min" % (listas, (ahora - float(sin_orq)) // 60),
                           espera_s=1800))
-        # 3. Bloqueadas y el revisor automático (OPB1011) sin pasar → una pasada ahora.
+        # 3. Bloqueadas o fallidas y el revisor automático (OPB1011) sin pasar → una pasada ahora.
         hace = s.get("revisor_hace_s")
-        if bloqueadas > 0 and (not s.get("revisor_vivo")) and (hace is None or hace >= 900):
+        res = s.get("resultados") or {}
+        n_fall = int(res.get("n_fallidas") or 0)
+        if (bloqueadas > 0 or n_fall > 0) and (not s.get("revisor_vivo")) and (hace is None or hace >= 900):
             anadir(accion("revisar_bloqueadas:%s" % n, "revisar_bloqueadas", n,
-                          "%d bloqueadas y el revisor no pasa desde %s" % (
-                              bloqueadas, "nunca" if hace is None else "hace %d min" % (hace // 60)),
+                          "%d bloqueadas y %d fallidas y el revisor no pasa desde %s" % (
+                              bloqueadas, n_fall, "nunca" if hace is None else "hace %d min" % (hace // 60)),
                           espera_s=900))
         # 4. Nada listo, nada en curso, nadie trabajando desde hace 15 min → buscar trabajo.
         tranquilo = s.get("tranquilo_desde")
@@ -426,6 +771,10 @@ def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> 
             anadir(accion("buscar_trabajo:%s" % n, "buscar_trabajo", n,
                           "sin trabajo listo ni en curso desde hace %d min" % ((ahora - float(tranquilo)) // 60),
                           espera_s=3 * 3600))
+
+        # 6-9. RESULTADOS, no solo latidos (OPA1011b).
+        for a in planificar_resultados(n, s, nodos, mundo.get("yo") or n, ahora):
+            anadir(a)
 
     # 5. El medio con las colas en disco calla: otro medio real sigue su trabajo (relevo de medio).
     ultimo_aut = mundo.get("ultimo_autoritativo_ts")
@@ -440,6 +789,96 @@ def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> 
                           args={"cola": "cola-relevo-%s" % destino, "trabajadores": 2,
                                 "_tareas": portables[:8]}, espera_s=3600))
     return plan
+
+
+def planificar_resultados(n: str, s: Dict[str, Any], nodos: Dict[str, Dict[str, Any]], yo: str,
+                          ahora: float) -> List[Dict[str, Any]]:
+    """PURA. Las reglas de RESULTADOS para el medio con las colas `n` (su salud `s`). Las devuelve sin
+    filtrar por enfriamiento (eso lo hace `planificar`).
+
+      6. Préstamo: con ≥ REPARTO_MIN_LISTAS listas y un medio ocioso (el A1), la Mac le presta las
+         del final de su orden (sin duplicar: ver `elegir_reparto`).
+      7. Publicación en rojo ≥ 1 h por el mismo motivo: si la salida nombra archivos, una tarea de
+         reparación con esa salida (al medio ocioso si lo hay; si no, delante en la tanda de la Mac);
+         si no, un aviso con lo que hace falta.
+      8. Fallidas que nadie retoma desde hace ≥ 2 h: aviso con la lista (el revisor ya pasó por ellas).
+      9. Visto bueno esperando ≥ 3 h: aviso (lo decide el aprobador automático o Alex).
+    """
+    plan: List[Dict[str, Any]] = []
+    trabajo = s.get("trabajo") or {}
+    r = s.get("resultados") or {}
+    pausado = bool(s.get("pausado"))
+    listas = int(trabajo.get("listas") or 0)
+    destino = mejor_medio_ocioso(nodos, excepto=n)
+    # 6.
+    if not pausado and not s.get("nube_pausada") and destino and listas >= REPARTO_MIN_LISTAS:
+        plan.append(accion("repartir:%s" % destino, "repartir", n,
+                           "%d listas en %s y %s libre: las del final del orden, que la Mac tardaría horas en "
+                           "coger" % (listas, n, destino),
+                           args={"destino": destino, "tope": REPARTO_TOPE}, espera_s=REPARTO_ESPERA_S))
+    # 7.
+    pub = r.get("publicacion") or {}
+    clase = clase_publicacion(pub)
+    desde = pub.get("desde")
+    if clase and desde and ahora - float(desde) >= PUBLICACION_ROJA_S:
+        motivo = motivo_publicacion(pub.get("detalle"))
+        firma = _h(firma_publicacion(pub))
+        quieta = _min(ahora - float(desde))
+        if clase == "reparar" and n == yo:
+            plan.append(accion("reparar_pub:%s" % firma, "reparar_publicacion", n,
+                               "la autopublicación lleva %s frenada por «%s» con %d commit(s) esperando: la salida "
+                               "de la puerta pasa a una tarea de reparación" % (
+                                   quieta, motivo[:90], int(pub.get("sin_publicar") or 0)),
+                               args={"destino": destino or ""}, espera_s=AVISO_ESPERA_S))
+        else:
+            plan.append(accion("avisar:pub:%s" % firma, "avisar", yo,
+                               "la autopublicación lleva %s frenada por «%s»" % (quieta, motivo[:90]),
+                               args={"texto": texto_aviso_publicacion(pub, quieta)}, espera_s=AVISO_ESPERA_S))
+    # 8.
+    viejas = [f for f in r.get("fallidas") or [] if int(f.get("hace_s") or 0) >= FALLIDA_AVISO_S]
+    if viejas:
+        ids = [f["id"] for f in viejas]
+        plan.append(accion("avisar:fallidas:%s" % _h(",".join(sorted(ids))), "avisar", yo,
+                           "%d fallida(s) sin que nadie las retome desde hace más de %s" % (len(ids), _min(FALLIDA_AVISO_S)),
+                           args={"texto": (
+                               "MetaGenesis · fallidas que nadie retoma: %s. QUÉ: fallaron hace más de %s y ni la "
+                               "escalera del director ni el revisor de bloqueadas les han dado una sucesora. POR QUÉ "
+                               "importa: lo que espera detrás no avanza. CÓMO: el revisor vuelve a pasar cada 5 min; "
+                               "si es algo de la tarea, en Genesis › El trabajo ahora › Fallidas se ve el motivo y "
+                               "«Reparar con mi cambio» la relanza con tu indicación." % (
+                                   ", ".join("%s (%s, hace %s)" % (f["id"], f.get("estado"), _min(f.get("hace_s")))
+                                             for f in viejas[:6]), _min(FALLIDA_AVISO_S)))},
+                           espera_s=AVISO_ESPERA_S))
+    # 9.
+    vb = [f for f in r.get("visto_bueno") or [] if int(f.get("hace_s") or 0) >= VB_AVISO_S]
+    if vb:
+        ids = [f["id"] for f in vb]
+        plan.append(accion("avisar:vb:%s" % _h(",".join(sorted(ids))), "avisar", yo,
+                           "%d tarea(s) esperan visto bueno desde hace más de %s" % (len(ids), _min(VB_AVISO_S)),
+                           args={"texto": (
+                               "MetaGenesis · %d tarea(s) llevan más de %s esperando visto bueno: %s. El aprobador "
+                               "automático decide las que tienen dictamen y puertas en verde; las demás son tuyas en "
+                               "Genesis › Lo que sale › Tu visto bueno." % (
+                                   len(ids), _min(VB_AVISO_S), ", ".join(ids[:8])))},
+                           espera_s=AVISO_ESPERA_S))
+    return plan
+
+
+def texto_aviso_publicacion(pub: Dict[str, Any], quieta: str) -> str:
+    """PURA. El aviso de una publicación frenada que el enjambre no puede arreglar solo: QUÉ, POR QUÉ, CÓMO."""
+    motivo = motivo_publicacion((pub or {}).get("detalle"))
+    if motivo.startswith("Jev"):
+        como = ("Jev (el consejero barato) está seguro de que no conviene publicar este lote. Si crees que sí, en "
+                "Genesis › Lo que sale › Sin publicar pulsa «Publicar sin Jev esta vez»: las demás puertas siguen.")
+    elif motivo.startswith("análisis"):
+        como = ("El análisis del lote vio algo con forma de secreto o una migración que borra datos. Si es un valor "
+                "real, hay que sacarlo del código; si es un falso positivo del escáner, se corrige el escáner (nunca "
+                "se publica saltándolo).")
+    else:
+        como = ("No es algo que el enjambre arregle editando código (red, GitHub o Vercel). La autopublicación lo "
+                "reintenta con el siguiente commit.")
+    return ("MetaGenesis · la autopublicación lleva %s frenada por «%s» y hay %d commit(s) esperando. %s" % (
+        quieta, motivo[:160], int((pub or {}).get("sin_publicar") or 0), como))[:900]
 
 
 def mejor_medio_libre(nodos: Dict[str, Dict[str, Any]]) -> Optional[str]:

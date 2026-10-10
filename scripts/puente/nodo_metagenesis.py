@@ -21,10 +21,15 @@ OPO1011), en el contenedor de la nube o en otra neurona. Cada vuelta:
      (OPB1011), relevo de medio si la Mac calla (las colas portables siguen en otro medio), y
      publica la FOTO que cualquier neurona lee en /metagenesis.
   5. Atiende las órdenes FIRMADAS (o de la tabla con RLS) que lleguen para él.
+  6. (OPA1011b) Mira RESULTADOS, no solo latidos: presta a un medio ocioso (el A1) las tareas listas
+     del final del orden de la Mac sin duplicarlas; convierte una puerta de publicación en rojo que
+     no se levanta en 1 h en una tarea de reparación con su salida exacta; avisa UNA vez de las
+     fallidas que nadie retoma y del visto bueno que lleva horas esperando.
 Claude no hace falta: es un medio más que puede sumarse. Nada de esto imprime una clave.
 
   python3 scripts/puente/nodo_metagenesis.py servir [--seco]        bucle (launchd/systemd)
   python3 scripts/puente/nodo_metagenesis.py ciclo [--seco] [--json] [--sin-red]  una vuelta
+  python3 scripts/puente/nodo_metagenesis.py ciclo --solo-leer      qué decidiría AHORA el líder, sin escribir nada
   python3 scripts/puente/nodo_metagenesis.py estado                 lo último de este nodo
   python3 scripts/puente/nodo_metagenesis.py orden <acción> [--para lider|<medio>|<nodo>] [--cola X] [--esperar]
   python3 scripts/puente/nodo_metagenesis.py llave                  crea la llave del nodo (enseña su huella)
@@ -121,8 +126,15 @@ class Nodo:
                  http: B.Http = B.http_urllib, reloj: Callable[[], float] = time.time,
                  memoria: Optional[Dict[str, Any]] = None, persistir: bool = True,
                  huella: Optional[str] = None, rescate: Optional[Callable[..., Any]] = None,
-                 chat: Optional[Callable[[str], None]] = None, llave: Optional[str] = None):
-        self.modo = "seco" if seco else "real"
+                 chat: Optional[Callable[[str], None]] = None, llave: Optional[str] = None,
+                 candidatos: Optional[Callable[[str], List[Dict[str, Any]]]] = None,
+                 enlistar: Optional[Callable[..., Any]] = None,
+                 existentes: Optional[Callable[[str, List[str]], List[str]]] = None,
+                 solo_leer: bool = False):
+        self.modo = "seco" if seco or solo_leer else "real"
+        #: (OPA1011b) Prueba seca EN un medio vivo: lee el bus como el servicio, no escribe nada y se
+        #: puntúa como el medio real (si no, su propio latido seco le quitaría el mando en el cálculo).
+        self.solo_leer = solo_leer
         self.sin_red = sin_red
         self.env = env if env is not None else B.leer_entorno()
         self._medir = medir or (lambda modo, t: M.medir(modo, t))
@@ -139,6 +151,12 @@ class Nodo:
         self._rescate = rescate
         self._chat = chat
         self._llave = llave
+        # (OPA1011b) Préstamo de trabajo y reparación de la publicación: inyectables en las pruebas.
+        self._candidatos = candidatos or M.candidatos_reparto
+        self._enlistar = enlistar or M.enlistar_reparacion
+        self._existentes = existentes or M.existentes
+        self._asignaciones: List[Dict[str, Any]] = []
+        self._medida_salud: Dict[str, Any] = {}
 
     # ── enlace ──
     def _rest(self) -> Optional[B.Rest]:
@@ -153,6 +171,9 @@ class Nodo:
         rest = self._rest()
         if rest is None:
             self.enlace = None
+            return
+        if self.solo_leer:
+            self.enlace = self.enlace if isinstance(self.enlace, B.EnlaceSoloLectura) else B.EnlaceSoloLectura(rest, self.yo)
             return
         llave = self._llave if self._llave is not None else leer_llave()
         self._probado_tablas = ahora
@@ -176,8 +197,9 @@ class Nodo:
         if not self.yo:
             self.yo = L.id_de_nodo(medio, self._huella if self._huella is not None else M.huella_maquina())
         salud["nodo"] = self.yo
+        self._medida_salud = salud
         castigo = -2000 if float(self.mem.get("no_liderar_hasta") or 0) > t else 0
-        puntos = L.puntos_nodo(cap) + castigo
+        puntos = L.puntos_nodo(dict(cap, modo="real") if self.solo_leer else cap) + castigo
         self._relojes(salud, t)
         informe: Dict[str, Any] = {"nodo": self.yo, "medio": medio, "modo": self.modo, "ts": t, "puntos": puntos,
                                    "acciones": [], "ordenes": [], "avisos": []}
@@ -226,6 +248,7 @@ class Nodo:
         else:
             vivos[self.yo] = latido
         self.mem.setdefault("desde", t)
+        self._asignaciones = nov.get("asignaciones") or []
         if enlace is not None and enlace.error:
             informe["avisos"].append(enlace.error)
 
@@ -246,14 +269,23 @@ class Nodo:
 
         # 4. El líder decide por todos.
         if soy_lider:
-            mundo = {"nodos": vivos, "yo": self.yo, "autonomia": bool(self.mem.get("autonomia", True)),
+            # El líder se ve a sí mismo con su salud COMPLETA (la del latido va recortada para el bus).
+            nodos_plan = dict(vivos)
+            nodos_plan[self.yo] = dict(vivos.get(self.yo) or latido, salud=salud)
+            mundo = {"nodos": nodos_plan, "yo": self.yo, "autonomia": bool(self.mem.get("autonomia", True)),
                      "asignaciones": nov.get("asignaciones") or [],
                      "ultimo_autoritativo_ts": self.mem.get("ultimo_autoritativo_ts")}
             sin_aut = not any((l.get("salud") or {}).get("autoritativo") for l in vivos.values())
             if sin_aut and enlace is not None and t - float(self.mem.get("ultimo_autoritativo_ts") or t) >= L.RELEVO_MEDIO_S:
                 mundo["colas_portables"] = enlace.ultimas_colas()
             for a in L.planificar(mundo, self.mem, t):
-                if a["nodo"] == self.yo:
+                if a["accion"] == "avisar":
+                    self._avisar(a, informe, t)
+                elif a["accion"] == "repartir" and a["nodo"] == self.yo:
+                    self._reparto(a, medida["raiz"], informe, t)
+                elif a["accion"] == "reparar_publicacion" and a["nodo"] == self.yo:
+                    self._reparar_publicacion(a, salud, medida["raiz"], informe, t)
+                elif a["nodo"] == self.yo:
                     self._hacer(a, medio, medida["raiz"], informe, publicar=True)
                 else:
                     self._repartir(a, informe, t)
@@ -298,13 +330,32 @@ class Nodo:
             self.mem.pop("tranquilo_desde", None)
         salud["sin_orquestador_desde"] = self.mem.get("sin_orquestador_desde")
         salud["tranquilo_desde"] = self.mem.get("tranquilo_desde")
+        # (OPA1011b) Desde cuándo la autopublicación está en la MISMA situación (fase + motivo).
+        pub = (salud.get("resultados") or {}).get("publicacion")
+        if isinstance(pub, dict):
+            firma = L.firma_publicacion(pub)
+            if firma != self.mem.get("pub_firma"):
+                self.mem["pub_firma"], self.mem["pub_desde"] = firma, t
+            pub["desde"] = self.mem.get("pub_desde")
 
     @staticmethod
     def _salud_publica(salud: Dict[str, Any]) -> Dict[str, Any]:
         """Lo que viaja en el latido: sin rutas, sin medidores largos, sin nada privado."""
-        fuera = {"medidores"}
+        fuera = {"medidores", "resultados"}
         pub = {k: v for k, v in salud.items() if k not in fuera}
         pub["orquestadores"] = [{"cola": o.get("cola")} for o in salud.get("orquestadores") or []][:6]
+        r = salud.get("resultados")
+        if isinstance(r, dict):
+            # Cifras e ids, nunca la salida de una puerta (puede nombrar rutas del disco).
+            p = r.get("publicacion") or {}
+            pub["resultados"] = {
+                "n_fallidas": r.get("n_fallidas"), "fallidas": (r.get("fallidas") or [])[:6],
+                "n_visto_bueno": r.get("n_visto_bueno"), "visto_bueno": (r.get("visto_bueno") or [])[:6],
+                "integradas_2h": r.get("integradas_2h"),
+                "publicacion": {k: p.get(k) for k in ("activa", "fase", "sin_publicar", "desde")} if p else None,
+            }
+            if p:
+                pub["resultados"]["publicacion"]["detalle"] = L.motivo_publicacion(p.get("detalle"))[:120]
         return json.loads(L.tachar(json.dumps(pub, ensure_ascii=False)))
 
     def _hacer(self, a: Dict[str, Any], medio: str, raiz: str, informe: Dict[str, Any], publicar: bool) -> None:
@@ -385,6 +436,15 @@ class Nodo:
                 if self.enlace is not None and self.enlace.modo == "tablas":
                     self.enlace.ceder()
                 r.update(estado="hecha", resultado="cedo el mando 30 min")
+        elif o["accion"] == "repartir":
+            a = {"clave": "orden:%s" % nonce, "accion": "repartir", "nodo": self.yo, "motivo": "orden de %s" % r["por"],
+                 "args": dict(o.get("args") or {}), "espera_s": 0}
+            if not (self._medida_salud or {}).get("autoritativo"):
+                r.update(estado="nada", resultado="este medio no tiene las colas en su disco")
+            else:
+                d = self._reparto(a, raiz, informe, t)
+                r.update(estado="seca" if self.modo == "seco" else ("hecha" if d.get("ids") else "nada"),
+                         resultado=d.get("resultado", ""))
         else:
             args = dict(o.get("args") or {})
             if isinstance(o.get("tareas"), list):
@@ -399,11 +459,106 @@ class Nodo:
         if self.enlace is not None:
             self.enlace.resultado(o, r["estado"], r["resultado"], t)
 
+    # ── resultados (OPA1011b) ──
+    def _registrar(self, d: Dict[str, Any], informe: Dict[str, Any]) -> None:
+        self.mem.setdefault("decisiones", []).append(d)
+        informe["acciones"].append(d)
+        if self.enlace is not None and self.modo == "real":
+            self.enlace.decision(d)
+
+    def _avisar(self, a: Dict[str, Any], informe: Dict[str, Any], t: float) -> None:
+        """Un aviso a la dirección (Chat Director), una vez por motivo y enfriamiento."""
+        self.mem.setdefault("hecho", {})[a["clave"]] = t
+        texto = str((a.get("args") or {}).get("texto") or a.get("motivo") or "")
+        if self.modo == "real":
+            self._decir(texto)
+        self._registrar({"ts": t, "accion": "avisar", "nodo": a["nodo"], "motivo": L.tachar(a["motivo"])[:200],
+                         "resultado": ("seca: lo diría" if self.modo == "seco" else "dicho en el Chat Director"),
+                         "seco": self.modo == "seco", "termino": self.mem.get("termino")}, informe)
+
+    def _prestadas(self, t: float) -> set:
+        vigentes = L.ids_asignados_vigentes(self._asignaciones, t)
+        for p in self.mem.get("prestamos") or []:
+            if t - float(p.get("ts") or 0) < L.GRACIA_ASIGNACION_S:
+                vigentes.update(str(i) for i in p.get("ids") or [])
+        return vigentes
+
+    def _prestar(self, tareas: List[Dict[str, Any]], destino: str, motivo: str, informe: Dict[str, Any],
+                 t: float) -> None:
+        """Manda `tareas` a `destino` como cola firmada (el mismo camino que el relevo de medio) y lo apunta."""
+        cola = "cola-mg-%s-%s" % (destino.split("-")[0], time.strftime("%m%d-%H%M", time.localtime(t)))
+        limpias = [L.tarea_limpia(x) for x in tareas]
+        self._repartir(L.accion("prestar:%s" % destino, "lanzar_cola", destino, motivo,
+                                args={"cola": cola, "trabajadores": 2, "_tareas": limpias}, espera_s=0), informe, t)
+        if self.modo == "real":
+            self.mem.setdefault("prestamos", []).append(
+                {"ids": [x["id"] for x in limpias], "destino": destino, "cola": cola, "ts": t})
+            self.mem["prestamos"] = [p for p in self.mem["prestamos"]
+                                     if t - float(p.get("ts") or 0) < L.GRACIA_ASIGNACION_S][-20:]
+
+    def _reparto(self, a: Dict[str, Any], raiz: str, informe: Dict[str, Any], t: float) -> Dict[str, Any]:
+        """La Mac (medio con las colas) presta a un medio ocioso las listas del FINAL de su orden."""
+        self.mem.setdefault("hecho", {})[a["clave"]] = t
+        args = a.get("args") or {}
+        destino = str(args.get("destino") or "")
+        tope = int(args.get("tope") or L.REPARTO_TOPE)
+        try:
+            cands = self._candidatos(raiz)
+        except Exception as e:  # noqa: BLE001
+            cands, error = [], type(e).__name__
+        else:
+            error = ""
+        elegidas = L.elegir_reparto(cands, self._prestadas(t), tope)
+        if not elegidas or not L.id_valido(destino):
+            d = {"ts": t, "accion": "repartir", "nodo": destino or a["nodo"], "motivo": L.tachar(a["motivo"])[:200],
+                 "resultado": "nada: %s" % (error or "ninguna lista se puede prestar (≤ 3 archivos, sin visto "
+                                                     "bueno ni nada solo de la Mac)"),
+                 "seco": self.modo == "seco", "termino": self.mem.get("termino"), "ids": []}
+            self._registrar(d, informe)
+            return d
+        ids = [str(x["id"]) for x in elegidas]
+        self._prestar(elegidas, destino, "le presto %s · %s" % (", ".join(ids), a["motivo"]), informe, t)
+        return {"resultado": "prestadas a %s: %s" % (destino, ", ".join(ids)), "ids": ids}
+
+    def _reparar_publicacion(self, a: Dict[str, Any], salud: Dict[str, Any], raiz: str, informe: Dict[str, Any],
+                             t: float) -> None:
+        """Una puerta de publicación en rojo → tarea de reparación con su salida exacta: al medio ocioso
+        si lo hay, si no delante en la tanda de la Mac. Sin archivos que nombrar → aviso."""
+        self.mem.setdefault("hecho", {})[a["clave"]] = t
+        pub = (salud.get("resultados") or {}).get("publicacion") or {}
+        rutas = L.rutas_de_evidencia((pub.get("evidencia") or {}).get("texto"), tope=6)
+        archivos = self._existentes(raiz, rutas)[:3]
+        tarea = L.tarea_de_reparacion(pub, archivos, t)
+        if tarea is None:
+            self._avisar(dict(a, accion="avisar", clave=a["clave"] + ":aviso",
+                              args={"texto": L.texto_aviso_publicacion(pub, L._min(t - float(pub.get("desde") or t)))}),
+                         informe, t)
+            return
+        destino = str((a.get("args") or {}).get("destino") or "")
+        if self.modo == "seco":
+            resultado = "seca: enlistaría %s (%s)%s" % (tarea["id"], ", ".join(archivos),
+                                                         (" y se la prestaría a %s" % destino) if destino else
+                                                         " delante en la tanda de la Mac")
+        else:
+            estado, texto = self._enlistar(raiz, tarea, not destino, t)
+            resultado = "%s: %s" % (estado, texto)
+            if estado == "hecha":
+                self._decir("MetaGenesis · la autopublicación llevaba más de %d min frenada (%s). He creado la tarea %s "
+                            "para arreglar la causa en %s%s; cuando se integre, la autopublicación lo reintenta sola." % (
+                                L.PUBLICACION_ROJA_S // 60, L.motivo_publicacion(pub.get("detalle"))[:90], tarea["id"],
+                                ", ".join(archivos), (" y la trabaja %s" % destino) if destino else " (va la primera de la tanda)"))
+                if destino:
+                    self._prestar([tarea], destino, "reparar la publicación: %s" % tarea["id"], informe, t)
+        self._registrar({"ts": t, "accion": "reparar_publicacion", "nodo": a["nodo"],
+                         "motivo": L.tachar(a["motivo"])[:200], "resultado": L.tachar(resultado)[:200],
+                         "seco": self.modo == "seco", "termino": self.mem.get("termino")}, informe)
+
     def _publicar_foto(self, vivos: Dict[str, Dict[str, Any]], termino: int, salud: Dict[str, Any], t: float,
                        informe: Dict[str, Any]) -> None:
         aut = next((l for l in vivos.values() if (l.get("salud") or {}).get("autoritativo")), None)
         if salud.get("autoritativo"):
-            medidores = salud.get("medidores") or {}
+            medidores = dict(salud.get("medidores") or {})
+            medidores.update(L.medidores_de_resultados(salud.get("resultados") or {}, self.mem.get("prestamos") or [], t))
         else:
             # Desde otro medio: las cifras que la Mac puso en su latido (sin los textos largos).
             trabajo = ((aut or {}).get("salud") or {}).get("trabajo") or {}
@@ -688,6 +843,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if nombre == "ciclo":
             s.add_argument("--json", action="store_true")
             s.add_argument("--sin-red", action="store_true", help="no lee ni escribe en Supabase")
+            s.add_argument("--solo-leer", action="store_true",
+                           help="prueba seca junto al servicio vivo: lee el bus y su memoria, no escribe nada")
     sub.add_parser("estado")
     o = sub.add_parser("orden")
     o.add_argument("accion", choices=sorted(L.ACCIONES_ORDEN))
@@ -704,7 +861,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     if a.orden == "servir":
         return servir(a.seco)
     if a.orden == "ciclo":
-        nodo = Nodo(seco=a.seco, sin_red=a.sin_red)
+        if a.solo_leer:
+            # La memoria del servicio se LEE (enfriamientos reales) pero no se guarda: es una copia.
+            nodo = Nodo(seco=True, sin_red=a.sin_red, solo_leer=True, persistir=False, memoria=leer_memoria())
+        else:
+            nodo = Nodo(seco=a.seco, sin_red=a.sin_red)
         i = nodo.vuelta()
         print(json.dumps(i, ensure_ascii=False, indent=1) if a.json else texto_informe(i))
         return 0

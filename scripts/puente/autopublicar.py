@@ -133,14 +133,51 @@ def con_fase(est, fase, detalle, ahora, **mas):
     return nuevo
 
 
-def vetar(est, sha, motivo, ahora, url=None):
+def vetar(est, sha, motivo, ahora, url=None, evidencia=None):
+    """Veta `sha`. `evidencia` (OPA1011b): la salida de la puerta que falló, para que MetaGenesis la
+    convierta en una tarea de reparación si el veto no se levanta solo (`nodo_metagenesis`)."""
     vetados = dict(est.get("vetados") or {})
     vetados[sha] = motivo
     # Solo los 30 últimos: un veto viejo ya no puede volver a ser HEAD.
     vetados = dict(list(vetados.items())[-30:])
     hist = list(est.get("historial") or [])[-29:] + [{"sha": sha, "resultado": "bloqueado", "motivo": motivo,
                                                      "dia": time.strftime("%Y-%m-%d", time.localtime(ahora)), "url": url}]
-    return con_fase(est, "bloqueado", motivo, ahora, sha=sha, vetados=vetados, historial=hist, url=url)
+    mas = {}
+    if evidencia:
+        mas["evidencia"] = {"sha": sha, "motivo": motivo, "texto": str(evidencia)[-2400:]}
+    return con_fase(est, "bloqueado", motivo, ahora, sha=sha, vetados=vetados, historial=hist, url=url, **mas)
+
+
+def arbol_limpio(raiz, sha, git, destino):
+    """Un árbol de trabajo LIMPIO de `sha` en `destino` (`git worktree add --detach`), con el
+    `node_modules` de la Mac enlazado. → ruta o None. (OPA1011b, 2026-10-10) Las pruebas del puente
+    corrían sobre el árbol VIVO de la Mac: a las 14:28 vetaron 17cf6a67 por `test_oracle_nodo` a medio
+    editar por otro agente (sin commit); el commit estaba bien. Un árbol limpio prueba ESE commit."""
+    try:
+        quitar_arbol(raiz, destino, git)
+        rc = git(["worktree", "add", "--detach", "--force", destino, sha], timeout=300)[0]
+    except Exception:  # noqa: BLE001 — un git colgado no tumba la pasada: se reintenta
+        return None
+    if rc != 0 or not os.path.isdir(destino):
+        return None
+    nm = os.path.join(raiz, "node_modules")
+    if os.path.isdir(nm) and not os.path.exists(os.path.join(destino, "node_modules")):
+        try:
+            os.symlink(nm, os.path.join(destino, "node_modules"))
+        except OSError:
+            pass
+    return destino
+
+
+def quitar_arbol(raiz, destino, git):
+    """Quita el árbol de pruebas (solo ese: nunca toca otros worktrees). Nunca lanza."""
+    try:
+        if os.path.exists(destino):
+            git(["worktree", "remove", "--force", destino], timeout=120)
+            if os.path.exists(destino) and os.path.basename(destino) == "arbol-pruebas":
+                subprocess.run(["rm", "-rf", destino], check=False)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # ── medios reales (todo inyectable en las pruebas) ───────────────────────────
@@ -192,23 +229,32 @@ class Medios(object):
         return (_leer(DIARIO_MANUAL, {}) or {}).get("estado") == "corriendo"
 
     def pruebas_python(self, sha):
-        """(True|False|None, detalle). None = main se movió durante las pruebas: reintentar."""
+        """(True|False|None, detalle). None = no se pudo probar ahora (reintentar en la próxima pasada).
+
+        Sobre un árbol LIMPIO de `sha` (OPA1011b): en la Mac trabajan a la vez agentes con cambios
+        sin commit en scripts/puente, y probar el árbol vivo vetaba commits buenos por trabajo ajeno a
+        medias. Como se prueba ESE sha, que main avance mientras tanto ya no invalida el resultado."""
         import publicar as PUB
         if self.git(["rev-parse", "HEAD"])[1] != sha:
             return None, "main cambió antes de empezar las pruebas"
         py = PUB.python_de_pruebas()
-        env = PUB.entorno()
-        for orden in ([py, "-m", "unittest", "discover", "-s", "scripts/puente", "-p", "test_*.py"],
-                      [py, "-m", "pytest", "scripts/enjambre", "-q"]):
-            try:
-                r = subprocess.run(orden, cwd=self.raiz, capture_output=True, text=True, timeout=900, env=env)
-            except subprocess.TimeoutExpired:
-                return False, "las pruebas del puente pasaron de 15 min"
-            if r.returncode != 0:
-                return False, ((r.stdout or "") + (r.stderr or ""))[-1500:]
-        if self.git(["rev-parse", "HEAD"])[1] != sha:
-            return None, "main cambió mientras corrían las pruebas"
-        return True, "unittest y pytest en verde"
+        destino = os.path.join(CARPETA, "arbol-pruebas")
+        arbol = arbol_limpio(self.raiz, sha, lambda a, timeout=180: self.git(a, timeout=timeout), destino)
+        if not arbol:
+            return None, "no pude preparar un árbol limpio de %s para las pruebas" % sha[:8]
+        env = dict(PUB.entorno(), STARSEED_ROOT=arbol)
+        try:
+            for orden in ([py, "-m", "unittest", "discover", "-s", "scripts/puente", "-p", "test_*.py"],
+                          [py, "-m", "pytest", "scripts/enjambre", "-q"]):
+                try:
+                    r = subprocess.run(orden, cwd=arbol, capture_output=True, text=True, timeout=900, env=env)
+                except subprocess.TimeoutExpired:
+                    return False, "las pruebas del puente pasaron de 15 min"
+                if r.returncode != 0:
+                    return False, ((r.stdout or "") + (r.stderr or ""))[-2400:]
+        finally:
+            quitar_arbol(self.raiz, arbol, lambda a, timeout=180: self.git(a, timeout=timeout))
+        return True, "unittest y pytest en verde (árbol limpio de %s)" % sha[:8]
 
     def jev_opina(self, resumen):
         """{respuesta, confianza, medio} de Jev sobre el lote. Sin Jev, la regla («sí»)."""
@@ -387,7 +433,7 @@ def _nuevo_lote(m, est, ahora):
         return con_fase(est, "esperando", "Reintento: %s." % detalle, ahora, pendientes=pendientes)
     if not ok:
         m.avisar("Autopublicación frenada (%s): pruebas del puente en rojo.\n%s" % (head[:8], detalle[-800:]), tipo="aviso")
-        return vetar(est, head, "pruebas del puente en rojo", ahora)
+        return vetar(est, head, "pruebas del puente en rojo", ahora, evidencia=detalle)
 
     # 3. CI en GitHub Actions sobre ese commit
     rc, _, err = m.git(["push", "--force", "origin", "%s:refs/heads/%s" % (head, RAMA_CANDIDATO)], timeout=300)
@@ -419,7 +465,7 @@ def _seguir_ci(m, est, ahora):
     if estado == "rojo":
         log = m.log_fallido(run_id) if run_id else ""
         m.avisar("Autopublicación frenada (%s): el CI falló. %s\n%s" % (sha[:8], url or "", log[-1200:]), tipo="aviso")
-        return vetar(est, sha, "CI en rojo", ahora, url=url)
+        return vetar(est, sha, "CI en rojo", ahora, url=url, evidencia=log)
     # verde → publicar ESE commit, solo si es avance rápido
     if m.git(["merge-base", "--is-ancestor", "origin/main", sha])[0] != 0:
         return con_fase(est, "al-dia", "origin/main ya no es antecesor del candidato: rehago el lote.", ahora, sha=None)

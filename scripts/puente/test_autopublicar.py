@@ -254,5 +254,65 @@ class Puro(unittest.TestCase):
         self.assertFalse(A.encendido(None))
 
 
+
+class EvidenciaYArbolLimpio(unittest.TestCase):
+    """(OPA1011b) La salida de la puerta queda para MetaGenesis, y las pruebas corren sobre ESE commit."""
+
+    def test_pruebas_en_rojo_guardan_su_salida(self):
+        e = A.pasada(Falso(pruebas=(False, "FAIL: test_x (test_oracle_nodo.C.test_x)")), {}, T0)
+        self.assertEqual(e["evidencia"], {"sha": SHA, "motivo": "pruebas del puente en rojo",
+                                          "texto": "FAIL: test_x (test_oracle_nodo.C.test_x)"})
+
+    def test_ci_en_rojo_guarda_el_registro(self):
+        m = Falso(runs=[run("completed", "failure")])
+        e = A.pasada(m, {"fase": "ci", "sha": SHA, "desde": T0}, T0 + 600)
+        self.assertIn("heap out of memory", e["evidencia"]["texto"])
+        self.assertEqual(e["evidencia"]["motivo"], "CI en rojo")
+
+    def test_sin_evidencia_no_se_inventa(self):
+        self.assertNotIn("evidencia", A.vetar({}, SHA, "Jev frenó el lote", T0))
+
+    def test_arbol_limpio_es_el_commit_y_no_el_arbol_vivo(self):
+        import subprocess
+        import tempfile
+
+        def g(cwd, *a):
+            return subprocess.run(["git", "-C", cwd] + list(a), capture_output=True, text=True)
+
+        with tempfile.TemporaryDirectory() as raiz:
+            g(raiz, "init", "-q", "-b", "main")
+            g(raiz, "config", "user.email", "p@p")
+            g(raiz, "config", "user.name", "p")
+            os.makedirs(os.path.join(raiz, "scripts", "puente"))
+            os.makedirs(os.path.join(raiz, "node_modules"))
+            ruta = os.path.join(raiz, "scripts", "puente", "modulo.py")
+            with open(ruta, "w") as f:
+                f.write("BIEN = True\n")
+            g(raiz, "add", "scripts")
+            g(raiz, "commit", "-q", "-m", "c1")
+            sha = g(raiz, "rev-parse", "HEAD").stdout.strip()
+            with open(ruta, "w") as f:  # otro agente a medias, sin commit
+                f.write("BIEN = (\n")
+
+            def git(args, timeout=180):
+                r = subprocess.run(["git"] + args, cwd=raiz, capture_output=True, text=True, timeout=timeout)
+                return r.returncode, r.stdout.strip(), r.stderr.strip()
+
+            destino = os.path.join(os.path.dirname(raiz), "arbol-pruebas-%d" % os.getpid())
+            arbol = A.arbol_limpio(raiz, sha, git, destino)
+            try:
+                self.assertEqual(arbol, destino)
+                with open(os.path.join(arbol, "scripts", "puente", "modulo.py")) as f:
+                    self.assertEqual(f.read(), "BIEN = True\n")
+                self.assertTrue(os.path.islink(os.path.join(arbol, "node_modules")))
+            finally:
+                A.quitar_arbol(raiz, destino, git)
+            self.assertFalse(os.path.exists(destino))
+            with open(ruta) as f:
+                self.assertEqual(f.read(), "BIEN = (\n", "el trabajo a medias del otro agente sigue intacto")
+            self.assertNotIn(destino, git(["worktree", "list"])[1])
+            self.assertIsNone(A.arbol_limpio(raiz, "0" * 40, git, destino), "un sha que no existe no da árbol")
+
+
 if __name__ == "__main__":
     unittest.main()

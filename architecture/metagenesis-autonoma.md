@@ -161,3 +161,78 @@ orquestador donde ya hay uno y no inventa tareas: rescata las que existían.
 - Convertir las peticiones de Alex del Chat Director/Telegram en colas sin Claude
   (`dream_a_cola.py` + Diseñador de olas) cuando el líder no tenga trabajo.
 - Pestaña propia en Genesis local con el mismo panel y la bitácora de tablas.
+
+## 11. Vigía de RESULTADOS: que el líder mire si el trabajo avanza (OPA1011b · tarde del 10-10)
+
+> Alex (14:40): «de nuevo hay muchas bloqueadas, fallidas y sin publicar que no se procesaron
+> automáticamente. Solucionalo y haz que ya funcione automáticamente».
+
+### 11.1 Qué se midió (14:40–15:10, hora de la Mac)
+
+- El líder (la Mac) llevaba desde las 10:44 escribiendo «nada que hacer en esta vuelta» en
+  `/tmp/starseed-nodo-metagenesis.log`. Sus reglas solo preguntaban si los directores estaban
+  **vivos** (lo estaban todos), nunca si el trabajo **avanzaba**.
+- **Capacidad parada**: 33-34 listas y 75 bloqueadas esperando a raíces, para 3 trabajadores en
+  una Mac con 736 MB libres y carga 14; mientras, el A1 de Oracle (2 OCPU, 9,8 GB libres, carga
+  0) estaba «espera» sin cola. `oracle_nodo.lanzar` y el reparto a la nube excluyen todo lo que
+  está en la tanda viva de la Mac (para no hacer nada dos veces), y la tanda viva lo tenía todo.
+- **Publicación**: la autopublicación estuvo 2 h frenada por el mismo motivo (un falso positivo
+  del escáner en `orbe-bus.ts`, que arregló DSB1010) esperando «un commit nuevo»; y a las 14:28
+  vetó 17cf6a67 por «pruebas del puente en rojo» que **no eran del commit**: `test_oracle_nodo`
+  estaba a medio editar por otro agente en el árbol vivo de la Mac (sin commit). Las pruebas se
+  corrían sobre ese árbol, no sobre el commit.
+- **Fallidas**: 0 sin resolver en 3 días (el medidor de Genesis dice lo mismo). **Visto bueno**:
+  5 «pendientes» de las que solo 2 lo eran de verdad (CNS1010Mb tenía a CNS1010Mc en la tanda,
+  S1010-TU-AST1 a su «b» y S1010-TU-LL1c ya estaba en main).
+
+### 11.2 Qué hace ahora el líder (reglas 6-9 de `planificar_resultados`, puras y probadas)
+
+| # | Mide | Si… | Hace |
+|---|---|---|---|
+| 6 | listas de la Mac y medios ocioso (`medio_ocioso`) | ≥ 6 listas y un medio real con repo, orquestador, secreto, sin cola (el A1 en «espera» o «guardian», que cede la máquina a una cola) | **Presta** 4 tareas a ese medio (orden firmada `lanzar_cola` → bandeja del A1). Cada 30 min como mucho. |
+| 7 | autopublicación (`estado_publicacion`) | encendida, con commits, «bloqueado» ≥ 1 h por el MISMO motivo | Puerta en rojo con salida que nombra archivos («pruebas del puente en rojo», «CI en rojo») → **tarea de reparación** `MGP<mmdd>-<hex>` con la salida exacta (al medio ocioso, o la primera de la tanda de la Mac). Otro motivo (Jev, análisis, red) → **un aviso** con QUÉ/POR QUÉ/CÓMO. Un veto de Alex («Vetado desde Genesis») no se toca. |
+| 8 | fallidas que nadie retoma (`fallidas_sin_resolver`: sin sucesora viva, ni en main, ni sustituidas) | la más vieja ≥ 2 h | Un aviso con la lista y cómo relanzarlas. Si el revisor no pasa, lo lanza (regla 3, ahora también con fallidas). |
+| 9 | visto bueno real (`esperando_visto_bueno`: sin las ya en main ni las que continúa otra de su cadena) | ≥ 3 h | Un aviso (lo decide el aprobador automático o Alex). |
+
+Los avisos se repiten como mucho cada 6 h por motivo. En la foto de MetaGenesis (cualquier
+neurona) salen como pastillas: `fallidas`, `visto-bueno`, `sin-publicar`, `integradas` (últimas
+2 h) y `prestadas` (qué tiene cada medio).
+
+### 11.3 Prestar sin duplicar (por qué es seguro)
+
+- Se prestan las del **final del orden real de la tanda viva** (y antes que nada las que ni están en
+  ella): la Mac las cogería las últimas, horas después. Una sola tarea por cadena (la más reciente:
+  RTOPO1011T1 y T1b eran el mismo rescate). Solo «prestables»: 1-3 archivos, con prompt, sin visto
+  bueno humano ni nada que solo tiene la Mac (navegador, launchd, localhost:9002).
+- La Mac **no suelta** nada: si el A1 integra primero, `oracle_nodo traer` sube su rama
+  `nube/a1-*`, `traer_nube` la pasa por las puertas de main y el progreso queda en «commit»: el
+  orquestador de la Mac la salta (`cerradas_en_disco`). Si el A1 falla, la tarea sigue en la tanda
+  de la Mac como siempre. Nada se pierde y nada se pisa (el «soltar» del orquestador no sabe
+  devolver una tarea a su tanda, por eso no se usa).
+- Constancia: evento `mg_asignacion` en el bus y `prestamos` en la memoria del nodo (6 h).
+
+### 11.4 Autopublicación: pruebas sobre ESE commit
+
+`autopublicar.pruebas_python` crea un árbol limpio del sha (`git worktree add --detach` en
+`~/.starseed/produccion/arbol-pruebas`, con el `node_modules` de la Mac enlazado y
+`STARSEED_ROOT` apuntando a él), corre unittest + pytest ahí y lo quita. El trabajo a medias de
+otros agentes ya no veta commits buenos. Cuando veta, guarda la salida en `evidencia` del estado,
+que es lo que la regla 7 convierte en tarea. 61 MB y unos segundos de más por lote.
+
+### 11.5 Cómo comprobarlo
+
+- Qué decidiría AHORA el líder, sin escribir nada en el bus ni tocar su memoria:
+  `python3 scripts/puente/nodo_metagenesis.py ciclo --solo-leer` (lee el bus como el servicio y se
+  puntúa como el medio real; lo que habría escrito queda contado, no enviado).
+- Lo que hace de verdad, cada 2 min (10 si Supabase va al tope): `tail -f /tmp/starseed-nodo-metagenesis.log`.
+- Lo que recibe el A1: su latido en el bus (`a1.fase` pasa a «cola») y sus ramas `nube/a1-*`.
+- En cualquier neurona: `/metagenesis` → pastillas y «Lo último que decidió» («Prestar o lanzar cola»).
+
+### 11.6 Lo que sigue sin hacer (a propósito)
+
+- No aprueba tareas ni levanta vetos: eso es del aprobador automático (DSB1010), de las puertas
+  y de Alex. No toca el escáner de secretos.
+- No reparte a GitHub Actions dentro de la tanda viva (sus jobs no son un nodo que lata).
+- El A1 corre su propia copia del nodo: para que también pueda **pedir** un préstamo cuando
+  dirija él (orden `repartir`), hay que reinstalarle el nodo (`oracle_nodo.py instalar`). Para
+  RECIBIR préstamos le basta la versión que ya tiene.

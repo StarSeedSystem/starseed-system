@@ -15,6 +15,12 @@ probados (nada de un segundo orquestador peleando con el vigilante):
     `~/.starseed/nodo-metagenesis/entrantes/`; si no, se lanza el orquestador como el lanzador
     de la nube (árbol limpio, sin otro orquestador vivo).
 
+  · Resultados (OPA1011b, solo en el medio con las colas): fallidas que nadie retoma, visto bueno
+    esperando, integraciones de las últimas 2 h y la autopublicación (`estado_publicacion`, solo
+    lectura); las tareas listas en el orden de la Mac (`candidatos_reparto`) para prestar las del
+    final; y `enlistar_reparacion` (cola `cola-metagenesis-<fecha>` y, si nadie más la coge, delante
+    en la tanda viva).
+
 Todo lo que se lanza va desacoplado (no bloquea el latido) y deja su registro en
 `/tmp/starseed-nodo-<acción>.log`. En modo SECO nada de esto se ejecuta: se dice qué se haría.
 Solo biblioteca estándar. Nunca se imprime una clave ni el nombre de la máquina.
@@ -236,6 +242,161 @@ def medidores_mac(raiz: str, ahora: float) -> Tuple[Dict[str, Any], Optional[flo
     return (med if isinstance(med, dict) else {}), edad
 
 
+def estado_publicacion(raiz: str, carpeta: Optional[str] = None) -> Dict[str, Any]:
+    """La autopublicación tal como está (interruptor, fase, motivo, commits sin publicar y la salida de
+    la puerta que la frenó si es de ESE sha). Solo lectura: el director de producción manda en lo suyo."""
+    carpeta = carpeta or os.path.expanduser("~/.starseed/produccion")
+    est = leer_json(os.path.join(carpeta, "autopublicar-estado.json"), {})
+    est = est if isinstance(est, dict) else {}
+    inter = leer_json(os.path.join(carpeta, "autopublicar.json"), {})
+    pausada = leer_json(os.path.join(os.path.dirname(carpeta), "produccion-pausada.json"), {})
+    activa = isinstance(inter, dict) and inter.get("activo") is True and not (
+        isinstance(pausada, dict) and pausada.get("pausada") is True)
+    rc, n = _sh(["git", "rev-list", "--count", "origin/main..main"], cwd=raiz, tope=20)
+    ev = est.get("evidencia")
+    ev = ev if isinstance(ev, dict) and ev.get("sha") and ev.get("sha") == est.get("sha") else None
+    return {"activa": bool(activa), "fase": str(est.get("fase") or ""), "detalle": str(est.get("detalle") or "")[:240],
+            "sha": str(est.get("sha") or "")[:12], "sin_publicar": int(n.strip()) if rc == 0 and n.strip().isdigit() else None,
+            "evidencia": ({"sha": str(ev.get("sha"))[:12], "motivo": str(ev.get("motivo") or "")[:120],
+                           "texto": str(ev.get("texto") or "")[-2400:]} if ev else None)}
+
+
+def resultados_mac(raiz: str, ahora: float) -> Dict[str, Any]:
+    """Lo que el líder mira para saber si el trabajo AVANZA (OPA1011b): fallidas que nadie retoma,
+    visto bueno esperando, integraciones de las últimas 2 h y la publicación."""
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    progreso = leer_json(os.path.join(olas, "progreso.json"), {})
+    progreso = progreso if isinstance(progreso, dict) else {}
+    rc, out = _sh(["git", "log", "main", "--since=72 hours ago", "--format=%s"], cwd=raiz, tope=30)
+    asuntos = out.splitlines() if rc == 0 else []
+    rc2, out2 = _sh(["git", "log", "main", "--since=2 hours ago", "--format=%s"], cwd=raiz, tope=20)
+    fall = L.fallidas_sin_resolver(progreso, asuntos, ahora)
+    vb = L.esperando_visto_bueno(progreso, ahora, asuntos)
+    return {"fallidas": fall[:8], "n_fallidas": len(fall), "visto_bueno": vb[:8], "n_visto_bueno": len(vb),
+            "integradas_2h": sum(1 for a in out2.splitlines() if L.es_integracion(a)) if rc2 == 0 else None,
+            "publicacion": estado_publicacion(raiz)}
+
+
+def colas_de_codigo_vivas(raiz: str) -> List[Tuple[str, List[Dict[str, Any]]]]:
+    """[(nombre, tareas)] de las colas FUENTE de código en `olas/` (de la más nueva a la más vieja)."""
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    try:
+        import vigilante_logica as V  # noqa: WPS433
+        es_codigo = V.es_cola_de_codigo
+    except Exception:  # noqa: BLE001
+        def es_codigo(n: str) -> bool:
+            return n.startswith("cola-") and not n.startswith(("cola-auto-", "cola-suenos"))
+    salida = []
+    try:
+        nombres = sorted(os.listdir(olas), reverse=True)
+    except OSError:
+        return salida
+    for n in nombres:
+        if not (n.startswith("cola-") and n.endswith(".json")) or not es_codigo(n):
+            continue
+        d = leer_json(os.path.join(olas, n), [])
+        lista = d if isinstance(d, list) else (d or {}).get("tareas", []) if isinstance(d, dict) else []
+        salida.append((n, [t for t in lista or [] if isinstance(t, dict)]))
+    return salida
+
+
+def candidatos_reparto(raiz: str) -> List[Dict[str, Any]]:
+    """Las tareas LISTAS de las colas de código, en el orden en que la Mac las cogería (lo que más
+    desbloquea primero: `vigilante_logica.seleccionar_pendientes` con `prioridad_logica`), y solo las
+    que nadie ha empezado (sin estado o «pendiente»)."""
+    import datetime as _dt
+    import vigilante_logica as V  # noqa: WPS433
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    progreso = leer_json(os.path.join(olas, "progreso.json"), {})
+    progreso = progreso if isinstance(progreso, dict) else {}
+    rc, out = _sh(["git", "log", "main", "--since=45 days ago", "--format=%s"], cwd=raiz, tope=40)
+    asuntos = out.splitlines() if rc == 0 else []
+    listas = V.seleccionar_pendientes(colas_de_codigo_vivas(raiz), progreso, asuntos, ahora=_dt.datetime.now())
+    salida = []
+    for t in listas or []:
+        if not isinstance(t, dict) or not t.get("id"):
+            continue
+        e = progreso.get(str(t["id"]))
+        estado = e.get("estado") if isinstance(e, dict) else ""
+        if estado in ("", None, "pendiente"):
+            salida.append(t)
+    # El orden REAL de la tanda viva manda (es el que sigue su orquestador): lo que está al final se
+    # coge lo último, y lo que ni siquiera está en ella no lo va a coger esta tanda (va detrás de todo,
+    # así es lo primero que se presta: cero riesgo de hacerlo dos veces).
+    viva = cola_viva()
+    if viva:
+        d = leer_json(os.path.join(olas, viva), [])
+        lista = d if isinstance(d, list) else (d or {}).get("tareas", []) if isinstance(d, dict) else []
+        pos = {str(t.get("id")): i for i, t in enumerate(lista or []) if isinstance(t, dict) and t.get("id")}
+        orden = {str(t["id"]): i for i, t in enumerate(salida)}
+        salida.sort(key=lambda t: (pos.get(str(t["id"]), len(pos) + orden[str(t["id"])])))
+    return salida
+
+
+def existentes(raiz: str, rutas: List[str]) -> List[str]:
+    """Las rutas (relativas al repo) que existen de verdad, sin salir del repo."""
+    base = os.path.realpath(raiz)
+    salida = []
+    for r in rutas or []:
+        ruta = os.path.realpath(os.path.join(raiz, r))
+        if ruta.startswith(base + os.sep) and os.path.isfile(ruta):
+            salida.append(r)
+    return salida
+
+
+def cola_viva(lineas: Optional[List[str]] = None) -> Optional[str]:
+    """La cola que corre AHORA el orquestador de esta máquina (de los argumentos del proceso)."""
+    for o in orquestadores(lineas if lineas is not None else lineas_ps()):
+        if o.get("cola"):
+            return o["cola"] + ".json"
+    return None
+
+
+def enlistar_reparacion(raiz: str, tarea: Dict[str, Any], delante_en_la_tanda: bool, ahora: float) -> Tuple[str, str]:
+    """Deja una tarea de reparación de MetaGenesis en su cola fuente (`olas/cola-metagenesis-<fecha>.json`,
+    que lee el vigilante) y, si nadie más la va a coger, DELANTE en la tanda viva (el orquestador relee
+    su cola y la mete en su sitio del orden). No la repite si el id ya existe en alguna cola o en el progreso."""
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    tid = str(tarea.get("id") or "")
+    progreso = leer_json(os.path.join(olas, "progreso.json"), {})
+    if isinstance(progreso, dict) and tid in progreso:
+        return "nada", "%s ya está en el progreso" % tid
+    for _, lista in colas_de_codigo_vivas(raiz):
+        if any(str(t.get("id")) == tid for t in lista):
+            return "nada", "%s ya está en una cola" % tid
+    nombre = "cola-metagenesis-%s.json" % time.strftime("%Y%m%d", time.localtime(ahora))
+    ruta = os.path.join(olas, nombre)
+    d = leer_json(ruta, [])
+    lista = d if isinstance(d, list) else (d or {}).get("tareas", []) if isinstance(d, dict) else []
+    escribir_atomico(ruta, list(lista or []) + [tarea])
+    texto = "%s enlistada en %s" % (tid, nombre)
+    if delante_en_la_tanda:
+        viva = cola_viva()
+        if viva and os.path.exists(os.path.join(olas, viva)):
+            rv = os.path.join(olas, viva)
+            dv = leer_json(rv, None)
+            lv = dv if isinstance(dv, list) else (dv or {}).get("tareas") if isinstance(dv, dict) else None
+            if isinstance(lv, list) and not any(isinstance(t, dict) and str(t.get("id")) == tid for t in lv):
+                nueva = [dict(tarea)] + lv
+                if isinstance(dv, dict):
+                    dv["tareas"] = nueva
+                else:
+                    dv = nueva
+                escribir_atomico(rv, dv)
+                texto += " y delante en la tanda viva (%s)" % viva[:-5]
+    return "hecha", texto
+
+
+def nube_pausada() -> bool:
+    """Alex puede pausar la nube (`~/.starseed/nube-pausada.json`): entonces no se presta nada fuera.
+    La misma regla que el reparto a la nube y al A1 (`repartir_nube.nube_pausada`)."""
+    try:
+        import repartir_nube as RN  # noqa: WPS433
+        return bool(RN.nube_pausada())
+    except Exception:  # noqa: BLE001 — sin el módulo, el archivo a secas
+        return os.path.exists(os.path.expanduser("~/.starseed/nube-pausada.json"))
+
+
 def sabe_orquestar(raiz: str) -> bool:
     orq = any(os.path.exists(os.path.expanduser(p)) for p in (
         "~/.local/bin/starseed-enjambre.py", "~/bin/starseed-enjambre.py")) or os.path.exists(
@@ -304,6 +465,12 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
             salud["pausado"] = bool(config_director.cargar()[0].get("pausado"))
         except Exception:  # noqa: BLE001
             salud["pausado"] = False
+        # (OPA1011b) Resultados, no solo latidos: si el trabajo AVANZA.
+        try:
+            salud["resultados"] = resultados_mac(raiz, ahora)
+        except Exception as e:  # noqa: BLE001 — medir nunca tumba la vuelta
+            salud["resultados"] = {"error": type(e).__name__}
+        salud["nube_pausada"] = nube_pausada()
     if medio == "oracle-a1":
         salud["a1"] = estado_a1()
     cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orquestador": salud["orquestador"],
