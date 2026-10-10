@@ -1,0 +1,5 @@
+{
+  "//": "Las apps vinculadas no siempre compilan en modo estricto (Omnifrecuencias no): el kit debe compilar igual sin «strict». Se comprueba en __tests__/kit.test.ts.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "strict": false, "noUnusedLocals": false, "noUnusedParameters": false }
+}

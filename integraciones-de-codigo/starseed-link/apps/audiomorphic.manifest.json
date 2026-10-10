@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "id": "audiomorphic",
+  "nombre": "Audiomorphic",
+  "descripcion": "Visualizador sinestésico de audio y geometría sagrada (espirales) con VR y AR.",
+  "entidad": { "tipo": "persona", "ref": null, "publica": true },
+  "repo": "StarSeedSystem/Audiomorphic-AR-app",
+  "web": "https://audiomorphic.vercel.app",
+  "licencia": "propia-abierta",
+  "formatos": ["web", "pwa", "android", "ios", "macos", "windows", "linux", "xr"],
+  "capas": ["cuenta", "neurona", "sincronizacion", "directo", "transporte", "actualizaciones", "dentro-del-os"],
+  "tablas": ["audiomorphic_subscriptions", "starseed_identities"],
+  "estaciones": { "fuente": "audiomorphic", "params": "audiomorphic" },
+  "actualizaciones": { "canal": "github-releases", "repo": "StarSeedSystem/Audiomorphic-AR-app", "auto": "segun-ajustes" },
+  "permisos": "microphone; camera; xr-spatial-tracking; fullscreen; autoplay; clipboard-write; accelerometer; gyroscope; magnetometer"
+}

@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "id": "omnifrecuencias",
+  "nombre": "Omnifrecuencias",
+  "descripcion": "Generador holográfico de frecuencias y entonaciones con transmisión en directo y red mesh.",
+  "entidad": { "tipo": "persona", "ref": null, "publica": true },
+  "repo": "alexbordongarrigos/omnifrecuencias",
+  "web": "https://omnifrecuencias.vercel.app",
+  "licencia": "propia-abierta",
+  "formatos": ["web", "pwa", "android", "macos", "windows", "linux"],
+  "capas": ["cuenta", "neurona", "sincronizacion", "directo", "transporte", "actualizaciones", "dentro-del-os"],
+  "tablas": ["omni_presets", "omni_sessions", "omni_resonances"],
+  "estaciones": { "fuente": "omnifrecuencias", "params": "omnifrecuencias" },
+  "actualizaciones": { "canal": "github-releases", "repo": "alexbordongarrigos/omnifrecuencias", "auto": "segun-ajustes" },
+  "permisos": "microphone; fullscreen; autoplay; clipboard-write; xr-spatial-tracking"
+}
