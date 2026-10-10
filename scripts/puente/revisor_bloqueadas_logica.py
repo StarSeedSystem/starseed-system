@@ -26,7 +26,11 @@ LA REGLA: un director NUNCA deja una tarea quieta. La transforma con la acción 
   reescribir       falla por sí misma: vuelve con el contexto de hoy y el error exacto.
   reasignar        mismo fallo con el mismo escritor: otro modelo/proveedor (Codex si hay cupo).
   dividir          más de 3 archivos, o falla repetida con varios archivos: partes ≤ 3 archivos.
-  fusionar         duplicada de otra viva (mismo título y archivos): se queda una.
+  fusionar         duplicada de otra viva (mismo título y archivos): se queda una (nunca una
+                   sucesora con su predecesora: eso es una cadena, no un duplicado).
+  ceder            quieta y su cadena ya sigue por una sucesora viva: se cierra (rama guardada).
+  reabrir          la escalera la reabrió y la tanda viva no la recogió (o la apartó como
+                   cerrada y volvió a pendiente): se le vuelve a pedir, sin gastar intento.
   ya_hecha         main ya lo tiene (su commit o el de una sucesora/hermana): se cierra.
   pedir_a_alex     SOLO si la decisión es suya (credenciales, migraciones, publicar) o tras
                    agotar las transformaciones: UNA pregunta con sus opciones.
@@ -65,7 +69,30 @@ RESPIRO_S = 25 * 60
 MAX_ARCHIVOS = 3
 UMBRAL_JEV = 0.8
 
-ACCIONES_CON_VETO = frozenset({"ya_hecha", "fusionar", "relajar"})
+ACCIONES_CON_VETO = frozenset({"ya_hecha", "fusionar", "relajar", "ceder"})
+#: Lo que mueve una tarea sin culparla: no cuenta para el tope que acaba preguntando a Alex.
+#: (2026-10-10) Un fallo del medio (cupo agotado del reparador, dependencias sin instalar, una
+#: reapertura que no llegó) no es un intento de la tarea; antes se contaba y la llevaba a Alex.
+ACCIONES_DEL_MEDIO = frozenset({"en_cadena", "priorizar", "trasladar", "reintentar", "reabrir", "reintegrar"})
+#: Si la escalera del director no recoge un fallo en este tiempo (no hay corrección para él), el
+#: revisor no espera más: lo transforma él (XR1010Cb esperó 5 h con 19 tareas detrás porque la
+#: escalera la daba por «con sucesora» —una XR1010Cc rechazada al instante— y el revisor, por
+#: «primer fallo: lo lleva la escalera»).
+ESPERA_ESCALERA_S = 30 * 60
+#: Una corrección «pendiente» de la tanda viva que no se aplicó en este tiempo (la tarea sigue
+#: quieta en disco) se vuelve a pedir desde aquí: red de seguridad del vigilante.
+ESPERA_REAPERTURA_S = 20 * 60
+#: Lo que dice un reparador sin cupo: la tarea no pudo arreglar sus errores porque su modelo no
+#: contestó, no porque no supiera.
+_SIN_CUPO = re.compile(
+    r"tokens used|buy a subscription|insufficient|quota|cuota|rate.?limit|\b429\b|\b402\b|"
+    r"payment required|credits? (exhausted|agotad)|no (credit|cr[eé]dito)|model not found|"
+    r"modelo retirado|ProviderModelNotFound", re.I)
+#: Errores de tsc que son del ENTORNO: un paquete declarado que no está instalado.
+_MODULO_FALTA = re.compile(
+    r"error TS(?:2307|2664|7016|2688)\b.*?(?:module|declaration file for module|type definition file for)"
+    r" '((?!@/)[^'./][^']*)'", re.I)
+_ERROR_TS = re.compile(r"^(.+?)\(\d+,\d+\): error TS\d+")
 
 # ── clases de fallo ─────────────────────────────────────────────────────────────────────
 #: (patrón, clase). El orden importa: lo primero que case manda. Las del MEDIO van antes
@@ -124,13 +151,106 @@ def es_del_medio(clase: str) -> bool:
     return str(clase or "").startswith("medio:")
 
 
+def paquete_de(especificador: Any) -> str:
+    """«@react-three/xr/x» → «@react-three/xr»; «three/examples/jsm/a» → «three»."""
+    partes = str(especificador or "").split("/")
+    if partes and partes[0].startswith("@") and len(partes) > 1:
+        return "/".join(partes[:2])
+    return partes[0] if partes else ""
+
+
+def diagnostico_tsc(lineas: Sequence[str], declarados: Iterable[str] = (),
+                    faltan: Iterable[str] = ()) -> Dict[str, Any]:
+    """PURA. Lee el registro de una tarea (`olas/logs/<id>.log`) y separa su ÚLTIMO tsc en:
+
+      entorno   errores de un paquete DECLARADO en package.json que no está instalado (el medio)
+      propios   el resto (los de la tarea)
+      reparador_sin_cupo   lo que contestó el modelo que debía reparar, si fue un «sin cupo»
+
+    (2026-10-10, medido) Desde que la Ola 1010 declaró `qrcode` y los paquetes de XR sin que nadie
+    los instalara en la Mac, CADA tarea tenía en su tsc «Cannot find module 'qrcode'» de un archivo
+    de main; y el reparador de PM1010F0Bc contestó «Free 10M tokens used» y no arregló nada. Las
+    dos cosas se contaban como fallo de la tarea («3 errores tsc»)."""
+    lineas = [str(x) for x in (lineas or [])]
+    inicio = None
+    for i in range(len(lineas) - 1, -1, -1):
+        if lineas[i].startswith("$ ") and "tsc" in lineas[i]:
+            inicio = i
+            break
+    if inicio is None:
+        return {"errores": [], "entorno": [], "propios": [], "reparador_sin_cupo": None}
+    errores = []
+    for l in lineas[inicio + 1:]:
+        if l.startswith("$ "):
+            break
+        if "error TS" in l:
+            errores.append(l.strip())
+    declarados_s, faltan_s = set(declarados or ()), set(faltan or ())
+    entorno, propios = [], []
+    for e in dict.fromkeys(errores):
+        m = _MODULO_FALTA.search(e)
+        paquete = paquete_de(m.group(1)) if m else ""
+        codigo = (re.search(r"error TS(\d+)", e) or [None, ""])[1]
+        tipos = "@types/" + (paquete[1:].replace("/", "__") if paquete.startswith("@") else paquete)
+        # Del entorno: el paquete (o sus tipos) falta HOY, o es un «no encuentro el módulo» de un
+        # paquete declarado (faltaba cuando corrió; si ya se instaló, el reintento pasará).
+        if paquete and (paquete in faltan_s or tipos in faltan_s
+                        or (codigo in ("2307", "2664") and paquete in declarados_s)):
+            entorno.append(e)
+        else:
+            propios.append(e)
+    # El reparador: el último «$ opencode run|codex exec» ANTES de ese tsc.
+    sin_cupo = None
+    for j in range(inicio - 1, -1, -1):
+        l = lineas[j]
+        if l.startswith("$ ") and ("opencode run" in l or "codex exec" in l):
+            bloque = " ".join(lineas[j + 1:inicio])
+            m = _SIN_CUPO.search(bloque)
+            if m:
+                k = max(0, m.start() - 60)
+                sin_cupo = re.sub(r"\x1b\[[0-9;]*m", "", bloque[k:m.end() + 60]).strip()[:200]
+            break
+        if l.startswith("$ ") and "tsc" in l:
+            break
+    return {"errores": errores, "entorno": entorno, "propios": propios, "reparador_sin_cupo": sin_cupo}
+
+
 # ── cadenas ──────────────────────────────────────────────────────────────────────────────
 def base_de_cadena(tid: Any) -> str:
     """«PRD1005Sc» → «PRD1005S» (la regla de `obtenerBaseId` de Genesis y de prioridad_logica)."""
     tid = str(tid or "")
     if len(tid) > 1 and tid[-1] in "bcdefghijklmnopqrstuvwxyz" and (tid[-2].isdigit() or tid[-2].isupper()):
         return tid[:-1]
+    # (2026-10-10) La sucesora de un id que ya acaba en minúscula: «S1010-EV-ORACLE-1a» → «…-1ab».
+    if (len(tid) > 2 and tid[-1] in "bcdefghijklmnopqrstuvwxyz" and tid[-2].islower()
+            and (tid[-3].isdigit() or tid[-3].isupper())):
+        return tid[:-1]
     return tid
+
+
+def _norma(texto: Any) -> str:
+    return re.sub(r"\W+", " ", str(texto or "")).strip().lower()
+
+
+def es_sucesora(k: Any, tid: Any, tareas: Optional[Dict[str, Any]] = None) -> bool:
+    """¿`k` rehace a `tid`? (X → Xb → Xc, «…-1a» → «…-1ab», X → X-d1).
+
+    (2026-10-10, medido) Compartir base NO basta: «S1010-EV-ORACLE-1b» depende de «…-1a» y no
+    la rehace. Cuenta si el id de `k` empieza por el de `tid` con un sufijo de reintento, o si
+    comparten base Y dicen lo mismo (título o archivos). La misma regla que el vigilante."""
+    k, tid = str(k or ""), str(tid or "")
+    if not k or not tid or k <= tid:
+        return False
+    if k.startswith(tid):
+        return bool(re.fullmatch(r"[a-z]{1,2}|-d\d+[a-z]?", k[len(tid):]))
+    if base_de_cadena(k) != base_de_cadena(tid) or base_de_cadena(tid) == tid:
+        return False
+    tk = (tareas or {}).get(k) or {}
+    tt = (tareas or {}).get(tid) or {}
+    if _norma(tk.get("titulo")) and _norma(tk.get("titulo")) == _norma(tt.get("titulo")):
+        return True
+    fk, ft = sorted(_archivos(tk)), sorted(_archivos(tt))
+    return bool(fk) and fk == ft
 
 
 def _raiz_de_cadena(tid: str) -> str:
@@ -174,12 +294,12 @@ def _deps(t: Optional[Dict[str, Any]]) -> List[str]:
 def sucesora(tid: str, progreso: Dict[str, Any], tareas: Dict[str, Any]) -> Tuple[Optional[str], str]:
     """(id, 'integrada'|'viva'|None) de la última sucesora de la cadena de `tid` (Xb, Xc, X-d1…).
 
-    Integrada manda sobre viva: si cualquiera de la cadena está en main, la cadena está cumplida."""
-    raiz = _raiz_de_cadena(tid)
+    Integrada manda sobre viva: si cualquiera de la cadena está en main, la cadena está cumplida.
+    (2026-10-10) Sucesora = `es_sucesora` (no basta compartir base: «…-1b» no rehace «…-1a»)."""
     candidatas = set(k for k in (progreso or {}) if k != tid) | set(k for k in (tareas or {}) if k != tid)
     viva = None
     for k in sorted(candidatas):
-        if _raiz_de_cadena(k) != raiz or not k > tid:
+        if not es_sucesora(k, tid, tareas):
             continue
         est = _estado(progreso, k)
         if est in CUMPLIDOS:
@@ -213,6 +333,10 @@ def estado_de_dependencia(dep: str, progreso: Dict[str, Any], tareas: Dict[str, 
     if est in QUIETOS:
         nota = str((progreso.get(dep) or {}).get("nota") or "")
         return "viva", "%s (%s): la retoma el revisor" % (est, clase_de_fallo(nota))
+    reap = (progreso.get(dep) or {}).get("reapertura") if isinstance(progreso.get(dep), dict) else None
+    if est == "pendiente" and isinstance(reap, dict):
+        return "viva", "falló (%s) a las %s; la escalera la vuelve a poner en la tanda" % (
+            reap.get("estado_disco") or "fallo", str(reap.get("t_disco") or "")[11:16] or "?")
     if est in ("", "pendiente"):
         if dep in (tareas or {}) or est == "pendiente":
             return "viva", "pendiente en cola"
@@ -229,7 +353,9 @@ def dependientes_transitivos(tareas: Dict[str, Dict[str, Any]]) -> Dict[str, Set
         for d in _deps(t):
             hijos.setdefault(d, set()).add(tid)
     salida: Dict[str, Set[str]] = {}
-    for tid in tareas or {}:
+    # También las dependencias que ya no están en ninguna cola (PM1010F0B, rehecha por PM1010F0Bc):
+    # su sucesora hereda a quien la esperaba.
+    for tid in set(tareas or {}) | set(hijos):
         vistos: Set[str] = set()
         pila = list(hijos.get(tid, ()))
         while pila:
@@ -276,7 +402,7 @@ def transformaciones_recientes(memoria: Dict[str, Any], tid: str, ahora: float) 
     raiz = _raiz_de_cadena(tid)
     hist = (memoria or {}).get("historial") or []
     return [h for h in hist if isinstance(h, dict) and _raiz_de_cadena(h.get("tid")) == raiz
-            and h.get("accion") not in ("en_cadena", "priorizar", "trasladar")
+            and h.get("accion") not in ACCIONES_DEL_MEDIO
             and ahora - _t_epoch(h.get("t")) < VENTANA_TOPE_S]
 
 
@@ -417,6 +543,12 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
     """
     tareas: Dict[str, Dict[str, Any]] = dict(foto.get("tareas") or {})
     progreso: Dict[str, Any] = dict(foto.get("progreso") or {})
+    #: progreso.json tal cual (sin las correcciones del director encima): lo que de verdad tiene
+    #: cada tarea mientras la corrección no se aplique.
+    progreso_disco: Dict[str, Any] = dict(foto.get("progreso_disco") or progreso)
+    diagnosticos: Dict[str, Dict[str, Any]] = dict(foto.get("diagnosticos") or {})
+    corregidas: Set[str] = set(foto.get("corregidas") or ())
+    deps_faltan: List[str] = list(foto.get("deps_faltan") or [])
     asuntos: List[str] = list(foto.get("asuntos") or [])
     fallos: Dict[str, List[Dict[str, Any]]] = dict(foto.get("fallos") or {})
     memoria: Dict[str, Any] = dict(foto.get("memoria") or {})
@@ -469,6 +601,20 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         nota = str(entrada.get("nota") or "")
         if est in CERRADOS or est in DECIDIDOS or est in TRABAJANDO or est in EN_APROBACION:
             continue
+        est_disco = _estado(progreso_disco, tid) or est
+
+        # 0a) (2026-10-10) Quieta en disco y su cadena YA sigue por una sucesora viva (PM1010F0B y
+        #     PM1010F0Bb con PM1010F0Bc en marcha): se cede a la sucesora. Si no, la escalera o este
+        #     revisor la rehacían en paralelo a su sucesora, y su corrección vieja la resucitaba
+        #     al morir la tanda.
+        if est_disco in QUIETOS and not id_en_asuntos(tid, asuntos):
+            suc, como = sucesora(tid, progreso, tareas)
+            if como == "viva":
+                acciones.append(_accion(tid, "ceder", "la cadena ya sigue por su sucesora %s (%s): esta copia "
+                                        "se cierra con su rama guardada" % (suc, _estado(progreso, suc) or "en cola"),
+                                        "sucesora", estado="sustituida", por=suc))
+                tocadas.add(tid)
+                continue
 
         # 0) ¿ya está en main, ella o su cadena?
         if est in QUIETOS or est in ("", "pendiente"):
@@ -491,6 +637,12 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
                 gemela = None
                 for k, otra in sorted(tareas.items()):
                     if k == tid or _raiz_de_cadena(k) == _raiz_de_cadena(tid):
+                        continue
+                    # (2026-10-10, medido) Una sucesora NO es una duplicada: el vigía creaba
+                    # «S1010-EV-ORACLE-1ab» para rehacer «…-1a» y el revisor la fusionaba de vuelta
+                    # en la fallida, siete veces seguidas, mientras su dependiente esperaba.
+                    if es_sucesora(tid, k, tareas) or es_sucesora(k, tid, tareas) or tid.startswith(k) \
+                            or k.startswith(tid):
                         continue
                     if _norma_titulo(otra) == titulo and sorted(_archivos(otra)) == archivos:
                         gemela = k
@@ -532,7 +684,8 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
             if vivas:
                 raiz = raiz_de_espera(tid, tareas, progreso, asuntos) or vivas[0][0]
                 _, por_raiz = estado_de_dependencia(raiz, progreso, tareas, asuntos)
-                if _estado(progreso, raiz) in ("", "pendiente") and raiz in tareas:
+                if (_estado(progreso, raiz) in ("", "pendiente") and raiz in tareas
+                        and not (progreso.get(raiz) or {}).get("reapertura")):
                     por_raiz = "pendiente en cola" + (" (en la tanda viva)" if raiz in ids_viva else "")
                 en_cadena[tid] = {
                     "espera_a": [d for d, _ in vivas],
@@ -557,6 +710,30 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
                 acciones.append(_accion(tid, "trasladar", "lista y en una cola que nadie corre: entra en la tanda viva "
                                         "(%s)" % cola_viva, "lista", cola=cola_viva))
                 tocadas.add(tid)
+                continue
+            # (2026-10-10) La escalera la reabrió, pero la tanda viva no lo recogió: sigue quieta en
+            # disco (PM1010F0Bc 5 h con 28 tareas detrás). Red de seguridad del vigilante.
+            reap = entrada.get("reapertura") if isinstance(entrada.get("reapertura"), dict) else None
+            if (reap and tid in ids_viva and deps_ok and not respira(tid)
+                    and ahora - _t_epoch(reap.get("t_disco")) > ESPERA_REAPERTURA_S):
+                acciones.append(_accion(
+                    tid, "reabrir",
+                    "falló (%s) a las %s, la escalera la reabrió y la tanda viva no la recogió: se le vuelve a "
+                    "pedir" % (reap.get("estado_disco"), str(reap.get("t_disco") or "")[11:16]),
+                    "medio:reapertura", **enlistar(tid, {"estado": "pendiente", "no_cuenta": True})))
+                tocadas.add(tid)
+                continue
+            # La tanda la dejó de lado al verla cerrada en disco («no la repito») y luego alguien la
+            # devolvió a pendiente: en la memoria del orquestador sigue cerrada. Se le pide.
+            t_soltada = float((foto.get("soltadas") or {}).get(tid) or 0)
+            if (t_soltada and tid in ids_viva and deps_ok and not respira(tid)
+                    and _t_epoch(entrada.get("t")) > t_soltada):
+                acciones.append(_accion(
+                    tid, "reabrir",
+                    "la tanda viva la apartó como cerrada a las %s y ahora vuelve a estar pendiente: se le pide "
+                    "que la coja" % time.strftime("%H:%M", time.localtime(t_soltada)),
+                    "medio:reapertura", **enlistar(tid, {"estado": "pendiente", "no_cuenta": True})))
+                tocadas.add(tid)
             continue
         if est not in QUIETOS:
             continue
@@ -573,6 +750,21 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         clase = clase_de_fallo(texto)
         if est == "bloqueante" and clase == "tarea:otro":
             clase = "tarea:escalera"
+        # (2026-10-10) El registro de la tarea dice qué falló de verdad en su último tsc.
+        diag = diagnosticos.get(tid) or {}
+        errores_propios = list(diag.get("propios") or [])
+        if est == "fallo_tsc" and diag.get("errores"):
+            if diag.get("entorno") and not errores_propios:
+                clase = "medio:dependencias"
+                if deps_faltan:
+                    # Se están instalando (o hay que instalarlas): reintentar antes fallaría igual.
+                    continue
+            elif diag.get("reparador_sin_cupo"):
+                clase = "medio:proveedor"
+            if errores_propios:
+                texto = "%s · errores de la tarea: %s" % (texto, " | ".join(errores_propios[:8]))
+            if diag.get("reparador_sin_cupo"):
+                texto = "%s · el reparador no contestó: %s" % (texto, diag["reparador_sin_cupo"])
         previas = transformaciones_recientes(memoria, tid, ahora)
 
         de_alex = _es_de_alex(t, texto)
@@ -609,6 +801,10 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
             continue
         if es_del_medio(clase):
             datos: Dict[str, Any] = enlistar(tid, {"estado": "pendiente", "no_cuenta": True})
+            if errores_propios:
+                # El medio falló, pero la tarea también tiene errores suyos: el próximo escritor
+                # los recibe exactos (el reparador sin cupo no llegó a verlos).
+                datos["mensaje"] = _mensaje_contexto(tid, clase, texto, foto)
             acciones.append(_accion(
                 tid, "reintentar",
                 "el fallo fue del medio (%s), no de la tarea: vuelve a la cola sin gastar un intento" % clase,
@@ -627,7 +823,11 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         # Fallo de la PROPIA tarea. El primero lo retoma la escalera del director; a partir del
         # segundo (o si la escalera se rindió) se transforma: repetir lo mismo falla igual.
         n_fallos = sum(1 for f in ultimos if clase_de_fallo(f.get("texto")) == clase) or 1
-        if est != "bloqueante" and n_fallos < 2 and int(entrada.get("intentos_auto") or 0) < 2:
+        # (2026-10-10) …salvo que la escalera NO la esté llevando: sin corrección suya y quieta más de
+        # media hora, nadie la va a mover si este revisor espera (XR1010Cb, 5 h y 19 detrás).
+        abandonada = tid not in corregidas and ahora - _t_epoch(entrada.get("t")) > ESPERA_ESCALERA_S
+        if (est != "bloqueante" and n_fallos < 2 and int(entrada.get("intentos_auto") or 0) < 2
+                and not abandonada):
             continue
         candidatas = list(PREFERENCIAS.get(clase, PREFERENCIAS["tarea:otro"]))
         if len(_archivos(t)) > MAX_ARCHIVOS:
@@ -668,6 +868,7 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
     trasladadas = [a["tid"] for a in acciones if a["accion"] == "trasladar" and a["tid"] not in ids_viva]
     ids_viva = ids_viva + [t for t in trasladadas if t not in ids_viva]
     if cola_viva and ids_viva:
+        trans = heredar_dependientes(trans, ids_viva, tareas, progreso)
         orden_cola = orden_ideal(ids_viva, tareas, progreso, trans)
         pendientes_actual = [i for i in ids_viva if _estado(progreso, i) in ("", "pendiente")]
         pendientes_ideal = [i for i in orden_cola if _estado(progreso, i) in ("", "pendiente")]
@@ -695,6 +896,27 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         "cuentas": cuentas,
         "resumen": resumen(cuentas, cadenas),
     }
+
+
+def heredar_dependientes(trans: Dict[str, Set[str]], ids: Sequence[str], tareas: Dict[str, Any],
+                         progreso: Dict[str, Any]) -> Dict[str, Set[str]]:
+    """Una sucesora hereda a quien esperaba a su predecesora (para ordenar la tanda).
+
+    (2026-10-10, medido) Las 28 tareas de la Protomolécula dependen de «PM1010F0B», no de su
+    sucesora «PM1010F0Bc»: el orden la contaba «+0» y la ponía detrás de hojas sueltas."""
+    salida = dict(trans or {})
+    por_base: Dict[str, List[str]] = {}
+    for k in set(tareas or {}) | set(progreso or {}):
+        por_base.setdefault(base_de_cadena(k), []).append(k)
+    for i in ids or ():
+        posibles = {i[:-1], i[:-2], re.sub(r"-d\d+[a-z]?$", "", i)} | set(por_base.get(base_de_cadena(i), ()))
+        heredados: Set[str] = set(salida.get(i, ()))
+        for p in posibles:
+            if p and p != i and es_sucesora(i, p, tareas):
+                heredados |= set((trans or {}).get(p, ()))
+        heredados.discard(i)
+        salida[i] = heredados
+    return salida
 
 
 def _mensaje_contexto(tid: str, clase: str, texto: str, foto: Dict[str, Any]) -> str:

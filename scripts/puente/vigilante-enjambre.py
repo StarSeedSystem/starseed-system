@@ -37,6 +37,7 @@ from vigilante_logica import (
     aplicar_correcciones,
     ids_colisionados,
     es_cola_de_codigo,
+    reaperturas_de_la_tanda,
     seleccionar_pendientes,
     ultima_salida,
 )
@@ -185,7 +186,33 @@ def orden_reabrir(correccion):
     return orden
 
 
-_REABIERTAS = set()  # ya se pidió `reabrir` en esta tanda: no repetir la orden
+_REABIERTAS = set()  # ya se pidió `reabrir` en esta tanda (solo informativo desde 2026-10-10)
+#: (2026-10-10) Lo ya pedido, POR PELDAÑO y en disco: un reinicio del vigilante no lo repite y
+#: un peldaño nuevo de la escalera sí se pide (antes, un set en memoria lo bloqueaba para siempre).
+REAPERTURAS_PEDIDAS = os.path.join(OLAS, "reaperturas-pedidas.json")
+
+
+def _leer_reaperturas_pedidas():
+    try:
+        with open(REAPERTURAS_PEDIDAS, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _guardar_reaperturas_pedidas(pedidas):
+    try:
+        # Solo lo de los últimos 3 días: el archivo no crece sin fin.
+        limite = time.time() - 3 * 24 * 3600
+        d = {k: v for k, v in (pedidas or {}).items()
+             if isinstance(v, dict) and float(v.get("t") or 0) > limite}
+        tmp = REAPERTURAS_PEDIDAS + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, REAPERTURAS_PEDIDAS)
+    except Exception as e:  # noqa: BLE001
+        print("reaperturas pedidas: %s: %s" % (type(e).__name__, e), flush=True)
 
 
 def cola_viva():
@@ -266,16 +293,21 @@ def alimentar_tanda_viva():
             print("correcciones (vivo): %s: %s" % (type(e).__name__, e), flush=True)
     # 1b) correcciones de tareas que SÍ están en la cola viva: orden de control `reabrir`
     #     (su estado en progreso.json no basta: manda la copia en memoria del orquestador).
+    #     (2026-10-10) Una vez por PELDAÑO de la escalera, no una vez por tanda: ver
+    #     `reaperturas_de_la_tanda` (PM1010F0Bc esperó 5 h su «2/8» con 28 tareas detrás).
     if os.path.exists(CORRECCIONES):
         try:
             correcciones = json.load(open(CORRECCIONES, encoding="utf-8"))
-            propias = {
-                k: v
-                for k, v in correcciones.items()
-                if k in en_cola
-                and str((v or {}).get("estado")) == "pendiente"
-                and k not in _REABIERTAS
-            }
+            try:
+                prog_disco = json.load(open(os.path.join(OLAS, "progreso.json"), encoding="utf-8"))
+            except Exception:
+                prog_disco = {}
+            tareas_cola = {str(t.get("id")): t for t in lista if isinstance(t, dict) and t.get("id")}
+            pedidas = _leer_reaperturas_pedidas()
+            a_pedir = reaperturas_de_la_tanda(
+                correcciones, prog_disco, en_cola, pedidas, time.time(), tareas=tareas_cola
+            )
+            propias = {k: correcciones[k] for k in a_pedir}
             if propias:
                 ruta_ctrl = os.path.join(OLAS, "control-" + os.path.basename(ruta))
                 try:
@@ -296,8 +328,14 @@ def alimentar_tanda_viva():
                 # la orden sin entenderla, y la tarea se perdería en silencio. Se queda
                 # para aplicarse cuando la tanda muera (2026-09-20).
                 _REABIERTAS.update(propias)
+                ahora_s = time.time()
+                for tid, clave in a_pedir.items():
+                    pedidas[tid] = {"clave": clave, "t": ahora_s}
+                _guardar_reaperturas_pedidas(pedidas)
                 print(
-                    "reabrir pedido en la tanda viva:", ", ".join(propias), flush=True
+                    "reabrir pedido en la tanda viva:",
+                    ", ".join("%s (peldaño %s)" % (k, a_pedir[k]) for k in propias),
+                    flush=True,
                 )
         except Exception as e:  # noqa: BLE001
             print("reabrir (vivo): %s: %s" % (type(e).__name__, e), flush=True)

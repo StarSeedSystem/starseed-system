@@ -19,6 +19,12 @@ import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-oper
 import { ENLACE_USO_CLAUDE, estadoCreditoClaude, resumenCreditoClaude, type ConfigCreditoClaude } from "./credito-claude";
 import { estadoLimitesClaude, resumenLimitesClaude } from "./limites-claude";
 import { estadoCreditos, type DocCreditos } from "./creditos-pago-tipos";
+import {
+    resumirBloqueadas,
+    type EstadoRevisorBloqueadas,
+    type GrupoBloqueada,
+    type ResumenBloqueadas,
+} from "./bloqueadas";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -120,6 +126,8 @@ export interface FilaMedidor {
     ficha?: DatoDeFicha[];
     /** Historial de acciones, lo más reciente primero. */
     historial?: SucesoDeFila[];
+    /** (2026-10-10, OPB1011) Solo en «Bloqueadas»: en cadena, necesita a Alex o atascada (`bloqueadas.ts`). */
+    grupo?: GrupoBloqueada;
 }
 
 export interface DatoDeFicha {
@@ -154,6 +162,8 @@ export interface DetalleMedidor {
     cargando?: { texto: string; progreso?: number };
     /** (2026-09-23) Algo que salió mal y hay que ver al abrir el panel (en rojo). */
     aviso?: string;
+    /** (2026-10-10, OPB1011) Solo en «Bloqueadas»: cadenas, transformadas hoy y decisiones de Alex. */
+    bloqueadas?: ResumenBloqueadas;
 }
 
 /** Estados que ya terminaron: nada de lo que hay aquí se descarta ni se reintenta. */
@@ -1202,6 +1212,9 @@ export interface DatosMedidores {
     fantasmas?: string[];
     /** (2026-10-09) Decisiones del director aún sin aplicar (`progreso-correcciones.json`). */
     correcciones?: Record<string, { estado?: string; nota?: string; t?: string }>;
+    /** (2026-10-10, OPB1011) La última pasada del revisor automático de bloqueadas
+     *  (`starseed_memory_root/olas/revisor-bloqueadas.json`). */
+    revisorBloqueadas?: EstadoRevisorBloqueadas | null;
     historiales?: Record<string, SucesoDeFila[]>;
     /** Archivos que la cola DECLARÓ para cada tarea, para poder comparar con los tocados. */
     declarados?: Record<string, string[]>;
@@ -1645,7 +1658,15 @@ export function detalleDeMedidor(
             // mirar HOY: las demás se desbloquean solas cuando su dependencia termine.
             const sinSalida = filasOperativas.filter((f) => f.estado === "bloqueada sin salida").length;
 
-            const todasFilas = [...filasOperativas, ...filasHistoricas];
+            // (2026-10-10, OPB1011) Alex: «hay demasiadas tareas bloqueadas». Eran 40 ESPERAS de dos
+            // cadenas. Las filas se reparten en «en cadena», «necesitan a Alex» y «atascadas», y la
+            // pastilla cuenta solo lo que de verdad está parado (`bloqueadas.ts`).
+            const repartidas = resumirBloqueadas(
+                [...filasOperativas, ...filasHistoricas],
+                d.revisorBloqueadas ?? null,
+                ahora ?? Date.now(),
+            );
+            const todasFilas: FilaMedidor[] = repartidas.filas;
 
             // (2026-09-22, Alex: «aparece diferente numero de tareas bloqueadas del medidor
             // a las bloqueadas y rechazadas de la ventana emergente»). Y es cierto, pero no
@@ -1658,11 +1679,9 @@ export function detalleDeMedidor(
             if (totalOperativas === 0) {
                 resumenText = totalHistoricas > 0 ? `0 esperando · ${totalHistoricas} de olas cerradas` : "nada esperando";
             } else {
-                resumenText = `${totalOperativas} esperando a otra tarea${
-                    sinSalida > 0 ? ` · ${sinSalida} SIN SALIDA` : ""
-                }${listas > 0 ? ` · ${listas} ya pueden desbloquearse` : ""}${
-                    totalHistoricas > 0 ? ` · ${totalHistoricas} de olas cerradas` : ""
-                } · las rechazadas y los fallos van en Ramificación`;
+                resumenText = `${repartidas.resumen.texto}${sinSalida > 0 ? ` · ${sinSalida} SIN SALIDA` : ""}${
+                    listas > 0 ? ` · ${listas} ya pueden desbloquearse` : ""
+                }${totalHistoricas > 0 ? ` · ${totalHistoricas} de olas cerradas` : ""} · las rechazadas y los fallos van en Ramificación`;
             }
 
             return {
@@ -1671,6 +1690,7 @@ export function detalleDeMedidor(
                 resumen: resumenText,
                 filas: todasFilas,
                 historicas: totalHistoricas,
+                bloqueadas: repartidas.resumen,
                 acciones: todasFilas.length
                     ? [{ clase: "descartar-todas", texto: "Descartar todas", destructiva: true }]
                     : [],

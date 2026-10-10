@@ -889,6 +889,8 @@ export function CentroMando() {
     const [medidoresResumen, setMedidoresResumen] = useState<{
         listas: number | null;
         bloqueadas: number | null;
+        /** (2026-10-10, OPB1011) «N en cadena · …»: las esperas no cuentan en el número. */
+        bloqueadasResumen?: string | null;
         agentes: number | null;
         agentesResumen: string | null;
         /** Tareas que alguien está haciendo AHORA, aquí y en la nube. Ver `cargarMedidoresResumen`. */
@@ -946,6 +948,7 @@ export function CentroMando() {
 
             let listas: number | null = null;
             let bloqueadas: number | null = null;
+            let bloqueadasResumen: string | null = null;
             let agentes: number | null = null;
             let agentesResumen: string | null = null;
             let enCurso: number | null = null;
@@ -984,7 +987,12 @@ export function CentroMando() {
 
             if (resBloqueadas.status === "fulfilled" && resBloqueadas.value.ok) {
                 const dataBloqueadas = (await resBloqueadas.value.json()) as { detalle?: DetalleMedidor };
-                if (dataBloqueadas.detalle?.filas) {
+                if (dataBloqueadas.detalle?.bloqueadas) {
+                    // (2026-10-10, OPB1011) La pastilla cuenta lo que de verdad está parado (atascadas +
+                    // decisiones de Alex); las esperas de una cadena van en su texto, no en el número.
+                    bloqueadas = dataBloqueadas.detalle.bloqueadas.valor;
+                    bloqueadasResumen = dataBloqueadas.detalle.bloqueadas.pastilla;
+                } else if (dataBloqueadas.detalle?.filas) {
                     // Contamos solo las tareas operativas (no históricas) para coincidir con el total del detalle
                     bloqueadas = dataBloqueadas.detalle.filas.filter((f) => !f.historica).length;
                 }
@@ -1105,6 +1113,7 @@ export function CentroMando() {
             setMedidoresResumen({
                 listas,
                 bloqueadas,
+                bloqueadasResumen,
                 agentes,
                 agentesResumen,
                 enCurso,
@@ -1944,11 +1953,12 @@ export function CentroMando() {
                                         : "normal"
                                 ) as TonoMedidor,
                                 detalle:
-                                    medidoresResumen?.bloqueadas !== null &&
+                                    medidoresResumen?.bloqueadasResumen ??
+                                    (medidoresResumen?.bloqueadas !== null &&
                                     medidoresResumen?.bloqueadas !== undefined &&
                                     medidoresResumen.bloqueadas > 0
                                         ? "ábrelo para ver por qué"
-                                        : "ninguna esperando",
+                                        : "ninguna esperando"),
                             },
                             {
                                 clave: "sin-publicar" as const,

@@ -78,7 +78,8 @@ describe("el medidor de bloqueadas dice QUÉ cuenta", () => {
 
     it("el resumen aclara que solo cuenta las que esperan a otra tarea", () => {
         const d = detalleDeMedidor("bloqueadas", datos);
-        expect(d.resumen).toContain("esperando a otra tarea");
+        // (2026-10-10, OPB1011) Esperan a algo que no va a llegar: son «atascadas», no esperas en cadena.
+        expect(d.resumen).toContain("2 atascadas");
         expect(d.resumen).toContain("Ramificación");
     });
 

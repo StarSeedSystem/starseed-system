@@ -23,6 +23,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "@/components/mando/bloqueadas-panel";
+import { BloqueadasGrupos } from "@/components/mando/bloqueadas-grupos";
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 
@@ -746,11 +747,17 @@ export function PanelMedidor({
                 // genérica: la ÚNICA lista de bloqueadas es `BloqueadasPanel`, con la
                 // causa, el cambio automático editable y los botones de reparar/escalar
                 // contra la API única `/api/mando/reintentar`.
-                datos.filas.length ? (
-                    <BloqueadasPanel
-                        items={datos.filas.map((f) => itemDesdeFilaMedidor(f, datos.filas.map((x) => x.id)))}
-                        alHecho={() => void cargar()}
-                    />
+                // (2026-10-10, OPB1011) En tres grupos: en cadena, transformadas hoy y necesitan a
+                // Alex; las atascadas siguen en `BloqueadasPanel`, dentro de `BloqueadasGrupos`.
+                datos.filas.length || datos.bloqueadas?.transformadas.length ? (
+                    datos.bloqueadas ? (
+                        <BloqueadasGrupos detalle={datos} alHecho={() => void cargar()} />
+                    ) : (
+                        <BloqueadasPanel
+                            items={datos.filas.map((f) => itemDesdeFilaMedidor(f, datos.filas.map((x) => x.id)))}
+                            alHecho={() => void cargar()}
+                        />
+                    )
                 ) : (
                     <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>
                 )

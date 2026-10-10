@@ -55,6 +55,7 @@ import { fundirTitulosArchivados, parsearIndice } from "@/lib/mando/indice-colas
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { leerPendientes } from "@/lib/mando/publicaciones";
 import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
+import { esOpcionAlex, idDeTareaValido, type EstadoRevisorBloqueadas } from "@/lib/mando/bloqueadas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,6 +88,30 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
         detalle: typeof estado.detalle === "string" ? estado.detalle : undefined,
         ultimaMs: Number.isFinite(ultima) && ultima > 0 ? ultima * 1000 : undefined,
     };
+}
+
+/** (2026-10-10, OPB1011) La última pasada del revisor automático de bloqueadas. Solo lo que pinta
+ *  Genesis: cadenas, transformadas de hoy, decisiones de Alex y cuentas (nunca la memoria entera). */
+async function leerRevisorBloqueadas(): Promise<EstadoRevisorBloqueadas | null> {
+    try {
+        const crudo = JSON.parse(
+            await readFile(path.join(RAÍZ, "starseed_memory_root", "olas", "revisor-bloqueadas.json"), "utf8"),
+        ) as EstadoRevisorBloqueadas & { memoria?: unknown };
+        if (!crudo || typeof crudo !== "object") return null;
+        return {
+            t: crudo.t,
+            medio: crudo.medio,
+            cola_viva: crudo.cola_viva,
+            cadenas: Array.isArray(crudo.cadenas) ? crudo.cadenas.slice(0, 40) : [],
+            en_cadena: crudo.en_cadena && typeof crudo.en_cadena === "object" ? crudo.en_cadena : {},
+            transformadas_hoy: Array.isArray(crudo.transformadas_hoy) ? crudo.transformadas_hoy.slice(-120) : [],
+            necesitan_alex: crudo.necesitan_alex && typeof crudo.necesitan_alex === "object" ? crudo.necesitan_alex : {},
+            cuentas: crudo.cuentas,
+            resumen: crudo.resumen,
+        };
+    } catch {
+        return null;
+    }
 }
 
 /** Correcciones pendientes de aplicar (`olas/progreso-correcciones.json`): solo estado y nota. */
@@ -771,6 +796,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // (2026-10-09) Lo que el director ya decidió y el vigilante aún no aplicó (espera a que
         // acabe la tanda): sin esto «Fallidas» seguía enseñando como sin dueño lo ya resuelto.
         correcciones: await leerCorrecciones(),
+        revisorBloqueadas: await leerRevisorBloqueadas(),
         contenedores,
         creditoClaude: await leerCreditoClaude().catch(() => null),
         limitesClaude: await leerLimitesClaude().catch(() => null),
@@ -884,7 +910,7 @@ export async function POST(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
 
-    let cuerpo: { clave?: string; accion?: string; id?: string; texto?: string; ids?: unknown };
+    let cuerpo: { clave?: string; accion?: string; id?: string; texto?: string; ids?: unknown; opcion?: unknown };
     try {
         cuerpo = (await peticion.json()) as typeof cuerpo;
     } catch {
@@ -993,6 +1019,34 @@ export async function POST(peticion: Request): Promise<Response> {
         } catch (e) {
             const msj = e instanceof Error ? e.message : String(e);
             return Response.json({ error: `No pude recomprobar las bloqueadas: ${msj.slice(0, 300)}` }, { status: 500 });
+        }
+    }
+
+    // (2026-10-10, OPB1011) «Necesitan a Alex»: UNA decisión por tarea, con su botón. Rehacer (vuelve
+    // a transformarse con otro enfoque, contador a cero) o descartar (rechazada, rama conservada).
+    if (accion === "decidir-bloqueada") {
+        const opcion = cuerpo.opcion;
+        if (!idDeTareaValido(id) || !esOpcionAlex(opcion)) {
+            return Response.json({ error: "Falta la tarea o la opción (rehacer | descartar)." }, { status: 400 });
+        }
+        try {
+            const { stdout } = await correr("python3", ["scripts/puente/revisor_bloqueadas.py", "decidir", id, opcion], {
+                cwd: RAÍZ,
+                timeout: 60_000,
+                windowsHide: true,
+            });
+            const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as { ok?: boolean; error?: string };
+            if (!r.ok) return Response.json({ error: r.error || "No se pudo aplicar la decisión." }, { status: 500 });
+            return Response.json({
+                ok: true,
+                resumen:
+                    opcion === "rehacer"
+                        ? `${id} vuelve a la cola con otro enfoque: el revisor la vigila desde cero.`
+                        : `${id} descartada por ti; su rama queda guardada.`,
+            });
+        } catch (e) {
+            const msj = e instanceof Error ? e.message : String(e);
+            return Response.json({ error: `No pude aplicar tu decisión: ${msj.slice(0, 300)}` }, { status: 500 });
         }
     }
 

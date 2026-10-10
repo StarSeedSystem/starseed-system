@@ -35,7 +35,8 @@ describe("medidores - bloqueadas (coincidencia con fila operativa)", () => {
         const d = detalleDeMedidor("bloqueadas", { progreso, fila, latidos: [] });
 
         // La cabecera dice 2 (mismo número que la pastilla)
-        expect(d.resumen).toMatch(/^2 esperando/);
+        // (2026-10-10, OPB1011) Esperan a algo que no llegará: «atascadas», el número de la pastilla.
+        expect(d.resumen).toMatch(/^2 atascadas/);
 
         // La sección histórica dice 7
         expect(d.historicas).toBe(7);

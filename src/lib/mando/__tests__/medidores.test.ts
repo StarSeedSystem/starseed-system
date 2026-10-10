@@ -610,7 +610,8 @@ describe("las dependencias se miden con la regla del orquestador (cadenas)", () 
         expect(fila?.estado).toBe("bloqueada");
         expect(fila?.porque).toContain("siguen vivas");
         expect(JSON.stringify(fila?.ficha)).toContain("la rehace PRD1005Sc");
-        expect(d.resumen).toContain("1 esperando a otra tarea");
+        // (2026-10-10, OPB1011) Las esperas vivas se cuentan como «en cadena», no como bloqueo.
+        expect(d.resumen).toContain("1 en cadena");
     });
 
     it("«Listas» no ofrece lo que el orquestador no cogería (RM7 con RM6 rehaciéndose)", () => {

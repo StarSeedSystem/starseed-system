@@ -158,6 +158,12 @@ class CapacidadPrimero(unittest.TestCase):
     sus modelos debe ser PRIORIDAD». Una tarea que sube el techo del sistema no vale por
     si misma: vale por todo lo que vendra despues."""
 
+    def test_la_memoria_de_la_mac_es_capacidad(self):
+        # 2026-10-10: con la swap llena tsc no terminaba y nada pasaba las puertas.
+        from prioridad_logica import es_de_capacidad
+        self.assertTrue(es_de_capacidad({"id": "CNS1010Mc", "archivos": ["scripts/puente/guardia-memoria.py"]}))
+        self.assertFalse(es_de_capacidad({"id": "X", "archivos": ["src/lib/xr/tipos.ts"]}))
+
     def test_una_tarea_de_capacidad_gana_a_una_normal_mas_antigua(self):
         capacidad = {"id": "CAP", "archivos": ["scripts/puente/gobernador-recursos.py"]}
         normal = {"id": "NOR", "archivos": ["src/components/x.tsx"],

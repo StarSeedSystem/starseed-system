@@ -58,6 +58,10 @@ RUTAS_CAPACIDAD = (
     "scripts/puente/modelos",         # que modelo escribe cada tarea
     "scripts/puente/repartir-a-nube", # como se reparte entre medios
     ".github/workflows/enjambre-nube",
+    # (2026-10-10, medido) Con la swap llena, tsc no terminaba en 15 min («tsc no terminó (sin
+    # memoria)») y NINGUNA tarea pasaba sus puertas: la memoria de la Mac es el techo de todo.
+    "scripts/puente/guardia-memoria", # libera de verdad los motores congelados
+    "scripts/puente/turno_pesado",    # el turno de máquina de tsc/vitest
 )
 
 ESTADOS_EMPEZADOS = ("interrumpida", "fallo_tsc", "fallo_tests")

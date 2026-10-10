@@ -282,6 +282,113 @@ class Aprendizaje(unittest.TestCase):
         self.assertEqual(L.elegir_accion("tarea:tsc", ["reescribir", "reasignar"], {}, ["reescribir"]), "reasignar")
 
 
+class SegundaPasada1010(unittest.TestCase):
+    """Lo que la primera versión del revisor no veía (medido el 2026-10-10 por la tarde)."""
+
+    def test_sucesora_no_se_fusiona_y_la_vieja_cede(self):
+        # El vigía creó «…-1ab» para rehacer «…-1a»; el revisor la fusionaba de vuelta siete veces.
+        a = T("S1010-EV-ORACLE-1a", titulo="Relé de estaciones: núcleo", archivos=["r.ts", "r.test.ts"])
+        ab = T("S1010-EV-ORACLE-1ab", titulo="Relé de estaciones: núcleo", archivos=["r.ts", "r.test.ts"])
+        b = T("S1010-EV-ORACLE-1b", ["S1010-EV-ORACLE-1a"], titulo="Relé: servidor WebSocket", archivos=["s.ts"])
+        prog = {"S1010-EV-ORACLE-1a": {"estado": "fallo_tsc", "nota": "2 errores tsc", "t": _t(60)},
+                "S1010-EV-ORACLE-1ab": {"estado": "pendiente", "t": _t(5)}}
+        dec = L.decidir(foto([a, ab, b], prog))
+        self.assertFalse([x for x in acciones_de(dec, "S1010-EV-ORACLE-1ab") if x["accion"] == "fusionar"])
+        cede = acciones_de(dec, "S1010-EV-ORACLE-1a")[0]
+        self.assertEqual(cede["accion"], "ceder")
+        self.assertEqual(cede["datos"]["por"], "S1010-EV-ORACLE-1ab")
+        # Y su dependiente espera a la sucesora, no a «…-1b» por compartir base.
+        self.assertIn("S1010-EV-ORACLE-1ab", dec["en_cadena"]["S1010-EV-ORACLE-1b"]["va_por"])
+
+    def test_reapertura_que_la_tanda_no_recoge_se_vuelve_a_pedir(self):
+        prog = {"PM1010F0Bc": {"estado": "pendiente", "nota": "director: reintento gratuito 2/8", "t": _t(1),
+                               "intentos_auto": 2,
+                               "reapertura": {"estado_disco": "fallo_tsc", "t_disco": _t(300)}}}
+        tareas = [T("PM1010F0Bc"), T("PM1010F0D", ["PM1010F0B"])]
+        f = foto(tareas, prog, cola_viva="cola-auto-1.json",
+                 colas={"cola-auto-1.json": ["PM1010F0Bc"], "cola-p.json": ["PM1010F0D"]},
+                 progreso_disco={"PM1010F0Bc": {"estado": "fallo_tsc", "t": _t(300)}})
+        dec = L.decidir(f)
+        a = acciones_de(dec, "PM1010F0Bc")[0]
+        self.assertEqual(a["accion"], "reabrir")
+        self.assertTrue(a["datos"]["no_cuenta"])
+        # La cadena se pinta honesta: no «pendiente en cola», sino que falló y vuelve.
+        self.assertIn("falló (fallo_tsc)", dec["en_cadena"]["PM1010F0D"]["raiz_va_por"])
+
+    def test_reapertura_reciente_se_deja_al_vigilante(self):
+        prog = {"X9": {"estado": "pendiente", "t": _t(1),
+                       "reapertura": {"estado_disco": "fallo_tsc", "t_disco": _t(5)}}}
+        f = foto([T("X9")], prog, cola_viva="cola-auto-1.json", colas={"cola-auto-1.json": ["X9"]})
+        self.assertFalse(acciones_de(L.decidir(f), "X9"))
+
+    def test_soltada_por_la_tanda_y_vuelta_a_pendiente_se_pide(self):
+        prog = {"Y9": {"estado": "pendiente", "t": _t(10)}}
+        f = foto([T("Y9")], prog, cola_viva="cola-auto-1.json", colas={"cola-auto-1.json": ["Y9"]},
+                 soltadas={"Y9": AHORA - 30 * 60})
+        self.assertEqual(acciones_de(L.decidir(f), "Y9")[0]["accion"], "reabrir")
+
+    def test_escalera_que_no_la_coge_no_deja_esperando(self):
+        # Primer fallo, sin corrección de la escalera y quieta 5 h: el revisor no espera más.
+        prog = {"XR1010Cb": {"estado": "fallo_tests", "nota": "vitest falla", "t": _t(300)}}
+        dec = L.decidir(foto([T("XR1010Cb")], prog, corregidas=[]))
+        self.assertEqual(acciones_de(dec, "XR1010Cb")[0]["accion"], "reescribir")
+        # Con corrección de la escalera en camino, sí se le deja a ella.
+        dec = L.decidir(foto([T("XR1010Cb")], prog, corregidas=["XR1010Cb"]))
+        self.assertFalse(acciones_de(dec, "XR1010Cb"))
+
+    def test_dependencias_sin_instalar_esperan_y_luego_reintentan_sin_gastar(self):
+        lineas = ["$ npx tsc --noEmit --skipLibCheck",
+                  "src/components/network/vincular-sin-internet.tsx(61,12): error TS2307: Cannot find module "
+                  "'qrcode' or its corresponding type declarations."]
+        diag = L.diagnostico_tsc(lineas, ["qrcode", "next"], ["qrcode"])
+        self.assertEqual(len(diag["entorno"]), 1)
+        self.assertFalse(diag["propios"])
+        prog = {"PM1": {"estado": "fallo_tsc", "nota": "1 errores tsc", "t": _t(60), "intentos_auto": 2}}
+        dec = L.decidir(foto([T("PM1")], prog, diagnosticos={"PM1": diag}, deps_faltan=["qrcode"]))
+        self.assertFalse(acciones_de(dec, "PM1"))  # se están instalando: reintentar ahora fallaría igual
+        diag2 = L.diagnostico_tsc(lineas, ["qrcode", "next"], [])
+        dec = L.decidir(foto([T("PM1")], prog, diagnosticos={"PM1": diag2}, deps_faltan=[]))
+        a = acciones_de(dec, "PM1")[0]
+        self.assertEqual((a["accion"], a["clase"]), ("reintentar", "medio:dependencias"))
+        self.assertTrue(a["datos"]["no_cuenta"])
+
+    def test_alias_interno_no_es_del_entorno(self):
+        lineas = ["$ npx tsc --noEmit",
+                  "src/x.ts(5,36): error TS2307: Cannot find module '@/lib/xr/capacidades' or its corresponding"]
+        self.assertEqual(len(L.diagnostico_tsc(lineas, ["three"], [])["propios"]), 1)
+
+    def test_reparador_sin_cupo_es_del_medio_y_lleva_los_errores(self):
+        lineas = [
+            "$ opencode run --model apinex/free/qwen-3.8-max · 2026-10-10 08:28:39",
+            "> build · free/qwen-3.8-max\x1b[91mError: Free 10M tokens used. Buy a subscription to get more.",
+            "$ npx tsc --noEmit --skipLibCheck",
+            "src/lib/protomolecula/registro-atomos.ts(301,3): error TS1128: Declaration or statement expected.",
+        ]
+        diag = L.diagnostico_tsc(lineas, [], [])
+        self.assertIn("tokens used", diag["reparador_sin_cupo"])
+        prog = {"PM1010F0Bc": {"estado": "fallo_tsc", "nota": "3 errores tsc", "t": _t(300), "intentos_auto": 1}}
+        dec = L.decidir(foto([T("PM1010F0Bc")], prog, diagnosticos={"PM1010F0Bc": diag}))
+        a = acciones_de(dec, "PM1010F0Bc")[0]
+        self.assertEqual((a["accion"], a["clase"]), ("reintentar", "medio:proveedor"))
+        self.assertIn("registro-atomos.ts(301,3)", a["datos"]["mensaje"])
+
+    def test_la_sucesora_hereda_a_quien_esperaba_a_su_predecesora(self):
+        tareas = [T("HOJA"), T("PM1010F0Bc")] + [T("H%d" % i, ["PM1010F0B"]) for i in range(5)]
+        colas = {"cola-auto-1.json": ["HOJA", "PM1010F0Bc"], "cola-p.json": ["H%d" % i for i in range(5)]}
+        prog = {"PM1010F0B": {"estado": "sustituida"}}
+        dec = L.decidir(foto(tareas, prog, cola_viva="cola-auto-1.json", colas=colas))
+        self.assertEqual(dec["orden_cola"], ["PM1010F0Bc", "HOJA"])
+        pr = [a for a in dec["acciones"] if a["accion"] == "priorizar"][0]
+        self.assertEqual(pr["datos"]["orden"][0], "PM1010F0Bc")
+        self.assertIn("PM1010F0Bc (+5)", pr["motivo"])
+
+    def test_los_reintentos_del_medio_no_cuentan_para_preguntar_a_alex(self):
+        hist = [{"t": _t(m), "tid": "Q3", "accion": "reintentar", "clase": "medio:proveedor"} for m in (300, 200, 100)]
+        prog = {"Q3": {"estado": "fallo_tsc", "nota": "tsc sigue con 1 errores", "t": _t(40), "intentos_auto": 4}}
+        dec = L.decidir(foto([T("Q3")], prog, memoria={"historial": hist}))
+        self.assertNotEqual(acciones_de(dec, "Q3")[0]["accion"], "pedir_a_alex")
+
+
 class Servicio(unittest.TestCase):
     """La capa de disco en un árbol temporal: colas, progreso, control y estado."""
 
@@ -397,6 +504,58 @@ class Servicio(unittest.TestCase):
         self.assertIn("--bucle --cada", unidad)
         self.assertIn("STARSEED_ROOT=%s" % self.tmp, unidad)
         self.assertIn("Restart=always", unidad)
+
+    def test_lo_que_cierra_va_tambien_a_las_correcciones(self):
+        # Sin esto, la corrección «pendiente» vieja de la escalera resucitaba a PM1010F0B al morir la tanda.
+        self._escribir("cola-auto-1.json", [T("PM1010F0B"), T("PM1010F0Bc")])
+        self._escribir("cola-proto.json", [T("PM1010F0D", ["PM1010F0B"])])
+        self._escribir("progreso.json", {"PM1010F0B": {"estado": "fallo_tsc", "nota": "1 errores tsc", "t": _t(400)},
+                                         "PM1010F0Bc": {"estado": "pendiente", "t": _t(5)}})
+        self._escribir("progreso-correcciones.json", {"PM1010F0B": {"estado": "pendiente", "t": _t(390),
+                                                                    "nota": "director: reintento gratuito 2/8"}})
+        with mock.patch.object(self.R, "_cola_viva", lambda: "cola-auto-1.json"), \
+                mock.patch.object(self.R, "_sh", lambda orden, timeout=30: (0, "")):
+            inf = self.R.pasada(jev=False, ahora=AHORA)
+        self.assertIn(("PM1010F0B", "ceder"), {(a["tid"], a["accion"]) for a in inf["acciones"]})
+        self.assertEqual(self._leer("progreso.json")["PM1010F0B"]["estado"], "sustituida")
+        self.assertEqual(self._leer("progreso-correcciones.json")["PM1010F0B"]["estado"], "sustituida")
+        self.assertEqual(self._leer("cola-proto.json")[0]["depende"], ["PM1010F0Bc"])  # recableada
+
+    def test_dependencias_que_faltan_se_detectan(self):
+        with open(os.path.join(self.tmp, "package.json"), "w", encoding="utf-8") as f:
+            json.dump({"dependencies": {"qrcode": "^1.5.4", "next": "15"}, "devDependencies": {"vitest": "3"}}, f)
+        os.makedirs(os.path.join(self.tmp, "node_modules", "next"))
+        os.makedirs(os.path.join(self.tmp, "node_modules", "vitest"))
+        declarados, faltan = self.R.paquetes_declarados_y_faltan(self.tmp)
+        self.assertEqual(faltan, ["qrcode"])
+        self.assertIn("vitest", declarados)
+        with mock.patch.object(self.R, "ESTADO_NPM", os.path.join(self.tmp, "npm.json")), \
+                mock.patch.object(self.R, "_sh", lambda orden, timeout=30: (0, "")):
+            reg = self.R.asegurar_dependencias(seco=True)
+        self.assertEqual(reg["accion"], "instalar_dependencias")
+        self.assertIn("qrcode", reg["motivo"])
+
+    def test_fallos_por_memoria_alivian_la_mac_una_vez_cada_diez_minutos(self):
+        fallos = {"S1010-TU-LL1b": [{"t": _t(10), "tipo": "fallo",
+                                     "texto": "tsc no terminó (sin memoria): la puerta no da el visto bueno"}]}
+        llamadas = []
+
+        def falso_post(url, cuerpo=None, timeout=6):
+            llamadas.append(url)
+            return True, ({"cedidos": 1} if url.endswith("/ceder") else {"dormido": True})
+
+        with mock.patch.object(self.R, "ESTADO_ALIVIO", os.path.join(self.tmp, "alivio.json")), \
+                mock.patch.object(self.R.platform, "system", lambda: "Darwin"), \
+                mock.patch.object(self.R, "_post_local", falso_post):
+            reg = self.R.aliviar_memoria_si_hace_falta(fallos, AHORA)
+            self.assertEqual(reg["accion"], "aliviar_memoria")
+            self.assertIn("voz: 1 servidor(es) cedido(s)", reg["motivo"])
+            self.assertIn("BitNet: dormido", reg["motivo"])
+            self.assertIsNone(self.R.aliviar_memoria_si_hace_falta(fallos, AHORA + 60))  # respiro de 10 min
+        self.assertEqual(len(llamadas), 2)
+        # Un fallo de la propia tarea no alivia nada.
+        self.assertIsNone(self.R.aliviar_memoria_si_hace_falta(
+            {"X": [{"t": _t(5), "tipo": "fallo_tsc", "texto": "3 errores tsc"}]}, AHORA + 3600))
 
     def test_veto_de_jev_solo_con_certeza(self):
         falso = mock.Mock()

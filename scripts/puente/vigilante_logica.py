@@ -5,6 +5,7 @@
 import os
 import re
 import sys
+import time
 
 # (2026-09-23) El cambio pedido desde Genesis tiene que LLEGAR al agente; la regla vive
 # en scripts/enjambre/cambio_pedido.py y es la misma para la Mac y para la nube.
@@ -254,6 +255,121 @@ def aplicar_correcciones(progreso, correcciones):
         salida[str(tid)] = e
         aplicadas.append(str(tid))
     return salida, aplicadas
+
+
+#: Estados en disco de una tarea de la tanda viva que una corrección «pendiente» sí debe sacar de
+#: su sitio (la tarea está QUIETA en la memoria del orquestador). Pendiente, en curso, integrada o
+#: cerrada no: o ya volvió, o trabaja, o está hecha.
+QUIETAS_REABRIBLES = frozenset({
+    "fallo", "fallo_tsc", "fallo_tests", "fallo_motor", "sin_cambios", "conflicto",
+    "interrumpida", "estancado", "bloqueante", "bloqueada",
+})
+
+
+def _norma(texto):
+    return re.sub(r"\W+", " ", str(texto or "")).strip().lower()
+
+
+def es_sucesora(k, tid, tareas=None):
+    """¿`k` rehace a `tid` (Xb → Xc, X → Xb, «S1010-EV-ORACLE-1a» → «…-1ab», X → X-d1)?
+
+    (2026-10-10, medido) «S1010-EV-ORACLE-1b» NO es la sucesora de «S1010-EV-ORACLE-1a»: son dos
+    tareas distintas de la misma ola que comparten base por casualidad (1b depende de 1a). Por
+    eso no basta la base de la cadena: hace falta que el id de `k` empiece por el de `tid`, o
+    que las dos digan lo mismo (título o archivos)."""
+    k, tid = str(k or ""), str(tid or "")
+    if not k or not tid or k == tid or k <= tid:
+        return False
+    if k.startswith(tid):
+        resto = k[len(tid):]
+        return bool(re.fullmatch(r"[a-z]{1,2}|-d\d+[a-z]?", resto))
+    if base_de_cadena(k) != base_de_cadena(tid) or base_de_cadena(tid) == tid:
+        return False
+    tk = (tareas or {}).get(k) or {}
+    tt = (tareas or {}).get(tid) or {}
+    if _norma(tk.get("titulo")) and _norma(tk.get("titulo")) == _norma(tt.get("titulo")):
+        return True
+    fk = sorted(str(a) for a in (tk.get("archivos") or []))
+    ft = sorted(str(a) for a in (tt.get("archivos") or []))
+    return bool(fk) and fk == ft
+
+
+def tiene_sucesora_viva(tid, progreso, tareas=None):
+    """La sucesora de `tid` que sigue en juego (no rechazada ni descartada), o None."""
+    candidatas = set(progreso or {}) | set(tareas or {})
+    for k in sorted(candidatas):
+        if not es_sucesora(k, tid, tareas):
+            continue
+        e = (progreso or {}).get(k)
+        est = e.get("estado") if isinstance(e, dict) else ""
+        if est in ("rechazada", "descartada"):
+            continue
+        return k
+    return None
+
+
+def _t_epoch(t):
+    if isinstance(t, (int, float)):
+        return float(t)
+    s = str(t or "")[:19].replace("T", " ")
+    try:
+        return time.mktime(time.strptime(s, "%Y-%m-%d %H:%M:%S"))
+    except ValueError:
+        return 0.0
+
+
+def clave_reapertura(correccion):
+    """El PELDAÑO de la escalera que pide una corrección: (intentos, reintentos del medio, modelo).
+    El director reescribe la misma corrección en cada pasada con otra hora; el peldaño no cambia."""
+    c = correccion if isinstance(correccion, dict) else {}
+    return "%s|%s|%s" % (
+        int(c.get("intentos_auto") or 0),
+        int(c.get("reintentos_medio") or 0),
+        str(c.get("modelo_siguiente") or ""),
+    )
+
+
+def reaperturas_de_la_tanda(correcciones, progreso, en_cola, pedidas, ahora, tareas=None,
+                            perdida_s=1800):
+    """PURA. {tid: clave} de las correcciones que hay que pedir a la tanda viva con `reabrir`.
+
+    (2026-10-10, medido) El vigilante recordaba en memoria «ya pedí reabrir X en esta tanda» y no
+    lo volvía a pedir NUNCA: la escalera reabría PM1010F0Bc (1/8), volvía a fallar y su «2/8»
+    se quedaba en `progreso-correcciones.json` para siempre. La tanda llevaba 14 h viva: 77
+    tareas en cadena detrás de raíces que nadie volvía a coger, y Genesis y el revisor las veían
+    «pendientes» porque leían la corrección. Ahora se pide cada PELDAÑO una vez:
+
+    - la corrección pide «pendiente» y la tarea es de la tanda viva;
+    - en disco sigue QUIETA (fallo, sin cambios…): si ya está pendiente o trabajando, ya volvió;
+    - la corrección es posterior a ese fallo (responde a ESTE fallo, no a uno viejo);
+    - no tiene una sucesora en juego (Xb, Xc): si la tiene, la cadena sigue por ella y reabrir
+      la vieja era hacer el mismo trabajo dos veces;
+    - ese peldaño no se pidió ya, salvo que se pidiera hace más de `perdida_s` y la tarea no se
+      haya movido desde entonces (la orden se perdió: p. ej. el orquestador se reinició).
+
+    `pedidas`: {tid: {"clave": str, "t": epoch}} de lo ya pedido (persistido por quien llama)."""
+    salida = {}
+    en_cola = set(en_cola or ())
+    for tid, c in (correcciones or {}).items():
+        if not isinstance(c, dict) or str(c.get("estado")) != "pendiente" or tid not in en_cola:
+            continue
+        e = (progreso or {}).get(tid)
+        e = e if isinstance(e, dict) else {}
+        if e.get("estado") not in QUIETAS_REABRIBLES:
+            continue
+        t_disco = _t_epoch(e.get("t"))
+        if _t_epoch(c.get("t")) + 5 < t_disco:
+            continue
+        if tiene_sucesora_viva(tid, progreso, tareas):
+            continue
+        clave = clave_reapertura(c)
+        previa = (pedidas or {}).get(tid) if isinstance(pedidas, dict) else None
+        if isinstance(previa, dict) and previa.get("clave") == clave:
+            t_previa = float(previa.get("t") or 0)
+            if not (ahora - t_previa > perdida_s and t_disco < t_previa):
+                continue
+        salida[tid] = clave
+    return salida
 
 
 def ids_colisionados(tareas, asuntos, progreso=None):

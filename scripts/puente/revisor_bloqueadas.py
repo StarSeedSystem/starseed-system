@@ -180,7 +180,156 @@ def _fallos_recientes(ahora, ventana_s=72 * 3600):
             salida.setdefault(tid, []).append({"t": e.get("t"), "tipo": e.get("tipo"), "texto": texto[:600]})
         elif e.get("tipo") == "aviso" and "vuelve a la tanda" in texto:
             reabiertas[tid] = max(reabiertas.get(tid, 0.0), t)
+        elif e.get("tipo") == "aviso" and "no la repito" in texto:
+            _SOLTADAS[tid] = max(_SOLTADAS.get(tid, 0.0), t)
     return {k: v[-6:] for k, v in salida.items()}, reabiertas
+
+
+#: {id: epoch} de la última vez que la tanda viva apartó la tarea «como cerrada» (se rellena al leer
+#: los eventos en `_fallos_recientes`).
+_SOLTADAS = {}
+
+
+def soltadas_por_la_tanda(reabiertas):
+    """{id: epoch} de las que la tanda apartó como cerradas DESPUÉS de su última reapertura."""
+    return {tid: t for tid, t in _SOLTADAS.items() if t > float(reabiertas.get(tid) or 0)}
+
+
+# ── dependencias del entorno y registros de las tareas ─────────────────────────────────────
+def paquetes_declarados_y_faltan(raiz=None):
+    """(declarados, faltan): paquetes de package.json y los que no están en node_modules.
+
+    (2026-10-10, medido) La Ola 1010 declaró `qrcode` y seis paquetes de XR, y node_modules de la
+    Mac era del 3 de octubre: cada tsc del enjambre arrastraba «Cannot find module 'qrcode'» de un
+    archivo de main. Sin node_modules (un medio que no compila) no se mira nada."""
+    raiz = raiz or RAIZ
+    pj = _leer(os.path.join(raiz, "package.json"), {})
+    nm = os.path.join(raiz, "node_modules")
+    declarados = []
+    for sec in ("dependencies", "devDependencies"):
+        declarados.extend(sorted((pj.get(sec) or {}) if isinstance(pj, dict) else {}))
+    if not os.path.isdir(nm):
+        return declarados, []
+    faltan = [p for p in declarados if not os.path.isdir(os.path.join(nm, p))]
+    return declarados, faltan
+
+
+ESTADO_NPM = os.path.expanduser("~/.starseed/revisor-dependencias.json")
+NPM_CADA_S = 30 * 60
+
+
+def asegurar_dependencias(seco=False):
+    """Instala lo declarado que falta en node_modules (con el turno de la máquina). Devuelve un
+    registro para «Transformadas hoy» o None. Nunca toca package.json ni el lock: si npm los
+    cambiara, se devuelven a como estaban (eran del repo)."""
+    declarados, faltan = paquetes_declarados_y_faltan()
+    if not faltan:
+        return None
+    estado = _leer(ESTADO_NPM, {})
+    estado = estado if isinstance(estado, dict) else {}
+    if time.time() - float(estado.get("t") or 0) < NPM_CADA_S:
+        return None
+    rc_vivo, procesos = _sh(["ps", "-axo", "args="], timeout=20)
+    if any(("npm install" in l or "npm ci" in l) for l in (procesos or "").splitlines()):
+        return None
+    reg = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "tid": "", "accion": "instalar_dependencias",
+           "clase": "medio:dependencias", "medio": MEDIO,
+           "motivo": "package.json declara %d paquete(s) que no están instalados (%s): sin ellos el tsc de "
+                     "CADA tarea falla por algo que no es suyo" % (len(faltan), ", ".join(faltan[:6]))}
+    if seco:
+        reg["resultado"] = "seco"
+        return reg
+    _, sucio_antes = _sh(["git", "status", "--porcelain", "--", "package.json", "package-lock.json"])
+    _escribir(ESTADO_NPM, {"t": time.time(), "faltan": faltan})
+    rc, salida = _sh([sys.executable, os.path.join(DIRECTORIO, "con-turno.py"), "--", "npm", "install",
+                      "--include=dev", "--no-save", "--no-audit", "--no-fund", "--ignore-scripts",
+                      "--loglevel=error"], timeout=25 * 60)
+    _, sucio_despues = _sh(["git", "status", "--porcelain", "--", "package.json", "package-lock.json"])
+    if not (sucio_antes or "").strip() and (sucio_despues or "").strip():
+        _sh(["git", "checkout", "--", "package.json", "package-lock.json"])
+    _, faltan_despues = paquetes_declarados_y_faltan()
+    reg["resultado"] = "aplicada" if not faltan_despues else "error: npm rc=%s, siguen faltando %s" % (
+        rc, ", ".join(faltan_despues[:6]))
+    _escribir(ESTADO_NPM, {"t": time.time(), "faltan": faltan_despues, "rc": rc})
+    return reg
+
+
+ESTADO_ALIVIO = os.path.expanduser("~/.starseed/revisor-alivio.json")
+ALIVIO_CADA_S = 10 * 60
+URL_VOZ = os.environ.get("STARSEED_VOZ_URL") or "http://127.0.0.1:4444"
+URL_ASTRAURA = os.environ.get("STARSEED_ASTRAURA_URL") or "http://127.0.0.1:8000"
+
+
+def _post_local(url, cuerpo=None, timeout=6):
+    """POST a un servicio LOCAL de la neurona. (ok, json|None). Nunca lanza."""
+    import urllib.request
+
+    try:
+        datos = json.dumps(cuerpo or {}).encode("utf-8")
+        req = urllib.request.Request(url, data=datos, method="POST",
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return True, json.loads(r.read().decode("utf-8") or "{}")
+    except Exception:
+        return False, None
+
+
+def aliviar_memoria_si_hace_falta(fallos, ahora, seco=False):
+    """Si en los últimos 30 min hubo tareas que fallaron por MEMORIA (tsc que no termina), libera
+    lo que Genesis libera con «Aliviar memoria»: el servidor de voz en reposo (se relanza solo en la
+    siguiente frase) y el BitNet si lleva un minuto sin uso (el chat lo despierta). Registro o None.
+
+    (2026-10-10, medido) Con dos servidores de voz de 900 MB y la swap llena, `tsc` pasaba de 15 min
+    («tsc no terminó (sin memoria)») y las tres tareas de la Mac caían una tras otra: reintentarlas
+    sin liberar nada era repetir el mismo fallo."""
+    recientes = sorted({
+        tid for tid, eventos in (fallos or {}).items() for e in eventos or ()
+        if ahora - logica._t_epoch(e.get("t")) < 30 * 60
+        and logica.clase_de_fallo(e.get("texto")) in ("medio:memoria", "medio:tiempo")
+    })
+    if not recientes or platform.system() != "Darwin":
+        return None
+    estado = _leer(ESTADO_ALIVIO, {})
+    if ahora - float((estado or {}).get("t") or 0) < ALIVIO_CADA_S:
+        return None
+    reg = {"t": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)), "tid": "", "accion": "aliviar_memoria",
+           "clase": "medio:memoria", "medio": MEDIO,
+           "motivo": "%d tarea(s) fallaron por memoria en 30 min (%s)" % (len(recientes), ", ".join(recientes[:5]))}
+    if seco:
+        reg["resultado"] = "seco"
+        return reg
+    _escribir(ESTADO_ALIVIO, {"t": ahora, "tareas": recientes})
+    ok_voz, voz = _post_local(URL_VOZ + "/ceder")
+    ok_bit, bit = _post_local(URL_ASTRAURA + "/api/bitnet/dormir", {"min_inactivo_s": 60})
+    partes = []
+    if ok_voz:
+        partes.append("voz: %s servidor(es) cedido(s)" % (voz or {}).get("cedidos", "?"))
+    if ok_bit:
+        partes.append("BitNet: %s" % ("dormido" if (bit or {}).get("dormido") else "en uso, sigue"))
+    reg["motivo"] += "; " + ("; ".join(partes) if partes else "no respondió ningún servicio local")
+    reg["resultado"] = "aplicada" if partes else "sin servicios"
+    return reg
+
+
+def _diagnosticos(progreso_disco, declarados, faltan, ahora, tope=60):
+    """{id: diagnóstico} del último tsc de cada tarea quieta en «fallo_tsc» (los 3 últimos días)."""
+    salida = {}
+    candidatas = sorted(
+        ((tid, e) for tid, e in (progreso_disco or {}).items()
+         if isinstance(e, dict) and e.get("estado") == "fallo_tsc"
+         and ahora - logica._t_epoch(e.get("t")) < 3 * 24 * 3600),
+        key=lambda x: logica._t_epoch(x[1].get("t")), reverse=True)[:tope]
+    for tid, _e in candidatas:
+        ruta = os.path.join(OLAS, "logs", "%s.log" % tid)
+        try:
+            tam = os.path.getsize(ruta)
+            with open(ruta, "rb") as f:
+                f.seek(max(0, tam - 400_000))
+                lineas = f.read().decode("utf-8", "replace").splitlines()
+        except OSError:
+            continue
+        salida[tid] = logica.diagnostico_tsc(lineas, declarados, faltan)
+    return salida
 
 
 def _codex_ok():
@@ -246,14 +395,21 @@ def reunir(ahora=None):
             colas[nombre] = ids
     progreso = _leer(PROGRESO, {})
     progreso = progreso if isinstance(progreso, dict) else {}
+    progreso_disco = {k: (dict(v) if isinstance(v, dict) else v) for k, v in progreso.items()}
     # Lo que el director ya decidió y aún no se aplicó cuenta como hecho: si no, el revisor
-    # «arreglaría» lo que la escalera ya está arreglando.
+    # «arreglaría» lo que la escalera ya está arreglando. (2026-10-10) Pero se anota que es una
+    # REAPERTURA PENDIENTE (en disco sigue quieta): si la tanda viva no la recoge, el revisor lo ve.
     correcciones = _leer(CORRECCIONES, {})
+    corregidas = set()
     if isinstance(correcciones, dict):
         for tid, c in correcciones.items():
             if isinstance(c, dict) and c.get("estado"):
+                corregidas.add(tid)
                 e = dict(progreso.get(tid) or {})
                 if logica._t_epoch(c.get("t")) >= logica._t_epoch(e.get("t")):
+                    if c.get("estado") == "pendiente" and e.get("estado") in logica.QUIETOS:
+                        e["reapertura"] = {"estado_disco": e.get("estado"), "t_disco": e.get("t"),
+                                           "nota_disco": str(e.get("nota") or "")[:200]}
                     for k in ("estado", "nota", "intentos_auto", "modelo_siguiente"):
                         if k in c:
                             e[k] = c[k]
@@ -272,11 +428,17 @@ def reunir(ahora=None):
          if isinstance(e, dict) and e.get("estado") in logica.QUIETOS and tid not in tareas
          and ahora - logica._t_epoch(e.get("t")) < 3 * 24 * 3600])
     estado = _leer(ESTADO, {})
+    declarados, faltan = paquetes_declarados_y_faltan()
     return {
         "tareas": tareas,
         "colas": colas,
         "cola_viva": cola_viva,
         "progreso": progreso,
+        "progreso_disco": progreso_disco,
+        "corregidas": sorted(corregidas),
+        "soltadas": soltadas_por_la_tanda(reabiertas),
+        "diagnosticos": _diagnosticos(progreso_disco, declarados, faltan, ahora),
+        "deps_faltan": faltan,
         "asuntos": (asuntos or "").splitlines(),
         "head": (head or "").strip(),
         "fallos": fallos,
@@ -409,6 +571,10 @@ def aplicar(decision, foto, seco=False, jev=True):
     hay_tanda = bool(cola_viva)
     registros = []
     a_progreso, a_control = {}, {}
+    #: (2026-10-10) Lo que el revisor CIERRA va también a `progreso-correcciones.json`: si no, una
+    #: corrección «pendiente» vieja de otro director la resucitaba al morir la tanda (el vigía y el
+    #: revisor se pasaron «S1010-EV-ORACLE-1ab» siete veces).
+    a_corregir = {}
     for a in decision.get("acciones") or []:
         tid, acc = a.get("tid"), a.get("accion")
         datos = a.get("datos") or {}
@@ -427,16 +593,19 @@ def aplicar(decision, foto, seco=False, jev=True):
                 continue
         en_tanda = hay_tanda and tid in ids_viva
         try:
-            if acc in ("ya_hecha", "fusionar"):
+            if acc in ("ya_hecha", "fusionar", "ceder"):
                 campos = {"estado": datos.get("estado") or "sustituida",
                           "nota": "revisor: %s" % a.get("motivo")}
                 if datos.get("por"):
                     campos["sustituida_por"] = datos["por"]
                 a_progreso[tid] = campos
-                if acc == "fusionar" and datos.get("por"):
+                a_corregir[tid] = campos
+                if acc in ("fusionar", "ceder") and datos.get("por"):
+                    # Quien la esperaba pasa a esperar a la que de verdad la rehace: la regla de la
+                    # «letra final» no ve que «…-1ab» rehace «…-1a» y el dependiente esperaría siempre.
                     _recablear(tid, datos["por"])
                 reg["resultado"] = "aplicada"
-            elif acc in ("reintentar", "reintegrar", "reescribir", "reasignar"):
+            elif acc in ("reintentar", "reintegrar", "reescribir", "reasignar", "reabrir"):
                 entrada = progreso.get(tid) if isinstance(progreso.get(tid), dict) else {}
                 if datos.get("enlistar"):
                     _enlistar_en_cola_revisor([datos["enlistar"]])
@@ -505,6 +674,7 @@ def aplicar(decision, foto, seco=False, jev=True):
                                    "nota": "revisor: dividida en %s (%s)" % (", ".join(datos.get("partes") or []),
                                                                            a.get("motivo")),
                                    "sustituida_por": ultima}
+                a_corregir[tid] = a_progreso[tid]
                 if ultima:
                     _recablear(tid, ultima)
                 reg["resultado"] = "aplicada"
@@ -537,6 +707,7 @@ def aplicar(decision, foto, seco=False, jev=True):
         registros.append(reg)
     if not seco:
         hechos = _cambiar_progreso(a_progreso)
+        _anotar_cierres({tid: c for tid, c in a_corregir.items() if tid in hechos})
         controlados = _orden_control(cola_viva, a_control) if a_control else []
         for r in registros:
             if r.get("resultado") == "aplicada" and r["tid"] in a_progreso and r["tid"] not in hechos:
@@ -544,6 +715,20 @@ def aplicar(decision, foto, seco=False, jev=True):
             if r["tid"] in controlados:
                 r["via"] = "orden reabrir a la tanda viva"
     return registros
+
+
+def _anotar_cierres(cierres):
+    """Funde los cierres del revisor en `progreso-correcciones.json` (escritura atómica, con hora)."""
+    if not cierres:
+        return []
+    with _flock(os.path.join(CERROJOS, "progreso-correcciones.lock"), espera_s=20):
+        actuales = _leer(CORRECCIONES, {})
+        actuales = actuales if isinstance(actuales, dict) else {}
+        ahora = time.strftime("%Y-%m-%d %H:%M:%S")
+        for tid, c in cierres.items():
+            actuales[tid] = {"estado": c.get("estado"), "nota": str(c.get("nota") or "")[:200], "t": ahora}
+        _escribir(CORRECCIONES, actuales)
+    return list(cierres)
 
 
 def _enlistar_en_cola_revisor(tareas_nuevas):
@@ -608,12 +793,26 @@ def pasada(seco=False, jev=True, ahora=None):
     """UNA pasada completa: foto → aprendizaje → decisión → efectos → estado. Devuelve el informe."""
     ahora = time.time() if ahora is None else ahora
     cerrojo_quitado = None if seco else barrer_cerrojo_principal()
+    try:
+        reg_deps = asegurar_dependencias(seco=seco)
+    except Exception as e:  # noqa: BLE001
+        reg_deps = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "tid": "", "accion": "instalar_dependencias",
+                    "clase": "medio:dependencias", "motivo": "no pude instalar: %s" % type(e).__name__,
+                    "resultado": "error"}
     foto = reunir(ahora)
+    try:
+        reg_alivio = aliviar_memoria_si_hace_falta(foto.get("fallos"), ahora, seco=seco)
+    except Exception:  # noqa: BLE001
+        reg_alivio = None
     memoria, aprendido = logica.evaluar_historial(foto["memoria"], foto["progreso"], foto["tareas"],
                                                   foto["asuntos"], ahora)
     foto["memoria"] = memoria
     decision = logica.decidir(foto)
     registros = aplicar(decision, foto, seco=seco, jev=jev)
+    if reg_deps:
+        registros.insert(0, reg_deps)
+    if reg_alivio:
+        registros.insert(0, reg_alivio)
     estado = _leer(ESTADO, {})
     estado = estado if isinstance(estado, dict) else {}
     hoy = time.strftime("%Y-%m-%d", time.localtime(ahora))
@@ -625,7 +824,17 @@ def pasada(seco=False, jev=True, ahora=None):
         memoria["historial"] = hist[-400:]
         transformadas = [r for r in (estado.get("transformadas_hoy") or [])
                          if str(r.get("t") or "").startswith(hoy)]
-        transformadas += [r for r in registros if r.get("accion") not in ("pedir_a_alex",)]
+        # (2026-10-10) Un «priorizar» que repite el orden de la vez anterior no es una novedad:
+        # llenaba «Transformadas hoy» con 30 líneas iguales.
+        ult_prior = next((r.get("motivo") for r in reversed(transformadas) if r.get("accion") == "priorizar"), None)
+        for r in registros:
+            if r.get("accion") == "pedir_a_alex":
+                continue
+            if r.get("accion") == "priorizar":
+                if r.get("motivo") == ult_prior:
+                    continue
+                ult_prior = r.get("motivo")
+            transformadas.append(r)
         alex = dict(estado.get("necesitan_alex") or {})
         for r in registros:
             if r.get("accion") == "pedir_a_alex" and r.get("tid") not in alex:
