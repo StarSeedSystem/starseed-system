@@ -4288,3 +4288,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** ninguna capa se usa sin su SHA en config/capas-astraura.json
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-10-10 22:58 · mg-oracle-1010-1605
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (S1010-EV-AUDIOMORPHIC-APP, S1010-ES2). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- nvidia/z-ai/glm-5.3 integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-EV-AUDIOMORPHIC-APP` — no escribió nada
+- `S1010-ES2` — no escribió nada
