@@ -94,6 +94,40 @@ class ReglasDelGuardia(unittest.TestCase):
         self.assertEqual({"tts-server"}, congelados)
 
 
+class AccionPara(unittest.TestCase):
+    """CNS1010: decision pura por motor (congelar, matar, nada)."""
+
+    def test_tts_server_siempre_matar(self):
+        self.assertEqual("matar", G.accion_para("tts-server", 0, 10))
+        self.assertEqual("matar", G.accion_para("tts-server", 35, 95))
+
+    def test_llama_server_congelar_por_defecto(self):
+        self.assertEqual("congelar", G.accion_para("llama-server", 5, 40))
+        self.assertEqual("congelar", G.accion_para("llama-server", 19, 79))
+
+    def test_llama_server_matar_si_25min_y_swap_85(self):
+        self.assertEqual("matar", G.accion_para("llama-server", 25, 85))
+        self.assertEqual("matar", G.accion_para("llama-server", 21, 100))
+
+    def test_llama_server_seguir_congelado_con_swap_40(self):
+        self.assertEqual("congelar", G.accion_para("llama-server", 25, 40))
+
+    def test_motor_desconocido_nada(self):
+        self.assertEqual("nada", G.accion_para("desconocido", 10, 50))
+
+    def test_tts_server_no_depende_de_tiempo(self):
+        self.assertEqual("matar", G.accion_para("tts-server", 60, 0))
+
+    def test_llama_server_umbral_estricto_20_min(self):
+        # 20 min exacto no mata; 20,1 min con swap 80 % sí.
+        self.assertEqual("congelar", G.accion_para("llama-server", 20, 80))
+        self.assertEqual("matar", G.accion_para("llama-server", 20.1, 80))
+
+    def test_llama_server_umbral_swap_estricto_80(self):
+        self.assertEqual("congelar", G.accion_para("llama-server", 25, 79.9))
+        self.assertEqual("matar", G.accion_para("llama-server", 25, 80))
+
+
 if __name__ == "__main__":
     unittest.main()
 
