@@ -27,6 +27,23 @@
 use serde::Serialize;
 use tauri_plugin_shell::ShellExt;
 
+// ─── Cuerpo nativo de StarSeed OS (2026-10-10, architecture/apps-nativas-segundo-plano.md) ───
+// Núcleo puro (solo std + serde, probado sin Tauri): sha256, faro, disco, carpetas,
+// antenas, serie, android. Pegamento con Tauri: nativa (comandos) y segundo_plano
+// (bandeja y cierre que oculta, solo escritorio). android_parche lo usa build.rs.
+mod android;
+mod antenas;
+mod carpetas;
+mod disco;
+mod faro;
+mod nativa;
+#[cfg(desktop)]
+mod segundo_plano;
+mod serie;
+mod sha256;
+#[cfg(test)]
+mod android_parche;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
 // Desde la 0.3.0 la usan los tres sistemas, cada uno con su canal: OS →
@@ -462,11 +479,17 @@ pub fn run() {
     // → [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]).
     #[cfg(desktop)]
     {
+        // Al arrancar con el sistema, la app entra con `--segundo-plano`: ventana oculta y
+        // solo el guardián de antenas trabajando (segundo_plano.rs). Las entradas de
+        // arranque ya creadas por la 0.3.0 (sin argumento) se renuevan al apagar y encender.
         builder = builder.plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            Some(vec![segundo_plano::ARG_SEGUNDO_PLANO]),
         ));
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+        // Cerrar la ventana principal la OCULTA si el segundo plano está encendido y hay
+        // por dónde volver (bandeja o Dock); si no, se cierra como siempre.
+        builder = builder.on_window_event(|ventana, evento| segundo_plano::al_evento_de_ventana(ventana, evento));
     }
 
     builder
@@ -500,9 +523,15 @@ pub fn run() {
                 app.manage(actualizacion::EstadoCompartido::default());
                 actualizacion::iniciar_vigilancia_en_segundo_plano(app.handle().clone());
             }
-            #[cfg(not(desktop))]
+            // Guardián de antenas, carpetas concedidas, capas y NAS (todas las plataformas;
+            // el guardián solo en StarSeed OS). Después, en escritorio, la bandeja y el
+            // cierre que oculta (también solo StarSeed OS: Nexus y Café se cierran del todo).
+            nativa::iniciar(app.handle());
+            #[cfg(desktop)]
             {
-                let _ = &app;
+                if nativa::es_starseed_os(app.handle()) {
+                    segundo_plano::iniciar(app.handle());
+                }
             }
             Ok(())
         })
@@ -512,8 +541,39 @@ pub fn run() {
             check_update,
             reiniciar_para_actualizar,
             estado_actualizacion,
-            device_info
+            device_info,
+            nativa::antenas_estado,
+            nativa::antenas_medir,
+            nativa::antenas_config,
+            nativa::antenas_configurar,
+            nativa::fondo_estado,
+            nativa::fondo_fijar,
+            nativa::fondo_arranque,
+            nativa::fondo_pedir_bateria,
+            nativa::carpetas_listar,
+            nativa::carpetas_conceder,
+            nativa::carpetas_revocar,
+            nativa::carpetas_nas,
+            nativa::serie_puertos,
+            nativa::serie_abrir,
+            nativa::serie_escribir,
+            nativa::serie_cerrar,
+            nativa::capas_estado,
+            nativa::capas_descargar,
+            nativa::capas_verificar,
+            nativa::capas_borrar,
+            nativa::nas_listar,
+            nativa::nas_leer
         ])
-        .run(tauri::generate_context!())
-        .expect("error irrecuperable arrancando la app nativa StarSeed");
+        .build(tauri::generate_context!())
+        .expect("error irrecuperable arrancando la app nativa StarSeed")
+        .run(|_app, _evento| {
+            // macOS: con la ventana oculta, un clic en el icono del Dock la devuelve.
+            #[cfg(target_os = "macos")]
+            {
+                if let tauri::RunEvent::Reopen { has_visible_windows: false, .. } = _evento {
+                    segundo_plano::mostrar(_app);
+                }
+            }
+        });
 }

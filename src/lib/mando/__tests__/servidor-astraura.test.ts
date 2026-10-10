@@ -243,6 +243,48 @@ describe("estadoServidor", () => {
         expect(estado.nube.huella).toHaveLength(12);
     });
 
+    // OPD1010 · 2026-10-10: tras el reinicio, el publicado era el túnel del SERVICIO (vivo) y
+    // Genesis solo miraba el del backend → avisaba de un «túnel viejo» que no lo era.
+    it("con dos túneles, cuenta el publicado si está vivo: sin falso «túnel viejo»", async () => {
+        const urlBackend = "https://uno-del-backend-recien-abierto.trycloudflare.com";
+        const urlServicio = "https://otro-del-servicio-ya-publicado.trycloudflare.com";
+        const repo = path.join(homeFalso, "Documents", "IA 1.58 bit");
+        await mkdir(path.join(repo, "backend", "data"), { recursive: true });
+        await mkdir(path.join(repo, "data"), { recursive: true });
+        await writeFile(path.join(repo, "backend", "data", "active_tunnel.json"), JSON.stringify({ active: true, url: urlBackend }));
+        // El del servicio no trae `active`: que falte no lo hace inactivo.
+        await writeFile(path.join(repo, "data", "active_tunnel.json"), JSON.stringify({ url: urlServicio }));
+        process.env.SUPABASE_URL = "https://proyecto-de-prueba.supabase.co";
+        process.env.SUPABASE_SERVICE_ROLE_KEY = ["clave", "de", "prueba"].join("-");
+        const base = fetchPorDefecto();
+        vi.stubGlobal("fetch", vi.fn(async (entrada: string | URL) => {
+            const url = String(entrada);
+            if (url.includes("key=eq.tunel_publico")) return new Response(JSON.stringify([{ data: { url: urlServicio } }]), { status: 200 });
+            return base(entrada);
+        }));
+
+        const estado = await estadoServidor();
+        expect(estado.nube.tunelActivo).toBe(true);
+        expect(estado.nube.huella).toBe(huellaCorta(urlServicio));
+        expect(estado.nube.coincide).toBe(true);
+        expect(estado.avisos.some((a) => a.includes("túnel viejo"))).toBe(false);
+        expect(JSON.stringify(estado)).not.toContain("trycloudflare.com");
+    });
+
+    it("llama-server congelado por la guardia (ping dice congelado) se marca como pausa", async () => {
+        const base = fetchPorDefecto();
+        vi.stubGlobal("fetch", vi.fn(async (entrada: string | URL) => {
+            const url = String(entrada);
+            if (url.includes("/api/ping")) return new Response(JSON.stringify({ ok: true, vivo: false, congelado: true }), { status: 200 });
+            if (url.includes(":8790/health")) throw new TypeError("fetch failed");
+            return base(entrada);
+        }));
+        const estado = await estadoServidor();
+        expect(estado.astraura.backend.ok).toBe(true);
+        expect(estado.astraura.llama).toEqual({ ok: false, congelado: true });
+        expect(estado.avisos.some((a) => a.includes("en pausa"))).toBe(true);
+    });
+
     it("degrada con gracia cuando pmset/launchctl no existen (Linux/CI): no lanza", async () => {
         await expect(estadoServidor()).resolves.toBeDefined();
         const estado = await estadoServidor();

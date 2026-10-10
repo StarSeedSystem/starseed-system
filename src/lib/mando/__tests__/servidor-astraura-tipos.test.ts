@@ -330,6 +330,23 @@ describe("calcularAvisos", () => {
         expect(calcularAvisos(e).some((a) => a.includes("BitNet"))).toBe(true);
     });
 
+    // OPD1010 · 2026-10-10: con la guardia de memoria el llama-server está en SIGSTOP a propósito.
+    it("BitNet congelado por la guardia de memoria se explica como pausa, no como caída", () => {
+        const e = estadoBase();
+        e.astraura.llama = { ok: false, congelado: true };
+        const avisos = calcularAvisos(e);
+        expect(avisos.some((a) => a.includes("en pausa") && a.includes("no es una caída"))).toBe(true);
+        expect(avisos.some((a) => a.includes("no responde"))).toBe(false);
+    });
+
+    it("backend vivo pero lento (> 3 s) avisa de lentitud, no de caída", () => {
+        const e = estadoBase();
+        e.astraura.backend = { ok: true, ms: 7400 };
+        const avisos = calcularAvisos(e);
+        expect(avisos.some((a) => a.includes("lento (7,4 s)"))).toBe(true);
+        expect(avisos.some((a) => a.includes("no responde"))).toBe(false);
+    });
+
     it("avisa de la tapa cerrada cuando está despierta y el reposo no está desactivado", () => {
         const e = estadoBase();
         e.energia.despierto = true;

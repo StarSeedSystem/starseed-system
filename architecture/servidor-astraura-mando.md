@@ -150,3 +150,16 @@ Oracle es honesta en que hoy es «pendiente», no una simulación de que ya func
   de cada proceso, con secretos. Se usa `ps -axo args=` y se busca la subcadena
   `starseed-enjambre` en la línea de comando.
 - Devolver rutas absolutas del disco, claves, tokens o el contenido de ningún `.env`.
+
+## OPD1010 · 2026-10-10 — «no responde» con el backend vivo y «túnel viejo» falso
+
+Medido tras el reinicio, con la Mac a 123 MB de RAM libre, 6,3 GB de swap y carga 11:
+`/api/ping` del backend contestaba en 0,3–12 s, y la sonda de 3 s daba «El backend no
+responde». Ahora la sonda espera 8 s (6 s las de BitNet y procesos) y, si contesta en más de
+3 s, el aviso dice «responde, pero lento». El llama-server congelado a propósito por la
+guardia de memoria (`/api/ping` → `congelado: true`) se marca `llama.congelado` y el aviso lo
+explica como pausa, no como caída (el panel puede pintarlo con ese campo). Túnel: hay DOS
+`active_tunnel.json` (el del backend y el del servicio `com.starseed.astraura.tunnel`) y
+`publicar_tunel_astraura.py` publica el que responde; Genesis solo miraba el del backend y
+avisaba de un «túnel viejo» con el publicado vivo. Ahora lee los dos y cuenta el publicado si
+está entre los vivos.

@@ -209,3 +209,20 @@ Una prueba del OS importa ese módulo y comprueba que habla lo mismo.
 - Sin respuestas de hora uno a uno por internet: la difusión de Supabase lo manda todo a todos (coste §4.1).
 - Las llaves de control no viajan con la cuenta (identidad soberana): se usa el enlace de control.
 - La app oficial no está tocada desde aquí: queda el paquete listo.
+
+## OPD1010 · 2026-10-10 — «Internet (Supabase Realtime)» se quedaba en «conectando»
+
+Medido en `localhost:9002` con una estación pública de prueba (solo enlace, sin fila en el
+directorio): la consola daba `TypeError: Illegal invocation` en `SesionEnVivo.arrancar` y en
+`alAbrirCanal`, llamado desde el callback de suscripción de Realtime. El canal SÍ se suscribía
+(una unión cruda al tema `estacion-vivo:*` respondió `status: ok` en el mismo socket) y
+`os_estaciones` SÍ está en `supabase_realtime` (consultado: 1 de 63 tablas). La causa era la
+sesión: guardaba `setTimeout`/`clearTimeout` en un campo y los llamaba como método
+(`this.poner(fn, ms)`); el navegador exige `this` = window, Node no. `arrancar` reventaba
+antes de programar el sondeo de hora, nadie volvía a emitir y el panel se quedaba congelado.
+Arreglo: los temporizadores de serie van ligados a `globalThis`
+(`src/lib/estaciones/sesion-en-vivo.ts`). Prueba que reproduce el `setTimeout` estricto del
+navegador: `src/lib/estaciones/__tests__/sesion-en-vivo-temporizadores.test.ts` (roja sin el
+arreglo, verde con él). Regla: un temporizador o `fetch` guardado en un campo se liga al
+global o se llama sin receptor; las pruebas que inyectan temporizadores no lo ven.
+Sin cambios de base de datos.

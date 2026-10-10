@@ -209,12 +209,17 @@ function boolONulo(v: unknown): boolean | null {
 
 async function medirAstraura(): Promise<AstrauraServidorEstado> {
     const base = baseBackendAstraura();
+    // (OPD1010 · 2026-10-10) 8 s y no 3 s: medido con la Mac a 123 MB libres y carga 11, el
+    // backend contestaba `/api/ping` en 0,3–12 s y el panel decía «no responde» estando vivo.
     const [ping, bitnet, procesos, llama] = await Promise.all([
-        pedirJson(`${base}/api/ping`, 3000),
-        pedirJson(`${base}/api/bitnet/estado`, 3000),
-        pedirJson(`${base}/api/starseed/processes`, 3000),
+        pedirJson(`${base}/api/ping`, 8000),
+        pedirJson(`${base}/api/bitnet/estado`, 6000),
+        pedirJson(`${base}/api/starseed/processes`, 6000),
         pedirJson(`http://127.0.0.1:${puertoLlama()}/health`, 3000),
     ]);
+    // El propio backend dice si la guardia de memoria congeló el llama-server (SIGSTOP mientras
+    // el enjambre escribe): eso es una pausa prevista, no una caída.
+    const llamaCongelado = boolONulo(objeto(ping.datos)?.congelado) === true;
 
     const bDatos = objeto(bitnet.datos);
     const bitnetEstado: AstrauraBitnetEstado | null =
@@ -242,7 +247,7 @@ async function medirAstraura(): Promise<AstrauraServidorEstado> {
     return {
         backend: { ok: ping.ok, ms: ping.ok ? ping.ms : null },
         bitnet: bitnetEstado,
-        llama: { ok: llama.ok },
+        llama: !llama.ok && llamaCongelado ? { ok: false, congelado: true } : { ok: llama.ok },
         fondo,
     };
 }
@@ -260,26 +265,52 @@ interface TunelActivoJson {
     iso_time?: string;
 }
 
-/** Lee `<repo>/backend/data/active_tunnel.json`. Nunca lanza. */
-async function leerTunelActivo(): Promise<TunelActivoJson | null> {
-    try {
-        const contenido = await readFile(path.join(repoAstraura(), "backend", "data", "active_tunnel.json"), "utf-8");
-        return JSON.parse(contenido) as TunelActivoJson;
-    } catch {
-        return null;
-    }
+/**
+ * Lee los DOS `active_tunnel.json` de Astraura: el que abre el backend al arrancar
+ * (`backend/data/`) y el del servicio `com.starseed.astraura.tunnel` (`data/`). Los dos
+ * llevan al mismo backend y `publicar_tunel_astraura.py` publica el que responda.
+ * (OPD1010 · 2026-10-10) Solo se miraba el del backend: tras el reinicio el publicado era
+ * el del servicio (vivo) y Genesis avisaba de un «túnel viejo» que no lo era.
+ * Nunca lanza; devuelve los que se pudieron leer, el del backend primero.
+ */
+async function leerTunelesActivos(): Promise<TunelActivoJson[]> {
+    const rutas = [
+        path.join(repoAstraura(), "backend", "data", "active_tunnel.json"),
+        path.join(repoAstraura(), "data", "active_tunnel.json"),
+    ];
+    const leidos = await Promise.all(
+        rutas.map(async (ruta) => {
+            try {
+                return JSON.parse(await readFile(ruta, "utf-8")) as TunelActivoJson;
+            } catch {
+                return null;
+            }
+        }),
+    );
+    return leidos.filter((t): t is TunelActivoJson => t !== null && typeof t === "object");
+}
+
+function urlDeTunel(t: TunelActivoJson | null | undefined): string | null {
+    return typeof t?.url === "string" && t.url.trim() ? t.url.trim() : null;
 }
 
 async function medirNube(): Promise<NubeServidorEstado> {
-    const [activo, publicado, fijo] = await Promise.all([
-        leerTunelActivo(),
+    const [tuneles, publicado, fijo] = await Promise.all([
+        leerTunelesActivos(),
         tunelPublicado().catch(() => null),
         destinoFijoPublicado().catch(() => null),
     ]);
-    const url = typeof activo?.url === "string" && activo.url.trim() ? activo.url.trim() : null;
-    const tunelActivo = Boolean(activo?.active) && url !== null;
-    const huella = url ? huellaCorta(url) : null;
     const huellaPublicado = publicado ? huellaCorta(publicado) : null;
+    const vivos = tuneles.filter((t) => t.active !== false && urlDeTunel(t) !== null);
+    // El activo que cuenta es el publicado si está entre los vivos; si no, el primero vivo.
+    const activo =
+        vivos.find((t) => huellaPublicado !== null && huellaCorta(urlDeTunel(t) ?? "") === huellaPublicado) ??
+        vivos[0] ??
+        tuneles[0] ??
+        null;
+    const url = urlDeTunel(activo);
+    const tunelActivo = activo !== null && activo.active !== false && url !== null;
+    const huella = url ? huellaCorta(url) : null;
     const propia = String(process.env.ASTRAURA_CLOUD_URL ?? "").trim();
 
     return {

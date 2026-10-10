@@ -155,8 +155,13 @@ export class SesionEnVivo {
     this.margenMs = op.margenMs ?? 600;
     this.latidoMs = op.latidoMs ?? 30_000;
     this.lotePongMs = op.lotePongMs ?? 200;
-    this.poner = op.poner ?? setTimeout;
-    this.quitar = op.quitar ?? clearTimeout;
+    // (OPD1010 · 2026-10-10) Ligados a globalThis: guardado en un campo, `this.poner(fn, ms)`
+    // llama a `setTimeout` con `this` = la sesión y el navegador lanza «Illegal invocation»
+    // (medido en localhost:9002: `arrancar` y `alAbrirCanal` reventaban al suscribirse el canal
+    // de Realtime y el panel se quedaba en «conectando»). En Node no falla: por eso las pruebas,
+    // que inyectan sus propios temporizadores, no lo veían.
+    this.poner = op.poner ?? (globalThis.setTimeout.bind(globalThis) as typeof setTimeout);
+    this.quitar = op.quitar ?? (globalThis.clearTimeout.bind(globalThis) as typeof clearTimeout);
     this.opSondeo = { poner: this.poner, quitar: this.quitar, ...(op.sondeo ?? {}) };
     for (const c of op.canales ?? []) this.agregarCanal(c);
     this.paradas.push(this.reloj.suscribir(() => this.emitir()));

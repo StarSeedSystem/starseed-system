@@ -233,6 +233,11 @@ export interface AstrauraBitnetEstado {
 export interface AstrauraLlamaEstado {
     /** `GET :8790/health` — 200. */
     ok: boolean;
+    /**
+     * El backend dice (`/api/ping` → `congelado`) que la guardia de memoria pausó el
+     * llama-server mientras el enjambre escribe: no es una caída y vuelve solo.
+     */
+    congelado?: boolean;
 }
 
 /** Subconjunto de `cognition` de `GET /api/starseed/processes` (el «fondo»). */
@@ -505,10 +510,18 @@ export function calcularAvisos(estado: EstadoServidorAstraura): string[] {
 
     if (!estado.astraura.backend.ok) {
         avisos.push("El backend de Astraura 1.58 no responde: revisa que esté encendido en esta Mac.");
+    } else if (estado.astraura.backend.ms !== null && estado.astraura.backend.ms > 3000) {
+        avisos.push(
+            `El backend de Astraura 1.58 responde, pero lento (${(estado.astraura.backend.ms / 1000).toFixed(1).replace(".", ",")} s): la máquina va justa de memoria.`,
+        );
     }
 
     if (!estado.astraura.llama.ok) {
-        avisos.push("El motor BitNet (llama-server) no responde.");
+        avisos.push(
+            estado.astraura.llama.congelado
+                ? "El motor BitNet está en pausa: la guardia de memoria lo congela mientras el enjambre escribe y lo despierta sola al terminar (no es una caída)."
+                : "El motor BitNet (llama-server) no responde.",
+        );
     }
 
     if (estado.energia.despierto && !estado.energia.reposoDesactivado) {

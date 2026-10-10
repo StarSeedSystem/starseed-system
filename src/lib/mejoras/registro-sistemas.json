@@ -1,0 +1,226 @@
+{
+  "esquema": 1,
+  "actualizado": "2026-10-10",
+  "descripcion": "Registro de sistemas mejorables por neurona (architecture/mejoras-por-neurona.md §1). Única fuente para registro.ts y scripts/puente/mejoras_neurona.py. 'comprobado' = versión vista en la fuente el día indicado, desde la Mac, sin claves. Requisitos 'estimado' = cálculo de StarSeed, no del proyecto: la prueba de calidad en la canaria es la que decide.",
+  "sistemas": [
+    {
+      "id": "kokoro-web", "familia": "voz-tts", "nombre": "Kokoro 82M (ONNX, en el aparato)", "motor": "kokoro",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "huggingface", "ref": "onnx-community/Kokoro-82M-v1.0-ONNX" },
+      "requisitos": { "ramMinMb": 2048, "discoMb": 330, "nucleosMin": 4, "gpu": "opcional", "aceleraciones": ["webgpu", "wasm"] },
+      "requisitosFuente": "estimado", "medios": ["nativa", "pwa", "web"], "licencia": "Apache-2.0", "preferencia": 3,
+      "nota": "La librería kokoro-js viaja con el OS; los pesos se guardan en cada navegador o app.",
+      "comprobado": { "fecha": "2026-10-10", "version": "1939ad2" }
+    },
+    {
+      "id": "kitten-tts", "familia": "voz-tts", "nombre": "Kitten TTS nano", "motor": "kitten",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "huggingface", "ref": "KittenML/kitten-tts-nano-0.2" },
+      "requisitos": { "ramMinMb": 512, "discoMb": 30, "nucleosMin": 2, "gpu": "no", "aceleraciones": ["wasm", "cpu"] },
+      "requisitosFuente": "estimado", "medios": ["nativa", "pwa", "web"], "licencia": "Apache-2.0", "preferencia": 2,
+      "nota": "Ultraligera: la voz de respaldo de los aparatos modestos.",
+      "comprobado": { "fecha": "2026-10-10", "version": "9c81564" }
+    },
+    {
+      "id": "piper", "familia": "voz-tts", "nombre": "Piper (piper1-gpl)", "motor": "piper",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "OHF-Voice/piper1-gpl" },
+      "requisitos": { "ramMinMb": 512, "discoMb": 150, "nucleosMin": 2, "gpu": "no", "aceleraciones": ["cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor", "nativa"], "licencia": "GPL-3.0", "preferencia": 2,
+      "nota": "rhasspy/piper está archivado; el sucesor vivo es piper1-gpl y su licencia pasa de MIT a GPL-3.0. Voces: rhasspy/piper-voices.",
+      "comprobado": { "fecha": "2026-10-10", "version": "v1.8.0" }
+    },
+    {
+      "id": "omnivoice-cpp", "familia": "voz-tts", "nombre": "OmniVoice (omnivoice.cpp)", "motor": "omnivoice",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-commit", "ref": "ServeurpersoCom/omnivoice.cpp" },
+      "requisitos": { "ramMinMb": 4096, "discoMb": 1500, "nucleosMin": 4, "gpu": "recomendada", "aceleraciones": ["metal", "cuda", "cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor", "nativa"], "licencia": "MIT", "licenciaPesos": "CC-BY-NC-4.0", "preferencia": 4,
+      "nota": "El demonio de voz de la Mac (127.0.0.1:4500). Sus pesos GGUF (Serveurperso/OmniVoice-GGUF) son de uso no comercial.",
+      "comprobado": { "fecha": "2026-10-10", "version": "b549668" }
+    },
+    {
+      "id": "voice158-audio-cpp", "familia": "voz-tts", "nombre": "Voz 1.58-bit (audio.cpp)", "motor": "voice158",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "0xShug0/audio.cpp" },
+      "requisitos": { "ramMinMb": 2048, "discoMb": 800, "nucleosMin": 4, "gpu": "no", "aceleraciones": ["cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor", "nativa"], "licencia": "sin declarar", "preferencia": 3,
+      "nota": "GitHub no declara licencia (NOASSERTION): revisar antes de redistribuir.",
+      "comprobado": { "fecha": "2026-10-10", "version": "v0.9.1" }
+    },
+    {
+      "id": "voxcpm", "familia": "voz-tts", "nombre": "VoxCPM", "motor": "voxcpm",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "OpenBMB/VoxCPM" },
+      "requisitos": { "ramMinMb": 8192, "discoMb": 4000, "nucleosMin": 4, "gpu": "requerida", "vramMinMb": 6144, "aceleraciones": ["cuda", "metal"] },
+      "requisitosFuente": "estimado", "medios": ["servidor"], "licencia": "Apache-2.0", "preferencia": 4,
+      "comprobado": { "fecha": "2026-10-10", "version": "2.0.3" }
+    },
+    {
+      "id": "gpt-sovits", "familia": "voz-tts", "nombre": "GPT-SoVITS", "motor": "gpt-sovits",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "RVC-Boss/GPT-SoVITS" },
+      "requisitos": { "ramMinMb": 12288, "discoMb": 5000, "nucleosMin": 8, "gpu": "requerida", "vramMinMb": 6144, "aceleraciones": ["cuda"] },
+      "requisitosFuente": "estimado", "medios": ["servidor"], "licencia": "MIT", "preferencia": 4,
+      "nota": "Clonación de alta fidelidad.",
+      "comprobado": { "fecha": "2026-10-10", "version": "20250606v2pro" }
+    },
+    {
+      "id": "vibevoice", "familia": "voz-tts", "nombre": "VibeVoice (multi-locutor)", "motor": "vibevoice",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-commit", "ref": "vibevoice-community/VibeVoice" },
+      "requisitos": { "ramMinMb": 16384, "discoMb": 6000, "nucleosMin": 8, "gpu": "requerida", "vramMinMb": 8192, "aceleraciones": ["cuda"] },
+      "requisitosFuente": "estimado", "medios": ["servidor"], "licencia": "MIT", "preferencia": 4,
+      "nota": "La versión de la comunidad no publica releases: se sigue el último commit.",
+      "comprobado": { "fecha": "2026-10-10", "version": null }
+    },
+    {
+      "id": "vibeasr-cpp", "familia": "voz-asr", "nombre": "VibeASR (BitNet)", "motor": "vibeasr",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "catalogo-capas", "ref": "vibeasr-cpp" },
+      "requisitos": { "nucleosMin": 4, "gpu": "no", "aceleraciones": ["cpu"] },
+      "requisitosFuente": "catalogo", "medios": [], "licencia": "MIT", "preferencia": 4,
+      "nota": "El oído residente de la Mac. RAM, disco y medios salen de config/capas-astraura.json.",
+      "comprobado": { "fecha": "2026-10-10", "version": "66e7802" }
+    },
+    {
+      "id": "whisper-cpp", "familia": "voz-asr", "nombre": "whisper.cpp (servidor)", "motor": "whisper-cpp",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "ggml-org/whisper.cpp" },
+      "requisitos": { "ramMinMb": 1024, "discoMb": 600, "nucleosMin": 4, "gpu": "opcional", "aceleraciones": ["metal", "cuda", "vulkan", "cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor", "nativa"], "licencia": "MIT", "preferencia": 3,
+      "comprobado": { "fecha": "2026-10-10", "version": "v1.9.5" }
+    },
+    {
+      "id": "whisper-web-turbo", "familia": "voz-asr", "nombre": "Whisper large-v3-turbo (navegador)", "motor": "whisper-browser",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "huggingface", "ref": "onnx-community/whisper-large-v3-turbo" },
+      "requisitos": { "ramMinMb": 4096, "discoMb": 900, "nucleosMin": 4, "gpu": "recomendada", "aceleraciones": ["webgpu"] },
+      "requisitosFuente": "estimado", "medios": ["pwa", "web", "nativa"], "licencia": "MIT", "preferencia": 3,
+      "nota": "La librería @huggingface/transformers viaja con el OS. Sin WebGPU va por debajo del tiempo real: por eso la exige.",
+      "comprobado": { "fecha": "2026-10-10", "version": "360ebcd" }
+    },
+    {
+      "id": "ace-step-1.5", "familia": "sonido", "nombre": "ACE-Step 1.5 (música)", "motor": "ace-step",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "ace-step/ACE-Step-1.5" },
+      "requisitos": { "ramMinMb": 16384, "discoMb": 12000, "nucleosMin": 8, "gpu": "requerida", "vramMinMb": 8192, "aceleraciones": ["cuda", "metal"] },
+      "requisitosFuente": "estimado", "medios": ["servidor"], "licencia": "MIT", "preferencia": 4,
+      "comprobado": { "fecha": "2026-10-10", "version": "v0.1.8" }
+    },
+    {
+      "id": "musicgen-small", "familia": "sonido", "nombre": "MusicGen small", "motor": "musicgen",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "huggingface", "ref": "facebook/musicgen-small" },
+      "requisitos": { "ramMinMb": 8192, "discoMb": 2500, "nucleosMin": 4, "gpu": "recomendada", "aceleraciones": ["cuda", "metal", "cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor"], "licencia": "MIT", "licenciaPesos": "CC-BY-NC-4.0", "preferencia": 2,
+      "nota": "Pesos sin cambios desde 2023-11 y de uso no comercial.",
+      "comprobado": { "fecha": "2026-10-10", "version": "4c8334b" }
+    },
+    {
+      "id": "stable-audio-open-small", "familia": "sonido", "nombre": "Stable Audio Open small", "motor": "stable-audio",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "huggingface", "ref": "stabilityai/stable-audio-open-small" },
+      "requisitos": { "ramMinMb": 8192, "discoMb": 2000, "nucleosMin": 4, "gpu": "recomendada", "aceleraciones": ["cuda", "metal", "cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor"], "licencia": "licencia propia (ver la ficha del modelo)", "requiereAceptarLicencia": true, "preferencia": 3,
+      "nota": "Acceso condicionado en Hugging Face: hay que aceptar sus términos antes; nunca se instala solo.",
+      "comprobado": { "fecha": "2026-10-10", "version": "dc620d9" }
+    },
+    {
+      "id": "comfyui", "familia": "audiovisual", "nombre": "ComfyUI", "motor": "comfyui",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "Comfy-Org/ComfyUI" },
+      "requisitos": { "ramMinMb": 8192, "discoMb": 6000, "nucleosMin": 4, "gpu": "recomendada", "aceleraciones": ["cuda", "metal", "rocm", "cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor", "nativa"], "licencia": "GPL-3.0", "preferencia": 4,
+      "nota": "comfyanonymous/ComfyUI redirige aquí. Es el motor local de imagen y vídeo que puede usar media-gen.",
+      "comprobado": { "fecha": "2026-10-10", "version": "v0.39.0" }
+    },
+    {
+      "id": "ltx-video", "familia": "audiovisual", "nombre": "LTX-Video", "motor": "ltx-video",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "huggingface", "ref": "Lightricks/LTX-Video" },
+      "requisitos": { "ramMinMb": 16384, "discoMb": 20000, "nucleosMin": 8, "gpu": "requerida", "vramMinMb": 12288, "aceleraciones": ["cuda"] },
+      "requisitosFuente": "estimado", "medios": ["servidor"], "licencia": "Apache-2.0 (código)", "licenciaPesos": "licencia propia (ver la ficha del modelo)", "preferencia": 3,
+      "comprobado": { "fecha": "2026-10-10", "version": "8984fa2" }
+    },
+    {
+      "id": "wan-2.2", "familia": "audiovisual", "nombre": "Wan 2.2 (vídeo)", "motor": "wan",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-commit", "ref": "Wan-Video/Wan2.2" },
+      "requisitos": { "ramMinMb": 32768, "discoMb": 40000, "nucleosMin": 8, "gpu": "requerida", "vramMinMb": 24576, "aceleraciones": ["cuda"] },
+      "requisitosFuente": "estimado", "medios": ["servidor"], "licencia": "Apache-2.0", "preferencia": 4,
+      "nota": "Sin releases: se sigue el último commit.",
+      "comprobado": { "fecha": "2026-10-10", "version": null }
+    },
+    {
+      "id": "ffmpeg-wasm", "familia": "audiovisual", "nombre": "FFmpeg en el navegador", "motor": "ffmpeg",
+      "capa": "interfaz", "canal": "con-el-os",
+      "fuente": { "tipo": "npm", "ref": "@ffmpeg/ffmpeg" },
+      "requisitos": { "ramMinMb": 1024, "aceleraciones": ["wasm"] },
+      "requisitosFuente": "estimado", "medios": ["nativa", "pwa", "web"], "licencia": "MIT", "preferencia": 3,
+      "comprobado": { "fecha": "2026-10-10", "version": "0.12.15" }
+    },
+    {
+      "id": "ollama", "familia": "codigo", "nombre": "Ollama", "motor": "ollama",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "ollama/ollama" },
+      "requisitos": { "ramMinMb": 4096, "discoMb": 1000, "nucleosMin": 4, "gpu": "opcional", "aceleraciones": ["metal", "cuda", "rocm", "cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor", "nativa"], "licencia": "MIT", "preferencia": 3,
+      "comprobado": { "fecha": "2026-10-10", "version": "v0.40.2" }
+    },
+    {
+      "id": "llama-cpp", "familia": "codigo", "nombre": "llama.cpp", "motor": "llama-cpp",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-release", "ref": "ggml-org/llama.cpp" },
+      "requisitos": { "ramMinMb": 2048, "discoMb": 300, "nucleosMin": 4, "gpu": "opcional", "aceleraciones": ["metal", "cuda", "vulkan", "rocm", "cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor", "nativa"], "licencia": "MIT", "preferencia": 4,
+      "nota": "Runtime de las capas Bonsai de Astraura.",
+      "comprobado": { "fecha": "2026-10-10", "version": "v0.6.0" }
+    },
+    {
+      "id": "bitnet-cpp", "familia": "codigo", "nombre": "bitnet.cpp", "motor": "bitnet-cpp",
+      "capa": "servicios", "canal": "por-neurona",
+      "fuente": { "tipo": "github-commit", "ref": "microsoft/BitNet" },
+      "requisitos": { "ramMinMb": 2048, "discoMb": 500, "nucleosMin": 4, "gpu": "no", "aceleraciones": ["cpu"] },
+      "requisitosFuente": "estimado", "medios": ["servidor", "nativa"], "licencia": "MIT", "preferencia": 4,
+      "nota": "Runtime de BitNet y de VibeASR. Sin releases: se sigue el último commit.",
+      "comprobado": { "fecha": "2026-10-10", "version": null }
+    },
+    {
+      "id": "web-llm", "familia": "codigo", "nombre": "WebLLM", "motor": "webllm",
+      "capa": "interfaz", "canal": "con-el-os",
+      "fuente": { "tipo": "npm", "ref": "@mlc-ai/web-llm" },
+      "requisitos": { "ramMinMb": 4096, "gpu": "requerida", "aceleraciones": ["webgpu"] },
+      "requisitosFuente": "estimado", "medios": ["pwa", "web"], "licencia": "Apache-2.0", "preferencia": 2,
+      "comprobado": { "fecha": "2026-10-10", "version": "0.2.85" }
+    },
+    {
+      "id": "capa-needle3-reflejo", "familia": "codigo", "nombre": "Astraura · reflejo (Needle 3)", "motor": "astraura-reflejo",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "catalogo-capas", "ref": "needle3-reflejo" },
+      "requisitos": { "aceleraciones": ["wasm", "cpu"] },
+      "requisitosFuente": "catalogo", "medios": [], "licencia": "ver la ficha del modelo", "preferencia": 3
+    },
+    {
+      "id": "capa-bonsai-1.7b-onnx", "familia": "codigo", "nombre": "Astraura · palabra (Bonsai 1.7B, WebGPU)", "motor": "astraura-palabra",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "catalogo-capas", "ref": "ternary-bonsai-1.7b-onnx" },
+      "requisitos": { "gpu": "requerida", "aceleraciones": ["webgpu"] },
+      "requisitosFuente": "catalogo", "medios": [], "licencia": "ver la ficha del modelo", "preferencia": 3
+    },
+    {
+      "id": "capa-bitnet-2b", "familia": "codigo", "nombre": "Astraura · razón (BitNet b1.58 2B)", "motor": "astraura-razon",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "catalogo-capas", "ref": "bitnet-b1.58-2b-4t" },
+      "requisitos": { "aceleraciones": ["cpu"] },
+      "requisitosFuente": "catalogo", "medios": [], "licencia": "MIT", "preferencia": 3
+    },
+    {
+      "id": "capa-bonsai-8b", "familia": "codigo", "nombre": "Astraura · razón (Bonsai 8B)", "motor": "astraura-razon",
+      "capa": "modelos", "canal": "por-neurona",
+      "fuente": { "tipo": "catalogo-capas", "ref": "ternary-bonsai-8b" },
+      "requisitos": { "gpu": "opcional", "aceleraciones": ["metal", "cuda", "cpu"] },
+      "requisitosFuente": "catalogo", "medios": [], "licencia": "ver la ficha del modelo", "preferencia": 4
+    }
+  ]
+}

@@ -764,3 +764,17 @@ Decisiones de Alex sobre la ola2 de los sueños (2026-10-03):
   y «Volver a auto».
 - **Retirado:** `.github/workflows/desktop-release.yml` (proyecto Tauri retirado el 2026-09-24).
   Sigue en el historial de git; el oficial es `native-build.yml`.
+
+## OPD1010 · 2026-10-10 — El Studio 1.58 y «Failed to fetch» con el backend vivo
+
+Medido en `localhost:9002`: `fetch("http://127.0.0.1:8000/…")` desde la página falla en
+2–11 ms (`net::ERR_BLOCKED_BY_CLIENT` en el navegador integrado; en apps empaquetadas es
+contenido mixto o bloqueo de red privada) y el puente same-origin
+`/api/ai/astraura-158/…?destino=local` responde 200. El chat ya usaba el puente; el Studio
+(`astraura-158-client.ts`: `call`, `callText`, `probeAstraura158`) hablaba siempre directo, y
+lo mismo la tarjeta «Backend Astraura 1.58 en tus neuronas» de `/cerebro?tab=neuronas`.
+Ahora (`src/lib/astraura/via-158-local.ts`): en una página local y con base de bucle local,
+se intenta directo y, ante un fallo de RED (no ante un timeout), se repite por el puente; el
+bloqueo se recuerda 5 min para no pagarlo en cada llamada. En un origen público (la app en
+una tablet) nunca se usa el puente para «local». Una ruta que la lista blanca del puente no
+deja pasar (403/421) se intenta directo. Timeout local por defecto: 8 s (antes 4 s).

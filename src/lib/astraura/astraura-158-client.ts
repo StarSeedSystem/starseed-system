@@ -24,6 +24,8 @@ import { settingsFor, thisDeviceId, astraura158EndpointOf } from "@/lib/neurons/
 import { ASTRAURA_158_PROXY_BASE } from "@/ai/astraura/free-catalog";
 import { bitnetTrasCaida as bitnetTrasCaidaModule } from "./elegir-nodo";
 import { DISCOVERY_SCAN_LIMITE_DEFECTO, discoveryScanPath, recortarDiscoveryScan } from "./discovery-scan";
+import { paginaEsLocal } from "./destino-local";
+import { esFalloDeRed, intentosLlamada, marcarDirectoBloqueado } from "./via-158-local";
 
 export type Astraura158Target = "local" | "nube";
 
@@ -165,19 +167,49 @@ function longTimeout(target: Astraura158Target): number {
   return target === "nube" ? 60_000 : 30_000;
 }
 
+/**
+ * (OPD1010 · 2026-10-10) `fetch` con camino de respaldo para la fuente LOCAL:
+ * directo a la neurona y, si el navegador lo bloquea por RED (medido: «Failed to
+ * fetch» en 2–11 ms en el navegador integrado, contenido mixto en apps), por el
+ * puente same-origin del OS con `?destino=local`. Ver `via-158-local.ts`.
+ * Un timeout NO cambia de camino (el backend está lento, no bloqueado).
+ */
+async function fetch158(target: Astraura158Target, endpoint: string, path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const intentos = intentosLlamada(target, endpoint, path, paginaEsLocal());
+  let ultimo: unknown = null;
+  for (let i = 0; i < intentos.length; i++) {
+    const { url, via } = intentos[i];
+    const quedan = i < intentos.length - 1;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...init, signal: ctrl.signal });
+      clearTimeout(t);
+      // El puente tiene lista blanca: una ruta que no deja pasar (403/421) se intenta directo.
+      if (via === "puente" && quedan && (res.status === 403 || res.status === 421)) { ultimo = new Error(`HTTP ${res.status}`); continue; }
+      return res;
+    } catch (e) {
+      clearTimeout(t);
+      ultimo = e;
+      if (!esFalloDeRed(e)) throw e;
+      if (via === "directo") marcarDirectoBloqueado();
+      if (!quedan) throw e;
+    }
+  }
+  throw ultimo ?? new Error("sin camino a la neurona");
+}
+
 async function call<T>(target: Astraura158Target, path: string, init?: { method?: "GET" | "POST" | "DELETE"; body?: unknown; timeoutMs?: number }): Promise<Astraura158Response<T>> {
   const endpoint = astraura158Endpoint(target);
   if (typeof window === "undefined") return { ok: false, error: "SSR", target, endpoint };
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), init?.timeoutMs ?? (target === "nube" ? 12_000 : 4_000));
+  // Local 8 s (antes 4 s): con la Mac cargada el backend contesta en 0,3–12 s (medido 2026-10-10).
+  const timeoutMs = init?.timeoutMs ?? (target === "nube" ? 12_000 : 8_000);
   try {
-    const res = await fetch(`${endpoint}${path}`, {
+    const res = await fetch158(target, endpoint, path, {
       method: init?.method ?? "GET",
       headers: init?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
       body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
-      signal: ctrl.signal,
-    });
-    clearTimeout(t);
+    }, timeoutMs);
     if (!res.ok) {
       let detail = "";
       try { const j = await res.json(); detail = String(j?.error ?? j?.detail ?? ""); } catch { /* */ }
@@ -186,7 +218,6 @@ async function call<T>(target: Astraura158Target, path: string, init?: { method?
     const data = (await res.json()) as T;
     return { ok: true, data, target, endpoint };
   } catch (e) {
-    clearTimeout(t);
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: /abort/i.test(msg) ? "sin respuesta (timeout)" : msg.slice(0, 160), target, endpoint };
   }
@@ -213,15 +244,11 @@ async function post<T extends { success?: boolean; error?: string; message?: str
 async function callText(target: Astraura158Target, path: string, timeoutMs?: number): Promise<Astraura158Response<string>> {
   const endpoint = astraura158Endpoint(target);
   if (typeof window === "undefined") return { ok: false, error: "SSR", target, endpoint };
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs ?? (target === "nube" ? 12_000 : 4_000));
   try {
-    const res = await fetch(`${endpoint}${path}`, { signal: ctrl.signal });
-    clearTimeout(t);
+    const res = await fetch158(target, endpoint, path, {}, timeoutMs ?? (target === "nube" ? 12_000 : 8_000));
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}`, target, endpoint };
     return { ok: true, data: await res.text(), target, endpoint };
   } catch (e) {
-    clearTimeout(t);
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: /abort/i.test(msg) ? "sin respuesta (timeout)" : msg.slice(0, 160), target, endpoint };
   }
@@ -317,16 +344,14 @@ export async function probeAstraura158(endpoint: string, timeoutMs = 5000): Prom
   if (typeof window === "undefined") return { ok: false, error: "SSR" };
   const base = endpoint.trim().replace(/\/+$/, "");
   if (!base) return { ok: false, error: "endpoint vacío" };
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${base}/api/status`, { signal: ctrl.signal });
-    clearTimeout(t);
+    // Mismo respaldo por el puente del OS si la base es de bucle local y el navegador la bloquea.
+    // Solo la neurona de ESTA máquina tiene puente; otra base (LAN, túnel, otro puerto) va directa.
+    const res = await fetch158(base === astraura158Endpoint("local") ? "local" : "nube", base, "/api/status", {}, timeoutMs);
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     const j = (await res.json().catch(() => null)) as Astraura158Status | null;
     return { ok: true, model: j?.engine?.active_model };
   } catch (e) {
-    clearTimeout(t);
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: /abort/i.test(msg) ? "sin respuesta (timeout)" : msg.slice(0, 120) };
   }
