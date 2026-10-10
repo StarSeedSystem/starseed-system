@@ -1,0 +1,18 @@
+{
+  "name": "starseed-puerta-datos",
+  "version": "1.0.0",
+  "description": "Puerta de datos del A1 de Oracle: tráfico de máquina a máquina y lecturas cacheables de StarSeed OS (architecture/puerta-datos-a1.md)",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bin": {
+    "puerta-datos": "bin/puerta-datos.mjs"
+  },
+  "scripts": {
+    "servir": "node --disable-warning=ExperimentalWarning bin/puerta-datos.mjs servir",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.mjs\""
+  }
+}

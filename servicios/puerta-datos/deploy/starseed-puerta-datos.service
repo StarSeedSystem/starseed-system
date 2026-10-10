@@ -1,0 +1,38 @@
+# Puerta de datos del A1 (architecture/puerta-datos-a1.md). Solo escucha en 127.0.0.1:8791; el TLS
+# lo pone Caddy (datos.<host>). La instala servicios/puerta-datos/deploy/instalar.sh.
+[Unit]
+Description=StarSeed · puerta de datos (bus, latidos, arriendo, presencia, caché)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/opt/starseed/puerta-datos
+EnvironmentFile=/etc/starseed/puerta-datos.env
+ExecStart=/usr/local/bin/node --disable-warning=ExperimentalWarning /opt/starseed/puerta-datos/bin/puerta-datos.mjs servir
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+MemoryHigh=256M
+MemoryMax=384M
+CPUWeight=200
+# Endurecido: solo escribe en su carpeta de datos.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/starseed/puerta-datos
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
