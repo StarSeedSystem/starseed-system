@@ -514,6 +514,29 @@ def escribir_freno(activo, motivo, hasta, ahora, http=None, cred=None):
     return "error"
 
 
+def empujar_freno(freno, puerta=None):
+    """(PDA1011) El freno también en la puerta de datos del A1 (`PUT /v1/freno`, ficha `vigia`).
+
+    Fase 1 de architecture/puerta-datos-a1.md: lo EMPUJA la vigía para que nadie tenga que pedírselo
+    a Supabase (los navegadores lo leerán de la puerta en la fase 2). Supabase (`os_freno`) sigue
+    siendo la verdad y se escribe antes: si la puerta no está, no se encola nada. → puerta ·
+    supabase (la puerta no respondió) · sin_puerta · error."""
+    try:
+        if puerta is None:
+            d = os.path.dirname(os.path.abspath(__file__))
+            if d not in sys.path:
+                sys.path.insert(0, d)
+            from puerta_datos_cliente import Puerta
+            puerta = Puerta.desde_entorno(rol="vigia")
+        if not puerta.configurada():
+            return "sin_puerta"
+        r = puerta.freno_poner(bool(freno.get("activo")), freno.get("motivo"), freno.get("hasta"),
+                               respaldo=lambda _cuerpo: "ya en os_freno")
+        return str(r.get("via") or "error")
+    except Exception:
+        return "error"
+
+
 def _avisar(texto, tipo="aviso"):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     try:
@@ -540,7 +563,7 @@ def _cerrar_ayer(hist, hoy, http, cred):
     return 1
 
 
-def ejecutar(ahora=None, http=None, avisar=None, rutas=None, seco=False, cred=None, jev=None):
+def ejecutar(ahora=None, http=None, avisar=None, rutas=None, seco=False, cred=None, jev=None, puerta=None):
     """Una vuelta completa. Devuelve lo escrito en consumo.json. Nunca lanza."""
     ahora = ahora or dt.datetime.now(dt.timezone.utc)
     http = http or _http
@@ -644,6 +667,11 @@ def ejecutar(ahora=None, http=None, avisar=None, rutas=None, seco=False, cred=No
                 avisar(texto_bucle(b), "aviso")
     if bucles:
         ultimo_bucle = dict(bucles[0], t=_iso(ahora))
+
+    # (PDA1011) El estado del freno, empujado a la puerta de datos en cada vuelta (las pruebas con red
+    # simulada no salen a la red salvo que pasen su propia puerta).
+    if not seco and (puerta is not None or http is None):
+        freno["puerta"] = empujar_freno(freno, puerta)
 
     datos = {
         "t": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

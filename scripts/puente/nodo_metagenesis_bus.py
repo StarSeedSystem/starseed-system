@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Nodo de MetaGenesis · el enlace con Supabase (OPA1011, 2026-10-10).
 
-Dos modos, el mismo contrato para el bucle (`nodo_metagenesis.py`):
+Tres modos, el mismo contrato para el bucle (`nodo_metagenesis.py`) — el tercero, **puerta**
+(PDA1011), lleva el arriendo a la puerta de datos del A1 y deja el bus para lo que lee el OS:
 
   · **bus** (funciona YA): la tabla pública `relevo_eventos` (migración 20260903200000), con
     tipos `mg_*`. Latidos, reclamos de mando, bajas, órdenes FIRMADAS (HMAC con
@@ -326,6 +327,125 @@ class EnlaceTablas:
                            "t": o.get("t"), "nonce": "tabla-%08d" % int(o.get("id") or 0), "por": o.get("por")})
         return salida
 
+
+
+class EnlacePuerta(EnlaceBus):
+    """(PDA1011) El arriendo de líder en la PUERTA DE DATOS del A1 (`/v1/metagenesis/latir`, mismas
+    reglas que `metagenesis_nodo_latir`: toma libre o caducado, renueva el líder, relevo ordenado
+    ≥ 100 puntos con racha ≥ 600 s), sin una sola petición a Supabase por vuelta.
+
+    El bus de Supabase sigue para lo que hoy leen el OS y los demás medios: el latido como ESPEJO
+    cada `espejo_s` (la vista de MetaGenesis da por vivo un nodo 15 min), las órdenes FIRMADAS y las
+    asignaciones leídas cada `ordenes_s` (caducan a los 15 min) y la foto, las decisiones, las colas y
+    los resultados como siempre. Si la puerta no responde, `latir_puerta` devuelve None y el nodo
+    sigue por el bus esa misma vuelta (architecture/puerta-datos-a1.md §10.1).
+
+    La puerta vive en el A1: si el A1 cae, caen a la vez la puerta y su nodo, y la Mac vuelve sola al
+    bus; por eso no hay dos líderes a la vez salvo un corte de la puerta que solo vea un medio."""
+
+    modo = "puerta"
+
+    def __init__(self, rest: Rest, yo: str, puerta: Any, llave: str, medio: str, ttl: int = L.TTL_LIDER_S,
+                 espejo_s: int = 600, ordenes_s: int = 600):
+        super().__init__(rest, yo, ttl)
+        self.puerta = puerta
+        self._llave = llave
+        self.medio = medio
+        self.espejo_s = espejo_s
+        self.ordenes_s = ordenes_s
+        self.arriendo: Dict[str, Any] = {}
+        self.nodos: List[Dict[str, Any]] = []
+        self.pendientes: List[Dict[str, Any]] = []
+        self._ultimo_espejo = 0.0
+        self._ultimas_ordenes = 0.0
+        self.peticiones_puerta = 0
+
+    def latir_puerta(self, latido: Dict[str, Any], puntos: int) -> Optional[Dict[str, Any]]:
+        self.peticiones_puerta += 1
+        r = self.puerta.metagenesis_latir(self.yo, self._llave, self.medio, int(puntos), datos=latido, ttl_s=self.ttl)
+        if not isinstance(r, dict):
+            return None
+        self.arriendo = r.get("arriendo") or {}
+        self.nodos = [n for n in r.get("nodos") or [] if isinstance(n, dict)]
+        self.pendientes = [o for o in r.get("ordenes") or [] if isinstance(o, dict)]
+        return r
+
+    def espejo(self, latido: Dict[str, Any], ahora: float) -> bool:
+        """El latido al bus como mucho cada `espejo_s` (lo lee la vista de MetaGenesis del OS)."""
+        if ahora - self._ultimo_espejo < self.espejo_s:
+            return False
+        if self.latir(latido):
+            self._ultimo_espejo = ahora
+            return True
+        return False
+
+    def ordenes_del_bus(self, ahora: float) -> List[Dict[str, Any]]:
+        """Órdenes firmadas y asignaciones del bus, UNA lectura como mucho cada `ordenes_s`."""
+        if ahora - self._ultimas_ordenes < self.ordenes_s:
+            return []
+        self._ultimas_ordenes = ahora
+        q = "select=id,t,tipo,datos&tipo=in.(%s,%s)&order=id.asc&limit=300" % (L.T_ORDEN, L.T_ASIGNACION)
+        if self.ultimo_id:
+            q += "&id=gt.%d" % self.ultimo_id
+        else:
+            q += "&t=gte.%s" % urllib.parse.quote(iso(ahora - max(L.ORDEN_CADUCA_S, L.GRACIA_ASIGNACION_S)))
+        estado, filas = self.rest.pedir("GET", self.TABLA + "?" + q)
+        if not (200 <= estado < 300) or not isinstance(filas, list):
+            self.error = "bus %s al leer órdenes" % (estado or "sin red")
+            return []
+        nuevas = []
+        for f in filas:
+            try:
+                self.ultimo_id = max(self.ultimo_id, int(f.get("id") or 0))
+            except (TypeError, ValueError):
+                continue
+            d = f.get("datos")
+            if not isinstance(d, dict):
+                continue
+            d = dict(d)
+            d.setdefault("ts", _ts_de_fila(f))
+            if f.get("tipo") == L.T_ORDEN:
+                nuevas.append(d)
+            else:
+                self.asignaciones.append(d)
+        self.asignaciones = [x for x in self.asignaciones if float(x.get("ts") or 0) >= ahora - L.GRACIA_ASIGNACION_S][-50:]
+        return nuevas
+
+    def ordenes_de_puerta(self) -> List[Dict[str, Any]]:
+        """Las órdenes recogidas en el último latido de la puerta (de miembros con sesión), con la forma de las del bus."""
+        salida = []
+        for o in self.pendientes:
+            try:
+                oid = int(o.get("id") or 0)
+            except (TypeError, ValueError):
+                continue
+            salida.append({"accion": o.get("accion"), "args": o.get("args") or {}, "para": o.get("para") or "lider",
+                           "t": o.get("t"), "nonce": "puerta-%08d" % oid, "por": o.get("por")})
+        return salida
+
+    def exige_firma(self, o: Dict[str, Any]) -> bool:
+        """Las del bus van firmadas; las de la puerta las autorizó la puerta (sesión de miembro, 30/h)."""
+        return not str((o or {}).get("nonce") or "").startswith("puerta-")
+
+    def resultado(self, orden: Dict[str, Any], estado: str, texto: str, ts: float) -> bool:
+        nonce = str(orden.get("nonce") or "")
+        if nonce.startswith("puerta-") and nonce[7:].isdigit():
+            r = self.puerta.metagenesis("orden-resultado", self.yo, self._llave, id=int(nonce[7:]),
+                                        estado=estado, resultado=L.tachar(texto)[:300])
+            if r:
+                return True
+        return super().resultado(orden, estado, texto, ts)
+
+    def foto(self, f: Dict[str, Any]) -> bool:
+        self.puerta.metagenesis("foto", self.yo, self._llave, foto=f)
+        return super().foto(f)
+
+    def ceder(self) -> bool:
+        return bool(self.puerta.metagenesis("ceder", self.yo, self._llave))
+
+    def baja(self, ts: float) -> bool:
+        self.puerta.metagenesis("baja", self.yo, self._llave)
+        return super().baja(ts)
 
 # ─── entorno ────────────────────────────────────────────────────────────────────────────
 

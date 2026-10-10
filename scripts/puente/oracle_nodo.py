@@ -100,6 +100,9 @@ CLAVES_A1 = (
     # A1 late pero no atiende órdenes ni puede dirigir cuando la Mac calla. No es una credencial de
     # pago ni de un tercero: es el secreto compartido de las máquinas de la fundación.
     "STARSEED_LANZADOR_SECRETO",
+    # (PDA1011) La puerta de datos que vive en este mismo A1: su URL pública (el nodo de MetaGenesis
+    # entra con su llave, sin ficha) y la ficha `bus` del enjambre para publicar el bus por ella.
+    "PUERTA_DATOS_URL", "PUERTA_DATOS_FICHA_ENJAMBRE",
 )
 ARCHIVOS_ENV = ("~/.starseed/env", "~/.hermes/.env", os.path.join(RAIZ, ".env.local"))
 NOMBRE_CLAVE_BITNET = "STARSEED_ORACLE_BITNET_KEY"
@@ -463,6 +466,9 @@ def _paquete(destino):
             continue
         for a in sorted(os.listdir(carpeta)):
             if a.startswith("nodo_metagenesis") and a.endswith(".py") and not a.startswith("test_"):
+                poner(os.path.join(carpeta, a), os.path.join("metagenesis", a))
+            # (PDA1011) El cliente de la puerta de datos viaja con el nodo: arriendo por la puerta.
+            if a == "puerta_datos_cliente.py":
                 poner(os.path.join(carpeta, a), os.path.join("metagenesis", a))
     return incluido
 

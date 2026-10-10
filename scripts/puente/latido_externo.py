@@ -63,6 +63,30 @@ def escribir(agente: str, datos: dict) -> None:
     os.replace(tmp, destino)  # atómico: Genesis nunca lee un archivo a medias
 
 
+def latir_puerta(agente: str, tid: str, tarea: dict | None) -> str:
+    """(PDA1011) El mismo latido en la puerta de datos del A1 (`POST /v1/latidos`, clase `agente`,
+    ficha `genesis`) para que Genesis de OTRA neurona y MetaGenesis lo vean sin Supabase. El archivo
+    local se escribe siempre antes (es el respaldo): si la puerta no está, no se encola nada.
+    `STARSEED_LATIDO_PUERTA=apagada` lo apaga. → puerta · sin_puerta · error."""
+    if os.environ.get("STARSEED_LATIDO_PUERTA", "auto").strip().lower() in ("apagada", "off", "0", "no"):
+        return "sin_puerta"
+    try:
+        d = os.path.dirname(os.path.abspath(__file__))
+        if d not in sys.path:
+            sys.path.insert(0, d)
+        from puerta_datos_cliente import Puerta
+        p = Puerta.desde_entorno(rol="genesis")
+        if not p.configurada():
+            return "sin_puerta"
+        datos = None if tarea is None else {k: tarea.get(k) for k in (
+            "titulo", "fase", "modelo", "proveedor", "donde", "medio", "desde", "avance", "hasta")}
+        r = p.latido("agente", ("%s:%s" % (agente, tid))[:80], dict(datos or {}, fin=tarea is None),
+                     respaldo=lambda _c: "archivo local")
+        return str(r.get("via") or "error")
+    except Exception:
+        return "error"
+
+
 def limpiar_caducadas(datos: dict, ahora: float) -> None:
     for tid in list(datos["tareas"]):
         t = datos["tareas"][tid]
@@ -88,6 +112,7 @@ def empezar(a) -> dict:
         "hasta": ahora + a.minutos * 60,
     }
     escribir(a.agente, datos)
+    latir_puerta(a.agente, a.id, datos["tareas"][a.id])
     return datos["tareas"][a.id]
 
 
@@ -101,6 +126,7 @@ def fase(a) -> dict:
     t["avance"] = ahora
     t["hasta"] = ahora + a.minutos * 60
     escribir(a.agente, datos)
+    latir_puerta(a.agente, a.id, t)
     return t
 
 
@@ -108,6 +134,7 @@ def terminar(a) -> None:
     datos = leer(a.agente)
     datos["tareas"].pop(a.id, None)
     escribir(a.agente, datos)
+    latir_puerta(a.agente, a.id, None)
 
 
 def main(argv=None) -> int:

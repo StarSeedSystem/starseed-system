@@ -68,6 +68,8 @@ CADA_S = int(os.environ.get("STARSEED_NODO_CADA_S", str(L.LATIDO_S)))
 FOTO_MAX_S = 30 * 60
 COLAS_CADA_S = 30 * 60
 REPROBAR_TABLAS_S = 30 * 60
+#: (PDA1011) Tras un fallo de la puerta de datos, cuánto se sigue por el bus antes de volver a probarla.
+PUERTA_REINTENTO_S = 5 * 60
 DECISIONES_MAX = 40
 
 
@@ -130,7 +132,7 @@ class Nodo:
                  candidatos: Optional[Callable[[str], List[Dict[str, Any]]]] = None,
                  enlistar: Optional[Callable[..., Any]] = None,
                  existentes: Optional[Callable[[str, List[str]], List[str]]] = None,
-                 solo_leer: bool = False):
+                 solo_leer: bool = False, puerta: Any = None):
         self.modo = "seco" if seco or solo_leer else "real"
         #: (OPA1011b) Prueba seca EN un medio vivo: lee el bus como el servicio, no escribe nada y se
         #: puntúa como el medio real (si no, su propio latido seco le quitaría el mando en el cálculo).
@@ -157,6 +159,9 @@ class Nodo:
         self._existentes = existentes or M.existentes
         self._asignaciones: List[Dict[str, Any]] = []
         self._medida_salud: Dict[str, Any] = {}
+        #: (PDA1011) Puerta de datos del A1: inyectable en las pruebas; si no, del entorno (solo la URL:
+        #: el nodo entra con SU llave, sin ficha). `STARSEED_NODO_PUERTA=apagada` → bus como antes.
+        self._puerta = puerta
 
     # ── enlace ──
     def _rest(self) -> Optional[B.Rest]:
@@ -165,8 +170,39 @@ class Nodo:
             return None
         return B.Rest(url, anon, http=self.http)
 
+    def _puerta_de_datos(self) -> Any:
+        """(PDA1011) El cliente de la puerta si está configurada y no está apagada; si no, None."""
+        if self.sin_red or self.solo_leer:
+            return None
+        if (self.env.get("STARSEED_NODO_PUERTA") or os.environ.get("STARSEED_NODO_PUERTA") or "auto").strip().lower() in ("apagada", "off", "0", "no"):
+            return None
+        if self._puerta is None:
+            url = (self.env.get("PUERTA_DATOS_URL") or "").strip().rstrip("/")
+            if not (url.startswith("https://") or url.startswith("http://127.0.0.1") or url.startswith("http://localhost")):
+                return None
+            try:
+                import puerta_datos_cliente as PDC
+            except ImportError:
+                return None
+            self._puerta = PDC.Puerta(url=url, ficha="")
+        return self._puerta
+
     def _enlazar(self, medio: str, ahora: float) -> None:
-        if self.enlace is not None and (self.enlace.modo == "tablas" or ahora - self._probado_tablas < REPROBAR_TABLAS_S):
+        if self.enlace is not None and self.enlace.modo in ("tablas", "puerta"):
+            return
+        # (PDA1011) La puerta de datos del A1 primero: arriendo sin peticiones a Supabase por vuelta.
+        # Su salud se mira con espera creciente (1, 2, 5, 10 min): estando en el bus, se vuelve sola.
+        puerta = self._puerta_de_datos()
+        if puerta is not None and ahora >= float(self.mem.get("puerta_reintento") or 0) and puerta.disponible():
+            llave = self._llave if self._llave is not None else leer_llave()
+            rest = self._rest()
+            if llave and rest is not None:
+                ultimo = self.enlace.ultimo_id if isinstance(self.enlace, B.EnlaceBus) else 0
+                self.enlace = B.EnlacePuerta(rest, self.yo, puerta, llave, medio)
+                self.enlace.ultimo_id = ultimo
+                self.mem.pop("puerta_motivo", None)
+                return
+        if self.enlace is not None and ahora - self._probado_tablas < REPROBAR_TABLAS_S:
             return
         rest = self._rest()
         if rest is None:
@@ -216,6 +252,29 @@ class Nodo:
         decision = {"lider": self.yo, "termino": int(self.mem.get("termino") or 0), "reclamar": False,
                     "motivo": "sin red: este nodo se dirige a sí mismo"}
         ordenes: List[Dict[str, Any]] = []
+        if enlace is not None and enlace.modo == "puerta":
+            res = enlace.latir_puerta(latido, puntos)
+            if res is None:
+                # La puerta no respondió: esta vuelta (y las siguientes, hasta que vuelva) por el bus.
+                # Se vuelve a probar en 5 min (una llave sin dar de alta da 403 y no debe rebotar cada vuelta).
+                self.mem["puerta_motivo"] = "la puerta de datos no respondió; sigo por el bus"
+                self.mem["puerta_reintento"] = t + PUERTA_REINTENTO_S
+                enlace = self.enlace = B.EnlaceBus(enlace.rest, self.yo)  # relee su ventana entera
+                informe["enlace"] = "bus (la puerta no respondió)"
+            else:
+                arr = enlace.arriendo or {}
+                decision = {"lider": arr.get("lider"), "termino": int(arr.get("termino") or 0), "reclamar": False,
+                            "motivo": "arriendo en la puerta de datos"}
+                for n in enlace.nodos:
+                    if L.id_valido(n.get("nodo")):
+                        vivos[n["nodo"]] = dict(n.get("datos") or {}, nodo=n["nodo"], ts=float(n.get("ts") or t))
+                vivos.setdefault(self.yo, latido)
+                if arr.get("lider"):
+                    latido.update(lider_visto=arr.get("lider"), termino_visto=int(arr.get("termino") or 0),
+                                  puntos_lider=int(arr.get("puntos") or 0))
+                enlace.espejo(latido, t)
+                ordenes = enlace.ordenes_de_puerta() + enlace.ordenes_del_bus(t)
+                nov["asignaciones"] = list(enlace.asignaciones)
         if enlace is not None and enlace.modo == "bus":
             nov = enlace.novedades(t)
             vivos = L.nodos_vivos(nov["latidos"], nov["bajas"], t)
@@ -245,7 +304,7 @@ class Nodo:
                         vivos[n["nodo"]] = dict(n.get("datos") or {}, nodo=n["nodo"], ts=float(n.get("ts") or t))
                 ordenes = enlace.ordenes_de_tabla()
             vivos.setdefault(self.yo, latido)
-        else:
+        elif enlace is None or enlace.modo != "puerta":
             vivos[self.yo] = latido
         self.mem.setdefault("desde", t)
         self._asignaciones = nov.get("asignaciones") or []
@@ -308,6 +367,8 @@ class Nodo:
         self.mem["decisiones"] = (self.mem.get("decisiones") or [])[-DECISIONES_MAX:]
         if enlace is not None:
             informe["peticiones"] = enlace.rest.peticiones - antes
+            if enlace.modo == "puerta":
+                informe["peticiones_puerta"] = enlace.peticiones_puerta
         if self.persistir:
             guardar(MEMORIA, self.mem)
             guardar(ESTADO, dict(informe, salud=self._salud_publica(salud), tablas_motivo=self.mem.get("tablas_motivo")))
@@ -385,7 +446,7 @@ class Nodo:
              "seco": self.modo == "seco", "termino": self.mem.get("termino")}
         if self.modo == "seco":
             d["resultado"] = "seca: se lo pediría a %s" % a["nodo"]
-        elif self.enlace is None or self.enlace.modo != "bus" or not self.secreto:
+        elif self.enlace is None or self.enlace.modo not in ("bus", "puerta") or not self.secreto:
             d["resultado"] = "no puedo pedírselo: %s" % ("sin secreto para firmar" if not self.secreto else "modo tablas: va por la bitácora")
             if self.enlace is not None and self.enlace.modo == "tablas":
                 self.enlace.decision(d)
@@ -412,7 +473,8 @@ class Nodo:
         nonce = o.get("nonce")
         if nonce in (self.mem.get("nonces") or {}):
             return
-        firmada = self.enlace is not None and self.enlace.modo == "bus"
+        firmada = self.enlace is not None and (self.enlace.modo == "bus" or (
+            self.enlace.modo == "puerta" and self.enlace.exige_firma(o)))
         ok, motivo = L.validar_orden(o, self.secreto, t, self.mem.get("nonces") or {}, firmada=firmada)
         if isinstance(nonce, str) and L._RE_NONCE.match(nonce):
             self.mem.setdefault("nonces", {})[nonce] = t
@@ -433,7 +495,7 @@ class Nodo:
                 r.update(estado="seca", resultado="modo seco: no cedo")
             else:
                 self.mem["no_liderar_hasta"] = t + 1800
-                if self.enlace is not None and self.enlace.modo == "tablas":
+                if self.enlace is not None and self.enlace.modo in ("tablas", "puerta"):
                     self.enlace.ceder()
                 r.update(estado="hecha", resultado="cedo el mando 30 min")
         elif o["accion"] == "repartir":

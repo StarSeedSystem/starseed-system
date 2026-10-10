@@ -2908,6 +2908,69 @@ def debe_ir_al_bus(tipo, ahora, ultimo_latido_remoto):
 
 ULTIMO_LATIDO_REMOTO = 0.0
 
+#: (PDA1011) Tipos que el bus NO replica desde la puerta de datos (servicios/puerta-datos/src/bus.mjs
+#: SILENCIOSOS): los lee Genesis de la otra máquina directamente en Supabase, así que siguen yendo allí.
+TIPOS_SOLO_SUPABASE = {"latido", "tunel", "mg_latido", "mg_foto", "mg_colas"}
+_PUERTA_BUS = []
+
+
+def _puerta_bus():
+    """(PDA1011) Cliente de la puerta de datos del A1 (ficha `enjambre`) o None.
+
+    Interruptor: `STARSEED_BUS_PUERTA=apagada` → todo a Supabase como antes. Sin `PUERTA_DATOS_URL` o
+    sin `PUERTA_DATOS_FICHA_ENJAMBRE` (entorno o ~/.starseed/env) equivale a apagada."""
+    if os.environ.get("STARSEED_BUS_PUERTA", "auto").strip().lower() in ("apagada", "off", "0", "no"):
+        return None
+    if not _PUERTA_BUS:
+        p = None
+        try:
+            for d in (os.path.join(ROOT, "scripts", "puente"), DIRECTORIO_ENJAMBRE):
+                if os.path.exists(os.path.join(d, "puerta_datos_cliente.py")) and d not in sys.path:
+                    sys.path.append(d)
+            from puerta_datos_cliente import Puerta
+            p = Puerta.desde_entorno(rol="enjambre")
+            p = p if p.configurada() else None
+        except Exception:
+            p = None
+        _PUERTA_BUS.append(p)
+    return _PUERTA_BUS[0]
+
+
+def publicar_en_bus(cuerpo):
+    """Un evento al bus: por la puerta de datos si está (Supabase lo recibe por lotes, ≤ 5 min) y,
+    si no responde, directo a Supabase como siempre. Nunca lanza. → "puerta" · "supabase" · "fallo"."""
+    p = _puerta_bus() if cuerpo.get("tipo") not in TIPOS_SOLO_SUPABASE else None
+    if p is not None:
+        try:
+            r = p.publicar_evento(cuerpo.get("quien") or "enjambre", cuerpo.get("tipo"), cuerpo.get("texto") or "",
+                                  tarea=cuerpo.get("tarea"), datos=cuerpo.get("datos"),
+                                  respaldo=lambda _ev: _publicar_supabase(cuerpo))
+            if r.get("via") in ("puerta", "supabase") and not r.get("error"):
+                return r["via"]
+        except Exception:
+            pass
+    try:
+        _publicar_supabase(cuerpo)
+        return "supabase"
+    except Exception:
+        return "fallo"
+
+
+def _publicar_supabase(cuerpo):
+    req = urllib.request.Request(
+        SUPABASE_URL + "/rest/v1/relevo_eventos",
+        data=json.dumps(cuerpo, ensure_ascii=False).encode(),
+        method="POST",
+        headers={
+            "apikey": ANON,
+            "Authorization": "Bearer " + ANON,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+    )
+    urllib.request.urlopen(req, timeout=10).read()
+    return True
+
 
 def evento(tipo, tarea, texto, datos=None):
     fila = {
@@ -2937,38 +3000,23 @@ def evento(tipo, tarea, texto, datos=None):
     if va_al_bus and tipo == "latido":
         ULTIMO_LATIDO_REMOTO = _ahora_s
     if ANON and va_al_bus:
-        try:
-            # La tabla no tiene columna de categoría: va dentro de `datos` para no migrar nada.
-            cuerpo = json.dumps(
-                {
-                    "t": fila["t"],
-                    "quien": fila["quien"],
-                    "tipo": tipo,
-                    "tarea": tarea,
-                    "texto": fila["texto"],
-                    "datos": {
-                        **(datos or {}),
-                        "categoria": fila["categoria"],
-                        "donde": fila["donde"],
-                        "medio": MEDIO,
-                    },
+        # La tabla no tiene columna de categoría: va dentro de `datos` para no migrar nada.
+        # (PDA1011) Por la puerta de datos del A1 si está; si no, a Supabase como siempre.
+        publicar_en_bus(
+            {
+                "t": fila["t"],
+                "quien": fila["quien"],
+                "tipo": tipo,
+                "tarea": tarea,
+                "texto": fila["texto"],
+                "datos": {
+                    **(datos or {}),
+                    "categoria": fila["categoria"],
+                    "donde": fila["donde"],
+                    "medio": MEDIO,
                 },
-                ensure_ascii=False,
-            ).encode()
-            req = urllib.request.Request(
-                SUPABASE_URL + "/rest/v1/relevo_eventos",
-                data=cuerpo,
-                method="POST",
-                headers={
-                    "apikey": ANON,
-                    "Authorization": "Bearer " + ANON,
-                    "Content-Type": "application/json",
-                    "Prefer": "return=minimal",
-                },
-            )
-            urllib.request.urlopen(req, timeout=10).read()
-        except Exception:
-            pass
+            }
+        )
     # (revisión del supervisor) Hermes/Telegram solo para lo IMPORTANTE, como antes: con
     # `va_al_bus` le llegarían también cada commit, inicio, aprobación y un latido cada 10 min.
     if va_al_bus and tipo in IMPORTANTES:

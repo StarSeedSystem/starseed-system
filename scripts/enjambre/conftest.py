@@ -25,3 +25,5 @@ def aislador_hermetico(monkeypatch, tmp_path):
             # Aísla HERMES y RELEVO: binario inocuo para evitar lanzamientos reales.
             monkeypatch.setattr(mod, "HERMES", "/usr/bin/true", raising=False)
             monkeypatch.setattr(mod, "RELEVO", "/usr/bin/true", raising=False)
+            # (PDA1011) Sin puerta de datos: ninguna prueba publica en el A1 de verdad.
+            monkeypatch.setattr(mod, "_PUERTA_BUS", [None], raising=False)

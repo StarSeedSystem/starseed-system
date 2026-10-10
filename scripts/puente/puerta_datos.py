@@ -6,6 +6,7 @@
     python3 scripts/puente/puerta_datos.py medir       # salud + métricas (+ sonda HTTPS) → ~/.starseed/puerta-datos.json
     python3 scripts/puente/puerta_datos.py estado      # lo mismo en pantalla, sin IPs, URLs ni fichas
     python3 scripts/puente/puerta_datos.py registrar-llave   # huella de la llave de réplica en Supabase (migración aplicada)
+    python3 scripts/puente/puerta_datos.py alta-nodos  # da de alta en la puerta la llave del nodo de MetaGenesis de la Mac y del A1
 
 Contrato: architecture/puerta-datos-a1.md. Usa la conexión SSH de `oracle_nodo.py` (OPO1011) sin
 cambiarla: misma llave (~/.ssh/starseed_oracle_ed25519), misma IP de ~/.starseed/oracle.json y la
@@ -235,9 +236,56 @@ def registrar_llave():
         return {"ok": False, "motivo": "la migración aún no está aplicada" if codigo == 404 else on.tachar("%s %s" % (type(e).__name__, codigo or ""))}
 
 
+_RE_LLAVE_NODO = re.compile(r"Nodo ([a-z0-9-]{3,40}) · huella de su llave: ([0-9a-f]{64})")
+
+
+def _llave_de_nodo(salida):
+    """PURA. (nodo, huella) de la salida de `nodo_metagenesis.py llave`, o None."""
+    m = _RE_LLAVE_NODO.search(salida or "")
+    return (m.group(1), m.group(2)) if m else None
+
+
+def _medio_de_nodo(nodo):
+    return "oracle-a1" if nodo.startswith("oracle-a1-") else nodo.rsplit("-", 1)[0]
+
+
+def alta_nodos():
+    """(PDA1011) Da de alta en la puerta (ficha admin, `POST /v1/admin/nodos`) la llave del nodo de
+    MetaGenesis de esta Mac y la del A1. Solo viaja la HUELLA; cada llave se crea donde vive si falta."""
+    env = on._env_local()
+    url, ficha = env.get("PUERTA_DATOS_URL", "").rstrip("/"), env.get("PUERTA_DATOS_FICHA_ADMIN", "")
+    if not url.startswith("https://") or not ficha.startswith("pd_"):
+        return {"ok": False, "motivo": "faltan PUERTA_DATOS_URL o PUERTA_DATOS_FICHA_ADMIN en ~/.starseed/env"}
+    nodos = []
+    r = subprocess.run([sys.executable, os.path.join(DIR, "nodo_metagenesis.py"), "llave"], capture_output=True,
+                       text=True, timeout=60)
+    mac = _llave_de_nodo(r.stdout)
+    if mac:
+        nodos.append(mac)
+    a1 = None
+    if on._ip():
+        _, salida = on.ssh("sudo -u starseed -H python3 /opt/starseed/nodo/metagenesis/nodo_metagenesis.py llave", timeout=60)
+        a1 = _llave_de_nodo(salida)
+        if a1:
+            nodos.append(a1)
+    hechos = []
+    for nodo, huella in nodos:
+        cuerpo = json.dumps({"nodo": nodo, "medio": _medio_de_nodo(nodo), "huella": huella}).encode()
+        req = urllib.request.Request(url + "/v1/admin/nodos", data=cuerpo, method="POST",
+                                     headers={"Authorization": "Bearer " + ficha, "Content-Type": "application/json",
+                                              "User-Agent": "starseed-puerta/1"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                hechos.append({"nodo": nodo, "ok": resp.status == 200})
+        except Exception as e:  # noqa: BLE001
+            hechos.append({"nodo": nodo, "ok": False, "motivo": on.tachar("%s %s" % (type(e).__name__, getattr(e, "code", "")))})
+    return {"ok": bool(hechos) and all(h["ok"] for h in hechos), "nodos": hechos,
+            "mac": bool(mac), "a1": bool(a1)}
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("orden", choices=["desplegar", "fichas", "medir", "estado", "registrar-llave"])
+    p.add_argument("orden", choices=["desplegar", "fichas", "medir", "estado", "registrar-llave", "alta-nodos"])
     a = p.parse_args(argv)
     if a.orden == "desplegar":
         r = desplegar()
@@ -247,6 +295,8 @@ def main(argv=None):
         r = medir()
     elif a.orden == "estado":
         r = medir(guardar=False)
+    elif a.orden == "alta-nodos":
+        r = alta_nodos()
     else:
         r = registrar_llave()
     print(on.tachar(json.dumps(r, ensure_ascii=False, indent=1)))
