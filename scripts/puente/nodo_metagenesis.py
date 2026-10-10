@@ -754,6 +754,20 @@ def consumo_frenado(ruta: str = os.path.expanduser("~/.starseed/consumo.json")) 
                 or float(pres.get("pct_peticiones") or 0) >= 0.95)
 
 
+def espera_tras(informe: Dict[str, Any], frenado: bool) -> int:
+    """PURA. Segundos hasta la próxima vuelta.
+
+    Con el freno de consumo (vigia_consumo.py) el nodo da una vuelta cada 10 min, sin dejar de latir
+    antes del TTL (15 min) para no provocar un relevo de líder en falso. (PDA1011) Por la puerta de
+    datos la vuelta no cuesta Supabase (el espejo y las órdenes del bus ya van cada 10 min), así que
+    sigue su ritmo normal: con 10 min, faltar a UNA vuelta por un corte de la puerta dejaba caducar
+    el arriendo (medido el 2026-10-10: el A1 tomó el mando tras un corte de 68 s)."""
+    espera = CADA_LIDER_S if informe.get("soy_lider") else CADA_S
+    if frenado and not str(informe.get("enlace") or "").startswith("puerta"):
+        espera = max(espera, 600)
+    return espera
+
+
 def servir(seco: bool) -> int:
     nodo = Nodo(seco=seco)
     parar = {"ya": False}
@@ -768,11 +782,7 @@ def servir(seco: bool) -> int:
         try:
             i = nodo.vuelta()
             print("[%s] %s" % (time.strftime("%H:%M:%S"), texto_informe(i).replace("\n", " | ")), flush=True)
-            espera = CADA_LIDER_S if i.get("soy_lider") else CADA_S
-            if consumo_frenado():
-                # Supabase en su tope propio (vigia_consumo.py): una vuelta cada 10 min, sin dejar de
-                # latir antes del TTL (15 min) para no provocar un relevo de líder en falso.
-                espera = max(espera, 600)
+            espera = espera_tras(i, consumo_frenado())
         except Exception as e:  # noqa: BLE001
             print("[nodo-metagenesis] vuelta fallida: %s: %s" % (type(e).__name__, L.tachar(str(e))[:200]), flush=True)
             espera = 60

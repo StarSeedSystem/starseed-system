@@ -4375,3 +4375,17 @@ build compilada en la nube e instalada en Genesis; verificado en localhost:9002.
   en la cabecera del `next build` antes de instalar.
 - Para integrar sin que main se mueva entre compilar e instalar: sostener el cerrojo `integrar`
   (`.transfer/cerrojo-1010d.py`) y aplicar con `.transfer/aplicar-1010d.py` (ff que no pisa trabajo sin commit de nadie).
+
+## 2026-10-10 — PDA1011: fase 1 de la puerta de datos del A1 encendida
+**Sesión por:** Claude Opus 5.5 (nube-cowork), con la autorización de Alex para Supabase.
+**Resumen ejecutivo:** las máquinas (backend de Astraura, nodo de MetaGenesis de la Mac y del A1, vigía, bus del enjambre y latidos de agentes) hablan con la puerta de datos del A1 con Supabase de respaldo; −41 peticiones/30 min en sus rutas (+3 de réplica), corte de 68 s sin perder escrituras.
+
+### Hecho
+- Puerta en main (`89de9ea4`): servicio, cliente Python, migración + vuelta atrás, contrato.
+- Migración aplicada (Alex), llave de réplica registrada, réplica por lotes probada (`prueba*` no se replica).
+- Fase 1 (`414a0c55`, `795a7b25`): transporte `puerta` del nodo, `alta-nodos`, bus del enjambre, freno y latido externo por la puerta. Astraura `32a54ef9` (repo `IA 1.58 bit`, local).
+- Medido y corte: `architecture/puerta-datos-a1.md` §10.2.
+
+### Pendiente / Próximos pasos
+- Fase 2 (navegador): la build instalada no trae `src/lib/datos/puerta-a1*.ts` y el adaptador aún no está cableado en neuronas/presencia/freno → ola + integración + build; luego `os_puerta_datos.activa = true` (la URL ya está puesta).
+- Next (destino) por la puerta; poner al día `~/.local/bin/starseed-enjambre.py` (`bash scripts/enjambre/instalar.sh` con el enjambre quieto).

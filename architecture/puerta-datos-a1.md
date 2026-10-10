@@ -164,8 +164,8 @@ biblioteca estándar, mismo contrato y mismo respaldo (puerta → Supabase → c
 
 ## 6. Réplica a Supabase (lo que hay que conservar, por lotes y con tope)
 
-Migración `supabase/migrations/20261011120000_puerta_datos.sql` (**escrita y probada, NO
-aplicada**): tablas `puerta_datos_llaves` (huella sha256 de la llave de la puerta) y
+Migración `supabase/migrations/20261011120000_puerta_datos.sql` (**aplicada el 2026-10-10** con la
+autorización de Alex; RLS comprobada: un no-dueño no lee llaves ni registra ninguna): tablas `puerta_datos_llaves` (huella sha256 de la llave de la puerta) y
 `os_puerta_datos` (fila única: URL de la puerta, activa, versión y salud; la leen solo cuentas con
 sesión) y la función `puerta_datos_replicar(_llave, _lote)` (`SECURITY DEFINER`, ejecutable con la
 clave pública, comprueba la llave dentro) que aplica un lote acotado:
@@ -186,8 +186,8 @@ y la cola de réplica vive en SQLite: un corte no la pierde. Rollback:
 
 | Fase | Qué cambia | Cómo se activa | Vuelta atrás |
 |---|---|---|---|
-| 0 · sombra (hoy) | Puerta desplegada y sana en el A1; bus, arriendo, JWKS y métricas vivos; nadie depende de ella | `python3 scripts/puente/puerta_datos.py desplegar` | `systemctl stop starseed-puerta-datos` |
-| 1 · máquinas | Backend de Astraura (malla, destino, cerebros), vigía (freno), Next (destino), publicadores del bus → puerta con respaldo | fichas en `~/.starseed/env` (`PUERTA_DATOS_URL`, `PUERTA_DATOS_TOKEN_*`) | quitar la variable: vuelven a Supabase en la siguiente vuelta |
+| 0 · sombra (hecha, PDA1010) | Puerta desplegada y sana en el A1; bus, arriendo, JWKS y métricas vivos; nadie depende de ella | `python3 scripts/puente/puerta_datos.py desplegar` | `systemctl stop starseed-puerta-datos` |
+| 1 · máquinas (**encendida 2026-10-10, PDA1011**; §10.2) | Backend de Astraura (malla, estado de cerebros), nodo de MetaGenesis (arriendo), vigía (freno), publicadores del bus y latidos de agentes → puerta con respaldo. Next (destino) queda para la integración siguiente | fichas en `~/.starseed/env` (`PUERTA_DATOS_URL`, `PUERTA_DATOS_FICHA_*`) | por consumidor: `ASTRAURA_PUERTA_DATOS`, `STARSEED_NODO_PUERTA`, `STARSEED_BUS_PUERTA`, `STARSEED_LATIDO_PUERTA` = `apagada`; o quitar la variable |
 | 2 · navegador | Neuronas, presencia, freno y bus de MetaGenesis por el adaptador; arriendo de MetaGenesis en la puerta (OPA1011 añade el transporte `puerta` a `nodo_metagenesis_bus.py`) | aplicar la migración, registrar la llave, `os_puerta_datos.activa = true` | por neurona: interruptor en Genesis; global: `activa = false` (≤ 6 h; al momento con recarga) |
 | 3 · sesiones y malla | `getClaims()` local en navegador y middleware; faros y relé cifrado en la puerta; caché de estaciones y versiones | ola propia | interruptor por neurona |
 
@@ -202,6 +202,8 @@ python3 scripts/puente/puerta_datos.py desplegar      # empaqueta servicios/puer
 python3 scripts/puente/puerta_datos.py fichas         # crea las fichas que falten y las guarda en ~/.starseed/env (solo nombres en pantalla)
 python3 scripts/puente/puerta_datos.py medir          # salud + métricas → ~/.starseed/puerta-datos.json
 python3 scripts/puente/puerta_datos.py estado         # lo mismo, en pantalla, sin IPs ni URLs
+python3 scripts/puente/puerta_datos.py registrar-llave # huella de la llave de réplica en Supabase
+python3 scripts/puente/puerta_datos.py alta-nodos      # llaves (solo huellas) de los nodos de MetaGenesis de la Mac y del A1
 ```
 
 En el A1 a mano: `sudo bash /opt/starseed/puerta-datos/deploy/instalar.sh /opt/starseed/puerta-datos`.
@@ -215,7 +217,9 @@ En el A1 a mano: `sudo bash /opt/starseed/puerta-datos/deploy/instalar.sh /opt/s
 - Tocar `deploy/oracle/**`, `scripts/puente/oracle_*.py` (OPO1011) ni `nodo_metagenesis*.py` /
   `src/lib/metagenesis/remoto*.ts` (OPA1011): la puerta se integra por sus contratos públicos.
 
-## 10. Estado real (2026-10-10, 21:15–21:35 UTC)
+## 10. Estado real
+
+### 10.0 Fase 0 · sombra (PDA1010, 2026-10-10, 21:15–21:35 UTC)
 
 **Desplegada y sana en el A1, en fase 0 (sombra).** Medido:
 
@@ -249,14 +253,92 @@ que la ruta `/v1/metagenesis/latir` sustituye con las mismas reglas.
 
 ### 10.1 Para activar (en orden; cada paso se deshace solo)
 
-1. **OPA1011** — transporte `puerta` en `nodo_metagenesis_bus.py` con
-   `puerta_datos_cliente.Puerta(url, ficha="").metagenesis_latir(nodo, llave, medio, puntos, datos)`
-   antes del bus (si devuelve `None`, sigue por el bus como hoy). Cada nodo crea su llave
-   (`nodo_metagenesis.py llave`) y una ficha admin la da de alta en la puerta:
-   `POST /v1/admin/nodos {nodo, medio, huella}`. Ahorro ≈ 1.700/día.
-2. **Alex** — aplicar `supabase/migrations/20261011120000_puerta_datos.sql` y luego
-   `python3 scripts/puente/puerta_datos.py registrar-llave` (solo viaja la huella). Desde ahí la
-   réplica por lotes funciona y se puede pasar a la fase 2.
-3. **Backend de Astraura** (repo `astraura`) — `mesh_network.py` y `cerebros_manager.py` con
-   `PUERTA_DATOS_URL` + `PUERTA_DATOS_FICHA_ASTRAURA` (ya en `~/.starseed/env`), Supabase de respaldo.
-4. **Navegador** — neuronas, presencia y freno por `puertaA1()`, y `os_puerta_datos.activa = true`.
+1. ✅ **Nodo de MetaGenesis** (PDA1011) — transporte `puerta` en `nodo_metagenesis_bus.py`
+   (`EnlacePuerta`): arriendo por `metagenesis_latir` antes del bus; si devuelve `None`, esa misma
+   vuelta sigue por el bus y la puerta se reprueba a los 5 min. Llaves de la Mac y del A1 dadas de
+   alta con `python3 scripts/puente/puerta_datos.py alta-nodos` (solo viaja la huella).
+2. ✅ **Migración y llave** — aplicada con la autorización de Alex (2026-10-10) y
+   `puerta_datos.py registrar-llave` → `{"ok": true}`.
+3. ✅ **Backend de Astraura** — commit `32a54ef9` en el repo `IA 1.58 bit` (local, sin push):
+   `app/core/puerta_datos.py` + `mesh_network.py` + `cerebros_manager.py`.
+4. ⏳ **Navegador** — falta: la build instalada no trae `src/lib/datos/puerta-a1*.ts` (en
+   `localhost:9002`, `/api/mando/puerta-datos` → 404) y, además, el adaptador aún no está cableado
+   en neuronas, presencia y freno (solo existe en el contenedor, sin integrar). Queda listo lo demás:
+   `os_puerta_datos.url` puesta (`activa = false`), el freno empujado a la puerta por la vigía y las
+   llaves registradas. Paso siguiente: una ola que cablee `puertaA1()` en esos tres sitios →
+   integración → build → `update os_puerta_datos set activa = true`.
+5. ⏳ **Next (destino)** — `src/lib/astraura/destino-nube.ts` sigue leyendo `astraura_state` en
+   Supabase (8–10 lecturas por 30 min): necesita código de servidor, `PUERTA_DATOS_URL` y la ficha
+   `astraura` en el entorno de Next (Mac y Vercel) y una build.
+
+### 10.2 Fase 1 encendida (PDA1011, 2026-10-10, 22:10–23:10 UTC)
+
+Encendido, con respaldo automático a Supabase e interruptor en cada consumidor:
+
+| Consumidor | Qué va por la puerta | Respaldo | Interruptor |
+|---|---|---|---|
+| Backend de Astraura (`com.starseed.astraura`, reiniciado 22:19, salud 200) | malla: alta y descubrimiento (`/v1/malla/nodos`); estado de cerebros: la HUELLA del registro (`/v1/astraura/estado/cerebros`), nunca su contenido; Supabase se mira igualmente 1 vez/h | Supabase como antes si la puerta no responde (salud con espera 1–10 min) | `ASTRAURA_PUERTA_DATOS=apagada` |
+| Nodo de MetaGenesis (Mac 22:27, A1 22:33 reinstalado con `oracle_nodo.py instalar`) | arriendo de líder, latido y órdenes de miembros (`/v1/metagenesis/*`) | el bus de siempre en la misma vuelta | `STARSEED_NODO_PUERTA=apagada` |
+| Vigía de consumo (`vigia_consumo.py`) | el freno, empujado en cada vuelta (`PUT /v1/freno`) | `os_freno` sigue siendo la verdad (se escribe antes) | — |
+| Publicadores del bus del enjambre | eventos importantes (`/v1/bus/eventos`, réplica a `relevo_eventos` por lotes ≤ 5 min); `latido`/`tunel`/`mg_*` siguen directos a Supabase | Supabase directo | `STARSEED_BUS_PUERTA=apagada` |
+| `latido_externo.py` | el latido del agente en `/v1/latidos` (clase `agente`) | el archivo local de siempre | `STARSEED_LATIDO_PUERTA=apagada` |
+
+Lo que el bus de Supabase sigue llevando del nodo, a propósito: la vista de MetaGenesis del OS
+(`remoto-nodos.ts`) aún lee el bus, así que el nodo deja allí su latido como ESPEJO cada 10 min (la
+vista da por vivo 15 min), lee órdenes firmadas y asignaciones cada 10 min y publica foto,
+decisiones y resultados. Con el freno puesto el nodo ya da una vuelta cada 10 min, así que hoy el
+ahorro del nodo es menor que el estimado (≈ 1.700/día): llega entero cuando la vista del OS lea la
+puerta (fase 2). Como la puerta vive en el A1, si el A1 cae caen a la vez la puerta y su nodo y la
+Mac vuelve sola al bus: no hay dos líderes salvo un corte de la puerta que solo vea un medio.
+
+**Medido (registros de Supabase por ruta y agente, ventanas de 30 min, freno puesto en ambas):**
+
+| Ruta (quién) | Antes 21:40–22:10 | Después 22:35–23:05 |
+|---|---|---|
+| `astraura_mesh_nodes` (backend, curl) | 12 | **0** |
+| `astraura_state` GET (backend, curl) | 17 | **0** |
+| `astraura_state` POST (backend: secciones con memoria, se quedan) | 10 | 10 |
+| `relevo_eventos` (nodo de MetaGenesis) | 26 | **14** |
+| `rpc/puerta_datos_replicar` (coste de la puerta) | 0 | 3 |
+| `astraura_state` GET (Next, destino — fase 1 sin hacer) | 10 | 8 |
+| `relevo_eventos` (enjambre de la Mac, python — su copia de `~/.local/bin` aún no tiene el cambio) | 12 | 21 |
+| `relevo_eventos` GET (Next, Genesis leyendo el bus) | 10 | 10 |
+| **Total del proyecto** | **217** | **87** |
+
+- Ahorro atribuible a la fase 1: **−41 peticiones por 30 min** en las rutas encendidas, **+3** de
+  réplica → **neto ≈ −76/h ≈ −1.800/día** con el freno puesto. El total del proyecto bajó un 60 %,
+  pero la mayor parte de esa bajada es del navegador (`merge_user_prefs` 17 → 0, `/auth/v1/user`
+  20 → 0, `rpc/es_metagenesis*` 14 → 0, Realtime 10 → 0): estuvo quieto y **no** es mérito de la
+  puerta. El enjambre de la Mac publicó más (21 frente a 12) por trabajo, no por la puerta.
+- La puerta, en el mismo rato: **52 peticiones servidas**, 3 a Supabase (réplica), 0 errores;
+  el backend de Astraura hizo 30 operaciones por ella, **0 respaldos**; HTTPS 208–232 ms desde la Mac.
+- Réplica por lotes: un evento `prueba_replica` se quedó en la puerta (no se replica) y uno real
+  llegó a `relevo_eventos` con su hora original (id 40823, 5 min después).
+
+**Corte de 68 s a propósito (23:08:21–23:09:29), con `vaciar` antes:**
+
+- Evento del bus escrito con la puerta parada → `via: supabase` (llegó: id 40878). Alta de la malla
+  de Astraura → Supabase (respaldo 1). `latido_externo.py` → archivo local. **Ninguna escritura perdida.**
+- La vuelta del nodo de la Mac cayó dentro del corte (23:08:50): «bus (la puerta no respondió)»,
+  mismo líder y mismo término (sin relevo en falso).
+- Al volver: el bus y la malla de Astraura otra vez por la puerta al primer intento; el nodo de la
+  Mac volvió a la puerta en su vuelta siguiente (23:21). Pero con el freno el nodo solo daba una
+  vuelta cada 10 min: entre su último latido por la puerta (22:58) y el siguiente (23:21) pasaron más
+  de 15 min, su arriendo caducó y el A1 tomó el mando (término 2) por las reglas de siempre (un
+  solo líder en todo momento; la Mac lo recupera por relevo ordenado: ≥ 100 puntos más y racha
+  ≥ 600 s). Arreglado (`espera_tras`): por la puerta la vuelta no cuesta Supabase, así que el nodo
+  sigue su ritmo normal (líder 120 s, resto 300 s) aunque haya freno; el espejo y las órdenes del
+  bus siguen cada 10 min.
+
+**Con el freno puesto la réplica solo lleva lo esencial (§6: arriendo y presencia)**: desde que la
+vigía empuja el freno a la puerta (22:41), los eventos del bus que entran por ella esperan en su
+cola de SQLite (4 a las 23:15) y llegan a `relevo_eventos` cuando el freno se levanta (00:00 UTC). No
+se pierden, pero quien los lea en Supabase (Genesis de otra neurona) los ve tarde. Hoy solo afecta al
+enjambre del A1 (el de la Mac publica directo con su copia vieja). Decisión pendiente: replicar
+también los eventos importantes con freno, a menos ritmo (p. ej. cada 15 min), o que el enjambre
+publique directo mientras haya freno.
+
+**Pendiente de esta fase:** Next (destino, §10.1.5); poner al día `~/.local/bin/starseed-enjambre.py`
+en la Mac (`bash scripts/enjambre/instalar.sh` con el enjambre quieto: va por detrás de main, sin
+CAP1010 ni PDA1011); `/salud` dice `jwks: "sin-claves"` cuando la JWKS lleva > 30 min sin usarse
+(la clave ES256 sí está: se recarga en la primera sesión), etiqueta engañosa que conviene cambiar.

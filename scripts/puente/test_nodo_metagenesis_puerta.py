@@ -153,5 +153,24 @@ class TestNodoPorLaPuerta(unittest.TestCase):
         self.assertEqual(self.puerta.llamadas, [])
 
 
+class TestRitmo(unittest.TestCase):
+    def test_con_freno_el_bus_va_cada_10_min_y_la_puerta_a_su_ritmo(self):
+        self.assertEqual(N.espera_tras({"soy_lider": True, "enlace": "bus"}, True), 600)
+        self.assertEqual(N.espera_tras({"soy_lider": True, "enlace": "bus (la puerta no respondió)"}, True), 600)
+        self.assertEqual(N.espera_tras({"soy_lider": True, "enlace": "puerta"}, True), N.CADA_LIDER_S)
+        self.assertEqual(N.espera_tras({"soy_lider": False, "enlace": "puerta"}, True), N.CADA_S)
+        self.assertEqual(N.espera_tras({"soy_lider": True, "enlace": "bus"}, False), N.CADA_LIDER_S)
+
+    def test_a_ritmo_normal_el_bus_de_supabase_no_crece(self):
+        reloj = Reloj()
+        sb = SupabaseSimulado(reloj)
+        n = nodo_puerta(sb, PuertaSimulada(reloj), reloj, MedioFalso(), "mac-1")
+        for _ in range(30):  # 1 h de vueltas del líder cada 120 s
+            n.vuelta()
+            reloj.t += N.CADA_LIDER_S
+        self.assertLessEqual(len(bus(sb, "GET")), 7)                 # órdenes cada 10 min
+        self.assertLessEqual(len(sb.de_tipo(L.T_LATIDO)), 7)          # espejo cada 10 min
+
+
 if __name__ == "__main__":
     unittest.main()
