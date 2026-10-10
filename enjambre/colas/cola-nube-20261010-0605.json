@@ -1,0 +1,18 @@
+{
+ "ola": "oracle-20261010",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "OPO1011T1",
+   "ola": "Ola 1011 · Oracle A1: primera cola del medio (OPO1011)",
+   "titulo": "Oracle A1 · pruebas de nodo_resumen (resumen del nodo en el medidor de consumo)",
+   "dificultad": "baja",
+   "privado": false,
+   "archivos": [
+    "scripts/puente/test_medidor_oracle.py"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/oracle-consumo.md` y `architecture/oracle-nube.md` §12. La función PURA `nodo_resumen(oracle_json)` de `scripts/puente/medidor_oracle.py` resume el nodo de MetaGenesis del A1 para la tarjeta de Oracle; hoy no tiene pruebas.\n\nAñade al FINAL de `scripts/puente/test_medidor_oracle.py` una clase `NodoResumen(unittest.TestCase)` con tres pruebas, sin tocar nada más del archivo ni ningún otro archivo:\n1. `nodo_resumen({})` y `nodo_resumen(None)` devuelven `None`.\n2. Con `{\"nodo\": {\"vivo\": True, \"fase\": \"guardian\", \"latido\": 1, \"guardian\": {\"t\": 1, \"ok\": False, \"sha\": \"abcdef1234567\", \"minutos\": 12.5, \"pasos\": [{\"paso\": \"tsc\", \"ok\": True}, {\"paso\": \"vitest\", \"ok\": False}]}, \"carga\": {\"cpu_1h\": 40.0, \"mem_ahora\": 22.0}, \"horas\": [{\"cpu\": 30.0}, {\"cpu\": 10.0}, {\"cpu\": 25.0}]}, \"servicios\": [{\"nombre\": \"bitnet\", \"ok\": True}, {\"nombre\": \"caddy\", \"ok\": True}, {\"nombre\": \"metageminis\", \"titulo\": \"MetaGeminis\", \"ok\": False}]}` comprueba: `servicios_ok == 2`, `servicios_total == 3`, `servicios_caidos == [\"MetaGeminis\"]`, `guardian[\"ok\"] is False`, `guardian[\"rojos\"] == [\"vitest\"]`, `guardian[\"sha\"] == \"abcdef12\"`, `horas_sobre_umbral == 2`, `horas_medidas == 3`, `cpu_1h == 40.0`.\n3. Que no copie URLs: con un servicio `{\"nombre\": \"caddy\", \"ok\": True, \"detalle\": \"https://bitnet.1-2-3-4.sslip.io\"}`, el texto `sslip` no aparece en `json.dumps(resultado)`.\n\nImporta lo que necesites (`json`, `unittest`) solo si el archivo no lo importa ya; el módulo se importa como lo hace el resto del archivo. Las pruebas deben pasar con `python3 -m unittest test_medidor_oracle` desde `scripts/puente`."
+  }
+ ]
+}
