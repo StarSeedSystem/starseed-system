@@ -82,6 +82,7 @@ export default defineConfig({
       // módulos bajo test (que importan con `@/...`) resuelvan igual que en
       // Next.js.
       "@": path.resolve(__dirname, "./src"),
+      "qrcode": path.resolve(__dirname, "./src/__mocks__/qrcode.ts"),
     },
   },
   // tsconfig usa `jsx: "preserve"` (lo exige Next.js), pero vitest no pasa

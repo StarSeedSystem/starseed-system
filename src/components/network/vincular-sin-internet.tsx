@@ -58,7 +58,8 @@ function CodigoQr({ codigo }: { codigo: string }) {
     let vivo = true;
     setUrl(null);
     setError(false);
-    import("qrcode")
+    // @ts-ignore
+    import(/* @vite-ignore */ "qrcode")
       .then((m) => {
         // CommonJS: según el empaquetador llega como módulo o dentro de `default`.
         const lib = ((m as unknown as { default?: typeof m }).default ?? m) as typeof m;
