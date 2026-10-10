@@ -370,6 +370,11 @@ class TestFotoYTachado(unittest.TestCase):
         a = L.foto("mac-aaaaaa", 3, n, [], {"listas": "3"}, True, "real", T0 + 10)
         b = L.foto("mac-aaaaaa", 3, n, [], {"listas": "3"}, True, "real", T0 + 500)
         self.assertEqual(L.huella_foto(a), L.huella_foto(b))
+        # La hora dentro del texto de un medidor no cuenta como cambio; la cifra sí.
+        d = L.foto("mac-aaaaaa", 3, n, [], {"listas": "3", "contenedores": "4 trabajando · medido 2026-10-10 05:58:44"}, True, "real", T0)
+        e = L.foto("mac-aaaaaa", 3, n, [], {"listas": "3", "contenedores": "4 trabajando · medido 2026-10-10 06:00:44"}, True, "real", T0)
+        self.assertEqual(L.huella_foto(d), L.huella_foto(e))
+        self.assertNotEqual(L.huella_foto(a), L.huella_foto(L.foto("mac-aaaaaa", 3, n, [], {"listas": "4"}, True, "real", T0)))
         c = L.foto("mac-aaaaaa", 4, n, [], {"listas": "3"}, True, "real", T0 + 500)
         self.assertNotEqual(L.huella_foto(a), L.huella_foto(c))
         self.assertIn("líder mac-aaaaaa", L.texto_foto(a))
