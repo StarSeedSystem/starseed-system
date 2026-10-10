@@ -4,8 +4,10 @@
 Dos veces hoy un commit mío coincidió con el `git commit`/`merge --ff-only` de una
 tarea y una de las dos partes murió con «index.lock … another git process» (JV4 a las
 06:05, MD1b a las 14:35). Este script: (1) espera a que ninguna tarea viva esté en una
-fase que toque git (tsc, tests, commit, revisión, integración: solo «escribiendo» o
-nada), (2) toma el mismo cerrojo `integrar` que usa el orquestador, (3) commitea.
+fase que toque git en main (commit, integración; desde el 2026-10-10 ya no espera a tsc,
+pruebas ni revisión, que corren en el worktree de cada tarea), (2) toma el mismo cerrojo
+`integrar` que usa el orquestador y espera hasta 90 s a que se suelte un index.lock breve,
+(3) commitea.
 
     python3 scripts/puente/commit-seguro.py -m "mensaje" [--] archivos…
 """
@@ -20,7 +22,13 @@ import time
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser("~/Documents/starseed-os-main")
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 CERROJO = os.path.expanduser("~/.starseed/cerrojos/integrar.lock")
-FASES_GIT = ("tsc", "tests", "commit", "revision", "revisión", "integrando", "integracion", "completando", "reparando")
+# (2026-10-10) Solo esperan las fases que tocan git en el árbol PRINCIPAL o sus ramas
+# compartidas. tsc, pruebas, revisión y reparación corren en el worktree de cada tarea
+# (su propio índice): esperar a que ninguna estuviera en tsc dejó commits de los
+# directores y agentes horas en cola con la Mac sin memoria (tsc de 5-15 min seguidos).
+# La integración en main ya se serializa con el cerrojo `integrar`, que también se toma aquí.
+FASES_GIT = ("commit", "integrando", "integracion", "integración", "completando")
+INDEX_LOCK_ESPERA_S = 90
 
 
 def fases_vivas():
@@ -63,8 +71,12 @@ def main():
     f = open(CERROJO, "w")
     fcntl.flock(f, fcntl.LOCK_EX)
     try:
-        if os.path.exists(os.path.join(RAIZ, ".git", "index.lock")):
-            print("index.lock presente; no commiteo"); return 1
+        candado = os.path.join(RAIZ, ".git", "index.lock")
+        t0 = time.time()
+        while os.path.exists(candado) and time.time() - t0 < INDEX_LOCK_ESPERA_S:
+            time.sleep(3)  # un git status breve de otro proceso suelta el candado en segundos
+        if os.path.exists(candado):
+            print("index.lock presente %d s; no commiteo" % INDEX_LOCK_ESPERA_S); return 1
         if resto:
             subprocess.run(["git", "add", "--"] + resto, cwd=RAIZ, check=True)
         r = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", mensaje], cwd=RAIZ)
