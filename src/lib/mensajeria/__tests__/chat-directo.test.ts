@@ -16,7 +16,7 @@ function almacenFalso() {
 const okResultado: ResultadoEnvio = {
   ok: true,
   confirmado: true,
-  enlace: { id: "e1", tipo: "p2p", etiqueta: "cercano" },
+  enlace: { id: "e1", tipo: "local", etiqueta: "cercano" },
   intentos: [],
   descartados: [],
 };
@@ -26,7 +26,7 @@ function entrante(cuerpo: unknown): MensajeEntrante {
     id: "m1",
     canal: "chat",
     cuerpo,
-    origen: { tipo: "p2p", enlaceId: "e1", etiqueta: "Ana", syncDeviceId: "dev-ana" },
+    origen: { tipo: "local", enlaceId: "e1", etiqueta: "Ana", syncDeviceId: "dev-ana" },
     at: 123,
   };
 }
@@ -56,7 +56,7 @@ describe("chat-directo", () => {
       { enviar: async () => okResultado, almacen },
     );
     const [m] = bandejaChatDirecto({ almacen });
-    expect(m.enlace).toBe("p2p");
+    expect(m.enlace).toBe("local");
     expect(m.confirmado).toBe(true);
   });
 
