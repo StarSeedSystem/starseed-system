@@ -25,6 +25,11 @@ export interface DependenciasCierre {
   abandonarRito: () => void;
   /** Guarda en la cuenta (onboarding_state). Nunca debe bloquear el cierre. */
   guardar: (patch: Partial<OnboardingState>) => Promise<unknown>;
+  /**
+   * (INT1010D) Recuerda el cierre EN ESTE APARATO para esta cuenta. Sin esto, cuando la cuenta no se
+   * puede leer (freno de consumo, sin red) el portero no ve el «pospuesto» y la reabre en cada página.
+   */
+  recordarLocal?: () => void;
   ahora?: () => Date;
 }
 
@@ -41,6 +46,7 @@ export function cambioAlCerrar(ahora: Date = new Date()): Partial<OnboardingStat
 export async function cerrarBienvenida(d: DependenciasCierre): Promise<boolean> {
   try { d.callarVoz(); } catch { /* sin voz: se cierra igual */ }
   d.ocultar();
+  try { d.recordarLocal?.(); } catch { /* sin storage: se cierra igual */ }
   try { d.abandonarRito(); } catch { /* sin storage: se cierra igual */ }
   try {
     const r = await d.guardar(cambioAlCerrar(d.ahora ? d.ahora() : new Date()));
@@ -61,9 +67,50 @@ export function debeAbrirseSola(p: {
   tienePerfil: boolean;
   estado: Pick<OnboardingState, "completed" | "skipped"> | null | undefined;
   ritoEnBienvenida: boolean;
+  /** (INT1010D) Esta cuenta ya la cerró en este aparato (`cerradaEnEsteAparato`). */
+  cerradaLocal?: boolean;
 }): boolean {
+  // (INT1010D · 2026-10-10) Lo cerrado aquí manda aunque la cuenta no se pueda leer: con el freno
+  // diario de Supabase `getOnboarding()` devuelve el estado por defecto y la guía volvía en cada página.
+  if (p.cerradaLocal) return false;
   const e = p.estado ?? { completed: false, skipped: false };
   if (e.completed || e.skipped) return false;
   if (!p.tienePerfil) return true;
   return p.ritoEnBienvenida;
+}
+
+/** Clave local (por aparato) de las cuentas que ya cerraron la bienvenida. INT1010D · 2026-10-10. */
+export const CLAVE_CIERRE_LOCAL = "starseed.bienvenida.cerrada.v1";
+
+export interface AlmacenCierre {
+  getItem(clave: string): string | null;
+  setItem(clave: string, valor: string): void;
+}
+
+function leerCierres(almacen: AlmacenCierre | null | undefined): Record<string, string> {
+  try {
+    const crudo = almacen?.getItem(CLAVE_CIERRE_LOCAL);
+    const datos = crudo ? JSON.parse(crudo) : null;
+    return datos && typeof datos === "object" && !Array.isArray(datos) ? (datos as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Apunta que `cuenta` cerró la bienvenida en este aparato. Nunca lanza. */
+export function recordarCierreLocal(cuenta: string | null | undefined, almacen: AlmacenCierre | null | undefined, ahora: Date = new Date()): void {
+  if (!cuenta || !almacen) return;
+  try {
+    const cierres = leerCierres(almacen);
+    cierres[cuenta] = ahora.toISOString();
+    almacen.setItem(CLAVE_CIERRE_LOCAL, JSON.stringify(cierres));
+  } catch {
+    /* sin storage: el cierre de la cuenta sigue valiendo */
+  }
+}
+
+/** ¿`cuenta` ya cerró la bienvenida en este aparato? Otra cuenta en el mismo aparato no cuenta. */
+export function cerradaEnEsteAparato(cuenta: string | null | undefined, almacen: AlmacenCierre | null | undefined): boolean {
+  if (!cuenta) return false;
+  return typeof leerCierres(almacen)[cuenta] === "string";
 }

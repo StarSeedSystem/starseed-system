@@ -48,7 +48,7 @@ import { marcarVozDelRito } from "@/lib/aurora/narracion-ventana";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { hablarRito, callarRito, instalarVozPropia, anticiparRito, VOZ_RITO_EVENT, type EstadoVozRito } from "@/lib/aurora/voz-rito";
 import { terminarEtapa, navegarSuave, abandonarRito } from "@/lib/onboarding/director-rito";
-import { cerrarBienvenida } from "@/lib/onboarding/cerrar-bienvenida";
+import { cerrarBienvenida, recordarCierreLocal } from "@/lib/onboarding/cerrar-bienvenida";
 import { PasoAnimado, useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { ResumenGestos } from "@/components/onboarding/demo-gestos-hibridos";
 import { PasoEscena } from "@/components/onboarding/paso-escena";
@@ -615,6 +615,13 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     const guardado = await cerrarBienvenida({
       callarVoz: callarRito,
       ocultar: closeAll,
+      // (INT1010D) La sesión se lee del almacén local (sin red): si la cuenta no se puede leer
+      // mañana (freno de consumo), este aparato recuerda igual que ya la cerró.
+      recordarLocal: () => {
+        void createClient().auth.getSession().then(({ data }) => {
+          recordarCierreLocal(data?.session?.user?.id, typeof window !== "undefined" ? window.localStorage : null);
+        }).catch(() => { /* sin sesión: nada que recordar */ });
+      },
       abandonarRito,
       guardar: saveOnboarding,
     });

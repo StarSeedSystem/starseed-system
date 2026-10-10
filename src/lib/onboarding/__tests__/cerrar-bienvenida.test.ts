@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { cambioAlCerrar, cerrarBienvenida, debeAbrirseSola } from "../cerrar-bienvenida";
+import { CLAVE_CIERRE_LOCAL, cambioAlCerrar, cerradaEnEsteAparato, cerrarBienvenida, debeAbrirseSola, recordarCierreLocal } from "../cerrar-bienvenida";
 
 const RAIZ = join(__dirname, "..", "..", "..", "..");
 const leer = (ruta: string) => readFileSync(join(RAIZ, ruta), "utf-8");
@@ -81,5 +81,59 @@ describe("guardia: ningún diálogo del rito vuelve a tener una X muerta", () =>
     expect(src).toMatch(/onInteractOutside=\{\(e\) => e\.preventDefault\(\)\}/);
     expect(src).not.toMatch(/onEscapeKeyDown=\{\(e\) => e\.preventDefault\(\)\}/);
     expect(src).toMatch(/cerrarBienvenida\(/);
+  });
+});
+
+/**
+ * INT1010D (2026-10-10) · Medido en localhost:9002 con el freno diario de Supabase activo (25.022 de
+ * 25.000): `getOnboarding()` no puede leer la cuenta, devuelve el estado por defecto y la bienvenida
+ * volvía a abrirse en CADA recarga aunque se hubiera cerrado. El cierre se recuerda también en el aparato.
+ */
+describe("cierre recordado en el aparato", () => {
+  const almacen = () => {
+    const m = new Map<string, string>();
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+  };
+
+  it("cerrar llama a recordarLocal justo después de ocultar, antes de guardar en la cuenta", async () => {
+    const orden: string[] = [];
+    await cerrarBienvenida({
+      callarVoz: () => orden.push("callar"),
+      ocultar: () => orden.push("ocultar"),
+      recordarLocal: () => orden.push("recordar"),
+      abandonarRito: () => orden.push("abandonar"),
+      guardar: async () => { orden.push("guardar"); return null; },
+    });
+    expect(orden).toEqual(["callar", "ocultar", "recordar", "abandonar", "guardar"]);
+  });
+
+  it("un fallo al recordar no deja la ventana abierta", async () => {
+    const ocultar = vi.fn();
+    await cerrarBienvenida({ callarVoz: () => {}, ocultar, recordarLocal: () => { throw new Error("sin storage"); }, abandonarRito: () => {}, guardar: async () => ({}) });
+    expect(ocultar).toHaveBeenCalledTimes(1);
+  });
+
+  it("lo cerrado en este aparato manda aunque la cuenta no se pueda leer (estado por defecto, sin perfil)", () => {
+    const a = almacen();
+    recordarCierreLocal("cuenta-1", a, new Date("2026-10-10T21:50:00Z"));
+    expect(cerradaEnEsteAparato("cuenta-1", a)).toBe(true);
+    expect(debeAbrirseSola({ tienePerfil: false, estado: { completed: false, skipped: false }, ritoEnBienvenida: true, cerradaLocal: true })).toBe(false);
+  });
+
+  it("es por cuenta: otra cuenta en el mismo aparato sigue viendo su bienvenida", () => {
+    const a = almacen();
+    recordarCierreLocal("cuenta-1", a);
+    expect(cerradaEnEsteAparato("cuenta-2", a)).toBe(false);
+    expect(debeAbrirseSola({ tienePerfil: false, estado: null, ritoEnBienvenida: false, cerradaLocal: false })).toBe(true);
+  });
+
+  it("sin cuenta, sin almacén o con basura guardada no rompe nada", () => {
+    expect(cerradaEnEsteAparato(null, almacen())).toBe(false);
+    expect(cerradaEnEsteAparato("x", null)).toBe(false);
+    const a = almacen();
+    a.setItem(CLAVE_CIERRE_LOCAL, "{no es json");
+    expect(cerradaEnEsteAparato("x", a)).toBe(false);
+    recordarCierreLocal("x", a);
+    expect(cerradaEnEsteAparato("x", a)).toBe(true);
   });
 });

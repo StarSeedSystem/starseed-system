@@ -29,7 +29,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { getOnboarding } from "@/lib/onboarding/onboarding";
 import { etapaActual } from "@/lib/onboarding/director-rito";
-import { debeAbrirseSola } from "@/lib/onboarding/cerrar-bienvenida";
+import { cerradaEnEsteAparato, debeAbrirseSola } from "@/lib/onboarding/cerrar-bienvenida";
 import OnboardingWizard from "@/components/onboarding/onboarding-wizard";
 
 export function OnboardingGate() {
@@ -95,7 +95,9 @@ export function OnboardingGate() {
       // medio. Cuenta YA iniciada en un dispositivo nuevo: sus ajustes de neurona los abre
       // el orquestador del primer arranque (ver cabecera).
       const ob = await getOnboarding();
-      setShow(debeAbrirseSola({ tienePerfil: hasProfile, estado: ob, ritoEnBienvenida: enBienvenidaRito }));
+      let cerradaLocal = false;
+      try { cerradaLocal = cerradaEnEsteAparato(user.id, window.localStorage); } catch { /* sin storage */ }
+      setShow(debeAbrirseSola({ tienePerfil: hasProfile, estado: ob, ritoEnBienvenida: enBienvenidaRito, cerradaLocal }));
     } catch {
       setShow(false);
     } finally {
