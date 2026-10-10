@@ -8,11 +8,15 @@
  * `/genesis`: esa ruta será la entrada con selector de nivel (contrato
  * architecture/genesis-niveles-malla-universal-estaciones.md §A.1). SOP:
  * architecture/metagenesis-remoto-tunel.md
+ * (2026-10-10 · OPA1011) Encima, `MetaGenesisAutonoma`: el estado de los nodos de MetaGenesis y
+ * sus órdenes leídos de Supabase, que se ve y funciona aunque la Mac esté apagada
+ * (architecture/metagenesis-autonoma.md).
  */
 
 import { CentroMando } from "@/components/mando/centro-mando";
 import { CrearEnjambre } from "@/components/mando/crear-enjambre";
 import { MetaGenesisRemoto } from "@/components/mando/metagenesis-remoto";
+import { MetaGenesisAutonoma } from "@/components/metagenesis/metagenesis-autonoma";
 
 export default function MetaGenesisPage() {
     return (
@@ -25,6 +29,7 @@ export default function MetaGenesisPage() {
                     se decide en Ajustes › Accesos.
                 </p>
             </header>
+            <MetaGenesisAutonoma />
             <MetaGenesisRemoto>
                 <CentroMando />
                 <div className="mt-8 max-w-xl mx-auto">

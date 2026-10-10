@@ -209,13 +209,13 @@ async function refrescar(m: Memoria, ahora: number): Promise<void> {
     if (m.ultimaCarga && ahora - m.ultimaCarga < REFRESCO_MS) return;
     if (m.maxId === 0) {
         const hace = (ms: number) => encodeURIComponent(new Date(ahora - ms).toISOString());
-        const ligeros = await pedir(m, `tipo=not.in.(latido,tunel,arranque)&t=gte.${hace(30 * DIA_MS)}&order=id.desc&limit=1500`, ahora);
+        const ligeros = await pedir(m, `tipo=not.in.(latido,tunel,arranque,mg_latido,mg_foto,mg_colas)&t=gte.${hace(30 * DIA_MS)}&order=id.desc&limit=1500`, ahora);
         if (!ligeros) return;
         guardar(m, ligeros);
         guardar(m, (await pedir(m, `tipo=eq.arranque&t=gte.${hace(3 * DIA_MS)}&order=id.desc&limit=40`, ahora)) ?? []);
         guardar(m, (await pedir(m, `tipo=eq.latido&t=gte.${hace(10 * 60_000)}&order=id.desc&limit=30`, ahora)) ?? []);
     } else {
-        const nuevas = await pedir(m, `id=gt.${m.maxId}&tipo=neq.tunel&order=id.asc&limit=500`, ahora);
+        const nuevas = await pedir(m, `id=gt.${m.maxId}&tipo=not.in.(tunel,mg_latido,mg_foto,mg_colas)&order=id.asc&limit=500`, ahora);
         if (!nuevas) return;
         guardar(m, nuevas);
     }

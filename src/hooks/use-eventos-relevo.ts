@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { cargarEventos } from "@/lib/mando/eventos";
+import { cargarEventos, esEventoSilencioso } from "@/lib/mando/eventos";
 import { onTableChange } from "@/lib/realtime/realtime";
 import type { EventoRelevo } from "@/lib/mando/tipos";
 
@@ -83,7 +83,7 @@ export function useEventosRelevo(limite = 200): UseEventosRelevoResultado {
             { event: "INSERT" },
             (payload) => {
                 const fila = payload?.new ?? null;
-                if (!fila) return;
+                if (!fila || esEventoSilencioso(fila.tipo)) return;
                 setEventos((prev) => anteponer(prev, fila));
             },
         );

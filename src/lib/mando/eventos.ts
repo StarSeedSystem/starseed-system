@@ -56,6 +56,19 @@ function normalizar(fila: FilaEvento): EventoRelevo {
  *                (útil para traer lo nuevo desde el último visto en el sondeo).
  * @param limite  máximo de eventos a devolver.
  */
+/**
+ * (2026-10-10 · OPA1011) Tipos que son FOTOS o latidos, no sucesos: no van al chat del bus. Los
+ * `mg_latido`/`mg_foto`/`mg_colas` son de los nodos de MetaGenesis (cada 5 min por nodo) y los
+ * pinta su propio panel (`metagenesis-autonoma.tsx`).
+ */
+export const TIPOS_SILENCIOSOS_BUS = "(latido,tunel,mg_latido,mg_foto,mg_colas)";
+const SILENCIOSOS = new Set(TIPOS_SILENCIOSOS_BUS.slice(1, -1).split(","));
+
+/** ¿Este evento es una foto o un latido (no un suceso del chat)? */
+export function esEventoSilencioso(tipo: string | null | undefined): boolean {
+    return SILENCIOSOS.has(String(tipo ?? ""));
+}
+
 export async function cargarEventos(desdeId = 0, limite = 200): Promise<EventoRelevo[]> {
     // SSR / cliente no hidratable: no hay tabla que consultar.
     if (typeof window === "undefined") return [];
@@ -70,7 +83,7 @@ export async function cargarEventos(desdeId = 0, limite = 200): Promise<EventoRe
         let consulta = supabase
             .from("relevo_eventos")
             .select("id, t, quien, tipo, tarea, texto, datos")
-            .not("tipo", "in", "(latido,tunel)")
+            .not("tipo", "in", TIPOS_SILENCIOSOS_BUS)
             .order("id", { ascending: false })
             .limit(Math.max(1, Math.min(300, limite)));
 
