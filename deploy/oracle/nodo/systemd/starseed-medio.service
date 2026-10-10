@@ -1,0 +1,26 @@
+[Unit]
+Description=StarSeed · medio del enjambre en el A1 + guardián de main (OPO1011)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=STARSEED_WT=/home/starseed/starseed-wt NODE_OPTIONS=--max-old-space-size=4096 NEEDLE_TELEMETRY=0
+Environment=STARSEED_ESPERA_APROBACION_S=600 PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/oracle_a1.py servir
+Restart=always
+RestartSec=30
+MemoryHigh=8G
+MemoryMax=9G
+# Trabajo de fondo: cede la CPU a BitNet cuando una neurona le pregunta.
+CPUWeight=50
+IOWeight=50
+Nice=10
+KillMode=control-group
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

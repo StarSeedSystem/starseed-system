@@ -1,0 +1,23 @@
+[Unit]
+Description=StarSeed · BitNet b1.58 de Astraura para las neuronas de la cuenta (OPO1011)
+After=network-online.target
+Wants=network-online.target
+# requiere: /home/starseed/astraura/backend/BitNet/build/bin/llama-server
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+ExecStart=/opt/starseed/nodo/bitnet-servir.sh
+Restart=always
+RestartSec=20
+MemoryHigh=1800M
+MemoryMax=2200M
+# Las neuronas esperan respuesta: BitNet manda sobre el guardián y el enjambre cuando genera
+# (medido: con tsc + vitest a la vez y el mismo peso bajaba de ~10 a 0,6 tok/s).
+CPUWeight=400
+Nice=-5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

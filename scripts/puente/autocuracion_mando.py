@@ -429,6 +429,14 @@ def _traer_en_fondo():
     import subprocess
 
     with open("/tmp/starseed-traer-nube.log", "a", encoding="utf-8") as log:
+        # (OPO1011) Primero el A1 de Oracle (nodo siempre encendido): `oracle_nodo.py ciclo` lee su
+        # estado, sube a GitHub sus ramas `nube/a1-*` y le manda trabajo si está libre; después
+        # `traer_nube` las pasa por las puertas de main en la misma pasada. Sin A1, no hace nada.
+        if os.path.exists(os.path.join(DIRECTORIO, "oracle_nodo.py")):
+            subprocess.Popen([sys.executable, os.path.join(DIRECTORIO, "oracle_nodo.py"), "ciclo", "--y-traer-nube"],
+                             cwd=RAIZ, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                             start_new_session=True)
+            return True
         subprocess.Popen([sys.executable, os.path.join(DIRECTORIO, "traer_nube.py"), "revisar", "--aplicar"],
                          cwd=RAIZ, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                          start_new_session=True)

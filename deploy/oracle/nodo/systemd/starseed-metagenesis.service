@@ -1,0 +1,23 @@
+[Unit]
+Description=StarSeed · nodo de MetaGenesis (OPA1011) en el A1: siempre encendido (OPO1011)
+After=network-online.target starseed-medio.service
+Wants=network-online.target
+# requiere: /opt/starseed/nodo/metagenesis/nodo_metagenesis.py
+# Solo se instala cuando el paquete trae scripts/puente/nodo_metagenesis.py. Contrato con OPA1011:
+# `python3 nodo_metagenesis.py servir` corre en primer plano; si su orden es otra, se cambia aquí.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/metagenesis/nodo_metagenesis.py servir
+Restart=on-failure
+RestartSec=60
+MemoryMax=768M
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

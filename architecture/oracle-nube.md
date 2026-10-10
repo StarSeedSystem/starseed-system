@@ -207,3 +207,102 @@ idempotente por nombre; `oracle_desplegar.py` de OR1007G debe reconocer estos MI
 - Presupuesto `starseed-alerta-1usd`: 1 USD al mes con aviso por correo al 100 % real y previsto.
 - Los límites de servicio de la cuenta (prueba) permiten hasta 41 OCPU de A1: **no se usan**; las
   guardias de §5 siguen mandando.
+
+## 12. El A1 como nodo de MetaGenesis (OPO1011 · 2026-10-10)
+
+> Alex (2026-10-10), con el medidor de Oracle delante: «starseed-a1 lleva 2,3 días ocioso (CPU p95
+> 0,52 %, memoria 5,26 %, red 0 %; umbral 20 %). Si sigue así, Oracle puede reclamarlo desde el
+> 14 oct … solucionala».
+
+**Qué es.** El A1 deja de ser una máquina vacía y pasa a ser el **nodo siempre encendido** de
+MetaGenesis: trabaja aunque la Mac esté apagada y se maneja desde cualquier neurona que tenga la
+llave SSH (`~/.ssh/starseed_oracle_ed25519`). **Por qué así:** Oracle reclama una máquina Always
+Free si en 7 días la CPU (p95 de puntos de 1 h), la red y, en A1, la memoria quedan TODAS bajo el
+20 %. La salida honesta no es un bucle que caliente la CPU: es darle el trabajo que nos faltaba
+hacer en algún sitio que no se apague.
+
+### 12.1 Lo que corre en el A1 (servicios systemd, usuario `starseed`, sin contraseña ni llave)
+
+| Servicio | Qué hace | Memoria tope | Reinicio |
+|---|---|---|---|
+| `starseed-medio.service` (`/opt/starseed/nodo/oracle_a1.py servir`) | **Medio del enjambre**: cada 2 min mira (HTTPS, solo lectura) las ramas `colas/oracle-*`; con una cola nueva pone `main` en ese commit y corre el orquestador de siempre (`~/bin/starseed-enjambre.py`, 2 trabajadores, opencode con los proveedores gratuitos de la nube de GitHub). Lo hecho queda en ramas `nube/a1-<fecha>` (lo que pasó sus puertas aquí) y `nube/a1-<fecha>-<id>` (el trabajo de cada tarea). **Guardián de main**: sin cola, cada 2 h (o 45 min después de que cambie el main de la Mac) comprueba ese main con las cuatro puertas del CI —`tsc --noEmit`, `vitest run`, núcleo mesh y `next build` (la única que ve un módulo de servidor colado en el paquete del navegador, y que en la Mac no cabe)— y deja el veredicto; si llega una cola entre paso y paso, le cede la máquina sin anotar nada. Medido en la primera pasada (main 4f2ead81): tsc 210 s · vitest 546 s (8.128 pruebas) · mesh 5 s · **verde**. Estado sin IPs ni claves cada minuto en `/var/lib/starseed/nodo/estado.json`, con la carga medida (CPU y memoria por hora). | 8 GB alto · 9 GB máx. | siempre, 30 s |
+| `starseed-bitnet.service` (`bitnet-servir.sh`) | **BitNet b1.58 2B-4T de Astraura** para las neuronas de la cuenta: el `llama-server` vendorizado, perfil de `nodo-bitnet.sh` (hilos/contexto/slots según la máquina), pesos en memoria propia (`--no-mmap`), solo en 127.0.0.1 y **con clave** (`--api-key-file /etc/starseed/bitnet.key`). | 1,8 GB alto · 2,2 GB máx. | siempre, 20 s |
+| `starseed-caddy` (Docker, red del anfitrión, 128 MB) | HTTPS automático (Let's Encrypt con sslip.io): `bitnet.<ip-con-guiones>.sslip.io` → BitNet. `/health` abierto para las sondas; todo lo demás pide la clave. | 128 MB | `unless-stopped` |
+| `starseed-metageminis.timer` → `.service` | **MetaGeminis en BORRADOR** cada 6 h: redacta hasta 3 borradores para aprobar (`--cola local`); nunca envía nada. Solo se instala si el paquete trae `scripts/sociales/metageminis.py`. | 512 MB | temporizador |
+| `starseed-metagenesis.service` | El nodo de MetaGenesis que deje OPA1011 (`scripts/puente/nodo_metagenesis*.py`): viaja solo en el paquete cuando exista. | — | — |
+
+Registros: journald con tope (400 MB, 14 días) y `logrotate` semanal de `/var/log/starseed/*.log`
+y `~starseed/registros/*.log`. Disco del A1: 96 GB, el nodo ocupa ≈ 6 GB (repo + `node_modules` +
+BitNet + pesos).
+
+**El repo del A1 es de SOLO LECTURA de verdad**: clonado por HTTPS sin credenciales y con
+`git remote set-url --push origin no-se-empuja-desde-el-a1`. Las claves de los proveedores van a
+`/home/starseed/.starseed/env` (600) y son las MISMAS que tiene la nube de GitHub
+(`nube-gh.py secretos`): solo proveedores con modelos gratuitos y las públicas del bus. Nada de
+pago (Anthropic, OpenAI, DeepSeek) y nada que apunte a `127.0.0.1` de la Mac.
+
+### 12.2 Lo que hace una neurona con él (`scripts/puente/oracle_nodo.py`)
+
+```
+python3 scripts/puente/oracle_nodo.py instalar [--esperar]   # sube el paquete y corre preparar-a1.sh (idempotente)
+python3 scripts/puente/oracle_nodo.py claves                 # claves gratuitas al A1 (solo nombres en pantalla)
+python3 scripts/puente/oracle_nodo.py estado                 # estado del nodo → ~/.starseed/oracle.json (nodo, servicios)
+python3 scripts/puente/oracle_nodo.py ciclo                  # estado → traer → lanzar si está libre
+python3 scripts/puente/oracle_nodo.py probar-bitnet          # una pregunta al BitNet por HTTPS y con clave
+```
+
+- **Trabajo de ida** (`lanzar`): reparte N tareas del atraso con las MISMAS reglas que la nube de
+  GitHub (`repartir_nube.elegir`, envíos contados, nada de lo que la Mac escribe ahora) y las sube
+  en un commit SUELTO a `colas/oracle-<fecha>` (como `colas/nube-*`: main no se toca). Marca las
+  tareas `reasignada · oracle` — préstamo, no traspaso.
+- **Trabajo de vuelta** (`traer`): el A1 no puede empujar; la neurona trae por SSH sus ramas
+  `nube/a1-*` y las sube a GitHub con el mismo nombre. `traer_nube.py` ya lee `nube/*`: las trae a
+  main con SUS puertas (cherry-pick + tsc + pruebas relacionadas) o crea la tarea de reparación.
+  Lo que el A1 terminó vuelve a `pendiente` para que `traer_nube` pueda decidir (con la tarea
+  «reasignada» no la toca); si el nodo no late en 3 h, todo lo prestado vuelve.
+- **Qué se le puede dar hoy, medido** (2026-10-10, 11:15): el reparto NO toca la tanda viva de la
+  Mac (lo que su orquestador ya tiene en la cola que está leyendo: 81 ids en ese momento), igual que
+  con la nube de GitHub (RM6b, 2026-10-08). Con todo el atraso elegible dentro de esa tanda (32
+  tareas de XR, Protomolécula y el revisor) el reparto da 0 y el A1 hace de guardián de main. En
+  cuanto haya atraso fuera de la tanda, el ciclo se lo manda solo. Sacar tareas de la tanda viva
+  de la Mac necesita una orden `soltar` y cuidar que el orquestador de la Mac no pise su estado al
+  guardar (en `fusionar_progreso` manda la memoria para sus propias tareas): es trabajo aparte.
+- **Dos trabajadores**, no uno (§8 decía 1 con el gobernador de núcleos − 1): los agentes esperan
+  a los modelos casi todo el tiempo y la CPU la gastan las puertas; con BitNet por delante en
+  prioridad (`CPUWeight=400` frente a 50) caben dos sin que las neuronas lo noten.
+- **Cada 30 min, solo**: la autocuración de Genesis (`autocuracion_mando._traer_en_fondo`) corre
+  `oracle_nodo.py ciclo --y-traer-nube` antes de `traer_nube`. Cualquier otra neurona con la llave
+  y la sesión de GitHub puede correr el mismo ciclo.
+- **Avisos** al Chat Director solo cuando algo cambia: el nodo deja de latir o vuelve, el guardián
+  de main pasa de verde a rojo (o al revés), sube ramas, devuelve tareas o recibe una cola.
+
+### 12.3 Dónde se ve
+
+- `~/.starseed/oracle.json` gana `nodo` (latido, fase, guardián, carga por hora) y `servicios`
+  (`[{nombre, titulo, ok, activo, ms, t, detalle}]`, sin URLs). `oracle_nube.py comprobar` ya no
+  los borra.
+- **Medios** (`medios_disponibles.clasificar_oracle`): con el nodo vivo (latido de menos de 45 min)
+  Oracle pasa a **`listo`** con «nodo de MetaGenesis vivo (fase, guardián verde/ROJO)».
+- **MetaGenesis › Consumo y créditos** (`oracle-consumo-tipos.ts`): fila «Nodo de MetaGenesis (A1)»
+  con servicios ok/total, el guardián y la CPU/memoria medidas en el A1; y, mientras Oracle siga
+  marcando riesgo, el texto dice cuántas horas lleva ya el nodo por encima del 20 % (el p95 de
+  Oracle usa 7 días de puntos de 1 h: tarda en reflejarlo). `medidor_oracle.py` copia el resumen
+  (`nodo_resumen`) en `oracle-consumo.json` y lo da también al contexto de directores y agentes.
+- **Servidor 1.58** (`panel-servidor.tsx`): la lista de servicios de Oracle ya no sale vacía.
+
+### 12.4 Trampas medidas al montarlo (2026-10-10)
+
+- `nodo-bitnet.sh preparar` (repo astraura) compila con `-DBITNET_ARM_TL1=ON` en arm64 y, con el
+  llama.cpp vendorizado de hoy, `bitnet-lut-kernels.h` no compila («no member named 'backend' in
+  'ggml_tensor'»). La Mac (arm64) compila con TL1 apagado: `preparar-a1.sh` compila igual y deja a
+  `nodo-bitnet.sh` solo los pesos y el perfil. **Pendiente en el repo astraura**: que el guion use
+  TL1 apagado (o lo detecte).
+- La interfaz web de ese llama.cpp se descarga de Hugging Face en versión «latest», que no trae
+  `loading.html`, y el enlazado falla. Se compila sin ella (`-DLLAMA_BUILD_UI=OFF
+  -DLLAMA_USE_PREBUILT_UI=OFF`): Astraura habla con la API.
+- `traer_nube.py` solo lee `nube/*`; las ramas `nube-ola/<run>/ola/<id>` que deja la nube de
+  GitHub (trabajo a medias de cada tarea) **no las trae nadie**. Para el A1 se usan ramas hermanas
+  `nube/a1-<fecha>-<id>`. Arreglarlo para la nube de GitHub es otra tarea (no es de Oracle).
+- Las puertas del orquestador se niegan a arrancar con archivos sin commitear en el árbol de main
+  de la Mac: para probar el paquete sin ensuciarlo, `STARSEED_NODO_FUENTE=<carpeta>` le da a
+  `oracle_nodo.py` otra fuente para los archivos nuevos.

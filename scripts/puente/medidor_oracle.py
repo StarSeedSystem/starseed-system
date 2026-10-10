@@ -534,6 +534,39 @@ def resumir(doc: dict) -> dict:
     return ocultar(doc)
 
 
+def nodo_resumen(oracle_json: dict | None) -> dict | None:
+    """PURA (OPO1011): el nodo de MetaGenesis del A1 tal como lo deja `oracle_nodo.py estado` en
+    ~/.starseed/oracle.json, resumido para la tarjeta y los agentes: si late, qué hace, sus
+    servicios (ok/total y los caídos), el guardián de main y la carga MEDIDA en el A1 (lo que
+    Oracle verá en sus métricas de 1 h con retraso). None si no hay nodo. Sin URLs ni IPs."""
+    d = oracle_json if isinstance(oracle_json, dict) else {}
+    n = d.get("nodo") if isinstance(d.get("nodo"), dict) else None
+    if not n:
+        return None
+    servicios = [x for x in d.get("servicios") or [] if isinstance(x, dict)]
+    g = n.get("guardian") if isinstance(n.get("guardian"), dict) else {}
+    carga = n.get("carga") if isinstance(n.get("carga"), dict) else {}
+    horas = [h for h in n.get("horas") or [] if isinstance(h, dict) and isinstance(h.get("cpu"), (int, float))]
+    return {
+        "vivo": bool(n.get("vivo")),
+        "latido": n.get("latido"),
+        "leido": n.get("leido"),
+        "fase": str(n.get("fase") or "")[:20],
+        "servicios_ok": sum(1 for x in servicios if x.get("ok")),
+        "servicios_total": len(servicios),
+        "servicios_caidos": [str(x.get("titulo") or x.get("nombre"))[:40] for x in servicios if not x.get("ok")][:6],
+        "guardian": ({"ok": bool(g.get("ok")), "t": g.get("t"), "minutos": g.get("minutos"),
+                      "sha": str(g.get("sha") or "")[:8], "rojos": [str(p.get("paso")) for p in g.get("pasos") or []
+                                                                     if isinstance(p, dict) and not p.get("ok")][:4]}
+                     if g.get("t") else None),
+        "cpu_1h": carga.get("cpu_1h"),
+        "mem_ahora": carga.get("mem_ahora"),
+        "cpu_p95_local": carga.get("cpu_p95_7d"),
+        "horas_sobre_umbral": sum(1 for h in horas if h["cpu"] >= UMBRAL_PCT),
+        "horas_medidas": len(horas),
+    }
+
+
 # ─────────────────────────── disco ───────────────────────────
 
 def leer_archivo(ruta: str = SALIDA) -> dict:
@@ -625,6 +658,9 @@ def medir_si_toca(cada_min: float = CADA_MIN, forzar: bool = False, ruta: str = 
             return previo
         try:
             doc = medir(correr, ahora, previo)
+            # (OPO1011) El nodo del A1 (servicios, guardián de main, carga medida allí) viaja con el
+            # consumo para que la tarjeta de MetaGenesis y los agentes lo vean junto al riesgo.
+            doc["nodo"] = nodo_resumen(leer_archivo(ESTADO_ORACLE))
             guardar(doc, ruta)
             # Los avisos van al Chat Director solo desde el archivo de verdad (no en pruebas ni con --salida).
             if publicar is None and os.path.expanduser(ruta) == SALIDA:
@@ -722,6 +758,15 @@ def resumen_agentes(doc: dict, ahora: datetime | None = None) -> str:
         a = next((x for x in recl.get("maquinas", []) if x.get("riesgo")), {})
         lineas.append("- Riesgo de reclamación: %s con CPU p95 %s %% y memoria %s %% (umbral 20 %%); reclamable desde %s. Darle trabajo lo evita."
                       % (a.get("nombre"), _n(a.get("cpu_p95"), 1), _n(a.get("mem_p95"), 1), str(a.get("reclamable_desde") or "?")[:10]))
+    nodo = doc.get("nodo") or {}
+    if nodo:
+        g = nodo.get("guardian") or {}
+        lineas.append("- Nodo de MetaGenesis en el A1: %s · %s/%s servicios · guardián de main %s · CPU última hora %s %% "
+                      "(colas `colas/oracle-*` con `oracle_nodo.py lanzar`; lo hecho vuelve por `nube/a1-*`)."
+                      % ("vivo (%s)" % (nodo.get("fase") or "?") if nodo.get("vivo") else "SIN LATIDO",
+                         nodo.get("servicios_ok"), nodo.get("servicios_total"),
+                         ("verde" if g.get("ok") else "ROJO en " + ", ".join(g.get("rojos") or ["?"])) if g else "sin pasada",
+                         _n(nodo.get("cpu_1h"), 0)))
     return "\n".join(lineas)
 
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=StarSeed · MetaGeminis cada 6 h (borradores para aprobar) (OPO1011)
+# requiere: /opt/starseed/nodo/metageminis/scripts/sociales/metageminis.py
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

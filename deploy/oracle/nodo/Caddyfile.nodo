@@ -1,0 +1,12 @@
+# Caddy del A1 como nodo de MetaGenesis (OPO1011). HTTPS automático con sslip.io.
+# {$STARSEED_HOST} lo sustituye preparar-a1.sh con /etc/starseed/host (nunca va al repo).
+# Nada sin clave: BitNet exige la suya (llama-server --api-key-file); /health queda abierto.
+bitnet.{$STARSEED_HOST} {
+	encode gzip
+	reverse_proxy 127.0.0.1:8790 {
+		flush_interval -1
+	}
+	log {
+		output discard
+	}
+}

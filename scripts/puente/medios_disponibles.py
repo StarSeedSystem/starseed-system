@@ -196,7 +196,22 @@ def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float, con
         )
     latidos = [float(m.get("latido") or 0) for m in (medios or {}).get("medios", {}).values()
                if isinstance(m, dict) and str(m.get("origen")) == "oracle"]
+    # (OPO1011) El A1 corre su propio orquestador (`oracle_a1.py`) y su latido llega a esta
+    # neurona por `oracle_nodo.py estado` (cada 30 min con la autocuración), no por medios.json.
+    nodo = datos.get("nodo") if isinstance(datos.get("nodo"), dict) else {}
+    if nodo.get("vivo") and nodo.get("latido"):
+        try:
+            latidos.append(float(nodo["latido"]))
+        except (TypeError, ValueError):
+            pass
     ultimo = max(latidos) if latidos else 0.0
+    if nodo.get("vivo") and nodo.get("latido") and ahora - float(nodo["latido"]) < 2700:
+        g = nodo.get("guardian") or {}
+        verde = ("guardián de main %s" % ("verde" if g.get("ok") else "ROJO")) if g.get("t") else "guardián sin pasada aún"
+        return medio(
+            "oracle", "Oracle Always Free", "listo", capacidad,
+            "A1 RUNNING · nodo de MetaGenesis vivo (%s, %s)%s" % (nodo.get("fase") or "?", verde, extra), "",
+        )
     if ultimo and ahora - ultimo < 600:
         return medio(
             "oracle", "Oracle Always Free", "listo", capacidad,

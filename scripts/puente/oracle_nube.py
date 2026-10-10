@@ -184,12 +184,16 @@ def _publico(estado: dict) -> dict:
     instancias = estado.get("instancias") if isinstance(estado.get("instancias"), list) else []
     servicios = estado.get("servicios") if isinstance(estado.get("servicios"), list) else []
     campos_i = ("nombre", "forma", "ocpus", "gb", "estado", "ip_publica")
-    campos_s = ("nombre", "url", "ok", "ms", "t")
+    campos_s = ("nombre", "titulo", "url", "ok", "activo", "ms", "t", "detalle")
     doc = {"vinculada": bool(estado.get("vinculada")), "perfil": str(estado.get("perfil", "DEFAULT")),
            "region": str(estado.get("region", "")), "comprobado": str(estado.get("comprobado", "")),
            "limites": {k: limites.get(k, 0) for k in ("a1_ocpu", "a1_gb", "micro")},
            "instancias": [{k: fila.get(k) for k in campos_i} for fila in instancias if isinstance(fila, dict)],
-           "servicios": [{k: fila.get(k) for k in campos_s} for fila in servicios if isinstance(fila, dict)]}
+           "servicios": [{k: fila.get(k) for k in campos_s if k in fila} for fila in servicios if isinstance(fila, dict)]}
+    # (OPO1011) El nodo del A1 (`oracle_nodo.py estado`: latido, guardián de main, carga) viaja
+    # aparte de la comprobación de la cuenta y no se pierde al comprobar.
+    if isinstance(estado.get("nodo"), dict):
+        doc["nodo"] = estado["nodo"]
     return _ocultar(doc)  # type: ignore[return-value]
 
 
@@ -241,6 +245,12 @@ def main(argv: list[str] | None = None, correr: Runner | None = None,
     detalle = ""
     if args.accion == "comprobar":
         completo = comprobar(correr or _correr_real)
+        # (OPO1011) La cuenta no sabe de los servicios del A1: los mide `oracle_nodo.py estado`.
+        # Comprobar la cuenta no los borra (ni el estado del nodo).
+        if not completo.get("servicios") and anterior.get("servicios"):
+            completo["servicios"] = anterior["servicios"]
+        if anterior.get("nodo") and not completo.get("nodo"):
+            completo["nodo"] = anterior["nodo"]
         detalle = str(completo.get("detalle", ""))
         estado = escribir_estado(ruta, completo)
         if estado["vinculada"] and not anterior.get("vinculada"):

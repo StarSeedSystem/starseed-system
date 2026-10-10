@@ -1,0 +1,11 @@
+# Registros del nodo A1 (OPO1011): semanales, 4 copias, comprimidos.
+/var/log/starseed/*.log /home/starseed/registros/*.log {
+	weekly
+	rotate 4
+	compress
+	delaycompress
+	missingok
+	notifempty
+	copytruncate
+	su root root
+}

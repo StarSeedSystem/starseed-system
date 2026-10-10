@@ -1,0 +1,16 @@
+[Unit]
+Description=StarSeed · MetaGeminis en modo BORRADOR (nunca envía nada sin aprobación) (OPO1011)
+After=network-online.target
+# requiere: /opt/starseed/nodo/metageminis/scripts/sociales/metageminis.py
+# temporizado
+
+[Service]
+Type=oneshot
+User=starseed
+Group=starseed
+WorkingDirectory=/opt/starseed/nodo/metageminis
+Environment=STARSEED_MEDIO=oracle_a1 PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/starseed/nodo/metageminis/scripts/sociales/metageminis.py borradores --max 3 --cola local
+TimeoutStartSec=1800
+MemoryMax=512M
+Nice=10
