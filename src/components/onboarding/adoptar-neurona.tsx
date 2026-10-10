@@ -48,43 +48,79 @@ export interface AdoptarNeuronaProps {
   ahora?: number;
 }
 
+const ETIQUETA_PARECIDO: Record<string, { texto: string; clase: string }> = {
+  mismo: { texto: "Este mismo aparato", clase: "border-emerald-400/40 text-emerald-200 bg-emerald-500/10" },
+  probable: { texto: "Casi seguro este aparato", clase: "border-cyan-400/40 text-cyan-200 bg-cyan-500/10" },
+  posible: { texto: "Podría ser este aparato", clase: "border-white/20 text-white/70" },
+};
+
+function FilaCandidata({ n, adoptando, onUsar, ahora }: { n: NeuronaCandidata; adoptando: string | null; onUsar: (n: NeuronaCandidata) => void; ahora?: number }) {
+  const Icono = iconoDe(n.capabilities?.platform);
+  const detalle = [n.capabilities?.platform, n.capabilities?.browser].filter(Boolean).join(" · ");
+  const etiqueta = n.parecido ? ETIQUETA_PARECIDO[n.parecido] : undefined;
+  const medios = (n.otras ?? []).map((o) => o.capabilities?.browser || o.name).filter(Boolean);
+  return (
+    <li className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      <Icono className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-sm font-semibold text-white">{n.name || "Dispositivo"}</span>
+          {etiqueta && <span className={`rounded-md border px-1.5 py-0.5 text-[10px] leading-none ${etiqueta.clase}`}>{etiqueta.texto}</span>}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {detalle ? `${detalle} · ` : ""}
+          {haceCuanto(n.last_seen_at, ahora)}
+        </span>
+        {medios.length > 0 && (
+          <span className="block truncate text-[11px] text-white/45">
+            También abierta desde: {medios.join(", ")}
+          </span>
+        )}
+      </span>
+      <Button
+        size="sm"
+        className="shrink-0 cursor-pointer"
+        disabled={adoptando !== null}
+        onClick={() => onUsar(n)}
+        aria-label={`Usar la configuración de ${n.name || "esta neurona"}`}
+      >
+        {adoptando === n.id ? "Cambiando…" : "Usar su configuración"}
+      </Button>
+    </li>
+  );
+}
+
 export function AdoptarNeurona({ candidatas, adoptando = null, error = null, onUsar, onOtra, ahora }: AdoptarNeuronaProps) {
+  // (2026-10-09) Una fila por APARATO; los que la huella descarta (otro sistema, otra GPU) van
+  // plegados al final: siguen disponibles por si la persona sabe más que la huella.
+  const cerca = candidatas.filter((n) => n.parecido !== "distinto");
+  const lejos = candidatas.filter((n) => n.parecido === "distinto");
   return (
     <div className="space-y-3" data-testid="adoptar-neurona">
       <ul className="space-y-2" aria-label="Neuronas de tu cuenta">
-        {candidatas.map((n) => {
-          const Icono = iconoDe(n.capabilities?.platform);
-          const detalle = [n.capabilities?.platform, n.capabilities?.browser].filter(Boolean).join(" · ");
-          return (
-            <li key={n.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <Icono className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-white">{n.name || "Dispositivo"}</span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {detalle ? `${detalle} · ` : ""}
-                  {haceCuanto(n.last_seen_at, ahora)}
-                </span>
-              </span>
-              <Button
-                size="sm"
-                className="shrink-0 cursor-pointer"
-                disabled={adoptando !== null}
-                onClick={() => onUsar(n)}
-                aria-label={`Usar la configuración de ${n.name || "esta neurona"}`}
-              >
-                {adoptando === n.id ? "Cambiando…" : "Usar su configuración"}
-              </Button>
-            </li>
-          );
-        })}
+        {cerca.map((n) => (
+          <FilaCandidata key={n.id} n={n} adoptando={adoptando} onUsar={onUsar} ahora={ahora} />
+        ))}
       </ul>
+      {lejos.length > 0 && (
+        <details className="rounded-xl border border-white/10 bg-white/[0.02] p-2" open={cerca.length === 0}>
+          <summary className="cursor-pointer px-1 text-xs text-white/60">
+            Otros aparatos de tu cuenta ({lejos.length}): no coinciden con este
+          </summary>
+          <ul className="mt-2 space-y-2" aria-label="Otros aparatos de tu cuenta">
+            {lejos.map((n) => (
+              <FilaCandidata key={n.id} n={n} adoptando={adoptando} onUsar={onUsar} ahora={ahora} />
+            ))}
+          </ul>
+        </details>
+      )}
       {error && (
         <p role="alert" className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-2 text-xs text-amber-100">
           {error}
         </p>
       )}
       <Button variant="outline" className="w-full cursor-pointer border-white/15" disabled={adoptando !== null} onClick={onOtra}>
-        Es otra neurona
+        Es otro aparato
       </Button>
     </div>
   );

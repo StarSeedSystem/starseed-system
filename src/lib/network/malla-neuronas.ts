@@ -433,6 +433,19 @@ function publicarResumen(next: ResumenMalla): void {
  * montado globalmente por `MallaNeuronasMount`). Sin el motor montado, degrada
  * a `{ propios: 0, otrasCuentas: 0 }` (honesto, nunca inventa presencia).
  */
+/** Lectura SÍNCRONA del mismo resumen (sin hook): la usa la presencia en vivo de las neuronas. */
+export function resumenMallaActual(): ResumenMalla {
+  return resumenActual;
+}
+
+/** Se suscribe a los cambios del resumen (sin React). Devuelve la baja. */
+export function alCambiarResumenMalla(cb: () => void): () => void {
+  resumenListeners.add(cb);
+  return () => {
+    resumenListeners.delete(cb);
+  };
+}
+
 export function usePeersMalla(): ResumenMalla {
   return useSyncExternalStore(
     (cb) => {

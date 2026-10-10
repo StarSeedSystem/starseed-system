@@ -13,6 +13,8 @@ const db = vi.hoisted(() => ({
   upserts: 0,
   selects: 0,
   respuestaUpsert: { error: null as unknown, status: 201 },
+  filasActualizadas: [{ id: "x" }] as unknown[],
+  fichasCompletas: 0,
 }));
 
 vi.mock("@/lib/consumo/lider-pestana", () => ({
@@ -31,9 +33,21 @@ vi.mock("@/utils/supabase/client", () => ({
     from: () => ({
       upsert: async () => {
         db.upserts++;
+        db.fichasCompletas++;
         return db.respuestaUpsert;
       },
+      // (2026-10-09) El latido ligero ACTUALIZA (nunca crea filas vacías); cuenta como escritura.
+      update: () => ({
+        eq: () => ({
+          select: async () => {
+            db.upserts++;
+            return { data: db.filasActualizadas, error: null, status: 200 };
+          },
+        }),
+      }),
       select: () => ({
+        // Lectura de la ficha remota antes de fundir la propia (ficha completa).
+        eq: () => ({ maybeSingle: async () => ({ data: null, error: null, status: 200 }) }),
         order: async () => {
           db.selects++;
           return {
@@ -77,6 +91,8 @@ beforeEach(() => {
   db.upserts = 0;
   db.selects = 0;
   db.respuestaUpsert = { error: null, status: 201 };
+  db.filasActualizadas = [{ id: "x" }];
+  db.fichasCompletas = 0;
   localStorage.clear();
 });
 
@@ -169,5 +185,39 @@ describe("latido de neuronas (neuron_devices)", () => {
     await vi.advanceTimersByTimeAsync(10 * MIN);
     await n.listNeurons();
     expect(db.selects).toBe(2);
+  });
+});
+
+describe("una neurona por aparato (2026-10-09)", () => {
+  test("el latido ligero nunca crea una fila vacía: si la fila no existe, sube la ficha completa", async () => {
+    const n = await neuronas();
+    await n.ensureThisNeuron();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(db.fichasCompletas).toBe(1);
+    db.filasActualizadas = []; // alguien borró la fila (o nunca se creó)
+    await vi.advanceTimersByTimeAsync(5 * MIN);
+    expect(db.fichasCompletas).toBe(2); // ficha con capacidades, no una fila fantasma
+  });
+
+  test("si esta neurona fue fusionada en otra, el medio adopta la principal antes de latir", async () => {
+    localStorage.setItem("starseed.neuron.device-id", "neurona-vieja-0001");
+    localStorage.setItem(
+      "starseed.neuronas.fusiones.v1",
+      JSON.stringify({ v: 1, alias: { "neurona-vieja-0001": { a: "neurona-principal-02", ts: 1 } }, respaldos: [] }),
+    );
+    const n = await neuronas();
+    const yo = await n.ensureThisNeuron();
+    expect(yo?.id).toBe("neurona-principal-02");
+    expect(localStorage.getItem("starseed.neuron.device-id")).toBe("neurona-principal-02");
+    expect(JSON.parse(localStorage.getItem("starseed.device.alias.v1")!).neurona.adoptada).toBe("neurona-principal-02");
+  });
+
+  test("combinarCapacidades guarda los medios de todos los que comparten la fila", async () => {
+    const n = await neuronas();
+    const r = n.combinarCapacidades(
+      { platform: "macOS", medios: { m1: { tipo: "local", etiqueta: "Chrome · localhost:9002", visto: new Date().toISOString() } } },
+      { platform: "macOS", medios: { m2: { tipo: "app-nativa", etiqueta: "App nativa StarSeed OS", visto: new Date().toISOString() } } },
+    );
+    expect(Object.keys(r.medios ?? {}).sort()).toEqual(["m1", "m2"]);
   });
 });

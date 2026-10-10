@@ -10,6 +10,7 @@ const est = vi.hoisted(() => ({
     neuronas: [] as Array<Record<string, unknown>>,
     fallaLista: false,
     borrados: [] as string[],
+    local: null as Record<string, unknown> | null,
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/" }));
@@ -24,6 +25,7 @@ vi.mock("@/utils/supabase/client", () => ({
 vi.mock("@/lib/neurons/neurons", () => ({
     NEURON_PREFS_KEY: "starseed.neurons.prefs.v1",
     thisDeviceId: () => "neurona-propia-nueva",
+    ensureThisNeuron: async () => est.local,
     listNeurons: async () => {
         if (est.fallaLista) throw new Error("sin red");
         return est.neuronas;
@@ -61,6 +63,7 @@ beforeEach(() => {
     est.neuronas = [];
     est.fallaLista = false;
     est.borrados = [];
+    est.local = null;
     window.localStorage.clear();
     window.localStorage.setItem("starseed.neuron.device-id", "neurona-propia-nueva");
     Object.defineProperty(window, "matchMedia", {
@@ -107,11 +110,11 @@ describe("NeuronSetup · adopción de una neurona conocida", () => {
         expect(screen.getAllByRole("button", { name: /Usar la configuración de/ })).toHaveLength(2);
     });
 
-    it("«Es otra neurona» sigue con el asistente normal", async () => {
+    it("«Es otro aparato» sigue con el asistente normal", async () => {
         est.neuronas = [PROPIA, MAC];
         const { recargar } = montar();
         await screen.findByRole("heading", { name: "¿Es esta una neurona que ya configuraste?" });
-        fireEvent.click(screen.getByRole("button", { name: "Es otra neurona" }));
+        fireEvent.click(screen.getByRole("button", { name: "Es otro aparato" }));
         await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
         expect(recargar).not.toHaveBeenCalled();
         expect(window.localStorage.getItem("starseed.neuron.device-id")).toBe("neurona-propia-nueva");
@@ -172,7 +175,65 @@ describe("NeuronSetup · adopción de una neurona conocida", () => {
         });
         expect(await screen.findByRole("alert")).toBeTruthy();
         expect(recargar).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole("button", { name: "Es otra neurona" }));
+        fireEvent.click(screen.getByRole("button", { name: "Es otro aparato" }));
+        await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
+    });
+});
+
+describe("NeuronSetup · reconocimiento por huella del aparato (2026-10-09)", () => {
+    const MAC_CHROME = {
+        id: "neurona-mac-chrome",
+        name: "Neurona macOS",
+        last_seen_at: iso(5),
+        created_at: "2026-09-06T00:00:00Z",
+        capabilities: { platform: "macOS", browser: "Chrome 154", cores: 8, memoryGb: 8, gpuRenderer: "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)", pantalla: "900x1440@2" },
+    };
+    const ANDROID = {
+        id: "neurona-android",
+        name: "Neurona Maggadroid",
+        last_seen_at: iso(30),
+        capabilities: { platform: "Android", browser: "Chrome 154", cores: 8, memoryGb: 4, gpuRenderer: "Mali-G57 MC2" },
+    };
+    const LOCAL_MISMO = {
+        id: "neurona-propia-nueva",
+        name: "💻 macOS",
+        capabilities: { platform: "macOS", browser: "Chrome 154", cores: 8, memoryGb: 8, gpuRenderer: "Apple M1", pantalla: "900x1440@2" },
+    };
+
+    it("un solo aparato que coincide → «Reconocí este aparato» y adopta solo tras la cuenta atrás", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            est.neuronas = [{ ...PROPIA, capabilities: LOCAL_MISMO.capabilities }, MAC_CHROME, ANDROID];
+            est.local = LOCAL_MISMO;
+            const { recargar } = montar();
+            await screen.findByRole("heading", { name: "Reconocí este aparato" });
+            expect(screen.getByTestId("neurona-reconocida").textContent).toContain("Neurona macOS");
+            await act(async () => {
+                vi.advanceTimersByTime(5000);
+            });
+            await waitFor(() => expect(recargar).toHaveBeenCalledTimes(1));
+            expect(window.localStorage.getItem("starseed.neuron.device-id")).toBe("neurona-mac-chrome");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("«No es este aparato» frena la adopción y enseña la lista", async () => {
+        est.neuronas = [{ ...PROPIA, capabilities: LOCAL_MISMO.capabilities }, MAC_CHROME, ANDROID];
+        est.local = LOCAL_MISMO;
+        const { recargar } = montar();
+        await screen.findByRole("heading", { name: "Reconocí este aparato" });
+        fireEvent.click(screen.getByRole("button", { name: "No es este aparato" }));
+        await screen.findByRole("heading", { name: "¿Es esta una neurona que ya configuraste?" });
+        expect(recargar).not.toHaveBeenCalled();
+        // El Android (otro sistema) queda plegado en «Otros aparatos de tu cuenta».
+        expect(screen.getByRole("list", { name: "Otros aparatos de tu cuenta" }).textContent).toContain("Neurona Maggadroid");
+    });
+
+    it("si ningún aparato coincide (solo otros sistemas) va al asistente de neurona nueva", async () => {
+        est.neuronas = [{ ...PROPIA, capabilities: LOCAL_MISMO.capabilities }, ANDROID];
+        est.local = LOCAL_MISMO;
+        montar();
         await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
     });
 });

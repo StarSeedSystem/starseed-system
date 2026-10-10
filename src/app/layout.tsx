@@ -80,6 +80,7 @@ import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider
 // Malla de neuronas (Ola 366): detección/auto-vínculo WebRTC entre las neuronas
 // de la cuenta + radar de neuronas cercanas de otras cuentas. Ver src/lib/network/malla-neuronas.ts.
 import { MallaNeuronasMount } from "@/components/network/malla-neuronas-mount";
+import { PresenciaNeuronasMount } from "@/components/neurons/presencia-neuronas-mount";
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
@@ -322,6 +323,7 @@ export default function RootLayout({
                             auto-vincula por WebRTC sin botón + radar de neuronas cercanas de otras
                             cuentas. Excluida de /mando y /voces (máquinas de 8 GB, ver el componente). */}
                         <MallaNeuronasMount />
+                        <PresenciaNeuronasMount />
                         {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
                         <SoloFueraDeConsola><OmniAppHost /></SoloFueraDeConsola>
                         {/* Ventana de configuración del fondo Audiomorphic (escucha 'starseed:open-audiomorphic-config'). */}

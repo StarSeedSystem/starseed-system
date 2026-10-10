@@ -36,10 +36,12 @@ import { Switch } from "@/components/ui/switch";
 import { PasoAnimado, useDireccionPaso } from "@/components/movimiento/paso-animado";
 import { listBrains, type Brain } from "@/lib/brains/brains";
 import {
-  listNeurons, permissionsFor, setNeuronName, setNeuronSettings, setPermission, settingsFor, thisDeviceId,
+  ensureThisNeuron, listNeurons, permissionsFor, setNeuronName, setNeuronSettings, setPermission, settingsFor, thisDeviceId,
   type NeuronPermissions,
 } from "@/lib/neurons/neurons";
-import { candidatasAdopcion, usarConfiguracionDeNeurona, type NeuronaCandidata } from "@/lib/neurons/adopcion-neurona";
+import {
+  aparatoReconocido, candidatasPorAparato, usarConfiguracionDeNeurona, type NeuronaCandidata,
+} from "@/lib/neurons/adopcion-neurona";
 import { saveOnboarding } from "@/lib/onboarding/onboarding";
 import { PreferenciasArranque } from "@/components/inicio/preferencias-arranque";
 import { deviceId } from "@/lib/sync/entity-state";
@@ -136,7 +138,10 @@ export interface NeuronSetupProps {
 /** Espera máxima a la lista de neuronas antes de seguir con el asistente normal. */
 const ESPERA_LISTA_MS = 2500;
 
-type Fase = "buscando" | "adoptar" | "asistente";
+type Fase = "buscando" | "reconocida" | "adoptar" | "asistente";
+
+/** Segundos que se enseña «Reconocí este aparato» antes de usar su configuración solo. */
+const ESPERA_RECONOCIDA_S = 4;
 
 export function NeuronSetup({ onClose, onPosponer, nombreInicial, recargar }: NeuronSetupProps) {
   const router = useRouter();
@@ -144,6 +149,8 @@ export function NeuronSetup({ onClose, onPosponer, nombreInicial, recargar }: Ne
   const [candidatas, setCandidatas] = useState<NeuronaCandidata[]>([]);
   const [propiaCreadaAhora, setPropiaCreadaAhora] = useState(false);
   const [adoptando, setAdoptando] = useState<string | null>(null);
+  const [reconocida, setReconocida] = useState<NeuronaCandidata | null>(null);
+  const [cuenta, setCuenta] = useState(ESPERA_RECONOCIDA_S);
   const [errorAdopcion, setErrorAdopcion] = useState<string | null>(null);
   const [cerebros, setCerebros] = useState<Brain[] | null>(null);
   const [sel, setSel] = useState<Record<string, boolean>>({});
@@ -187,16 +194,25 @@ export function NeuronSetup({ onClose, onPosponer, nombreInicial, recargar }: Ne
       if (!vivo) return;
       setPropiaCreadaAhora(creadaAhora);
       setCandidatas(otras);
-      setFase(otras.length > 0 ? "adoptar" : "asistente");
+      // (2026-10-09) Un solo aparato que la huella da por «mismo» → se reconoce sin preguntar.
+      const seguro = aparatoReconocido(otras);
+      if (seguro) {
+        setReconocida(seguro);
+        setFase("reconocida");
+        return;
+      }
+      setFase(otras.some((c) => c.parecido !== "distinto") ? "adoptar" : "asistente");
     };
     const plazo = setTimeout(() => seguir([], false), ESPERA_LISTA_MS);
-    listNeurons()
-      .then((todas) => {
+    // La ficha local (huella del aparato) nunca bloquea: si falla, se pregunta como siempre.
+    Promise.all([listNeurons(), Promise.resolve().then(() => ensureThisNeuron()).catch(() => null)])
+      .then(([todas, local]) => {
         clearTimeout(plazo);
         const propia = todas.find((n) => n.isThisDevice);
         let arranque = Date.now();
         try { if (Number.isFinite(performance.timeOrigin)) arranque = performance.timeOrigin; } catch { /* */ }
-        seguir(candidatasAdopcion(todas as NeuronaCandidata[]), creadaDesde(propia?.created_at, arranque));
+        const yo = (local ?? propia ?? null) as unknown as NeuronaCandidata | null;
+        seguir(candidatasPorAparato(yo, todas as unknown as NeuronaCandidata[]), creadaDesde(propia?.created_at, arranque));
       })
       .catch(() => { clearTimeout(plazo); seguir([], false); });
     return () => { vivo = false; clearTimeout(plazo); };
@@ -214,6 +230,17 @@ export function NeuronSetup({ onClose, onPosponer, nombreInicial, recargar }: Ne
     // El id de neurona lo leen muchos módulos al arrancar: recargar es lo único que los pone de acuerdo.
     (recargar ?? (() => window.location.reload()))();
   }, [propiaCreadaAhora, recargar]);
+
+  // Aparato reconocido: cuenta atrás visible y adopción sola (con «No es este aparato» para frenar).
+  useEffect(() => {
+    if (fase !== "reconocida" || !reconocida) return;
+    if (cuenta <= 0) {
+      void usarSuConfiguracion(reconocida);
+      return;
+    }
+    const t = setTimeout(() => setCuenta((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [fase, reconocida, cuenta, usarSuConfiguracion]);
 
   const razones = useMemo(() => {
     const r: string[] = [];
@@ -281,14 +308,46 @@ export function NeuronSetup({ onClose, onPosponer, nombreInicial, recargar }: Ne
         <DialogContent className={CLASES_VENTANA_ARRANQUE} aria-describedby="neurona-nueva-desc" data-testid="neurona-nueva-adoptar">
           <DialogHeader className="items-center text-center">
             <IconoStarSeed className="mx-auto" size={48} />
-            <DialogTitle>{fase === "adoptar" ? "¿Es esta una neurona que ya configuraste?" : "Nueva neurona en tu cuenta"}</DialogTitle>
+            <DialogTitle>
+              {fase === "adoptar" ? "¿Es esta una neurona que ya configuraste?" : fase === "reconocida" ? "Reconocí este aparato" : "Nueva neurona en tu cuenta"}
+            </DialogTitle>
             <DialogDescription id="neurona-nueva-desc">
               {fase === "adoptar"
-                ? "Tu cuenta ya tiene otras neuronas. Si este navegador o app es una de ellas (el mismo equipo visto desde otro medio), usa su configuración y no repitas nada."
-                : "Buscando las neuronas de tu cuenta…"}
+                ? "Tu cuenta ya tiene otras neuronas. Si este navegador o app es una de ellas (el mismo aparato visto desde otro medio), usa su configuración y no repitas nada."
+                : fase === "reconocida"
+                  ? "Este navegador o app está en un aparato que ya es una neurona de tu cuenta: uso su configuración para que sea UNA sola neurona con un medio más."
+                  : "Buscando las neuronas de tu cuenta…"}
             </DialogDescription>
           </DialogHeader>
-          {fase === "adoptar" ? (
+          {fase === "reconocida" && reconocida ? (
+            <div className="space-y-3" data-testid="neurona-reconocida">
+              <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.07] p-3 text-sm">
+                <p className="font-semibold text-emerald-50">{reconocida.name || "Tu aparato"}</p>
+                {reconocida.motivos?.length ? (
+                  <p className="mt-1 text-xs text-white/60">Coincide: {reconocida.motivos.slice(0, 4).join(", ")}.</p>
+                ) : null}
+                <p className="mt-2 text-xs text-white/70" aria-live="polite">
+                  {adoptando ? "Cambiando…" : `Uso su configuración en ${cuenta} s.`}
+                </p>
+              </div>
+              {errorAdopcion && (
+                <p role="alert" className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-2 text-xs text-amber-100">{errorAdopcion}</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button className="cursor-pointer" disabled={adoptando !== null} onClick={() => void usarSuConfiguracion(reconocida)}>
+                  Usar ahora
+                </Button>
+                <Button
+                  variant="outline"
+                  className="cursor-pointer border-white/15"
+                  disabled={adoptando !== null}
+                  onClick={() => { setReconocida(null); setFase("adoptar"); }}
+                >
+                  No es este aparato
+                </Button>
+              </div>
+            </div>
+          ) : fase === "adoptar" ? (
             <AdoptarNeurona
               candidatas={candidatas}
               adoptando={adoptando}

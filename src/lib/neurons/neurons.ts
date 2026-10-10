@@ -46,6 +46,13 @@ import type { ConnectivityConfig } from "@/ai/astraura/mesh";
 import { uidActual } from "@/lib/consumo/usuario";
 import { frenoActivo } from "@/lib/consumo/freno";
 import { crearBucle, falloDe, type BucleFondo, type FalloConsulta } from "@/lib/network/bucle-fondo";
+// (2026-10-09 · «una neurona por dispositivo») Medios de la neurona, huella del aparato y alias de
+// las neuronas fusionadas: ver `medio.ts`, `huella.ts`, `maquina.ts` y `fusion-alias.ts`.
+import { describirMedio, fusionarMedios, type RegistroMedio } from "@/lib/neurons/medio";
+import { pantallaDe } from "@/lib/neurons/huella";
+import { huellaMaquina } from "@/lib/neurons/maquina";
+import { neuronaVigente } from "@/lib/neurons/fusion-alias";
+import { adoptarNeurona } from "@/lib/network/identidad-dispositivo";
 
 export const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
 export const NEURON_PREFS_KEY = "starseed.neurons.prefs.v1";
@@ -109,6 +116,17 @@ export interface NeuronCapabilities {
     /** true si el backend reporta binario BitNet compilado. */
     bitnet?: boolean;
   };
+  /** (2026-10-09) Pantalla «AxB@dpr» con los lados ordenados: la ven igual todos los medios del aparato. */
+  pantalla?: string;
+  /** (2026-10-09) Zona horaria IANA del aparato. */
+  zona?: string;
+  /** (2026-10-09) Huella corta del nombre de máquina (solo app nativa y servidor local la conocen). */
+  maquina?: string;
+  /**
+   * (2026-10-09) MEDIOS de esta neurona: cada forma de abrir el OS en el aparato (Chrome en
+   * Vercel, localhost, app instalada, app nativa…), con su última ficha. Clave = id del medio.
+   */
+  medios?: Record<string, RegistroMedio>;
 }
 
 /** Permisos de la neurona. PREDETERMINADO: todo true (máxima interconexión). */
@@ -282,6 +300,10 @@ export async function detectCapabilities(): Promise<NeuronCapabilities> {
   } catch { /* */ }
   try { caps.chromeAi = typeof window !== "undefined" && !!(window as any).LanguageModel; } catch { /* */ }
   try { caps.cores = navigator.hardwareConcurrency || undefined; } catch { /* */ }
+  // Huella del aparato (2026-10-09): pantalla y zona las ven igual todos sus medios.
+  try { caps.pantalla = pantallaDe(window.screen?.width, window.screen?.height, window.devicePixelRatio); } catch { /* */ }
+  try { caps.zona = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch { /* */ }
+  try { caps.maquina = await huellaMaquina(); } catch { /* */ }
   try { caps.memoryGb = (navigator as any).deviceMemory || undefined; } catch { /* */ }
   try { caps.touch = window.matchMedia?.("(pointer: coarse)").matches; } catch { /* */ }
   try {
@@ -441,12 +463,47 @@ async function getOwner(): Promise<string | null> {
   } catch { return null; }
 }
 
+/**
+ * Funde la ficha remota de una neurona con la de ESTE medio (puro, exportado para pruebas):
+ *  · rasgos del aparato: gana el valor definido más nuevo (los `undefined`/vacíos no pisan);
+ *  · `medios`: unión por id, con el más reciente de cada uno (ver `fusionarMedios`).
+ */
+export function combinarCapacidades(
+  remotas: Record<string, unknown> | null | undefined,
+  locales: NeuronCapabilities,
+  ahora: number = Date.now(),
+): NeuronCapabilities {
+  const base: Record<string, unknown> = remotas && typeof remotas === "object" ? { ...remotas } : {};
+  for (const [k, v] of Object.entries(locales)) {
+    if (k === "medios") continue;
+    if (v === undefined || v === null || v === "") continue;
+    base[k] = v;
+  }
+  const medios = fusionarMedios(
+    (remotas?.medios as Record<string, RegistroMedio> | undefined) ?? null,
+    locales.medios ?? {},
+    ahora,
+  );
+  if (Object.keys(medios).length) base.medios = medios;
+  return base as unknown as NeuronCapabilities;
+}
+
 /** Sube (upsert) la fila de la neurona. Devuelve el fallo de la consulta, si lo hubo. Nunca lanza. */
 async function upsertRemote(patch: Partial<Neuron> & { id: string }): Promise<FalloConsulta | null> {
   const owner = await getOwner();
   if (!owner || !patch.id) return null;
   try {
     const supabase = createClient();
+    // (2026-10-09) Varios medios del MISMO aparato comparten la fila: la ficha nueva se FUNDE con
+    // la que hay (los medios de los demás no se pierden; un medio que no ve la memoria o el nombre
+    // de máquina no borra lo que otro sí vio). Una lectura cada 30 min por medio.
+    if (patch.capabilities) {
+      try {
+        const actual = await supabase.from("neuron_devices").select("capabilities").eq("id", patch.id).maybeSingle();
+        const remotas = (actual as { data?: { capabilities?: Record<string, unknown> } | null }).data?.capabilities ?? null;
+        patch = { ...patch, capabilities: combinarCapacidades(remotas, patch.capabilities) };
+      } catch { /* sin lectura: sube la propia */ }
+    }
     const res = await supabase.from("neuron_devices").upsert(
       {
         id: patch.id,
@@ -497,6 +554,14 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
     };
     capabilities.hermesInstalled = true;
   }
+  // Este medio, al día, dentro de la lista de medios de la neurona (2026-10-09).
+  try {
+    const m = describirMedio();
+    if (m.id) {
+      const { id: mid, ...registro } = m;
+      capabilities.medios = { [mid]: { ...registro, visto: new Date().toISOString() } };
+    }
+  } catch { /* sin medio */ }
   const prefs = readPrefs();
   const name = prefs.names[id] || defaultName(capabilities, kind);
   const perms = permissionsFor(id);
@@ -512,7 +577,10 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
  * Una vuelta del latido: la PRIMERA (y una de cada `LATIDOS_POR_FICHA`) sube la ficha
  * completa con las capacidades recién medidas; el resto solo `last_seen_at`.
  */
-async function latirUnaVez(id: string): Promise<{ fallo: FalloConsulta | null }> {
+async function latirUnaVez(idInicial: string): Promise<{ fallo: FalloConsulta | null }> {
+  // ¿Fusionaron esta neurona con otra desde otro medio? Se adopta antes de latir (si no, el
+  // latido volvería a crear la fila borrada y el duplicado reaparecería).
+  const id = resolverAliasEsteMedio() || idInicial;
   if (latidosDesdeFicha % LATIDOS_POR_FICHA === 0) {
     const reciente = neuronaLocal && neuronaLocal.id === id && Date.now() - neuronaLocalEn < 60_000;
     const fresca = reciente && neuronaLocal ? neuronaLocal : await construirNeuronaLocal(id);
@@ -522,7 +590,55 @@ async function latirUnaVez(id: string): Promise<{ fallo: FalloConsulta | null }>
     return { fallo: await upsertRemote(fresca) };
   }
   latidosDesdeFicha += 1;
-  return { fallo: await upsertRemote({ id }) };
+  // Latido ligero: ACTUALIZA la hora de la fila; nunca crea una fila vacía (así nacían las
+  // neuronas «fantasma» sin nombre ni capacidades). Si la fila no existe, sube la ficha entera.
+  const owner = await getOwner();
+  if (!owner) return { fallo: null };
+  try {
+    const res = await createClient()
+      .from("neuron_devices")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("id");
+    const fallo = falloDe(res as { error?: unknown; status?: number });
+    if (fallo) return { fallo };
+    const filas = (res as { data?: unknown[] | null }).data;
+    if (Array.isArray(filas) && filas.length > 0) return { fallo: null };
+  } catch (e) {
+    return { fallo: { message: e instanceof Error ? e.message : "sin red" } };
+  }
+  const idVigente = resolverAliasEsteMedio() || id;
+  const ficha = neuronaLocal && neuronaLocal.id === idVigente ? neuronaLocal : await construirNeuronaLocal(idVigente);
+  neuronaLocal = ficha;
+  neuronaLocalEn = Date.now();
+  return { fallo: await upsertRemote(ficha) };
+}
+
+/**
+ * Si el id de neurona de ESTE medio fue fusionado con otro (registro sincronizado de la cuenta),
+ * lo adopta ya y devuelve el id vigente; si no, devuelve el actual. Nunca lanza.
+ */
+export function resolverAliasEsteMedio(): string {
+  try {
+    const actual = thisDeviceId();
+    if (!actual) return "";
+    const vigente = neuronaVigente(actual);
+    if (vigente && vigente !== actual) {
+      const r = adoptarNeurona(vigente);
+      if (r.ok) {
+        neuronaLocal = null;
+        cacheLista = null;
+        try {
+          window.dispatchEvent(new CustomEvent("starseed:neurona-adoptada", { detail: { anterior: actual, adoptada: vigente, motivo: "fusion" } }));
+          window.dispatchEvent(new CustomEvent(NEURON_EVENT));
+        } catch { /* */ }
+        return vigente;
+      }
+    }
+    return actual;
+  } catch {
+    return "";
+  }
 }
 
 /** Solo pruebas: para el latido y olvida la ficha local (cada prueba empieza de cero). */
@@ -547,7 +663,7 @@ export function _detenerLatidoParaPruebas(): void {
  */
 export async function ensureThisNeuron(): Promise<Neuron | null> {
   if (typeof window === "undefined") return null;
-  const id = thisDeviceId();
+  const id = resolverAliasEsteMedio() || thisDeviceId();
   if (!id) return null;
   if (neuronaLocal && neuronaLocal.id === id) return neuronaLocal;
   if (!neuronaLocalEnVuelo) {
@@ -568,7 +684,8 @@ export async function ensureThisNeuron(): Promise<Neuron | null> {
       nombre: "neuronas · latido",
       consulta: "upsert neuron_devices (last_seen_at)",
       intervaloMs: HEARTBEAT_MS,
-      tarea: () => latirUnaVez(id),
+      // El id se relee en cada vuelta: una adopción o fusión lo cambia sin recargar.
+      tarea: () => latirUnaVez(thisDeviceId() || id),
     });
     latido.iniciar();
   }

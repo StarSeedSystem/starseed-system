@@ -37,8 +37,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { NeuronModelsPanel } from "@/components/neurons/neuron-models-panel";
-import { createClient } from "@/utils/supabase/client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import { AparatosEnVivo } from "@/components/neurons/aparatos-en-vivo";
+import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import {
   ensureThisNeuron,
   listNeurons,
@@ -48,7 +48,6 @@ import {
   setPermission,
   settingsFor,
   summarizeNeurons,
-  thisDeviceId,
   isHermesLinked,
   linkHermesToNeuron,
   setNeuronHermioneSync,
@@ -186,13 +185,16 @@ export default function NeuronasPanel({
 }) {
   const [neurons, setNeurons] = useState<Neuron[]>([]);
   const [loading, setLoading] = useState(true);
-  const [liveIds, setLiveIds] = useState<Set<string>>(new Set());
-  const [presenceOk, setPresenceOk] = useState(false);
+  // (2026-10-09) Presencia en vivo GLOBAL (todos los medios de la cuenta, desde que abren el OS),
+  // en vez del canal que solo existía mientras este panel estaba abierto.
+  const presencia = usePresenciaNeuronas();
+  const liveIds = new Set(presencia.medios.map((m) => m.n));
+  const presenceOk = presencia.conectado;
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (fresco = false) => {
     try {
       await ensureThisNeuron();
-      const list = await listNeurons();
+      const list = await listNeurons(fresco ? { fresco: true } : undefined);
       setNeurons(list);
     } catch { /* defensivo: nunca romper el panel */ }
     setLoading(false);
@@ -226,45 +228,6 @@ export default function NeuronasPanel({
     return () => clearInterval(t);
   }, [refresh]);
 
-  /* ── PRESENCIA en tiempo real: canal `neurons:<userId>` (clave = id de neurona) ── */
-  useEffect(() => {
-    let channel: RealtimeChannel | null = null;
-    let cancelled = false;
-    (async () => {
-      try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        const uid = data?.user?.id;
-        const me = thisDeviceId();
-        if (!uid || !me || cancelled) return;
-        channel = supabase.channel(`neurons:${uid}`, { config: { presence: { key: me } } });
-        channel
-          .on("presence", { event: "sync" }, () => {
-            try {
-              const state = channel?.presenceState() as Record<string, unknown[]> | undefined;
-              if (!state) return;
-              setLiveIds(new Set(Object.keys(state)));
-              setPresenceOk(true);
-            } catch { /* noop */ }
-          })
-          .subscribe((st: string) => {
-            if (st === "SUBSCRIBED") {
-              void channel?.track({ at: Date.now() }).catch(() => { /* noop */ });
-            }
-          });
-      } catch { /* sin presencia: queda el heartbeat de neuron_devices */ }
-    })();
-    return () => {
-      cancelled = true;
-      try {
-        if (channel) {
-          void channel.untrack().catch(() => { /* noop */ });
-          createClient().removeChannel(channel);
-        }
-      } catch { /* noop */ }
-    };
-  }, []);
-
   return (
     <div className="space-y-4">
       {/* Capacidades de hardware + modelos recomendados de esta neurona (Adenda 109). */}
@@ -295,15 +258,22 @@ export default function NeuronasPanel({
               )}
             >
               <Radio className={cn("w-3 h-3", presenceOk && "animate-pulse")} />
-              {presenceOk ? "Presencia en vivo" : "Latido cada minuto"}
+              {presenceOk ? "Presencia en vivo" : "Latido cada 5 min"}
             </Badge>
-            <Button variant="ghost" size="sm" className="cursor-pointer h-8 px-2" onClick={() => void refresh()} disabled={loading}>
+            <Button variant="ghost" size="sm" className="cursor-pointer h-8 px-2" onClick={() => void refresh(true)} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
               <span className="sr-only">Refrescar neuronas</span>
             </Button>
           </div>
         </div>
       </div>
+
+      {/* ── Aparatos en vivo: estado, medios, señales y fusión de repetidas (2026-10-09) ── */}
+      {neurons.length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <AparatosEnVivo neuronas={neurons} onCambio={() => void refresh(true)} />
+        </div>
+      )}
 
       {/* ── Tarjetas ─────────────────────────────────────────── */}
       {loading && neurons.length === 0 ? (
