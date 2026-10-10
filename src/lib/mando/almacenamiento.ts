@@ -79,6 +79,8 @@ export interface EstadoAlmacenamiento {
         montado: boolean;
         ruta: string | null;
         espejo: { ruta: string; ultimoEspejo: string | null; mb: number | null } | null;
+        /** Por qué no está usable aunque la carpeta exista (p. ej. app cerrada). */
+        motivo?: string;
     };
     driveCuota: CuotaDrive | null;
     /** Por qué `driveCuota` es null (DriveFS miente en macOS); null si sí hay cuota. */
@@ -235,6 +237,26 @@ export async function medirRegenerables(raiz: string): Promise<Regenerable[]> {
 }
 
 /**
+ * (2026-10-10, conserje) Función pura: de la lista de `~/Library/CloudStorage`
+ * elige la unidad de Drive vigente. Ignora las carpetas con «(» en el nombre:
+ * son restos de cuentas anteriores («GoogleDrive-… (16-09-26 …)») que nadie
+ * sincroniza ya.
+ */
+export function elegirUnidadDrive(entradas: string[]): string | null {
+    return entradas.find((e) => e.startsWith("GoogleDrive-") && !e.includes("(")) ?? null;
+}
+
+/**
+ * (2026-10-10, conserje) Función pura: ¿está la app de Google Drive corriendo?
+ * Basta con que aparezcan «Google Drive» o «DriveFS» en la salida de `ps`.
+ * Sin ella, la carpeta de CloudStorage es un directorio colgado: `du`/`stat`
+ * se bloquean minutos y «Mover a Drive» escribiría donde nadie sincroniza.
+ */
+export function driveCorriendo(psSalida: string): boolean {
+    return /Google Drive|DriveFS/.test(psSalida);
+}
+
+/**
  * Detecta el Google Drive de DriveFS (`~/Library/CloudStorage/GoogleDrive-*`,
  * el primero que exista) y, dentro, el espejo del memory root:
  * `My Drive/StarSeed_Memory_Root/neurona-<hostname>` con su marcador
@@ -245,9 +267,19 @@ export async function detectarDrive(): Promise<EstadoAlmacenamiento["drive"]> {
     try {
         const base = path.join(os.homedir(), "Library", "CloudStorage");
         const entradas = await readdir(base);
-        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-"));
+        const unidad = elegirUnidadDrive(entradas);
         if (!unidad) return vacio;
         const ruta = path.join(base, unidad);
+        // (2026-10-10, conserje) Con la app de Drive cerrada esa carpeta cuelga
+        // a `stat`/`du` durante minutos: se comprueba ANTES de tocarla.
+        try {
+            const { stdout } = await execFileAsync("ps", ["-axo", "args="], { timeout: 3000 });
+            if (!driveCorriendo(stdout)) {
+                return { montado: false, ruta: null, espejo: null, motivo: "La app Google Drive no está abierta" };
+            }
+        } catch {
+            // `ps` falló: no podemos saberlo; seguimos como antes.
+        }
         const espejo = path.join(ruta, "My Drive", "StarSeed_Memory_Root", `neurona-${os.hostname()}`);
         try {
             await stat(espejo);
@@ -277,7 +309,7 @@ async function rutaDriveBase(): Promise<string | null> {
     try {
         const base = path.join(os.homedir(), "Library", "CloudStorage");
         const entradas = await readdir(base);
-        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-"));
+        const unidad = elegirUnidadDrive(entradas);
         return unidad ? path.join(base, unidad) : null;
     } catch {
         return null;
@@ -435,7 +467,7 @@ export async function espejar(): Promise<{ ok: boolean; pid: number | null; deta
     const raiz = raizDelProyecto();
     const base = path.join(os.homedir(), "Library", "CloudStorage");
     const entradas = await readdir(base);
-    const unidad = entradas.find((e) => e.startsWith("GoogleDrive-"));
+    const unidad = elegirUnidadDrive(entradas);
     if (!unidad) return { ok: false, pid: null, detalle: "Google Drive no está montado (DriveFS)." };
     const espejo = path.join(base, unidad, "My Drive", "StarSeed_Memory_Root", `neurona-${os.hostname()}`);
 
@@ -831,6 +863,37 @@ async function confirmarBitnetDormido(): Promise<boolean> {
 }
 
 /**
+ * (2026-10-10, conserje) Función pura: pids de motores PARADOS por el guardia
+ * en la salida de `ps -axo pid=,stat=,comm=`. Un proceso parado (stat con «T»)
+ * no atiende SIGTERM: dormir BitNet o ceder voz sobre él no hace nada, y
+ * «Aliviar memoria» se marcaba ok con el motor intacto. Solo cuentan los
+ * `comm` que terminan en `llama-server` o `tts-server`.
+ */
+export function motoresParados(psSalida: string): number[] {
+    const pids: number[] = [];
+    for (const linea of psSalida.split("\n")) {
+        const partes = linea.trim().split(/\s+/);
+        if (partes.length < 3) continue;
+        const pid = Number(partes[0]);
+        const statProc = partes[1];
+        const comm = partes.slice(2).join(" ");
+        if (!Number.isInteger(pid) || !statProc.includes("T")) continue;
+        if (comm.endsWith("llama-server") || comm.endsWith("tts-server")) pids.push(pid);
+    }
+    return pids;
+}
+
+/** Lista la tabla de procesos (`ps -axo pid=,stat=,comm=`); null si falla. */
+async function tablaProcesos(): Promise<string | null> {
+    try {
+        const { stdout } = await execFileAsync("ps", ["-axo", "pid=,stat=,comm="], { timeout: 3000 });
+        return stdout;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * «Aliviar memoria»: duerme el BitNet (`POST 127.0.0.1:8000/api/bitnet/dormir`
  * con 20 s de ventana, confirmando por `/api/bitnet/estado` si expira antes)
  * y pide la cesión inmediata del pool de voz al demonio (`POST 127.0.0.1:4444/ceder`,
@@ -876,7 +939,31 @@ export async function aliviarMemoria(): Promise<{
         });
     }
 
+    // (2026-10-10, conserje) Los motores PARADOS por el guardia no atienden el
+    // SIGTERM de los dos pasos anteriores: hace falta SIGKILL directo.
+    const psAntes = await tablaProcesos();
+    const pidsParados = psAntes === null ? [] : motoresParados(psAntes);
+    for (const pid of pidsParados) {
+        try {
+            process.kill(pid, "SIGKILL");
+        } catch {
+            // Ya no estaba: da igual, el objetivo es que no quede.
+        }
+    }
+
     await new Promise((r) => setTimeout(r, 5000));
+    if (pidsParados.length > 0) {
+        const psDespues = await tablaProcesos();
+        const vivos = psDespues === null ? 0 : motoresParados(psDespues).filter((p) => pidsParados.includes(p)).length;
+        pasos.push({
+            que: "Terminar motores parados por el guardia",
+            ok: vivos === 0,
+            detalle:
+                vivos === 0
+                    ? `Terminados ${pidsParados.length} motores parados (SIGTERM no los alcanza).`
+                    : `Quedan ${vivos} motores parados sin terminar.`,
+        });
+    }
     const despuesMb = await memoriaDisponibleMb();
     const liberadoMb = Math.max(0, despuesMb - antesMb);
     const nota = liberadoMb < 100 ? "Poco alivio: la memoria ya estaba cedida o el sistema la volvió a ocupar." : null;
