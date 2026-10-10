@@ -48,6 +48,7 @@ import {
     type TipoServidor,
 } from "@/lib/mando/servidor-astraura-tipos";
 import { resumenOracle } from "@/lib/mando/oracle-tipos";
+import OracleConsumoResumen from "./oracle-consumo-resumen";
 
 // ── Formato ───────────────────────────────────────────────────────────────────
 
@@ -622,11 +623,12 @@ function TarjetaOraclePendiente() {
 
     return (
         <article className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-3 text-xs" aria-label={estado ? resumenOracle(estado as any) : undefined}>
-            <header className="mb-2 flex items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
-                <h4 className="truncate text-sm font-semibold text-white">Oracle Always Free</h4>
-            </header>
-            <div className="space-y-2 text-white/70">
+             <header className="mb-2 flex items-center gap-2">
+                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+                 <h4 className="truncate text-sm font-semibold text-white">Oracle Always Free</h4>
+             </header>
+             <OracleConsumoResumen />
+             <div className="space-y-2 text-white/70">
                 <p>Región: <span className="text-white/90">{estado?.region || "—"}</span></p>
                 <p>Límites: A1 {limites.a1_ocpu ?? 0} OCPU / {limites.a1_gb ?? 0} GB · micro {limites.micro ?? 0}</p>
                 <div>
