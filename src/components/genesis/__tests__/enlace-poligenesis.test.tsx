@@ -20,7 +20,7 @@ describe('EnlacePoliGenesis', () => {
       ],
     });
 
-    render(<EnlacePoliGenesis entidadId="1" />);
+    render(<EnlacePoliGenesis entidadId="1" slug="dummy-slug" />);
 
     const link = await screen.queryByRole('link', {
       name: /gestionar con poligenesis/i,
@@ -34,7 +34,7 @@ describe('EnlacePoliGenesis', () => {
       lista: [],
     });
 
-    render(<EnlacePoliGenesis entidadId="999" />);
+    render(<EnlacePoliGenesis entidadId="999" slug="dummy-slug" />);
 
     const link = await screen.queryByRole('link', {
       name: /gestionar con poligenesis/i,
@@ -48,7 +48,7 @@ describe('EnlacePoliGenesis', () => {
       motivo: 'Error',
     });
 
-    render(<EnlacePoliGenesis entidadId="1" />);
+    render(<EnlacePoliGenesis entidadId="1" slug="dummy-slug" />);
 
     const link = await screen.queryByRole('link', {
       name: /gestionar con poligenesis/i,
@@ -64,7 +64,7 @@ describe('EnlacePoliGenesis', () => {
       ],
     });
 
-    render(<EnlacePoliGenesis entidadId="1" />);
+    render(<EnlacePoliGenesis entidadId="1" slug="dummy-slug" />);
 
     const link = await screen.findByRole('link', {
       name: /gestionar con poligenesis/i,
