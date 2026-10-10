@@ -27,7 +27,7 @@
  * Pesado → perezoso: vínculos entre cuentas, relé y radio se importan solo al usarlos.
  */
 
-import { getSharedMesh } from "@/lib/network/lan-sync";
+import { capaMeshCompartiendo, getSharedMesh } from "@/lib/network/lan-sync";
 import { snapshotMallaNeuronas } from "@/lib/network/malla-neuronas";
 import { identidadDispositivo } from "@/lib/network/identidad-dispositivo";
 import {
@@ -53,6 +53,7 @@ import {
   enlacesLocalesVivos,
   type EnlaceLocalVivo,
 } from "@/lib/malla/registro-enlaces-locales";
+import { meshDeEnlaceLocal } from "@/lib/malla/mesh-de-enlace-local";
 
 export type { DestinoTransporte, EnlaceDisponible, TipoEnlace } from "@/lib/malla/eleccion-enlace";
 
@@ -630,6 +631,16 @@ export function asegurarRecepcionLocal(): void {
   if (recepcionLocal) return;
   recepcionLocal = true;
   alRegistrarEnlaceLocal((e) => {
+    // Relés de Astraura e IA también por el enlace local: mismo contrato que la malla
+    // de la cuenta, solo si esta neurona está compartiendo capa mesh (pesado → perezoso).
+    if (capaMeshCompartiendo()) {
+      void import("@/lib/network/astraura-por-malla")
+        .then((m) => m.adjuntarServidorAstrauraMalla(meshDeEnlaceLocal(e)))
+        .catch(() => undefined);
+      void import("@/lib/network/ia-por-malla")
+        .then((m) => m.adjuntarServidorIaMalla(meshDeEnlaceLocal(e)))
+        .catch(() => undefined);
+    }
     const canal = canalLocalEstable(e);
     e.alMensaje((data) => {
       if (esTextoTransporte(data)) {
