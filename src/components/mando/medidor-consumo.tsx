@@ -54,6 +54,7 @@ import {
     type TonoConsumo,
 } from "@/lib/mando/consumo-tipos";
 import { esConsumoOracle, vistaOracle, type ConsumoOracle } from "@/lib/mando/oracle-consumo-tipos";
+import { OracleGastoDias } from "./oracle-gasto-dias";
 
 export const SONDEO_MS = 60_000;
 const RUTA = "/api/mando/consumo";
@@ -641,14 +642,15 @@ function FilaOracle() {
                         <span>Gasto mayor que 0: {datos.freno.motivo}</span>
                     </p>
                 ) : null}
-                {v ? (
-                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                        {v.filas.map((f) => (
-                            <Barra key={f.id} etiqueta={f.etiqueta} valor={f.valor} fraccion={f.fraccion} tono={f.tono} detalle={f.detalle || null} />
-                        ))}
-                    </div>
-                ) : null}
-                {recl ? (
+                 {v ? (
+                     <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                         {v.filas.map((f) => (
+                             <Barra key={f.id} etiqueta={f.etiqueta} valor={f.valor} fraccion={f.fraccion} tono={f.tono} detalle={f.detalle || null} />
+                         ))}
+                     </div>
+                 ) : null}
+                 {datos?.gasto?.porDia.length ? <OracleGastoDias dias={datos.gasto.porDia} moneda={datos.gasto.moneda} /> : null}
+                 {recl ? (
                     <p className="flex items-start gap-1.5 text-[12px] leading-snug" data-testid="oracle-reclamacion">
                         {recl.tono === "ok" ? (
                             <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
