@@ -566,6 +566,7 @@ def _cerrar_ayer(hist, hoy, http, cred):
 def ejecutar(ahora=None, http=None, avisar=None, rutas=None, seco=False, cred=None, jev=None, puerta=None):
     """Una vuelta completa. Devuelve lo escrito en consumo.json. Nunca lanza."""
     ahora = ahora or dt.datetime.now(dt.timezone.utc)
+    red_real = http is None  # (PDA1011) con red simulada (pruebas) no se empuja nada a la puerta
     http = http or _http
     avisar = avisar or _avisar
     rutas = dict({"salida": SALIDA, "historial": HISTORIAL, "presupuestos": PRESUPUESTOS}, **(rutas or {}))
@@ -670,7 +671,7 @@ def ejecutar(ahora=None, http=None, avisar=None, rutas=None, seco=False, cred=No
 
     # (PDA1011) El estado del freno, empujado a la puerta de datos en cada vuelta (las pruebas con red
     # simulada no salen a la red salvo que pasen su propia puerta).
-    if not seco and (puerta is not None or http is None):
+    if not seco and (puerta is not None or red_real):
         freno["puerta"] = empujar_freno(freno, puerta)
 
     datos = {

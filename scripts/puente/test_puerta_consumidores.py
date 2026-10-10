@@ -41,6 +41,22 @@ class Freno(unittest.TestCase):
         self.assertEqual(V.empujar_freno({"activo": False}, PuertaFalsa(sana=False)), "supabase")
 
 
+class FrenoEnLaVuelta(unittest.TestCase):
+    def test_la_vuelta_empuja_el_freno_si_le_dan_puerta_y_no_con_red_simulada_sola(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            rutas = {"salida": os.path.join(d, "c.json"), "historial": os.path.join(d, "h.json"),
+                     "presupuestos": os.path.join(d, "p.json")}
+            http = lambda *a, **k: (200, '{"result": []}')  # noqa: E731
+            p = PuertaFalsa()
+            datos = V.ejecutar(http=http, avisar=lambda *a, **k: None, rutas=rutas, cred={"ref": "r", "token": "t"},
+                               jev={}, puerta=p)
+            self.assertEqual(datos["freno"].get("puerta"), "puerta")
+            otras = {k: v + ".2" for k, v in rutas.items()}
+            datos = V.ejecutar(http=http, avisar=lambda *a, **k: None, rutas=otras, cred={"ref": "r", "token": "t"}, jev={})
+            self.assertNotIn("puerta", datos["freno"])  # red simulada sin puerta: no sale a la red
+
+
 class LatidoExterno(unittest.TestCase):
     def test_late_en_la_puerta_sin_prompts_ni_claves(self):
         p = PuertaFalsa()
