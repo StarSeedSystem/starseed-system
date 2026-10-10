@@ -1,0 +1,71 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-10 05:57:29",
+  "desde": "2026-09-29 16:09:57",
+  "ultimo_429": "2026-10-07 20:50:54",
+  "sin_cupo_hasta": "2026-10-09 18:40:42",
+  "motivo": "$ opencode run --model xkiro/mistralai/devstral-medium · 2026-10-08 18:35:10 \u001b[0m > build · mistralai/devstral-medium\u001b[0m\u001b[0m$ \u001b[0mnpx vites"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-10 05:57:29",
+  "desde": "2026-10-01 15:50:18",
+  "ultimo_429": "2026-10-08 06:55:33",
+  "motivo": "$ opencode run --model nvidia/moonshotai/kimi-k3 · 2026-10-08 10:21:52 \u001b[0m > build · moonshotai/kimi-k3 \u001b[0m \u001b[0m$ \u001b[0mls; ls starseed_memo",
+  "sin_cupo_hasta": "2026-10-09 10:25:06"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-10 05:57:30",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-09 06:09:51",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-10 05:57:31",
+  "desde": "2026-10-09 01:27:51",
+  "ultimo_429": "2026-10-06 20:00:05",
+  "sin_cupo_hasta": "2026-10-08 19:06:00",
+  "motivo": "pasarela: $ opencode run --model openrouter/thinkingmachines/inkling:free · 2026-10-08 18:50:22 \u001b[0m > build · thinkingmachines/inkling:free \u001b[0m \u001b[0m"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-10 05:57:32",
+  "desde": "2026-10-09 01:27:54",
+  "ultimo_429": "2026-10-09 02:34:00"
+ },
+ "ultimo_revisor_ok": "xkiro/qwen/qwen3.7-plus:free",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-10 05:57:32",
+  "desde": "2026-10-09 01:29:25",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "sonda del botón: sin crédito (402)",
+  "ultimo_429": "2026-09-21 03:38:33",
+  "sin_cupo_hasta": "2026-10-09 17:51:32"
+ },
+ "google": {
+  "estado": "vivo",
+  "sin_cupo_hasta": "2026-10-09 17:59:45",
+  "motivo": "sonda de escritura: cupo del día agotado (429)"
+ },
+ "codex": {
+  "motivo": "$ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/XR1010B · 2026-10-10 05:53:44 · pr",
+  "sin_cupo_hasta": "2026-10-11 05:53:51"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-10 05:57:32",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-08 18:40:44 \u001b[0m \u001b[0m > build · autoVoy a leer los documentos clave y archivos implicados e",
+  "sin_cupo_hasta": "2026-10-08 18:56:44"
+ }
+}
