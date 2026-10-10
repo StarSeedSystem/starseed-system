@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -81,9 +82,10 @@ def segundos_inactivo() -> float | None:
 def memoria_mb() -> dict:
     """{'ram_libre_mb', 'swap_mb', 'ram_total_mb'} con lo que la plataforma dé."""
     so = platform.system()
-    out = {"ram_libre_mb": None, "swap_mb": None, "ram_total_mb": None}
+    out: dict = {"ram_libre_mb": None, "swap_mb": None, "ram_total_mb": None,
+                 "ram_pura_mb": None, "swap_total_mb": None, "disco_libre_mb": None}
     if so == "Darwin":
-        pagina, libres = 4096, 0
+        pagina, libres, puras = 4096, 0, 0
         for linea in _salida(["vm_stat"]).splitlines():
             if "page size of" in linea:
                 try:
@@ -93,16 +95,23 @@ def memoria_mb() -> dict:
             for clave in ("Pages free", "Pages inactive", "Pages speculative"):
                 if linea.startswith(clave):
                     try:
-                        libres += int(linea.split(":")[1].strip().rstrip("."))
+                        n = int(linea.split(":")[1].strip().rstrip("."))
+                        libres += n
+                        if clave != "Pages inactive":  # con la swap llena, inactiva es sucia y no recuperable
+                            puras += n
                     except (IndexError, ValueError):
                         pass
         out["ram_libre_mb"] = libres * pagina / 1048576
+        out["ram_pura_mb"] = puras * pagina / 1048576
         sw = _salida(["sysctl", "-n", "vm.swapusage"])
-        if "used =" in sw:
-            try:
+        try:
+            if "used =" in sw:
                 out["swap_mb"] = float(sw.split("used =")[1].split("M")[0])
-            except (IndexError, ValueError):
-                pass
+            if "total =" in sw:
+                out["swap_total_mb"] = float(sw.split("total =")[1].split("M")[0])
+        except (IndexError, ValueError):
+            pass
+        out["disco_libre_mb"] = shutil.disk_usage(os.path.expanduser("~")).free / 1048576
         total = _salida(["sysctl", "-n", "hw.memsize"]).strip()
         if total.isdigit():
             out["ram_total_mb"] = int(total) / 1048576
@@ -150,6 +159,7 @@ def maximo_por_hardware(ram_total_mb, nucleos) -> int:
 # ───────────────────────── decisión (pura) ─────────────────────────
 
 def decidir(idle_s, ram_libre_mb, swap_mb, maximo, *,
+            ram_pura_mb=None, swap_total_mb=None, disco_libre_mb=None,
             interactivo_s=UMBRAL_INTERACTIVO_S, swap_rojo=SWAP_ROJO_MB,
             swap_ambar=SWAP_AMBAR_MB, ram_roja=RAM_ROJA_MB,
             ram_bitnet=RAM_PARA_BITNET_MB) -> dict:
@@ -163,11 +173,19 @@ def decidir(idle_s, ram_libre_mb, swap_mb, maximo, *,
     ram = ram_libre_mb if ram_libre_mb is not None else float("inf")
     swap = swap_mb if swap_mb is not None else 0.0
     # Alex (2026-09-20, 22:40): «olvida lo de 1 agente, añade la mayor cantidad
-    # posible». El uso interactivo ya NO baja el tope; solo el colapso de memoria
-    # (RAM libre < ram_roja, no el tamaño del swap: esta Mac vive con 12-14 GB
-    # de swap y aun así integra) quita UN trabajador, nunca deja menos de 2.
-    if ram < ram_roja:
-        n, motivo = max(2 if maximo >= 2 else 1, maximo - 1), "memoria al límite (RAM libre %d MB): un trabajador menos" % ram
+    # posible». El uso interactivo ya NO baja el tope; solo el colapso quita UN
+    # trabajador (nunca menos de 2). Colapso (incidente 2026-10-10, Mac 8 GB):
+    # RAM libre roja · swap al 90 % sin RAM pura (la inactiva es sucia) · o
+    # disco libre < 2 GB (sin sitio para swap ni compilar).
+    colapso = ram < ram_roja
+    causa = "RAM libre %d MB" % ram if colapso else ""
+    if not colapso and swap_total_mb and swap >= 0.9 * swap_total_mb \
+            and ram_pura_mb is not None and ram_pura_mb < 400:
+        colapso, causa = True, "swap llena (%d de %d MB) y RAM pura %d MB" % (swap, swap_total_mb, ram_pura_mb)
+    if not colapso and disco_libre_mb is not None and disco_libre_mb < 2048:
+        colapso, causa = True, "disco libre %d MB" % disco_libre_mb
+    if colapso:
+        n, motivo = max(2 if maximo >= 2 else 1, maximo - 1), "recursos al límite (%s): un trabajador menos" % causa
     else:
         n, motivo = maximo, "máximo (%s)" % ("Alex al teclado" if interactivo else "máquina libre")
     bitnet = "despertar" if interactivo and ram >= ram_bitnet else "dejar"
@@ -207,13 +225,18 @@ def main() -> int:
     nucleos = os.cpu_count() or 2
     por_hw = maximo_por_hardware(mem["ram_total_mb"], nucleos)
     maximo = min(maximo_configurado(), por_hw)
-    d = decidir(idle, mem["ram_libre_mb"], mem["swap_mb"], maximo)
+    d = decidir(idle, mem["ram_libre_mb"], mem["swap_mb"], maximo,
+                ram_pura_mb=mem["ram_pura_mb"], swap_total_mb=mem["swap_total_mb"],
+                disco_libre_mb=mem["disco_libre_mb"])
     medidas = {"idle_s": None if idle is None else round(idle), "maximo": maximo,
                "maximo_hardware": por_hw, "nucleos": nucleos,
                "ram_total_mb": None if mem["ram_total_mb"] is None else round(mem["ram_total_mb"]),
                "servidor": platform.node(),
                "ram_libre_mb": None if mem["ram_libre_mb"] is None else round(mem["ram_libre_mb"]),
-               "swap_mb": None if mem["swap_mb"] is None else round(mem["swap_mb"])}
+               "swap_mb": None if mem["swap_mb"] is None else round(mem["swap_mb"]),
+               "ram_pura_mb": None if mem.get("ram_pura_mb") is None else round(mem["ram_pura_mb"]),
+               "swap_total_mb": None if mem.get("swap_total_mb") is None else round(mem["swap_total_mb"]),
+               "disco_libre_mb": None if mem.get("disco_libre_mb") is None else round(mem["disco_libre_mb"])}
     if d["bitnet"] == "despertar":
         d["bitnet_despierto"] = despertar_bitnet()
     escribir_estado(d, medidas)
