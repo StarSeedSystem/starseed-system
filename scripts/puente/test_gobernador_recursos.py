@@ -56,6 +56,53 @@ class Decidir(unittest.TestCase):
         self.assertEqual(gob.decidir(None, None, None, 0)["trabajadores"], 1)
 
 
+class ColapsoSwapYDisco(unittest.TestCase):
+    """Incidente 2026-10-10: la Mac quedó con RAM real de 75 MB, swap al 96 %
+    y 1,1 GB de disco mientras el gobernador contaba la inactiva como libre."""
+
+    def test_caso_medido_swap_llena_sin_ram_pura(self):
+        d = gob.decidir(idle_s=3219, ram_libre_mb=754, swap_mb=9235, maximo=3,
+                        ram_pura_mb=75, swap_total_mb=9728, disco_libre_mb=5000)
+        self.assertEqual(d["trabajadores"], 2)
+        self.assertIn("swap", d["motivo"])
+
+    def test_ram_pura_suficiente_con_swap_alta_da_maximo(self):
+        d = gob.decidir(3219, 754, 9235, 3, ram_pura_mb=900, swap_total_mb=9728)
+        self.assertEqual(d["trabajadores"], 3)
+
+    def test_disco_bajo_quita_uno(self):
+        d = gob.decidir(1800, 4000, 0, 3, disco_libre_mb=1500)
+        self.assertEqual(d["trabajadores"], 2)
+        self.assertIn("disco", d["motivo"])
+
+    def test_disco_holgado_y_swap_baja_da_maximo(self):
+        d = gob.decidir(1800, 4000, 3800, 3, ram_pura_mb=3000,
+                        swap_total_mb=9728, disco_libre_mb=20000)
+        self.assertEqual(d["trabajadores"], 3)
+
+    def test_colapso_con_maximo_uno_nunca_baja_de_uno(self):
+        d = gob.decidir(1800, 4000, 9500, 1, ram_pura_mb=75,
+                        swap_total_mb=9728, disco_libre_mb=5000)
+        self.assertEqual(d["trabajadores"], 1)
+
+    def test_kwargs_omitidos_comportamiento_antiguo(self):
+        d = gob.decidir(1800, 4000, 9500, 3)
+        self.assertEqual(d["trabajadores"], 3)
+
+    def test_disco_justo_en_el_limite_cuenta(self):
+        self.assertEqual(gob.decidir(1800, 4000, 0, 3, disco_libre_mb=2047)["trabajadores"], 2)
+        self.assertEqual(gob.decidir(1800, 4000, 0, 3, disco_libre_mb=2048)["trabajadores"], 3)
+
+    def test_swap_sin_total_no_hay_colapso_por_swap(self):
+        d = gob.decidir(1800, 4000, 9500, 3, ram_pura_mb=75, swap_total_mb=None)
+        self.assertEqual(d["trabajadores"], 3)
+
+    def test_prioridad_de_causas_ram_primero(self):
+        d = gob.decidir(1800, 90, 9500, 3, ram_pura_mb=75,
+                        swap_total_mb=9728, disco_libre_mb=100)
+        self.assertIn("RAM libre", d["motivo"])
+
+
 class MaximoPorHardware(unittest.TestCase):
     def test_escalones_medidos_por_ram(self):
         self.assertEqual(gob.maximo_por_hardware(8192, 8), 3)     # Mac M1 8 GB
