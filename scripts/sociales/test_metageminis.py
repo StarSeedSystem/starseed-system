@@ -307,12 +307,12 @@ class TestRedYSeguridad(unittest.TestCase):
 
     def test_leer_env_prefiere_el_entorno_y_nunca_lo_imprime(self):
         with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
-            f.write("# comentario\nexport XKIRO_API_KEY=del-archivo\nOTRA=1\n")
+            f.write("# comentario\nexport XKIRO_API_KEY=prueba-del-archivo\nOTRA=1\n")
         try:
             env = mg.leer_env(f.name, base={"XKIRO_API_KEY": "del-entorno"})
             self.assertEqual(env["XKIRO_API_KEY"], "del-entorno")
             self.assertEqual(env["OTRA"], "1")
-            self.assertEqual(mg.leer_env(f.name, base={})["XKIRO_API_KEY"], "del-archivo")
+            self.assertEqual(mg.leer_env(f.name, base={})["XKIRO_API_KEY"], "prueba-del-archivo")
         finally:
             os.unlink(f.name)
 
