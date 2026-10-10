@@ -571,6 +571,23 @@ class TestNodoEnElBus(unittest.TestCase):
                 self.assertEqual([t["id"] for t in json.load(f)], ["R1"])
 
 
+class TestConsumo(unittest.TestCase):
+    def test_freno_de_supabase_espacia_las_vueltas(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump({"presupuesto": {"pct_peticiones": 0.81}, "freno": {"activo": False}}, f)
+        try:
+            self.assertFalse(N.consumo_frenado(f.name))
+            with open(f.name, "w") as g:
+                json.dump({"presupuesto": {"pct_peticiones": 1.0}}, g)
+            self.assertTrue(N.consumo_frenado(f.name))
+            with open(f.name, "w") as g:
+                json.dump({"freno": {"activo": True}}, g)
+            self.assertTrue(N.consumo_frenado(f.name))
+        finally:
+            os.unlink(f.name)
+        self.assertFalse(N.consumo_frenado("/no/existe.json"))
+
+
 class TestModoTablas(unittest.TestCase):
     def test_una_llamada_por_vuelta_arriendo_y_ordenes_de_la_tabla(self):
         reloj = Reloj()

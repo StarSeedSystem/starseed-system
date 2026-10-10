@@ -527,6 +527,16 @@ def texto_informe(i: Dict[str, Any]) -> str:
     return "\n".join(lineas)
 
 
+def consumo_frenado(ruta: str = os.path.expanduser("~/.starseed/consumo.json")) -> bool:
+    """¿El vigía de consumo de Supabase dice que vamos al límite del día? (solo existe en la Mac)."""
+    d = M.leer_json(ruta, {})
+    if not isinstance(d, dict):
+        return False
+    pres = d.get("presupuesto") or {}
+    return bool(d.get("restringido") or (d.get("freno") or {}).get("activo")
+                or float(pres.get("pct_peticiones") or 0) >= 0.95)
+
+
 def servir(seco: bool) -> int:
     nodo = Nodo(seco=seco)
     parar = {"ya": False}
@@ -542,6 +552,10 @@ def servir(seco: bool) -> int:
             i = nodo.vuelta()
             print("[%s] %s" % (time.strftime("%H:%M:%S"), texto_informe(i).replace("\n", " | ")), flush=True)
             espera = CADA_LIDER_S if i.get("soy_lider") else CADA_S
+            if consumo_frenado():
+                # Supabase en su tope propio (vigia_consumo.py): una vuelta cada 10 min, sin dejar de
+                # latir antes del TTL (15 min) para no provocar un relevo de líder en falso.
+                espera = max(espera, 600)
         except Exception as e:  # noqa: BLE001
             print("[nodo-metagenesis] vuelta fallida: %s: %s" % (type(e).__name__, L.tachar(str(e))[:200]), flush=True)
             espera = 60

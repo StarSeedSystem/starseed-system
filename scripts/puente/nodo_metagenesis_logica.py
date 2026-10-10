@@ -615,7 +615,8 @@ def huella_foto(f: Dict[str, Any]) -> str:
         "autonomia": f.get("autonomia"),
         "nodos": [{k: v for k, v in n.items() if k not in ("hace_s", "ram_libre_mb", "disco_gb")}
                   for n in f.get("nodos") or []],
-        "medidores": f.get("medidores"),
+        # De cada medidor, solo su cifra: sus textos llevan la hora de la medida y cambiarían siempre.
+        "medidores": {k: _numero(v) for k, v in (f.get("medidores") or {}).items()},
         "decisiones": [(d.get("accion"), d.get("nodo"), d.get("resultado")) for d in f.get("decisiones") or []],
     }
     return hashlib.sha256(json.dumps(sin_reloj, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
