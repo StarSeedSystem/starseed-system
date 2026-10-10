@@ -23,6 +23,7 @@ import {
   type FaseSesion,
 } from "@/lib/estaciones/transmision-parametrica";
 import { formatearMs, textoReloj } from "./formato-en-vivo";
+import { BotonFondoAudiomorphic } from "./boton-fondo-audiomorphic";
 
 const AudiomorphicCanvas = dynamic(
   () => import("@/components/audiomorphic/audiomorphic-canvas").then((m) => m.AudiomorphicCanvas),
@@ -134,9 +135,12 @@ export function PanelEnVivo({ href }: { href: string }) {
       </header>
 
       {f.fuente === "audiomorphic" && pos.params.tipo === "audiomorphic" && (
-        <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black">
-          <AudiomorphicCanvas params={pos.params.visual as never} withBackground paused={!sonando} className="absolute inset-0" />
-        </div>
+        <>
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black">
+            <AudiomorphicCanvas params={pos.params.visual as never} withBackground paused={!sonando} className="absolute inset-0" />
+          </div>
+          <BotonFondoAudiomorphic visual={pos.params.visual} />
+        </>
       )}
 
       {pos.params.tipo === "omnifrecuencias" && (
