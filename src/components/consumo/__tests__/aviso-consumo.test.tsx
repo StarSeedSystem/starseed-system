@@ -70,6 +70,36 @@ describe("describirAviso", () => {
     });
 });
 
+describe("describirAviso · CON1010 (qué gastó más y qué hace el OS)", () => {
+    const top = { ruta: "/rest/v1/rpc/merge_user_prefs", nombre: "guardado de tus preferencias", n: 2664 };
+
+    it("el aviso del día dice la ruta que más gastó y que el OS ya frenó los sondeos", () => {
+        const d = describirAviso({ ...est.limpio, diaAgotado: true }, INACTIVO, AHORA, { hoy: 8929, rutaTop: top });
+        expect(d?.titulo).toBe("Este dispositivo usó su presupuesto de hoy");
+        expect(d?.detalle).toContain("Lo que más gastó: guardado de tus preferencias (2664)".replace("2664", (2664).toLocaleString("es-ES")));
+        expect(d?.detalle).toContain("El OS ya espació los sondeos de fondo");
+        expect(d?.detalle).toContain("lo que escribas, tu sesión y tus preferencias se siguen guardando");
+    });
+
+    it("sin datos de rutas, el aviso del día sigue siendo correcto", () => {
+        const d = describirAviso({ ...est.limpio, diaAgotado: true }, INACTIVO, AHORA);
+        expect(d?.detalle).not.toContain("Lo que más gastó");
+        expect(d?.detalle).toMatch(/^Llegó a /);
+    });
+
+    it("ANTES de la pausa: el modo ahorro fuerte avisa con lo que lleva y lo que más gasta", () => {
+        const d = describirAviso({ ...est.limpio, nivelRitmo: 2 } as typeof est.limpio, INACTIVO, AHORA, { hoy: 6900, rutaTop: top });
+        expect(d?.titulo).toBe("Modo ahorro de consumo");
+        expect(d?.detalle).toContain(`va por ${(6900).toLocaleString("es-ES")} de ${(8000).toLocaleString("es-ES")}`);
+        expect(d?.detalle).toContain("Lo que más gasta: guardado de tus preferencias");
+        expect(d?.detalle).toContain("escribir, la sesión y tus preferencias siguen igual");
+    });
+
+    it("el ahorro suave (nivel 1) no molesta con una banda", () => {
+        expect(describirAviso({ ...est.limpio, nivelRitmo: 1 } as typeof est.limpio, INACTIVO, AHORA)).toBeNull();
+    });
+});
+
 describe("<AvisoConsumo />", () => {
     it("no pinta nada sin pausa y aparece cuando el guardián abre el corte", async () => {
         render(<AvisoConsumo />);

@@ -26,6 +26,13 @@
  * `.abortSignal(...)` de la consulta). Sigue respetando el cortacircuitos 402 y el freno remoto
  * (los dos dicen «la nube no puede servirte»), y NUNCA espera en cola.
  *
+ * Ritmo adaptativo (CON1010, 2026-10-10): ANTES de llegar a la pausa del día, el aparato baja solo el
+ * ritmo de lo no esencial según la curva del día y la hora (`ritmo.ts`): nivel 1 = el cubo de fichas
+ * rellena a la mitad y los bucles de fondo esperan el doble; nivel 2 = un cuarto / el cuádruple.
+ * Además se guarda, compartido entre pestañas, cuántas peticiones lleva cada ruta hoy: el aviso dice
+ * cuál gastó más y qué hace el OS al respecto. Lo esencial (escrituras, Auth, `senalEsencial()`)
+ * nunca espera ni cae por el presupuesto local.
+ *
  * Transparencia: mismas respuestas que fetch (las copias son `clone()`), el cuerpo de la petición
  * no se toca, AbortSignal sigue funcionando, y nada lanza donde fetch no lanzaría. Sin ventana
  * (SSR/Node) no hay guardián: `fetchGuardado` es fetch tal cual.
@@ -35,9 +42,20 @@
  * la sesión sobrevive a la pausa y se renueva sola cuando vuelve el servicio.
  */
 
+import {
+    CLAVE_DIA_CONSUMO,
+    FACTOR_POR_NIVEL,
+    HORA_MS,
+    calcularRitmo,
+    leerRegistroDia,
+    sumarRutas,
+    type NivelRitmo,
+    type Ritmo,
+} from "./ritmo";
+
 // ── Constantes del contrato ─────────────────────────────────────────────────────────────────
 export const CLAVE_CORTE = "starseed.supabase.corte.v1";
-export const CLAVE_DIA = "starseed.supabase.dia.v1";
+export const CLAVE_DIA = CLAVE_DIA_CONSUMO;
 export const CANAL_CONSUMO = "starseed-consumo";
 
 export const CORTE_BASE_MS = 30 * 60_000;
@@ -80,6 +98,12 @@ export interface ContadoresConsumo {
     bloqueadas: number;
     frenoLocalHasta: number | null;
     frenoRemoto: boolean;
+    /** Peticiones en la hora UTC en curso en este dispositivo (todas las pestañas). */
+    enLaHora: number;
+    /** Ritmo adaptativo actual (nivel, factor de los sondeos, curva del día). */
+    ritmo: Ritmo;
+    /** Peticiones de hoy por ruta en este dispositivo (todas las pestañas; las que más gastan). */
+    rutasHoy: Record<string, number>;
 }
 
 /** Instantánea para la UI: el MISMO objeto mientras nada cambie (useSyncExternalStore). */
@@ -88,6 +112,8 @@ export interface AvisoGuardian {
     corteHasta: number | null;
     frenoLocalHasta: number | null;
     diaAgotado: boolean;
+    /** 0 normal · 1 ahorro · 2 ahorro fuerte · 3 pausa (ver `ritmo.ts`). Ausente = 0. */
+    nivelRitmo?: NivelRitmo;
 }
 
 export interface AlmacenConsumo {
@@ -120,6 +146,8 @@ export interface Guardian {
     leerAviso(): AvisoGuardian;
     suscribir(oyente: () => void): () => void;
     fijarFrenoRemoto(activo: boolean): void;
+    /** Ritmo adaptativo de ahora mismo (lo leen los bucles de fondo). */
+    leerRitmo(): Ritmo;
     /** Solo pruebas: suelta el canal y los temporizadores. */
     cerrar(): void;
 }
@@ -174,6 +202,7 @@ const AVISO_INICIAL: AvisoGuardian = Object.freeze({
     corteHasta: null,
     frenoLocalHasta: null,
     diaAgotado: false,
+    nivelRitmo: 0 as NivelRitmo,
 });
 
 function horaCorta(ms: number): string {
@@ -255,6 +284,14 @@ function claveCabeceras(h: HeadersInit | undefined): string {
     return partes.sort().join("\n");
 }
 
+function safeGet(almacen: AlmacenConsumo, clave: string): string | null {
+    try {
+        return almacen.getItem(clave);
+    } catch {
+        return null;
+    }
+}
+
 function leerJSON<T>(almacen: AlmacenConsumo | null, clave: string): T | null {
     if (!almacen) return null;
     try {
@@ -334,14 +371,25 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
     let temporizadorCola: ReturnType<typeof setTimeout> | null = null;
     let temporizadorFinFreno: ReturnType<typeof setTimeout> | null = null;
 
-    // Presupuesto diario (se vuelca a localStorage cada pocos segundos, no por petición)
+    // Presupuesto diario (se vuelca a localStorage cada pocos segundos, no por petición). Con él
+    // viajan la hora en curso y las rutas del día, compartidas por todas las pestañas del aparato.
     let diaActual = Math.floor(ahora() / DIA_MS);
     let baseDia = 0;
     let pendienteDia = 0;
+    let horaActual = Math.floor(ahora() / HORA_MS);
+    let baseHora = 0;
+    let pendienteHora = 0;
+    let baseRutas: Record<string, number> = {};
+    let pendienteRutas: Record<string, number> = {};
+    let nivelRitmo: NivelRitmo = 0;
     let temporizadorDia: ReturnType<typeof setTimeout> | null = null;
     {
-        const guardado = leerJSON<{ d?: number; n?: number }>(almacen, CLAVE_DIA);
-        if (guardado && guardado.d === diaActual && typeof guardado.n === "number") baseDia = guardado.n;
+        const guardado = leerRegistroDia(almacen ? safeGet(almacen, CLAVE_DIA) : null);
+        if (guardado && guardado.d === diaActual) {
+            baseDia = guardado.n;
+            baseRutas = guardado.r ?? {};
+            if (guardado.h === horaActual && typeof guardado.nh === "number") baseHora = guardado.nh;
+        }
     }
 
     // Deduplicación
@@ -392,9 +440,25 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
             diaActual = d;
             baseDia = 0;
             pendienteDia = 0;
-            if (aviso.diaAgotado) queueMicrotask(actualizarAviso);
+            baseRutas = {};
+            pendienteRutas = {};
+            if (aviso.diaAgotado || aviso.nivelRitmo) queueMicrotask(actualizarAviso);
         }
         return baseDia + pendienteDia;
+    }
+
+    function enLaHora(): number {
+        const h = Math.floor(ahora() / HORA_MS);
+        if (h !== horaActual) {
+            horaActual = h;
+            baseHora = 0;
+            pendienteHora = 0;
+        }
+        return baseHora + pendienteHora;
+    }
+
+    function ritmoAhora(): Ritmo {
+        return calcularRitmo({ hoy: hoy(), enLaHora: enLaHora(), presupuestoDia, ahora: ahora() });
     }
 
     function volcarDia(): void {
@@ -403,16 +467,25 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
             temporizadorDia = null;
         }
         hoy();
-        const guardado = leerJSON<{ d?: number; n?: number }>(almacen, CLAVE_DIA);
-        const base = guardado && guardado.d === diaActual && typeof guardado.n === "number" ? guardado.n : baseDia;
+        enLaHora();
+        const guardado = leerRegistroDia(almacen ? safeGet(almacen, CLAVE_DIA) : null);
+        const mismoDia = !!guardado && guardado.d === diaActual;
+        const base = mismoDia ? (guardado as { n: number }).n : baseDia;
         const n = Math.max(base, 0) + pendienteDia;
+        const baseH = mismoDia && guardado?.h === horaActual && typeof guardado?.nh === "number" ? guardado.nh : baseHora;
+        const nh = Math.max(baseH, 0) + pendienteHora;
+        const rutas = sumarRutas(mismoDia ? guardado?.r : baseRutas, pendienteRutas);
         try {
-            almacen?.setItem(CLAVE_DIA, JSON.stringify({ d: diaActual, n }));
+            almacen?.setItem(CLAVE_DIA, JSON.stringify({ d: diaActual, n, h: horaActual, nh, r: rutas }));
         } catch {
             /* sin almacenamiento: el contador vive en memoria */
         }
         baseDia = n;
         pendienteDia = 0;
+        baseHora = nh;
+        pendienteHora = 0;
+        baseRutas = rutas;
+        pendienteRutas = {};
     }
 
     function contarSalida(ruta: string): void {
@@ -421,9 +494,22 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
         else porRuta[ruta] = { n: 1, bytes: 0 };
         total++;
         hoy();
+        enLaHora();
         pendienteDia++;
+        pendienteHora++;
+        pendienteRutas[ruta] = (pendienteRutas[ruta] ?? 0) + 1;
         if (almacen && !temporizadorDia) temporizadorDia = setTimeout(volcarDia, VOLCADO_DIA_MS);
-        if (!aviso.diaAgotado && baseDia + pendienteDia >= presupuestoDia) actualizarAviso();
+        const nivel = ritmoAhora().nivel;
+        if (nivel !== nivelRitmo) {
+            if (nivel > nivelRitmo) {
+                avisar(
+                    `[consumo] Ritmo de ahorro ${nivel} (×${FACTOR_POR_NIVEL[nivel]}): ${hoy()} peticiones hoy en este aparato. ` +
+                        "Los sondeos de fondo se espacian; escribir y la sesión siguen igual.",
+                );
+            }
+            nivelRitmo = nivel;
+            actualizarAviso();
+        } else if (!aviso.diaAgotado && baseDia + pendienteDia >= presupuestoDia) actualizarAviso();
     }
 
     function contarBytes(ruta: string, res: Response): void {
@@ -441,15 +527,17 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
         const fl = frenoLocalHasta > t ? frenoLocalHasta : null;
         const diaAgotado = hoy() >= presupuestoDia;
         const hayCorte = corte !== null;
+        nivelRitmo = ritmoAhora().nivel;
         if (
             aviso.corte === hayCorte &&
             aviso.corteHasta === corteHasta &&
             aviso.frenoLocalHasta === fl &&
-            aviso.diaAgotado === diaAgotado
+            aviso.diaAgotado === diaAgotado &&
+            (aviso.nivelRitmo ?? 0) === nivelRitmo
         ) {
             return;
         }
-        aviso = Object.freeze({ corte: hayCorte, corteHasta, frenoLocalHasta: fl, diaAgotado });
+        aviso = Object.freeze({ corte: hayCorte, corteHasta, frenoLocalHasta: fl, diaAgotado, nivelRitmo });
         for (const o of Array.from(oyentes)) {
             try {
                 o();
@@ -566,11 +654,13 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
     }
 
     // ── Cubo de fichas ──
+    // Con ritmo de ahorro, las lecturas no esenciales se rellenan más despacio (las esenciales,
+    // Auth y escrituras no esperan al cubo). El nivel se recalcula en cada salida (`contarSalida`).
     function recargar(): void {
         const t = ahora();
         const d = t - ultimaRecarga;
         if (d > 0) {
-            fichas = Math.min(RAFAGA, fichas + d * FICHA_POR_MS);
+            fichas = Math.min(RAFAGA, fichas + (d * FICHA_POR_MS) / FACTOR_POR_NIVEL[nivelRitmo]);
             ultimaRecarga = t;
         }
     }
@@ -911,7 +1001,13 @@ export function crearGuardian(op: OpcionesGuardian): Guardian {
                 bloqueadas,
                 frenoLocalHasta: frenoLocalHasta > t ? frenoLocalHasta : null,
                 frenoRemoto,
+                enLaHora: enLaHora(),
+                ritmo: ritmoAhora(),
+                rutasHoy: sumarRutas(baseRutas, pendienteRutas),
             };
+        },
+        leerRitmo() {
+            return ritmoAhora();
         },
         leerAviso() {
             return aviso;
@@ -1000,6 +1096,8 @@ export function fetchGuardado(input: RequestInfo | URL, init?: RequestInit): Pro
     return g ? g.fetch(input, init) : fetch(input, init);
 }
 
+const RITMO_NORMAL: Ritmo = Object.freeze({ nivel: 0 as NivelRitmo, factor: 1, curva: PRESUPUESTO_DIA, motivo: "sin guardián" });
+
 const CONTADORES_VACIOS: ContadoresConsumo = Object.freeze({
     porRuta: Object.freeze({}) as Record<string, ContadorRuta>,
     total: 0,
@@ -1010,7 +1108,22 @@ const CONTADORES_VACIOS: ContadoresConsumo = Object.freeze({
     bloqueadas: 0,
     frenoLocalHasta: null,
     frenoRemoto: false,
+    enLaHora: 0,
+    ritmo: RITMO_NORMAL,
+    rutasHoy: Object.freeze({}) as Record<string, number>,
 });
+
+/**
+ * Factor por el que los sondeos de fondo multiplican su intervalo (1 normal, 2 ó 4 en ahorro,
+ * 8 en pausa). Sin guardián (SSR, Node) es 1. Nunca lanza.
+ */
+export function factorRitmoConsumo(): number {
+    try {
+        return guardianActual()?.leerRitmo().factor ?? 1;
+    } catch {
+        return 1;
+    }
+}
 
 /** Contadores por ruta de esta pestaña (sin consultas ni claves). Barato: no copia nada. */
 export function leerContadores(): ContadoresConsumo {

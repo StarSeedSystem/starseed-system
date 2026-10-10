@@ -60,9 +60,22 @@ interface CacheEntrada {
 
 let cache: CacheEntrada | null = null;
 
-/** Borra la caché: la próxima llamada vuelve a sondear. */
+/**
+ * (CON1010 · 2026-10-10) Lo PUBLICADO en Supabase (túnel y servidor fijo) cambia muy de vez en
+ * cuando —al reiniciar el túnel o mover el servidor—, pero se releía en CADA resolución: dos
+ * lecturas de `astraura_state` cada 10 s por servidor mientras la nube no respondía. Medido el
+ * 10-10: 1.575 lecturas `astraura_state?select=data` desde servidores Node. Ahora: 5 min (haya URL o
+ * no; publicar un túnel nuevo llega en ≤ 5 min), una sola lectura en vuelo por clave. Las sondas de salud (que no tocan
+ * Supabase) siguen al ritmo de siempre. `invalidarDestino()` lo olvida todo, como antes.
+ */
+export const PUBLICADO_OK_MS = 5 * 60_000;
+export const PUBLICADO_NULO_MS = 5 * 60_000;
+const publicados = new Map<string, { en: number; url: string | null; promesa?: Promise<string | null> }>();
+
+/** Borra la caché: la próxima llamada vuelve a sondear (y a leer lo publicado). */
 export function invalidarDestino(): void {
   cache = null;
+  publicados.clear();
 }
 
 function limpiarBase(v: string | undefined | null): string {
@@ -148,8 +161,29 @@ function hostsPermitidos(): string[] {
     .filter(Boolean);
 }
 
-/** Lee en `astraura_state` la URL publicada bajo `key` si pasa la validación. Nunca lanza. */
+/** Lee en `astraura_state` la URL publicada bajo `key` si pasa la validación (con caché). Nunca lanza. */
 async function publicadoEnSupabase(
+  key: string,
+  aceptable: (url: unknown, extra: string[]) => boolean,
+): Promise<string | null> {
+  const ahora = Date.now();
+  const previa = publicados.get(key);
+  if (previa?.promesa) return previa.promesa;
+  if (previa && ahora - previa.en < (previa.url ? PUBLICADO_OK_MS : PUBLICADO_NULO_MS)) return previa.url;
+  const promesa = leerPublicadoEnSupabase(key, aceptable);
+  publicados.set(key, { en: ahora, url: previa?.url ?? null, promesa });
+  try {
+    const url = await promesa;
+    // Si alguien invalidó mientras tanto, esta lectura sigue valiendo (es la más nueva).
+    publicados.set(key, { en: Date.now(), url });
+    return url;
+  } catch {
+    publicados.delete(key);
+    return null;
+  }
+}
+
+async function leerPublicadoEnSupabase(
   key: string,
   aceptable: (url: unknown, extra: string[]) => boolean,
 ): Promise<string | null> {

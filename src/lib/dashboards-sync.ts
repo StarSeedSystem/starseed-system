@@ -25,7 +25,7 @@
 import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { uidActual } from "@/lib/consumo/usuario";
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { huellaValor, mergeUserPrefs, type MergePrefsResult, type PrefsPatch } from "@/lib/sync/user-prefs";
 
 // ── Claves de localStorage del dashboard (NO se modifica su lógica) ──
 const LS_DASHBOARDS = "starseed_dashboards";
@@ -36,7 +36,18 @@ const LS_ORDER = "dashboard_order";
 const DASHBOARDS_RESTORED_EVENT = "starseed:dashboards:restored";
 
 const PUSH_DEBOUNCE_MS = 1500;
+/**
+ * (CON1010 · 2026-10-10) El intervalo ya NO sube nada por sí mismo: mira localStorage (sin red) y
+ * solo sube si el CONTENIDO de los tableros cambió. Antes cada vuelta mandaba un respaldo con
+ * `savedAt: Date.now()` — un valor distinto cada 30 s — así que `mergeUserPrefs` nunca lo veía
+ * repetido: 2 peticiones por minuto por pestaña visible (1 en las ocultas). Medido el 2026-10-10:
+ * 3.389 de las 25.022 peticiones del proyecto eran este respaldo, el 99 % idénticas.
+ */
 const POLL_INTERVAL_MS = 30_000;
+/** Huella y fecha del último respaldo subido DESDE ESTE APARATO (no se sincroniza: no es `starseed.brain.*`). */
+export const CLAVE_RESPALDO_TABLEROS = "starseed.consumo.respaldo-tableros.v1";
+/** Aunque nada cambie, como mucho una re-subida de seguridad cada 6 h (otro medio pudo pisar la copia). */
+export const RESUBIDA_SEGURIDAD_MS = 6 * 60 * 60_000;
 
 // ── Helpers de bajo nivel ────────────────────────────────────────
 function isClient(): boolean {
@@ -89,8 +100,29 @@ interface DashboardsBackup {
     savedAt: number;
 }
 
-/** Snapshot local actual de los tableros (lo que respaldamos). */
-function collectLocalBackup(): DashboardsBackup | null {
+interface RegistroRespaldo {
+    /** Huella del CONTENIDO (tableros, widgets, orden), sin la fecha. */
+    h: string;
+    /** Cuándo cambió por última vez ese contenido (lo que viaja como `savedAt`). */
+    savedAt: number;
+    /** Cuándo se subió por última vez desde este aparato (0 = nunca). */
+    subidoEn: number;
+}
+
+function leerRegistro(): RegistroRespaldo | null {
+    const raw = readRaw(CLAVE_RESPALDO_TABLEROS);
+    if (!raw) return null;
+    try {
+        const r = JSON.parse(raw) as Partial<RegistroRespaldo>;
+        if (typeof r.h !== "string" || typeof r.savedAt !== "number") return null;
+        return { h: r.h, savedAt: r.savedAt, subidoEn: typeof r.subidoEn === "number" ? r.subidoEn : 0 };
+    } catch {
+        return null;
+    }
+}
+
+/** Snapshot local actual de los tableros (lo que respaldamos). `savedAt` = último cambio REAL. */
+function collectLocalBackup(ahora: number = Date.now()): { backup: DashboardsBackup; huella: string } | null {
     const dashboardsRaw = readRaw(LS_DASHBOARDS);
     if (!dashboardsRaw) return null;
     let dashboards: unknown;
@@ -100,7 +132,7 @@ function collectLocalBackup(): DashboardsBackup | null {
         dashboards = dashboardsRaw;
     }
 
-    const backup: DashboardsBackup = { dashboards, savedAt: Date.now() };
+    const backup: DashboardsBackup = { dashboards, savedAt: ahora };
 
     const widgetsRaw = readRaw(LS_WIDGETS);
     if (widgetsRaw != null) {
@@ -120,7 +152,11 @@ function collectLocalBackup(): DashboardsBackup | null {
         }
     }
 
-    return backup;
+    const huella = huellaValor({ dashboards: backup.dashboards, widgets: backup.widgets, order: backup.order });
+    const previo = leerRegistro();
+    // Mismo contenido que la última vez ⇒ misma fecha: el respaldo es idéntico y no hay nada que subir.
+    if (previo && previo.h === huella) backup.savedAt = previo.savedAt;
+    return { backup, huella };
 }
 
 /** Restaura un respaldo remoto a localStorage (solo si no hay tableros locales). */
@@ -177,20 +213,43 @@ async function fetchRemoteBackup(userId: string): Promise<DashboardsBackup | nul
 }
 
 // ── Escritura remota del respaldo (merge no destructivo de prefs) ─
-async function pushBackup(userId: string): Promise<void> {
-    try {
-        const backup = collectLocalBackup();
-        if (!backup) return; // nada local que respaldar
+export type ResultadoRespaldo = "subido" | "sin-cambios" | "sin-datos" | "fallo";
 
+/**
+ * Sube el respaldo SOLO si el contenido cambió desde la última subida de este aparato (o si pasó
+ * `RESUBIDA_SEGURIDAD_MS`). Nunca lanza. `merge` y `ahora` se inyectan en las pruebas.
+ */
+export async function respaldarTableros(
+    userId: string,
+    deps: { merge?: (patch: PrefsPatch, opts?: { userId?: string }) => Promise<MergePrefsResult>; ahora?: () => number } = {},
+): Promise<ResultadoRespaldo> {
+    try {
+        const ahora = (deps.ahora ?? Date.now)();
+        const local = collectLocalBackup(ahora);
+        if (!local) return "sin-datos"; // nada local que respaldar
+        const previo = leerRegistro();
+        if (previo && previo.h === local.huella && previo.subidoEn > 0 && ahora - previo.subidoEn < RESUBIDA_SEGURIDAD_MS) {
+            return "sin-cambios";
+        }
         // Adenda 69 · A — antes: leer `prefs` + `upsert` de la COLUMNA ENTERA.
         // Eso borraba las claves que otros módulos hubieran escrito después de
         // nuestra lectura (lost update: `prefs` es una sola columna jsonb que
         // comparten ~12 módulos). Ahora se manda SOLO el parche y Postgres lo
         // funde de forma atómica. Ver src/lib/sync/user-prefs.ts.
-        await mergeUserPrefs({ dashboards: backup }, { userId });
+        const res = await (deps.merge ?? mergeUserPrefs)({ dashboards: local.backup }, { userId });
+        if (!res.ok) return "fallo";
+        writeRaw(
+            CLAVE_RESPALDO_TABLEROS,
+            JSON.stringify({ h: local.huella, savedAt: local.backup.savedAt, subidoEn: ahora } satisfies RegistroRespaldo),
+        );
+        return res.sinCambios ? "sin-cambios" : "subido";
     } catch {
-        /* nunca rompemos: el respaldo es best-effort */
+        return "fallo"; // nunca rompemos: el respaldo es best-effort
     }
+}
+
+async function pushBackup(userId: string): Promise<void> {
+    await respaldarTableros(userId);
 }
 
 // ── Hook ─────────────────────────────────────────────────────────
@@ -240,9 +299,12 @@ export function useDashboardsBackup(): void {
             if (active && hasLocalDashboards()) await pushBackup(userId);
         };
 
+        // Cuenta con la que ya se arrancó: el arranque inicial y el INITIAL_SESSION no se duplican.
+        let cuentaArrancada: string | null = null;
         void (async () => {
             const userId = await getUserId();
-            if (!active || !userId) return;
+            if (!active || !userId || userId === cuentaArrancada) return;
+            cuentaArrancada = userId;
             await bootstrap(userId);
         })();
 
@@ -254,15 +316,27 @@ export function useDashboardsBackup(): void {
         };
         window.addEventListener("storage", onStorage);
 
-        // Intervalo suave de respaldo (la pestaña activa no recibe su propio 'storage').
-        const poll = setInterval(() => schedulePush(), POLL_INTERVAL_MS);
+        // Intervalo suave de respaldo (la pestaña activa no recibe su propio 'storage'). Sin red: solo
+        // compara la huella del contenido y sube si cambió (`respaldarTableros`). Con la pestaña oculta
+        // no se mira (ahí no se editan tableros).
+        const poll = setInterval(() => {
+            if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+            schedulePush();
+        }, POLL_INTERVAL_MS);
 
-        // Cambios de sesión: al iniciar sesión, re-evaluar restauración/respaldo.
+        // Cambios de sesión: al iniciar sesión (o cambiar de cuenta), re-evaluar restauración/respaldo.
+        // La renovación del token y el eco de volver a la pestaña no relanzan nada.
         const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
             void (async () => {
                 if (!active) return;
                 const userId = session?.user?.id ?? null;
-                if (userId) await bootstrap(userId);
+                if (!userId) {
+                    cuentaArrancada = null;
+                    return;
+                }
+                if (userId === cuentaArrancada) return;
+                cuentaArrancada = userId;
+                await bootstrap(userId);
             })();
         });
 

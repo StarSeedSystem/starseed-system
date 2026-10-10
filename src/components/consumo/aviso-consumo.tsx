@@ -2,14 +2,15 @@
 /**
  * Aviso de consumo (2026-09-29): una banda discreta cuando la nube está en pausa.
  *
- * Cuatro casos, de más a menos grave: el cortacircuitos (Supabase respondió 402 o «restricted»),
+ * Cinco casos, de más a menos grave: el cortacircuitos (Supabase respondió 402 o «restricted»),
  * el freno remoto del proyecto (presupuesto diario superado), el presupuesto diario de este
- * dispositivo y el freno local de la pestaña. Dice qué pasa, hasta cuándo y qué sigue funcionando;
- * se puede ocultar y vuelve solo si la situación cambia. Se monta perezoso (montaje-consumo.tsx).
+ * dispositivo, el freno local de la pestaña y (CON1010) el modo ahorro fuerte, que avisa ANTES de la
+ * pausa. Dice qué pasa, hasta cuándo, qué ruta gastó más, qué hace el OS al respecto y qué sigue
+ * funcionando; se puede ocultar y vuelve solo si la situación cambia. Se monta perezoso.
  */
 import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CirclePause, CloudOff, Gauge, Timer, X, type LucideIcon } from "lucide-react";
+import { CirclePause, CloudOff, Gauge, Leaf, Timer, X, type LucideIcon } from "lucide-react";
 import {
     avisoConsumoServidor,
     leerAvisoConsumo,
@@ -18,6 +19,7 @@ import {
     type AvisoGuardian,
 } from "@/lib/consumo/guardian";
 import { useFreno, type EstadoFreno } from "@/lib/consumo/freno";
+import { resumenDeHoy, type RutaTop } from "@/lib/consumo/ritmo";
 import estilos from "./aviso-consumo.module.css";
 
 export interface DescripcionAviso {
@@ -43,9 +45,30 @@ function medianocheUtc(ahora: number): string {
     return hora(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
 }
 
-const COLOR = { corte: "#DC143C", freno: "#FFBF00", dia: "#FFBF00", local: "#007FFF" } as const;
+const COLOR = { corte: "#DC143C", freno: "#FFBF00", dia: "#FFBF00", local: "#007FFF", ahorro: "#10B981" } as const;
 
-export function describirAviso(aviso: AvisoGuardian, freno: EstadoFreno, ahora: number): DescripcionAviso | null {
+/** Lo que el aviso sabe del día, además del estado del guardián (lo lee del registro compartido). */
+export interface ContextoAviso {
+    /** Peticiones de hoy en este aparato. */
+    hoy?: number;
+    /** La ruta que más gastó hoy, con nombre legible. */
+    rutaTop?: RutaTop | null;
+}
+
+function cifra(n: number): string {
+    return n.toLocaleString("es-ES");
+}
+
+function fraseRutaTop(r: RutaTop | null | undefined, verbo: "gastó" | "gasta"): string {
+    return r ? `Lo que más ${verbo}: ${r.nombre} (${cifra(r.n)}). ` : "";
+}
+
+export function describirAviso(
+    aviso: AvisoGuardian,
+    freno: EstadoFreno,
+    ahora: number,
+    ctx: ContextoAviso = {},
+): DescripcionAviso | null {
     if (aviso.corte) {
         const hasta = aviso.corteHasta;
         if (hasta && hasta > ahora) {
@@ -84,8 +107,9 @@ export function describirAviso(aviso: AvisoGuardian, freno: EstadoFreno, ahora: 
             clave: `dia:${Math.floor(ahora / 86_400_000)}`,
             titulo: "Este dispositivo usó su presupuesto de hoy",
             detalle:
-                `Llegó a ${PRESUPUESTO_DIA.toLocaleString("es-ES")} peticiones. Las lecturas de la nube vuelven a las ` +
-                `${medianocheUtc(ahora)}; lo que escribas se sigue guardando.`,
+                `Llegó a ${PRESUPUESTO_DIA.toLocaleString("es-ES")} peticiones. ${fraseRutaTop(ctx.rutaTop, "gastó")}` +
+                `El OS ya espació los sondeos de fondo; las lecturas de la nube vuelven a las ${medianocheUtc(ahora)} ` +
+                "y lo que escribas, tu sesión y tus preferencias se siguen guardando.",
             color: COLOR.dia,
             Icono: Timer,
         };
@@ -97,6 +121,20 @@ export function describirAviso(aviso: AvisoGuardian, freno: EstadoFreno, ahora: 
             detalle: `Pidió demasiados datos seguidos. Se reanuda sola a las ${hora(aviso.frenoLocalHasta)}.`,
             color: COLOR.local,
             Icono: CirclePause,
+        };
+    }
+    if ((aviso.nivelRitmo ?? 0) >= 2) {
+        const lleva = ctx.hoy && ctx.hoy > 0 ? `Este aparato va por ${cifra(ctx.hoy)} de ${cifra(PRESUPUESTO_DIA)} peticiones hoy. ` : "";
+        return {
+            clave: `ahorro:${Math.floor(ahora / 86_400_000)}`,
+            titulo: "Modo ahorro de consumo",
+            detalle:
+                lleva +
+                fraseRutaTop(ctx.rutaTop, "gasta") +
+                "El OS espació 4 veces los sondeos de fondo para no llegar a la pausa; escribir, la sesión y tus " +
+                "preferencias siguen igual.",
+            color: COLOR.ahorro,
+            Icono: Leaf,
         };
     }
     return null;
@@ -137,7 +175,8 @@ export function AvisoConsumo() {
         return () => window.clearTimeout(id);
     }, [aviso, freno, ahora]);
 
-    const desc = useMemo(() => describirAviso(aviso, freno, ahora), [aviso, freno, ahora]);
+    // Ruta que más gastó y peticiones de hoy: se leen del registro compartido al cambiar el estado.
+    const desc = useMemo(() => describirAviso(aviso, freno, ahora, resumenDeHoy(ahora)), [aviso, freno, ahora]);
     const visible = desc !== null && desc.clave !== oculto;
     const sinMovimiento = reducir || eco;
 

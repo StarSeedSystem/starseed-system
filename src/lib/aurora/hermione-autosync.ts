@@ -24,7 +24,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { ensureThisNeuron } from "@/lib/neurons/neurons";
+import { ensureThisNeuron, listNeurons } from "@/lib/neurons/neurons";
 import { ensureHermionePersonalityInstalled } from "@/lib/aurora/personalities";
 import {
   ensureHermioneFolder,
@@ -52,16 +52,13 @@ const RECENT_MS = 5 * 60_000;
  * `capabilities.hermesInstalled` / `capabilities.bridge.mode`.
  */
 async function hasRecentHermesNeuron(): Promise<boolean> {
+  // (CON1010 · 2026-10-10) Sobre la lista COMPARTIDA del registro de neuronas, no con una consulta
+  // propia de 50 filas en cada evento de sesión (245 el 10-10, una por vuelta a la pestaña).
   try {
-    const sb = createClient();
-    const { data } = await sb
-      .from("neuron_devices")
-      .select("capabilities, last_seen_at")
-      .order("last_seen_at", { ascending: false })
-      .limit(50);
+    const neuronas = await listNeurons();
     const now = Date.now();
-    for (const row of ((data as Array<{ capabilities?: any; last_seen_at?: string }>) || [])) {
-      const caps = row.capabilities || {};
+    for (const n of neuronas) {
+      const caps = (n.capabilities || {}) as any;
       const bridge = caps.bridge;
       const hasHermes =
         (bridge && bridge.mode === "external-hermes") ||
@@ -70,8 +67,8 @@ async function hasRecentHermesNeuron(): Promise<boolean> {
           (caps.servesPersonalities.includes("hermione") || caps.servesPersonalities.includes("Hermione")));
       if (!hasHermes) continue;
       if (caps.hermioneSync === false) continue;
-      const seen = row.last_seen_at ? Date.parse(row.last_seen_at) : 0;
-      if (now - seen < RECENT_MS) return true;
+      const seen = n.last_seen_at ? Date.parse(n.last_seen_at) : 0;
+      if (n.online || now - seen < RECENT_MS) return true;
     }
     return false;
   } catch {
@@ -131,13 +128,22 @@ export function startHermioneAutosync(): void {
   // Asegura la elección de líder entre pestañas (idempotente).
   try { startAuroraLeaderElection(); } catch { /* */ }
 
-  void bootForSession();
-
-  // Re-boot al cambiar la sesión (login/logout en la misma pestaña).
+  // Arranque y re-arranque al cambiar la sesión (login/logout en la misma pestaña). El primer
+  // evento (INITIAL_SESSION) hace el arranque inicial: llamarlo además aquí lo duplicaba.
+  // (CON1010) Solo cuando cambia la cuenta: la renovación del token y el eco de volver a la
+  // pestaña relanzaban el arranque entero (neurona, Hermione, carpeta, vigilante).
   try {
     const sb = createClient();
-    sb.auth.onAuthStateChange(() => { void bootForSession(); });
-  } catch { /* */ }
+    let cuenta: string | null | undefined;
+    sb.auth.onAuthStateChange((_ev, sesion) => {
+      const uid = sesion?.user?.id ?? null;
+      if (uid === cuenta) return;
+      cuenta = uid;
+      void bootForSession();
+    });
+  } catch {
+    void bootForSession();
+  }
 }
 
 /* ── Hook de estado para la UI (badge exportable) ──────────────────────────── */

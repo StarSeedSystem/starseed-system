@@ -88,22 +88,44 @@ describe("destinoNube", () => {
         expect(llamadas.some((u) => u.includes("run.app"))).toBe(false);
     });
 
-    it("(G2) caché NULO se reintenta a los ~10s, no al minuto entero", async () => {
+    it("(G2) caché NULO se reintenta a los ~10s, no al minuto entero (las sondas, no Supabase)", async () => {
         vi.useFakeTimers();
         try {
-            delete process.env.ASTRAURA_CLOUD_URL;
             delete process.env.ASTRAURA_158_URL;
             const fetchFalso = simular(null, []);
+            const sondas = () => fetchFalso.mock.calls.filter(([u]) => String(u).includes("run.app")).length;
+            const lecturas = () => fetchFalso.mock.calls.filter(([u]) => String(u).includes("/rest/v1/astraura_state")).length;
             expect(await destinoNube()).toBeNull();
-            const llamadasTrasPrimera = fetchFalso.mock.calls.length;
+            const sondasTrasPrimera = sondas();
             // Aún dentro de los 10 s: caché nulo sigue vigente, no vuelve a sondear.
             await vi.advanceTimersByTimeAsync(5_000);
             expect(await destinoNube()).toBeNull();
-            expect(fetchFalso.mock.calls.length).toBe(llamadasTrasPrimera);
-            // Pasados los 10 s: vuelve a sondear (nueva llamada a Supabase).
+            expect(sondas()).toBe(sondasTrasPrimera);
+            // Pasados los 10 s: vuelve a sondear la nube…
             await vi.advanceTimersByTimeAsync(6_000);
             expect(await destinoNube()).toBeNull();
-            expect(fetchFalso.mock.calls.length).toBeGreaterThan(llamadasTrasPrimera);
+            expect(sondas()).toBeGreaterThan(sondasTrasPrimera);
+            // …pero (CON1010) lo publicado en Supabase no se relee hasta su propio plazo (5 min).
+            expect(lecturas()).toBe(2);
+            await vi.advanceTimersByTimeAsync(5 * 60_000);
+            expect(await destinoNube()).toBeNull();
+            expect(lecturas()).toBe(4);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("(CON1010) con la nube sin responder, una hora de llamadas cada 5 s cuesta ≤ 2×13 lecturas de Supabase, no 2×360", async () => {
+        vi.useFakeTimers();
+        try {
+            const fetchFalso = simular(TUNEL, []);
+            for (let t = 0; t < 3600; t += 5) {
+                await destinoNube();
+                await vi.advanceTimersByTimeAsync(5_000);
+            }
+            const lecturas = fetchFalso.mock.calls.filter(([u]) => String(u).includes("/rest/v1/astraura_state")).length;
+            // Cada lectura publicada vale 5 min: 12 por clave y hora (antes: una cada 10 s, 360).
+            expect(lecturas).toBeLessThanOrEqual(2 * 13);
         } finally {
             vi.useRealTimers();
         }

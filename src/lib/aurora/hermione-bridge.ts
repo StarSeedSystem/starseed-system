@@ -110,52 +110,69 @@ export interface HermioneBridgeInfo {
  */
 export async function getHermioneNeuron(): Promise<HermioneBridgeInfo | null> {
   try {
-    const sb = createClient();
-    const { data } = await sb
-      .from("neuron_devices")
-      .select("id, capabilities, permissions, last_seen_at")
-      .order("last_seen_at", { ascending: false })
-      .limit(50);
-    const rows = (data as Array<{ id: string; capabilities?: any; permissions?: any; last_seen_at?: string }>) || [];
-    const now = Date.now();
-    let fallback: HermioneBridgeInfo | null = null;
-    for (const row of rows) {
-      const caps = row.capabilities || {};
-      const perms = row.permissions || {};
-      const bridge = caps.bridge;
-      const hasHermes =
-        (bridge && bridge.mode === "external-hermes") ||
-        caps.hermesInstalled === true ||
-        (Array.isArray(caps.servesPersonalities) && caps.servesPersonalities.includes("hermione")) ||
-        (Array.isArray(caps.servesPersonalities) && caps.servesPersonalities.includes("Hermione"));
-      if (!hasHermes) continue;
-      // Permisos vinculados (requisito del usuario): la neurona debe aceptar
-      // órdenes de agente (control del dispositivo). DEFAULT del OS = agent=true;
-      // solo se bloquea si el dueño lo puso explícitamente en false.
-      if (perms.agent === false) continue;
-      const seen = row.last_seen_at ? Date.parse(row.last_seen_at) : 0;
-      const online = now - seen < 3 * 60_000;
-      const endpoint =
-        (bridge?.endpoint as string) ||
-        caps.bridgeEndpoint ||
-        (caps.hermesBridge ? DEFAULT_BRIDGE_ENDPOINT : null);
-      if (!endpoint) continue;
-      const info: HermioneBridgeInfo = {
-        endpoint,
-        online,
-        personalityId: bridge?.personalityId || HERMIONE_PERSONALITY_ID,
-        note: bridge?.note || caps.note || "Neurona con Hermes instalado.",
-        neuronId: row.id,
-      };
-      // Preferimos la neurona ONLINE (la más recientemente vista); si ninguna
-      // está online guardamos la más reciente como respaldo (Astraura asume).
-      if (online) return info;
-      if (!fallback) fallback = info;
-    }
-    return fallback;
+    // (CON1010 · 2026-10-10) Antes: una consulta PROPIA a `neuron_devices` (50 filas con sus
+    // capacidades) en cada vuelta del latido del puente — cada 20 s en CADA pestaña, visible u
+    // oculta: 3.099 peticiones el 10-10, la ruta más pesada del día (4,6 MB). Ahora se elige sobre
+    // la lista COMPARTIDA del registro de neuronas (`listNeurons`: una lectura cada 5 min por
+    // pestaña visible, ninguna con la pestaña oculta), que ya trae capacidades, permisos y «online».
+    const { listNeurons } = await import("@/lib/neurons/neurons");
+    const neuronas = await listNeurons();
+    return elegirNeuronaHermione(neuronas);
   } catch {
     return null;
   }
+}
+
+/** Lo que hace falta de cada neurona para elegir la servidora de Hermione. */
+export interface FilaNeuronaHermione {
+  id: string;
+  capabilities?: any;
+  permissions?: any;
+  last_seen_at?: string | null;
+  /** «online» ya calculado por el registro (ventana de 12 min: latido cada 5). */
+  online?: boolean;
+}
+
+/** Ventana de «online» si la fila no la trae calculada: la misma del registro (latido 5 min). */
+export const HERMIONE_ONLINE_MS = 12 * 60_000;
+
+/** Elige la neurona servidora de Hermione entre las de la cuenta (pura: sin red). */
+export function elegirNeuronaHermione(rows: FilaNeuronaHermione[], ahora: number = Date.now()): HermioneBridgeInfo | null {
+  let fallback: HermioneBridgeInfo | null = null;
+  for (const row of rows) {
+    const caps = row.capabilities || {};
+    const perms = row.permissions || {};
+    const bridge = caps.bridge;
+    const hasHermes =
+      (bridge && bridge.mode === "external-hermes") ||
+      caps.hermesInstalled === true ||
+      (Array.isArray(caps.servesPersonalities) && caps.servesPersonalities.includes("hermione")) ||
+      (Array.isArray(caps.servesPersonalities) && caps.servesPersonalities.includes("Hermione"));
+    if (!hasHermes) continue;
+    // Permisos vinculados (requisito del usuario): la neurona debe aceptar
+    // órdenes de agente (control del dispositivo). DEFAULT del OS = agent=true;
+    // solo se bloquea si el dueño lo puso explícitamente en false.
+    if (perms.agent === false) continue;
+    const seen = row.last_seen_at ? Date.parse(row.last_seen_at) : 0;
+    const online = typeof row.online === "boolean" ? row.online : ahora - seen < HERMIONE_ONLINE_MS;
+    const endpoint =
+      (bridge?.endpoint as string) ||
+      caps.bridgeEndpoint ||
+      (caps.hermesBridge ? DEFAULT_BRIDGE_ENDPOINT : null);
+    if (!endpoint) continue;
+    const info: HermioneBridgeInfo = {
+      endpoint,
+      online,
+      personalityId: bridge?.personalityId || HERMIONE_PERSONALITY_ID,
+      note: bridge?.note || caps.note || "Neurona con Hermes instalado.",
+      neuronId: row.id,
+    };
+    // Preferimos la neurona ONLINE; si ninguna está online guardamos la primera
+    // como respaldo (Astraura asume).
+    if (online) return info;
+    if (!fallback) fallback = info;
+  }
+  return fallback;
 }
 
 /** ¿El usuario tiene activa la personalidad Hermione en este chat? */
@@ -576,8 +593,14 @@ const HERMIONE_QUEUE_KEY = "starseed.hermione.queue.v1";
 const FALLBACK_MS = 45_000;
 /** Extensión única si la neurona sigue viva (deja que Hermes termine, > timeout WS). */
 const FALLBACK_EXTEND_MS = 32_000;
-/** TTL de la caché de la neurona descubierta (evita spamear a Supabase). */
-const NEURON_TTL_MS = 12_000;
+/** TTL de la caché de la neurona descubierta (la lista de debajo ya es compartida y de 5 min). */
+const NEURON_TTL_MS = 60_000;
+/**
+ * (CON1010) Latido del puente: recalcula el estado y vacía la cola. Antes cada 20 s y también con
+ * la pestaña oculta; ahora cada minuto y solo con la pestaña a la vista (sin red casi siempre: la
+ * lista de neuronas es compartida y la cola solo sale a la red si tiene mensajes).
+ */
+export const HERMIONE_LATIDO_MS = 60_000;
 
 let currentStatus: HermioneBridgeStatus = "inactivo";
 
@@ -1070,8 +1093,12 @@ export function watchHermioneBridge(opts: {
     } catch { /* noop */ }
   });
 
-  // Heartbeat: recomputa estado y vacía la cola cuando la neurona vuelve.
-  const hb = setInterval(() => { void recomputeStatus(); void drainHermioneQueue(); }, 20_000);
+  // Heartbeat: recomputa estado y vacía la cola cuando la neurona vuelve (solo con la pestaña visible).
+  const hb = setInterval(() => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    void recomputeStatus();
+    void drainHermioneQueue();
+  }, HERMIONE_LATIDO_MS);
   void recomputeStatus();
 
   return () => {

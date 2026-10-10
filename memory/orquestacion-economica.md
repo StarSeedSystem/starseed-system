@@ -670,6 +670,38 @@ la vigía lleva más de 45 min sin medir.
 esa ruta (`grep -rn "<tabla>" src/`) → frenarlo con `esLider()`/`frenoActivo()`/visibilidad (ver
 contrato G2) → nunca subir el presupuesto para «hacer sitio» a un bucle.
 
+### 15.1 CON1010 · «Pausa de consumo» con 8.000 peticiones: causas medidas y ritmo adaptativo (2026-10-10)
+
+**Qué pasó.** El 10-10 el proyecto llegó a 25.022 peticiones a las 19:48 UTC (días normales: 1.000–4.000)
+y el navegador integrado de la Mac (`localhost:9002`, todas las pestañas que abren los agentes para
+verificar, que comparten aparato) pasó de 8.000 hacia las 12:00 UTC: desde ahí el aviso «Este
+dispositivo usó su presupuesto de hoy». Medido por aparato (IP+agente, sin imprimir la IP) y por
+consulta en la API de registros:
+
+| Ruta (20 h) | n | Quién | Causa raíz | Arreglo |
+|---|---|---|---|---|
+| `neuron_devices` (50 filas con capacidades) | 3.083 | navegador | latido del puente de Hermione cada 20 s en CADA pestaña, también oculta | elige sobre la lista compartida `listNeurons()` (5 min, nada oculta); latido 60 s solo visible (`hermione-bridge.ts`, `hermione-autosync.ts`) |
+| `rpc/merge_user_prefs` | 3.389 | navegador | respaldo de tableros cada 30 s con `savedAt: Date.now()` (nunca igual) | huella del contenido, registro por aparato, re-subida de seguridad ≤ 6 h (`dashboards-sync.ts`) |
+| `auth/v1/user` | 2.492 | navegador | ~21 `getUser()` al cargar cada página + el eco `SIGNED_IN` de supabase-js al volver a la pestaña | `getUser()` compartido 60 s y sin ecos de la misma cuenta (`consumo/auth-ahorro.ts` en `utils/supabase/client.ts`) |
+| `astraura_mesh_nodes` POST/GET | 3.313 / 551 | backend Astraura (curl) | `register_node` subía la fila propia en cada latido local de 30 s, saltándose el tope del 09-10 | parche `~/Documents/IA 1.58 bit/_starseed_consumo/` (latido 5 min, descubrir 5 min) — SIN APLICAR |
+| `astraura_state` POST / GET `updated_at` | 1.464 / 1.133 | backend Astraura | 5 secciones ruidosas cada 2 min; cerebros preguntan a la nube cada 2 min | mismo parche (sección ≤ 1/15 min, cerebros 10 min) |
+| `astraura_state?select=data` | 1.575 | servidores Node | `destinoNube()` releía lo publicado en cada resolución (cada 10 s sin nube) | caché de lo publicado 5 min (`astraura/destino-nube.ts`) |
+
+**Ritmo adaptativo (nuevo, `src/lib/consumo/ritmo.ts`).** Antes de la pausa el aparato baja solo:
+curva del día = presupuesto × (fracción del día + 3 h); nivel 1 (×2) por encima de la curva o > 1.000
+en la hora; nivel 2 (×4) ≥ 85 %, ≥ 1,5× la curva o > 2.000 en la hora; nivel 3 = pausa. Los bucles de
+`bucle-fondo.ts` multiplican su intervalo (salvo `esencial: true`) y el cubo de fichas rellena más
+despacio las lecturas no esenciales. Escribir, Auth y `senalEsencial()` nunca esperan. El registro del
+día (`starseed.supabase.dia.v1`) guarda ahora también la hora en curso y las 15 rutas que más gastan,
+compartidas por las pestañas; el aviso dice cuál gastó más y qué hace el OS, y en nivel 2 avisa ANTES
+de la pausa («Modo ahorro de consumo»).
+
+**Regla nueva.** Un sondeo que sube un valor con marca de tiempo (`savedAt`, `updated_at`, `visto`)
+nunca se considera «igual»: la huella va sobre el CONTENIDO y la fecha solo cambia cuando cambia el
+contenido. Y ningún oyente de `onAuthStateChange` relanza su arranque por un `SIGNED_IN` de la misma
+cuenta: lo filtra `auth-ahorro.ts`, pero el código nuevo debe arrancar «al cambiar la cuenta», no «a
+cada evento».
+
 ## 16. Sueños profundos: flota gratuita que lee, Claude que verifica (2026-09-29)
 
 **Qué es.** Una sesión de sueños analiza cada área de StarSeed OS (las 11 de `areas.ts` + mando,

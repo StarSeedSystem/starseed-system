@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { fetchGuardado } from "@/lib/consumo/guardian";
+import { ahorrarAuth, type AuthAhorrable } from "@/lib/consumo/auth-ahorro";
 
 // Advertencia única (por sesión de navegador) si faltan las envs públicas de
 // Supabase: sin ellas, TODAS las llamadas (auth/rest/storage/realtime) fallan
@@ -101,6 +102,11 @@ function installLockGuard() {
 export const createClient = () => {
     installLockGuard();
     if (typeof window === "undefined") return buildClient();
-    if (!browserClient) browserClient = buildClient();
+    if (!browserClient) {
+        browserClient = buildClient();
+        // (CON1010 · 2026-10-10) getUser() compartido 60 s y sin ecos SIGNED_IN de la misma cuenta
+        // al volver a la pestaña: 21 → 1 petición a /auth/v1/user al cargar. Ver consumo/auth-ahorro.ts.
+        ahorrarAuth(browserClient.auth as unknown as AuthAhorrable);
+    }
     return browserClient;
 };

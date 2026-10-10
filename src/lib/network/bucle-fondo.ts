@@ -22,6 +22,9 @@
  *   4. FALLOS: 401/402/403/429/5xx/red → espera exponencial de 1 a 30 min. 400 (consulta mal
  *      formada) y 404 (tabla o función que no existe) no se arreglan solos: el bucle se PARA
  *      hasta recargar y lo dice UNA vez en consola, nombrando la consulta.
+ *   5. RITMO DE AHORRO (CON1010, 2026-10-10): si el aparato va por encima de la curva de su
+ *      presupuesto del día, el intervalo se multiplica por el factor del guardián (×2, ×4; ×8 en
+ *      pausa). Un bucle `esencial: true` no se espacia.
  *
  * Nunca lanza. Solo se arranca desde código de cliente; sin DOM (Node) la pestaña cuenta
  * como visible y líder.
@@ -29,6 +32,7 @@
 
 import { esLider, alCambiarLider } from "@/lib/consumo/lider-pestana";
 import { frenoActivo } from "@/lib/consumo/freno";
+import { factorRitmoConsumo } from "@/lib/consumo/guardian";
 
 export const MINUTO_MS = 60_000;
 /** Primera espera tras un fallo que se puede arreglar solo. */
@@ -106,6 +110,16 @@ function liderSeguro(): boolean {
     return esLider();
   } catch {
     return true;
+  }
+}
+
+/** Factor de ritmo del guardián (1 si algo falla). */
+function factorSeguro(): number {
+  try {
+    const f = factorRitmoConsumo();
+    return Number.isFinite(f) && f >= 1 ? f : 1;
+  } catch {
+    return 1;
   }
 }
 
@@ -271,6 +285,8 @@ export interface OpcionesBucle<T = unknown> {
   difundir?: boolean;
   /** Recibe lo que otra pestaña leyó (y, al iniciar, lo último que tenga la líder). */
   alRecibirDatos?: (datos: T) => void;
+  /** No se espacia con el ritmo de ahorro del aparato (por defecto false: es un sondeo de fondo). */
+  esencial?: boolean;
 }
 
 export interface EstadoBucle {
@@ -330,6 +346,8 @@ export function crearBucle<T = unknown>(op: OpcionesBucle<T>): BucleFondo {
   let quitarOyente: (() => void) | null = null;
 
   const elegible = () => (!soloLider || liderSeguro()) && (!pausarOculta || dispositivoVisible());
+  /** Intervalo de ahora: el pedido, espaciado por el ritmo de ahorro salvo que sea esencial. */
+  const intervalo = (base: number) => (op.esencial ? base : base * factorSeguro());
 
   const limpiar = () => {
     if (timer) {
@@ -357,7 +375,7 @@ export function crearBucle<T = unknown>(op: OpcionesBucle<T>): BucleFondo {
     }
     if (frenoSeguro()) {
       // Freno remoto: ni una petición. Se vuelve a mirar dentro de un intervalo (sin red).
-      proxima = Date.now() + op.intervaloMs;
+      proxima = Date.now() + intervalo(op.intervaloMs);
       reevaluar();
       return;
     }
@@ -380,11 +398,11 @@ export function crearBucle<T = unknown>(op: OpcionesBucle<T>): BucleFondo {
     }
     if (clase === "reintentar") {
       fallos += 1;
-      proxima = ultima + Math.max(op.intervaloMs, esperaTrasFallos(fallos));
+      proxima = ultima + Math.max(intervalo(op.intervaloMs), esperaTrasFallos(fallos));
     } else {
       fallos = 0;
       const sig = res?.siguienteMs;
-      proxima = ultima + (typeof sig === "number" && sig > 0 ? sig : op.intervaloMs);
+      proxima = ultima + intervalo(typeof sig === "number" && sig > 0 ? sig : op.intervaloMs);
       if (op.difundir && res && "datos" in res) {
         ultimosDatos.set(op.nombre, res.datos);
         publicar({ t: "datos", nombre: op.nombre, datos: res.datos });
