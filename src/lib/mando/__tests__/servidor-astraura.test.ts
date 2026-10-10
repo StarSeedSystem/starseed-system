@@ -11,6 +11,7 @@ vi.mock("server-only", () => ({}));
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os, { tmpdir } from "node:os";
 import path from "node:path";
+import { invalidarDestino } from "@/lib/astraura/destino-nube";
 
 interface Llamada {
     binario: string;
@@ -79,6 +80,9 @@ function fetchPorDefecto() {
 }
 
 beforeEach(async () => {
+    // (INT1010D) `tunelPublicado()` guarda 5 min lo leído, también un «no hay» (CON1010, ahorro de
+    // consumo): sin vaciar esa caché, una prueba hereda el túnel publicado de la anterior.
+    invalidarDestino();
     ctx.espia.length = 0;
     ctx.respuestas.clear();
     homeFalso = await mkdtemp(path.join(tmpdir(), "starseed-servidor-home-"));

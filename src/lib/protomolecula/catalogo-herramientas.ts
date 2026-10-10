@@ -213,7 +213,7 @@ export const GRUPOS_PROTOMOLECULA: readonly GrupoInfo[] = [
   { id: "vr-ar", nombre: "VR/AR", descripcion: "Realidad virtual, aumentada y salas inmersivas." },
   { id: "codigo", nombre: "Código y conversión", descripcion: "Código creativo, editores, ejecución aislada y conversores." },
   { id: "ia", nombre: "IA generativa", descripcion: "Modelos y motores abiertos que corren en local." },
-  { id: "controles", nombre: "Controles y sensores", descripcion: "Mandos, mesas, MIDI, OSC, pulsómetros y wearables." },
+  { id: "controles", nombre: "Controles y sensores", descripcion: "Controladores, mesas, MIDI, OSC, pulsómetros y wearables." },
   { id: "colaboracion", nombre: "Colaboración", descripcion: "Edición compartida y sincronía entre personas." },
   { id: "recursos", nombre: "Recursos abiertos", descripcion: "Texturas, modelos y sonidos de dominio público." },
 ];

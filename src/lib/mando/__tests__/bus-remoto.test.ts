@@ -71,7 +71,9 @@ describe("bus remoto con dieta de tráfico", () => {
         const primera = await filasDelBus(AHORA);
         expect(primera.map((f) => f.id)).toEqual([12, 11, 10, 9]);
         expect(urls).toHaveLength(3);
-        expect(urls[0]).toContain("tipo=not.in.(latido,tunel,arranque)");
+        // (OPA1011) Los eventos de alta frecuencia del nodo de MetaGenesis (mg_latido, mg_foto, mg_colas)
+        // tampoco entran en la carga general: el panel del nodo los lee aparte.
+        expect(urls[0]).toContain("tipo=not.in.(latido,tunel,arranque,mg_latido,mg_foto,mg_colas)");
         expect(urls[1]).toContain("tipo=eq.arranque");
         expect(urls[2]).toContain("tipo=eq.latido");
 
