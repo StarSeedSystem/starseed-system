@@ -28,7 +28,7 @@ class TestPuertaDatos(unittest.TestCase):
         self.assertNotIn("NO-DEBE-VIAJAR", texto)
         self.assertNotIn("SERVICE_ROLE", texto)
         with self.assertRaises(ValueError):
-            pd.contenido_env_a1(dict(env, NEXT_PUBLIC_SUPABASE_ANON_KEY="a\nINYECTADA=1"))
+            pd.contenido_env_a1(dict(env, NEXT_PUBLIC_SUPABASE_ANON_KEY="prueba\nINYECTADA=1"))
 
     def test_paquete_sin_pruebas(self):
         datos = pd.paquete_tgz()
