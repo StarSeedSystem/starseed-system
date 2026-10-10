@@ -179,6 +179,9 @@ def orden_reabrir(correccion):
         orden["intentos_auto"] = n
     if isinstance(v.get("modelo_siguiente"), str) and "/" in v["modelo_siguiente"]:
         orden["modelo"] = v["modelo_siguiente"]
+    m = v.get("reintentos_medio")
+    if isinstance(m, int) and not isinstance(m, bool) and m > 0:
+        orden["reintentos_medio"] = m
     return orden
 
 

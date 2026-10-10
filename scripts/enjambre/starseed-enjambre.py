@@ -4663,6 +4663,25 @@ def nota_salvavidas(tid: str, rama: str, sha: str | None) -> None:
     set_estado(tid, rama=rama, sha=sha)
 
 
+def _segundos_etime(etime):
+    """`ps -o etime` («mm:ss», «hh:mm:ss», «d-hh:mm:ss») → segundos; None si no se entiende."""
+    texto, dias = str(etime or "").strip(), 0
+    if "-" in texto:
+        d, texto = texto.split("-", 1)
+        if not d.isdigit():
+            return None
+        dias = int(d)
+    try:
+        nums = [int(x) for x in texto.split(":")]
+    except ValueError:
+        return None
+    if len(nums) == 2:
+        nums = [0] + nums
+    if len(nums) != 3:
+        return None
+    return dias * 86400 + nums[0] * 3600 + nums[1] * 60 + nums[2]
+
+
 def quitar_cerrojo_huerfano(wt):
     """Quita el `index.lock` de ESTE worktree si lo dejó atrás un git muerto.
 
@@ -4691,13 +4710,21 @@ def quitar_cerrojo_huerfano(wt):
         return False
     try:
         salida = subprocess.run(
-            ["ps", "-eo", "args"], capture_output=True, text=True, timeout=20
+            ["ps", "-axo", "etime=,args="], capture_output=True, text=True, timeout=20
         ).stdout.splitlines()
     except Exception:
         return False  # sin poder mirar los procesos no se toca ningún cerrojo
+    # (2026-10-10) Solo puede ser su dueño un git que ARRANCÓ antes de crearse el cerrojo: en el
+    # repo principal Genesis lanza `git log` cada pocos segundos y exigir «ningún git vivo» no
+    # dejaba quitar nunca el cerrojo huérfano del reinicio de la Mac.
     for linea in salida:
-        orden = linea.strip()
-        if orden and re.search(r"(^|/)git(\s|$)", orden.split()[0]):
+        trozos = linea.split(None, 1)
+        if len(trozos) < 2 or not trozos[1].split():
+            continue
+        if not re.search(r"(^|/)git(\s|$)", trozos[1].split()[0]):
+            continue
+        vivo_s = _segundos_etime(trozos[0])
+        if vivo_s is None or vivo_s + 5 >= edad:
             return False
     try:
         os.remove(ruta)
@@ -5530,6 +5557,9 @@ def atender_control():
             n = orden.get("intentos_auto")
             if isinstance(n, int) and not isinstance(n, bool) and n >= 0:
                 extra["intentos_auto"] = n
+            m = orden.get("reintentos_medio")
+            if isinstance(m, int) and not isinstance(m, bool) and m >= 0:
+                extra["reintentos_medio"] = m
             set_estado(
                 tid,
                 estado="pendiente",
@@ -8050,6 +8080,14 @@ def ejecutar(t, intento=1):
             rc, out = sh(
                 ["git", "merge", "--ff-only", "ola/" + tid], cwd=ROOT, timeout=120
             )
+            # (2026-10-10) Un `index.lock` huérfano del repo principal (el reinicio de la Mac
+            # dejó uno) tiraba integraciones YA revisadas: se quita si es huérfano y se reintenta
+            # una vez, igual que en el commit del worktree.
+            if rc != 0 and "index.lock" in (out or "") and quitar_cerrojo_huerfano(ROOT):
+                evento("aviso", tid, "cerrojo de git huérfano del repo principal quitado; reintento el merge")
+                rc, out = sh(
+                    ["git", "merge", "--ff-only", "ola/" + tid], cwd=ROOT, timeout=120
+                )
             if rc != 0:
                 set_estado(
                     tid,
@@ -8587,8 +8625,22 @@ def main():
                     "aviso", tid, "no puedo reabrirla: no está en la cola de esta tanda"
                 )
                 continue
+            # (2026-10-10) La versión VIGENTE de la cola manda (el revisor de bloqueadas pudo
+            # soltar una dependencia o recablearla) y la reabierta recupera SU sitio en el orden
+            # de la cola: antes iba al final, y las raíces que desbloqueaban 25-29 tareas de la
+            # Protomolécula esperaron horas detrás de hojas sueltas.
+            vigente = (estado_cola or {}).get("tareas", {}).get(tid)
+            if vigente:
+                tarea = vigente
+                TAREAS_POR_ID[tid] = vigente
             hechas.discard(tid)
             pendientes[tid] = tarea
+            if estado_cola and estado_cola.get("orden"):
+                _pos = {x: i for i, x in enumerate(estado_cola["orden"])}
+                _orden = sorted(pendientes, key=lambda x: (_pos.get(x, len(_pos)), x))
+                pendientes_ordenados = {x: pendientes[x] for x in _orden}
+                pendientes.clear()
+                pendientes.update(pendientes_ordenados)
             MIAS.add(tid)
             evento(
                 "aviso",

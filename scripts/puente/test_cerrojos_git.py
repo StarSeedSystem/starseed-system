@@ -68,5 +68,42 @@ class PruebaCerrojos(unittest.TestCase):
         self.assertFalse(os.path.exists(viejo))
 
 
+
+class PruebaCerrojoPrincipal(unittest.TestCase):
+    """(2026-10-10) El `.git/index.lock` del repo principal: solo un git MÁS VIEJO que el cerrojo
+    puede ser su dueño; los `git log` de Genesis, que arrancan después, no lo protegen."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.ruta = os.path.join(self.dir, "index.lock")
+        open(self.ruta, "w").close()
+        hace = time.time() - 5 * 3600
+        os.utime(self.ruta, (hace, hace))
+
+    def test_etime(self):
+        self.assertEqual(C.segundos_de_etime("00:05"), 5)
+        self.assertEqual(C.segundos_de_etime("04:50:21"), 17421)
+        self.assertEqual(C.segundos_de_etime("1-02:03:04"), 93784)
+        self.assertIsNone(C.segundos_de_etime("raro"))
+
+    def test_gits_jovenes_no_lo_protegen(self):
+        ps = ["   00:02 git log --oneline -10", "   00:01 /opt/homebrew/bin/git status", "04:50:21 /usr/bin/python3 x"]
+        self.assertEqual(C.quitar_si_huerfano(self.ruta, ps), "300 min")
+        self.assertFalse(os.path.exists(self.ruta))
+
+    def test_un_git_mas_viejo_que_el_cerrojo_lo_protege(self):
+        ps = ["06:00:00 git merge --ff-only ola/X"]
+        self.assertIsNone(C.quitar_si_huerfano(self.ruta, ps))
+        self.assertTrue(os.path.exists(self.ruta))
+
+    def test_cerrojo_reciente_no_se_toca(self):
+        os.utime(self.ruta, None)
+        self.assertIsNone(C.quitar_si_huerfano(self.ruta, []))
+        self.assertTrue(os.path.exists(self.ruta))
+
+    def test_linea_de_git_ilegible_conserva(self):
+        self.assertTrue(C.git_que_puede_tenerlo(["??? git commit"], 3600))
+
 if __name__ == "__main__":
     unittest.main()

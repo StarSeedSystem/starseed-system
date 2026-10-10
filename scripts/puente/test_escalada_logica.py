@@ -365,6 +365,39 @@ class TestEscaladaLogica(unittest.TestCase):
         self.assertTrue(en_asuntos(tid, asuntos))
 
 
+
+class TestFalloDelMedio(unittest.TestCase):
+    """(2026-10-10) Un fallo del MEDIO no sube la escalera, con tope."""
+
+    def test_cerrojo_no_gasta_intento(self):
+        entrada = {"estado": "conflicto", "nota": "ff falló: Unable to create index.lock", "intentos_auto": 1}
+        paso = siguiente_paso(entrada, {}, {}, "2026-10-10", [])
+        self.assertEqual(paso["estado"], "pendiente")
+        self.assertTrue(paso.get("no_cuenta"))
+        nuevo = aplicar({"T": entrada}, "T", paso, "2026-10-10 05:00:00")
+        self.assertEqual(nuevo["T"]["intentos_auto"], 1)
+        self.assertEqual(nuevo["T"]["reintentos_medio"], 1)
+
+    def test_tsc_sin_terminar_y_worktree_son_del_medio(self):
+        for nota in ("tsc no terminó (se pasó de tiempo): la puerta no da el visto bueno",
+                     "worktree: no se pudo preparar worktree; rama y archivos conservados"):
+            paso = siguiente_paso({"estado": "fallo", "nota": nota}, {}, {}, "2026-10-10", [])
+            self.assertTrue(paso.get("no_cuenta"), nota)
+
+    def test_tope_de_reintentos_del_medio(self):
+        entrada = {"estado": "fallo", "nota": "worktree: no se pudo preparar worktree",
+                   "reintentos_medio": E.TOPE_REINTENTOS_MEDIO}
+        paso = siguiente_paso(entrada, {}, {}, "2026-10-10", [])
+        self.assertFalse(paso.get("no_cuenta"))
+        self.assertIn("reintento gratuito", paso["motivo"])
+
+    def test_fallo_de_la_tarea_sigue_contando(self):
+        paso = siguiente_paso({"estado": "fallo_tsc", "nota": "tsc sigue con 2 errores"}, {}, {}, "2026-10-10", [])
+        self.assertFalse(paso.get("no_cuenta"))
+
+    def test_nota_de_la_escalera_cuenta(self):
+        self.assertFalse(E.es_fallo_del_medio({"nota": "director: reintento gratuito 1/8"}))
+
 if __name__ == "__main__":
     unittest.main()
 

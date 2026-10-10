@@ -220,7 +220,9 @@ def decidir_relanzamiento(cfg, hay_orquestador, n_pendientes):
 
 #: (2026-10-08) `intentos_auto`: la escalera del director (libre×2 → … → bloqueante) llega
 #: también por aquí con el orquestador vivo; sin su cuenta repetiría «libre» para siempre.
-CAMPOS_CORRECCION = ("estado", "nota", "medio", "modelo_siguiente", "intentos_auto")
+#: (2026-10-10) `reintentos_medio`: los reintentos por fallo del MEDIO no suben la escalera, pero
+#: tienen tope; sin viajar aquí el contador se perdía en la tanda viva y no habría tope.
+CAMPOS_CORRECCION = ("estado", "nota", "medio", "modelo_siguiente", "intentos_auto", "reintentos_medio")
 
 
 def aplicar_correcciones(progreso, correcciones):

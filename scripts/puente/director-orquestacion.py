@@ -329,6 +329,7 @@ def correccion_de(entrada):
         "nota": entrada.get("nota"),
         "modelo_siguiente": entrada.get("modelo_siguiente"),
         "intentos_auto": entrada.get("intentos_auto", 0),
+        "reintentos_medio": entrada.get("reintentos_medio", 0),
         "t": entrada.get("t"),
     }
 

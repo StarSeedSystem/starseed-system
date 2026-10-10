@@ -123,6 +123,11 @@ SERVICIOS = {
     # de Genesis encendido, lleva main a producción tras análisis, pruebas, CI y verificación
     # (`autopublicar.py`, una pasada cada 5 min). Apagado, solo informa.
     "produccion": ([PY3, P("autopublicar.py"), "--bucle"], "/tmp/starseed-produccion.log", True),
+    # (2026-10-10) Revisor automático de bloqueadas (OPB1011, `architecture/ninguna-tarea-se-desperdicia.md`):
+    # cada 5 min transforma cada tarea quieta —reordena, reintenta sin gastar intento lo que falló
+    # por el medio, reescribe con el contexto de hoy, divide, fusiona, cierra lo que main ya tiene— y
+    # solo pregunta a Alex lo que es suyo. Un solo revisor por máquina (flock).
+    "revisor": ([PY3, "-u", P("revisor_bloqueadas.py"), "--bucle"], "/tmp/starseed-revisor-bloqueadas.log", True),
     # (2026-10-08) Director de diseño (Ola 1005D, DIS1005E): brief al entrar cada
     # tarea de interfaz, verificación al integrar y aprendizaje, con informe horario
     # al Chat Director. Envuelto en lanzador-tcc.py como el resto de directores.

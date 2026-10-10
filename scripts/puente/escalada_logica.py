@@ -16,6 +16,26 @@ from datetime import datetime
 # Estados que se pueden reintentar automáticamente
 ESTADOS_RECUPERABLES = {"sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "conflicto", "interrumpida"}
 
+#: (2026-10-10) Un fallo del MEDIO (cerrojo de git huérfano, worktree o tsc que no terminan con la
+#: Mac sin memoria, red, cupos) no dice nada de la tarea: reintentarla no sube la escalera. Medido
+#: ese día: PM1010F0A/F0B/F2B/F0K —revisadas y listas— gastaron su intento por un `index.lock` del
+#: reinicio, y GN1010B/D, AST1, GN1010C, OC1010C y ACT5 por tsc/worktree sin memoria. Tope para no
+#: dar vueltas para siempre: pasados estos reintentos «gratis», vuelve a contar.
+TOPE_REINTENTOS_MEDIO = 6
+
+
+def es_fallo_del_medio(entrada):
+    """¿La nota de esta entrada dice que falló el MEDIO y no la tarea? (misma regla que el revisor)."""
+    try:
+        import revisor_bloqueadas_logica as _rb
+    except Exception:  # sin el módulo, como antes: todo cuenta
+        return False
+    nota = str((entrada or {}).get("nota") or "")
+    if nota.startswith("director: ") or nota.startswith("revisor: "):
+        return False  # la nota ya la reescribió la escalera: la causa real se perdió, cuenta
+    return _rb.es_del_medio(_rb.clase_de_fallo(nota))
+
+
 # Escalera de modelos: cada intento sube un nivel
 # n=0 (intento original de la cola) es nivel 0 "libre"
 # n=1 primer reintento automático es nivel 1 "libre" (segunda vez gratis)
@@ -94,6 +114,18 @@ def siguiente_paso(entrada, gasto, config, hoy, modelos_anthropic, ahora=None, c
     niveles = niveles_de(config, codex_ok)
     if not reabrible(entrada, niveles):
         return None
+
+    if (entrada.get("estado") != "bloqueante" and es_fallo_del_medio(entrada)
+            and int(entrada.get("reintentos_medio") or 0) < TOPE_REINTENTOS_MEDIO):
+        return {
+            "estado": "pendiente",
+            "modelo": None,
+            "cuenta": None,
+            "no_cuenta": True,
+            "motivo": "fallo del medio (%s): reintento sin gastar intento %d/%d" % (
+                str(entrada.get("nota") or "")[:60], int(entrada.get("reintentos_medio") or 0) + 1,
+                TOPE_REINTENTOS_MEDIO),
+        }
 
     n = entrada.get("intentos_auto", 0)
     if n >= len(niveles):
@@ -218,7 +250,10 @@ def aplicar(progreso, tid, paso, ahora):
     entrada = p[tid]
 
     entrada["estado"] = paso["estado"]
-    entrada["intentos_auto"] = entrada.get("intentos_auto", 0) + 1
+    if paso.get("no_cuenta"):
+        entrada["reintentos_medio"] = int(entrada.get("reintentos_medio") or 0) + 1
+    else:
+        entrada["intentos_auto"] = entrada.get("intentos_auto", 0) + 1
     entrada["nota"] = "director: " + paso["motivo"]
     entrada["t"] = ahora
 
