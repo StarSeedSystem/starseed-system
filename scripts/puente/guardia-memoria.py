@@ -40,6 +40,14 @@ MARCA = "/tmp/starseed-%s-congelado-por-el-guardia"  # un marcador por motor
 MOTORES = ["llama-server", "tts-server"]
 PATRON_ORQ = re.compile(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py")
 
+# Umbral mínimo de swap para MATAR un motor congelado: >= 80 % del total
+# Metal no pagina aunque el proceso esté parado con SIGSTOP, así que a partir de
+# cierto punto congelar se vuelve contraproducente: la RAM no se recupera.
+CONGELAR_SWAP_PCT = 80
+
+# Minutos tras los que un motor congelado pasa a ser considerado "congelado desde hace tiempo"
+CONGELADO_DESDE_HACE_MIN = 20
+
 _spec = importlib.util.spec_from_file_location(
     "puente", os.path.join(os.path.dirname(os.path.abspath(__file__)), "puente.py")
 )
@@ -218,6 +226,24 @@ def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
         elif not orquestador_vivo and libre_mb > REANUDAR_SOBRE_MB:
             acciones.append((motor, "descongelar"))
     return acciones
+
+
+def accion_para(motor, congelado_min, swap_pct):
+    """Decision pura: "congelar" | "matar" | "nada".
+
+    * El tts-server se MATARÁ si se detecta congelado (no SIGSTOP).
+    * El llama-server se CONGELARÁ (SIGSTOP) si se detecta congelado (el modelo permanece cargado).
+    * Cualquier motor detectado congelado durante >= CONGELADO_DESDE_HACE_MIN
+      y con swap >= CONGELAR_SWAP_PCT se MATARÁ (excluyendo llama-server).
+    * Por defecto se aplica la regla original del guardia.
+    """
+    if motor == "tts-server":
+        return "matar"
+    if motor == "llama-server":
+        return "congelar"
+    if congelado_min >= CONGELADO_DESDE_HACE_MIN and swap_pct >= CONGELAR_SWAP_PCT:
+        return "matar"
+    return "nada"
 
 
 def main():

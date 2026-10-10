@@ -432,15 +432,16 @@ function matarOidoResidente(motivo, suave) {
       }, 5000);
       if (t.unref) t.unref();
     } else if (!proc.killed && proc.exitCode === null) {
-      proc.kill("SIGTERM");
       const p2 = proc;
+      p2.kill("SIGCONT");
+      p2.kill("SIGTERM");
       const t = setTimeout(() => {
         try {
           if (p2.exitCode === null) p2.kill("SIGKILL");
         } catch {
           /* */
         }
-      }, 5000);
+      }, 3000);
       if (t.unref) t.unref();
     }
   } catch {
@@ -1081,7 +1082,15 @@ function killServerEntry(lang, reason) {
   entry.ready = false;
   entry.killedByUs = true;
   try {
-    if (entry.proc && !entry.proc.killed) entry.proc.kill("SIGTERM");
+    const p = entry.proc && entry.proc.exitCode === null ? entry.proc : null;
+    if (p) {
+      p.kill("SIGCONT");
+      p.kill("SIGTERM");
+      const t = setTimeout(() => {
+        if (p.exitCode === null) p.kill("SIGKILL");
+      }, 3000);
+      if (t.unref) t.unref();
+    }
   } catch {
     /* */
   }

@@ -15,6 +15,9 @@ _spec = importlib.util.spec_from_file_location("guardia_memoria", _ruta)
 G = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(G)
 
+# Guardar las funciones puras para probar
+accion_para = G.accion_para
+
 BAJO, SOBRE = G.CONGELAR_BAJO_MB, G.REANUDAR_SOBRE_MB
 
 
@@ -111,3 +114,38 @@ class ConAlexHablandoLosMotoresNoSeCongelan(unittest.TestCase):
     def test_sin_conversacion_la_regla_de_siempre(self):
         self.assertEqual(G.decidir(True, 10, set(), ["llama-server"], conversando=False),
                          [("llama-server", "congelar")])
+
+
+class TestAccionPara(unittest.TestCase):
+    def test_tts_server_siempre_matar(self):
+        self.assertEqual(accion_para("tts-server", 0, 50), "matar")
+        self.assertEqual(accion_para("tts-server", 100, 0), "matar")
+        self.assertEqual(accion_para("tts-server", 50, 80), "matar")
+
+    def test_llama_server_siempre_congelar(self):
+        self.assertEqual(accion_para("llama-server", 0, 50), "congelar")
+        self.assertEqual(accion_para("llama-server", 100, 0), "congelar")
+        # llama-server siempre "congelar" para mantener el modelo cargado (no SIGKILL)
+        self.assertEqual(accion_para("llama-server", 50, 80), "congelar")
+        self.assertEqual(accion_para("llama-server", 21, 80), "congelar")
+        self.assertEqual(accion_para("llama-server", 25, 90), "congelar")
+
+    def test_llama_server_congelado_hace_poco_con_swap_alto_congelar(self):
+        # Frozen <= 20 min with swap >= 80%: congelar
+        self.assertEqual(accion_para("llama-server", 19, 80), "congelar")
+        self.assertEqual(accion_para("llama-server", 0, 80), "congelar")
+
+    def test_llama_server_congelado_hace_mucho_con_swap_bajo_congelar(self):
+        # Frozen > 20 min but swap < 80%: congelar
+        self.assertEqual(accion_para("llama-server", 21, 60), "congelar")
+
+    def test_otro_motor_con_sin_condiciones_nada(self):
+        self.assertEqual(accion_para("otro-motor", 0, 0), "nada")
+        self.assertEqual(accion_para("otro-motor", 15, 60), "nada")
+
+    def test_otro_motor_con_dados_congelados_matar(self):
+        # Frozen > 20 min with swap >= 80%: matar
+        self.assertEqual(accion_para("otro-motor", 21, 80), "matar")
+        self.assertEqual(accion_para("otro-motor", 25, 90), "matar")
+        self.assertEqual(accion_para("otro-motor", 21, 80), "matar")
+        self.assertEqual(accion_para("otro-motor", 25, 90), "matar")
