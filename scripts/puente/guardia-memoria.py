@@ -10,9 +10,10 @@ debería tener su motor otra vez.
 
 Así que no se elige. Se turnan:
 
-  · Si el orquestador está vivo Y queda poca memoria → SIGSTOP a BitNet. Congelado,
-    no muerto: no pierde el modelo cargado ni su estado, y el sistema puede llevarse
-    sus páginas a disco. Vuelve entero con SIGCONT.
+  · Si el orquestador está vivo Y queda poca memoria → SIGSTOP a llama-server;
+    SIGKILL a tts-server (Metal fija su memoria wired: no se libera con SIGSTOP,
+    medido: wired 3,9 -> 1,9 GB al matar, no al congelar; freeze solo retiene RAM).
+    Vuelve con SIGCONT (BitNet) o se relanza (tts-server).
   · Si el orquestador para y hay holgura → SIGCONT. Astraura recupera su motor sola.
 
 Un proceso congelado por nosotros se anota, para no reanudar jamás uno que el dueño
@@ -162,6 +163,34 @@ def guardar_marca(motor, pids):
         f.write("\n".join(str(p) for p in sorted(pids)))
 
 
+def swap_pct():
+    """Porcentaje aproximado de swap usada (macOS sysctl)."""
+    try:
+        s = subprocess.run(
+            ["sysctl", "-n", "vm.swapusage"],
+            capture_output=True, text=True, timeout=5
+        ).stdout
+        # Ejemplo: "x = 123456 / 9876543" (bytes usados / bytes totales)
+        partes = s.split("/")
+        if len(partes) == 2:
+            usado = float(partes[0].strip().split()[0])
+            total = float(partes[1].strip().split()[0])
+            if total > 0:
+                return round((usado / total) * 100, 1)
+    except Exception:
+        pass
+    return 0.0
+
+
+def congelado_min(motor):
+    """Minutos que lleva congelado un motor (por mtime del archivo MARCA)."""
+    try:
+        mtime = os.stat(ruta_marca(motor)).st_mtime
+        return (time.time() - mtime) / 60.0
+    except Exception:
+        return 0.0
+
+
 def obtener_congelados(
     motores_dict, leer_marca_fn=leer_marca, guardar_marca_fn=guardar_marca
 ):
@@ -186,6 +215,27 @@ def obtener_congelados(
         else:
             guardar_marca_fn(motor, set())
     return congelados
+
+
+def accion_para(motor, congelado_min, swap_pct):
+    """Decisión pura por motor: congelar, matar o nada.
+
+    Reglas (CNS1010): tts-server siempre se mata (SIGKILL, Metal no libera con SIGSTOP);
+    llama-server se congela (SIGSTOP); si lleva congelado > 20 min y la swap usada
+    es >= 80 %, también SIGKILL. Cualquier otro motor: nada.
+    El docstring antiguo decía que Metal paginaba con SIGSTOP; es falso: la memoria
+    fija (wired) no se libera aunque el proceso esté parado (medido: wired 3,9 -> 1,9 GB
+    al matar los dos procesos, no al congelarlos).
+    """
+    if motor not in MOTORES:
+        return "nada"
+    if motor == "tts-server":
+        return "matar"
+    if motor == "llama-server":
+        if congelado_min > 20 and swap_pct >= 80:
+            return "matar"
+        return "congelar"
+    return "nada"
 
 
 def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
@@ -259,26 +309,41 @@ def main():
 
             for motor, accion in acciones:
                 if accion == "congelar":
-                    # La marca se escribe ANTES de la senal: si el guardia muere entre
-                    # las dos, lo peor que queda es una marca sobrante (que la limpieza
-                    # de arriba borra), no un motor congelado que nadie reanudara.
+                    # Decisión pura por motor: tts-server -> SIGKILL; llama-server ->
+                    # SIGSTOP salvo que lleve >20 min congelado con swap >=80 %.
+                    cong_min = congelado_min(motor)
+                    swp = swap_pct()
                     sueltos = {p for p, e in motores[motor].items() if "T" not in e}
                     hechos = set()
                     for pid in sueltos:
-                        guardar_marca(motor, leer_marca(motor) | {pid})
-                        try:
-                            os.kill(pid, signal.SIGSTOP)
-                        except Exception:
+                        decision = accion_para(motor, cong_min, swp)
+                        if decision == "matar":
+                            try:
+                                os.kill(pid, signal.SIGKILL)
+                                hechos.add(pid)
+                            except Exception:
+                                pass
+                            # Al matar, se borra el pid de la marca; si queda
+                            # vacía se elimina el archivo.
                             marcados = leer_marca(motor)
                             marcados.discard(pid)
                             guardar_marca(motor, marcados)
-                            continue
-                        hechos.add(pid)
+                        elif decision == "congelar":
+                            guardar_marca(motor, leer_marca(motor) | {pid})
+                            try:
+                                os.kill(pid, signal.SIGSTOP)
+                            except Exception:
+                                marcados = leer_marca(motor)
+                                marcados.discard(pid)
+                                guardar_marca(motor, marcados)
+                                continue
+                            hechos.add(pid)
+                    msg = "matado" if hechos and motor == "tts-server" else "congelado"
                     if hechos:
                         _p.decir(
-                            "%s congelado (pids %s) con el enjambre trabajando. "
-                            "Vuelve solo cuando pare y haya holgura."
-                            % (motor, ", ".join(map(str, sorted(hechos)))),
+                            "%s %s (pids %s) con el enjambre trabajando. "
+                            "Vuelve solo cuando pare y haya holgura (o se relanza)."
+                            % (motor, msg, ", ".join(map(str, sorted(hechos)))),
                             "guardia",
                             "aviso",
                         )
