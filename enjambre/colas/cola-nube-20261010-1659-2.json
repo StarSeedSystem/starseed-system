@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261010",
+ "tareas": [
+  {
+   "id": "OC1010B",
+   "ola": "Ola 1010S · Medidor de Oracle",
+   "titulo": "Resumen de consumo de Oracle en la tarjeta del Servidor 1.58",
+   "archivos": [
+    "src/components/mando/oracle-consumo-resumen.tsx",
+    "src/components/mando/__tests__/oracle-consumo-resumen.test.tsx",
+    "src/components/mando/panel-servidor.tsx"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo StarSeed OS (Next.js 15 + TypeScript). Contrato: architecture/oracle-consumo.md. En panel-servidor.tsx hay una tarjeta de Oracle Always Free que lee /api/mando/oracle (busca `fetch(\"/api/mando/oracle\"`). Crea src/components/mando/oracle-consumo-resumen.tsx (\"use client\", ≤ 80 líneas) que use `useConsumoOracle` (exportado de src/components/mando/medidor-consumo.tsx) y `vistaOracle` (src/lib/mando/oracle-consumo-tipos.ts) para pintar UNA línea compacta: estado (vista.estado.texto), la fila 'gasto' (valor) y, si existe, vista.reclamacion.texto. Añade un enlace con cursor-pointer «Ver en Consumo y créditos» a `/genesis?pestana=metagenesis` e iconos de lucide-react (Cloud, TriangleAlert): nada de emojis. Si no hay datos, «Oracle sin medir todavía». Móntalo en panel-servidor.tsx dentro de la tarjeta de Oracle, con una línea de import y una de JSX y sin tocar nada más. Test con vitest + @testing-library/react: sustituye globalThis.fetch para que /api/mando/oracle/consumo devuelva {datos: leerConsumoOracle({...documento con leido, gasto {mes:0,presupuesto:1,moneda:'MXN'}, instancias:[], errores:[], freno:{activo:false}, margen:{apto:true}...})} y comprueba que sale el texto del gasto «0,00 / 1,00 MXN». Comprobación: npx vitest run src/components/mando/__tests__/oracle-consumo-resumen.test.tsx."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "OC1010B"
+  ]
+ }
+}
