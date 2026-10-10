@@ -42,6 +42,7 @@ import { PanelAreas } from "@/components/mando/panel-areas";
 import { PanelContextos } from "@/components/mando/panel-contextos";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
+import { MetaGenesisAccesos } from "@/components/mando/metagenesis-accesos";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelServidor } from "@/components/mando/panel-servidor";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
@@ -298,6 +299,8 @@ const PESTANAS = [
     // Configuración.
     { id: "ajustes_director", etiqueta: "Directores", grupo: "Ajustes" },
     { id: "ajustes", etiqueta: "General", grupo: "Ajustes" },
+    // (2026-10-10) Quién entra en MetaGenesis desde otras neuronas.
+    { id: "accesos", etiqueta: "Accesos", grupo: "Ajustes" },
 ] as const;
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
@@ -2398,6 +2401,9 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="ajustes">
                     <PanelAjustes />
+                </TabsContent>
+                <TabsContent value="accesos">
+                    <MetaGenesisAccesos />
                 </TabsContent>
             </Tabs>
             {/* Control de la voz junto a la orbe: activar/silenciar sin abrir la pestaña. */}

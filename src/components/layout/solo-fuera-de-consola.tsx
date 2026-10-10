@@ -19,7 +19,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 /** Rutas que son consola de trabajo, no escaparate (sin fondos, hosts ni overlays). */
-export const RUTAS_CONSOLA = ["/genesis", "/mando", "/voces"];
+export const RUTAS_CONSOLA = ["/genesis", "/metagenesis", "/mando", "/voces"];
 
 /**
  * Rutas MÍNIMAS (2026-09-05): además de lo anterior, sin dock, sin bordes Trinity, sin guía

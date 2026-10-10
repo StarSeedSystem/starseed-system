@@ -26,8 +26,16 @@ describe("decidirAcceso", () => {
         expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: false, tieneCapacidad: false, rpcFallo: false })).toBe(401);
     });
 
-    it("hoy: sin bandera, producción no local con sesión → 200", () => {
-        expect(decidirAcceso({ bandera: false, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: false, rpcFallo: false })).toBe(200);
+    it("(2026-10-10) desde fuera de la máquina, con sesión pero sin ser miembro de MetaGenesis → 403", () => {
+        expect(decidirAcceso({ bandera: false, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: false, rpcFallo: false })).toBe(403);
+    });
+
+    it("(2026-10-10) desde fuera de la máquina, miembro de MetaGenesis → 200", () => {
+        expect(decidirAcceso({ bandera: false, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: false, rpcFallo: false, esMiembro: true })).toBe(200);
+    });
+
+    it("(2026-10-10) la comprobación de MetaGenesis falla → 503, nunca pasa", () => {
+        expect(decidirAcceso({ bandera: false, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: false, rpcFallo: true, esMiembro: true })).toBe(503);
     });
 
     it("con bandera, RPC falla → 503", () => {
@@ -38,12 +46,17 @@ describe("decidirAcceso", () => {
         expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: true, rpcFallo: true })).toBe(503);
     });
 
-    it("con bandera, sin capacidad → 403", () => {
-        expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: false, rpcFallo: false })).toBe(403);
+    it("con bandera y ruta de ámbito, sin capacidad → 403", () => {
+        expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: false, rpcFallo: false, conAmbito: true })).toBe(403);
     });
 
-    it("con bandera, con capacidad → 200", () => {
-        expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: true, rpcFallo: false })).toBe(200);
+    it("con bandera y ruta de ámbito, con capacidad → 200", () => {
+        expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: true, rpcFallo: false, conAmbito: true })).toBe(200);
+    });
+
+    it("con bandera pero ruta de MetaGenesis (sin ámbito): decide la membresía", () => {
+        expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: true, rpcFallo: false })).toBe(403);
+        expect(decidirAcceso({ bandera: true, habilitado: true, produccion: true, esLocal: false, hayUsuario: true, tieneCapacidad: false, rpcFallo: false, esMiembro: true })).toBe(200);
     });
 
     it("con bandera, local pasa sin comprobar nada → 200", () => {

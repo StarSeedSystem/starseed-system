@@ -18,10 +18,11 @@ export default function MandoPage() {
     return (
         <main className="min-h-screen px-4 py-8 md:px-8">
             <header className="mb-6">
-                <h1 className="text-2xl font-semibold">Genesis · StarSeed OS</h1>
+                <h1 className="text-2xl font-semibold">MetaGenesis · StarSeed OS</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    Consola de producción y desarrollo: olas, tareas, flota de
-                    proveedores y el relevo entre agentes, en vivo y en tu máquina.
+                    El Genesis de los desarrolladores: olas, tareas, flota de proveedores y
+                    el relevo entre agentes, en vivo. Quién entra desde otras neuronas se
+                    decide en Ajustes › Accesos.
                 </p>
             </header>
             <CentroMando />

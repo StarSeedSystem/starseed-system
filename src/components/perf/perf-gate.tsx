@@ -48,7 +48,7 @@ export function PerfController() {
  * mientras los agentes escriben, y en una máquina de 8 GB cada fondo WebGL le quita sitio
  * a un agente. Aquí no se monta ninguna capa pesada.
  */
-const RUTAS_CONSOLA = ["/genesis", "/mando"];
+const RUTAS_CONSOLA = ["/genesis", "/metagenesis", "/mando"];
 
 export function PerfHeavyOnly({ children }: { children: React.ReactNode }) {
   const ruta = usePathname();
