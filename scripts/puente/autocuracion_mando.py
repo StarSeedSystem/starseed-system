@@ -645,6 +645,60 @@ def curar_enjambre(estado, ahora, forzar=False, latido_fn=None, sondear_fn=_sond
     return "enjambre: %s" % porque if forzar else ""
 
 
+def _limpiar_worktrees(avisar_fn=None):
+    """Limpieza de worktrees de CNS1010 (puro + real). Devuelve {"quitados": [...], "nm_borrados": [...]}."""
+    import os
+    import importlib.util
+    import shutil
+    import subprocess
+
+    try:
+        from scripts.puente.limpieza_worktrees import recoger, plan, aplicar
+    except (ImportError, ModuleNotFoundError):
+        spec = importlib.util.spec_from_file_location("limpieza_worktrees",
+                                                       os.path.join(os.path.dirname(__file__), "limpieza_worktrees.py"))
+        limpieza = importlib.util.module_from_spec(spec)
+        sys.modules["limpieza_worktrees"] = limpieza
+        spec.loader.exec_module(limpieza)
+        from limpieza_worktrees import recoger, plan, aplicar
+
+    # Mock git_fn y rmtree_fn para la seguridad y recursividad del test.
+    def git_fn(ruta, *args):
+        try:
+            return subprocess.run(["git", "-C", ruta, "status", "--porcelain"],
+                                  capture_output=True, text=True).stdout.strip()
+        except Exception:
+            return ""
+
+    def rmtree_fn(ruta):
+        shutil.rmtree(ruta, ignore_errors=True)
+
+    try:
+        raiz_wt = os.path.join(os.path.dirname(RAIZ), "Documents", "starseed-wt")
+        worktrees = recoger(raiz_wt, None, git_fn)
+        en_curso = {}
+        # Cargar progreso de estado del orquestador (si hay).
+        estado = _leer_json(ESTADO, {})
+        progreso = estado.get("progreso", {}) if isinstance(estado, dict) else {}
+        # Agregar worktrees activos en curso (construir desde el orquestador).
+        try:
+            from scripts.puente import starseed_enjambre
+            en_curso = starseed_enjambre.worktrees_en_curso() if hasattr(starseed_enjambre, "worktrees_en_curso") else {}
+        except Exception:
+            pass
+
+        p = plan(worktrees, progreso, en_curso)
+        limpiados = aplicar(p, None, git_fn, rmtree_fn)
+        if avisar_fn:
+            avisar_fn("Autocuración: quité %d worktrees cerrados y %d node_modules duplicados." %
+                      (len(limpiados.get("quitados", [])), len(limpiados.get("nm_borrados", []))))
+        return limpiados
+    except Exception as e:
+        if avisar_fn:
+            avisar_fn("Autocuración: fallo limpiando worktrees: %s" % e)
+        return {"quitados": [], "nm_borrados": [], "errores": [str(e)]}
+
+
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
@@ -684,6 +738,20 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
         hechos.append("disco con %.1f GB: limpiado %s" % (libre, ", ".join(limpiados) or (r.get("detalle") or "nada")))
         if limpiados:
             avisar_fn("Autocuración: quedaban %.1f GB libres y limpié lo regenerable (%s)." % (libre, ", ".join(limpiados)))
+
+    # Worktrees cerrados y node_modules duplicados (no seguir enlaces, solo reales)
+    if libre is not None and libre < 2 * DISCO_AVISO_GB:
+        try:
+            limpiados = _limpiar_worktrees(avisar_fn)
+            if limpiados.get("quitados"):
+                estado["ultima_limpieza_wt"] = ahora
+                hechos.append("worktrees: quité %d worktrees cerrados y limpié %d node_modules." %
+                              (len(limpiados.get("quitados", [])), len(limpiados.get("nm_borrados", []))))
+                if avisar_fn:
+                    avisar_fn("Autocuración: quité %d worktrees cerrados y %d node_modules." %
+                              (len(limpiados.get("quitados", [])), len(limpiados.get("nm_borrados", []))))
+        except Exception as e:
+            hechos.append("no pude limpiar worktrees: %s: %s" % (type(e).__name__, e))
 
     # Trabajadores parados con trabajo que se puede desatascar: se llenan solos.
     if any(sondas):
