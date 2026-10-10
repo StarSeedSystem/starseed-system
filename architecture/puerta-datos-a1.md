@@ -325,8 +325,8 @@ Mac vuelve sola al bus: no hay dos líderes salvo un corte de la puerta que solo
   Mac volvió a la puerta en su vuelta siguiente (23:21). Pero con el freno el nodo solo daba una
   vuelta cada 10 min: entre su último latido por la puerta (22:58) y el siguiente (23:21) pasaron más
   de 15 min, su arriendo caducó y el A1 tomó el mando (término 2) por las reglas de siempre (un
-  solo líder en todo momento; la Mac lo recupera por relevo ordenado: ≥ 100 puntos más y racha
-  ≥ 600 s). Arreglado (`espera_tras`): por la puerta la vuelta no cuesta Supabase, así que el nodo
+  solo líder en todo momento). La Mac lo recuperó por relevo ordenado (≥ 100 puntos más y racha
+  ≥ 600 s) a las 23:37 (término 3). Arreglado (`espera_tras`): por la puerta la vuelta no cuesta Supabase, así que el nodo
   sigue su ritmo normal (líder 120 s, resto 300 s) aunque haya freno; el espejo y las órdenes del
   bus siguen cada 10 min.
 
