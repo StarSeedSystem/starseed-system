@@ -58,7 +58,6 @@ function CodigoQr({ codigo }: { codigo: string }) {
     let vivo = true;
     setUrl(null);
     setError(false);
-    // @ts-expect-error módulo cargado en runtime, sin declaración de tipos
     import("qrcode")
       .then((m) => {
         // CommonJS: según el empaquetador llega como módulo o dentro de `default`.
