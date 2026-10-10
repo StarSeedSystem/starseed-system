@@ -430,6 +430,8 @@ en `gh workflow list` sea su ruta está roto, aunque el YAML sea válido para Py
 | Hugging Face | requiere_alex | 0 | Spaces Docker en CPU exige PRO (402 medido) |
 | Oracle Free Tier | vinculándose (2026-10-07) · ver architecture/oracle-nube.md | 1 permanente (2 OCPU · 12 GB, núcleos − 1) | Cuenta recibida; A1 creado en mx-queretaro-1; desplegar con `oracle_desplegar.py` |
 
+Oracle: con gasto 0 y margen medido, lo pesado y lo 24/7 va al A1; si el gasto pasa de 0, freno (medios → requiere_alex). Fuente: ~/.starseed/oracle-consumo.json (architecture/oracle-consumo.md §5).
+
 **El cuello de botella real, dicho sin adornos.** Con la nube encendida el hierro deja de mandar y
 el límite pasa a ser (a) el RPM de las pasarelas gratuitas y (b) **cuántas tareas hay en cola**.
 El 2026-09-20 hubo agentes parados no por falta de máquinas sino por falta de trabajo diseñado.
