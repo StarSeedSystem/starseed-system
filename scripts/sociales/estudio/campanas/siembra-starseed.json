@@ -1,0 +1,2220 @@
+{
+ "id": "siembra-starseed",
+ "nombre": "Siembra StarSeed · participar, voluntariado, código y donación",
+ "descripcion": "Campaña de arranque de la Fase Semilla: invita a participar, ofrecer tiempo, aportar código abierto o donar. Piezas originales hechas por código con el motor 3D propio del Estudio; todo queda para aprobar y no se ha publicado nada.",
+ "marca": {
+  "nombre": "StarSeed",
+  "url": "starseed-os.vercel.app",
+  "url_qr": "https://starseed-os.vercel.app",
+  "simbolo": "/repo/public/starseed-symbol.png"
+ },
+ "paleta": {
+  "zenith": "#007FFF",
+  "horizonte": "#10B981",
+  "logica": "#FFBF00",
+  "anchor": "#DC143C",
+  "nieve": "#F8F9FA",
+  "fondo": "#02040A"
+ },
+ "objetivo": "visitas y voluntarios",
+ "reglas": [
+  "solo hechos reales",
+  "lo que está en marcha se dice «en construcción»",
+  "enlace de donación: próximamente (no hay enlace de pago confirmado)",
+  "sin música ni imágenes de terceros",
+  "audio sintetizado"
+ ],
+ "guiones": {
+  "reel": {
+   "es": [
+    {
+     "t": 0.3,
+     "d": 2.5,
+     "kicker": "Fase Semilla",
+     "titular": "Todo comienza con una *semilla*",
+     "acento": "logica"
+    },
+    {
+     "t": 3.5,
+     "d": 2.5,
+     "titular": "Un sistema operativo social, abierto y de *todos*",
+     "sub": "Lo estamos construyendo en abierto",
+     "acento": "zenith"
+    },
+    {
+     "t": 6.0,
+     "d": 5.4,
+     "lista": [
+      {
+       "texto": "Participa",
+       "color": "zenith",
+       "t": 0.0
+      },
+      {
+       "texto": "Voluntariado",
+       "color": "horizonte",
+       "t": 0.95
+      },
+      {
+       "texto": "Aporta código",
+       "color": "logica",
+       "t": 1.9
+      },
+      {
+       "texto": "Dona",
+       "color": "anchor",
+       "t": 2.85
+      }
+     ],
+     "acento": "zenith"
+    },
+    {
+     "t": 11.4,
+     "d": 3.5999999999999996,
+     "fin": true,
+     "sello": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente",
+     "acento": "horizonte"
+    }
+   ],
+   "en": [
+    {
+     "t": 0.3,
+     "d": 2.5,
+     "kicker": "Seed phase",
+     "titular": "It all starts with a *seed*",
+     "acento": "logica"
+    },
+    {
+     "t": 3.5,
+     "d": 2.5,
+     "titular": "An open, social operating system for *everyone*",
+     "sub": "We're building it in the open",
+     "acento": "zenith"
+    },
+    {
+     "t": 6.0,
+     "d": 5.4,
+     "lista": [
+      {
+       "texto": "Take part",
+       "color": "zenith",
+       "t": 0.0
+      },
+      {
+       "texto": "Volunteer",
+       "color": "horizonte",
+       "t": 0.95
+      },
+      {
+       "texto": "Contribute code",
+       "color": "logica",
+       "t": 1.9
+      },
+      {
+       "texto": "Donate",
+       "color": "anchor",
+       "t": 2.85
+      }
+     ],
+     "acento": "zenith"
+    },
+    {
+     "t": 11.4,
+     "d": 3.5999999999999996,
+     "fin": true,
+     "sello": true,
+     "titular": "Sow with *us*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Open source · AGPL-3.0 · Donations: link coming soon",
+     "acento": "horizonte"
+    }
+   ]
+  },
+  "youtube": {
+   "es": [
+    {
+     "t": 0.4,
+     "d": 4.2,
+     "kicker": "StarSeed OS",
+     "titular": "Una red sin *centro*",
+     "acento": "zenith"
+    },
+    {
+     "t": 4.8,
+     "d": 4.4,
+     "titular": "Tu dispositivo es un *nodo*",
+     "sub": "Una malla entre tú y tu comunidad, en construcción",
+     "acento": "horizonte"
+    },
+    {
+     "t": 9.6,
+     "d": 4.6,
+     "titular": "IA que corre en *local*",
+     "sub": "Astraura, un modelo de 1,58 bits, en construcción",
+     "acento": "logica"
+    },
+    {
+     "t": 14.4,
+     "d": 5.2,
+     "kicker": "Fase Semilla",
+     "lista": [
+      {
+       "texto": "Participa",
+       "color": "zenith",
+       "t": 0.0
+      },
+      {
+       "texto": "Voluntariado",
+       "color": "horizonte",
+       "t": 0.9
+      },
+      {
+       "texto": "Aporta código",
+       "color": "logica",
+       "t": 1.8
+      },
+      {
+       "texto": "Dona",
+       "color": "anchor",
+       "t": 2.7
+      }
+     ],
+     "acento": "zenith"
+    },
+    {
+     "t": 20.0,
+     "d": 4.0,
+     "fin": true,
+     "sello": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente",
+     "acento": "horizonte"
+    }
+   ],
+   "en": [
+    {
+     "t": 0.4,
+     "d": 4.2,
+     "kicker": "StarSeed OS",
+     "titular": "A network with no *center*",
+     "acento": "zenith"
+    },
+    {
+     "t": 4.8,
+     "d": 4.4,
+     "titular": "Your device is a *node*",
+     "sub": "A peer-to-peer mesh between you and your community, in the making",
+     "acento": "horizonte"
+    },
+    {
+     "t": 9.6,
+     "d": 4.6,
+     "titular": "AI that runs *locally*",
+     "sub": "Astraura, a 1.58-bit model, in the making",
+     "acento": "logica"
+    },
+    {
+     "t": 14.4,
+     "d": 5.2,
+     "kicker": "Seed phase",
+     "lista": [
+      {
+       "texto": "Take part",
+       "color": "zenith",
+       "t": 0.0
+      },
+      {
+       "texto": "Volunteer",
+       "color": "horizonte",
+       "t": 0.9
+      },
+      {
+       "texto": "Contribute code",
+       "color": "logica",
+       "t": 1.8
+      },
+      {
+       "texto": "Donate",
+       "color": "anchor",
+       "t": 2.7
+      }
+     ],
+     "acento": "zenith"
+    },
+    {
+     "t": 20.0,
+     "d": 4.0,
+     "fin": true,
+     "sello": true,
+     "titular": "Sow with *us*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Open source · AGPL-3.0 · Donations: link coming soon",
+     "acento": "horizonte"
+    }
+   ]
+  },
+  "corto": {
+   "es": [
+    {
+     "t": 0.3,
+     "d": 3.3,
+     "kicker": "Fase Semilla",
+     "titular": "Todo comienza con una *semilla*",
+     "acento": "logica"
+    },
+    {
+     "t": 3.8,
+     "d": 3.8,
+     "titular": "Un sistema operativo social, abierto y de *todos*",
+     "sub": "Lo estamos construyendo en abierto",
+     "acento": "zenith"
+    },
+    {
+     "t": 7.8,
+     "d": 4.2,
+     "fin": true,
+     "sello": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente",
+     "acento": "horizonte"
+    }
+   ],
+   "en": [
+    {
+     "t": 0.3,
+     "d": 3.3,
+     "kicker": "Seed phase",
+     "titular": "It all starts with a *seed*",
+     "acento": "logica"
+    },
+    {
+     "t": 3.8,
+     "d": 3.8,
+     "titular": "An open, social operating system for *everyone*",
+     "sub": "We're building it in the open",
+     "acento": "zenith"
+    },
+    {
+     "t": 7.8,
+     "d": 4.2,
+     "fin": true,
+     "sello": true,
+     "titular": "Sow with *us*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Open source · AGPL-3.0 · Donations: link coming soon",
+     "acento": "horizonte"
+    }
+   ]
+  },
+  "cuadrado": {
+   "es": [
+    {
+     "t": 0.3,
+     "d": 3.0,
+     "kicker": "StarSeed OS",
+     "titular": "Cuatro formas de *sumar*",
+     "acento": "zenith"
+    },
+    {
+     "t": 3.4,
+     "d": 4.8,
+     "lista": [
+      {
+       "texto": "Participa",
+       "color": "zenith",
+       "t": 0.0
+      },
+      {
+       "texto": "Voluntariado",
+       "color": "horizonte",
+       "t": 0.9
+      },
+      {
+       "texto": "Aporta código",
+       "color": "logica",
+       "t": 1.8
+      },
+      {
+       "texto": "Dona",
+       "color": "anchor",
+       "t": 2.7
+      }
+     ],
+     "acento": "zenith"
+    },
+    {
+     "t": 8.2,
+     "d": 2.0,
+     "fin": true,
+     "sello": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente",
+     "acento": "horizonte"
+    }
+   ],
+   "en": [
+    {
+     "t": 0.3,
+     "d": 3.0,
+     "kicker": "StarSeed OS",
+     "titular": "Four ways to *join in*",
+     "acento": "zenith"
+    },
+    {
+     "t": 3.4,
+     "d": 4.8,
+     "lista": [
+      {
+       "texto": "Take part",
+       "color": "zenith",
+       "t": 0.0
+      },
+      {
+       "texto": "Volunteer",
+       "color": "horizonte",
+       "t": 0.9
+      },
+      {
+       "texto": "Contribute code",
+       "color": "logica",
+       "t": 1.8
+      },
+      {
+       "texto": "Donate",
+       "color": "anchor",
+       "t": 2.7
+      }
+     ],
+     "acento": "zenith"
+    },
+    {
+     "t": 8.2,
+     "d": 2.0,
+     "fin": true,
+     "sello": true,
+     "titular": "Sow with *us*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Open source · AGPL-3.0 · Donations: link coming soon",
+     "acento": "horizonte"
+    }
+   ]
+  },
+  "vertical45": {
+   "es": [
+    {
+     "t": 0.3,
+     "d": 3.4,
+     "kicker": "Omnifrecuencias",
+     "titular": "El sonido también es *código abierto*",
+     "acento": "logica"
+    },
+    {
+     "t": 3.8,
+     "d": 4.2,
+     "titular": "Tonos y frecuencias, dentro de *StarSeed OS*",
+     "sub": "Estaciones en vivo, en construcción",
+     "acento": "zenith"
+    },
+    {
+     "t": 8.2,
+     "d": 2.0,
+     "fin": true,
+     "sello": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente",
+     "acento": "horizonte"
+    }
+   ],
+   "en": [
+    {
+     "t": 0.3,
+     "d": 3.4,
+     "kicker": "Omnifrecuencias",
+     "titular": "Sound is open source *too*",
+     "acento": "logica"
+    },
+    {
+     "t": 3.8,
+     "d": 4.2,
+     "titular": "Tones and frequencies, inside *StarSeed OS*",
+     "sub": "Live stations in the making",
+     "acento": "zenith"
+    },
+    {
+     "t": 8.2,
+     "d": 2.0,
+     "fin": true,
+     "sello": true,
+     "titular": "Sow with *us*",
+     "cta": "starseed-os.vercel.app",
+     "aviso": "Open source · AGPL-3.0 · Donations: link coming soon",
+     "acento": "horizonte"
+    }
+   ]
+  },
+  "banner-300x250": {
+   "es": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Siembra *StarSeed*",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Participa · Voluntariado · Código · *Dona*",
+     "acento": "logica",
+     "fila": false
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "Entra",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    }
+   ],
+   "en": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Sow *StarSeed*",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Take part · Volunteer · Code · *Donate*",
+     "acento": "logica",
+     "fila": false
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Sow with *us*",
+     "cta": "Visit",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    }
+   ]
+  },
+  "banner-728x90": {
+   "es": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Siembra *StarSeed*",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Participa · Voluntariado · Código · *Dona*",
+     "acento": "logica",
+     "fila": true
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "Entra",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    }
+   ],
+   "en": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Sow *StarSeed*",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Take part · Volunteer · Code · *Donate*",
+     "acento": "logica",
+     "fila": true
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Sow with *us*",
+     "cta": "Visit",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    }
+   ]
+  },
+  "banner-320x50": {
+   "es": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Siembra *StarSeed*",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Participa · Voluntariado · Código · *Dona*",
+     "acento": "logica",
+     "fila": true
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "Entra",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    }
+   ],
+   "en": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Sow *StarSeed*",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Take part · Volunteer · Code · *Donate*",
+     "acento": "logica",
+     "fila": true
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Sow with *us*",
+     "cta": "Visit",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    }
+   ]
+  },
+  "banner-300x600": {
+   "es": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Siembra *StarSeed*",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Participa · Voluntariado · Código · *Dona*",
+     "acento": "logica",
+     "fila": false
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "Entra",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    }
+   ],
+   "en": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Sow *StarSeed*",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Take part · Volunteer · Code · *Donate*",
+     "acento": "logica",
+     "fila": false
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Sow with *us*",
+     "cta": "Visit",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    }
+   ]
+  },
+  "banner-160x600": {
+   "es": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Siembra *StarSeed*",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Participa · Voluntariado · Código · *Dona*",
+     "acento": "logica",
+     "fila": false
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "Entra",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    }
+   ],
+   "en": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Sow *StarSeed*",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Take part · Volunteer · Code · *Donate*",
+     "acento": "logica",
+     "fila": false
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Sow with *us*",
+     "cta": "Visit",
+     "acento": "horizonte",
+     "sello": false,
+     "fila": false
+    }
+   ]
+  },
+  "banner-970x250": {
+   "es": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Siembra *StarSeed*",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Participa · Voluntariado · Código · *Dona*",
+     "acento": "logica",
+     "fila": true
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Siembra con *nosotros*",
+     "cta": "Entra",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    }
+   ],
+   "en": [
+    {
+     "t": 2.0,
+     "d": 2.6,
+     "titular": "Sow *StarSeed*",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    },
+    {
+     "t": 5.0,
+     "d": 3.0,
+     "titular": "Take part · Volunteer · Code · *Donate*",
+     "acento": "logica",
+     "fila": true
+    },
+    {
+     "t": 8.4,
+     "d": 4.0,
+     "fin": true,
+     "titular": "Sow with *us*",
+     "cta": "Visit",
+     "acento": "horizonte",
+     "sello": true,
+     "fila": true
+    }
+   ]
+  }
+ },
+ "piezas": [
+  {
+   "id": "reel",
+   "titulo": "Reel · Semilla estelar",
+   "tipo": "animacion3d",
+   "salida": "video",
+   "layout": "kinetico",
+   "guion": "reel",
+   "duracion": 15,
+   "fps": 30,
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "formatos": [
+    "instagram-reels",
+    "tiktok",
+    "youtube-shorts"
+   ],
+   "compatibles": [
+    "instagram-stories",
+    "whatsapp-estado",
+    "pinterest-video",
+    "threads-video"
+   ],
+   "escena": {
+    "id": "semilla-estelar",
+    "semilla": 7,
+    "params": {
+     "pilares_t": [
+      6.1,
+      7.05,
+      8.0,
+      8.95
+     ]
+    }
+   },
+   "escala3d": 0.8,
+   "audio": {
+    "estilo": "semilla",
+    "pulsos": [
+     2.7,
+     4.2,
+     5.7,
+     6.1,
+     7.05,
+     8.0,
+     8.95,
+     11.4,
+     12.9
+    ],
+    "eventos": [
+     {
+      "t": 2.7,
+      "tipo": "germinar"
+     },
+     {
+      "t": 11.4,
+      "tipo": "barrido",
+      "dur": 2.4
+     },
+     {
+      "t": 11.4,
+      "tipo": "campana",
+      "hz": 528
+     }
+    ]
+   }
+  },
+  {
+   "id": "youtube",
+   "titulo": "Vídeo largo · Malla viva",
+   "tipo": "animacion3d",
+   "salida": "video",
+   "layout": "kinetico",
+   "guion": "youtube",
+   "duracion": 24,
+   "fps": 30,
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "formatos": [
+    "youtube-horizontal",
+    "linkedin-video"
+   ],
+   "compatibles": [],
+   "ancla": "izq",
+   "ancho_texto": 0.52,
+   "escena": {
+    "id": "malla-viva",
+    "semilla": 21,
+    "params": {
+     "pilares_t": [
+      14.8,
+      15.7,
+      16.6,
+      17.5
+     ],
+     "centro": [
+      0.46,
+      0.0
+     ],
+     "r_final": 21
+    }
+   },
+   "escala3d": 0.75,
+   "audio": {
+    "estilo": "malla",
+    "pulsos": [
+     1.0,
+     2.5,
+     4.0,
+     5.5,
+     7.0,
+     8.5,
+     10.0,
+     11.5,
+     13.0,
+     14.8,
+     15.7,
+     16.6,
+     17.5,
+     20.0
+    ],
+    "eventos": [
+     {
+      "t": 20.0,
+      "tipo": "barrido",
+      "dur": 2.0
+     },
+     {
+      "t": 20.0,
+      "tipo": "campana",
+      "hz": 528
+     }
+    ]
+   }
+  },
+  {
+   "id": "corto",
+   "titulo": "Vídeo corto horizontal · Semilla estelar",
+   "tipo": "animacion3d",
+   "salida": "video",
+   "layout": "kinetico",
+   "guion": "corto",
+   "duracion": 12,
+   "fps": 30,
+   "idiomas": [
+    "es"
+   ],
+   "formatos": [
+    "x-video",
+    "bluesky-video",
+    "mastodon-video"
+   ],
+   "compatibles": [
+    "telegram-video",
+    "discord-video"
+   ],
+   "ancla": "izq",
+   "ancho_texto": 0.52,
+   "escena": {
+    "id": "semilla-estelar",
+    "semilla": 7,
+    "params": {
+     "centro": [
+      0.5,
+      0.0
+     ],
+     "pilares_t": [
+      5.2,
+      6.0,
+      6.8,
+      7.6
+     ]
+    }
+   },
+   "escala3d": 0.85,
+   "audio": {
+    "estilo": "semilla",
+    "pulsos": [
+     2.7,
+     3.9,
+     5.2,
+     6.0,
+     6.8,
+     7.6,
+     8.0
+    ],
+    "eventos": [
+     {
+      "t": 2.7,
+      "tipo": "germinar"
+     },
+     {
+      "t": 7.8,
+      "tipo": "campana",
+      "hz": 528
+     }
+    ]
+   }
+  },
+  {
+   "id": "feed-cuadrado",
+   "titulo": "Feed 1:1 · Cristal líquido",
+   "tipo": "animacion3d",
+   "salida": "video",
+   "layout": "kinetico",
+   "guion": "cuadrado",
+   "duracion": 10,
+   "fps": 30,
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "formatos": [
+    "instagram-feed-1x1"
+   ],
+   "compatibles": [
+    "reddit-video"
+   ],
+   "webm": true,
+   "ancla": "izq",
+   "ancho_texto": 0.64,
+   "tipografia": {
+    "titular": 92
+   },
+   "escena": {
+    "id": "cristal-liquido",
+    "semilla": 9,
+    "params": {
+     "pilares_t": [
+      3.9,
+      4.8,
+      5.7,
+      6.6
+     ],
+     "centro": [
+      0.55,
+      0.0
+     ],
+     "ty": 0.0
+    }
+   },
+   "escala3d": 0.8,
+   "audio": {
+    "estilo": "cristal",
+    "pulsos": [
+     3.9,
+     4.8,
+     5.7,
+     6.6,
+     8.2
+    ],
+    "eventos": [
+     {
+      "t": 8.2,
+      "tipo": "campana",
+      "hz": 528
+     }
+    ]
+   }
+  },
+  {
+   "id": "feed-vertical",
+   "titulo": "Feed 4:5 · Espiral Omnifrecuencias",
+   "tipo": "animacion3d",
+   "salida": "video",
+   "layout": "kinetico",
+   "guion": "vertical45",
+   "duracion": 10,
+   "fps": 30,
+   "idiomas": [
+    "es"
+   ],
+   "formatos": [
+    "instagram-feed-4x5"
+   ],
+   "compatibles": [
+    "facebook-post"
+   ],
+   "escena": {
+    "id": "espiral-omnifrecuencias",
+    "semilla": 5,
+    "params": {
+     "ty": 0.2
+    }
+   },
+   "escala3d": 0.8,
+   "audio": {
+    "estilo": "espiral",
+    "pulsos": [
+     1.0,
+     2.2,
+     3.4,
+     4.6,
+     5.8,
+     7.0,
+     8.2
+    ],
+    "eventos": [
+     {
+      "t": 8.2,
+      "tipo": "campana",
+      "hz": 528
+     }
+    ]
+   }
+  },
+  {
+   "id": "imagen-cuadrada",
+   "titulo": "Imagen 1:1",
+   "tipo": "imagen",
+   "salida": "imagen",
+   "layout": "lamina",
+   "formatos": [
+    "instagram-feed-1x1"
+   ],
+   "compatibles": [
+    "reddit-imagen"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "kicker": "Siembra StarSeed",
+      "titular": "Cuatro formas de *sumar*",
+      "cuerpo": "Participa, voluntariado, aporta código o dona.",
+      "cta": "starseed-os.vercel.app",
+      "acento": "zenith",
+      "tam_titular": 0.12,
+      "ancho_bloque": 0.62,
+      "pie_derecha": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente"
+     },
+     "en": {
+      "kicker": "Sow StarSeed",
+      "titular": "Four ways to *join in*",
+      "cuerpo": "Take part, volunteer, contribute code or donate.",
+      "cta": "starseed-os.vercel.app",
+      "acento": "zenith",
+      "tam_titular": 0.12,
+      "ancho_bloque": 0.62,
+      "pie_derecha": "Open source · AGPL-3.0 · Donations: link coming soon"
+     },
+     "escena": {
+      "id": "cristal-liquido",
+      "semilla": 9,
+      "t": 13.0,
+      "params": {
+       "ty": 0.0,
+       "centro": [
+        0.5,
+        0.0
+       ]
+      }
+     }
+    }
+   ],
+   "contenedores": [
+    "jpg"
+   ]
+  },
+  {
+   "id": "imagen-vertical",
+   "titulo": "Imagen 4:5",
+   "tipo": "imagen",
+   "salida": "imagen",
+   "layout": "lamina",
+   "formatos": [
+    "instagram-feed-4x5"
+   ],
+   "compatibles": [
+    "threads-imagen",
+    "facebook-post"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "kicker": "Fase Semilla",
+      "titular": "Un sistema operativo *social*, abierto y de todos",
+      "cuerpo": "Lo estamos construyendo en abierto.",
+      "cta": "starseed-os.vercel.app",
+      "acento": "zenith",
+      "tam_titular": 0.115,
+      "pie_derecha": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente"
+     },
+     "en": {
+      "kicker": "Seed phase",
+      "titular": "An open, *social* operating system for everyone",
+      "cuerpo": "We're building it in the open.",
+      "cta": "starseed-os.vercel.app",
+      "acento": "zenith",
+      "tam_titular": 0.115,
+      "pie_derecha": "Open source · AGPL-3.0 · Donations: link coming soon"
+     },
+     "escena": {
+      "id": "semilla-estelar",
+      "semilla": 7,
+      "t": 13.5,
+      "params": {}
+     }
+    }
+   ],
+   "contenedores": [
+    "jpg"
+   ]
+  },
+  {
+   "id": "miniatura",
+   "titulo": "Miniatura de YouTube",
+   "tipo": "imagen",
+   "salida": "imagen",
+   "layout": "lamina",
+   "formatos": [
+    "youtube-miniatura"
+   ],
+   "compatibles": [
+    "telegram-imagen",
+    "mastodon-imagen",
+    "discord-imagen"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "kicker": "StarSeed OS",
+      "titular": "Una red sin *centro*",
+      "acento": "horizonte",
+      "tam_titular": 0.2,
+      "ancho_bloque": 0.6,
+      "pie": ""
+     },
+     "en": {
+      "kicker": "StarSeed OS",
+      "titular": "A network with no *center*",
+      "acento": "horizonte",
+      "tam_titular": 0.2,
+      "ancho_bloque": 0.6,
+      "pie": ""
+     },
+     "escena": {
+      "id": "malla-viva",
+      "semilla": 21,
+      "t": 13.0,
+      "params": {
+       "r_final": 17,
+       "centro": [
+        0.45,
+        0.0
+       ]
+      }
+     }
+    }
+   ],
+   "contenedores": [
+    "jpg"
+   ]
+  },
+  {
+   "id": "imagen-x",
+   "titulo": "Imagen para X",
+   "tipo": "imagen",
+   "salida": "imagen",
+   "layout": "lamina",
+   "formatos": [
+    "x-imagen"
+   ],
+   "compatibles": [],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "kicker": "Siembra StarSeed",
+      "titular": "Un sistema operativo social, abierto y de *todos*",
+      "cta": "starseed-os.vercel.app",
+      "acento": "zenith",
+      "tam_titular": 0.095,
+      "ancho_bloque": 0.62
+     },
+     "en": {
+      "kicker": "Sow StarSeed",
+      "titular": "An open social operating system for *everyone*",
+      "cta": "starseed-os.vercel.app",
+      "acento": "zenith",
+      "tam_titular": 0.095,
+      "ancho_bloque": 0.62
+     },
+     "escena": {
+      "id": "semilla-estelar",
+      "semilla": 7,
+      "t": 13.5,
+      "params": {
+       "centro": [
+        0.46,
+        0.0
+       ],
+       "r_final": 12.5
+      }
+     },
+     "layout": "lamina"
+    }
+   ],
+   "contenedores": [
+    "jpg"
+   ]
+  },
+  {
+   "id": "imagen-linkedin",
+   "titulo": "Imagen para LinkedIn y Bluesky",
+   "tipo": "imagen",
+   "salida": "imagen",
+   "layout": "lamina",
+   "formatos": [
+    "linkedin-imagen"
+   ],
+   "compatibles": [
+    "bluesky-imagen"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "kicker": "Código abierto · AGPL-3.0",
+      "titular": "Construimos un sistema operativo *social* en abierto",
+      "cuerpo": "Participa, voluntariado, aporta código o dona.",
+      "cta": "starseed-os.vercel.app",
+      "acento": "horizonte",
+      "tam_titular": 0.085,
+      "ancho_bloque": 0.64
+     },
+     "en": {
+      "kicker": "Open source · AGPL-3.0",
+      "titular": "We're building a *social* operating system in the open",
+      "cuerpo": "Take part, volunteer, contribute code or donate.",
+      "cta": "starseed-os.vercel.app",
+      "acento": "horizonte",
+      "tam_titular": 0.085,
+      "ancho_bloque": 0.64
+     },
+     "escena": {
+      "id": "malla-viva",
+      "semilla": 21,
+      "t": 13.0,
+      "params": {
+       "r_final": 17,
+       "centro": [
+        0.45,
+        0.0
+       ]
+      }
+     }
+    }
+   ],
+   "contenedores": [
+    "jpg"
+   ]
+  },
+  {
+   "id": "open-graph",
+   "titulo": "Imagen para enlaces (Open Graph)",
+   "tipo": "imagen",
+   "salida": "imagen",
+   "layout": "lamina",
+   "formatos": [
+    "open-graph"
+   ],
+   "compatibles": [
+    "facebook-enlace"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "kicker": "StarSeed OS",
+      "titular": "Sistema operativo *social*, abierto y de todos",
+      "cuerpo": "En construcción · código abierto AGPL-3.0",
+      "acento": "zenith",
+      "tam_titular": 0.088,
+      "ancho_bloque": 0.6
+     },
+     "en": {
+      "kicker": "StarSeed OS",
+      "titular": "An open *social* operating system for everyone",
+      "cuerpo": "In the making · open source AGPL-3.0",
+      "acento": "zenith",
+      "tam_titular": 0.088,
+      "ancho_bloque": 0.6
+     },
+     "escena": {
+      "id": "semilla-estelar",
+      "semilla": 7,
+      "t": 13.5,
+      "params": {
+       "centro": [
+        0.46,
+        0.0
+       ],
+       "r_final": 12.5
+      }
+     }
+    }
+   ],
+   "contenedores": [
+    "jpg"
+   ]
+  },
+  {
+   "id": "pin",
+   "titulo": "Pin vertical",
+   "tipo": "imagen",
+   "salida": "imagen",
+   "layout": "lamina",
+   "formatos": [
+    "pinterest-pin"
+   ],
+   "compatibles": [],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "kicker": "Siembra StarSeed",
+      "titular": "Un sistema operativo *social* y abierto",
+      "cuerpo": "Participa, voluntariado, código o donación.",
+      "cta": "starseed-os.vercel.app",
+      "acento": "zenith",
+      "tam_titular": 0.13
+     },
+     "en": {
+      "kicker": "Sow StarSeed",
+      "titular": "An open, *social* operating system",
+      "cuerpo": "Take part, volunteer, code or donate.",
+      "cta": "starseed-os.vercel.app",
+      "acento": "zenith",
+      "tam_titular": 0.13
+     },
+     "escena": {
+      "id": "espiral-omnifrecuencias",
+      "semilla": 5,
+      "t": 13.0,
+      "params": {
+       "ty": 0.3
+      }
+     }
+    }
+   ],
+   "contenedores": [
+    "jpg"
+   ]
+  },
+  {
+   "id": "correo-cabecera",
+   "titulo": "Cabecera de correo",
+   "tipo": "imagen",
+   "salida": "imagen",
+   "layout": "lamina",
+   "formatos": [
+    "correo-cabecera"
+   ],
+   "compatibles": [],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "titular": "Siembra con *nosotros*",
+      "acento": "horizonte",
+      "tam_titular": 0.085,
+      "ancho_bloque": 0.55,
+      "hueco_min": 0.02
+     },
+     "en": {
+      "titular": "Sow with *us*",
+      "acento": "horizonte",
+      "tam_titular": 0.085,
+      "ancho_bloque": 0.55,
+      "hueco_min": 0.02
+     },
+     "escena": {
+      "id": "semilla-estelar",
+      "semilla": 7,
+      "t": 13.5,
+      "params": {
+       "centro": [
+        0.5,
+        0.0
+       ],
+       "r_final": 21
+      }
+     }
+    }
+   ],
+   "contenedores": [
+    "png"
+   ]
+  },
+  {
+   "id": "carrusel",
+   "titulo": "Carrusel · Qué es StarSeed",
+   "tipo": "carrusel",
+   "salida": "carrusel",
+   "layout": "lamina",
+   "formatos": [
+    "instagram-carrusel"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "laminas": [
+    {
+     "es": {
+      "numero": "1/5",
+      "kicker": "Siembra StarSeed",
+      "titular": "Un sistema operativo *social*, abierto y de todos",
+      "cuerpo": "Lo estamos construyendo en abierto. Así puedes sumarte.",
+      "desliza": "Desliza",
+      "acento": "zenith",
+      "tam_titular": 0.125
+     },
+     "en": {
+      "numero": "1/5",
+      "kicker": "Sow StarSeed",
+      "titular": "An open, *social* operating system for everyone",
+      "cuerpo": "We're building it in the open. Here's how to join in.",
+      "desliza": "Swipe",
+      "acento": "zenith",
+      "tam_titular": 0.125
+     },
+     "escena": {
+      "id": "semilla-estelar",
+      "semilla": 7,
+      "t": 12.5,
+      "params": {}
+     }
+    },
+    {
+     "es": {
+      "numero": "2/5",
+      "kicker": "Qué estamos construyendo",
+      "titular": "StarSeed *OS*",
+      "acento": "zenith",
+      "tam_titular": 0.13,
+      "columnas": 1,
+      "tarjetas": [
+       {
+        "titulo": "Abierto",
+        "texto": "Código bajo licencia AGPL-3.0, auditable por cualquiera.",
+        "color": "zenith"
+       },
+       {
+        "titulo": "Descentralizado",
+        "texto": "Se diseña como una red de nodos federados, sin servidor único.",
+        "color": "horizonte"
+       },
+       {
+        "titulo": "Tuyo",
+        "texto": "Principio de diseño: cada persona es dueña de su identidad y de sus datos.",
+        "color": "logica"
+       }
+      ]
+     },
+     "en": {
+      "numero": "2/5",
+      "kicker": "What we're building",
+      "titular": "StarSeed *OS*",
+      "acento": "zenith",
+      "tam_titular": 0.13,
+      "columnas": 1,
+      "tarjetas": [
+       {
+        "titulo": "Open",
+        "texto": "AGPL-3.0 licensed code that anyone can audit.",
+        "color": "zenith"
+       },
+       {
+        "titulo": "Decentralized",
+        "texto": "Designed as a network of federated nodes, with no single server.",
+        "color": "horizonte"
+       },
+       {
+        "titulo": "Yours",
+        "texto": "Design principle: everyone owns their identity and their data.",
+        "color": "logica"
+       }
+      ]
+     },
+     "escena": {
+      "id": "malla-viva",
+      "semilla": 21,
+      "t": 13.0,
+      "params": {
+       "r_final": 22
+      }
+     }
+    },
+    {
+     "es": {
+      "numero": "3/5",
+      "kicker": "Cómo lo hacemos",
+      "titular": "Tecnología *en común*",
+      "acento": "horizonte",
+      "tam_titular": 0.115,
+      "columnas": 1,
+      "tarjetas": [
+       {
+        "titulo": "Malla P2P",
+        "texto": "Tus dispositivos y tu comunidad, conectados entre sí. En construcción.",
+        "color": "zenith"
+       },
+       {
+        "titulo": "IA local",
+        "texto": "Astraura, un modelo de 1,58 bits en tu dispositivo. En construcción.",
+        "color": "horizonte"
+       },
+       {
+        "titulo": "Omnifrecuencias",
+        "texto": "Tonos y estaciones de sonido dentro del sistema. En construcción.",
+        "color": "logica"
+       }
+      ]
+     },
+     "en": {
+      "numero": "3/5",
+      "kicker": "How we do it",
+      "titular": "Technology *in common*",
+      "acento": "horizonte",
+      "tam_titular": 0.115,
+      "columnas": 1,
+      "tarjetas": [
+       {
+        "titulo": "P2P mesh",
+        "texto": "Your devices and your community, connected. In the making.",
+        "color": "zenith"
+       },
+       {
+        "titulo": "Local AI",
+        "texto": "Astraura, a 1.58-bit model on your device. In the making.",
+        "color": "horizonte"
+       },
+       {
+        "titulo": "Omnifrecuencias",
+        "texto": "Tones and sound stations inside the system. In the making.",
+        "color": "logica"
+       }
+      ]
+     },
+     "escena": {
+      "id": "espiral-omnifrecuencias",
+      "semilla": 5,
+      "t": 13.0,
+      "params": {
+       "ty": 0.4
+      }
+     }
+    },
+    {
+     "es": {
+      "numero": "4/5",
+      "kicker": "Fase Semilla",
+      "titular": "Cuatro formas de *sumarte*",
+      "acento": "logica",
+      "tam_titular": 0.1,
+      "columnas": 1,
+      "tam_tarjeta": 0.052,
+      "tarjetas": [
+       {
+        "titulo": "Participa",
+        "texto": "Prueba el sistema y cuéntanos qué ves.",
+        "color": "zenith"
+       },
+       {
+        "titulo": "Voluntariado",
+        "texto": "Ayuda con diseño, traducción, pruebas o comunidad.",
+        "color": "horizonte"
+       },
+       {
+        "titulo": "Aporta código",
+        "texto": "El repositorio es abierto: issues y pull requests.",
+        "color": "logica"
+       },
+       {
+        "titulo": "Dona",
+        "texto": "Enlace de donación: próximamente.",
+        "color": "anchor"
+       }
+      ]
+     },
+     "en": {
+      "numero": "4/5",
+      "kicker": "Seed phase",
+      "titular": "Four ways to *join in*",
+      "acento": "logica",
+      "tam_titular": 0.1,
+      "columnas": 1,
+      "tam_tarjeta": 0.052,
+      "tarjetas": [
+       {
+        "titulo": "Take part",
+        "texto": "Try the system and tell us what you see.",
+        "color": "zenith"
+       },
+       {
+        "titulo": "Volunteer",
+        "texto": "Help with design, translation, testing or community.",
+        "color": "horizonte"
+       },
+       {
+        "titulo": "Contribute code",
+        "texto": "The repository is open: issues and pull requests.",
+        "color": "logica"
+       },
+       {
+        "titulo": "Donate",
+        "texto": "Donation link: coming soon.",
+        "color": "anchor"
+       }
+      ]
+     },
+     "escena": {
+      "id": "cristal-liquido",
+      "semilla": 9,
+      "t": 13.0,
+      "params": {
+       "ty": 0.6
+      }
+     }
+    },
+    {
+     "es": {
+      "numero": "5/5",
+      "kicker": "Empieza hoy",
+      "titular": "Siembra con *nosotros*",
+      "cuerpo": "Entra, mira cómo se construye y elige tu camino.",
+      "qr": true,
+      "qr_texto": "Escanea el código o entra:",
+      "cta": "starseed-os.vercel.app",
+      "pie": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente",
+      "acento": "horizonte",
+      "tam_titular": 0.125,
+      "qr_tam": 0.3
+     },
+     "en": {
+      "numero": "5/5",
+      "kicker": "Start today",
+      "titular": "Sow with *us*",
+      "cuerpo": "Come in, see how it's built and pick your path.",
+      "qr": true,
+      "qr_texto": "Scan the code or visit:",
+      "cta": "starseed-os.vercel.app",
+      "pie": "Open source · AGPL-3.0 · Donations: link coming soon",
+      "acento": "horizonte",
+      "tam_titular": 0.125,
+      "qr_tam": 0.3
+     },
+     "escena": {
+      "id": "semilla-estelar",
+      "semilla": 7,
+      "t": 14.0,
+      "params": {
+       "ty_final": -0.2
+      }
+     }
+    }
+   ],
+   "contenedores": [
+    "png"
+   ],
+   "pdf_documento": true
+  },
+  {
+   "id": "cartel",
+   "titulo": "Cartel A3",
+   "tipo": "cartel",
+   "salida": "cartel",
+   "layout": "lamina",
+   "formatos": [
+    "cartel-a3"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "contenedores": [
+    "png",
+    "pdf"
+   ],
+   "escala3d": 0.8,
+   "laminas": [
+    {
+     "es": {
+      "kicker": "Fase Semilla",
+      "titular": "Siembra *StarSeed*",
+      "cuerpo": "Un sistema operativo social, abierto y de todos. Lo estamos construyendo en abierto.",
+      "columnas": 2,
+      "tam_tarjeta": 0.05,
+      "tarjetas": [
+       {
+        "titulo": "Participa",
+        "texto": "Prueba el sistema y cuéntanos qué ves.",
+        "color": "zenith"
+       },
+       {
+        "titulo": "Voluntariado",
+        "texto": "Diseño, traducción, pruebas o comunidad.",
+        "color": "horizonte"
+       },
+       {
+        "titulo": "Aporta código",
+        "texto": "Repositorio abierto: issues y pull requests.",
+        "color": "logica"
+       },
+       {
+        "titulo": "Dona",
+        "texto": "Enlace de donación: próximamente.",
+        "color": "anchor"
+       }
+      ],
+      "qr": true,
+      "qr_texto": "Escanea el código o entra:",
+      "cta": "starseed-os.vercel.app",
+      "pie": "Código abierto · AGPL-3.0 · Donaciones: enlace próximamente",
+      "acento": "horizonte",
+      "tam_titular": 0.17,
+      "qr_tam": 0.27
+     },
+     "en": {
+      "kicker": "Seed phase",
+      "titular": "Sow *StarSeed*",
+      "cuerpo": "An open, social operating system for everyone. We're building it in the open.",
+      "columnas": 2,
+      "tam_tarjeta": 0.05,
+      "tarjetas": [
+       {
+        "titulo": "Take part",
+        "texto": "Try the system and tell us what you see.",
+        "color": "zenith"
+       },
+       {
+        "titulo": "Volunteer",
+        "texto": "Design, translation, testing or community.",
+        "color": "horizonte"
+       },
+       {
+        "titulo": "Contribute code",
+        "texto": "Open repository: issues and pull requests.",
+        "color": "logica"
+       },
+       {
+        "titulo": "Donate",
+        "texto": "Donation link: coming soon.",
+        "color": "anchor"
+       }
+      ],
+      "qr": true,
+      "qr_texto": "Scan the code or visit:",
+      "cta": "starseed-os.vercel.app",
+      "pie": "Open source · AGPL-3.0 · Donations: link coming soon",
+      "acento": "horizonte",
+      "tam_titular": 0.17,
+      "qr_tam": 0.27
+     },
+     "escena": {
+      "id": "semilla-estelar",
+      "semilla": 7,
+      "t": 14.0,
+      "params": {
+       "ty_final": -0.3
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "banner-300x250",
+   "titulo": "Banner 300×250",
+   "tipo": "anuncio",
+   "salida": "banner",
+   "layout": "kinetico",
+   "formatos": [
+    "iab-300x250"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "guion": "banner-300x250",
+   "contenedores": [
+    "png",
+    "gif"
+   ],
+   "tipografia": {
+    "titular": 34,
+    "cta": 15,
+    "marca": 30,
+    "kicker": 11
+   },
+   "marca_pos": "arriba-izq",
+   "velo": "linear-gradient(180deg, rgba(2,6,16,0.450) 0.0%, rgba(2,6,16,0.454) 2.3%, rgba(2,6,16,0.463) 4.7%, rgba(2,6,16,0.475) 7.0%, rgba(2,6,16,0.487) 9.3%, rgba(2,6,16,0.496) 11.7%, rgba(2,6,16,0.500) 14.0%, rgba(2,6,16,0.512) 16.7%, rgba(2,6,16,0.541) 19.3%, rgba(2,6,16,0.580) 22.0%, rgba(2,6,16,0.619) 24.7%, rgba(2,6,16,0.648) 27.3%, rgba(2,6,16,0.660) 30.0%, rgba(2,6,16,0.660) 37.3%, rgba(2,6,16,0.660) 44.7%, rgba(2,6,16,0.660) 52.0%, rgba(2,6,16,0.660) 59.3%, rgba(2,6,16,0.660) 66.7%, rgba(2,6,16,0.660) 74.0%, rgba(2,6,16,0.633) 77.0%, rgba(2,6,16,0.567) 80.0%, rgba(2,6,16,0.480) 83.0%, rgba(2,6,16,0.393) 86.0%, rgba(2,6,16,0.327) 89.0%, rgba(2,6,16,0.300) 92.0%, rgba(2,6,16,0.293) 93.3%, rgba(2,6,16,0.274) 94.7%, rgba(2,6,16,0.250) 96.0%, rgba(2,6,16,0.226) 97.3%, rgba(2,6,16,0.207) 98.7%, rgba(2,6,16,0.200) 100.0%)",
+   "gif": {
+    "tiempos": [
+     3.9,
+     7.4
+    ],
+    "duraciones": [
+     2300,
+     2600
+    ],
+    "duracion_final": 3200,
+    "colores": 128
+   },
+   "t_estatico": 12.5,
+   "escena": {
+    "id": "semilla-estelar",
+    "semilla": 7,
+    "params": {
+     "centro": [
+      0.0,
+      0.0
+     ]
+    }
+   }
+  },
+  {
+   "id": "banner-728x90",
+   "titulo": "Banner 728×90",
+   "tipo": "anuncio",
+   "salida": "banner",
+   "layout": "kinetico",
+   "formatos": [
+    "iab-728x90"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "guion": "banner-728x90",
+   "contenedores": [
+    "png",
+    "gif"
+   ],
+   "tipografia": {
+    "titular": 30,
+    "cta": 16,
+    "marca": 40
+   },
+   "marca_pos": "oculta",
+   "velo": "radial-gradient(ellipse 62% 150% at 50% 50%, rgba(2,6,16,0.7) 0%, rgba(2,6,16,0.7) 55%, rgba(2,6,16,0.28) 100%)",
+   "gif": {
+    "tiempos": [
+     3.9,
+     7.4
+    ],
+    "duraciones": [
+     2300,
+     2600
+    ],
+    "duracion_final": 3200,
+    "colores": 128
+   },
+   "t_estatico": 12.5,
+   "escena": {
+    "id": "espiral-omnifrecuencias",
+    "semilla": 5,
+    "params": {
+     "ty": 0.0,
+     "inclinacion": 1.15
+    }
+   }
+  },
+  {
+   "id": "banner-320x50",
+   "titulo": "Banner 320×50",
+   "tipo": "anuncio",
+   "salida": "banner",
+   "layout": "kinetico",
+   "formatos": [
+    "iab-320x50"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "guion": "banner-320x50",
+   "contenedores": [
+    "png",
+    "gif"
+   ],
+   "tipografia": {
+    "titular": 17,
+    "cta": 11,
+    "marca": 28
+   },
+   "marca_pos": "oculta",
+   "velo": "radial-gradient(ellipse 62% 150% at 50% 50%, rgba(2,6,16,0.84) 0%, rgba(2,6,16,0.84) 55%, rgba(2,6,16,0.336) 100%)",
+   "gif": {
+    "tiempos": [
+     3.9,
+     7.4
+    ],
+    "duraciones": [
+     2300,
+     2600
+    ],
+    "duracion_final": 3200,
+    "colores": 128
+   },
+   "t_estatico": 12.5,
+   "escena": {
+    "id": "espiral-omnifrecuencias",
+    "semilla": 5,
+    "params": {
+     "ty": 0.0,
+     "inclinacion": 1.15
+    }
+   }
+  },
+  {
+   "id": "banner-300x600",
+   "titulo": "Banner 300×600",
+   "tipo": "anuncio",
+   "salida": "banner",
+   "layout": "kinetico",
+   "formatos": [
+    "iab-300x600"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "guion": "banner-300x600",
+   "contenedores": [
+    "png",
+    "gif"
+   ],
+   "tipografia": {
+    "titular": 44,
+    "cta": 17,
+    "marca": 34
+   },
+   "marca_pos": "arriba-izq",
+   "velo": "linear-gradient(180deg, rgba(2,6,16,0.450) 0.0%, rgba(2,6,16,0.454) 2.3%, rgba(2,6,16,0.463) 4.7%, rgba(2,6,16,0.475) 7.0%, rgba(2,6,16,0.487) 9.3%, rgba(2,6,16,0.496) 11.7%, rgba(2,6,16,0.500) 14.0%, rgba(2,6,16,0.512) 16.7%, rgba(2,6,16,0.541) 19.3%, rgba(2,6,16,0.580) 22.0%, rgba(2,6,16,0.619) 24.7%, rgba(2,6,16,0.648) 27.3%, rgba(2,6,16,0.660) 30.0%, rgba(2,6,16,0.660) 37.3%, rgba(2,6,16,0.660) 44.7%, rgba(2,6,16,0.660) 52.0%, rgba(2,6,16,0.660) 59.3%, rgba(2,6,16,0.660) 66.7%, rgba(2,6,16,0.660) 74.0%, rgba(2,6,16,0.633) 77.0%, rgba(2,6,16,0.567) 80.0%, rgba(2,6,16,0.480) 83.0%, rgba(2,6,16,0.393) 86.0%, rgba(2,6,16,0.327) 89.0%, rgba(2,6,16,0.300) 92.0%, rgba(2,6,16,0.293) 93.3%, rgba(2,6,16,0.274) 94.7%, rgba(2,6,16,0.250) 96.0%, rgba(2,6,16,0.226) 97.3%, rgba(2,6,16,0.207) 98.7%, rgba(2,6,16,0.200) 100.0%)",
+   "gif": {
+    "tiempos": [
+     3.9,
+     7.4
+    ],
+    "duraciones": [
+     2300,
+     2600
+    ],
+    "duracion_final": 3200,
+    "colores": 128
+   },
+   "t_estatico": 12.5,
+   "escena": {
+    "id": "semilla-estelar",
+    "semilla": 7,
+    "params": {
+     "centro": [
+      0.0,
+      0.0
+     ]
+    }
+   }
+  },
+  {
+   "id": "banner-160x600",
+   "titulo": "Banner 160×600",
+   "tipo": "anuncio",
+   "salida": "banner",
+   "layout": "kinetico",
+   "formatos": [
+    "iab-160x600"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "guion": "banner-160x600",
+   "contenedores": [
+    "png",
+    "gif"
+   ],
+   "tipografia": {
+    "titular": 27,
+    "cta": 13,
+    "marca": 30
+   },
+   "marca_pos": "arriba-izq",
+   "velo": "linear-gradient(180deg, rgba(2,6,16,0.450) 0.0%, rgba(2,6,16,0.454) 2.3%, rgba(2,6,16,0.463) 4.7%, rgba(2,6,16,0.475) 7.0%, rgba(2,6,16,0.487) 9.3%, rgba(2,6,16,0.496) 11.7%, rgba(2,6,16,0.500) 14.0%, rgba(2,6,16,0.512) 16.7%, rgba(2,6,16,0.541) 19.3%, rgba(2,6,16,0.580) 22.0%, rgba(2,6,16,0.619) 24.7%, rgba(2,6,16,0.648) 27.3%, rgba(2,6,16,0.660) 30.0%, rgba(2,6,16,0.660) 37.3%, rgba(2,6,16,0.660) 44.7%, rgba(2,6,16,0.660) 52.0%, rgba(2,6,16,0.660) 59.3%, rgba(2,6,16,0.660) 66.7%, rgba(2,6,16,0.660) 74.0%, rgba(2,6,16,0.633) 77.0%, rgba(2,6,16,0.567) 80.0%, rgba(2,6,16,0.480) 83.0%, rgba(2,6,16,0.393) 86.0%, rgba(2,6,16,0.327) 89.0%, rgba(2,6,16,0.300) 92.0%, rgba(2,6,16,0.293) 93.3%, rgba(2,6,16,0.274) 94.7%, rgba(2,6,16,0.250) 96.0%, rgba(2,6,16,0.226) 97.3%, rgba(2,6,16,0.207) 98.7%, rgba(2,6,16,0.200) 100.0%)",
+   "gif": {
+    "tiempos": [
+     3.9,
+     7.4
+    ],
+    "duraciones": [
+     2300,
+     2600
+    ],
+    "duracion_final": 3200,
+    "colores": 128
+   },
+   "t_estatico": 12.5,
+   "escena": {
+    "id": "semilla-estelar",
+    "semilla": 7,
+    "params": {
+     "centro": [
+      0.0,
+      0.0
+     ]
+    }
+   }
+  },
+  {
+   "id": "banner-970x250",
+   "titulo": "Banner 970×250",
+   "tipo": "anuncio",
+   "salida": "banner",
+   "layout": "kinetico",
+   "formatos": [
+    "iab-970x250"
+   ],
+   "idiomas": [
+    "es",
+    "en"
+   ],
+   "guion": "banner-970x250",
+   "contenedores": [
+    "png",
+    "gif"
+   ],
+   "tipografia": {
+    "titular": 56,
+    "cta": 22,
+    "marca": 74
+   },
+   "marca_pos": "oculta",
+   "velo": "radial-gradient(ellipse 62% 150% at 50% 50%, rgba(2,6,16,0.7) 0%, rgba(2,6,16,0.7) 55%, rgba(2,6,16,0.28) 100%)",
+   "gif": {
+    "tiempos": [
+     3.9,
+     7.4
+    ],
+    "duraciones": [
+     2300,
+     2600
+    ],
+    "duracion_final": 3200,
+    "colores": 128
+   },
+   "t_estatico": 12.5,
+   "escena": {
+    "id": "espiral-omnifrecuencias",
+    "semilla": 5,
+    "params": {
+     "ty": 0.0,
+     "inclinacion": 1.15
+    }
+   }
+  }
+ ],
+ "textos_acompanantes": {
+  "instagram": {
+   "es": "Todo comienza con una semilla. StarSeed es un sistema operativo social, abierto y de todos, y lo estamos construyendo en abierto. Participa, ofrece tu tiempo como voluntaria o voluntario, aporta código o dona (enlace de donación: próximamente). Entra: starseed-os.vercel.app #StarSeed #CodigoAbierto #SoftwareLibre #Comunidad",
+   "en": "It all starts with a seed. StarSeed is an open, social operating system for everyone, and we're building it in the open. Take part, volunteer your time, contribute code or donate (donation link: coming soon). Visit starseed-os.vercel.app #StarSeed #OpenSource #FreeSoftware #Community"
+  },
+  "tiktok": {
+   "es": "Todo comienza con una semilla. Sistema operativo social, abierto y de todos, en construcción. starseed-os.vercel.app #StarSeed #CodigoAbierto #Comunidad",
+   "en": "It all starts with a seed. An open, social operating system for everyone, in the making. starseed-os.vercel.app #StarSeed #OpenSource #Community"
+  },
+  "youtube": {
+   "es": "Siembra StarSeed: un sistema operativo social, abierto y de todos. Una malla entre tu dispositivo y tu comunidad, IA local de 1,58 bits y estaciones de sonido, todo en construcción y bajo licencia AGPL-3.0. Participa, voluntariado, aporta código o dona (enlace de donación próximamente): https://starseed-os.vercel.app",
+   "en": "Sow StarSeed: an open, social operating system for everyone. A mesh between your device and your community, local 1.58-bit AI and sound stations, all in the making and AGPL-3.0 licensed. Take part, volunteer, contribute code or donate (donation link coming soon): https://starseed-os.vercel.app"
+  },
+  "x_twitter": {
+   "es": "Un sistema operativo social, abierto y de todos. Lo estamos construyendo en abierto (AGPL-3.0). Participa, voluntariado, aporta código o dona (enlace pronto). https://starseed-os.vercel.app #StarSeed",
+   "en": "An open, social operating system for everyone. We're building it in the open (AGPL-3.0). Take part, volunteer, contribute code or donate (link soon). https://starseed-os.vercel.app #StarSeed"
+  },
+  "linkedin": {
+   "es": "Construimos StarSeed OS, un sistema operativo social, abierto y descentralizado, en abierto y bajo licencia AGPL-3.0. Hay cuatro formas de sumarse: participar, voluntariado, aportar código y donar (enlace de donación próximamente). Todo está en construcción: se agradece cualquier ojo crítico. https://starseed-os.vercel.app",
+   "en": "We're building StarSeed OS, an open, decentralized social operating system, in the open and under the AGPL-3.0 licence. There are four ways to join in: take part, volunteer, contribute code and donate (donation link coming soon). Everything is a work in progress, and critical eyes are welcome. https://starseed-os.vercel.app"
+  },
+  "bluesky": {
+   "es": "Un sistema operativo social, abierto y de todos, en construcción y con código abierto (AGPL-3.0). Participa o aporta código: https://starseed-os.vercel.app",
+   "en": "An open, social operating system for everyone, in the making and open source (AGPL-3.0). Take part or contribute code: https://starseed-os.vercel.app"
+  },
+  "mastodon": {
+   "es": "StarSeed OS: un sistema operativo social, abierto y descentralizado, en construcción y bajo AGPL-3.0. Participa, voluntariado, aporta código o dona (enlace de donación próximamente). https://starseed-os.vercel.app #StarSeed #CodigoAbierto #Fediverso",
+   "en": "StarSeed OS: an open, decentralized social operating system, in the making and under AGPL-3.0. Take part, volunteer, contribute code or donate (donation link coming soon). https://starseed-os.vercel.app #StarSeed #OpenSource #Fediverse"
+  },
+  "telegram": {
+   "es": "Siembra StarSeed: sistema operativo social, abierto y de todos, en construcción. https://starseed-os.vercel.app",
+   "en": "Sow StarSeed: an open, social operating system for everyone, in the making. https://starseed-os.vercel.app"
+  }
+ }
+}

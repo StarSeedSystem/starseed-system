@@ -1,0 +1,59 @@
+/* Estilo del Estudio MetaGeminis. Sin animaciones ni transiciones de CSS: el movimiento lo calcula motor.js a partir de t. */
+*, *::before, *::after { animation: none !important; transition: none !important; box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #02040a; overflow: hidden; }
+body { -webkit-font-smoothing: antialiased; font-synthesis: none; text-rendering: geometricPrecision; }
+#raiz { position: relative; overflow: hidden; background: #02040a; color: #f8f9fa; font-family: 'Inter', system-ui, sans-serif; }
+#gl { position: absolute; left: 0; top: 0; display: block; image-rendering: auto; }
+#velo { position: absolute; inset: 0; pointer-events: none; }
+#seguro { position: absolute; }
+#depurar { position: absolute; inset: 0; pointer-events: none; }
+.sin-texto [data-capa] { color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; }
+.sin-texto .sello img { opacity: 0 !important; }
+
+.titulo, .kicker, .num, .tarjeta h3, .pildora { font-family: 'Rajdhani', 'Inter', sans-serif; }
+.mono, .kicker, .url { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* Marca: el símbolo real del repositorio sobre un disco claro de cristal (el símbolo tiene medias lunas negras que desaparecen sobre fondo oscuro). */
+.sello { position: relative; flex: none; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f1f5f9 55%, #dbe3ee 100%); box-shadow: 0 0 0 2px rgba(248,249,250,0.55), 0 0 28px rgba(0,127,255,0.55), 0 0 64px rgba(16,185,129,0.28); display: flex; align-items: center; justify-content: center; }
+.sello img { height: 78%; width: auto; display: block; }
+.marca { position: absolute; display: flex; align-items: center; }
+.marca .nombre { font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #f8f9fa; text-shadow: 0 2px 12px rgba(2,6,23,0.85); }
+
+.beat { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; will-change: transform; }
+.beat.centro { align-items: center; text-align: center; }
+.beat.izq { align-items: flex-start; text-align: left; }
+.beat.abajo { justify-content: flex-end; }
+.beat.arriba { justify-content: flex-start; }
+.beat .col { display: flex; flex-direction: column; }
+.beat.centro .col { align-items: center; }
+.beat.izq .col { align-items: flex-start; }
+
+.kicker { font-weight: 700; text-transform: uppercase; letter-spacing: 0.16em; line-height: 1.15; text-shadow: 0 2px 14px rgba(2,6,23,0.9); }
+.titulo { font-weight: 700; line-height: 0.98; letter-spacing: -0.005em; text-shadow: 0 4px 28px rgba(2,6,23,0.85), 0 0 2px rgba(2,6,23,0.6); }
+.sub, .cuerpo { font-weight: 500; line-height: 1.28; text-shadow: 0 2px 16px rgba(2,6,23,0.95); }
+.sub { color: #e8edf5; }
+.lista { display: flex; flex-direction: column; }
+.beat.centro .lista { align-items: center; }
+.item { display: flex; align-items: center; font-family: 'Rajdhani', sans-serif; font-weight: 700; line-height: 1; text-shadow: 0 3px 22px rgba(2,6,23,0.9); }
+.item i { display: block; border-radius: 99px; flex: none; }
+.pildora { display: inline-flex; align-items: center; font-weight: 700; letter-spacing: 0.02em; border-radius: 999px; background: #f8f9fa; color: #050b18; box-shadow: 0 0 0 1px rgba(255,255,255,0.7), 0 10px 40px rgba(0,127,255,0.45); white-space: nowrap; }
+.pildora svg { flex: none; }
+.url { font-weight: 500; letter-spacing: 0.02em; color: #f8f9fa; text-shadow: 0 2px 14px rgba(2,6,23,0.9); }
+.aviso { font-weight: 500; color: #cdd6e4; line-height: 1.3; text-shadow: 0 2px 12px rgba(2,6,23,0.95); }
+.pie { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; }
+.w { display: inline-block; white-space: pre; will-change: transform, opacity; }
+.ac { font-weight: 700; }
+
+/* Láminas y cartel */
+.lamina { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.lamina .fila-sup { display: flex; align-items: center; justify-content: space-between; }
+.num { font-weight: 700; letter-spacing: 0.1em; border: 2px solid rgba(248,249,250,0.55); border-radius: 999px; background: rgba(5,11,24,0.55); color: #f8f9fa; display: inline-flex; align-items: center; }
+.tarjetas { display: grid; }
+.tarjeta { position: relative; border-radius: 28px; background: linear-gradient(160deg, rgba(14,24,48,0.82), rgba(5,11,24,0.78)); border: 1.5px solid rgba(248,249,250,0.18); box-shadow: 0 18px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.10); overflow: hidden; }
+.tarjeta::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: var(--c); box-shadow: 0 0 24px var(--c); }
+.tarjeta h3 { margin: 0; font-weight: 700; line-height: 1; letter-spacing: 0.01em; }
+.tarjeta p { margin: 0; font-weight: 500; line-height: 1.3; color: #dbe3ee; }
+.qr { background: #f8f9fa; border-radius: 22px; padding: 4.5%; display: block; box-shadow: 0 0 0 2px rgba(248,249,250,0.6), 0 0 50px rgba(0,127,255,0.45); }
+.qr svg { display: block; width: 100%; height: 100%; }
+.zona-segura { position: absolute; outline: 3px dashed rgba(57,255,20,0.9); outline-offset: -3px; }
+.zona-evitar { position: absolute; background: rgba(220,20,60,0.35); outline: 2px solid rgba(220,20,60,0.95); }
