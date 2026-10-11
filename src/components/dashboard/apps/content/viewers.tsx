@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ContentResource } from "./content-types";
+import { esUrlEmbebible } from "@/lib/protomolecula/puente-herramientas";
 
 export interface ViewerProps { resource: ContentResource }
 
@@ -129,7 +130,12 @@ export function HtmlViewer({ resource }: ViewerProps) {
     const common = "absolute inset-0 w-full h-full border-0 bg-white";
     const sandbox = "allow-scripts allow-same-origin allow-popups allow-forms";
     if (resource.text) return <iframe title={resource.title} srcDoc={resource.text} className={common} sandbox={sandbox} />;
-    if (resource.url) return <iframe title={resource.title} src={resource.url} className={common} sandbox={sandbox} referrerPolicy="no-referrer" loading="lazy" />;
+    if (resource.url) {
+        // Contrato Protomolécula §8.1: apps ajenas solo https, sin credenciales, origen distinto del OS.
+        const segura = esUrlEmbebible(resource.url, window.location.origin);
+        if (!segura.ok) return <FallbackViewer resource={resource} note={segura.motivo} />;
+        return <iframe title={resource.title} src={resource.url} className={common} sandbox={sandbox} referrerPolicy="no-referrer" loading="lazy" />;
+    }
     return <FallbackViewer resource={resource} />;
 }
 
