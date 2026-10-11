@@ -39,7 +39,6 @@ export function protegerConexion(
   const bloqueosRecientes = new Map<string, number>();
 
   const notificarSiAplica = (clase: ClaseDato, veredicto: { requiere: "consentimiento" | "nunca"; motivo: string }) => {
-    if (veredicto.requiere === "nada") return;
     const ahoraMs = o.ahora();
     const ultimo = bloqueosRecientes.get(clase) ?? 0;
     if (ahoraMs - ultimo < 60_000) return; // una vez por minuto
@@ -58,7 +57,7 @@ export function protegerConexion(
       for (const clase of clases) {
         const ver = evaluarSalida(clase, o.destino, o.ahora(), cons);
         if (!ver.permitido) {
-          notificarSiAplica(clase, ver);
+          notificarSiAplica(clase, ver as { requiere: "consentimiento" | "nunca"; motivo: string });
           return; // bloqueado: no se envía
         }
       }
@@ -82,7 +81,7 @@ export function protegerConexion(
       for (const clase of new Set(clases)) {
         const ver = evaluarSalida(clase, o.destino, o.ahora(), cons);
         if (!ver.permitido) {
-          notificarSiAplica(clase, ver);
+          notificarSiAplica(clase, ver as { requiere: "consentimiento" | "nunca"; motivo: string });
           return; // bloqueado
         }
       }
@@ -103,5 +102,6 @@ export function ejecutarGuardia(
   c: ConexionEscena,
   o: OpcionesGuardia,
 ): ConexionEscena {
+  // El contenido bloqueado nunca se registra (NUNCA_EN_REGISTROS); solo se notifica.
   return protegerConexion(c, o);
 }

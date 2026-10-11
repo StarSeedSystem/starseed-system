@@ -20,6 +20,7 @@ import {
 } from "@/lib/vivo/espacial/sesion";
 import type { ModoAvatar } from "@/lib/vivo/espacial/avatares";
 import { dependenciasReales } from "@/lib/vivo/espacial/dependencias";
+import { ejecutarGuardia } from "@/components/xr/shell/guardia-privacidad";
 
 async function resolverIdentidad(): Promise<IdentidadEscena> {
     try {
@@ -54,7 +55,24 @@ export function useSesionEscena(
         let abierta: SesionEscena | null = null;
         void resolverIdentidad().then((identidad) => {
             if (!viva) return;
-            abierta = abrirSesionEscena({ fuente, identidad, modo: modoInicial, deps: dependenciasReales() });
+            const depsBase = dependenciasReales();
+            const depsConGuardia: typeof depsBase = {
+                ...depsBase,
+                abrirCanal: (tema: string, clave: string, filaId: string | null) => {
+                    const c = depsBase.abrirCanal?.(tema, clave, filaId) ?? null;
+                    if (!c) return null;
+                    return ejecutarGuardia(c, {
+                        destino: "sala-publica" as any,
+                        consentimientos: () => [],
+                        ahora: () => Date.now(),
+                        alBloquear: (v) => {
+                            // Nunca se registra el contenido bloqueado; solo se notifica por nombre de variable.
+                            console.warn(`[XR guardia] bloqueado ${v.clase}: ${v.motivo}`);
+                        },
+                    });
+                },
+            };
+            abierta = abrirSesionEscena({ fuente, identidad, modo: modoInicial, deps: depsConGuardia });
             setSesion(abierta);
         });
         return () => {

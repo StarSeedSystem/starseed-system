@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from "react";
-import { consentamiento, evaluarSalida } from "@/lib/xr/privacidad";
+import { consentimiento, evaluarSalida } from "@/lib/xr/privacidad";
 import type { ClaseDato, Destino, Consentimiento } from "@/lib/xr/privacidad";
 
 interface Props {
@@ -17,13 +17,13 @@ export default function TarjetaConsentimiento({ clase, destino, motivo, alRespon
   const ver = evaluarSalida(clase, destino, Date.now(), []);
 
   const permitir8h = useCallback(() => {
-    const c = consentamiento(clase, destino, Date.now(), 8 * 3600_000);
+    const c = consentimiento(clase, destino, Date.now(), 8 * 3600_000);
     alResponder(c);
     setResuelto(true);
   }, [clase, destino, alResponder]);
 
   const soloEstaVez = useCallback(() => {
-    const c = consentamiento(clase, destino, Date.now(), 60_000);
+    const c = consentimiento(clase, destino, Date.now(), 60_000);
     alResponder(c);
     setResuelto(true);
   }, [clase, destino, alResponder]);
