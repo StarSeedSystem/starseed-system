@@ -66,7 +66,7 @@ describe("migración astraura_bots (BOT1011B)", () => {
 
   it("añade las tres tablas a la publicación supabase_realtime de forma idempotente", () => {
     expect(low).toContain("supabase_realtime");
-    expect(low).toContain("array['astraura_bots","astraura_bots_consentimientos","astraura_bots_registro']");
+    expect(low).toContain("array['astraura_bots','astraura_bots_consentimientos','astraura_bots_registro']");
     expect(low).toContain("alter publication supabase_realtime add table");
   });
 });
