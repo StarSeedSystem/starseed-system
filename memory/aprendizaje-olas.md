@@ -4318,3 +4318,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `S1010-ES2` — otra cosa: ningún proveedor respondió (todos caídos)
 - `WT1011B` — otra cosa: ningún proveedor respondió (todos caídos)
 - `WT1011A` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-11 22:00 · mg-oracle-1011-1421
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (S1010-EV-ORACLE-2, OC1010A, GN1010A). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-EV-ORACLE-2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `OC1010A` — otra cosa: ningún proveedor respondió (todos caídos)
+- `GN1010A` — otra cosa: ningún proveedor respondió (todos caídos)
