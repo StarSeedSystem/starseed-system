@@ -244,21 +244,21 @@ export function procesarMensaje(
     }
   }
 
-  // 7. Validar tamaño máximo del JSON (64 KB)
-  const tamañoJSON = new TextEncoder().encode(JSON.stringify(datos)).length;
-  if (tamañoJSON > 64 * 1024) {
-    // 64 KB = 65536 bytes
-    return {
-      entrada: null,
-      estado: estadoActualizado,
-      motivo: `Tamanho del mensaje excede el límite de 64 KB: ${tamañoJSON} bytes`,
-    };
-  }
+    // 7. Validar tamaño máximo del JSON (2.6 MB)
+    const tamañoJSON = new TextEncoder().encode(JSON.stringify(datos)).length;
+    if (tamañoJSON > 2.6 * 1024 * 1024) {
+      // 2.6 MB = 2726297.6 bytes
+      return {
+        entrada: null,
+        estado: estadoActualizado,
+        motivo: `Tamanho del mensaje excede el límite de 2.6 MB: ${tamañoJSON} bytes`,
+      };
+    }
 
   // 8. Procesar según el tipo de mensaje
   switch (tipo) {
     case "hola": {
-      const mensaje = datos as MensajeHola;
+      const mensaje = datos as unknown as MensajeHola;
       // Validar opcionalmente nombre y parametros
       if (mensaje.nombre !== undefined && typeof mensaje.nombre !== "string") {
         return {
@@ -290,7 +290,7 @@ export function procesarMensaje(
     }
 
     case "cambio": {
-      const mensaje = datos as MensajeCambio;
+      const mensaje = datos as unknown as MensajeCambio;
       if (typeof mensaje.parametroId !== "string" || !mensaje.parametroId) {
         return {
           entrada: null,
@@ -311,7 +311,7 @@ export function procesarMensaje(
     }
 
     case "exportar": {
-      const mensaje = datos as MensajeExportar;
+      const mensaje = datos as unknown as MensajeExportar;
       if (typeof mensaje.formato !== "string" || !mensaje.formato) {
         return {
           entrada: null,
@@ -341,7 +341,7 @@ export function procesarMensaje(
     }
 
     case "listo": {
-      const mensaje = datos as MensajeListo;
+      const mensaje = datos as unknown as MensajeListo;
       return {
         entrada: {
           tipo: "listo",
@@ -352,7 +352,7 @@ export function procesarMensaje(
     }
 
     case "error": {
-      const mensaje = datos as MensajeError;
+      const mensaje = datos as unknown as MensajeError;
       if (typeof mensaje.mensaje !== "string" || !mensaje.mensaje) {
         return {
           entrada: null,
