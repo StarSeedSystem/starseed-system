@@ -1,6 +1,6 @@
 # Avatares 3D autopersonalizables · contrato (AV1011)
 
-> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/avatares/adn/` (8 módulos puros, 76 pruebas)
+> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/avatares/adn/` (8 módulos puros, 78 pruebas)
 > Relacionado: `architecture/astraura-bots.md` (la orbe ES el bot), `src/lib/avatares/movimiento/` (motor único de movimiento),
 > `src/lib/xr/calidad-perfiles.ts` (niveles de avatar en XR), Protomolécula (catálogo de herramientas).
 
@@ -18,6 +18,7 @@ Create, Smart Remesh, Filigree3D, BTC3D, Tripo, 3DAIStudio, Hitem3D, Meshy y Hi3
 | **image-to-3dlab** | Imagen → modelo 3D con textura, **en local en Mac Apple Silicon** (32 GB recomendados), con un `.provenance.json` de licencias por resultado. Motores: Hunyuan3D-MLX, TRELLIS.2, Stable Fast 3D. | Funciona hoy. Hunyuan: pesos **sin licencia para la UE, Reino Unido y Corea del Sur**. TRELLIS.2: uso comercial condicionado (DINOv3). SF3D: licencia comunitaria de Stability (tope de ingresos). | Etapa «generar» del taller en neuronas Mac de 32 GB. Adoptamos su idea de **procedencia por resultado**: cada ADN lleva la suya (§2, §5). |
 | **Smart Remesh 3** | Complemento de Blender que limpia mallas de IA (cuadrículas uniformes, paneles duros). | **Cuesta 17 USD** (no es gratis), GPL, sin uso sin ventana documentado. | Opcional si Alex lo compra. Por defecto remallamos con **Instant Meshes** (BSD-3, el mismo motor que usa su modo orgánico) y **QuadriFlow de Blender** sin ventana. |
 | **Pixal3D** (Tencent ARC, SIGGRAPH 2026) | Imagen → modelo 3D con texturas PBR (GLB), llevando cada píxel a su sitio en 3D: el de más detalle de la lista. | Código y pesos **MIT** (Hugging Face `TencentARC/Pixal3D`, ~46 GB con todas las variantes). **Solo NVIDIA** (natten con CUDA), sin Mac; VRAM mínima no publicada, con modo de poca VRAM a 1024. Se apoya en TRELLIS.2 (DINOv3): uso comercial sin comprobar. Tiene un Space público con GPU gratis (ZeroGPU A10G, cuota diaria). | Generador de «calidad» del taller en neuronas NVIDIA; su Space solo como respaldo **remoto** con permiso expreso (§11). |
+| **PixelArtistry Watertight Meshes** | Flujos de ComfyUI: imagen → malla **cerrada** (lista para imprimir) o low-poly con texturas horneadas, con Pixal3D/TRELLIS.2 y los nodos WTiVo, Mesh Quad Reconstruct, LODTailor y CuMesh. | Instalador y flujos **MIT**; nodos GPL-3.0 o MIT. **Solo Windows 10/11 con NVIDIA RTX 20+**; publica los umbrales 6 GB → 1024, 8 GB → 1536, 16 GB → 2048; 32 GB de RAM recomendados. Proyecto muy nuevo (5 commits, sin versiones). | Remallador que cierra en neuronas Windows con NVIDIA; en el resto, cierre por vóxeles de Blender en CPU (también la A1). Sus umbrales de VRAM sustituyen a nuestros supuestos (§11). |
 | **Filigree3D** (arXiv 2609.34900) | Imagen → geometría a resolución 2048³ (hasta 4096³), ~1 min. | Solo artículo, sin código ni pesos enlazados. | Vigía en la Biblioteca. |
 | **BTC3D** (arXiv 2609.39709) | Mejora de detalle sin entrenar para generadores imagen→3D por difusión (teselas mezcladas). | Solo artículo, sin código enlazado. | Vigía; etapa opcional «detallar». |
 | **Meta Horizon Create** | Plataforma cerrada de Meta (AssetGen 2.0, mundos por texto). | Sin API pública ni pesos abiertos. El enlace de X no se pudo abrir. | Solo como referencia de experiencia (crear mundos y objetos hablando); ya lo cubren XR y Protomolécula. |
@@ -129,3 +130,11 @@ inteligencia para la Protomolécula y para los bots y avatares de perfiles y pá
    solo con permiso expreso y nunca con fotos de personas sin su consentimiento.
 
 Cola: `cola-generacion-3d-1011.json` (G3D1011A–F).
+
+### §11.1 · Mallas cerradas (watertight) — PixelArtistry (2026-10-11)
+
+Destino nuevo **impresión** (malla cerrada, sin texturas, original guardado) y `cerrada` en cada plan: bots y piezas
+salen cerrados para que choquen bien con la física de XR. Con `cerrada`, `planificar` solo acepta remalladores
+que cierran: **PixelArtistry** (ComfyUI, Windows + NVIDIA) o **vóxeles de Blender** (CPU: vale en la A1; pierde
+las UV y la textura se vuelve a hornear). Instant Meshes y QuadriFlow se descartan diciendo por qué. Los umbrales
+de VRAM de `resolucionPara` ahora son los publicados por PixelArtistry. Cola: `cola-mallas-cerradas-1011.json`.

@@ -1,7 +1,8 @@
 /**
  * Generación 3D local · OPTIMIZACIÓN POR DESTINO (G3D1011). Contrato: architecture/astraura-avatares-3d.md §11.
  *
- * Un modelo generado se prepara distinto según DÓNDE se va a usar: en la Protomolécula se guarda el
+ * Un modelo generado se prepara distinto según DÓNDE se va a usar: para imprimir sale cerrado (watertight)
+ * y sin texturas; en la Protomolécula se guarda el
  * original con todo su detalle (para editarlo) y una vista ligera; un avatar sale remallado para poder
  * llevar esqueleto, con un nivel de detalle (LOD) por cada nivel de avatar de XR; el cuerpo de un bot y
  * una pieza suelta salen pequeños y rápidos. También traduce el hierro de una neurona a requisitos del
@@ -11,7 +12,7 @@ import type { AvatarCalidad } from "@/lib/xr/calidad-perfiles";
 import { PRESUPUESTO_POR_CALIDAD } from "./calidad";
 import type { Requisito3D } from "./motores";
 
-export const DESTINOS_3D = ["protomolecula", "avatar", "bot", "pieza"] as const;
+export const DESTINOS_3D = ["protomolecula", "impresion", "avatar", "bot", "pieza"] as const;
 export type Destino3D = (typeof DESTINOS_3D)[number];
 
 export interface PlanOptimizacion {
@@ -31,6 +32,8 @@ export interface PlanOptimizacion {
   atlas: boolean;
   /** Guardar además el original sin tocar en la Biblioteca privada. */
   conservarOriginal: boolean;
+  /** Malla cerrada (watertight): para imprimir y para que choque bien con la física de XR. */
+  cerrada: boolean;
   pesoMaxMB: number;
 }
 
@@ -38,11 +41,12 @@ const tri = (c: AvatarCalidad) => PRESUPUESTO_POR_CALIDAD[c].triangulos;
 
 /** Resolución que cabe en la memoria de la GPU. `vramGB` null = sin GPU NVIDIA (Mac o servicio remoto). */
 export function resolucionPara(destino: Destino3D, vramGB: number | null): PlanOptimizacion["generador"] {
-  const quiere: 512 | 1024 | 1536 = destino === "protomolecula" ? 1536 : destino === "pieza" || destino === "bot" ? 512 : 1024;
-  // Umbrales de partida (Pixal3D no publica su mínimo): el taller los corrige con `siguienteIntento`.
+  const quiere: 512 | 1024 | 1536 = destino === "protomolecula" || destino === "impresion" ? 1536 : destino === "pieza" || destino === "bot" ? 512 : 1024;
+  // Umbrales publicados por PixelArtistry para Pixal3D/TRELLIS.2 en ComfyUI: 6 GB → 1024, 8 GB → 1536
+  // (16 GB → 2048, que aquí no se pide). El taller los corrige con `siguienteIntento` y sus medidas.
   if (vramGB === null) return { resolucion: quiere === 1536 ? 1024 : quiere, pocaMemoria: false };
-  if (vramGB >= 24) return { resolucion: quiere, pocaMemoria: false };
-  if (vramGB >= 16) return { resolucion: quiere === 1536 ? 1024 : quiere, pocaMemoria: false };
+  if (vramGB >= 8) return { resolucion: quiere, pocaMemoria: false };
+  if (vramGB >= 6) return { resolucion: quiere === 1536 ? 1024 : quiere, pocaMemoria: false };
   return { resolucion: quiere === 512 ? 512 : 1024, pocaMemoria: true };
 }
 
@@ -52,23 +56,28 @@ export function planOptimizacion(destino: Destino3D, vramGB: number | null = nul
     case "protomolecula":
       return {
         destino, prioridad: "calidad", generador, remallado: null, lods: [200_000, 50_000],
-        texturaPx: 4096, compresion: "meshopt", atlas: false, conservarOriginal: true, pesoMaxMB: 200,
+        texturaPx: 4096, compresion: "meshopt", atlas: false, conservarOriginal: true, cerrada: false, pesoMaxMB: 200,
+      };
+    case "impresion":
+      return {
+        destino, prioridad: "calidad", generador, remallado: { caras: 500_000, modo: "organico" }, lods: [500_000],
+        texturaPx: 0, compresion: "ninguna", atlas: false, conservarOriginal: true, cerrada: true, pesoMaxMB: 100,
       };
     case "avatar":
       return {
         destino, prioridad: "calidad", generador, remallado: { caras: tri("vrm-completo"), modo: "organico" },
         lods: [tri("vrm-completo"), tri("vrm"), tri("vrm-ligero"), tri("cabeza-manos")],
-        texturaPx: 2048, compresion: "meshopt", atlas: true, conservarOriginal: true, pesoMaxMB: 15,
+        texturaPx: 2048, compresion: "meshopt", atlas: true, conservarOriginal: true, cerrada: false, pesoMaxMB: 15,
       };
     case "bot":
       return {
         destino, prioridad: "rapidez", generador, remallado: { caras: 20_000, modo: "organico" }, lods: [20_000, 8_000, 2_000],
-        texturaPx: 1024, compresion: "meshopt", atlas: true, conservarOriginal: false, pesoMaxMB: 4,
+        texturaPx: 1024, compresion: "meshopt", atlas: true, conservarOriginal: false, cerrada: true, pesoMaxMB: 4,
       };
     case "pieza":
       return {
         destino, prioridad: "rapidez", generador, remallado: { caras: 8_000, modo: "duro" }, lods: [8_000, 3_000, 1_000],
-        texturaPx: 512, compresion: "meshopt", atlas: true, conservarOriginal: false, pesoMaxMB: 2,
+        texturaPx: 512, compresion: "meshopt", atlas: true, conservarOriginal: false, cerrada: true, pesoMaxMB: 2,
       };
   }
 }

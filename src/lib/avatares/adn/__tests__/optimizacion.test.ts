@@ -25,11 +25,19 @@ describe("optimización por destino", () => {
     expect(lodPara(p, "vrm-ligero")).toBe(2);
     expect(lodPara(p, "orbe-manos")).toBe(3);
   });
-  it("resolución según la GPU: 1536 solo con 24 GB; poca memoria por debajo de 16 GB", () => {
-    expect(resolucionPara("protomolecula", 24)).toEqual({ resolucion: 1536, pocaMemoria: false });
-    expect(resolucionPara("protomolecula", 16)).toEqual({ resolucion: 1024, pocaMemoria: false });
-    expect(resolucionPara("avatar", 12)).toEqual({ resolucion: 1024, pocaMemoria: true });
-    expect(resolucionPara("bot", 12)).toEqual({ resolucion: 512, pocaMemoria: true });
+  it("resolución según la GPU (umbrales publicados por PixelArtistry): 1536 desde 8 GB, 1024 con 6 GB, poca memoria por debajo", () => {
+    expect(resolucionPara("protomolecula", 8)).toEqual({ resolucion: 1536, pocaMemoria: false });
+    expect(resolucionPara("protomolecula", 6)).toEqual({ resolucion: 1024, pocaMemoria: false });
+    expect(resolucionPara("avatar", 4)).toEqual({ resolucion: 1024, pocaMemoria: true });
+    expect(resolucionPara("bot", 4)).toEqual({ resolucion: 512, pocaMemoria: true });
+  });
+  it("imprimir: malla cerrada, sin texturas y con el original guardado; bot y pieza también cerrados para la física", () => {
+    const p = planOptimizacion("impresion");
+    expect(p.cerrada).toBe(true);
+    expect(p.texturaPx).toBe(0);
+    expect(p.conservarOriginal).toBe(true);
+    expect(planOptimizacion("bot").cerrada && planOptimizacion("pieza").cerrada).toBe(true);
+    expect(planOptimizacion("protomolecula").cerrada).toBe(false);
   });
   it("si se queda sin memoria: primero modo de poca memoria, luego baja la resolución, y al final se rinde", () => {
     let p = planOptimizacion("protomolecula", 24);
@@ -74,6 +82,15 @@ describe("plan completo: destino + hierro", () => {
   it("lo local va siempre antes que lo remoto", () => {
     const caps = capacidadesDe(hierro({ gpu: "nvidia", ramGB: 32, vramGB: 16, permiteEspacioHf: true }));
     expect(generar(caps, "calidad").motor?.id).toBe("pixal3d");
+  });
+  it("malla cerrada: con Blender en CPU, vóxeles de Blender; con NVIDIA, PixelArtistry; Instant Meshes se descarta y lo dice", () => {
+    const remallar = (caps: ReturnType<typeof capacidadesDe>) =>
+      planificar({ partida: "malla", esqueleto: "libre", capacidades: caps, region: "MX", comercial: false, permitirDePago: false, cerrada: true })
+        .pasos.find((x) => x.etapa === "remallar")!;
+    const a1 = remallar(capacidadesDe(hierro({ ramGB: 24, blender: true })));
+    expect(a1.motor?.id).toBe("blender-voxel");
+    expect(a1.descartes.join(" ")).toMatch(/Instant Meshes: no garantiza una malla cerrada/);
+    expect(remallar(capacidadesDe(hierro({ gpu: "nvidia", ramGB: 32, vramGB: 8 }))).motor?.id).toBe("pixelartistry");
   });
   it("Mac de 32 GB en México: calidad → TRELLIS.2 (en local)", () => {
     expect(generar(capacidadesDe(hierro({ gpu: "apple", ramGB: 32 })), "calidad").motor?.id).toBe("trellis2");

@@ -39,6 +39,8 @@ export interface PeticionPlan {
   detallar?: boolean;
   /** «calidad» elige el de más fidelidad; «rapidez» (por defecto) el más rápido. Lo fija el destino (`optimizacion.ts`). */
   prioridad?: "calidad" | "rapidez";
+  /** Hace falta malla cerrada (imprimir, colisiones de física): solo remalladores que cierran. */
+  cerrada?: boolean;
 }
 
 export interface PasoPlan { etapa: Etapa; motor: Motor3D | null; saltada: boolean; motivo: string; descartes: string[] }
@@ -53,6 +55,7 @@ export function motivoDescarte(m: Motor3D, p: PeticionPlan): string | null {
   if (regionExcluida(m.regionesExcluidas, p.region)) return `${m.nombre}: su licencia no cubre tu región${p.region ? ` (${p.region})` : " (desconocida)"}.`;
   if (p.comercial && m.uso === "no-comercial") return `${m.nombre}: su licencia no permite uso comercial.`;
   if (m.etapa === "animar" && !(m.esqueletos ?? []).includes(p.esqueleto)) return `${m.nombre}: no mueve el esqueleto «${p.esqueleto}».`;
+  if (m.etapa === "remallar" && p.cerrada && !m.cierra) return `${m.nombre}: no garantiza una malla cerrada.`;
   return null;
 }
 

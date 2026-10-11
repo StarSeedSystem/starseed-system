@@ -36,6 +36,8 @@ export interface Motor3D {
   fidelidad?: number;
   /** Corre fuera de la neurona (servicio o Space): solo con permiso y siempre detrás de lo local. */
   remoto?: boolean;
+  /** Solo en «remallar»: deja la malla cerrada (watertight), apta para imprimir y para colisiones de física. */
+  cierra?: boolean;
   fuente: string;
   nota?: string;
 }
@@ -62,10 +64,10 @@ export const MOTORES_3D: readonly Motor3D[] = [
     fuente: "https://github.com/Bingeljell/image-to-3dlab", nota: "El más rápido y el de menos detalle; licencia con tope de ingresos.",
   },
   {
-    id: "pixal3d", etapa: "generar", nombre: "Pixal3D (Tencent ARC, píxeles alineados a 3D)", necesita: ["cuda-16gb"],
+    id: "pixal3d", etapa: "generar", nombre: "Pixal3D (Tencent ARC, píxeles alineados a 3D)", necesita: ["cuda-8gb"],
     estado: "listo", licencia: "MIT (código y pesos); terceros según su NOTICE", uso: "condicionado", fidelidad: 5,
     fuente: "https://github.com/TencentARC/Pixal3D",
-    nota: "SIGGRAPH 2026; GLB con texturas PBR. Solo NVIDIA (natten con CUDA), sin Mac. VRAM mínima no publicada: modo de poca VRAM a 1024 (normal 1536). Se apoya en TRELLIS.2 (DINOv3): uso comercial sin comprobar. Pesos ~46 GB con todas las variantes.",
+    nota: "SIGGRAPH 2026; GLB con texturas PBR. Solo NVIDIA, sin Mac. Por ComfyUI (Comfy-Org/Pixal3D) PixelArtistry publica: 6 GB a 1024, 8 GB a 1536, 16 GB a 2048. Se apoya en TRELLIS.2 (DINOv3): uso comercial sin comprobar. Pesos ~46 GB con todas las variantes.",
   },
   {
     id: "pixal3d-espacio", etapa: "generar", nombre: "Pixal3D en su Space de Hugging Face (GPU gratis con cuota)", necesita: ["espacio-hf"],
@@ -101,6 +103,17 @@ export const MOTORES_3D: readonly Motor3D[] = [
     id: "smart-remesh", etapa: "remallar", nombre: "Smart Remesh 3 (complemento de Blender)", necesita: ["blender"], estado: "de-pago",
     licencia: "GPL", uso: "libre", fuente: "https://superhivemarket.com/products/smart-remesh",
     nota: "Cuesta 17 USD (no es gratis) y su página no documenta uso sin ventana. Alex decide si se compra.",
+  },
+  {
+    id: "blender-voxel", etapa: "remallar", nombre: "Remallado por vóxeles de Blender (sin ventana)", necesita: ["blender"], estado: "listo",
+    licencia: "GPL (Blender); lo que produce es tuyo", uso: "libre", cierra: true, fuente: "https://www.blender.org",
+    nota: "Cierra la malla en CPU (vale en la A1); pierde las UV: la textura se vuelve a hornear desde el original.",
+  },
+  {
+    id: "pixelartistry", etapa: "remallar", nombre: "PixelArtistry Watertight Meshes (flujos de ComfyUI)", necesita: ["cuda-8gb"], estado: "listo",
+    licencia: "MIT (instalador y flujos); sus nodos GPL-3.0 o MIT", uso: "libre", cierra: true,
+    fuente: "https://github.com/pixelartistry/PixelArtistry-Watertight-Meshes",
+    nota: "Imagen → malla cerrada (lista para imprimir) o low-poly con texturas horneadas, con Pixal3D/TRELLIS.2 y los nodos WTiVo, Mesh Quad Reconstruct, LODTailor y CuMesh. Instalador solo Windows 10/11 con NVIDIA RTX 20 o más nueva; 32 GB de RAM recomendados. Proyecto muy nuevo (5 commits).",
   },
   /* ── riggear (esqueleto + pesos de piel) ── */
   {
