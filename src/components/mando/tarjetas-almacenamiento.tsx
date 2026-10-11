@@ -334,7 +334,7 @@ export function TarjetaDrive({ estado }: { estado: EstadoAlmacenamiento }) {
     if (!drive.montado) {
         return (
             <Tarjeta titulo="Google Drive" icono={<Cloud className="h-4 w-4 text-white/70" aria-hidden />} testId="tarjeta-drive">
-                <p className="text-xs text-white/60">Instala Google Drive para escritorio para usarlo como espejo.</p>
+                <p className="text-xs text-white/60">{drive.motivo ?? "Instala Google Drive para escritorio para usarlo como espejo."}</p>
             </Tarjeta>
         );
     }

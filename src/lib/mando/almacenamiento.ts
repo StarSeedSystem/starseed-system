@@ -79,6 +79,7 @@ export interface EstadoAlmacenamiento {
         montado: boolean;
         ruta: string | null;
         espejo: { ruta: string; ultimoEspejo: string | null; mb: number | null } | null;
+        motivo?: string;
     };
     driveCuota: CuotaDrive | null;
     /** Por qué `driveCuota` es null (DriveFS miente en macOS); null si sí hay cuota. */
@@ -135,6 +136,36 @@ export function esMismoVolumen(dfDrive: string, dfRaiz: string): boolean {
     const montajeRaiz = partesRaiz[partesRaiz.length - 1];
     if (!fsDrive || !fsRaiz) return false;
     return fsDrive === fsRaiz || (montajeDrive === montajeRaiz && montajeDrive.length > 0);
+}
+
+/** Detecta procesos parados por el guardia (stat con T y nombre de motor). Función pura. */
+export function motoresParados(psSalida: string): number[] {
+    const pids: number[] = [];
+    for (const linea of psSalida.trim().split("\n")) {
+        const partes = linea.trim().split(/\s+/);
+        if (partes.length < 2) continue;
+        const pidStr = partes[0];
+        const stat = partes[1];
+        if (!stat || !stat.includes("T")) continue;
+        const comm = partes.slice(2).join(" ");
+        const nombre = comm.split("/").pop() ?? comm;
+        if (nombre.endsWith("llama-server") || nombre.endsWith("tts-server")) {
+            const pid = Number(pidStr);
+            if (Number.isInteger(pid) && pid > 0) pids.push(pid);
+        }
+    }
+    return pids;
+}
+
+/** ¿La app Google Drive está corriendo? Función pura. */
+export function driveCorriendo(psSalida: string): boolean {
+    for (const linea of psSalida.trim().split("\n")) {
+        const partes = linea.trim().split(/\s+/);
+        const comm = partes.slice(2).join(" ");
+        const nombre = comm.split("/").pop() ?? comm;
+        if (nombre.includes("Google Drive") || nombre.includes("DriveFS")) return true;
+    }
+    return false;
 }
 
 /** Mide el disco donde vive la raíz del repo con `df -kP`. Tolerante. */
@@ -243,10 +274,20 @@ export async function medirRegenerables(raiz: string): Promise<Regenerable[]> {
 export async function detectarDrive(): Promise<EstadoAlmacenamiento["drive"]> {
     const vacio: EstadoAlmacenamiento["drive"] = { montado: false, ruta: null, espejo: null };
     try {
+        let psSalida = "";
+        try {
+            const { stdout } = await execFileAsync("ps", ["-axo", "pid=,stat=,comm="], { timeout: 3000 });
+            psSalida = stdout;
+        } catch {
+            // ps falló: asumimos que no corre.
+        }
+        if (!driveCorriendo(psSalida)) {
+            return { montado: false, ruta: null, espejo: null, motivo: "La app Google Drive no está abierta" };
+        }
         const base = path.join(os.homedir(), "Library", "CloudStorage");
         const entradas = await readdir(base);
-        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-"));
-        if (!unidad) return vacio;
+        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-") && !e.includes("("));
+        if (!unidad) return { montado: false, ruta: null, espejo: null, motivo: "No se encontró una unidad de Google Drive (se ignoraron cuentas antiguas con paréntesis)" };
         const ruta = path.join(base, unidad);
         const espejo = path.join(ruta, "My Drive", "StarSeed_Memory_Root", `neurona-${os.hostname()}`);
         try {
@@ -277,7 +318,7 @@ async function rutaDriveBase(): Promise<string | null> {
     try {
         const base = path.join(os.homedir(), "Library", "CloudStorage");
         const entradas = await readdir(base);
-        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-"));
+        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-") && !e.includes("("));
         return unidad ? path.join(base, unidad) : null;
     } catch {
         return null;
@@ -874,6 +915,28 @@ export async function aliviarMemoria(): Promise<{
             ok: voz.ok,
             detalle: voz.detalle.includes("404") ? "El demonio no acepta cesión (404): no cede" : voz.detalle,
         });
+    }
+
+    // Motores parados por el guardia: SIGKILL solo a los que están parados.
+    try {
+        const { stdout } = await execFileAsync("ps", ["-axo", "pid=,stat=,comm="], { timeout: 3000 });
+        const parados = motoresParados(stdout);
+        if (parados.length > 0) {
+            for (const pid of parados) {
+                try { process.kill(pid, "SIGKILL"); } catch { /* ya no existe */ }
+            }
+            await new Promise((r) => setTimeout(r, 500));
+            const { stdout: psDespues } = await execFileAsync("ps", ["-axo", "pid=,stat=,comm="], { timeout: 3000 });
+            const restantes = motoresParados(psDespues);
+            const ok = restantes.length === 0;
+            pasos.push({
+                que: "Terminar motores parados por el guardia",
+                ok,
+                detalle: ok ? `Eliminados ${parados.length}` : `Quedan ${restantes.length}`,
+            });
+        }
+    } catch {
+        // ps falló: no afecta al alivio.
     }
 
     await new Promise((r) => setTimeout(r, 5000));
