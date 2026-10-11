@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261010",
+ "tareas": [
+  {
+   "id": "S1010-EV-ORACLE-1b",
+   "ola": "Ola 1010S · Estaciones en vivo: Omnifrecuencias, Audiomorphic y relé en Oracle",
+   "titulo": "Relé de estaciones: servidor WebSocket listo para Oracle",
+   "archivos": [
+    "servicios/estaciones-rele/servidor.mjs",
+    "servicios/estaciones-rele/package.json",
+    "servicios/estaciones-rele/README.md"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo StarSeed OS. NO git. Depende de `servicios/estaciones-rele/salas.mjs` (léelo). Crea `servicios/estaciones-rele/servidor.mjs` (≤ 120 líneas, Node ≥ 20, ESM) con el paquete `ws` (`import { WebSocketServer } from \"ws\"`). Escucha en `process.env.PUERTO || 8787`. Cada conexión llega con `?tema=<tema>` en la URL y entra con `salas.entrar` (si no puede, cierra con código 1008 y el motivo). Cada texto recibido se reenvía con `salas.difundir`. Al entrar o salir alguien, manda a toda la sala `{\"t\":\"rele\",\"n\":<presencia − 1 para cada uno>}`. Ping cada 30 s y cierre de las conexiones que no contesten. Nunca registra el contenido de los mensajes, solo cuentas por minuto. `package.json` mínimo: name \"starseed-estaciones-rele\", type \"module\", dependencies { \"ws\": \"^8.19.0\" }, script start. `README.md` en español: qué hace y por qué (las respuestas de hora con muchos oyentes gastan el cupo de Supabase; ver `architecture/estaciones-en-vivo-parametricas.md` §4.1), cómo instalarlo en la VM de Oracle (`npm ci --omit=dev`, unidad systemd de ejemplo, puerto, TLS detrás de Caddy) y cómo probarlo con `npx wscat`. Sin claves ni IPs. Comprobación: `node --check servicios/estaciones-rele/servidor.mjs`.",
+   "dependencias_ya_en_main": [
+    "S1010-EV-ORACLE-1a"
+   ]
+  }
+ ]
+}
