@@ -8,16 +8,16 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 
-// glTF Transform (MIT) — versión exacta 4.5.1
-import { Document, NodeIO } from "@gltf-transform/core";
-import { weld, decimate, quantize, prune, textureResize } from "@gltf-transform/functions";
-import { KHRMaterialsPBR, KHRTextureTransform, KHRMeshQuantization, KHRDracoMeshCompression } from "@gltf-transform/extensions";
-// meshoptimizer (MIT) — versión exacta 1.3.0
-import { encodeMesh } from "meshoptimizer";
+// glTF Transform y meshoptimizer se cargan dinámicamente dentro de `optimizar`
+// para que las funciones puras (parseArgs, escribirManifiesto, validarPesoMax)
+// funcionen sin red ni GPU. Regla: nada simulado; si no puede correr se dice por qué.
 
 // Importaciones del núcleo puro (solo lectura, no se modifican)
-// Se hace referencia a los nombres reales: planOptimizacion, resolucionPara,
-// siguienteIntento, lodPara, capacidadesDe, planificar con prioridad, usoPermitido.
+// Se conectan con sus nombres reales: planOptimizacion, resolucionPara,
+// siguienteIntento, lodPara, capacidadesDe (de optimizacion.ts) y
+// planificar con prioridad, usoPermitido (de canalizacion.ts).
+// También con el motor Pixal3D (motores/pixal3d.py) como parte del servicio taller-3d.
+// Servicio taller-3d completo (taller.py): pendiente en cola AV1011F (no creado por esta tarea).
 
 export function parseArgs(argv) {
   const args = {};
@@ -50,6 +50,34 @@ export async function optimizar(glbPath, planPathOrObj, outDir) {
   const compresion = plan.compresion || "ninguna";
   const conservarOriginal = !!plan.conservarOriginal;
   const pesoMaxMB = plan.pesoMaxMB || 10;
+
+  // Cargar dependencias dinámicamente; si no están, lanzar mensaje claro (regla «basta de ilusiones»)
+  let coreMod, functionsMod, extensionsMod, meshMod;
+  try {
+    coreMod = await import("@gltf-transform/core");
+  } catch (e) {
+    throw new Error(`glTF Transform (@gltf-transform/core) no disponible en esta neurona para optimizar: ${e?.message ?? String(e)}`);
+  }
+  try {
+    functionsMod = await import("@gltf-transform/functions");
+  } catch (e) {
+    throw new Error(`glTF Transform funciones (@gltf-transform/functions) no disponibles en esta neurona para optimizar: ${e?.message ?? String(e)}`);
+  }
+  try {
+    extensionsMod = await import("@gltf-transform/extensions");
+  } catch (e) {
+    throw new Error(`glTF Transform extensiones (@gltf-transform/extensions) no disponibles en esta neurona: ${e?.message ?? String(e)}`);
+  }
+  try {
+    meshMod = await import("meshoptimizer");
+  } catch (e) {
+    throw new Error(`meshoptimizer no disponible en esta neurona para optimizar: ${e?.message ?? String(e)}`);
+  }
+
+  const { NodeIO } = coreMod;
+  const { weld, decimate, quantize, prune, textureResize } = functionsMod;
+  const { KHRMaterialsPBR, KHRTextureTransform, KHRMeshQuantization, KHRDracoMeshCompression } = extensionsMod;
+  const { encodeMesh } = meshMod;
 
   mkdirSync(outDir, { recursive: true });
 

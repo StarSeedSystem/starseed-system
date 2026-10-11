@@ -8,13 +8,13 @@ import { resolve } from "node:path";
 describe("G3D1011C · optimizar.mjs — funciones puras", () => {
   it("parseArgs extrae argumentos con guiones", async () => {
     // Importación dinámica para manejar la ausencia de dependencias con claridad.
-    let mod;
+    let mod: any;
     try {
       mod = await import("../../../../../servicios/taller-3d/optimizar.mjs");
-    } catch (e) {
+    } catch (e: any) {
       // Si las dependencias externas (@gltf-transform/core, meshoptimizer) no están
       // instaladas en esta neurona, no se simula éxito: se anota la causa exacta.
-      expect.fail(`No se pudo cargar optimizar.mjs por falta de dependencias: ${e.message}`);
+      expect.fail(`No se pudo cargar optimizar.mjs por falta de dependencias: ${e.message ?? String(e)}`);
     }
     const args = mod.parseArgs(["node", "script.mjs", "--entrada", "x.glb", "--plan", "p.json"]);
     expect(args.entrada).toBe("x.glb");
@@ -22,11 +22,11 @@ describe("G3D1011C · optimizar.mjs — funciones puras", () => {
   });
 
   it("escribirManifiesto y validarPesoMax funcionan sin red ni GPU", async () => {
-    let mod;
+    let mod: any;
     try {
       mod = await import("../../../../../servicios/taller-3d/optimizar.mjs");
-    } catch (e) {
-      expect.fail(`No se pudo cargar optimizar.mjs: ${e.message}`);
+    } catch (e: any) {
+      expect.fail(`No se pudo cargar optimizar.mjs: ${e.message ?? String(e)}`);
     }
     const tmp = resolve("/tmp", `starseed-test-g3d-${Date.now()}`);
     mkdirSync(tmp, { recursive: true });
@@ -42,11 +42,11 @@ describe("G3D1011C · optimizar.mjs — funciones puras", () => {
   });
 
   it("validarPesoMax lanza error si un nivel excede el límite", async () => {
-    let mod;
+    let mod: any;
     try {
       mod = await import("../../../../../servicios/taller-3d/optimizar.mjs");
-    } catch (e) {
-      expect.fail(`No se pudo cargar optimizar.mjs: ${e.message}`);
+    } catch (e: any) {
+      expect.fail(`No se pudo cargar optimizar.mjs: ${e.message ?? String(e)}`);
     }
     expect(() => mod.validarPesoMax([{ archivo: "a.glb", pesoMB: 8 }], 2)).toThrow("pesoMaxMB");
   });

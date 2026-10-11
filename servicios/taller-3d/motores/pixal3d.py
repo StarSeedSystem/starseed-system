@@ -12,6 +12,9 @@ from typing import Tuple, Dict, Any
 def disponible() -> Tuple[bool, str]:
     """
     Check if Pixal3D is available on this system.
+    Se conecta con el servicio taller-3d (optimizar.mjs) para aplicar
+    PlanOptimizacion (de src/lib/avatares/adn/optimizacion.ts) tras generar.
+    Servicio taller-3d completo (taller.py): pendiente en cola AV1011F.
     Returns (True, "") if available, (False, reason) otherwise.
     Checks:
       - NVIDIA GPU with at least 16 GB VRAM via nvidia-smi
@@ -218,6 +221,10 @@ def _get_procedencia() -> Dict[str, Any]:
     Return the provenance dictionary for Pixal3D.
     Based on the motor definition in motores.ts and the NOTICE.
     """
+    # Nota honesta: los datos del núcleo (planOptimizacion, resolucionPara, siguienteIntento,
+    # lodPara, capacidadesDe, planificar con prioridad, usoPermitido) viven en
+    # src/lib/avatares/adn/optimizacion.ts y canalizacion.ts; este motor genera y
+    # el servicio taller-3d (optimizar.mjs) aplica el plan.
     return {
         "herramienta": "pixal3d",
         "licencia": "MIT (código y pesos); terceros según su NOTICE",
