@@ -118,7 +118,8 @@ class PublicacionConSupabaseFalso(unittest.TestCase):
                  mock.patch.object(D, "ESTADO", estado), \
                  mock.patch.object(D, "_credenciales", return_value=(
                      "https://proyecto.supabase.co", "clave-falsa")), \
-                 mock.patch.object(D.urllib.request, "urlopen", urlopen()):
+                 mock.patch.object(D.urllib.request, "urlopen", urlopen()), \
+                 mock.patch.dict(sys.modules, {"espejo_puerta": mock.Mock()}):
                 self.assertEqual(D.main(), 0)
                 self.assertEqual(peticiones[0][0], "POST")
                 self.assertIn("on_conflict=key", peticiones[0][1])
