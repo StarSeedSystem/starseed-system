@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261011",
+ "tareas": [
+  {
+   "id": "CAPC1011A",
+   "ola": "Ola 1011K · Capacidad: ceder CADENAS enteras a la nube y al A1",
+   "titulo": "repartir_nube: ceder una cadena completa (tarea esperada + sus dependientes de la tanda) en vez de dejarla en la Mac",
+   "importancia": "capacidad",
+   "archivos": [
+    "scripts/puente/repartir_nube.py",
+    "scripts/puente/test_repartir_nube.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-11 a las 13:55 (hora de la Mac): la tanda viva de la Mac (`cola-auto-1009-233520.json`, 193 tareas) tenía 40 listas; la Mac trabaja 2-3 a la vez (8 GB) y se quedaba 32, porque `cedibles_de_la_tanda` (scripts/puente/repartir_nube.py) solo cede las listas que NINGUNA otra tarea espera (`esperadas`). Resultado: el A1 de Oracle («no hay atraso que pueda ir al A1») y GitHub Actions (tope 6 jobs) parados con 26 tareas listas esperando turno en la Mac. La regla existe por una razón real: si se cede una tarea de la que dependen otras que se quedan en la Mac, el orquestador de la Mac la marca `reasignada` (terminada sin commit) y sus dependientes quedan varados.\n\nLo que hay que hacer, SOLO en repartir_nube.py (sin tocar el orquestador):\n1. Nueva función PURA `cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por, rondas=RONDAS_RESERVA_MAC, max_cadena=4)`: `esperadas_por` es un dict id → ids que la esperan (dependientes directos dentro de la tanda). Para cada lista que está más allá de la reserva de la Mac (`tope_mac × rondas`) y SÍ es esperada, construye su cadena = ella + todos sus dependientes transitivos que estén en la tanda. La cadena es cedible solo si: (a) tiene como mucho `max_cadena` tareas, (b) ningún miembro depende de algo que no esté ya hecho o dentro de la misma cadena, (c) ningún miembro es esperado por una tarea de fuera de la cadena, (d) ningún miembro está en la reserva de la Mac. Devuelve la lista de cadenas (listas de ids en orden de dependencias). Determinista: mismo orden que `listas_mac`.\n2. `elegir` debe aceptar que una tarea dependa de otra de SU MISMA cadena/tanda de reparto: hoy `motivo_fuera` la descarta como «espera». Añade un parámetro opcional `mismo_lote=()` (ids que viajan juntos) y trata como cumplida una dependencia que esté en `mismo_lote`; en ese caso NO se vacía `depende` (el orquestador de la nube o del A1 tiene que respetar el orden dentro del lote) y no se añade a `dependencias_ya_en_main`.\n3. Pruebas en test_repartir_nube.py (unittest, sin red ni disco): cadena A→B cedida entera; cadena con un dependiente fuera que se queda en la Mac → no se cede; cadena más larga que max_cadena → no se cede; la reserva de la Mac nunca se cede; `elegir` con mismo_lote deja pasar B (depende de A) y conserva `depende=['A']`; sin mismo_lote el comportamiento de hoy no cambia (las pruebas actuales siguen en verde).\n\nNO cablees todavía la función en buscar_capacidad.py ni en el orquestador: el cableado lo revisa Claude después de ver las pruebas. Mantén cada función por debajo de 60 líneas, comentarios en español con el porqué y la medida de arriba. Comprueba con `python3 -m unittest scripts/puente/test_repartir_nube.py`."
+  }
+ ]
+}
