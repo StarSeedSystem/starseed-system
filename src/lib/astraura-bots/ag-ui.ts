@@ -122,43 +122,43 @@ export const reducirEventos = (estado: EstadoAgUi | undefined, evento: unknown):
         contadorEventosDesconocidos: estadoActual.contadorEventosDesconocidos + 1,
       };
 
-    case 'TOOL_CALL_ARGS':
-      if (typeof payload === 'object' && payload !== null && 'toolCallId' in payload && typeof payload.toolCallId === 'string' && 'args' in payload && typeof payload.args === 'string') {
-        const toolCallId = payload.toolCallId;
-        const argsChunk = payload.args;
-        const currentCall = estadoActual.llamadas[toolCallId];
-        if (!currentCall) {
-          // No START event, ignore
-          return estadoActual;
-        }
-        const newArgs = currentCall.args + argsChunk;
-        const newArgsLength = newArgs.length;
-        // Calculate new total arguments length: we need to subtract the old args length and add the new one
-        const oldArgsLength = currentCall.args.length;
-        const newTotalArgsLength = estadoActual.argumentosTotalLength - oldArgsLength + newArgsLength;
+     case 'TOOL_CALL_ARGS':
+       if (typeof payload === 'object' && payload !== null && 'toolCallId' in payload && typeof payload.toolCallId === 'string' && 'args' in payload && typeof payload.args === 'string') {
+         const toolCallId = payload.toolCallId;
+         const argsChunk = payload.args;
+         const currentCall = estadoActual.llamadas[toolCallId];
+         if (!currentCall) {
+           // No START event, ignore
+           return estadoActual;
+         }
+         const newArgs = currentCall.args + argsChunk;
+         const newArgsLength = newArgs.length;
+         // Calculate new total arguments length: we need to subtract the old args length and add the new one
+         const oldArgsLength = currentCall.args.length;
+         const newTotalArgsLength = estadoActual.argumentosTotalLength - oldArgsLength + newArgsLength;
 
-        // Check arguments limit: 20000 characters total across all tool calls
-        if (newTotalArgsLength > 20000) {
-          // Ignore this args chunk
-          return estadoActual;
-        }
+         // Check arguments limit: 20000 characters total across all tool calls
+         if (newTotalArgsLength > 20000) {
+           // Ignore this args chunk
+           return estadoActual;
+         }
 
-        return {
-          ...estadoActual,
-          llamadas: {
-            ...estadoActual.llamadas,
-            [toolCallId]: {
-              ...currentCall,
-              args: newArgs,
-            },
-          },
-          argumentosTotalLength: newTotalArgsLength,
-        };
-      }
-      return {
-        ...estadoActual,
-        contadorEventosDesconocidos: estadoActual.contadorEventosDesconocidos + 1,
-      };
+         return {
+           ...estadoActual,
+           llamadas: {
+             ...estadoActual.llamadas,
+             [toolCallId]: {
+               ...currentCall,
+               args: newArgs,
+             },
+           },
+           argumentosTotalLength: newTotalArgsLength,
+         };
+       }
+       return {
+         ...estadoActual,
+         contadorEventosDesconocidos: estadoActual.contadorEventosDesconocidos + 1,
+       };
 
     case 'TOOL_CALL_END':
       if (typeof payload === 'object' && payload !== null && 'toolCallId' in payload && typeof payload.toolCallId === 'string') {
@@ -344,8 +344,12 @@ export const llamadasComoPropuestas = (estado: EstadoAgUi): { acciones: TipoAcci
     let input: unknown;
     try {
       input = JSON.parse(llamada.args);
-    } catch (e) {
-      problemas.push(`Error al parsear argumentos de la herramienta ${llamada.name}: ${e.message}`);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        problemas.push(`Error al parsear argumentos de la herramienta ${llamada.name}: ${e.message}`);
+      } else {
+        problemas.push(`Error al parsear argumentos de la herramienta ${llamada.name}: ${String(e)}`);
+      }
       continue;
     }
 
@@ -363,8 +367,12 @@ export const llamadasComoPropuestas = (estado: EstadoAgUi): { acciones: TipoAcci
       } else {
         problemas.push(`Herramienta no disponible para invitados: ${llamada.name}`);
       }
-    } catch (e) {
-      problemas.push(`Error al validar la acción ${llamada.name}: ${e.message}`);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        problemas.push(`Error al validar la acción ${llamada.name}: ${e.message}`);
+      } else {
+        problemas.push(`Error al validar la acción ${llamada.name}: ${String(e)}`);
+      }
     }
   }
 

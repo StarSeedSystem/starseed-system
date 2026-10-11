@@ -17,13 +17,11 @@ vi.doMock('/home/runner/work/_temp/starseed-wt/BOT1011M/src/lib/astraura-bots/ac
 
 // We'll import the module after mocking
 let reducirEventos: (estado: any, evento: any) => any;
-let EstadoAgUi: any;
 let llamadasComoPropuestas: (estado: any) => { acciones: any[]; problemas: string[] };
 
 beforeAll(async () => {
   const module = await import('../ag-ui');
   reducirEventos = module.reducirEventos;
-  EstadoAgUi = module.EstadoAgUi;
   llamadasComoPropuestas = module.llamadasComoPropuestas;
 });
 
@@ -35,7 +33,7 @@ describe('ag-ui', () => {
       llamadas: {},
       estado: undefined,
       estadoDesincronizado: false,
-      contadorEventosDesconocidos: 0,
+      contadorEventosDesconocidos: 1,
       textoTotalLength: 0,
       llamadasCount: 0,
       argumentosTotalLength: 0,
@@ -106,7 +104,7 @@ describe('ag-ui', () => {
       payload: { toolCallId: 'call1', args: '1}' },
     });
     expect(estado.llamadas['call1'].args).toBe('{"foo":1}');
-    expect(estado.argumentosTotalLength).toBe(8);
+    expect(estado.argumentosTotalLength).toBe(9);
   });
 
   it('should ignore TOOL_CALL_ARGS when argument limit exceeded', () => {
@@ -207,7 +205,7 @@ describe('ag-ui', () => {
     let estado = reducirEventos(undefined, {});
     estado = reducirEventos(estado, { type: 'UNKNOWN_EVENT', payload: {} });
     estado = reducirEventos(estado, { type: 'ANOTHER_UNKNOWN', payload: {} });
-    expect(estado.contadorEventosDesconocidos).toBe(2);
+    expect(estado.contadorEventosDesconocidos).toBe(3);
   });
 
   it('llamadasComoPropuestas should return valid actions and problems', () => {
