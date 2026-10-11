@@ -32,14 +32,7 @@ vi.mock("node:child_process", () => ({
             const key = args.join(" ");
             if (key === "-axo args=") cb(null, { stdout: ctx.psSalidaArgs, stderr: "" });
             if (key === "-axo pid=,stat=,comm=") {
-                if (ctx.psSalidaPidStatComm.includes("49217 T")) {
-                    cb(null, {
-                        stdout: "49217 T /home/runner/.llama/server/llama-server\n12345 S /home/runner/.llama/server/llama-server\n67890 T /home/runner/.tts/tts-server\n11111 S /home/runner/.tts/tts-server",
-                        stderr: ""
-                    });
-                } else {
-                    cb(null, { stdout: "", stderr: "" });
-                }
+                cb(null, { stdout: ctx.psSalidaPidStatComm || "", stderr: "" });
             }
         } else cb(null, { stdout: "", stderr: "" });
     },
@@ -190,7 +183,7 @@ describe("aliviarMemoria (integral)", () => {
         expect(r.pasos.some((p) => p.que === "Ceder el pool de voz del demonio")).toBe(true);
         expect(r.pasos.some((p) => p.que === "Terminar motores parados por el guardia")).toBe(false);
     });
-    it("llama a dormir el BitNet y cede la voz; detecta motores parados, no los termina", async () => {
+it("llama a dormir el BitNet y cede la voz; detecta motores parados, no los termina", async () => {
         configurarPsPidStatComm("49217 T /home/runner/.llama/server/llama-server\n" +
                                "67890 T /home/runner/.tts/tts-server");
         const r = await aliviarMemoria();

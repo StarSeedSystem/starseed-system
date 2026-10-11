@@ -269,27 +269,11 @@ export async function detectarDrive(): Promise<EstadoAlmacenamiento["drive"]> {
         const unidad = entradas.find((e) => e.startsWith("GoogleDrive-") && !e.includes("("));
         if (!unidad) return vacio;
         const ruta = path.join(base, unidad);
-
-        let psSalida = "";
-        try {
-            const { stdout } = await execFileAsync("ps", ["-axo", "args="], { timeout: 3000 });
-            psSalida = stdout;
-        } catch {
-            // ps falló: asumimos que no corre.
-        }
-        if (!driveCorriendo(psSalida)) {
+        const psSalida = await execFileAsync("ps", ["-axo", "args="], { timeout: 3000 }).catch(() => ({ stdout: "" }));
+        if (!driveCorriendo(psSalida.stdout)) {
             return { montado: false, ruta: rutaVisible(ruta), espejo: null, motivo: "La app Google Drive no está abierta" };
         }
 
-        let psArgsSalida = "";
-        try {
-            const { stdout } = await execFileAsync("ps", ["-axo", "args="], { timeout: 3000 });
-            psArgsSalida = stdout;
-        } catch {
-            // ps falló: asumimos que no corre.
-        }
-        const driveCorre = driveCorriendo(psArgsSalida);
-        if (!driveCorre) return { montado: false, ruta: rutaVisible(ruta), espejo: null, motivo: "La app Google Drive no está abierta" };
         const espejo = path.join(ruta, "My Drive", "StarSeed_Memory_Root", `neurona-${os.hostname()}`);
         try {
             await stat(espejo);
