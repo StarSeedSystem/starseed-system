@@ -8,7 +8,6 @@ import type {
   Cambio,
   ParametroRef,
   Parametro,
-  Historial,
   AtomoEnUso,
   Rol,
   Sesion,
@@ -18,7 +17,7 @@ import type {
 import { decidir, decidirOperacion } from "./permisos";
 import { obtenerAtomo, candidatosDe } from "./registro-atomos";
 import { entenderVarias } from "./dictado";
-import { aplicarOperacion, deshacerUltimo, rehacerUltimo, registrar } from "./parametros";
+import { aplicarOperacion, deshacerUltimo, rehacerUltimo, registrar, type Historial } from "./parametros";
 
 export interface Pendiente {
   operacion: Operacion;
@@ -50,7 +49,7 @@ export interface Controlador {
   rechazar(opId: string): { ok: true } | { ok: false; motivo: string };
   deshacer(autorId: string): { ok: true; cambio: Cambio } | { ok: false; motivo: string };
   rehacer(autorId: string): { ok: true; cambio: Cambio } | { ok: false; motivo: string };
-  anadirAtomo(herramientaId: string, titulo?: string): { ok: true; atomo: AtomoEnUso } | { ok: false; motivo: string };
+  anadirAtomo(herramientaId: string, titulo?: string, origen?: Origen): { ok: true; atomo: AtomoEnUso } | { ok: false; motivo: string };
 }
 
 function crearEstadoInicial(m: Molecula): EstadoControl {
