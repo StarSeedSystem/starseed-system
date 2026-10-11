@@ -34,45 +34,46 @@ export function disposicionOrbes(
     i === priIdx ? o.pos ?? { xRatio: 0.9, yRatio: 0.88 } : o.pos ?? null
   );
 
-  // final positions
-  const finPos: PosOrbe[] = [];
-  for (let i = 0; i < abiertos.length; i++) {
-    if (initPos[i] !== null) {
-      finPos[i] = initPos[i];
-    } else {
-      const priPos = finPos[priIdx];
-      if (!priPos) {
-        finPos[i] = { xRatio: 0.5, yRatio: 0.5 };
-        continue;
-      }
-      const priPix = aPix(priPos.xRatio, priPos.yRatio);
-      let placed = false;
-      for (let attempt = 0; attempt < 100 && !placed; attempt++) {
-        const angle = (attempt % 12) * (Math.PI / 6);
-        const radius = minDist + Math.floor(attempt / 12) * 5;
-        const candPix = {
-          x: priPix.x + radius * Math.cos(angle),
-          y: priPix.y + radius * Math.sin(angle),
-        };
-        const cand: PosOrbe = {
-          xRatio: candPix.x / ancho,
-          yRatio: candPix.y / alto,
-        };
-        if (!enMargen(cand)) continue;
-        let overlap = false;
-        for (let j = 0; j < i; j++) {
-          if (seSolapan(cand, finPos[j])) {
-            overlap = true;
-            break;
-          }
-        }
-        if (overlap) continue;
-        finPos[i] = cand;
-        placed = true;
-      }
-      if (!placed) finPos[i] = { xRatio: 0.5, yRatio: 0.5 };
-    }
-  }
+   // final positions
+   const finPos: PosOrbe[] = [];
+   for (let i = 0; i < abiertos.length; i++) {
+     const pos = initPos[i];
+     if (pos !== null) {
+       finPos[i] = pos;
+     } else {
+       const priPos = finPos[priIdx];
+       if (!priPos) {
+         finPos[i] = { xRatio: 0.5, yRatio: 0.5 };
+         continue;
+       }
+       const priPix = aPix(priPos.xRatio, priPos.yRatio);
+       let placed = false;
+       for (let attempt = 0; attempt < 100 && !placed; attempt++) {
+         const angle = (attempt % 12) * (Math.PI / 6);
+         const radius = minDist + Math.floor(attempt / 12) * 5;
+         const candPix = {
+           x: priPix.x + radius * Math.cos(angle),
+           y: priPix.y + radius * Math.sin(angle),
+         };
+         const cand: PosOrbe = {
+           xRatio: candPix.x / ancho,
+           yRatio: candPix.y / alto,
+         };
+         if (!enMargen(cand)) continue;
+         let overlap = false;
+         for (let j = 0; j < i; j++) {
+           if (seSolapan(cand, finPos[j])) {
+             overlap = true;
+             break;
+           }
+         }
+         if (overlap) continue;
+         finPos[i] = cand;
+         placed = true;
+       }
+       if (!placed) finPos[i] = { xRatio: 0.5, yRatio: 0.5 };
+     }
+   }
 
   // adjust positions
   for (let i = 0; i < finPos.length; i++) {

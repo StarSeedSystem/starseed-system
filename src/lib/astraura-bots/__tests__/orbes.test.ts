@@ -8,6 +8,13 @@ import {
   ordenZ,
 } from "../orbes";
 
+// Augment Vitest's Expect interface to include our custom matcher
+declare module "vitest" {
+  interface Assertion<T> {
+    toCloseToObject(expected: Partial<T>): void;
+  }
+}
+
 describe("disposicionOrbes", () => {
   const vistaAncho = 360;
   const vistaAlto = 640;
