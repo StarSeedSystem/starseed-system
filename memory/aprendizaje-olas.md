@@ -4303,3 +4303,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-EV-AUDIOMORPHIC-APP` — no escribió nada
 - `S1010-ES2` — no escribió nada
+
+## 2026-10-11 06:45 · mg-oracle-1010-2254
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (S1010-ES2, WT1011B, WT1011A). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-ES2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `WT1011B` — otra cosa: ningún proveedor respondió (todos caídos)
+- `WT1011A` — otra cosa: ningún proveedor respondió (todos caídos)
