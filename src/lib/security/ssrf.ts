@@ -508,3 +508,12 @@ export async function safeFetch(initialUrl: URL, init: SafeFetchInit = {}): Prom
     currentUrl = nextUrl;
   }
 }
+
+// Conexión con AG-UI (BOT1011M): el proxy de integraciones valida propuestas de bots invitados.
+import { reducirEventos, llamadasComoPropuestas, ESTADO_AG_UI_VACIO, EstadoAgUi } from "@/lib/astraura-bots/ag-ui";
+
+export function validarPropuestasAgUi(evento: unknown, estado?: EstadoAgUi): { acciones: import("@/lib/astraura-bots/acciones").AccionBot[]; problemas: string[]; nuevoEstado: EstadoAgUi } {
+  const s = reducirEventos(estado ?? ESTADO_AG_UI_VACIO, evento);
+  const p = llamadasComoPropuestas(s);
+  return { acciones: p.acciones, problemas: p.problemas, nuevoEstado: s };
+}
