@@ -37,6 +37,8 @@ export interface PeticionPlan {
   permitirDePago: boolean;
   /** Mejorar detalle es opcional: nunca bloquea. */
   detallar?: boolean;
+  /** «calidad» elige el de más fidelidad; «rapidez» (por defecto) el más rápido. Lo fija el destino (`optimizacion.ts`). */
+  prioridad?: "calidad" | "rapidez";
 }
 
 export interface PasoPlan { etapa: Etapa; motor: Motor3D | null; saltada: boolean; motivo: string; descartes: string[] }
@@ -64,6 +66,12 @@ function saltar(etapa: Etapa, p: PeticionPlan): string | null {
   return null;
 }
 
+/** Calidad: más fidelidad y, a igualdad, más rápido. Rapidez: más rápido y, a igualdad, más fidelidad. */
+function orden(a: Motor3D, b: Motor3D, prioridad: "calidad" | "rapidez"): number {
+  const fid = (b.fidelidad ?? 0) - (a.fidelidad ?? 0), min = (a.minutosAprox ?? 99) - (b.minutosAprox ?? 99);
+  return prioridad === "calidad" ? fid || min : min || fid;
+}
+
 export function procedenciaDe(m: Motor3D): Procedencia {
   const out: Procedencia = { herramienta: m.id, licencia: m.licencia, uso: m.uso };
   if (m.atribucion) out.atribucion = m.atribucion;
@@ -82,8 +90,8 @@ export function planificar(p: PeticionPlan, motores: readonly Motor3D[] = MOTORE
       const d = motivoDescarte(m, p);
       if (d) descartes.push(d);
       return d === null;
-    }).sort((a, b) => PREFERENCIA[a.uso] - PREFERENCIA[b.uso] || (a.estado === "de-pago" ? 1 : 0) - (b.estado === "de-pago" ? 1 : 0)
-      || (a.minutosAprox ?? 99) - (b.minutosAprox ?? 99));
+    }).sort((a, b) => PREFERENCIA[a.uso] - PREFERENCIA[b.uso] || Number(a.remoto ?? false) - Number(b.remoto ?? false)
+      || Number(a.estado === "de-pago") - Number(b.estado === "de-pago") || orden(a, b, p.prioridad ?? "rapidez"));
     const motor = validos[0] ?? null;
     pasos.push({ etapa, motor, saltada: false, motivo: motor ? `${motor.nombre}.` : "Ningún motor disponible en esta neurona.", descartes });
   }

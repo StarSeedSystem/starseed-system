@@ -12,7 +12,8 @@ import type { Esqueleto, UsoLicencia } from "./adn";
 export const ETAPAS = ["generar", "remallar", "riggear", "detallar", "animar"] as const;
 export type Etapa = (typeof ETAPAS)[number];
 
-export const REQUISITOS_3D = ["navegador", "cpu", "blender", "apple-silicon-32gb", "cuda-8gb", "cuda-16gb", "clave-externa"] as const;
+/** `espacio-hf` = un Space público de Hugging Face con GPU gratis (cuota diaria): NO es local, la imagen sale de tu aparato. */
+export const REQUISITOS_3D = ["navegador", "cpu", "blender", "apple-silicon-32gb", "cuda-8gb", "cuda-16gb", "clave-externa", "espacio-hf"] as const;
 export type Requisito3D = (typeof REQUISITOS_3D)[number];
 
 /** listo = se puede instalar y usar hoy; pesos-sin-codigo = falta publicar la inferencia; solo-articulo = sin código. */
@@ -31,6 +32,10 @@ export interface Motor3D {
   /** Solo en «animar»: esqueletos que sabe mover. */
   esqueletos?: readonly Esqueleto[];
   minutosAprox?: number;
+  /** 1 … 5, orientativa (lo que dicen sus autores y image-to-3dlab); el taller la corrige con sus mediciones. */
+  fidelidad?: number;
+  /** Corre fuera de la neurona (servicio o Space): solo con permiso y siempre detrás de lo local. */
+  remoto?: boolean;
   fuente: string;
   nota?: string;
 }
@@ -43,32 +48,45 @@ export const MOTORES_3D: readonly Motor3D[] = [
   {
     id: "hunyuan3d-mlx", etapa: "generar", nombre: "Hunyuan3D 2 en MLX (vía image-to-3dlab)", necesita: ["apple-silicon-32gb"],
     estado: "listo", licencia: "MIT (código) · Tencent Hunyuan Community (pesos)", uso: "restringido-region",
-    regionesExcluidas: ["EU", "GB", "KR"], minutosAprox: 9, fuente: "https://github.com/Bingeljell/image-to-3dlab",
+    regionesExcluidas: ["EU", "GB", "KR"], minutosAprox: 9, fidelidad: 3, fuente: "https://github.com/Bingeljell/image-to-3dlab",
     nota: "Los pesos de Tencent no tienen licencia para la UE, el Reino Unido ni Corea del Sur.",
   },
   {
     id: "trellis2", etapa: "generar", nombre: "TRELLIS.2 (Microsoft)", necesita: ["cuda-16gb", "apple-silicon-32gb"],
-    estado: "listo", licencia: "MIT + licencia de DINOv3", uso: "condicionado", minutosAprox: 14,
+    estado: "listo", licencia: "MIT + licencia de DINOv3", uso: "condicionado", minutosAprox: 14, fidelidad: 4,
     fuente: "https://github.com/Bingeljell/image-to-3dlab", nota: "En Mac M5 de 32 GB tarda 14–78 min; en NVIDIA mucho menos.",
   },
   {
     id: "stable-fast-3d", etapa: "generar", nombre: "Stable Fast 3D", necesita: ["apple-silicon-32gb", "cuda-8gb"],
-    estado: "listo", licencia: "Stability AI Community License", uso: "condicionado", minutosAprox: 1,
+    estado: "listo", licencia: "Stability AI Community License", uso: "condicionado", minutosAprox: 1, fidelidad: 2,
     fuente: "https://github.com/Bingeljell/image-to-3dlab", nota: "El más rápido y el de menos detalle; licencia con tope de ingresos.",
   },
   {
+    id: "pixal3d", etapa: "generar", nombre: "Pixal3D (Tencent ARC, píxeles alineados a 3D)", necesita: ["cuda-16gb"],
+    estado: "listo", licencia: "MIT (código y pesos); terceros según su NOTICE", uso: "condicionado", fidelidad: 5,
+    fuente: "https://github.com/TencentARC/Pixal3D",
+    nota: "SIGGRAPH 2026; GLB con texturas PBR. Solo NVIDIA (natten con CUDA), sin Mac. VRAM mínima no publicada: modo de poca VRAM a 1024 (normal 1536). Se apoya en TRELLIS.2 (DINOv3): uso comercial sin comprobar. Pesos ~46 GB con todas las variantes.",
+  },
+  {
+    id: "pixal3d-espacio", etapa: "generar", nombre: "Pixal3D en su Space de Hugging Face (GPU gratis con cuota)", necesita: ["espacio-hf"],
+    estado: "listo", licencia: "MIT (código y pesos); terceros según su NOTICE", uso: "condicionado", fidelidad: 5, remoto: true,
+    fuente: "https://huggingface.co/spaces/TencentARC/Pixal3D",
+    nota: "NO es local: la imagen sale a Hugging Face. Solo con permiso expreso, nunca con fotos de personas sin su consentimiento. Cuota diaria gratuita limitada (ZeroGPU A10G).",
+  },
+  {
     id: "filigree3d", etapa: "generar", nombre: "Filigree3D (ultra alta resolución)", necesita: ["cuda-16gb"],
-    estado: "solo-articulo", licencia: "sin publicar", uso: "condicionado", fuente: "https://arxiv.org/abs/2609.34900",
+    estado: "solo-articulo", licencia: "sin publicar", uso: "condicionado", fidelidad: 5, fuente: "https://arxiv.org/abs/2609.34900",
     nota: "Artículo del 2026-09-28 sin código ni pesos enlazados: la Biblioteca vigila su publicación.",
   },
   {
     id: "meshy", etapa: "generar", nombre: "Meshy (servicio)", necesita: ["clave-externa"], estado: "de-pago",
     licencia: "CC BY 4.0 en el plan gratis; privada en los de pago", uso: "atribucion", atribucion: "Modelo 3D generado con Meshy",
+    fidelidad: 4, remoto: true,
     fuente: "https://www.meshy.ai", nota: "100 créditos/mes gratis; el acceso por API no está confirmado en el plan gratis.",
   },
   {
     id: "tripo", etapa: "generar", nombre: "Tripo (servicio)", necesita: ["clave-externa"], estado: "de-pago",
-    licencia: "términos de Tripo", uso: "condicionado", fuente: "https://www.tripo3d.ai", nota: "Precios y licencia de salida sin comprobar.",
+    licencia: "términos de Tripo", uso: "condicionado", fidelidad: 3, remoto: true, fuente: "https://www.tripo3d.ai", nota: "Precios y licencia de salida sin comprobar.",
   },
   /* ── remallar (malla de IA caótica → topología limpia y ligera) ── */
   {

@@ -8,8 +8,8 @@ const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.re
 const leer = (n: string) => readFileSync(path.join(DIR, `${n}.ts`), "utf8");
 
 describe("núcleo puro de avatares 3D", () => {
-  it("están los siete módulos del contrato", () => {
-    expect(NUCLEO).toEqual(expect.arrayContaining(["adn", "cambios", "dictado", "motores", "canalizacion", "calidad", "permisos"]));
+  it("están los ocho módulos del contrato", () => {
+    expect(NUCLEO).toEqual(expect.arrayContaining(["adn", "cambios", "dictado", "motores", "canalizacion", "calidad", "permisos", "optimizacion"]));
   });
   it.each(NUCLEO)("%s.ts: ≤ 200 líneas", (n) => {
     expect(leer(n).split("\n").length).toBeLessThanOrEqual(200);

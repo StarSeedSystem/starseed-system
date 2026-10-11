@@ -1,6 +1,6 @@
 # Avatares 3D autopersonalizables · contrato (AV1011)
 
-> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/avatares/adn/` (7 módulos puros, 61 pruebas)
+> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/avatares/adn/` (8 módulos puros, 76 pruebas)
 > Relacionado: `architecture/astraura-bots.md` (la orbe ES el bot), `src/lib/avatares/movimiento/` (motor único de movimiento),
 > `src/lib/xr/calidad-perfiles.ts` (niveles de avatar en XR), Protomolécula (catálogo de herramientas).
 
@@ -17,6 +17,7 @@ Create, Smart Remesh, Filigree3D, BTC3D, Tripo, 3DAIStudio, Hitem3D, Meshy y Hi3
 | **UniMate** (Princeton, SIGGRAPH Asia 2026) | Texto → movimiento para **cualquier esqueleto** (bípedo, cuadrúpedo, ave, pez, insecto, serpiente, objeto articulado), en tiempo real, sin reentrenar por esqueleto. **No** crea ni edita avatares: anima los que ya tienen esqueleto. | Código MIT; **inferencia anunciada pero NO publicada**. Pesos en Hugging Face (`Linzhan/UniMate`, 2026-09-27, ~26 GB con todos los puntos de control, sin licencia declarada). | Motor del nivel «vivo» del movimiento para esqueletos **libres** (criaturas, bots no humanos). Vigía en la Biblioteca: el día que publiquen la inferencia, se crea sola la tarea de instalarlo. Hasta entonces nunca se elige (§4). |
 | **image-to-3dlab** | Imagen → modelo 3D con textura, **en local en Mac Apple Silicon** (32 GB recomendados), con un `.provenance.json` de licencias por resultado. Motores: Hunyuan3D-MLX, TRELLIS.2, Stable Fast 3D. | Funciona hoy. Hunyuan: pesos **sin licencia para la UE, Reino Unido y Corea del Sur**. TRELLIS.2: uso comercial condicionado (DINOv3). SF3D: licencia comunitaria de Stability (tope de ingresos). | Etapa «generar» del taller en neuronas Mac de 32 GB. Adoptamos su idea de **procedencia por resultado**: cada ADN lleva la suya (§2, §5). |
 | **Smart Remesh 3** | Complemento de Blender que limpia mallas de IA (cuadrículas uniformes, paneles duros). | **Cuesta 17 USD** (no es gratis), GPL, sin uso sin ventana documentado. | Opcional si Alex lo compra. Por defecto remallamos con **Instant Meshes** (BSD-3, el mismo motor que usa su modo orgánico) y **QuadriFlow de Blender** sin ventana. |
+| **Pixal3D** (Tencent ARC, SIGGRAPH 2026) | Imagen → modelo 3D con texturas PBR (GLB), llevando cada píxel a su sitio en 3D: el de más detalle de la lista. | Código y pesos **MIT** (Hugging Face `TencentARC/Pixal3D`, ~46 GB con todas las variantes). **Solo NVIDIA** (natten con CUDA), sin Mac; VRAM mínima no publicada, con modo de poca VRAM a 1024. Se apoya en TRELLIS.2 (DINOv3): uso comercial sin comprobar. Tiene un Space público con GPU gratis (ZeroGPU A10G, cuota diaria). | Generador de «calidad» del taller en neuronas NVIDIA; su Space solo como respaldo **remoto** con permiso expreso (§11). |
 | **Filigree3D** (arXiv 2609.34900) | Imagen → geometría a resolución 2048³ (hasta 4096³), ~1 min. | Solo artículo, sin código ni pesos enlazados. | Vigía en la Biblioteca. |
 | **BTC3D** (arXiv 2609.39709) | Mejora de detalle sin entrenar para generadores imagen→3D por difusión (teselas mezcladas). | Solo artículo, sin código enlazado. | Vigía; etapa opcional «detallar». |
 | **Meta Horizon Create** | Plataforma cerrada de Meta (AssetGen 2.0, mundos por texto). | Sin API pública ni pesos abiertos. El enlace de X no se pudo abrir. | Solo como referencia de experiencia (crear mundos y objetos hablando); ya lo cubren XR y Protomolécula. |
@@ -106,3 +107,25 @@ CC0 (como mucho 10 modelos y 30 MB) · K integración y verificación.
 - Comprar Smart Remesh (17 USD) o quedarnos con Instant Meshes + QuadriFlow (gratis).
 - Activar Meshy o Tripo (de pago; nada se activa sin su clave y su palabra).
 - Si alguna neurona con GPU NVIDIA se suma (para riggear con UniRig y, cuando salga, UniMate).
+
+## §11 · Generación 3D local optimizada por destino (`optimizacion.ts`) — Pixal3D + image-to-3dlab
+
+Pedido de Alex (2026-10-11): Pixal3D e image-to-3dlab para generar modelos 3D en local, optimizados con
+inteligencia para la Protomolécula y para los bots y avatares de perfiles y páginas.
+
+1. **Dónde corre cada uno** (`capacidadesDe`): Pixal3D y TRELLIS.2 en una neurona con NVIDIA de 16 GB o más;
+   image-to-3dlab (Hunyuan3D-MLX, TRELLIS.2, Stable Fast 3D) en una Mac Apple Silicon de 32 GB o más. **La Mac
+   actual de Alex (8 GB) y la A1 (sin GPU) no pueden generar**: allí el taller solo remalla, optimiza y sirve.
+   El trabajo va a la neurona que pueda (MetaGenesis reparte; nada de sondeos).
+2. **Destino** (`planOptimizacion`): Protomolécula = máxima fidelidad, original intacto para editar + vista
+   ligera; avatar = remallado orgánico apto para esqueleto y un LOD por nivel de avatar de XR (120k, 60k, 25k,
+   10k triángulos); bot = 20k → 2k; pieza = 8k → 1k. Todo lo que se ve en vivo va en meshopt y con atlas.
+3. **Motor** (`planificar` con `prioridad`): calidad → el de más fidelidad (Pixal3D › TRELLIS.2 › Hunyuan ›
+   SF3D); rapidez → el más rápido. Siempre: licencia más libre primero, **lo local antes que lo remoto**, lo
+   gratis antes que lo de pago.
+4. **Memoria** (`resolucionPara`, `siguienteIntento`): 1536 solo con 24 GB de VRAM; por debajo de 16 GB, modo
+   de poca memoria; si falla, se reintenta más ligero sin preguntar, y al final se dice que no cabe.
+5. **Remoto con permiso** (`espacio-hf`): el Space de Pixal3D es gratis pero la imagen SALE de tu aparato:
+   solo con permiso expreso y nunca con fotos de personas sin su consentimiento.
+
+Cola: `cola-generacion-3d-1011.json` (G3D1011A–F).
