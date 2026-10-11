@@ -1,0 +1,129 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { MODELOS_IMAGEN, memoriaNecesaria, modeloPorId } from "../modelos";
+import { cabe, planImagen, type NeuronaImg, type PeticionImagen } from "../plan";
+import { motoresPosibles, paqueteBase, type HierroImg } from "../sugerencias";
+
+const n = (o: Partial<NeuronaImg>): NeuronaImg => ({
+  id: "mac", capa: "dispositivo", gpu: "apple", vramGB: null, ramLibreGB: 6, motores: ["sdcpp"], instalados: [], ocupada: false, ...o,
+});
+const pet = (o: Partial<PeticionImagen> = {}): PeticionImagen => ({
+  opciones: 4, prioridad: "calidad", comercial: false, necesita: ["texto-a-imagen"], conReferencia: false, permisoRemoto: false, permitirDePago: false, ...o,
+});
+const M = (id: string) => modeloPorId(id)!;
+const MAC8: HierroImg = { so: "macos", gpu: "apple", vramGB: null, ramGB: 6, webgpu: true };
+const A1: HierroImg = { so: "linux", gpu: "ninguna", vramGB: null, ramGB: 20, webgpu: false };
+const PC24: HierroImg = { so: "linux", gpu: "nvidia", vramGB: 24, ramGB: 32, webgpu: true };
+
+describe("catálogo verificado", () => {
+  it("ids únicos y todos los modelos que pidió Alex", () => {
+    const ids = MODELOS_IMAGEN.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ["sd15", "sana-1600m", "pixart-sigma", "sdxl", "sd35-medium", "sd35-large", "flux1-dev", "flux1-schnell", "qwen-image", "qwen-image-2.1", "krea-2-turbo"]) {
+      expect(ids).toContain(id);
+    }
+  });
+  it("licencias honestas: Qwen-Image 2.1, Krea 2 y FLUX.1 dev no son comerciales; FLUX schnell y Qwen-Image sí", () => {
+    expect(M("qwen-image-2.1").uso).toBe("no-comercial");
+    expect(M("krea-2-turbo").uso).toBe("no-comercial");
+    expect(M("flux1-dev").uso).toBe("no-comercial");
+    expect(M("flux1-schnell").uso).toBe("libre");
+    expect(M("qwen-image").uso).toBe("libre");
+  });
+  it("la medida real del instalador manda sobre la orientativa", () => {
+    expect(memoriaNecesaria(M("sdxl"), "gpu")).toBe(8);
+    expect(memoriaNecesaria(M("sdxl"), "gpu", 6.3)).toBe(6.3);
+  });
+});
+
+describe("cabe", () => {
+  it("Mac de 8 GB: SD-Turbo y SD 1.5 sí; SDXL solo a 4 bits; FLUX no", () => {
+    const mac = n({});
+    expect(cabe(M("sd15"), mac).ok).toBe(true);
+    expect(cabe(M("sdxl"), mac).cuantizacion).toBe("q4");
+    expect(cabe(M("flux1-schnell"), mac).ok).toBe(false);
+  });
+  it("Sana necesita Diffusers: no corre con stable-diffusion.cpp", () => {
+    expect(cabe(M("sana-1600m"), n({ ramLibreGB: 64 })).ok).toBe(false);
+    expect(cabe(M("sana-1600m"), n({ gpu: "nvidia", vramGB: 8, motores: ["diffusers"] })).ok).toBe(true);
+  });
+  it("NVIDIA: nativo si cabe; si no, cuantizado con stable-diffusion.cpp", () => {
+    expect(cabe(M("flux1-schnell"), n({ gpu: "nvidia", vramGB: 12, motores: ["comfyui", "sdcpp"] })).cuantizacion).toBe("nativa");
+    expect(cabe(M("flux1-schnell"), n({ gpu: "nvidia", vramGB: 8, ramLibreGB: 4, motores: ["comfyui", "sdcpp"] })).cuantizacion).toBe("q8");
+    expect(cabe(M("qwen-image"), n({ gpu: "nvidia", vramGB: 8, ramLibreGB: 4, motores: ["comfyui"] })).ok).toBe(false);
+  });
+});
+
+describe("planImagen", () => {
+  const mac = n({ instalados: ["sd-turbo", "sd15"] });
+  const pc = n({ id: "pc", capa: "neurona", gpu: "nvidia", vramGB: 24, ramLibreGB: 32, motores: ["sdcpp", "comfyui"], instalados: ["qwen-image", "flux1-schnell", "flux1-dev"] });
+  it("varias opciones con variedad de modelos, de lo cercano a lo lejano, con semillas seguidas", () => {
+    const p = planImagen(pet(), [pc, mac], 100);
+    expect(p.opciones).toHaveLength(4);
+    expect(p.opciones[0].capa).toBe("dispositivo");
+    expect(new Set(p.opciones.map((o) => o.modelo?.id)).size).toBe(4);
+    expect(p.opciones.map((o) => o.semilla)).toEqual([100, 101, 102, 103]);
+  });
+  it("uso comercial: fuera FLUX dev, Qwen-Image 2.1 y Krea 2, y lo dice", () => {
+    const p = planImagen(pet({ comercial: true }), [pc], 1);
+    expect(p.opciones.some((o) => o.modelo?.id === "flux1-dev")).toBe(false);
+    expect(p.descartes.join(" ")).toMatch(/FLUX.1 \[dev\].*uso comercial/);
+  });
+  it("con imagen de referencia nada sale de tus neuronas sin permiso", () => {
+    const p = planImagen(pet({ conReferencia: true, necesita: ["texto-a-imagen"] }), [mac], 1);
+    expect(p.opciones.every((o) => o.capa !== "web-gratis")).toBe(true);
+    expect(p.descartes.join(" ")).toMatch(/hace falta tu permiso/);
+  });
+  it("sin nada instalado queda la web gratis (solo texto) y se completa con semillas", () => {
+    const p = planImagen(pet({ opciones: 3 }), [n({})], 7);
+    expect(p.opciones.map((o) => o.capa)).toEqual(["web-gratis", "web-gratis", "web-gratis"]);
+  });
+  it("pide edición y transparencia: solo Qwen-Image 2.1 puede", () => {
+    const pc21 = { ...pc, instalados: ["qwen-image-2.1", "qwen-image"] };
+    const p = planImagen(pet({ necesita: ["edicion", "transparencia"], opciones: 2 }), [pc21], 1);
+    expect(new Set(p.opciones.map((o) => o.modelo?.id))).toEqual(new Set(["qwen-image-2.1"]));
+  });
+  it("una neurona ocupada no recibe trabajo", () => {
+    const p = planImagen(pet({ opciones: 1 }), [{ ...pc, ocupada: true }], 1);
+    expect(p.opciones[0].capa).toBe("web-gratis");
+  });
+});
+
+describe("paquete base sugerido", () => {
+  it("Mac de 8 GB: SD-Turbo rápido y SDXL a 4 bits; nada de texto legible", () => {
+    const s = paqueteBase(MAC8, { comercial: false });
+    expect(s.instalar.map((x) => [x.papel, x.modelo.id, x.cuantizacion])).toEqual([["rapido", "sd-turbo", "q8"], ["calidad", "sdxl", "q4"]]);
+  });
+  it("A1 sin GPU: nada de gama alta; FLUX schnell, SDXL y SD 3.5 Medium, avisando del gate", () => {
+    const s = paqueteBase(A1, { comercial: false });
+    expect(s.instalar.map((x) => x.modelo.id)).toEqual(["flux1-schnell", "sdxl", "sd35-medium"]);
+    expect(s.instalar.every((x) => x.modelo.gama !== "alta")).toBe(true);
+    expect(s.instalar[0].porQue).toMatch(/Hugging Face/);
+  });
+  it("PC con NVIDIA de 24 GB: Qwen-Image para calidad; lo que ya ofrece la malla no se repite", () => {
+    const s = paqueteBase(PC24, { comercial: false });
+    expect(s.instalar.find((x) => x.papel === "calidad")?.modelo.id).toBe("qwen-image");
+    const m = paqueteBase(PC24, { comercial: false, enLaMalla: ["qwen-image"] });
+    expect(m.desdeLaMalla.join(" ")).toMatch(/Qwen-Image/);
+  });
+  it("iPhone sin WebGPU: no cabe nada local y se dice", () => {
+    const s = paqueteBase({ so: "ios", gpu: "apple", vramGB: null, ramGB: 6, webgpu: false }, { comercial: false });
+    expect(s.instalar).toEqual([]);
+    expect(s.nada).toMatch(/malla/);
+    expect(motoresPosibles({ so: "ios", gpu: "apple", vramGB: null, ramGB: 6, webgpu: true })).toEqual(["onnx-web"]);
+  });
+});
+
+describe("núcleo puro", () => {
+  const DIR = path.join(__dirname, "..");
+  const archivos = readdirSync(DIR).filter((f) => f.endsWith(".ts"));
+  it.each(archivos)("%s: ≤ 200 líneas, sin red, DOM, reloj ni aleatorio", (f) => {
+    const src = readFileSync(path.join(DIR, f), "utf8");
+    expect(src.split("\n").length).toBeLessThanOrEqual(200);
+    const codigo = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(codigo).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|localStorage|document|window|navigator)\b\s*[.(]/);
+    expect(codigo).not.toMatch(/\b(Date\.now|performance\.now|Math\.random|new Date)\b/);
+    expect(codigo).not.toMatch(/from ["'](react|next|node:)/);
+  });
+});
