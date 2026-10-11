@@ -61,6 +61,8 @@ import {
     Settings2,
 } from "lucide-react";
 
+import { EnlacePoliGenesis } from "@/components/genesis/enlace-poligenesis";
+
 const GOLD = "#E9C46A";
 
 function onImgError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
@@ -663,8 +665,9 @@ function GrupoPageContent() {
                                     Personalizar
                                 </Button>
                             )}
-                            <ShareButton title={groupName} accent={accent} />
-                        </div>
+<ShareButton title={groupName} accent={accent} />
+                             <EnlacePoliGenesis slug={slug} entidadId={group?.slug} />
+                         </div>
                     </div>
                 </div>
             </GlassCard>
