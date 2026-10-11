@@ -28,6 +28,7 @@ import {
   ExternalLink, PanelRightOpen, Copy, Check, Download, AlertTriangle, Binary,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Marco, EstadoLimite, EntradaPuente, crearToken, procesarMensaje, mensajeParaMarco, destinoDe } from "@/lib/protomolecula/puente-herramientas";
 import {
   CODE_RUNTIME_EVENT, CODE_SIZE_PX, buildSandboxDoc, detectRunnable, directivesFor, extensionFor,
   isRuntimeMessage, readCodeRuntimePrefs, type CodeSize, type CodeViewMode, type ConsoleEntry,
