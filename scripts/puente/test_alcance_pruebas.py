@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from alcance_pruebas import BASE, es_prueba, orden_vitest, pruebas_a_sumar
+from alcance_pruebas import BASE, GUARDAS_CLIENTE, es_prueba, orden_vitest, pruebas_a_sumar, toca_la_app
 
 
 def existe_de(conjunto):
@@ -79,6 +79,34 @@ class TestPruebasASumar(unittest.TestCase):
     def test_aguanta_lineas_vacias_y_none(self):
         self.assertEqual(pruebas_a_sumar(["", "  ", None], existe_de(set())), [])
         self.assertEqual(pruebas_a_sumar(None, existe_de(set())), [])
+
+
+class TestGuardasDelNavegador(unittest.TestCase):
+    """El caso de S1010-MGR3b (2026-10-11): un componente de cliente con un import de valor
+    a un módulo con node:child_process entró con tsc y sus pruebas en verde."""
+
+    def test_el_caso_de_mgr3b_corre_las_guardas(self):
+        cambiadas = [
+            "src/lib/mando/tunel-metagenesis-estado.ts",
+            "src/app/api/mando/tunel-metagenesis/route.ts",
+            "src/components/mando/tunel-metagenesis-estado.tsx",
+        ]
+        hay = existe_de(set(GUARDAS_CLIENTE))
+        self.assertEqual(pruebas_a_sumar(cambiadas, hay), sorted(GUARDAS_CLIENTE))
+
+    def test_python_o_documentos_no_las_disparan(self):
+        hay = existe_de(set(GUARDAS_CLIENTE))
+        self.assertEqual(pruebas_a_sumar(["scripts/puente/x.py", "architecture/a.md"], hay), [])
+
+    def test_tocar_solo_pruebas_no_las_dispara(self):
+        prueba = "src/lib/network/a.test.ts"
+        hay = existe_de(set(GUARDAS_CLIENTE) | {prueba})
+        self.assertEqual(pruebas_a_sumar([prueba], hay), [prueba])
+
+    def test_solo_las_que_existen(self):
+        hay = existe_de({GUARDAS_CLIENTE[0]})
+        self.assertTrue(toca_la_app("src/components/x.tsx"))
+        self.assertEqual(pruebas_a_sumar(["src/components/x.tsx"], hay), [GUARDAS_CLIENTE[0]])
 
 
 class TestOrdenVitest(unittest.TestCase):

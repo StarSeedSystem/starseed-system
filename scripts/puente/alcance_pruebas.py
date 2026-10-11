@@ -23,6 +23,22 @@ SUFIJOS_PRUEBA = (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 # Fuentes de las que tiene sentido buscar una prueba hermana.
 SUFIJOS_FUENTE = (".ts", ".tsx")
 
+# Guardas del paquete del NAVEGADOR (2026-10-11). S1010-MGR3b hizo que un componente de
+# cliente importara un VALOR de un módulo con `node:child_process`: su tsc y sus pruebas
+# hermanas pasaron, se integró a las 07:40 y `next build` quedó roto. Estas guardas lo ven
+# en ~0,2 s cada una, pero viven fuera de BASE y ninguna tarea las «tocaba»: main pasó
+# horas en rojo y el nodo de MetaGenesis de la A1 dejó de tomar tareas. Ahora toda tarea
+# que cambie código de la app (src/**.ts/.tsx) las corre.
+GUARDAS_CLIENTE = (
+    "src/lib/genesis/__tests__/sin-node-en-cliente.test.ts",
+    "src/lib/mando/__tests__/sin-node-en-cliente.test.ts",
+)
+
+
+def toca_la_app(ruta):
+    """¿Es código de la app que puede acabar en el paquete del navegador?"""
+    return bool(ruta) and ruta.startswith("src/") and ruta.endswith(SUFIJOS_FUENTE) and not es_prueba(ruta)
+
 
 def es_prueba(ruta):
     """¿Esta ruta es un archivo de pruebas?"""
@@ -61,8 +77,10 @@ def pruebas_a_sumar(rutas, existe, base=BASE):
     dos ejecuciones iguales se parezcan en el registro.
     """
     encontradas = set()
-    for ruta in rutas or []:
-        ruta = (ruta or "").strip()
+    rutas = [(r or "").strip() for r in (rutas or [])]
+    if any(toca_la_app(r) for r in rutas):
+        encontradas.update(g for g in GUARDAS_CLIENTE if not g.startswith(base + "/") and existe(g))
+    for ruta in rutas:
         if not ruta or ruta.startswith(base + "/") or ruta == base:
             continue
         if es_prueba(ruta):

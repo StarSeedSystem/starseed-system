@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { tacharTexto } from "@/lib/mando/tunel-metagenesis-estado";
+// Del archivo PURO, nunca de `tunel-metagenesis-estado.ts` (abre node:child_process y rompe `next build`).
+import { tacharTexto, type EstadoTunelMetaGenesis } from "@/lib/mando/tunel-metagenesis-tipos";
 
 export function TunelMetaGenesisEstado() {
-  const [estado, setEstado] = useState<{
-    cargado: boolean;
-    pid: number | null;
-    ultimasLineas: string[];
-    medidoEn: string;
-  } | null>(null);
+  const [estado, setEstado] = useState<EstadoTunelMetaGenesis | null>(null);
 
   useEffect(() => {
     let montado = true;

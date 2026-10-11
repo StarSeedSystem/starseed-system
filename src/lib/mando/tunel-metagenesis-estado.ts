@@ -1,15 +1,12 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
+import { tacharTexto, type EstadoTunelMetaGenesis } from "./tunel-metagenesis-tipos";
+
+// Solo de servidor. El cliente importa de `tunel-metagenesis-tipos.ts` (sin Node).
+export { tacharTexto, type EstadoTunelMetaGenesis };
 
 const execFileAsync = promisify(execFile);
-
-export interface EstadoTunelMetaGenesis {
-  cargado: boolean;
-  pid: number | null;
-  ultimasLineas: string[];
-  medidoEn: string; // ISO string
-}
 
 /**
  * Ejecuta una función y devuelve un valor por defecto si falla.
@@ -20,13 +17,6 @@ export async function intentar<T>(promesa: Promise<T>, porDefecto: T): Promise<T
   } catch {
     return porDefecto;
   }
-}
-
-/**
- * Sustituye URLs de trycloudflare por "[túnel]" en el texto.
- */
-export function tacharTexto(texto: string): string {
-  return texto.replace(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/g, "[túnel]");
 }
 
 /**
