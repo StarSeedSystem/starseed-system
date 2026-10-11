@@ -57,6 +57,8 @@ export interface OpcionesMotor {
     colgarAlQuedarSolo?: boolean;
     intervaloStatsMs?: number;
     intervaloNivelMs?: number;
+    /** Canales directos (sin Supabase) para pruebas o uso especial. */
+    canalesDirectos?: () => ConexionCanal[];
 }
 
 export interface ResumenLlamada {
@@ -78,6 +80,8 @@ interface CanalMotor {
     tema: string;
     presencia: MetaPresencia[];
     bajas: (() => void)[];
+    /** ¿El canal es directo (sin Supabase)? */
+    directo?: boolean;
 }
 
 /** Como mucho estos canales a la vez (miembros + enlace público + uno en mudanza). */
@@ -568,10 +572,12 @@ export class MotorLlamada {
         return Array.from(porId.values()).sort((a, b) => a.unido - b.unido || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     }
 
-    private abrirCanal(tema: string | null): CanalMotor | null {
-        const conn = abrirCanalLlamada(this.sesionId, { clave: this.miId, tema });
-        if (!conn) return null;
-        const c: CanalMotor = { conn, tema: conn.tema ?? tema ?? `llamada:${this.sesionId}`, presencia: [], bajas: [] };
+    private abrirCanal(tema: string | null): ConexionCanal | null {
+        return abrirCanalLlamada(this.sesionId, { clave: this.miId, tema });
+    }
+
+    private adjuntarCanal(conn: ConexionCanal, tema: string, directo = false): CanalMotor {
+        const c: CanalMotor = { conn, tema: conn.tema ?? tema, presencia: [], bajas: [], directo };
         this.canales.push(c);
         c.bajas.push(
             conn.onPresencia((p) => {
@@ -590,6 +596,12 @@ export class MotorLlamada {
         }
         conn.publicar(this.meta());
         if (typeof conn.estado === "function" && conn.estado() === "denegado") queueMicrotask(() => this.alDenegarCanal(c));
+        if (directo && !this.temaActual) {
+            this.temaActual = c.tema;
+            const fase = c.conn.suscrito() ? "esperando" : "conectando";
+            this.set({ fase });
+            this.arrancarTemporizadores();
+        }
         return c;
     }
 
@@ -656,7 +668,8 @@ export class MotorLlamada {
             this.temaActual = tema;
             if (avisar) this.enviar({ tipo: "mudanza", de: this.miId });
             if (this.canales.some((c) => c.tema === tema)) return true;
-            if (this.canales.length >= MAX_CANALES) this.soltarCanal(this.canales[0]);
+            const noDirectos = this.canales.filter((c) => !c.directo);
+            if (noDirectos.length >= MAX_CANALES) this.soltarCanal(noDirectos[0]);
             return !!this.abrirCanal(tema);
         })();
         this.revisando = p;
@@ -671,11 +684,24 @@ export class MotorLlamada {
         if (this.cerrado) return false;
         if (this.canales.length) return true;
         this.unido = Date.now();
-        const c = this.abrirCanal(this.opc.tema ?? null);
-        if (!c) {
+        const conn = this.abrirCanal(this.opc.tema ?? null);
+        if (!conn) {
+            if (this.opc.canalesDirectos) {
+                const directos = this.opc.canalesDirectos();
+                if (directos.length) {
+                    for (const c of directos) {
+                        const canal = this.adjuntarCanal(c, c.tema, true);
+                        if (!this.temaActual) this.temaActual = canal.tema;
+                        this.set({ fase: "esperando" });
+                        this.arrancarTemporizadores();
+                        return true;
+                    }
+                }
+            }
             this.set({ fase: "error", motivoFin: "No se pudo conectar con el servidor de la llamada. Revisa tu conexión y vuelve a intentarlo." });
             return false;
         }
+        const c = this.adjuntarCanal(conn, conn.tema);
         if (!this.temaActual) this.temaActual = c.tema;
         this.set({ fase: c.conn.suscrito() ? "esperando" : "conectando" });
         this.arrancarTemporizadores();
