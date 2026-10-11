@@ -30,24 +30,26 @@ export async function anunciarPorEnlacesDirectos(
   let enviados = 0;
   const enlacesExitosos: string[] = [];
 
-  for (const enlace of enlacesVivos) {
-    // Asumimos que cada enlace tiene una propiedad `id`
-    const enlaceId = enlace.id;
-    try {
-      // Enviar el faro como mensaje de tipo "estacion"
-      const resultado = await deps?.enviar
-        ? await deps.enviar({ enlaceId }, 'estacion', faro)
-        : await enviarMensaje({ enlaceId }, 'estacion', faro);
+   for (const enlace of enlacesVivos) {
+     // Asumimos que cada enlace tiene una propiedad `id`
+     const enlaceId = enlace.id;
+     try {
+       let resultado;
+       if (deps?.enviar) {
+         resultado = await deps.enviar({ enlaceId }, 'estacion', faro);
+       } else {
+         resultado = await enviarMensaje({ enlaceId }, 'estacion', faro);
+       }
 
-      if (resultado.ok && resultado.enlace?.id) {
-        enviados++;
-        enlacesExitosos.push(resultado.enlace.id);
-      }
-    } catch (error) {
-      // Ignorar errores individuales, continuar con otros enlaces
-      console.error(`Error al anunciar por enlace ${enlaceId}:`, error);
-    }
-  }
+       if (resultado.ok && resultado.enlace?.id) {
+         enviados++;
+         enlacesExitosos.push(resultado.enlace.id);
+       }
+     } catch (error) {
+       // Ignorar errores individuales, continuar con otros enlaces
+       console.error(`Error al anunciar por enlace ${enlaceId}:`, error);
+     }
+   }
 
   return { enviados, enlaces: enlacesExitosos };
 }

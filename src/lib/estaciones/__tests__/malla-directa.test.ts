@@ -47,7 +47,7 @@ describe('malla-directa', () => {
     expect(enviarMockCallCount).toBe(3);
   });
 
-  it('escucha estaciones válidas y las pasa al callback', (done) => {
+  it('escucha estaciones válidas y las pasa al callback', (done: (err?: any) => void) => {
     const mockAlRecibir = (canal: string, cb: (m: any) => void) => {
       setTimeout(() => {
         cb({
@@ -77,7 +77,7 @@ describe('malla-directa', () => {
     const unsubscribe = escucharEstacionesDirectas(callback, mockDeps);
   });
 
-  it('ignora estaciones inválidas (no llama al callback)', (done) => {
+  it('ignora estaciones inválidas (no llama al callback)', (done: (err?: any) => void) => {
     const mockAlRecibir = (canal: string, cb: (m: any) => void) => {
       setTimeout(() => {
         cb({
