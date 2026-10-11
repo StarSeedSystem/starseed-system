@@ -80,3 +80,31 @@ def test_tsc_turno_falla_y_libera(cerrojos_tmp, tmp_path, monkeypatch):
     assert r.returncode == 3
     pesado = os.path.join(str(cerrojos_tmp), ".starseed", "cerrojos", "pesado.lock")
     assert not os.path.exists(pesado)
+
+
+@pytest.mark.skipif(not shutil.which("bash"), reason="no hay bash")
+def test_tsc_turno_no_le_quita_el_turno_a_un_dueno_vivo(cerrojos_tmp, tmp_path):
+    """(2026-10-11) A los 20 min se FORZABA el turno borrando el cerrojo de la puerta del
+    orquestador, que seguía compilando: dos tsc de ~3,5 GB a la vez en la Mac de 8 GB.
+    Ahora, agotada la espera con un dueño vivo, no compila (rc 75) y el cerrojo sigue suyo."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    marca = tmp_path / "npx-llamado"
+    falso_npx = tmp_path / "npx"
+    falso_npx.write_text("#!/bin/sh\ntouch '%s'\nexit 0\n" % marca, encoding="utf-8")
+    falso_npx.chmod(0o755)
+    pesado = os.path.join(str(cerrojos_tmp), ".starseed", "cerrojos", "pesado.lock")
+    os.makedirs(pesado)
+    with open(os.path.join(pesado, "dueno"), "w", encoding="utf-8") as f:
+        f.write("%d %d\n" % (os.getpid(), int(time.time())))  # dueño vivo y reciente
+    env = dict(os.environ)
+    env["PATH"] = "%s:%s" % (tmp_path, env.get("PATH", ""))
+    env["HOME"] = str(cerrojos_tmp)
+    env["STARSEED_TSC_ESPERA_S"] = "1"
+    env["STARSEED_TSC_MAX_ESPERA_S"] = "2"
+    r = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env,
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 75, r.stderr
+    assert "NO compilé" in r.stderr
+    assert not marca.exists()  # tsc nunca arrancó
+    assert open(os.path.join(pesado, "dueno")).read().split()[0] == str(os.getpid())

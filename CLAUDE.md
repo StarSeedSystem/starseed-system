@@ -1162,3 +1162,21 @@ sale solo tras una **edición real con opencode y contexto de tamaño real**: ne
 glm-5.3 de NIM escriben; Groq no cabe (7.000 tokens/min); apinex, tokenrouter y GitHub Models
 (retirado el 2026-07-30, contesta «200 OK» a todo) están fuera con su motivo. Detalle:
 `memory/orquestacion-economica.md` §20.
+
+### 14. «Solo 3 agentes, no cabe más»: medido medio por medio, la mitad era fallo (2026-10-11)
+
+Alex vio 3 agentes en MetaGenesis y el botón decía «no cabe más». Medido: la **Mac** sí estaba
+en su tope real (3 en 8 GB; el gobernador baja a 2 con la swap llena), pero **dos tsc completos a
+la vez** (~3,5 GB cada uno) la llenaban: la puerta del orquestador y un `tsc-turno.sh` de un
+agente YA MUERTO que, a los 20 min de espera, «forzaba el turno» borrando el cerrojo de un dueño
+vivo. Ahora cede (rc 75, «NO compilé») y sale solo si su agente ya no existe; y la config de
+opencode de la Mac (`~/.config/opencode/opencode.json`, `permission.bash`) **veta** `npx tsc`,
+`tsc`, `npm run typecheck` y `next build` directos (la última regla que coincide gana: `"*"`
+va primero; probado en vivo). La **A1** dejó de prestar porque main estaba **rojo desde las
+07:40**: un componente de cliente importaba un valor de un módulo con `node:child_process`
+(S1010-MGR3b) y la guarda `sin-node-en-cliente` vive fuera de `src/lib/__tests__`, así que
+ninguna puerta la corría; ahora `alcance_pruebas.GUARDAS_CLIENTE` va en toda tarea que toque
+`src/**.ts(x)`. Eso mismo frenó la autopublicación (64 commits). La **nube** daba 0 porque
+`repartir_nube.dependencias_pendientes` no aceptaba una **sucesora integrada** como dependencia
+cumplida (el vigilante sí): la Mac cedía y la nube rechazaba. Regla: «no cabe» se dice por medio
+y con su causa; un medio parado por un fallo nuestro no es un límite.

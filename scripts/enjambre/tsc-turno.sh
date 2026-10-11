@@ -18,8 +18,8 @@ set -uo pipefail
 
 CERROJOS="$HOME/.starseed/cerrojos"
 LOCK="$CERROJOS/pesado.lock"
-ESPERA_S=5
-MAX_ESPERA_S=1200      # 20 min esperando el turno
+ESPERA_S=${STARSEED_TSC_ESPERA_S:-5}
+MAX_ESPERA_S=${STARSEED_TSC_MAX_ESPERA_S:-1200}      # 20 min esperando el turno; luego se cede, nunca se fuerza
 MAX_EDAD_CERROJO_S=1800 # 30 min: un cerrojo más viejo cuenta como huérfano
 RC=0
 
@@ -75,6 +75,21 @@ _limpiar_huerfano() {
 # Adquirir el turno: mkdir es la única operación atómica de «uno gana» que sirve igual
 # en Linux y en macOS. Si el archivo `dueno` no se llegó a escribir (crash entre mkdir y
 # la escritura), la propia limpieza de huérfanos lo recoge en la siguiente vuelta.
+# (2026-10-11) Sin agente que lea el resultado: el shell que nos lanzó quedó huérfano (su
+# padre es init/launchd) porque el agente murió o lo cortaron. Medido: un tsc-turno de un
+# agente muerto esperó 20 min, «forzó el turno» y compiló a la vez que la puerta del
+# orquestador → dos tsc de ~3,5 GB en la Mac de 8 GB y el gobernador bajó un trabajador.
+_sin_quien_espere() {
+    [ "${PPID:-1}" = "1" ] && return 1   # lanzado directamente por launchd/systemd: sí espera alguien
+    [ "$(ps -o ppid= -p "$PPID" 2>/dev/null | tr -d ' ')" = "1" ]
+}
+
+# 75 = EX_TEMPFAIL: «no compilé», que no es ni verde ni rojo.
+_no_compilo() {
+    echo "tsc-turno: NO compilé — $1. La puerta del orquestador corre tsc al terminar tu escritura; sigue sin él." >&2
+    exit 75
+}
+
 _tomar_cerrojo() {
     local t0
     # Compatibilidad: versiones viejas del orquestador usaban un ARCHIVO pesado.lock
@@ -87,11 +102,12 @@ _tomar_cerrojo() {
             printf '%s %s\n' "$$" "$(date +%s)" > "$LOCK/dueno"
             return 0
         fi
+        _sin_quien_espere && _no_compilo "el agente que me pidió compilar ya no existe"
+        # (2026-10-11) Antes, a los 20 min se FORZABA el turno borrando el cerrojo de un dueño
+        # VIVO (la puerta del orquestador compilando): dos tsc a la vez. Un dueño muerto o un
+        # cerrojo de más de 30 min ya los recoge `_limpiar_huerfano`; con un dueño vivo, se cede.
         if [ $(( $(date +%s) - t0 )) -ge $MAX_ESPERA_S ]; then
-            echo "tsc-turno: $(( MAX_ESPERA_S / 60 )) min de espera agotados; fuerzo el turno" >&2
-            rm -rf "$LOCK"
-            mkdir "$LOCK" 2>/dev/null && printf '%s %s\n' "$$" "$(date +%s)" > "$LOCK/dueno"
-            return 0
+            _no_compilo "$(( MAX_ESPERA_S / 60 )) min sin turno: la Mac está compilando otra cosa"
         fi
         sleep "$ESPERA_S"
     done
