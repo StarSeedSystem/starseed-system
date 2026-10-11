@@ -1,0 +1,71 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-11 06:42:52",
+  "desde": "2026-09-29 16:09:57",
+  "ultimo_429": "2026-10-10 21:44:10",
+  "sin_cupo_hasta": "2026-10-11 17:59:46",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-11 06:42:52",
+  "desde": "2026-10-01 15:50:18",
+  "ultimo_429": "2026-10-10 13:27:33",
+  "motivo": "pasarela: $ opencode run --model nvidia/moonshotai/kimi-k3 · 2026-10-10 12:05:57 \u001b[0m\u001b[0m> build · moonshotai/kimi-k3 \u001b[0m✗ \u001b[0mread failed \u001b[91m\u001b[1mE",
+  "sin_cupo_hasta": "2026-10-10 12:24:29"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-10 07:25:20",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-11 07:25:21",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-11 06:42:54",
+  "desde": "2026-10-09 01:27:51",
+  "ultimo_429": "2026-10-10 21:53:13",
+  "sin_cupo_hasta": "2026-10-11 17:59:46",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-11 06:42:54",
+  "desde": "2026-10-09 01:27:54",
+  "ultimo_429": "2026-10-11 04:44:21"
+ },
+ "ultimo_revisor_ok": "nim/moonshotai/kimi-k3",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-11 06:42:54",
+  "desde": "2026-10-10 13:31:59",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "http error 402: payment required",
+  "ultimo_429": "2026-10-10 13:27:48",
+  "sin_cupo_hasta": "2026-10-11 13:28:34"
+ },
+ "google": {
+  "estado": "vivo",
+  "sin_cupo_hasta": "2026-10-11 18:00:18",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "codex": {
+  "motivo": "$ codex exec -m gpt-5.6-sol -s workspace-write --skip-git-repo-check -C /Users/alex/Documents/starseed-wt/BOT1011Bc · 2026-10-11 05:14:41 · ",
+  "sin_cupo_hasta": "2026-10-12 05:14:54"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-11 06:42:54",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-10 12:08:17 \u001b[0m > build · auto \u001b[0m\u001b[0m→ \u001b[0mRead CLAUDE.md \u001b[0m→ \u001b[0mRead src/lib/social-",
+  "sin_cupo_hasta": "2026-10-10 12:30:50"
+ }
+}
