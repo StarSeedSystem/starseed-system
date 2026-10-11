@@ -31,6 +31,7 @@ import {
   type OssServiceCategory,
   type OssConnectionKind,
 } from "@/lib/services/oss-services";
+import { fichasProtomolecula } from "@/lib/protomolecula/biblioteca-protomolecula";
 import {
   addConnection,
   readConnections,
@@ -38,6 +39,30 @@ import {
   connectionsForService,
   type OssConnection,
 } from "@/lib/services/oss-connections";
+
+// Tipo provisional para el catálogo de Protomolécula (cuando aún no existe catalogo-herramientas.ts)
+export interface EntradaCatalogoProvisional {
+  /** kebab-case, único y estable. */
+  id: string;
+  nombre: string;
+  categoria: string;
+  /** Licencia del CÓDIGO, id SPDX (o `LicenseRef-…` / `NOASSERTION`). */
+  licencia?: string;
+  /** Repositorio verificado, o null si no hay (estándares y servicios). Nunca inventado. */
+  repositorio?: string;
+  /** Página web oficial */
+  web?: string;
+  /** Enlace a documentación */
+  documento?: string;
+  /** Los tres grados + sus variantes del contrato (`architecture/protomolecula.md` §3.2). */
+  integracion?: "iframe-aislado" | "wasm-en-worker" | "libreria-js" | "app-nativa-puente" | "servicio-local" | "servidor-remoto" | "solo-enlace";
+  /** Grado de control real: total / solo ventana / solo enlace */
+  control?: "total" | "ventana" | "ninguno";
+  /** Estado actual de la herramienta */
+  estado?: "integrable" | "proximamente" | "solo-enlace";
+  /** Por qué el estado es el que es y cómo entra. Obligatorio cuando estado no es "integrable". */
+  motivo?: string;
+}
 import { saveResource } from "@/lib/library-store";
 import type { LibraryDetailItem, ListingLink } from "@/components/library/app-file-page";
 import { fichasProtomolecula, type VersionProto } from "@/lib/protomolecula/biblioteca-protomolecula";
@@ -112,6 +137,15 @@ export const OSS_CONNECTION_KIND_LABEL: Record<OssConnectionKind, string> = {
   "app-embed": "Integración embebida (instancia)",
   "browser-local": "Corre en el navegador (sin servidor)",
 };
+
+// ── Constantes de presentación (categoría de librería) para Protomolécula ───────────────────────
+
+/** Etiqueta de la categoría "familia" con la que estos items entran a la Librería. */
+export const PROTO_LIBRARY_CATEGORY = "protomolecula";
+/** Etiqueta legible de la familia (chip de la Librería). */
+export const PROTO_LIBRARY_CATEGORY_LABEL = "Protomolécula";
+/** `kind` con el que se guardan en `library-store` (Mi Biblioteca). */
+export const PROTO_SAVED_KIND = "prototool";
 
 // ── Tipo de item de servicio de la Librería (extiende la ficha) ──────────────
 
@@ -356,14 +390,166 @@ export function listInstalledServices(connections?: OssConnection[]): InstalledS
     });
   }
 
-  return views.sort((a, b) => {
-    // Conectados por el usuario primero.
-    if (a.userInstalled !== b.userInstalled) return a.userInstalled ? -1 : 1;
-    return (
-      (orderIndex.get(a.serviceCategory) ?? 99) -
-      (orderIndex.get(b.serviceCategory) ?? 99)
+   return views.sort((a, b) => {
+     // Conectados por el usuario primero.
+     if (a.userInstalled !== b.userInstalled) return a.userInstalled ? -1 : 1;
+     return (
+       (orderIndex.get(a.serviceCategory) ?? 99) -
+       (orderIndex.get(b.serviceCategory) ?? 99)
+     );
+   });
+ }
+
+// ── Protomolécula: fichas de la Librería ──────────────────────────────────────
+/** Estado de instalación de una herramienta de Protomolécula en la Librería/Biblioteca. */
+export type ProtoInstallStatus =
+  | "instalado" // el usuario tiene al menos una instalación
+  | "disponible"; // ni instalación disponible (para el caso de Protomolécula, siempre disponible si está en el catálogo)
+
+/**
+ * ¿ Está "instalado" un átomo de Protomolécula?
+ * En el contexto de la Biblioteca, consideramos que una herramienta de Protomolécula
+ * está "instalada" si se ha añadido a una molécula en la Biblioteca del usuario.
+ * Para simplificar, en esta implementación asumimos que todas las herramientas
+ * del catálogo están disponibles para usar.
+ */
+export function isProtoHerramientaInstalada(
+  herramientaId: string,
+  // En una implementación completa, esto verificaría si la herramienta está en moléculas guardadas
+  _conexiones?: never, // Parámetro para mantener consistencia con oss-catalog-bridge, pero no usado aquí
+): boolean {
+  // Por ahora, asumimos que ninguna está instalada (sería más complejo verificar el estado real)
+  // En una implementación real, esto verificaría library-store o similar
+  return false;
+}
+
+/**
+ * Resuelve el estado de instalación de una herramienta de Protomolécula:
+ *  • "instalado" → el usuario la tiene en alguna molécula guardada
+ *  • "disponible" → está en el catálogo pero no instalada aún
+ */
+export function protoHerramientaInstallStatus(
+  _herramientaId: string,
+  _conexiones?: never, // Parámetro para mantener consistencia
+): ProtoInstallStatus {
+  // Simplificación: siempre disponible ya que no estamos tracking instalaciones reales
+  // En una implementación completa, esto verificaría el estado real
+  return "disponible";
+}
+
+/**
+ * Convierte una herramienta de Protomolécula en un item de librería compatible con LibraryDetailItem
+ * @param protoItem La ficha de Protomolécula generada por fichasProtomolecula
+ * @param _conexiones Opcional para consistencia con oss-catalog-bridge (no usado aquí)
+ * @returns Un OssLibraryItem compatible (en realidad, un LibraryDetailItem extendido)
+ */
+export function protoHerramientaToLibraryItem(
+  protoItem: LibraryDetailItem,
+  _conexiones?: never, // Parámetro para mantener consistencia con oss-catalog-bridge
+): LibraryDetailItem & { protoHerramientaId: string } {
+  // Extraemos el ID de la herramienta de la ficha (formato: proto-{herramientaId})
+  const protoHerramientaId = protoItem.id.replace(/^proto-/, "");
+  
+  // Devolvemos la ficha extendida con el ID de la herramienta
+  return {
+    ...protoItem,
+    protoHerramientaId,
+  } as LibraryDetailItem & { protoHerramientaId: string };
+}
+
+/**
+ * Devuelve TODAS las herramientas de Protomolécula como items de librería (para la categoría
+ * "Protomolécula"). Lee las versiones una sola vez y resuelve el estado de cada una.
+ */
+export function listProtoLibraryItems(
+  versiones: Record<string, { version?: string; fecha?: string; licencia?: string; sha?: string; estado?: string }> = {},
+  catalogo: EntradaCatalogoProvisional[] = []
+): LibraryDetailItem[] {
+  return fichasProtomolecula(versiones, catalogo);
+}
+
+/**
+ * Un grupo de herramientas de una misma función (para renderizar por secciones).
+ */
+export interface ProtoLibraryGroup {
+  category: keyof typeof PROTO_GRUPOS_ORDEN;
+  /** Etiqueta humana (Imagen · Audio · etc.). */
+  label: string;
+  /** Descripción breve de la función. */
+  blurb: string;
+  items: LibraryDetailItem[];
+}
+
+/** Orden establecido de los grupos de Protomolécula (según el contrato) */
+export const PROTO_GRUPOS_ORDEN = [
+  "imagen",
+  "audio", 
+  "video",
+  "3d",
+  "arquitectura",
+  "fisicas",
+  "juegos",
+  "vr-ar",
+  "codigo",
+  "ia"
+] as const;
+
+/** Etiquetas legibles para cada grupo */
+export const PROTO_GRUPOS_ETIQUETAS: Record<typeof PROTO_GRUPOS_ORDEN[number], string> = {
+  imagen: "Imagen",
+  audio: "Audio y síntesis",
+  video: "Vídeo y movimiento",
+  "3d": "3D y escenas",
+  arquitectura: "Arquitectura",
+  fisicas: "Físicas y prototipos",
+  juegos: "Juegos",
+  "vr-ar": "VR/AR",
+  codigo: "Código y conversión",
+  ia: "IA generativa"
+};
+
+/** Descripciones breves para cada grupo */
+export const PROTO_GRUPOS_DESCRIPCIONES: Record<typeof PROTO_GRUPOS_ORDEN[number], string> = {
+  imagen: "Pintar, retocar, dibujar vectores y revelar fotos.",
+  audio: "Grabar, editar, sintetizar y programar música.",
+  video: "Editar, componer, animar y transmitir en directo.",
+  "3d": "Modelar, texturizar, escanear y reconstruir en tres dimensiones.",
+  arquitectura: "CAD, BIM e información geoespacial.",
+  fisicas: "Simulación física y prototipos.",
+  juegos: "Motores de juego y de 3D para la web.",
+  "vr-ar": "Realidad virtual, aumentada y salas inmersivas.",
+  codigo: "Código creativo, editores, ejecución aislada y conversores.",
+  ia: "Modelos y motores abiertos que corren en local."
+};
+
+/**
+ * Igual que `listProtoLibraryItems`, pero agrupado por función (subcategoría),
+ * en el orden estable del catálogo. Grupos vacíos se omiten.
+ */
+export function listProtoLibraryGroups(
+  versiones: Record<string, { version?: string; fecha?: string; licencia?: string; sha?: string; estado?: string }> = {},
+  catalogo: EntradaCatalogoProvisional[] = []
+): ProtoLibraryGroup[] {
+  const items = listProtoLibraryItems(versiones, catalogo);
+  const groups: ProtoLibraryGroup[] = [];
+  
+  for (const category of PROTO_GRUPOS_ORDEN) {
+    // Filtrar items por categoría (asumiendo que el segundo tag es la categoría)
+    const groupItems = items.filter(item => 
+      item.tags?.[1] === category
     );
-  });
+    
+    if (!groupItems.length) continue;
+    
+    groups.push({
+      category,
+      label: PROTO_GRUPOS_ETIQUETAS[category],
+      blurb: PROTO_GRUPOS_DESCRIPCIONES[category],
+      items: groupItems,
+    });
+  }
+  
+  return groups;
 }
 
 // ── Acción: "instalar" un servicio (registrar/conectar) ──────────────────────
