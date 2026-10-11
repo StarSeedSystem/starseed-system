@@ -53,6 +53,7 @@ import { PanelPublicacion } from "@/components/mando/panel-publicacion";
 // de la pestaña consulta la misma API y compara contra el último «visto» en
 // localStorage para avisar de críticos/altos sin abrirla.
 import { PanelReportes } from "@/components/mando/panel-reportes";
+import { PanelCapasRed } from "@/components/mando/panel-capas-red";
 import type { Reporte } from "@/lib/mando/reportes";
 import { ControlDirectores } from "@/components/mando/control-directores";
 import { AjustesDirector } from "@/components/mando/ajustes-director";
@@ -319,7 +320,8 @@ const PESTANAS = [
     // (PDA1012) El agente social de MetaGenesis: cola para aprobar, piezas, directorio y donaciones.
     { id: "metageminis", etiqueta: "MetaGeminis", grupo: "Comunidad" },
     { id: "oficina", etiqueta: "Oficina 3D", grupo: "Comunidad" },
-     // Configuración.
+      { id: "capas-red", etiqueta: "Capas", grupo: "Infraestructura" },
+      // Configuración.
      { id: "ajustes_director", etiqueta: "Directores", grupo: "Ajustes" },
      { id: "ajustes", etiqueta: "General", grupo: "Ajustes" },
      // (2026-10-10) Quién entra en MetaGenesis desde otras neuronas.
@@ -2481,6 +2483,9 @@ export function CentroMando() {
                  <TabsContent value="tunel-metagenesis">
                      <TunelMetaGenesisEstado />
                  </TabsContent>
+            <TabsContent value="capas-red">
+                <PanelCapasRed />
+            </TabsContent>
             </Tabs>
             {/* Control de la voz junto a la orbe: activar/silenciar sin abrir la pestaña. */}
             <ControlVozDelMando />
