@@ -1,0 +1,8 @@
+Para probar el motor Pixal3D directamente:
+
+1. Asegúrese de tener instalado Pixal3D siguiendo las instrucciones en README-pixal3d.md.
+2. Establezca la variable de entorno PIXAL3D_ROOT si su instalación está en una ubicación no predeterminada.
+3. Ejecute:
+   python3 -m motores.pixal3d --entrada ruta/a/imagen.png --salida ruta/a/directorio/de/salida --resolucion 1024 --poca_memoria
+
+El resultado será un objeto JSON impreso en stdout.
