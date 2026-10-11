@@ -1,0 +1,25 @@
+[Unit]
+Description=StarSeed · Servicio local de imágenes por neurona (IMG1011A)
+After=network-online.target
+Wants=network-online.target
+# Requiere: /opt/starseed/nodo/stable-diffusion.cpp y archivo de token IMAGENES_LOCAL_TOKEN_FILE.
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/opt/starseed/imagenes-local
+Environment="IMAGENES_LOCAL_TOKEN_FILE=/etc/starseed/env"
+Environment="IMAGENES_LOCAL_PORT=9071"
+Environment="IMAGENES_CONGELAR_MB=1600"
+ExecStart=/usr/bin/python3 /opt/starseed/imagenes-local/servicio.py
+Restart=always
+RestartSec=10
+MemoryHigh=3G
+MemoryMax=4G
+CPUQuota=150%
+# Un trabajo a la vez: el servicio rechaza con 503 si está ocupado.
+# En la Mac 8 GB, el guardián rechaza `/generar` cuando el enjambre trabaja y la memoria libre baja.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
