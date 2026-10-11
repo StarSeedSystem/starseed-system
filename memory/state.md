@@ -4389,3 +4389,16 @@ build compilada en la nube e instalada en Genesis; verificado en localhost:9002.
 ### Pendiente / Próximos pasos
 - Fase 2 (navegador): la build instalada no trae `src/lib/datos/puerta-a1*.ts` y el adaptador aún no está cableado en neuronas/presencia/freno → ola + integración + build; luego `os_puerta_datos.activa = true` (la URL ya está puesta).
 - Next (destino) por la puerta; poner al día `~/.local/bin/starseed-enjambre.py` (`bash scripts/enjambre/instalar.sh` con el enjambre quieto).
+
+## 2026-10-11 — PDA1012: fase 2 de la puerta de datos (navegador y Next) encendida, y pulidos de Genesis
+**Sesión por:** Claude Opus 5.5 (nube-cowork), con la autorización de Alex para `activa = true`.
+**Resumen ejecutivo:** neuronas, presencia y freno del navegador y el destino de Astraura de Next van por la puerta del A1 con Supabase de respaldo; en sus rutas, 54 → 7 peticiones/30 min (−87 %); corte de 81 s sin errores. Genesis dice el paso real de la nube, enseña los agentes del A1, ordena Listas con sus esperas y monta Mejoras por neurona y MetaGeminis.
+
+### Hecho
+- Commits `ee5a8077`…`7004a8b2` (fase 2 + pulidos), `0bca3a3a` (sin «escritos escritos»), `b6e8fe39` («sin sesión» no se guarda como «no hay puerta»; JWKS en reposo no es aviso).
+- `os_puerta_datos.activa = true` (02:12:41 UTC). Build instalada `TEZ7tBy63OsrefvWAAJc8`.
+- Medido y corte: `architecture/puerta-datos-a1.md` §10.3.1.
+
+### Notas / aprendizajes
+- La primera build de la nube salió sin `.env.production.local` (Supabase de relleno, navegador sin sesión): copiarlo SIEMPRE al worktree antes de `next build` y buscar el proyecto real en `.next/static/chunks`.
+- Fuera de esta tarea: `brain_memory_files` 30 GET + 30 PATCH/30 min desde una pestaña abierta (memoria de Astraura tras `starseed:sync:apply`).

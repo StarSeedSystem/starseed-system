@@ -358,8 +358,10 @@ guardián de consumo) y un interruptor por neurona:
 | Destino y túnel de Astraura (servidor de Next) | `destino-nube.ts` (`publicadoEnLaPuerta`) | `GET /v1/astraura/estado/{destino_fijo,tunel_publico}` con `PUERTA_DATOS_URL` + `PUERTA_DATOS_FICHA_ASTRAURA` (en `.env.local` de la Mac; Vercel no las tiene) | `astraura_state`; un 404 de la puerta (aún sin copiar) también va a Supabase |
 | Copia de lo publicado | `publicar_tunel_astraura.py`, `publicar_destino_astraura.py` → `espejo_puerta.py` | `PUT /v1/astraura/estado/…` si cambió o cada 30 min | — (Supabase sigue siendo la verdad) |
 
-- «No hay puerta» (`os_puerta_datos.activa = false` o sin sesión) se recuerda **30 min** en el
-  aparato (antes 6 h): encender la puerta llega a todos en ≤ 30 min; la URL buena, 6 h.
+- «No hay puerta» (`os_puerta_datos.activa = false`) se recuerda **30 min** en el aparato (antes
+  6 h): encender la puerta llega a todos en ≤ 30 min; la URL buena, 6 h. «Todavía no se sabe» (sin
+  sesión, o Supabase sin responder) **no se guarda**: se vuelve a mirar al minuto, en memoria (medido
+  el 2026-10-11: una pestaña abierta sin sesión guardó «no hay puerta» y siguió 30 min en Supabase).
 - Genesis › Consumo y créditos › **Puerta de datos · A1**: salud (medida por SSH/HTTPS y renovada
   sola si tiene > 15 min), ahorradas hoy medidas en la puerta, réplica, **lo de esta neurona por
   grupo** (`neuronas 6/6 · presencia 2/3 · freno 1/1` = por la puerta / total) y si esta pestaña
@@ -369,4 +371,39 @@ guardián de consumo) y un interruptor por neurona:
   casos de `puerta-a1.test.ts` y `fila-puerta-datos.test.tsx`.
 - Se queda en Supabase, a propósito: la presencia del widget de Mensajes (una lectura cada ≥ 5 min,
   junto a los perfiles), el bus de MetaGenesis de la vista remota (archivo de OPA1011) y el registro.
+
+#### 10.3.1 Medido el 2026-10-11 (PDA1012)
+
+`os_puerta_datos.activa = true` desde las 02:12:41 UTC. La primera build de la nube salió **sin el
+entorno público** (`.env.production.local` no estaba en el worktree: el cliente de Supabase apuntaba a
+`dummy.supabase.co` y el navegador no tenía sesión); se volvió a la build anterior a las 02:27 y la
+buena (`r8ayEFiQ…`, luego `TEZ7tBy6…` con el arreglo de «sin sesión») quedó a las 02:37 y 03:21.
+**Regla:** antes de `next build` en un worktree de la nube, copiar `.env.production.local` y comprobar
+que el proyecto real aparece en `.next/static/chunks` (el `dummy` sale siempre como texto de respaldo).
+
+Supabase por ruta, 30 min con una pestaña de Genesis abierta (`.transfer/pda1011/medir_rutas.py`):
+
+| Ruta | Antes (01:17–01:47, fase 1) | Después (02:40–03:10, fase 2) |
+|---|---|---|
+| `POST os_presencia` (navegador) | 30 | **0** |
+| `os_freno` (navegador) | 4 | **0** |
+| `GET astraura_state` (servidor de Next) | 8 | **0** |
+| `neuron_devices` (navegador) | 12 (6 GET, 5 PATCH de latido, 1 POST) | **7** (4 GET + 2 OPTIONS + 1; registro al abrir cada página: hubo 5 cargas) |
+| Propias de la puerta (réplica + JWKS) | 6 | 8 |
+| **Rutas de la fase 2** | **54** | **7** (−47, −87 %) |
+
+Neto ≈ −45 peticiones/30 min ≈ **−2.100/día por pestaña de Genesis abierta**. El total del proyecto
+subió (171 → 233) por rutas FUERA de esta fase: `brain_memory_files` 30 GET + 30 PATCH desde la
+pestaña `/metagenesis` (la memoria de Astraura reescribe cada minuto tras `starseed:sync:apply`,
+`src/ai/astraura/memory-intelligence.ts`: tarea aparte) y las cargas de página de la verificación. El
+bus del navegador (`relevo_eventos`, 34 + 16 OPTIONS) sigue en Supabase a propósito. En la puerta, a
+las 03:10: neuronas 22, presencia 31 y freno 3 servidas hoy sin Supabase; 546 ahorradas en el día.
+
+**Corte (03:24:08–03:25:29, 81 s, `.transfer/pda1012/corte.py`):** con Genesis abierta, neuronas y
+freno (`leerFilaFreno`, fila real de `os_freno`) y el latido de presencia fueron a Supabase
+(`POST os_presencia` y `GET os_freno` en los registros, ningún 4xx/5xx), sin excepciones de la app ni
+cola pendiente; la salud marcó la caída y esperó 1 min. A los ~50 s de volver, `salud` 100 ms y
+neuronas y freno otra vez por la puerta, sin una petición más a Supabase. En la consola solo quedan las
+líneas del propio navegador por las sondas (503 de Caddy sin cabecera CORS mientras el servicio estaba
+parado).
 
