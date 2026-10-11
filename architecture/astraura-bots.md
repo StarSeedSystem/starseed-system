@@ -371,14 +371,18 @@ tarea ≤ 3 archivos y ≤ 120 líneas por archivo, con prompt autosuficiente qu
 Alex lleva `aprobacion: true` (BOT1011L: servicio de computadoras en el A1). La migración (BOT1011B) se **escribe** y se
 prueba; aplicarla es un paso aparte de Genesis.
 
-## 17 · Decisiones para Alex
+## 17 · Decisiones de Alex (2026-10-11)
 
-1. **Computadora del bot en el A1 con el supervisor de openbot** (Docker + gVisor si se puede): ¿sí? Es la única pieza que
-   ejecuta cosas de verdad; consume parte de los 2 OCPU/12 GB. Mientras no lo diga, «próximamente».
-2. **Nivel por defecto** `proponer` (el bot propone y tú confirmas). ¿Quieres que tu bot personal arranque en `aplicar` para
-   lo de riesgo bajo (navegar, abrir apps, capas sobre la pantalla)?
-3. **Grok** como primer invitado externo: necesita `XAI_API_KEY` en el servidor (hay un `xai-proxy.js` en el repo).
-4. Grupos democráticos: ¿delegación por defecto `bajo` para que el bot común mueva/organice sin votar cada vez?
+1. **Computadora del bot en el A1 con el supervisor de openbot**: **SÍ**. Cada bot con su contenedor aislado en el A1
+   (supervisor y agent-computer de openbot, MIT, telemetría APAGADA), con política de seguridad y límites de memoria;
+   BOT1011L deja de esperar visto bueno. Desplegarlo sigue siendo un paso propio con su medida de carga del A1.
+2. **Nivel por defecto del bot personal**: `aplicar-bajo` (`NIVEL_POR_DEFECTO`): hace solo lo de riesgo bajo (navegar,
+   abrir apps, capas sobre la pantalla, notas y resaltados) y propone lo demás; todo queda en el registro con su deshacer.
+3. **Grok como invitado**: **más adelante** (el proveedor de xAI responde «sin cupo»). El bot por defecto sigue siendo
+   Astraura, local y de código abierto.
+4. **Grupos democráticos**: al crear el bot común, el grupo le delega por defecto lo de riesgo bajo
+   (`DELEGACION_POR_DEFECTO_GRUPO = "bajo"`): organizar y mover sin votar cada vez; publicar, borrar o gastar, siempre
+   por votación. El grupo puede quitar la delegación cuando quiera.
 
 ## 18 · Patrones de open-dots y opendots (anexo, 2026-10-11)
 

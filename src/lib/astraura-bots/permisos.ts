@@ -86,9 +86,19 @@ export function decidirSentido(p: PeticionSentido): Decision {
 
 /* ── 2 · Acciones ────────────────────────────────────────────────────────── */
 
-/** Cuánto confía la persona en el bot (como `ui-permisos.ts`): por defecto, propone y tú decides. */
-export type NivelBot = "nada" | "proponer" | "aplicar";
-export const NIVEL_POR_DEFECTO: NivelBot = "proponer";
+/**
+ * Cuánto confía la persona en el bot (como `ui-permisos.ts`). Decisión de Alex (2026-10-11): por
+ * defecto el bot personal hace SOLO lo de riesgo bajo (navegar, abrir apps, capas sobre la pantalla…)
+ * y lo demás lo propone; todo queda en el registro con su deshacer.
+ */
+export type NivelBot = "nada" | "proponer" | "aplicar-bajo" | "aplicar";
+export const NIVEL_POR_DEFECTO: NivelBot = "aplicar-bajo";
+/**
+ * Decisión de Alex (2026-10-11): al crear el bot común de un grupo democrático, el grupo le delega
+ * por defecto lo de riesgo bajo (organizar y mover sin votar cada vez); publicar, borrar o gastar se
+ * vota siempre. El grupo puede quitar la delegación: sin ella (`delegado` ausente) todo se vota.
+ */
+export const DELEGACION_POR_DEFECTO_GRUPO: "bajo" | "medio" = "bajo";
 
 export interface PeticionAccion {
   bot: Bot;
@@ -122,6 +132,9 @@ export function decidirAccion(p: PeticionAccion): Decision {
   }
   if (meta.riesgo === "alto") return no("confirmacion", "Acción de riesgo alto: siempre se confirma.");
   if (invitado || nivel === "proponer") return no("confirmacion", "El bot lo propone; tú lo confirmas.");
+  if (nivel === "aplicar-bajo" && meta.riesgo !== "bajo") {
+    return no("confirmacion", "Solo hace solo lo de riesgo bajo: esto lo propone y tú lo confirmas.");
+  }
   return si(`Permitido: «${bot.nombre}» puede aplicar «${accion.tipo}» y queda en el registro con su deshacer.`);
 }
 

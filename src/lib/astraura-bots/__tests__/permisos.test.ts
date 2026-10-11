@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AccionBot } from "../acciones";
 import {
+  DELEGACION_POR_DEFECTO_GRUPO, NIVEL_POR_DEFECTO,
   VIGENCIA_MAX_INVITADO_MS, actorDeBot, consentimientoVigente, decidirAccion, decidirConfiguracion,
   decidirSentido, memoriaVisible, puedeEscribirMemoria, puedeLeerMemoria, type PeticionSentido,
 } from "../permisos";
@@ -71,6 +72,18 @@ describe("decidirAccion", () => {
     expect(decidirAccion({ bot: bot(), accion: acc("navegar"), rol: "dueno", nivel: "proponer" }).requiere).toBe("confirmacion");
     expect(decidirAccion({ bot: bot(), accion: acc("navegar"), rol: "dueno", nivel: "aplicar" }).permitido).toBe(true);
     expect(decidirAccion({ bot: bot(), accion: acc("mensaje.enviar"), rol: "dueno", nivel: "aplicar" }).requiere).toBe("confirmacion");
+  });
+  it("decisión de Alex (2026-10-11): por defecto el bot personal hace solo lo de riesgo bajo y propone lo demás", () => {
+    expect(NIVEL_POR_DEFECTO).toBe("aplicar-bajo");
+    expect(decidirAccion({ bot: bot(), accion: acc("navegar"), rol: "dueno", nivel: NIVEL_POR_DEFECTO }).permitido).toBe(true);
+    expect(decidirAccion({ bot: bot(), accion: acc("ajuste.proponer"), rol: "dueno", nivel: NIVEL_POR_DEFECTO }).requiere).toBe("confirmacion");
+    expect(decidirAccion({ bot: bot(), accion: acc("mensaje.enviar"), rol: "dueno", nivel: NIVEL_POR_DEFECTO }).requiere).toBe("confirmacion");
+  });
+  it("decisión de Alex (2026-10-11): un grupo democrático delega por defecto lo de riesgo bajo", () => {
+    const g = grupo({ gobierno: "democratico" });
+    expect(DELEGACION_POR_DEFECTO_GRUPO).toBe("bajo");
+    expect(decidirAccion({ bot: g, accion: acc("widget.mover"), rol: "miembro", nivel: "aplicar", delegado: DELEGACION_POR_DEFECTO_GRUPO }).permitido).toBe(true);
+    expect(decidirAccion({ bot: g, accion: acc("widget.quitar"), rol: "miembro", nivel: "aplicar", delegado: DELEGACION_POR_DEFECTO_GRUPO }).requiere).toBe("votacion");
   });
   it("nivel «nada» solo conversa", () => {
     expect(decidirAccion({ bot: bot(), accion: acc("navegar"), rol: "dueno", nivel: "nada" }).permitido).toBe(false);
