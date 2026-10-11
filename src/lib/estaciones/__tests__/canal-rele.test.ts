@@ -6,10 +6,10 @@ let lastWs: FakeWebSocket | null = null;
 class FakeWebSocket {
   url: string;
   readyState: number;
-  onopen: null | ((this: WebSocket, ev: Event) => any);
-  onmessage: null | ((this: WebSocket, ev: MessageEvent) => any);
-  onclose: null | ((this: WebSocket, ev: CloseEvent) => any);
-  onerror: null | ((this: WebSocket, ev: Event) => any);
+    onopen: null | ((this: FakeWebSocket, ev: Event) => any);
+    onmessage: null | ((this: FakeWebSocket, ev: MessageEvent) => any);
+    onclose: null | ((this: FakeWebSocket) => any);
+    onerror: null | ((this: FakeWebSocket, ev: Event) => any);
   static OPEN = 1;
   static CLOSED = 3;
 
@@ -27,10 +27,10 @@ class FakeWebSocket {
     // No-op for testing
   }
 
-  close() {
+   close() {
     this.readyState = FakeWebSocket.CLOSED;
     if (this.onclose) {
-      this.onclose(new Event("close"));
+      this.onclose();
     }
   }
 
@@ -129,7 +129,7 @@ describe("canal-rele", () => {
     // Send a rele message
     const releMessage = '{"t":"rele","n":5}';
     lastWs?.triggerMessage(releMessage);
-    expect(canal.oyentes()).toBe(5);
+    expect(canal.oyentes!()).toBe(5);
     expect(cb).not.toHaveBeenCalled();
     // Send an est message - should be passed because we are testing that rele messages are not passed upwards
     const estMessage = '{"t":"est","s":"id","e":"estado","d":"{}"}';
@@ -141,7 +141,7 @@ describe("canal-rele", () => {
   it("should call alAbrir on open and reconnection", () => {
     const cb = vi.fn();
     const canal = crearCanalRele(url, tema, FakeWebSocket as any);
-    const unsub = canal.alAbrir(cb);
+    const unsub = canal.alAbrir!(cb);
     // Initial open
     lastWs?.triggerOpen();
     expect(cb).toHaveBeenCalledTimes(1);
