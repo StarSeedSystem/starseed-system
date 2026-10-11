@@ -13,7 +13,6 @@ export interface EntradaAurora {
   tags?: string[];
 }
 
-// Pesos fijos de las emociones sobre los rasgos (contrato BOT1011D1).
 const PESO_ALEGRIA_ENERGIA = 0.15;
 const PESO_ALEGRIA_HUMOR = 0.1;
 const PESO_CALMA_ENERGIA = -0.1;
