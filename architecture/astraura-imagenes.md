@@ -1,6 +1,6 @@
 # Imágenes locales de Astraura por capas y malla · contrato (IMG1011)
 
-> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/imagenes/` (modelos, plan, sugerencias; 19 pruebas)
+> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/imagenes/` (modelos, plan, sugerencias; 21 pruebas)
 > Se apoya en `architecture/generacion-audiovisual-astraura.md` (Adenda 138, `src/ai/astraura/media/media-gen.ts`):
 > su **regla de oro sigue intacta** — la imagen por texto SIEMPRE funciona gracias a la web gratis (Pollinations).
 > Esto la amplía con modelos LOCALES por capas, varias opciones por petición y la malla de neuronas.
@@ -46,7 +46,9 @@ transparencia, varias referencias, rápido), pasos y resolución por defecto, y 
 ## §3 · Las capas (`plan.ts`)
 
 De lo más cercano a lo más lejano: **dispositivo** (la propia neurona) › **navegador** (la pestaña con
-WebGPU) › **neurona** (otra tuya) › **malla** (una de tu grupo o comunidad que la ofreció) › **web gratis**
+WebGPU) › **neurona** (otra tuya) › **malla** (una de tu grupo o comunidad que la ofreció) › **espacio**
+(Space público de Hugging Face con GPU gratis y la cuota de cada persona: FLUX.1 schnell y Qwen-Image,
+verificados en marcha el 2026-10-11; el de Qwen-Image 2.1 corre en CPU básica y no se usa) › **web gratis**
 (Pollinations: solo texto) › **externo** (de pago, con tu clave). `cabe` decide motor y cuantización: GPU
 dedicada nativa si cabe, si no 8 o 4 bits con sd.cpp; si no hay GPU, CPU o memoria unificada de Mac (lento).
 

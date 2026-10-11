@@ -73,7 +73,13 @@ export const MOTORES_3D: readonly Motor3D[] = [
     id: "pixal3d-espacio", etapa: "generar", nombre: "Pixal3D en su Space de Hugging Face (GPU gratis con cuota)", necesita: ["espacio-hf"],
     estado: "listo", licencia: "MIT (código y pesos); terceros según su NOTICE", uso: "condicionado", fidelidad: 5, remoto: true,
     fuente: "https://huggingface.co/spaces/TencentARC/Pixal3D",
-    nota: "NO es local: la imagen sale a Hugging Face. Solo con permiso expreso, nunca con fotos de personas sin su consentimiento. Cuota diaria gratuita limitada (ZeroGPU A10G).",
+    nota: "NO es local: la imagen sale a Hugging Face desde el navegador de cada persona. Solo con permiso, nunca con fotos de personas sin su consentimiento. Cuota ZeroGPU por persona: 2 min/día sin cuenta, 5 con cuenta gratis, 40 con PRO.",
+  },
+  {
+    id: "trellis2-espacio", etapa: "generar", nombre: "TRELLIS.2 en su Space oficial de Microsoft (GPU gratis con cuota)", necesita: ["espacio-hf"],
+    estado: "listo", licencia: "MIT + licencia de DINOv3", uso: "condicionado", fidelidad: 4, remoto: true,
+    fuente: "https://huggingface.co/spaces/microsoft/TRELLIS.2",
+    nota: "Corriendo el 2026-10-11 (ZeroGPU A10G). Mismas reglas y cuota que el Space de Pixal3D: respaldo cuando el de Pixal3D esté lleno.",
   },
   {
     id: "filigree3d", etapa: "generar", nombre: "Filigree3D (ultra alta resolución)", necesita: ["cuda-16gb"],
@@ -119,7 +125,7 @@ export const MOTORES_3D: readonly Motor3D[] = [
   {
     id: "unirig", etapa: "riggear", nombre: "UniRig (VAST)", necesita: ["cuda-8gb"], estado: "listo",
     licencia: "MIT", uso: "libre", fuente: "https://github.com/VAST-AI-Research/UniRig",
-    nota: "Acepta OBJ, FBX, GLB y VRM; los puntos de control entrenados con VRoid aún no están publicados.",
+    nota: "Acepta OBJ, FBX, GLB y VRM; los puntos de control entrenados con VRoid aún no están publicados. Sus Spaces públicos de la comunidad estaban en error el 2026-10-11: sin NVIDIA no hay rig automático gratis (las plantillas VRM ya traen esqueleto).",
   },
   /* ── detallar ── */
   {

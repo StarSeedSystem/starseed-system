@@ -1,6 +1,6 @@
 # Avatares 3D autopersonalizables · contrato (AV1011)
 
-> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/avatares/adn/` (8 módulos puros, 78 pruebas)
+> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/avatares/adn/` (8 módulos puros, 79 pruebas)
 > Relacionado: `architecture/astraura-bots.md` (la orbe ES el bot), `src/lib/avatares/movimiento/` (motor único de movimiento),
 > `src/lib/xr/calidad-perfiles.ts` (niveles de avatar en XR), Protomolécula (catálogo de herramientas).
 
@@ -138,3 +138,16 @@ salen cerrados para que choquen bien con la física de XR. Con `cerrada`, `plani
 que cierran: **PixelArtistry** (ComfyUI, Windows + NVIDIA) o **vóxeles de Blender** (CPU: vale en la A1; pierde
 las UV y la textura se vuelve a hornear). Instant Meshes y QuadriFlow se descartan diciendo por qué. Los umbrales
 de VRAM de `resolucionPara` ahora son los publicados por PixelArtistry. Cola: `cola-mallas-cerradas-1011.json`.
+
+### §11.2 · Decisión de Alex (2026-10-11): versiones públicas mientras no haya computadora Windows/NVIDIA
+
+- **Generar**: el Space oficial de **Pixal3D** (TencentARC/Pixal3D) y, de respaldo, el de **TRELLIS.2**
+  (microsoft/TRELLIS.2); los dos corrían el 2026-10-11 en ZeroGPU A10G.
+- **Se llaman desde el navegador de cada persona**, no desde nuestro servidor: cada quien gasta SU cuota de
+  Hugging Face (ZeroGPU: 2 min/día sin cuenta, 5 con cuenta gratis, 40 con PRO) y nadie agota la de otro.
+- **Permiso**: la cuenta de Alex lo tiene (lo dijo él); a las demás se les pregunta una vez, y las fotos de
+  personas piden siempre su consentimiento.
+- **Cerrar y optimizar**: vóxeles de Blender y el optimizador en la A1 (CPU), como en §11.1.
+- **Esqueleto**: los Spaces públicos de UniRig estaban en error; sin NVIDIA no hay rig automático gratis. Las
+  plantillas VRM ya lo traen; a lo generado se le pone cuando haya una neurona con NVIDIA.
+- Cola: `cola-espacios-publicos-1011.json`.

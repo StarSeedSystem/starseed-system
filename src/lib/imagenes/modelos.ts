@@ -62,6 +62,8 @@ export interface ModeloImagen {
   capacidades: readonly CapacidadImg[];
   hf: string;
   codigo?: string;
+  /** Space público de Hugging Face verificado en marcha (GPU gratis con cuota por persona). */
+  espacio?: string;
   nota?: string;
 }
 
@@ -110,6 +112,7 @@ export const MODELOS_IMAGEN: readonly ModeloImagen[] = [
     id: "flux1-schnell", nombre: "FLUX.1 [schnell]", gama: "media", vramGB: 12, ramGB: 16, motores: TODO,
     licencia: "Apache-2.0", uso: "libre", gated: true, repoGB: 58.1, pasos: 4, resolucion: 1024,
     capacidades: ["texto-a-imagen", "texto-legible", "rapido"], hf: "black-forest-labs/FLUX.1-schnell", codigo: "https://github.com/black-forest-labs/flux",
+    espacio: "black-forest-labs/FLUX.1-schnell",
   },
   {
     id: "flux1-dev", nombre: "FLUX.1 [dev]", gama: "media", vramGB: 12, ramGB: 16, motores: TODO,
@@ -120,7 +123,7 @@ export const MODELOS_IMAGEN: readonly ModeloImagen[] = [
   {
     id: "qwen-image", nombre: "Qwen-Image", gama: "alta", vramGB: 24, ramGB: 32, motores: ["sdcpp", "comfyui", "diffusers"],
     licencia: "Apache-2.0", uso: "libre", gated: false, repoGB: 58, pasos: 30, resolucion: 1024,
-    capacidades: ["texto-a-imagen", "texto-legible"], hf: "Qwen/Qwen-Image", codigo: "https://github.com/QwenLM/Qwen-Image",
+    capacidades: ["texto-a-imagen", "texto-legible"], hf: "Qwen/Qwen-Image", codigo: "https://github.com/QwenLM/Qwen-Image", espacio: "Qwen/Qwen-Image",
     nota: "La opción Qwen de uso comercial libre.",
   },
   {
@@ -128,7 +131,7 @@ export const MODELOS_IMAGEN: readonly ModeloImagen[] = [
     licencia: "Qwen Research License (solo investigación o evaluación)", uso: "no-comercial", gated: false, repoGB: 47.4, pasos: 30, resolucion: 1024,
     capacidades: ["texto-a-imagen", "edicion", "texto-legible", "transparencia", "multi-referencia"], hf: "Qwen/Qwen-Image-2.1",
     codigo: "https://github.com/QwenLM/Qwen-Image-2.1",
-    nota: "2026-09-20: genera y edita en un modelo, hasta 10 referencias, transparencia nativa. Uso comercial solo con licencia aparte de Qwen.",
+    nota: "2026-09-20: genera y edita en un modelo, hasta 10 referencias, transparencia nativa. Uso comercial solo con licencia aparte de Qwen. Su Space corre en CPU básica (probablemente llama a un servicio de Qwen): sin comprobar, no se usa como capa.",
   },
   {
     id: "krea-2-turbo", nombre: "Krea 2 Turbo", gama: "alta", vramGB: 16, ramGB: 24, motores: ["sdcpp", "comfyui"],

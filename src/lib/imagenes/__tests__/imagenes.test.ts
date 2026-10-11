@@ -84,6 +84,15 @@ describe("planImagen", () => {
     const p = planImagen(pet({ necesita: ["edicion", "transparencia"], opciones: 2 }), [pc21], 1);
     expect(new Set(p.opciones.map((o) => o.modelo?.id))).toEqual(new Set(["qwen-image-2.1"]));
   });
+  it("sin GPU propia, los Spaces públicos (FLUX schnell, Qwen-Image) van antes que la web gratis", () => {
+    const p = planImagen(pet({ opciones: 3, espacios: ["flux1-schnell", "qwen-image"] }), [n({})], 1);
+    expect(p.opciones.map((o) => [o.capa, o.modelo?.id ?? o.motor])).toEqual([["espacio", "qwen-image"], ["espacio", "flux1-schnell"], ["web-gratis", "pollinations"]]);
+  });
+  it("con imagen de referencia y sin permiso, los Spaces tampoco", () => {
+    const p = planImagen(pet({ conReferencia: true, espacios: ["flux1-schnell"] }), [n({})], 1);
+    expect(p.opciones).toEqual([]);
+    expect(p.descartes.join(" ")).toMatch(/Space: llevaría tu imagen fuera/);
+  });
   it("una neurona ocupada no recibe trabajo", () => {
     const p = planImagen(pet({ opciones: 1 }), [{ ...pc, ocupada: true }], 1);
     expect(p.opciones[0].capa).toBe("web-gratis");

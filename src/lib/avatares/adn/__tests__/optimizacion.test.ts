@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { planificar } from "../canalizacion";
+import { MOTORES_3D } from "../motores";
 import { DESTINOS_3D, capacidadesDe, lodPara, planOptimizacion, resolucionPara, siguienteIntento, type Hierro } from "../optimizacion";
 
 const hierro = (o: Partial<Hierro> = {}): Hierro => ({ gpu: "ninguna", ramGB: 8, vramGB: null, blender: false, permiteEspacioHf: false, claveExterna: false, ...o });
@@ -78,6 +79,13 @@ describe("plan completo: destino + hierro", () => {
   it("con la Mac de 8 GB nada genera en local; con permiso, el Space de Pixal3D (remoto) sí", () => {
     expect(generar(capacidadesDe(hierro({ gpu: "apple" })), "calidad").motor).toBeNull();
     expect(generar(capacidadesDe(hierro({ gpu: "apple", permiteEspacioHf: true })), "calidad").motor?.id).toBe("pixal3d-espacio");
+  });
+  it("sin la computadora con NVIDIA (decisión de Alex): Space de Pixal3D y, de respaldo, el de TRELLIS.2", () => {
+    const caps = capacidadesDe(hierro({ gpu: "apple", permiteEspacioHf: true }));
+    expect(generar(caps, "calidad").motor?.id).toBe("pixal3d-espacio");
+    const sinPixal = planificar({ partida: "imagen", esqueleto: "libre", capacidades: caps, region: "MX", comercial: false, permitirDePago: false, prioridad: "calidad" },
+      MOTORES_3D.filter((m) => m.id !== "pixal3d-espacio")).pasos.find((x) => x.etapa === "generar")!;
+    expect(sinPixal.motor?.id).toBe("trellis2-espacio");
   });
   it("lo local va siempre antes que lo remoto", () => {
     const caps = capacidadesDe(hierro({ gpu: "nvidia", ramGB: 32, vramGB: 16, permiteEspacioHf: true }));

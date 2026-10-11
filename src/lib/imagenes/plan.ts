@@ -11,7 +11,7 @@
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 import { MODELOS_IMAGEN, memoriaNecesaria, type CapacidadImg, type ModeloImagen, type MotorImg } from "./modelos";
 
-export const CAPAS_IMG = ["dispositivo", "navegador", "neurona", "malla", "web-gratis", "externo"] as const;
+export const CAPAS_IMG = ["dispositivo", "navegador", "neurona", "malla", "espacio", "web-gratis", "externo"] as const;
 export type CapaImg = (typeof CAPAS_IMG)[number];
 export type Cuantizacion = "nativa" | "q8" | "q4";
 
@@ -40,12 +40,14 @@ export interface PeticionImagen {
   /** La persona permitió sacar la petición de sus neuronas (web gratis o servicio externo). */
   permisoRemoto: boolean;
   permitirDePago: boolean;
+  /** Modelos con Space público que la persona puede usar ahora (permiso dado y cuota del día sin agotar). */
+  espacios?: readonly string[];
 }
 
-export interface OpcionImagen { capa: CapaImg; neuronaId?: string; modelo: ModeloImagen | null; motor: MotorImg | "pollinations" | "externo"; cuantizacion: Cuantizacion; semilla: number; motivo: string }
+export interface OpcionImagen { capa: CapaImg; neuronaId?: string; modelo: ModeloImagen | null; motor: MotorImg | "espacio-hf" | "pollinations" | "externo"; cuantizacion: Cuantizacion; semilla: number; motivo: string }
 export interface PlanImagen { opciones: OpcionImagen[]; descartes: string[] }
 
-const ORDEN_CAPA: Record<CapaImg, number> = { dispositivo: 0, navegador: 1, neurona: 2, malla: 3, "web-gratis": 4, externo: 5 };
+const ORDEN_CAPA: Record<CapaImg, number> = { dispositivo: 0, navegador: 1, neurona: 2, malla: 3, espacio: 4, "web-gratis": 5, externo: 6 };
 const ORDEN_USO: Record<UsoLicencia, number> = { libre: 0, atribucion: 1, condicionado: 2, "restringido-region": 3, "no-comercial": 4 };
 const ORDEN_GAMA = { alta: 0, media: 1, entrada: 2, navegador: 3 } as const;
 
@@ -103,6 +105,12 @@ export function planImagen(p: PeticionImagen, neuronas: readonly NeuronaImg[], s
     }
   }
   const puedeSalir = !p.conReferencia || p.permisoRemoto;
+  // Spaces públicos (GPU gratis con cuota de cada persona): el texto, o la referencia con permiso, sale a Hugging Face.
+  for (const m of modelos) {
+    if (!m.espacio || !p.espacios?.includes(m.id)) continue;
+    if (!puedeSalir) { descartes.push(`${m.nombre} en su Space: llevaría tu imagen fuera; hace falta tu permiso.`); continue; }
+    candidatas.push({ capa: "espacio", modelo: m, motor: "espacio-hf", cuantizacion: "nativa", motivo: `Space público de ${m.nombre} (GPU gratis con tu cuota diaria).` });
+  }
   if (puedeSalir && p.necesita.every((c) => c === "texto-a-imagen" || c === "rapido")) {
     candidatas.push({ capa: "web-gratis", modelo: null, motor: "pollinations", cuantizacion: "nativa", motivo: "Web gratis (Pollinations): el texto sale de tus neuronas." });
   } else if (!puedeSalir) descartes.push("Web gratis y servicios: llevan tu imagen de referencia fuera; hace falta tu permiso.");
