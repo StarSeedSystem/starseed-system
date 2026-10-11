@@ -151,7 +151,7 @@ para los orígenes del OS (sin cookies), cabeceras de seguridad, registros sin f
 - **Por neurona**: `starseed.puerta-datos.v1` en este aparato: `auto` (por defecto) o `apagada`
   (todo a Supabase como antes). Sin URL configurada, el modo `auto` equivale a `apagada`.
 - **URL**: `NEXT_PUBLIC_PUERTA_DATOS_URL` o la fila `os_puerta_datos` (solo cuentas con sesión;
-  en caché 6 h en el aparato). Nunca se escribe en el repo ni en documentos.
+  en caché 6 h en el aparato; «no hay puerta», 30 min — PDA1012). Nunca se escribe en el repo ni en documentos.
 - **Genesis › Consumo y créditos**: fila «Puerta de datos (A1)» (`fila-puerta-datos.tsx`) con la
   salud (verde/ámbar/rojo y cuándo se midió), peticiones ahorradas hoy (las de la puerta, medidas
   allí) y las de este aparato, la réplica pendiente y el interruptor de esta neurona. Datos:
@@ -261,13 +261,13 @@ que la ruta `/v1/metagenesis/latir` sustituye con las mismas reglas.
    `puerta_datos.py registrar-llave` → `{"ok": true}`.
 3. ✅ **Backend de Astraura** — commit `32a54ef9` en el repo `IA 1.58 bit` (local, sin push):
    `app/core/puerta_datos.py` + `mesh_network.py` + `cerebros_manager.py`.
-4. ⏳ **Navegador** — falta: la build instalada no trae `src/lib/datos/puerta-a1*.ts` (en
+4. ✅ **Navegador** (PDA1012, §10.3) — antes faltaba: la build instalada no trae `src/lib/datos/puerta-a1*.ts` (en
    `localhost:9002`, `/api/mando/puerta-datos` → 404) y, además, el adaptador aún no está cableado
    en neuronas, presencia y freno (solo existe en el contenedor, sin integrar). Queda listo lo demás:
    `os_puerta_datos.url` puesta (`activa = false`), el freno empujado a la puerta por la vigía y las
    llaves registradas. Paso siguiente: una ola que cablee `puertaA1()` en esos tres sitios →
    integración → build → `update os_puerta_datos set activa = true`.
-5. ⏳ **Next (destino)** — `src/lib/astraura/destino-nube.ts` sigue leyendo `astraura_state` en
+5. ✅ **Next (destino)** (PDA1012, §10.3) — antes `src/lib/astraura/destino-nube.ts` leía `astraura_state` en
    Supabase (8–10 lecturas por 30 min): necesita código de servidor, `PUERTA_DATOS_URL` y la ficha
    `astraura` en el entorno de Next (Mac y Vercel) y una build.
 
@@ -342,3 +342,31 @@ publique directo mientras haya freno.
 en la Mac (`bash scripts/enjambre/instalar.sh` con el enjambre quieto: va por detrás de main, sin
 CAP1010 ni PDA1011); `/salud` dice `jwks: "sin-claves"` cuando la JWKS lleva > 30 min sin usarse
 (la clave ES256 sí está: se recarga en la primera sesión), etiqueta engañosa que conviene cambiar.
+
+### 10.3 Fase 2 · navegador y Next (PDA1012, 2026-10-11)
+
+Cableado de verdad, con respaldo automático a Supabase (por el cliente único y, por tanto, por el
+guardián de consumo) y un interruptor por neurona:
+
+| Qué | Dónde | Por la puerta | Respaldo |
+|---|---|---|---|
+| Latido ligero de la neurona (cada 5 min) | `neurons.ts` → `neuronas-puerta.ts` | `POST /v1/neuronas/latido` | `update neuron_devices.last_seen_at` (y, si la fila no existe, la ficha) |
+| Vida de las neuronas en la lista | `listNeurons()` | `GET /v1/neuronas` (caché 60 s, también con freno) | `last_seen_at` de Supabase |
+| Registro (nombre, capacidades) | `listNeurons()` | — | Supabase al abrir y cada **30 min** con la puerta sana (5 min sin ella); la ficha propia sube al abrir y cada 30 min |
+| Presencia de la mensajería | `mensajeria/presencia.ts` | `POST/GET /v1/presencia` | `os_presencia` |
+| Freno | `consumo/freno.ts` (`leerFilaFreno`) | `GET /v1/freno` (lo empuja la vigía) | `os_freno` |
+| Destino y túnel de Astraura (servidor de Next) | `destino-nube.ts` (`publicadoEnLaPuerta`) | `GET /v1/astraura/estado/{destino_fijo,tunel_publico}` con `PUERTA_DATOS_URL` + `PUERTA_DATOS_FICHA_ASTRAURA` (en `.env.local` de la Mac; Vercel no las tiene) | `astraura_state`; un 404 de la puerta (aún sin copiar) también va a Supabase |
+| Copia de lo publicado | `publicar_tunel_astraura.py`, `publicar_destino_astraura.py` → `espejo_puerta.py` | `PUT /v1/astraura/estado/…` si cambió o cada 30 min | — (Supabase sigue siendo la verdad) |
+
+- «No hay puerta» (`os_puerta_datos.activa = false` o sin sesión) se recuerda **30 min** en el
+  aparato (antes 6 h): encender la puerta llega a todos en ≤ 30 min; la URL buena, 6 h.
+- Genesis › Consumo y créditos › **Puerta de datos · A1**: salud (medida por SSH/HTTPS y renovada
+  sola si tiene > 15 min), ahorradas hoy medidas en la puerta, réplica, **lo de esta neurona por
+  grupo** (`neuronas 6/6 · presencia 2/3 · freno 1/1` = por la puerta / total) y si esta pestaña
+  habla con la puerta, con el interruptor Automática/Apagada (el adaptador vivo lo nota al momento).
+- Pruebas que fallan si se desconecta: `neuronas-puerta.test.ts`, `freno-puerta.test.ts`,
+  `presencia-puerta.test.ts`, `destino-nube-puerta.test.ts`, `test_espejo_puerta.py` y los nuevos
+  casos de `puerta-a1.test.ts` y `fila-puerta-datos.test.tsx`.
+- Se queda en Supabase, a propósito: la presencia del widget de Mensajes (una lectura cada ≥ 5 min,
+  junto a los perfiles), el bus de MetaGenesis de la vista remota (archivo de OPA1011) y el registro.
+
