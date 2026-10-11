@@ -40,6 +40,42 @@ import {
 } from "@/lib/services/oss-connections";
 import { saveResource } from "@/lib/library-store";
 import type { LibraryDetailItem, ListingLink } from "@/components/library/app-file-page";
+import { fichasProtomolecula, type VersionProto } from "@/lib/protomolecula/biblioteca-protomolecula";
+import { CATALOGO_PROTOMOLECULA } from "@/lib/protomolecula/catalogo-herramientas";
+
+/** Familia y `kind` (library-store) de las herramientas de la Protomolécula. */
+export const PROTO_LIBRARY_CATEGORY = "protomolecula";
+export const PROTO_SAVED_KIND = "prototool";
+
+/**
+ * Fichas de la Protomolécula como items de la Biblioteca, con el mismo
+ * mecanismo que el resto de fuentes (categoría + kind propios). `versiones`
+ * las inyecta quien tiene disco (p. ej. la API, desde
+ * `config/protomolecula-versiones.json`); una ficha con `enlaces.repo` puede
+ * comprobarse en `/api/library/actualizaciones`.
+ */
+export function listProtoLibraryItems(
+  versiones: Record<string, VersionProto> = {},
+): LibraryDetailItem[] {
+  return fichasProtomolecula(versiones, CATALOGO_PROTOMOLECULA).map((f) => ({
+    id: `proto-${f.id}`,
+    title: f.nombre,
+    description: f.proximamente ? `${f.descripcion}\n\n${f.proximamente}` : f.descripcion,
+    category: PROTO_LIBRARY_CATEGORY,
+    categoryLabel: f.categoriaEtiqueta,
+    license: f.licencia,
+    verified: f.estado === "integrada",
+    tags: ["protomolecula", f.categoria, f.controlReal.replace(/\s+/g, "-")],
+    sourceLabel: f.estado === "integrada" ? "Protomolécula · integrada" : "Protomolécula",
+    sourceUrl: f.enlaces.repo,
+    fileKind: `herramienta · ${f.categoriaEtiqueta}`,
+    links: ([
+      f.enlaces.web && { label: "Web oficial", url: f.enlaces.web },
+      f.enlaces.repo && { label: "Repositorio", url: f.enlaces.repo },
+      f.enlaces.documentacion && { label: "Documentación", url: f.enlaces.documentacion },
+    ].filter(Boolean) as ListingLink[]),
+  }));
+}
 
 // ── Constantes de presentación (categoría de librería) ───────────────────────
 
