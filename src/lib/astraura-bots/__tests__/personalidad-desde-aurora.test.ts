@@ -5,7 +5,7 @@ import { rasgosDesdePersonalidad, ANIMO_DESDE_VOZ } from "../personalidad-desde-
 describe("personalidad-desde-aurora", () => {
   const basePersonalidad: Personalidad = {
     calidez: 0.5,
-    energía: 0.5,
+    energia: 0.5,
     formalidad: 0.5,
     curiosidad: 0.5,
     humor: 0.5,
@@ -118,20 +118,18 @@ describe("personalidad-desde-aurora", () => {
       expect(result.concision).toBe(0.5);
     });
 
-    it("should handle English emotion aliases", () => {
-      const input = {
-        emotions: {
-          joy: 0.7,    // alegria
-          calm: 0.4,   // calma
-        },
-      };
-      const result = rasgosDesdePersonalidad(input, basePersonalidad);
-      // joy (alegria) sube energía y humor
-      expect(result.energia).toBeCloseTo(0.5 + 0.3 * 0.7); // 0.71
-      expect(result.humor).toBeCloseTo(0.5 + 0.3 * 0.7);   // 0.71
-      // calm (calma) baja energía
-      expect(result.energia).toBeCloseTo(0.5 + 0.3 * 0.7 - 0.3 * 0.4); // 0.5 + 0.21 - 0.12 = 0.59
-    });
+     it("should handle English emotion aliases", () => {
+       const input = {
+         emotions: {
+           joy: 0.7,    // alegria
+           calm: 0.4,   // calma
+         },
+       };
+       const result = rasgosDesdePersonalidad(input, basePersonalidad);
+       // joy (alegria) sube energía y humor; calm (calma) baja energía
+       expect(result.energia).toBeCloseTo(0.5 + 0.3 * 0.7 - 0.3 * 0.4); // 0.59
+       expect(result.humor).toBeCloseTo(0.5 + 0.3 * 0.7);   // 0.71
+     });
 
     it("should clamp values to [0,1] range", () => {
       // Valores muy altos

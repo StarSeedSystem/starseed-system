@@ -5,7 +5,7 @@
  * Convierte la entrada de Aurora (params y emotions) en ajustes de rasgos
  * para la función mezclarPersonalidad. PURO: sin React, sin red, sin reloj.
  */
-import { RASGOS, acotar, type Personalidad } from "./tipos";
+import { RASGOS, acotar, type Personalidad, type Rasgo } from "./tipos";
 
 /** Mapeo de UserVoiceMood de src/lib/aurora/audio-emotion.ts a SenalesContexto.animo. */
 export const ANIMO_DESDE_VOZ: Record<string, { valencia: number; activacion: number }> = {
@@ -63,34 +63,34 @@ export function rasgosDesdePersonalidad(
     }
   }
 
-  // Procesar emotions con pesos fijos
-  if (emotions.alegria !== undefined) {
-    const valor = typeof emotions.alegria === "number" ? emotions.alegria : 0;
-    const normalized = valor > 1 ? valor / 100 : valor;
-    // alegria sube energía y humor (peso 0.3 cada uno)
-    out.energia = acotar(out.energia + 0.3 * normalized);
-    out.humor = acotar(out.humor + 0.3 * normalized);
-  }
-  if (emotions.alegre !== undefined) {
-    // Alias en inglés
-    const valor = typeof emotions.alegre === "number" ? emotions.alegre : 0;
-    const normalized = valor > 1 ? valor / 100 : valor;
-    out.energia = acotar(out.energia + 0.3 * normalized);
-    out.humor = acotar(out.humor + 0.3 * normalized);
-  }
+   // Procesar emotions con pesos fijos
+   if (emotions.alegria !== undefined) {
+     const valor = typeof emotions.alegria === "number" ? emotions.alegria : 0;
+     const normalized = valor > 1 ? valor / 100 : valor;
+     // alegria sube energía y humor (peso 0.3 cada uno)
+     out.energia = acotar(out.energia + 0.3 * normalized);
+     out.humor = acotar(out.humor + 0.3 * normalized);
+   }
+   if (emotions.joy !== undefined) {
+     // Alias en inglés for alegria
+     const valor = typeof emotions.joy === "number" ? emotions.joy : 0;
+     const normalized = valor > 1 ? valor / 100 : valor;
+     out.energia = acotar(out.energia + 0.3 * normalized);
+     out.humor = acotar(out.humor + 0.3 * normalized);
+   }
 
-  if (emotions.calma !== undefined) {
-    const valor = typeof emotions.calma === "number" ? emotions.calma : 0;
-    const normalized = valor > 1 ? valor / 100 : valor;
-    // calma baja energía (peso 0.3)
-    out.energia = acotar(out.energia - 0.3 * normalized);
-  }
-  if (emotions.calm !== undefined) {
-    // Alias en inglés
-    const valor = typeof emotions.calm === "number" ? emotions.calm : 0;
-    const normalized = valor > 1 ? valor / 100 : valor;
-    out.energia = acotar(out.energia - 0.3 * normalized);
-  }
+   if (emotions.calma !== undefined) {
+     const valor = typeof emotions.calma === "number" ? emotions.calma : 0;
+     const normalized = valor > 1 ? valor / 100 : valor;
+     // calma baja energía (peso 0.3)
+     out.energia = acotar(out.energia - 0.3 * normalized);
+   }
+   if (emotions.calm !== undefined) {
+     // Alias en inglés for calma
+     const valor = typeof emotions.calm === "number" ? emotions.calm : 0;
+     const normalized = valor > 1 ? valor / 100 : valor;
+     out.energia = acotar(out.energia - 0.3 * normalized);
+   }
 
   // Asegurar que todos los rasgos estén en [0,1] (acotar ya lo hace en cada paso, pero por seguridad)
   for (const k of RASGOS) {
