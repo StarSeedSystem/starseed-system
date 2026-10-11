@@ -125,4 +125,41 @@ describe("canal-enlace-local", () => {
         expect(cb.presencia().map((m) => m.id)).toEqual(["b:1"]);
         cb.soltar();
     });
+
+    it("onSuscrito se llama con true cuando el enlace se abre y false cuando se cierra", () => {
+        vi.useFakeTimers();
+        let abierto = true;
+        const enlace: EnlaceLocalVivo = {
+            par: {} as EnlaceLocalVivo["par"],
+            desde: 0,
+            rttMs: () => null,
+            ruta: () => null,
+            capacidadKbps: () => null,
+            enviarBinario: () => true,
+            bufferedAmount: () => 0,
+            ponerPistas: async () => true,
+            alFlujoRemoto: () => () => { /* sin flujo */ },
+            cerrar: () => { /* no-op */ },
+            id: "test",
+            abierto: () => abierto,
+            enviar: (texto: string) => true,
+            alMensaje: (cb) => { return () => {}; },
+        };
+        const ca = abrirCanalLlamadaPorEnlace(enlace, "s1", "a:1");
+        const suscriptores: boolean[] = [];
+        ca.onSuscrito((ok) => suscriptores.push(ok));
+        // Run pending timers to trigger the initial onSuscrito call
+        vi.runOnlyPendingTimers();
+        // initial call
+        expect(suscriptores).toEqual([true]);
+        // close the link
+        abierto = false;
+        vi.advanceTimersByTime(11_000);
+        expect(suscriptores).toEqual([true, false]);
+        // open the link
+        abierto = true;
+        vi.advanceTimersByTime(11_000);
+        expect(suscriptores).toEqual([true, false, true]);
+        ca.soltar();
+    });
 });
