@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261010",
+ "tareas": [
+  {
+   "id": "S1010-EV-ORACLE-2",
+   "ola": "Ola 1010S · Estaciones en vivo: Omnifrecuencias, Audiomorphic y relé en Oracle",
+   "titulo": "Canal de estaciones por el relé propio (cliente) y enganche opcional",
+   "archivos": [
+    "src/lib/estaciones/canal-rele.ts",
+    "src/lib/estaciones/__tests__/canal-rele.test.ts",
+    "src/lib/estaciones/estacion-global.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo StarSeed OS (Next.js + TypeScript). NO git ni next build. Lee la interfaz `CanalEstacion` en `src/lib/estaciones/sesion-en-vivo.ts` (enviar, alRecibir, abierto, oyentes, alAbrir, cerrar) y `crearCanalInternet` en `src/lib/estaciones/canales-estacion.ts` como modelo. Crea `src/lib/estaciones/canal-rele.ts` (\"use client\", ≤ 120 líneas). Exporta `crearCanalRele(url: string, tema: string, WS: typeof WebSocket = globalThis.WebSocket): CanalEstacion`. Conecta a `${url}?tema=${encodeURIComponent(tema)}` y reconecta con espera creciente (1, 2, 4… hasta 30 s). `abierto()` dice si el socket está OPEN. Los mensajes `{\"t\":\"rele\",\"n\":k}` actualizan `oyentes()` y no se pasan arriba; solo los textos que empiezan por '{\"t\":\"est\"' llegan a `alRecibir`. `alAbrir` avisa en cada apertura y `cerrar` para la reconexión. Tipo «internet», etiqueta «Relé propio de estaciones». Prueba `src/lib/estaciones/__tests__/canal-rele.test.ts` con una clase WebSocket falsa inyectada (abrir, recibir, presencia, reconexión con temporizadores falsos de vitest). En `src/lib/estaciones/estacion-global.ts` haz una edición MÍNIMA con Edit: justo después de la línea `if (internet) sesion.agregarCanal(internet);`, si `process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL` existe, importa perezosamente `./canal-rele` y añade `crearCanalRele(url, ficha.privada ? await temaPrivado(ficha.id, token!) : temaPublico(ficha.id))` (importa `temaPrivado` y `temaPublico` de `./cripto-estacion`), y guarda su cierre en `this.bajas`. Comprueba con `npx vitest run src/lib/estaciones` y tsc (tus archivos a cero).",
+   "dependencias_ya_en_main": [
+    "S1010-EV-ORACLE-1b"
+   ]
+  }
+ ]
+}
