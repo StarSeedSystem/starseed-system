@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261010",
+ "tareas": [
+  {
+   "id": "S1010-TU-LL2b",
+   "ola": "Ola 1010S · Transporte universal sin internet: llamadas, chat, estaciones y Astraura",
+   "titulo": "MotorLlamada admite canales directos (sin Supabase)",
+   "archivos": [
+    "src/lib/llamadas/motor.ts",
+    "src/lib/llamadas/__tests__/motor-canal-directo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nDepende de TU-LL1. En src/lib/llamadas/motor.ts (clase MotorLlamada) cambia como mucho 40 líneas, con ediciones mínimas. 1) Añade a la interfaz OpcionesMotor la opción canalesDirectos?: () => ConexionCanal[] (el tipo ConexionCanal ya se importa de @/lib/llamadas/senalizacion). 2) Añade directo?: boolean a la interfaz interna CanalMotor. 3) Separa private abrirCanal(tema) en dos: abrirCanal(tema) crea la conexión con abrirCanalLlamada como ahora y llama a una nueva private adjuntarCanal(conn: ConexionCanal, tema: string, directo = false): CanalMotor, que contiene TODO el cableado actual (push a this.canales, onPresencia, onSenal, onSuscrito, onEstado y publicar). 4) En entrar(), después de abrir el canal de Supabase, adjunta cada canal de this.opc.canalesDirectos?.() ?? [] con directo=true. Si abrirCanal devolvió null pero hay al menos un canal directo, NO termines con error: sigue con los directos y pon la fase en 'esperando'. 5) En revisarCanal, cuando haya que soltar por MAX_CANALES, cuenta solo los canales no directos y suelta el más viejo NO directo. Escribe la prueba src/lib/llamadas/__tests__/motor-canal-directo.test.ts usando vi.mock('@/lib/llamadas/senalizacion') para que abrirCanalLlamada devuelva null, y un ConexionCanal falso como canal directo. Debe comprobar: entrar() devuelve true; cuando el canal directo publica la presencia de otra persona, el motor crea su par (inyecta un RTCPeerConnection falso en globalThis); revisarCanal nunca suelta el canal directo. Después ejecuta npx vitest run src/lib/llamadas: las pruebas que ya existían deben seguir en verde.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261011-003110-S1010-TU-LL2`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261011-003110-S1010-TU-LL2:refs/remotes/origin/nube/a1-20261011-003110-S1010-TU-LL2\"` y `git cherry-pick --no-commit f05913a7c761 675f0a7b34e3`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/llamadas/__tests__/motor-canal-directo.test.ts, src/lib/llamadas/motor.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261011-003110-S1010-TU-LL2",
+   "dependencias_ya_en_main": [
+    "S1010-TU-LL1c"
+   ]
+  }
+ ]
+}
