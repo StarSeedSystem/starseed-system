@@ -90,49 +90,65 @@ describe("puente-herramientas", () => {
     it("acepta URLs https:// válidas sin credenciales y distinto origen", () => {
       const resultado = esUrlEmbebible("https://herramienta.example.com/app", origenOS);
       expect(resultado.ok).toBe(true);
-      expect((resultado as { ok: true; origen: string }).origen).toBe("https://herramienta.example.com");
+      if (resultado.ok) {
+        expect(resultado.origen).toBe("https://herramienta.example.com");
+      }
     });
 
     it("rechaza URLs con protocolo http:", () => {
       const resultado = esUrlEmbebible("http://herramienta.example.com/app", origenOS);
       expect(resultado.ok).toBe(false);
-      expect((resultado as { ok: false; motivo: string }).motivo).toContain("Solo se permiten URLs con protocolo https:");
+      if (!resultado.ok) {
+        expect(resultado.motivo).toContain("Solo se permiten URLs con protocolo https:");
+      }
     });
 
     it("rechaza URLs con credenciales", () => {
       const resultado = esUrlEmbebible("https://usuario:password@herramienta.example.com/app", origenOS);
       expect(resultado.ok).toBe(false);
-      expect((resultado as { ok: false; motivo: string }).motivo).toContain("La URL no puede contener credenciales");
+      if (!resultado.ok) {
+        expect(resultado.motivo).toContain("La URL no puede contener credenciales");
+      }
     });
 
     it("rechaza URLs del mismo origen que el OS", () => {
       const resultado = esUrlEmbebible("https://starseed-os.vercel.app/app", origenOS);
       expect(resultado.ok).toBe(false);
-      expect((resultado as { ok: false; motivo: string }).motivo).toContain("La URL no puede ser del mismo origen que el OS");
+      if (!resultado.ok) {
+        expect(resultado.motivo).toContain("La URL no puede ser del mismo origen que el OS");
+      }
     });
 
     it("rechaza URLs con esquema javascript:", () => {
       const resultado = esUrlEmbebible("javascript:alert('xss')", origenOS);
       expect(resultado.ok).toBe(false);
-      expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
+      if (!resultado.ok) {
+        expect(resultado.motivo).toContain("Esquema de URL prohibido");
+      }
     });
 
     it("rechaza URLs con esquema data:", () => {
       const resultado = esUrlEmbebible("data:text/plain;base64,SGVsbG8=", origenOS);
       expect(resultado.ok).toBe(false);
-      expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
+      if (!resultado.ok) {
+        expect(resultado.motivo).toContain("Esquema de URL prohibido");
+      }
     });
 
     it("rechaza URLs con esquema blob:", () => {
       const resultado = esUrlEmbebible("blob:https://example.com/123e4567-e89b-12d3-a456-426614174000", origenOS);
       expect(resultado.ok).toBe(false);
-      expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
+      if (!resultado.ok) {
+        expect(resultado.motivo).toContain("Esquema de URL prohibido");
+      }
     });
 
     it("maneja URLs inválidas", () => {
       const resultado = esUrlEmbebible("no-es-una-url", origenOS);
       expect(resultado.ok).toBe(false);
-      expect((resultado as { ok: false; motivo: string }).motivo).toBe("URL inválida");
+      if (!resultado.ok) {
+        expect(resultado.motivo).toBe("URL inválida");
+      }
     });
   });
 
@@ -159,7 +175,7 @@ describe("puente-herramientas", () => {
     });
 
     it("rechaza token malo", () => {
-      const marco = crearMarcoConToken("token-valido", "https://herramienta.example.com");
+      const marco = crearMarcoConToken(tokenValido, "https://herramienta.example.com");
       const estadoInicial = estadoLimiteInicial();
       const ev = {
         origin: "https://herramienta.example.com",
@@ -329,11 +345,12 @@ describe("puente-herramientas", () => {
 
       const resultado = procesarMensaje(ev, marco, Date.now(), estadoInicial);
       expect(resultado.entrada).not.toBeNull();
-       if (resultado.entrada && resultado.entrada.tipo === "hola") {
-         expect(resultado.entrada.nombre).toBe("Herramienta de prueba");
-         expect(Array.isArray(resultado.entrada.parametros)).toBe(true);
-         expect((resultado.entrada as { parametros?: Parametro[] }).parametros?.length).toBe(2);
-       }
+      if (resultado.entrada && resultado.entrada.tipo === "hola") {
+        expect(resultado.entrada.nombre).toBe("Herramienta de prueba");
+        const entrada = resultado.entrada as { parametros?: Parametro[] };
+        expect(Array.isArray(entrada.parametros)).toBe(true);
+        expect(entrada.parametros?.length).toBe(2);
+      }
     });
 
     it("valida correctamente el mensaje cambio", () => {
@@ -621,28 +638,28 @@ describe("puente-herramientas", () => {
       expect(resultadoValido.entrada?.tipo).toBe("hola");
     });
 
-     it("rechaza mensaje que excede el tamaño máximo de JSON (2.6 MB)", () => {
-       const marco = crearMarcoConToken(tokenValido, "https://herramienta.example.com");
-       const estadoInicial = estadoLimiteInicial();
-       
-       // Crear un payload grande que exceda 2.6 MB
-       const payloadGrande = {
-         protomolecula: 1,
-         tipo: "hola",
-         canal: tokenValido,
-         datos: "x".repeat(3000000), // 3.0 MB debería ser suficiente
-       };
-       
-       const ev = {
-         origin: "https://herramienta.example.com",
-         source: marco.ventana,
-         data: payloadGrande,
-       };
-       
-       const resultado = procesarMensaje(ev, marco, Date.now(), estadoInicial);
-       expect(resultado.entrada).toBeNull();
-       expect(resultado.motivo).toContain("Tamanho del mensaje excede el límite de 2.6 MB");
-     });
+    it("rechaza mensaje que excede el tamaño máximo de JSON (64 KB)", () => {
+      const marco = crearMarcoConToken(tokenValido, "https://herramienta.example.com");
+      const estadoInicial = estadoLimiteInicial();
+      
+      // Crear un payload grande que exceda 64 KB
+      const payloadGrande = {
+        protomolecula: 1,
+        tipo: "hola",
+        canal: tokenValido,
+        datos: "x".repeat(70000), // 70 KB debería ser suficiente
+      };
+      
+      const ev = {
+        origin: "https://herramienta.example.com",
+        source: marco.ventana,
+        data: payloadGrande,
+      };
+      
+      const resultado = procesarMensaje(ev, marco, Date.now(), estadoInicial);
+      expect(resultado.entrada).toBeNull();
+      expect(resultado.motivo).toContain("Tamanho del mensaje excede el límite de 64 KB");
+    });
 
     it("rechaza mensaje exportar que excede el tamaño máximo de datos (2 MB)", () => {
       const marco = crearMarcoConToken(tokenValido, "https://herramienta.example.com");

@@ -7,9 +7,9 @@
 import type { Parametro } from "./tipos";
 import type { DefinicionAtomo } from "./registro-atomos";
 
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 // TIPOS DE MENSAJE
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 
 export const VERSION_PUENTE = 1;
 
@@ -90,9 +90,9 @@ export type MensajeDeOSAHerramienta =
   | MensajeEstado
   | MensajeDisparar;
 
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 // FUNCIÓN DE CREACIÓN DE TOKEN
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 
 /**
  * Crea un token aleatorio de 16 bytes en formato hexadecimal.
@@ -108,9 +108,9 @@ export function crearToken(aleatorio: (n: number) => Uint8Array): string {
   return hex;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 // TIPOS DE ESTADO Y ENTRADA
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 
 export interface Marco {
   ventana: unknown; // contentWindow del iframe
@@ -131,9 +131,9 @@ export interface EntradaPuente {
   [key: string]: unknown;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 // FUNCIÓN PRINCIPAL DE PROCESAMIENTO
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 
 /**
  * Procesa un mensaje entrante del marco.
@@ -244,21 +244,47 @@ export function procesarMensaje(
     }
   }
 
-   // 7. Validar tamaño máximo del JSON (2.6 MB)
-     const tamañoJSON = new TextEncoder().encode(JSON.stringify(datos)).length;
-     if (tamañoJSON > 2.6 * 1024 * 1024) {
-       // 2.6 MB = 2726297.6 bytes
-       return {
-         entrada: null,
-         estado: estadoActualizado,
-         motivo: `Tamanho del mensaje excede el límite de 2.6 MB: ${tamañoJSON} bytes`,
-       };
-     }
+  // 7. Validar tamaño máximo basado en tipo
+  let mensajeExportar: MensajeExportar | undefined;
+  if (tipo === "exportar") {
+    mensajeExportar = datos as unknown as MensajeExportar;
+  }
+
+  if (tipo === "exportar") {
+    // Validar tamaño máximo de datos (2 MB)
+    const tamañoDatos = new TextEncoder().encode(JSON.stringify(mensajeExportar!.datos)).length;
+    if (tamañoDatos > 2 * 1024 * 1024) {
+      return {
+        entrada: null,
+        estado: estadoActualizado,
+        motivo: `Tamanho de los datos en mensaje exportar excede el límite de 2 MB: ${tamañoDatos} bytes`,
+      };
+    }
+    // Additionally, check the entire JSON size to be safe (should be covered by datos field, but just in case)
+    const tamañoJSON = new TextEncoder().encode(JSON.stringify(datos)).length;
+    if (tamañoJSON > 2 * 1024 * 1024) {
+      return {
+        entrada: null,
+        estado: estadoActualizado,
+        motivo: `Tamanho del mensaje excede el límite de 2 MB: ${tamañoJSON} bytes`,
+      };
+    }
+  } else {
+    // Validar tamaño máximo del JSON (64 KB)
+    const tamañoJSON = new TextEncoder().encode(JSON.stringify(datos)).length;
+    if (tamañoJSON > 64 * 1024) {
+      return {
+        entrada: null,
+        estado: estadoActualizado,
+        motivo: `Tamanho del mensaje excede el límite de 64 KB: ${tamañoJSON} bytes`,
+      };
+    }
+  }
 
   // 8. Procesar según el tipo de mensaje
   switch (tipo) {
     case "hola": {
-      const mensaje = datos as unknown as MensajeHola;
+       const mensaje = datos as unknown as MensajeHola;
       // Validar opcionalmente nombre y parametros
       if (mensaje.nombre !== undefined && typeof mensaje.nombre !== "string") {
         return {
@@ -290,7 +316,7 @@ export function procesarMensaje(
     }
 
     case "cambio": {
-      const mensaje = datos as unknown as MensajeCambio;
+       const mensaje = datos as unknown as MensajeCambio;
       if (typeof mensaje.parametroId !== "string" || !mensaje.parametroId) {
         return {
           entrada: null,
@@ -311,7 +337,7 @@ export function procesarMensaje(
     }
 
     case "exportar": {
-      const mensaje = datos as unknown as MensajeExportar;
+       const mensaje = datos as unknown as MensajeExportar;
       if (typeof mensaje.formato !== "string" || !mensaje.formato) {
         return {
           entrada: null,
@@ -319,10 +345,9 @@ export function procesarMensaje(
           motivo: "El campo 'formato' en mensaje exportar es requerido y debe ser una cadena no vacía",
         };
       }
-      // Validar tamaño máximo de datos (2 MB)
+      // Validar tamaño máximo de datos (2 MB) - already done above, but we keep it here for consistency
       const tamañoDatos = new TextEncoder().encode(JSON.stringify(mensaje.datos)).length;
       if (tamañoDatos > 2 * 1024 * 1024) {
-        // 2 MB = 2097152 bytes
         return {
           entrada: null,
           estado: estadoActualizado,
@@ -341,7 +366,7 @@ export function procesarMensaje(
     }
 
     case "listo": {
-      const mensaje = datos as unknown as MensajeListo;
+       const mensaje = datos as unknown as MensajeListo;
       return {
         entrada: {
           tipo: "listo",
@@ -352,7 +377,7 @@ export function procesarMensaje(
     }
 
     case "error": {
-      const mensaje = datos as unknown as MensajeError;
+       const mensaje = datos as unknown as MensajeError;
       if (typeof mensaje.mensaje !== "string" || !mensaje.mensaje) {
         return {
           entrada: null,
@@ -383,9 +408,9 @@ export function procesarMensaje(
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 // FUNCIÓN DE CREACIÓN DE MENSAJE PARA MARCO
-// ══════════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════
 
 /**
  * Crea un mensaje para enviar al marco.
@@ -403,13 +428,13 @@ export function mensajeParaMarco(
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 // FUNCIÓN DE DESTINO DEL MARCO
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 
 /**
  * Devuelve el destino para enviar un mensaje al marco.
- * "*" si el origen es opaco (marco propio con sandbox sin allow-same-origin).
+ * "*" si el origen es opaco (marco propio con sandbox sans allow-same-origin).
  * El origen exacto si es real.
  * NOTA: Según el comentario en el contrato, se deja como "*" porque es seguro 
  * ya que el mensaje solo se entrega a ese contentWindow específico.
@@ -424,9 +449,9 @@ export function destinoDe(marco: Marco): string {
   return marco.origenEsperado;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════════
 // FUNCIÓN DE VALIDACIÓN DE URL EMBEBIBLE
-// ══════════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════
 
 /**
  * Valida si una URL es embebible según los criterios de seguridad.
