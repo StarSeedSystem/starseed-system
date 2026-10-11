@@ -25,6 +25,21 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
 
 const execFileAsync = promisify(execFile);
 
+/** Ejecuta un comando y devuelve el stdout (utf8). Tolerante. */
+async function psShell(comando: string[]): Promise<string> {
+    try {
+        const { stdout } = await execFileAsync(comando[0], comando.slice(1), { timeout: 3000 });
+        return stdout;
+    } catch {
+        return "";
+    }
+}
+
+/** Ejecuta `ps -axo pid=,stat=,comm=` y devuelve el stdout (utf8). Tolerante. */
+async function psPidStatComm(): Promise<string> {
+    return psShell(["ps", "-axo", "pid=,stat=,comm="]);
+}
+
 /** Umbral de swap (MB) a partir del cual Genesis lo explica avisando. */
 export const UMBRAL_SWAP_MB = 3000;
 
@@ -79,6 +94,7 @@ export interface EstadoAlmacenamiento {
         montado: boolean;
         ruta: string | null;
         espejo: { ruta: string; ultimoEspejo: string | null; mb: number | null } | null;
+        motivo?: string;
     };
     driveCuota: CuotaDrive | null;
     /** Por qué `driveCuota` es null (DriveFS miente en macOS); null si sí hay cuota. */
@@ -245,9 +261,12 @@ export async function detectarDrive(): Promise<EstadoAlmacenamiento["drive"]> {
     try {
         const base = path.join(os.homedir(), "Library", "CloudStorage");
         const entradas = await readdir(base);
-        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-"));
+        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-") && !e.includes("("));
         if (!unidad) return vacio;
         const ruta = path.join(base, unidad);
+        const psSalida = await execFileAsync("ps", ["-axo", "args="], { timeout: 3000 }).catch(() => ({ stdout: "" }));
+        const driveCorre = driveCorriendo(psSalida.stdout);
+        if (!driveCorre) return { montado: false, ruta: rutaVisible(ruta), motivo: "La app Google Drive no está abierta" };
         const espejo = path.join(ruta, "My Drive", "StarSeed_Memory_Root", `neurona-${os.hostname()}`);
         try {
             await stat(espejo);
@@ -272,12 +291,13 @@ export async function detectarDrive(): Promise<EstadoAlmacenamiento["drive"]> {
 /**
  * Base absoluta del Google Drive de DriveFS (`~/Library/CloudStorage/GoogleDrive-*`),
  * o `null` si no hay ninguno. Comparte la detección con `detectarDrive`.
+ * Ignora unidades que contengan " (" en el nombre (restos de cuentas anteriores).
  */
 async function rutaDriveBase(): Promise<string | null> {
     try {
         const base = path.join(os.homedir(), "Library", "CloudStorage");
         const entradas = await readdir(base);
-        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-"));
+        const unidad = entradas.find((e) => e.startsWith("GoogleDrive-") && !e.includes("("));
         return unidad ? path.join(base, unidad) : null;
     } catch {
         return null;
@@ -836,7 +856,11 @@ async function confirmarBitnetDormido(): Promise<boolean> {
  * y pide la cesión inmediata del pool de voz al demonio (`POST 127.0.0.1:4444/ceder`,
  * Ola 273 · A3). Espera 5 s y mide el antes/después con `vm_stat` (libre +
  * inactiva, igual que el demonio) con tope inferior de 0 en el alivio y nota
- * honesta si se movió poco (la memoria ya estaba cedida).
+ * honesta si se movió poco (la memoria ya estaba cedida). Si hay motores
+ * parados por el guardia (`ps -axo pid=,stat=,comm=` que terminen en llama-server o
+ * tts-server y cuyo stat contenga «T»), antes de medir se agrega el paso
+ * «Terminar motores parados por el guardia» que hace `process.kill(pid, "SIGKILL")`
+ * solo a esos pid y cuenta `ok` según desaparezcan (contando con reintento de `ps`).
  */
 export async function aliviarMemoria(): Promise<{
     antesMb: number;
@@ -876,11 +900,79 @@ export async function aliviarMemoria(): Promise<{
         });
     }
 
+    // Detecta motores parados por el guardia.
+    const psSalida = await psPidStatComm();
+    const parados = motoresParados(psSalida);
+    if (parados.length > 0) {
+        const info: Array<{ pid: number; ok: boolean; detalle: string }> = [];
+        for (const pid of parados) {
+            try {
+                process.kill(pid, "SIGKILL");
+                // Confirma tras un breve retraso.
+                for (let intento = 0; intento < 3; intento++) {
+                    await new Promise((r) => setTimeout(r, 1000));
+                    const ps2 = await psPidStatComm();
+                    if (!motoresParados(ps2).some((p) => p === pid)) {
+                        info.push({ pid, ok: true, detalle: `Terminado (pid ${pid})` });
+                        break;
+                    }
+                    if (intento === 2) info.push({ pid, ok: false, detalle: `No desapareció tras SIGKILL (pid ${pid})` });
+                }
+            } catch (e) {
+                info.push({ pid, ok: false, detalle: `Error al matar (pid ${pid}): ${e instanceof Error ? e.message : "desconocido"}` });
+            }
+        }
+        const okCount = info.filter((i) => i.ok).length;
+        pasos.push({
+            que: "Terminar motores parados por el guardia",
+            ok: okCount > 0,
+            detalle: `${okCount} de ${parados.length} motores parados terminados.${info.length > 0 ? " Detalles por pid." : ""}`,
+        });
+    }
+
     await new Promise((r) => setTimeout(r, 5000));
     const despuesMb = await memoriaDisponibleMb();
     const liberadoMb = Math.max(0, despuesMb - antesMb);
     const nota = liberadoMb < 100 ? "Poco alivio: la memoria ya estaba cedida o el sistema la volvió a ocupar." : null;
     return { antesMb, despuesMb, liberadoMb, nota, pasos };
+}
+
+/**
+ * Detecta el Google Drive corriendo (`ps -axo args=` que incluya "Google Drive" o "DriveFS").
+ * Devuelve `true` si hay al menos un proceso cuyo `args` incluye esos strings, `false` en caso contrario.
+ * `psSalida` es el stdout crudo de `ps -axo args=`.
+ */
+export function driveCorriendo(psSalida: string): boolean {
+    const lineas = psSalida.split("\n");
+    for (const linea of lineas) {
+        const args = linea.trim();
+        if (/".*Google Drive.*"/.test(args) || /".*DriveFS.*"/.test(args)) return true;
+    }
+    return false;
+}
+
+/** Detecta motores PARADOS (`ps -axo pid=,stat=,comm=` que terminen en llama-server o tts-server y cuyo stat contenga «T»).
+ * `psSalida` es el stdout crudo de `ps -axo pid=,stat=,comm=`.
+ * Devuelve array de pid de motores parados.
+ */
+export function motoresParados(psSalida: string): number[] {
+    const lineas = psSalida.split("\n");
+    const parados: number[] = [];
+    for (const linea of lineas) {
+        const lineaTrim = linea.trim();
+        if (!lineaTrim) continue;
+        const partes = lineaTrim.split(/\s+/);
+        if (partes.length < 3) continue;
+        const pid = partes[0];
+        const stat = partes[1];
+        const comm = partes[2];
+        const pidNum = Number(pid);
+        if (!Number.isFinite(pidNum) || !Number.isFinite(stat) || !comm) continue;
+        const estaParado = stat.includes("T");
+        const esMotor = comm.endsWith("llama-server") || comm.endsWith("tts-server");
+        if (estaParado && esMotor) parados.push(pidNum);
+    }
+    return parados;
 }
 
 /**
