@@ -125,4 +125,29 @@ describe("canal-enlace-local", () => {
         expect(cb.presencia().map((m) => m.id)).toEqual(["b:1"]);
         cb.soltar();
     });
+
+    it("onSuscrito se llama con true cuando el enlace se abre y false cuando se cierra", () => {
+        vi.useFakeTimers();
+        let abierto = true;
+        const enlace: EnlaceLocalVivo = {
+            id: "test",
+            abierto: () => abierto,
+            enviar: () => true,
+            alMensaje: (cb) => { return () => {}; },
+        };
+        const ca = abrirCanalLlamadaPorEnlace(enlace, "s1", "a:1");
+        const suscriptores: boolean[] = [];
+        ca.onSuscrito((ok) => suscriptores.push(ok));
+        // initial call
+        expect(suscriptores).toEqual([true]);
+        // close the link
+        abierto = false;
+        vi.advanceTimersByTime(11_000);
+        expect(suscriptores).toEqual([true, false]);
+        // open the link
+        abierto = true;
+        vi.advanceTimersByTime(11_000);
+        expect(suscriptores).toEqual([true, false, true]);
+        ca.soltar();
+    });
 });

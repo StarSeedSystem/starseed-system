@@ -70,11 +70,10 @@ export function abrirCanalLlamadaPorEnlace(
             if (ahora !== estadoPrevio) {
                 estadoPrevio = ahora;
                 avisarEstado(ahora);
-                if (!enlace.abierto()) {
-                    oyentesSuscrito.forEach((cb) => {
-                        try { cb(false); } catch { /* oyente defectuoso */ }
-                    });
-                }
+                const ahoraAbierto = enlace.abierto();
+                oyentesSuscrito.forEach((cb) => {
+                    try { cb(ahoraAbierto); } catch { /* oyente defectuoso */ }
+                });
             }
         } catch { /* nunca lanzar */ }
     };
