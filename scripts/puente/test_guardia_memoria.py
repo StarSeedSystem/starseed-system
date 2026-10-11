@@ -28,11 +28,24 @@ class ReglasDelGuardia(unittest.TestCase):
             [("llama-server", "congelar"), ("tts-server", "congelar")], acciones
         )
 
-    def test_lo_ya_congelado_no_se_repite(self):
+    def test_lo_ya_congelado_no_se_recongela_pero_se_reevalua(self):
+        # (2026-10-11) Un motor ya congelado no se vuelve a congelar, pero si sigue
+        # faltando memoria se REEVALÚA para poder matarlo (regla CNS1010).
         acciones = G.decidir(
             True, BAJO - 1, {"llama-server"}, ["llama-server", "tts-server"]
         )
-        self.assertEqual([("tts-server", "congelar")], acciones)
+        self.assertEqual(
+            [("llama-server", "reevaluar"), ("tts-server", "congelar")], acciones
+        )
+
+    def test_congelado_con_holgura_no_se_reevalua(self):
+        self.assertEqual([], G.decidir(True, BAJO + 1, {"tts-server"}, ["tts-server"]))
+
+    def test_reevaluar_mata_tts_siempre_y_llama_solo_tras_20_min_con_swap_alta(self):
+        self.assertEqual("matar", G.accion_para("tts-server", 0, 0))
+        self.assertEqual("congelar", G.accion_para("llama-server", 5, 95))
+        self.assertEqual("congelar", G.accion_para("llama-server", 30, 50))
+        self.assertEqual("matar", G.accion_para("llama-server", 30, 95))
 
     def test_con_holgura_no_se_congela_aunque_el_enjambre_trabaje(self):
         self.assertEqual([], G.decidir(True, BAJO + 1, set(), ["llama-server"]))

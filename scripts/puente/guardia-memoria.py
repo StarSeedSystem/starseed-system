@@ -267,6 +267,14 @@ def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False):
                 acciones.append((motor, "congelar"))
         elif not orquestador_vivo and libre_mb > REANUDAR_SOBRE_MB:
             acciones.append((motor, "descongelar"))
+        elif orquestador_vivo and libre_mb < CONGELAR_BAJO_MB:
+            # (2026-10-11) Ya congelado y sigue faltando memoria: se REEVALÚA con
+            # `accion_para`. Antes nunca se volvía a mirar un motor congelado, así que
+            # la regla CNS1010 (tts-server siempre muerto; llama-server muerto tras
+            # 20 min congelado con swap >= 80 %) no se cumplía nunca para los que ya
+            # estaban parados: el tts-server pasó 13 h congelado reteniendo ~900 MB
+            # con la swap al 95 % y el enjambre atascado.
+            acciones.append((motor, "reevaluar"))
     return acciones
 
 
@@ -347,7 +355,29 @@ def main():
                             "guardia",
                             "aviso",
                         )
-                else:
+                elif accion == "reevaluar":
+                    # Congelado y aún sin memoria: si `accion_para` dice matar (tts-server
+                    # siempre; llama-server tras 20 min con swap >= 80 %), SIGKILL a los
+                    # parados. Quien lo usa lo relanza en la siguiente petición.
+                    if accion_para(motor, congelado_min(motor), swap_pct()) == "matar":
+                        parados = {p for p, e in motores[motor].items() if "T" in e}
+                        hechos = set()
+                        for pid in parados:
+                            try:
+                                os.kill(pid, signal.SIGKILL)
+                                hechos.add(pid)
+                            except Exception:
+                                pass
+                        guardar_marca(motor, leer_marca(motor) - hechos)
+                        if hechos:
+                            _p.decir(
+                                "%s congelado y sin memoria libre: matado (pids %s) para "
+                                "devolver su RAM; se relanza en la siguiente petición."
+                                % (motor, ", ".join(map(str, sorted(hechos)))),
+                                "guardia",
+                                "aviso",
+                            )
+                elif accion == "descongelar":
                     for pid in leer_marca(motor):
                         try:
                             os.kill(pid, signal.SIGCONT)
