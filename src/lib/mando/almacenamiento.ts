@@ -1021,7 +1021,7 @@ export async function leerAlmacenamiento(): Promise<EstadoAlmacenamiento> {
                 id: "espejar",
                 etiqueta: "Espejar el memory root a Google Drive",
                 disponible: drive.montado,
-                motivo: drive.montado ? undefined : "Google Drive (DriveFS) no está montado en esta máquina.",
+                motivo: drive.montado ? undefined : drive.motivo ?? "Google Drive (DriveFS) no está montado en esta máquina.",
             },
             {
                 id: "limpiar",
