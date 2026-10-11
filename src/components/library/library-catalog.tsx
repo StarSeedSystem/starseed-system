@@ -53,6 +53,7 @@ import {
   Rocket,
   ChevronRight,
   Globe,
+  Atom,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -91,7 +92,7 @@ import {
 import type { LibraryDetailItem } from "@/components/library/app-file-page";
 import { LibraryServicesCatalog } from "@/components/library/library-services-catalog";
 import { useOssConnections } from "@/lib/services/oss-connections";
-import { listOssLibraryItems } from "@/lib/library/oss-catalog-bridge";
+import { listOssLibraryItems, listProtoLibraryItems } from "@/lib/library/oss-catalog-bridge";
 import { DialogoInstalar } from "@/components/library/dialogo-instalar";
 import { useInstalaciones } from "@/lib/instalaciones/instalaciones-store";
 import { destinosDeApp } from "@/lib/instalaciones/destinos";
@@ -109,12 +110,14 @@ export type CatalogCategory =
   | "fuentes"
   | "cursores"
   | "gestos"
-  | "comandos";
+  | "comandos"
+  | "protomolecula";
 
 const CATEGORY_DEFS: { id: CatalogCategory; label: string; icon: LucideIcon }[] = [
   { id: "todo", label: "Todo", icon: Sparkles },
   { id: "apps", label: "Apps", icon: AppWindow },
   { id: "servicios", label: "Servicios / Integraciones", icon: Boxes },
+  { id: "protomolecula", label: "Protomolécula", icon: Atom },
   { id: "widgets", label: "Widgets", icon: LayoutGrid },
   { id: "layouts", label: "Layouts", icon: LayoutTemplate },
   { id: "archivos", label: "Archivos", icon: FolderOpen },
@@ -300,12 +303,30 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
       ),
     [connections, matches],
   );
+  // Fichas de la Protomolécula (herramientas de creación), ya ordenadas por grupo.
+  const protoItems = useMemo(
+    () =>
+      listProtoLibraryItems().filter((f) =>
+        matches(f.title, f.description, f.categoryLabel, f.tags),
+      ),
+    [matches],
+  );
+  const protoGroups = useMemo(() => {
+    const grupos: { etiqueta: string; items: typeof protoItems }[] = [];
+    for (const item of protoItems) {
+      const g = grupos.find((x) => x.etiqueta === item.categoryLabel);
+      if (g) g.items.push(item);
+      else grupos.push({ etiqueta: item.categoryLabel ?? "Protomolécula", items: [item] });
+    }
+    return grupos;
+  }, [protoItems]);
 
   const countFor = useCallback(
     (cat: CatalogCategory): number => {
       switch (cat) {
         case "apps": return apps.length;
         case "servicios": return servicios.length;
+        case "protomolecula": return protoItems.length;
         case "cursores": return cursores.length;
         case "gestos": return gestos.length;
         case "comandos": return comandos.length;
@@ -315,10 +336,10 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
         case "fuentes":
           return 0;
         default:
-          return apps.length + servicios.length + cursores.length + gestos.length + comandos.length;
+          return apps.length + servicios.length + protoItems.length + cursores.length + gestos.length + comandos.length;
       }
     },
-    [apps, servicios, cursores, gestos, comandos],
+    [apps, servicios, protoItems, cursores, gestos, comandos],
   );
 
   // ── Aplicar cursores / gestos (setCursorFxConfig) ──
@@ -532,6 +553,41 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
       {showSection("servicios") && (
         <LibraryServicesCatalog onOpenDetail={onOpenDetail} query={query} />
       )}
+
+      {/* 3c · PROTOMOLÉCULA — herramientas de creación, agrupadas por categoría */}
+      {showSection("protomolecula") &&
+        protoGroups.map((grupo) => (
+          <CatalogSection
+            key={grupo.etiqueta}
+            icon={Atom}
+            title={`Protomolécula · ${grupo.etiqueta}`}
+            accent="text-fuchsia-300"
+          >
+            <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-3">
+              {grupo.items.map((it) => (
+                <GlassCard
+                  key={it.id}
+                  variant="hover"
+                  className="flex flex-col gap-2 border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-4"
+                >
+                  <p className="truncate text-sm font-bold text-white">{it.title}</p>
+                  <p className="line-clamp-3 whitespace-pre-line text-[11px] leading-snug text-muted-foreground">
+                    {it.description}
+                  </p>
+                  <div className="mt-auto">
+                    <Button
+                      size="sm"
+                      onClick={() => onOpenDetail(it)}
+                      className="h-8 gap-1.5 bg-fuchsia-600/80 text-xs font-semibold text-white hover:bg-fuchsia-500 cursor-pointer"
+                    >
+                      Ver ficha <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+          </CatalogSection>
+        ))}
 
       {/* 4 · GRID FLUIDA por categoría */}
 

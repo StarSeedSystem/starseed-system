@@ -2,6 +2,8 @@
 // Consulta sin claves los upstream públicos de la Biblioteca.
 // ════════════════════════════════════════════════════════════════════════════
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
 import {
     urlDeConsulta,
@@ -9,6 +11,31 @@ import {
     compararVersiones,
     type EstadoActualizacion,
 } from "@/lib/library/actualizaciones";
+import { fichasProtomolecula, type VersionProto } from "@/lib/protomolecula/biblioteca-protomolecula";
+import { CATALOGO_PROTOMOLECULA } from "@/lib/protomolecula/catalogo-herramientas";
+
+/* ── Fichas de la Protomolécula con repo: entran a la misma comprobación ── */
+
+interface EntradaFuente { id: string; instalada: string; upstream: string }
+
+function fuentesProtomolecula(): EntradaFuente[] {
+    try {
+        const ruta = path.join(process.cwd(), "config", "protomolecula-versiones.json");
+        const json = JSON.parse(readFileSync(ruta, "utf8")) as {
+            herramientas?: Record<string, VersionProto>;
+        };
+        const versiones = json.herramientas ?? {};
+        return fichasProtomolecula(versiones, CATALOGO_PROTOMOLECULA)
+            .filter((f) => typeof f.enlaces.repo === "string") // sin repo: sin comprobación
+            .map((f) => ({
+                id: `proto-${f.id}`,
+                instalada: versiones[f.id]?.sha ?? "",
+                upstream: f.enlaces.repo as string,
+            }));
+    } catch {
+        return [];
+    }
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,13 +95,20 @@ export async function GET(): Promise<Response> {
     const temporizadorTotal = setTimeout(() => tope.abort(), MS_PLAZO_TOTAL);
 
     try {
+        const entradas: EntradaFuente[] = REPO_DECISIONES.packages
+            .map((paquete) => ({
+                id: paquete.id,
+                instalada: paquete.version,
+                upstream:
+                    typeof paquete.payload?.upstream === "string" ? paquete.payload.upstream : "",
+            }))
+            .concat(fuentesProtomolecula());
         const fuentes = await Promise.all(
-            REPO_DECISIONES.packages.map(async (paquete): Promise<FuenteActualizacion> => {
-                const upstream =
-                    typeof paquete.payload?.upstream === "string" ? paquete.payload.upstream : "";
+            entradas.map(async (entrada): Promise<FuenteActualizacion> => {
+                const { upstream } = entrada;
                 const base: FuenteActualizacion = {
-                    id: paquete.id,
-                    instalada: paquete.version,
+                    id: entrada.id,
+                    instalada: entrada.instalada,
                     remota: null,
                     estado: "desconocida",
                     fecha: null,
@@ -87,7 +121,7 @@ export async function GET(): Promise<Response> {
                     ...base,
                     remota,
                     fecha,
-                    estado: compararVersiones(paquete.version, remota),
+                    estado: compararVersiones(entrada.instalada, remota),
                 };
             }),
         );
