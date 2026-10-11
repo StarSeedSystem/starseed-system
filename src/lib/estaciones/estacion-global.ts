@@ -12,7 +12,7 @@
  */
 
 import { useSyncExternalStore } from "react";
-import { importarPrivada, llaveCasaConId, publicaDePrivada } from "./cripto-estacion";
+import { importarPrivada, llaveCasaConId, publicaDePrivada, temaPrivado, temaPublico } from "./cripto-estacion";
 import { crearCanalInternet, engancharEnlacesLocales } from "./canales-estacion";
 import { guardarControlImportado, llaveDe, registroDe } from "./llaves-locales";
 import { MotorSonido, type EstadoMotor } from "./motor-estacion";
@@ -131,7 +131,22 @@ class EstacionGlobal {
       internet?.cerrar();
       return { ok: false, motivo: "Se cambió de estación mientras conectaba." };
     }
-    if (internet) sesion.agregarCanal(internet);
+     if (internet) sesion.agregarCanal(internet);
+     // Relé propio de estaciones
+     const releUrl = process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL;
+     if (releUrl) {
+       const { crearCanalRele } = await import("./canal-rele");
+       const tema = ficha.privada
+         ? await temaPrivado(ficha.id, token!)
+         : temaPublico(ficha.id);
+       const rele = crearCanalRele(releUrl, tema);
+       if (this.sesion === sesion) {
+         sesion.agregarCanal(rele);
+         this.bajas.push(() => rele.cerrar());
+       } else {
+         rele.cerrar();
+       }
+     }
     const bajaLocal = await engancharEnlacesLocales(
       (c) => sesion.agregarCanal(c),
       (c) => sesion.quitarCanal(c),
