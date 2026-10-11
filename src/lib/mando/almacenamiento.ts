@@ -266,7 +266,7 @@ export async function detectarDrive(): Promise<EstadoAlmacenamiento["drive"]> {
         const ruta = path.join(base, unidad);
         const psSalida = await execFileAsync("ps", ["-axo", "args="], { timeout: 3000 }).catch(() => ({ stdout: "" }));
         const driveCorre = driveCorriendo(psSalida.stdout);
-        if (!driveCorre) return { montado: false, ruta: rutaVisible(ruta), motivo: "La app Google Drive no está abierta" };
+        if (!driveCorre) return { montado: false, ruta: rutaVisible(ruta), motivo: "La app Google Drive no está abierta", espejo: null };
         const espejo = path.join(ruta, "My Drive", "StarSeed_Memory_Root", `neurona-${os.hostname()}`);
         try {
             await stat(espejo);
@@ -967,9 +967,9 @@ export function motoresParados(psSalida: string): number[] {
         const stat = partes[1];
         const comm = partes[2];
         const pidNum = Number(pid);
-        if (!Number.isFinite(pidNum) || !Number.isFinite(stat) || !comm) continue;
-        const estaParado = stat.includes("T");
-        const esMotor = comm.endsWith("llama-server") || comm.endsWith("tts-server");
+        if (!Number.isFinite(pidNum) || !stat || !comm) continue;
+        const estaParado = stat === "T";
+        const esMotor = comm.includes("llama-server") || comm.includes("tts-server");
         if (estaParado && esMotor) parados.push(pidNum);
     }
     return parados;
