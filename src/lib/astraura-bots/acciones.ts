@@ -16,6 +16,7 @@ export const TIPOS_ACCION = [
   "pizarra.operar", "dashboard.editar", "escritorio.organizar", "pagina.editar", "ajuste.proponer",
   "ui.proponer", "protomolecula.operar", "xr.intencion", "codigo.proponer", "computadora.ejecutar",
   "mensaje.enviar", "publicacion.borrador", "tarea.crear", "memoria.recordar", "notificar",
+  "robot.caminar", "robot.girar", "robot.emocion", "robot.bailar", "robot.negarCabeza", "robot.alto",
 ] as const;
 export type TipoAccion = (typeof TIPOS_ACCION)[number];
 
@@ -64,7 +65,13 @@ export const META_ACCION: Record<TipoAccion, MetaAccion> = {
   "publicacion.borrador": m("medio", true, true, "inverso", "lienzo universal", { destino: "id", texto: "texto", bloques: "json" }, ["texto"]),
   "tarea.crear": m("medio", true, false, "inverso", "genesis/poligenesis", { titulo: "texto", criterios: "json", director: "id", origen: "id" }, ["titulo", "criterios"]),
   "memoria.recordar": m("bajo", true, false, "inverso", "brains/memory", { alcance: "id", texto: "texto" }, ["alcance", "texto"]),
-  notificar: m("bajo", false, true, "retirar", "notificaciones", { texto: "texto", a: "id" }, ["texto"]),
+   notificar: m("bajo", false, true, "retirar", "notificaciones", { texto: "texto", a: "id" }, ["texto"]),
+   "robot.caminar": m("medio", false, false, "nada", "robot-pato#caminar", { direction: "texto", distance: "numero" }, ["direction", "distance"]),
+   "robot.girar": m("medio", false, false, "nada", "robot-pato#girar", { angle: "numero" }, ["angle"]),
+   "robot.emocion": m("medio", false, false, "nada", "robot-pato#emocion", { emotion: "texto" }, ["emotion"]),
+   "robot.bailar": m("medio", false, false, "nada", "robot-pato#bailar", { danceType: "texto", duration: "numero" }, ["danceType", "duration"]),
+   "robot.negarCabeza": m("medio", false, false, "nada", "robot-pato#negarCabeza", { times: "numero" }, ["times"]),
+   "robot.alto": m("bajo", false, false, "nada", "robot-pato#alto", {}, [])
 };
 
 export interface AccionBot {
