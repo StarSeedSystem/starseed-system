@@ -6,5 +6,12 @@
       "documentos": 0,
       "destino": "memory/aprendizaje-externos/dify-export/2026-10-11"
     }
+  ],
+  "n8n": [
+    {
+      "fecha": "2026-10-11",
+      "total": 1,
+      "destino": "memory/aprendizaje-externos/n8n-export/2026-10-11"
+    }
   ]
 }

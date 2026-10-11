@@ -166,7 +166,10 @@ def exportar_n8n(
         )
         flujo, informe = importar_n8n.importar(limpio)
         try:
-            from .modelo import guardar_flujo as _guardar_por_defecto
+            try:
+                from .modelo import guardar_flujo as _guardar_por_defecto
+            except ImportError:  # ejecutado como guion
+                from scripts.puente.flujos.modelo import guardar_flujo as _guardar_por_defecto  # type: ignore
             ruta_flujo = str((guardar_flujo_fn or _guardar_por_defecto)(flujo))
         except Exception as exc:  # el informe no se pierde por un fallo al guardar
             ruta_flujo = f"error al guardar: {exc}"

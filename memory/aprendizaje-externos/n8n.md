@@ -2,15 +2,17 @@
 
 Formato del contrato `architecture/puente-propio-flujos.md` §2. Revisión a mitad de prueba: 2026-10-11.
 
-## Estado de la revisión del 2026-10-11
+## Estado de la revisión del 2026-10-11 (con la sesión de Alex abierta)
 
-- **Instancia**: el navegador integrado NO tiene la sesión de n8n Cloud abierta (`/rest/login` → 401, redirige a
-  `/signin`). Sin sesión no se pueden leer los flujos, las plantillas ni las ejecuciones; Claude no escribe
-  contraseñas. Hace falta que Alex entre una vez en el navegador integrado (o exporte a mano a `~/Downloads`).
-- **Exportado hasta hoy**: 1 flujo (`n8n-export/2026-10-05/starseed-produccion-puentes.json`, «StarSeed ·
-  Producción (puentes)», 7 nodos). El importador propio lo traduce entero: 6 de 6 nodos útiles (3 webhooks y
-  3 «set»); solo la nota adhesiva no se traduce (no hace falta).
-- **Uso de la prueba (x/1000 ejecuciones)**: sin dato (requiere la sesión).
+- **Instancia**: plan «Trial», **1 flujo** en total: «StarSeed · Producción (puentes)» (publicado, creado el
+  2026-10-04, última edición 2026-10-05 04:10 UTC). La copia del repo (`n8n-export/2026-10-05/`) es POSTERIOR a esa
+  edición: está al día. Reexportado y registrado hoy (`n8n-export/2026-10-11/`, con informe) y convertido a flujo de
+  Genesis (`starseed_memory_root/flujos/starseed-producci-n-puentes.json`): 6 de 6 nodos útiles traducidos; solo la nota
+  adhesiva no se traduce (no hace falta).
+- **Uso de la prueba**: **3 de 1.000 ejecuciones** en octubre, 0 fallidas, 0,03 s de media. Vence el
+  **2026-10-19 03:41 UTC** (18 de octubre, 21:41 en la Mac).
+- **Rutas internas**: `/rest/login` y `/rest/workflows` contestan 401 aun con la sesión abierta (esta versión de n8n
+  Cloud autentica distinto); los datos se leen del estado de la propia página. Para el traslado no hace falta más.
 - **Motor propio**: servicio `com.starseed.flujos` vivo; Ola 1005F completa (FLU1005A–I integradas;
   H como FLU1005Hc), Ola 1005B completa por sus sucesoras (PRD1005Sc, Tb/Tbs, Ub).
 
@@ -30,7 +32,7 @@ Formato del contrato `architecture/puente-propio-flujos.md` §2. Revisión a mit
 
 ## Para el traslado del 2026-10-14
 
-1. Alex abre sesión una vez en n8n Cloud desde el navegador integrado (o descarga los JSON a `~/Downloads`).
-2. `python3 scripts/puente/flujos/exportar_externos.py n8n --carpeta ~/Downloads` (arreglado el 2026-10-11:
-   ya corre como guion).
-3. El importador los convierte y el motor propio los corre en sombra comparando resultados.
+1. Hecho por adelantado el 2026-10-11: el único flujo ya está exportado, al día y convertido.
+2. Del 14 al 17: el motor propio corre ese flujo en sombra (sus 3 webhooks) comparando con n8n Cloud.
+3. El 17: el enrutador de producción apaga n8n Cloud y los webhooks apuntan al motor propio.
+   Si Alex crea flujos nuevos en n8n antes del 17: `python3 scripts/puente/flujos/exportar_externos.py n8n --carpeta ~/Downloads`.
