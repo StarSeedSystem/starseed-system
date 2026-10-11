@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261011",
+ "tareas": [
+  {
+   "id": "PM1010F2E",
+   "ola": "Ola 1010P · Protomolécula: función universal de creación y edición (átomos con parámetros, dictado en tiempo real, convergencia, sincronía P2P)",
+   "titulo": "Referencias de Entidad Única: la molécula cita, nunca copia; editar crea una rama",
+   "archivos": [
+    "src/lib/protomolecula/referencias-entidad.ts",
+    "src/lib/protomolecula/__tests__/referencias-entidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/protomolecula.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §1 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica. §11.1 fija los nombres de las interfaces del runtime. El núcleo puro YA está escrito y probado (120 pruebas) y NO se modifica: `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts` (ábrelos y usa sus nombres reales). `src/lib/protomolecula/catalogo-herramientas.ts` lo escribe OTRA sesión: no lo crees ni lo edites; las herramientas se citan por id (string). Petición de Alex (2026-10-10): «Protomolécula» = función universal de creación y edición (imagen, audio, vídeo, sonido, síntesis, 3D con texturas programables, arquitectura, físicas, videojuegos, VR/AR) que se controla a mano o por la IA de Astraura con dictado en tiempo real de cada parámetro (valor exacto o relativo), presente en el lienzo universal, la biblioteca, pizarras, dashboards, widgets, escritorios, estaciones, llamadas mesh y mensajes de agentes, privada o pública, y sincronizada por la malla P2P primero.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/protomolecula.md` y `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo: ya pasó con una rama que se inventó `tipos.ts` y `parametros.ts`). Escribe SOLO tus archivos, con los nombres y firmas que te da este prompt y el §11.1 del contrato, no edites ningún archivo del núcleo para que un import resuelva y, si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de la Protomolécula en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Sin dependencias npm nuevas. Pruebas sin red ni hardware (lo del navegador se inyecta). Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (PM1010F2E): Invariante del OS (CLAUDE.md §6): todo contenido es una Entidad Única y al compartirse se referencia. `referencias-entidad.ts`: `interface FuenteEntidad {obtener(id: string, version?: string): Promise<EntidadInfo | null>; ambito(id: string): Ambito; crearRama(id: string): Promise<{id: string; version: string} | null>}` con `EntidadInfo {id; titulo; formato; version; ambito}`; `abrirCapaReferenciada(capa: Capa, fuentes: Record<string, FuenteEntidad>): Promise<{ok: true; entidad: EntidadInfo} | {ok: false; motivo: string}>` (tipo de fuente desconocido o entidad borrada → motivo en español, NUNCA lanza); `editarReferencia(capa, fuentes): Promise<{ok: true; capa: Capa} | {ok: false; motivo: string}>`: NO edita la original: pide una rama con `crearRama` y devuelve una capa NUEVA cuya `referencia` apunta a la rama y a su versión (si la fuente no sabe hacer ramas → «próximamente: esta fuente aún no admite ramas; no se ha cambiado nada»); `ambitoDeReferencias(fuentes): (tipo: string, id: string) => Ambito` listo para pasarlo a `referenciasRotas` de `./permisos` (tipo desconocido → «personal», la opción más reservada). Adaptador real: `fuentesDeBiblioteca(): Record<string, FuenteEntidad>` que envuelve `src/lib/library/entity-library.ts` y `media-library.ts` — LEE sus APIs reales (qué función obtiene por id, qué ámbito expone, si existe forma de crear una copia/rama) y adapta solo lo que existe; lo que no, la fuente devuelve null y `crearRama` null con su motivo. El módulo NO puede traer `node:*` ni nada solo de servidor: comprueba los imports transitivos de lo que uses. Pruebas (≥ 10, con fuentes falsas): abrir, entidad borrada, tipo desconocido, editar crea rama y no toca la original, fuente sin ramas, `ambitoDeReferencias` junto a `referenciasRotas` con una capa que cita algo personal en una molécula pública. Integración: la usan F2I (pizarras) y F3A (sesión); di cuál.",
+   "dependencias_ya_en_main": [
+    "PM1010F0A"
+   ]
+  },
+  {
+   "ola": "Ola 1007C · Capas autoadaptables de Astraura: Needle 3, Bonsai 1.58 y BitNet por tarea y por medio, repartidas por la malla y aprendiendo por ámbito",
+   "dificultad": "media",
+   "privado": false,
+   "modelo": "codex/gpt-5.6-sol",
+   "dependencias_ya_en_main": [
+    "CPA1007Kb-d1"
+   ],
+   "id": "CPA1007Kb-d2",
+   "titulo": "Capas · Genesis: pestaña «Capas» con catálogo, versiones, dispositivos, espejos, banco y aprendizaje por ámbito (rehecha tras revisión) (parte 2 de 2)",
+   "archivos": [
+    "src/components/mando/panel-capas-red.tsx",
+    "src/components/mando/__tests__/panel-capas-red.test.tsx",
+    "src/components/mando/centro-mando.tsx"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/capas-autoadaptables.md`. Léelo ENTERO antes de empezar (sobre todo §10): es la fuente de verdad, y lo que no esté ahí no se inventa. Construye sobre lo que ya existe (§2), no lo dupliques; si el código real choca con el contrato, dilo en tu informe. Petición de Alex (2026-10-07): que Astraura cargue en cada medio y para cada tarea las capas de modelos más óptimas (Needle 3, Bonsai 1.58, BitNet), que las apps guarden más capas que la web, que todo se sincronice y descargue bajo demanda por la malla y los servidores, por ámbito y con aprendizaje colectivo.\nReglas de la casa (`memory/workflow-actual.md`): el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba. Módulos PUROS donde el contrato lo pide (sin `node:*` en lo que importa el navegador; la puerta `sin-node-en-cliente.test.ts` lo vigila). Pruebas sin red, sin descargar modelos y sin archivos reales (todo lo externo se inyecta). Claves SOLO de `process.env`/`os.environ`, nunca se imprimen. Sin dependencias nuevas de npm ni pip. Una capa sin su SHA en el catálogo no se usa jamás (§6).\n\nTU TAREA (CPA1007K): (a) `capas-red.ts` PURO: junta el catálogo, `~/.starseed/capas-estado.json` (CPA1007J) y las fichas de capacidades (CPA1007G) en filas por capa: versión, estado, cuántos dispositivos y servidores la tienen, espejos y último resultado del banco. (b) `/api/mando/capas` detrás del mismo guardián que las demás rutas de Genesis; GET y POST `{accion:'comprobar'|'banco'}` que lanzan `capas_renovar.py --json` o `capas_banco.py` desacoplados (patrón `lanzarPasadaAutopublicar` de `src/app/api/mando/produccion/route.ts`). (c) `panel-capas-red.tsx` en el grupo Infraestructura, con el estilo de los paneles de Genesis y sin números inventados («sin medir»). Regístralo donde se registran las demás pestañas de Genesis. Pruebas de la vista pura, la ruta y el panel con fetch falso.\n\nREVISIÓN DE LA DIRECCIÓN (2026-10-08) — el primer intento (rama ola/CPA1007K) NO se integró:\n1. BORRÓ seis pestañas del Mando en `src/components/mando/centro-mando.tsx` (Chat, Áreas,\n   Contextos, Memorias, Reportes y Entornos movidas o quitadas con su TabsContent). En\n   centro-mando.tsx SOLO puedes AÑADIR: una entrada `{ id: \"capas-red\", etiqueta: \"Capas\",\n   grupo: \"Infraestructura\" }` en PESTANAS, el import y un TabsContent con montaje condicional.\n   Ninguna otra línea de ese archivo cambia: el diff de centro-mando.tsx tiene que ser solo\n   de líneas añadidas.\n2. `fichas` llegaba siempre vacía: lee las fichas de capacidad reales de los nodos\n   (`src/lib/network/capacidades-nodo.ts`) o di «sin medir» en la interfaz; nunca ceros que\n   parezcan medidos.\n3. Reutiliza lo bueno del intento: `git show ola/CPA1007K:src/lib/mando/capas-red.ts` y la ruta\n   `src/app/api/mando/capas/route.ts` (guardianMando, no-store) están bien encaminadas.\n\n## PARTE 2 DE 2 (la dirección dividió CPA1007Kb: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/components/mando/panel-capas-red.tsx, src/components/mando/__tests__/panel-capas-red.test.tsx, src/components/mando/centro-mando.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CPA1007Kb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "PM1010F2E",
+   "CPA1007Kb-d2"
+  ]
+ }
+}
