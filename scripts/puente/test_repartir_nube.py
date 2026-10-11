@@ -219,10 +219,6 @@ class TandaVivaDeLaMac(unittest.TestCase):
             self.assertEqual(ids_de_la_tanda_viva("", olas), set())
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestTamanoParaLaNube(unittest.TestCase):
     """La nube no tiene revisor: solo tareas pequenas, y las de 1 archivo primero.
 
@@ -256,6 +252,7 @@ class TestTamanoParaLaNube(unittest.TestCase):
         tareas = [
             {"id": "TRES", "archivos": ["a", "b", "c"]},
             {"id": "UNA", "archivos": ["a"]},
+            {"id": "DOS", "archivos": ["a", "b"]},
         ]
         salida = elegir(self._colas(tareas), {}, [], None, tope=1)
         self.assertEqual([t["id"] for t in salida], ["UNA"])
@@ -295,46 +292,46 @@ class DependenciasHechasNoFrenanLaNube(unittest.TestCase):
     propia rama, el runner ve lo mismo que la Mac — y mantener el descarte costaba la nube
     entera: medido, el reparto pasaba de 0 a 4 tareas con solo mirar si la dependencia
     estaba integrada."""
-
+    
     def test_dependencia_integrada_no_frena(self):
         tarea = {"id": "B", "depende": ["A"]}
         self.assertEqual(
             R.dependencias_pendientes(tarea, {"A": {"estado": "commit"}}), []
         )
-
+    
     def test_dependencia_sin_hacer_si_frena(self):
         tarea = {"id": "B", "depende": ["A"]}
         self.assertEqual(
             R.dependencias_pendientes(tarea, {"A": {"estado": "fallo"}}), ["A"]
         )
-
+    
     def test_dependencia_que_no_existe_frena(self):
         # p318Jb espera a un p318I que nunca se creo.
         self.assertEqual(
             R.dependencias_pendientes({"id": "X", "depende": ["p318I"]}, {}), ["p318I"]
         )
-
+    
     def test_dependencia_ya_en_main_no_frena_aunque_el_progreso_no_lo_diga(self):
         tarea = {"id": "B", "depende": ["A"]}
         # `id_en_asuntos` recorre una LISTA de asuntos, uno por commit.
         asuntos = ["Ola 1 · A: lo que hiciera"]
         self.assertEqual(R.dependencias_pendientes(tarea, {}, asuntos), [])
-
+    
     def test_sin_dependencias_no_hay_nada_que_esperar(self):
         self.assertEqual(R.dependencias_pendientes({"id": "A"}, {}), [])
-
+    
     def test_sucesora_integrada_cumple_la_dependencia(self):
         # (2026-10-11) PM1010F0A cayó en tests y la reparó PM1010F0Ab: el vigilante ya lo daba
         # por cumplido y la nube no, así que la Mac cedía la tarea y la nube la rechazaba.
         tarea = {"id": "PM1010F2E", "depende": ["PM1010F0A"]}
         progreso = {"PM1010F0A": {"estado": "fallo_tests"}, "PM1010F0Ab": {"estado": "commit"}}
         self.assertEqual(R.dependencias_pendientes(tarea, progreso), [])
-
+    
     def test_sucesora_sin_integrar_no_la_cumple(self):
         tarea = {"id": "B", "depende": ["A1"]}
         progreso = {"A1": {"estado": "fallo_tests"}, "A1b": {"estado": "pendiente"}}
         self.assertEqual(R.dependencias_pendientes(tarea, progreso), ["A1"])
-
+    
     def test_elegir_deja_pasar_la_que_tiene_su_dependencia_hecha(self):
         colas = [
             (
@@ -359,26 +356,26 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
     enseñaba «LISTAS PARA TRABAJAR 5» y ningún agente podía coger ninguna. Prestar a la
     nube no puede ser perder: si allí no queda nadie, vuelve.
     """
-
+    
     def _p(self, **estados):
         return {tid: dict(v) for tid, v in estados.items()}
-
+    
     def test_sin_runs_vuelven_las_prestadas_a_la_nube(self):
         p = self._p(
             RM3={"estado": "reasignada", "medio": "nube"},
             RM4={"estado": "reasignada", "medio": "nube"},
         )
         self.assertEqual(R.reclamar_varadas(p, 0), ["RM3", "RM4"])
-
+    
     def test_con_un_run_vivo_no_se_toca_nada(self):
         """Podría ser justo el que las está haciendo."""
         p = self._p(RM3={"estado": "reasignada", "medio": "nube"})
         self.assertEqual(R.reclamar_varadas(p, 1), [])
-
+    
     def test_una_reasignada_que_no_fue_a_la_nube_no_se_reclama(self):
         p = self._p(RM3={"estado": "reasignada", "medio": "mac"})
         self.assertEqual(R.reclamar_varadas(p, 0), [])
-
+    
     def test_las_que_estan_en_otro_estado_no_se_tocan(self):
         p = self._p(
             A={"estado": "commit", "medio": "nube"},
@@ -386,11 +383,11 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
             C={"estado": "pendiente"},
         )
         self.assertEqual(R.reclamar_varadas(p, 0), [])
-
+    
     def test_progreso_vacio_o_raro_no_rompe(self):
         self.assertEqual(R.reclamar_varadas(None, 0), [])
         self.assertEqual(R.reclamar_varadas({"X": "no soy un dict"}, 0), [])
-
+    
     def test_devolver_a_pendiente_conserva_la_historia(self):
         p = self._p(
             RM3={
@@ -407,7 +404,7 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
         self.assertEqual(n["RM3"]["ola"], 363)  # no se pierde de qué ola es
         self.assertEqual(n["RM3"]["intentos"], 2)  # ni cuántas veces se intentó
         self.assertIn("no quedaba ningún run", n["RM3"]["nota"])
-
+    
     def test_devolver_no_modifica_el_original(self):
         p = self._p(RM3={"estado": "reasignada", "medio": "nube"})
         R.devolver_a_pendiente(p, ["RM3"], "20260922")
@@ -416,19 +413,26 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
 
 class Privadas(unittest.TestCase):
     """(2026-10-03) Lo privado de los sueños no sale de la Mac."""
-
+    
     def test_una_tarea_privada_no_se_reparte(self):
         colas = [
             (
                 "cola-ola2.json",
                 [
-                    {"id": "P1", "ola": "x", "privado": True},
+                    {
+                        "id": "P1",
+                        "ola": "x",
+                        "privado": True,
+                    },
                     {
                         "id": "P2",
                         "ola": "x",
                         "prompt": "🔒 PRIVADO · solo en la Mac: …",
                     },
-                    {"id": "P3", "ola": "x", "prompt": "ORIGEN: sueño público"},
+                    {
+                        "id": "P3",
+                        "ola": "x",
+                        "prompt": "ORIGEN: sueño público"},
                 ],
             )
         ]
@@ -438,30 +442,26 @@ class Privadas(unittest.TestCase):
 
 class PausaDeLaNube(unittest.TestCase):
     """(2026-10-04) Siete corridas con cero commits: con la pausa nadie reparte."""
-
+    
     def test_sin_hasta_vale_hasta_que_se_quite(self):
         import repartir_nube as RNp
-
         self.assertEqual(RNp.motivo_pausa({"motivo": "cero commits"}), "cero commits")
-
+    
     def test_con_hasta_pasado_ya_no_vale(self):
         import time
         import repartir_nube as RNp
-
         ayer = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - 86400))
         self.assertIsNone(RNp.motivo_pausa({"motivo": "x", "hasta": ayer}))
-
+    
     def test_con_hasta_futuro_vale(self):
         import time
         import repartir_nube as RNp
-
         manana = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + 86400))
         self.assertEqual(RNp.motivo_pausa({"motivo": "x", "hasta": manana}), "x")
-
+    
     def test_archivo_ausente_o_roto_no_pausa(self):
         import os, tempfile
         import repartir_nube as RNp
-
         d = tempfile.mkdtemp()
         self.assertIsNone(RNp.nube_pausada(os.path.join(d, "no-existe.json")))
         roto = os.path.join(d, "roto.json")
@@ -473,7 +473,7 @@ class PausaDeLaNube(unittest.TestCase):
 
 class EnviosPorCadena(unittest.TestCase):
     """(2026-10-06) Cada reparación (`Xb`, `Xc`…) no estrena tres envíos: cuenta la cadena entera."""
-
+    
     def test_base_y_suma_de_la_cadena(self):
         self.assertEqual(R.base_cadena("RSC1006Qe"), "RSC1006Q")
         self.assertEqual(R.base_cadena("RSC1006Q"), "RSC1006Q")
@@ -482,9 +482,201 @@ class EnviosPorCadena(unittest.TestCase):
         self.assertEqual(R.envios_de_cadena("RSC1006Qd", envios), 3)
         self.assertEqual(R.envios_de_cadena("RSC1006Sb", envios), 2)
         self.assertEqual(R.envios_de_cadena("OTRA1", envios), 0)
-
+    
     def test_un_sucesor_no_vuelve_a_la_nube_si_la_cadena_agoto_sus_envios(self):
         tarea = {"id": "RSC1006Qd", "ola": "Ola 1006R", "archivos": ["a.ts"], "prompt": "x"}
         envios = {"RSC1006Q": 1, "RSC1006Qb": 1, "RSC1006Qc": 1}
         self.assertEqual(R.motivo_fuera(tarea, {}, [], None, envios=envios), "agotada")
         self.assertIsNone(R.motivo_fuera(tarea, {}, [], None, envios={"RSC1006Q": 1}))
+
+
+class CadenasCEDibles(unittest.TestCase):
+    def setUp(self):
+        # Define a simple tanda: tasks A, B, C, D, E in order in listas_mac
+        self.tareas_tanda = ["A", "B", "C", "D", "E"]
+        self.listas_mac = ["A", "B", "C", "D", "E"]  # same order
+        self.tope_mac = 2  # Mac works on 2 at a time
+        self.rondas = 1    # reserve 2*1 = 2 tasks
+        # So reserve: first 2 tasks: A, B
+        # Beyond reserve: C, D, E
+        
+        # esperadas_por: key is task id, value is list of task ids that depend on it (directly)
+        # Example: A is expected by B (B depends on A), B is expected by C, etc.
+        self.esperadas_por = {
+            "A": ["B"],   # B depends on A
+            "B": ["C"],   # C depends on B
+            "C": ["D"],   # D depends on C
+            "D": ["E"],   # E depends on D
+            "E": [],      # no one depends on E
+        }
+    
+    def test_cadena_simple_cedible(self):
+        # Beyond reserve: C, D, E
+        # For C: chain = [C, D, E] (BFS: C -> D -> E)
+        # For D: chain = [D, E]
+        # For E: chain = [E]
+        # We expect all three chains to be cedible under default conditions (max_cadena=4)
+        result = R.cadenas_cedibles(
+            self.tareas_tanda,
+            self.listas_mac,
+            self.tope_mac,
+            self.esperadas_por,
+            self.rondas,
+            max_cadena=4
+        )
+        # Expected chains in order of listas_mac beyond reserve: C, D, E
+        expected = [
+            ["C", "D", "E"],
+            ["D", "E"],
+            ["E"]
+        ]
+        self.assertEqual(result, expected)
+    
+    def test_cadena_mas_large_que_max_cadena_no_se_cede(self):
+        # Same setup but max_cadena=2
+        result = R.cadenas_cedibles(
+            self.tareas_tanda,
+            self.listas_mac,
+            self.tope_mac,
+            self.esperadas_por,
+            self.rondas,
+            max_cadena=2
+        )
+        # Chain for C: [C, D, E] length 3 > 2 -> not cedible
+        # Chain for D: [D, E] length 2 -> cedible
+        # Chain for E: [E] length 1 -> cedible
+        expected = [
+            ["D", "E"],
+            ["E"]
+        ]
+        self.assertEqual(result, expected)
+    
+    def test_dependiente_fuera_de_la_cadena_no_se_cede(self):
+        # Add a task F that depends on C, but F is not in the tanda
+        # We'll modify esperadas_por for C to include F, but F is not in tareas_tanda
+        esperadas_por = {
+            "A": ["B"],
+            "B": ["C"],
+            "C": ["D", "F"],  # F is not in tanda
+            "D": ["E"],
+            "E": [],
+            "F": []  # F not in tanda, so we don't include it in tareas_tanda
+        }
+        tareas_tanda = ["A", "B", "C", "D", "E"]  # F not in tanda
+        listas_mac = ["A", "B", "C", "D", "E"]
+        tope_mac = 2
+        rondas = 1
+        # For task C: chain would be [C, D, E] (since F is not in tanda, we don't include it)
+        # But condition (c): C is expected by F (outside the chain) -> should not be cedible
+        # For task D: chain [D, E] -> D is expected by E (in chain) and by? esperadas_por[D] = [E] -> ok
+        # For task E: chain [E] -> ok
+        result = R.cadenas_cedibles(
+            tareas_tanda,
+            listas_mac,
+            tope_mac,
+            esperadas_por,
+            rondas,
+            max_cadena=4
+        )
+        # Expect only chains for D and E
+        expected = [
+            ["D", "E"],
+            ["E"]
+        ]
+        self.assertEqual(result, expected)
+    
+    def test_reserva_nunca_se_cede(self):
+        # Make a task in the reserve that is expected
+        esperadas_por = {
+            "A": ["B"],  # A is in reserve (position 0)
+            "B": ["C"],
+            "C": ["D"],
+            "D": ["E"],
+            "E": []
+        }
+        tareas_tanda = ["A", "B", "C", "D", "E"]
+        listas_mac = ["A", "B", "C", "D", "E"]
+        tope_mac = 2
+        rondas = 1
+        # Reserve: A, B
+        # Beyond reserve: C, D, E
+        # Task A is in reserve and expected by B, but since it's in reserve, we skip it.
+        # Task B is in reserve and expected by C -> skip because in reserve.
+        # Task C: chain [C, D, E] -> should be cedible
+        # Task D: chain [D, E] -> cedible
+        # Task E: chain [E] -> cedible
+        result = R.cadenas_cedibles(
+            tareas_tanda,
+            listas_mac,
+            tope_mac,
+            esperadas_por,
+            rondas,
+            max_cadena=4
+        )
+        expected = [
+            ["C", "D", "E"],
+            ["D", "E"],
+            ["E"]
+        ]
+        self.assertEqual(result, expected)
+
+
+class ElegirConMismoLote(unittest.TestCase):
+    def test_mismo_lote_cumple_dependencia_y_no_vacia_depende(self):
+        # Task B depends on A
+        colas = [
+            ("cola-1.json", [
+                {"id": "A", "ola": "1", "archivos": ["a.ts"]},
+                {"id": "B", "ola": "1", "depende": ["A"], "archivos": ["b.ts"]},
+            ])
+        ]
+        prog = {}  # No progreso, so A is repartible (estado None)
+        main = []  # No asuntos main
+        # Without mismo_lote, only A should be selected (B depends on A and A is not done)
+        r_sin = elegir(colas, prog, main, ola_actual=None)
+        self.assertEqual(len(r_sin), 1)
+        self.assertEqual(r_sin[0]["id"], "A")
+        # With mismo_lote=("A",), B's dependency is considered fulfilled
+        r_con = elegir(colas, prog, main, ola_actual=None, mismo_lote=("A",))
+        self.assertEqual(len(r_con), 2)
+        # Find the candidate with id "B"
+        tarea_b = None
+        for t in r_con:
+            if t["id"] == "B":
+                tarea_b = t
+                break
+        self.assertIsNotNone(tarea_b)
+        # The depende field should NOT be cleared (should still contain ["A"])
+        self.assertEqual(tarea_b.get("depende"), ["A"])
+        # And should NOT have dependencias_ya_en_main
+        self.assertNotIn("dependencias_ya_en_main", tarea_b)
+
+    def test_sin_mismo_lote_comportamiento_actual_no_cambia(self):
+        # Ensure that without mismo_lote, the behavior is as before
+        colas = [
+            ("cola-1.json", [
+                {"id": "A", "ola": "1", "archivos": ["a.ts"]},
+                {"id": "B", "ola": "1", "depende": ["A"], "archivos": ["b.ts"]},
+            ])
+        ]
+        prog = {"A": {"estado": "commit"}}  # A is done
+        main = []  # No asuntos main
+        # With A done, B should be selected even without mismo_lote
+        r_sin = elegir(colas, prog, main, ola_actual=None)
+        self.assertEqual(len(r_sin), 1)
+        tarea = r_sin[0]
+        self.assertEqual(tarea["id"], "B")
+        # Since A is done, the dependence should be cleared and moved to dependencias_ya_en_main
+        self.assertEqual(tarea.get("depende"), [])
+        self.assertEqual(tarea.get("dependencias_ya_en_main"), ["A"])
+        # With mismo_lote, it should also be selected but keep depende
+        r_con = elegir(colas, prog, main, ola_actual=None, mismo_lote=("A",))
+        self.assertEqual(len(r_con), 1)
+        tarea = r_con[0]
+        self.assertEqual(tarea["id"], "B")
+        self.assertEqual(tarea.get("depende"), ["A"])
+        self.assertNotIn("dependencias_ya_en_main", tarea)
+
+
+if __name__ == "__main__":
+    unittest.main()
