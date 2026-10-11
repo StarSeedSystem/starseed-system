@@ -54,6 +54,7 @@ import {
     type TonoConsumo,
 } from "@/lib/mando/consumo-tipos";
 import { esConsumoOracle, vistaOracle, type ConsumoOracle } from "@/lib/mando/oracle-consumo-tipos";
+import { FilaPuertaDatos } from "@/components/mando/fila-puerta-datos";
 
 export const SONDEO_MS = 60_000;
 const RUTA = "/api/mando/consumo";
@@ -942,6 +943,10 @@ export function MedidorConsumo() {
 
             {/* (2026-10-10) Alex: «añade un medidor del consumo y créditos del servicio de Oracle Cloud». */}
             <FilaOracle />
+
+            {/* (PDA1012) Alex: «esas peticiones de Supabase ¿no podrían manejarse por nuestro servicio de
+                nube de Oracle?». La puerta de datos del A1: salud, ahorradas hoy e interruptor por neurona. */}
+            <FilaPuertaDatos />
 
             {formAbierto && datos ? (
                 <FormPresupuestos

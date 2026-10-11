@@ -52,6 +52,7 @@ import { describirMedio, fusionarMedios, type RegistroMedio } from "@/lib/neuron
 import { pantallaDe } from "@/lib/neurons/huella";
 import { huellaMaquina } from "@/lib/neurons/maquina";
 import { neuronaVigente } from "@/lib/neurons/fusion-alias";
+import { LISTA_REGISTRO_CON_PUERTA_MS, fundirVivas, latirNeuronaPorPuerta, vivasDeLaPuerta } from "@/lib/neurons/neuronas-puerta";
 import { adoptarNeurona } from "@/lib/network/identidad-dispositivo";
 
 export const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
@@ -573,6 +574,23 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
   };
 }
 
+/** El latido ligero de siempre en Supabase: mueve `last_seen_at` y dice si la fila existe. Nunca lanza. */
+async function latidoLigeroSupabase(id: string): Promise<{ fallo: FalloConsulta | null; existe: boolean }> {
+  try {
+    const res = await createClient()
+      .from("neuron_devices")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("id");
+    const fallo = falloDe(res as { error?: unknown; status?: number });
+    if (fallo) return { fallo, existe: false };
+    const filas = (res as { data?: unknown[] | null }).data;
+    return { fallo: null, existe: Array.isArray(filas) && filas.length > 0 };
+  } catch (e) {
+    return { fallo: { message: e instanceof Error ? e.message : "sin red" }, existe: false };
+  }
+}
+
 /**
  * Una vuelta del latido: la PRIMERA (y una de cada `LATIDOS_POR_FICHA`) sube la ficha
  * completa con las capacidades recién medidas; el resto solo `last_seen_at`.
@@ -594,19 +612,18 @@ async function latirUnaVez(idInicial: string): Promise<{ fallo: FalloConsulta | 
   // neuronas «fantasma» sin nombre ni capacidades). Si la fila no existe, sube la ficha entera.
   const owner = await getOwner();
   if (!owner) return { fallo: null };
+  // (PDA1012 · fase 2) El latido ligero va a la PUERTA del A1 (no cuesta Supabase; la puerta replica
+  // `last_seen_at` por lotes). Si no responde, el de siempre en Supabase. Un «no» de la puerta no
+  // es un permiso que saltarse (es la fila de esta misma cuenta): también se late en Supabase.
+  let medio: string | undefined;
   try {
-    const res = await createClient()
-      .from("neuron_devices")
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq("id", id)
-      .select("id");
-    const fallo = falloDe(res as { error?: unknown; status?: number });
-    if (fallo) return { fallo };
-    const filas = (res as { data?: unknown[] | null }).data;
-    if (Array.isArray(filas) && filas.length > 0) return { fallo: null };
-  } catch (e) {
-    return { fallo: { message: e instanceof Error ? e.message : "sin red" } };
-  }
+    medio = describirMedio().tipo || undefined;
+  } catch { /* sin medio */ }
+  const porPuerta = await latirNeuronaPorPuerta({ neurona: id, ...(medio ? { medio } : {}) }, () => latidoLigeroSupabase(id));
+  if (porPuerta.via === "puerta" || porPuerta.via === "cola") return { fallo: null };
+  const ligero = porPuerta.respaldo ?? (await latidoLigeroSupabase(id));
+  if (ligero.fallo) return { fallo: ligero.fallo };
+  if (ligero.existe) return { fallo: null };
   const idVigente = resolverAliasEsteMedio() || id;
   const ficha = neuronaLocal && neuronaLocal.id === idVigente ? neuronaLocal : await construirNeuronaLocal(idVigente);
   neuronaLocal = ficha;
@@ -653,6 +670,8 @@ export function _detenerLatidoParaPruebas(): void {
   listaParada = false;
   listaAvisada = false;
   ultimaListaBuena = null;
+  vivasCache = null;
+  vivasEnVuelo = null;
 }
 
 /**
@@ -803,6 +822,30 @@ export function invalidarListaNeuronas(): void {
   cacheLista = null;
 }
 
+/* ── Vida de las neuronas por la puerta del A1 (PDA1012 · fase 2) ─────────── */
+
+/** La vida que dio la puerta se reutiliza 60 s entre las superficies que piden la lista a la vez. */
+const VIVAS_CACHE_MS = 60_000;
+let vivasCache: { owner: string; en: number; vivas: Map<string, string> | null } | null = null;
+let vivasEnVuelo: Promise<Map<string, string> | null> | null = null;
+
+/**
+ * `{id → visto}` de la puerta para esta cuenta, o `null` si la puerta no está/no responde. No
+ * cuesta Supabase, así que se pide también con el freno puesto; con la pestaña oculta, lo último.
+ */
+async function vidaPorPuerta(owner: string, fresco: boolean): Promise<Map<string, string> | null> {
+  const previa = vivasCache && vivasCache.owner === owner ? vivasCache : null;
+  if (previa && !fresco && (Date.now() - previa.en < VIVAS_CACHE_MS || pestanaOculta())) return previa.vivas;
+  if (!vivasEnVuelo) {
+    vivasEnVuelo = vivasDeLaPuerta().finally(() => {
+      vivasEnVuelo = null;
+    });
+  }
+  const vivas = await vivasEnVuelo;
+  vivasCache = { owner, en: Date.now(), vivas };
+  return vivas;
+}
+
 function pestanaOculta(): boolean {
   return typeof document !== "undefined" && document.visibilityState === "hidden";
 }
@@ -844,8 +887,12 @@ export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]
   if (!owner) return local ? [local] : [];
   try {
     let filas: Array<Record<string, unknown>> | null = null;
+    // (PDA1012) Primero la VIDA por la puerta del A1; si la da, el REGISTRO de Supabase (nombres,
+    // capacidades) solo se relee cada 30 min en vez de cada 5: lo que cambia a menudo es la vida.
+    const vivas = await vidaPorPuerta(owner, !!opts?.fresco);
     const cache = cacheLista && cacheLista.owner === owner ? cacheLista : null;
-    const vigente = cache && Date.now() - cache.en < LISTA_CACHE_MS;
+    const vidaCache = vivas ? LISTA_REGISTRO_CON_PUERTA_MS : LISTA_CACHE_MS;
+    const vigente = cache && Date.now() - cache.en < vidaCache;
     let frenado = false;
     try {
       frenado = frenoActivo();
@@ -879,7 +926,7 @@ export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]
     }
     if (!filas) return local ? [local] : [];
     // Las neuronas ya fusionadas en otra no se enseñan aunque vengan de una lista vieja.
-    const data = filas.filter((row) => {
+    const data = fundirVivas(filas, vivas).filter((row) => {
       const id = String((row as { id?: unknown }).id ?? "");
       try { return neuronaVigente(id) === id; } catch { return true; }
     });

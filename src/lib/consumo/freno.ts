@@ -15,6 +15,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { puertaA1, type PuertaA1 } from "@/lib/datos/puerta-a1";
 import { alCambiarLider as alCambiarLiderPestana, esLider as esLiderPestana } from "./lider-pestana";
 import { fijarFrenoRemoto, type AlmacenConsumo, type CanalConsumo } from "./guardian";
 
@@ -243,6 +244,28 @@ async function leerFilaSupabase(): Promise<FilaFreno | null> {
     }
 }
 
+/**
+ * (PDA1012 · fase 2 de la puerta de datos) El freno se pide a la PUERTA del A1: la vigía lo empuja
+ * allí en cada vuelta (`PUT /v1/freno`), así que leerlo no cuesta ninguna petición a Supabase. Si la
+ * puerta no está configurada, está apagada en esta neurona o no responde, se lee `os_freno` en
+ * Supabase como siempre (por el cliente único y, por tanto, por el guardián de consumo).
+ * `null` = no se pudo leer (se conserva lo último conocido). Nunca lanza.
+ */
+export async function leerFilaFreno(puerta: Pick<PuertaA1, "freno"> = puertaA1()): Promise<FilaFreno | null> {
+    try {
+        const r = await puerta.freno(leerFilaSupabase);
+        if (r.via === "puerta") {
+            const d = r.datos as { freno?: FilaFreno | null } | null;
+            if (!d || typeof d !== "object") return null;
+            return d.freno ?? { activo: false };
+        }
+        if (r.via === "supabase") return (r.datos as FilaFreno | null) ?? null;
+        return null;
+    } catch {
+        return null;
+    }
+}
+
 let frenoPestana: Freno | null = null;
 
 function frenoActual(): Freno | null {
@@ -255,7 +278,7 @@ function frenoActual(): Freno | null {
         almacen = null;
     }
     frenoPestana = crearFreno({
-        leerFila: leerFilaSupabase,
+        leerFila: () => leerFilaFreno(),
         esLider: esLiderPestana,
         alCambiarLider: alCambiarLiderPestana,
         crearCanal: (nombre) => (typeof BroadcastChannel === "function" ? (new BroadcastChannel(nombre) as unknown as CanalConsumo) : null),

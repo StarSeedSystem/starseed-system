@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
+import { puertaA1 } from "@/lib/datos/puerta-a1";
 import { currentUserRef } from "@/lib/sync/entity-state";
 import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
 
@@ -28,7 +29,7 @@ function esErrorTablaFaltante(error: unknown): boolean {
     return typeof e.message === "string" && /os_presencia/i.test(e.message) && /schema cache|does not exist|not exist/i.test(e.message);
 }
 
-async function marcarPresencia(uid: string, visible: boolean): Promise<void> {
+async function marcarPresenciaSupabase(uid: string, visible: boolean): Promise<void> {
     if (tablaDeshabilitada) return;
     try {
         const supabase = createClient();
@@ -38,6 +39,74 @@ async function marcarPresencia(uid: string, visible: boolean): Promise<void> {
         if (error && esErrorTablaFaltante(error)) tablaDeshabilitada = true;
     } catch {
         /* best-effort */
+    }
+}
+
+/**
+ * (PDA1012 · fase 2 de la puerta de datos) «Sigo aquí» va a la PUERTA del A1 (`POST /v1/presencia`,
+ * misma regla de `os_presencia`: visible, o tú), que lo replica a Supabase por lotes cada 30 min.
+ * Si la puerta no está, está apagada en esta neurona o no responde: el upsert de siempre.
+ */
+async function marcarPresencia(uid: string, visible: boolean): Promise<void> {
+    if (tablaDeshabilitada) return;
+    try {
+        await puertaA1().marcarPresencia(visible, () => marcarPresenciaSupabase(uid, visible));
+    } catch {
+        /* best-effort */
+    }
+}
+
+/** Una fila de presencia, venga de la puerta (`cuenta`) o de Supabase (`user_id`). */
+export interface FilaPresencia {
+    user_id: string;
+    visto: string;
+    visible: boolean;
+}
+
+/**
+ * PURA. De las filas de presencia al estado que pinta la mensajería: solo las visibles (la puerta ya
+ * filtra igual), «en línea» si el último «sigo aquí» tiene menos de `RECIENTE_MS`.
+ */
+export function estadoDePresencia(filas: readonly FilaPresencia[], ahora: number): Record<string, EstadoPresencia> {
+    const siguiente: Record<string, EstadoPresencia> = {};
+    for (const fila of filas) {
+        if (!fila || !fila.visible || typeof fila.visto !== "string") continue;
+        const t = Date.parse(fila.visto);
+        if (!Number.isFinite(t)) continue;
+        siguiente[fila.user_id] = { enLinea: ahora - t < RECIENTE_MS, visto: fila.visto };
+    }
+    return siguiente;
+}
+
+/**
+ * La presencia de varias cuentas: por la puerta si responde (sin coste en Supabase), si no por
+ * `os_presencia` como siempre. `null` = no se pudo leer (se conserva lo que había).
+ */
+export async function leerPresencias(ids: string[]): Promise<FilaPresencia[] | null> {
+    const porSupabase = async (): Promise<FilaPresencia[] | null> => {
+        if (tablaDeshabilitada) return null;
+        const supabase = createClient();
+        const { data, error } = await supabase.from("os_presencia").select("user_id, visto, visible").in("user_id", ids);
+        if (error) {
+            if (esErrorTablaFaltante(error)) tablaDeshabilitada = true;
+            return null;
+        }
+        return Array.isArray(data) ? (data as FilaPresencia[]) : null;
+    };
+    try {
+        const r = await puertaA1().presencia(ids, porSupabase);
+        if (r.via === "puerta") {
+            const lista = (r.datos as { presencia?: { cuenta?: string; visto?: string }[] } | null)?.presencia;
+            if (!Array.isArray(lista)) return null;
+            // La puerta ya aplica la regla de `os_presencia`: lo que devuelve se puede ver.
+            return lista
+                .filter((p) => typeof p?.cuenta === "string" && typeof p?.visto === "string")
+                .map((p) => ({ user_id: p.cuenta as string, visto: p.visto as string, visible: true }));
+        }
+        if (r.via === "supabase") return (r.datos as FilaPresencia[] | null) ?? null;
+        return null;
+    } catch {
+        return null;
     }
 }
 
@@ -114,24 +183,9 @@ export function usePresencia(userIds: string[]): Record<string, EstadoPresencia>
 
         async function consultar(): Promise<void> {
             if (cancelado || tablaDeshabilitada) return;
-            try {
-                const supabase = createClient();
-                const { data, error } = await supabase.from("os_presencia").select("user_id, visto, visible").in("user_id", ids);
-                if (error) {
-                    if (esErrorTablaFaltante(error)) tablaDeshabilitada = true;
-                    return;
-                }
-                if (cancelado || !Array.isArray(data)) return;
-                const ahora = Date.now();
-                const siguiente: Record<string, EstadoPresencia> = {};
-                for (const fila of data as { user_id: string; visto: string; visible: boolean }[]) {
-                    if (!fila.visible) continue;
-                    siguiente[fila.user_id] = { enLinea: ahora - Date.parse(fila.visto) < RECIENTE_MS, visto: fila.visto };
-                }
-                setEstado(siguiente);
-            } catch {
-                /* best-effort */
-            }
+            const filas = await leerPresencias(ids);
+            if (cancelado || !filas) return;
+            setEstado(estadoDePresencia(filas, Date.now()));
         }
 
         void consultar();
