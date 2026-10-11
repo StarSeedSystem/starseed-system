@@ -57,14 +57,12 @@ export function escucharEstacionesDirectas(
     }
   };
 
-  let unsubscribe: () => void = () => {};
-  if (!deps?.alRecibir) {
-    import("@/lib/malla/transporte-universal").then(({ alRecibirMensaje }) => {
-      unsubscribe = alRecibirMensaje("estacion", handleMessage);
-    });
+  let unsubscribePromise: Promise<() => void>;
+  if (deps?.alRecibir) {
+    unsubscribePromise = Promise.resolve(deps.alRecibir("estacion", handleMessage));
   } else {
-    unsubscribe = deps.alRecibir("estacion", handleMessage);
+    unsubscribePromise = import("@/lib/malla/transporte-universal").then(({ alRecibirMensaje }) => alRecibirMensaje("estacion", handleMessage));
   }
 
-  return () => unsubscribe();
+  return () => unsubscribePromise.then(unsub => unsub());
 }
