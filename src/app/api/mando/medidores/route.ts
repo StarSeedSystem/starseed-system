@@ -35,6 +35,7 @@ import {
 } from "@/lib/mando/lector-local";
 import {
     TERMINALES,
+    agentesDeRunsNube,
     tituloDeRunNube,
     veredictoDeAgente,
     detalleDeMedidor,
@@ -42,8 +43,10 @@ import {
     olasDeLaMac,
     tituloDeOla,
     type OlaActiva,
+    type AgenteDeLaNube,
     type ClaveMedidor,
     type DatosMedidores,
+    type RunDeLaNube,
 } from "@/lib/mando/medidores";
 import {
     parsearCommits,
@@ -351,43 +354,28 @@ async function leerContenedores(): Promise<DatosMedidores["contenedores"]> {
  * con los trabajadores que anotó `nube-gh.py` al lanzarlos y deja el resultado en disco;
  * aquí solo se lee, sin viajes a la red en la petición del panel.
  */
-async function leerAgentesDeLaNube(): Promise<
-    { tarea: string; fase: string; modelo: string; minutos: number; donde: string; cola?: string }[]
-> {
+async function leerAgentesDeLaNube(): Promise<AgenteDeLaNube[]> {
     try {
         const crudo = await readFile(
             path.join(RAÍZ, "starseed_memory_root", "mando", "agentes-nube.json"),
             "utf8",
         );
-        const d = JSON.parse(crudo) as {
-            runs?: { run?: unknown; agentes?: unknown; cola?: unknown; minutos?: unknown }[];
-        };
-        const fuera: {
-            tarea: string;
-            fase: string;
-            modelo: string;
-            minutos: number;
-            donde: string;
-            cola?: string;
-        }[] = [];
+        const d = JSON.parse(crudo) as { runs?: RunDeLaNube[] };
+        const runs: RunDeLaNube[] = [];
         for (const r of d.runs ?? []) {
-            const n = Number(r.agentes);
-            if (!Number.isFinite(n) || n <= 0) continue;
-            const cola = typeof r.cola === "string" ? r.cola.split("/").pop() : undefined;
-            for (let i = 0; i < Math.min(n, 32); i += 1) {
-                // No sabemos QUÉ tarea lleva cada trabajador de la nube —sus latidos
-                // mueren con el runner— así que se dice el run y no se inventa una tarea.
-                fuera.push({
-                    tarea: `nube/${r.run}`,
-                    fase: "escribiendo",
-                    modelo: "nube-gh/trabajador",
-                    minutos: Number.isFinite(Number(r.minutos)) ? Number(r.minutos) : 0,
-                    donde: "nube-gh",
-                    cola,
-                });
+            // (PDA1012) Las tareas de la tanda del run, de su cola (solo rutas dentro del repo).
+            const ruta = typeof r.cola === "string" ? r.cola : "";
+            let tareas: string[] = [];
+            if (ruta && !ruta.includes("..") && !path.isAbsolute(ruta)) {
+                try {
+                    tareas = tareasDeCola(JSON.parse(await readFile(path.join(RAÍZ, ruta), "utf8")), ruta).map((t) => t.id);
+                } catch {
+                    /* la cola ya no está en disco */
+                }
             }
+            runs.push({ ...r, tareas });
         }
-        return fuera;
+        return agentesDeRunsNube(runs);
     } catch {
         return [];
     }
@@ -683,7 +671,11 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         return !fantasma;
     });
     const deAqui = new Set(latidosMac.map((l) => l.tarea));
-    const latidosCompletos = [...latidosMac, ...bus.latidos.filter((l) => !deAqui.has(l.tarea))];
+    // (PDA1012) Un latido del bus de OTRO medio (el A1 de Oracle) es OTRO agente aunque su tarea
+    // también corra aquí: antes se tiraba si la Mac tenía la misma tarea y el A1 no salía nunca.
+    // Solo se descarta el eco de esta misma Mac.
+    const delBus = (l: { tarea: string; donde?: string }) => (l.donde || "mac") !== "mac" || !deAqui.has(l.tarea);
+    const latidosCompletos = [...latidosMac, ...bus.latidos.filter(delBus)];
     const latidosDeAqui = [
         // (2026-09-21) Aqui se tiraban `quietoSegundos`, `bytesLog`, `cola` y `medio`, que
         // `leerLatidos` ya trae. Sin ellos el medidor de agentes no podia decir nada que el
@@ -703,7 +695,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             titulo: l.titulo,
         })),
         ...bus.latidos
-            .filter((l) => !deAqui.has(l.tarea))
+            .filter(delBus)
             .map((l) => ({
                 tarea: l.tarea,
                 fase: l.fase,
@@ -711,6 +703,11 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
                 minutos: l.minutos,
                 donde: l.donde,
                 proveedor: l.proveedor,
+                quietoSegundos: l.quietoSegundos,
+                bytesLog: l.bytesLog,
+                cola: l.cola,
+                medio: l.medio,
+                latidoHaceS: l.latidoHaceS,
             })),
     ];
 

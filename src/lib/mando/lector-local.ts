@@ -417,12 +417,19 @@ export function colaInteligente(
  * modelo, tokens reales, proveedores y memoria. Sin esto Genesis solo veía la máquina donde
  * corre, y los agentes de la nube «no aparecían».
  */
-export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enjambres: FotoEnjambre[] }> {
+/**
+ * (PDA1012) Ventana de los latidos del bus: 12 min, la misma que «en línea» en todo el OS. Era de
+ * 4 min y el A1 de Oracle, que con el freno de consumo publica su latido cada 10 min, desaparecía
+ * del medidor «Agentes» más de la mitad del tiempo con sus agentes escribiendo.
+ */
+export const VENTANA_LATIDOS_BUS_MS = 12 * 60 * 1000;
+
+export async function leerLatidosDelBus(ahora = Date.now()): Promise<{ latidos: LatidoTarea[]; enjambres: FotoEnjambre[] }> {
     // También `cola_terminada` y `detenida`: un latido de hace 3 min con «P2 escribiendo»
     // ya no vale si después la cola terminó o la pararon (el orquestador muerto no
     // publica más latidos, y la ventana de 4 min lo dejaba «en curso» hasta caducar).
     // (2026-09-25) Desde la memoria compartida del bus: solo se piden a Supabase las filas nuevas.
-    const filas = (await filasRecientes(["latido", "cola_terminada", "detenida"], 4 * 60 * 1000)).slice(0, 60);
+    const filas = (await filasRecientes(["latido", "cola_terminada", "detenida"], VENTANA_LATIDOS_BUS_MS, ahora)).slice(0, 60);
     // Un latido por (donde, cola): el más reciente manda; si lo más reciente de esa cola es
     // su cierre, no hay nada vivo que mostrar.
     const vistos = new Set<string>();
@@ -476,6 +483,7 @@ export async function leerLatidosDelBus(): Promise<{ latidos: LatidoTarea[]; enj
                 bytesLog: número(tk.bytesLog, 0),
                 intento: número(tk.intento, 1),
                 medio: texto(tk.medio) || medio,
+                latidoHaceS: Number.isFinite(Date.parse(fila.t)) ? Math.max(0, Math.round((ahora - Date.parse(fila.t)) / 1000)) : undefined,
             });
         }
     }

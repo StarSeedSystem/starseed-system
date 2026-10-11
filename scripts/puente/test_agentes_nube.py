@@ -53,5 +53,30 @@ class NoBorrarLosLanzamientos(unittest.TestCase):
         self.assertEqual(d["lanzamientos"][0]["run"], 20)
 
 
+
+
+class TestPasoActual(unittest.TestCase):
+    """(PDA1012) El paso real del job, para que Genesis no diga «undefined»."""
+
+    def test_paso_en_curso(self):
+        jobs = [{"estado": "in_progress", "pasos": [
+            {"nombre": "Set up job", "estado": "completed", "inicio": "a"},
+            {"nombre": "Enjambre", "estado": "in_progress", "inicio": "2026-10-11T01:05:00Z"},
+            {"nombre": "Entregar", "estado": "queued", "inicio": None}]}]
+        p = AN.paso_actual(jobs)
+        self.assertEqual(p["nombre"], "Enjambre")
+        self.assertEqual((p["hechos"], p["total"]), (1, 3))
+
+    def test_sin_jobs_espera_maquina(self):
+        self.assertEqual(AN.paso_actual([])["nombre"], "esperando máquina")
+
+    def test_resumir_lleva_el_paso(self):
+        runs = [{"databaseId": 7, "status": "in_progress", "createdAt": "2026-10-11T01:00:00Z", "url": "u",
+                 "inputs": {"trabajadores": "3", "cola": "c.json"},
+                 "paso": {"nombre": "Entregar (rama nube/<run>, nunca main)", "desde": "x", "hechos": 9, "total": 12}}]
+        r = AN.resumir(runs, 1791682000)["runs"][0]
+        self.assertTrue(r["paso"].startswith("Entregar"))
+        self.assertEqual(r["pasos_hechos"], 9)
+
 if __name__ == "__main__":
     unittest.main()

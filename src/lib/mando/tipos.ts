@@ -105,6 +105,8 @@ export interface LatidoTarea {
     /** (2026-09-29) Sueños profundos: qué hace el analista dentro de «analizando»
      *  («lectura 3/9 · llm7/gpt-oss», «pausa · ritmo del plan»…). */
     subfase?: string;
+    /** (PDA1012) Segundos desde que el orquestador de otro medio publicó este latido en el bus. */
+    latidoHaceS?: number;
 }
 
 /** Foto de un orquestador tal como la publica en el bus con cada latido. */

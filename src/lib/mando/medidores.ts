@@ -769,9 +769,106 @@ export function dondeLegible(donde: string | undefined): string {
             return "Claude en Cowork (nube de Anthropic)";
         case "hermes":
             return "Hermes (servidor)";
+        case "oracle":
+        case "oracle_a1":
+        case "oracle-a1":
+            return "A1 de Oracle (nube propia, siempre encendida)";
+        case "nube-gh":
+            return "GitHub Actions (nube)";
         default:
             return donde;
     }
+}
+
+/** (PDA1012) El medio en corto, para la cabecera de una tarjeta de agente. */
+export function dondeCorto(donde: string | undefined): string {
+    switch (donde) {
+        case "oracle":
+        case "oracle_a1":
+        case "oracle-a1":
+            return "A1 de Oracle";
+        case "nube-gh":
+            return "GitHub Actions";
+        case "nube-cowork":
+        case "cowork":
+            return "Cowork";
+        default:
+            return donde || "mac";
+    }
+}
+
+/** (PDA1012) Un run vivo de la nube (de `agentes-nube.json`), con las tareas de la cola que se llevó. */
+export interface RunDeLaNube {
+    run?: unknown;
+    agentes?: unknown;
+    cola?: unknown;
+    minutos?: unknown;
+    paso?: unknown;
+    paso_desde?: unknown;
+    pasos_hechos?: unknown;
+    pasos_total?: unknown;
+    tareas?: string[];
+}
+
+/** (PDA1012) Un trabajador de la nube como latido del medidor «Agentes». */
+export interface AgenteDeLaNube {
+    tarea: string;
+    fase: string;
+    modelo: string;
+    minutos: number;
+    donde: string;
+    cola?: string;
+    paso?: string;
+    pasos?: string;
+    tareasDeTanda?: string[];
+    trabajador?: number;
+    trabajadores?: number;
+}
+
+/** PURA. La fase de un trabajador de la nube según el paso del job de GitHub. */
+export function faseDePasoNube(paso: string | undefined): string {
+    const p = String(paso ?? "").toLowerCase();
+    if (!p) return "preparando";
+    if (/esperando m[áa]quina/.test(p)) return "esperando máquina";
+    if (/enjambre/.test(p)) return "escribiendo";
+    if (/entregar|tachar|rastro|post |complete job/.test(p)) return "entregando";
+    return "preparando";
+}
+
+/**
+ * PURA. De los runs vivos de la nube a un latido por TRABAJADOR, con el paso real del job y las
+ * tareas de su tanda. (PDA1012) Alex vio «undefined» como detalle: la fila no sabía su fase y el
+ * texto salía de unos bytes que la nube no manda. El runner no publica qué tarea lleva cada
+ * trabajador (sus latidos mueren con él), así que se dicen las de su tanda y no se inventa una.
+ */
+export function agentesDeRunsNube(runs: readonly RunDeLaNube[]): AgenteDeLaNube[] {
+    const fuera: AgenteDeLaNube[] = [];
+    for (const r of runs) {
+        const n = Number(r.agentes);
+        if (!Number.isFinite(n) || n <= 0 || r.run === undefined || r.run === null || String(r.run) === "") continue;
+        const cola = typeof r.cola === "string" ? r.cola.split("/").pop() : undefined;
+        const paso = typeof r.paso === "string" && r.paso ? r.paso : undefined;
+        const hechos = Number(r.pasos_hechos);
+        const total = Number(r.pasos_total);
+        const pasos = Number.isFinite(hechos) && Number.isFinite(total) && total > 0 ? `${hechos} de ${total} pasos hechos` : undefined;
+        const tope = Math.min(n, 32);
+        for (let i = 0; i < tope; i += 1) {
+            fuera.push({
+                tarea: `nube/${String(r.run)}`,
+                fase: faseDePasoNube(paso),
+                modelo: "nube-gh/trabajador",
+                minutos: Number.isFinite(Number(r.minutos)) ? Number(r.minutos) : 0,
+                donde: "nube-gh",
+                cola,
+                ...(paso ? { paso } : {}),
+                ...(pasos ? { pasos } : {}),
+                tareasDeTanda: Array.isArray(r.tareas) ? r.tareas.filter((t) => typeof t === "string" && t).slice(0, 24) : [],
+                trabajador: i + 1,
+                trabajadores: tope,
+            });
+        }
+    }
+    return fuera;
 }
 
 /**
@@ -1084,6 +1181,15 @@ export interface DatosMedidores {
         titulo?: string;
         /** (2026-09-29) Qué hace un sueño profundo dentro de «analizando». */
         subfase?: string;
+        /** (PDA1012) Nube de GitHub: el paso REAL del job («Enjambre», «Entregar…») y su avance. */
+        paso?: string;
+        pasos?: string;
+        /** (PDA1012) Nube de GitHub: las tareas de la tanda del run y qué trabajador es este. */
+        tareasDeTanda?: string[];
+        trabajador?: number;
+        trabajadores?: number;
+        /** (PDA1012) Otro medio (el A1 de Oracle): segundos desde su último latido en el bus. */
+        latidoHaceS?: number;
     }[];
     /**
      * Inventario de contenedores en la nube, tal como lo escribe
@@ -1803,7 +1909,22 @@ export function detalleDeMedidor(
                 const etapaTexto = etapa.etapa ? `etapa ${nEtapa} de ${ETAPAS.length} · ${etapa.etapa}` : "sin empezar";
                 let estado: string;
                 let porque: string;
-                if (externo) {
+                const nubeGh = l.donde === "nube-gh";
+                const latidoViejo = !enLaMac && !nubeGh && (l.latidoHaceS ?? 0) > 180
+                    ? ` · último latido hace ${Math.round((l.latidoHaceS ?? 0) / 60)} min (con el freno de consumo, ese medio late cada 10 min)`
+                    : "";
+                if (nubeGh) {
+                    // (PDA1012) La nube de GitHub: el paso REAL de su job y las tareas de su tanda.
+                    const f = faseDePasoNube(l.paso);
+                    estado = f === "escribiendo" ? "escribiendo" : f;
+                    const tanda = l.tareasDeTanda ?? [];
+                    const quien2 = l.trabajador && l.trabajadores ? `trabajador ${l.trabajador} de ${l.trabajadores}` : "trabajador";
+                    porque =
+                        `${quien2} en GitHub Actions · paso «${l.paso ?? "sin dato del job todavía"}»${l.pasos ? ` (${l.pasos})` : ""}` +
+                        (tanda.length
+                            ? ` · su tanda: ${tanda.slice(0, 6).join(", ")}${tanda.length > 6 ? ` y ${tanda.length - 6} más` : ""} · qué tarea lleva cada trabajador lo dice su rama al entregar`
+                            : " · su cola ya no está en esta neurona");
+                } else if (externo) {
                     estado = "trabajando fuera";
                     porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;
                 } else if (sonando) {
@@ -1833,17 +1954,26 @@ export function detalleDeMedidor(
                     porque = `lleva ${Math.round(quieto / 60)} min sin escribir${proceso ? ` · el proceso ${proceso.pid} sigue vivo` : ""}`;
                 } else {
                     estado = "escribiendo";
-                    porque = `${bytesLegibles(l.bytesLog)}${proceso ? ` · proceso ${proceso.pid}` : ""}`;
+                    // (PDA1012) Nunca «undefined»: sin bytes medidos se dice que no los hay.
+                    const escrito = bytesLegibles(l.bytesLog);
+                    porque = `${escrito ? `${escrito} escritos` : "sin bytes medidos todavía"}${proceso ? ` · proceso ${proceso.pid}` : ""}${enLaMac ? "" : ` · en ${dondeCorto(l.donde)}`}`;
                 }
+                if (latidoViejo && !nubeGh) porque += latidoViejo;
                 const cola = String(l.cola ?? "").replace(/^cola-/, "");
                 const fila: FilaMedidor = {
-                    id: (l.donde ?? "mac") === "mac" ? l.tarea : `${l.tarea} · ${l.donde} · ${modelo || "agente"} · ${l.minutos} min`,
+                    id: enLaMac
+                        ? l.tarea
+                        : nubeGh
+                          ? `${l.tarea} · ${l.trabajador && l.trabajadores ? `trabajador ${l.trabajador} de ${l.trabajadores}` : "trabajador"} · ${l.minutos} min`
+                          : `${l.tarea} · ${dondeCorto(l.donde)} · ${modelo || "agente"} · ${l.minutos} min`,
                     // El id ya va en la cabecera de la tarjeta: aquí, solo QUÉ es la tarea.
                     titulo: externo && l.titulo ? l.titulo : titulo(l.tarea) !== l.tarea ? titulo(l.tarea) : "sin título en su cola",
                     estado,
                     porcentaje: etapa.porcentaje,
                     etapa: etapaTexto,
-                    quien: `${modeloTexto} · ${l.donde}${cola ? ` · tanda ${cola}` : ""}`,
+                    quien: nubeGh
+                        ? `GitHub Actions · ${l.paso ? `paso «${l.paso}»` : "sin paso"}${cola ? ` · tanda ${cola}` : ""}`
+                        : `${modeloTexto} · ${dondeCorto(l.donde)}${cola ? ` · tanda ${cola}` : ""}`,
                     desde: `${l.minutos} min`,
                     porque,
                     ficha: fichaDeAgente(l, d.progreso[l.tarea], d.obras?.[l.tarea], d.repoGitHub),
@@ -1866,6 +1996,9 @@ export function detalleDeMedidor(
                 [cuenta("esperando modelo"), "esperando modelo"],
                 [cuenta("esperando aprobación"), "esperando aprobación"],
                 [cuenta("soñando"), "soñando"],
+                [cuenta("preparando"), "preparando su máquina"],
+                [cuenta("entregando"), "entregando"],
+                [cuenta("esperando máquina"), "esperando máquina"],
                 [cuenta("trabajando fuera"), "fuera"],
             ]
                 .filter(([n]) => Number(n) > 0)
