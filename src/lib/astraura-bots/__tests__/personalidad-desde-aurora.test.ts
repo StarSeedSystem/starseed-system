@@ -53,9 +53,10 @@ describe("rasgosDesdePersonalidad", () => {
   });
 
   it("emoción alegría (alegria/joy) sube energía y humor con pesos fijos", () => {
-    const r = rasgosDesdePersonalidad({ params: { energia: 0.2, humor: 0.1 }, emotions: { alegria: 100, joy: 80 } }, BASE);
-    expect(r.energia).toBeGreaterThan(BASE.energia);
-    expect(r.humor).toBeGreaterThan(BASE.humor);
+    const params = { energia: 0.2, humor: 0.1 };
+    const r = rasgosDesdePersonalidad({ params, emotions: { alegria: 100, joy: 80 } }, BASE);
+    expect(r.energia).toBeGreaterThan(params.energia);
+    expect(r.humor).toBeGreaterThan(params.humor);
   });
 
   it("emoción calma (calma/calm) baja energía con peso fijo", () => {
