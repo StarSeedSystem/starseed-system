@@ -323,6 +323,18 @@ class DependenciasHechasNoFrenanLaNube(unittest.TestCase):
     def test_sin_dependencias_no_hay_nada_que_esperar(self):
         self.assertEqual(R.dependencias_pendientes({"id": "A"}, {}), [])
 
+    def test_sucesora_integrada_cumple_la_dependencia(self):
+        # (2026-10-11) PM1010F0A cayó en tests y la reparó PM1010F0Ab: el vigilante ya lo daba
+        # por cumplido y la nube no, así que la Mac cedía la tarea y la nube la rechazaba.
+        tarea = {"id": "PM1010F2E", "depende": ["PM1010F0A"]}
+        progreso = {"PM1010F0A": {"estado": "fallo_tests"}, "PM1010F0Ab": {"estado": "commit"}}
+        self.assertEqual(R.dependencias_pendientes(tarea, progreso), [])
+
+    def test_sucesora_sin_integrar_no_la_cumple(self):
+        tarea = {"id": "B", "depende": ["A1"]}
+        progreso = {"A1": {"estado": "fallo_tests"}, "A1b": {"estado": "pendiente"}}
+        self.assertEqual(R.dependencias_pendientes(tarea, progreso), ["A1"])
+
     def test_elegir_deja_pasar_la_que_tiene_su_dependencia_hecha(self):
         colas = [
             (

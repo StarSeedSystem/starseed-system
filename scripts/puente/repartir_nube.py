@@ -14,7 +14,7 @@ import os
 import re
 import time
 
-from vigilante_logica import id_en_asuntos
+from vigilante_logica import id_en_asuntos, sucesora_integrada
 
 #: (2026-10-03) Antes se clavaba «llm7/minimax-m2.7» a TODA tarea de la nube: llm7 está
 #: caído desde el 09-09 y la tarea gastaba su primer intento (6+ min, medido en el run
@@ -323,6 +323,12 @@ def dependencias_pendientes(tarea, progreso=None, asuntos_main=""):
         if estado in _HECHAS:
             continue
         if asuntos_main and id_en_asuntos(tid, asuntos_main):
+            continue
+        # (2026-10-11) La MISMA regla que el vigilante (`seleccionar_pendientes`): una sucesora
+        # integrada cumple la dependencia. Sin esto la Mac cedía PM1010F2E y CPA1007Kb-d2
+        # («nadie las espera», su dependencia la cumplían PM1010F0Ab y CPA1007Kb-d1b) y aquí
+        # salían «esperan a otra tarea»: la nube con 0 jobs y cuatro tareas listas en el limbo.
+        if sucesora_integrada(tid, progreso, asuntos_main) is not None:
             continue
         fuera.append(tid)
     return fuera
