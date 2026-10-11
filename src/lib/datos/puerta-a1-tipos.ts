@@ -21,11 +21,17 @@ export const TIMEOUT_MS = 4_000;
 /** La URL leída de `os_puerta_datos` vale este tiempo en el aparato. */
 export const URL_VIGENCIA_MS = 6 * 3_600_000;
 /**
- * (PDA1012) «No hay puerta» (fila apagada o sin sesión) vale menos: 30 min. Con 6 h, un aparato que
+ * (PDA1012) «No hay puerta» (la fila dice que está apagada) vale menos: 30 min. Con 6 h, un aparato que
  * abrió el OS justo antes de encender la puerta (`os_puerta_datos.activa = true`) seguía yendo a
  * Supabase el resto de la tarde. 30 min = como mucho 48 lecturas al día de esa fila por aparato.
  */
 export const URL_NULA_VIGENCIA_MS = 30 * 60_000;
+/**
+ * (PDA1012) «Todavía no se sabe» (sin sesión, o Supabase sin responder) NO es «no hay puerta» y no se
+ * guarda en el aparato: se vuelve a mirar al minuto, en memoria. Medido el 2026-10-11: una pestaña
+ * abierta sin sesión guardó «no hay puerta» y, ya con sesión, siguió 30 min yendo a Supabase.
+ */
+export const URL_SIN_SABER_REINTENTO_MS = 60_000;
 export const COLA_MAX = 200;
 
 export type ModoPuerta = "auto" | "apagada";
@@ -394,8 +400,12 @@ export function vistaPuerta(d: DatosPuerta, ahora: number): VistaPuerta {
     let estado: VistaPuerta["estado"];
     if (!d.salud) estado = { texto: d.motivo ? "No responde" : "Sin desplegar", tono: d.motivo ? "peligro" : "neutro" };
     else if (!d.https?.ok) estado = { texto: "Sin HTTPS", tono: "aviso" };
-    else if (d.salud.jwks !== "ok") estado = { texto: "Sin claves de sesión", tono: "aviso" };
-    else estado = { texto: d.https.ms ? `Sana · ${d.https.ms} ms` : "Sana", tono: "ok" };
+    else {
+        const sana = d.https.ms ? `Sana · ${d.https.ms} ms` : "Sana";
+        // (PDA1012) `jwks: "sin-claves"` solo dice que la JWKS lleva > 30 min sin usarse: se recarga con
+        // la primera sesión que llega. No es una avería y no se pinta como aviso.
+        estado = d.salud.jwks === "ok" ? { texto: sana, tono: "ok" } : { texto: `${sana} · claves de sesión en reposo`, tono: "ok" };
+    }
 
     const hoy = d.hoy;
     const grupos = Object.entries(hoy?.grupos ?? {})

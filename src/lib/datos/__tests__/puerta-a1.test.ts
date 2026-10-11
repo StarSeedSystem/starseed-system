@@ -3,6 +3,7 @@ import { crearPuertaA1 } from "../puerta-a1";
 import {
     CLAVE_COLA,
     CLAVE_CONTADORES,
+    CLAVE_URL,
     grupoDeRuta,
     COLA_MAX,
     SALUD_INICIAL,
@@ -115,6 +116,9 @@ describe("puerta-a1-tipos (puro)", () => {
         expect(v.replica.texto).toContain("migración");
         expect(v.viejo).toBe(false);
         expect(vistaPuerta({ ...base, https: { ok: false } }, Date.now()).estado.texto).toBe("Sin HTTPS");
+        // (PDA1012) La JWKS en reposo (> 30 min sin sesiones) no es una avería: se recarga con la primera.
+        const reposo = vistaPuerta({ ...base, salud: { ...base.salud!, jwks: "sin-claves" } }, Date.now()).estado;
+        expect(reposo).toEqual({ texto: "Sana · 258 ms · claves de sesión en reposo", tono: "ok" });
         expect(vistaPuerta({ ...base, salud: null, motivo: "el servicio no responde" }, Date.now()).estado.tono).toBe("peligro");
     });
 });
@@ -261,6 +265,33 @@ describe("crearPuertaA1 (elección automática y respaldo)", () => {
         reloj.avanzar(21 * 60_000);
         expect(await p.configurada()).toBe(true);
         expect(lecturas).toBe(2);
+    });
+
+    it("(PDA1012) sin sesión o sin red no se guarda «no hay puerta»: al minuto se vuelve a mirar", async () => {
+        let lecturas = 0;
+        let respuesta: () => Promise<string | null | undefined> = async () => undefined; // pestaña sin sesión
+        const { p, almacen, reloj } = montar((u) => (u.endsWith("/salud") ? json(200, { ok: true }) : json(200, {})), {
+            url: undefined,
+            leerUrl: async () => {
+                lecturas += 1;
+                return respuesta();
+            },
+        });
+        expect(await p.configurada()).toBe(false);
+        expect(almacen.datos.has(CLAVE_URL)).toBe(false);
+        expect(await p.configurada()).toBe(false);
+        expect(lecturas).toBe(1); // dentro del minuto no se vuelve a preguntar
+        respuesta = async () => {
+            throw new Error("sin red");
+        };
+        reloj.avanzar(61_000);
+        expect(await p.configurada()).toBe(false);
+        expect(lecturas).toBe(2);
+        expect(almacen.datos.has(CLAVE_URL)).toBe(false);
+        respuesta = async () => URL_PUERTA; // ya con sesión y red
+        reloj.avanzar(61_000);
+        expect(await p.configurada()).toBe(true);
+        expect(lecturas).toBe(3);
     });
 
     it("(PDA1012) cuenta por grupo de ruta: neuronas, presencia y freno por la puerta o por Supabase", async () => {

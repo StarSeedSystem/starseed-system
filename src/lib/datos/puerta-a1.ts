@@ -30,6 +30,7 @@ import {
     leerUrlGuardada,
     sumarContador,
     urlPuertaValida,
+    URL_SIN_SABER_REINTENTO_MS,
     type AlmacenPuerta,
     type ContadoresPuerta,
     type ModoPuerta,
@@ -54,8 +55,12 @@ export interface OpcionesPuerta {
     ahora?: () => number;
     /** URL fija (pruebas, o la variable pública). Si falta, se usa `leerUrl`. */
     url?: string | null;
-    /** Lee la URL publicada (fila `os_puerta_datos`); se guarda 6 h en el aparato. */
-    leerUrl?: () => Promise<string | null>;
+    /**
+     * Lee la URL publicada (fila `os_puerta_datos`); se guarda 6 h en el aparato (30 min si la fila
+     * dice que no hay puerta). `undefined` = todavía no se sabe (sin sesión): no se guarda y se vuelve
+     * a mirar al minuto. Un error tampoco se guarda.
+     */
+    leerUrl?: () => Promise<string | null | undefined>;
     /** La sesión de la cuenta (JWT) para las rutas que la piden; null = sin sesión. */
     sesion?: () => Promise<string | null>;
     timeoutMs?: number;
@@ -136,19 +141,29 @@ export function crearPuertaA1(op: OpcionesPuerta = {}): PuertaA1 {
         }
     };
 
+    /** Hasta cuándo no se vuelve a preguntar tras un «todavía no se sabe» (solo en memoria). */
+    let sinSaberHasta = 0;
+
     async function url(): Promise<string | null> {
         if (urlFija !== undefined) return urlFija;
         const g = leerUrlGuardada(almacen, ahora());
         if (g) return g.url;
         if (!op.leerUrl) return null;
+        if (ahora() < sinSaberHasta) return null;
         if (!urlEnVuelo) {
             urlEnVuelo = (async () => {
                 try {
-                    const u = urlPuertaValida(await op.leerUrl!());
+                    const leida = await op.leerUrl!();
+                    if (leida === undefined) {
+                        sinSaberHasta = ahora() + URL_SIN_SABER_REINTENTO_MS;
+                        return null;
+                    }
+                    const u = urlPuertaValida(leida);
                     guardarUrl(almacen, u, ahora());
                     return u;
                 } catch {
-                    guardarUrl(almacen, null, ahora());
+                    // Sin red o Supabase sin responder no es «no hay puerta»: no se guarda en el aparato.
+                    sinSaberHasta = ahora() + URL_SIN_SABER_REINTENTO_MS;
                     return null;
                 } finally {
                     urlEnVuelo = null;
@@ -400,9 +415,10 @@ export function puertaA1(): PuertaA1 {
         leerUrl: async () => {
             const sb = await cliente();
             const { data: s } = await sb.auth.getSession();
-            if (!s.session) return null;
+            if (!s.session) return undefined; // sin sesión todavía no se sabe: no se guarda
             const { data, error } = await sb.from("os_puerta_datos").select("url, activa").eq("id", 1).maybeSingle();
-            if (error || !data || !data.activa) return null;
+            if (error) throw error;
+            if (!data || !data.activa) return null;
             return (data.url as string | null) ?? null;
         },
     });
