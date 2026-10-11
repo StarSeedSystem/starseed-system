@@ -133,7 +133,7 @@ export function decidirAccion(p: PeticionAccion): Decision {
   if (meta.riesgo === "alto") return no("confirmacion", "Acción de riesgo alto: siempre se confirma.");
   if (invitado || nivel === "proponer") return no("confirmacion", "El bot lo propone; tú lo confirmas.");
   if (nivel === "aplicar-bajo" && meta.riesgo !== "bajo") {
-    return no("confirmacion", "Solo hace solo lo de riesgo bajo: esto lo propone y tú lo confirmas.");
+    return no("confirmacion", "Por ahora solo hace lo de riesgo bajo: esto lo propone y tú lo confirmas.");
   }
   return si(`Permitido: «${bot.nombre}» puede aplicar «${accion.tipo}» y queda en el registro con su deshacer.`);
 }
