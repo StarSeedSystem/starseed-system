@@ -488,3 +488,77 @@ class EnviosPorCadena(unittest.TestCase):
         envios = {"RSC1006Q": 1, "RSC1006Qb": 1, "RSC1006Qc": 1}
         self.assertEqual(R.motivo_fuera(tarea, {}, [], None, envios=envios), "agotada")
         self.assertIsNone(R.motivo_fuera(tarea, {}, [], None, envios={"RSC1006Q": 1}))
+
+
+class CadenasCedibles(unittest.TestCase):
+    """(2026-10-11, CAPC1011A) Ceder una cadena ENTERA (tarea esperada + dependientes de la
+    tanda) en vez de dejarla en la Mac solo porque alguien está esperando su cabeza."""
+
+    def _tareas(self, *specs):
+        return {tid: {"id": tid, **kw} for tid, kw in specs}
+
+    def test_cadena_A_B_se_cede_entera(self):
+        tareas = self._tareas(
+            ("A", {}), ("B", {"depende": ["A"]}),
+            *(("M%d" % i, {}) for i in range(4)),
+        )
+        listas = ["M%d" % i for i in range(4)] + ["A", "B"]
+        r = R.cadenas_cedibles(tareas, listas, 2, {"A": ["B"]})
+        self.assertEqual(r, [["A", "B"]])
+
+    def test_dependiente_fuera_que_se_queda_en_la_mac_no_se_cede(self):
+        # (c) B, de OTRA cola, espera a A: ceder la cadena dejaría B varada en la Mac.
+        tareas = self._tareas(
+            ("A", {}), ("C", {"depende": ["A"]}),
+            *(("M%d" % i, {}) for i in range(4)),
+        )
+        listas = ["M%d" % i for i in range(4)] + ["A", "C"]
+        r = R.cadenas_cedibles(tareas, listas, 2, {"A": ["B", "C"]})
+        self.assertEqual(r, [])
+
+    def test_cadena_mas_larga_que_max_cadena_no_se_cede(self):
+        tareas = self._tareas(
+            ("A", {}), ("B", {"depende": ["A"]}),
+            ("C", {"depende": ["A"]}), ("D", {"depende": ["A"]}),
+            ("E", {"depende": ["A"]}), *(("M%d" % i, {}) for i in range(4)),
+        )
+        listas = ["M%d" % i for i in range(4)] + ["A", "B"]
+        esp = {"A": ["B", "C", "D", "E"]}
+        self.assertEqual(R.cadenas_cedibles(tareas, listas, 2, esp), [])
+
+    def test_la_reserva_de_la_mac_nunca_se_cede(self):
+        tareas = self._tareas(("A", {}), ("B", {"depende": ["A"]}))
+        listas = ["A", "B"]
+        # tope 2 x 2 rondas = reserva 4: A y B entran en la reserva.
+        self.assertEqual(R.cadenas_cedibles(tareas, listas, 2, {"A": ["B"]}), [])
+
+    def test_mi_que_depende_de_algo_abierto_fuera_no_se_cede(self):
+        tareas = self._tareas(
+            ("A", {}), ("B", {"depende": ["A", "Z"]}), ("Z", {}),
+            *(("M%d" % i, {}) for i in range(4)),
+        )
+        listas = ["M%d" % i for i in range(4)] + ["A", "B", "Z"]
+        self.assertEqual(R.cadenas_cedibles(tareas, listas, 2, {"A": ["B"]}), [])
+
+
+class MismoLoteEnElegir(unittest.TestCase):
+    """(2026-10-11, CAPC1011A) `elegir` deja pasar una tarea que depende de otra de su MISMO
+    lote de reparto, conservando `depende` para que el orquestador respete el orden."""
+
+    COLAS_L = [
+        ("cola-1.json", [
+            {"id": "A", "ola": "9", "archivos": ["a.ts"]},
+            {"id": "B", "ola": "9", "archivos": ["b.ts"], "depende": ["A"]},
+        ])
+    ]
+
+    def test_con_mismo_lote_b_pasa_y_conserva_depende(self):
+        r = elegir(self.COLAS_L, {}, [], "999", mismo_lote=("A", "B"))
+        self.assertEqual({t["id"] for t in r}, {"A", "B"})
+        b = next(t for t in r if t["id"] == "B")
+        self.assertEqual(b["depende"], ["A"])
+        self.assertNotIn("dependencias_ya_en_main", b)
+
+    def test_sin_mismo_lote_el_comportamiento_no_cambia(self):
+        r = elegir(self.COLAS_L, {}, [], "999")
+        self.assertEqual([t["id"] for t in r], ["A"])

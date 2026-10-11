@@ -149,6 +149,53 @@ def cedibles_de_la_tanda(tanda_ids, listas_mac, tope_mac, esperadas=(), rondas=R
     return [t for t in en_tanda[reserva:] if t not in esperadas]
 
 
+def cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por,
+                     rondas=RONDAS_RESERVA_MAC, max_cadena=4):
+    """PURA. Cadenas completas (cabeza esperada + sus dependientes transitivos) de la tanda de
+    la Mac que otro medio puede llevarse ENTERAS sin romper el orden. Determinista: el orden
+    es el de `listas_mac` (la prioridad de la Mac).
+
+    (2026-10-11, CAPC1011A, medido a las 13:55) La tanda viva (`cola-auto-1009-233520`, 193
+    tareas) tenía 40 listas; la Mac trabaja 2-3 a la vez (8 GB) y se quedaba 32, porque
+    `cedibles_de_la_tanda` solo cede las que NINGUNA tarea espera. Resultado: el A1 («no hay
+    atraso que pueda ir al A1») y Actions (tope 6 jobs) parados con 26 listas esperando en la
+    Mac. La regla existe por algo real: ceder solo la cabeza deja `reasignada` lo cedido y a
+    sus dependientes, varados. La solución es ceder la cadena ENTERA. Una cadena es cedible
+    solo si: (a) tiene como mucho `max_cadena` tareas; (b) ningún miembro depende de algo
+    abierto (presente en la tanda) fuera de la cadena; (c) ningún miembro es esperado por una
+    tarea de fuera de la cadena; (d) ningún miembro está en la reserva de la Mac
+    (`tope_mac × rondas` primeras listas)."""
+    tareas = {str(k): v for k, v in (tareas_tanda or {}).items() if isinstance(v, dict)}
+    en_tanda = [str(t) for t in listas_mac or ()]
+    reserva = set(en_tanda[: max(0, int(tope_mac or 0)) * max(1, int(rondas or 1))])
+    esperadas_por = {str(k): set(map(str, v or ())) for k, v in (esperadas_por or {}).items()}
+    salida, vistas = [], set()
+    for cabeza in en_tanda:
+        if cabeza in reserva or cabeza in vistas or cabeza not in esperadas_por:
+            continue
+        cadena, pend, vistas_cadena = [cabeza], [cabeza], {cabeza}
+        while pend:
+            for m in (esperadas_por.get(pend.pop()) or ()):
+                if m in tareas and m not in vistas_cadena:
+                    vistas_cadena.add(m)
+                    cadena.append(m)
+                    pend.append(m)
+        vistas |= vistas_cadena
+        miembros = set(cadena)
+        if len(cadena) > max_cadena or any(m in reserva for m in cadena):
+            continue
+        if any(x not in miembros for m in cadena for x in esperadas_por.get(m, ())):
+            continue  # (c) alguien de fuera de la cadena espera a un miembro
+        if any(str(d) in tareas and str(d) not in miembros
+               for m in cadena
+               for d in (lambda x: x if isinstance(x, list) else [x])(
+                   tareas[m].get("depende") or tareas[m].get("depende_de") or [])
+               if d):
+            continue  # (b) depende de algo abierto fuera de la cadena
+        salida.append(cadena)  # orden de dependencias: cabeza primero
+    return salida
+
+
 def sin_lo_de_la_mac(colas, tanda_ids, cedibles=(), ajenas=()):
     """PURA: las colas sin lo que se queda en la tanda viva de la Mac (todo menos lo cedible) y sin
     lo que ya trabaja OTRO medio (`ajenas`: lo que MetaGenesis prestó al A1, por ejemplo)."""
@@ -297,7 +344,11 @@ def _n_archivos(tarea):
 _HECHAS = ("commit", "hecho")
 
 
-def dependencias_pendientes(tarea, progreso=None, asuntos_main=""):
+def dependencias_pendientes(tarea, progreso=None, asuntos_main="", mismo_lote=()):
+    # (2026-10-11, CAPC1011A) `mismo_lote`: ids que viajan JUNTOS a otro medio (una cadena
+    # cedida entera). Una dependencia dentro del lote no frena: el orquestador de allí
+    # respeta el orden dentro del lote. Sin `mismo_lote`, el comportamiento no cambia.
+    lote = set(str(x) for x in mismo_lote or ())
     """Las dependencias de esta tarea que AUN NO estan integradas. PURA.
 
     (2026-09-21) Nacio como «¿tiene dependencias?» y descartaba todas: la nube hacia
@@ -316,7 +367,7 @@ def dependencias_pendientes(tarea, progreso=None, asuntos_main=""):
     fuera = []
     for dep in tarea.get("depende") or tarea.get("depende_de") or []:
         tid = str(dep or "").strip()
-        if not tid:
+        if not tid or tid in lote:
             continue
         entrada = progreso.get(tid)
         estado = entrada.get("estado") if isinstance(entrada, dict) else None
@@ -379,7 +430,7 @@ def envios_de_cadena(tid, envios):
 
 
 def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
-                 max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE):
+                 max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE, mismo_lote=()):
     """PURA. None si la nube puede coger esta tarea; si no, la clave de MOTIVOS_FUERA del
     primer filtro que la deja fuera. Es EL filtro de `elegir`: los dos no pueden discrepar."""
     tid = str(tarea.get("id"))
@@ -394,7 +445,7 @@ def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
         return "en-main"
     if _n_archivos(tarea) > max_archivos:
         return "grande"
-    if dependencias_pendientes(tarea, progreso, asuntos_main):
+    if dependencias_pendientes(tarea, progreso, asuntos_main, mismo_lote):
         return "espera"
     if envios_de_cadena(tid, envios) >= max_envios:
         return "agotada"
@@ -404,7 +455,7 @@ def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
 
 
 def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_ARCHIVOS_NUBE,
-           envios=None, max_envios=MAX_ENVIOS_NUBE):
+           envios=None, max_envios=MAX_ENVIOS_NUBE, mismo_lote=()):
     """Hasta `tope` candidatas, deduplicadas, con modelo nube y ordenadas por tamano.
 
     Se descartan las de mas de `max_archivos` archivos declarados —esas necesitan un
@@ -423,7 +474,8 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
             tid = str(tarea["id"])
             if tid in vistas:
                 continue
-            if motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos, max_envios):
+            if motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos,
+                            max_envios, mismo_lote):
                 continue
             vistas.add(tid)
             candidata = dict(tarea)
@@ -435,9 +487,16 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
             # Lo que la Mac ya comprobó no se le pide comprobar otra vez.
             deps = candidata.get("depende") or candidata.get("depende_de") or []
             if deps:
-                candidata["depende"] = []
+                deps = list(deps) if isinstance(deps, list) else [deps]
+                lote = set(str(x) for x in mismo_lote or ())
+                en_lote = [d for d in deps if str(d) in lote]
+                # (2026-10-11) Las dependencias que viajan en el mismo lote NO se vacían: el
+                # orquestador de la nube o del A1 tiene que respetar su orden dentro del lote.
+                hechas = [d for d in deps if str(d) not in lote]
+                candidata["depende"] = en_lote
                 candidata.pop("depende_de", None)
-                candidata["dependencias_ya_en_main"] = list(deps) if isinstance(deps, list) else [deps]
+                if hechas:
+                    candidata["dependencias_ya_en_main"] = hechas
             salida.append(candidata)
     # Estable: a igual numero de archivos manda el orden de las colas (la prioridad
     # que ya calcularon los directores). Solo se reordena por tamano.
