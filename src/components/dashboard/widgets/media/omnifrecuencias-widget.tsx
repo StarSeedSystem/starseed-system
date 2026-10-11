@@ -23,7 +23,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PilaAjustable, Prescindible } from '@/components/dashboard/kit/pila-ajustable';
-import { Waves, Play, Square, Plus, Save, FolderOpen, Trash2, Maximize2, Headphones, Info, Sliders } from 'lucide-react';
+import { Waves, Play, Square, Plus, Save, FolderOpen, Trash2, Maximize2, Headphones, Info, Sliders, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { conAlfa } from '@/components/widgets-libres/acentos-categoria';
 import { useAudio } from '@/components/dashboard/apps/omnifrecuencias/frecuencias/hooks/useAudio';
@@ -37,6 +37,7 @@ import Visualizer from '@/components/dashboard/apps/omnifrecuencias/frecuencias/
 import { useLienzoE, px, type LienzoE } from '../paquete-e/lienzo';
 import { BotonE, EncabezadoE, PestanasE, RaizE, estilosE, tintaE } from '../paquete-e/piezas';
 import { VolumenE } from '../paquete-e/medios';
+import { enlaceNuevaEnVivo } from '@/lib/estaciones/enlace-nueva-en-vivo';
 
 type Pestana = 'play' | 'gen' | 'presets';
 const FILTROS: CategoryId[] = ['all', 'solfeggio', 'brain', 'planetary', 'synergy'];
@@ -140,6 +141,26 @@ export function OmnifrecuenciasWidget() {
         fs.savePreset(nombre, content);
         setNombrePreset('');
     }, [hayMezcla, nombrePreset, oscillators, fs]);
+
+    const transmitirEnVivo = useCallback(() => {
+        if (!hayMezcla) return;
+        window.location.assign(enlaceNuevaEnVivo("omnifrecuencias", {
+            titulo: "Entonación en vivo",
+            enlace: "https://omnifrecuencias.vercel.app",
+            parametros: oscillators.map((o) => ({
+                frequency: o.frequency,
+                type: o.type,
+                volume: o.volume,
+                panX: o.panX,
+                panY: o.panY,
+                panZ: o.panZ,
+                name: o.name,
+                type2: o.type2,
+                typeMix: o.typeMix,
+                transition: o.transition,
+            })),
+        }));
+    }, [hayMezcla, oscillators]);
 
     const cargar = useCallback((content: PresetContent) => {
         oscillators.forEach((o) => removeOscillator(o.id));
@@ -251,10 +272,11 @@ export function OmnifrecuenciasWidget() {
     const notaFija = (base === 'l' || base === 'xl') && (!((lienzo.alto || 0) > 0) || (lienzo.alto || 0) >= 400);
     const cabecera = (
         <EncabezadoE lienzo={lienzo} icono={Waves} titulo="Omnifrecuencias" vivo={suena}
-            acciones={<>
-                {(base === 'm' || !notaFija) && <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Info} etiqueta={verNota ? 'Ocultar aviso' : 'Ver aviso de uso'} aria-expanded={verNota} onClick={() => setVerNota((v) => !v)} />}
-                <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Maximize2} etiqueta="Abrir la app completa" onClick={abrirAppCompleta} />
-            </>} />
+             acciones={<>
+                 {(base === 'm' || !notaFija) && <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Info} etiqueta={verNota ? 'Ocultar aviso' : 'Ver aviso de uso'} aria-expanded={verNota} onClick={() => setVerNota((v) => !v)} />}
+                 <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Maximize2} etiqueta="Abrir la app completa" onClick={abrirAppCompleta} />
+                 {hayMezcla && <BotonE lienzo={lienzo} variante="fantasma" compacto icono={Radio} etiqueta="Transmitir en vivo" onClick={transmitirEnVivo} />}
+             </>} />
     );
     const foco = (lado: number) => (
         <div className="flex min-w-0 items-center gap-3">

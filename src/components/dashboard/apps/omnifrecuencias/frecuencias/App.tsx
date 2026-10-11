@@ -29,6 +29,7 @@ import Icon from './components/Icon';
 import { useAudio } from './hooks/useAudio';
 import Generator from './components/Generator';
 import GlobalPlayer from './components/GlobalPlayer';
+import { enlaceNuevaEnVivo } from '@/lib/estaciones/enlace-nueva-en-vivo';
 
 type ViewMode = 'library' | 'generator';
 
@@ -39,8 +40,9 @@ const App: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('library');
 
-  // Audio Engine Hook
-  const audio = useAudio();
+   // Audio Engine Hook
+   const audio = useAudio();
+   const { oscillators } = audio;
 
   // Handler to add from Library to Generator
   const handleAddToPlayer = (item: FrequencyItem) => {
@@ -222,9 +224,17 @@ const App: React.FC = () => {
                         {opt.label}
                       </button>
                     ))}
-                  </div>
+</div>
+                   {oscillators.length > 0 && (
+                     <button
+                       className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer bg-cyan-950/50 text-cyan-300 border border-cyan-500/30 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                       onClick={() => window.location.assign(enlaceNuevaEnVivo("omnifrecuencias", { titulo: "Entonación en vivo", enlace: "https://omnifrecuencias.vercel.app", parametros: oscillators.map((o) => ({ frequency: o.frequency, type: o.type, volume: o.volume, panX: o.panX, panY: o.panY, panZ: o.panZ, name: o.name, type2: o.type2, typeMix: o.typeMix, transition: o.transition })) })) }
+                     >
+                       <Icon name="Radio" size={14} className="inline-block mr-2" /> Transmitir en vivo
+                     </button>
+                   )}
 
-                  {/* Mobile Filter Toggle */}
+                   {/* Mobile Filter Toggle */}
                   <button
                     className="md:hidden w-full py-3 bg-black/50 border border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200/70 hover:text-cyan-300 hover:border-cyan-500/30 transition-all shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] cursor-pointer"
                     onClick={() => setShowFilters(!showFilters)}
