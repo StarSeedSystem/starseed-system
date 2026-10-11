@@ -19,7 +19,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib import request as _urlrequest
 
-from . import importar_n8n
+try:
+    from . import importar_n8n
+except ImportError:  # ejecutado como guion: python3 scripts/puente/flujos/exportar_externos.py
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    from scripts.puente.flujos import importar_n8n  # type: ignore
 
 RAIZ_EXPORTS = Path("memory/aprendizaje-externos")
 ESTADO_JSON = RAIZ_EXPORTS / "estado.json"
@@ -29,9 +34,24 @@ HttpGet = Callable[[str, Dict[str, str]], Dict[str, Any]]
 
 def _http_get_urllib(url: str, cabeceras: Dict[str, str]) -> Dict[str, Any]:
     """Cliente HTTP real (una petición GET con JSON de respuesta)."""
-    req = _urlrequest.Request(url, headers=cabeceras, method="GET")
+    # Cloudflare (Dify, xKiro…) rechaza con 403 el User-Agent por defecto de urllib.
+    req = _urlrequest.Request(url, headers={"User-Agent": "starseed-exportador/1.0", **cabeceras}, method="GET")
     with _urlrequest.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+
+def _de_env_starseed(nombre: str) -> str:
+    """Lee una variable de ~/.starseed/env si no está en el entorno (nunca la imprime)."""
+    try:
+        for linea in open(os.path.expanduser("~/.starseed/env"), encoding="utf-8"):
+            linea = linea.strip()
+            if linea.startswith("export "):
+                linea = linea[7:]
+            if linea.startswith(nombre + "="):
+                return linea.split("=", 1)[1].strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
 
 
 def fecha_hoy(ahora: Optional[datetime] = None) -> str:
@@ -189,8 +209,9 @@ def exportar_dify(
 
     Usa DIFY_URL y DIFY_CLAVE (nombres de variables, nunca valores en disco).
     """
-    url_base = os.environ.get("DIFY_URL", "").rstrip("/")
-    clave = os.environ.get("DIFY_CLAVE", "")
+    # DIFY_URL suele guardarse con «/v1» y las rutas ya lo llevan: sin quitarlo salía /v1/v1/… (404).
+    url_base = re.sub(r"/v1$", "", (os.environ.get("DIFY_URL") or _de_env_starseed("DIFY_URL")).rstrip("/"))
+    clave = os.environ.get("DIFY_CLAVE") or _de_env_starseed("DIFY_CLAVE")
     if not url_base or not clave:
         return {"error": "faltan DIFY_URL o DIFY_CLAVE en el entorno",
                 "bases": [], "total_documentos": 0}

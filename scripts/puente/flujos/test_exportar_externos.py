@@ -104,10 +104,24 @@ class TestDify(unittest.TestCase):
 
     def test_sin_claves_no_llama_a_red(self):
         os.environ.pop("DIFY_URL")
+        # Sin entorno ni ~/.starseed/env: el respaldo de lectura del archivo no debe encontrar nada.
+        original = ee._de_env_starseed
+        ee._de_env_starseed = lambda nombre: ""
+        self.addCleanup(setattr, ee, "_de_env_starseed", original)
         res = ee.exportar_dify(http_get=self._http_falso,
                                raiz_exports=self.exports, ahora=self.hoy,
                                cargar_conocimiento=False)
         self.assertIn("error", res)
+
+    def test_quita_v1_final_de_dify_url(self):
+        os.environ["DIFY_URL"] = "https://api.example.test/v1/"
+        urls = []
+
+        def http(url, cab):
+            urls.append(url)
+            return {"data": [], "has_more": False}
+        ee.exportar_dify(http_get=http, raiz_exports=self.exports, ahora=self.hoy, cargar_conocimiento=False)
+        self.assertTrue(urls[0].startswith("https://api.example.test/v1/datasets"))
 
     def test_paginacion(self):
         llamadas = []
