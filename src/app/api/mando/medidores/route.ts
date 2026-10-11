@@ -354,27 +354,16 @@ async function leerContenedores(): Promise<DatosMedidores["contenedores"]> {
  * con los trabajadores que anotó `nube-gh.py` al lanzarlos y deja el resultado en disco;
  * aquí solo se lee, sin viajes a la red en la petición del panel.
  */
-async function leerAgentesDeLaNube(): Promise<AgenteDeLaNube[]> {
+async function leerAgentesDeLaNube(tareasPorRun: ReadonlyMap<string, string[]> = new Map()): Promise<AgenteDeLaNube[]> {
     try {
         const crudo = await readFile(
             path.join(RAÍZ, "starseed_memory_root", "mando", "agentes-nube.json"),
             "utf8",
         );
         const d = JSON.parse(crudo) as { runs?: RunDeLaNube[] };
-        const runs: RunDeLaNube[] = [];
-        for (const r of d.runs ?? []) {
-            // (PDA1012) Las tareas de la tanda del run, de su cola (solo rutas dentro del repo).
-            const ruta = typeof r.cola === "string" ? r.cola : "";
-            let tareas: string[] = [];
-            if (ruta && !ruta.includes("..") && !path.isAbsolute(ruta)) {
-                try {
-                    tareas = tareasDeCola(JSON.parse(await readFile(path.join(RAÍZ, ruta), "utf8")), ruta).map((t) => t.id);
-                } catch {
-                    /* la cola ya no está en disco */
-                }
-            }
-            runs.push({ ...r, tareas });
-        }
+        // (PDA1012) Las tareas de la tanda de cada run salen de `leerOlasDeLaNube`, que ya lee su
+        // cola: leerla dos veces costaba ~10 s más por refresco con la Mac cargada.
+        const runs: RunDeLaNube[] = (d.runs ?? []).map((r) => ({ ...r, tareas: tareasPorRun.get(String(r.run)) ?? [] }));
         return agentesDeRunsNube(runs);
     } catch {
         return [];
@@ -733,15 +722,20 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         if (t.id && t.archivos?.length && !declarados[t.id]) declarados[t.id] = t.archivos;
     }
     const envios = await midiendo("enviosNube", enviosALaNube()).catch(() => ({}) as Record<string, number>);
-    const [obras, historiales, agentesNube, contenedores, proveedores, tokens, olasNube] = await Promise.all([
+    const [obras, historiales, contenedores, proveedores, tokens, olasNube] = await Promise.all([
         midiendo("obras", leerObras(idsVivas).catch(() => ({}))),
         midiendo("historiales", leerHistoriales(idsVivas).catch(() => ({}))),
-        midiendo("agentesNube", leerAgentesDeLaNube().catch(() => [])),
         midiendo("contenedores", leerContenedores().catch(() => null)),
         midiendo("proveedores", leerProveedores().catch(() => [])),
         midiendo("tokens", leerTokens().catch(() => null)),
         midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
     ]);
+    const agentesNube = await midiendo(
+        "agentesNube",
+        leerAgentesDeLaNube(new Map(olasNube.filter((o) => o.run).map((o) => [String(o.run), o.tareas.map((t) => t.id)] as const))).catch(
+            () => [] as AgenteDeLaNube[],
+        ),
+    );
 
     // (2026-09-23) Las olas en marcha, de la Mac y de la nube, con sus tareas. Y el encargo
     // de cada tarea, que hasta hoy no salía de la cola: Genesis sabía el título y nada más.

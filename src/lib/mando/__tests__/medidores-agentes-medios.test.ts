@@ -90,7 +90,8 @@ describe("agentes del A1 de Oracle", () => {
         expect(a1?.id).toBe("OC1010Bb · A1 de Oracle · nemotron-3-super-120b-a12b · 2 min");
         expect(a1?.estado).toBe("escribiendo");
         expect(a1?.quien).toContain("A1 de Oracle");
-        expect(a1?.porque).toContain("escritos");
+        expect(a1?.porque).toContain("275 KB escritos");
+        expect(a1?.porque).not.toContain("escritos escritos");
         expect(a1?.porque).toContain("último latido hace 9 min");
         expect(a1?.ficha?.find((x) => x.etiqueta === "Entorno")?.valor).toContain("A1 de Oracle");
     });

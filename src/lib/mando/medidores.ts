@@ -2025,7 +2025,7 @@ export function detalleDeMedidor(
                     estado = "escribiendo";
                     // (PDA1012) Nunca «undefined»: sin bytes medidos se dice que no los hay.
                     const escrito = bytesLegibles(l.bytesLog);
-                    porque = `${escrito ? `${escrito} escritos` : "sin bytes medidos todavía"}${proceso ? ` · proceso ${proceso.pid}` : ""}${enLaMac ? "" : ` · en ${dondeCorto(l.donde)}`}`;
+                    porque = `${escrito ?? "sin bytes medidos todavía"}${proceso ? ` · proceso ${proceso.pid}` : ""}${enLaMac ? "" : ` · en ${dondeCorto(l.donde)}`}`;
                 }
                 if (latidoViejo && !nubeGh) porque += latidoViejo;
                 const cola = String(l.cola ?? "").replace(/^cola-/, "");
