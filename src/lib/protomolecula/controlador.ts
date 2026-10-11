@@ -8,25 +8,23 @@ import type {
   Cambio,
   ParametroRef,
   Parametro,
-  EstadoValores,
   Historial,
   AtomoEnUso,
   Rol,
   Sesion,
-  Ambito,
   Origen,
   Autor,
-  Consentimiento,
 } from "./tipos";
-import { decidirOperacion } from "./permisos";
-import { aplicarEnMolecula } from "./molecula-estado";
+import { decidir, decidirOperacion } from "./permisos";
 import { obtenerAtomo, candidatosDe } from "./registro-atomos";
 import { entenderVarias } from "./dictado";
-import { deshacerUltimo, rehacerUltimo, registrar } from "./parametros";
+import { aplicarOperacion, deshacerUltimo, rehacerUltimo, registrar } from "./parametros";
 
 export interface Pendiente {
   operacion: Operacion;
   motivo: string;
+  /** Cuando la pendiente es de estructura (añadir átomo), lo que hay que crear al confirmar. */
+  atomoNuevo?: { herramientaId: string; titulo?: string };
 }
 
 export interface EstadoControl {
@@ -77,9 +75,24 @@ export function crearControlador(o: {
   const sesionEfectiva = sesion ?? { ambito: moleculaInicial.ambito, consentimientos: [] };
 
   function parametroDe(ref: ParametroRef): Parametro | undefined {
-    const def = obtenerAtomo(ref.atomoId);
+    const enUso = estado.molecula.atomos.find((a) => a.id === ref.atomoId);
+    const def = obtenerAtomo(enUso?.herramientaId ?? ref.atomoId);
     if (!def) return undefined;
     return def.parametros.find((p) => p.id === ref.parametroId);
+  }
+
+  function aplicar(op: Operacion): { ok: true; cambio: Cambio } | { ok: false; motivo: string } {
+    const p = parametroDe(op.objetivo);
+    if (!p) return { ok: false, motivo: `Parámetro desconocido: ${op.objetivo.parametroId}` };
+    const r = aplicarOperacion(estado.molecula.valores, p, op);
+    if (!r.ok) return r;
+    estado = {
+      molecula: { ...estado.molecula, valores: r.estado, actualizadaEn: ahora(), version: estado.molecula.version + 1 },
+      historial: registrar(estado.historial, r.cambio),
+      pendientes: estado.pendientes,
+    };
+    notificar(suscriptores, estado);
+    return { ok: true, cambio: r.cambio };
   }
 
   function obtener(): EstadoControl {
@@ -102,20 +115,8 @@ export function crearControlador(o: {
       notificar(suscriptores, estado);
       return { ok: false, motivo: decision.motivo, pendiente };
     }
-    const p = parametroDe(op.objetivo);
-    if (!p) {
-      return { ok: false, motivo: `Parámetro desconocido: ${op.objetivo.parametroId}` };
-    }
-    const res = aplicarEnMolecula(estado.molecula, parametroDe, op, ahora());
-    if (!res.ok) {
-      return { ok: false, motivo: res.motivo };
-    }
-    estado = {
-      molecula: res.molecula,
-      historial: registrar(estado.historial, res.cambio),
-      pendientes: estado.pendientes,
-    };
-    notificar(suscriptores, estado);
+    const res = aplicar(op);
+    if (!res.ok) return res;
     return { ok: true, cambio: res.cambio, difundir: decision.difundir };
   }
 
@@ -142,24 +143,19 @@ export function crearControlador(o: {
     const idx = estado.pendientes.findIndex((p) => p.operacion.id === opId);
     if (idx < 0) return { ok: false, motivo: "No hay operación pendiente con ese id" };
     const pendiente = estado.pendientes[idx];
-    const decision = decidirOperacion(pendiente.operacion, rol, sesionEfectiva, ahora());
-    if (!decision.permitido || !decision.confirmar) {
+    const decision = pendiente.atomoNuevo
+      ? { ...decidir({ rol, origen: pendiente.operacion.origen, ambito: sesionEfectiva.ambito, accion: "editar-estructura" }), difundir: true }
+      : decidirOperacion(pendiente.operacion, rol, sesionEfectiva, ahora());
+    if (!decision.permitido) {
       return { ok: false, motivo: decision.motivo };
     }
-    const p = parametroDe(pendiente.operacion.objetivo);
-    if (!p) {
-      return { ok: false, motivo: `Parámetro desconocido: ${pendiente.operacion.objetivo.parametroId}` };
+    estado = { ...estado, pendientes: estado.pendientes.filter((_, i) => i !== idx) };
+    if (pendiente.atomoNuevo) {
+      const hecho = insertarAtomo(pendiente.atomoNuevo.herramientaId, pendiente.atomoNuevo.titulo);
+      return { ok: true, cambio: cambioEstructura(pendiente.operacion, hecho.atomo.id), difundir: decision.difundir };
     }
-    const res = aplicarEnMolecula(estado.molecula, parametroDe, pendiente.operacion, ahora());
-    if (!res.ok) {
-      return { ok: false, motivo: res.motivo };
-    }
-    estado = {
-      molecula: res.molecula,
-      historial: registrar(estado.historial, res.cambio),
-      pendientes: estado.pendientes.filter((_, i) => i !== idx),
-    };
-    notificar(suscriptores, estado);
+    const res = aplicar(pendiente.operacion);
+    if (!res.ok) return res;
     return { ok: true, cambio: res.cambio, difundir: decision.difundir };
   }
 
@@ -195,26 +191,40 @@ export function crearControlador(o: {
     return { ok: true, cambio: res.cambio };
   }
 
-  function anadirAtomo(herramientaId: string, titulo?: string): { ok: true; atomo: AtomoEnUso } | { ok: false; motivo: string } {
-    const def = obtenerAtomo(herramientaId);
-    if (!def) return { ok: false, motivo: `Herramienta no registrada: ${herramientaId}` };
-    if (def.proximamente) return { ok: false, motivo: def.proximamente };
-    const decision = decidir({ rol, origen: "mano", ambito: sesionEfectiva.ambito, accion: "editar-estructura" });
-    if (!decision.permitido) return { ok: false, motivo: decision.motivo };
-    const id = nuevoId();
-    const atomo: AtomoEnUso = { id, herramientaId, titulo, estado: "activo" };
+  function cambioEstructura(op: Operacion, atomoId: string): Cambio {
+    return { operacion: op, antes: "", despues: atomoId, acotado: false, reversible: false, nota: "Estructura: se añadió un átomo" };
+  }
+
+  function insertarAtomo(herramientaId: string, titulo?: string): { ok: true; atomo: AtomoEnUso } {
+    const atomo: AtomoEnUso = { id: nuevoId(), herramientaId, titulo, estado: "activo" };
     estado = {
-      molecula: {
-        ...estado.molecula,
-        atomos: [...estado.molecula.atomos, atomo],
-        actualizadaEn: ahora(),
-        version: estado.molecula.version + 1,
-      },
+      molecula: { ...estado.molecula, atomos: [...estado.molecula.atomos, atomo], actualizadaEn: ahora(), version: estado.molecula.version + 1 },
       historial: estado.historial,
       pendientes: estado.pendientes,
     };
     notificar(suscriptores, estado);
     return { ok: true, atomo };
+  }
+
+  function anadirAtomo(herramientaId: string, titulo?: string, origen: Origen = "mano"): { ok: true; atomo: AtomoEnUso } | { ok: false; motivo: string } {
+    const def = obtenerAtomo(herramientaId);
+    if (!def) return { ok: false, motivo: `Herramienta no registrada: ${herramientaId}` };
+    if (def.proximamente) return { ok: false, motivo: def.proximamente };
+    const decision = decidir({ rol, origen, ambito: sesionEfectiva.ambito, accion: "editar-estructura" });
+    if (!decision.permitido) return { ok: false, motivo: decision.motivo };
+    if (decision.confirmar) {
+      const operacion: Operacion = {
+        id: nuevoId(), objetivo: { atomoId: "estructura", parametroId: "anadir-atomo" },
+        accion: { tipo: "disparo" }, origen,
+        autor: { tipo: origen === "ia" || origen === "agente" ? "agente" : "persona", id: "controlador" },
+        t: ahora(),
+      };
+      const pendiente: Pendiente = { operacion, motivo: decision.motivo, atomoNuevo: { herramientaId, titulo } };
+      estado = { ...estado, pendientes: [...estado.pendientes, pendiente] };
+      notificar(suscriptores, estado);
+      return { ok: false, motivo: decision.motivo };
+    }
+    return insertarAtomo(herramientaId, titulo);
   }
 
   return { obtener, suscribir, mover, dictar, confirmar, rechazar, deshacer, rehacer, anadirAtomo };
