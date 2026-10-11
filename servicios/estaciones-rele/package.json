@@ -1,0 +1,10 @@
+{
+  "name": "starseed-estaciones-rele",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.19.0"
+  },
+  "scripts": {
+    "start": "node servidor.mjs"
+  }
+}
