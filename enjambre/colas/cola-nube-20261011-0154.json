@@ -1,0 +1,34 @@
+{
+ "ola": "nube-20261011",
+ "tareas": [
+  {
+   "id": "S1010-TU-EST1",
+   "ola": "Ola 1010S · Transporte universal sin internet: llamadas, chat, estaciones y Astraura",
+   "titulo": "Estaciones anunciadas y oídas por los enlaces directos",
+   "archivos": [
+    "src/lib/estaciones/malla-directa.ts",
+    "src/lib/estaciones/__tests__/malla-directa.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nCrea src/lib/estaciones/malla-directa.ts (máx. 90 líneas, con \"use client\"). Debe exportar dos funciones. 1) anunciarPorEnlacesDirectos(e: Estacion, deps?): Promise<{ enviados: number; enlaces: string[] }>. Para cada enlace de enlacesLocalesVivos() (src/lib/malla/registro-enlaces-locales.ts) llama a enviarMensaje({ enlaceId: enlace.id }, \"estacion\", faroDeEstacion(e)); enviarMensaje está en src/lib/malla/transporte-universal.ts y faroDeEstacion en src/lib/estaciones/malla.ts. Cuenta los envíos con r.ok y apunta r.enlace?.id. 2) escucharEstacionesDirectas(cb: (oidas: EstacionOida[]) => void, deps?): () => void. Usa alRecibirMensaje(\"estacion\", m => cb(estacionesDeFaros([{ body: m.cuerpo }]))) y no avisa si la lista sale vacía. Inyecta las dependencias (deps.enlaces, deps.enviar, deps.alRecibir) con los valores reales por defecto. Para no arrastrar el transporte, impórtalo perezoso con import() dentro de las funciones cuando no se inyecte. Tipos: Estacion en src/lib/estaciones/tipos.ts y EstacionOida en malla.ts. Escribe la prueba src/lib/estaciones/__tests__/malla-directa.test.ts solo con dependencias falsas: anuncia por dos enlaces y un tercero falla (enviados = 2); un faro válido recibido llega a cb; uno inválido no. Comprueba con npx vitest run src/lib/estaciones. NO toques malla.ts ni ningún otro archivo."
+  },
+  {
+   "id": "S1010-MGR3",
+   "ola": "Ola 1010S · MetaGenesis remoto",
+   "titulo": "Estado del túnel de MetaGenesis en Ajustes › Accesos (Genesis de la Mac)",
+   "archivos": [
+    "src/lib/mando/tunel-metagenesis-estado.ts",
+    "src/app/api/mando/tunel-metagenesis/route.ts",
+    "src/components/mando/tunel-metagenesis-estado.tsx"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepositorio StarSeed OS (Next.js 15 + TS, textos en español claro, iconos lucide, cursor-pointer en lo clicable, sin emojis). En la Mac corre el servicio launchd com.starseed.tunel-metagenesis (scripts/puente/tunel_metagenesis.py), que publica el túnel de MetaGenesis y escribe su registro en /tmp/starseed-tunel-metagenesis.log. Las URLs de túnel aparecen siempre tachadas como «[túnel]». Tarea, en 3 archivos nuevos: (1) src/lib/mando/tunel-metagenesis-estado.ts, SOLO servidor (puede usar node:child_process y node:fs): función async estadoTunelMetaGenesis() que devuelve { cargado: boolean (exit 0 de `launchctl list com.starseed.tunel-metagenesis`), pid: number|null (del campo PID de esa salida), ultimasLineas: string[] (las 5 últimas del log, pasadas por una función tachar que sustituye /https:\\/\\/[a-z0-9-]+\\.trycloudflare\\.com/g por \"[túnel]\"), medidoEn: string ISO }; fuera de macOS o si falla, cargado:false y motivo en texto. (2) src/app/api/mando/tunel-metagenesis/route.ts: GET con `const veto = await guardianMando(req); if (veto) return veto;` (import de @/lib/mando/guardian), runtime nodejs, dynamic force-dynamic, Cache-Control no-store; solo exporta GET, runtime y dynamic. (3) src/components/mando/tunel-metagenesis-estado.tsx (\"use client\"): tarjeta pequeña con el mismo estilo que src/components/mando/metagenesis-accesos.tsx (rounded-2xl, border-white/10, texto text-xs text-white/65), que hace fetch a /api/mando/tunel-metagenesis cada 60 s solo con la pestaña visible y muestra «Túnel de MetaGenesis: activo (pid N)» o «Túnel de MetaGenesis: parado», más las últimas líneas en un <pre> pequeño. NUNCA mostrar una URL; si ves \"trycloudflare\" en el texto, táchalo también en el cliente. No edites metagenesis-accesos.tsx (el director lo monta). Prueba vitest de la función tachar y del componente con fetch simulado. Comprueba con npx vitest run sobre esas pruebas y tsc sin errores en tus archivos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "S1010-TU-EST1",
+   "S1010-MGR3"
+  ]
+ }
+}
