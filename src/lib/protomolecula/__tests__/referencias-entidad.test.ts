@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Capa } from "../tipos";
+import type { Capa, Ambito } from "../tipos";
 import { 
   abrirCapaReferenciada,
   editarReferencia,
@@ -50,21 +50,21 @@ const crearFuenteMock = (
 
 describe("referencias-entidad", () => {
   describe("abrirCapaReferenciada", () => {
-    it("debería retornar éxito cuando la fuente existe y la entidad se encuentra", async () => {
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "test",
-        titulo: "Capa de prueba",
-        formato: "formato de prueba",
-        referencia: { tipo: "test", id: "ent1" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
-      
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(),
-      };
+     it("debería retornar éxito cuando la fuente existe y la entidad se encuentra", async () => {
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "codigo",
+         titulo: "Capa de prueba",
+         formato: "formato de prueba",
+         referencia: { tipo: "codigo", id: "ent1" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
+       
+       const fuentes: Record<string, FuenteEntidad> = {
+         codigo: crearFuenteMock(),
+       };
       
       const resultado = await abrirCapaReferenciada(capa, fuentes);
       expect(resultado.ok).toBe(true);
@@ -74,86 +74,92 @@ describe("referencias-entidad", () => {
       }
     });
 
-    it("deberidal fallar con motivo cuando el tipo de fuente es desconocido", async () => {
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "desconocido",
-        titulo: "Capa de prueba",
-        formato: "formato de prueba",
-        referencia: { tipo: "desconocido", id: "ent1" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
+     it("debería fallar con motivo cuando el tipo de fuente es desconocido", async () => {
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "datos",
+         titulo: "Capa de prueba",
+         formato: "formato de prueba",
+         referencia: { tipo: "datos", id: "ent1" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
+       
+       const fuentes: Record<string, FuenteEntidad> = {
+         codigo: crearFuenteMock(),
+       };
       
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(),
-      };
-      
-      const resultado = await abrirCapaReferenciada(capa, fuentes);
-      expect(resultado.ok).toBe(false);
-      expect(resultado.motivo).toContain("Tipo de fuente desconocido");
+       const resultado = await abrirCapaReferenciada(capa, fuentes);
+       if (resultado.ok) {
+         throw new Error("Expected ok to be false");
+       }
+       expect((resultado as { ok: false; motivo: string }).motivo).toContain("Tipo de fuente desconocido");
     });
 
-    it("debería fallar con motivo cuando la entidad está borrada o no se encuentra", async () => {
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "test",
-        titulo: "Capa de prueba",
-        formato: "formato de prueba",
-        referencia: { tipo: "test", id: "ent1" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
-      
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(false, false, false, true), // devuelve null al obtener
-      };
-      
-      const resultado = await abrirCapaReferenciada(capa, fuentes);
-      expect(resultado.ok).toBe(false);
-      expect(resultado.motivo).toContain("Entidad borrada o no encontrada");
+     it("debería fallar con motivo cuando la entidad está borrada o no se encuentra", async () => {
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "codigo",
+         titulo: "Capa de prueba",
+         formato: "formato de prueba",
+         referencia: { tipo: "codigo", id: "ent1" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
+       
+        const fuentes: Record<string, FuenteEntidad> = {
+          codigo: crearFuenteMock(false, false, false, true), // devuelve null al obtener
+        };
+        
+         const resultado = await abrirCapaReferenciada(capa, fuentes);
+         if (resultado.ok) {
+           throw new Error("Expected ok to be false");
+         }
+         expect((resultado as { ok: false; motivo: string }).motivo).toContain("Entidad borrada o no encontrada");
     });
 
-    it("debería manejar errores inesperados en la fuente", async () => {
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "test",
-        titulo: "Capa de prueba",
-        formato: "formato de prueba",
-        referencia: { tipo: "test", id: "ent1" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
-      
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(true), // falla al obtener
-      };
-      
-      const resultado = await abrirCapaReferenciada(capa, fuentes);
-      expect(resultado.ok).toBe(false);
-      expect(resultado.motivo).toContain("Entidad borrada o no encontrada"); // El error se convierte en este mensaje
+     it("debería manejar errores inesperados en la fuente", async () => {
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "codigo",
+         titulo: "Capa de prueba",
+         formato: "formato de prueba",
+         referencia: { tipo: "codigo", id: "ent1" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
+       
+        const fuentes: Record<string, FuenteEntidad> = {
+          codigo: crearFuenteMock(true), // falla al obtener
+        };
+        
+        const resultado = await abrirCapaReferenciada(capa, fuentes);
+        if (resultado.ok) {
+          throw new Error("Expected ok to be false");
+        }
+        expect((resultado as { ok: false; motivo: string }).motivo).toContain("Entidad borrada o no encontrada"); // El error se convierte en este mensaje
     });
   });
 
   describe("editarReferencia", () => {
-    it("debería crear una rama y retornar una capa nueva cuando es posible", async () => {
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "test",
-        titulo: "Capa de prueba",
-        formato: "formato de prueba",
-        referencia: { tipo: "test", id: "ent1", version: "1.0" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
-      
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(),
-      };
+     it("debería crear una rama y retornar una capa nueva cuando es posible", async () => {
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "codigo",
+         titulo: "Capa de prueba",
+         formato: "formato de prueba",
+         referencia: { tipo: "codigo", id: "ent1", version: "1.0" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
+       
+       const fuentes: Record<string, FuenteEntidad> = {
+         codigo: crearFuenteMock(),
+       };
       
       const resultado = await editarReferencia(capa, fuentes);
       expect(resultado.ok).toBe(true);
@@ -166,67 +172,73 @@ describe("referencias-entidad", () => {
       }
     });
 
-    it("debería fallar con motivo cuando la fuente es desconocida", async () => {
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "desconocido",
-        titulo: "Capa de prueba",
-        formato: "formato de prueba",
-        referencia: { tipo: "desconocido", id: "ent1" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
-      
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(),
-      };
-      
-      const resultado = await editarReferencia(capa, fuentes);
-      expect(resultado.ok).toBe(false);
-      expect(resultado.motivo).toContain("Tipo de fuente desconocido");
+     it("debería fallar con motivo cuando la fuente es desconocida", async () => {
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "datos",
+         titulo: "Capa de prueba",
+         formato: "formato de prueba",
+         referencia: { tipo: "datos", id: "ent1" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
+       
+       const fuentes: Record<string, FuenteEntidad> = {
+         codigo: crearFuenteMock(),
+       };
+       
+         const resultado = await editarReferencia(capa, fuentes);
+         if (resultado.ok) {
+           throw new Error("Expected ok to be false");
+         }
+         expect((resultado as { ok: false; motivo: string }).motivo).toContain("Tipo de fuente desconocido");
     });
 
-    it("debería indicar que la fuente no admite ramas cuando corresponda", async () => {
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "test",
-        titulo: "Capa de prueba",
-        formato: "formato de prueba",
-        referencia: { tipo: "test", id: "ent1" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
-      
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(false, false, true), // falla al crear rama
-      };
-      
-      const resultado = await editarReferencia(capa, fuentes);
-      expect(resultado.ok).toBe(false);
-      expect(resultado.motivo).toContain("próximamente: esta fuente aún no admite ramas");
+     it("debería indicar que la fuente no admite ramas cuando corresponda", async () => {
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "codigo",
+         titulo: "Capa de prueba",
+         formato: "formato de prueba",
+         referencia: { tipo: "codigo", id: "ent1" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
+       
+        const fuentes: Record<string, FuenteEntidad> = {
+          codigo: crearFuenteMock(false, false, true), // falla al crear rama
+        };
+        
+        const resultado = await editarReferencia(capa, fuentes);
+        if (resultado.ok) {
+          throw new Error("Expected ok to be false");
+        }
+        expect((resultado as { ok: false; motivo: string }).motivo).toContain("próximamente: esta fuente aún no admite ramas");
     });
 
-    it("debería manejar errores inesperados al crear rama", async () => {
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "test",
-        titulo: "Capa de prueba",
-        formato: "formato de prueba",
-        referencia: { tipo: "test", id: "ent1" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
-      
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(false, false, true, false, "personal"), // falla al crear rama
-      };
-      
-      const resultado = await editarReferencia(capa, fuentes);
-      expect(resultado.ok).toBe(false);
-      expect(resultado.motivo).toContain("próximamente: esta fuente aún no admite ramas"); // El error se convierte en este mensaje
+     it("debería manejar errores inesperados al crear rama", async () => {
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "codigo",
+         titulo: "Capa de prueba",
+         formato: "formato de prueba",
+         referencia: { tipo: "codigo", id: "ent1" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
+       
+        const fuentes: Record<string, FuenteEntidad> = {
+          codigo: crearFuenteMock(false, false, true, false, "personal"), // falla al crear rama
+        };
+        
+        const resultado = await editarReferencia(capa, fuentes);
+        if (resultado.ok) {
+          throw new Error("Expected ok to be false");
+        }
+        expect((resultado as { ok: false; motivo: string }).motivo).toContain("próximamente: esta fuente aún no admite ramas"); // El error se convierte en este mensaje
     });
   });
 
@@ -235,26 +247,26 @@ describe("referencias-entidad", () => {
       const fuentes: Record<string, FuenteEntidad> = {
         test: crearFuenteMock(false, false, false, false, "grupo"),
       };
-      
+       
       const obtenerAmbito = ambitoDeReferencias(fuentes);
       const ambito = obtenerAmbito("test", "algúnId");
       expect(ambito).toBe("grupo");
     });
 
-    it("debería retornar 'personal' para tipos de fuente desconocidos", () => {
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(),
-      };
-      
-      const obtenerAmbito = ambitoDeReferencias(fuentes);
-      const ambito = obtenerAmbito("desconocido", "algúnId");
-      expect(ambito).toBe("personal"); // opción más reservada
-    });
+     it("debería retornar 'personal' para tipos de fuente desconocidos", () => {
+       const fuentes: Record<string, FuenteEntidad> = {
+         codigo: crearFuenteMock(),
+       };
+       
+       const obtenerAmbito = ambitoDeReferencias(fuentes);
+       const ambito = obtenerAmbito("datos", "algúnId");
+       expect(ambito).toBe("personal"); // opción más reservada
+     });
 
-    it("debería manejar errores en la fuente de ámbito", () => {
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(false, true), // falla al obtener ámbito
-      };
+     it("debería manejar errores en la fuente de ámbito", () => {
+       const fuentes: Record<string, FuenteEntidad> = {
+         codigo: crearFuenteMock(false, true), // falla al obtener ámbito
+       };
       
       const obtenerAmbito = ambitoDeReferencias(fuentes);
       // Incluso si la fuente falla, debería devolver 'personal' como fallback
@@ -285,28 +297,28 @@ describe("referencias-entidad", () => {
       // Importamos aquí para evitar dependencias circulares en los tests
       const { referenciasRotas } = await import("../permisos");
       
-      // Creamos una capa que referencia una entidad en ámbito "personal"
-      const capa: Capa = {
-        id: "capa1",
-        tipo: "test",
-        titulo: "Capa que referencia entidad personal",
-        formato: "formato de prueba",
-        referencia: { tipo: "test", id: "ent1" },
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-      };
+       // Creamos una capa que referencia una entidad en ámbito "personal"
+       const capa: Capa = {
+         id: "capa1",
+         tipo: "codigo",
+         titulo: "Capa que referencia entidad personal",
+         formato: "formato de prueba",
+         referencia: { tipo: "codigo", id: "ent1" },
+         orden: 0,
+         visible: true,
+         bloqueada: false,
+       };
       
-      // Creamos fuentes donde el tipo "test" tiene ámbito "personal"
-      const fuentes: Record<string, FuenteEntidad> = {
-        test: crearFuenteMock(false, false, false, false, "personal"),
-      };
+       // Creamos fuentes donde el tipo "codigo" tiene ámbito "personal"
+       const fuentes: Record<string, FuenteEntidad> = {
+         codigo: crearFuenteMock(false, false, false, false, "personal"),
+       };
       
       // Obtenemos la función que mapea (tipo, id) → Ambito
       const ambitoDe = ambitoDeReferencias(fuentes);
       
       // Verificamos que ambitoDe devuelva "personal" para nuestra referencia
-      const ambitoEntidad = ambitoDe(capa.referencia.tipo, capa.referencia.id);
+       const ambitoEntidad = ambitoDe(capa.referencia!.tipo, capa.referencia!.id);
       expect(ambitoEntidad).toBe("personal");
       
       // Ahora probamos con referenciasRotas: si el ámbito de la molécula es "grupo",

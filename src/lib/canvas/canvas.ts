@@ -22,6 +22,7 @@ export type BlockKind =
   | "widget"
   | "browser"
   | "image"
+  | "protomolecula"
   // "cover" es un bloque ESPECIAL (no aparece en Insertar): materializa la
   // Tarjeta de Previsualización (portada obligatoria) del Lienzo Universal.
   | "cover";
