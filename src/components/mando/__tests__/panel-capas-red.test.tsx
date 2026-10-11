@@ -6,6 +6,24 @@ import "@testing-library/jest-dom/vitest";
 import { PanelCapasRed } from "../panel-capas-red";
 import { AppearanceProvider } from "@/context/appearance-context";
 
+interface RespuestaCapas {
+  catalogo: Array<{
+    id: string;
+    version: string;
+    estado: "recomendado" | "respaldo" | "nuevo";
+    dispositivos: number;
+    servidores: number;
+    espejos: number;
+    banco: string; // último resultado del banco
+    aprendizaje: string; // último ciclo de aprendizaje
+  }>;
+  /** Estado de los espejos (por ejemplo, { ok: true, mensaje: "Todos sincronizados" }) */
+  espejos: {
+    ok: boolean;
+    mensaje: string;
+  };
+}
+
 /** Datos de fábrica para las capas. */
 function capa(parcial: Partial<RespuestaCapas["catalogo"][0]>): RespuestaCapas["catalogo"][0] {
   return {
