@@ -131,11 +131,20 @@ class EstacionGlobal {
       internet?.cerrar();
       return { ok: false, motivo: "Se cambió de estación mientras conectaba." };
     }
-    if (internet) sesion.agregarCanal(internet);
-    const bajaLocal = await engancharEnlacesLocales(
-      (c) => sesion.agregarCanal(c),
-      (c) => sesion.quitarCanal(c),
-    );
+     if (internet) sesion.agregarCanal(internet);
+     if (process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL) {
+       const { crearCanalRele } = await import("./canal-rele");
+       const { temaPrivado, temaPublico } = await import("./cripto-estacion");
+       const url = process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL;
+       const tema = ficha.privada ? await temaPrivado(ficha.id, token!) : temaPublico(ficha.id);
+       const canalRele = crearCanalRele(url, tema);
+       sesion.agregarCanal(canalRele);
+       this.bajas.push(() => canalRele.cerrar());
+     }
+     const bajaLocal = await engancharEnlacesLocales(
+       (c) => sesion.agregarCanal(c),
+       (c) => sesion.quitarCanal(c),
+     );
     this.bajas.push(bajaLocal);
     sesion.arrancar();
     this.motor.seguir(() => (this.sesion ? { estado: this.sesion.foto().estado, ahora: this.sesion.ahora() } : null));
