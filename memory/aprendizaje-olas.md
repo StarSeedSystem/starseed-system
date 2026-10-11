@@ -4288,3 +4288,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** ninguna capa se usa sin su SHA en config/capas-astraura.json
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-10-11 00:31 · mg-oracle-1010-1725
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-TU-LL2` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2 conservada)
+- `S1010-EV-ORACLE-1a` — otra cosa: sin decisión en 0 h; rama ola/S1010-EV-ORACLE-1a conservada
