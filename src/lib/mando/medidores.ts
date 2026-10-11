@@ -1076,6 +1076,75 @@ export function dependenciasQueFaltan(
 }
 
 /**
+ * (PDA1012) PURA. Ordena las que esperan a otra tarea en el orden en que se irán soltando: primero
+ * las que solo esperan a algo de FUERA de esta lista (turno 1), después las que esperan a una de
+ * turno 1 (turno 2), etc. Dentro de un turno, el orden de su cola. Un ciclo no cuelga: se corta.
+ */
+export function ordenarEsperas<T extends { id: string; esperaA?: string[] }>(atadas: readonly T[]): (T & { turno: number })[] {
+    const porId = new Map(atadas.map((t) => [t.id, t] as const));
+    const turnos = new Map<string, number>();
+    const turnoDe = (id: string, pila: Set<string>): number => {
+        const hecho = turnos.get(id);
+        if (hecho !== undefined) return hecho;
+        if (pila.has(id)) return 1;
+        pila.add(id);
+        const t = porId.get(id);
+        let turno = 1;
+        for (const dep of t?.esperaA ?? []) {
+            if (porId.has(dep)) turno = Math.max(turno, turnoDe(dep, pila) + 1);
+        }
+        pila.delete(id);
+        turnos.set(id, turno);
+        return turno;
+    };
+    return atadas
+        .map((t, i) => ({ t, i, turno: turnoDe(t.id, new Set()) }))
+        .sort((a, b) => a.turno - b.turno || a.i - b.i)
+        .map(({ t, turno }) => ({ ...t, turno }));
+}
+
+/**
+ * (PDA1012) PURA. «Por dónde va» una tarea de la que otra depende, en una frase corta: si un agente
+ * la escribe ahora (y dónde), su estado en el progreso, si a su vez espera a otra o si se puede
+ * coger ya. Nunca devuelve vacío.
+ */
+export function vaPorDe(
+    id: string,
+    d: Pick<DatosMedidores, "progreso" | "latidos" | "ejecutables" | "titulos">,
+): string {
+    const vivo = (d.latidos ?? []).find((l) => l.tarea === id);
+    if (vivo) {
+        const fase = String(vivo.fase || "trabajando").toLowerCase();
+        return `«${fase}» en ${(vivo.donde ?? "mac") === "mac" ? "la Mac" : dondeCorto(vivo.donde)}`;
+    }
+    const e = d.progreso[id];
+    const estado = String(e?.estado ?? "");
+    const ej = (d.ejecutables ?? []).find((t) => t.id === id);
+    if (ej?.esperaA?.length) return `la cola: a su vez espera a ${ej.esperaA.join(", ")}`;
+    if (ej) return "la cola: se puede coger ya";
+    if (!e && !d.titulos?.[id]) return "ningún sitio: no existe en ninguna cola (míralo en «Bloqueadas»)";
+    switch (estado) {
+        case "":
+        case "pendiente":
+            return "la cola, pendiente";
+        case "en_curso":
+            return "en curso";
+        case "reasignada":
+            return /oracle/i.test(String((e as { medio?: string } | undefined)?.medio ?? e?.nota ?? "")) ? "el A1 de Oracle (prestada)" : "otro medio (reasignada)";
+        case "esperando_aprobacion":
+        case "pendiente_aprobacion":
+            return "tu visto bueno (rama lista)";
+        case "commit":
+        case "hecho":
+            return "integrada (se soltará en la próxima vuelta del vigilante)";
+        default:
+            return estado.startsWith("fallo") || estado === "conflicto" || estado === "interrumpida"
+                ? `«${estado}»: la retoma el revisor de bloqueadas`
+                : `«${estado}»`;
+    }
+}
+
+/**
  * Las tareas que se pueden coger AHORA.
  *
  * (2026-09-22) Aquí faltaba lo más importante y por eso Genesis mentía en la cara:
@@ -2218,16 +2287,30 @@ export function detalleDeMedidor(
                 ],
             }));
 
+            // (PDA1012) Alex: las que esperan a otra van DENTRO de la lista, reordenadas: primero las
+            // que se pueden coger ya y después, en el orden en que se irán soltando, las que esperan,
+            // cada una con «espera a X, que va por Y». La pastilla sigue contando solo las que se
+            // pueden coger (las de abajo llevan `ESPERA_A_OTRA` y `centro-mando` no las suma).
+            const ordenadas = ordenarEsperas(atadas);
+            for (const t of ordenadas) {
+                filas.push({
+                    id: t.id,
+                    titulo: t.titulo,
+                    estado: ESPERA_A_OTRA,
+                    porcentaje: 0,
+                    etapa: t.turno > 1 ? `después de otra espera (turno ${t.turno})` : "se suelta en cuanto llegue lo que espera",
+                    porque: (t.esperaA ?? []).map((dep) => `espera a ${dep}, que va por ${vaPorDe(dep, d)}`).join(" · "),
+                    acciones: accionesDeTarea("pendiente"),
+                });
+            }
             const colaDeAtadas = atadas.length
-                ? ` · ${atadas.length} más espera${atadas.length === 1 ? "" : "n"} a otra tarea (${atadas
-                      .map((t) => t.id)
-                      .join(", ")}): están en «Bloqueadas»`
+                ? ` · después, en su orden, ${atadas.length} que espera${atadas.length === 1 ? "" : "n"} a otra tarea`
                 : "";
             const resumen =
                 libres.length === 0 && atadas.length === 0
                     ? "sin trabajo ejecutable"
                     : libres.length === 0
-                      ? `ninguna se puede coger${colaDeAtadas}`
+                      ? `ninguna se puede coger ya${colaDeAtadas}`
                       : `${libres.length} se pueden coger ya · ${porQueNadieLasCoge}${colaDeAtadas}`;
 
             return {

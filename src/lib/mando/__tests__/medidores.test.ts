@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    ESPERA_A_OTRA,
     accionesDeBloqueada,
     accionesDeTarea,
     cambioAutomatico,
@@ -361,13 +362,15 @@ describe("porcentajes de avance", () => {
             ],
         });
         expect(d.resumen).toContain("ninguna se puede coger");
-        // (2026-09-22) Y ya no se listan aquí. La pastilla decía 1 y debajo salían CINCO
-        // tarjetas, tres de ellas repetidas en «Bloqueadas». Una tarea, un sitio: la
-        // ventana enseña lo que la pastilla cuenta, y las atadas se nombran al pie.
-        expect(d.filas).toHaveLength(0);
-        expect(d.resumen).toContain("2 más esperan a otra tarea");
-        expect(d.resumen).toContain("RM5, JF2");
-        expect(d.resumen).toContain("Bloqueadas");
+        // (PDA1012) Alex pidió las que esperan DENTRO de la lista, detrás de las que se pueden
+        // coger y en su orden, cada una diciendo a qué espera y por dónde va eso. La PASTILLA
+        // sigue contando solo las que se pueden coger: las de espera llevan `ESPERA_A_OTRA`.
+        expect(d.filas.map((f) => f.id)).toEqual(["RM5", "JF2"]);
+        expect(d.filas.every((f) => f.estado === ESPERA_A_OTRA)).toBe(true);
+        expect(d.filas.filter((f) => f.estado !== ESPERA_A_OTRA)).toHaveLength(0);
+        expect(d.resumen).toContain("2 que esperan a otra tarea");
+        expect(d.filas[0].porque).toContain("espera a RM3, que va por");
+        expect(d.filas[0].porque).toContain("espera a RM4, que va por");
     });
 
     it("con unas libres y otras atadas, el resumen separa las dos cosas", () => {
@@ -378,10 +381,29 @@ describe("porcentajes de avance", () => {
             ],
         });
         expect(d.resumen).toContain("1 se pueden coger ya");
-        expect(d.resumen).toContain("1 más espera a otra tarea");
-        // La ventana enseña SOLO lo que se puede coger: ni una fila de más.
-        expect(d.filas).toHaveLength(1);
-        expect(d.filas[0].id).toBe("A1");
+        expect(d.resumen).toContain("después, en su orden, 1 que espera a otra tarea");
+        // Primero lo que se puede coger; después, la que espera, diciendo por dónde va lo que espera.
+        expect(d.filas.map((f) => f.id)).toEqual(["A1", "B1"]);
+        expect(d.filas[1].estado).toBe(ESPERA_A_OTRA);
+        expect(d.filas[1].porque).toBe("espera a A1, que va por la cola: se puede coger ya");
+        // La pastilla cuenta solo las que se pueden coger ya.
+        expect(d.filas.filter((f) => f.estado !== ESPERA_A_OTRA)).toHaveLength(1);
+    });
+
+    it("(PDA1012) las que esperan van en el orden en que se soltarán, con por dónde va lo que esperan", () => {
+        const d = detalleDeMedidor("listas", {
+            ejecutables: [
+                { id: "C3", titulo: "tercera", ola: "1", esperaA: ["C2"] },
+                { id: "C2", titulo: "segunda", ola: "1", esperaA: ["C1"] },
+                { id: "L1", titulo: "libre", ola: "1" },
+            ],
+            progreso: { C1: { estado: "en_curso" } },
+            latidos: [{ tarea: "C1", fase: "escribiendo", modelo: "nim/x", minutos: 3, donde: "oracle" }],
+        });
+        expect(d.filas.map((f) => f.id)).toEqual(["L1", "C2", "C3"]);
+        expect(d.filas[1].porque).toBe("espera a C1, que va por «escribiendo» en A1 de Oracle");
+        expect(d.filas[2].porque).toBe("espera a C2, que va por la cola: a su vez espera a C1");
+        expect(d.filas[2].etapa).toContain("turno 2");
     });
 
     it("bloqueadas y sin publicar NO llevan porcentaje: ahí sería inventado", () => {
