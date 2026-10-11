@@ -29,6 +29,7 @@ import Icon from './components/Icon';
 import { useAudio } from './hooks/useAudio';
 import Generator from './components/Generator';
 import GlobalPlayer from './components/GlobalPlayer';
+import { enlaceNuevaEnVivo } from '@/lib/estaciones/enlace-nueva-en-vivo';
 
 type ViewMode = 'library' | 'generator';
 
@@ -68,6 +69,28 @@ const App: React.FC = () => {
 
     // Switch view to generator to show feedback
     setViewMode('generator');
+  };
+
+  // Enviar la entonación actual a «Nueva estación» del OS (estación en vivo).
+  const transmitirEnVivo = () => {
+    window.location.assign(
+      enlaceNuevaEnVivo('omnifrecuencias', {
+        titulo: 'Entonación en vivo',
+        enlace: 'https://omnifrecuencias.vercel.app',
+        parametros: audio.oscillators.map((o) => ({
+          frequency: o.frequency,
+          type: o.type,
+          volume: o.volume,
+          panX: o.panX,
+          panY: o.panY,
+          panZ: o.panZ,
+          name: o.name,
+          type2: o.type2,
+          typeMix: o.typeMix,
+          transition: o.transition,
+        })),
+      }),
+    );
   };
 
   // Filter and Sort Logic
@@ -171,6 +194,17 @@ const App: React.FC = () => {
               <Icon name="Zap" size={20} className={viewMode === 'generator' ? 'drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]' : ''} />
               Generador
             </button>
+            {audio.oscillators.length > 0 && (
+              <button
+                onClick={transmitirEnVivo}
+                className="relative overflow-hidden group flex items-center gap-3 px-8 py-4 rounded-2xl font-display font-bold tracking-widest uppercase text-sm transition-all duration-500 cursor-pointer bg-black/40 text-slate-400 border-2 border-white/5 hover:bg-white/5 hover:border-pink-500/30 hover:text-pink-100 hover:shadow-[0_0_20px_rgba(236,72,153,0.2)]"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-pink-500/0 via-pink-400/20 to-pink-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent opacity-50 pointer-events-none"></div>
+                <Icon name="Radio" size={20} />
+                Transmitir en vivo
+              </button>
+            )}
           </div>
         </header>
 
