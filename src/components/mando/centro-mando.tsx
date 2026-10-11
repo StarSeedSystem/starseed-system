@@ -90,6 +90,19 @@ const ActualizacionesMetaGenesis = dynamic(
     () => import("@/components/actualizaciones/panel-actualizaciones").then((m) => m.ActualizacionesMetaGenesis),
     { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando las actualizaciones…</p> },
 );
+// (PDA1012) Mejoras por neurona (architecture/mejoras-por-neurona.md §8): debajo de las
+// actualizaciones por capas. Hasta que exista el lector del sondeo (tarea M1/M2), el panel se monta
+// con su estado vacío honesto: dice que no hay sondeo y la orden para obtenerlo, nunca «al día».
+const PanelMejorasNeurona = dynamic(
+    () => import("@/components/mejoras/panel-mejoras-neurona").then((m) => m.PanelMejorasNeurona),
+    { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando las mejoras…</p> },
+);
+// (PDA1012) MetaGeminis, el agente social de MetaGenesis (architecture/metageminis.md), en
+// Comunidad. Si su migración no está aplicada, cada parte del panel lo dice (no pinta ceros).
+const MetaGeminisPanel = dynamic(
+    () => import("@/components/mando/metageminis-panel").then((m) => m.MetaGeminisPanel),
+    { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando MetaGeminis…</p> },
+);
 const PanelCanales = dynamic(
     () => import("@/components/mando/panel-canales").then((m) => m.PanelCanales),
     {
@@ -302,6 +315,8 @@ const PESTANAS = [
     { id: "chat", etiqueta: "Chat", grupo: "Agentes" },
     // Hacia fuera.
     { id: "canales", etiqueta: "Canales StarSeed", grupo: "Comunidad" },
+    // (PDA1012) El agente social de MetaGenesis: cola para aprobar, piezas, directorio y donaciones.
+    { id: "metageminis", etiqueta: "MetaGeminis", grupo: "Comunidad" },
     { id: "oficina", etiqueta: "Oficina 3D", grupo: "Comunidad" },
     // Configuración.
     { id: "ajustes_director", etiqueta: "Directores", grupo: "Ajustes" },
@@ -2362,6 +2377,15 @@ export function CentroMando() {
                 </TabsContent>
                 <TabsContent value="actualizaciones">
                     {pestana === "actualizaciones" ? <ActualizacionesMetaGenesis /> : null}
+                    {pestana === "actualizaciones" ? (
+                        <div className="mt-4">
+                            <PanelMejorasNeurona informes={[]} generado={null} />
+                        </div>
+                    ) : null}
+                </TabsContent>
+                <TabsContent value="metageminis">
+                    {/* Una lectura cada 10 min como mucho (contrato «consumo»): son 5 tablas. */}
+                    {pestana === "metageminis" ? <MetaGeminisPanel recargarCadaMs={10 * 60_000} /> : null}
                 </TabsContent>
                 <TabsContent value="canales">
                     {/* Ola 285 · K3: el panel de canales solo se monta al abrir
