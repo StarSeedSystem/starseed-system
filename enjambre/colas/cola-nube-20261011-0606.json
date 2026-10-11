@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261011",
+ "tareas": [
+  {
+   "id": "MGP1011-1ECCC4",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: CI en rojo",
+   "archivos": [
+    "src/components/vivo/juegos/__tests__/sala-juegos.test.tsx"
+   ],
+   "depende": [],
+   "origen": "metagenesis",
+   "prompt": "NOTA DE METAGENESIS (2026-10-11 06:03): la autopublicación lleva más de 60 min frenada en 389c0afd por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n\u001b[39m (s\u001b[33m:\u001b[39m \u001b[33mSala\u001b[39m\u001b[33m,\u001b[39m texto\u001b[33m:\u001b[39m string) \u001b[33m=>\u001b[39m {\n2026-10-11T10:58:19.1397595Z \n2026-10-11T10:58:19.1397978Z \u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\u001b[22m\u001b[39m\n2026-10-11T10:58:19.1398354Z \n2026-10-11T10:58:19.1492763Z \u001b[2m Test Files \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m829 passed\u001b[39m\u001b[22m\u001b[90m (830)\u001b[39m\n2026-10-11T10:58:19.1522046Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m9310 passed\u001b[39m\u001b[22m\u001b[90m (9311)\u001b[39m\n2026-10-11T10:58:19.1523056Z \u001b[2m   Start at \u001b[22m 10:53:56\n2026-10-11T10:58:19.1539714Z \u001b[2m   Duration \u001b[22m 262.62s\u001b[2m (transform 35.34s, setup 32.34s, collect 211.95s, tests 210.00s, environment 140.73s, prepare 59.22s)\u001b[22m\n2026-10-11T10:58:19.1540553Z \n2026-10-11T10:58:19.1610310Z \n2026-10-11T10:58:19.1626282Z ##[error]AssertionError: expected 'Sala de juegosDibujo-adivinaABCEn viv…' not to contain 'vela'\n\nExpected: \"vela\"\nReceived: \"Sala de juegosDibujo-adivinaABCEn vivoCambiar de juegoRonda 1 de 3Dibuja AnaTiempo del dibujo1:16La mesa3 de 8AnaAsiento 1 · le tocaBeto (tú)Asiento 2CarlaAsiento 3Marcador del grupo0Ana0Beto0Carla0Adivina aquíLos intentos aparecerán aquí.EnviarCómo funciona y sus límitesQuien dibuja hace de árbitro de su ronda: elige la palabra, compara los intentos y avisa de los aciertos. Para que no pueda cambiarla a mitad, publica antes una huella (hash) de la palabra y al final la revela: cualquiera comprueba que coincide; si no, la ronda se anula.No es a prueba de trampas: los intentos viajan por el canal de la sala y alguien con conocimientos podría leerlos. Está pensado para jugar entre personas de confianza.\"\n\n ❯ src/components/vivo/juegos/__tests__/sala-juegos.test.tsx:210:43\n\n\n2026-10-11T10:58:19.5283738Z ##[error]Process completed with exit code 1.\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `npx vitest run src/components/vivo/juegos/__tests__/sala-juegos.test.tsx`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "MGP1011-1ECCC4"
+  ]
+ }
+}
