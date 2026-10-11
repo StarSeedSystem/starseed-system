@@ -1,22 +1,3 @@
-// src/lib/creation/post-blocks.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// MODELO COMPARTIDO de BLOQUES del Lienzo Universal (Adenda 66 §6).
-//
-// Un mismo tipo `PostBlock` se usa en:
-//   · el COMPOSITOR  (src/components/creation/lienzo-composer.tsx + creation-blocks.tsx)
-//   · el RENDER       (src/components/social/post-blocks-renderer.tsx)
-//   · el PARSER       (src/lib/social-posts.ts → splitBodyAttachments)
-//
-// Los bloques ricos (código ejecutable, gráfica, agente, mapa, referencias…) se
-// SERIALIZAN dentro de la metadata `ss:meta` del cuerpo del post (os_posts solo
-// tiene body/media_url), no como markdown — el markdown no puede representarlos.
-// Los bloques LEGADOS (texto/imagen/archivo/enlace/widget) siguen viajando como
-// markdown en el cuerpo (comportamiento previo intacto); el render los ignora
-// aquí para NO duplicarlos.
-//
-// SSR-safe: TypeScript puro, sin React ni acceso a `window`.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { type Marco, normalizarMarco } from "@/lib/profile/marco-foto";
 
 /** Tipos de bloque. Los 5 primeros son LEGADOS (markdown en el cuerpo). */
@@ -36,7 +17,6 @@ export type PostBlockType =
     | "mapa"
     | "grafica"
     | "referencia"
-    /** Referencia a entidad (página/perfil/grupo/comunidad/evento). */
     | "entidad"
     // ── Adenda 67 · P4 (jul-2026): dos bloques nuevos, ADITIVOS ──
     /**
@@ -54,7 +34,9 @@ export type PostBlockType =
      * (su Editor API/headless/MCP son futuros según su propio README), así que
      * el OS no edita por ti: abre el editor y publica el vídeo que exportes.
      */
-    | "video";
+    | "video"
+    // ── Protomolécula (Ola 1010P): bloque universal de creación y edición ──
+    | "protomolecula";
 
 /** Tipo de recurso referenciado por un bloque `referencia` (o por el SourcePicker). */
 export type PostBlockRefKind =
@@ -160,6 +142,8 @@ export const RICH_BLOCK_TYPES: readonly PostBlockType[] = [
     // Adenda 67 · P4 (aditivos: los antiguos siguen exactamente igual).
     "penpot",
     "video",
+    // Protomolécula (Ola 1010P)
+    "protomolecula"
 ] as const;
 
 /** ¿Es un bloque RICO (serializado en ss:meta, renderizado por el post-blocks-renderer)? */
@@ -272,69 +256,4 @@ export function parseBlocks(raw: unknown): PostBlock[] {
         out.push(b);
     }
     return out;
-}
-
-// ─────────────────────────── Código ejecutable AISLADO ───────────────────────
-//
-// El código de una publicación se ejecuta SIEMPRE dentro de un <iframe> con
-// `sandbox="allow-scripts"` y SIN `allow-same-origin`: el navegador le asigna un
-// ORIGEN OPACO, sin acceso a cookies, localStorage ni a la sesión de Supabase de
-// la app, ni al DOM del documento padre. Aquí sólo construimos el `srcDoc`.
-
-const SANDBOX_BASE_CSS = `
-  *,*::before,*::after{box-sizing:border-box}
-  html,body{margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#e7e7ee;background:#0b0b12;padding:12px;line-height:1.5}
-  a{color:#7cc4ff}
-  button{cursor:pointer}
-  img,video,canvas,svg{max-width:100%;height:auto}
-  ::-webkit-scrollbar{width:8px;height:8px}
-  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:8px}
-`.trim();
-
-/** Escapa el cierre de </script> para poder incrustar JS del usuario con seguridad. */
-function safeScript(code: string): string {
-    return (code || "").replace(/<\/(script)/gi, "<\\/$1");
-}
-
-/**
- * Construye el documento HTML AISLADO (srcDoc) para un bloque de código/página.
- *  · html  → el código es el cuerpo (puede incluir <style> y <script>).
- *  · css   → se inyecta como <style> sobre un lienzo mínimo.
- *  · js    → se ejecuta dentro de un <script> con un contenedor #app.
- *  · jsx   → carga React + Babel (UMD, CDN) y ejecuta como <script type="text/babel">.
- * Nunca lanza: ante entrada vacía devuelve un documento base.
- */
-export function buildSandboxDoc(
-    b: Pick<PostBlock, "code" | "language">,
-): string {
-    const code = b.code || "";
-    const lang: CodeLang = b.language || "html";
-    const head = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${SANDBOX_BASE_CSS}</style>`;
-
-    if (lang === "html") {
-        // Documento (o fragmento) HTML del usuario. Si ya trae <html>, se respeta.
-        if (/<html[\s>]/i.test(code)) return code;
-        return `<!doctype html><html><head>${head}</head><body>${code}</body></html>`;
-    }
-    if (lang === "css") {
-        return `<!doctype html><html><head>${head}<style>${code}</style></head><body><div class="preview">Vista previa de estilos.</div></body></html>`;
-    }
-    if (lang === "js") {
-        return `<!doctype html><html><head>${head}</head><body><div id="app"></div><script>${safeScript(code)}</script></body></html>`;
-    }
-    // jsx (React vía CDN, dentro del propio iframe aislado).
-    const react = `https://unpkg.com/react@18/umd/react.production.min.js`;
-    const reactDom = `https://unpkg.com/react-dom@18/umd/react-dom.production.min.js`;
-    const babel = `https://unpkg.com/@babel/standalone/babel.min.js`;
-    return [
-        `<!doctype html><html><head>${head}`,
-        `<script crossorigin src="${react}"></script>`,
-        `<script crossorigin src="${reactDom}"></script>`,
-        `<script src="${babel}"></script>`,
-        `</head><body><div id="root"></div>`,
-        `<script type="text/babel" data-presets="react">`,
-        safeScript(code),
-        `</script></body></html>`,
-    ].join("");
 }
