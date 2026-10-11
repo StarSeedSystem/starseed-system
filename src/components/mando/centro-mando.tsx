@@ -43,6 +43,7 @@ import { PanelContextos } from "@/components/mando/panel-contextos";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
 import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { MetaGenesisAccesos } from "@/components/mando/metagenesis-accesos";
+import { TunelMetaGenesisEstado } from "@/components/mando/tunel-metagenesis-estado";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
 import { PanelServidor } from "@/components/mando/panel-servidor";
 import { PanelAprendizaje } from "@/components/mando/panel-aprendizaje";
@@ -303,11 +304,13 @@ const PESTANAS = [
     // Hacia fuera.
     { id: "canales", etiqueta: "Canales StarSeed", grupo: "Comunidad" },
     { id: "oficina", etiqueta: "Oficina 3D", grupo: "Comunidad" },
-    // Configuración.
-    { id: "ajustes_director", etiqueta: "Directores", grupo: "Ajustes" },
-    { id: "ajustes", etiqueta: "General", grupo: "Ajustes" },
-    // (2026-10-10) Quién entra en MetaGenesis desde otras neuronas.
-    { id: "accesos", etiqueta: "Accesos", grupo: "Ajustes" },
+     // Configuración.
+     { id: "ajustes_director", etiqueta: "Directores", grupo: "Ajustes" },
+     { id: "ajustes", etiqueta: "General", grupo: "Ajustes" },
+     // (2026-10-10) Quién entra en MetaGenesis desde otras neuronas.
+     { id: "accesos", etiqueta: "Accesos", grupo: "Ajustes" },
+     // Estado del túnel de MetaGenesis
+     { id: "tunel-metagenesis", etiqueta: "Túnel MetaGenesis", grupo: "Ajustes" },
 ] as const;
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
@@ -2422,9 +2425,12 @@ export function CentroMando() {
                 <TabsContent value="ajustes">
                     <PanelAjustes />
                 </TabsContent>
-                <TabsContent value="accesos">
-                    <MetaGenesisAccesos />
-                </TabsContent>
+                 <TabsContent value="accesos">
+                     <MetaGenesisAccesos />
+                 </TabsContent>
+                 <TabsContent value="tunel-metagenesis">
+                     <TunelMetaGenesisEstado />
+                 </TabsContent>
             </Tabs>
             {/* Control de la voz junto a la orbe: activar/silenciar sin abrir la pestaña. */}
             <ControlVozDelMando />
