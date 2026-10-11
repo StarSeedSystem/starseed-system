@@ -130,14 +130,26 @@ describe("canal-enlace-local", () => {
         vi.useFakeTimers();
         let abierto = true;
         const enlace: EnlaceLocalVivo = {
+            par: {} as EnlaceLocalVivo["par"],
+            desde: 0,
+            rttMs: () => null,
+            ruta: () => null,
+            capacidadKbps: () => null,
+            enviarBinario: () => true,
+            bufferedAmount: () => 0,
+            ponerPistas: async () => true,
+            alFlujoRemoto: () => () => { /* sin flujo */ },
+            cerrar: () => { /* no-op */ },
             id: "test",
             abierto: () => abierto,
-            enviar: () => true,
+            enviar: (texto: string) => true,
             alMensaje: (cb) => { return () => {}; },
         };
         const ca = abrirCanalLlamadaPorEnlace(enlace, "s1", "a:1");
         const suscriptores: boolean[] = [];
         ca.onSuscrito((ok) => suscriptores.push(ok));
+        // Run pending timers to trigger the initial onSuscrito call
+        vi.runOnlyPendingTimers();
         // initial call
         expect(suscriptores).toEqual([true]);
         // close the link

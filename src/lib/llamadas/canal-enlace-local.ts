@@ -99,12 +99,14 @@ export function abrirCanalLlamadaPorEnlace(
     });
 
     vigilante = setInterval(latido, REPETICION_MS);
-    const abiertoInicial = enlace.abierto();
-    if (abiertoInicial) {
+    // Notify the initial subscription status after a tick to allow subscribers to register.
+    setTimeout(() => {
+        if (cerrado) return;
+        const abiertoInicial = enlace.abierto();
         oyentesSuscrito.forEach((cb) => {
-            try { cb(true); } catch { /* oyente defectuoso */ }
+            try { cb(abiertoInicial); } catch { /* oyente defectuoso */ }
         });
-    }
+    }, 0);
 
     const retirar = () => {
         if (cerrado || !miMeta) return;
