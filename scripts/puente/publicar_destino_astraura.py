@@ -130,6 +130,16 @@ def main() -> int:
     previo = _leer(ESTADO)
     accion, motivo = decidir(url, previo, time.time())
     hecho = publicar(url) if accion == "publicar" else (quitar() if accion == "quitar" else True)
+    # (PDA1012) Lo que queda en Supabase, también en la puerta del A1 (Next lo lee allí sin coste).
+    vigente = (url if accion == "publicar" else None) if (accion != "nada" and hecho) else (
+        (previo.get("url") or None) if isinstance(previo, dict) else None)
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from espejo_puerta import espejar  # noqa: PLC0415
+
+        espejar(CLAVE, vigente, maquina=socket.gethostname().split(".")[0])
+    except Exception:  # noqa: BLE001 — la puerta nunca tumba la publicación
+        pass
     if accion != "nada" and hecho:
         os.makedirs(os.path.dirname(ESTADO), exist_ok=True)
         with open(ESTADO, "w", encoding="utf-8") as f:

@@ -183,7 +183,58 @@ async function publicadoEnSupabase(
   }
 }
 
+/**
+ * (PDA1012 · fase 2 de la puerta de datos) Lo publicado se lee PRIMERO de la puerta del A1
+ * (`GET /v1/astraura/estado/<clave>` con la ficha `astraura`), donde lo dejan los mismos
+ * publicadores (`publicar_tunel_astraura.py`, `publicar_destino_astraura.py`) junto a Supabase.
+ * Así el servidor de Next no gasta `astraura_state` en Supabase (8–10 lecturas por 30 min
+ * medidas el 10-10). Variables por NOMBRE, nunca en el repo: `PUERTA_DATOS_URL` y
+ * `PUERTA_DATOS_FICHA_ASTRAURA` (la Mac las lleva en `.env.local`; Vercel no las tiene y lee
+ * Supabase como siempre).
+ *
+ *   · `{ hay: true, url }`  → la puerta respondió (url `null` = retirado a propósito).
+ *   · `{ hay: false }`      → sin puerta, no responde, 5xx, 404 (aún no publicado allí) o lento:
+ *                             se lee Supabase, como antes.
+ */
+export async function publicadoEnLaPuerta(
+  key: string,
+  aceptable: (url: unknown, extra: string[]) => boolean,
+  pedirA: typeof fetch = fetch,
+): Promise<{ hay: true; url: string | null } | { hay: false }> {
+  const base = limpiarBase(process.env.PUERTA_DATOS_URL);
+  const ficha = String(process.env.PUERTA_DATOS_FICHA_ASTRAURA ?? "").trim();
+  if (!ficha || !/^https:\/\/[^/?#@]+$/.test(base)) return { hay: false };
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), SALUD_TIMEOUT_MS);
+  try {
+    const res = await pedirA(`${base}/v1/astraura/estado/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${ficha}`, Accept: "application/json" },
+      signal: ctrl.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) return { hay: false };
+    const cuerpo = (await res.json()) as { data?: { url?: unknown } | null };
+    const crudo = cuerpo?.data?.url;
+    if (crudo === null || crudo === undefined || crudo === "") return { hay: true, url: null };
+    const url = limpiarBase(String(crudo));
+    return { hay: true, url: aceptable(url, hostsPermitidos()) ? url : null };
+  } catch {
+    return { hay: false };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function leerPublicadoEnSupabase(
+  key: string,
+  aceptable: (url: unknown, extra: string[]) => boolean,
+): Promise<string | null> {
+  const dePuerta = await publicadoEnLaPuerta(key, aceptable);
+  if (dePuerta.hay) return dePuerta.url;
+  return leerPublicadoSoloSupabase(key, aceptable);
+}
+
+async function leerPublicadoSoloSupabase(
   key: string,
   aceptable: (url: unknown, extra: string[]) => boolean,
 ): Promise<string | null> {

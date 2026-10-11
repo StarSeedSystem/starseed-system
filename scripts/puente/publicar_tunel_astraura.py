@@ -123,14 +123,26 @@ def main() -> int:
     previo = _leer(ESTADO)
     url, viva = elegir_url([_leer(r).get("url") for r in TUNELES], responde, previo)
     hazlo, motivo = decidir(url, viva, previo, time.time())
+    publicado = (previo.get("url") or None) if isinstance(previo, dict) else None
     if hazlo and publicar(url):
         os.makedirs(os.path.dirname(ESTADO), exist_ok=True)
         with open(ESTADO, "w", encoding="utf-8") as f:
             json.dump({"url": url, "t": time.time()}, f)
         os.chmod(ESTADO, 0o600)
+        publicado = url
         print("túnel publicado (%s)" % motivo)
     else:
         print("no publico: %s" % motivo)
+    # (PDA1012) Lo que está en Supabase, también en la puerta del A1: Next lo lee allí sin coste.
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from espejo_puerta import espejar  # noqa: PLC0415
+
+        via = espejar(CLAVE, publicado, maquina=socket.gethostname().split(".")[0])
+        if via == "puerta":
+            print("copiado en la puerta de datos")
+    except Exception:  # noqa: BLE001 — la puerta nunca tumba la publicación
+        pass
     return 0
 
 
