@@ -37,6 +37,18 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { NeuronModelsPanel } from "@/components/neurons/neuron-models-panel";
+import { leerEstadoAutonomo, type EstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
+import { 
+  Boton, 
+  ContenedorNodo, 
+  NeuronaColmena, 
+  SO, 
+  estimarDesdeNavegador, 
+  botonesNeurona, 
+  comandoInstalar,
+  SenalesNavegador,
+  soDesdeAgente
+} from "@/lib/metagenesis/colmena";
 import { AparatosEnVivo } from "@/components/neurons/aparatos-en-vivo";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import {
@@ -190,8 +202,39 @@ export default function NeuronasPanel({
   const presencia = usePresenciaNeuronas();
   const liveIds = new Set(presencia.medios.map((m) => m.n));
   const presenceOk = presencia.conectado;
+   const [autonomousState, setAutonomousState] = useState<EstadoAutonomo | null>(null);
+   const [autonomousLoading, setAutonomousLoading] = useState(true);
+   const nodeIds = new Set<string>();
 
-  const refresh = useCallback(async (fresco = false) => {
+   /* Fetch MetaGenesis autonomous state to determine which neurons have a node. */
+   useEffect(() => {
+     let cancelled = false;
+     const fetchAutonomousState = async () => {
+       setAutonomousLoading(true);
+       try {
+         const estado = await leerEstadoAutonomo();
+         if (!cancelled && estado.ok) {
+           setAutonomousState(estado.estado);
+           const ids = new Set<string>();
+           for (const nodo of estado.estado.nodos) {
+             ids.add(nodo.nodo);
+           }
+           nodeIds.clear();
+           ids.forEach((id) => nodeIds.add(id));
+         }
+       } catch (e) {
+         console.error("Failed to fetch autonomous state:", e);
+       } finally {
+         if (!cancelled) setAutonomousLoading(false);
+       }
+     };
+     void fetchAutonomousState();
+     return () => {
+       cancelled = true;
+     };
+   }, []);
+
+   const refresh = useCallback(async (fresco = false) => {
     try {
       await ensureThisNeuron();
       const list = await listNeurons(fresco ? { fresco: true } : undefined);
@@ -295,16 +338,17 @@ export default function NeuronasPanel({
           </p>
         </div>
       ) : (
-        neurons.map((n) => (
-          <NeuronCard
-            key={n.id}
-            neuron={n}
-            live={n.online || liveIds.has(n.id)}
-            brainId={brainId ?? null}
-            brainName={brainName}
-            onChanged={refresh}
-          />
-        ))
+         neurons.map((n) => (
+           <NeuronCard
+             key={n.id}
+             neuron={n}
+             live={n.online || liveIds.has(n.id)}
+             brainId={brainId ?? null}
+             brainName={brainName}
+             onChanged={refresh}
+             nodeIds={nodeIds}
+           />
+         ))
       )}
     </div>
   );
@@ -344,12 +388,14 @@ function NeuronCard({
   brainId,
   brainName,
   onChanged,
+  nodeIds,
 }: {
   neuron: Neuron;
   live: boolean;
   brainId: string | null;
   brainName?: string;
   onChanged: () => void;
+  nodeIds: Set<string>;
 }) {
   const Icon = KIND_ICONS[n.kind] ?? Cpu;
   const confirm = useConfirm();
@@ -709,8 +755,162 @@ function NeuronCard({
             onChange={(v) => patchSettings({ syncExternal: v })}
           />
         </div>
-      </div>
-    </div>
+       </div>
+       {/* Contenedor de agentes */}
+       <div className="mt-4">
+         {autonomousLoading ? (
+           <p className="text-[11px] text-white/50">Cargando estado de MetaGenesis…</p>
+         ) : (
+           <>
+             {nodeIds.has(n.id) ? (
+               <> 
+                 {/* Neurona con nodo de MetaGenesis: mostrar botones */}
+                 {/* Construir NeuronaColmena a partir de los datos disponibles */}
+                 {(() => {
+                   // Construir señales para determinar SO y táctil
+                   const ua = `${n.capabilities.platform} ${n.capabilities.browser ?? ""}`.trim();
+                   const tactil = n.capabilities.touch ?? false;
+                   const so: SO = soDesdeAgente(ua, n.capabilities.platform, tactil);
+                   
+                   // Construir NeuronaColmena (con valores predeterminados para datos que no tenemos)
+                   const neuronaColmena: NeuronaColmena = {
+                     nodo: n.id,
+                     vivo: false, // Por defecto, actualizaremos si encontramos el nodo en el estado
+                     so,
+                     enCurso: 0, // No tenemos datos de en_curso, asumimos 0
+                     contenedor: null, // No tenemos datos de contenedor
+                     desconectando: false, // No tenemos datos de desconexión en curso
+                   };
+                   
+                   // Actualizar vivo si encontramos el nodo en el estado autónomo
+                   if (autonomousState) {
+                     const nodoEnEstado = autonomousState.nodos.find(no => no.nodo === n.id);
+                     if (nodoEnEstado) {
+                       neuronaColmena.vivo = nodoEnEstado.vivo;
+                       // Nota: no actualizamos enCurso o contenedor porque no los tenemos en el estado autónomo
+                     }
+                   }
+                   
+                   // Obtener botones usando la lógica pura
+                   const { desconectar, contenedor: contenedorBoton, instalar } = botonesNeurona(neuronaColmena);
+                   
+                   return (
+                     <div className="space-y-2">
+                       {/* Botón Desconectar */}
+                       {desconectar.visible && (
+                         <Button 
+                           variant={desconectar.habilitado ? "outline" : "ghost"}
+                           size="sm"
+                           className={`cursor-pointer ${!desconectar.habilitado ? "cursor-default" : ""} h-8 gap-2.5 text-xs`}
+                           disabled={!desconectar.habilitado}
+                           onClick={() => {
+                                             // TODO: Implementar lógica de desconexión
+                                           }}
+                         >
+                           <span className="flex items-center gap-2">
+                             {!desconectar.habilitado && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                             <span>{desconectar.etiqueta}</span>
+                           </span>
+                         </Button>
+                       )}
+                       {/* Botón Contenedor */}
+                       {contenedorBoton.visible && (
+                         <Button 
+                           variant={contenedorBoton.habilitado ? "outline" : "ghost"}
+                           size="sm"
+                           className={`cursor-pointer ${!contenedorBoton.habilitado ? "cursor-default" : ""} h-8 gap-2.5 text-xs`}
+                           disabled={!contenedorBoton.habilitado}
+                           onClick={() => {
+                                             // TODO: Implementar lógica de contenedor
+                                           }}
+                         >
+                           <span className="flex items-center gap-2">
+                             {!contenedorBoton.habilitado && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                             <span>{contenedorBoton.etiqueta}</span>
+                           </span>
+                         </Button>
+                       )}
+                       {/* Botón Instalar */}
+                       {instalar.visible && (
+                         <Button 
+                           variant="outline"
+                           size="sm"
+                           className="cursor-pointer h-8 gap-2.5 text-xs"
+                           onClick={() => {
+                                             // TODO: Implementar lógica de instalación
+                                           }}
+                         >
+                           <span className="flex items-center gap-2">
+                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                             <span>{instalar.etiqueta}</span>
+                           </span>
+                         </Button>
+                       )}
+                     </div>
+                   );
+                 })()}
+               </>
+             ) : (
+               <> 
+                 {/* Neurona sin nodo de MetaGenesis: mostrar estimación y botón de instalación */}
+                 {(() => {
+                   // Construir señales del navegador a partir de las capacidades de la neurona
+                   const ua = `${n.capabilities.platform} ${n.capabilities.browser ?? ""}`.trim();
+                   const tactil = n.capabilities.touch ?? false;
+                   const senales: SenalesNavegador = {
+                     userAgent: ua,
+                     plataforma: n.capabilities.platform,
+                     memoriaGB: n.capabilities.memoryGb ?? null,
+                     nucleos: n.capabilities.cores ?? null,
+                     bateria: n.capabilities.battery ? { 
+                       cargando: n.capabilities.battery.charging ?? false, 
+                       nivel: n.capabilities.battery.level ?? 0 
+                     } : null,
+                     redMedida: false, // No tenemos información de conexión en las capacidades
+                   };
+                   
+                   // Obtener estimación
+                   const estimacion = estimarDesdeNavegador(senales, tactil);
+                   
+                   return (
+                     <div className="space-y-3">
+                       {/* Estimación */}
+                       <div className="text-[11px] text-white/50">
+                         <strong>Contenedor de agentes:</strong> {estimacion.explica}
+                       </div>
+                       
+                       {/* Botón Instalar el trabajador (solo si se puede instalar) */}
+                       {estimacion.agentes !== null && estimacion.agentes > 0 && (
+                         <Button 
+                           variant="outline"
+                           size="sm"
+                           className="cursor-pointer h-8 gap-2.5 text-xs"
+                           onClick={() => {
+                                             // TODO: Implementar lógica de instalación con código real
+                                           }}
+                         >
+                           <span className="flex items-center gap-2">
+                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                             <span>Instalar el trabajador</span>
+                           </span>
+                         </Button>
+                       )}
+                       
+                       {/* Mensaje si no se puede instalar */}
+                       {estimacion.agentes === null || estimacion.agentes === 0 && (
+                         <p className="text-[11px] text-white/50">
+                           {estimacion.explica}
+                         </p>
+                       )}
+                     </div>
+                   );
+                 })()}
+               </>
+             )}
+           </>
+         )}
+       </div>
+     </div>
   );
 }
 
