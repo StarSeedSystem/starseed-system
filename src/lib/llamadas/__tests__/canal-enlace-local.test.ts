@@ -162,4 +162,44 @@ describe("canal-enlace-local", () => {
         expect(suscriptores).toEqual([true, false, true]);
         ca.soltar();
     });
+    it("onSuscrito avisa false al caerse el enlace y true al volver", () => {
+        vi.useFakeTimers();
+        let abierto = true;
+        const enlace: EnlaceLocalVivo = {
+            par: {} as EnlaceLocalVivo["par"],
+            desde: 0,
+            rttMs: () => null,
+            ruta: () => null,
+            capacidadKbps: () => null,
+            enviarBinario: () => true,
+            bufferedAmount: () => 0,
+            ponerPistas: async () => true,
+            alFlujoRemoto: () => () => { /* sin flujo */ },
+            cerrar: () => { /* no-op */ },
+            id: "test",
+            abierto: () => abierto,
+            enviar: (texto: string) => true,
+            alMensaje: (cb) => { return () => {}; },
+        };
+        const ca = abrirCanalLlamadaPorEnlace(enlace, "s1", "a:1");
+        const eventos: boolean[] = [];
+        ca.onSuscrito((ok) => { eventos.push(ok); });
+        // Run pending timers to trigger the initial onSuscrito call
+        vi.runOnlyPendingTimers();
+        // initial call
+        expect(eventos).toEqual([true]);
+        // clear events for next steps
+        eventos.splice(0);
+        vi.advanceTimersByTime(10_000); // sigue abierto: el latido no repite el aviso inicial
+        expect(eventos).toEqual([]);
+        abierto = false;
+        vi.advanceTimersByTime(10_000); // el latido ve la caída
+        expect(eventos).toEqual([false]);
+        expect(ca.suscrito()).toBe(false);
+        abierto = true;
+        vi.advanceTimersByTime(10_000); // el latido ve la vuelta: avisa true
+        expect(eventos).toEqual([false, true]);
+        expect(ca.suscrito()).toBe(true);
+        ca.soltar();
+    });
 });
