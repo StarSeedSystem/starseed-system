@@ -123,7 +123,7 @@ function TarjetaNodo({ n, mandar }: { n: NodoVista; mandar: (accion: AccionOrden
                 ) : (
                     <Chip>sin enjambre ahora</Chip>
                 )}
-                {n.caids.length ? <Chip tono="rosa">caídos: {n.caids.join(", ")}</Chip> : null}
+                 {n.caidos.length ? <Chip tono="rosa">caídos: {n.caidos.join(", ")}</Chip> : null}
                 {n.disco_gb !== null ? <Chip tono={n.disco_gb < 3 ? "ambar" : "neutro"}>disco {n.disco_gb} GB libres</Chip> : null}
                 {trabajo.map(([k, v]) => (
                     <Chip key={k}>
