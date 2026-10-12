@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { saveAdnToLibrary, loadAdnEntry, parseAdnEntry, sanearAdn, removeAdnFromLibrary } from "@/lib/avatares/adaptadores/almacen-adn";
-import { AdnAvatar } from "@/lib/avatares/adn/adn";
+import { saveAdnToLibrary, loadAdnEntry, parseAdnEntry, sanearAdn, removeAdnFromLibrary } from "../almacen-adn";
+import { AdnAvatar } from "../../adn/adn";
 
 // Un ADN de prueba sencillo
 const adnDePrueba: AdnAvatar = {
