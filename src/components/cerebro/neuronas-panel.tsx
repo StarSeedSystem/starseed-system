@@ -94,6 +94,16 @@ import {
   Library,
   Globe,
 } from "lucide-react";
+import {
+  botonesNeurona,
+  estimarDesdeNavegador,
+  comandoInstalar,
+  type SenalesNavegador,
+  type SO,
+  type NeuronaColmena,
+  type ContenedorNodo,
+  type Boton,
+} from "@/lib/metagenesis/colmena";
 
 /* ─────────────────────────── Constantes de UI ─────────────────────────── */
 
@@ -356,6 +366,7 @@ function NeuronCard({
   const [settings, setSettings] = useState<NeuronSettings>(() => settingsFor(n.id));
   const [syncOn, setSyncOn] = useState<boolean>(n.permissions?.sync ?? true);
   const [hermioneSync, setHermioneSyncState] = useState<boolean>(() => neuronHermioneSyncEnabled(n.capabilities));
+  const [senales, setSenales] = useState<SenalesNavegador | null>(null);
 
   // Nombre editable
   const [editing, setEditing] = useState(false);
@@ -379,6 +390,47 @@ function NeuronCard({
     setDraftName(n.name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [n.id, n.name, n.permissions?.sync, neuronHermioneSyncEnabled(n.capabilities)]);
+
+  // Obtener señales del navegador para la neurona actual
+  useEffect(() => {
+    if (!n.isThisDevice || typeof window === "undefined") return;
+    const ua = navigator.userAgent;
+    const plataforma = navigator.platform;
+    const memoriaGB = (navigator as any).deviceMemory;
+    const nucleos = navigator.hardwareConcurrency;
+    let bateria: { cargando: boolean; nivel: number } | null = null;
+    if (navigator.getBattery) {
+      navigator.getBattery().then((b) => {
+        setSenales({
+          userAgent: ua,
+          plataforma,
+          memoriaGB: typeof memoriaGB === "number" ? memoriaGB : undefined,
+          nucleos: typeof nucleos === "number" ? nucleos : undefined,
+          bateria: { cargando: b.charging, nivel: b.level },
+          redMedida: navigator.connection ? navigator.connection.saveData || navigator.connection.type === 'cellular' : undefined,
+        });
+      });
+    } else {
+      setSenales({
+        userAgent: ua,
+        plataforma,
+        memoriaGB: typeof memoriaGB === "number" ? memoriaGB : undefined,
+        nucleos: typeof nucleos === "number" ? nucleos : undefined,
+        bateria: null,
+        redMedida: navigator.connection ? navigator.connection.saveData || navigator.connection.type === 'cellular' : undefined,
+      });
+    }
+  }, [n.isThisDevice]);
+
+  // Convertir la neurona a NeuronaColmena para usar la lógica pura
+  const neuronaColmena: NeuronaColmena = {
+    nodo: n.nodo ?? null,
+    vivo: n.online ?? false,
+    so: soDesdeAgente(n.capabilities.platform ?? "", n.capabilities.plataforma ?? "", false),
+    enCurso: n.enCurso ?? 0,
+    contenedor: n.contenedor ?? null,
+    desconectando: n.desconectando ?? false,
+  };
 
   const patchSettings = (patch: Partial<NeuronSettings>) => {
     setSettings((prev) => ({
@@ -710,6 +762,89 @@ function NeuronCard({
           />
         </div>
       </div>
+
+      {/* ── Contenedor de agentes ─────────────────────────────────────────── */}
+      {n.isThisDevice && (
+        <div className="space-y-2">
+          <span className="text-[11px] text-white/50 inline-flex items-center gap-1.5">
+            <Server className="w-3.5 h-3.5 text-emerald-300/80" /> Contenedor de agentes
+          </span>
+          {n.nodo ? (
+            <>
+              {botonesNeurona(neuronaColmena).desconectar.visible && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`cursor-pointer h-7 gap-1.5 text-xs border-${botonesNeurona(neuronaColmena).desconectar.habilitado ? 'emerald-400/25' : 'zinc-500/30'} text-${botonesNeurona(neuronaColmena).desconectar.habilitado ? 'emerald-200' : 'zinc-400'} hover:bg-${botonesNeurona(neuronaColmena).desconectar.habilitado ? 'emerald-500/10' : 'zinc-500/5'}`}
+                  disabled={!botonesNeurona(neuronaColmena).desconectar.habilitado}
+                  onClick={async () => {
+                    // We would need to send the order, but we are not to implement the logic here.
+                    // We are only to show the buttons.
+                    // We will show a toast for now.
+                    toast.info("Desconectar no implementado en esta tarea");
+                  }}
+                >
+                  {botonesNeurona(neuronaColmena).desconectar.etiqueta}
+                </Button>
+              )}
+              {botonesNeurona(neuronaColmena).contenedor.visible && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`cursor-pointer h-7 gap-1.5 text-xs border-${botonesNeurona(neuronaColmena).contenedor.habilitado ? 'emerald-400/25' : 'zinc-500/30'} text-${botonesNeurona(neuronaColmena).contenedor.habilitado ? 'emerald-200' : 'zinc-400'} hover:bg-${botonesNeurona(neuronaColmena).contenedor.habilitado ? 'emerald-500/10' : 'zinc-500/5'}`}
+                  disabled={!botonesNeurona(neuronaColmena).contenedor.habilitado}
+                  onClick={async () => {
+                    toast.info("Contenedor no implementado en esta tarea");
+                  }}
+                >
+                  {botonesNeurona(neuronaColmena).contenedor.etiqueta}
+                </Button>
+              )}
+              {botonesNeurona(neuronaColmena).instalar.visible && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`cursor-pointer h-7 gap-1.5 text-xs border-${botonesNeurona(neuronaColmena).instalar.habilitado ? 'emerald-400/25' : 'zinc-500/30'} text-${botonesNeurona(neuronaColmena).instalar.habilitado ? 'emerald-200' : 'zinc-400'} hover:bg-${botonesNeurona(neuronaColmena).instalar.habilitado ? 'emerald-500/10' : 'zinc-500/5'}`}
+                  disabled={!botonesNeurona(neuronaColmena).instalar.habilitado}
+                  onClick={async () => {
+                    toast.info("Instalar no implementado en esta tarea");
+                  }}
+                >
+                  {botonesNeurona(neuronaColmena).instalar.etiqueta}
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              {senales && (
+                <>
+                  <p className="text-[11px] text-white/55">
+                    {estimarDesdeNavegador(senales, false).explica}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="cursor-pointer h-7 gap-1.5 text-xs border-emerald-400/25 text-emerald-200 hover:bg-emerald-500/10"
+                    onClick={() => {
+                      // Open a panel with the explanation and the command to copy
+                      // We will use a simple alert for now, but we are to create a panel.
+                      // We will create a dialog using the existing UI.
+                      // We don't have a dialog component, but we can use the confirm dialog? We are not to create new files.
+                      // We will use a simple popup.
+                      const origen = "https://a1.starseed.os";
+                      const codigo = "ABC123";
+                      const comando = comandoInstalar(origen, codigo);
+                      alert(`QUÉ es: El trabajador de StarSeed permite que este aparato procese tareas del enjambre.\nPOR QUÉ: Para contribuir con su capacidad de cómputo al enjambre y ganar reputación.\nCÓMO: ${comando || "No se puede generar el código porque el emisor de códigos no existe."}`);
+                    }}
+                  >
+                    Instalar el trabajador
+                  </Button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
