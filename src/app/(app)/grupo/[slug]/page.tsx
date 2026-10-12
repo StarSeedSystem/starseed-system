@@ -47,6 +47,7 @@ import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { MediationSection } from "@/components/governance/mediation-section";
 import { GroupFacePicker } from "@/components/profiles/group-face-picker";
 import { toast } from "sonner";
+import { EnlacePoliGenesis } from "@/components/genesis/enlace-poligenesis";
 import {
     UsersRound,
     Info,
@@ -629,41 +630,43 @@ function GrupoPageContent() {
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <JoinButton
-                                groupSlug={group.slug}
-                                accent={accent}
-                                count={safeMemberCount}
-                                isAssembly={isAssembly}
-                            />
-                            {/* Cuenta/Perfil (Adenda 125): con qué faceta pública participas
-                                en este grupo. Presentation-only; el censo/voto siguen por
-                                CUENTA. Se auto-oculta con ≤1 perfil o sin sesión. */}
-                            <GroupFacePicker groupSlug={group.slug} />
-                            {isOwner && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setEditOpen(true)}
-                                    className="gap-2 cursor-pointer"
-                                    style={{ borderColor: `${accent}55`, color: accent }}
-                                >
-                                    <Pencil className="h-4 w-4" />
-                                    Editar
-                                </Button>
-                            )}
-                            {isOwner && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setLayoutEditorOpen(true)}
-                                    className="gap-2 cursor-pointer"
-                                    style={{ borderColor: `${accent}55`, color: accent }}
-                                >
-                                    <Settings2 className="h-4 w-4" />
-                                    Personalizar
-                                </Button>
-                            )}
-                            <ShareButton title={groupName} accent={accent} />
+<JoinButton
+  groupSlug={group.slug}
+  accent={accent}
+  count={safeMemberCount}
+  isAssembly={isAssembly}
+/>
+{/* Enlace PoliGenesis */}
+<EnlacePoliGenesis entidadId={group?.id} slug={group.slug} />
+{/* Cuenta/Perfil (Adenda 125): con qué faceta pública participas
+en este grupo. Presentation-only; el censo/voto siguen por
+CUENTA. Se auto-oculta con ≤1 perfil o sin sesión. */}
+<GroupFacePicker groupSlug={group.slug} />
+{isOwner && (
+  <Button
+    type="button"
+    variant="outline"
+    onClick={() => setEditOpen(true)}
+    className="gap-2 cursor-pointer"
+    style={{ borderColor: `${accent}55`, color: accent }}
+  >
+    <Pencil className="h-4 w-4" />
+    Editar
+  </Button>
+)}
+{isOwner && (
+  <Button
+    type="button"
+    variant="outline"
+    onClick={() => setLayoutEditorOpen(true)}
+    className="gap-2 cursor-pointer"
+    style={{ borderColor: `${accent}55`, color: accent }}
+  >
+    <Settings2 className="h-4 w-4" />
+    Personalizar
+  </Button>
+)}
+<ShareButton title={groupName} accent={accent} />
                         </div>
                     </div>
                 </div>
