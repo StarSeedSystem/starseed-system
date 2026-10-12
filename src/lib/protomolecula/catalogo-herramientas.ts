@@ -1714,8 +1714,34 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
       "GPL: solo como programa aparte, no enlazado en el paquete del OS.",
     ],
   },
-
-  // ── materiales-shaders ──────────────────────────────────────────
+  {
+    id: "pixelartistry",
+    nombre: "PixelArtistry Watertight Meshes",
+    categoria: "modelado-3d",
+    tipo: "app",
+    origen: "github",
+    descripcion: "Flujos de ComfyUI: imagen → malla cerrada (lista para imprimir) o low-poly con texturas horneadas, con Pixal3D/TRELLIS.2 y los nodos WTiVo, Mesh Quad Reconstruct, LODTailor y CuMesh.",
+    licencia: "MIT",
+    codigo: "https://github.com/PixelArtistry/watertight-meshes",
+    web: "https://pixelartistry.example.com",
+    medios: { web: "no", android: false, ios: false, macos: false, windows: true, linux: false, servidor: false },
+    integracion: "app-nativa-puente",
+    formatos: { entrada: ["png", "jpeg"], salida: ["glb", "stl", "3mf"] },
+    control: { via: ["cli", "http"], notas: "Se controla por línea de órdenes o API local en el puerto 127.0.0.1:8000." },
+    actualizacion: { fuente: "github-releases", ref: "PixelArtistry/watertight-meshes", ultimaVersion: null, fechaVersion: null },
+    ia: ["mcp", "cli-agentes"],
+    estado: "integrable",
+    motivo: "Se controla como programa aparte en una neurona de escritorio Windows con NVIDIA; en otros sistemas se usa cierre por vóxeles de Blender en CPU.",
+    verificado: "2026-10-11",
+    sinComprobar: [],
+    avisos: [
+      "Nodos bajo licencias GPL-3.0 y MIT: solo como programa aparte.",
+      "Solo Windows 10/11 con NVIDIA RTX 20+",
+      "Umbrales de VRAM: 6 GB → 1024, 8 GB → 1536, 16 GB → 2048",
+      "Proyecto muy nuevo (5 commits, sin versiones)"
+    ],
+  },
+   // ── materiales-shaders ──────────────────────────────────────────
   {
     id: "materialx", nombre: "MaterialX", categoria: "materiales-shaders", tipo: "libreria", origen: "github",
     descripcion: "Estándar abierto de la Academy Software Foundation para describir materiales y texturas procedurales como grafos de nodos, con generadores de código GLSL, WGSL y MSL.",
