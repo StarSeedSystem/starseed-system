@@ -43,6 +43,18 @@ class Decidir(unittest.TestCase):
             self.assertEqual(accion, "superada")
             self.assertIn(estado, motivo)
 
+    def test_commit_que_main_no_tiene_se_trae_y_no_se_archiva(self):
+        # (2026-10-12) COL1012B: «commit» anotado con main a medio comprobar; su rama del A1 trae la
+        # integración y el trabajo. Antes: «superada» → archivada y borrada del remoto.
+        commits = [c("salvavidas"), c("ola", nuevo=False, vacio=True)]
+        accion, motivo = T.decidir("COL1012B", commits, False, "commit", "cola-colmena-1012.json")
+        self.assertEqual(accion, "traer")
+        self.assertIn("main no la tiene", motivo)
+        # Sin trabajo nuevo, o sin integración de la nube, sigue siendo superada.
+        self.assertEqual(T.decidir("X", [c("salvavidas", nuevo=False), c("ola", nuevo=False, vacio=True)], False,
+                                   "commit", "cola-a.json")[0], "superada")
+        self.assertEqual(T.decidir("X", [c("salvavidas")], False, "sustituida", "cola-a.json")[0], "superada")
+
     def test_propuesta_de_suenos_espera_a_una_persona(self):
         accion, motivo = T.decidir("SP092912", [c("salvavidas")], False, "bloqueada", "cola-suenos-2026-09-29.json")
         self.assertEqual(accion, "superada")

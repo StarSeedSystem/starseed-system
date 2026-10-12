@@ -101,6 +101,13 @@ def decidir(tid, commits, en_main, estado, cola):
     if en_main:
         return "superada", "ya está en main (la integró la Mac u otra rama)"
     if estado in DECIDIDAS:
+        # (2026-10-12) «commit» que main no tiene: un director lo anotó leyendo un main a medio
+        # comprobar. Si la rama trae la integración de la nube y trabajo que main no tiene, NO es
+        # superada (se archivaba y se borraba: 11 tareas el 12-10): se trae, comprobada como siempre.
+        trabajo_nuevo = any(x.get("nuevo") and x.get("tipo") in ("salvavidas", "ola", "otro") for x in commits)
+        if (estado in ("commit", "hecho", "integrada") and trabajo_nuevo
+                and any(x.get("tipo") == "ola" for x in commits)):
+            return "traer", "progreso dice «%s» pero main no la tiene: se trae comprobada" % estado
         return "superada", "en progreso figura «%s»: ya se decidió por otro camino" % estado
     if str(cola or "").startswith(PREFIJO_SUENOS):
         return "superada", "es una propuesta de los sueños: espera a una persona, no al enjambre"
