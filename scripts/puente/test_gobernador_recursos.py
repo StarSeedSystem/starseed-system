@@ -97,6 +97,23 @@ class ColapsoSwapYDisco(unittest.TestCase):
         d = gob.decidir(1800, 4000, 9500, 3, ram_pura_mb=75, swap_total_mb=None)
         self.assertEqual(d["trabajadores"], 3)
 
+    def test_caso_medido_1012_swap_que_crece_y_presion_en_aviso(self):
+        # 16:53 del 12-10: 9103 de 10240 MB de swap (89 %: macOS había añadido otro archivo),
+        # 91 MB de RAM pura, presión 2 y Genesis tardando 5-25 s. Antes: «máximo (máquina libre)».
+        d = gob.decidir(1783, 813, 9103, 3, ram_pura_mb=91, swap_total_mb=10240,
+                        disco_libre_mb=5689, presion=2)
+        self.assertEqual(d["trabajadores"], 2)
+        self.assertIn("presión", d["motivo"])
+
+    def test_presion_en_aviso_con_ram_pura_no_frena(self):
+        d = gob.decidir(1800, 3000, 2000, 3, ram_pura_mb=900, swap_total_mb=4096, presion=2)
+        self.assertEqual(d["trabajadores"], 3)
+
+    def test_presion_critica_frena_siempre_y_normal_nunca(self):
+        self.assertEqual(gob.decidir(1800, 3000, 0, 3, ram_pura_mb=2000, presion=4)["trabajadores"], 2)
+        self.assertEqual(gob.decidir(1800, 3000, 9000, 3, ram_pura_mb=50, swap_total_mb=20000,
+                                     presion=1)["trabajadores"], 3)
+
     def test_prioridad_de_causas_ram_primero(self):
         d = gob.decidir(1800, 90, 9500, 3, ram_pura_mb=75,
                         swap_total_mb=9728, disco_libre_mb=100)

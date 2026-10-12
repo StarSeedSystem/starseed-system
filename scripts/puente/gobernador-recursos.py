@@ -112,6 +112,12 @@ def memoria_mb() -> dict:
         except (IndexError, ValueError):
             pass
         out["disco_libre_mb"] = shutil.disk_usage(os.path.expanduser("~")).free / 1048576
+        # (2026-10-12) La presión de memoria que mide el propio núcleo (1 normal · 2 aviso ·
+        # 4 crítica). El «swap al 90 %» no basta: macOS añade archivos de swap según se llenan
+        # (8 → 9 → 10 GB) y el porcentaje nunca llegaba, con 91 MB de RAM pura y Genesis
+        # tardando 5-25 s en contestar.
+        nivel = _salida(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"]).strip()
+        out["presion"] = int(nivel) if nivel.isdigit() else None
         total = _salida(["sysctl", "-n", "hw.memsize"]).strip()
         if total.isdigit():
             out["ram_total_mb"] = int(total) / 1048576
@@ -159,7 +165,7 @@ def maximo_por_hardware(ram_total_mb, nucleos) -> int:
 # ───────────────────────── decisión (pura) ─────────────────────────
 
 def decidir(idle_s, ram_libre_mb, swap_mb, maximo, *,
-            ram_pura_mb=None, swap_total_mb=None, disco_libre_mb=None,
+            ram_pura_mb=None, swap_total_mb=None, disco_libre_mb=None, presion=None,
             interactivo_s=UMBRAL_INTERACTIVO_S, swap_rojo=SWAP_ROJO_MB,
             swap_ambar=SWAP_AMBAR_MB, ram_roja=RAM_ROJA_MB,
             ram_bitnet=RAM_PARA_BITNET_MB) -> dict:
@@ -182,6 +188,11 @@ def decidir(idle_s, ram_libre_mb, swap_mb, maximo, *,
     if not colapso and swap_total_mb and swap >= 0.9 * swap_total_mb \
             and ram_pura_mb is not None and ram_pura_mb < 400:
         colapso, causa = True, "swap llena (%d de %d MB) y RAM pura %d MB" % (swap, swap_total_mb, ram_pura_mb)
+    # Presión del núcleo (macOS): crítica (4) siempre; aviso (2) solo sin RAM pura.
+    if not colapso and presion is not None and (presion >= 4 or (
+            presion >= 2 and ram_pura_mb is not None and ram_pura_mb < 400)):
+        colapso, causa = True, "presión de memoria %s del sistema y RAM pura %s MB" % (
+            "crítica" if presion >= 4 else "en aviso", "?" if ram_pura_mb is None else int(ram_pura_mb))
     if not colapso and disco_libre_mb is not None and disco_libre_mb < 2048:
         colapso, causa = True, "disco libre %d MB" % disco_libre_mb
     if colapso:
@@ -227,8 +238,8 @@ def main() -> int:
     maximo = min(maximo_configurado(), por_hw)
     d = decidir(idle, mem["ram_libre_mb"], mem["swap_mb"], maximo,
                 ram_pura_mb=mem["ram_pura_mb"], swap_total_mb=mem["swap_total_mb"],
-                disco_libre_mb=mem["disco_libre_mb"])
-    medidas = {"idle_s": None if idle is None else round(idle), "maximo": maximo,
+                disco_libre_mb=mem["disco_libre_mb"], presion=mem.get("presion"))
+    medidas = {"presion": mem.get("presion"), "idle_s": None if idle is None else round(idle), "maximo": maximo,
                "maximo_hardware": por_hw, "nucleos": nucleos,
                "ram_total_mb": None if mem["ram_total_mb"] is None else round(mem["ram_total_mb"]),
                "servidor": platform.node(),

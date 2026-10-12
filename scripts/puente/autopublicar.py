@@ -228,6 +228,50 @@ class Medios(object):
     def publicando_a_mano(self):
         return (_leer(DIARIO_MANUAL, {}) or {}).get("estado") == "corriendo"
 
+    def unir_origen(self, head, espera_s=120):
+        """(ok, detalle). Une origin/main a main con la estrategia «ours» (el árbol NO cambia) bajo el
+        cerrojo `integrar` del orquestador y de commit-seguro.py, y solo si main sigue en `head`.
+        Quien llama ya comprobó con `git cherry` que lo de origin/main está dentro de main."""
+        import importlib.util
+        try:
+            spec = importlib.util.spec_from_file_location("commit_seguro", os.path.join(DIRECTORIO, "commit-seguro.py"))
+            cs = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(cs)
+            if not cs.esperar_momento_seguro(tope_s=espera_s):
+                return False, "una tarea está integrando en main; lo intento en la próxima pasada"
+            cerrojo = cs.CERROJO
+        except Exception as e:  # sin commit-seguro: el mismo cerrojo por su ruta
+            cerrojo = os.path.expanduser("~/.starseed/cerrojos/integrar.lock")
+            if not os.path.isdir(os.path.dirname(cerrojo)):
+                return False, "sin cerrojo de integración (%s)" % e
+        f = open(cerrojo, "a+")
+        t0 = time.time()
+        while True:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() - t0 > espera_s:
+                    f.close()
+                    return False, "el cerrojo de integración sigue tomado"
+                time.sleep(5)
+        try:
+            if self.git(["rev-parse", "HEAD"])[1] != head:
+                return False, "main se movió mientras esperaba"
+            antes = self.git(["rev-parse", "HEAD^{tree}"])[1]
+            rc, _, err = self.git(["-c", "core.hooksPath=/dev/null", "merge", "-q", "-s", "ours", "--no-ff",
+                                   "origin/main", "-m", "Unir origin/main a main sin cambiar el árbol "
+                                   "(autopublicación: lo suyo ya estaba dentro)"], timeout=120)
+            if rc != 0:
+                return False, "git merge: %s" % err[-200:]
+            if self.git(["rev-parse", "HEAD^{tree}"])[1] != antes:
+                self.git(["reset", "-q", "--keep", head])  # imposible con «ours»; --keep no pisa cambios sin commit
+                return False, "el árbol cambió y lo deshice"
+            return True, self.git(["rev-parse", "--short", "HEAD"])[1]
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+            f.close()
+
     def pruebas_python(self, sha):
         """(True|False|None, detalle). None = no se pudo probar ahora (reintentar en la próxima pasada).
 
@@ -370,6 +414,12 @@ def _nuevo_lote(m, est, ahora):
     pendientes = int(n) if rc == 0 and n.isdigit() else 0
     if pendientes == 0:
         return con_fase(est, "al-dia", "Producción al día con main.", ahora, pendientes=0)
+    # (2026-10-12) origin/main tiene que ser antecesor de main ANTES de gastar Jev, pruebas y CI:
+    # si no, el CI pasaba, el push (solo avance rápido) se negaba con «rehago el lote» y la pasada
+    # siguiente repetía todo. Así estuvo producción 47 h (10→12-10) tras perder main dos commits
+    # ya publicados de S1010-EV-FONDO cuyo contenido había vuelto por otra vía.
+    if m.git(["merge-base", "--is-ancestor", "origin/main", head])[0] != 0:
+        return _divergido(m, est, head, pendientes, ahora)
     vetos = m.vetos_externos() if hasattr(m, "vetos_externos") else set()
     if head in vetos or head[:8] in vetos or head[:7] in vetos:
         return con_fase(est, "bloqueado", "Vetado desde Genesis: espero un commit nuevo.", ahora, sha=head, pendientes=pendientes)
@@ -450,6 +500,35 @@ def _nuevo_lote(m, est, ahora):
              "(tsc, vitest, next build) en marcha.%s" % (pendientes, head[:8], nota_jev))
     return con_fase(est, "ci", "CI en GitHub Actions: tsc, vitest, núcleo mesh y next build.", ahora,
                     sha=head, desde=ahora, pendientes=pendientes, asuntos=asuntos[:12], url=None)
+
+
+def solo_ya_incluidos(cherry):
+    """PURA. Con la salida de `git cherry <main> origin/main`: ¿todo lo que origin/main tiene y main
+    no tiene ya está en main con otro sha («-» en cada línea)? Vacío = no hay nada que decidir."""
+    lineas = [l for l in (cherry or "").splitlines() if l.strip()]
+    return bool(lineas) and all(l.lstrip().startswith("-") for l in lineas)
+
+
+def _divergido(m, est, head, pendientes, ahora):
+    """origin/main no es antecesor de main. Si su contenido ya está en main, se une sin cambiar el
+    árbol (`Medios.unir_origen`) y el lote sale en la próxima pasada; si origin trae algo que main no
+    tiene, se frena y lo decide un director. Nunca se publica con force."""
+    cherry = m.git(["cherry", head, "origin/main"])[1]
+    if solo_ya_incluidos(cherry) and hasattr(m, "unir_origen"):
+        ok, detalle = m.unir_origen(head)
+        if ok:
+            m.avisar("Autopublicación: origin/main no era antecesor de main, pero lo suyo ya estaba dentro; "
+                     "lo uní sin cambiar el árbol (%s). El lote sale en la próxima pasada." % detalle)
+            return con_fase(est, "al-dia", "Uní origin/main a main sin cambiar el árbol; el lote sale en la "
+                            "próxima pasada.", ahora, sha=None, pendientes=pendientes)
+        motivo = "origin/main no es antecesor de main y no pude unirlo (%s)" % detalle
+    else:
+        nuevos = sum(1 for l in (cherry or "").splitlines() if l.lstrip().startswith("+"))
+        motivo = ("origin/main tiene %d commit(s) que main no tiene: lo decide un director "
+                  "(no se publica con force)" % nuevos)
+    if not (est.get("fase") == "bloqueado" and est.get("detalle") == motivo):
+        m.avisar("Autopublicación frenada (%s): %s." % (head[:8], motivo), tipo="aviso")
+    return con_fase(est, "bloqueado", motivo, ahora, sha=head, pendientes=pendientes)
 
 
 def _seguir_ci(m, est, ahora):

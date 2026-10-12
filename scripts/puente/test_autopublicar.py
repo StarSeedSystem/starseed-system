@@ -41,6 +41,8 @@ class Falso(object):
             return 0, "Ola X · tarea\nOla Y · otra", ""
         if c == "merge-base":
             return (0 if self.o["ancestro"] else 1), "", ""
+        if c == "cherry":
+            return 0, self.o.get("cherry", ""), ""
         if c == "push":
             self.pushes.append(args)
             return self.o["push_rc"], "", "rechazado" if self.o["push_rc"] else ""
@@ -227,6 +229,58 @@ class CicloCompleto(unittest.TestCase):
         m = Falso(deploys=[{"id": 7}], estados=[{"state": "success"}], http=500)
         e = A.pasada(m, base, T0 + 60)
         self.assertEqual((e["fase"], e["historial"][-1]["resultado"]), ("bloqueado", "humo-fallido"))
+
+
+class ConUnion(Falso):
+    """Falso con `unir_origen` (el de verdad hace un merge «ours» bajo el cerrojo integrar)."""
+    def __init__(self, union=(True, "abc1234"), **o):
+        Falso.__init__(self, **o)
+        self.union, self.uniones = union, []
+
+    def unir_origen(self, head):
+        self.uniones.append(head)
+        return self.union
+
+
+class OrigenNoAntecesor(unittest.TestCase):
+    """(2026-10-12) 47 h sin publicar: main perdió dos commits ya publicados cuyo contenido volvió por
+    otra vía; el CI pasaba y el push se negaba (no era avance rápido), lote tras lote."""
+
+    def test_si_lo_de_origin_ya_esta_dentro_se_une_sin_gastar_ci(self):
+        m = ConUnion(ancestro=False, cherry="- 0ee8171a salvavidas\n- ee6826bd Ola 1010S")
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(e["fase"], "al-dia")
+        self.assertEqual(m.uniones, [SHA])
+        self.assertEqual(m.pushes, [])                     # ni candidato ni main
+        self.assertFalse(hasattr(m, "resumen_jev"))         # ni Jev
+        self.assertIn("sin cambiar el árbol", m.avisos[-1])
+
+    def test_si_origin_trae_algo_nuevo_se_frena_sin_unir_ni_forzar(self):
+        m = ConUnion(ancestro=False, cherry="- 0ee8171a ya está\n+ 1234abcd nuevo")
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(e["fase"], "bloqueado")
+        self.assertIn("1 commit(s) que main no tiene", e["detalle"])
+        self.assertEqual((m.uniones, m.pushes), ([], []))
+        avisos = len(m.avisos)
+        e = A.pasada(m, e, T0 + 300)                         # la pasada siguiente no repite el aviso
+        self.assertEqual((e["fase"], len(m.avisos), m.pushes), ("bloqueado", avisos, []))
+
+    def test_si_no_se_puede_unir_se_dice_y_se_reintenta(self):
+        m = ConUnion(ancestro=False, cherry="- 0ee8171a ya está", union=(False, "main se movió mientras esperaba"))
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(e["fase"], "bloqueado")
+        self.assertIn("main se movió", e["detalle"])
+        self.assertEqual(m.pushes, [])
+
+    def test_sin_unir_origen_en_los_medios_solo_se_frena(self):
+        m = Falso(ancestro=False, cherry="- 0ee8171a ya está")
+        self.assertEqual(A.pasada(m, {}, T0)["fase"], "bloqueado")
+        self.assertEqual(m.pushes, [])
+
+    def test_solo_ya_incluidos(self):
+        self.assertTrue(A.solo_ya_incluidos("- a x\n- b y\n"))
+        self.assertFalse(A.solo_ya_incluidos("- a x\n+ b y"))
+        self.assertFalse(A.solo_ya_incluidos(""))
 
 
 class Puro(unittest.TestCase):
