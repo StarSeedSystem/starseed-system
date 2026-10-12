@@ -49,16 +49,6 @@ function emitAdnChange(): void {
   } catch {}
 }
 
-export async function parseAdnEntry(entry: AdnEntry): Promise<AdnAvatar | null> {
-  try {
-    const parsed = JSON.parse(entry.raw) as AdnAvatar;
-    const validated = sanearAdn(parsed);
-    return validated;
-  } catch {
-    return null;
-  }
-}
-
 /** Leer el storage (localStorage) crudo: JSON serializado { [ref]: AdnEntry } */
 function readStorage(): Record<string, AdnEntry> {
   if (!isClient()) return {};
@@ -125,17 +115,6 @@ export async function loadAdnEntry(ref: string, rev?: number): Promise<AdnEntry 
   return entry;
 }
 
-/** Parsear el raw JSON a AdnAvatar (validado con sanearAdn). */
-export async function parseAdnEntry(entry: AdnEntry): Promise<AdnAvatar | null> {
-  try {
-    const parsed = JSON.parse(entry.raw) as AdnAvatar;
-    const validated = sanearAdn(parsed);
-    return validated;
-  } catch {
-    return null;
-  }
-}
-
 /** Hook reactivo: carga y suscribe un ADN por ref. */
 export function useAdnEntry(ref: string, rev?: number): UseAdnEntry {
   const [state, setState] = useState<{ entry: AdnEntry | null; loading: boolean }>({ entry: null, loading: !!ref });
@@ -197,6 +176,12 @@ export function useAdnEntry(ref: string, rev?: number): UseAdnEntry {
   return { ...state, loadAdn, saveAdn, invalidateCache };
 }
 
+/** Obtener todas las entradas de ADN guardadas en la Biblioteca (ordenadas por fecha de guardado). */
+export function getSavedAdnEntries(): AdnEntry[] {
+  const storage = readStorage();
+  return Object.values(storage).sort((a, b) => b.savedAt - a.savedAt);
+}
+
 /** Eliminar un ADN de la Biblioteca (y de cache). */
 export async function removeAdnFromLibrary(ref: string): Promise<void> {
   const storage = readStorage();
@@ -204,4 +189,15 @@ export async function removeAdnFromLibrary(ref: string): Promise<void> {
   delete storage[ref];
   writeStorage(storage);
   cache.delete(ref);
+}
+
+/** Parsear el raw JSON a AdnAvatar (validado con sanearAdn). */
+export async function parseAdnEntry(entry: AdnEntry): Promise<AdnAvatar | null> {
+  try {
+    const parsed = JSON.parse(entry.raw) as AdnAvatar;
+    const validated = sanearAdn(parsed);
+    return validated;
+  } catch {
+    return null;
+  }
 }
