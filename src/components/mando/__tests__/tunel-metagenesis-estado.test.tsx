@@ -97,6 +97,35 @@ describe("TunelMetaGenesisEstado", () => {
     expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
   });
 
+  it("muestra el encabezado «Últimas líneas» solo cuando hay líneas y conserva la ruta tras [túnel]", async () => {
+    render(<TunelMetaGenesisEstado />);
+
+    // Con el túnel activo y líneas, el encabezado aparece y la ruta se conserva
+    await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
+    expect(screen.getByText(/Últimas líneas:/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Línea 3 \[túnel\]\/path/i)).toBeInTheDocument();
+
+    cleanup();
+
+    // Ahora con el servicio parado y sin líneas: el encabezado no debe mostrarse
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      llamadas.push({ url: String(input), init });
+      return {
+        ok: true,
+        json: async () => ({
+          cargado: false,
+          pid: null,
+          ultimasLineas: [],
+          medidoEn: new Date().toISOString()
+        })
+      } as Response;
+    };
+
+    render(<TunelMetaGenesisEstado />);
+    await screen.findByText(/Túnel de MetaGenesis: parado/i);
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
+  });
+
   it("realiza fetch cada 60 segundos cuando el componente está visible", async () => {
     vi.useFakeTimers();
     
