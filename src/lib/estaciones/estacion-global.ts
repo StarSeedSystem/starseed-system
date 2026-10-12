@@ -127,15 +127,23 @@ class EstacionGlobal {
     for (const c of this.extras) sesion.agregarCanal(c);
 
     const internet = await crearCanalInternet(ficha.id, ficha.privada ? token : null).catch(() => null);
-    if (this.sesion !== sesion) {
-      internet?.cerrar();
-      return { ok: false, motivo: "Se cambió de estación mientras conectaba." };
-    }
-    if (internet) sesion.agregarCanal(internet);
-    const bajaLocal = await engancharEnlacesLocales(
-      (c) => sesion.agregarCanal(c),
-      (c) => sesion.quitarCanal(c),
-    );
+     if (this.sesion !== sesion) {
+       internet?.cerrar();
+       return { ok: false, motivo: "Se cambió de estación mientras conectaba." };
+     }
+     if (internet) sesion.agregarCanal(internet);
+     if (process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL) {
+       const { crearCanalRele } = await import('./canal-rele');
+       const url = process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL;
+       const tema = ficha.privada ? await temaPrivado(ficha.id, token!) : temaPublico(ficha.id);
+       const rele = crearCanalRele(url, tema);
+       sesion.agregarCanal(rele);
+       this.bajas.push(() => rele.cerrar());
+     }
+     const bajaLocal = await engancharEnlacesLocales(
+       (c) => sesion.agregarCanal(c),
+       (c) => sesion.quitarCanal(c),
+     );
     this.bajas.push(bajaLocal);
     sesion.arrancar();
     this.motor.seguir(() => (this.sesion ? { estado: this.sesion.foto().estado, ahora: this.sesion.ahora() } : null));
