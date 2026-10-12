@@ -244,9 +244,30 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
     emotions: false, // el color emocional lo aporta la semilla/entonación, no un parámetro
     cloning: true, // clona timbre desde una referencia (semilla sintética o audio propio)
     latency: "~3-8 s (nube, cola)",
-    license: "MIT (código) · CC-BY-NC (checkpoints)",
+    license: "MIT",
     repo: "https://github.com/myshell-ai/OpenVoice",
     requirements: ["Ninguno: funciona en la web. Usa una semilla de identidad sintética o tu propio audio."],
+  },
+  chatterboxgrok: {
+    id: "chatterboxgrok",
+    label: "Chatterbox",
+    hint: "Voz expresiva y natural con control emocional por exageración. Clonación de voz y soporte multilingüe.",
+    kind: "endpoint",
+    realism: 4,
+    requiresEndpoint: true,
+    requiresDownload: false,
+    free: true,
+    langs: "es · en · fr · zh · ja · ko",
+    spanish: true,
+    emotions: true,
+    cloning: true,
+    latency: "~2-5 s (según servicio)",
+    license: "MIT",
+    repo: "https://github.com/Risuyi/ChatterboxTTS",
+    requirements: [
+      "Servicio local de Chatterbox (127.0.0.1:8000) o un Space público de Hugging Face.",
+      "Para el servicio local, tener Chatterbox instalado y ejecutándose.",
+    ],
   },
   // ── VibeVoice (Microsoft, fork comunitario) — TTS expresivo MULTI-LOCUTOR ──
   // Hasta 4 speakers en un mismo guion: es el motor que da "varias personalidades
@@ -398,22 +419,23 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
  * elegido motor (o ha dejado `auto` encendido).
  */
 export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
-  // voice158 VA PRIMERO en AUTO cuando su endpoint (backend Astraura local) está
-  // vivo: es el motor 1.58-bit en CPU pura, SIN GPU, multi-personalidad vía el
-  // micelio simbiótico. Funciona en cualquier neurona (M1 8GB). Si no hay
-  // backend local, la cadena sigue con VibeVoice y los demás sin que Aurora quede muda.
-  "voice158",
-  // VibeVoice va después: único motor multi-locutor GPU-native (hasta 4 speakers).
-  "vibevoice",
-  "voxcpm",
-  "voicebox",
-  "gpt-sovits",
-  "bark",
-  "omnivoice",
-  // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
-  // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → openvoice2 → kokoro].
-  "openvoice2",
-];
+   // voice158 VA PRIMERO en AUTO cuando su endpoint (backend Astraura local) está
+   // vivo: es el motor 1.58-bit en CPU pura, SIN GPU, multi-personalidad vía el
+   // micelio simbiótico. Funciona en cualquier neurona (M1 8GB). Si no hay
+   // backend local, la cadena sigue con VibeVoice y los demás sin que Aurora quede muda.
+   "voice158",
+   // VibeVoice va después: único motor multi-locutor GPU-native (hasta 4 speakers).
+   "vibevoice",
+   "voxcpm",
+   "voicebox",
+   "gpt-sovits",
+   "bark",
+   "omnivoice",
+   // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
+   // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → openvoice2 → chatterbox → kokoro].
+   "openvoice2",
+   "chatterboxgrok",
+ ];
 
 /**
  * El motor PREDETERMINADO REAL del sistema (Adenda 90): OpenVoice/OmniVoice,
@@ -533,6 +555,11 @@ function endpointEngineConfigured(id: NeuralVoiceEngine, cfg: AuroraVoiceConfig)
   // OpenVoice V2 (web): Space integrado, CERO config → SIEMPRE en la cadena AUTO,
   // justo detrás de OmniVoice. Ver openvoice2.ts.
   if (id === "openvoice2") return true;
+  // Chatterbox: servicio local de VZR1011A o Spaces públicos de Hugging Face.
+  // Siempre se intenta usar el servicio local primero, y si falla, se descubren
+  // Spaces públicos. Por lo tanto, se considera configurado para entrar en la
+  // cadena AUTO.
+  if (id === "chatterboxgrok") return true;
   // xAI (grok-voice): sin endpoint del usuario — el acceso lo resuelve el
   // servidor (token efímero o proxy). Cuenta como "configurado" para que un
   // PIN de personalidad o la ELECCIÓN explícita lo metan en la cadena
