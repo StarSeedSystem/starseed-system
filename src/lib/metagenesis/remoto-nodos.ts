@@ -248,7 +248,7 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
     const salud = (d.salud ?? {}) as Record<string, unknown>;
     const medio = txt(d.medio, 40) || "neurona";
     const hace = ts ? Math.max(0, ahora - ts) : null;
-    const orqs = Array.isArray(salud.orquetadores) ? (salud.orquetadores as Array<Record<string, unknown>>) : [];
+    const orqs = Array.isArray(salud.orquestadores) ? (salud.orquestadores as Array<Record<string, unknown>>) : [];
     const trabajo = (salud.trabajo ?? {}) as Record<string, unknown>;
     return {
         nodo: txt(d.nodo, 40),
@@ -264,7 +264,7 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
         disco_gb: num(salud.disco_gb),
         ram_libre_mb: num(salud.ram_libre_mb),
         trabajo: Object.fromEntries(Object.entries(trabajo).map(([k, v]) => [k, num(v)])),
-        enCurso: (d.en_curso ?? null) as {id: string; fase: string; punto: {rama: string; sha: string; t: number} | null}[] | null,
+        enCurso: (d.en_curso ?? null) === null ? null : (d.en_curso as {id: string; fase: string; punto: {rama: string; sha: string; t: number} | null}[]).slice(0, 8),
         contenedor: (d.contenedor ?? null) as {activo: boolean; agentes: number; apto: boolean; motivo: string} | null,
     };
 }

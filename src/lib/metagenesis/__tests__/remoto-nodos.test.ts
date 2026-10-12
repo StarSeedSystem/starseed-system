@@ -168,4 +168,6 @@ describe("resumen de las tablas (modo tablas)", () => {
         const e = resumirTablas({ arriendo: { lider: "mac-aaaaaa", termino: 2, expira: new Date(AHORA - 1000).toISOString(), foto: null, foto_en: null }, nodos: [], ordenes: [] }, AHORA);
         expect(e.lider).toBeNull();
     });
+});
+});
     
