@@ -717,16 +717,32 @@ const LABS_PACKAGES: LibraryPackage[] = [
     author: "Noumena Labs", sourceRepoId: "starseed-labs", free: true,
     payload: { externalUrl: "https://github.com/noumena-labs/Sipp", catalogSourceId: "sipp-local" },
   },
-  /* ── AgentOS · patrones de agentes — function (referencia/beta) ── */
-  {
-    id: "fn-agentos", kind: "function", name: "AgentOS · patrones de agentes",
-    description:
-      "Patrones de orquestación de agentes (referencia). No es una skill ejecutable hoy: instalar GUARDA el enlace en tu biblioteca y abre su GitHub para estudiar/adaptar sus patrones al Exocórtex.",
-    icon: "Workflow", tags: ["referencia", "agentes", "orquestacion", "beta"], version: "0.1.0",
-    author: "Rivet", sourceRepoId: "starseed-labs", free: true,
-    payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "patrones de orquestación" },
-  },
-];
+   /* ── AgentOS · patrones de agentes — function (referencia/beta) ── */
+   {
+     id: "fn-agentos", kind: "function", name: "AgentOS · patrones de agentes",
+     description:
+       "Patrones de orquestación de agentes (referencia). No es una skill ejecutable hoy: instalar GUARDA el enlace en tu biblioteca y abre su GitHub para estudiar/adaptar sus patrones al Exocórtex.",
+     icon: "Workflow", tags: ["referencia", "agentes", "orquestacion", "beta"], version: "0.1.0",
+     author: "Rivet", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "patrones de orquestación" },
+   },
+   /* ── OpenBot (CopilotKit) — referencia de patrones AG-UI ── */
+   {
+     id: "repo-openbot", kind: "repo", name: "OpenBot (CopilotKit)",
+     description: "referencia de patrones y protocolo AG-UI; no se instala: exige CopilotKit Intelligence con licencia y lleva telemetría por defecto; su computadora por bot puede vivir en el A1 con el visto bueno de Alex",
+     icon: "Bot", tags: ["repo", "copilotkit"], version: "0.1.0",
+     author: "CopilotKit", sourceRepoId: "starseed-labs", free: true, comingSoon: true,
+     payload: { externalUrl: "https://github.com/CopilotKit/openbot", githubRepo: "CopilotKit/openbot" },
+   },
+   /* ── OpenDots (CopilotKit) — referencia de patrones AG-UI ── */
+   {
+     id: "repo-opendots", kind: "repo", name: "OpenDots (CopilotKit)",
+     description: "referencia de patrones y protocolo AG-UI; no se instala: exige CopilotKit Intelligence con licencia y lleva telemetría por defecto; su computadora por bot puede vivir en el A1 con el visto bueno de Alex",
+     icon: "Bot", tags: ["repo", "copilotkit"], version: "0.1.0",
+     author: "CopilotKit", sourceRepoId: "starseed-labs", free: true, comingSoon: true,
+     payload: { externalUrl: "https://github.com/CopilotKit/OpenDots", githubRepo: "CopilotKit/OpenDots" },
+   },
+ ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
 export const STARSEED_LABS_REPO: LibraryRepo = {

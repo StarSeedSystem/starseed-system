@@ -63,16 +63,19 @@ export function MiGenesis() {
                     siempre siguen a tu alcance.
                 </p>
             </div>
-            <PanelOperaciones
-                ambito={AMBITO}
-                modo="aplicar"
-                motivoModo="Se aplican en tu cuenta cuando confirmas."
-                puertos={puertos}
-                cargarContexto={cargarContexto}
-                sugerencias={SUGERENCIAS}
-                atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
-            />
-            <SeccionBotsGenesis />
+        <PanelOperaciones
+            ambito={AMBITO}
+            modo="aplicar"
+            motivoModo="Se aplican en tu cuenta cuando confirmas."
+            puertos={puertos}
+            cargarContexto={cargarContexto}
+            sugerencias={SUGERENCIAS}
+            atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
+        />
+        <section id="bots" aria-label="Mis bots">
+          <h2 className="text-base font-semibold text-white/90 mb-2">Mis bots</h2>
+          <SeccionBotsGenesis />
+        </section>
         </section>
     );
 }
