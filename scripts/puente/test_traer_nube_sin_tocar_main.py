@@ -87,6 +87,41 @@ class TraerSinTocarMain(unittest.TestCase):
         self.assertEqual(_git(self.raiz, "log", "-1", "--format=%s", "main"), "Ola 1 · X1: algo")
         self.assertEqual(_git(self.raiz, "rev-parse", "main~1"), self.base)
 
+    def test_si_main_avanza_con_otra_cosa_se_reaplica_encima(self):
+        def puertas(cambiados, cwd=None):
+            # Mientras se comprueba, el orquestador integra otra tarea en main (otro archivo).
+            open(os.path.join(self.raiz, "c.txt"), "w").write("tres\n")
+            _git(self.raiz, "add", "c.txt")
+            _git(self.raiz, "commit", "-q", "-m", "Ola 2 · Y1: otra")
+            return True, "verde"
+
+        T._puertas = puertas
+        ok, detalle, medio = T._traer(self.fila)
+        self.assertTrue(ok, detalle)
+        asuntos = _git(self.raiz, "log", "--format=%s", "main").splitlines()
+        self.assertEqual(asuntos[:2], ["Ola 1 · X1: algo", "Ola 2 · Y1: otra"])
+
+    def test_si_main_avanza_tocando_lo_mismo_se_reintenta(self):
+        def puertas(cambiados, cwd=None):
+            open(os.path.join(self.raiz, "b.txt"), "w").write("otro\n")
+            _git(self.raiz, "add", "b.txt")
+            _git(self.raiz, "commit", "-q", "-m", "Ola 2 · Y1: lo mismo")
+            return True, "verde"
+
+        T._puertas = puertas
+        antes = None
+        ok, detalle, medio = T._traer(self.fila)
+        self.assertFalse(ok)
+        self.assertTrue(medio)
+        self.assertEqual(_git(self.raiz, "log", "-1", "--format=%s", "main"), "Ola 2 · Y1: lo mismo")
+        self.assertIsNone(antes)
+
+    def test_reaplicable(self):
+        self.assertTrue(T.reaplicable(["src/a.ts"], ["scripts/puente/x.py"]))
+        self.assertFalse(T.reaplicable(["src/a.ts"], ["src/b.ts"]))
+        self.assertFalse(T.reaplicable(["scripts/x.py"], ["scripts/x.py"]))
+        self.assertTrue(T.reaplicable(["scripts/x.py"], ["scripts/y.py"]))
+
     def test_main_ocupado_es_del_medio_y_no_lo_toca(self):
         import fcntl
 

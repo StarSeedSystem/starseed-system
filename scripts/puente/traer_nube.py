@@ -393,6 +393,14 @@ def archivos_ts(cambiados):
             or os.path.basename(c) in ("tsconfig.json", "package.json", "package-lock.json")]
 
 
+def reaplicable(propios, de_main):
+    """PURA: ¿lo comprobado sobre el main de antes sigue valiendo sobre el de ahora? Sí si main no
+    tocó ninguno de nuestros archivos y no hay TS en los dos lados (los tipos cruzan archivos)."""
+    if set(propios) & set(de_main):
+        return False
+    return not (archivos_ts(propios) and archivos_ts(de_main))
+
+
 def pruebas_python(cambiados, existe=os.path.exists):
     """PURA (con `existe` inyectable): pruebas del puente que tocan lo que llega: las propias
     `test_*.py` cambiadas y la hermana `test_<módulo>.py` de cada módulo cambiado."""
@@ -495,12 +503,27 @@ def _traer(fila, espera_integrar_s=60):
         ok, detalle = _puertas([c for c in cambiados.splitlines() if c.strip()], wt)
         if not ok:
             return False, "en la Mac no pasa: " + detalle, es_fallo_del_medio(detalle)
+        propios = [c for c in cambiados.splitlines() if c.strip()]
         _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
         try:
             with _Cerrojo("integrar", espera_integrar_s):
                 _, actual = _git(["rev-parse", "main"])
-                if actual.strip() != orig:
-                    return False, "main avanzó mientras se comprobaba: se reintenta en la próxima pasada", True
+                actual = actual.strip()
+                if actual != orig:
+                    # main avanzó mientras se comprobaba (el orquestador integró otra tarea). Si lo nuevo de
+                    # main no toca nuestros archivos y no mezcla TS con TS, lo comprobado sigue valiendo:
+                    # se reaplica encima en segundos. Si no, se reintenta en la próxima pasada.
+                    _, de_main = _git(["diff", "--name-only", orig, actual])
+                    de_main = [c for c in de_main.splitlines() if c.strip()]
+                    if not reaplicable(propios, de_main):
+                        return False, "main avanzó mientras se comprobaba y toca lo mismo: se reintenta", True
+                    _git_en(wt, ["reset", "-q", "--hard", actual])
+                    rc, salida = _git_en(wt, ["-c", "core.hooksPath=/dev/null", "cherry-pick", "--allow-empty",
+                                              "--keep-redundant-commits", *shas], timeout=300)
+                    if rc != 0:
+                        _git_en(wt, ["cherry-pick", "--abort"])
+                        return False, "main avanzó mientras se comprobaba y no se reaplica limpio: se reintenta", True
+                    _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
                 rc, salida = _git(["merge", "--ff-only", "-q", nuevo.strip()], timeout=120)
         except TimeoutError:
             return False, "main ocupado (publicación o integración): se reintenta en la próxima pasada", True
