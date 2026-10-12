@@ -11,6 +11,7 @@ import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
     RadioTower, Antenna, Binary, AudioLines, Gauge, Smile, FlaskConical,
+    Bot, // ← added
     // Ola 6 · Adenda 158.
     Sparkles, Users,
     // Ola 285 · K6: Canales StarSeed.
@@ -433,7 +434,16 @@ export const APP_CATALOG: StarseedApp[] = [
         status: "native",
         open: { primary: "route", allowed: ["route", "tab"], route: "/agent?tab=enjambre" },
     },
-
+    {
+        id: "bots-de-astraura",
+        name: "Bots de Astraura",
+        short: "Bots",
+        description: "Panel de gestión de tus bots de Astraura.",
+        icon: Bot,
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/genesis#bots" },
+    },
     // ── Apps utilitarias / media ─────────────────────────────────
     {
         id: "clima",
@@ -521,7 +531,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio"],
+    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-de-astraura"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };

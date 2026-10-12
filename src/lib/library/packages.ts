@@ -570,6 +570,22 @@ const CORE_REPO_PACKAGES: LibraryPackage[] = [
     author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, comingSoon: true,
     payload: { url: "" },
   },
+  {
+    id: "repo-openbot", kind: "repo", name: "OpenBot (CopilotKit)",
+    description: "referencia de patrones y protocolo AG-UI; no se instala: exige CopilotKit Intelligence con licencia y lleva telemetría por defecto; su computadora por bot puede vivir en el A1 con el visto bueno de Alex",
+    icon: "Bot",
+    tags: ["repo", "copilotkit", "openbot"], version: "0.1.0",
+    author: "CopilotKit", sourceRepoId: "starseed-core", free: true, comingSoon: true,
+    payload: { externalUrl: "https://github.com/CopilotKit/openbot", githubRepo: "CopilotKit/openbot" },
+  },
+  {
+    id: "repo-opendots", kind: "repo", name: "OpenDots (CopilotKit)",
+    description: "referencia de patrones y protocolo AG-UI; no se instala: exige CopilotKit Intelligence con licencia y lleva telemetría por defecto; su computadora por bot puede vivir en el A1 con el visto bueno de Alex",
+    icon: "Bot",
+    tags: ["repo", "copilotkit", "opendots"], version: "0.1.0",
+    author: "CopilotKit", sourceRepoId: "starseed-core", free: true, comingSoon: true,
+    payload: { externalUrl: "https://github.com/CopilotKit/OpenDots", githubRepo: "CopilotKit/OpenDots" },
+  },
 ];
 
 /** El repo builtin de arranque (~30 paquetes con efecto real u honestidad). */
