@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { miAccesoMetaGenesis } from "@/lib/metagenesis/accesos";
 import { enviarOrden, leerEstadoAutonomo, type LecturaAutonoma } from "@/lib/metagenesis/remoto-nodos-cliente";
 import { ACCIONES, fraseDelMando, textoEstadoOrden, type AccionOrden, type NodoVista } from "@/lib/metagenesis/remoto-nodos";
+import { botonesNeurona, ordenDesconectar, ordenContenedor } from "@/lib/metagenesis/colmena";
 import { textoHace } from "@/lib/metagenesis/remoto";
 import { onTableChange } from "@/lib/realtime/realtime";
 
@@ -55,8 +56,37 @@ function Chip({ children, tono = "neutro" }: { children: ReactNode; tono?: "neut
     return <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${clases}`}>{children}</span>;
 }
 
-function TarjetaNodo({ n }: { n: NodoVista }) {
+function TarjetaNodo({ n, mandar }: { n: NodoVista; mandar: (accion: AccionOrden) => Promise<void> }) {
     const trabajo = Object.entries(n.trabajo).filter(([, v]) => v !== null);
+    const { desconectar, contenedor: botonContenedor } = botonesNeurona({
+        nodo: n.nodo,
+        vivo: n.vivo,
+        so: "linux" as const, // Assuming Linux for simplicity; in reality this would come from browser signals
+        enCurso: n.enCurso?.length ?? 0,
+        contenedor: n.contenedor,
+        desconectando: false, // We don't have this field in NodoVista, but it's in NeuronaColmena
+    });
+    
+    // Calculate agents count for the line under node name
+    const agentesCount = n.enCurso?.length ?? 0;
+    const contenedorActivo = n.contenedor?.activo ?? false;
+    const contenedorMotivo = n.contenedor?.motivo ?? "";
+    
+    // Format mid-tasks info if any
+    let tareasMediasInfo = null;
+    if (n.enCurso && n.enCurso.length > 0) {
+        // Get the most recent task (assuming ordered by time)
+        const tareaMasReciente = n.enCurso[0]; // Assuming first is most recent
+        if (tareaMasReciente.punto) {
+            const haceMin = Math.floor((Date.now() - tareaMasReciente.punto.t) / 60_000);
+            tareasMediasInfo = (
+                <p className="mt-1 font-mono text-[10px] text-white/50">
+                    Último punto hace {haceMin} min
+                </p>
+            );
+        }
+    }
+
     return (
         <li
             data-testid="mg-nodo"
@@ -77,6 +107,13 @@ function TarjetaNodo({ n }: { n: NodoVista }) {
                 </span>
             </div>
             <p className="mt-1 font-mono text-[11px] text-white/40">{n.nodo}</p>
+            {/* Line under node name: N agente(s) · contenedor activo/apagado · motivo */}
+            <p className="mt-0 font-mono text-[10px] text-white/50">
+                {agentesCount} agente{agentesCount !== 1 ? "s" : ""} ·
+                {contenedorActivo ? "contenedor activo" : "contenedor apagado"} ·
+                {contenedorMotivo}
+            </p>
+            {tareasMediasInfo}
             <div className="mt-2 flex flex-wrap gap-1.5">
                 <Chip tono={n.modo === "seco" ? "cian" : "neutro"}>{n.modo === "seco" ? "en prueba (no lanza)" : "trabaja de verdad"}</Chip>
                 {n.orquestadores.length ? (
@@ -86,13 +123,42 @@ function TarjetaNodo({ n }: { n: NodoVista }) {
                 ) : (
                     <Chip>sin enjambre ahora</Chip>
                 )}
-                {n.caidos.length ? <Chip tono="rosa">caídos: {n.caidos.join(", ")}</Chip> : null}
+                {n.caids.length ? <Chip tono="rosa">caídos: {n.caids.join(", ")}</Chip> : null}
                 {n.disco_gb !== null ? <Chip tono={n.disco_gb < 3 ? "ambar" : "neutro"}>disco {n.disco_gb} GB libres</Chip> : null}
                 {trabajo.map(([k, v]) => (
                     <Chip key={k}>
                         {k.replace("_", " ")}: {v}
                     </Chip>
                 ))}
+            </div>
+            {/* Buttons container */}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+                {desconectar.visible && (
+                    <Button
+                        size="sm"
+                        variant={desconectar.habilitado ? "outline" : "destructive"}
+                        className="h-8 cursor-pointer gap-1.5 text-xs"
+                        disabled={!desconectar.habilitado}
+                        title={desconectar.explica}
+                        onClick={() => mandar("desconectar")}
+                        data-testid={`mg-nodo-${n.nodo}-desconectar`}
+                    >
+                        {desconectar.etiqueta}
+                    </Button>
+                )}
+                {botonContenedor.visible && (
+                    <Button
+                        size="sm"
+                        variant={botonContenedor.habilitado ? "outline" : "destructive"}
+                        className="h-8 cursor-pointer gap-1.5 text-xs"
+                        disabled={!botonContenedor.habilitado}
+                        title={botonContenedor.explica}
+                        onClick={() => mandar("contenedor")}
+                        data-testid={`mg-nodo-${n.nodo}-contenedor`}
+                    >
+                        {botonContenedor.etiqueta}
+                    </Button>
+                )}
             </div>
         </li>
     );
@@ -221,9 +287,9 @@ export function MetaGenesisAutonoma() {
             {estado ? (
                 <>
                     <ul className="mt-3 grid gap-2 md:grid-cols-2" aria-label="Medios de MetaGenesis">
-                        {estado.nodos.map((n) => (
-                            <TarjetaNodo key={n.nodo} n={n} />
-                        ))}
+                    {estado.nodos.map((n) => (
+                        <TarjetaNodo key={n.nodo} n={n} mandar={mandar} />
+                    ))}
                         {!estado.nodos.length ? (
                             <li className="rounded-xl border border-dashed border-white/15 p-3 text-xs text-white/55">
                                 Aún no ha latido ningún medio. En cada medio se arranca con{" "}
