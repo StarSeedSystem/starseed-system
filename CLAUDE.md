@@ -1180,3 +1180,19 @@ ninguna puerta la corría; ahora `alcance_pruebas.GUARDAS_CLIENTE` va en toda ta
 `repartir_nube.dependencias_pendientes` no aceptaba una **sucesora integrada** como dependencia
 cumplida (el vigilante sí): la Mac cedía y la nube rechazaba. Regla: «no cabe» se dice por medio
 y con su causa; un medio parado por un fallo nuestro no es un límite.
+
+### 15. «Solo 2 agentes»: traer_nube caído 44 h y main que subía y bajaba (2026-10-12)
+
+`traer_nube.py` (lo que trae a main el trabajo de la nube y del A1) moría en CADA pasada desde el 11-10
+01:02 UTC (`base_de(None)`: una rama del A1 con solo «chore(memoria)»), y antes de morir hacía cherry-pick
+EN main y `reset --keep` si no pasaba: main subió y bajó 16 veces el 12-10. En esos huecos el revisor y
+`reconciliar_progreso` leyeron `git log main` y dieron por integradas 11 tareas que no lo estaban; el main a
+medias llegó al A1 (guardián rojo → no presta) y a la nube (COL1012J con 8 errores que no eran suyos);
+`revisar_ramas_nube` archivó esas ramas como «superadas» y las borró del remoto (quedan en
+`refs/archivo/nube/…`). Y el tsc de traer moría por memoria en la Mac («heap out of memory»), así que
+todo iba a «reparar». **Reglas:** nadie hace cherry-pick ni `reset` EN main para comprobar: se comprueba en
+una carpeta aparte (`starseed-wt/_traer/<id>`) y main solo avanza por fast-forward con el cerrojo
+`integrar` en ese instante; un «commit» del progreso que main no tiene no es «superada»; un fallo del
+medio (memoria, tiempo, cerrojo) no crea sucesora. Rescate de lo archivado por error:
+`python3 scripts/puente/rescatar_archivadas.py <ID>…`. Síntoma para reconocerlo:
+`git reflog show main` con «cherry-pick» seguido de «reset: moving to» el mismo minuto.
