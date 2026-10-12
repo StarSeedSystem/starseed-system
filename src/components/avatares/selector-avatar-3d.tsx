@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAdnEntry } from "@/lib/avatares/adaptadores/almacen-adn";
-import { parseAdnEntry } from "@/lib/avatares/adaptadores/almacen-adn";
-import AvatarVivo from "@/components/avatares/avatar-vivo";
+import { parseAdnEntry, saveAdnToLibrary } from "@/lib/avatares/adaptadores/almacen-adn";
+import { decidirCambioAvatar } from "@/lib/avatares/adn/permisos";
+import { AdnAvatar } from "@/lib/avatares/adn/adn";
+import { AvatarVivo } from "@/components/avatares/avatar-vivo";
 
 interface SelectorAvatar3dProps {
   profileId?: string;
@@ -27,7 +29,7 @@ export default function SelectorAvatar3d({
   const [loading, setLoading] = useState(false);
 
   const { entry: adnEntry, loadAdn, saveAdn } = useAdnEntry(currentAdnRef);
-  const [adnAvatar, setAdnAvatar] = useState(null);
+  const [adnAvatar, setAdnAvatar] = useState<AdnAvatar | null>(null);
 
   useEffect(() => {
     if (adnEntry) {
@@ -66,7 +68,7 @@ export default function SelectorAvatar3d({
     async (adn: AdnAvatar, visibilidad: "privado" | "grupo" | "publico") => {
       setLoading(true);
       try {
-        await saveAdn(adn, visibilidad);
+        await saveAdnToLibrary(adn, visibilidad);
         const url = adn.base.ref || `biblioteca:${adn.id}`;
         await handleAdnChange(url);
       } catch (error) {
@@ -80,31 +82,34 @@ export default function SelectorAvatar3d({
 
   const buscarMetadataDePerfil = (id: string) => {
     try {
-      return JSON.parse(localStorage.getItem(`starseed.profile.metadata.${id}`) || "{}") as Record<string, unknown>;
+      return JSON.parse(localStorage.getItem(`starseed.profile.metadata.${id}`) || "{}") as any;
     } catch { return null; }
   };
 
   const buscarMetadatosDeEntidad = (id: string) => {
     try {
-      return JSON.parse(localStorage.getItem(`starseed.entity.metadata.${id}`) || "{}") as Record<string, unknown>;
+      return JSON.parse(localStorage.getItem(`starseed.entity.metadata.${id}`) || "{}") as any;
     } catch { return null; }
   };
 
   const getDefaultAdnRef = () => "orbe-gris";
 
-  const buscarMetadataDePerfil = (id: string) => {
+  const puedeCambiarAvatar = (adn: AdnAvatar | null, rol: "dueno" | "admin" | "miembro" | "observador" | "invitado", gobierno?: "jerarquico" | "democratico", botDeEntidad?: boolean, vistaPrevia = false): boolean => {
+    if (!adn) return false;
     try {
-      return JSON.parse(localStorage.getItem(`starseed.profile.metadata.${id}`) || "{}") as Record<string, unknown>;
-    } catch { return null; }
+      const decision = decidirCambioAvatar({
+        adn,
+        rol,
+        gobierno,
+        botDeEntidad,
+        vistaPrevia
+      });
+      return decision.permitido;
+    } catch (error) {
+      console.error("Error al verificar permiso para cambiar avatar:", error);
+      return false;
+    }
   };
-
-  const buscarMetadatosDeEntidad = (id: string) => {
-    try {
-      return JSON.parse(localStorage.getItem(`starseed.entity.metadata.${id}`) || "{}") as Record<string, unknown>;
-    } catch { return null; }
-  };
-
-  const getDefaultAdnRef = () => "orbe-gris";
 
   return (
     <div className="space-y-4">
@@ -132,9 +137,14 @@ export default function SelectorAvatar3d({
 
             <div className="aspect-square max-w-md mx-auto mb-4">
               <AvatarVivo
-                adnRef={currentAdnRef}
-                size={400}
-                autoPlay={true}
+                fuente={
+                  currentAdnRef.startsWith("biblioteca:") || currentAdnRef.startsWith("genesis:")
+                    ? { tipo: "glb", url: currentAdnRef }
+                    : currentAdnRef === "vrm-persona"
+                    ? { tipo: "glb", url: "vrm-persona" }
+                    : { tipo: "procedural", svg: "orbe-gris" }
+                }
+                tamano={400}
               />
             </div>
 

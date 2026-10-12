@@ -1,6 +1,38 @@
 "use client";
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// Mock localStorage before importing anything that uses it
+// Vitest runs tests in Node.js, but almacen-adn.ts uses localStorage (browser API)
+const storage = new Map<string, string>();
+const localStorageMock = {
+  getItem: (key: string) => storage.get(key) || null,
+  setItem: (key: string, value: string) => storage.set(key, value),
+  removeItem: (key: string) => storage.delete(key),
+  clear: () => storage.clear(),
+  key: (index: number) => {
+    const entries = Array.from(storage.entries());
+    return entries[index]?.[0] || null;
+  },
+  get length() {
+    return storage.size;
+  },
+};
+
+Object.defineProperty(global, "localStorage", {
+  value: localStorageMock,
+  writable: true,
+});
+
+Object.defineProperty(global, "window", {
+  value: { localStorage: localStorageMock },
+  writable: true,
+});
+
+// Mock dispatchEvent to avoid errors when ADN event is dispatched
+window.addEventListener = vi.fn();
+window.removeEventListener = vi.fn();
+
 import { AdnAvatar } from "@/lib/avatares/adn/adn";
 import { adnPorDefecto } from "@/lib/avatares/adn/adn";
 import { sanearAdn } from "@/lib/avatares/adn/adn";
