@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import { ShieldCheck } from "lucide-react";
 import { useAppearance } from "@/context/appearance-context";
 import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
@@ -16,6 +17,13 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
 
 const AMBITO: Ambito = { tipo: "persona" };
+
+// Panel de bots (contrato astraaura-bots §13/§18 F1: vive en Genesis). Dinámico:
+// el layout raíz no carga nada pesado de forma estática.
+const SeccionBotsGenesis = dynamic(
+    () => import("./seccion-bots").then((m) => m.SeccionBotsGenesis),
+    { ssr: false },
+);
 
 const SUGERENCIAS = [
     "Pon Decisiones en mi dock",
@@ -64,6 +72,7 @@ export function MiGenesis() {
                 sugerencias={SUGERENCIAS}
                 atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
             />
+            <SeccionBotsGenesis />
         </section>
     );
 }
