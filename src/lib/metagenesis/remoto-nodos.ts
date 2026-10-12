@@ -36,7 +36,9 @@ export type AccionOrden =
     | "detener_cola"
     | "pausar"
     | "reanudar"
-    | "ceder";
+    | "ceder"
+    | "desconectar"
+    | "contenedor";
 
 export interface FichaAccion {
     etiqueta: string;
@@ -67,6 +69,21 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     pausar: { etiqueta: "Pausar autonomía", explica: "El líder deja de decidir solo hasta que la reanudes.", confirmar: true, args: [] },
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
+    desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
+    contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
+};
+
+export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "contenedor">, FichaAccion> = {
+    continuar: ACCIONES.continuar,
+    revisar_bloqueadas: ACCIONES.revisar_bloqueadas,
+    buscar_capacidad: ACCIONES.buscar_capacidad,
+    reactivar: ACCIONES.reactivar,
+    buscar_trabajo: ACCIONES.buscar_trabajo,
+    lanzar_cola: ACCIONES.lanzar_cola,
+    detener_cola: ACCIONES.detener_cola,
+    pausar: ACCIONES.pausar,
+    reanudar: ACCIONES.reanudar,
+    ceder: ACCIONES.ceder,
 };
 
 export const MEDIOS: Record<string, string> = {
@@ -106,8 +123,15 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     if ((accion === "lanzar_cola" || accion === "detener_cola") && !(typeof a.cola === "string" && RE_COLA.test(a.cola))) {
         return "nombre de cola no válido";
     }
-    if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
-        return "trabajadores fuera de 1–4";
+    if ("trabajadores" in a) {
+        if (!Number.isInteger(a.trabajadores)) {
+            return "trabajadores no es un entero";
+        }
+        if (accion === "lanzar_cola" || (accion === "contenedor" && a.activo === true)) {
+            if ((a.trabajadores as number) < 1 || (a.trabajadores as number) > 4) {
+                return "trabajadores fuera de 1–4";
+            }
+        }
     }
     return null;
 }
@@ -165,6 +189,8 @@ export interface NodoVista {
     disco_gb: number | null;
     ram_libre_mb: number | null;
     trabajo: Record<string, number | null>;
+    enCurso: {id: string; fase: string; punto: {rama: string; sha: string; t: number} | null}[] | null;
+    contenedor: {activo: boolean; agentes: number; apto: boolean; motivo: string} | null;
 }
 
 export interface DecisionVista {
@@ -222,7 +248,7 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
     const salud = (d.salud ?? {}) as Record<string, unknown>;
     const medio = txt(d.medio, 40) || "neurona";
     const hace = ts ? Math.max(0, ahora - ts) : null;
-    const orqs = Array.isArray(salud.orquestadores) ? (salud.orquestadores as Array<Record<string, unknown>>) : [];
+    const orqs = Array.isArray(salud.orquetadores) ? (salud.orquetadores as Array<Record<string, unknown>>) : [];
     const trabajo = (salud.trabajo ?? {}) as Record<string, unknown>;
     return {
         nodo: txt(d.nodo, 40),
@@ -238,6 +264,8 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
         disco_gb: num(salud.disco_gb),
         ram_libre_mb: num(salud.ram_libre_mb),
         trabajo: Object.fromEntries(Object.entries(trabajo).map(([k, v]) => [k, num(v)])),
+        enCurso: (d.en_curso ?? null) as {id: string; fase: string; punto: {rama: string; sha: string; t: number} | null}[] | null,
+        contenedor: (d.contenedor ?? null) as {activo: boolean; agentes: number; apto: boolean; motivo: string} | null,
     };
 }
 

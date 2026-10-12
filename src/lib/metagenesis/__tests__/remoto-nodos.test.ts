@@ -6,6 +6,8 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+    ACCIONES,
+    ACCIONES_DEL_LIDER,
     canonico,
     fraseDelMando,
     isoSinMs,
@@ -51,11 +53,31 @@ describe("órdenes: lo que se firma es idéntico en TypeScript y en Python", () 
         expect(validarArgs("revisar_bloqueadas", { rm: "-rf" })).toBe("argumento no admitido: rm");
         expect(validarArgs("lanzar_cola", { cola: "cola-x", tareas_sha: "a;b`c" })).toMatch(/valor no admitido/);
     });
-});
+    describe("nuevas acciones", () => {
+        it("tienen las etiquetas y argumentos correctos", () => {
+            expect(ACCIONES.desconectar.etiqueta).toBe("Desconectar");
+            expect(ACCIONES.desconectar.explica).toBe("Quita al nodo del enjambre de MetaGenesis.");
+            expect(ACCIONES.desconectar.confirmar).toBe(true);
+            expect(ACCIONES.desconectar.args).toEqual([]);
+
+            expect(ACCIONES.contenedor.etiqueta).toBe("Usar como contenedor");
+            expect(ACCIONES.contenedor.explica).toBe("El nodo actúa como contenedor para otros mediadores.");
+            expect(ACCIONES.contenedor.confirmar).toBeUndefined();
+            expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
+        });
+
+        it("ACCIONES_DEL_LIDER no incluye las nuevas acciones", () => {
+            expect("desconectar" in ACCIONES_DEL_LIDER).toBe(false);
+            expect("contenedor" in ACCIONES_DEL_LIDER).toBe(false);
+            // Ensure the other actions are present
+            expect("continuar" in ACCIONES_DEL_LIDER).toBe(true);
+            expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
+        });
+    });
 
 describe("resumen del bus", () => {
-    const latido = (nodo: string, medio: string, puntos: number, extra: Record<string, unknown> = {}, hace = 0) =>
-        fila("mg_latido", { nodo, medio, modo: "real", puntos, salud: { orquestadores: [{ cola: "cola-1010s" }], disco_gb: 40, trabajo: { listas: 3 } }, ...extra }, hace);
+    const latido = (nodo: string, medio: string, puntos: number, extra: Record<string, unknown> = {}, hace = 0, en_curso?: any, contenedor?: any) =>
+        fila("mg_latido", { nodo, medio, modo: "real", puntos, salud: { orquestadores: [{ cola: "cola-1010s" }], disco_gb: 40, trabajo: { listas: 3 } }, en_curso, contenedor, ...extra }, hace);
 
     it("el líder reclamado y vivo va primero; los demás con su latido; la foto da cifras y decisiones", () => {
         const filas = [
@@ -146,4 +168,4 @@ describe("resumen de las tablas (modo tablas)", () => {
         const e = resumirTablas({ arriendo: { lider: "mac-aaaaaa", termino: 2, expira: new Date(AHORA - 1000).toISOString(), foto: null, foto_en: null }, nodos: [], ordenes: [] }, AHORA);
         expect(e.lider).toBeNull();
     });
-});
+    
