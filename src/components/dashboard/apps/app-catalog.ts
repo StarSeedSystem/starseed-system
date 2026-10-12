@@ -18,7 +18,7 @@ import {
     // 2026-09-28: Contactos.
     BookUser,
     // 2026-09-28: apps en vivo.
-    FileText, Table2, LayoutDashboard, Gamepad2, AppWindow, Box, Glasses,
+    FileText, Table2, LayoutDashboard, Gamepad2, AppWindow, Box, Glasses, Bot,
     // Ola 1010E: Estaciones (transmisiones en directo).
     Cast,
 } from "lucide-react";
@@ -507,7 +507,19 @@ export const APP_CATALOG: StarseedApp[] = [
         vrCapable: true,
         open: { primary: "route", allowed: ["route", "tab"], route: "/immersive" },
     },
+    {
+        id: "bots",
+        name: "Bots de Astraura",
+        short: "Bots",
+        description: "Crea y gestiona tus bots de Astraura con personalidad, sentidos y permisos; cada persona tiene varios bots abiertos y sincronizados.",
+        icon: Bot,
+        accent: "#F59E0B",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/genesis#bots" },
+    },
 ];
+
 
 const CATALOG_INDEX: Record<string, StarseedApp> = Object.fromEntries(
     APP_CATALOG.map((a) => [a.id, a])

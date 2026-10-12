@@ -830,7 +830,23 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "CopilotKit", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { externalUrl: "https://github.com/copilotkit/copilotkit", categoria: "diseno", note: "Copilotos dentro de la app y acciones del agente sobre la UI" },
   },
-  /* ── Vercel AI SDK · streaming de modelos en la UI (ya en uso: no duplicar) ── */
+   /* ── OpenBot · referencia de patrones AG-UI ── */
+   {
+     id: "iatool-openbot", kind: "repo", name: "OpenBot (CopilotKit)",
+     description: "referencia de patrones y protocolo AG-UI; no se instala: exige CopilotKit Intelligence con licencia y lleva telemetría por defecto; su computadora por bot puede vivir en el A1 con el visto bueno de Alex",
+     icon: "Bot", tags: ["repo", "openbot", "copilotkit"], version: "0.1.0",
+     author: "CopilotKit", sourceRepoId: "starseed-ia-tools", free: true, comingSoon: true,
+     payload: { externalUrl: "https://github.com/CopilotKit/openbot", githubRepo: "CopilotKit/openbot" },
+   },
+   /* ── OpenDots · referencia de patrones AG-UI ── */
+   {
+     id: "iatool-opendots", kind: "repo", name: "OpenDots (CopilotKit)",
+     description: "referencia de patrones y protocolo AG-UI; no se instala: exige CopilotKit Intelligence con licencia y lleva telemetría por defecto; su computadora por bot puede vivir en el A1 con el visto bueno de Alex",
+     icon: "Bot", tags: ["repo", "opendots", "copilotkit"], version: "0.1.0",
+     author: "CopilotKit", sourceRepoId: "starseed-ia-tools", free: true, comingSoon: true,
+     payload: { externalUrl: "https://github.com/CopilotKit/OpenDots", githubRepo: "CopilotKit/OpenDots" },
+   },
+   /* ── Vercel AI SDK · streaming de modelos en la UI (ya en uso: no duplicar) ── */
   {
     id: "iatool-vercel-ai-sdk", kind: "repo", name: "Vercel AI SDK (streaming en UI)",
     description:
