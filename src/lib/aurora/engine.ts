@@ -44,6 +44,11 @@ import {
   type AuroraActionResult,
   type AuroraDirective,
 } from "@/lib/aurora/actions";
+import { extraerDirectivas } from "@/lib/astraura-bots/directiva-bot";
+import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-acciones";
+import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
+import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
+import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -1795,6 +1800,30 @@ export function useAuroraEngine(): AuroraEngine {
         pushAction({ name: d.name, ok: !!r.ok, message: r.message || "", at: Date.now(), undo: r.undo });
         if (r.message) actionMsgs.push(r.message);
         toolMetas.push({ name: d.name, ok: !!r.ok, summary: (r.message || "").slice(0, 200), undo: r.undo });
+      }
+
+      // 1b) Directivas [[BOT: {json}]] — la orbe ES el bot (architecture/astraura-bots.md):
+      //     se apartan de la voz ya validadas (`validarAccion` en `extraerDirectivas`) y cada
+      //     una pasa por `decidirAccion` + el bucle (`avanzar`) ANTES del ejecutor; lo que
+      //     pida confirmación NO se ejecuta aquí: se dice y espera a una persona.
+      const dirBot = extraerDirectivas(reply);
+      if (dirBot.acciones.length || dirBot.problemas.length) {
+        reply = dirBot.limpio;
+        const bot = botPredeterminado("perfil", "local");
+        for (const p of dirBot.problemas) { pushAction({ name: "bot", ok: false, message: p, at: Date.now() }); actionMsgs.push(p); }
+        for (const a of dirBot.acciones) {
+          const decision = decidirAccion({ bot, accion: a, rol: "dueno", nivel: NIVEL_POR_DEFECTO });
+          let estado = avanzar(bucleInicial(bot.id), { tipo: "proponer", accion: a, decision, at: Date.now() });
+          let ok = false; let msg = decision.motivo;
+          if (estado.fase === "actuando") {
+            const r = await ejecutarAccion(a, { router: buildActionCtx().router, onStatus: (s) => { if (s) setStatus(s); }, actor: `bot:${bot.id}` });
+            ok = r.ok; msg = r.motivo;
+            estado = avanzar(estado, r.ok ? { tipo: "aplicada", previo: r.previo, at: Date.now() } : { tipo: "fallo", motivo: r.motivo, at: Date.now() });
+          } else if (estado.fase === "esperando") msg = `${msg} (próximamente: la confirmación en el chat llega con BOT1011H2).`;
+          pushAction({ name: a.tipo, ok, message: msg, at: Date.now() });
+          if (msg) actionMsgs.push(msg);
+          toolMetas.push({ name: a.tipo, ok, summary: msg.slice(0, 200) });
+        }
       }
 
       // 2) Compatibilidad: directiva antigua de navegación [[goto:/ruta]].
