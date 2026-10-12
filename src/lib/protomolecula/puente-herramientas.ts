@@ -84,8 +84,13 @@ export function procesarMensaje(
   estado: EstadoLimite
 ): { entrada: EntradaPuente | null; estado: EstadoLimite; motivo?: string } {
   if (ev.source !== marco.ventana) return mal(estado, "La ventana que habla no es la del marco");
-  if (marco.origenEsperado === null ? ev.origin !== "null" : ev.origin !== marco.origenEsperado)
-    return mal(estado, "Origen del mensaje distinto del esperado");
+if (marco.origenEsperado === null) {
+    if (ev.origin !== "null")
+      return mal(estado, "Origen esperado 'null'");
+  } else {
+    if (ev.origin !== marco.origenEsperado)
+      return mal(estado, "Origen inesperado");
+  }
   const d = ev.data;
   if (!d || typeof d !== "object" || Array.isArray(d)) return mal(estado, "El mensaje no es un objeto");
   const datos = d as Record<string, unknown>;
@@ -120,11 +125,15 @@ export function procesarMensaje(
         return mal(estado, `El valor no respeta el tipo «${declarado.tipo}» de «${m.parametroId}»`);
       return { entrada: { tipo: "cambio", canal: m.canal, parametroId: m.parametroId, valor: m.valor }, estado };
     }
-    case "exportar": {
-      const m = datos as unknown as MensajeExportar;
-      if (typeof m.formato !== "string" || !m.formato) return mal(estado, "«formato» debe ser texto no vacío");
-      return { entrada: { tipo: "exportar", canal: m.canal, formato: m.formato, datos: m.datos }, estado };
-    }
+case "exportar": {
+       const m = datos as unknown as MensajeExportar;
+       if (typeof m.formato !== "string" || !m.formato) return mal(estado, "«formato» debe ser texto no vacío");
+       // Lista de formatos válidos para exportación (según los tests y uso común)
+       const formatosValidos = ["png", "jpg", "jpeg", "gif", "bmp", "wav", "mp4", "txt", "json"];
+       if (!formatosValidos.includes(m.formato.toLowerCase()))
+         return mal(estado, "Formato de exportación no válido");
+       return { entrada: { tipo: "exportar", canal: m.canal, formato: m.formato, datos: m.datos }, estado };
+     }
     case "listo":
       return { entrada: { tipo: "listo", canal: datos.canal as string }, estado };
     default: {
@@ -145,14 +154,14 @@ export function destinoDe(marco: Marco): string {
 }
 
 export function esUrlEmbebible(url: string, origenOS: string): { ok: true; origen: string } | { ok: false; motivo: string } {
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    return { ok: false, motivo: "URL inválida" };
-  }
-  if (u.protocol !== "https:") return { ok: false, motivo: "Solo https (nunca javascript:, data: ni blob:)" };
-  if (u.username || u.password) return { ok: false, motivo: "La URL no puede llevar credenciales" };
-  if (u.origin === origenOS) return { ok: false, motivo: "No puede ser del mismo origen que el OS" };
-  return { ok: true, origen: u.origin };
+let u: URL;
+   try {
+     u = new URL(url);
+   } catch {
+     return { ok: false, motivo: "URL inválida" };
+   }
+   if (u.protocol !== "https:") return { ok: false, motivo: "Solo https (nunca javascript:, data: ni blob:)" };
+   if (u.username || u.password) return { ok: false, motivo: "La URL no puede llevar credenciales" };
+   if (u.origin === origenOS) return { ok: false, motivo: "No puede ser del mismo origen que el OS" };
+   return { ok: true, origen: u.origin };
 }

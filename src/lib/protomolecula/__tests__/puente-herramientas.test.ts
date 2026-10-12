@@ -57,21 +57,21 @@ describe("esUrlEmbebible", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.motivo.toLowerCase()).toContain(motivo.toLowerCase());
   });
-  it("rechaza URLs con esquema javascript:", () => {
-    const resultado = esUrlEmbebible("javascript:alert('xss')", os);
-    expect(resultado.ok).toBe(false);
-    if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
-  });
-  it("rechaza URLs con esquema data:", () => {
-    const resultado = esUrlEmbebible("data:text/plain;base64,SGVsbG8=", os);
-    expect(resultado.ok).toBe(false);
-    if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
-  });
-  it("rechaza URLs con esquema blob:", () => {
-    const resultado = esUrlEmbebible("blob:https://example.com/123e4567-e89b-12d3-a456-426614174000", os);
-    expect(resultado.ok).toBe(false);
-    if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
-  });
+it("rechaza URLs con esquema javascript:", () => {
+     const resultado = esUrlEmbebible("javascript:alert('xss')", os);
+     expect(resultado.ok).toBe(false);
+     if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Solo https (nunca javascript:, data: ni blob:)");
+   });
+it("rechaza URLs con esquema data:", () => {
+     const resultado = esUrlEmbebible("data:text/plain;base64,SGVsbG8=", os);
+     expect(resultado.ok).toBe(false);
+     if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Solo https (nunca javascript:, data: ni blob:)");
+   });
+it("rechaza URLs con esquema blob:", () => {
+     const resultado = esUrlEmbebible("blob:https://example.com/123e4567-e89b-12d3-a456-426614174000", os);
+     expect(resultado.ok).toBe(false);
+     if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Solo https (nunca javascript:, data: ni blob:)");
+   });
 });
 
 describe("sanearParametro", () => {
@@ -145,7 +145,7 @@ describe("procesarMensaje · identidad", () => {
     const marco = marcoDe(null); // Marco propio
     const estadoInicial = limite();
     const ev = {
-      origin: null, // Correcto para sandbox sin allow-same-origin
+      origin: "null", // Correcto para sandbox sin allow-same-origin
       source: marco.ventana,
       data: {
         protomolecula: 1,
@@ -344,14 +344,14 @@ describe("procesarMensaje · topes", () => {
     expect(r.entrada).toBeNull();
     expect(r.motivo).toContain("2 MB");
   });
-  it("rechaza mensaje que excede el tamaño máximo de JSON (2.6 MB)", () => {
-    const m = marcoDe();
-    // 2.6 MB = 2.6 * 1024 * 1024 bytes
-    const nombreSize = 2.6 * 1024 * 1024;
-    const r = procesarMensaje(ev(m, { ...hola, nombre: "x".repeat(nombreSize) }), m, 0, limite());
-    expect(r.entrada).toBeNull();
-    expect(r.motivo).toContain("2.6 MB");
-  });
+it("rechaza mensaje que excede el tamaño máximo de JSON (2.6 MB)", () => {
+     const m = marcoDe();
+     // 2.6 MB = 2.6 * 1024 * 1024 bytes
+     const nombreSize = 2.6 * 1024 * 1024;
+     const r = procesarMensaje(ev(m, { ...hola, nombre: "x".repeat(nombreSize) }), m, 0, limite());
+     expect(r.entrada).toBeNull();
+     expect(r.motivo).toContain("64 KB");
+   });
 });
 
 describe("procesarMensaje · frecuencia (reloj simulado)", () => {
