@@ -155,7 +155,7 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
         // Recién creada en modo chat: el canal de miembros.
         tema: temaLlamada(sesionId),
         resolverTema: () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
-        canalesDirectos: () => canalesDirectosPara(sesionId, yo),
+
     });
     await motor.prepararMedios({ audio: true, video: conVideo, stream: medios.stream });
     if (medios.aviso) motor.avisar(medios.aviso);
@@ -215,7 +215,7 @@ export async function unirseALlamada(o: {
         hayTurn: ice.turn,
         tema,
         resolverTema: () => resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true }),
-        canalesDirectos: () => canalesDirectosPara(o.sesionId, yo),
+
     });
     if (o.stream) {
         await motor.prepararMedios({ audio: true, video: conVideo, microActivo: o.microActivo, stream: o.stream });
