@@ -118,10 +118,11 @@ def remallar_imagen(imagen: str, resolucion: int = 1536, flujo: str = "cerrada",
     while time.time() - t0 < tope_s:
         dormir(espera_s)
         entrada = comfy.get(f"/history/{pid}", timeout=30).get(pid)
-        if entrada is None:  # aún corre: mide el pico de VRAM
-            for d in comfy.get("/system_stats").get("devices", []):
-                if d.get("vram_total"):
-                    pico = max(pico, (d["vram_total"] - d.get("vram_free", 0)) / 1e9)
+        for d in comfy.get("/system_stats").get("devices", []):  # pico de VRAM mientras corre
+            if d.get("vram_total"):
+                pico = max(pico, (d["vram_total"] - d.get("vram_free", 0)) / 1e9)
+        if entrada is None:  # aún corre
+            continue
         glb = _glb_de_historial(entrada)
         fallo = None if glb else "terminó sin GLB (posible agujero: reintenta con otra semilla)"
         return _res(t0, proc, pico, ok=bool(glb), glb=glb, fallo=fallo)
