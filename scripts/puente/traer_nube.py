@@ -427,7 +427,7 @@ def _puertas(cambiados, cwd=None, base_sha=None, shas=None):
     with turno:
         # If we have base_sha and shas and there are TS changes, try the A1 first
         if base_sha is not None and shas is not None and (archivos_ts(cambiados) or codigo_ts):
-            from . import comprobar_en_a1
+            import comprobar_en_a1
             ok, detalle, del_medio = comprobar_en_a1.comprobar(base_sha, shas, cambiados, timeout=900)
             if not ok and del_medio:
                 # Fall back to local check
@@ -487,14 +487,18 @@ def _traer(fila, espera_integrar_s=60):
                               "--keep-redundant-commits", *shas], timeout=300)
     if rc != 0:
         _git_en(wt, ["cherry-pick", "--abort"])
+        _git(["worktree", "remove", "--force", wt])
+        shutil.rmtree(wt, ignore_errors=True)
         return False, "conflicto al traerla sobre el main de hoy: " + salida.strip()[-300:], es_fallo_del_medio(salida)
     _, cambiados = _git_en(wt, ["diff", "--name-only", orig, "HEAD"])
     # Get the base_sha (last main sent to the A1) from the oracle-nodo.json file
-    from . import oracle_nodo
+    import oracle_nodo
     base_sha_data = oracle_nodo._leer(oracle_nodo.ESTADO, {})
     base_sha = base_sha_data.get("main_enviado", {}).get("sha")
-    ok, detalle = _puertos([c for c in cambiados.splitlines() if c.strip()], wt, base_sha=base_sha, shas=shas)
+    ok, detalle = _puertas([c for c in cambiados.splitlines() if c.strip()], wt)
     if not ok:
+        _git(["worktree", "remove", "--force", wt])
+        shutil.rmtree(wt, ignore_errors=True)
         return False, "en la Mac no pasa: " + detalle, es_fallo_del_medio(detalle)
     propios = [c for c in cambiados.splitlines() if c.strip()]
     _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
