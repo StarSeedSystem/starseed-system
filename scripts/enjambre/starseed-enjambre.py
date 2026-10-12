@@ -64,6 +64,14 @@ try:
 except Exception:  # pragma: no cover — instalación sin el módulo
     _analista = None
 
+# (COL1012D) Puntos de control: cada 5 min el trabajo a medias de cada agente deja de
+# vivir solo en el disco de esta máquina (contrato: architecture/colmena-relevo-contenedores.md).
+try:
+    import puntos_control as _puntos_control
+except Exception:  # pragma: no cover — sin el módulo, el orquestador funciona como antes
+    _puntos_control = None
+
+
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
 # entorno, adivina el repositorio por dónde exista (Mac: ~/Documents/starseed-os-main;
@@ -92,6 +100,8 @@ PROG_JSON = os.path.join(OLAS, "progreso.json")
 PROG_MD = os.path.join(OLAS, "progreso.md")
 REVIS = os.path.join(OLAS, "revisiones.md")
 EVENTOS = os.path.join(OLAS, "eventos.jsonl")
+#: (COL1012D) dónde se anota el último punto de control de cada tarea ({tid: {rama, sha, t}}).
+RUTA_PUNTOS = os.path.join(OLAS, "puntos-control.json")
 RELEVO = os.path.expanduser("~/.local/bin/starseed-relevo")
 SUPABASE_URL = "https://pqzdpmedcsgcedkvndzl.supabase.co"
 
@@ -6373,6 +6383,31 @@ def _barrer_tsc_huerfanos():
         pass
 
 
+def revisar_puntos_control(ahora: float) -> None:
+    """COL1012D: un punto de control cada 5 min por tarea con trabajo a medias. La decisión
+    (+300 s, fase de escritura o reparación, hay cambios) la da puntos_control/colmena_logica;
+    `guardar` es el commit_salvavidas que ya existe (sin tocar su mensaje) + `anotar`."""
+    if _puntos_control is None:
+        return
+    puntos = _puntos_control.cargar(RUTA_PUNTOS)
+    tareas = []
+    for tid, d in list(LATIDOS.items()):
+        if d.get("fase") not in ("escribiendo", "reparando", "corrigiendo"):
+            continue
+        try:
+            wt = worktree(tid)
+        except Exception:
+            continue
+        tareas.append({"id": tid, "fase": d.get("fase"), "worktree": wt,
+                        "punto": puntos.get(tid) or {}})
+
+    def guardar(tid: str) -> None:
+        sha = commit_salvavidas(tid)
+        _puntos_control.anotar(RUTA_PUNTOS, tid, "ola/" + tid, sha, time.time())
+
+    _puntos_control.revisar(tareas, ahora, guardar, sh=sh)
+
+
 def vigilante():
     """Comprueba CADA 20 s que las tareas activas avanzan de verdad, en vez de descubrir
     al final que una nunca arrancó. Solo cuentan bytes escritos en el worktree: si pasan
@@ -6473,6 +6508,10 @@ def vigilante():
                     except Exception:
                         pass
         _volcar_latidos()
+        try:
+            revisar_puntos_control(time.time())
+        except Exception:
+            pass
         if t - ultimo_bus >= LATIDO_S:
             ultimo_bus = t
             hechas = sum(1 for v in list(PROG.values()) if v.get("estado") == "commit")
@@ -8233,6 +8272,12 @@ def ejecutar_seguro(t):
         else:
             MEDIO_POR_TAREA.pop(t["id"], None)
         latir(t["id"], "hecho")
+        # (COL1012D) Integrada o cerrada: su punto de control ya no hace falta.
+        try:
+            if _puntos_control is not None:
+                _puntos_control.quitar(RUTA_PUNTOS, t["id"])
+        except Exception:
+            pass
 
 
 # ── orden de la cola vigente (tarea p321G) ──────────────────────────────────
