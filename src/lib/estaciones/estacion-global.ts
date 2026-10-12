@@ -133,20 +133,19 @@ class EstacionGlobal {
       return { ok: false, motivo: "Se cambió de estación mientras conectaba." };
     }
      if (internet) sesion.agregarCanal(internet);
-     
-     // Canal de relé propio de estaciones
-     const releUrl = process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL;
-     if (releUrl) {
-       const crearCanalReleMod = await import("./canal-rele");
-       const tema = ficha.privada 
-         ? await temaPrivado(ficha.id, token!) 
-         : temaPublico(ficha.id);
-       const rele = await crearCanalReleMod.crearCanalRele(releUrl, tema);
-       if (rele) {
-         sesion.agregarCanal(rele);
-         this.bajas.push(() => rele.cerrar());
-       }
-     }
+
+      // Canal de relé propio de estaciones
+      const releUrl = process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL;
+      if (releUrl) {
+        const tema = ficha.privada 
+          ? await temaPrivado(ficha.id, token!) 
+          : temaPublico(ficha.id);
+        const rele = crearCanalRele(releUrl, tema);
+        if (rele) {
+          sesion.agregarCanal(rele);
+          this.bajas.push(() => rele.cerrar());
+        }
+      }
      
      const bajaLocal = await engancharEnlacesLocales(
       (c) => sesion.agregarCanal(c),
