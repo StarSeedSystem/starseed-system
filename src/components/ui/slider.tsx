@@ -25,7 +25,7 @@ const Slider = React.forwardRef<
      */
     getAriaValueText?: (value: number) => string;
   }
->(({ className, showTooltip = false, tooltipContent, getAriaValueText, ...props }, ref) => {
+>(({ className, showTooltip = false, tooltipContent, getAriaValueText, "aria-label": ariaLabel, ...props }, ref) => {
   const [showTooltipState, setShowTooltipState] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState<number[]>(
     (props.defaultValue as number[]) ?? (props.value as number[]) ?? [0],
@@ -68,6 +68,7 @@ const Slider = React.forwardRef<
       <SliderPrimitive.Thumb
         className="block h-5 w-5 rounded-full border-2 border-primary bg-background transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-ring/40 data-[disabled]:cursor-not-allowed"
         onPointerDown={handlePointerDown}
+        aria-label={ariaLabel}
         aria-valuetext={getAriaValueText ? getAriaValueText(value) : undefined}
       />
     );
