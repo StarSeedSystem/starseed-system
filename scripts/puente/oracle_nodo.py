@@ -61,6 +61,7 @@ FUENTE = os.environ.get("STARSEED_NODO_FUENTE") or RAIZ
 for _d in (DIRECTORIO, os.path.join(RAIZ, "scripts", "puente")):
     if _d not in sys.path:
         sys.path.append(_d)
+import espejo_estado
 
 HOME = os.path.expanduser("~")
 ORACLE_JSON = os.path.join(HOME, ".starseed", "oracle.json")
@@ -80,6 +81,11 @@ LATIDO_VIVO_S = 600
 DEJAR_COLAS = 8
 TOPE_DEFECTO = 4
 ESPERA_ENTRE_LANZAMIENTOS_S = 20 * 60
+#: Espejo del estado: dónde dejarlo en el A1, cada cuánto enviarlo y dónde guardar el hash.
+ESPEJO_DIR_A1 = os.path.join(REPO_A1, "starseed_memory_root", "espejo-mac")
+ESPEJO_HASH = os.path.join(HOME, ".starseed", "espejo.hash")
+ESPEJO_TIEMPO_ULTIMO = os.path.join(HOME, ".starseed", "espejo-tiempo-ultimo")
+ESPEJO_INTERVALO_S = 5 * 60  # 5 minutos
 #: Main vivo (enviar-main): dónde lo deja la neurona en el A1, cuánto puede pesar y cada cuánto se
 #: reintenta un paquete que el A1 aún no importó.
 ENTRADA_MAIN_A1 = "/home/starseed/entrada/main-mac.bundle"
@@ -643,6 +649,73 @@ def enviar_main(estado_a1=None):
     return {"ok": True, "enviado": sha_main[:8], "commits": datos["main_enviado"]["commits"], "kb": peso // 1024}
 
 
+# ── espejo del estado ──
+
+def _leer_texto(ruta):
+    try:
+        with open(ruta, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def _escribir_texto(ruta, texto):
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta + ".tmp", "w", encoding="utf-8") as f:
+        f.write(texto)
+    os.replace(ruta + ".tmp", ruta)
+
+
+def enviar_estado(ahora=None):
+    """Deja en el A1 el espejo del estado de la Mac en ``~/starseed-system/starseed_memory_root/
+    espejo-mac/``, como mucho cada ESPEJO_INTERVALO_S y solo si la huella del paquete cambió.
+
+    La extracción en el A1 es atómica: se descomprime en una carpeta nueva y se intercambia por
+    rename, así el Genesis del A1 nunca lee un espejo a medias. Sin IPs ni hosts en registros."""
+    ahora = time.time() if ahora is None else ahora
+    try:
+        ultimo = float(_leer_texto(ESPEJO_TIEMPO_ULTIMO) or 0)
+    except ValueError:
+        ultimo = 0.0
+    if ahora - ultimo < ESPEJO_INTERVALO_S:
+        return {"ok": True, "no": "aún no toca (cada %d min)" % (ESPEJO_INTERVALO_S // 60)}
+    try:
+        listado = []
+        for nombre in os.listdir(OLAS):
+            try:
+                listado.append((nombre, os.path.getmtime(os.path.join(OLAS, nombre))))
+            except OSError:
+                continue  # desapareció entre el listado y el stat: no estorba
+    except OSError:
+        return {"ok": False, "motivo": "no puedo listar olas/"}
+    seleccion = espejo_estado.que_copiar(listado, ahora)
+    if not seleccion:
+        _escribir_texto(ESPEJO_TIEMPO_ULTIMO, str(ahora))
+        return {"ok": True, "no": "olas/ vacío"}
+    with tempfile.TemporaryDirectory(prefix="espejo-") as tmp:
+        ruta = espejo_estado.empaquetar(seleccion, OLAS, tmp)
+        huella = _sha256(ruta)
+        with open(ruta, "rb") as f:
+            datos = f.read()
+    if huella == _leer_texto(ESPEJO_HASH):
+        _escribir_texto(ESPEJO_TIEMPO_ULTIMO, str(ahora))
+        return {"ok": True, "no": "sin cambios"}
+    d = ESPEJO_DIR_A1
+    # Carpeta nueva + rename: el espejo anterior solo se suelta cuando el nuevo ya está entero.
+    orden = ("sudo -u starseed sh -c 'set -e; "
+             "rm -rf \"{d}.nuevo\"; mkdir -p \"{d}.nuevo\"; "
+             "cat > \"{d}.nuevo/espejo.tar.gz\"; "
+             "tar xzf \"{d}.nuevo/espejo.tar.gz\" -C \"{d}.nuevo\"; rm \"{d}.nuevo/espejo.tar.gz\"; "
+             "rm -rf \"{d}.viejo\"; if [ -d \"{d}\" ]; then mv \"{d}\" \"{d}.viejo\"; fi; "
+             "mv \"{d}.nuevo\" \"{d}\"; rm -rf \"{d}.viejo\"'").format(d=d)
+    rc, salida = _ssh_bytes(orden, datos, timeout=300)
+    if rc != 0:
+        return {"ok": False, "motivo": "no pude dejarlo en el A1: %s" % salida.strip()[-160:]}
+    _escribir_texto(ESPEJO_HASH, huella)
+    _escribir_texto(ESPEJO_TIEMPO_ULTIMO, str(ahora))
+    return {"ok": True, "archivos": len(seleccion), "kb": len(datos) // 1024}
+
+
 # ── traer ──
 
 def traer(estado_a1=None):
@@ -909,6 +982,11 @@ def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
             if basura:
                 res["bitnet_pesos"] = bitnet_pesos()
             res["traer"] = traer(estado_a1)
+            if estado_a1:
+                try:
+                    res["espejo"] = enviar_estado()
+                except Exception as e:  # noqa: BLE001 — el espejo nunca frena el ciclo
+                    res["espejo"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
             if lanzar_si_libre:
                 sin_tomar, _, _ = colas_sin_tomar(estado_a1)
                 datos = _leer(ESTADO, {}) or {}
