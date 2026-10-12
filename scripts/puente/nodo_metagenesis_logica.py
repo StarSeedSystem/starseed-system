@@ -73,6 +73,8 @@ ACCIONES_ORDEN: Dict[str, Dict[str, Any]] = {
     # (OPA1011b) Interna: el líder se la pide al medio con las colas en su disco cuando no es él
     # (la web no la manda; por eso no está en el CHECK de la tabla ni en los botones).
     "repartir": {"texto": "Prestar tareas listas a un medio ocioso", "args": ("destino", "tope")},
+    "desconectar": {"texto": "Guardar el trabajo a medias de este aparato y pasarlo a otro contenedor", "args": ()},
+    "contenedor": {"texto": "Usar o dejar de usar este aparato como contenedor de agentes", "args": ("activo", "trabajadores")},
 }
 
 #: Tipos de evento en el bus (`relevo_eventos.tipo`, ≤ 40 caracteres).
@@ -285,6 +287,22 @@ def args_validos(accion: str, args: Any) -> Optional[str]:
         if "tope" in args and not (isinstance(args["tope"], int) and not isinstance(args["tope"], bool)
                                    and 1 <= args["tope"] <= 8):
             return "tope fuera de 1–8"
+    if accion == "contenedor":
+        # activo is required and must be boolean
+        if "activo" not in args:
+            return "falta argumento: activo"
+        if not isinstance(args["activo"], bool):
+            return "activo debe ser booleano"
+        # if activo is True, then trabajadores must be present and between 1 and 4
+        if args["activo"]:
+            if "trabajadores" not in args:
+                return "falta argumento: trabajadores"
+            if not (isinstance(args["trabajadores"], int) and 1 <= args["trabajadores"] <= 4):
+                return "trabajadores fuera de 1–4"
+        else:
+            # if activo is False, trabajadores should not be present
+            if "trabajadores" in args:
+                return "trabajadores solo se permite si activo es True"
     return None
 
 
@@ -299,7 +317,7 @@ def epoch_de_iso(t: Any) -> Optional[float]:
 
 
 def validar_orden(o: Any, secreto: str, ahora: float, nonces_vistos: Dict[str, float],
-                  firmada: bool = True) -> Tuple[bool, str]:
+                   firmada: bool = True) -> Tuple[bool, str]:
     """PURA. ¿Se puede ejecutar esta orden? `firmada=False` = viene de una tabla con RLS (el
     autor ya lo garantizó Postgres) y solo se miran forma, caducidad y repetición."""
     if not isinstance(o, dict):
@@ -310,6 +328,10 @@ def validar_orden(o: Any, secreto: str, ahora: float, nonces_vistos: Dict[str, f
     para = o.get("para")
     if not (para in ("lider", "todos") or para in MEDIOS or id_valido(para)):
         return False, "destino no válido"
+    # Para desconectar y contenedor, el destino debe ser un id de nodo concreto
+    if accion in ("desconectar", "contenedor"):
+        if para in ("lider", "todos") or para in MEDIOS:
+            return False, "destino no válido: no se puede mandar a lider, todos o un medio genérico"
     nonce = o.get("nonce")
     if not isinstance(nonce, str) or not _RE_NONCE.match(nonce):
         return False, "nonce no válido"
