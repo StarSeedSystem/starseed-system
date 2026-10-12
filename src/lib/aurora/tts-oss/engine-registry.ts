@@ -244,9 +244,29 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
     emotions: false, // el color emocional lo aporta la semilla/entonación, no un parámetro
     cloning: true, // clona timbre desde una referencia (semilla sintética o audio propio)
     latency: "~3-8 s (nube, cola)",
-    license: "MIT (código) · CC-BY-NC (checkpoints)",
+    license: "MIT",
     repo: "https://github.com/myshell-ai/OpenVoice",
     requirements: ["Ninguno: funciona en la web. Usa una semilla de identidad sintética o tu propio audio."],
+  },
+  chatterbox: {
+    id: "chatterbox",
+    label: "Chatterbox",
+    hint: "Voz de alta calidad con emociones controlables y clonación de voz. Funciona localmente o en Spaces públicos de Hugging Face.",
+    kind: "endpoint",
+    realism: 4,
+    requiresEndpoint: false,
+    requiresDownload: false,
+    free: true,
+    langs: "es · en · fr · de · it · pt · zh · ja · ko (multilingüe)",
+    spanish: true,
+    emotions: true,
+    cloning: true,
+    latency: "~1-2 s (local) · ~2-4 s (Space)",
+    license: "MIT",
+    repo: "https://github.com/resemble-ai/ChatterboxTTS",
+    requirements: [
+      "Servicio local de Chatterbox (puerto 8000) o acceso a Spaces públicos de Hugging Face.",
+    ],
   },
   // ── VibeVoice (Microsoft, fork comunitario) — TTS expresivo MULTI-LOCUTOR ──
   // Hasta 4 speakers en un mismo guion: es el motor que da "varias personalidades
@@ -410,8 +430,11 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "gpt-sovits",
   "bark",
   "omnivoice",
-  // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
-  // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → openvoice2 → kokoro].
+  // Chatterbox va después de OmniVoice: voz local o en Spaces públicos de Hugging Face
+  // con emociones controlables y clonación de voz.
+  "chatterbox",
+  // OpenVoice V2 va detrás de Chatterbox (Adenda V2-VOZ):
+  // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → chatterbox → openvoice2 → kokoro].
   "openvoice2",
 ];
 
