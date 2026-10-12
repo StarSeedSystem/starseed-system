@@ -4318,3 +4318,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `S1010-ES2` — otra cosa: ningún proveedor respondió (todos caídos)
 - `WT1011B` — otra cosa: ningún proveedor respondió (todos caídos)
 - `WT1011A` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-12 02:55 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (S1010-TU-LL2c, PM1010F0Ec). Es 67 % de la ola.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
+- `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
