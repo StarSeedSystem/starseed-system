@@ -1,0 +1,21 @@
+[Unit]
+Description=StarSeed · Genesis en el A1: siempre encendido (OPO1011)
+After=network-online.target
+Wants=network-online.target
+# Solo se instala cuando se despliega la .next del guardián.
+# Contrato con oracle_a1.py: `next start -p 9002 -H 127.0.0.1` corre en primer plano.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/opt/starseed/genesis
+Environment=STARSEED_MANDO=1 NODE_OPTIONS=--max-old-space-size=2048
+ExecStart=/usr/bin/next start -p 9002 -H 127.0.0.1
+Restart=on-failure
+RestartSec=60
+MemoryMax=3G
+
+[Install]
+WantedBy=multi-user.target
