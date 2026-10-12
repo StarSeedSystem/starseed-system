@@ -59,6 +59,18 @@ describe("extraerDirectivas", () => {
     expect(r.acciones[0].tipo).toBe("codigo.proponer");
   });
 
+  it("un JSON roto entre dos válidas no se lleva por delante las de alrededor", () => {
+    const r = extraerDirectivas(
+      `${navega("/dashboard")}[[BOT: {"tipo": navegar}]]${navega("/cerebro")}`,
+    );
+    expect(r.acciones.map((a) => a.args.ruta)).toEqual(["/dashboard", "/cerebro"]);
+    expect(r.problemas.join(" ")).toContain("JSON está roto");
+  });
+
+  it("un texto vacío no da acciones ni problemas", () => {
+    expect(extraerDirectivas("")).toEqual({ limpio: "", acciones: [], problemas: [] });
+  });
+
   it("un bloque sin cierre no rompe el extractor", () => {
     const r = extraerDirectivas("Empiezo [[BOT: {\"tipo\":\"navegar\"");
     expect(r.acciones).toEqual([]);
