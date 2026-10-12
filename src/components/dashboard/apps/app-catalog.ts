@@ -21,6 +21,8 @@ import {
     FileText, Table2, LayoutDashboard, Gamepad2, AppWindow, Box, Glasses,
     // Ola 1010E: Estaciones (transmisiones en directo).
     Cast,
+    Bot,
+    GitBranch,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -433,6 +435,17 @@ export const APP_CATALOG: StarseedApp[] = [
         status: "native",
         open: { primary: "route", allowed: ["route", "tab"], route: "/agent?tab=enjambre" },
     },
+    {
+        id: "astraura-bots",
+        name: "Bots de Astraura",
+        short: "Bots",
+        description: "Crea y gestiona bots de Astraura con personalidad, sentidos y memoria. Cada persona tiene varios bots abiertos y sincronizados (el de su perfil y los de sus grupos/páginas). Los bots de grupo se gobiernan democráticamente desde PoliGenesis.",
+        icon: Bot,
+        accent: "#FFBF00",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/genesis#bots" },
+    },
 
     // ── Apps utilitarias / media ─────────────────────────────────
     {
@@ -521,7 +534,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio"],
+    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "astraura-bots"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };
