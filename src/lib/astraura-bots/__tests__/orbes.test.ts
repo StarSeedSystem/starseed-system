@@ -122,12 +122,35 @@ describe("disposicionOrbes", () => {
     }
   });
 
-  it("ordenZ pone enfocado primero", () => {
-    expect(ordenZ(["a", "b", "c"], "b")).toEqual(["b", "a", "c"]);
-    expect(ordenZ(["a", "b", "c"], "")).toEqual(["a", "b", "c"]);
-  });
+it("ordenZ pone enfocado primero", () => {
+  expect(ordenZ(["a", "b", "c"], "b")).toEqual(["b", "a", "c"]);
+  expect(ordenZ(["a", "b", "c"], "")).toEqual(["a", "b", "c"]);
+});
 
-  it("MAX_ORBES_VISIBLES = 5", () => {
-    expect(MAX_ORBES_VISIBLES).toBe(5);
-  });
+it("pone delante la enfocada", () => {
+  const ids = ["a", "b", "c"];
+  const enfocado = "b";
+  const resultado = ordenZ(ids, enfocado);
+  // The focused orb should be last (painted on top)
+  expect(resultado).toEqual(["a", "c", "b"]);
+});
+
+it("si no está enfocado, devuelve el mismo orden", () => {
+  const ids = ["a", "b", "c"];
+  const enfocado = "d"; // not in list
+  const resultado = ordenZ(ids, enfocado);
+  expect(resultado).toEqual(["a", "b", "c"]);
+});
+
+it("maneja duplicados", () => {
+  const ids = ["a", "b", "a", "c"];
+  const enfocado = "a";
+  const resultado = ordenZ(ids, enfocado);
+  // All 'a' should be moved to the end
+  expect(resultado).toEqual(["b", "c", "a", "a"]);
+});
+
+it("MAX_ORBES_VISIBLES = 5", () => {
+  expect(MAX_ORBES_VISIBLES).toBe(5);
+});
 });

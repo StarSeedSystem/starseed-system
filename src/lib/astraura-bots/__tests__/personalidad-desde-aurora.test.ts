@@ -84,7 +84,7 @@ describe("rasgosDesdePersonalidad", () => {
 
 describe("ANIMO_DESDE_VOZ", () => {
   it("cada mood de UserVoiceMood tiene ánimo dentro de los rangos [-1,1] / [0,1]", () => {
-    const moods = ["alegre", "sereno", "tenso", "triste", "enérgico", "neutral"];
+    const moods = ["alegre", "sereno", "tenso", "triste", "energetico", "enérgico", "neutral"];
     for (const m of moods) {
       const a = ANIMO_DESDE_VOZ[m];
       expect(a, `falta ánimo para «${m}»`).toBeDefined();
@@ -93,6 +93,12 @@ describe("ANIMO_DESDE_VOZ", () => {
       expect(a.activacion).toBeGreaterThanOrEqual(0);
       expect(a.activacion).toBeLessThanOrEqual(1);
     }
+  });
+
+  it("should have all known moods", () => {
+    const expectedMoods = ["alegre", "sereno", "tenso", "triste", "energetico", "enérgico", "neutral"];
+    const actualMoods = Object.keys(ANIMO_DESDE_VOZ);
+    expect(actualMoods.sort()).toEqual(expectedMoods.sort());
   });
 
   it("alegre tiene valencia alta y activación alta; triste baja ambas", () => {
