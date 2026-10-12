@@ -336,6 +336,10 @@ describe("PrimerArranque · con cuenta", () => {
     it("terminar deja la neurona configurada también en la cuenta", async () => {
         montar();
         await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
+        // (2026-10-12) Ese mismo título lo lleva la fase «buscando» (mientras mira las neuronas de la
+        // cuenta), que aún no tiene botones: se espera al asistente. Sin esto la prueba dependía de la
+        // velocidad de la máquina y tumbó al guardián del A1 (main rojo → el A1 no prestaba).
+        await screen.findByRole("button", { name: /Siguiente/ });
         for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole("button", { name: /Siguiente/ }));
         await screen.findByRole("heading", { name: "Al abrir StarSeed aquí" });
         await act(async () => {
