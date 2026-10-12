@@ -4318,3 +4318,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `S1010-ES2` — otra cosa: ningún proveedor respondió (todos caídos)
 - `WT1011B` — otra cosa: ningún proveedor respondió (todos caídos)
 - `WT1011A` — otra cosa: ningún proveedor respondió (todos caídos)
+
+## 2026-10-12 04:06 · mg-oracle-1011-2101
+
+**Lo que se pidió.** basta de ilusiones
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `WT1011A` — otra cosa: ningún proveedor respondió (todos caídos)
