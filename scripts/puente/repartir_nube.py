@@ -180,20 +180,66 @@ def cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por,
                     vistas_cadena.add(m)
                     cadena.append(m)
                     pend.append(m)
-        vistas |= vistas_cadena
         miembros = set(cadena)
         if len(cadena) > max_cadena or any(m in reserva for m in cadena):
             continue
         if any(x not in miembros for m in cadena for x in esperadas_por.get(m, ())):
             continue  # (c) alguien de fuera de la cadena espera a un miembro
+        # (b) `tareas.get(m) or {}`: con listas desincronizadas un miembro puede no estar
+        # en tareas_tanda y un acceso directo reventaba el reparto entero en producción.
         if any(str(d) in tareas and str(d) not in miembros
                for m in cadena
                for d in (lambda x: x if isinstance(x, list) else [x])(
-                   tareas[m].get("depende") or tareas[m].get("depende_de") or [])
+                   (tareas.get(m) or {}).get("depende") or (tareas.get(m) or {}).get("depende_de") or [])
                if d):
             continue  # (b) depende de algo abierto fuera de la cadena
+        # Solo se marcan como vistas las cadenas que SÍ se ceden: una cadena descartada
+        # aquí no puede impedir que otra cabeza posterior incluya a sus miembros.
+        vistas |= vistas_cadena
         salida.append(cadena)  # orden de dependencias: cabeza primero
     return salida
+
+
+def cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas=()):
+    """PURA. (cedibles, lote) del reparto con cesión de la tanda de la Mac.
+
+    (2026-10-12, CAPC1011Bc, medido el 11 a las 21:15) Con solo `cedibles_de_la_tanda`
+    la tanda de la Mac tenía 202 tareas, se quedaba 27 y cedía 1: GitHub Actions y el A1
+    sin trabajo, porque «lo cedible» era solo lo que NADIE esperaba y casi todo el atraso
+    cuelga de alguien. Aquí se unen las sueltas (`cedibles_de_la_tanda`) con los miembros
+    de `cadenas_cedibles` (cabeza esperada + dependientes de la tanda, viajan enteras).
+    `lote` = solo los miembros de cadenas: se pasa como `mismo_lote` a `elegir`, que les
+    conserva el `depende` interno para que el orquestador de allí respete su orden."""
+    ajenas = {str(x) for x in ajenas or ()}
+    tanda = {str(t) for t in tanda or ()}
+    estado_mac = estado_mac or {}
+    listas_mac = [str(t) for t in (estado_mac.get("listas") or [])]
+    tope_mac = estado_mac.get("tope") or 0
+    esperadas = esperadas_por_otras(colas, progreso)
+    sueltas = [t for t in cedibles_de_la_tanda(tanda, listas_mac, tope_mac, esperadas)
+               if t not in ajenas]
+    # Tareas de la tanda con su dict (de las colas) y quién espera a quién DENTRO de la
+    # tanda: `esperadas_por` de `cadenas_cedibles` son los dependientes directos de cada id.
+    tareas_tanda = {}
+    for _nombre, ts in colas or []:
+        for t in ts or []:
+            if isinstance(t, dict) and t.get("id") and str(t["id"]) in tanda:
+                tareas_tanda.setdefault(str(t["id"]), t)
+    esperadas_por = {}
+    for tid, t in tareas_tanda.items():
+        deps = t.get("depende") or t.get("depende_de") or []
+        for d in (deps if isinstance(deps, list) else [deps]):
+            if d:
+                esperadas_por.setdefault(str(d), set()).add(tid)
+    lote = set()
+    for cadena in cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por):
+        lote.update(m for m in cadena if m not in ajenas)
+    cedibles, vistas = [], set()
+    for tid in list(sueltas) + sorted(lote):
+        if tid not in vistas and tid not in ajenas:
+            vistas.add(tid)
+            cedibles.append(tid)
+    return cedibles, lote
 
 
 def sin_lo_de_la_mac(colas, tanda_ids, cedibles=(), ajenas=()):

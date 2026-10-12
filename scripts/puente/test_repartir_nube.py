@@ -540,6 +540,26 @@ class CadenasCedibles(unittest.TestCase):
         listas = ["M%d" % i for i in range(4)] + ["A", "B", "Z"]
         self.assertEqual(R.cadenas_cedibles(tareas, listas, 2, {"A": ["B"]}), [])
 
+    def test_cadena_descartada_no_envenena_a_sus_miembros(self):
+        # La cadena de X se descarta (X depende de Z abierto fuera), pero A→B, cabeza
+        # posterior, sí es cedible: marcar vistas antes de los filtros la impedía.
+        tareas = self._tareas(
+            ("X", {"depende": ["Z"]}), ("A", {}), ("B", {"depende": ["A"]}), ("Z", {}),
+            *(("M%d" % i, {}) for i in range(4)),
+        )
+        listas = ["M%d" % i for i in range(4)] + ["X", "A", "B", "Z"]
+        esp = {"X": ["A"], "A": ["B"]}
+        self.assertEqual(R.cadenas_cedibles(tareas, listas, 2, esp), [["A", "B"]])
+
+    def test_miembro_ausente_de_tareas_no_revienta(self):
+        # (Revisión CAPC1011A) listas desincronizadas: una CABEZA que no está en tareas
+        # ya no tira el reparto con un KeyError.
+        tareas = self._tareas(("A", {}), ("B", {"depende": ["A"]}),
+                              *(("M%d" % i, {}) for i in range(4)))
+        listas = ["M%d" % i for i in range(4)] + ["FANTASMA", "A", "B"]
+        r = R.cadenas_cedibles(tareas, listas, 2, {"FANTASMA": ["A"], "A": ["B"]})
+        self.assertEqual(r, [["FANTASMA", "A", "B"]])
+
 
 class MismoLoteEnElegir(unittest.TestCase):
     """(2026-10-11, CAPC1011A) `elegir` deja pasar una tarea que depende de otra de su MISMO
@@ -562,3 +582,90 @@ class MismoLoteEnElegir(unittest.TestCase):
     def test_sin_mismo_lote_el_comportamiento_no_cambia(self):
         r = elegir(self.COLAS_L, {}, [], "999")
         self.assertEqual([t["id"] for t in r], ["A"])
+
+
+class CederCadenasALaNube(unittest.TestCase):
+    """(2026-10-12, CAPC1011Bc) `cedibles_y_lote` + `elegir(mismo_lote=...)`: la cadena
+    viaja ENTERA a la misma cola y conserva su `depende` interno."""
+
+    def _colas(self, tareas):
+        return [("cola-auto-1011.json", tareas)]
+
+    def _tanda(self, extra=()):
+        # Reserva de la Mac: tope 1 x 2 rondas = las 2 primeras («M1», «M2»).
+        base = [{"id": "M1", "ola": "1010"}, {"id": "M2", "ola": "1010"}]
+        return base + list(extra)
+
+    def test_cadena_a_b_c_se_cede_entera_y_conserva_depende(self):
+        tareas = self._tanda([
+            {"id": "A", "ola": "1010", "archivos": ["a.ts"]},
+            {"id": "B", "ola": "1010", "archivos": ["b.ts"], "depende": ["A"]},
+            {"id": "C", "ola": "1010", "archivos": ["c.ts"], "depende": ["B"]},
+        ])
+        colas = self._colas(tareas)
+        tanda = [t["id"] for t in tareas]
+        estado_mac = {"listas": tanda, "tope": 1}
+        cedibles, lote = R.cedibles_y_lote(tanda, estado_mac, colas, {}, ajenas=())
+        self.assertTrue({"A", "B", "C"} <= set(cedibles))
+        self.assertEqual(lote, {"A", "B", "C"})
+        elegidas = R.elegir(R.sin_lo_de_la_mac(colas, tanda, cedibles), {}, [], "999",
+                            tope=20, mismo_lote=lote)
+        por_id = {t["id"]: t for t in elegidas}
+        self.assertIn("A", por_id)
+        self.assertEqual(por_id["B"]["depende"], ["A"])  # el orden lo respeta la nube
+        self.assertEqual(por_id["C"]["depende"], ["B"])
+        self.assertNotIn("dependencias_ya_en_main", por_id["B"])
+        # La orden «soltar» de la Mac llega a TODOS los miembros de la cadena.
+        ordenes = R.ordenes_soltar([p["id"] for p in elegidas],
+                                   [("cola-auto-1011.json", tanda)], "nube")
+        self.assertEqual(sorted(ordenes["cola-auto-1011.json"]), ["A", "B", "C"])
+
+    def test_cadena_con_dependiente_que_se_queda_no_se_cede(self):
+        # «EXT» se queda en la Mac (está en la reserva) y espera a B: ceder la cadena
+        # la dejaría varada esperando a la nube.
+        extra = [
+            {"id": "A", "ola": "1010", "archivos": ["a.ts"]},
+            {"id": "B", "ola": "1010", "archivos": ["b.ts"], "depende": ["A"]},
+            {"id": "EXT", "ola": "1010", "archivos": ["x.ts"], "depende": ["B"]},
+        ]
+        base = [{"id": "M1", "ola": "1010"}, extra[2]]  # EXT en la reserva (tope 1 x 2)
+        tareas = base + extra[:2]
+        colas = self._colas(tareas)
+        tanda = [t["id"] for t in tareas]
+        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 1}, colas, {})
+        self.assertEqual(lote, set())
+        self.assertNotIn("A", cedibles)
+        self.assertNotIn("B", cedibles)
+
+    def test_sin_cadenas_el_resultado_es_el_de_antes(self):
+        tareas = self._tanda([
+            {"id": "S1", "ola": "1010"},
+            {"id": "S2", "ola": "1010"},
+        ])
+        colas = self._colas(tareas)
+        tanda = [t["id"] for t in tareas]
+        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 1}, colas, {})
+        self.assertEqual(lote, set())
+        self.assertEqual(cedibles, R.cedibles_de_la_tanda(tanda, tanda, 1,
+                                                          R.esperadas_por_otras(colas, {})))
+
+    def test_listas_desincronizadas_no_rompen(self):
+        # (Revisión CAPC1011A) Una lista que nombra un id ausente de las colas ya no
+        # revienta el reparto con un KeyError.
+        tareas = self._tanda([{"id": "A", "ola": "1010"},
+                              {"id": "B", "ola": "1010", "depende": ["A"]}])
+        tanda = [t["id"] for t in tareas] + ["FANTASMA"]
+        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 1},
+                                           self._colas(tareas), {})
+        self.assertIn("A", cedibles)
+        self.assertEqual(lote, {"A", "B"})
+
+    def test_lo_ajeno_no_se_cede(self):
+        tareas = self._tanda([{"id": "A", "ola": "1010"},
+                              {"id": "B", "ola": "1010", "depende": ["A"]}])
+        colas = self._colas(tareas)
+        tanda = [t["id"] for t in tareas]
+        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 1}, colas, {},
+                                           ajenas={"B"})
+        self.assertNotIn("B", cedibles)
+        self.assertNotIn("B", lote)

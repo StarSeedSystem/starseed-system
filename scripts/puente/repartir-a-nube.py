@@ -146,20 +146,28 @@ def main():
     colas_mac = RN.colas_de_la_tanda_viva(procesos, OLAS)
     tanda = {i for _n, ids in colas_mac for i in ids}
     ajenas = RN.leer_prestadas()  # lo que MetaGenesis prestó a otro medio: ni se cede ni se reparte
-    cedibles = []
+    # (2026-10-12, CAPC1011Bc, medido el 11 a las 21:15) Antes solo se cedían las listas que
+    # NADIE esperaba: tanda de 202, la Mac se quedaba 27 y cedía 1; Actions y el A1 parados.
+    # Ahora `cedibles_y_lote` une las sueltas con las CADENAS enteras (`cadenas_cedibles`), y
+    # `mismo_lote=lote` hace que una cadena viaje entera conservando su `depende` interno.
+    cedibles, lote = [], set()
     if args.ceder and tanda:
         try:
             import asignar_huecos
 
-            est = asignar_huecos.reunir()
-            cedibles = [t for t in RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
-                                                           RN.esperadas_por_otras(colas, progreso))
-                        if t not in ajenas]
+            cedibles, lote = RN.cedibles_y_lote(tanda, asignar_huecos.reunir(), colas,
+                                                progreso, ajenas)
         except Exception as e:  # sin la foto de la Mac no se cede nada: como antes
             print("[reparto] no pude medir la Mac para ceder (%s): no cedo nada" % type(e).__name__)
-            cedibles = []
+            cedibles, lote = [], set()
     colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
-    elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope, envios=envios)
+    elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope,
+                      envios=envios, mismo_lote=lote)
+    elegidos = {str(t["id"]) for t in elegidas}
+    if lote and (lote - elegidos):
+        # Una cadena no cabía entera en el tope de este envío: no se manda NINGUNA de sus
+        # tareas (mandar la mitad deja reasignada la cabeza y varados los dependientes).
+        elegidas = [t for t in elegidas if str(t["id"]) not in lote]
     cedidas = [t["id"] for t in elegidas if t["id"] in set(cedibles)]
     if tanda:
         print("[reparto] tanda viva de la Mac: %d tarea(s); cedibles %d; cedidas a la nube %d (%s)"
