@@ -4332,3 +4332,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
+
+## 2026-10-12 10:40 · mg-oracle-1012-0355
+
+**Lo que se pidió.** basta de ilusiones
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
