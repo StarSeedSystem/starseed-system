@@ -852,6 +852,11 @@ export function CentroMando() {
     const [almacenamiento, setAlmacenamiento] = useState<EstadoAlmacenamiento | null>(null);
     const [jev, setJev] = useState<RespuestaJev | null>(null);
     const [soloLocal, setSoloLocal] = useState(false);
+    // (2026-10-12) Alex vio «La consola solo funciona en tu máquina» EN su Mac, con el servidor lento
+    // por la memoria: cualquier fallo de /api/mando/estado (tiempo agotado, 5xx, reinicio) encendía
+    // `soloLocal`. Ahora solo un 404 (esta instancia no tiene consola) lo enciende; lo demás cuenta
+    // como «Genesis tarda en responder» y se sigue enseñando lo último medido.
+    const [sinRespuesta, setSinRespuesta] = useState(0);
     const [cargando, setCargando] = useState(true);
     // «Sin publicar» de la cabecera (Ola 274; un solo dato desde Ola 276 · M10): el
     // desglose por repos leído del endpoint de publicaciones una vez por minuto. Un
@@ -1350,17 +1355,25 @@ export function CentroMando() {
                     fetch("/api/mando/neurona", { cache: "no-store" }),
                 ]);
                 if (!vivo) return;
-                if (resEstado.status !== "fulfilled" || !resEstado.value.ok) {
+                const decision = decidirRespuestaMando(
+                    resEstado.status === "fulfilled" ? resEstado.value.status : null,
+                );
+                if (decision === "sin-consola") {
                     setSoloLocal(true);
+                    return;
+                }
+                if (decision === "sin-respuesta" || resEstado.status !== "fulfilled") {
+                    setSinRespuesta((n) => n + 1);
                     return;
                 }
                 setEstado((await resEstado.value.json()) as EstadoMando);
                 setSoloLocal(false);
+                setSinRespuesta(0);
                 if (resNeurona.status === "fulfilled" && resNeurona.value.ok) {
                     setNeurona((await resNeurona.value.json()) as SaludNeurona);
                 }
             } catch {
-                if (vivo) setSoloLocal(true);
+                if (vivo) setSinRespuesta((n) => n + 1);
             } finally {
                 enCurso = false;
                 if (vivo) setCargando(false);
@@ -1758,18 +1771,31 @@ export function CentroMando() {
                 >
                     <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
                     <div>
-                        <p className="font-semibold">La consola solo funciona en tu máquina.</p>
+                        <p className="font-semibold">Esta página aún no está conectada a Genesis.</p>
                         <p className="mt-1 text-amber-100/80">
-                            La consola está apagada en esta instancia (funciona en
-                            localhost, con <code>STARSEED_MANDO=1</code> o con sesión).
-                            Las rutas <code>/api/mando/*</code> responden 404 en el
-                            despliegue público para no exponer el estado del desarrollo;
-                            en tu máquina (modo ligero incluido) entran sin sesión.
+                            Desde cualquier aparato, Genesis se abre por MetaGenesis con tu cuenta: se conecta
+                            sola a tu Mac o al servidor siempre encendido y trae aquí la consola entera.
                         </p>
+                        <a
+                            href="/metagenesis"
+                            className="mt-2 inline-flex cursor-pointer items-center gap-1 rounded-lg border border-amber-300/40 px-3 py-1.5 text-xs font-medium text-amber-50 hover:bg-amber-400/10"
+                        >
+                            Abrir MetaGenesis
+                        </a>
                     </div>
                 </div>
+            ) : sinRespuesta > 0 && !pulso ? (
+                <p role="status" className="flex items-center gap-2 text-sm text-white/70">
+                    <CircleDashed className="h-4 w-4 animate-spin" aria-hidden />
+                    Genesis tarda en responder (la máquina va cargada): vuelvo a intentarlo cada 20 s.
+                </p>
             ) : pulso ? (
                 <div className="flex flex-col gap-3">
+                    {sinRespuesta > 0 ? (
+                        <p role="status" className="text-xs text-amber-200/80">
+                            Genesis tarda en responder: lo de abajo es la última medida; se refresca sola en cuanto conteste.
+                        </p>
+                    ) : null}
                     {/* (2026-09-15) Aquí había un botón de «Abrir director» y, al lado, este
                         comentario: «la navegación no constituye una verificación». Tenía razón:
                         cambiar de pestaña no comprueba nada. Ahora el botón verifica los
@@ -2462,4 +2488,15 @@ export function CentroMando() {
         </div>
         </VozMandoProvider>
     );
+}
+
+/**
+ * PURA. Qué significa la respuesta de `/api/mando/estado`: 404 = esta instancia no tiene consola
+ * (despliegue público sin conexión a un motor); null (red cortada, tiempo agotado) o 5xx = el
+ * servidor tarda o se está levantando; 2xx = datos. (2026-10-12)
+ */
+export function decidirRespuestaMando(status: number | null): "datos" | "sin-consola" | "sin-respuesta" {
+    if (status === 404) return "sin-consola";
+    if (status !== null && status >= 200 && status < 300) return "datos";
+    return "sin-respuesta";
 }

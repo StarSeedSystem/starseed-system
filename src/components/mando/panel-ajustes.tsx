@@ -674,8 +674,9 @@ export function PanelAjustes() {
                 >
                     <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
                     <p>
-                        El panel de ajustes del enjambre solo funciona en tu máquina (las
-                        rutas <code>/api/mando/*</code> están apagadas en el despliegue público).
+                        Esta página aún no está conectada a Genesis. Desde cualquier aparato se abre por{" "}
+                        <a href="/metagenesis" className="cursor-pointer underline">MetaGenesis</a> con tu cuenta, que
+                        se conecta sola a tu Mac o al servidor siempre encendido.
                     </p>
                 </div>
                 <TarjetasInformativas />
