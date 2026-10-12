@@ -149,3 +149,19 @@ class TopeDeReparaciones(unittest.TestCase):
         self.assertEqual(T.sucesores_en_cadena("RSC1006Qd", p), ["RSC1006Qb", "RSC1006Qc", "RSC1006Qd"])
         self.assertEqual(T.sucesores_en_cadena("RSC1006R", p), [])
         self.assertGreaterEqual(len(T.sucesores_en_cadena("RSC1006Q", p)), T.REPARACIONES_MAX)
+
+
+class DuenoDeSueltos(unittest.TestCase):
+    """(2026-10-12) Una rama del A1 con solo «chore(memoria): …» daba id None y traer_nube moría en
+    cada pasada (74 veces): nada de la nube ni del A1 se reparaba."""
+
+    def test_rama_por_tarea_del_a1(self):
+        self.assertEqual(T.dueno_de_sueltos("nube/a1-20261012-114650-COL1012B", {}), "COL1012B")
+        self.assertEqual(T.dueno_de_sueltos("nube/a1-20261011-003110-S1010-EV-ORACLE-1a", {}), "S1010-EV-ORACLE-1a")
+
+    def test_rama_ola(self):
+        self.assertEqual(T.dueno_de_sueltos("nube/123/ola/AV1011D", {}), "AV1011D")
+
+    def test_rama_de_cola_con_tareas_y_sin_ellas(self):
+        self.assertEqual(T.dueno_de_sueltos("nube/a1-20261011-220038", {"X1": []}), "X1")
+        self.assertIsNone(T.dueno_de_sueltos("nube/a1-20261011-220038", {}))

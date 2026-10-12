@@ -294,6 +294,20 @@ def _colas_por_id():
     return salida
 
 
+def dueno_de_sueltos(rama, por_tid):
+    """PURA: a qué tarea pertenecen los commits sin id de una rama, o None si a ninguna.
+
+    (2026-10-12) Las ramas del A1 se llaman `nube/a1-<fecha>-<hora>-<ID>` (no `…/ola/<ID>`) y la
+    rama de la cola entera (`nube/a1-<fecha>-<hora>`) a veces solo trae «chore(memoria): aprendizaje de
+    la ola …», que no es de ninguna tarea. Antes eso daba una fila con id None y `traer_nube` moría
+    en `base_de(None)` en CADA pasada (74 veces desde el 11-10 01:02 UTC): nada de la nube ni del A1
+    se reparaba y el trabajo del A1 no llegaba a main."""
+    m = re.search(r"/ola/([^/]+)$", rama) or re.search(r"^nube/a1-\d{8}-\d{6}-([A-Za-z0-9][A-Za-z0-9-]*)$", rama)
+    if m:
+        return m.group(1)
+    return next(iter(por_tid), None)
+
+
 def inventario():
     """[{rama, tid, commits:[{sha, asunto, tipo, nuevo, vacio, archivos}], fecha}] de las ramas
     nube/* del remoto con algo que main no tenga."""
@@ -325,9 +339,9 @@ def inventario():
         # Lo que no lleva id propio (un arreglo suelto en la rama de una tarea) va con esa tarea.
         sueltos = por_tid.pop(None, [])
         if sueltos:
-            m = re.search(r"/ola/([^/]+)$", rama)
-            dueno = m.group(1) if m else (next(iter(por_tid), None))
-            por_tid.setdefault(dueno, []).extend(sueltos)
+            dueno = dueno_de_sueltos(rama, por_tid)
+            if dueno:
+                por_tid.setdefault(dueno, []).extend(sueltos)
         for tid, commits in por_tid.items():
             filas.append({"rama": rama, "tid": tid, "commits": commits, "fecha": fecha.strip()})
     return filas
@@ -349,41 +363,147 @@ def _actualizar_progreso(cambios):
         _escribir_json(PROGRESO, p)
 
 
-def _puertas(cambiados):
-    """tsc + pruebas relacionadas, con el entorno y el turno de las puertas. (ok, detalle)."""
+#: Carpeta donde se comprueba lo que llega de la nube ANTES de tocar main (ver `_traer`).
+CARPETA_COMPROBAR = os.path.join(os.path.dirname(RAIZ), "starseed-wt", "_traer")
+#: tsc con memoria propia y sin revisar las librerías (como la puerta del orquestador y tsc-turno.sh).
+#: (2026-10-12) Sin esto `npx tsc --noEmit` moría en la Mac de 8 GB con «JavaScript heap out of memory»
+#: (el registro solo enseñaba `node::LoadEnvironment…`) y TODO lo que traía la nube iba a «reparar».
+ORDEN_TSC = ["npx", "tsc", "--noEmit", "--skipLibCheck"]
+MEMORIA_TSC = "--max-old-space-size=3072"
+_SENALES_MEDIO = ("heap out of memory", "FATAL ERROR", "node::LoadEnvironment", "se pasó de", "Killed",
+                  "ENOMEM", "another git process", "index.lock")
+
+
+def es_fallo_del_medio(detalle):
+    """PURA: ¿el fallo es de la máquina (memoria, tiempo, cerrojo), no del trabajo de la tarea?
+    Un fallo del medio no crea una sucesora: se reintenta en la próxima pasada."""
+    return any(s in str(detalle or "") for s in _SENALES_MEDIO)
+
+
+def archivos_ts(cambiados):
+    """PURA: lo que obliga a pasar tsc (código TS o la configuración que lo cambia)."""
+    return [c for c in cambiados or () if re.search(r"\.(ts|tsx|mts|cts)$", c)
+            or os.path.basename(c) in ("tsconfig.json", "package.json", "package-lock.json")]
+
+
+def pruebas_python(cambiados, existe=os.path.exists):
+    """PURA (con `existe` inyectable): pruebas del puente que tocan lo que llega: las propias
+    `test_*.py` cambiadas y la hermana `test_<módulo>.py` de cada módulo cambiado."""
+    salida = []
+    for c in cambiados or ():
+        if not (c.startswith("scripts/") and c.endswith(".py")):
+            continue
+        carpeta, nombre = os.path.split(c)
+        cand = c if nombre.startswith("test_") else os.path.join(carpeta, "test_" + nombre)
+        if cand not in salida and existe(cand):
+            salida.append(cand)
+    return salida
+
+
+def _correr_en(cwd, orden, timeout, memoria=None):
     import publicar
+
+    env = publicar.entorno()
+    if memoria:
+        env = dict(env, NODE_OPTIONS=memoria)
+    try:
+        r = subprocess.run(orden, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
+        return r.returncode, ((r.stdout or "") + (r.stderr or ""))[-4000:]
+    except subprocess.TimeoutExpired:
+        return 124, "se pasó de %d s sin terminar" % timeout
+    except Exception as e:  # noqa: BLE001
+        return 1, "%s: %s" % (type(e).__name__, e)
+
+
+def _git_en(cwd, args, timeout=120):
+    try:
+        r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    except Exception as e:  # noqa: BLE001
+        return 1, "%s: %s" % (type(e).__name__, e)
+
+
+def _puertas(cambiados, cwd=None):
+    """tsc (solo si cambió TS) + pruebas relacionadas de TS y del puente, con el turno de las puertas,
+    en la carpeta `cwd`. (ok, detalle)."""
+    import contextlib
+
     import turno_pesado
 
-    with turno_pesado.turno():
-        rc, salida = publicar.correr(["npx", "tsc", "--noEmit"], timeout=1800)
-        if rc != 0:
-            return False, "tsc: " + salida[-600:]
+    cwd = cwd or RAIZ
+    codigo_ts = [c for c in cambiados if c.startswith("src/") and re.search(r"\.(ts|tsx)$", c)]
+    # El turno de la máquina (uno pesado a la vez) solo hace falta para tsc y vitest; unas pocas
+    # pruebas del puente en Python no esperan detrás de un tsc de 15 min de otra tarea.
+    turno = turno_pesado.turno() if (archivos_ts(cambiados) or codigo_ts) else contextlib.nullcontext()
+    with turno:
+        if archivos_ts(cambiados):
+            rc, salida = _correr_en(cwd, ORDEN_TSC, 1800, MEMORIA_TSC)
+            if rc != 0:
+                return False, "tsc: " + salida[-600:]
         codigo = [c for c in cambiados if c.startswith("src/") and re.search(r"\.(ts|tsx)$", c)]
         if codigo:
-            rc, salida = publicar.correr(["npx", "vitest", "related", "--run", "--maxWorkers=2",
-                                          "--minWorkers=1", "--passWithNoTests", *codigo], timeout=1200)
+            rc, salida = _correr_en(cwd, ["npx", "vitest", "related", "--run", "--maxWorkers=2",
+                                          "--minWorkers=1", "--passWithNoTests", *codigo], 1200)
             if rc != 0:
                 return False, "pruebas: " + salida[-600:]
+        py = pruebas_python(cambiados, lambda r: os.path.exists(os.path.join(cwd, r)))
+        if py:
+            rc, salida = _correr_en(cwd, [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *py], 900)
+            if rc not in (0, 5):  # 5 = no encontró pruebas
+                return False, "pruebas del puente: " + salida[-600:]
     return True, "tsc y pruebas relacionadas en verde"
 
 
-def _traer(fila):
-    """cherry-pick de la tarea en main + puertas. (ok, detalle). Deshace si no pasa."""
-    _, orig = _git(["rev-parse", "HEAD"])
+def _traer(fila, espera_integrar_s=60):
+    """Trae la tarea a main SIN tocar main hasta que pasa. (ok, detalle, del_medio).
+
+    (2026-10-12) Antes se hacía cherry-pick EN main y, si no pasaba, `reset --keep`: main subía y
+    bajaba cada 30 min (16 veces el 12-10), el revisor de bloqueadas leía `git log main` en ese hueco
+    y daba por integradas tareas que no lo estaban (COL1012A, COL1012B…), y las carpetas de tareas
+    nuevas nacían con commits sin comprobar. Ahora se comprueba en una carpeta aparte y main solo
+    avanza (fast-forward) si todo pasa y nadie lo movió mientras tanto."""
+    import shutil
+
+    _, orig = _git(["rev-parse", "main"])
     orig = orig.strip()
     shas = [c["sha"] for c in fila["commits"] if c["nuevo"] or (c["tipo"] == "ola" and c["vacio"])]
-    rc, salida = _git(["-c", "core.hooksPath=/dev/null", "cherry-pick", "--allow-empty",
-                       "--keep-redundant-commits", *shas], timeout=300)
+    wt = os.path.join(CARPETA_COMPROBAR, re.sub(r"[^A-Za-z0-9._-]", "-", str(fila["tid"])))
+    _git(["worktree", "remove", "--force", wt])
+    shutil.rmtree(wt, ignore_errors=True)
+    _git(["worktree", "prune"])
+    os.makedirs(CARPETA_COMPROBAR, exist_ok=True)
+    rc, salida = _git(["worktree", "add", "-q", "--detach", wt, orig], timeout=300)
     if rc != 0:
-        _git(["cherry-pick", "--abort"])
-        _git(["reset", "-q", "--keep", orig])
-        return False, "conflicto al traerla sobre el main de hoy: " + salida.strip()[-300:]
-    _, cambiados = _git(["diff", "--name-only", orig, "HEAD"])
-    ok, detalle = _puertas([c for c in cambiados.splitlines() if c.strip()])
-    if not ok:
-        _git(["reset", "-q", "--keep", orig])
-        return False, "en la Mac no pasa: " + detalle
-    return True, detalle
+        return False, "no pude preparar la carpeta de comprobación: " + salida.strip()[-200:], True
+    try:
+        nm = os.path.join(RAIZ, "node_modules")
+        if os.path.isdir(nm) and not os.path.exists(os.path.join(wt, "node_modules")):
+            os.symlink(nm, os.path.join(wt, "node_modules"))
+        rc, salida = _git_en(wt, ["-c", "core.hooksPath=/dev/null", "cherry-pick", "--allow-empty",
+                                  "--keep-redundant-commits", *shas], timeout=300)
+        if rc != 0:
+            _git_en(wt, ["cherry-pick", "--abort"])
+            return False, "conflicto al traerla sobre el main de hoy: " + salida.strip()[-300:], es_fallo_del_medio(salida)
+        _, cambiados = _git_en(wt, ["diff", "--name-only", orig, "HEAD"])
+        ok, detalle = _puertas([c for c in cambiados.splitlines() if c.strip()], wt)
+        if not ok:
+            return False, "en la Mac no pasa: " + detalle, es_fallo_del_medio(detalle)
+        _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
+        try:
+            with _Cerrojo("integrar", espera_integrar_s):
+                _, actual = _git(["rev-parse", "main"])
+                if actual.strip() != orig:
+                    return False, "main avanzó mientras se comprobaba: se reintenta en la próxima pasada", True
+                rc, salida = _git(["merge", "--ff-only", "-q", nuevo.strip()], timeout=120)
+        except TimeoutError:
+            return False, "main ocupado (publicación o integración): se reintenta en la próxima pasada", True
+        if rc != 0:
+            return False, "no pude avanzar main: " + salida.strip()[-200:], True
+        return True, detalle, False
+    finally:
+        _git(["worktree", "remove", "--force", wt])
+        shutil.rmtree(wt, ignore_errors=True)
+        _git(["worktree", "prune"])
 
 
 def _crear_reparacion(fila, motivo, colas, progreso):
@@ -443,6 +563,8 @@ def _revisar(aplicar, espera_integrar_s):
     entradas = []
     for fila in inventario():
         tid = fila["tid"]
+        if not tid:  # commits que no son de ninguna tarea: ni se traen ni se reparan
+            continue
         clave = "%s|%s" % (fila["rama"], tid)
         previa = hechas_antes.get(clave) or {}
         if previa.get("accion") in ("traida", "reparada"):
@@ -455,21 +577,22 @@ def _revisar(aplicar, espera_integrar_s):
 
     traidas, reparadas, esperando, superadas_nuevas = [], [], [], []
     if aplicar:
-        try:
-            with _Cerrojo("integrar", espera_integrar_s):
-                for e in [x for x in entradas if x["accion"] == "traer"]:
-                    ok, detalle = _traer(e)
-                    if ok:
-                        _actualizar_progreso({e["tid"]: {"estado": "commit", "nota": "traída de la nube (%s): %s"
-                                                         % (e["rama"], detalle)}})
-                        hechas_antes[e["clave"]] = {"accion": "traida", "t": time.strftime("%Y-%m-%d %H:%M:%S")}
-                        traidas.append({"tid": e["tid"], "rama": e["rama"]})
-                    else:
-                        e["accion"], e["motivo"] = "reparar", detalle
-        except TimeoutError:
-            esperando += [{"tid": e["tid"], "motivo": "main ocupado (publicación o integración)"}
-                          for e in entradas if e["accion"] == "traer"]
-            entradas = [e for e in entradas if e["accion"] != "traer"]
+        # (2026-10-12) Sin el cerrojo `integrar` mientras se comprueba: cada tarea se comprueba en su
+        # carpeta y `_traer` solo lo toma para el avance rápido de main. Antes se tenía durante TODA la
+        # pasada (tsc de hasta 30 min en la Mac) y el orquestador no podía integrar nada mientras.
+        for e in [x for x in entradas if x["accion"] == "traer"]:
+            ok, detalle, del_medio = _traer(e, espera_integrar_s)
+            if not ok and del_medio:
+                # Fallo de la máquina, no de la tarea: se reintenta, sin crear sucesora.
+                e["accion"], e["motivo"] = "esperar", detalle
+                continue
+            if ok:
+                _actualizar_progreso({e["tid"]: {"estado": "commit", "nota": "traída de la nube (%s): %s"
+                                                 % (e["rama"], detalle)}})
+                hechas_antes[e["clave"]] = {"accion": "traida", "t": time.strftime("%Y-%m-%d %H:%M:%S")}
+                traidas.append({"tid": e["tid"], "rama": e["rama"]})
+            else:
+                e["accion"], e["motivo"] = "reparar", detalle
         progreso = _progreso()
         for e in [x for x in entradas if x["accion"] == "reparar"]:
             sucesores = sucesores_en_cadena(e["tid"], progreso)
