@@ -440,6 +440,7 @@ export const APP_CATALOG: StarseedApp[] = [
         short: "Bots",
         description: "Panel de gestión de tus bots de Astraura.",
         icon: Bot,
+        accent: "#6366F1",
         category: "sistema",
         status: "native",
         open: { primary: "route", allowed: ["route"], route: "/genesis#bots" },
