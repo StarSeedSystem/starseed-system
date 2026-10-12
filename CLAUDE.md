@@ -1196,3 +1196,22 @@ una carpeta aparte (`starseed-wt/_traer/<id>`) y main solo avanza por fast-forwa
 medio (memoria, tiempo, cerrojo) no crea sucesora. Rescate de lo archivado por error:
 `python3 scripts/puente/rescatar_archivadas.py <ID>…`. Síntoma para reconocerlo:
 `git reflog show main` con «cherry-pick» seguido de «reset: moving to» el mismo minuto.
+
+### 16. «Solo funciona en tu máquina» EN la Mac, y desde otro aparato nada: producción 47 h parada (2026-10-12)
+
+Alex vio «La consola solo funciona en tu máquina» en `localhost:9002`. Falso: Genesis contestaba, pero
+tarde (5-25 s con la presión de memoria del sistema en aviso y 91 MB de RAM pura) y la página tomaba
+CUALQUIER fallo por «sin consola». Arreglos: el aviso sale solo con un **404 de verdad**
+(`decidirRespuestaMando`); si tarda, «Genesis tarda en responder» y se queda lo último.
+`/api/mando/estado` se calcula **una vez y se reutiliza 8 s** (`src/lib/mando/calculo-compartido.ts`):
+de 5-25 s a menos de 1 s. El gobernador mira la **presión del núcleo**
+(`kern.memorystatus_vm_pressure_level`): macOS añade archivos de swap según se llenan (8 → 9 → 10 GB) y
+el «swap al 90 %» no llegaba nunca. Desde otro aparato, `/metagenesis` en Vercel era la versión del
+10-10 (sin `MetaGenesisRemoto`) porque **la autopublicación llevaba 47 h en bucle**: main había perdido
+dos commits ya publicados (S1010-EV-FONDO) cuyo contenido volvió por otra vía, `origin/main` dejó de ser
+antecesor y cada lote hacía Jev + pruebas + CI para acabar en «no es avance rápido». Ahora se mira ANTES
+y, si lo de origin ya está dentro (`git cherry` todo «-»), se une con «ours» (el árbol no cambia); si
+trae algo nuevo, frena y decide un director. Y el servicio del túnel (`com.starseed.tunel-metagenesis`)
+no estaba instalado: `STARSEED_SOLO=tunel-metagenesis python3 scripts/puente/instalar-servicios.py`.
+Síntomas: `git merge-base --is-ancestor origin/main main` falla; `/version.json` de producción con
+fecha vieja; `curl -w %{time_total}` de `/api/mando/estado` por encima de 5 s.
