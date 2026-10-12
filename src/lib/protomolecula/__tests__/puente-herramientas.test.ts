@@ -153,6 +153,22 @@ describe("procesarMensaje · mensajes", () => {
     const m = marcoDe();
     expect(procesarMensaje(ev(m, { ...hola, tipo: "cambio", parametroId: "x", valor: 1 }), m, 0, limite()).entrada).not.toBeNull();
   });
+  it("hola con «nombre» que no es texto se rechaza", () => {
+    const m = marcoDe();
+    const r = procesarMensaje(ev(m, { ...hola, nombre: 42 }), m, 0, limite());
+    expect(r.entrada).toBeNull();
+    expect(r.motivo).toContain("nombre");
+  });
+  it("cambio con «parametroId» que no es texto no vacío se rechaza", () => {
+    const m = marcoDe(ORIGEN, [{ id: "vol", nombre: "V", tipo: "numero" }]);
+    expect(procesarMensaje(ev(m, { ...hola, tipo: "cambio", parametroId: 7, valor: 1 }), m, 0, limite()).entrada).toBeNull();
+    expect(procesarMensaje(ev(m, { ...hola, tipo: "cambio", parametroId: "", valor: 1 }), m, 0, limite()).entrada).toBeNull();
+  });
+  it("exportar con «formato» que no es texto no vacío se rechaza", () => {
+    const m = marcoDe();
+    expect(procesarMensaje(ev(m, { ...hola, tipo: "exportar", formato: null, datos: 1 }), m, 0, limite()).entrada).toBeNull();
+    expect(procesarMensaje(ev(m, { ...hola, tipo: "exportar", formato: "", datos: 1 }), m, 0, limite()).entrada).toBeNull();
+  });
   it("exportar, listo y error válidos", () => {
     const m = marcoDe();
     expect(procesarMensaje(ev(m, { ...hola, tipo: "exportar", formato: "png", datos: { b: 1 } }), m, 0, limite()).entrada?.tipo).toBe("exportar");
