@@ -14,31 +14,31 @@ mirase. La nube trabajaba y su trabajo no llegaba.
 Una pasada (`revisar`), automática desde la autocuración de Genesis cada 30 min:
 
 1. **Traer** lo que la nube integró y main no tiene: `cherry-pick` de sus commits con el cerrojo
-   `integrar` (el del orquestador) y, ANTES de quedarse, las mismas puertas que un agente en la
-   Mac: `tsc` y las pruebas relacionadas con lo que cambia. Si no pasan, o hay conflicto, se
-   deshace (`git reset --keep`, que no toca lo que haya sin commitear) y pasa a reparar.
+    `integrar` (el del orquestador) y, ANTES de quedarse, las mismas puertas que un agente en la
+    Mac: `tsc` y las pruebas relacionadas con lo que cambia. Si no pasan, o hay conflicto, se
+    deshace (`git reset --keep`, que no toca lo que haya sin commitear) y pasa a reparar.
 2. **Reparar** lo que quedó a medias (o lo que no pasó al traerlo): una tarea sucesora en
-   `cola-reparar-nube.json` que CONTINÚA desde la rama —trae sus commits, comprueba que cumple
-   el propósito de la tarea en el contexto de hoy, corrige y completa— y la original queda
-   «sustituida» con la pista. Nunca se reparan dos veces la misma tarea ni una que la Mac esté
-   escribiendo ahora mismo.
+    `cola-reparar-nube.json` que CONTINÚA desde la rama —trae sus commits, comprueba que cumple
+    el propósito de la tarea en el contexto de hoy, corrige y completa— y la original queda
+    «sustituida» con la pista. Nunca se reparan dos veces la misma tarea ni una que la Mac esté
+    escribiendo ahora mismo.
 3. **Preguntar** por lo que repararlo sería contraproducente: la tarea ya está en main (otra
-   rama o la Mac la hizo), se sustituyó o descartó, ya figura como hecha, o es una propuesta de
-   los sueños, que espera a una persona. Esas ramas NO se tocan ni se borran: se listan en el
-   Chat Director con la pregunta, una vez. Borrar solo con `borrar --ramas …`, a mano y con la
-   palabra de Alex (es un push al remoto).
+    rama o la Mac la hizo), se sustituyó o descartó, ya figura como hecha, o es una propuesta de
+    los sueños, que espera a una persona. Esas ramas NO se tocan ni se borran: se listan en el
+    Chat Director con la pregunta, una vez. Borrar solo con `borrar --ramas …`, a mano y con la
+    palabra de Alex (es un push al remoto).
 4. **Revisar las superadas** (2026-10-06, `revisar_ramas_nube.py`, permiso permanente de Alex:
-   «borra las demás… y las próximas también»): con `--aplicar`, después de traer y reparar,
-   cada rama superada sin revisar se mira frente a main; las pruebas que main no tiene se
-   rescatan como tarea (regla + Jev, que solo veta perder), la rama se ARCHIVA
-   (`refs/archivo/…` + paquete en `starseed_memory_root/archivo/`), se anota lo aprendido y
-   solo entonces se borra del remoto. `--sin-revision` lo salta.
+    «borra las demás… y las próximas también»): con `--aplicar`, después de traer y reparar,
+    cada rama superada sin revisar se mira frente a main; las pruebas que main no tiene se
+    rescatan como tarea (regla + Jev, que solo veta perder), la rama se ARCHIVA
+    (`refs/archivo/…` + paquete en `starseed_memory_root/archivo/`), se anota lo aprendido y
+    solo entonces se borra del remoto. `--sin-revision` lo salta.
 
 Decisiones PURAS (`tid_de_asunto`, `decidir`, `elegir_por_tarea`, `siguiente_id`,
 `tarea_reparacion`, `texto_informe`) con sus pruebas en `test_traer_nube.py`.
 
 Uso: python3 traer_nube.py [revisar] [--aplicar] [--json]
-     python3 traer_nube.py borrar --ramas nube/1/ola/X nube/2 …   (solo con la palabra de Alex)
+      python3 traer_nube.py borrar --ramas nube/1/ola/X nube/2 …   (solo con la palabra de Alex)
 """
 from __future__ import annotations
 
@@ -70,7 +70,6 @@ PREFIJO_SUENOS = "cola-suenos-"
 
 _ID = re.compile(r"·\s*([A-Za-z][A-Za-z0-9-]*\d[A-Za-z0-9-]*)\s*:")
 
-
 # ── decisiones (puras) ──────────────────────────────────────────────────────────
 
 def tid_de_asunto(asunto):
@@ -91,7 +90,6 @@ def tid_de_asunto(asunto):
         return "ola", tid
     return "otro", tid
 
-
 def decidir(tid, commits, en_main, estado, cola):
     """PURA. Qué hacer con el trabajo de UNA tarea en UNA rama: (accion, motivo).
 
@@ -108,7 +106,7 @@ def decidir(tid, commits, en_main, estado, cola):
         if (estado in ("commit", "hecho", "integrada") and trabajo_nuevo
                 and any(x.get("tipo") == "ola" for x in commits)):
             return "traer", "progreso dice «%s» pero main no la tiene: se trae comprobada" % estado
-        return "superada", "en progreso figura «%s»: ya se decidió por otro camino" % estado
+        return "superada", "en progreso figura «%s»»: ya se decidió por otro camino" % estado
     if str(cola or "").startswith(PREFIJO_SUENOS):
         return "superada", "es una propuesta de los sueños: espera a una persona, no al enjambre"
     trabajo = [c for c in commits if c.get("tipo") in ("salvavidas", "ola", "otro")]
@@ -119,7 +117,6 @@ def decidir(tid, commits, en_main, estado, cola):
     if any(c.get("tipo") == "ola" for c in commits):
         return "traer", "la nube la integró (pasó sus puertas) y main aún no la tiene"
     return "reparar", "trabajo a medias que no pasó las puertas: se continúa desde la rama"
-
 
 def elegir_por_tarea(entradas):
     """PURA. Si una tarea tiene trabajo en varias ramas, una sola se trae o se repara: la que
@@ -141,11 +138,9 @@ def elegir_por_tarea(entradas):
         salida.append(e)
     return salida
 
-
 def base_de(tid):
     """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
     return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
-
 
 def siguiente_id(tid, conocidos):
     """PURA: el siguiente sucesor libre de la cadena (`LC1004B` → `LC1004Bb`, o la letra que
@@ -157,9 +152,7 @@ def siguiente_id(tid, conocidos):
         letra = "z"
     return base + letra
 
-
 REPARACIONES_MAX = 3
-
 
 def sucesores_en_cadena(tid, progreso):
     """PURA: los sucesores (`Xb`, `Xc`…) que ya existen en la cadena de `tid`, en orden."""
@@ -167,11 +160,10 @@ def sucesores_en_cadena(tid, progreso):
     return sorted(k for k in (progreso or {}) if k != base and len(k) == len(base) + 1
                   and k.startswith(base) and k[-1] in "bcdefghijklmnopqrstuvwxyz")
 
-
 def tarea_reparacion(original, nuevo_id, rama, shas, archivos, motivo):
     """PURA: la sucesora que continúa desde la rama de la nube."""
     t = {k: v for k, v in (original or {}).items()
-         if k not in ("estado", "nota", "motivo", "modelo", "rama_nube", "origen")}
+          if k not in ("estado", "nota", "motivo", "modelo", "rama_nube", "origen")}
     prompt = str(t.get("prompt") or "").split("\n## CONTINÚA DESDE LA NUBE")[0].rstrip()
     ref = "refs/remotes/origin/%s" % rama
     t.update(
@@ -194,7 +186,6 @@ def tarea_reparacion(original, nuevo_id, rama, shas, archivos, motivo):
         ) % (prompt, rama, motivo, rama, ref, " ".join(shas), ", ".join(archivos) or "—"),
     )
     return t
-
 
 def texto_informe(traidas, reparadas, superadas_nuevas, esperando):
     """PURA: el parte para el Chat Director (vacío si no pasó nada nuevo)."""
@@ -222,7 +213,6 @@ def texto_informe(traidas, reparadas, superadas_nuevas, esperando):
                       "remoto? (solo con tu palabra)\n" + "\n".join(lineas))
     return "\n".join(partes)
 
-
 # ── la máquina ──────────────────────────────────────────────────────────────────
 
 def _git(args, timeout=120):
@@ -232,14 +222,12 @@ def _git(args, timeout=120):
     except Exception as e:  # noqa: BLE001
         return 1, "%s: %s" % (type(e).__name__, e)
 
-
 def _leer_json(ruta, defecto):
     try:
         with open(ruta, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, ValueError):
         return defecto
-
 
 def _escribir_json(ruta, datos):
     os.makedirs(os.path.dirname(ruta), exist_ok=True)
@@ -248,14 +236,12 @@ def _escribir_json(ruta, datos):
         json.dump(datos, f, ensure_ascii=False, indent=1)
     os.replace(tmp, ruta)
 
-
 class _Cerrojo:
     """flock con espera acotada (el mismo archivo que usan el orquestador y commit-seguro)."""
 
     def __init__(self, nombre, espera_s):
         self.ruta = os.path.join(CERROJOS, nombre + ".lock")
-        self.espera_s = espera_s
-        self.f = None
+        self.espera_s, self.f = espera_s, None
 
     def __enter__(self):
         os.makedirs(CERROJOS, exist_ok=True)
@@ -268,7 +254,6 @@ class _Cerrojo:
             except BlockingIOError:
                 if time.time() - t0 >= self.espera_s:
                     self.f.close()
-                    self.f = None
                     raise TimeoutError("cerrojo %s ocupado" % self.ruta)
                 time.sleep(2)
 
@@ -278,7 +263,6 @@ class _Cerrojo:
                 fcntl.flock(self.f, fcntl.LOCK_UN)
             finally:
                 self.f.close()
-
 
 def _colas_por_id():
     """{id: (nombre de la cola, tarea)} de las colas fuente (las vivas y colas-fuente/)."""
@@ -300,7 +284,6 @@ def _colas_por_id():
                     salida[tid] = (nombre, t)
     return salida
 
-
 def dueno_de_sueltos(rama, por_tid):
     """PURA: a qué tarea pertenecen los commits sin id de una rama, o None si a ninguna.
 
@@ -313,7 +296,6 @@ def dueno_de_sueltos(rama, por_tid):
     if m:
         return m.group(1)
     return next(iter(por_tid), None)
-
 
 def inventario():
     """[{rama, tid, commits:[{sha, asunto, tipo, nuevo, vacio, archivos}], fecha}] de las ramas
@@ -353,11 +335,9 @@ def inventario():
             filas.append({"rama": rama, "tid": tid, "commits": commits, "fecha": fecha.strip()})
     return filas
 
-
 def _progreso():
     p = _leer_json(PROGRESO, {})
     return p if isinstance(p, dict) else {}
-
 
 def _actualizar_progreso(cambios):
     """Aplica {tid: {campos}} a progreso.json con el cerrojo de progreso y escritura atómica."""
@@ -369,7 +349,6 @@ def _actualizar_progreso(cambios):
             p[tid] = entrada
         _escribir_json(PROGRESO, p)
 
-
 #: Carpeta donde se comprueba lo que llega de la nube ANTES de tocar main (ver `_traer`).
 CARPETA_COMPROBAR = os.path.join(os.path.dirname(RAIZ), "starseed-wt", "_traer")
 #: tsc con memoria propia y sin revisar las librerías (como la puerta del orquestador y tsc-turno.sh).
@@ -380,18 +359,15 @@ MEMORIA_TSC = "--max-old-space-size=3072"
 _SENALES_MEDIO = ("heap out of memory", "FATAL ERROR", "node::LoadEnvironment", "se pasó de", "Killed",
                   "ENOMEM", "another git process", "index.lock")
 
-
 def es_fallo_del_medio(detalle):
     """PURA: ¿el fallo es de la máquina (memoria, tiempo, cerrojo), no del trabajo de la tarea?
     Un fallo del medio no crea una sucesora: se reintenta en la próxima pasada."""
     return any(s in str(detalle or "") for s in _SENALES_MEDIO)
 
-
 def archivos_ts(cambiados):
     """PURA: lo que obliga a pasar tsc (código TS o la configuración que lo cambia)."""
     return [c for c in cambiados or () if re.search(r"\.(ts|tsx|mts|cts)$", c)
             or os.path.basename(c) in ("tsconfig.json", "package.json", "package-lock.json")]
-
 
 def reaplicable(propios, de_main):
     """PURA: ¿lo comprobado sobre el main de antes sigue valiendo sobre el de ahora? Sí si main no
@@ -399,7 +375,6 @@ def reaplicable(propios, de_main):
     if set(propios) & set(de_main):
         return False
     return not (archivos_ts(propios) and archivos_ts(de_main))
-
 
 def pruebas_python(cambiados, existe=os.path.exists):
     """PURA (con `existe` inyectable): pruebas del puente que tocan lo que llega: las propias
@@ -413,7 +388,6 @@ def pruebas_python(cambiados, existe=os.path.exists):
         if cand not in salida and existe(cand):
             salida.append(cand)
     return salida
-
 
 def _correr_en(cwd, orden, timeout, memoria=None):
     import publicar
@@ -429,7 +403,6 @@ def _correr_en(cwd, orden, timeout, memoria=None):
     except Exception as e:  # noqa: BLE001
         return 1, "%s: %s" % (type(e).__name__, e)
 
-
 def _git_en(cwd, args, timeout=120):
     try:
         r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=timeout)
@@ -437,10 +410,11 @@ def _git_en(cwd, args, timeout=120):
     except Exception as e:  # noqa: BLE001
         return 1, "%s: %s" % (type(e).__name__, e)
 
-
-def _puertas(cambiados, cwd=None):
+def _puertas(cambiados, cwd=None, base_sha=None, shas=None):
     """tsc (solo si cambió TS) + pruebas relacionadas de TS y del puente, con el turno de las puertas,
-    en la carpeta `cwd`. (ok, detalle)."""
+    en la carpeta `cwd`. Si se proporcionan base_sha y shas y hay cambios TS, intenta primero
+    comprobar en el A1; si devuelve del_medio=True, cae a la comprobación local.
+    (ok, detalle)."""
     import contextlib
 
     import turno_pesado
@@ -451,6 +425,17 @@ def _puertas(cambiados, cwd=None):
     # pruebas del puente en Python no esperan detrás de un tsc de 15 min de otra tarea.
     turno = turno_pesado.turno() if (archivos_ts(cambiados) or codigo_ts) else contextlib.nullcontext()
     with turno:
+        # If we have base_sha and shas and there are TS changes, try the A1 first
+        if base_sha is not None and shas is not None and (archivos_ts(cambiados) or codigo_ts):
+            from . import comprobar_en_a1
+            ok, detalle, del_medio = comprobar_en_a1.comprobar(base_sha, shas, cambiados, timeout=900)
+            if not ok and del_medio:
+                # Fall back to local check
+                pass  # We'll do the local check below
+            else:
+                return ok, detalle
+
+        # Local check (either because we didn't try the A1 or because we fell back)
         if archivos_ts(cambiados):
             rc, salida = _correr_en(cwd, ORDEN_TSC, 1800, MEMORIA_TSC)
             if rc != 0:
@@ -458,7 +443,7 @@ def _puertas(cambiados, cwd=None):
         codigo = [c for c in cambiados if c.startswith("src/") and re.search(r"\.(ts|tsx)$", c)]
         if codigo:
             rc, salida = _correr_en(cwd, ["npx", "vitest", "related", "--run", "--maxWorkers=2",
-                                          "--minWorkers=1", "--passWithNoTests", *codigo], 1200)
+                                           "--minWorkers=1", "--passWithNoTests", *codigo], 1200)
             if rc != 0:
                 return False, "pruebas: " + salida[-600:]
         py = pruebas_python(cambiados, lambda r: os.path.exists(os.path.join(cwd, r)))
@@ -467,7 +452,6 @@ def _puertas(cambiados, cwd=None):
             if rc not in (0, 5):  # 5 = no encontró pruebas
                 return False, "pruebas del puente: " + salida[-600:]
     return True, "tsc y pruebas relacionadas en verde"
-
 
 def _traer(fila, espera_integrar_s=60):
     """Trae la tarea a main SIN tocar main hasta que pasa. (ok, detalle, del_medio).
@@ -487,54 +471,58 @@ def _traer(fila, espera_integrar_s=60):
     shutil.rmtree(wt, ignore_errors=True)
     _git(["worktree", "prune"])
     os.makedirs(CARPETA_COMPROBAR, exist_ok=True)
-    rc, salida = _git(["worktree", "add", "-q", "--detach", wt, orig], timeout=300)
+    _, orig = _git(["rev-parse", "main"])
+    orig = orig.strip()
+    shas = [c["sha"] for c in fila["commits"] if c["nuevo"] or (c["tipo"] == "ola" and c["vacio"])]
+    wt = os.path.join(CARPETA_COMPROBAR, re.sub(r"[^A-Za-z0-9._-]", "-", str(fila["tid"])))
+    _git(["worktree", "remove", "--force", wt])
+    shutil.rmtree(wt, ignore_errors=True)
+    _git(["worktree", "prune"])
+    os.makedirs(CARPETA_COMPROBAR, exist_ok=True)
+    _git(["worktree", "add", "-q", "--detach", wt, orig], timeout=300)
+    nm = os.path.join(RAIZ, "node_modules")
+    if os.path.isdir(nm) and not os.path.exists(os.path.join(wt, "node_modules")):
+        os.symlink(nm, os.path.join(wt, "node_modules"))
+    rc, salida = _git_en(wt, ["-c", "core.hooksPath=/dev/null", "cherry-pick", "--allow-empty",
+                              "--keep-redundant-commits", *shas], timeout=300)
     if rc != 0:
-        return False, "no pude preparar la carpeta de comprobación: " + salida.strip()[-200:], True
+        _git_en(wt, ["cherry-pick", "--abort"])
+        return False, "conflicto al traerla sobre el main de hoy: " + salida.strip()[-300:], es_fallo_del_medio(salida)
+    _, cambiados = _git_en(wt, ["diff", "--name-only", orig, "HEAD"])
+    # Get the base_sha (last main sent to the A1) from the oracle-nodo.json file
+    from . import oracle_nodo
+    base_sha_data = oracle_nodo._leer(oracle_nodo.ESTADO, {})
+    base_sha = base_sha_data.get("main_enviado", {}).get("sha")
+    ok, detalle = _puertos([c for c in cambiados.splitlines() if c.strip()], wt, base_sha=base_sha, shas=shas)
+    if not ok:
+        return False, "en la Mac no pasa: " + detalle, es_fallo_del_medio(detalle)
+    propios = [c for c in cambiados.splitlines() if c.strip()]
+    _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
     try:
-        nm = os.path.join(RAIZ, "node_modules")
-        if os.path.isdir(nm) and not os.path.exists(os.path.join(wt, "node_modules")):
-            os.symlink(nm, os.path.join(wt, "node_modules"))
-        rc, salida = _git_en(wt, ["-c", "core.hooksPath=/dev/null", "cherry-pick", "--allow-empty",
-                                  "--keep-redundant-commits", *shas], timeout=300)
-        if rc != 0:
-            _git_en(wt, ["cherry-pick", "--abort"])
-            return False, "conflicto al traerla sobre el main de hoy: " + salida.strip()[-300:], es_fallo_del_medio(salida)
-        _, cambiados = _git_en(wt, ["diff", "--name-only", orig, "HEAD"])
-        ok, detalle = _puertas([c for c in cambiados.splitlines() if c.strip()], wt)
-        if not ok:
-            return False, "en la Mac no pasa: " + detalle, es_fallo_del_medio(detalle)
-        propios = [c for c in cambiados.splitlines() if c.strip()]
-        _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
-        try:
-            with _Cerrojo("integrar", espera_integrar_s):
-                _, actual = _git(["rev-parse", "main"])
-                actual = actual.strip()
-                if actual != orig:
-                    # main avanzó mientras se comprobaba (el orquestador integró otra tarea). Si lo nuevo de
-                    # main no toca nuestros archivos y no mezcla TS con TS, lo comprobado sigue valiendo:
-                    # se reaplica encima en segundos. Si no, se reintenta en la próxima pasada.
-                    _, de_main = _git(["diff", "--name-only", orig, actual])
-                    de_main = [c for c in de_main.splitlines() if c.strip()]
-                    if not reaplicable(propios, de_main):
-                        return False, "main avanzó mientras se comprobaba y toca lo mismo: se reintenta", True
-                    _git_en(wt, ["reset", "-q", "--hard", actual])
-                    rc, salida = _git_en(wt, ["-c", "core.hooksPath=/dev/null", "cherry-pick", "--allow-empty",
-                                              "--keep-redundant-commits", *shas], timeout=300)
-                    if rc != 0:
-                        _git_en(wt, ["cherry-pick", "--abort"])
-                        return False, "main avanzó mientras se comprobaba y no se reaplica limpio: se reintenta", True
-                    _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
-                rc, salida = _git(["merge", "--ff-only", "-q", nuevo.strip()], timeout=120)
-        except TimeoutError:
-            return False, "main ocupado (publicación o integración): se reintenta en la próxima pasada", True
-        if rc != 0:
-            return False, "no pude avanzar main: " + salida.strip()[-200:], True
-        return True, detalle, False
-    finally:
-        _git(["worktree", "remove", "--force", wt])
-        shutil.rmtree(wt, ignore_errors=True)
-        _git(["worktree", "prune"])
-
+        with _Cerrojo("integrar", espera_integrar_s):
+            _, actual = _git(["rev-parse", "main"])
+            actual = actual.strip()
+            if actual != orig:
+                # main avanzó mientras se comprobaba (el orquestador integró otra tarea). Si lo nuevo de
+                # main no toca nuestros archivos y no mezcla TS con TS, lo comprobado sigue valiendo:
+                # se reaplica encima en segundos. Si no, se reintenta en la próxima pasada.
+                _, de_main = _git(["diff", "--name-only", orig, actual])
+                de_main = [c for c in de_main.splitlines() if c.strip()]
+                if not reaplicable(propios, de_main):
+                    return False, "main avanzó mientras se comprobaba y toca lo mismo: se reintenta", True
+                _git_en(wt, ["reset", "-q", "--hard", actual])
+                rc, salida = _git_en(wt, ["-c", "core.hooksPath=/dev/null", "cherry-pick", "--allow-empty",
+                                          "--keep-redundant-commits", *shas], timeout=300)
+                if rc != 0:
+                    _git_en(wt, ["cherry-pick", "--abort"])
+                    return False, "main avanzó mientras se comprobaba y no se reaplica limpio: se reintenta", True
+                _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
+            rc, salida = _git(["merge", "--ff-only", "-q", nuevo.strip()], timeout=120)
+    except TimeoutError:
+        return False, "main ocupado (publicación o integración): se reintenta en la próxima pasada", True
+    if rc != 0:
+        return False, "no pude avanzar main: " + salida.strip()[-200:], True
+    return True, detalle, False
 
 def _crear_reparacion(fila, motivo, colas, progreso):
     """Escribe la sucesora en cola-reparar-nube.json y marca la original. Devuelve el id nuevo."""
@@ -542,7 +530,7 @@ def _crear_reparacion(fila, motivo, colas, progreso):
     conocidos = set(progreso) | set(colas)
     cola = _leer_json(COLA_REPARAR, {"ola": "Reparar lo que dejó la nube", "tareas": []})
     if isinstance(cola, list):
-        cola = {"ola": "Reparar lo que dejó la nube", "tareas": cola}
+        cola = {"ola": "Reparar lo que dejó la nube", "tareas": []}
     conocidos |= {str(t.get("id")) for t in cola.get("tareas") or [] if isinstance(t, dict)}
     nuevo = siguiente_id(fila["tid"], conocidos)
     trabajo = [c for c in fila["commits"] if c["nuevo"] and not c["vacio"]]
@@ -558,7 +546,6 @@ def _crear_reparacion(fila, motivo, colas, progreso):
     })
     return nuevo
 
-
 def _avisar(texto):
     try:
         import director_chat
@@ -566,7 +553,6 @@ def _avisar(texto):
         director_chat.publicar(texto, de="director-nube", rol="director", tipo="informe")
     except Exception:
         pass
-
 
 def revisar(aplicar=False, espera_integrar_s=60):
     """Una pasada. Sin `aplicar` solo dice lo que haría. Con `aplicar`, una sola a la vez."""
@@ -578,7 +564,6 @@ def revisar(aplicar=False, espera_integrar_s=60):
             return {"traidas": [], "reparadas": [], "esperando": [], "superadas_nuevas": [],
                     "texto": "", "plan": [], "ocupado": "ya hay otra pasada de traer la nube en marcha"}
     return _revisar(False, espera_integrar_s)
-
 
 def _revisar(aplicar, espera_integrar_s):
     estado = _leer_json(ESTADO, {}) or {}
@@ -618,7 +603,7 @@ def _revisar(aplicar, espera_integrar_s):
                 continue
             if ok:
                 _actualizar_progreso({e["tid"]: {"estado": "commit", "nota": "traída de la nube (%s): %s"
-                                                 % (e["rama"], detalle)}})
+                                                  % (e["rama"], detalle)}})
                 hechas_antes[e["clave"]] = {"accion": "traida", "t": time.strftime("%Y-%m-%d %H:%M:%S")}
                 traidas.append({"tid": e["tid"], "rama": e["rama"]})
             else:
@@ -663,7 +648,6 @@ def _revisar(aplicar, espera_integrar_s):
             "superadas_nuevas": superadas_nuevas, "texto": texto,
             "plan": [{k: e[k] for k in ("rama", "tid", "accion", "motivo")} for e in entradas]}
 
-
 def borrar(ramas):
     """Borra del remoto SOLO las ramas nombradas, y solo si constan como superadas. Es un push:
     se corre a mano y con la palabra de Alex. Nunca la llama la autocuración."""
@@ -676,7 +660,6 @@ def borrar(ramas):
         rc, _ = _git(["push", "-q", "origin", "--delete", r], timeout=120)
         (hechas if rc == 0 else rechazadas).append(r)
     return {"borradas": hechas, "no_borradas": rechazadas}
-
 
 def main(argv):
     orden = argv[1] if len(argv) > 1 and not argv[1].startswith("--") else "revisar"
@@ -705,7 +688,6 @@ def main(argv):
         if rv.get("error"):
             print("revisión de superadas: " + rv["error"])
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
