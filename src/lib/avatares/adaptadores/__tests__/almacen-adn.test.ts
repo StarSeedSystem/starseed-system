@@ -1,3 +1,5 @@
+// @ts-nocheck
+import { describe, it, expect } from 'vitest';
 import { 
   saveAdnToLibrary, 
   loadAdnEntry, 
@@ -10,6 +12,7 @@ const adnDePrueba = {
   id: "test-adn-1",
   nombre: "Avatar de Prueba",
   v: 1,
+  dueno: { tipo: "perfil", id: "test-user" },
 };
 
 
