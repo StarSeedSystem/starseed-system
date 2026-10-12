@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261012",
+ "tareas": [
+  {
+   "id": "TRA1012A",
+   "ola": "Ola 1012T · Capacidad: las comprobaciones pesadas de la Mac van al A1 (12 GB)",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "traer_nube comprueba en el A1 lo que llega de la nube (si el A1 responde), no en la Mac",
+   "archivos": [
+    "scripts/puente/comprobar_en_a1.py",
+    "scripts/puente/test_comprobar_en_a1.py",
+    "scripts/puente/traer_nube.py"
+   ],
+   "prompt": "Crea scripts/puente/comprobar_en_a1.py con `comprobar(base_sha, shas, cambiados, timeout=900)` → `(ok, detalle, del_medio)`: empaqueta con `git bundle create` main hasta `base_sha` más los commits `shas` (lo mínimo que el A1 no tenga: usa como base la última `main` enviada, ver `oracle_nodo.enviar_main`), lo sube al A1 con el mismo camino que `enviar_main`, y allí, como usuario starseed y en una carpeta temporal (`git worktree add --detach` sobre ~/starseed-system, node_modules enlazado), hace el cherry-pick y corre SOLO lo que toca: tsc (`npx tsc --noEmit --skipLibCheck`) si cambió TS, `npx vitest related --run` para src/**.ts(x) cambiados y pytest de las pruebas hermanas del puente (usa `traer_nube.archivos_ts` y `traer_nube.pruebas_python`, no las copies). Si el A1 está ocupado con una cola o no responde, devuelve del_medio=True y NO hace nada. Limpia siempre la carpeta temporal. En scripts/puente/traer_nube.py, dentro de `_puertas`, intenta primero `comprobar_en_a1.comprobar(...)` cuando haya TS que comprobar; si devuelve del_medio, cae a la comprobación en la Mac de siempre. Pruebas: función pura que arma el guion remoto, y el flujo con `oracle_nodo.ssh` falso (verde, rojo, A1 ocupado, A1 sin respuesta).\n\nContexto medido el 12-10 (hora de la Mac): con 8 GB, cada tsc completo en la Mac pesa ~3,2–3,7 GB y tarda 5–15 min con la swap llena; el gobernador baja a 2 agentes por eso. En el A1 de Oracle (12 GB, siempre encendido) el mismo tsc tarda ~20 s–4 min (guardián). La Mac ya habla con el A1 por SSH con `oracle_nodo.ssh(orden, entrada, timeout)` y le deja paquetes git (`enviar_main`). Reglas: nunca imprimir la IP (`oracle_nodo.tachar`), nada de claves en código ni registros, comentarios en español con el porqué, pruebas con ssh y git falsos (sin red). Para tipos usa `bash scripts/enjambre/tsc-turno.sh`."
+  }
+ ]
+}
