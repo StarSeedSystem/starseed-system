@@ -27,7 +27,7 @@
  * fallo de red rompe la UI.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -64,6 +64,7 @@ import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
 import { saveServer, linkServer } from "@/lib/brains/servers";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
 import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
+import { estimarDesdeNavegador, SenalesNavegador, comandoInstalar, soDesdeAgente, type SO } from "@/lib/metagenesis/colmena";
 import {
   Monitor,
   Laptop,
@@ -93,6 +94,7 @@ import {
   Sparkles,
   Library,
   Globe,
+  Copy,
 } from "lucide-react";
 
 /* ─────────────────────────── Constantes de UI ─────────────────────────── */
@@ -355,7 +357,30 @@ function NeuronCard({
   const confirm = useConfirm();
   const [settings, setSettings] = useState<NeuronSettings>(() => settingsFor(n.id));
   const [syncOn, setSyncOn] = useState<boolean>(n.permissions?.sync ?? true);
-  const [hermioneSync, setHermioneSyncState] = useState<boolean>(() => neuronHermioneSyncEnabled(n.capabilities));
+   const [hermioneSync, setHermioneSyncState] = useState<boolean>(() => neuronHermioneSyncEnabled(n.capabilities));
+   // Estado para el panel de instalación del trabajador
+   const [installPanelOpen, setInstallPanelOpen] = useState(false);
+    // Comando para instalar el trabajador (con códigos vacíos, ya que no hay emisor de códigos)
+    const comando = useMemo(() => comandoInstalar("", ""), []);
+    // Señales del navegador para la estimación del contenedor (solo para esta neurona)
+    const [estimacion, setEstimacion] = useState<{ so: SO; agentes: number | null; explica: string } | null>(null);
+    useEffect(() => {
+      if (n.isThisDevice) {
+        const ua = navigator.userAgent;
+        const plataforma = navigator.platform;
+        const tactil = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+        const senales: SenalesNavegador = {
+          userAgent: ua,
+          plataforma: plataforma ?? undefined,
+          memoriaGB: n.capabilities.memoryGb,
+          nucleos: n.capabilities.cores,
+          bateria: n.capabilities.battery ? { cargando: n.capabilities.battery.charging ?? false, nivel: n.capabilities.battery.level ?? 0 } : null,
+          redMedida: false, // Asumimos no red medida por defecto; idealmente se debería obtener de navigator.connection
+        };
+        const estimacionCalculada = estimarDesdeNavegador(senales, tactil);
+        setEstimacion(estimacionCalculada);
+      }
+    }, [n.isThisDevice, n.capabilities.memoryGb, n.capabilities.cores, n.capabilities.battery]);
 
   // Nombre editable
   const [editing, setEditing] = useState(false);
@@ -675,40 +700,123 @@ function NeuronCard({
       )}
 
       {/* ── Sincronización por neurona ── */}
-      <div className="space-y-2">
-        <span className="text-[11px] text-white/50 inline-flex items-center gap-1.5">
-          <FolderSync className="w-3.5 h-3.5 text-emerald-300/80" /> Qué sincroniza esta neurona
-        </span>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <SettingRow
-            icon={Brain}
-            label="Memorias de los cerebros"
-            hint="Sincronizar las memorias de los cerebros con esta neurona"
-            checked={settings.syncBrains !== false}
-            onChange={(v) => patchSettings({ syncBrains: v })}
-          />
-          <SettingRow
-            icon={Library}
-            label="Datos de la biblioteca"
-            hint="Sincronizar la biblioteca de la cuenta con esta neurona"
-            checked={settings.syncLibrary !== false}
-            onChange={(v) => patchSettings({ syncLibrary: v })}
-          />
-          <SettingRow
-            icon={Network}
-            label="Otras neuronas de la cuenta"
-            hint="Sincronizar con las demás neuronas de tu cuenta"
-            checked={settings.syncNeurons !== false}
-            onChange={(v) => patchSettings({ syncNeurons: v })}
-          />
-          <SettingRow
-            icon={Globe}
-            label="Neuronas externas"
-            hint="Sincronizar con neuronas de fuera de tu cuenta (desactivado por defecto)"
-            checked={settings.syncExternal === true}
-            onChange={(v) => patchSettings({ syncExternal: v })}
-          />
-        </div>
+       <div className="space-y-2">
+         <span className="text-[11px] text-white/50 inline-flex items-center gap-1.5">
+           <FolderSync className="w-3.5 h-3.5 text-emerald-300/80" /> Qué sincroniza esta neurona
+         </span>
+         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+           <SettingRow
+             icon={Brain}
+             label="Memorias de los cerebros"
+             hint="Sincronizar las memorias de los cerebros con esta neurona"
+             checked={settings.syncBrains !== false}
+             onChange={(v) => patchSettings({ syncBrains: v })}
+           />
+           <SettingRow
+             icon={Library}
+             label="Datos de la biblioteca"
+             hint="Sincronizar la biblioteca de la cuenta con esta neurona"
+             checked={settings.syncLibrary !== false}
+             onChange={(v) => patchSettings({ syncLibrary: v })}
+           />
+           <SettingRow
+             icon={Network}
+             label="Otras neuronas de la cuenta"
+             hint="Sincronizar con las demás neuronas de tu cuenta"
+             checked={settings.syncNeurons !== false}
+             onChange={(v) => patchSettings({ syncNeurons: v })}
+           />
+           <SettingRow
+             icon={Globe}
+             label="Neuronas externas"
+             hint="Sincronizar con neuronas de fuera de tu cuenta (desactivado por defecto)"
+             checked={settings.syncExternal === true}
+             onChange={(v) => patchSettings({ syncExternal: v })}
+           />
+         </div>
+         {/* Nuevo: Contenedor de agentes (solo para esta neurona) */}
+         {n.isThisDevice && (
+           <div className="mt-4 pt-4 border-t border-white/10">
+             <h3 className="text-[11px] font-semibold text-white/50 mb-2">
+               Contenedor de agentes
+             </h3>
+             {estimacion ? (
+               <>
+                 <p className="text-[10px] text-white/50 mb-2">
+                   {estimacion.explica}
+                 </p>
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   className="cursor-pointer h-8 gap-1.5 text-xs"
+                   onClick={() => setInstallPanelOpen(true)}
+                 >
+                   Instalar el trabajador
+                 </Button>
+                 {installPanelOpen && (
+                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                     <div className="bg-black/80 rounded-2xl border border-white/10 p-6 w-96 space-y-4">
+                       <h3 className="text-[11px] font-semibold text-white/50 mb-2">
+                         Instalar el trabajador
+                       </h3>
+                       <div className="space-y-2">
+                         <div className="text-[10px] text-white/50">
+                           <strong>QUÉ es:</strong> Un proceso de fondo que permite que este aparato ejecute agentes de StarSeed y participe en el enjambre.
+                         </div>
+                         <div className="text-[10px] text-white/50">
+                           <strong>POR QUÉ:</strong> Para contribuir con capacidad de cómputo al enjambre y ganar recompensa por tareas completadas.
+                         </div>
+                         <div className="text-[10px] text-white/50">
+                           <strong>CÓMO:</strong>
+                         </div>
+                         {comando ? (
+                           <>
+                             <div className="flex items-center gap-2 mb-2">
+                               <code className="bg-black/60 rounded px-2 py-1 text-[10px] text-emerald-200 break-all">
+                                 {comando}
+                               </code>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 className="h-8 px-2"
+                                 onClick={() => {
+                                   navigator.clipboard.writeText(comando);
+                                   toast.success("Comando copiado al portapapeles");
+                                 }}
+                               >
+                                 <Copy className="w-4 h-4" /> Copiar
+                               </Button>
+                             </div>
+                             <p className="text-[10px] text-white/50 mt-2">
+                               Ejecuta este comando en la terminal de este aparato para instalar el trabajador.
+                             </p>
+                           </>
+                         ) : (
+                           <p className="text-[10px] text-white/50">
+                             Mientras no exista el emisor de códigos (necesita la migración de nodos, §8 del contrato) el panel lo dice con esas palabras y no inventa un código.
+                           </p>
+                         )}
+                       </div>
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         className="cursor-pointer w-full"
+                         onClick={() => setInstallPanelOpen(false)}
+                       >
+                         Cerrar
+                       </Button>
+                     </div>
+                   </div>
+                 )}
+               </>
+             ) : (
+               <p className="text-[10px] text-white/50 italic">
+                 Calculando estimación...
+               </>
+             )}
+           </div>
+         )}
+       </div>
       </div>
     </div>
   );
