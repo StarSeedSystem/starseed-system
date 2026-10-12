@@ -19,6 +19,7 @@ import { GroupRoster } from "@/components/social/group-roster";
 import { GroupJoinRequests } from "@/components/social/group-join-requests";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
+import { EnlacePoliGenesis } from "@/components/genesis/enlace-poligenesis";
 import { libraryRef } from "@/lib/library/entity-library";
 import { useOsEntity, useOsPosts, useOsPostCount, useMembership, useEntityOwner } from "@/hooks/use-os-entities";
 // (Adenda 220) Bienvenida unificada + estados vacíos con acción.
@@ -629,12 +630,13 @@ function GrupoPageContent() {
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <JoinButton
-                                groupSlug={group.slug}
-                                accent={accent}
-                                count={safeMemberCount}
-                                isAssembly={isAssembly}
-                            />
+                             <JoinButton
+                                 groupSlug={group.slug}
+                                 accent={accent}
+                                 count={safeMemberCount}
+                                 isAssembly={isAssembly}
+                             />
+                             <EnlacePoliGenesis entidadId={group?.id} slug={slugStr} />
                             {/* Cuenta/Perfil (Adenda 125): con qué faceta pública participas
                                 en este grupo. Presentation-only; el censo/voto siguen por
                                 CUENTA. Se auto-oculta con ≤1 perfil o sin sesión. */}
