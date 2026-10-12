@@ -54,6 +54,7 @@ import {
     type TonoConsumo,
 } from "@/lib/mando/consumo-tipos";
 import { esConsumoOracle, vistaOracle, type ConsumoOracle } from "@/lib/mando/oracle-consumo-tipos";
+import { OracleGastoDias } from "./oracle-gasto-dias";
 import { FilaPuertaDatos } from "@/components/mando/fila-puerta-datos";
 
 export const SONDEO_MS = 60_000;
@@ -649,6 +650,7 @@ function FilaOracle() {
                         ))}
                     </div>
                 ) : null}
+                {datos?.gasto?.porDia.length ? <OracleGastoDias dias={datos.gasto.porDia} moneda={datos.gasto.moneda} /> : null}
                 {recl ? (
                     <p className="flex items-start gap-1.5 text-[12px] leading-snug" data-testid="oracle-reclamacion">
                         {recl.tono === "ok" ? (
