@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261011",
+ "tareas": [
+  {
+   "id": "S1010-EV-ORACLE-2",
+   "ola": "Ola 1010S · Estaciones en vivo: Omnifrecuencias, Audiomorphic y relé en Oracle",
+   "titulo": "Canal de estaciones por el relé propio (cliente) y enganche opcional",
+   "archivos": [
+    "src/lib/estaciones/canal-rele.ts",
+    "src/lib/estaciones/__tests__/canal-rele.test.ts",
+    "src/lib/estaciones/estacion-global.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo StarSeed OS (Next.js + TypeScript). NO git ni next build. Lee la interfaz `CanalEstacion` en `src/lib/estaciones/sesion-en-vivo.ts` (enviar, alRecibir, abierto, oyentes, alAbrir, cerrar) y `crearCanalInternet` en `src/lib/estaciones/canales-estacion.ts` como modelo. Crea `src/lib/estaciones/canal-rele.ts` (\"use client\", ≤ 120 líneas). Exporta `crearCanalRele(url: string, tema: string, WS: typeof WebSocket = globalThis.WebSocket): CanalEstacion`. Conecta a `${url}?tema=${encodeURIComponent(tema)}` y reconecta con espera creciente (1, 2, 4… hasta 30 s). `abierto()` dice si el socket está OPEN. Los mensajes `{\"t\":\"rele\",\"n\":k}` actualizan `oyentes()` y no se pasan arriba; solo los textos que empiezan por '{\"t\":\"est\"' llegan a `alRecibir`. `alAbrir` avisa en cada apertura y `cerrar` para la reconexión. Tipo «internet», etiqueta «Relé propio de estaciones». Prueba `src/lib/estaciones/__tests__/canal-rele.test.ts` con una clase WebSocket falsa inyectada (abrir, recibir, presencia, reconexión con temporizadores falsos de vitest). En `src/lib/estaciones/estacion-global.ts` haz una edición MÍNIMA con Edit: justo después de la línea `if (internet) sesion.agregarCanal(internet);`, si `process.env.NEXT_PUBLIC_ESTACIONES_RELE_URL` existe, importa perezosamente `./canal-rele` y añade `crearCanalRele(url, ficha.privada ? await temaPrivado(ficha.id, token!) : temaPublico(ficha.id))` (importa `temaPrivado` y `temaPublico` de `./cripto-estacion`), y guarda su cierre en `this.bajas`. Comprueba con `npx vitest run src/lib/estaciones` y tsc (tus archivos a cero).",
+   "dependencias_ya_en_main": [
+    "S1010-EV-ORACLE-1b"
+   ]
+  },
+  {
+   "id": "GN1010A",
+   "ola": "Ola 1010S · Genesis y PoliGenesis en cada página",
+   "titulo": "Enlace «Gestionar con PoliGenesis» en la página de un grupo",
+   "archivos": [
+    "src/components/genesis/enlace-poligenesis.tsx",
+    "src/components/genesis/__tests__/enlace-poligenesis.test.tsx",
+    "src/app/(app)/grupo/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo StarSeed OS (Next.js 15 + TypeScript). Crea src/components/genesis/enlace-poligenesis.tsx (\"use client\", ≤ 60 líneas) que exporte EnlacePoliGenesis({ entidadId, slug }: { entidadId?: string; slug: string }). En un useEffect llama UNA vez a misEntidades() de \"@/lib/genesis/entidades\" (devuelve { ok: true, lista: { id, slug, rango, ... }[] } o { ok: false, motivo }). Si la entidad aparece (por id o por slug) con rango >= 2, pinta un next/link a `/poligenesis?entidad=${id}` con el icono Wand2 de lucide-react y el texto «Gestionar con PoliGenesis», con las clases \"inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-cyan-400/30 px-3 py-1.5 text-sm text-cyan-100 transition-colors duration-200 hover:bg-cyan-500/10\". Si no aparece o ok es false, devuelve null (nada de textos inventados). Escribe la prueba src/components/genesis/__tests__/enlace-poligenesis.test.tsx con vitest y @testing-library/react (importa \"@testing-library/jest-dom/vitest\" y haz vi.mock(\"@/lib/genesis/entidades\")): con rango 3 se ve el enlace con el href correcto; con rango 1 o sin la entidad no se pinta nada. Después, en src/app/(app)/grupo/[slug]/page.tsx, añade <EnlacePoliGenesis slug={slug} entidadId={<id del grupo si existe en esa página>} /> junto a las acciones de la cabecera del grupo con una edición MÍNIMA (≤ 10 líneas; no reescribas el archivo). Comprueba con npx vitest run src/components/genesis/__tests__/enlace-poligenesis.test.tsx y con NODE_OPTIONS=--max-old-space-size=3072 npx tsc --noEmit -p tsconfig.json. Textos en español claro, sin emojis."
+  },
+  {
+   "id": "OC1010A",
+   "ola": "Ola 1010S · Medidor de Oracle",
+   "titulo": "Gasto diario de Oracle en la tarjeta de «Consumo y créditos»",
+   "archivos": [
+    "src/components/mando/oracle-gasto-dias.tsx",
+    "src/components/mando/__tests__/oracle-gasto-dias.test.tsx",
+    "src/components/mando/medidor-consumo.tsx"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo StarSeed OS (Next.js 15 + TypeScript). Contrato: architecture/oracle-consumo.md. Crea src/components/mando/oracle-gasto-dias.tsx (\"use client\", ≤ 90 líneas): `export function OracleGastoDias({ dias, moneda }: { dias: { dia: string; coste: number }[]; moneda: string })`. Pinta un SVG de barras como `Sparkline` de src/components/mando/medidor-consumo.tsx (viewBox, preserveAspectRatio=\"none\", className=\"block h-9 w-full\"), una barra por día. El coste 0 es un CERO MEDIDO: dibújalo como una línea fina en la base (no como hueco ni como barra inventada). Si `dias` está vacío, devuelve null. Lleva role=\"img\" y un aria-label en español, por ejemplo «Gasto de Oracle por día: máximo 0,00 MXN; hoy 0,00 MXN», con importes formateados con toLocaleString(\"es-ES\", {minimumFractionDigits: 2, maximumFractionDigits: 2}), y un figcaption de texto 10px text-white/40 con «gasto por día (MXN)». Sin emojis. En medidor-consumo.tsx, dentro de la función FilaOracle, justo después del bloque `{v ? (<div className=\"grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4\">…</div>) : null}`, añade `{datos?.gasto?.porDia.length ? <OracleGastoDias dias={datos.gasto.porDia} moneda={datos.gasto.moneda} /> : null}` y su import, sin cambiar nada más. Test con vitest + @testing-library/react (importa describe/it/expect de vitest y \"@testing-library/jest-dom/vitest\"; nada de vi.mock de módulos de Node): renderiza con 3 días (0, 0,5 y 0) y comprueba el aria-label y que hay 3 elementos (rect o line); con [] no renderiza nada. Comprobación: npx vitest run src/components/mando/__tests__/oracle-gasto-dias.test.tsx src/components/mando/__tests__/medidor-oracle.test.tsx."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "GN1010A",
+   "OC1010A",
+   "S1010-EV-ORACLE-2"
+  ]
+ }
+}
