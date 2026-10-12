@@ -29,9 +29,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { miAccesoMetaGenesis } from "@/lib/metagenesis/accesos";
 import { enviarOrden, leerEstadoAutonomo, type LecturaAutonoma } from "@/lib/metagenesis/remoto-nodos-cliente";
-import { ACCIONES, fraseDelMando, textoEstadoOrden, type AccionOrden, type NodoVista } from "@/lib/metagenesis/remoto-nodos";
+import { ACCIONES, fraseDelMando, textoEstadoOrden, type AccionOrden, type ArgsOrden, type NodoVista } from "@/lib/metagenesis/remoto-nodos";
 import { textoHace } from "@/lib/metagenesis/remoto";
 import { onTableChange } from "@/lib/realtime/realtime";
+import { botonesNeurona, type NeuronaColmena, type SO } from "@/lib/metagenesis/colmena";
 
 const CADA_MS = 90_000;
 const BOTONES: AccionOrden[] = ["continuar", "revisar_bloqueadas", "buscar_trabajo", "buscar_capacidad", "reactivar", "ceder"];
@@ -55,8 +56,45 @@ function Chip({ children, tono = "neutro" }: { children: ReactNode; tono?: "neut
     return <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${clases}`}>{children}</span>;
 }
 
-function TarjetaNodo({ n }: { n: NodoVista }) {
+export function TarjetaNodo({ 
+    n, 
+    ahora, 
+    mandar 
+}: { 
+    n: NodoVista; 
+    ahora: number; 
+    mandar: (accion: AccionOrden, args?: ArgsOrden) => Promise<EnvioOrden> 
+}) {
     const trabajo = Object.entries(n.trabajo).filter(([, v]) => v !== null);
+
+    // Compute latest punto timestamp from enCurso
+    const latestEnCursoT = n.enCurso?.reduce((latest, curr) => {
+        const currT = curr.punto?.t ?? 0;
+        return currT > latest ? currT : latest;
+    }, 0);
+
+    // Map medio to SO for NeuronaColmena
+    const soMap: Record<string, SO> = {
+        mac: "macos",
+        "oracle-a1": "linux",
+        neurona: "linux",
+        "nube-cowork": "linux",
+        "gh-actions": "linux",
+    };
+    const so = soMap[n.medio] ?? "linux";
+
+    // Prepare NeuronaColmena for botonesNeurona
+    const neurona: NeuronaColmena = {
+        nodo: n.nodo,
+        vivo: n.vivo,
+        so,
+        enCurso: n.enCurso?.length ?? 0,
+        contenedor: n.contenedor,
+        desconectando: false, // not available in NodoVista
+    };
+
+    const { desconectar, contenedor: contenedorBoton } = botonesNeurona(neurona);
+
     return (
         <li
             data-testid="mg-nodo"
@@ -76,7 +114,19 @@ function TarjetaNodo({ n }: { n: NodoVista }) {
                     <Chip tono={n.vivo ? "verde" : "rosa"}>{n.vivo ? `late ${textoHace(n.hace_ms)}` : `callado ${textoHace(n.hace_ms)}`}</Chip>
                 </span>
             </div>
-            <p className="mt-1 font-mono text-[11px] text-white/40">{n.nodo}</p>
+            <div className="mt-2">
+                <p className="font-mono text-[11px] text-white/40">{n.nodo}</p>
+                <p className="font-mono text-[11px] text-white/40">
+                    {n.contenedor?.agentes ?? 0} agente(s) ·
+                    {n.contenedor ? (n.contenedor.activo ? 'activo' : 'apagado') : 'no configurado'} ·
+                    {n.contenedor?.motivo ?? ''}
+                </p>
+                {n.enCurso && n.enCurso.length > 0 ? (
+                    <p className="font-mono text-[11px] text-white/40">
+                        Último punto hace {textoHace(ahora - latestEnCursoT)}
+                    </p>
+                ) : null}
+            </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
                 <Chip tono={n.modo === "seco" ? "cian" : "neutro"}>{n.modo === "seco" ? "en prueba (no lanza)" : "trabaja de verdad"}</Chip>
                 {n.orquestadores.length ? (
@@ -93,6 +143,47 @@ function TarjetaNodo({ n }: { n: NodoVista }) {
                         {k.replace("_", " ")}: {v}
                     </Chip>
                 ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+                {desconectar.visible && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className={`h-8 cursor-pointer gap-1.5 text-xs ${!desconectar.habilitado ? "opacity-50" : ""}`}
+                        disabled={!desconectar.habilitado}
+                        title={desconectar.explica}
+                        onClick={async () => {
+                            if (desconectar.confirmar) {
+                                await mandar("desconectar");
+                            } else {
+                                await mandar("desconectar");
+                            }
+                        }}
+                    >
+                        {desconectar.etiqueta}
+                    </Button>
+                )}
+                {contenedorBoton.visible && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className={`h-8 cursor-pointer gap-1.5 text-xs ${!contenedorBoton.habilitado ? "opacity-50" : ""}`}
+                        disabled={!contenedorBoton.habilitado}
+                        title={contenedorBoton.explica}
+                        onClick={async () => {
+                            if (!n.contenedor) return;
+                            const activo = n.contenedor.activo;
+                            const nuevosActivos = !activo;
+                            let trabajadores: number | undefined;
+                            if (nuevosActivos) {
+                                trabajadores = n.contenedor.agentes;
+                            }
+                            await mandar("contenedor", { activo: nuevosActivos, trabajadores });
+                        }}
+                    >
+                        {contenedorBoton.etiqueta}
+                    </Button>
+                )}
             </div>
         </li>
     );
@@ -156,7 +247,7 @@ export function MetaGenesisAutonoma() {
     }, [acceso, leer]);
 
     const mandar = useCallback(
-        async (accion: AccionOrden) => {
+        async (accion: AccionOrden, args: ArgsOrden = {}) => {
             if (ACCIONES[accion].confirmar && confirmando !== accion) {
                 setConfirmando(accion);
                 return;
@@ -165,7 +256,7 @@ export function MetaGenesisAutonoma() {
             setEnviando(accion);
             setAviso(null);
             try {
-                const r = await enviarOrden(accion, "lider");
+                const r = await enviarOrden(accion, "lider", args);
                 setAviso(
                     r.ok
                         ? { tono: "verde", texto: `Orden «${ACCIONES[accion].etiqueta}» enviada: la recoge el medio que dirige en menos de 2 min.` }
@@ -222,7 +313,7 @@ export function MetaGenesisAutonoma() {
                 <>
                     <ul className="mt-3 grid gap-2 md:grid-cols-2" aria-label="Medios de MetaGenesis">
                         {estado.nodos.map((n) => (
-                            <TarjetaNodo key={n.nodo} n={n} />
+                            <TarjetaNodo key={n.nodo} n={n} ahora={ahora} mandar={mandar} />
                         ))}
                         {!estado.nodos.length ? (
                             <li className="rounded-xl border border-dashed border-white/15 p-3 text-xs text-white/55">
@@ -272,7 +363,7 @@ export function MetaGenesisAutonoma() {
                                         className="h-8 cursor-pointer gap-1.5 text-xs"
                                         disabled={enviando !== null}
                                         title={ACCIONES[a].explica}
-                                        onClick={() => void mandar(a)}
+                                        onClick={() => void mandar(a, undefined)}
                                         data-testid={`mg-orden-${a}`}
                                     >
                                         {enviando === a ? (
