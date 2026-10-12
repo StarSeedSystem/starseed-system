@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261011",
+ "tareas": [
+  {
+   "ola": "Ola 1010S · Genesis y PoliGenesis en cada página",
+   "id": "GN1010A-d1",
+   "titulo": "Enlace «Gestionar con PoliGenesis» en la página de un grupo (parte 1 de 3)",
+   "archivos": [
+    "src/components/genesis/enlace-poligenesis.tsx"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo StarSeed OS (Next.js 15 + TypeScript). Crea src/components/genesis/enlace-poligenesis.tsx (\"use client\", ≤ 60 líneas) que exporte EnlacePoliGenesis({ entidadId, slug }: { entidadId?: string; slug: string }). En un useEffect llama UNA vez a misEntidades() de \"@/lib/genesis/entidades\" (devuelve { ok: true, lista: { id, slug, rango, ... }[] } o { ok: false, motivo }). Si la entidad aparece (por id o por slug) con rango >= 2, pinta un next/link a `/poligenesis?entidad=${id}` con el icono Wand2 de lucide-react y el texto «Gestionar con PoliGenesis», con las clases \"inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-cyan-400/30 px-3 py-1.5 text-sm text-cyan-100 transition-colors duration-200 hover:bg-cyan-500/10\". Si no aparece o ok es false, devuelve null (nada de textos inventados). Escribe la prueba src/components/genesis/__tests__/enlace-poligenesis.test.tsx con vitest y @testing-library/react (importa \"@testing-library/jest-dom/vitest\" y haz vi.mock(\"@/lib/genesis/entidades\")): con rango 3 se ve el enlace con el href correcto; con rango 1 o sin la entidad no se pinta nada. Después, en src/app/(app)/grupo/[slug]/page.tsx, añade <EnlacePoliGenesis slug={slug} entidadId={<id del grupo si existe en esa página>} /> junto a las acciones de la cabecera del grupo con una edición MÍNIMA (≤ 10 líneas; no reescribas el archivo). Comprueba con npx vitest run src/components/genesis/__tests__/enlace-poligenesis.test.tsx y con NODE_OPTIONS=--max-old-space-size=3072 npx tsc --noEmit -p tsconfig.json. Textos en español claro, sin emojis.\n\n## PARTE 1 DE 3 (la dirección dividió GN1010A: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/genesis/enlace-poligenesis.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GN1010A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ]
+}
