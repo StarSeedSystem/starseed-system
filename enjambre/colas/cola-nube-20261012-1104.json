@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261012",
+ "tareas": [
+  {
+   "id": "COL1012J",
+   "titulo": "Neuronas: «esta neurona» como contenedor (o cómo instalar el trabajador)",
+   "archivos": [
+    "src/components/cerebro/neuronas-panel.tsx",
+    "src/components/cerebro/__tests__/neuronas-colmena.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "En src/components/cerebro/neuronas-panel.tsx, en la tarjeta de la neurona ACTUAL, añade la sección «Contenedor de agentes»: si esta neurona tiene nodo de MetaGenesis (cruza por el id de nodo que publique el latido; si no hay forma de cruzarlo, trata la neurona como sin trabajador), los mismos botones que /metagenesis (`botonesNeurona`); si no, `estimarDesdeNavegador` con las señales del navegador (navigator.userAgent, navigator.platform, navigator.deviceMemory, navigator.hardwareConcurrency, navigator.getBattery() si existe, navigator.connection?.saveData o type==='cellular' como red medida, y `maxTouchPoints > 1` para el iPad) y el botón «Instalar el trabajador», que abre un panel con QUÉ es, POR QUÉ y CÓMO: el comando de `comandoInstalar(origen, codigo)` con botón Copiar. Mientras no exista el emisor de códigos (necesita la migración de nodos, §8 del contrato) el panel lo dice con esas palabras y no inventa un código. Solo para miembros de MetaGenesis. Prueba con Testing Library y señales falsas (Mac 8 GB, iPhone, Android).\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "dependencias_ya_en_main": [
+    "COL1012B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "COL1012J"
+  ]
+ }
+}
