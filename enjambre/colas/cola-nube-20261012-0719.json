@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261012",
+ "tareas": [
+  {
+   "id": "COL1012I",
+   "titulo": "/metagenesis: botones «Desconectar» y «Usar como contenedor» en la tarjeta de cada neurona",
+   "archivos": [
+    "src/components/metagenesis/metagenesis-autonoma.tsx",
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "En `TarjetaNodo` de src/components/metagenesis/metagenesis-autonoma.tsx usa `botonesNeurona` de src/lib/metagenesis/colmena.ts (ya existe, NO reimplementes su lógica) con los campos nuevos de `NodoVista` (COL1012B): enseña los botones visibles, deshabilitados con su `explica` como texto bajo el botón (no solo en title, para móvil), con doble pulsación si `confirmar`; mandan `ordenDesconectar`/`ordenContenedor` por el mismo camino que las demás órdenes de esa página. Bajo el nombre del nodo, una línea: «N agente(s) · contenedor activo/apagado · motivo» y, si tiene tareas a medias, su lista corta con «último punto hace X min». En «Pedir algo al que dirige» usa `ACCIONES_DEL_LIDER`. Accesible (botones con texto, foco visible), estética Crystal Liquid Glass de la página. Prueba con Testing Library: los botones salen según el nodo y mandan la orden.\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "dependencias_ya_en_main": [
+    "COL1012B"
+   ]
+  },
+  {
+   "id": "COL1012J",
+   "titulo": "Neuronas: «esta neurona» como contenedor (o cómo instalar el trabajador)",
+   "archivos": [
+    "src/components/cerebro/neuronas-panel.tsx",
+    "src/components/cerebro/__tests__/neuronas-colmena.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "En src/components/cerebro/neuronas-panel.tsx, en la tarjeta de la neurona ACTUAL, añade la sección «Contenedor de agentes»: si esta neurona tiene nodo de MetaGenesis (cruza por el id de nodo que publique el latido; si no hay forma de cruzarlo, trata la neurona como sin trabajador), los mismos botones que /metagenesis (`botonesNeurona`); si no, `estimarDesdeNavegador` con las señales del navegador (navigator.userAgent, navigator.platform, navigator.deviceMemory, navigator.hardwareConcurrency, navigator.getBattery() si existe, navigator.connection?.saveData o type==='cellular' como red medida, y `maxTouchPoints > 1` para el iPad) y el botón «Instalar el trabajador», que abre un panel con QUÉ es, POR QUÉ y CÓMO: el comando de `comandoInstalar(origen, codigo)` con botón Copiar. Mientras no exista el emisor de códigos (necesita la migración de nodos, §8 del contrato) el panel lo dice con esas palabras y no inventa un código. Solo para miembros de MetaGenesis. Prueba con Testing Library y señales falsas (Mac 8 GB, iPhone, Android).\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "dependencias_ya_en_main": [
+    "COL1012B"
+   ]
+  }
+ ]
+}
