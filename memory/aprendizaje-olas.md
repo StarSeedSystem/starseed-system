@@ -4332,3 +4332,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
+
+## 2026-10-12 23:39 · mg-oracle-1012-1645
+
+**Lo que se pidió.** Canal de señalización de llamadas sobre un enlace local · objeción del revisor
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTS1010-TU-LL1cobjb` — otra cosa: red caída: $ opencode run --model openrouter/thinkingmachines/inkling:free · 2026-10-12 23:23:03 [0m > build · thinkingmachines/inkling:fre
+- `RTCOL1012Ie` — los tipos no compilan: 42 errores tsc (rama ola/RTCOL1012Ie conservada)
+- `RTCOL1012Ae` — no escribió nada
