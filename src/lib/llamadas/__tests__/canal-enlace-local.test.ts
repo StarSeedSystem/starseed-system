@@ -162,4 +162,28 @@ describe("canal-enlace-local", () => {
         expect(suscriptores).toEqual([true, false, true]);
         ca.soltar();
     });
+
+    it("onSuscrito no repite el aviso mientras el enlace no cambia y suscrito() lo refleja", () => {
+        vi.useFakeTimers();
+        const [a, ,] = crearParEnlaces();
+        let abiertoA = true;
+        const enlace: EnlaceLocalVivo = { ...a, abierto: () => abiertoA };
+        const ca = abrirCanalLlamadaPorEnlace(enlace, "s1", "a:1");
+        const eventos: boolean[] = [];
+        ca.onSuscrito((ok) => { eventos.push(ok); });
+        vi.runOnlyPendingTimers(); // aviso inicial
+        expect(eventos).toEqual([true]);
+        expect(ca.suscrito()).toBe(true);
+        vi.advanceTimersByTime(30_000); // sigue abierto: el latido no repite el aviso
+        expect(eventos).toEqual([true]);
+        abiertoA = false;
+        vi.advanceTimersByTime(10_000); // el latido ve la caída
+        expect(eventos).toEqual([true, false]);
+        expect(ca.suscrito()).toBe(false);
+        abiertoA = true;
+        vi.advanceTimersByTime(10_000); // el latido ve la vuelta: avisa true
+        expect(eventos).toEqual([true, false, true]);
+        expect(ca.suscrito()).toBe(true);
+        ca.soltar();
+    });
 });
