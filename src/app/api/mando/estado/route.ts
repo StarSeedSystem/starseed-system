@@ -18,6 +18,7 @@ import { promisify } from "node:util";
 import type { CuentasTareas, EstadoMando, EventoRelevo, RepoInfo } from "@/lib/mando/tipos";
 import { guardianMando } from "@/lib/mando/guardian";
 import { construirRamificacion } from "@/lib/mando/ramificacion";
+import { compartirCalculo } from "@/lib/mando/calculo-compartido";
 import {
     leerColas,
     colaInteligente,
@@ -100,6 +101,20 @@ export async function GET(request: Request): Promise<Response> {
     const veto = await guardianMando(request);
     if (veto) return veto;
 
+    const estado = await estadoCompartido();
+    return Response.json(estado, { headers: { "Cache-Control": "no-store" } });
+}
+
+/**
+ * (2026-10-12) UN cálculo a la vez y reutilizado 8 s, sea quien sea quien pregunte (la página de
+ * Genesis, la de MetaGenesis, cada aparato por el túnel): con la Mac en presión de memoria cada
+ * cálculo tardaba 5-25 s y repetirlo por petición hacía más lentas a todas. La puerta (guardián)
+ * se sigue pasando en CADA petición, antes de llegar aquí.
+ */
+const VIGENCIA_ESTADO_MS = 8_000;
+const estadoCompartido = compartirCalculo(calcularEstado, VIGENCIA_ESTADO_MS);
+
+async function calcularEstado(): Promise<EstadoMando> {
     const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit, asuntosDeMain, veredictos] =
         await Promise.all([
             leerEstadoRelevo(),
@@ -168,8 +183,7 @@ export async function GET(request: Request): Promise<Response> {
         repo,
         veredictos: veredictos.veredictos,
     };
-
-    return Response.json(estado, { headers: { "Cache-Control": "no-store" } });
+    return estado;
 }
 /** Órdenes firmadas para la nube publicadas hace >90 s sin evento de respuesta posterior de su cola. */
 function ordenesNubeSinRespuesta(eventos: EventoRelevo[]): EstadoMando["ordenesSinAtender"] {
