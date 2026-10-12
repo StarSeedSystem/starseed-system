@@ -73,6 +73,7 @@ export function MiGenesis() {
                 atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
             />
             <div id="bots">
+                <h2>Mis bots</h2>
                 <SeccionBotsGenesis />
             </div>
         </section>
