@@ -72,5 +72,22 @@ describe("malla-directa", () => {
       expect(cb).toHaveBeenCalledTimes(1);
       unsubscribe();
     });
+    });
+    it("anuncia por dos enlaces y un tercero falla (enviados = 2) - con deps", async () => {
+      const resultados = [
+        { ok: true, enlace: { id: "en-1" } },
+        { ok: true, enlace: { id: "en-2" } },
+        { ok: false },
+      ];
+      let idx = 0;
+      const r = await anunciarPorEnlacesDirectos(createMockEstacion(), {
+        enlaces: async () => [{ id: "en-1" }, { id: "en-2" }, { id: "en-3" }],
+        enviar: async (_destino: unknown, _canal: string, _cuerpo: unknown) => {
+          const res = resultados[idx++];
+          return res;
+        },
+      });
+      expect(r.enviados).toBe(2);
+      expect(r.enlaces).toEqual(["en-1", "en-2"]);
+    });
   });
-});
