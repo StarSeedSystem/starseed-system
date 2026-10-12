@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { crearSalas } from "../rele-salas";
 
 // Constantes para las pruebas (valores razonables)
 const maxSalas = 2;
@@ -13,9 +14,6 @@ interface SalasInstance {
   temaDe: (conexion: any) => string | undefined;
   difundir: (emisor: any, texto: string | any) => any[];
 }
-
-// Declaración de la función que vamos a probar (debe estar importada desde el módulo real)
-declare function crearSalas(opts: { maxSalas: number; maxPorSala: number; maxBytes: number }): SalasInstance;
 
 describe("salas - lógica pura", () => {
   it('entrar: tema válido', () => {
