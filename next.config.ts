@@ -248,6 +248,13 @@ const nextConfig: NextConfig = {
       config.resolve.alias = { ...config.resolve.alias, sqlite3: false, 'sqlite-vec': false };
     }
     config.resolve.fallback = { ...(config.resolve.fallback ?? {}), 'node:process': false };
+    // (2026-10-12) En Vercel (8 GB, sin swap) el build moría por memoria («OOM», SIGKILL) desde el
+    // 10-10: producción quedó 2 días sin publicarse. La caché de webpack en disco guarda y
+    // serializa en memoria todo el grafo; sin ella el pico baja (receta de la guía de memoria de
+    // Next). Solo en Vercel o con STARSEED_BUILD_LIGERO=1: en la nube y en el CI sigue la caché.
+    if (process.env.VERCEL === '1' || process.env.STARSEED_BUILD_LIGERO === '1') {
+      config.cache = Object.freeze({ type: 'memory' as const });
+    }
     return config;
   },
 };
