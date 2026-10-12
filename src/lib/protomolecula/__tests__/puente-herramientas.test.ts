@@ -57,6 +57,21 @@ describe("esUrlEmbebible", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.motivo.toLowerCase()).toContain(motivo.toLowerCase());
   });
+  it("rechaza URLs con esquema javascript:", () => {
+    const resultado = esUrlEmbebible("javascript:alert('xss')", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
+  });
+  it("rechaza URLs con esquema data:", () => {
+    const resultado = esUrlEmbebible("data:text/plain;base64,SGVsbG8=", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
+  });
+  it("rechaza URLs con esquema blob:", () => {
+    const resultado = esUrlEmbebible("blob:https://example.com/123e4567-e89b-12d3-a456-426614174000", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect((resultado as { ok: false; motivo: string }).motivo).toContain("Esquema de URL prohibido");
+  });
 });
 
 describe("sanearParametro", () => {
@@ -108,6 +123,82 @@ describe("procesarMensaje · identidad", () => {
     const r = procesarMensaje(ev(m, { ...hola, tipo: "ovnis" }), m, 0, limite());
     expect(r.entrada).toBeNull();
     expect(r.motivo).toContain("ignorado");
+  });
+  it("rechaza origen malo en marco propio con sandbox sin allow-same-origin", () => {
+    const marco = marcoDe(null); // Marco propio
+    const estadoInicial = limite();
+    const ev = {
+      origin: ORIGEN, // No es "null"
+      source: marco.ventana,
+      data: {
+        protomolecula: 1,
+        tipo: "hola",
+        canal: TOKEN,
+      },
+    };
+
+    const resultado = procesarMensaje(ev, marco, 0, estadoInicial);
+    expect(resultado.entrada).toBeNull();
+    expect(resultado.motivo).toContain("Origen esperado 'null'");
+  });
+  it("acepta origen 'null' en marco propio con sandbox sin allow-same-origin", () => {
+    const marco = marcoDe(null); // Marco propio
+    const estadoInicial = limite();
+    const ev = {
+      origin: null, // Correcto para sandbox sin allow-same-origin
+      source: marco.ventana,
+      data: {
+        protomolecula: 1,
+        tipo: "hola",
+        canal: TOKEN,
+        nombre: "Herramienta de prueba",
+      },
+    };
+
+    const resultado = procesarMensaje(ev, marco, 0, estadoInicial);
+    expect(resultado.entrada).not.toBeNull();
+    if (resultado.entrada) {
+      expect(resultado.entrada.tipo).toBe("hola");
+      expect(resultado.entrada.nombre).toBe("Herramienta de prueba");
+    }
+  });
+  it("rechaza origen malo en marco con origen esperado real", () => {
+    const marco = marcoDe("https://herramienta-correcta.com");
+    const estadoInicial = limite();
+    const ev = {
+      origin: "https://herramienta-mala.com", // Incorrecto
+      source: marco.ventana,
+      data: {
+        protomolecula: 1,
+        tipo: "hola",
+        canal: TOKEN,
+      },
+    };
+
+    const resultado = procesarMensaje(ev, marco, 0, estadoInicial);
+    expect(resultado.entrada).toBeNull();
+    expect(resultado.motivo).toContain("Origen inesperado");
+  });
+  it("acepta origen correcto en marco con origen esperado real", () => {
+    const marco = marcoDe("https://herramienta.example.com");
+    const estadoInicial = limite();
+    const ev = {
+      origin: "https://herramienta.example.com", // Correcto
+      source: marco.ventana,
+      data: {
+        protomolecula: 1,
+        tipo: "hola",
+        canal: TOKEN,
+        nombre: "Herramienta de prueba",
+      },
+    };
+
+    const resultado = procesarMensaje(ev, marco, 0, estadoInicial);
+    expect(resultado.entrada).not.toBeNull();
+    if (resultado.entrada) {
+      expect(resultado.entrada.tipo).toBe("hola");
+      expect(resultado.entrada.nombre).toBe("Herramienta de prueba");
+    }
   });
 });
 
@@ -176,6 +267,68 @@ describe("procesarMensaje · mensajes", () => {
     expect(procesarMensaje(ev(m, { ...hola, tipo: "error", mensaje: "falló" }), m, 0, limite()).entrada?.mensaje).toBe("falló");
     expect(procesarMensaje(ev(m, { ...hola, tipo: "error", mensaje: "" }), m, 0, limite()).entrada).toBeNull();
   });
+  it("valida correctamente el mensaje hola", () => {
+    const marco = marcoDe();
+    const estadoInicial = limite();
+    const ev = {
+      origin: ORIGEN,
+      source: marco.ventana,
+      data: {
+        protomolecula: 1,
+        tipo: "hola",
+        canal: TOKEN,
+        nombre: "Herramienta de prueba",
+        parametros: [
+          { id: "volumen", nombre: "Volumen", tipo: "numero" },
+          { id: "filtro", nombre: "Filtro", tipo: "opcion" },
+        ],
+      },
+    };
+
+    const resultado = procesarMensaje(ev, marco, 0, estadoInicial);
+    expect(resultado.entrada).not.toBeNull();
+    if (resultado.entrada) {
+      expect(resultado.entrada.tipo).toBe("hola");
+      expect(resultado.entrada.nombre).toBe("Herramienta de prueba");
+      expect(Array.isArray(resultado.entrada.parametros)).toBe(true);
+      expect((resultado.entrada as { parametros?: Parametro[] }).parametros?.length).toBe(2);
+    }
+  });
+  it("rechaza mensaje exportar con formato no válido", () => {
+    const marco = marcoDe();
+    const estadoInicial = limite();
+    const ev = {
+      origin: ORIGEN,
+      source: marco.ventana,
+      data: {
+        protomolecula: 1,
+        tipo: "exportar",
+        canal: TOKEN,
+        formato: "invalid", // formato no válido
+        datos: { b: 1 },
+      },
+    };
+
+    const resultado = procesarMensaje(ev, marco, 0, estadoInicial);
+    expect(resultado.entrada).toBeNull();
+  });
+  it("rechaza mensaje error con mensaje no válido", () => {
+    const marco = marcoDe();
+    const estadoInicial = limite();
+    const ev = {
+      origin: ORIGEN,
+      source: marco.ventana,
+      data: {
+        protomolecula: 1,
+        tipo: "error",
+        canal: TOKEN,
+        mensaje: 123, // no es una cadena
+      },
+    };
+
+    const resultado = procesarMensaje(ev, marco, 0, estadoInicial);
+    expect(resultado.entrada).toBeNull();
+  });
 });
 
 describe("procesarMensaje · topes", () => {
@@ -190,6 +343,14 @@ describe("procesarMensaje · topes", () => {
     const r = procesarMensaje(ev(m, { ...hola, tipo: "exportar", formato: "wav", datos: "x".repeat(2 * 1024 * 1024 + 10) }), m, 0, limite());
     expect(r.entrada).toBeNull();
     expect(r.motivo).toContain("2 MB");
+  });
+  it("rechaza mensaje que excede el tamaño máximo de JSON (2.6 MB)", () => {
+    const m = marcoDe();
+    // 2.6 MB = 2.6 * 1024 * 1024 bytes
+    const nombreSize = 2.6 * 1024 * 1024;
+    const r = procesarMensaje(ev(m, { ...hola, nombre: "x".repeat(nombreSize) }), m, 0, limite());
+    expect(r.entrada).toBeNull();
+    expect(r.motivo).toContain("2.6 MB");
   });
 });
 
