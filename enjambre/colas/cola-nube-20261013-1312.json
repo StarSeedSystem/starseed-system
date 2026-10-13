@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261013",
+ "tareas": [
+  {
+   "id": "MC1012U",
+   "titulo": "Centinela y resonancias antes de aceptar un archivo por la malla",
+   "archivos": [
+    "src/lib/network/archivos-malla.ts",
+    "src/lib/malla/cristal/centinela-archivos.ts",
+    "src/lib/malla/cristal/__tests__/centinela-archivos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. En centinela-archivos.ts exporta `decidirEntrada(analisis: {nivel, motivos}, resonancia: {decision} | null): {accion: 'aceptar-con-pregunta'|'avisar'|'rechazar'; texto: string}` (peligroso o cuarentena → rechazar; sospechoso o aviso → avisar con los motivos; si no, lo de siempre: preguntar). En src/lib/network/archivos-malla.ts, en el punto donde hoy se pide permiso para aceptar un archivo de otro aparato, analiza con `analizarArchivo` el nombre, el tipo declarado y el primer trozo cuando llega (si el primer trozo aún no llegó, analiza nombre y tipo con `inicio` vacío) y aplica decidirEntrada: rechazar responde con el mensaje de rechazo que ya existe y el motivo; avisar añade el texto al aviso de aceptación. No cambies el protocolo ni los mensajes del canal. Las pruebas existentes de archivos-malla deben seguir en verde; añade las de decidirEntrada.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012M",
+    "MC1012N"
+   ]
+  }
+ ]
+}
