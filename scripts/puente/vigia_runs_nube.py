@@ -44,6 +44,8 @@ ESPERAN = ("queued", "pending", "waiting", "requested")
 TRABAJO = ("enjambre",)
 FINALES = ("entregar", "tachar", "rastro", "post ", "complete job")
 MEMORIA = os.path.expanduser("~/.starseed/nube-vigia.json")
+#: Un atasco que pide confirmación se actúa solo si se ve igual en otra pasada, al menos tanto después.
+CONFIRMAR_S = 200
 
 
 def _segundos_desde(iso, ahora):
@@ -100,9 +102,16 @@ def diagnosticar(fila, filas, ahora):
             and str(paso).strip().lower() != "set up job"):
         en_paso = _segundos_desde(fila.get("paso_desde"), ahora)
         if en_paso is not None and en_paso > PREPARACION_MAX_S:
+            if fila.get("pasos_coherentes"):
+                # Lista COMPLETA y coherente (todo lo de detrás sin empezar, «Enjambre» incluido): es un
+                # cuelgue de verdad y no se ha escrito nada. Se cancela, pero solo si se CONFIRMA en una
+                # segunda pasada (`actuar` espera ≥ CONFIRMAR_S): una lista vieja no dura dos pasadas.
+                return {"tipo": "preparacion-atascada", "cancelar": True, "devolver": True, "confirmar": True,
+                        "motivo": "lleva %d min en «%s» sin empezar nada más (lo normal es menos de 1 min)"
+                                  % (en_paso // 60, paso)}
             return {"tipo": "preparacion-larga", "cancelar": False, "devolver": False,
                     "motivo": "GitHub dice que lleva %d min en «%s» (lo normal es menos de 1 min; el workflow lo "
-                              "corta solo a los 12)" % (en_paso // 60, paso)}
+                              "corta solo)" % (en_paso // 60, paso)}
     if str(paso or "") == "sin dato del paso" and edad_s is not None and edad_s > SIN_PASOS_AVISO_S:
         return {"tipo": "sin-pasos", "cancelar": False, "devolver": False,
                 "motivo": "GitHub no da ningún paso de este job desde hace %d min" % (edad_s // 60)}
@@ -169,6 +178,16 @@ def actuar(resumen, raiz, ahora=None):
         run = str(fila.get("run")) if isinstance(fila, dict) else ""
         if not a or not run or run in memoria:
             continue
+        # Un aviso no impide una acción después (otra clave): solo evita repetir el mismo aviso.
+        if not a.get("cancelar") and "aviso:%s:%s" % (run, a.get("tipo")) in memoria:
+            continue
+        if a.get("confirmar"):
+            visto = memoria.get("confirmar:" + run)
+            if not visto or visto.get("tipo") != a.get("tipo"):
+                memoria["confirmar:" + run] = {"t": ahora, "tipo": a.get("tipo")}
+                continue
+            if ahora - float(visto.get("t") or 0) < CONFIRMAR_S:
+                continue
         texto = "Nube · run %s: %s." % (run, a.get("motivo"))
         if a.get("cancelar"):
             p = subprocess.run(["gh", "run", "cancel", run], cwd=raiz, capture_output=True, text=True, timeout=60)
@@ -197,7 +216,8 @@ def actuar(resumen, raiz, ahora=None):
         else:
             texto += " Solo aviso: puede estar trabajando y no lo corto."
         _avisar(texto)
-        memoria[run] = {"t": ahora, "tipo": a.get("tipo")}
+        clave = run if a.get("cancelar") else "aviso:%s:%s" % (run, a.get("tipo"))
+        memoria[clave] = {"t": ahora, "tipo": a.get("tipo")}
         hecho.append(texto)
     try:
         os.makedirs(os.path.dirname(MEMORIA), exist_ok=True)

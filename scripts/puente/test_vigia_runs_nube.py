@@ -41,6 +41,14 @@ class Diagnosticar(unittest.TestCase):
                  paso_desde="2026-10-13T21:39:25Z", minutos=31)
         self.assertIsNone(VR.diagnosticar(h, [h], AHORA))
 
+    def test_preparacion_colgada_con_lista_coherente_se_cancela_con_confirmacion(self):
+        """22:41: «setup-node» en curso 10 min con TODO lo de detrás sin empezar (run 38478394570)."""
+        f = fila(paso="Run actions/setup-node@v4", paso_estado="in_progress", pasos_coherentes=True,
+                 paso_desde="2026-10-13T21:55:00Z", minutos=16)
+        a = VR.diagnosticar(f, [f], AHORA)
+        self.assertEqual(a["tipo"], "preparacion-atascada")
+        self.assertTrue(a["cancelar"] and a["devolver"] and a["confirmar"])
+
     def test_preparacion_reciente_no(self):
         f = fila(paso="Dependencias y orquestador", paso_estado="in_progress", paso_desde="2026-10-13T22:08:00Z")
         self.assertIsNone(VR.diagnosticar(f, [f], AHORA))
@@ -101,6 +109,44 @@ class Devolver(unittest.TestCase):
         self.assertEqual(VR.ids_de_cola({"tareas": [{"id": "X"}, {"id": "Y"}, {}]}), ["X", "Y"])
         self.assertEqual(VR.ids_de_cola([{"id": "Z"}]), ["Z"])
         self.assertEqual(VR.ids_de_cola(None), [])
+
+
+class Actuar(unittest.TestCase):
+    """`actuar` con GitHub y el Chat Director simulados: confirma antes de cancelar y avisa una vez."""
+
+    def setUp(self):
+        import tempfile
+        from unittest import mock
+
+        self.dir = tempfile.mkdtemp()
+        self.cancelados, self.avisos = [], []
+        ok = mock.Mock(returncode=0, stderr="")
+        self.p = [mock.patch.object(VR, "MEMORIA", os.path.join(self.dir, "m.json")),
+                  mock.patch.object(VR.subprocess, "run", side_effect=lambda o, **k: (self.cancelados.append(o[-1]), ok)[1]),
+                  mock.patch.object(VR, "_avisar", side_effect=self.avisos.append)]
+        for x in self.p:
+            x.start()
+
+    def tearDown(self):
+        for x in self.p:
+            x.stop()
+
+    def test_confirma_en_una_segunda_pasada_y_no_repite(self):
+        a = {"tipo": "preparacion-atascada", "cancelar": True, "devolver": False, "confirmar": True, "motivo": "m"}
+        resumen = {"runs": [{"run": 7, "cola": "c.json", "atasco": a}]}
+        self.assertEqual(VR.actuar(resumen, self.dir, ahora=1000.0), [])
+        self.assertEqual(VR.actuar(resumen, self.dir, ahora=1100.0), [])  # aún no: < CONFIRMAR_S
+        self.assertEqual(len(VR.actuar(resumen, self.dir, ahora=1300.0)), 1)
+        self.assertEqual(self.cancelados, ["7"])
+        self.assertEqual(VR.actuar(resumen, self.dir, ahora=1600.0), [])  # ya hecho: no repite
+
+    def test_un_aviso_no_corta_y_no_se_repite(self):
+        a = {"tipo": "sin-pasos", "cancelar": False, "devolver": False, "motivo": "m"}
+        resumen = {"runs": [{"run": 8, "cola": "c.json", "atasco": a}]}
+        self.assertEqual(len(VR.actuar(resumen, self.dir, ahora=1000.0)), 1)
+        self.assertEqual(VR.actuar(resumen, self.dir, ahora=1300.0), [])
+        self.assertEqual(self.cancelados, [])
+        self.assertEqual(len(self.avisos), 1)
 
 
 if __name__ == "__main__":

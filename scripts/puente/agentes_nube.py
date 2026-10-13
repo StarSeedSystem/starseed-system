@@ -104,6 +104,8 @@ def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
                 fila["paso_numero"] = paso.get("numero")
             if paso.get("estado"):
                 fila["paso_estado"] = str(paso.get("estado"))
+            if paso.get("coherente") and not paso.get("de_antes"):
+                fila["pasos_coherentes"] = True
             if paso.get("de_antes"):
                 fila["paso_de_antes"] = True
             if paso.get("hechos") is not None:
@@ -161,7 +163,24 @@ def paso_actual(jobs) -> dict | None:
     empezados = [(n, p) for n, p in numerados if p.get("estado") in ("in_progress", "completed")]
     n, actual = max(empezados, key=lambda x: x[0]) if empezados else numerados[0]
     return {"nombre": str(actual.get("nombre") or "?"), "desde": actual.get("inicio"), "numero": n,
-            "estado": actual.get("estado"), "hechos": hechos, "total": len(pasos)}
+            "estado": actual.get("estado"), "hechos": hechos, "total": len(pasos),
+            "coherente": pasos_coherentes(numerados, n)}
+
+
+def pasos_coherentes(numerados, n_actual) -> bool:
+    """PURA. ¿La lista de pasos es completa y coherente con el paso actual? Solo entonces un paso de
+    preparación largo es un cuelgue de verdad: el actual está en curso, TODOS los que van detrás
+    siguen «pending» (ninguno empezado) y la lista trae el paso «Enjambre». Las listas que engañaron
+    el 13-10 (pasos que faltan, «Set up job» en curso con otros por delante) no lo cumplen."""
+    actual = next((p for k, p in numerados if k == n_actual), None)
+    if not isinstance(actual, dict) or actual.get("estado") != "in_progress":
+        return False
+    if not any("enjambre" in str(p.get("nombre") or "").lower() for _k, p in numerados):
+        return False
+    detras = [p for k, p in numerados if k > n_actual]
+    delante = [p for k, p in numerados if k < n_actual]
+    return (all(p.get("estado") == "pending" for p in detras)
+            and all(p.get("estado") == "completed" for p in delante))
 
 
 def paso_monotono(previo, nuevo) -> dict | None:

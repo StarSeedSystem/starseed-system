@@ -117,6 +117,32 @@ class TestPasoReal(unittest.TestCase):
         self.assertNotIn("atasco", [f for f in r["runs"] if f["run"] == 1][0])
 
 
+class ListaCoherente(unittest.TestCase):
+    """(2026-10-13) Solo una lista completa y coherente permite llamar «colgado» a un paso."""
+
+    def _job(self, pasos):
+        return [{"estado": "in_progress", "inicio": "x", "pasos": [
+            {"numero": n, "nombre": nom, "estado": e, "inicio": None} for n, nom, e in pasos]}]
+
+    def test_setup_node_colgado_con_todo_lo_de_detras_sin_empezar(self):
+        p = AN.paso_actual(self._job([(1, "Set up job", "completed"), (2, "checkout", "completed"),
+                                      (3, "Run actions/setup-node@v4", "in_progress"), (4, "Dependencias y orquestador", "pending"),
+                                      (7, "Enjambre", "pending"), (19, "Post Run", "pending")]))
+        self.assertEqual(p["nombre"], "Run actions/setup-node@v4")
+        self.assertTrue(p["coherente"])
+
+    def test_las_listas_que_engañaron_no_son_coherentes(self):
+        # 22:05: «Set up job» y «Dependencias» en curso, sin «Enjambre» en la lista.
+        p = AN.paso_actual(self._job([(1, "Set up job", "in_progress"), (2, "checkout", "completed"),
+                                      (3, "setup-node", "completed"), (4, "Dependencias y orquestador", "in_progress"),
+                                      (19, "Post Run", "pending")]))
+        self.assertFalse(p["coherente"])
+        # 16:21: el más avanzado era «Claves», HECHO.
+        p = AN.paso_actual(self._job([(2, "checkout", "completed"), (5, "Estado", "completed"),
+                                      (6, "Claves", "completed"), (19, "Post Run", "pending")]))
+        self.assertFalse(p["coherente"])
+
+
 class UnoPorTarea(unittest.TestCase):
     def test_un_run_no_cuenta_mas_agentes_que_tareas(self):
         """(2026-10-13) 4 trabajadores para UNA tarea salían como «4 escribiendo»."""
