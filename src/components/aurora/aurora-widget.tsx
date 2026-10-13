@@ -1,9 +1,9 @@
 "use client";
 
 import { esRutaConsola, esRutaMinima } from "@/components/layout/solo-fuera-de-consola";
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType, type ComponentProps } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { dynamic } from "next/dynamic";
+import dynamic from "next/dynamic";
 import {
   Sparkles, X, Play, Pause, SkipForward, SkipBack, Square, Wand2,
   MessageSquare, EyeOff, Trash2, MicOff, Mic, Layout, LayoutGrid, Settings2,
@@ -15,7 +15,8 @@ import { voiceModeChipLabel } from "@/lib/aurora/capabilities";
 import { createClient } from "@/utils/supabase/client";
 
 // OrbesBots con carga perezosa (ssr: false) - se muestra fuera de /genesis y rutas mínimas
-const OrbesBots = dynamic(() => import("./astraura-bots/orbes-bots"), { ssr: false });
+  const OrbesBots = dynamic(() => import("../astraura-bots/orbes-bots").then(m => m.OrbesBots), { ssr: false });
+  type OrbesBotsProps = ComponentProps<typeof OrbesBots>;
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
 import { AURORA_TRINITY_FLAG, AURORA_TRINITY_EVENT } from "@/components/layout/trinity-fab";
 import { AuroraOrb } from "./aurora-orb";
