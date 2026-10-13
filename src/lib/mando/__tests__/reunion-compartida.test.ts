@@ -104,3 +104,39 @@ describe("crearReunionCompartida", () => {
         expect(fn).toHaveBeenCalledTimes(2);
     });
 });
+
+describe("reunión colgada (2026-10-13)", () => {
+    it("pasado maxEnMarchaMs se suelta y arranca otra; la colgada que acaba tarde no pisa a la nueva", async () => {
+        const resolvers: Array<(v: string) => void> = [];
+        const fn = vi
+            .fn<() => Promise<string>>()
+            .mockResolvedValueOnce("bueno")
+            .mockImplementation(() => new Promise<string>((res) => resolvers.push(res)));
+        let reloj = 0;
+        const avisos: string[] = [];
+        const r = crearReunionCompartida(fn, {
+            frescoMs: 1_000, esperaMs: 10, maxEnMarchaMs: 5_000, ahora: () => reloj, avisar: (t) => avisos.push(t),
+        });
+        expect((await r.obtener()).datos).toBe("bueno");
+        reloj = 2_000;
+        const colgada = r.obtener();
+        await vi.advanceTimersByTimeAsync(20);
+        expect(await colgada).toMatchObject({ datos: "bueno", obsoleto: true });
+        expect(fn).toHaveBeenCalledTimes(2);
+        reloj = 3_000;
+        await Promise.all([r.obtener(), vi.advanceTimersByTimeAsync(20)]);
+        expect(fn).toHaveBeenCalledTimes(2); // aún no: sigue dentro del margen
+        reloj = 8_000;
+        const nueva = r.obtener();
+        await vi.advanceTimersByTimeAsync(20);
+        await nueva;
+        expect(fn).toHaveBeenCalledTimes(3);
+        expect(avisos.length).toBe(1);
+        resolvers[1]("nuevo");
+        await vi.advanceTimersByTimeAsync(0);
+        resolvers[0]("viejo-tardio");
+        await vi.advanceTimersByTimeAsync(0);
+        reloj = 8_500;
+        expect((await r.obtener()).datos).toBe("nuevo");
+    });
+});

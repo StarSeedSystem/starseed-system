@@ -6,7 +6,11 @@
 export interface OpcionesReunion {
     frescoMs?: number;
     esperaMs?: number;
+    /** Una reunión que tarda más que esto se da por colgada: se suelta y la siguiente arranca. */
+    maxEnMarchaMs?: number;
     ahora?: () => number;
+    /** Aviso cuando se suelta una reunión colgada (por defecto, `console.warn`). */
+    avisar?: (texto: string) => void;
 }
 
 export interface ResultadoReunion<T> {
@@ -17,34 +21,51 @@ export interface ResultadoReunion<T> {
 
 const FRESCO_DEFECTO_MS = 15_000;
 const ESPERA_DEFECTO_MS = 6_000;
+/**
+ * (2026-10-13, medido) Los medidores de Genesis enseñaron la MISMA cifra de las 04:02:58 durante
+ * más de 17 minutos con `obsoleto`: una reunión se quedó esperando algo que nunca contestó y,
+ * como solo hay una a la vez, ninguna otra arrancó. Las reuniones lentas de verdad acaban en
+ * 5-140 s (registro del 13-10); a los 180 s se da por colgada.
+ */
+const MAX_EN_MARCHA_DEFECTO_MS = 180_000;
 
 export function crearReunionCompartida<T>(fn: () => Promise<T>, opciones: OpcionesReunion = {}): {
     obtener(): Promise<ResultadoReunion<T>>;
 } {
     const frescoMs = opciones.frescoMs ?? FRESCO_DEFECTO_MS;
     const esperaMs = opciones.esperaMs ?? ESPERA_DEFECTO_MS;
+    const maxEnMarchaMs = opciones.maxEnMarchaMs ?? MAX_EN_MARCHA_DEFECTO_MS;
     const ahora = opciones.ahora ?? (() => Date.now());
+    const avisar = opciones.avisar ?? ((texto: string) => console.warn(texto));
 
-    let ultimo: { datos: T; t: number } | null = null;
-    let enMarcha: Promise<T | null> | null = null;
+    let ultimo: { datos: T; t: number; desde: number } | null = null;
+    let enMarcha: { p: Promise<T | null>; desde: number } | null = null;
 
     // Una única llamada viva siempre. Un fallo NO borra el último bueno: solo libera
-    // el turno para el siguiente intento.
+    // el turno para el siguiente intento. Una colgada (> maxEnMarchaMs) se suelta: si acaba
+    // más tarde, su resultado solo cuenta si no hay otro más nuevo.
     const arrancar = (): Promise<T | null> => {
+        if (enMarcha && ahora() - enMarcha.desde > maxEnMarchaMs) {
+            avisar(`[reunion] colgada más de ${Math.round(maxEnMarchaMs / 1000)} s: la suelto y arranco otra`);
+            enMarcha = null;
+        }
         if (!enMarcha) {
-            enMarcha = (async (): Promise<T | null> => {
+            const desde = ahora();
+            const turno: { p: Promise<T | null>; desde: number } = { p: Promise.resolve(null), desde };
+            turno.p = (async (): Promise<T | null> => {
                 try {
                     const datos = await fn();
-                    ultimo = { datos, t: ahora() };
+                    if (!ultimo || desde >= ultimo.desde) ultimo = { datos, t: ahora(), desde };
                     return datos;
                 } catch {
                     return null;
                 } finally {
-                    enMarcha = null;
+                    if (enMarcha === turno) enMarcha = null;
                 }
             })();
+            enMarcha = turno;
         }
-        return enMarcha;
+        return enMarcha.p;
     };
 
     const esperarConTope = (p: Promise<T | null>): Promise<T | null | "__tope__"> =>
