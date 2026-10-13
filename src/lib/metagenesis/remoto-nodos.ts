@@ -149,14 +149,6 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
             }
         }
     }
-    if (accion === "repartir") {
-        if (!("destino" in a) || typeof a.destino !== "string" || !RE_NODO.test(a.destino)) {
-            return "destino no válido";
-        }
-        if ("tope" in a && !(Number.isInteger(a.tope) && (a.tope as number) >= 1 && (a.tope as number) <= 8)) {
-            return "tope fuera de 1–8";
-        }
-    }
     return null;
 }
 
