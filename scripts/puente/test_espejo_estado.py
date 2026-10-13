@@ -75,6 +75,13 @@ class PruebasEmpaquetar(unittest.TestCase):
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
+    def test_los_que_no_son_logs_viajan_enteros(self):
+        # progreso.md pasa de LOG_LINEAS líneas y no se recorta: el espejo lo necesita completo
+        with open(os.path.join(self.olas, "progreso.md"), "w", encoding="utf-8") as f:
+            f.write("\n".join("línea %d" % i for i in range(300)))
+        with self._tar(["progreso.md", "ola-x.jsonl"]) as tar:
+            (self.assertEqual(len(tar.extractfile("progreso.md").read().decode().splitlines()), 300))
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
