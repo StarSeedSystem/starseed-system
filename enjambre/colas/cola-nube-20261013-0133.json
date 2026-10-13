@@ -1,0 +1,111 @@
+{
+ "ola": "oracle-20261013",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "RTIMG1011G",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Explorador diario: modelos nuevos y versiones nuevas de los instalados",
+   "archivos": [
+    "scripts/imagenes/test_explorador_modelos.py"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea IMG1011G («Explorador diario: modelos nuevos y versiones nuevas de los instalados») se hizo en main por otro camino; su rama nube/38344076045 queda archivada en `refs/archivo/nube/38344076045` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTIMG1011G · solo estos archivos: scripts/imagenes/test_explorador_modelos.py):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas Python con unittest, con el patrón de carga que ya use el archivo.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/imagenes/test_explorador_modelos.py\n    def test_comprobar_actualizaciones(self) -> None:\n        \"\"\"Test checking for updates in existing models.\"\"\"\n        # First, we need to mock the leer_modelos_imagenes function to return a known model\n        # We'll patch the file reading or the function itself.\n        # Since leer_modelos_imagenes reads a file, we can mock the Path.read_text method.\n        # Alternatively, we can patch the function to return a known list.\n        with patch('explorador_modelos.leer_modelos_imagenes') as mock_leer:\n            mock_leer.return_value = [\n                {\"id\": \"test-model\", \"hf\": \"test/hf-model\"}\n            ]\n            # Now mock the HTTP call for the model info\n            with patch('explorador_modelos.http_get_json') as mock_get:\n                # Return model info with a lastModified date newer than the verification date\n                mock_get.return_value = {\n                    \"lastModified\": \"2026-10-12T00:00:00Z\",\n                    \"license\": \"apache-2.0\",\n                    \"gated\": False,\n                }\n                result = comprobar_actualizaciones(mock_leer.return_value)\n                self.assertEqual(len(result), 1)\n                self.assertEqual(result[0][\"id\"], \"test-model\")\n                self.assertEqual(result[0][\"hf\"], \"test/hf-model\")\n                self.assertEqual(result[0][\"last_modified\"], \"2026-10-12T00:00:00Z\")\n                self.assertEqual(result[0][\"license\"], \"apache-2.0\")\n                self.assertEqual(result[0][\"gated\"], False)\n\n# scripts/imagenes/test_explorador_modelos.py\n    def test_obtener_versiones_motores(self) -> None:\n        \"\"\"Test obtaining versions of engines.\"\"\"\n        # Mock the GitHub API calls\n        def mock_get_json_side_effect(url):\n            if \"stable-diffusion.cpp\" in url and \"releases/latest\" in url:\n                return {\"tag_name\": \"v1.0.0\"}\n            elif \"stable-diffusion.cpp\" in url and \"tags\" in url:\n                return [{\"name\": \"v0.9.0\"}, {\"name\": \"v1.0.0\"}]\n            elif \"comfyanonymous/ComfyUI\" in url and \"releases/latest\" in url:\n                return {\"tag_name\": \"v0.39.0\"}\n            elif \"comfyanonymous/ComfyUI\" in url and \"tags\" in url:\n                return [{\"name\": \"v0.38.0\"}, {\"name\": \"v0.39.0\"}]\n            return None\n\n        with patch('explorador_modelos.http_get_json') as mock_get:\n            mock_get.side_effect = mock_get_json_side_effect\n            result = obtener_versiones_motores()\n            self.assertEqual(result[\"stable-diffusion.cpp\"], \"v1.0.0\")\n            self.assertEqual(result[\"comfyui\"], \"v0.39.0\")\n\n# scripts/imagenes/test_explorador_modelos.py\n    def test_filtrar_modelos_dignos(self) -> None:\n        \"\"\"Test filtering worthy models.\"\"\"\n        # We need to mock the HTTP call for each model to return license and gated info\n        def mock_get_json_side_effect(url):\n            if \"worthy-model\" in url:\n                return {\n                    \"license\": \"apache-2.0\",\n                    \"gated\": False,\n                }\n            elif \"unworthy-license\" in url:\n                return {\n                    \"license\": \"non-commercial\",\n                    \"gated\": False,\n                }\n            elif \"unworthy-gated\" in url:\n                return {\n                    \"license\": \"apache-2.0\",\n                    \"gated\": True,\n                }\n            return None\n\n        with patch('explorador_modelos.http_get_json') as mock_get:\n            mock_get.side_effect = mock_get_json_side_effect\n            modelos = [\n                {\"id\": \"worthy-model\", \"pipeline_tag\": [\"text-to-image\"]},\n                {\"id\": \"unworthy-license\", \"pipeline_tag\": [\"text-to-image\"]},\n                {\"id\": \"unworthy-gated\", \"pipeline_tag\": [\"text-to-image\"]},\n                {\"id\": \"not-text-to-image\", \"pipeline_tag\": [\"other\"]},\n            ]\n            result = filtrar_modelos_dignos(modelos)\n            # Only the worthy-model should pass\n            self.assertEqual(len(result), 1)\n            self.assertEqual(result[0][\"id\"], \"worthy-model\")\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "IMG1011G",
+    "rama": "nube/38344076045"
+   }
+  },
+  {
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261012-173134-COL1012J",
+   "id": "COL1012Jb-d1",
+   "titulo": "Neuronas: «esta neurona» como contenedor (o cómo instalar el trabajador) (parte 1 de 2)",
+   "archivos": [
+    "src/components/cerebro/neuronas-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "En src/components/cerebro/neuronas-panel.tsx, en la tarjeta de la neurona ACTUAL, añade la sección «Contenedor de agentes»: si esta neurona tiene nodo de MetaGenesis (cruza por el id de nodo que publique el latido; si no hay forma de cruzarlo, trata la neurona como sin trabajador), los mismos botones que /metagenesis (`botonesNeurona`); si no, `estimarDesdeNavegador` con las señales del navegador (navigator.userAgent, navigator.platform, navigator.deviceMemory, navigator.hardwareConcurrency, navigator.getBattery() si existe, navigator.connection?.saveData o type==='cellular' como red medida, y `maxTouchPoints > 1` para el iPad) y el botón «Instalar el trabajador», que abre un panel con QUÉ es, POR QUÉ y CÓMO: el comando de `comandoInstalar(origen, codigo)` con botón Copiar. Mientras no exista el emisor de códigos (necesita la migración de nodos, §8 del contrato) el panel lo dice con esas palabras y no inventa un código. Solo para miembros de MetaGenesis. Prueba con Testing Library y señales falsas (Mac 8 GB, iPhone, Android).\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261012-173134-COL1012J`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261012-173134-COL1012J:refs/remotes/origin/nube/a1-20261012-173134-COL1012J\"` y `git cherry-pick --no-commit 4fe83d36e389`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/cerebro/__tests__/neuronas-colmena.test.tsx, src/components/cerebro/neuronas-panel.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió COL1012Jb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/cerebro/neuronas-panel.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "COL1012Jb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "COL1012B"
+   ]
+  },
+  {
+   "id": "IMG1011Fb",
+   "ola": "Ola 1011E · Imágenes locales de Astraura por capas y malla (Qwen-Image, Krea 2, FLUX, SD, PixArt, Sana) con varias opciones en la Protomolécula",
+   "titulo": "Malla: compartir y pedir generación entre neuronas de la cuenta, el grupo y la comunidad",
+   "archivos": [
+    "src/lib/imagenes/adaptadores/malla-imagenes.ts",
+    "src/lib/imagenes/adaptadores/__tests__/malla-imagenes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-imagenes.md` (léelo ENTERO; el §1 tiene las licencias y motores VERIFICADOS el 2026-10-11 — no inventes otros datos). Se apoya en `architecture/generacion-audiovisual-astraura.md` y `src/ai/astraura/media/media-gen.ts` (Pollinations como suelo gratis, proveedores por neurona): su regla de oro sigue intacta y NO se duplica nada de lo que ya hace. El núcleo puro YA está escrito y probado (19 pruebas) y NO se modifica: `src/lib/imagenes/{modelos,plan,sugerencias}.ts` (MODELOS_IMAGEN, MOTORES, cabe, planImagen, paqueteBase, motoresPosibles). Para la malla reutiliza lo que hagan G3D1011D (`src/lib/avatares/adaptadores/reparto-taller.ts`) y el registro de neuronas existente; para referencias 3D, G3D1011E. Reglas: «basta de ilusiones» (si algo no corre aquí, se dice por qué); NUNCA descargas automáticas de pesos (los repos pesan de 6 a 100 GB): solo con permiso, solo los archivos necesarios y tras comprobar ≥ 3 veces su tamaño libre; modelos «gated» necesitan que la persona acepte sus términos en Hugging Face y un token suyo en el entorno (explícale qué es y dónde se consigue, con enlace); nada de claves en código ni registros; nada no comercial en uso comercial; con imagen de referencia nada sale de sus neuronas sin permiso; en la Mac de Alex (8 GB) las imágenes ceden ante el enjambre; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto de qué funciona y qué no.\n\nTAREA: Cada neurona publica UNA vez al arrancar y al cambiar qué modelos tiene y su hierro (reutiliza el registro de capacidades de G3D1011D si existe; si no, el de neuronas; sin migraciones aplicadas). Convierte esas neuronas en `NeuronaImg` (capa «neurona» si es de la cuenta, «malla» si es de un grupo o comunidad que la ofreció) para `planImagen`. Ofrecer tu GPU a un grupo es opcional y se decide con su gobierno (democrático: se vota); topes de uso por persona; el trabajo viaja por la vía que ya usen MetaGenesis/la malla para prestar tareas (búscala) y las imágenes de referencia solo con permiso. El modo RPC de stable-diffusion.cpp (repartir un modelo grande entre varias máquinas) queda como opción experimental APAGADA, solo dentro de la malla privada porque no tiene autenticación. Pruebas.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261013-052333-IMG1011F`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261013-052333-IMG1011F:refs/remotes/origin/nube/a1-20261013-052333-IMG1011F\"` y `git cherry-pick --no-commit 679ddabc560e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/imagenes/adaptadores/__tests__/malla-imagenes.test.ts, src/lib/imagenes/adaptadores/malla-imagenes.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261013-052333-IMG1011F",
+   "dependencias_ya_en_main": [
+    "IMG1011A"
+   ]
+  },
+  {
+   "ola": "Ola 1011K · Capacidad: ceder CADENAS enteras a la nube y al A1",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Las mismas cadenas en el botón «Buscar más capacidad» y en el préstamo al A1 · lo que faltó: scripts/puente/buscar_capacidad.py, scripts/puente/oracle_nodo.py",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "dependencias_ya_en_main": [
+    "CAPC1011Bc"
+   ],
+   "segundos": 4760,
+   "t": "2026-10-12 22:25:07",
+   "rama": "ola/CAPC1011Cb",
+   "sha": "c06f679333a69264316152b1e4072bdb1c7a1091",
+   "revisor": "bloqueante",
+   "motivo_vb": "revisión bloqueante confirmada",
+   "faltan": [],
+   "adelantar": "2026-10-12 20:13:54",
+   "modelos_fallidos": [
+    "nvidia/moonshotai/kimi-k3"
+   ],
+   "id": "CAPC1011Ccs",
+   "prompt": "SEGUIMIENTO de CAPC1011Cc, que ya está integrada (sha 2ee7e043369a). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/buscar_capacidad.py, scripts/puente/oracle_nodo.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Las mismas cadenas en el botón «Buscar más capacidad» y en el préstamo al A1\n\n--- encargo original, como contexto ---\nUsa `repartir_nube.cedibles_y_lote` (CAPC1011B) en los otros dos sitios que hoy calculan `cedibles` a mano: `_reparto_nube` de scripts/puente/buscar_capacidad.py (lo que enseña el botón, para que diga lo mismo que el reparto real: «cede N sueltas y M cadenas (K tareas)») y el préstamo al A1 en scripts/puente/oracle_nodo.py (donde está `RN.cedibles_de_la_tanda`), pasando `mismo_lote` a `elegir`/`clasificar` si lo admiten. Prueba en scripts/puente/test_cadenas_en_medios.py con funciones y disco falsos de que los dos usan la función común y de que el resumen del botón cuenta las cadenas. Las pruebas existentes de esos dos módulos siguen en verde.\n\n## REPARACIÓN\nCorrige todos los errores de TypeScript de los archivos declarados:\n{\"t\": \"2026-10-12 22:25:07\", \"tarea\": \"CAPC1011Cb\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\nTrabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios escritos en disco sin pedir confirmación.\nIMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` (un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, nunca la suite entera.\n- Puertas: alcance → cableado → tsc → vitest → revisión → integración; nada está hecho hasta que se ve en Genesis de la Mac.\n-rw-r--r--@   1 alex  staff       0 Oct 12 21:05 .tsc_verify.log\n-rw-r--r--@   1 alex  staff    1098 Oct 12 21:05 tsc-check.json\n-rw-r--r--@   1 alex  staff     761 Oct 12 21:05 tsconfig.json\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "MC1012C",
+   "titulo": "Malla cristalina: triangulación de Delaunay determinista",
+   "archivos": [
+    "src/lib/malla/cristal/triangulacion.ts",
+    "src/lib/malla/cristal/__tests__/triangulacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `interface Punto {id: string; x: number; y: number}`; `delaunay(puntos: Punto[]): Array<[string, string]>` con Bowyer–Watson (supertriángulo, O(n²) basta para ≤ 300 puntos); devuelve aristas únicas con el par ordenado por id y la lista ordenada; con < 2 puntos, []; con 2, esa arista; con puntos colineales, la cadena que los une en orden; puntos repetidos (misma x,y) se tratan como uno (gana el id menor) y el otro se une a él. `proyectar(lat, lon, lat0, lon0): {x, y}` equirectangular en metros. Determinista: mismo resultado con los puntos en cualquier orden (ordena por id antes de empezar). Pruebas: cuadrado de 4 puntos da 5 aristas; triángulo da 3; colineales; orden de entrada no cambia la salida; proyectar 0,0 → 0,0 y 1° de latitud ≈ 111 km.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  },
+  {
+   "id": "MC1012D",
+   "titulo": "Malla cristalina: distancias por señal y posiciones estimadas sin GPS",
+   "archivos": [
+    "src/lib/malla/cristal/geometria.ts",
+    "src/lib/malla/cristal/__tests__/geometria.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `distanciaPorSenal(s: SenalMedida): number | null` en metros: wifi-lan/wifi-mesh/ble con modelo log-distancia (potencia de referencia a 1 m: wifi −40 dBm, ble −59 dBm; exponente 2.7; recorta a [1, 300]); lora por SNR (snr ≥ 10 → 500 m, interpolación lineal hasta snr −20 → 15000 m); webrtc/servidor/reticulum/serie/nfc → null (no dicen distancia; nfc → 0.1). `multilateracion(anclas: Array<{x: number; y: number; d: number}>): {x: number; y: number} | null` (Gauss–Newton 2D, 25 iteraciones, arranca en el centroide; null con < 3 anclas). `posicionesEstimadas(neuronas: NeuronaReticula[], senales: SenalMedida[]): Record<string, {x: number; y: number; estimada: boolean}>`: las que traen `posicion` la conservan (estimada false); las demás, por multilateración con vecinos ya situados y distanciaPorSenal; si no se puede, en un círculo determinista de radio 50 m alrededor del centroide, por orden de id (estimada true). Pruebas con valores conocidos (tres anclas y una distancia exacta recuperan el punto con error < 1 m).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012A"
+   ]
+  }
+ ]
+}
