@@ -36,7 +36,9 @@ export type AccionOrden =
     | "detener_cola"
     | "pausar"
     | "reanudar"
-    | "ceder";
+    | "ceder"
+    | "desconectar"
+    | "contenedor";
 
 export interface FichaAccion {
     etiqueta: string;
@@ -67,7 +69,23 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     pausar: { etiqueta: "Pausar autonomía", explica: "El líder deja de decidir solo hasta que la reanudes.", confirmar: true, args: [] },
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
+    desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
+    contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
 };
+
+/** Acciones que puede realizar el líder (excluye acciones de administración de nodos). */
+export const ACCIONES_DEL_LIDER = {
+    continuar: ACCIONES.continuar,
+    revisar_bloqueadas: ACCIONES.revisar_bloqueadas,
+    buscar_capacidad: ACCIONES.buscar_capacidad,
+    reactivar: ACCIONES.reactivar,
+    buscar_trabajo: ACCIONES.buscar_trabajo,
+    lanzar_cola: ACCIONES.lanzar_cola,
+    detener_cola: ACCIONES.detener_cola,
+    pausar: ACCIONES.pausar,
+    reanudar: ACCIONES.reanudar,
+    ceder: ACCIONES.ceder,
+} as const satisfies Record<Exclude<AccionOrden, "desconectar" | "contenedor">, FichaAccion>;
 
 export const MEDIOS: Record<string, string> = {
     mac: "Mac de desarrollo",
