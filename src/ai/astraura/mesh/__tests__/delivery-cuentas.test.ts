@@ -3,8 +3,9 @@ import {
   planTransmission,
   TransmitRequest,
   TransmitScope,
-  TrafficClass,
+  TransmitLeg,
 } from "../synaptic-router";
+import { TrafficClass } from "../types";
 import {
   deliver,
   executePlan,
@@ -12,7 +13,8 @@ import {
   DeliveryHop,
   HopStatus,
 } from "../delivery";
-import type { NetworkContext, DeliveryPorts } from "../synaptic-router";
+import type { NetworkContext } from "../synaptic-router";
+import type { DeliveryPorts } from "../delivery";
 
 // Mock data for tests
 const MI_CUENTA = "mi-cuenta-handle";
@@ -140,14 +142,14 @@ describe("delivery - manejo de falta de clave del destinatario", () => {
         ok: false,
         detail: "malla no disponible",
       }),
-      server: async (leg: TransmitLeg, _req: TransmitRequest, _payload: unknown) => {
-        // Simular fallo por falta de clave del destinatario solo para server-relay
-        if (leg.via === "server-relay") {
-          throw new Error("no se pudo cifrar para el destinatario: falta de la clave del destinatario");
-        }
-        // Para otros casos, éxito genérico
-        return { ok: true, confirmed: true, through: "test-server" };
-      },
+       server: async (leg: TransmitLeg, _req: TransmitRequest, _payload: unknown) => {
+         // Simular fallo por falta de clave del destinatario solo para server-relay
+         if (leg.via === "server-relay") {
+           throw new Error("no se pudo cifrar para el destinatario: falta de la clave del destinatario");
+         }
+         // Para otros casos, éxito genérico
+         return { ok: true, confirmed: true, through: "test-server", detail: "" };
+       },
     };
 
     const receipt: DeliveryReceipt = await deliver(req, PAYLOAD_TEST, ctx, ports);
