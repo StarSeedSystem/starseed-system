@@ -28,6 +28,7 @@ import { useEffect } from "react";
 import { validarUiSpec } from "@/lib/nucleo/ui-spec";
 import { validarContraInvariantes } from "@/lib/nucleo/invariantes";
 import { configurarNucleo, nucleoRegistrado } from "@/lib/nucleo/paquete-sistema";
+import { registrarAtomosPropios } from "@/lib/protomolecula/atomos/index";
 
 /**
  * Registra los guardianes del núcleo si aún no lo están.
@@ -36,6 +37,7 @@ import { configurarNucleo, nucleoRegistrado } from "@/lib/nucleo/paquete-sistema
 export function arrancarNucleo(): boolean {
   if (nucleoRegistrado()) return false;
   configurarNucleo({ validarUiSpec, validarContraInvariantes });
+  registrarAtomosPropios();
   return true;
 }
 

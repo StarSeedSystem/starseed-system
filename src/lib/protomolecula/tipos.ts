@@ -195,3 +195,7 @@ export interface Sesion {
 export const esOrigen = (x: unknown): x is Origen => ORIGENES.includes(x as Origen);
 export const esAmbito = (x: unknown): x is Ambito => AMBITOS.includes(x as Ambito);
 export const esMetricaSalud = (x: unknown): x is MetricaSalud => METRICAS_SALUD.includes(x as MetricaSalud);
+
+// Re-export types from registro-atomos to satisfy dependencies on '@/lib/protomolecula/tipos'
+export type { DefinicionAtomo } from "./registro-atomos";
+export type { VistaProps } from "./registro-atomos";
