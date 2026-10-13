@@ -50,6 +50,9 @@ import {
     esColorClaro, formatearHora, formatoDe, partirResaltado, plegar, sombrear, textoBuscable, type EstadoLectura,
 } from "@/components/messages/dm/utilidades-hilo";
 import estilos from "@/components/messages/dm/hilo.module.css";
+// RecibosChips for delivery status
+import { RecibosChips } from '@/components/malla/recibos-chips';
+import type { Recibo, EstadoRecibo } from '@/lib/malla/cristal/recibos';
 
 /** Tipo de la Biblioteca para mensajes (contrato C8). */
 const TIPO_MENSAJE_BIBLIOTECA: SaveItemInput["type"] = "message";
@@ -474,23 +477,25 @@ export function MessageBubble({
         </>
     );
 
-    const pie = (
-        <span className={cn("ml-auto flex shrink-0 items-center justify-end gap-1 pl-2 text-[10.5px] leading-none", tintaSecundaria)}>
-            {message.editedAt && <span className="italic">editado</span>}
-            {mostrarHora && <time dateTime={message.createdAt}>{formatearHora(message.createdAt, formato24h)}</time>}
-            {isMine && estadoLectura && (
-                estadoLectura === "enviado" ? (
-                    <Check className="h-3.5 w-3.5" aria-label="Enviado" />
-                ) : (
-                    <CheckCheck
-                        className="h-3.5 w-3.5"
-                        aria-label={estadoLectura === "leido" ? "Leído" : "Leído por algunos"}
-                        style={estadoLectura === "leido" ? { color: claro ? "#0050B3" : "#9EE7FF" } : undefined}
-                    />
-                )
-            )}
-        </span>
-    );
+     const pie = (
+         <span className={cn("ml-auto flex shrink-0 items-center justify-end gap-1 pl-2 text-[10.5px] leading-none", tintaSecundaria)}>
+             {message.editedAt && <span className="italic">editado</span>}
+             {mostrarHora && <time dateTime={message.createdAt}>{formatearHora(message.createdAt, formato24h)}</time>}
+             {isMine && estadoLectura ? (
+                 <RecibosChips 
+                     recibo={{
+                         datoId: message.id,
+                         tipo: 'mensaje' as const,
+                         estado: estadoLectura === 'enviado' ? 'enviado' : 'leido',
+                         medio: null,
+                         ruta: [],
+                         confirmadoPor: message.sender ?? null,
+                         t: Date.now(),
+                     }} 
+                 />
+             ) : null}
+         </span>
+     );
 
     const acciones = !editing && (
         <div
