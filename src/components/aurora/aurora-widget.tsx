@@ -3,6 +3,7 @@
 import { esRutaConsola, esRutaMinima } from "@/components/layout/solo-fuera-de-consola";
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { dynamic } from "next/dynamic";
 import {
   Sparkles, X, Play, Pause, SkipForward, SkipBack, Square, Wand2,
   MessageSquare, EyeOff, Trash2, MicOff, Mic, Layout, LayoutGrid, Settings2,
@@ -11,6 +12,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
 import { voiceModeChipLabel } from "@/lib/aurora/capabilities";
+import { createClient } from "@/utils/supabase/client";
+
+// OrbesBots con carga perezosa (ssr: false) - se muestra fuera de /genesis y rutas mínimas
+const OrbesBots = dynamic(() => import("./astraura-bots/orbes-bots"), { ssr: false });
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
 import { AURORA_TRINITY_FLAG, AURORA_TRINITY_EVENT } from "@/components/layout/trinity-fab";
 import { AuroraOrb } from "./aurora-orb";
@@ -176,6 +181,24 @@ function suggestionTextFrom(detail: unknown): string {
 export function AuroraWidget() {
   const aurora = useAurora();
   const { activeEdge, setActiveEdge } = usePerimeter();
+  const [ids, setIds] = useState<{ perfilId: string; cuentaId: string } | null>(null);
+
+  // Obtener IDs de perfil y cuenta del usuario actual
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const { data } = await createClient().auth.getUser();
+        const id = data.user?.id ?? "local";
+        if (vivo) setIds({ perfilId: id, cuentaId: id });
+      } catch {
+        if (vivo) setIds({ perfilId: "local", cuentaId: "local" });
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   // Mini-popover anclado al orbe.
   const [open, setOpen] = useState(false);
@@ -1242,12 +1265,16 @@ export function AuroraWidget() {
         )}
       </AnimatePresence>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          ORBE — esfera de cristal 3D, SOLO redonda (sin satélites).
-          Conserva aria-label="Aurora" + data-aurora-state + onContextMenu
-          (contratos de open-aurora / AuroraMemoryPanel).
-      ══════════════════════════════════════════════════════════════════ */}
-      <div className="fixed z-50 select-none" style={orbStyle}>
+       {/* ═══════════════════════════════════════════════════════════════════
+           ORBE — esfera de cristal 3D, SOLO redonda (sin satélites).
+           Conserva aria-label="Aurora" + data-aurora-state + onContextMenu
+           (contratos de open-aurora / AuroraMemoryPanel).
+       ═══════════════════════════════════════════════════════════════════ */}
+       {/* Orbes de otros bots (hermanas) - se muestra fuera de consola y rutas mínimas */}
+       {ids && !esRutaConsola(window.location.pathname) && !esRutaMinima(window.location.pathname) && (
+         <OrbesBots perfilId={ids.perfilId} cuentaId={ids.cuentaId} />
+       )}
+       <div className="fixed z-50 select-none" style={orbStyle}>
         <div className="relative flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
           <button
             type="button"
