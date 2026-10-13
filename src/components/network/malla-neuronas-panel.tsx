@@ -621,7 +621,7 @@ function VinculosSection() {
 }
 
 export function MallaNeuronasPanel({ compact = false }: { compact?: boolean }) {
-  const { misDispositivos, cercanas, loading } = useMallaNeuronasEstado();
+  const { misDispositivos, cercanas, loading, reticula } = useMallaNeuronasEstado();
   const transferencias = useTransferenciasArchivo();
   const vinculos = useVinculos();
   const [tab, setTab] = useState<"propios" | "cercanas" | "archivos" | "vinculos">("propios");
@@ -639,6 +639,13 @@ export function MallaNeuronasPanel({ compact = false }: { compact?: boolean }) {
         <Badge variant="outline" className="border-emerald-400/30 text-[9px] text-emerald-300">
           {enLinea} en línea
         </Badge>
+        {/* Retícula SiO₂ (§2): la huella la calcula sola la fusión CRDT; si dos
+            dispositivos de la cuenta enseñan la misma, ven la misma retícula. */}
+        {reticula && reticula.neuronas > 0 && (
+          <Badge variant="outline" className="border-sky-400/30 font-mono text-[9px] text-sky-300">
+            retícula {reticula.huella} · {reticula.neuronas} neuronas · {reticula.enlaces} puentes
+          </Badge>
+        )}
       </div>
       <p className="text-[10px] leading-snug text-foreground/45">
         Se detectan y se vinculan solos (WebRTC, sin botón) en cuanto dos dispositivos de tu cuenta están en línea a la

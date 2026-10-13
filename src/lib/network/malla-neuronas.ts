@@ -79,6 +79,16 @@ import {
   type ResumenRadar,
 } from "@/lib/network/radar-por-malla";
 import { recibirResumen, setResumenLocal } from "@/lib/network/radar-remoto-store";
+// (Ola 1012Q · §2) Retícula SiO₂: teselas CRDT que viajan por ESTE canal
+// WebRTC compartido y se fusionan solas; la huella común dice si toda la
+// cuenta ve la misma retícula.
+import {
+  caducarTeselas,
+  fusionar,
+  huellaReticula,
+  senalesDeReticula,
+} from "@/lib/malla/cristal/teselas";
+import type { Reticula, SenalMedida, Tesela } from "@/lib/malla/cristal/tipos";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
@@ -219,6 +229,8 @@ export function puedeServirAstrauraPorMalla(): boolean {
 const MSG_FICHA = "malla:ficha";
 const MSG_HB = "malla:hb";
 const MSG_HB_ACK = "malla:hb-ack";
+/** Tesela de la retícula (Ola 1012Q · §2): viaja en cada latido del canal. */
+const MSG_TESELA = "malla:tesela";
 
 interface MensajeFicha {
   t: typeof MSG_FICHA;
@@ -240,6 +252,28 @@ export function esMensajeFicha(x: unknown): x is MensajeFicha {
   if (o.t !== MSG_FICHA || !o.ficha || typeof o.ficha !== "object") return false;
   const f = o.ficha as Record<string, unknown>;
   return typeof f.syncDeviceId === "string" && typeof f.neuronDeviceId === "string";
+}
+
+interface MensajeTesela {
+  t: typeof MSG_TESELA;
+  tesela: Tesela;
+}
+
+/** ¿`x` es un mensaje de tesela válido? (guard puro, sin red). */
+export function esMensajeTesela(x: unknown): x is MensajeTesela {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  if (o.t !== MSG_TESELA || !o.tesela || typeof o.tesela !== "object") return false;
+  const t = o.tesela as Partial<Tesela>;
+  return (
+    typeof t.origen === "string" &&
+    t.origen.length > 0 &&
+    typeof t.reloj === "number" &&
+    Number.isFinite(t.reloj) &&
+    !!t.neurona &&
+    typeof t.neurona === "object" &&
+    Array.isArray(t.senales)
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -459,6 +493,91 @@ export function usePeersMalla(): ResumenMalla {
 }
 
 /* ------------------------------------------------------------------ */
+/* Retícula SiO₂ (Ola 1012Q · §2): teselas CRDT por el canal          */
+/* ------------------------------------------------------------------ */
+
+/** Vista compacta de la retícula tal como la ve ESTA neurona ahora. */
+export interface ResumenReticula {
+  /** Huella común (la misma en todas las neuronas si la retícula ya convergió). */
+  huella: string;
+  /** Teselas vivas en la retícula (una por neurona). */
+  neuronas: number;
+  /** Enlaces medidos tras unir las dos puntas de cada uno (peor medida). */
+  enlaces: number;
+}
+
+const RETICULA_VACIA: Reticula = { teselas: {} };
+/** Últimos RTT medidos por peer (ms): alimentan las señales de mi tesela. */
+const rttsMedidos = new Map<string, number>();
+let reticulaActual: Reticula = RETICULA_VACIA;
+/** Reloj de Lamport local: sube con cada tesela propia y con cada una ajena vista. */
+let relojReticula = 0;
+let resumenReticulaActual: ResumenReticula = { huella: huellaReticula(RETICULA_VACIA), neuronas: 0, enlaces: 0 };
+const reticulaListeners = new Set<() => void>();
+
+function publicarReticula(next: Reticula): void {
+  reticulaActual = next;
+  const resumen: ResumenReticula = {
+    huella: huellaReticula(next),
+    neuronas: Object.keys(next.teselas).length,
+    enlaces: senalesDeReticula(next).length,
+  };
+  if (
+    resumen.huella === resumenReticulaActual.huella &&
+    resumen.neuronas === resumenReticulaActual.neuronas &&
+    resumen.enlaces === resumenReticulaActual.enlaces
+  ) {
+    return;
+  }
+  resumenReticulaActual = resumen;
+  for (const l of reticulaListeners) {
+    try {
+      l();
+    } catch {
+      /* noop */
+    }
+  }
+}
+
+/** Une una tesela (propia o recibida) a la retícula local (CRDT: cualquier orden converge). */
+function incorporarTesela(t: Tesela): void {
+  relojReticula = Math.max(relojReticula, t.reloj);
+  publicarReticula(fusionar(reticulaActual, { teselas: { [t.origen]: t } }));
+}
+
+/** Quita las teselas sin latido (3 latidos del canal, como manda §2 del contrato). */
+function caducarReticula(ahora: number): void {
+  publicarReticula(caducarTeselas(reticulaActual, ahora, CANAL_HEARTBEAT_MS, 3));
+}
+
+/** Lectura SÍNCRONA de la retícula completa (para quien va a fusinar/recalcular). */
+export function reticulaMallaActual(): Reticula {
+  return reticulaActual;
+}
+
+/** Lectura SÍNCRONA del resumen (huella · neuronas · enlaces) — sin hook. */
+export function resumenReticulaMalla(): ResumenReticula {
+  return resumenReticulaActual;
+}
+
+/**
+ * useResumenReticula — hook LIGERO: la huella y el tamaño de la retícula que
+ * esta neurona ve ahora (para el indicador «misma retícula en N neuronas»).
+ * NO arranca nada: lee lo que publica el motor (`useMallaNeuronas`); sin él,
+ * degrada a una retícula vacía (honesto, nunca inventa convergencia).
+ */
+export function useResumenReticula(): ResumenReticula {
+  return useSyncExternalStore(
+    (cb) => {
+      reticulaListeners.add(cb);
+      return () => reticulaListeners.delete(cb);
+    },
+    () => resumenReticulaActual,
+    () => resumenReticulaActual,
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Filas de UI                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -508,6 +627,9 @@ export interface MallaNeuronasState {
   misDispositivos: DispositivoMallaRow[];
   cercanas: NeuronaCercanaRow[];
   loading: boolean;
+  /** Retícula SiO₂ que esta neurona ve ahora (huella común, §2 del contrato);
+   *  `undefined` = el motor aún no ha publicado latido (nada convergido). */
+  reticula?: ResumenReticula;
 }
 
 const ESTADO_VACIO: MallaNeuronasState = { misDispositivos: [], cercanas: [], loading: true };
@@ -673,6 +795,12 @@ export function useMallaNeuronas(deps?: {
             setFichas((prev) => ({ ...prev, [deviceId]: msg.ficha }));
             return;
           }
+          // (Ola 1012Q · §2) Tesela del otro extremo del canal: solo la del
+          // emisor mismo (una neurona no firma por otra) entra en la retícula.
+          if (esMensajeTesela(msg)) {
+            if (msg.tesela.origen === deviceId) incorporarTesela(msg.tesela);
+            return;
+          }
           // (RDV13) Radar de la otra neurona: guarda su resumen como oído "p2p".
           // El guard descarta basura y el almacén caduca lo viejo solo.
           if (esMensajeRadar(msg)) {
@@ -690,7 +818,9 @@ export function useMallaNeuronas(deps?: {
           if (tipo === MSG_HB_ACK && at !== null) {
             const sentAt = hbSentAtRef.current.get(deviceId);
             if (sentAt === at) {
-              setLatencias((prev) => ({ ...prev, [deviceId]: Math.max(0, Date.now() - sentAt) }));
+              const rtt = Math.max(0, Date.now() - sentAt);
+              rttsMedidos.set(deviceId, rtt);
+              setLatencias((prev) => ({ ...prev, [deviceId]: rtt }));
             }
           }
         },
@@ -765,10 +895,47 @@ export function useMallaNeuronas(deps?: {
           if (stats) {
             const ruta = resumirRuta(stats, Date.now());
             setRutas((prev) => ({ ...prev, [p.deviceId]: ruta }));
+            if (typeof ruta.rttMs === "number") rttsMedidos.set(p.deviceId, ruta.rttMs);
           }
         } catch {
           /* conserva la última medición real si este sondeo falla */
         }
+      }
+
+      // (Ola 1012Q · §2) Publica MI tesela en cada latido (señales medidas a
+      // cada peer, medio webrtc) y caduca las ajenas sin latido. La fusión es
+      // un CRDT: el orden de llegada no cambia el resultado ni la huella.
+      try {
+        const misIdsT = identidadDispositivo();
+        const ahoraT = Date.now();
+        caducarReticula(ahoraT);
+        if (misIdsT.syncDeviceId) {
+          relojReticula += 1;
+          const senales: SenalMedida[] = [];
+          for (const p of conectados) {
+            const rtt = rttsMedidos.get(p.deviceId);
+            if (typeof rtt === "number") {
+              senales.push({ de: misIdsT.syncDeviceId, a: p.deviceId, medio: "webrtc", rttMs: rtt, vistaEn: ahoraT });
+            }
+          }
+          const memGb = (misNeuronas?.capabilities as { memoryGb?: number } | undefined)?.memoryGb;
+          const tesela: Tesela = {
+            origen: misIdsT.syncDeviceId,
+            reloj: relojReticula,
+            neurona: {
+              id: misNeuronas?.id ?? misIdsT.syncDeviceId,
+              cuenta: misNeuronas?.owner ?? "",
+              capacidad: { ramGb: typeof memGb === "number" ? memGb : 0, bateriaPct: null, cargando: false },
+              medios: ["webrtc"],
+            },
+            senales,
+          };
+          incorporarTesela(tesela);
+          const texto = JSON.stringify({ t: MSG_TESELA, tesela } satisfies MensajeTesela);
+          for (const p of conectados) mesh.sendToPeer(p.deviceId, texto);
+        }
+      } catch {
+        /* la tesela se reintenta en el siguiente latido; el latido ya fue */
       }
 
       // (RDV13 · Ola 375) Radar compartido: como mucho cada 60 s resume lo que
@@ -872,7 +1039,8 @@ export function useMallaNeuronas(deps?: {
       }));
   }, [cercanas]);
 
-  const estado: MallaNeuronasState = { misDispositivos, cercanas: cercanasRows, loading };
+  const reticula = useResumenReticula();
+  const estado: MallaNeuronasState = { misDispositivos, cercanas: cercanasRows, loading, reticula };
 
   // Publica para `useMallaNeuronasEstado()` (UI de solo lectura) — este hook es
   // el ÚNICO motor: publica en cada render con datos nuevos, sin volver a
@@ -880,7 +1048,7 @@ export function useMallaNeuronas(deps?: {
   useEffect(() => {
     publicarEstadoMalla(estado);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [misDispositivos, cercanasRows, loading]);
+  }, [misDispositivos, cercanasRows, loading, reticula]);
 
   return estado;
 }
