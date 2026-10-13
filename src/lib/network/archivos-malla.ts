@@ -94,6 +94,8 @@ import {
   type ResultadoResonancia,
   type VeredictoCompartido,
 } from "@/lib/malla/cristal/resonancias";
+import { analizarArchivo, type ArchivoEntrada, type ResultadoAnalisis } from "@/lib/malla/cristal/centinela";
+import { decidirEntrada, type AnalisisEntrada } from "@/lib/malla/cristal/centinela-archivos";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -1004,21 +1006,36 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     ofertasEntrantes.set(msg.id, msg);
     const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };
     if (ctx.nodoId) nodoPorId.set(msg.id, ctx.nodoId);
-    // Resonancia (§5.6): lo que la red ya sabe de este hash informa la política.
-    // «Cuarentena y pregunta»: nunca auto-aceptar un hash en cuarentena, y un
-    // aviso tampoco se esconde — pasa a «preguntar» con el motivo en la tarjeta.
-    const resonancia = decisionSobre(msg.sha256);
-    const avisoResonancia: Record<DecisionResonancia, string | undefined> = {
-      cuarentena: `En CUARENTENA de la red: ${resonancia.motivo}. No se auto-acepta.`,
-      aviso: `Aviso de la red: ${resonancia.motivo}.`,
-      limpio: undefined,
-      'sin-datos': undefined,
+    
+    // Analizar el archivo entrante
+    const archivoEntrada: ArchivoEntrada = {
+      nombre: msg.nombre,
+      tipoDeclarado: msg.tipo,
+      inicio: new Uint8Array(0), // Por ahora vacío, se actualizará cuando lleguen los trozos
+      tamano: msg.tamano
     };
-    const aviso = avisoResonancia[resonancia.decision];
+    const analisis = analizarArchivo(archivoEntrada);
+    
+    // Resonancia (§5.6): lo que la red ya sabe de este hash informa la política.
+    const resonancia = decisionSobre(msg.sha256);
+    
+    // Decidir la entrada basado en análisis y resonancia
+    const decisionEntrada = decidirEntrada(analisis, resonancia);
+    
     const yaGuardados = await almacen.indicesGuardados(msg.id);
     const desde = yaGuardados.length ? Math.max(...yaGuardados) + 1 : 0;
 
-    const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
+    // Aplicar la política de recepción, pero considerando la decisión de entrada
+    let decisionPolitica = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
+    
+    // Sobrescribir la decisión política basado en la decisión de entrada
+    if (decisionEntrada.accion === 'rechazar') {
+      decisionPolitica = 'denegar';
+    } else if (decisionEntrada.accion === 'avisar') {
+      // Para avisar, forzamos a que sea "preguntar" pero con el aviso en el motivo
+      decisionPolitica = 'preguntar';
+    }
+    // Para 'aceptar-con-pregunta', dejamos la decisión política tal como está
 
     // Negociar modo: si el oferente pide binario y nuestro canal lo soporta, usamos binario.
     const modo: ModoTransferencia = msg.modo === "binario" && canal.enviarBinario ? "binario" : "base64";
@@ -1033,21 +1050,27 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       trozos: msg.trozos,
       progreso: desde,
       fase: "pendiente-aceptar",
-      motivo: aviso,
+      motivo: decisionEntrada.texto,
       destino: msg.destino,
       origen: msg.origen ?? ctx.etiquetaOrigen,
       inicioMs: Date.now(),
       actualizadoMs: Date.now(),
     };
 
-    if (decision === "denegar") {
-      emitir({ ...estadoBase, fase: "rechazada", motivo: "Sin permiso para recibir archivos de esta cuenta." });
-      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "denegado por política de permisos" } satisfies MsgRechazar));
+    if (decisionPolitica === "denegar") {
+      // Determinar el motivo de rechazo basado en la decisión de entrada
+      let motivoRechazo = "Sin permiso para recibir archivos de esta cuenta.";
+      if (decisionEntrada.accion === 'rechazar') {
+ motivoRechazo = decisionEntrada.texto;
+      }
+      emitir({ ...estadoBase, fase: "rechazada", motivo: motivoRechazo });
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: motivoRechazo } satisfies MsgRechazar));
       ofertasEntrantes.delete(msg.id);
       return;
     }
 
-    if (decision === "auto-aceptar" && !aviso) {
+    if (decisionPolitica === "auto-aceptar" && decisionEntrada.accion !== 'avisar') {
+      // Solo auto-aceptar si no hay aviso de entrada (el aviso ya está en el motivo de estadoBase)
       hashesEsperados.set(msg.id, msg.sha256);
       recibidosPorId.set(msg.id, new Set(yaGuardados));
       emitir({ ...estadoBase, fase: "transfiriendo" });
