@@ -540,18 +540,18 @@ export function PersonalitiesPanel({
             </p>
           ) : (
             <ul className="flex flex-col gap-1.5">
-              {libItems.map((it) => (
-                <li key={it.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-2.5 py-1.5">
-                  <Drama className="h-3.5 w-3.5 shrink-0 text-white/50" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] text-white/80">{it.title}</p>
-                    {it.note && <p className="truncate text-[10px] text-white/40">{it.note}</p>}
-                  </div>
-                  <button className={btnAzure} onClick={() => installFromLibrary(it)}>
-                    <Download className="h-3 w-3" /> Instalar
-                  </button>
-                </li>
-              ))}
+{libItems.map((it) => (
+  <li key={it.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-2.5 py-1.5">
+    <Drama className="h-3.5 w-3.5 shrink-0 text-white/50" />
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-[11px] text-white/80" title={it.title}>{it.title}</p>
+      {it.note && <p className="truncate text-[10px] text-white/40" title={it.note}>{it.note}</p>}
+    </div>
+    <button className={btnAzure} onClick={() => installFromLibrary(it)}>
+      <Download className="h-3 w-3" /> Instalar
+    </button>
+  </li>
+))}
             </ul>
           )}
         </div>
@@ -642,11 +642,11 @@ export function PersonalitiesPanel({
                 <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
                   <ProfileIcon name={p.icon} className="h-4 w-4 text-[#7fb8ff]" />
                 </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium text-white/90">{p.name}</p>
-                  <p className="line-clamp-2 text-[11px] leading-snug text-white/50">{p.description || "Sin descripción."}</p>
-                  <p className="mt-0.5 text-[10px] text-white/30">v{p.version} · {p.author}</p>
-                </div>
+<div className="min-w-0 flex-1">
+  <p className="truncate text-[13px] font-medium text-white/90" title={p.name}>{p.name}</p>
+  <p className="line-clamp-2 text-[11px] leading-snug text-white/50">{p.description || "Sin descripción."}</p>
+  <p className="mt-0.5 text-[10px] text-white/30">v{p.version} · {p.author}</p>
+</div>
               </div>
               {(badges.length > 0 || tuned > 0) && (
                 <div className="flex flex-wrap gap-1">
