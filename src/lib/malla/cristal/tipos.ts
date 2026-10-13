@@ -1,5 +1,10 @@
 // Malla cristalina SiO₂ amorfa: tipos puros, sin node:* ni Supabase
 
+import { Punto } from "./triangulacion";
+
+export type { Punto };
+export { delaunay } from "./triangulacion";
+
 export const MEDIOS = [
   'lora', 'ble', 'wifi-lan', 'webrtc', 'wifi-mesh',
   'reticulum', 'serie', 'servidor', 'nfc',
