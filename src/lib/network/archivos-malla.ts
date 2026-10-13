@@ -86,6 +86,14 @@ import type { MeshHandle, PeerSnapshot } from "@/lib/network/webrtc-mesh";
 import { getSharedMesh } from "@/lib/network/lan-sync";
 import { saveItem, updateItemContent, type EntityRef } from "@/lib/library/entity-library";
 import { uploadFile } from "@/lib/files/os-files";
+import {
+  CONFIANZA_INICIAL,
+  actualizarConfianza,
+  decisionPorResonancia,
+  type DecisionResonancia,
+  type ResultadoResonancia,
+  type VeredictoCompartido,
+} from "@/lib/malla/cristal/resonancias";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -614,6 +622,8 @@ export interface ContextoRecepcion {
   mismaCuenta: boolean;
   /** Etiqueta legible del remitente, para la tarjeta de confirmación. */
   etiquetaOrigen?: string;
+  /** Id de la neurona del otro extremo: la confianza de la retícula se guarda contra ella. */
+  nodoId?: string;
   /** Solo se consulta si `mismaCuenta` es false. Por defecto: deniega (ver arriba). */
   verificarPermiso?: () => boolean | Promise<boolean>;
 }
@@ -715,6 +725,12 @@ export interface MotorArchivos {
    * botón «Reintentar» sin que la UI tenga que guardar su propia copia.
    */
   archivoDeEnvio(id: string): Blob | undefined;
+  /** Resonancia (§5.6): veredicto antivirus firmado que llega de otra neurona. Solo informa. */
+  registrarVeredicto(veredicto: VeredictoCompartido): void;
+  /** Confianza actual de una neurona según los eventos observados en este motor. */
+  confianzaDe(nodoId: string): number;
+  /** Consenso de la red sobre un hash (cuarentena/aviso/limpio/sin-datos). */
+  decisionSobre(hash: string): ResultadoResonancia;
 }
 
 function idAleatorio(): string {
@@ -746,6 +762,32 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   const cancelados = new Set<string>();
   const blobsRecibidos = new Map<string, Blob>();
   const modoPorId = new Map<string, ModoTransferencia>();
+  // Resonancia (§5.6): confianza por neurona y veredictos antivirus de la red.
+  const confianzaNodos = new Map<string, number>();
+  const veredictosRed: VeredictoCompartido[] = [];
+  const nodoPorId = new Map<string, string>();
+
+  function aplicarEventoA(idTransferencia: string, ev: Parameters<typeof actualizarConfianza>[1]): void {
+    const nodo = nodoPorId.get(idTransferencia);
+    if (!nodo) return;
+    confianzaNodos.set(nodo, actualizarConfianza(confianzaNodos.get(nodo) ?? CONFIANZA_INICIAL, ev));
+  }
+
+  function confianzaDe(nodoId: string): number {
+    return confianzaNodos.get(nodoId) ?? CONFIANZA_INICIAL;
+  }
+
+  function decisionSobre(hash: string): ResultadoResonancia {
+    const registro: Record<string, number> = {};
+    for (const [nodo, c] of confianzaNodos) registro[nodo] = c;
+    return decisionPorResonancia(hash, veredictosRed, registro);
+  }
+
+  function registrarVeredicto(veredicto: VeredictoCompartido): void {
+    veredictosRed.push(veredicto);
+    // Tope humilde para no crecer sin límite dentro de una pestaña larga.
+    if (veredictosRed.length > 5000) veredictosRed.splice(0, veredictosRed.length - 5000);
+  }
 
   const estados = new Map<string, EstadoTransferencia>();
   let version = 0;
@@ -960,10 +1002,22 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     }
     canalPorId.set(msg.id, canal);
     ofertasEntrantes.set(msg.id, msg);
+    const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };
+    if (ctx.nodoId) nodoPorId.set(msg.id, ctx.nodoId);
+    // Resonancia (§5.6): lo que la red ya sabe de este hash informa la política.
+    // «Cuarentena y pregunta»: nunca auto-aceptar un hash en cuarentena, y un
+    // aviso tampoco se esconde — pasa a «preguntar» con el motivo en la tarjeta.
+    const resonancia = decisionSobre(msg.sha256);
+    const avisoResonancia: Record<DecisionResonancia, string | undefined> = {
+      cuarentena: `En CUARENTENA de la red: ${resonancia.motivo}. No se auto-acepta.`,
+      aviso: `Aviso de la red: ${resonancia.motivo}.`,
+      limpio: undefined,
+      'sin-datos': undefined,
+    };
+    const aviso = avisoResonancia[resonancia.decision];
     const yaGuardados = await almacen.indicesGuardados(msg.id);
     const desde = yaGuardados.length ? Math.max(...yaGuardados) + 1 : 0;
 
-    const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };
     const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
 
     // Negociar modo: si el oferente pide binario y nuestro canal lo soporta, usamos binario.
@@ -979,6 +1033,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       trozos: msg.trozos,
       progreso: desde,
       fase: "pendiente-aceptar",
+      motivo: aviso,
       destino: msg.destino,
       origen: msg.origen ?? ctx.etiquetaOrigen,
       inicioMs: Date.now(),
@@ -992,7 +1047,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       return;
     }
 
-    if (decision === "auto-aceptar") {
+    if (decision === "auto-aceptar" && !aviso) {
       hashesEsperados.set(msg.id, msg.sha256);
       recibidosPorId.set(msg.id, new Set(yaGuardados));
       emitir({ ...estadoBase, fase: "transfiriendo" });
@@ -1063,6 +1118,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const { raiz } = await calcularHashLista(leerTrozo, estado.trozos);
     const esperado = hashesEsperados.get(msg.id);
     if (esperado && raiz !== esperado) {
+      // Trama que no supera la autoverificación: pesa contra la neurona que la envió (§5.6).
+      aplicarEventoA(msg.id, "trama-corrupta");
       actualizarFase(msg.id, "error", "La verificación de integridad (SHA-256) no coincide: el archivo llegó dañado o alterado.");
       canal.enviar(JSON.stringify({ t: "archivo.error", id: msg.id, motivo: "hash-no-coincide" } satisfies MsgError));
       await almacen.limpiar(msg.id);
@@ -1071,6 +1128,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     }
     const blob = await almacen.ensamblar(msg.id, estado.tipo);
     blobsRecibidos.set(msg.id, blob);
+    // Integridad verificada por la neurona origen: la confianza sube.
+    aplicarEventoA(msg.id, "firma-ok");
     actualizarFase(msg.id, "completada");
     canal.enviar(JSON.stringify({ t: "archivo.ok", id: msg.id } satisfies MsgOk));
     config.onCompletado?.(estados.get(msg.id) as EstadoTransferencia, blob);
@@ -1157,6 +1216,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     ofertasPendientes,
     blobRecibido,
     archivoDeEnvio,
+    registrarVeredicto,
+    confianzaDe,
+    decisionSobre,
   };
 }
 
@@ -1223,7 +1285,7 @@ export function iniciarMotorArchivosPorMalla(motor: MotorArchivos = motorArchivo
           canal = canalDesdeMesh(mesh, peerId);
           canalesPorPeer.set(peerId, canal);
         }
-        motor.manejarMensaje(canal, data, { mismaCuenta: true, etiquetaOrigen: etiquetaDePeer?.(peerId) });
+        motor.manejarMensaje(canal, data, { mismaCuenta: true, etiquetaOrigen: etiquetaDePeer?.(peerId), nodoId: peerId });
       },
       onState: (snap: PeerSnapshot) => {
         if (snap.state === "closed" || snap.state === "failed") canalesPorPeer.delete(snap.deviceId);
