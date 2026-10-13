@@ -4343,3 +4343,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTPM1010F2K` — los tipos no compilan: 27 errores tsc (rama ola/RTPM1010F2K conservada)
 - `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
 - `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-13 13:04 · mg-oracle-1013-0402
+
+**Lo que se pidió.** Malla cristalina: distancias por señal y posiciones estimadas sin GPS
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (RTMC1012D, RTPM1010F2Kb). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTMC1012D` — los tipos no compilan: 6 errores tsc (rama ola/RTMC1012D conservada)
+- `RTPM1010F2Kb` — los tipos no compilan: 57 errores tsc (rama ola/RTPM1010F2Kb conservada)
