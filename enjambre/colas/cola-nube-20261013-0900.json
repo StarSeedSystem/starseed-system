@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261013",
+ "tareas": [
+  {
+   "id": "MC1012N",
+   "titulo": "Resonancias: confianza de cada nodo y cuarentena por consenso",
+   "archivos": [
+    "src/lib/malla/cristal/resonancias.ts",
+    "src/lib/malla/cristal/__tests__/resonancias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `actualizarConfianza(c: number, ev: 'firma-ok'|'firma-mala'|'trama-corrupta'|'veredicto-confirmado'|'veredicto-desmentido'): number` (media móvil: ok +0.02, firma-mala −0.3, corrupta −0.15, confirmado +0.05, desmentido −0.2; recorta a [0, 1]; arranque 0.5 exportado como `CONFIANZA_INICIAL`); `interface VeredictoCompartido {hash: string; nivel: Nivel; nodo: string; cuenta: string; firmaOk: boolean; t: number}`; `decisionPorResonancia(hash, veredictos, confianza: Record<string, number>, umbral = 0.4): {decision: 'cuarentena'|'aviso'|'sin-datos'|'limpio'; cuentas: number; motivo: string}`: solo cuentan veredictos con firmaOk y de nodos con confianza ≥ umbral, un voto por cuenta (el más reciente); 'cuarentena' si ≥ 2 cuentas distintas dicen 'peligroso'; 'aviso' si 1 cuenta dice peligroso o ≥ 2 sospechoso; 'limpio' si ≥ 2 cuentas dicen limpio y ninguna peligroso; si no 'sin-datos'. Nada se borra: la decisión solo informa. Pruebas de cada rama y de que una sola cuenta con 10 nodos no basta para la cuarentena.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012M"
+   ]
+  }
+ ]
+}
