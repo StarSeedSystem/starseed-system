@@ -38,7 +38,8 @@ export type AccionOrden =
     | "reanudar"
     | "ceder"
     | "desconectar"
-    | "contenedor";
+    | "contenedor"
+    | "repartir";
 
 export interface FichaAccion {
     etiqueta: string;
@@ -71,6 +72,7 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
     desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
     contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
+    repartir: { etiqueta: "Prestar", explica: "Prestar tareas listas a un medio ocioso", args: ["destino", "tope"] },
 };
 
 export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "contenedor">, FichaAccion> = {
@@ -84,6 +86,7 @@ export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "co
     pausar: ACCIONES.pausar,
     reanudar: ACCIONES.reanudar,
     ceder: ACCIONES.ceder,
+    repartir: ACCIONES.repartir,
 };
 
 export const MEDIOS: Record<string, string> = {
