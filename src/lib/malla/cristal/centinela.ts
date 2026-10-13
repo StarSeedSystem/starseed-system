@@ -41,9 +41,9 @@ export function analizarArchivo(e: ArchivoEntrada): ResultadoAnalisis {
     const m3 = [0xCA,0xFE,0xBA,0xBE], m3I = [0xBE,0xBA,0xFE,0xCA];
     if ((magic[0]===m1[0] && magic[1]===m1[1] && magic[2]===m1[2] && magic[3]===m1[3]) ||
         (magic[0]===m1I[0] && magic[1]===m1I[1] && magic[2]===m1I[2] && magic[3]===m1I[3]) ||
-        (magic[0]===m2[0] && magic[1]===m2[1] && magic[2]===m2[2] && magic[3]===m2[3]) ||
+        (magic[0]===m2[0] && magic[1]===m2[1] && magic[2]===m2[2] && magic[3]===m2I[3]) ||
         (magic[0]===m2I[0] && magic[1]===m2I[1] && magic[2]===m2I[2] && magic[3]===m2I[3]) ||
-        (magic[0]===m3[0] && magic[1]===m3[1] && magic[2]===m3[2] && magic[3]===m3[3]) ||
+        (magic[0]===m3[0] && magic[1]===m3[1] && magic[2]===m3[2] && magic[3]===m3I[3]) ||
         (magic[0]===m3I[0] && magic[1]===m3I[1] && magic[2]===m3I[2] && magic[3]===m3I[3])) m.push('Peligroso: ejecutable detectado por bytes mágicos Mach-O');
   }
   // Peligrosos: extensiones
@@ -74,7 +74,8 @@ export function analizarArchivo(e: ArchivoEntrada): ResultadoAnalisis {
         if (ratio > 100) {
           m.push(`Peligroso: bomba de compresión detectada (ratio ${ratio.toFixed(2)})`);
           break;
-
+        }
+      }
     }
   }
   // Sospechosos: tipo real no coincide
@@ -100,20 +101,20 @@ export function analizarArchivo(e: ArchivoEntrada): ResultadoAnalisis {
   if (e.entradasZip) {
     for (const ent of e.entradasZip) {
       if (ent.ruta === 'vbaProject.bin') {
-        m.push('Sospechoso: archivo vbaProject.bin encontrado en ZIP');
+        m.push('Sospechoso: archivo vbaProject.bin encontrado dentro de ZIP');
         break;
       }
     }
-   }
-   // Sospechosos: PDF con JavaScript/OpenAction
-  if (tipoReal === 'pdf') {
-    if (txt && (txt.includes('/JavaScript') || txt.includes('/OpenAction'))) {
-      m.push('Sospechoso: PDF contiene JavaScript o OpenAction');
-    }
   }
-  // Determinar nivel
+   // Sospechosos: PDF con JavaScript/OpenAction
+   if (tipoReal === 'pdf') {
+     if (txt && (txt.includes('/JavaScript') || txt.includes('/OpenAction') || txt.includes('/OpeAction'))) {
+       m.push('Sospechoso: PDF contiene JavaScript o OpenAction');
+     }
+   }
+   // Determinar nivel
   let niv: Nivel = 'limpio';
   if (m.some(s => s.startsWith('Peligroso'))) niv = 'peligroso';
   else if (m.length > 0) niv = 'sospechoso';
-   return { nivel: niv, motivos: m };
+  return { nivel: niv, motivos: m };
 }

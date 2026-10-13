@@ -86,6 +86,7 @@ import type { MeshHandle, PeerSnapshot } from "@/lib/network/webrtc-mesh";
 import { getSharedMesh } from "@/lib/network/lan-sync";
 import { saveItem, updateItemContent, type EntityRef } from "@/lib/library/entity-library";
 import { uploadFile } from "@/lib/files/os-files";
+import { analizarArchivo, type ArchivoEntrada, type Nivel } from "@/lib/malla/cristal/centinela";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -1070,6 +1071,42 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       return;
     }
     const blob = await almacen.ensamblar(msg.id, estado.tipo);
+    // --- Centinela: antivirus propio antes de entregar el archivo ---
+    try {
+      const maxInicio = Math.min(blob.size, 128);
+      const inicioBuf = await blob.slice(0, maxInicio).arrayBuffer();
+      const entrada: ArchivoEntrada = {
+        nombre: estado.nombre,
+        tipoDeclarado: estado.tipo,
+        inicio: new Uint8Array(inicioBuf),
+        tamano: blob.size,
+        // entradasZip no se dispone aquí; se deja undefined para que el
+        // analicador ignore las pruebas específicas de ZIP.
+      };
+      const resultado = analizarArchivo(entrada);
+      if (resultado.nivel === 'peligroso') {
+        actualizarFase(msg.id, "error", `Archivo peligroso: ${resultado.motivos.join('; ')}`);
+        canal.enviar(JSON.stringify({ t: "archivo.error", id: msg.id, motivo: "archivo-peligroso" } satisfies MsgError));
+        await almacen.limpiar(msg.id);
+        recibidosPorId.delete(msg.id);
+        hashesEsperados.delete(msg.id);
+        ofertasEntrantes.delete(msg.id);
+        return;
+      }
+      // Si es sospechoso, seguimos pero podríamos registrar una advertencia.
+      // Por ahora no bloqueamos.
+    } catch (e) {
+      // En caso de inesperado error en el análisis, fallamos cerrado.
+      actualizarFase(msg.id, "error", "Error al analizar el archivo con Centinela");
+      canal.enviar(JSON.stringify({ t: "archivo.error", id: msg.id, motivo: "error-analisis" } satisfies MsgError));
+      await almacen.limpiar(msg.id);
+      recibidosPorId.delete(msg.id);
+      hashesEsperados.delete(msg.id);
+      ofertasEntrantes.delete(msg.id);
+      return;
+    }
+    // --- Fin del análisis ---
+
     blobsRecibidos.set(msg.id, blob);
     actualizarFase(msg.id, "completada");
     canal.enviar(JSON.stringify({ t: "archivo.ok", id: msg.id } satisfies MsgOk));
