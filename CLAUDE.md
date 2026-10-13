@@ -1271,6 +1271,13 @@ memoria lo permite, o en la próxima pasada; nunca una sucesora). En el A1 hace 
 más nuevos primero) y solo el panel de olas pide `?completo=1`. Síntoma para reconocerlo: `curl -s
 -o /dev/null -w '%{size_download}' localhost:9002/api/mando/estado` por encima de 1 MB.
 
+Y una lectura colgada no puede congelarlo todo: el 13-10 una petición al bus de Supabase no volvió
+nunca (a pesar de su `AbortSignal.timeout`) y el estado, la ramificación y los medidores enseñaron
+55 min la foto de las 08:05 UTC (medido con el inspector de Node: `enCurso` del bus colgado). Ahora
+`bus-remoto.ts` pone un tope duro a cada petición (8 s), nadie espera la recarga más de 8 s y una
+recarga de más de 30 s se abandona; `compartirCalculo(…, maxEnMarchaMs)` arranca otro cálculo si el
+anterior pasa de 10 min. Síntoma: `generadoEn` de `/api/mando/estado` que no avanza durante minutos.
+
 FreeLLMAPI vive también en el A1, SOLO en 127.0.0.1:3001 (`oracle_nodo.py freellmapi`,
 `a1_freellmapi.py`; claves leídas de su `~/.starseed/env`, ninguna escrita; servicio
 `starseed-freellmapi`), y el A1 pasa a 3 trabajadores y colas de 6 tareas.
