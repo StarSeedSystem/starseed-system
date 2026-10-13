@@ -79,7 +79,9 @@ PREFIJO_COLA = "colas/oracle-"
 PREFIJO_ENTREGA = "nube/a1-"
 LATIDO_VIVO_S = 600
 DEJAR_COLAS = 8
-TOPE_DEFECTO = 4
+#: (2026-10-13) Dos rondas de sus trabajadores: el A1 pasa de 2 a 3 (STARSEED_A1_TRABAJADORES en
+#: starseed-medio.service), con FreeLLMAPI local como escritor más; medido: 5,6-9,5 GB libres de 12.
+TOPE_DEFECTO = 6
 ESPERA_ENTRE_LANZAMIENTOS_S = 20 * 60
 #: Espejo del estado: dónde dejarlo en el A1, cada cuánto enviarlo y dónde guardar el hash.
 ESPEJO_DIR_A1 = os.path.join(REPO_A1, "starseed_memory_root", "espejo-mac")
@@ -95,7 +97,8 @@ REINTENTO_MAIN_S = 30 * 60
 #: Las claves que viajan al A1: las MISMAS que la nube de GitHub (`nube-gh.py secretos`), todas de
 #: proveedores con modelos gratuitos, más las públicas del bus (la clave anónima de Supabase es la
 #: que lleva el navegador). Nada de pago (ANTHROPIC, OPENAI, DEEPSEEK…) y nada que apunte a
-#: 127.0.0.1 de esta máquina (freellmapi, apinex), que allí no existe.
+#: 127.0.0.1 de esta máquina que allí no exista (apinex, el groq local); FreeLLMAPI sí: desde el
+#: 2026-10-13 el A1 tiene el suyo en 127.0.0.1:3001 (`a1_freellmapi.py`).
 CLAVES_A1 = (
     "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "NVIDIA_API_KEY", "OPENROUTER_API_KEY",
     "XKIRO_API_KEY", "AIHUBMIX_API_KEY", "TOKENROUTER_API_KEY", "GROQ_API_KEY",

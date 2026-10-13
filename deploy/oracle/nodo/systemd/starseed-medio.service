@@ -10,6 +10,8 @@ WorkingDirectory=/home/starseed
 Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
 Environment=STARSEED_WT=/home/starseed/starseed-wt NODE_OPTIONS=--max-old-space-size=4096 NEEDLE_TELEMETRY=0
 Environment=STARSEED_ESPERA_APROBACION_S=600 PYTHONUNBUFFERED=1
+# (2026-10-13) 3 trabajadores: medido 5,6-9,5 GB libres de 12 con 2; las puertas pesadas van por turno.
+Environment=STARSEED_A1_TRABAJADORES=3
 ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/oracle_a1.py servir
 Restart=always
 RestartSec=30
