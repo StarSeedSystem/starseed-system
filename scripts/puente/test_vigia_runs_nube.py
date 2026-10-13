@@ -91,6 +91,12 @@ class Devolver(unittest.TestCase):
         self.assertEqual(nuevo["B"], {"estado": "commit"})
         self.assertEqual(prog["A"]["estado"], "reasignada")  # no muta la entrada
 
+    def test_las_soltadas_sin_medio_de_ese_run_tambien_vuelven(self):
+        prog = {"Q": {"estado": "reasignada", "medio": None, "nota": "movida a nube-gh (run 9) desde Genesis"},
+                "R": {"estado": "reasignada", "medio": None, "nota": "movida a nube-gh (run 8) desde Genesis"}}
+        _nuevo, hechas = VR.devolver(prog, ["Q", "R"], 9, "se atascó", "20261013")
+        self.assertEqual(hechas, ["Q"])
+
     def test_ids_de_cola(self):
         self.assertEqual(VR.ids_de_cola({"tareas": [{"id": "X"}, {"id": "Y"}, {}]}), ["X", "Y"])
         self.assertEqual(VR.ids_de_cola([{"id": "Z"}]), ["Z"])

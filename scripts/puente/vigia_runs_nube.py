@@ -120,7 +120,9 @@ def devolver(progreso, ids, run, motivo, fecha):
     salida, hechas = dict(progreso or {}), []
     for tid in ids:
         v = salida.get(tid)
-        if isinstance(v, dict) and v.get("estado") == "reasignada" and (v.get("medio") or "") == "nube":
+        de_la_nube = (v.get("medio") or "") == "nube" or "(run %s)" % run in str(v.get("nota") or "") \
+            if isinstance(v, dict) else False
+        if isinstance(v, dict) and v.get("estado") == "reasignada" and de_la_nube:
             v = dict(v)
             v.update(estado="pendiente", medio=None,
                      nota="devuelta de la nube %s: el run %s %s y el director lo canceló; no cuenta como envío"

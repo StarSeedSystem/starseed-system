@@ -5702,8 +5702,12 @@ def atender_control():
                     matar_grupo(p)
                 except Exception:
                     pass
+            # (2026-10-13) Con el medio: sin él, `reclamar_varadas` y el vigía de runs no sabían que
+            # era de la nube y, si su run moría, la tarea quedaba «reasignada» para siempre.
+            medio_nuevo = "nube" if donde.startswith("nube") else ("oracle" if donde.startswith("oracle") else None)
             set_estado(
-                tid, estado="reasignada", nota="movida a %s desde Genesis" % donde
+                tid, estado="reasignada", nota="movida a %s desde Genesis" % donde,
+                **({"medio": medio_nuevo} if medio_nuevo else {})
             )
             evento(
                 "reasignada",

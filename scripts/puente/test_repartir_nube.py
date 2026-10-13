@@ -375,6 +375,12 @@ class ReclamarVaradasEnLaNube(unittest.TestCase):
         p = self._p(RM3={"estado": "reasignada", "medio": "nube"})
         self.assertEqual(R.reclamar_varadas(p, 1), [])
 
+    def test_las_soltadas_a_la_nube_sin_medio_tambien_se_reclaman(self):
+        """(2026-10-13) «movida a nube-gh (run …)» sin medio quedaba reasignada para siempre."""
+        p = self._p(Q={"estado": "reasignada", "medio": None, "nota": "movida a nube-gh (run 9) desde Genesis"},
+                    O={"estado": "reasignada", "nota": "movida a oracle (x) desde Genesis"})
+        self.assertEqual(R.reclamar_varadas(p, 0), ["Q"])
+
     def test_una_reasignada_que_no_fue_a_la_nube_no_se_reclama(self):
         p = self._p(RM3={"estado": "reasignada", "medio": "mac"})
         self.assertEqual(R.reclamar_varadas(p, 0), [])

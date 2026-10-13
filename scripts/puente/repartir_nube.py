@@ -758,7 +758,10 @@ def reclamar_varadas(progreso, runs_en_marcha):
         tid for tid, v in (progreso or {}).items()
         if isinstance(v, dict)
         and v.get("estado") == "reasignada"
-        and (v.get("medio") or "") == "nube"
+        and ((v.get("medio") or "") == "nube"
+             # (2026-10-13) Las que soltó la tanda de la Mac al lanzar el run: «movida a nube-gh (run …)»,
+             # sin medio hasta este día. Quedaban «reasignada» para siempre si su run moría.
+             or (not v.get("medio") and str(v.get("nota") or "").startswith("movida a nube")))
     )
 
 
