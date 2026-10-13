@@ -31,6 +31,7 @@ import {
   type Medio, type ClaseDato, type TipoDato, type Prioridad,
   COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
 } from "@/lib/malla/cristal/tipos";
+import { calidadSenal, costeSenal, CAPACIDAD_KBPS } from "@/lib/malla/cristal/coste";
 
 export type SignalKind =
   | "mesh" | "wifi" | "cellular" | "bluetooth" | "gps" | "nfc" | "serial" | "telephony";
@@ -865,10 +866,18 @@ function loraSignals(input: DetectedSignalsInput): DetectedSignal[] {
   }
 
   return s.nodes.filter((n) => !n.isSelf).map((n) => {
+    const senalMedida = {
+      de: String(n.num),
+      a: "self",
+      medio: "lora" as Medio,
+      rssiDbm: typeof n.rssi === "number" && Number.isFinite(n.rssi) ? n.rssi : undefined,
+      snrDb: typeof n.snr === "number" && Number.isFinite(n.snr) ? n.snr : undefined,
+      vistaEn: Date.now(),
+    };
+    const quality = calidadSenal(senalMedida);
+    const coste = costeSenal(senalMedida);
     const qSnr = typeof n.snr === "number" && Number.isFinite(n.snr) ? qualityFromSnr(n.snr) : null;
     const qRssi = typeof n.rssi === "number" && Number.isFinite(n.rssi) ? qualityFromRssi(n.rssi) : null;
-    const quality = qSnr != null && qRssi != null ? (qSnr * 0.65 + qRssi * 0.35)
-      : qSnr != null ? qSnr : qRssi;
     const qualityDetail = qSnr != null && qRssi != null
       ? `SNR ${n.snr!.toFixed(1)} dB + RSSI ${Math.round(n.rssi!)} dBm (medidos por el radio)`
       : qSnr != null ? `SNR ${n.snr!.toFixed(1)} dB (medido por el radio)`
@@ -883,6 +892,8 @@ function loraSignals(input: DetectedSignalsInput): DetectedSignal[] {
         : placeBySector("lora", `lora:${n.num}`, quality);
 
     const metrics: SignalMetric[] = [];
+    metrics.push({ label: "Capacidad nominal", value: `${CAPACIDAD_KBPS.lora} kbps` });
+    metrics.push({ label: "Coste señal", value: coste.toFixed(2) });
     if (typeof n.snr === "number") metrics.push({ label: "SNR", value: `${n.snr.toFixed(1)} dB` });
     if (typeof n.rssi === "number") metrics.push({ label: "RSSI", value: `${Math.round(n.rssi)} dBm` });
     if (typeof n.hopsAway === "number") metrics.push({ label: "Saltos", value: `${n.hopsAway}` });
