@@ -78,6 +78,11 @@ describe("agentes de la nube de GitHub", () => {
         expect(agentesDeRunsNube([{ ...runs[0], agentes: 1, atasco: { tipo: 1 } }])[0].atasco).toBeUndefined();
     });
 
+    it("(2026-10-13) no más trabajadores que tareas en su tanda", () => {
+        expect(agentesDeRunsNube([{ ...runs[0], agentes: 4, tareas: ["CB1013W"] }])).toHaveLength(1);
+        expect(agentesDeRunsNube([{ ...runs[0], agentes: 4, tareas: [] }])).toHaveLength(4);
+    });
+
     it("un latido sin bytes medidos no escribe «undefined»", () => {
         const d = detalleDeMedidor("agentes", { latidos: [{ tarea: "X1", fase: "escribiendo", modelo: "nim/kimi", minutos: 2, donde: "nube" }] });
         expect(d.filas[0].porque).not.toContain("undefined");

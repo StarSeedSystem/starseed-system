@@ -867,7 +867,9 @@ export function agentesDeRunsNube(runs: readonly RunDeLaNube[]): AgenteDeLaNube[
         const hechos = Number(r.pasos_hechos);
         const total = Number(r.pasos_total);
         const pasos = Number.isFinite(hechos) && Number.isFinite(total) && total > 0 ? `${hechos} de ${total} pasos hechos` : undefined;
-        const tope = Math.min(n, 32);
+        // (2026-10-13) Un trabajador sin tarea no es un agente: como mucho, uno por tarea de su tanda.
+        const nTareas = Array.isArray(r.tareas) ? r.tareas.filter((t) => typeof t === "string" && t).length : 0;
+        const tope = Math.min(n, 32, nTareas > 0 ? nTareas : 32);
         const atasco = atascoDeRun(r.atasco);
         for (let i = 0; i < tope; i += 1) {
             fuera.push({

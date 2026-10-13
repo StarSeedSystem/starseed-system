@@ -117,5 +117,15 @@ class TestPasoReal(unittest.TestCase):
         self.assertNotIn("atasco", [f for f in r["runs"] if f["run"] == 1][0])
 
 
+class UnoPorTarea(unittest.TestCase):
+    def test_un_run_no_cuenta_mas_agentes_que_tareas(self):
+        """(2026-10-13) 4 trabajadores para UNA tarea salían como «4 escribiendo»."""
+        runs = [{"databaseId": 5, "status": "in_progress", "inputs": {"trabajadores": "4"}, "n_tareas": 1},
+                {"databaseId": 6, "status": "in_progress", "inputs": {"trabajadores": "4"}, "n_tareas": 0}]
+        d = AN.resumir(runs, time.time())
+        self.assertEqual([f["agentes"] for f in d["runs"]], [1, 4])
+        self.assertEqual(d["agentes"], 5)
+
+
 if __name__ == "__main__":
     unittest.main()

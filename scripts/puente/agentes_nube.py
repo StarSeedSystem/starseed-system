@@ -79,6 +79,10 @@ def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
         if edad is not None and edad > viejo_s:
             continue
         n = trabajadores_de(r.get("inputs"))
+        # (2026-10-13) Un trabajador sin tarea no es un agente: como mucho, uno por tarea de su cola.
+        n_tareas = r.get("n_tareas")
+        if isinstance(n_tareas, int) and n_tareas > 0:
+            n = min(n, n_tareas)
         # Los que esperan máquina (o turno en su grupo de concurrencia: «pending») cuentan contra el
         # tope del director, como siempre; Genesis los enseña «esperando máquina», no escribiendo.
         agentes += n
@@ -210,7 +214,21 @@ def _runs_de_github() -> list:
         # Los inputs de un workflow_dispatch no se pueden leer por la API después del
         # lanzamiento. Se guardan al lanzar, en este mismo archivo, por `nube-gh.py`.
         r["inputs"] = _inputs_guardados(r["databaseId"])
+        r["n_tareas"] = _tareas_de_la_cola((r["inputs"] or {}).get("cola"))
     return runs
+
+
+def _tareas_de_la_cola(cola) -> int:
+    """Cuántas tareas lleva la cola de un run (0 si no se puede leer: entonces no se recorta)."""
+    if not cola or ".." in str(cola) or os.path.isabs(str(cola)):
+        return 0
+    try:
+        with open(os.path.join(RAIZ, str(cola)), encoding="utf-8") as f:
+            d = json.load(f)
+        tareas = d if isinstance(d, list) else (d or {}).get("tareas") or []
+        return sum(1 for x in tareas if isinstance(x, dict) and x.get("id"))
+    except (OSError, ValueError, AttributeError):
+        return 0
 
 
 def _paso_guardado(run_id) -> dict | None:

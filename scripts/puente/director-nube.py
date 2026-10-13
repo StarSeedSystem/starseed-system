@@ -342,7 +342,12 @@ def main():
                 rc, salida = _sh_rc(
                     [sys.executable, os.path.join(RAIZ, "scripts", "puente", "nube-gh.py"),
                      "lanzar", "--tope", str(2 * int(trabajadores)),
-                     "--trabajadores", trabajadores, "--minutos", MINUTOS], timeout=300)
+                     "--trabajadores", trabajadores, "--minutos", MINUTOS,
+                     # (2026-10-13, MEDIDO) Sin «--ceder» el reparto del director solo miraba lo que
+                     # está FUERA de la tanda de la Mac (nada: la tanda lo tiene todo) y decía
+                     # «0 tareas» con 404 de atraso y 18 cedibles: la nube solo recibía trabajo
+                     # cuando alguien pulsaba «Buscar más capacidad». Misma cesión que el botón.
+                     "--ceder"], timeout=300)
                 print(salida.strip()[-500:], flush=True)
                 if rc != 0:
                     print("[%s] el lanzamiento FALLÓ (rc=%d): no lo cuento como lanzado"

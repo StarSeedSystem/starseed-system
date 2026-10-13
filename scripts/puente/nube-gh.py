@@ -205,6 +205,7 @@ def _lanzar(args: list[str]) -> None:
     vivo = _run_vivo_con_cola(cola)
     if vivo:
         sys.exit("la cola %s ya la lleva el run %s: no la lanzo otra vez" % (cola, vivo))
+    trabajadores = trabajadores_para(trabajadores, _tareas_de_cola(cola))
     # (2026-10-04, NUB1004A) Junto a la cola viaja el estado de la Mac (rotación y salud
     # de modelos), saneado de campos con clave, en `enjambre/colas/estado-<cola>/`. Sin él
     # el runner probaba la rotación entera por orden y perdía la hora con modelos sin cuota
@@ -276,6 +277,26 @@ def _lanzar(args: list[str]) -> None:
     _anotar_lanzamiento(cola, trabajadores, minutos, run_id=run_id)
     _podar_ramas_de_cola()
     print("sigue con: python3 scripts/puente/nube-gh.py estado")
+
+
+def trabajadores_para(pedidos, n_tareas) -> str:
+    """PURA. No más trabajadores que tareas: el 13-10 un run salió con 4 para UNA tarea y Genesis
+    contaba «4 escribiendo». Sin saber cuántas hay, los pedidos."""
+    try:
+        n = int(str(pedidos))
+    except ValueError:
+        return str(pedidos)
+    return str(max(1, min(n, n_tareas))) if n_tareas and n_tareas > 0 else str(n)
+
+
+def _tareas_de_cola(cola) -> int:
+    try:
+        with open(os.path.join(RAIZ, cola), encoding="utf-8") as f:
+            d = json.load(f)
+        tareas = d if isinstance(d, list) else (d or {}).get("tareas") or []
+        return sum(1 for x in tareas if isinstance(x, dict) and x.get("id"))
+    except (OSError, ValueError, AttributeError):
+        return 0
 
 
 def _run_vivo_con_cola(cola):

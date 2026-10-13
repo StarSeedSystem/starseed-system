@@ -89,6 +89,12 @@ class ColaCreada(unittest.TestCase):
         self.assertIsNone(nube_gh.cola_creada("", {"estado-cola-nube-x"}))
         self.assertIsNone(nube_gh.cola_creada("[reparto] cola: ../../etc/passwd", set()))
 
+    def test_no_mas_trabajadores_que_tareas(self):
+        self.assertEqual(nube_gh.trabajadores_para("4", 1), "1")
+        self.assertEqual(nube_gh.trabajadores_para("4", 9), "4")
+        self.assertEqual(nube_gh.trabajadores_para("3", 0), "3")
+        self.assertEqual(nube_gh.trabajadores_para("x", 2), "x")
+
     def test_si_el_reparto_no_creo_nada_no_se_toma_la_cola_de_otro(self):
         """(2026-10-13) El director tomó la cola que «Buscar más capacidad» creó ese minuto."""
         salida = "[reparto] Reparto a la nube 20261013: 0 tareas (ninguna) (simulación)\n"
