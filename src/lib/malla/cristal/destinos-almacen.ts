@@ -11,17 +11,17 @@ export interface Dato {
 }
 
 export function destinosDe(dato: Dato, e: {
-  politicaContexto: string[];
-  disponibles: DestinoAlmacen[];
-  elegidosPorDato?: string[];
-  motoresReales: string[];
-}): {
-  guardar: DestinoAlmacen[];
-  descartados: { id: string; motivo: string }[];
-} {
-  const destinationIdsToConsider: string[] = e.elegidosPorDato?.length > 0 
-    ? e.elegidosPorDato 
-    : e.politicaContexto;
+   politicaContexto: string[];
+   disponibles: DestinoAlmacen[];
+   elegidosPorDato?: string[];
+   motoresReales: string[]
+ }): {
+   guardar: DestinoAlmacen[];
+   descartados: { id: string; motivo: string }[];
+ } {
+   const destinationIdsToConsider: string[] = (e.elegidosPorDato && e.elegidosPorDato.length > 0)
+     ? e.elegidosPorDato
+     : e.politicaContexto;
 
   const guardar: DestinoAlmacen[] = [];
   const descartados: { id: string; motivo: string }[] = [];
