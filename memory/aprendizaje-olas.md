@@ -4332,3 +4332,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
+
+## 2026-10-13 07:28 · mg-oracle-1012-2344
+
+**Lo que se pidió.** Almacén del ADN en la Biblioteca y avatar 3D en perfiles, grupos, comunidades y páginas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (RTFS1013Ab, RTCOL1012Ie). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTAV1011Dd` — no escribió nada
+- `RTFS1013Ab` — los tipos no compilan: 5 errores tsc (rama ola/RTFS1013Ab conservada)
+- `RTCOL1012Ie` — los tipos no compilan: 5 errores tsc (rama ola/RTCOL1012Ie conservada)
