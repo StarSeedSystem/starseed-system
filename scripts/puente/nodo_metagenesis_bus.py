@@ -130,8 +130,11 @@ class EnlaceBus:
             self.reclamos.append(datos)
         return ok
 
-    def baja(self, ts: float) -> bool:
-        return self._insertar(L.T_BAJA, "%s se despide" % self.yo, {"v": L.VERSION, "nodo": self.yo, "ts": ts})
+    def baja(self, ts: float, extra: Optional[Dict[str, Any]] = None) -> bool:
+        datos: Dict[str, Any] = {"v": L.VERSION, "nodo": self.yo, "ts": ts}
+        if extra is not None:
+            datos.update(extra)
+        return self._insertar(L.T_BAJA, "%s se despide" % self.yo, datos)
 
     def foto(self, f: Dict[str, Any]) -> bool:
         return self._insertar(L.T_FOTO, L.texto_foto(f), f)
