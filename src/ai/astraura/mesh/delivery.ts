@@ -166,14 +166,29 @@ export async function executePlan(
     let out: HopOutcome;
     try {
       out = await portFor(leg.via, ports)(leg, req, payload);
-    } catch {
-      out = { ok: false, detail: "excepción en la vía" };
+    } catch (err: any) {
+      // Check if this is a missing recipient key error
+      const errorMessage = err?.message ?? String(err);
+      const isMissingRecipientKey = errorMessage.includes("clave del destinatario") || 
+                                   errorMessage.includes("recipient key");
+      
+      out = {
+        ok: false,
+        detail: isMissingRecipientKey
+          ? "falta de la clave del destinatario para cifrado"
+          : "excepción en la vía"
+      };
+    }
+    // Override status to queued for missing recipient key errors
+    let hopStatus: HopStatus = out.ok ? (out.confirmed ? "confirmed" : "sent") : "failed";
+    if (!out.ok && out.detail === "falta de la clave del destinatario para cifrado") {
+      hopStatus = "queued";
     }
     hops.push({
       via: leg.via,
       label: label(leg.via),
       role,
-      status: out.ok ? (out.confirmed ? "confirmed" : "sent") : "failed",
+      status: hopStatus,
       detail: out.detail,
       through: out.through,
       at: Date.now(),
