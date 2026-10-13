@@ -7,13 +7,13 @@ describe("planificador-computo", () => {
   });
 
   it("debe devolver un objeto con destino y motivos", () => {
-    const req = {
-      memoriaMB: 100,
-      gpu: false,
-      latenciaCritica: false,
-      ambito: "personal",
-      pesado: false,
-    };
+     const req = {
+       memoriaMB: 100,
+       gpu: false,
+       latenciaCritica: false,
+       ambito: "personal" as const,
+       pesado: false,
+     };
     const candidatos: Candidato[] = [
       {
         tipo: "navegador",
