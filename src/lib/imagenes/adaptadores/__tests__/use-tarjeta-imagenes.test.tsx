@@ -19,7 +19,8 @@ const h = vi.hoisted(() => ({
         usarComoReferencia3D: vi.fn()
     },
     abrirEnProtomolecula: {
-        abrirEnProtomolecula: vi.fn()
+        abrirEnProtomolecula: vi.fn(),
+        abrirProtomoleculaEditor: vi.fn()
     }
 }));
 
@@ -49,6 +50,7 @@ const opcionesMock = [
       modelo: { id: "sd-turbo", label: "SD Turbo" },
       semilla: 123,
       prompt: "Una imagen de prueba",
+      url: "http://ejemplo.com/imagen.png",
       uso: "libre"
     },
     {
@@ -57,6 +59,7 @@ const opcionesMock = [
       modelo: { id: "sdxl", label: "SDXL" },
       semilla: 124,
       prompt: "Una imagen de prueba",
+      url: "http://ejemplo.com/imagen-2.png",
       uso: "libre"
     }
   ];
