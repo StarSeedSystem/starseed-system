@@ -17,6 +17,8 @@ import {
     TTL_NODO_MS,
     type FilaBus,
     elegirFuente,
+    ACCIONES,
+    ACCIONES_DEL_LIDER,
 } from "../remoto-nodos";
 
 const AHORA = Date.parse("2026-10-10T12:00:00Z");
