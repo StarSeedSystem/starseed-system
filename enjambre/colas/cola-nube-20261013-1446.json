@@ -1,0 +1,96 @@
+{
+ "ola": "nube-20261013",
+ "tareas": [
+  {
+   "id": "CB1013B",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Fusionar: plan puro (memorias, includes, servidores, config y preferencias)",
+   "archivos": [
+    "src/lib/cerebros/fusion.ts",
+    "src/lib/cerebros/__tests__/fusion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §4 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO (sin Supabase, `window` ni `node:*`; solo `import type` de `@/lib/brains/brains`). Exporta: `interface ArchivoMemoria { id?: string; brain_id: string; name: string; content: string; updated_at?: string | null; meta?: Record<string, unknown> | null }`; `type PrefsCerebro = Record<string, unknown>` (sufijo de clave → valor; la clave real es `starseed.brain.<id>.<sufijo>`); `quitarFrontmatter(texto)` (quita un bloque inicial `---\\n…\\n---` y los saltos que siguen); `normalizar(texto)` (sin frontmatter, espacios colapsados, trim); `seccionesDe(texto)` (parte por líneas que empiezan por `## `; lo anterior al primer `## ` es la cabecera); `planFusion(e: { destino: Brain; origenes: Brain[]; archivos: ArchivoMemoria[]; prefs: Record<string, PrefsCerebro>; fecha: string }): PlanFusion` con `PlanFusion { archivos: Array<{ name: string; accion: 'copiar' | 'anexar' | 'omitir'; contenido: string; bytesQueEntran: number; desde: string[]; idDestino?: string }>; includes: BrainIncludes; servers: BrainServer[]; config: Record<string, unknown>; prefs: PrefsCerebro; resumen: { archivosNuevos: number; archivosAnexados: number; archivosOmitidos: number; bytes: number } }`. Reglas exactas de §4: archivo ausente en el destino → 'copiar' (contenido del primer origen que lo tenga, más las secciones nuevas de los siguientes); igual tras normalizar → 'omitir'; distinto → 'anexar' solo las secciones `## ` cuyo texto normalizado NO esté ya contenido en el destino (ni la cabecera de plantilla), bajo `## Fusionado de «<nombre del origen>» (<8 primeros del id>) · <fecha>`; si no queda ninguna sección nueva → 'omitir'. `contenido` es el texto FINAL del archivo en el destino; `idDestino` el id de la fila del destino si existe. includes: unión sin duplicados (vaults, backends, personalities, runtimes, tokens, memories, connections; permissions por `who`), bindScope = alguno, aiProvider del destino o del primer origen. servers: unión por `id` y además dos con el mismo `endpoint` no vacío cuentan como uno. config: gana el destino, del origen solo entran claves ausentes; añade `fusionados` (ids de los orígenes, sin repetir con los que ya hubiera) y `fusionadoEn` = fecha. prefs: clave ausente en el destino → se copia; dos listas → unión por `id` (o por valor JSON si no tienen id); dos objetos → gana el destino y se rellenan claves que falten; otro tipo → gana el destino. Pruebas: cada regla, y el caso real de 2026-10-13: un destino con varias secciones y un origen `---\\ntype: memory\\n---\\n\\n# Memoria\\n\\nHechos/estado genéricos (fallback).\\n\\n## Actualización automática de Astraura · 10/1 …` con 3 actualizaciones → entran solo esas 3, una vez, bajo el encabezado de fusión; repetir la fusión con el resultado no añade nada."
+  },
+  {
+   "id": "CB1013E",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Telepatía: lógica pura de vínculos y plan de sincronización",
+   "archivos": [
+    "src/lib/cerebros/telepatia.ts",
+    "src/lib/cerebros/__tests__/telepatia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §5 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO. Exporta los tipos `DestinoTelepatia` y `VinculoTelepatico` EXACTOS de §5; `CONFIGURACIONES_TELEPATIA = ['servers','runtimes','skills','storage','apps','moa','channels','conectores','includes.personalities'] as const`; `validarVinculo(v: unknown): { ok: true; vinculo: VinculoTelepatico } | { ok: false; motivo: string }` (destino con tipo e id válidos; alcance con algo si no es completo; configuraciones solo de la lista; fechas ISO); `normalizarVinculos(config: Record<string, unknown> | null | undefined): VinculoTelepatico[]` (lee `config.telepatia`, descarta inválidos); `conVinculo(config, v)` (devuelve config NUEVO con el vínculo puesto o reemplazado por id) y `sinVinculo(config, id)`; `estaCaducado(v, ahora: number)`; `planSincronizacion(v: VinculoTelepatico, origen: { archivos: Array<{ name: string; content: string; updated_at?: string | null }>; prefs: Record<string, unknown> }, destino: igual): Array<{ tipo: 'archivo' | 'config' | 'carpeta'; nombre: string; de: 'origen' | 'destino'; a: 'origen' | 'destino' }>`: alcance completo → todos los archivos y todas las configuraciones de la lista; si no, solo los nombrados; 'carpeta' → una operación por carpeta (la aplica la capa de cliente); copia lo más nuevo por `updated_at` (si falta en un lado, del que lo tiene); dirección 'enviar' solo origen→destino, 'recibir' solo destino→origen, 'ambas' las dos; acceso 'leer' = el otro lado solo lee → nunca hay operaciones destino→origen; vínculo 'pausado', 'pendiente' o caducado → plan vacío; NUNCA hay operaciones de borrar. Pruebas de cada regla."
+  },
+  {
+   "id": "CB1013H",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Conectores: lógica pura del pilar",
+   "archivos": [
+    "src/lib/cerebros/conectores.ts",
+    "src/lib/cerebros/__tests__/conectores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §6 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO. Lee (sin importar código de cliente; solo `import type` si hace falta) src/lib/connectors/model.ts, src/lib/integrations/registry.ts, src/lib/abilities/abilities.ts, src/lib/externos/tipos.ts y src/lib/messaging/messaging-channels.ts para tipar entradas ESTRUCTURALES mínimas. Exporta `ConectorCerebro` de §6, `reunirConectores(f: { conectores: Array<{ id: string; name: string; status?: string }>; integraciones: Array<{ id: string; name: string; configurada: boolean; error?: string | null }>; mcp: Array<{ id: string; name: string; enlazada: boolean }>; externos: Array<{ id: string; nombre: string; revocado: boolean; expira_en?: string | null }>; canales: Array<{ id: string; name: string; activo: boolean }> }, enCerebro: readonly string[], ahora: number): ConectorCerebro[]` (ids con prefijo por tipo: `conector:`, `integracion:`, `mcp:`, `externo:`, `canal:`; estado: connected→'conectado', needs-auth→'falta-clave', available→'disponible', error→'error'; externos revocados o caducados → 'error'; orden: conectado, falta-clave, error, disponible y luego por nombre), `alternarEnCerebro(ids: readonly string[], id: string): string[]`, `claveConectores(brainId)` = `starseed.brain.<id>.conectores`, `cuentaPorEstado(lista)`. Pruebas."
+  },
+  {
+   "id": "CB1013J",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: tipos, hardware y avisos (puro)",
+   "archivos": [
+    "src/lib/cerebros/procesos.ts",
+    "src/lib/cerebros/__tests__/procesos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO. Exporta los tipos EXACTOS de §7 (`TipoProceso`, `ProcesoActivo`, `HardwareServidor`), `ETIQUETA_TIPO: Record<TipoProceso, string>` en español (Genesis, PoliGenesis, Sueños, Imaginación, Descargas, Instalaciones, Actualizaciones, Apps en segundo plano, Servicios), `porcentaje(usado: number | null, total: number | null): number | null` (null si falta algo o total ≤ 0; redondeo a 1 decimal), `interface UmbralesProcesos { cpu: number; ram: number; disco: number; bateria: number }`, `UMBRALES_POR_DEFECTO = { cpu: 85, ram: 90, disco: 90, bateria: 20 }`, `avisosHardware(lista: HardwareServidor[], u: UmbralesProcesos): Array<{ servidor: string; medida: 'cpu' | 'ram' | 'disco' | 'bateria'; valor: number; umbral: number }>` (disco = % usado; batería avisa por DEBAJO del umbral y solo si no está cargando; null nunca avisa), `hardwareDesdeMac(r: unknown, ahora: number): HardwareServidor | null` (lee la respuesta de `/api/mando/hardware` de §7.1: `{ cpuPct, nucleos, carga, ramUsadaMb, ramTotalMb, gpuPct, gpuNombre, discoLibreGb, discoTotalGb, bateriaPct, cargando, medidoEn }`, defensivo), `hardwareDesdeNodo(n: unknown, ahora: number): HardwareServidor | null` (un `NodoVista` de MetaGenesis: `nodo`, `medio`, `ram_libre_mb`, `disco_gb`, y si vienen `cpu_pct`, `ram_total_mb`, `disco_total_gb`, `nucleos`, `carga`; ram usada = total − libre solo si hay total), `hardwareDesdeNeurona(n: unknown, ahora: number): HardwareServidor | null` (capabilities de `neuron_devices`: batería {level, charging}, cuota de almacenamiento; CPU y GPU null). Pruebas de cada función, incluidos datos ausentes → null (nunca 0)."
+  },
+  {
+   "id": "CB1013R",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: modelo puro con herencia (cerebro, memoria, carpeta)",
+   "archivos": [
+    "src/lib/cerebros/ajustes.ts",
+    "src/lib/cerebros/__tests__/ajustes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO. Exporta los tipos EXACTOS de §8 (`Capacidad`, `AjustesObjetivo`, `AjustesCerebro`), `CAPACIDADES` con etiqueta en español, `AJUSTES_POR_DEFECTO` (privacidad según la pestaña: 'privado' para account/profile, 'grupo' para group/page; cifradoLocal false; capacidades 'auto'; almacenamiento []; sync { direccion: 'ambas', auto: true, destinos: [] }; acceso []), `leerAjustes(cerebro: { scope?: string | null; config?: Record<string, unknown> | null }): AjustesCerebro` (defensivo con `config.ajustes`), `conAjustes(config, objetivo: { tipo: 'cerebro' } | { tipo: 'memoria' | 'carpeta'; id: string }, parcial: Partial<AjustesObjetivo>): Record<string, unknown>` (devuelve config NUEVO; en memorias y carpetas guarda SOLO lo que difiere del cerebro), `ajustesEfectivos(a: AjustesCerebro, objetivo)` (lo de la memoria o carpeta pisa lo del cerebro, campo a campo) y `APLICACION: Record<'medios.almacenamiento' | 'privacidad' | 'acceso' | 'cifradoLocal' | 'sync' | 'medios.capacidades', 'se-aplica' | 'solo-se-guarda'>` con lo que dice §8 (almacenamiento y privacidad del cerebro 'se-aplica'; acceso por memoria/carpeta y cifrado 'solo-se-guarda'; capacidades 'solo-se-guarda' hasta que el orquestador las lea). Pruebas de herencia, de que no se guardan copias iguales y de datos rotos."
+  },
+  {
+   "id": "CB1013M",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Medir CPU, RAM, GPU, disco y batería de la Mac: /api/mando/hardware",
+   "archivos": [
+    "src/lib/mando/hardware.ts",
+    "src/app/api/mando/hardware/route.ts",
+    "src/lib/mando/__tests__/hardware.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7.1 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. `src/lib/mando/hardware.ts` (servidor, `node:os`, `node:fs`, `node:child_process` con `execFile` y tope de 3 s por orden): `medirHardware(): Promise<HardwareMac>` con `{ cpuPct, nucleos, carga, ramUsadaMb, ramTotalMb, gpuPct, gpuNombre, discoLibreGb, discoTotalGb, bateriaPct, cargando, medidoEn }`: CPU % de dos lecturas de `os.cpus()` separadas 400 ms; RAM total de `os.totalmem()` y usada en macOS con `vm_stat` (páginas activas + wired + comprimidas × tamaño de página; en Linux `os.totalmem() - MemAvailable` de /proc/meminfo); GPU con `ioreg -r -d 1 -c IOAccelerator` → `\"Device Utilization %\"=N` y el nombre del modelo (`\"model\"`); disco con `fs.promises.statfs(process.cwd())`; batería con `pmset -g batt` (`NN%; charging|discharging|charged|AC attached`). Analizadores PUROS exportados y probados: `cpuEntre(antes, despues)`, `analizarVmStat(texto, totalBytes)`, `analizarIoreg(texto)`, `analizarPmset(texto)`. Lo que no se pueda medir queda null. Cálculo compartido entre peticiones y cacheado 3 s con `compartirCalculo` de src/lib/mando/calculo-compartido.ts (lee su firma). `route.ts`: `GET` con `guardianMando(request)` primero (como src/app/api/mando/servidor/route.ts), `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`, `Cache-Control: no-store`; nunca devuelve rutas ni nombres de usuario. Pruebas de los cuatro analizadores con salidas reales de ejemplo (incluidas vacías)."
+  },
+  {
+   "id": "CB1013Q",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Salud del nodo de MetaGenesis: cpu_pct, ram_total_mb y disco_total_gb",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis_medio.py",
+    "scripts/puente/nodo_metagenesis_logica.py",
+    "scripts/puente/test_nodo_metagenesis.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7.2 (léelo entero antes de empezar). Reglas: cambios mínimos; no toques otros archivos; comentarios en español; `python3 -m pytest scripts/puente/test_nodo_metagenesis.py -q` en verde. En `nodo_metagenesis_medio.py` añade `cpu_pct()` (Linux: dos lecturas de /proc/stat separadas 0,3 s → % ocupado; macOS u otros: None — nunca un número inventado), `ram_total_mb()` (/proc/meminfo MemTotal; macOS `sysctl -n hw.memsize` con tope de 2 s) y `disco_total_gb(ruta)` (shutil.disk_usage), y mételos en `salud` como `cpu_pct`, `ram_total_mb` y `disco_total_gb` junto a los que ya hay. En `nodo_metagenesis_logica.py`, la vista de cada nodo (donde ya van `disco_gb` y `ram_libre_mb`) pasa también `cpu_pct`, `ram_total_mb`, `disco_total_gb`, `nucleos` y `carga`; y donde se quitan `ram_libre_mb`/`disco_gb` de un resumen, quita también los nuevos. Pruebas: la vista lleva los campos nuevos y None se respeta."
+  },
+  {
+   "id": "CB1013U",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Textos no cortados: Personalidades, Memoria y Fuentes de memoria",
+   "archivos": [
+    "src/components/aurora/personalities-panel.tsx",
+    "src/components/cerebro/memoria-panel.tsx",
+    "src/components/cerebro/memory-sources-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §3 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Quita el corte de las etiquetas de botones en estos tres archivos: ningún `<button`/`<Button` con `truncate`, `line-clamp-` o `whitespace-nowrap` en su className (texto que parte entre palabras, `min-w-0`, `whitespace-normal`, `h-auto` en Button). Los nombres largos dentro de listas (no botones) pueden seguir recortados SOLO si llevan `title` con el texto entero. Revisa también anchos fijos que corten etiquetas. Cambios mínimos; las pruebas existentes siguen en verde."
+  }
+ ]
+}
