@@ -123,11 +123,12 @@ export async function GET(request: Request): Promise<Response> {
 const VIGENCIA_ESTADO_MS = 8_000;
 /**
  * (2026-10-13, medido) Con la Mac sin memoria un cálculo pasaba de 50 s y MetaGenesis se quedaba
- * en «Midiendo el pulso del trabajo…». Con un estado anterior, nadie espera más de 6 s: se le da
+ * en «Midiendo el pulso del trabajo…». Con un estado anterior, nadie espera más de 2 s (antes 6:
+ * medido el 13-10, cada sondeo tardaba 6-9 s con la Mac en presión de memoria): se le da
  * el anterior (con su `generadoEn`, que dice de cuándo es) y el cálculo sigue. El último estado
  * bueno se guarda en disco para que un reinicio de Genesis no empiece en blanco.
  */
-const ESPERA_ESTADO_MS = 6_000;
+const ESPERA_ESTADO_MS = 2_000;
 const CACHE_ESTADO = path.join(os.homedir(), ".starseed", "cache-estado-genesis.json");
 const estadoCompartido = compartirCalculo(calcularYGuardar, VIGENCIA_ESTADO_MS, undefined, ESPERA_ESTADO_MS);
 // (2026-10-13, medido) La primera petición tras reiniciar Genesis llegaba antes de que se leyera la

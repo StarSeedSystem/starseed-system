@@ -18,6 +18,7 @@
  * claves ni rutas absolutas del disco.
  */
 
+import { compartirCalculo } from "@/lib/mando/calculo-compartido";
 import { guardianMando } from "@/lib/mando/guardian";
 import { resumen, saludDeLasColas } from "@/lib/mando/latido-orquestador";
 import { barridoAutocuracion, estadoAutocuracion, guardarAutocuracion, revivir } from "@/lib/mando/latido-servidor";
@@ -27,14 +28,26 @@ export const dynamic = "force-dynamic";
 
 const SIN_ALMACEN = { "Cache-Control": "no-store" };
 
+/**
+ * (2026-10-13, medido) Con la Mac en presión de memoria esta lectura tardaba 8-12,5 s y la página de
+ * MetaGenesis en otro aparato la usa como SONDA del túnel con un tope de 8 s: decía «la Mac está
+ * apagada o sin túnel» con la Mac viva. Ahora se calcula una vez cada 10 s para todos y nadie
+ * espera más de 1,5 s si ya hay un resultado anterior (que dice de cuándo es con `generadoEn`).
+ */
+const saludCompartida = compartirCalculo(
+    async () => {
+        const saludes = await saludDeLasColas();
+        return { saludes, resumen: resumen(saludes), autocuracion: await estadoAutocuracion(), generadoEn: new Date().toISOString() };
+    },
+    10_000,
+    undefined,
+    1_500,
+);
+
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
-    const saludes = await saludDeLasColas();
-    return Response.json(
-        { saludes, resumen: resumen(saludes), autocuracion: await estadoAutocuracion() },
-        { headers: SIN_ALMACEN },
-    );
+    return Response.json(await saludCompartida(), { headers: SIN_ALMACEN });
 }
 
 export async function POST(peticion: Request): Promise<Response> {
