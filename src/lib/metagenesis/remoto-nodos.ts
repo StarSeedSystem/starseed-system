@@ -72,17 +72,8 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
     // Colmena (COL1012): van a un ID de nodo concreto, nunca a «lider»/«todos» (igual que el nodo Python).
-    desconectar: {
-        etiqueta: "Desconectar",
-        explica: "Guarda el trabajo a medias de este aparato y lo pasa a otro contenedor antes de que se quede sin internet.",
-        confirmar: true,
-        args: [],
-    },
-    contenedor: {
-        etiqueta: "Usar como contenedor",
-        explica: "Este aparato coge tareas de la cola como la Mac, con los agentes que pueda.",
-        args: ["activo", "trabajadores"],
-    },
+    desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
+    contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
 };
 
 /** Las acciones del nodo NO se ofrecen en «Pedir algo al que dirige»: van en la tarjeta de cada neurona. */
@@ -148,7 +139,8 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
         return "trabajadores fuera de 1–4";
     }
-    if (accion === "repartir") {
+    // «repartir» aún no es AccionOrden (la añade otra tarea); se deja la regla para cuando entre.
+    if ((accion as AccionOrden | "repartir") === "repartir") {
         if (!("destino" in a) || typeof a.destino !== "string" || !RE_NODO.test(a.destino)) {
             return "destino no válido";
         }
