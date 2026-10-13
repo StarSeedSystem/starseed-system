@@ -28,11 +28,18 @@ import { safeGet, safeSet } from "@/lib/safe-storage";
 // Cifrado POR-DESTINATARIO (v:3, ECDH→HKDF→AES-GCM). DIRECCIÓN DE IMPORT: relay-crypto
 // importa recipient-crypto (nunca al revés) para despachar los sobres v:3 sin ciclo.
 import { decryptEnvelopeFor, type RecipientEnvelope } from "./recipient-crypto";
+import { iniciarCadena, siguienteClave, debeRotar, cifrar, descifrar, type Cadena } from "@/lib/malla/cristal/cifrado/trinquete";
 
 /** Clave única legada (Adenda 99): raw base64. Se migra al llavero al leerla. */
 const RELAY_KEY_LS = "starseed.mesh.relay-key.v1";
 /** Llavero (Adenda 120): JSON { keys:[{kid,raw}], cur }. */
 const RELAY_RING_LS = "starseed.mesh.relay-keyring.v1";
+/** Secreto inicial de la cadena HKDF (ArrayBuffer en base64). */
+const RELAY_SECRET_LS = "starseed.mesh.relay-secret.v1";
+/** Contexto de la cadena HKDF (string). */
+const RELAY_CONTEXTO_LS = "starseed.mesh.relay-contexto.v1";
+/** Estado de la cadena: {raizRaw: string, n: number, desde: number}. */
+const RELAY_CADENA_LS = "starseed.mesh.relay-cadena.v1";
 /** Máximo de claves retenidas (gracia de descifrado); poda las más viejas. Generoso
  *  porque el llavero MEZCLA claves propias (rotación) e importadas (vinculación) y el
  *  contenido del relé caduca a las 24 h, así que rara vez se necesitan tantas. */
