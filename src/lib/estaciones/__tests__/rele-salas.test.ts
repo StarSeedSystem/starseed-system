@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// TODO: Import the actual implementation
-// import { crearSalas } from '../rele-salas';
-
-// For now, we'll mock the module if needed, but we are not allowed to vi.mock Node modules.
-// We'll assume the implementation exists.
+import { crearSalas } from '../rele-salas';
 
 describe('rele-salas', () => {
   it('debería permitir entrar con tema válido y dentro de límites', () => {
