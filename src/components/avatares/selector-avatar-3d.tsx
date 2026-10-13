@@ -9,6 +9,7 @@ import { useAdnEntry } from "@/lib/avatares/adaptadores/almacen-adn";
 import { parseAdnEntry, saveAdnToLibrary } from "@/lib/avatares/adaptadores/almacen-adn";
 import { decidirCambioAvatar } from "@/lib/avatares/adn/permisos";
 import { AdnAvatar } from "@/lib/avatares/adn/adn";
+import { PLANTILLAS_AVATAR, adnDePlantilla, refDePlantilla } from "@/lib/avatares/plantillas";
 import { AvatarVivo } from "@/components/avatares/avatar-vivo";
 
 interface SelectorAvatar3dProps {
@@ -93,6 +94,22 @@ export default function SelectorAvatar3d({
   };
 
   const getDefaultAdnRef = () => "orbe-gris";
+
+  /** El dueño del ADN nuevo sale del perfil o entidad que está eligiendo el avatar. */
+  const duenoActual = (): AdnAvatar["dueno"] =>
+    profileId
+      ? { tipo: "perfil", id: profileId }
+      : { tipo: "comunidad", id: entityId ?? "sin-dueno" };
+
+  const handleElegirPlantilla = useCallback(
+    async (idPlantilla: string) => {
+      const adn = adnDePlantilla(idPlantilla, duenoActual(), `adn-${Date.now().toString(36)}`);
+      if (!adn) return;
+      await handleSave(adn, "privado");
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [handleSave, profileId, entityId]
+  );
 
   const puedeCambiarAvatar = (adn: AdnAvatar | null, rol: "dueno" | "admin" | "miembro" | "observador" | "invitado", gobierno?: "jerarquico" | "democratico", botDeEntidad?: boolean, vistaPrevia = false): boolean => {
     if (!adn) return false;
@@ -203,6 +220,44 @@ export default function SelectorAvatar3d({
               <div className="aspect-square w-20 mx-auto mb-2 rounded-full bg-gradient-to-br from-blue-400 to-purple-600" />
               <p className="text-sm font-medium">Persona VRM</p>
             </button>
+          </div>
+
+          <div className="space-y-2">
+            <h5 className="text-sm font-medium">Modelos base (CC0)</h5>
+            <p className="text-xs text-muted-foreground">
+              Avatares VRM de la colección Numinia Digital Goods (licencia CC0, servidos por la Biblioteca).
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {PLANTILLAS_AVATAR.map((p) => {
+                const ref = refDePlantilla(p.id);
+                const activo = currentAdnRef === ref;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={loading}
+                    aria-pressed={activo}
+                    aria-label={`Elegir plantilla ${p.nombre}`}
+                    onClick={() => handleElegirPlantilla(p.id)}
+                    className={cn(
+                      "cursor-pointer",
+                      "p-3 rounded-lg border transition-all",
+                      activo
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-muted-foreground"
+                    )}
+                  >
+                    <div
+                      className="aspect-square w-16 mx-auto mb-2 rounded-full bg-gradient-to-br from-amber-300 to-rose-500"
+                      style={{ filter: `hue-rotate(${p.tonoAura}deg)` }}
+                      aria-hidden="true"
+                    />
+                    <p className="text-sm font-medium">{p.nombre}</p>
+                    <p className="text-xs text-muted-foreground">{p.autor} · CC0</p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
