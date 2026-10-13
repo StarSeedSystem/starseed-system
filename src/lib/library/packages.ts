@@ -532,6 +532,20 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     author: "StarSeed Core", sourceRepoId: "starseed-core", free: true,
     payload: { route: "/publicar" },
   },
+  {
+    id: "app-fundamento",
+    kind: "app",
+    name: "Fundamento de StarSeed",
+    description: "El fundamento de StarSeed OS: diamante, piedra filosofal y alquimia. Accede a la biblioteca, lanzador de apps y bienvenida.",
+    icon: "Gem",
+    tags: ["app", "fundamento", "biblioteca", "lanzador", "bienvenida"],
+    version: "1.0.0",
+    author: "StarSeed Core",
+    sourceRepoId: "starseed-core",
+    free: true,
+    featured: true,
+    payload: { route: "/fundamento" },
+  },
 ];
 
 /** Skills de Aurora (funciones). Solo la real hoy + próximas honestas. */

@@ -10,7 +10,7 @@
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
-    RadioTower, Antenna, Binary, AudioLines, Gauge, Smile, FlaskConical,
+    RadioTower, Antenna, Binary, AudioLines, Gauge, Smile, FlaskConical, Gem,
     // Ola 6 · Adenda 158.
     Sparkles, Users,
     // Ola 285 · K6: Canales StarSeed.
@@ -255,6 +255,21 @@ export const APP_CATALOG: StarseedApp[] = [
             route: "/omnifrecuencias",
             href: "https://omnifrecuencias.vercel.app",
             embeddable: true,
+        },
+    },
+    {
+        id: "fundamento",
+        name: "Fundamento de StarSeed",
+        short: "Fundamento",
+        description: "El fundamento de StarSeed OS: diamante, piedra filosofal y alquimia. Accede a la biblioteca, lanzador de apps y bienvenida.",
+        icon: Gem,
+        accent: "#FBBF24",
+        category: "sistema",
+        status: "native",
+        open: {
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/fundamento",
         },
     },
 
@@ -520,7 +535,7 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion", "fundamento"],
     sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
