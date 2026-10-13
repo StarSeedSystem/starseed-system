@@ -86,6 +86,7 @@ import type { MeshHandle, PeerSnapshot } from "@/lib/network/webrtc-mesh";
 import { getSharedMesh } from "@/lib/network/lan-sync";
 import { saveItem, updateItemContent, type EntityRef } from "@/lib/library/entity-library";
 import { uploadFile } from "@/lib/files/os-files";
+import { examinar } from "@/lib/malla/cristal/centinela";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -985,6 +986,18 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       actualizadoMs: Date.now(),
     };
 
+    // Centinela (malla cristalina §4.5): lo que ya sabe la oferta —nombre, tipo
+    // declarado y tamaño— basta para denegar ejecutables/guiones antes de recibir
+    // ni un byte. El examen de contenido (bytes reales) llega en `manejarFin`.
+    const porMetadatos = examinar({ nombre: msg.nombre, tipoDeclarado: msg.tipo, bytes: new Uint8Array(0), tamano: msg.tamano });
+    if (porMetadatos.peligroso) {
+      const motivo = `Centinela: ${porMetadatos.motivos.join(", ")}`;
+      emitir({ ...estadoBase, fase: "rechazada", motivo });
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo } satisfies MsgRechazar));
+      ofertasEntrantes.delete(msg.id);
+      return;
+    }
+
     if (decision === "denegar") {
       emitir({ ...estadoBase, fase: "rechazada", motivo: "Sin permiso para recibir archivos de esta cuenta." });
       canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "denegado por política de permisos" } satisfies MsgRechazar));
@@ -1070,6 +1083,19 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       return;
     }
     const blob = await almacen.ensamblar(msg.id, estado.tipo);
+    // Centinela (§4.5): examina el contenido real recibido (primeros 64 KB, que
+    // bastan para firmas, HTML/SVG con código y scripts de texto) ya ensamblado.
+    const inicio = new Uint8Array(await blob.slice(0, 64 * 1024).arrayBuffer());
+    const veredicto = examinar({ nombre: estado.nombre, tipoDeclarado: estado.tipo || undefined, bytes: inicio, tamano: estado.tamano });
+    if (veredicto.peligroso) {
+      actualizarFase(msg.id, "error", `Centinela: ${veredicto.motivos.join(", ")}`);
+      canal.enviar(JSON.stringify({ t: "archivo.error", id: msg.id, motivo: "centinela: " + veredicto.motivos.join(",") } satisfies MsgError));
+      await almacen.limpiar(msg.id);
+      recibidosPorId.delete(msg.id);
+      hashesEsperados.delete(msg.id);
+      ofertasEntrantes.delete(msg.id);
+      return;
+    }
     blobsRecibidos.set(msg.id, blob);
     actualizarFase(msg.id, "completada");
     canal.enviar(JSON.stringify({ t: "archivo.ok", id: msg.id } satisfies MsgOk));

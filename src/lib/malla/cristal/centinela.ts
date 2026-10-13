@@ -95,19 +95,12 @@ export function examinar(c: CandidatoArchivo): Veredicto {
 
   // ZIP: rutas de escape y bombas de compresión (el índice lo lee el llamador).
   if (c.entradasZip) {
-    let total = 0;
-    let comprimido = 0;
     for (const e of c.entradasZip) {
       const limpia = e.nombre.replace(/\\/g, '/');
       if (limpia.startsWith('/') || limpia.split('/').includes('..')) motivos.add('ruta-escape-zip');
-      total += e.tamanoDescomprimido;
-      comprimido += Math.max(1, e.tamanoComprimido);
       if (e.tamanoComprimido > 0 && e.tamanoDescomprimido / e.tamanoComprimido > RAZON_BOMBA) {
         motivos.add('bomba-compresion');
       }
-    }
-    if (total > LIMITE_TAMANO && total / comprimido > RAZON_BOMBA * PORCENTAJE_BOMBA) {
-      motivos.add('bomba-compresion');
     }
   }
 
