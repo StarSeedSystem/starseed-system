@@ -1,4 +1,7 @@
+
+
 import { describe, it, expect } from "vitest";
+// @ts-ignore
 import { crearSalas } from "../crear-salas";
 
 describe("crearSalas", () => {
