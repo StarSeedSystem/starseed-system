@@ -41,13 +41,13 @@ class Diagnosticar(unittest.TestCase):
                  paso_desde="2026-10-13T21:39:25Z", minutos=31)
         self.assertIsNone(VR.diagnosticar(h, [h], AHORA))
 
-    def test_preparacion_colgada_con_lista_coherente_se_cancela_con_confirmacion(self):
-        """22:41: «setup-node» en curso 10 min con TODO lo de detrás sin empezar (run 38478394570)."""
+    def test_ni_una_lista_coherente_corta(self):
+        """22:41: «setup-node» 10 min con todo lo de detrás sin empezar… y estaba escribiendo."""
         f = fila(paso="Run actions/setup-node@v4", paso_estado="in_progress", pasos_coherentes=True,
                  paso_desde="2026-10-13T21:55:00Z", minutos=16)
         a = VR.diagnosticar(f, [f], AHORA)
-        self.assertEqual(a["tipo"], "preparacion-atascada")
-        self.assertTrue(a["cancelar"] and a["devolver"] and a["confirmar"])
+        self.assertEqual(a["tipo"], "preparacion-larga")
+        self.assertFalse(a["cancelar"])
 
     def test_preparacion_reciente_no(self):
         f = fila(paso="Dependencias y orquestador", paso_estado="in_progress", paso_desde="2026-10-13T22:08:00Z")

@@ -106,6 +106,8 @@ def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
                 fila["paso_estado"] = str(paso.get("estado"))
             if paso.get("coherente") and not paso.get("de_antes"):
                 fila["pasos_coherentes"] = True
+            if paso.get("job_desde"):
+                fila["job_desde"] = str(paso["job_desde"])[:30]
             if paso.get("de_antes"):
                 fila["paso_de_antes"] = True
             if paso.get("hechos") is not None:
@@ -164,7 +166,7 @@ def paso_actual(jobs) -> dict | None:
     n, actual = max(empezados, key=lambda x: x[0]) if empezados else numerados[0]
     return {"nombre": str(actual.get("nombre") or "?"), "desde": actual.get("inicio"), "numero": n,
             "estado": actual.get("estado"), "hechos": hechos, "total": len(pasos),
-            "coherente": pasos_coherentes(numerados, n)}
+            "coherente": pasos_coherentes(numerados, n), "job_desde": vivo.get("inicio")}
 
 
 def pasos_coherentes(numerados, n_actual) -> bool:

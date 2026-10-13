@@ -102,13 +102,10 @@ def diagnosticar(fila, filas, ahora):
             and str(paso).strip().lower() != "set up job"):
         en_paso = _segundos_desde(fila.get("paso_desde"), ahora)
         if en_paso is not None and en_paso > PREPARACION_MAX_S:
-            if fila.get("pasos_coherentes"):
-                # Lista COMPLETA y coherente (todo lo de detrás sin empezar, «Enjambre» incluido): es un
-                # cuelgue de verdad y no se ha escrito nada. Se cancela, pero solo si se CONFIRMA en una
-                # segunda pasada (`actuar` espera ≥ CONFIRMAR_S): una lista vieja no dura dos pasadas.
-                return {"tipo": "preparacion-atascada", "cancelar": True, "devolver": True, "confirmar": True,
-                        "motivo": "lleva %d min en «%s» sin empezar nada más (lo normal es menos de 1 min)"
-                                  % (en_paso // 60, paso)}
+            # (2026-10-13, 22:44, MEDIDO) Ni una lista COMPLETA y coherente basta: el run 38478394570
+            # salió 10 min con «setup-node» en curso y todo lo de detrás sin empezar, y estaba escribiendo
+            # desde las 22:32:47. GitHub sirve fotos viejas de los pasos durante minutos. Con pasos, NUNCA
+            # se corta: el cuelgue real lo cortan los topes por paso del workflow (5, 6 y 12 min).
             return {"tipo": "preparacion-larga", "cancelar": False, "devolver": False,
                     "motivo": "GitHub dice que lleva %d min en «%s» (lo normal es menos de 1 min; el workflow lo "
                               "corta solo)" % (en_paso // 60, paso)}

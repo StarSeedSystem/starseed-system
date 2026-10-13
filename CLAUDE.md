@@ -1300,5 +1300,9 @@ run y el que pasa 30 min sin máquina; devuelve sus tareas sin gastarles un env�
 UNA vez en el Chat Director. Lo que sale de los PASOS (preparación larga, «sin dato del paso», pasado de
 tope) **solo se avisa**: la primera versión cortó a las 16:21 dos runs que escribían porque la lista de
 pasos llegó sin «Enjambre» y el más avanzado era «Claves», hecho hace 35 min. El cuelgue real de las
-dependencias lo corta el workflow (`timeout-minutes: 12`). Genesis enseña el atasco en la tarjeta.
+dependencias lo corta el workflow (topes por paso: checkout 5, setup-node 6, dependencias 12 min). Ni
+una lista COMPLETA y coherente basta: a las 22:44 GitHub dio 10 min «setup-node» en curso con todo lo
+de detrás sin empezar y el job escribía desde las 22:32. Por eso Genesis, si un job lleva más de 24 min
+(la suma de esos topes) y GitHub aún da un paso de preparación, lo cuenta «escribiendo» y lo explica.
+Genesis enseña el atasco en la tarjeta.
 Síntoma: `gh api …/runs/<id>/jobs` con «Set up job=in_progress» y «Enjambre=in_progress» a la vez.

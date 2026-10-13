@@ -812,7 +812,16 @@ export interface RunDeLaNube {
     paso_de_antes?: unknown;
     /** (2026-10-13) Diagnóstico del vigía de runs (`vigia_runs_nube.py`), el mismo con que actúa el director. */
     atasco?: unknown;
+    /** (2026-10-13) Cuándo arrancó el job en una máquina (ISO): sin la espera de la cola. */
+    job_desde?: unknown;
 }
+
+/**
+ * (2026-10-13) Minutos tras los que un job vivo YA pasó la preparación: los topes por paso del
+ * workflow (checkout 5, setup-node 6, dependencias 12) la cortan antes. GitHub sirve fotos viejas
+ * de los pasos durante minutos (22:44: «setup-node» 10 min con el job escribiendo desde las 22:32).
+ */
+export const MINUTOS_TOPE_PREPARACION = 24;
 
 /** (PDA1012) Un trabajador de la nube como latido del medidor «Agentes». */
 export interface AgenteDeLaNube {
@@ -829,6 +838,8 @@ export interface AgenteDeLaNube {
     trabajadores?: number;
     /** (2026-10-13) El atasco que vio el vigía de runs y lo que hace el director con él. */
     atasco?: { tipo: string; motivo: string; cancelar: boolean };
+    /** (2026-10-13) GitHub da un paso de preparación, pero el job lleva más que todos sus topes juntos. */
+    pasoViejo?: boolean;
 }
 
 /** PURA. El atasco de un run tal como lo escribe `vigia_runs_nube.py`, o undefined si no es legible. */
@@ -857,7 +868,7 @@ export function faseDePasoNube(paso: string | undefined): string {
  * texto salía de unos bytes que la nube no manda. El runner no publica qué tarea lleva cada
  * trabajador (sus latidos mueren con él), así que se dicen las de su tanda y no se inventa una.
  */
-export function agentesDeRunsNube(runs: readonly RunDeLaNube[]): AgenteDeLaNube[] {
+export function agentesDeRunsNube(runs: readonly RunDeLaNube[], ahoraMs: number = Date.now()): AgenteDeLaNube[] {
     const fuera: AgenteDeLaNube[] = [];
     for (const r of runs) {
         const n = Number(r.agentes);
@@ -871,10 +882,16 @@ export function agentesDeRunsNube(runs: readonly RunDeLaNube[]): AgenteDeLaNube[
         const nTareas = Array.isArray(r.tareas) ? r.tareas.filter((t) => typeof t === "string" && t).length : 0;
         const tope = Math.min(n, 32, nTareas > 0 ? nTareas : 32);
         const atasco = atascoDeRun(r.atasco);
+        const jobDesde = typeof r.job_desde === "string" ? Date.parse(r.job_desde) : NaN;
+        const pasoViejo =
+            faseDePasoNube(paso) === "preparando" &&
+            Number.isFinite(jobDesde) &&
+            ahoraMs - jobDesde > MINUTOS_TOPE_PREPARACION * 60_000;
         for (let i = 0; i < tope; i += 1) {
             fuera.push({
                 tarea: `nube/${String(r.run)}`,
-                fase: faseDePasoNube(paso),
+                fase: pasoViejo ? "escribiendo" : faseDePasoNube(paso),
+                ...(pasoViejo ? { pasoViejo } : {}),
                 modelo: "nube-gh/trabajador",
                 minutos: Number.isFinite(Number(r.minutos)) ? Number(r.minutos) : 0,
                 donde: "nube-gh",
@@ -1281,6 +1298,8 @@ export interface DatosMedidores {
         latidoHaceS?: number;
         /** (2026-10-13) Nube de GitHub: el atasco que vio el vigía de runs y lo que hace el director. */
         atasco?: { tipo: string; motivo: string; cancelar: boolean };
+        /** (2026-10-13) Nube de GitHub: paso de preparación viejo en un job que ya pasó todos sus topes. */
+        pasoViejo?: boolean;
     }[];
     /**
      * Inventario de contenedores en la nube, tal como lo escribe
@@ -2006,8 +2025,8 @@ export function detalleDeMedidor(
                     : "";
                 if (nubeGh) {
                     // (PDA1012) La nube de GitHub: el paso REAL de su job y las tareas de su tanda.
-                    const f = faseDePasoNube(l.paso);
-                    estado = l.atasco ? "atascado" : f === "escribiendo" ? "escribiendo" : f;
+                    const f = l.pasoViejo ? "escribiendo" : faseDePasoNube(l.paso);
+                    estado = l.atasco?.cancelar ? "atascado" : f === "escribiendo" ? "escribiendo" : f;
                     const tanda = l.tareasDeTanda ?? [];
                     const quien2 = l.trabajador && l.trabajadores ? `trabajador ${l.trabajador} de ${l.trabajadores}` : "trabajador";
                     porque =
@@ -2015,6 +2034,9 @@ export function detalleDeMedidor(
                         (tanda.length
                             ? ` · su tanda: ${tanda.slice(0, 6).join(", ")}${tanda.length > 6 ? ` y ${tanda.length - 6} más` : ""} · qué tarea lleva cada trabajador lo dice su rama al entregar`
                             : " · su cola ya no está en esta neurona") +
+                        (l.pasoViejo
+                            ? ` · GitHub sigue dando «${l.paso}», pero el job lleva más de ${MINUTOS_TOPE_PREPARACION} min en marcha y los topes por paso del workflow cortan la preparación antes: ya escribe`
+                            : "") +
                         (l.atasco
                             ? ` · ATASCO: ${l.atasco.motivo} · ${l.atasco.cancelar ? "el director de la nube lo cancela y devuelve sus tareas sin gastarles un envío" : "el director avisa y no lo corta (puede estar trabajando)"}`
                             : "");

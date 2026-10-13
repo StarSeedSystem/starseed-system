@@ -83,6 +83,24 @@ describe("agentes de la nube de GitHub", () => {
         expect(agentesDeRunsNube([{ ...runs[0], agentes: 4, tareas: [] }])).toHaveLength(4);
     });
 
+    it("(2026-10-13) un paso de preparación en un job que ya pasó sus topes se cuenta como escribiendo", () => {
+        const ahora = Date.parse("2026-10-13T22:44:00Z");
+        const viejo = agentesDeRunsNube(
+            [{ ...runs[0], agentes: 1, paso: "Run actions/setup-node@v4", job_desde: "2026-10-13T22:15:00Z" }],
+            ahora,
+        );
+        expect(viejo[0]).toMatchObject({ fase: "escribiendo", pasoViejo: true });
+        const d = detalleDeMedidor("agentes", { latidos: viejo });
+        expect(d.filas[0].estado).toBe("escribiendo");
+        expect(d.filas[0].porque).toContain("GitHub sigue dando «Run actions/setup-node@v4»");
+        const reciente = agentesDeRunsNube(
+            [{ ...runs[0], agentes: 1, paso: "Run actions/setup-node@v4", job_desde: "2026-10-13T22:40:00Z" }],
+            ahora,
+        );
+        expect(reciente[0].fase).toBe("preparando");
+        expect(reciente[0].pasoViejo).toBeUndefined();
+    });
+
     it("un latido sin bytes medidos no escribe «undefined»", () => {
         const d = detalleDeMedidor("agentes", { latidos: [{ tarea: "X1", fase: "escribiendo", modelo: "nim/kimi", minutos: 2, donde: "nube" }] });
         expect(d.filas[0].porque).not.toContain("undefined");
