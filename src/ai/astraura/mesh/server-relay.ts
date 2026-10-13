@@ -45,6 +45,7 @@ import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-cryp
 // Cifrado POR-DESTINATARIO (v:3): E2E dirigido. Solo el destinatario abre el relé,
 // ni siquiera otra neurona de la cuenta con el llavero compartido (Adenda 124 · #mesh4).
 import { myEncryptionPublicKey, encryptEnvelopeFor, type RecipientEnvelope } from "./recipient-crypto";
+import { filaParaMi } from "./relay-entre-cuentas";
 // Cert de dispositivo firmado por la clave MAESTRA de la cuenta (Adenda 126): re-habilita
 // con seguridad el direccionamiento v:3 POR-DISPOSITIVO cerrando el CRÍTICO de la Adenda 125
 // (device_id sin firmar). Ata {identidad soberana ↔ cuenta ↔ device_id de relé} bajo un ancla
@@ -1375,7 +1376,7 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
       const from = page * FEED_PAGE;
       const res = await supabase
         .from("os_mesh_relay")
-        .select("id, cls, ptype, enc, payload, recipient, device_id, created_at")
+        .select("id, cls, ptype, enc, payload, recipient, device_id, created_at, recipient_owner, owner_id")
         .eq("channel", "relay")
         .eq("kind", "data") // excluye revocation-cert (mismo channel, RLS por owner)
         .gte("created_at", cutoff)
@@ -1398,11 +1399,15 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
         // así una ráfaga de ≥cupo filas excluidas no deja el watermark atascado.
         const at = row.created_at ? Date.parse(String(row.created_at)) : 0;
         if (at > cursorMs) cursorMs = at;
+
+        // NEW: extract fields for filaParaMi
         const recipient = row.recipient ? String(row.recipient) : null;
-        // A mí: sin destinatario (a la cuenta) o dirigido a esta neurona; nunca lo
-        // que yo mismo emití (device_id === me).
-        if (String(row.device_id ?? "") === me) continue;
-        if (recipient && recipient !== me) continue;
+        const recipient_owner = row.recipient_owner ? String(row.recipient_owner) : null;
+        const device_id = row.device_id ? String(row.device_id) : null;
+        const owner_id = row.owner_id ? String(row.owner_id) : null;
+        const fila = { recipient, recipient_owner, device_id, owner_id };
+        if (!filaParaMi(fila, me, owner)) continue;
+
         let body: unknown = row.payload ?? null;
         let locked = false;
         if (row.enc === true) {
@@ -1418,7 +1423,7 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
           cls: (String(row.cls ?? "P2") as TrafficClass),
           ptype: (String(row.ptype ?? "message") as MeshPayloadType),
           body,
-          from: row.device_id ? String(row.device_id) : null,
+          from: device_id,
           at,
           locked,
         });
