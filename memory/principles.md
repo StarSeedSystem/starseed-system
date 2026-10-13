@@ -4,6 +4,27 @@
 
 ---
 
+## 0. Fundamento filosófico: el diamante, la piedra filosofal y la alquimia (Alex, 2026-10-12)
+
+> «El fundamento filosófico de StarSeed es el **diamante en esencia de conciencia**, y la **piedra
+> filosofal** es la estructura y metodología de cada usuario, grupo y comunidad, y en sí de toda la
+> sociedad StarSeed. La **semilla**, o sea el sistema de StarSeed, es la piedra filosofal, y el
+> diamante es el **sistema completo**. La **alquimia de la transformación a oro** es el proceso y
+> desarrollo creativo sociocultural y económicamente ecológico y autosustentable.»
+
+Cómo se lee al diseñar (traducción técnica; las palabras de arriba mandan):
+
+| Símbolo | Es | Pregunta que toda decisión debe pasar |
+|---|---|---|
+| **Diamante** | El sistema completo, con la conciencia como esencia | ¿Esto encaja en el todo (una identidad, una memoria, una red) o lo fragmenta? |
+| **Piedra filosofal = la semilla** | El sistema StarSeed como estructura y metodología propia de cada persona, grupo y comunidad (sus Genesis, PoliGenesis y MetaGenesis, sus enjambres, su interfaz editable) | ¿Cada uno puede darle su propia forma y método sin perder el núcleo común? |
+| **Alquimia → oro** | El proceso: desarrollo creativo, sociocultural, económicamente ecológico y autosustentable | ¿Esto transforma algo en valor creativo y social sin gastar de más (créditos, energía, datos) y puede sostenerse solo? |
+
+El oro no es el lucro (§3.2): es lo que la sociedad crea y sostiene. La malla P2P es la sílice amorfa
+del sistema (`architecture/malla-cristalina-sio2.md`); el diamante es el conjunto.
+
+---
+
 ## 1. Ontocracia — Implicaciones técnicas
 
 ### 1.1 Soberanía Directa

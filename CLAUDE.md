@@ -89,6 +89,8 @@ motor de escritura es un candidato, no un archivo** (un archivo que encoge más 
 
 Toda decisión técnica, de diseño o de producto debe respetar estos tres principios fundacionales. Son **inmutables** salvo para ampliar libertad, nunca para restringir.
 
+**Fundamento filosófico** (Alex, 2026-10-12; desarrollo en `memory/principles.md` §0): el **diamante** en esencia de conciencia es el sistema completo; la **piedra filosofal** —la semilla, el sistema StarSeed— es la estructura y metodología de cada usuario, grupo y comunidad y de toda la sociedad; la **alquimia hacia el oro** es el proceso de desarrollo creativo, sociocultural, económicamente ecológico y autosustentable.
+
 ### 🜂 Ontocracia — El Gobierno del Ser
 - **Soberanía Directa:** El poder de decisión reside en el individuo. No hay representantes intermediarios.
 - **Meritocracia del Entendimiento:** Autoridad técnica asignada por sabiduría aplicada verificable (Sistema de Insignias y Logros), no por riqueza, linaje o popularidad.
