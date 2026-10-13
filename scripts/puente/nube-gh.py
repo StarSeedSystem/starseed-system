@@ -137,6 +137,24 @@ def secretos() -> None:
         print("sin valor en ~/.starseed/env (no se ponen):", ", ".join(faltan))
 
 
+def cola_creada(salida_reparto: str, nuevas) -> str | None:
+    """PURA. La cola que acaba de crear `repartir-a-nube.py`.
+
+    (2026-10-13, medido) Se tomaba la ÚLTIMA entrada nueva de `enjambre/colas/` por orden
+    alfabético. Con otro reparto en el mismo minuto (el A1 o el siguiente job) apareció
+    también `estado-cola-nube-…-2/`, que va detrás de `cola-…` en el alfabeto: el run
+    38344120572 salió con «no existe la cola enjambre/colas/estado-cola-nube-20261012-2156-2»
+    y seis tareas quedaron «reasignada · nube» sin nadie que las hiciera. Ahora manda lo que
+    el reparto dice que creó; si no lo dice, solo cuentan las `cola-*.json` nuevas."""
+    for linea in (salida_reparto or "").splitlines():
+        if linea.startswith("[reparto] cola: "):
+            ruta = linea.split(": ", 1)[1].strip()
+            if ruta.startswith("enjambre/colas/cola-") and ruta.endswith(".json"):
+                return ruta
+    colas = sorted(n for n in (nuevas or ()) if n.startswith("cola-") and n.endswith(".json"))
+    return ("enjambre/colas/" + colas[-1]) if colas else None
+
+
 def lanzar(args: list[str]) -> None:
     tope, trabajadores, minutos, cola, ceder = "6", "3", "300", None, False
     it = iter(args)
@@ -152,10 +170,10 @@ def lanzar(args: list[str]) -> None:
                              + (["--ceder"] if ceder else []),
                              cwd=RAIZ, capture_output=True, text=True).stdout
         print(out.strip()[-300:])
-        nuevas = sorted(set(os.listdir(os.path.join(RAIZ, "enjambre", "colas"))) - antes)
-        if not nuevas:
+        nuevas = set(os.listdir(os.path.join(RAIZ, "enjambre", "colas"))) - antes
+        cola = cola_creada(out, nuevas)
+        if not cola:
             sys.exit("el reparto no creó ninguna cola (¿no hay atraso?)")
-        cola = "enjambre/colas/" + nuevas[-1]
     # (2026-10-04, NUB1004A) Junto a la cola viaja el estado de la Mac (rotación y salud
     # de modelos), saneado de campos con clave, en `enjambre/colas/estado-<cola>/`. Sin él
     # el runner probaba la rotación entera por orden y perdía la hora con modelos sin cuota

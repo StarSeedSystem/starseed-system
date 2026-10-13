@@ -191,6 +191,8 @@ def main():
                                       if any(i in set(cedidas) for i in ids)}
     with open(ruta, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False, indent=1)
+    # Quien lanza (`nube-gh.py lanzar`) lee ESTA línea para saber qué cola subir (2026-10-13).
+    print("[reparto] cola: enjambre/colas/%s" % nombre)
     nuevo = marcar(progreso, [t["id"] for t in elegidas], fecha)
     with open(PROGRESO, "w", encoding="utf-8") as f:
         json.dump(nuevo, f, ensure_ascii=False, indent=1)

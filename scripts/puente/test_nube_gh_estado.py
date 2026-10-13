@@ -73,3 +73,18 @@ class PrepararEstadoParaNube(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ColaCreada(unittest.TestCase):
+    """(2026-10-13) El run 38344120572 subió `estado-cola-…-2` en vez de la cola."""
+
+    def test_manda_lo_que_dice_el_reparto(self):
+        salida = "[reparto] algo\n[reparto] cola: enjambre/colas/cola-nube-20261012-2156-2.json\n"
+        nuevas = {"cola-nube-20261012-2156-2.json", "estado-cola-nube-20261012-2156-2"}
+        self.assertEqual(nube_gh.cola_creada(salida, nuevas), "enjambre/colas/cola-nube-20261012-2156-2.json")
+
+    def test_sin_la_linea_solo_cuentan_las_colas(self):
+        nuevas = {"cola-nube-20261012-2156-2.json", "estado-cola-nube-20261012-2156-2"}
+        self.assertEqual(nube_gh.cola_creada("", nuevas), "enjambre/colas/cola-nube-20261012-2156-2.json")
+        self.assertIsNone(nube_gh.cola_creada("", {"estado-cola-nube-x"}))
+        self.assertIsNone(nube_gh.cola_creada("[reparto] cola: ../../etc/passwd", set()))
