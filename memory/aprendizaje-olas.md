@@ -4358,3 +4358,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1ab` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1ab conservada
 - `RC1013D` — los tipos no compilan: 1 errores tsc (rama ola/RC1013D conservada)
 - `RTRTCOL1012Bdsb` — otra cosa: sin decisión en 0 h; rama ola/RTRTCOL1012Bdsb conservada
+
+## 2026-10-13 20:41 · mg-oracle-1013-1344
+
+**Lo que se pidió.** Alex Bordón Garrigós
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `FS1013B` — otra cosa: sin decisión en 0 h; rama ola/FS1013B conservada
