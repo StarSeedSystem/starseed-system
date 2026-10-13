@@ -50,7 +50,8 @@ class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.olas = self.tmp.name
-        for nombre, lineas in (("progreso.json", 1), ("cola-a.json", 1), ("ola-x.jsonl", 300)):
+        for nombre, lineas in (("progreso.json", 1), ("cola-a.json", 1), ("ola-x.jsonl", 300),
+                               ("progreso.md", 300), ("recorte-log.txt", 300)):
             with open(os.path.join(self.olas, nombre), "w", encoding="utf-8") as f:
                 if nombre.endswith(".json"):
                     json.dump({"prueba": nombre}, f)
@@ -74,6 +75,13 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+    def test_md_viaja_integro_y_txt_log_se_recorta(self):
+        # Los que no son log pasan completos; «log» en el nombre también recorta.
+        with self._tar(["progreso.md", "recorte-log.txt"]) as tar:
+            self.assertEqual(sorted(tar.getnames()), ["progreso.md", "recorte-log.txt"])
+            self.assertEqual(tar.extractfile("progreso.md").read().decode().count("\n"), 300)
+            self.assertEqual(tar.extractfile("recorte-log.txt").read().decode().count("\n"),
+                             espejo_estado.LOG_LINEAS)
 
 
 class PruebasEnviarEstado(unittest.TestCase):
