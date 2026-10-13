@@ -1,0 +1,60 @@
+{
+ "ola": "oracle-20261012",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "RTFS1013A",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Fundamento: contenido único (palabras de Alex) y sus tres preguntas",
+   "archivos": [
+    "src/lib/fundamento/__tests__/fundamento.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea FS1013A («Fundamento: contenido único (palabras de Alex) y sus tres preguntas») se hizo en main por otro camino; su rama nube/a1-20261013-035007-FS1013A queda archivada en `refs/archivo/nube/a1-20261013-035007-FS1013A` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.93)\n\nTU TAREA (RTFS1013A · solo estos archivos: src/lib/fundamento/__tests__/fundamento.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/fundamento/__tests__/fundamento.test.ts\n  it(\"should have the correct source\", () => {\n    expect(FUENTE).toBe(\"memory/principles.md §0\");\n  });\n\n# src/lib/fundamento/__tests__/fundamento.test.ts\n  it(\"should contain the required phrases in the citation\", () => {\n    expect(CITA_FUNDAMENTO).toContain(\"diamante en esencia de conciencia\");\n    expect(CITA_FUNDAMENTO).toContain(\"piedra filosofal\");\n    expect(CITA_FUNDAMENTO).toContain(\"alquimia\");\n    expect(CITA_FUNDAMENTO).toContain(\"autosustentable\");\n  });\n\n# src/lib/fundamento/__tests__/fundamento.test.ts\n  it(\"should have exactly three symbols\", () => {\n    expect(SIMBOLOS).toHaveLength(3);\n  });\n\n# src/lib/fundamento/__tests__/fundamento.test.ts\n  it(\"each symbol should have a pregunta\", () => {\n    SIMBOLOS.forEach((symbol) => {\n      expect(symbol.pregunta).toBeTypeOf(\"string\");\n      expect(symbol.pregunta.length).toBeGreaterThan(0);\n    });\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "FS1013A",
+    "rama": "nube/a1-20261013-035007-FS1013A"
+   }
+  },
+  {
+   "id": "PG1013A",
+   "ola": "Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · PoliGenesis · MetaGenesis)",
+   "titulo": "ProtoGenesis: encargo, plan de pasos y su validación",
+   "archivos": [
+    "src/lib/protogenesis/encargo.ts",
+    "src/lib/protogenesis/__tests__/encargo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/protogenesis.md (léelo entero) y architecture/protomolecula.md §3, §7 y §8. Tipos de la Protomolécula SIEMPRE de src/lib/protomolecula/tipos.ts (Molecula, Ambito, Operacion, Cambio, EstadoValores, Computo, ReferenciaEntidad). Exporta `TIPOS_CRITERIO = ['formato','duracion-max','tamano-max','sin-secretos','capas-presentes','persona'] as const`, `interface Criterio {tipo; valor?: string | number; texto: string}`, `interface Encargo {id; moleculaId; ambito: Ambito; entidadId?: string; intencion: string; criterios: Criterio[]; autor: {tipo: 'persona' | 'agente'; id: string}; origen: 'texto' | 'dictado' | 'agente'; creadoEn: number}`, `interface Paso {id; atomo: string; titulo: string; entradas: string[]; salida: {formato: string}; depende: string[]; criterios: Criterio[]; computo?: Computo}`, `interface Plan {encargoId; pasos: Paso[]}`, `LIMITES = {pasos: 24, agentes: 8, intentos: 2, intencion: 2000}`. `validarEncargo(x: unknown): {ok: true; encargo} | {ok: false; errores: string[]}` (sin criterios → error «sin criterios comprobables no hay encargo»). `validarPlan(plan, ctx: {existeAtomo: (id) => 'si' | 'solo-enlace' | 'no'; hayConversion: (de: string, a: string) => boolean; formatoDe: (entrada: string) => string | null})`: {ok; errores: string[]; avisos: string[]} con: ids únicos, depende a pasos existentes, SIN ciclos (indica el ciclo), ≤ 24 pasos, átomo 'no' → error, 'solo-enlace' → aviso «próximamente», y para cada entrada que es la salida de otro paso, si el formato no coincide y no hay conversión → aviso «falta conversor de X a Y». Pruebas de cada regla."
+  },
+  {
+   "id": "TIP1013B",
+   "ola": "Ola 1012Q · Malla de sílice: routers portátiles como titanio móvil, con SIM o sin ella, y puertas a internet opcionales",
+   "titulo": "Puertas a internet opcionales: modelo, permisos, coste y elección con histéresis",
+   "archivos": [
+    "src/lib/malla/cristal/puertas-internet.ts",
+    "src/lib/malla/cristal/__tests__/puertas-internet.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/malla-cristalina-sio2.md §8 y §8.1 (léela entera). Usa `ClaseDato` de src/lib/malla/cristal/tipos.ts. Exporta `TIPOS_PUERTA = ['movil-4g','movil-5g','wifi-externa','usb-telefono','cable','satelite'] as const`, `COMPARTIR = ['nadie','mi-cuenta','vinculos','grupo','publico'] as const`, `interface PuertaInternet {id; neurona; cuenta; tipo; bajadaKbps; subidaKbps; latenciaMs; medida: boolean; topeMensualMb?: number; usadoMesMb?: number; reservaDuenoPct?: number; compartir; grupos?: string[]}` (reserva por defecto 20), `interface Solicitante {cuenta: string; vinculado: boolean; grupos: string[]}`; `restanteParaOtrosMb(p)` (null si no es medida o sin tope); `puedeUsar(p, s): {ok: boolean; motivo: string}` (el dueño siempre hasta su tope; los demás según `compartir` y solo si queda restante para otros); `costePuerta(p): number` determinista (latencia y ancho; medida ×2; uso > 80 % del tope ×3); `elegirPuerta(e: {clase: ClaseDato; necesitaInternet: boolean; puertas: PuertaInternet[]; solicitante: Solicitante; actual?: string}): {puerta: PuertaInternet | null; motivo: string}`: sin necesitaInternet → null con «va por la malla P2P: no necesita salir a internet»; si no, la permitida de menor coste (desempate por id), conservando `actual` si su coste ≤ mejor × 1.2; ninguna → null con motivo. `puertaParaTesela(p)` devuelve SOLO los campos de la interfaz (lista blanca): aunque el objeto traiga iccid, imsi, pin o telefono, no salen. Pruebas de cada regla, de la histéresis y de la lista blanca.",
+   "dependencias_ya_en_main": [
+    "MC1012A"
+   ]
+  },
+  {
+   "id": "MC1013TA",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): routers mesh como titanio (Ti⁴⁺) que fija la red",
+   "titulo": "Titanio: reglas puras de los routers mesh en la retícula amorfa",
+   "archivos": [
+    "src/lib/malla/cristal/titanio.ts",
+    "src/lib/malla/cristal/__tests__/titanio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/malla-cristalina-sio2.md §1, fila «Titanio (Ti⁴⁺) en la sílice» (léela) y §8. Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window`; nada de `any`; comentarios en español; pruebas vitest; no toques archivos fuera de la lista. Exporta `COORDINACION_TITANIO = 6`, `MARGEN_TITANIO = 0.30`, `esTitanio(n: NeuronaReticula): boolean` (= esRouter === true); `temperaturaAmortiguada(t: number, vecinosTi: number, vecinos: number): number` (cada vecino titanio reduce la temperatura proporcionalmente: t × (1 − 0.6 × vecinosTi / max(1, vecinos)); un titanio mismo tiene como mucho 0.2); `margenDePuente(margenBase: number, aEsTi: boolean, bEsTi: boolean): number` (si alguno es Ti → MARGEN_TITANIO); `bonusTroncal(medio: Medio, aEsTi: boolean, bEsTi: boolean): number` (entre dos Ti por 'wifi-mesh' resta 0.15 al coste; si no, 0); `teselaDeRouter(e: {routerId: string; cuenta: string; adoptadoPor: string; troncales: Array<{a: string; b: string; rssiDbm?: number; anchoBandaKbps?: number; frecuenciaMhz?: number; anchoCanalMhz?: number}>; reloj: number; ahora: number}): Tesela` (neurona con esRouter true, medios ['wifi-mesh'], capacidad {ramGb: 0.25, bateriaPct: null, cargando: true}; una señal 'wifi-mesh' por troncal que toque a ese router; la tesela la firmará la neurona que lo adoptó, aquí sin firma). Pruebas de cada función y de que teselaDeRouter solo incluye sus troncales.",
+   "dependencias_ya_en_main": [
+    "MC1012A"
+   ]
+  }
+ ]
+}
