@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261012",
+ "tareas": [
+  {
+   "id": "MC1012H",
+   "titulo": "Malla cristalina: viabilidad de cada dato por cada señal (privacidad incluida)",
+   "archivos": [
+    "src/lib/malla/cristal/viabilidad.ts",
+    "src/lib/malla/cristal/__tests__/viabilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §3.1 del contrato. Exporta `interface Viabilidad {valor: number; apto: boolean; motivo: string}` y `viabilidad(dato: Dato, s: SenalMedida, ctx: {cuentaDe: (neuronaId: string) => string | null; bateriaPct?: number | null; cifradoE2E: boolean}): Viabilidad`. Vetos (apto false, valor 0, motivo claro en español): 'interno' si alguna punta no es de la misma cuenta que el origen; 'privado' o 'interno' sin cifradoE2E; 'lora' con bytes > 200 × 8 o tipo 'llamada'; 'nfc' con bytes > 32768; 'servidor' para 'privado'/'interno' solo si cifradoE2E (si no, veto). Valor = calidadSenal × factor de prioridad (P0 premia latencia, P3 premia ancho) × 0.6 si el medio es 'servidor' y la clase no es 'publico' × 0.8 si batería < 20 y el medio es de alto consumo (wifi-lan, webrtc). Pruebas por cada veto y orden relativo esperado (un mensaje privado P0 de 120 B prefiere wifi-lan a servidor; uno de 5 MB nunca va por lora).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012A",
+    "MC1012E"
+   ]
+  }
+ ]
+}
