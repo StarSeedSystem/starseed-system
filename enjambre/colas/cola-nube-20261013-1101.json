@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261013",
+ "tareas": [
+  {
+   "id": "RTRTRTS1010-EV-ORACLE-1ac",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas",
+   "archivos": [
+    "src/lib/estaciones/__tests__/rele-salas.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRTS1010-EV-ORACLE-1ac («Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas») se hizo en main por otro camino; su rama nube/a1-20261013-155232-RTRTS1010-EV-ORACLE-1ac queda archivada en `refs/archivo/nube/a1-20261013-155232-RTRTS1010-EV-ORACLE-1ac` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.94)\n\nTU TAREA (RTRTRTS1010-EV-ORACLE-1ac · solo estos archivos: src/lib/estaciones/__tests__/rele-salas.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería permitir entrar con tema válido y dentro de límites', () => {\n    const salas = crearSalas({ maxSalas: 2, maxPorSala: 2, maxBytes: 100 });\n    const tema = 'estacion-vivo:ABCDEF1234';\n    const conexion = {};\n    const result = salas.entrar(tema, conexion);\n    expect(result.ok).toBe(true);\n    expect(salas.presencia(tema)).toBe(1);\n    expect(salas.temaDe(conexion)).toBe(tema);\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería rechazar tema inválido', () => {\n    const salas = crearSalas();\n    const conexion = {};\n    // Tema demasiado corto\n    let result = salas.entrar('estacion-vivo:ABC', conexion);\n    expect(result.ok).toBe(false);\n    expect(result.motivo).toBe('Tema inválido');\n    // Tema con formato incorrecto\n    result = salas.entrar('estacion-vivo', conexion);\n    expect(result.ok).toBe(false);\n    expect(result.motivo).toBe('Tema inválido');\n    // Tema sin prefijo\n    result = salas.entrar('otro-tema:ABCDEF1234', conexion);\n    expect(result.ok).toBe(false);\n    expect(result.motivo).toBe('Tema inválido');\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería alcanzar límite de salas', () => {\n    const salas = crearSalas({ maxSalas: 2, maxPorSala: 100, maxBytes: 100 });\n    // Llenar hasta el límite\n    for (let i = 0; i < 2; i++) {\n      const tema = `estacion-vivo:Tema${i}12345678`;\n      const conexion = {};\n      const result = salas.entrar(tema, conexion);\n      expect(result.ok).toBe(true);\n    }\n    // Intentar agregar una nueva sala\n    const conexionNueva = {};\n    const result = salas.entrar('estacion-vivo:TemaNuevo12345678', conexionNueva);\n    expect(result.ok).toBe(false);\n    expect(result.motivo).toBe('Límite de salas alcanzado');\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería alcanzar límite de conexiones por sala', () => {\n    const salas = crearSalas({ maxSalas: 100, maxPorSala: 2, maxBytes: 100 });\n    const tema = 'estacion-vivo:Tema112345678';\n    // Llenar la sala hasta el límite\n    for (let i = 0; i < 2; i++) {\n      const conexion = {};\n      const result = salas.entrar(tema, conexion);\n      expect(result.ok).toBe(true);\n    }\n    // Intentar agregar una conexión más\n    const conexionExtra = {};\n    const result = salas.entrar(tema, conexionExtra);\n    expect(result.ok).toBe(false);\n    expect(result.motivo).toBe('Límite de conexiones por sala alcanzado');\n  });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n  it('debería salir correctamente', () => {\n    const salas = crearSalas();\n    const tema = 'estacion-p:Tema12345678';\n    const conexion1 = {};\n    const conexion2 = {};\n    salas.entrar(tema, conexion1);\n    salas.entrar(tema, conexion2);\n    expect(salas.presencia(tema)).toBe(2);\n    salas.salir(conexion1);\n    expect(salas.presencia(tema)).toBe(1);\n    expect(salas.temaDe(conexion1)).toBeUndefined();\n    expect(salas.temaDe(conexion2)).toBe(tema);\n    salas.salir(conexion2);\n    expect(salas.presencia(tema)).toBe(0);\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "RTRTS1010-EV-ORACLE-1ac",
+    "rama": "nube/a1-20261013-155232-RTRTS1010-EV-ORACLE-1ac"
+   }
+  },
+  {
+   "id": "MC1012H",
+   "titulo": "Malla cristalina: viabilidad de cada dato por cada señal (privacidad incluida)",
+   "archivos": [
+    "src/lib/malla/cristal/viabilidad.ts",
+    "src/lib/malla/cristal/__tests__/viabilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §3.1 del contrato. Exporta `interface Viabilidad {valor: number; apto: boolean; motivo: string}` y `viabilidad(dato: Dato, s: SenalMedida, ctx: {cuentaDe: (neuronaId: string) => string | null; bateriaPct?: number | null; cifradoE2E: boolean}): Viabilidad`. Vetos (apto false, valor 0, motivo claro en español): 'interno' si alguna punta no es de la misma cuenta que el origen; 'privado' o 'interno' sin cifradoE2E; 'lora' con bytes > 200 × 8 o tipo 'llamada'; 'nfc' con bytes > 32768; 'servidor' para 'privado'/'interno' solo si cifradoE2E (si no, veto). Valor = calidadSenal × factor de prioridad (P0 premia latencia, P3 premia ancho) × 0.6 si el medio es 'servidor' y la clase no es 'publico' × 0.8 si batería < 20 y el medio es de alto consumo (wifi-lan, webrtc). Pruebas por cada veto y orden relativo esperado (un mensaje privado P0 de 120 B prefiere wifi-lan a servidor; uno de 5 MB nunca va por lora).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012A",
+    "MC1012E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "MC1012H",
+   "RTRTRTS1010-EV-ORACLE-1ac"
+  ]
+ }
+}
