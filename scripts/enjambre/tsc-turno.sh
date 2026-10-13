@@ -156,7 +156,7 @@ if [ -n "$HASH_AHORA" ] && [ "$HASH_AHORA" = "${CACHE_HASH:-}" ] && [ "${CACHE_R
 fi
 
 echo "tsc-turno: turno tomado (pid $$), compilando…" >&2
-NODE_OPTIONS=--max-old-space-size=2560 npx tsc --noEmit --skipLibCheck
+NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --skipLibCheck
 RC=$?
 if [ -n "$HASH_AHORA" ]; then
     printf '%s\n%s\n' "$HASH_AHORA" "$RC" > "$CACHE"
