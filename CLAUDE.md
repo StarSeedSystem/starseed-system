@@ -1251,3 +1251,26 @@ los 3 min fue peor (eran lentas, no colgadas, y se juntaban): a los 15 min. Sín
 de `/api/mando/estado` > 50 s con `sysctl kern.memorystatus_vm_pressure_level` en 2 y un
 `starseed-wt/_traer/*/node_modules/.bin/tsc` vivo. Pendiente: que `comprobar_en_a1.py` funcione de verdad (el
 A1 no tiene el main de la Mac ni `node_modules` en su worktree temporal) y adelgazar el estado (3,4 MB).
+
+### 19. El tsc de lo que trae la nube lo paga el A1, no la Mac · y Genesis no manda 3 MB por sondeo (2026-10-13)
+
+`traer_nube` compilaba EN LA MAC cada tarea de la nube con TypeScript: con la presión de memoria en
+aviso, el tsc moría por memoria (`FATAL ERROR … heap out of memory`, en el registro solo se veía la
+pila `…ExecutionCallbackInfo const&)> [node]`) y Genesis dejaba de responder. `comprobar_en_a1.py`
+(TRA1012A) existía pero nunca funcionó. Ahora la Mac empaqueta el `HEAD` ya cherry-pickeado sobre
+el main suyo que el A1 YA tiene (`refs/mac/main`) y `comprobar_a1_remoto.py` lo comprueba allí en un
+clon `--shared` aparte (nunca un worktree del repo del A1: los borra al acabar cada cola), con
+`node_modules` enlazado solo si el lock coincide, 5 GB libres como mínimo, el turno de lo pesado del
+A1 sin forzar el de otro y tsc con 4096 MB (con 3072 muere: medido). Medido: tsc + vitest related +
+pytest en verde en 273 s. Todo fallo de la máquina es «del medio» (la Mac comprueba ella si su
+memoria lo permite, o en la próxima pasada; nunca una sucesora). En el A1 hace falta `python3-pytest`.
+
+`/api/mando/estado` pesaba 3,1-3,5 MB por sondeo: el Markdown de 657 informes, la descripción de
+992 tareas y, sin bus, la bitácora de relevo ENTERA (1.637 eventos). Por defecto viaja ligero
+(`src/lib/mando/estado-ligero.ts`: 30 informes sin Markdown, tareas sin descripción, 40 eventos, los
+más nuevos primero) y solo el panel de olas pide `?completo=1`. Síntoma para reconocerlo: `curl -s
+-o /dev/null -w '%{size_download}' localhost:9002/api/mando/estado` por encima de 1 MB.
+
+FreeLLMAPI vive también en el A1, SOLO en 127.0.0.1:3001 (`oracle_nodo.py freellmapi`,
+`a1_freellmapi.py`; claves leídas de su `~/.starseed/env`, ninguna escrita; servicio
+`starseed-freellmapi`), y el A1 pasa a 3 trabajadores y colas de 6 tareas.
