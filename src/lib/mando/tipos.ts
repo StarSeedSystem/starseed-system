@@ -259,6 +259,8 @@ export interface EstadoMando {
      * que relanzarlo (`setsid -f python3 -u ~/starseed-vigia/lanzador.py`).
      */
     ordenesSinAtender?: Array<{ id: string; t: string; tipo: string; tarea: string; texto: string }>;
+    /** Sin `?completo=1` los informes viajan sin `markdown` ("") y las tareas sin `descripcion` ni
+     *  `archivos` (`estado-ligero.ts`): 3,1 MB → ~0,6 MB por sondeo. */
     informes: InformeOla[];
     uso: ProveedorUso[];
     revisiones: RevisionRef[];
@@ -266,4 +268,6 @@ export interface EstadoMando {
     /** Veredictos de las tareas atascadas (Ola 343): la fuente de datos del botón
      * «Reintentar con cambio inteligente». Vacío si el archivo no existe. */
     veredictos: VeredictoTarea[];
+    /** true si es la vista ligera (sin los textos largos de informes y tareas). */
+    ligero?: boolean;
 }

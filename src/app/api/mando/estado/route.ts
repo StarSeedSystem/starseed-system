@@ -22,6 +22,7 @@ import type { CuentasTareas, EstadoMando, EventoRelevo, RepoInfo } from "@/lib/m
 import { guardianMando } from "@/lib/mando/guardian";
 import { ramificacionCompartida } from "@/lib/mando/ramificacion-compartida";
 import { compartirCalculo } from "@/lib/mando/calculo-compartido";
+import { quiereEstadoCompleto, textoEstado } from "@/lib/mando/estado-ligero";
 import {
     leerColas,
     colaInteligente,
@@ -105,7 +106,11 @@ export async function GET(request: Request): Promise<Response> {
     if (veto) return veto;
 
     const estado = await estadoCompartido();
-    return Response.json(estado, { headers: { "Cache-Control": "no-store" } });
+    // (2026-10-13) Ligero por defecto: 3,1 MB por sondeo eran sobre todo informes y descripciones
+    // que solo enseña el panel de olas, que pide `?completo=1` (`estado-ligero.ts`).
+    return new Response(textoEstado(estado, quiereEstadoCompleto(request.url)), {
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+    });
 }
 
 /**

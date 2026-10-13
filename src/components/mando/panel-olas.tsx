@@ -371,7 +371,8 @@ export function PanelOlas() {
         setCargando(true);
         setError(null);
         try {
-            const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
+            // El único panel que enseña el Markdown de los informes y la descripción de las tareas.
+            const respuesta = await fetch("/api/mando/estado?completo=1", { cache: "no-store" });
             if (!respuesta.ok) {
                 setError("Genesis no está disponible (solo funciona en local).");
                 setEstado(null);
