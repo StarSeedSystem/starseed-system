@@ -52,6 +52,23 @@ describe("malla-directa", () => {
       expect(enviarMensaje).toHaveBeenNthCalledWith(2, { enlaceId: "link2" }, "estacion", faroDeEstacion(estacion));
       expect(enviarMensaje).toHaveBeenNthCalledWith(3, { enlaceId: "link3" }, "estacion", faroDeEstacion(estacion));
     });
+
+    it("anuncia con dependencias inyectadas: dos enlaces bien y un tercero falla (enviados = 2)", async () => {
+      const resultados: Array<{ ok: boolean; enlace?: { id: string } }> = [
+        { ok: true, enlace: { id: "en-1" } },
+        { ok: true, enlace: { id: "en-2" } },
+        { ok: false },
+      ];
+      let idx = 0;
+      const r = await anunciarPorEnlacesDirectos(createMockEstacion(), {
+        enlaces: async () => [{ id: "en-1" }, { id: "en-2" }, { id: "en-3" }],
+        enviar: async () => resultados[idx++],
+      });
+      expect(r.enviados).toBe(2);
+      expect(r.enlaces).toEqual(["en-1", "en-2"]);
+      expect(enlacesLocalesVivos).not.toHaveBeenCalled();
+      expect(enviarMensaje).not.toHaveBeenCalled();
+    });
   });
   describe("escucharEstacionesDirectas", () => {
     it("should call cb with valid faro and ignore invalid when deps provided", () => {
