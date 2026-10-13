@@ -104,6 +104,66 @@ function queFalta(plan: PlanAvatar): string {
   return necesita ?? paso.motivo;
 }
 
+// ─── Conexión con el registro de neuronas que ya existe ──────────────────────
+
+/** Lo que el registro (`neuron_devices.capabilities`, ver `src/lib/neurons/neurons.ts`) mide de verdad. */
+export interface HierroMedido {
+  platform?: string;
+  gpuVendor?: string;
+  gpuRenderer?: string;
+  /** `navigator.deviceMemory`: en el navegador está topada a 8 GB; 0/sin dato = no medida. */
+  memoryGb?: number;
+}
+
+const txtHierro = (v: unknown): string => (typeof v === "string" ? v.toLowerCase() : "");
+
+/**
+ * Traduce lo MEDIDO a un `Hierro` sin inventar nada («basta de ilusiones»): el navegador no ve la VRAM
+ * ni Blender, así que salen `null`/`false`; sin señal de NVIDIA/Apple se da el hierro más modesto (`ninguna`),
+ * que nunca promete generar. El permiso de Space (§5 del contrato) solo lo activa la app cuando la persona
+ * lo ha dado; aquí queda en falso.
+ */
+export function hierroDeCapacidades(caps: HierroMedido): Hierro {
+  const gpu = `${txtHierro(caps.gpuVendor)} ${txtHierro(caps.gpuRenderer)}`;
+  return {
+    gpu: gpu.includes("nvidia") ? "nvidia"
+      : gpu.includes("apple") && txtHierro(caps.platform).includes("mac") ? "apple"
+      : "ninguna",
+    ramGB: typeof caps.memoryGb === "number" && Number.isFinite(caps.memoryGb) ? Math.max(0, caps.memoryGb) : 0,
+    vramGB: null, blender: false, permiteEspacioHf: false, claveExterna: false,
+  };
+}
+
+/** El hierro medido ya explicado: sus `capacidadesDe(hierro)` y, en palabras, si puede generar y por qué. */
+export function analizarCapacidades(caps: HierroMedido): { hierro: Hierro; capacidades: readonly string[]; motivo: string } {
+  const hierro = hierroDeCapacidades(caps);
+  const capacidades = capacidadesDe(hierro);
+  if (capacidades.includes("cuda-16gb") || capacidades.includes("apple-silicon-32gb")) {
+    return { hierro, capacidades, motivo: "puede generar aquí" };
+  }
+  const falta = hierro.gpu === "apple"
+    ? `es Apple Silicon con ${hierro.ramGB} GB: generar pide 32 GB unificados`
+    : hierro.gpu === "nvidia" ? "tiene NVIDIA pero la VRAM no está medida" : "no tiene GPU medida";
+  return { hierro, capacidades, motivo: `no puede generar aquí (${falta}); sirve para remallar y optimizar` };
+}
+
+/**
+ * La última `mg_latido` de un medio (bus de MetaGenesis, `remoto-nodos.ts`) traducida a `NeuronaTaller`:
+ * lee `capacidades_taller` con `capacidadesDeRegistro`; null si el medio aún no publicó su bloque.
+ */
+export function neuronaTallerDeLatido(
+  datos: Record<string, unknown> | null | undefined,
+  extra: { cuenta?: string | null; ofrecidaPor?: readonly string[]; carga?: number; viva?: boolean } = {},
+): NeuronaTaller | null {
+  const caps = capacidadesDeRegistro(datos);
+  const id = typeof datos?.nodo === "string" ? (datos.nodo as string) : "";
+  if (!caps || !id) return null;
+  return {
+    id, cuenta: extra.cuenta ?? null, ofrecidaPor: extra.ofrecidaPor ?? [],
+    hierro: caps.hierro, carga: extra.carga ?? 0, viva: extra.viva ?? true,
+  };
+}
+
 /** «propia» si es de la cuenta; «ofrecida» si la ofreció un grupo o comunidad de quien encarga; si no, null. */
 export function vinculo(n: NeuronaTaller, e: EncargoTaller): "propia" | "ofrecida" | null {
   if (e.cuenta && n.cuenta === e.cuenta) return "propia";

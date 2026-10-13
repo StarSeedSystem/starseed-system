@@ -53,6 +53,9 @@ import { pantallaDe } from "@/lib/neurons/huella";
 import { huellaMaquina } from "@/lib/neurons/maquina";
 import { neuronaVigente } from "@/lib/neurons/fusion-alias";
 import { LISTA_REGISTRO_CON_PUERTA_MS, fundirVivas, latirNeuronaPorPuerta, vivasDeLaPuerta } from "@/lib/neurons/neuronas-puerta";
+// (G3D1011D · contrato avatares-3d §11) Reparto del taller 3D entre neuronas: la publicación de
+// capacidades y la traducción del hierro medido viven en el adaptador puro `reparto-taller`.
+import { capacidadesParaRegistro, hierroDeCapacidades, type CapacidadesTaller } from "@/lib/avatares/adaptadores/reparto-taller";
 import { adoptarNeurona } from "@/lib/network/identidad-dispositivo";
 
 export const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
@@ -117,6 +120,12 @@ export interface NeuronCapabilities {
     /** true si el backend reporta binario BitNet compilado. */
     bitnet?: boolean;
   };
+  /**
+   * (G3D1011D · contrato §11) Bloque de capacidades del taller 3D: va dentro del JSON
+   * `capabilities` que YA existe en `neuron_devices` (sin migración) y lo publica la neurona
+   * UNA vez con cada ficha, igual que el resto del hierro medido (`capacidadesParaRegistro`).
+   */
+  taller3d?: CapacidadesTaller;
   /** (2026-10-09) Pantalla «AxB@dpr» con los lados ordenados: la ven igual todos los medios del aparato. */
   pantalla?: string;
   /** (2026-10-09) Zona horaria IANA del aparato. */
@@ -563,6 +572,11 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
       capabilities.medios = { [mid]: { ...registro, visto: new Date().toISOString() } };
     }
   } catch { /* sin medio */ }
+  // Taller 3D (G3D1011D): las capacidades del taller viajan con la ficha que ya se sube al
+  // arrancar y cada `LATIDOS_POR_FICHA` latidos — es «una vez al arrancar y cuando el hierro cambia».
+  try {
+    capabilities.taller3d = capacidadesParaRegistro(hierroDeCapacidades(capabilities));
+  } catch { /* sin taller */ }
   const prefs = readPrefs();
   const name = prefs.names[id] || defaultName(capabilities, kind);
   const perms = permissionsFor(id);
