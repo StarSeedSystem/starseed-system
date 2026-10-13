@@ -158,6 +158,8 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
         nodos: vivos.map((vivo, i) => ({
             nodo: `n${i}`, medio: "mac", etiqueta: "", modo: "real", vivo, lider: false, hace_ms: null, puntos: null,
             orquestadores: [], caidos: [], disco_gb: null, ram_libre_mb: null, trabajo: {},
+            enCurso: [],
+            contenedor: null,
         })),
     });
 
