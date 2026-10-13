@@ -465,19 +465,24 @@ def _puertas(base_sha, shas, cambiados, cwd=None):
     # `from . import comprobar_en_a1` DENTRO de este mismo módulo, que corre como guion: NameError
     # en cada tarea con TS y traer_nube caído otra vez (§15 de CLAUDE.md). El A1 es un extra: si
     # su comprobación falla por lo que sea, se comprueba aquí.
+    # (2026-10-13) Al A1 se le manda la carpeta `cwd` (HEAD ya cherry-pickeado): lo empaqueta
+    # sobre el main de la Mac que el A1 ya tiene y lo comprueba en un clon aparte.
     if archivos_ts(cambiados):
+        motivo_a1 = ""
         try:
             if DIRECTORIO not in sys.path:
                 sys.path.insert(0, DIRECTORIO)
             import comprobar_en_a1
 
-            ok, detalle, del_medio = comprobar_en_a1.comprobar(base_sha, shas, cambiados, timeout=900)
+            ok, detalle, del_medio = comprobar_en_a1.comprobar(base_sha, shas, cambiados, timeout=900, cwd=cwd)
             if not del_medio:
                 return ok, detalle
-        except Exception:  # noqa: BLE001
-            pass
+            motivo_a1 = detalle
+        except Exception as e:  # noqa: BLE001
+            motivo_a1 = "A1: %s" % type(e).__name__
         if not tsc_cabe_aqui(presion_memoria()):
-            return False, "la Mac no tiene memoria para un tsc completo ahora (presión en aviso): en la próxima pasada"
+            return False, ("la Mac no tiene memoria para un tsc completo ahora (presión en aviso): en la próxima pasada"
+                           + (" (%s)" % motivo_a1[:160] if motivo_a1 else ""))
 
     # Local check (original logic)
     import contextlib
@@ -542,7 +547,8 @@ def _traer(fila, espera_integrar_s=60):
         cambiados_list = [c for c in cambiados.splitlines() if c.strip()]
         ok, detalle = _puertas(base_sha=orig, shas=shas, cambiados=cambiados_list, cwd=wt)
         if not ok:
-            return False, "en la Mac no pasa: " + detalle, es_fallo_del_medio(detalle)
+            donde = "no pasa " if detalle.startswith("en el A1") else "en la Mac no pasa: "
+            return False, donde + detalle, es_fallo_del_medio(detalle)
         propios = [c for c in cambiados.splitlines() if c.strip()]
         _, nuevo = _git_en(wt, ["rev-parse", "HEAD"])
         try:

@@ -35,6 +35,19 @@ class TscConPresion(unittest.TestCase):
             self.assertEqual(T._puertas("abc", ["def"], ["src/lib/x.ts"], cwd="/tmp"), (True, "verde en el A1"))
         correr.assert_not_called()
 
+    def test_al_a1_se_le_da_la_carpeta_y_su_motivo_se_dice(self):
+        a1 = mock.Mock()
+        a1.comprobar.return_value = (False, "A1: el A1 está compilando (turno ocupado)", True)
+        with mock.patch.dict(sys.modules, {"comprobar_en_a1": a1}), \
+                mock.patch.object(T, "presion_memoria", return_value=2), \
+                mock.patch.object(T, "_correr_en") as correr:
+            ok, detalle = T._puertas("abc", ["def"], ["src/lib/x.ts"], cwd="/tmp/traer-x")
+        self.assertEqual(a1.comprobar.call_args.kwargs.get("cwd"), "/tmp/traer-x")
+        self.assertFalse(ok)
+        self.assertIn("turno ocupado", detalle)
+        self.assertTrue(T.es_fallo_del_medio(detalle))
+        correr.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
