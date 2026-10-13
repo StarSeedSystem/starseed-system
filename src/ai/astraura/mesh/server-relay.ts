@@ -45,7 +45,7 @@ import { encryptEnvelope, decryptEnvelope, type EncEnvelope } from "./relay-cryp
 // Cifrado POR-DESTINATARIO (v:3): E2E dirigido. Solo el destinatario abre el relé,
 // ni siquiera otra neurona de la cuenta con el llavero compartido (Adenda 124 · #mesh4).
 import { myEncryptionPublicKey, encryptEnvelopeFor, type RecipientEnvelope } from "./recipient-crypto";
-import { filaParaMi } from "./relay-entre-cuentas";
+import { cuentaDestino, motivoNoSubida, filaParaMi } from "./relay-entre-cuentas";
 // Cert de dispositivo firmado por la clave MAESTRA de la cuenta (Adenda 126): re-habilita
 // con seguridad el direccionamiento v:3 POR-DISPOSITIVO cerrando el CRÍTICO de la Adenda 125
 // (device_id sin firmar). Ata {identidad soberana ↔ cuenta ↔ device_id de relé} bajo un ancla
@@ -344,13 +344,20 @@ export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promi
     if (!enc) {
       return { ok: false, detail: "sin cifrado disponible: no se sube dato privado en claro" };
     }
-    const { data, error } = await supabase
+    // Relevo ENTRE CUENTAS: traduce el destinatario a su cuenta; si es de OTRA cuenta,
+    // el sobre TIENE que ser v:3 (cifrado por destinatario) — si solo tenemos el
+    // llavero compartido, NO se sube. La fila lleva `recipient_owner` (null = mi cuenta).
+    const destino = cuentaDestino(env.recipient, cuentaPorDispositivo());
+    const bloqueo = motivoNoSubida(owner, destino, enc);
+    if (bloqueo) return { ok: false, detail: bloqueo };
+    let { data, error } = await supabase
       .from("os_mesh_relay")
       .insert({
         owner_id: owner,
         channel: "relay",
         kind: "data",
         recipient: env.recipient ?? null,
+        recipient_owner: destino,
         cls: env.cls,
         ptype: env.ptype,
         enc: true,
@@ -361,6 +368,27 @@ export async function uploadRelay(env: ServerEnvelope, serverId?: string): Promi
       })
       .select("id")
       .single();
+    if (error && reintentaSinColumnaDestino(error, owner, destino)) {
+      // Base vieja sin la columna `recipient_owner`: reintento único sin ella (el
+      // destino aquí nunca es otra cuenta, así que el relevo queda como siempre).
+      ({ data, error } = await supabase
+        .from("os_mesh_relay")
+        .insert({
+          owner_id: owner,
+          channel: "relay",
+          kind: "data",
+          recipient: env.recipient ?? null,
+          cls: env.cls,
+          ptype: env.ptype,
+          enc: true,
+          payload: enc as unknown as Record<string, unknown>,
+          oid: env.oid ?? null,
+          device_id: deviceId(),
+          expires_at: new Date(Date.now() + RELAY_TTL_MS).toISOString(),
+        })
+        .select("id")
+        .single());
+    }
     if (error) return { ok: false, detail: `servidor rechazó el relé: ${error.message}` };
     despertarBandejaDeCuenta();
     const ref = data?.id ? String(data.id).slice(0, 8) : undefined;
@@ -448,13 +476,21 @@ export async function uploadRelayMulti(env: ServerEnvelope, recipients: string[]
         summary.failed++; // sin cifrado: no se sube dato privado en claro
         continue;
       }
-      const { error } = await supabase
+      // Relevo ENTRE CUENTAS: si el destinatario es de OTRA cuenta, el sobre debe
+      // ser v:3 (si no, se omite) y la fila lleva `recipient_owner` (null = mi cuenta).
+      const destino = cuentaDestino(rcpt, cuentaPorDispositivo());
+      if (motivoNoSubida(owner, destino, enc)) {
+        summary.failed++;
+        continue;
+      }
+      let { error } = await supabase
         .from("os_mesh_relay")
         .insert({
           owner_id: owner,
           channel: "relay",
           kind: "data",
           recipient: rcpt,
+          recipient_owner: destino,
           cls: env.cls,
           ptype: env.ptype,
           enc: true,
@@ -465,6 +501,26 @@ export async function uploadRelayMulti(env: ServerEnvelope, recipients: string[]
         })
         .select("id")
         .single();
+      if (error && reintentaSinColumnaDestino(error, owner, destino)) {
+        // Base vieja sin la columna `recipient_owner`: reintento único sin ella.
+        ({ error } = await supabase
+          .from("os_mesh_relay")
+          .insert({
+            owner_id: owner,
+            channel: "relay",
+            kind: "data",
+            recipient: rcpt,
+            cls: env.cls,
+            ptype: env.ptype,
+            enc: true,
+            payload: enc as unknown as Record<string, unknown>,
+            oid: env.oid ?? null,
+            device_id: me,
+            expires_at: expiresAt,
+          })
+          .select("id")
+          .single());
+      }
       if (error) summary.failed++;
       else summary.sent++;
     }
@@ -792,6 +848,38 @@ let revokedSet = new Set<string>(); // fingerprints revocados (verificados) — 
 // la ÚLTIMA vista (limitación de un-destinatario; el fan-out multi-destinatario es un
 // SEGUIMIENTO — ver cabecera de uploadRelay).
 let encMap = new Map<string, { pub: JsonWebKey; fp: string }>();
+// Mapa device_id → cuenta dueña (owner_id) extraído de las filas de identidad en
+// `refreshIdentities` (relevo ENTRE CUENTAS, migración 20261013010000): sirve para
+// traducir un destinatario dado como device_id al uuid de su cuenta antes de subir
+// la fila con `recipient_owner`.
+let devParaCuentaMap = new Map<string, string>();
+
+/** device_id → cuenta dueña, según las filas de identidad ya verificadas. */
+export function cuentaPorDispositivo(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of devParaCuentaMap) out[k] = v;
+  return out;
+}
+
+/* ── Relevo entre cuentas (migración 20261013010000) ────────────────────────────
+ * Una fila dirigida a OTRA cuenta viaja con `recipient_owner` = destino y exige el
+ * sobre v:3 (cifrado por destinatario). La RLS deja leer/borrar al destinatario.
+ * --------------------------------------------------------------------------- */
+
+/** ¿El servidor rechazó la columna `recipient_owner`? (base vieja sin la migración). */
+export function faltaColumnaDestino(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "PGRST204" || (typeof error.message === "string" && error.message.includes("recipient_owner"));
+}
+
+/** Reintento UNA vez sin `recipient_owner`: solo si el relé no va a otra cuenta (bases viejas). */
+export function reintentaSinColumnaDestino(
+  error: { code?: string; message?: string } | null,
+  miCuenta: string,
+  destino: string | null,
+): boolean {
+  return faltaColumnaDestino(error) && (destino === null || destino === miCuenta);
+}
 
 /**
  * Anclas TOFU del direccionamiento v:3 por-dispositivo (Adenda 126), persistidas y locales
@@ -1089,6 +1177,7 @@ export async function refreshIdentities(): Promise<FalloConsulta | null> {
     for (const [dev, owners] of devClaims) if (owners.size > 1) contestedDevices.add(dev);
     const next = new Map<string, string>();
     const nextEnc = new Map<string, { pub: JsonWebKey; fp: string }>();
+    const nextDevCuenta = new Map<string, string>(); // device_id → owner (relevo entre cuentas)
     // Anclas TOFU (Adenda 126): se cargan una vez, se consultan/fijan por fila y se
     // persisten al final SOLO si cambiaron (sin escrituras innecesarias en cada sondeo).
     const pins = loadPinMap(ACCOUNT_MFP_LS); // account→mfp (ancla del cert)
@@ -1109,6 +1198,10 @@ export async function refreshIdentities(): Promise<FalloConsulta | null> {
       if (!(await verifyContent(p.owner, p.sig, p.pub))) continue; // firma inválida
       if ((await fpOf(p.pub)) !== p.fp) continue; // fp no coincide con la clave
       next.set(p.fp, p.owner);
+      // Fila de identidad VERIFICADA: ata su device_id a la cuenta dueña (owner_id),
+      // para que la subida pueda traducir un destinatario por dispositivo a cuenta.
+      const devDeFila = String(row.device_id ?? "");
+      if (devDeFila) nextDevCuenta.set(devDeFila, String(row.owner_id));
       // CLAVE DE CIFRADO (Adenda 124): solo se confía en `epub` si su firma `esig`
       // (sobre {owner,epub}) verifica contra la MISMA identidad soberana ya validada
       // arriba. Un tercero no puede inyectar una epub falsa sin la clave privada.
@@ -1169,6 +1262,7 @@ export async function refreshIdentities(): Promise<FalloConsulta | null> {
     }
     idMap = next;
     encMap = nextEnc;
+    devParaCuentaMap = nextDevCuenta;
     if (pinsDirty) savePinMap(ACCOUNT_MFP_LS, pins); // persiste solo los anclas nuevos
     if (devicePinsDirty) savePinMap(DEVICE_OWNER_LS, devicePins);
     return null;
