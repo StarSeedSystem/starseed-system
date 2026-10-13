@@ -378,7 +378,26 @@ CARPETA_COMPROBAR = os.path.join(os.path.dirname(RAIZ), "starseed-wt", "_traer")
 ORDEN_TSC = ["npx", "tsc", "--noEmit", "--skipLibCheck"]
 MEMORIA_TSC = "--max-old-space-size=3072"
 _SENALES_MEDIO = ("heap out of memory", "FATAL ERROR", "node::LoadEnvironment", "se pasó de", "Killed",
-                  "ENOMEM", "another git process", "index.lock")
+                  "ENOMEM", "another git process", "index.lock", "la Mac no tiene memoria")
+
+
+def presion_memoria():
+    """Nivel de presión de memoria del núcleo de macOS (1 normal, 2 aviso, 4 crítico); 0 si no se sabe."""
+    try:
+        r = subprocess.run(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+                           capture_output=True, text=True, timeout=5)
+        return int((r.stdout or "0").strip() or 0)
+    except Exception:  # noqa: BLE001 — fuera de macOS no hay dato
+        return 0
+
+
+def tsc_cabe_aqui(nivel):
+    """PURA. ¿Se puede lanzar aquí un tsc completo (~3 GB)? No con la presión en aviso o peor.
+
+    (2026-10-13, medido) Con la presión en 2, 108 MB libres y el compresor en 2,7 GB, el tsc de
+    traer (763 MB y subiendo) dejó Genesis sin responder: /api/mando/estado pasaba de 50 s y
+    MetaGenesis «no carga». Esperar a la próxima pasada es un fallo del medio, no de la tarea."""
+    return int(nivel or 0) < 2
 
 
 def es_fallo_del_medio(detalle):
@@ -442,13 +461,23 @@ def _puertas(base_sha, shas, cambiados, cwd=None):
     """First try to check on A1, if A1 is busy or not responding, fall back to local check.
     tsc (solo si cambió TS) + pruebas relacionadas de TS y del puente, con el turno de las puertas,
     en la carpeta `cwd`. (ok, detalle)."""
-    # If there are TS changes to check, try A1 first
-    if traer_nube.archivos_ts(cambiados):
-        from . import comprobar_en_a1
-        ok, detalle, del_medio = comprobar_en_a1.comprobar(base_sha, shas, cambiados, timeout=900)
-        if not del_medio:
-            return ok, detalle
-        # If del_medio is True, fall through to local check below
+    # Con TS, primero el A1 (TRA1012A). (2026-10-13) Aquí ponía `traer_nube.archivos_ts` y
+    # `from . import comprobar_en_a1` DENTRO de este mismo módulo, que corre como guion: NameError
+    # en cada tarea con TS y traer_nube caído otra vez (§15 de CLAUDE.md). El A1 es un extra: si
+    # su comprobación falla por lo que sea, se comprueba aquí.
+    if archivos_ts(cambiados):
+        try:
+            if DIRECTORIO not in sys.path:
+                sys.path.insert(0, DIRECTORIO)
+            import comprobar_en_a1
+
+            ok, detalle, del_medio = comprobar_en_a1.comprobar(base_sha, shas, cambiados, timeout=900)
+            if not del_medio:
+                return ok, detalle
+        except Exception:  # noqa: BLE001
+            pass
+        if not tsc_cabe_aqui(presion_memoria()):
+            return False, "la Mac no tiene memoria para un tsc completo ahora (presión en aviso): en la próxima pasada"
 
     # Local check (original logic)
     import contextlib
