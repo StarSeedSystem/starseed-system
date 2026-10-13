@@ -73,11 +73,16 @@ jobs:
       STARSEED_ESPERA_APROBACION_S: "600"
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
+      # (2026-10-13) Topes por paso: lo normal es 5 s (checkout) y 2-3 s (setup-node, con la caché de
+      # npm). El run 38478394570 llevaba 9 min en «setup-node» y, sin tope, un cuelgue de la caché
+      # ocupaba la máquina hasta el `timeout-minutes` del job (355).
       - uses: actions/checkout@v4
+        timeout-minutes: 5
         with:
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
+        timeout-minutes: 6
         with:
           node-version: 22
           cache: npm
