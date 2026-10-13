@@ -4332,3 +4332,14 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
+
+## 2026-10-13 01:20 · mg-oracle-1012-1741
+
+**Lo que se pidió.** Biblioteca por categorías: una ficha por herramienta con licencia, enlaces, versión y estado real
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTPM1010F2K` — los tipos no compilan: 27 errores tsc (rama ola/RTPM1010F2K conservada)
+- `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
+- `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
