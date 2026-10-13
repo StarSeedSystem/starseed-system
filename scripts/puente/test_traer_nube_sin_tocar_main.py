@@ -68,7 +68,7 @@ class TraerSinTocarMain(unittest.TestCase):
     def test_si_no_pasa_main_no_se_mueve_nunca(self):
         vistos = []
 
-        def puertas(cambiados, cwd=None):
+        def puertas(base_sha, shas, cambiados, cwd=None):
             vistos.append(_git(self.raiz, "rev-parse", "main"))  # durante la comprobación
             return False, "tsc: src/a.ts(1,1): error TS2304"
 
@@ -81,14 +81,14 @@ class TraerSinTocarMain(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(T.CARPETA_COMPROBAR, "X1")))
 
     def test_si_pasa_main_avanza_por_fast_forward(self):
-        T._puertas = lambda cambiados, cwd=None: (True, "verde")
+        T._puertas = lambda base_sha, shas, cambiados, cwd=None: (True, "verde")
         ok, detalle, medio = T._traer(self.fila)
         self.assertTrue(ok, detalle)
         self.assertEqual(_git(self.raiz, "log", "-1", "--format=%s", "main"), "Ola 1 · X1: algo")
         self.assertEqual(_git(self.raiz, "rev-parse", "main~1"), self.base)
 
     def test_si_main_avanza_con_otra_cosa_se_reaplica_encima(self):
-        def puertas(cambiados, cwd=None):
+        def puertas(base_sha, shas, cambiados, cwd=None):
             # Mientras se comprueba, el orquestador integra otra tarea en main (otro archivo).
             open(os.path.join(self.raiz, "c.txt"), "w").write("tres\n")
             _git(self.raiz, "add", "c.txt")
@@ -102,7 +102,7 @@ class TraerSinTocarMain(unittest.TestCase):
         self.assertEqual(asuntos[:2], ["Ola 1 · X1: algo", "Ola 2 · Y1: otra"])
 
     def test_si_main_avanza_tocando_lo_mismo_se_reintenta(self):
-        def puertas(cambiados, cwd=None):
+        def puertas(base_sha, shas, cambiados, cwd=None):
             open(os.path.join(self.raiz, "b.txt"), "w").write("otro\n")
             _git(self.raiz, "add", "b.txt")
             _git(self.raiz, "commit", "-q", "-m", "Ola 2 · Y1: lo mismo")
@@ -125,7 +125,7 @@ class TraerSinTocarMain(unittest.TestCase):
     def test_main_ocupado_es_del_medio_y_no_lo_toca(self):
         import fcntl
 
-        T._puertas = lambda cambiados, cwd=None: (True, "verde")
+        T._puertas = lambda base_sha, shas, cambiados, cwd=None: (True, "verde")
         os.makedirs(T.CERROJOS, exist_ok=True)
         f = open(os.path.join(T.CERROJOS, "integrar.lock"), "a")
         fcntl.flock(f, fcntl.LOCK_EX)  # otro integra (el orquestador, una publicación)
@@ -140,7 +140,7 @@ class TraerSinTocarMain(unittest.TestCase):
         self.assertEqual(_git(self.raiz, "rev-parse", "main"), self.base)
 
     def test_falta_de_memoria_es_del_medio(self):
-        T._puertas = lambda cambiados, cwd=None: (False, "tsc: FATAL ERROR: Reached heap limit … heap out of memory")
+        T._puertas = lambda base_sha, shas, cambiados, cwd=None: (False, "tsc: FATAL ERROR: Reached heap limit … heap out of memory")
         ok, detalle, medio = T._traer(self.fila)
         self.assertFalse(ok)
         self.assertTrue(medio)
