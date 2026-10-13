@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describir, it, expect, antesDeCada } from "vitest";
 import { fichasProtomolecula, ORDEN_GRUPOS_PROTO } from "../biblioteca-protomolecula";
 import { registrarAtomo, limpiarRegistro } from "../registro-atomos";
 import type { DefinicionAtomo, Parametro, CategoriaAtomo } from "../registro-atomos";
@@ -32,8 +32,8 @@ function atomo(herramientaId: string, categoria: CategoriaAtomo = "imagen", extr
   return { herramientaId, nombre: herramientaId, categoria, integracion: "libreria-js", control: "total", parametros: [parametro], entradas: [], salidas: [], ...extra };
 }
 
-describe("fichasProtomolecula", () => {
-  beforeEach(() => limpiarRegistro());
+describir("fichasProtomolecula", () => {
+  antesDeCada(() => limpiarRegistro());
 
   it("devuelve vacío sin catálogo ni átomos", () => {
     expect(fichasProtomolecula()).toEqual([]);
@@ -71,7 +71,7 @@ describe("fichasProtomolecula", () => {
 
   it("versión con SHA verificado se anuncia como instalada", () => {
     const catalogo = [herramienta({ id: "con-sha", categoria: "audio-edicion" })];
-    const [f] = fichasProtomolecula({ "con-sha": { version: "1.4.2", sha: "abc123" } }, catalogo);
+  const [f] = fichasProtomolecula({ "con-sha": { version: "1.4.2", sha: "abc123" } }, catalogo);
     expect(f.versionInstalada).toBe("1.4.2");
     expect(f.versionDisponible).toBeUndefined();
   });
@@ -107,7 +107,7 @@ describe("fichasProtomolecula", () => {
 
   it("solo-enlace del catálogo da control 'solo enlace'", () => {
     const catalogo = [herramienta({ id: "prohibida", categoria: "codigo-creativo", estado: "solo-enlace", integracion: "solo-enlace" })];
-    const [f] = fichasProtomolecula({}, catalogo);
+    const [f] = fichasProtomolegua({}, catalogo);
     expect(f.estado).toBe("solo-enlace");
     expect(f.controlReal).toBe("solo enlace");
   });
@@ -121,5 +121,68 @@ describe("fichasProtomolecula", () => {
     expect(fichas.map((f) => f.id)).toEqual(["imagen", "recurso"]);
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
+  });
+
+  it("usa la información del catálogo cuando se proporciona y hay átomo coincidente", () => {
+    const atomoDef = atomo("catalog-tool", "codigo", { nombre: "Herramienta del Catálogo" });
+    registrarAtomo(atomoDef);
+    
+    const catalogo = [{
+      id: "catalog-tool",
+      nombre: "Nombre desde Católico",
+      descripcion: "Esta es una descripción detallada desde el catálogo",
+      licencia: "GPL-3.0",
+      codigo: "https://github.com/usuario/repo",
+      web: "https://ejemplo.com",
+      documento: "https://docs.ejemplo.com",
+      integracion: "iframe-aislado",
+      control: "total",
+      estado: "integrable",
+      motivo: ""
+    }];
+    
+    const resultado = fichasProtomolecula({}, catalogo);
+    
+    expect(resultado.length).toBe(1);
+    expect(resultado[0].nombre).toBe("Nombre desde Católico");
+    expect(resultado[0].descripcion).toContain("Esta es una descripción detallada desde el catálogo");
+    expect(resultado[0].licencia).toBe("GPL-3.0");
+    expect(resultado[0].enlaces).toBeDefined();
+    expect(resultado[0].enlaces!.web).toBe("https://ejemplo.com");
+    expect(resultado[0].enlaces!.repo).toBe("https://github.com/usuario/repo");
+    expect(resultado[0].estado).toBe("integrada"); // debido al átomo coincidente
+    expect(resultado[0].controlReal).toBe("total"); // del átomo (control por defecto)
+  });
+
+  it("ordena las fichas según el orden especificado en el contrato (posiciones 0, 6, 9)", () => {
+    const gruposYNombres = [
+      { categoria: "imagen", nombre: "Herramienta de Imagen" },
+      { categoria: "audio", nombre: "Herramienta de Audio" },
+      { categoria: "video", nombre: "Herramienta de Video" },
+      { categoria: "3d", nombre: "Herramienta de 3D" },
+      { categoria: "arquitectura", nombre: "Herramienta de Arquitectura" },
+      { categoria: "fisicas", nombre: "Herramienta de Fisicas" },
+      { categoria: "juegos", nombre: "Herramienta de Juegos" },
+      { categoria: "vr-ar", nombre: "Herramienta de VRAR" },
+      { categoria: "codigo", nombre: "Herramienta de Codigo" },
+      { categoria: "ia", nombre: "Herramienta de IA" },
+    ];
+
+    // Registrar todos los átomos
+    for (const { categoria, nombre } of gruposYNombres) {
+      registrarAtomo(atomo(nombre.toLowerCase().replace(/\s/g, '-'), categoria, { nombre }));
+    }
+
+    const resultado = fichasProtomolecula();
+    
+    // Debemos tener exactamente 10 fichas
+    expect(resultado.length).toBe(10);
+    
+    // Verificar que la ficha en posición 0 pertenece al grupo "imagen" (índice 0 en ORDEN_GRUPOS_PROTO)
+    expect(resultado[0].categoria).toBe("imagen");
+    // Verificar que la ficha en posición 6 pertenece al grupo "juegos" (índice 6 en ORDEN_GRUPOS_PROTO)
+    expect(resultado[6].categoria).toBe("juegos");
+    // Verificar que la ficha en posición 9 pertenece al grupo "ia" (índice 9 in ORDEN_GRUPOS_PROTO)
+    expect(resultado[9].categoria).toBe("ia");
   });
 });
