@@ -16,6 +16,8 @@ import {
     validarArgs,
     TTL_NODO_MS,
     type FilaBus,
+    ACCIONES,
+    ACCIONES_DEL_LIDER,
 } from "../remoto-nodos";
 
 const AHORA = Date.parse("2026-10-10T12:00:00Z");
@@ -145,5 +147,27 @@ describe("resumen de las tablas (modo tablas)", () => {
     it("con el arriendo caducado no hay líder", () => {
         const e = resumirTablas({ arriendo: { lider: "mac-aaaaaa", termino: 2, expira: new Date(AHORA - 1000).toISOString(), foto: null, foto_en: null }, nodos: [], ordenes: [] }, AHORA);
         expect(e.lider).toBeNull();
+    });
+});
+
+describe("acciones nuevas de MetaGenesis (desconectar y contenedor)", () => {
+    it("tienen las etiquetas y argumentos correctos", () => {
+        expect(ACCIONES.desconectar.etiqueta).toBe("Desconectar");
+        expect(ACCIONES.desconectar.explica).toBe("Quita al nodo del enjambre de MetaGenesis.");
+        expect(ACCIONES.desconectar.confirmar).toBe(true);
+        expect(ACCIONES.desconectar.args).toEqual([]);
+
+        expect(ACCIONES.contenedor.etiqueta).toBe("Usar como contenedor");
+        expect(ACCIONES.contenedor.explica).toBe("El nodo actúa como contenedor para otros mediadores.");
+        expect(ACCIONES.contenedor.confirmar).toBeUndefined();
+        expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
+    });
+
+    it("ACCIONES_DEL_LIDER no incluye las nuevas acciones", () => {
+        expect("desconectar" in ACCIONES_DEL_LIDER).toBe(false);
+        expect("contenedor" in ACCIONES_DEL_LIDER).toBe(false);
+        // Ensure the other actions are present
+        expect("continuar" in ACCIONES_DEL_LIDER).toBe(true);
+        expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
     });
 });
