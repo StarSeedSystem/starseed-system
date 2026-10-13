@@ -241,9 +241,13 @@ def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True, mac=None,
     if tope is not None:
         cabeza += " de %d a la vez ahora (%s)" % (tope[0], tope[1])
     partes = [cabeza, "%d tarea(s) elegible(s)" % len(clases.get("elegibles") or [])]
-    if mac and mac.get("tanda"):
-        partes.append("la tanda de la Mac tiene %d: se queda %d para sus próximas rondas y cede %d que nadie espera"
-                      % (mac["tanda"], mac.get("se_queda") or 0, len(mac.get("cedibles") or [])))
+         if mac and mac.get("tanda"):
+             cedibles = mac.get("cedibles") or []
+             lote = mac.get("lote") or set()
+             suelta_count = len(cedibles) - len(lote)
+             chain_task_count = len(lote)
+             partes.append("la tanda de la Mac tiene %d: se queda %d para sus próximas rondas y cede %d sueltas y %d tareas en cadenas que nadie espera"
+                           % (mac["tanda"], mac.get("se_queda") or 0, suelta_count, chain_task_count))
     if mac and mac.get("prestadas"):
         partes.append("%d ya prestada(s) por MetaGenesis a otro medio (no se repiten)" % len(mac["prestadas"]))
     if plan.get("reabrir"):
@@ -519,14 +523,14 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
         colas_mac = RN.colas_de_la_tanda_viva(procesos, ran.OLAS)
         tanda = {i for _n, ids in colas_mac for i in ids}
         ajenas = RN.leer_prestadas(ahora)
-        cedibles = []
-        if ceder and tanda and estado_mac:
-            cedibles = [t for t in RN.cedibles_de_la_tanda(tanda, estado_mac.get("listas"), estado_mac.get("tope"),
-                                                           RN.esperadas_por_otras(colas, progreso))
-                        if t not in ajenas]
+         cedibles = []
+         lote = set()
+         if ceder and tanda and estado_mac:
+             cedibles, lote = RN.cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas)
         listas_en_tanda = [t for t in (estado_mac or {}).get("listas") or [] if t in tanda and t not in ajenas]
-        salida["mac"] = {"tanda": len(tanda), "cedibles": cedibles, "prestadas": sorted(ajenas),
-                         "se_queda": max(0, len(listas_en_tanda) - len(cedibles))}
+         salida["mac"] = {"tanda": len(tanda), "cedibles": cedibles, "prestadas": sorted(ajenas),
+                          "se_queda": max(0, len(listas_en_tanda) - len(cedibles)),
+                          "lote": lote}
         colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
         salida["clases"] = RN.clasificar(colas, progreso, asuntos, ran.ola_actual(colas), envios)
     except (Exception, SystemExit) as e:  # SystemExit: el reparto aborta así si git falla

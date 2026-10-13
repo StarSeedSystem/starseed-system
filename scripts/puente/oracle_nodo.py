@@ -883,10 +883,11 @@ def lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None, ceder=True):
                 cedibles = [t for t in RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
                                                                RN.esperadas_por_otras(colas, progreso))
                             if t not in ajenas]
-            except Exception:  # noqa: BLE001 — sin la foto de la Mac no se cede nada
-                cedibles = []
+             except Exception:  # noqa: BLE001 — sin la foto de la Mac no se cede nada
+                 cedibles = []
+                 lote = set()
         colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
-        elegidas = RN.elegir(colas, progreso, rep.asuntos_main(RAIZ), rep.ola_actual(colas), tope=tope, envios=envios)
+         elegidas = RN.elegir(colas, progreso, rep.asuntos_main(RAIZ), rep.ola_actual(colas), tope=tope, envios=envios, mismo_lote=lote)
     ids = [t["id"] for t in elegidas]
     cedidas = [i for i in ids if i in set(cedibles)]
     if simular or not elegidas:
