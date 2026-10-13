@@ -418,6 +418,21 @@ export function resumirTablas(t: FilasTablas, ahora: number): EstadoAutonomo {
     };
 }
 
+/**
+ * PURA. ¿Se lee MetaGenesis de las tablas o del bus? (2026-10-13, medido)
+ *
+ * Con la migración de nodos aplicada, la vista leía las tablas y decía «Ningún medio de
+ * MetaGenesis está latiendo» con la Mac y el A1 vivos: los dos van por la PUERTA DE DATOS del A1
+ * (`EnlacePuerta`), que deja su latido como espejo en el BUS y nunca en `metagenesis_nodos`
+ * (`ultimo_latido` vacío). Y las órdenes se guardaban en una tabla que ningún nodo lee. Manda la
+ * fuente donde hay alguien vivo; si en ninguna late nadie, las tablas (lo que dicen es verdad).
+ */
+export function elegirFuente(tablas: EstadoAutonomo | null, bus: EstadoAutonomo | null): "tablas" | "bus" {
+    if (tablas && tablas.nodos.some((n) => n.vivo)) return "tablas";
+    if (bus && bus.nodos.some((n) => n.vivo)) return "bus";
+    return tablas ? "tablas" : "bus";
+}
+
 /** PURA. Una frase para la cabecera: quién dirige y desde dónde, sin jerga. */
 export function fraseDelMando(e: EstadoAutonomo): string {
     const vivos = e.nodos.filter((n) => n.vivo).length;

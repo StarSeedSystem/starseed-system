@@ -16,6 +16,7 @@ import {
     validarArgs,
     TTL_NODO_MS,
     type FilaBus,
+    elegirFuente,
 } from "../remoto-nodos";
 
 const AHORA = Date.parse("2026-10-10T12:00:00Z");
@@ -145,5 +146,27 @@ describe("resumen de las tablas (modo tablas)", () => {
     it("con el arriendo caducado no hay líder", () => {
         const e = resumirTablas({ arriendo: { lider: "mac-aaaaaa", termino: 2, expira: new Date(AHORA - 1000).toISOString(), foto: null, foto_en: null }, nodos: [], ordenes: [] }, AHORA);
         expect(e.lider).toBeNull();
+    });
+});
+
+describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
+    const estado = (vivos: boolean[], modo: "bus" | "tablas") => ({
+        modo, lider: null, termino: 0, autonomia: null, medidores: {}, decisiones: [], ordenes: [],
+        fotoHaceMs: null, liderSeco: false,
+        nodos: vivos.map((vivo, i) => ({
+            nodo: `n${i}`, medio: "mac", etiqueta: "", modo: "real", vivo, lider: false, hace_ms: null, puntos: null,
+            orquestadores: [], caidos: [], disco_gb: null, ram_libre_mb: null, trabajo: {},
+        })),
+    });
+
+    it("tablas sin latidos y bus con nodos vivos → bus", () => {
+        expect(elegirFuente(estado([false, false], "tablas"), estado([true, true], "bus"))).toBe("bus");
+    });
+    it("alguien vivo en las tablas → tablas", () => {
+        expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
+    });
+    it("nadie vivo en ninguna → tablas si existen; si no, bus", () => {
+        expect(elegirFuente(estado([false], "tablas"), estado([false], "bus"))).toBe("tablas");
+        expect(elegirFuente(null, estado([false], "bus"))).toBe("bus");
     });
 });

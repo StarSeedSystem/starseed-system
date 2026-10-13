@@ -12,6 +12,7 @@
 
 import { createClient } from "@/utils/supabase/client";
 import {
+    elegirFuente,
     resumirBus,
     resumirTablas,
     validarArgs,
@@ -102,9 +103,14 @@ export async function leerEstadoAutonomo(ahora = Date.now()): Promise<LecturaAut
     try {
         if (cache.modo !== "bus") {
             const t = await leerTablas(ahora);
-            if (t) {
-                cache.modo = "tablas";
-                return t;
+            if (t && !t.ok) return t;
+            if (t?.ok && cache.modo === "tablas") return t;
+            if (t?.ok) {
+                // Primera lectura: tablas solo si alguien late en ellas; los nodos que van por la
+                // puerta de datos del A1 laten en el bus (`elegirFuente`).
+                const b = await leerBus(ahora);
+                cache.modo = elegirFuente(t.estado, b.ok ? b.estado : null);
+                return cache.modo === "tablas" ? t : b;
             }
             cache.modo = "bus";
         }
