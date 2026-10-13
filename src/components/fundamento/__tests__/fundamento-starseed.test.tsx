@@ -21,66 +21,66 @@ describe('FundamentoStarSeed', () => {
     const piedraPhilosophalNameEl = piedraPhilosophalNameEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(piedraPhilosophalNameEl).toBeDefined();
-    expect(piedraPhilosophalNameEl.textContent).toMatch(/Piedra Filosofal/i);
+     expect(piedraPhilosophalNameEl).toBeDefined();
+     expect(piedraPhilosophalNameEl!.textContent).toMatch(/Piedra Filosofal/i);
     
     const piedraPhilosophalDescEls = screen.getAllByText(/La sustancia que transforma los metales comunes en oro y otorga la inmortalidad./i);
     const piedraPhilosophalDescEl = piedraPhilosophalDescEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(piedraPhilosophalDescEl).toBeDefined();
-    expect(piedraPhilosophalDescEl.textContent).toMatch(/La sustancia que transforma los metales comunes en oro y otorga la inmortalidad./i);
+     expect(piedraPhilosophalDescEl).toBeDefined();
+     expect(piedraPhilosophalDescEl!.textContent).toMatch(/La sustancia que transforma los metales comunes en oro y otorga la inmortalidad./i);
     
     const piedraPhilosophalQuestionEls = screen.getAllByText(/¿Qué es lo que realmente buscas transformar en tu vida?/i);
     const piedraPhilosophalQuestionEl = piedraPhilosophalQuestionEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(piedraPhilosophalQuestionEl).toBeDefined();
-    expect(piedraPhilosophalQuestionEl.textContent).toMatch(/¿Qué es lo que realmente buscas transformar en tu vida?/i);
+     expect(piedraPhilosophalQuestionEl).toBeDefined();
+     expect(piedraPhilosophalQuestionEl!.textContent).toMatch(/¿Qué es lo que realmente buscas transformar en tu vida?/i);
     
     // Mercurio
     const mercurioNameEls = screen.getAllByText(/Mercurio/i);
     const mercurioNameEl = mercurioNameEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(mercurioNameEl).toBeDefined();
-    expect(mercurioNameEl.textContent).toMatch(/Mercurio/i);
+     expect(mercurioNameEl).toBeDefined();
+     expect(mercurioNameEl!.textContent).toMatch(/Mercurio/i);
     
     const mercurioDescEls = screen.getAllByText(/El principio volátil que representa la mente y la comunicación en la obra alquímica./i);
     const mercurioDescEl = mercurioDescEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(mercurioDescEl).toBeDefined();
-    expect(mercurioDescEl.textContent).toMatch(/El principio volátil que representa la mente y la comunicación en la obra alquímica./i);
+     expect(mercurioDescEl).toBeDefined();
+     expect(mercurioDescEl!.textContent).toMatch(/El principio volátil que representa la mente y la comunicación en la obra alquímica./i);
     
     const mercurioQuestionEls = screen.getAllByText(/¿Cómo purificas tus pensamientos para alcanzar la claridad?/i);
     const mercurioQuestionEl = mercurioQuestionEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(mercurioQuestionEl).toBeDefined();
-    expect(mercurioQuestionEl.textContent).toMatch(/¿Cómo purificas tus pensamientos para alcanzar la claridad?/i);
+     expect(mercurioQuestionEl).toBeDefined();
+     expect(mercurioQuestionEl!.textContent).toMatch(/¿Cómo purificas tus pensamientos para alcanzar la claridad?/i);
     
     // Azufre
     const azufreNameEls = screen.getAllByText(/Azufre/i);
     const azufreNameEl = azufreNameEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(azufreNameEl).toBeDefined();
-    expect(azufreNameEl.textContent).toMatch(/Azufre/i);
+     expect(azufreNameEl).toBeDefined();
+     expect(azufreNameEl!.textContent).toMatch(/Azufre/i);
     
     const azufreDescEls = screen.getAllByText(/El principio activo que representa la voluntad y la energía en la transformación./i);
     const azufreDescEl = azufreDescEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(azufreDescEl).toBeDefined();
-    expect(azufreDescEl.textContent).toMatch(/El principio activo que representa la voluntad y la energía en la transformación./i);
+     expect(azufreDescEl).toBeDefined();
+     expect(azufreDescEl!.textContent).toMatch(/El principio activo que representa la voluntad y la energía en la transformación./i);
     
     const azufreQuestionEls = screen.getAllByText(/¿Qué fuego interno impulsa tu camino hacia la realización?/i);
     const azufreQuestionEl = azufreQuestionEls.find(el => 
       !el.classList.contains('text-xl') && !el.classList.contains('text-foreground/90')
     );
-    expect(azufreQuestionEl).toBeDefined();
-    expect(azufreQuestionEl.textContent).toMatch(/¿Qué fuego interno impulsa tu camino hacia la realización?/i);
+     expect(azufreQuestionEl).toBeDefined();
+     expect(azufreQuestionEl!.textContent).toMatch(/¿Qué fuego interno impulsa tu camino hacia la realización?/i);
   });
 
   it('SVG has role="img" and aria-label', () => {
