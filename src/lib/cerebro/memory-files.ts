@@ -345,15 +345,17 @@ function normalizeFile(row: Record<string, unknown>): MemoryFile {
 /** Lista los ficheros de memoria de un cerebro (o de cuenta si brainId null). */
 export async function listMemoryFiles(brainId: string | null): Promise<MemoryFile[]> {
   try {
-    const owner = await uid();
-    if (!owner) return [];
     const sb = createClient();
-    let q = sb
-      .from("brain_memory_files")
-      .select("*")
-      .eq("owner", owner)
-      .order("name", { ascending: true });
-    q = brainId ? q.eq("brain_id", brainId) : q.is("brain_id", null);
+    let q = sb.from("brain_memory_files").select("*").order("name", { ascending: true });
+    if (brainId) {
+      // Cuando se especifica brainId, la RLS ya limita a lo tuyo y a lo compartido contigo.
+      q = q.eq("brain_id", brainId);
+    } else {
+      // Sin brainId, listamos los ficheros de cuenta (brain_id null) del owner.
+      const owner = await uid();
+      if (!owner) return [];
+      q = q.eq("owner", owner).is("brain_id", null);
+    }
     const { data } = await q;
     return ((data as Record<string, unknown>[]) || []).map(normalizeFile);
   } catch {
