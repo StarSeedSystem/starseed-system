@@ -193,3 +193,16 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
     });
 });
+
+it("desconectar no quiere argumentos", () => {
+    expect(validarArgs("desconectar" as AccionOrden, {})).toBeNull();
+    expect(validarArgs("desconectar" as AccionOrden, { motivo: "x" })).toContain(
+        "argumento no admitido"
+    );
+});
+
+it("contenedor valida trabajadores cuando está presente", () => {
+    expect(
+        validarArgs("contenedor" as AccionOrden, { activo: false, trabajadores: 0 })
+    ).toBe("trabajadores fuera de 1–4");
+});
