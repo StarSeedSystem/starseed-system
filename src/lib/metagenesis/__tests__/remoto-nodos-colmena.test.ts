@@ -24,9 +24,9 @@ describe("validarArgs: validaciones específicas para acciones", () => {
   it("contenedor con activo false rechaza trabajadores", () => {
     expect(
       validarArgs("contenedor" as AccionOrden, { activo: false, trabajadores: 1 })
-    ).toBe("trabajadores fuera de 1–4");
+    ).toBe("trabajadores solo se permite si activo es True");
     expect(
       validarArgs("contenedor" as AccionOrden, { activo: false, trabajadores: 0 })
-    ).toBeNull();
+    ).toBe("trabajadores fuera de 1–4");
   });
 });
