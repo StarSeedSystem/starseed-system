@@ -1,118 +1,107 @@
--- Create astraura_bots table
+-- Bots de Astraura (BOT1011B · contrato architecture/astraura-bots.md §3 y §16).
+-- Aprobada por Alex el 2026-10-13 («si apruebo»). Idempotente: se puede volver a correr.
+--
+-- (2026-10-13, Claude) La versión que escribió el enjambre no se podía aplicar: `references auth.uid()`
+-- no es una tabla (error de sintaxis), el dueño de un bot de grupo/comunidad/página no es una
+-- cuenta, las funciones `security definer` dejaban preguntar por cualquier cuenta y las políticas
+-- no se podían volver a crear. Ahora: `cuenta_id` = la cuenta responsable (§3.1), `dueno_id` = el
+-- perfil o la entidad; RLS por la cuenta responsable; las funciones solo responden sobre quien
+-- pregunta; y todo es idempotente.
+
+-- ── Tablas ──────────────────────────────────────────────────────────────────────────────────────
 create table if not exists public.astraura_bots
 (
     id uuid primary key default gen_random_uuid(),
-    dueno_id uuid not null references auth.uid(),
+    cuenta_id uuid not null default auth.uid(),
     dueno_tipo text not null check (dueno_tipo in ('perfil', 'grupo', 'comunidad', 'pagina')),
-    nombre text not null,
-    descripcion text,
+    dueno_id uuid not null,
+    nombre text not null check (char_length(nombre) between 1 and 120),
+    descripcion text check (descripcion is null or char_length(descripcion) <= 2000),
     activo boolean not null default true,
     creado_en timestamptz not null default now(),
     actualizado_en timestamptz not null default now()
 );
+create index if not exists astraura_bots_cuenta_idx on public.astraura_bots (cuenta_id);
+create index if not exists astraura_bots_dueno_idx on public.astraura_bots (dueno_tipo, dueno_id);
 
--- Create astraura_bots_consentimientos table
 create table if not exists public.astraura_bots_consentimientos
 (
     bot_id uuid not null references public.astraura_bots(id) on delete cascade,
-    cuenta_id uuid default auth.uid() not null,
+    cuenta_id uuid not null default auth.uid(),
     sentido text not null check (sentido in ('pantalla', 'captura-pantalla', 'archivos', 'red', 'correo', 'terminal', 'camara', 'microfono', 'sensores', 'ubicacion', 'portapapeles', 'aparatos')),
     vence timestamptz null,
     expreso boolean not null default false,
     primary key (bot_id, cuenta_id, sentido)
 );
 
--- Create astraura_bots_registro table
+-- El registro solo crece: sin políticas de update ni de borrado (§5: cada acción con su rastro).
 create table if not exists public.astraura_bots_registro
 (
     id uuid primary key default gen_random_uuid(),
     bot_id uuid not null references public.astraura_bots(id) on delete cascade,
-    cuenta_id uuid not null references auth.uid(),
-    accion text not null,
+    cuenta_id uuid not null default auth.uid(),
+    accion text not null check (char_length(accion) between 1 and 200),
     resultado boolean not null,
     creado_en timestamptz not null default now()
 );
+create index if not exists astraura_bots_registro_bot_idx on public.astraura_bots_registro (bot_id, creado_en desc);
 
--- Enable RLS
+-- ── RLS ─────────────────────────────────────────────────────────────────────────────────────────
 alter table public.astraura_bots enable row level security;
 alter table public.astraura_bots_consentimientos enable row level security;
 alter table public.astraura_bots_registro enable row level security;
 
--- Policies for astraura_bots
--- Allow users to read bots they own
-create policy "Users can read their own bots"
-on public.astraura_bots for select
-using (auth.uid() = dueno_id);
+-- Bots: los ve y los gestiona su cuenta responsable. (Los bots de entidad para sus miembros
+-- llegan con BOT1011Y, por el gobierno de la entidad; hasta entonces no se abre nada más.)
+drop policy if exists "bots_leer_propios" on public.astraura_bots;
+create policy "bots_leer_propios" on public.astraura_bots
+    for select to authenticated using (cuenta_id = auth.uid());
+drop policy if exists "bots_crear_propios" on public.astraura_bots;
+create policy "bots_crear_propios" on public.astraura_bots
+    for insert to authenticated with check (cuenta_id = auth.uid());
+drop policy if exists "bots_cambiar_propios" on public.astraura_bots;
+create policy "bots_cambiar_propios" on public.astraura_bots
+    for update to authenticated using (cuenta_id = auth.uid()) with check (cuenta_id = auth.uid());
+drop policy if exists "bots_quitar_propios" on public.astraura_bots;
+create policy "bots_quitar_propios" on public.astraura_bots
+    for delete to authenticated using (cuenta_id = auth.uid());
 
--- Allow users to insert bots they own
-create policy "Users can insert their own bots"
-on public.astraura_bots for insert
-with check (auth.uid() = dueno_id);
+-- Consentimientos: cada persona los suyos (dar, cambiar y retirar su permiso).
+drop policy if exists "consentimientos_leer_propios" on public.astraura_bots_consentimientos;
+create policy "consentimientos_leer_propios" on public.astraura_bots_consentimientos
+    for select to authenticated using (cuenta_id = auth.uid());
+drop policy if exists "consentimientos_dar_propios" on public.astraura_bots_consentimientos;
+create policy "consentimientos_dar_propios" on public.astraura_bots_consentimientos
+    for insert to authenticated with check (cuenta_id = auth.uid());
+drop policy if exists "consentimientos_cambiar_propios" on public.astraura_bots_consentimientos;
+create policy "consentimientos_cambiar_propios" on public.astraura_bots_consentimientos
+    for update to authenticated using (cuenta_id = auth.uid()) with check (cuenta_id = auth.uid());
+drop policy if exists "consentimientos_retirar_propios" on public.astraura_bots_consentimientos;
+create policy "consentimientos_retirar_propios" on public.astraura_bots_consentimientos
+    for delete to authenticated using (cuenta_id = auth.uid());
 
--- Allow users to update bots they own
-create policy "Users can update their own bots"
-on public.astraura_bots for update
-using (auth.uid() = dueno_id);
+-- Registro: lo lee y lo anota la cuenta responsable del bot; nadie lo cambia ni lo quita.
+drop policy if exists "registro_leer_de_mis_bots" on public.astraura_bots_registro;
+create policy "registro_leer_de_mis_bots" on public.astraura_bots_registro
+    for select to authenticated using (exists (
+        select 1 from public.astraura_bots b where b.id = bot_id and b.cuenta_id = auth.uid()
+    ));
+drop policy if exists "registro_anotar_en_mis_bots" on public.astraura_bots_registro;
+create policy "registro_anotar_en_mis_bots" on public.astraura_bots_registro
+    for insert to authenticated with check (
+        cuenta_id = auth.uid()
+        and exists (select 1 from public.astraura_bots b where b.id = bot_id and b.cuenta_id = auth.uid())
+    );
 
--- Allow users to delete bots they own
-create policy "Users can delete their own bots"
-on public.astraura_bots for delete
-using (auth.uid() = dueno_id);
-
--- Policies for astraura_bots_consentimientos
--- Allow users to read their own consents
-create policy "Users can read their own consents"
-on public.astraura_bots_consentimientos for select
-using (auth.uid() = cuenta_id);
-
--- Allow users to insert their own consents
-create policy "Users can insert their own consents"
-on public.astraura_bots_consentimientos for insert
-with check (auth.uid() = cuenta_id);
-
--- Allow users to update their own consents
-create policy "Users can update their own consents"
-on public.astraura_bots_consentimientos for update
-using (auth.uid() = cuenta_id);
-
--- Allow users to delete their own consents
-create policy "Users can delete their own consents"
-on public.astraura_bots_consentimientos for delete
-using (auth.uid() = cuenta_id);
-
--- Policies for astraura_bots_registro
--- Note: The registro table should not have update or delete policies for anon or authenticated
--- We'll only allow insert (by any authenticated user?) and select (by the owner of the bot?)
--- According to the spec: "el registro no tiene políticas de update o delete"
--- We'll create a policy for select: users can read registros of bots they own
-create policy "Users can read registros of their bots"
-on public.astraura_bots_registro for select
-using (exists (
-    select 1 from public.astraura_bots
-    where id = bot_id and dueno_id = auth.uid()
-));
-
--- Allow insert: any authenticated user can insert a registro for a bot? 
--- But we should restrict to the bot owner? The spec doesn't say. 
--- However, the test only checks that there are no update or delete policies.
--- We'll allow insert for the bot owner.
-create policy "Users can insert registros for their bots"
-on public.astraura_bots_registro for insert
-with check (exists (
-    select 1 from public.astraura_bots
-    where id = bot_id and dueno_id = auth.uid()
-));
-
--- No update or delete policies intentionally created.
-
--- Functions
+-- ── Funciones (solo responden sobre quien pregunta) ─────────────────────────────────────────────
 create or replace function public.astraura_bot_es_miembro(p_bot_id uuid, p_cuenta_id uuid)
 returns boolean
 language sql
+stable
 security definer
 set search_path = public
 as $$
-    select exists (
+    select p_cuenta_id = auth.uid() and exists (
         select 1 from public.astraura_bots_consentimientos
         where bot_id = p_bot_id and cuenta_id = p_cuenta_id
     );
@@ -121,14 +110,32 @@ $$;
 create or replace function public.astraura_bot_puede_administrar(p_bot_id uuid, p_cuenta_id uuid)
 returns boolean
 language sql
+stable
 security definer
 set search_path = public
 as $$
-    select exists (
+    select p_cuenta_id = auth.uid() and exists (
         select 1 from public.astraura_bots
-        where id = p_bot_id and dueno_id = p_cuenta_id
+        where id = p_bot_id and cuenta_id = p_cuenta_id
     );
 $$;
 
--- Add tables to realtime publication
-alter publication supabase_realtime add table public.astraura_bots, public.astraura_bots_consentimientos, public.astraura_bots_registro;
+revoke all on function public.astraura_bot_es_miembro(uuid, uuid) from public, anon;
+revoke all on function public.astraura_bot_puede_administrar(uuid, uuid) from public, anon;
+grant execute on function public.astraura_bot_es_miembro(uuid, uuid) to authenticated;
+grant execute on function public.astraura_bot_puede_administrar(uuid, uuid) to authenticated;
+
+-- ── Tiempo real (solo si aún no están en la publicación) ───────────────────────────────────────
+do $$
+declare t text;
+begin
+    foreach t in array array['astraura_bots', 'astraura_bots_consentimientos', 'astraura_bots_registro'] loop
+        if not exists (
+            select 1 from pg_publication_tables
+            where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+        ) then
+            execute format('alter publication supabase_realtime add table public.%I', t);
+        end if;
+    end loop;
+end
+$$;
