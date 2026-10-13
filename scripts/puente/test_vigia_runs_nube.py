@@ -23,15 +23,26 @@ class Diagnosticar(unittest.TestCase):
         f = fila(paso="Enjambre", paso_desde="2026-10-13T21:40:09Z", minutos=30, minutos_tope="45")
         self.assertIsNone(VR.diagnosticar(f, [f], AHORA))
 
-    def test_preparacion_de_30_min_se_cancela_y_devuelve(self):
-        f = fila(paso="Dependencias y orquestador", paso_desde="2026-10-13T21:39:25Z", minutos=31)
+    def test_preparacion_larga_solo_avisa_nunca_cancela(self):
+        f = fila(paso="Dependencias y orquestador", paso_estado="in_progress", paso_desde="2026-10-13T21:39:25Z", minutos=31)
         a = VR.diagnosticar(f, [f], AHORA)
-        self.assertEqual(a["tipo"], "preparacion-atascada")
-        self.assertTrue(a["cancelar"] and a["devolver"])
+        self.assertEqual(a["tipo"], "preparacion-larga")
+        self.assertFalse(a["cancelar"] or a["devolver"])
         self.assertIn("30 min", a["motivo"])
 
+    def test_el_caso_que_corto_dos_runs_buenos(self):
+        """16:21: el paso más avanzado de una lista incompleta era «Claves», HECHO hace 35 min."""
+        f = fila(paso="Claves (solo las presentes; nunca se imprimen)", paso_estado="completed",
+                 paso_desde="2026-10-13T21:45:20Z", minutos=37, minutos_tope="60")
+        self.assertIsNone(VR.diagnosticar(f, [f], AHORA))
+        g = fila(paso="Set up job", paso_estado="in_progress", paso_desde="2026-10-13T21:39:19Z", minutos=31)
+        self.assertIsNone(VR.diagnosticar(g, [g], AHORA))
+        h = fila(paso="Dependencias y orquestador", paso_estado="in_progress", paso_de_antes=True,
+                 paso_desde="2026-10-13T21:39:25Z", minutos=31)
+        self.assertIsNone(VR.diagnosticar(h, [h], AHORA))
+
     def test_preparacion_reciente_no(self):
-        f = fila(paso="Dependencias y orquestador", paso_desde="2026-10-13T22:08:00Z")
+        f = fila(paso="Dependencias y orquestador", paso_estado="in_progress", paso_desde="2026-10-13T22:08:00Z")
         self.assertIsNone(VR.diagnosticar(f, [f], AHORA))
 
     def test_duplicado_de_una_cola_en_marcha(self):
@@ -48,9 +59,11 @@ class Diagnosticar(unittest.TestCase):
         self.assertEqual(VR.diagnosticar(f, [f], AHORA)["tipo"], "sin-maquina")
         self.assertIsNone(VR.diagnosticar(fila(estado="queued", minutos=10), [], AHORA))
 
-    def test_pasado_de_su_tope(self):
+    def test_pasado_de_su_tope_solo_avisa(self):
         f = fila(paso="Enjambre", minutos=70, minutos_tope="45")
-        self.assertEqual(VR.diagnosticar(f, [f], AHORA)["tipo"], "pasado-de-tope")
+        a = VR.diagnosticar(f, [f], AHORA)
+        self.assertEqual(a["tipo"], "pasado-de-tope")
+        self.assertFalse(a["cancelar"])
 
     def test_sin_dato_del_paso_solo_avisa(self):
         f = fila(paso="sin dato del paso", minutos=26)

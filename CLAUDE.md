@@ -1295,8 +1295,10 @@ de la nube y «Buscar más capacidad» lanzaron el mismo minuto, el reparto del 
 veces (la segunda «pending», para repetir las 6 tareas). Ahora `nube-gh.py lanzar` toma un cerrojo
 (`~/.starseed/nube-lanzar.lock`), no adivina la cola si el reparto no la creó y no relanza una cola
 que ya lleva un run vivo. Y el **vigía de runs** (`scripts/puente/vigia_runs_nube.py`, en cada pasada
-de `director-nube.py`) cancela el duplicado, el que pasa 30 min sin máquina, el que lleva 12 min en
-un paso de preparación (lo normal: 34-44 s) y el que se pasa 20 min de su tope; devuelve sus tareas
-sin gastarles un envío (reapertura) y lo dice UNA vez en el Chat Director. «Sin dato del paso» 25 min
-solo se avisa. Genesis enseña el atasco en la tarjeta. Síntoma: `gh api …/runs/<id>/jobs` con
-«Set up job=in_progress» y «Enjambre=in_progress» a la vez.
+de `director-nube.py`) **solo cancela con datos del RUN**: el duplicado de una cola que ya lleva otro
+run y el que pasa 30 min sin máquina; devuelve sus tareas sin gastarles un envío (reapertura) y lo dice
+UNA vez en el Chat Director. Lo que sale de los PASOS (preparación larga, «sin dato del paso», pasado de
+tope) **solo se avisa**: la primera versión cortó a las 16:21 dos runs que escribían porque la lista de
+pasos llegó sin «Enjambre» y el más avanzado era «Claves», hecho hace 35 min. El cuelgue real de las
+dependencias lo corta el workflow (`timeout-minutes: 12`). Genesis enseña el atasco en la tarjeta.
+Síntoma: `gh api …/runs/<id>/jobs` con «Set up job=in_progress» y «Enjambre=in_progress» a la vez.

@@ -98,6 +98,8 @@ def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
                 fila["paso_desde"] = str(paso["desde"])[:30]
             if paso.get("numero") is not None:
                 fila["paso_numero"] = paso.get("numero")
+            if paso.get("estado"):
+                fila["paso_estado"] = str(paso.get("estado"))
             if paso.get("de_antes"):
                 fila["paso_de_antes"] = True
             if paso.get("hechos") is not None:
@@ -155,7 +157,7 @@ def paso_actual(jobs) -> dict | None:
     empezados = [(n, p) for n, p in numerados if p.get("estado") in ("in_progress", "completed")]
     n, actual = max(empezados, key=lambda x: x[0]) if empezados else numerados[0]
     return {"nombre": str(actual.get("nombre") or "?"), "desde": actual.get("inicio"), "numero": n,
-            "hechos": hechos, "total": len(pasos)}
+            "estado": actual.get("estado"), "hechos": hechos, "total": len(pasos)}
 
 
 def paso_monotono(previo, nuevo) -> dict | None:

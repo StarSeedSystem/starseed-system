@@ -18,8 +18,11 @@ autoverifica por los directores». Medido en GitHub ese mismo minuto, eran tres 
     `npm ci` colgado ocupaba la máquina seis horas.
 
 Qué hace: `diagnosticar` (PURA) mira cada run vivo con los números de `agentes-nube.json`, y
-`actuar` (lo llama `director-nube.py` en cada pasada) cancela lo que no va a trabajar, devuelve
-sus tareas sin gastarles un envío y lo dice UNA vez en el Chat Director.
+`actuar` (lo llama `director-nube.py` en cada pasada) lo dice UNA vez en el Chat Director.
+SOLO CANCELA con datos fiables del RUN (no de sus pasos): el duplicado de una cola que ya lleva
+otro run y el que lleva 30 min sin máquina; devuelve sus tareas sin gastarles un envío. Lo que
+sale de los PASOS de GitHub (preparación larga, «sin dato del paso», pasado de tope) solo se
+avisa: el 13-10 a las 16:21 la primera versión canceló por los pasos dos runs que escribían.
 """
 from __future__ import annotations
 
@@ -82,15 +85,24 @@ def diagnosticar(fila, filas, ahora):
         tope = int(str(fila.get("minutos_tope") or "").strip())
     except ValueError:
         tope = None
+    # Solo aviso: los minutos cuentan desde que se CREÓ el run (con su espera de máquina incluida).
     if tope and isinstance(minutos, (int, float)) and minutos > tope + MARGEN_TOPE_MIN:
-        return {"tipo": "pasado-de-tope", "cancelar": True, "devolver": True,
-                "motivo": "lleva %d min con un tope de %d: no ha salido solo" % (minutos, tope)}
+        return {"tipo": "pasado-de-tope", "cancelar": False, "devolver": False,
+                "motivo": "lleva %d min desde que se lanzó con un tope de %d" % (minutos, tope)}
     paso = fila.get("paso")
-    if es_preparacion(paso):
+    # (2026-10-13, 16:21 en la Mac, MEDIDO EN CARNE PROPIA) La primera versión CANCELABA aquí y
+    # cortó dos runs que estaban escribiendo: GitHub devolvió la lista de pasos sin «Enjambre» y el
+    # más avanzado era «Claves» (hecho hace 35 min). Los pasos de un job en marcha NO son fiables
+    # (listas incompletas, «Set up job» y «Dependencias» que siguen «in_progress» ya terminados), así
+    # que con ellos solo se AVISA, y solo de un paso de preparación EN CURSO que no sea el primero.
+    # El cuelgue de verdad lo corta el propio workflow (`timeout-minutes: 12` en «Dependencias»).
+    if (es_preparacion(paso) and fila.get("paso_estado") == "in_progress" and not fila.get("paso_de_antes")
+            and str(paso).strip().lower() != "set up job"):
         en_paso = _segundos_desde(fila.get("paso_desde"), ahora)
         if en_paso is not None and en_paso > PREPARACION_MAX_S:
-            return {"tipo": "preparacion-atascada", "cancelar": True, "devolver": True,
-                    "motivo": "lleva %d min en «%s» (lo normal es menos de 1 min)" % (en_paso // 60, paso)}
+            return {"tipo": "preparacion-larga", "cancelar": False, "devolver": False,
+                    "motivo": "GitHub dice que lleva %d min en «%s» (lo normal es menos de 1 min; el workflow lo "
+                              "corta solo a los 12)" % (en_paso // 60, paso)}
     if str(paso or "") == "sin dato del paso" and edad_s is not None and edad_s > SIN_PASOS_AVISO_S:
         return {"tipo": "sin-pasos", "cancelar": False, "devolver": False,
                 "motivo": "GitHub no da ningún paso de este job desde hace %d min" % (edad_s // 60)}
