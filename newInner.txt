@@ -1,0 +1,84 @@
+    if (msg.tamano > MAX_BYTES) {
+      canal.enviar(
+        JSON.stringify({
+          t: "archivo.rechazar",
+          id: msg.id,
+          motivo: `Supera el límite máximo de ${(MAX_BYTES / 1024 / 1024 / 1024).toFixed(1)} GB.`,
+        } satisfies MsgRechazar),
+      );
+      return;
+    }
+    canalPorId.set(msg.id, canal);
+    ofertasEntrantes.set(msg.id, msg);
+    const ctx: ContextoRecepcion = contexto ?? { mismaCuenta: false };
+    if (ctx.nodoId) nodoPorId.set(msg.id, ctx.nodoId);
+    // Resonancia (§5.6): lo que la red ya sabe de este hash informa la política.
+    const resonancia = decisionSobre(msg.sha256);
+    const avisoResonancia: Record<DecisionResonancia, string | undefined> = {
+      cuarentena: `En CUARENTENA de la red: ${resonancia.motivo}. No se auto-acepta.`;
+      aviso: `Aviso de la red: ${resonancia.motivo}.`;
+      limpio: undefined;
+      'sin-datos': undefined;
+    };
+    const aviso = avisoResonancia[resonancia.decision];
+    // Analizar archivo con el Centinela (nombre, tipo declarado, inicio vacío si aún no hay trozo)
+    const entrada: ArchivoEntrada = {
+      nombre: msg.nombre,
+      tipoDeclarado: msg.tipo,
+      inicio: new Uint8Array(0), // aún no se ha recibido ningún trozo
+      tamano: msg.tamano,
+    };
+    const analisis = analizarArchivo(entrada);
+    const decidir = decidirEntrada(analisis, resonancia ? { decision: resonancia.decision } : null);
+    const yaGuardados = await almacen.indicesGuardados(msg.id);
+    const desde = yaGuardados.length ? Math.max(...yaGuardados) + 1 : 0;
+    // Negociar modo: si el oferente pide binario y nuestro canal lo soporta, usamos binario.
+    const modo: ModoTransferencia = msg.modo === "binario" && canal.enviarBinario ? "binario" : "base64";
+    modoPorId.set(msg.id, modo);
+    // Construir estado base
+    let estadoBaseMotivo: string | undefined = aviso; // empezar con aviso de resonancia
+    if (decidir.accion === 'avisar') {
+      // añadir texto del centinela al aviso
+      estadoBaseMotivo = estadoBaseMotivo ? `${estadoBaseMotivo} ${decidir.texto}` : decidir.texto;
+    }
+    const estadoBase: EstadoTransferencia = {
+      id: msg.id,
+      rol: "recibir",
+      nombre: msg.nombre,
+      tipo: msg.tipo,
+      tamano: msg.tamano,
+      trozos: msg.trozos,
+      progreso: desde,
+      fase: "pendiente-aceptar", // se ajustará según la decisión
+      motivo: estadoBaseMotivo,
+      destino: msg.destino,
+      origen: msg.origen ?? ctx.etiquetaOrigen,
+      inicioMs: Date.now(),
+      actualizadoMs: Date.now(),
+    };
+    // Mapear la decisión de decidirEntrada a acciones del motor
+    if (decidir.accion === 'rechazar') {
+      // Tratar como denegar: rechazar con mensaje existente
+      emitir({ ...estadoBase, fase: "rechazada", motivo: "Sin permiso para recibir archivos de esta cuenta." });
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "denegado por política de permisos" } satisfies MsgRechazar));
+      ofertasEntrantes.delete(msg.id);
+      return;
+    }
+    if (decidir.accion === 'aceptar-con-pregunta' && !aviso) {
+      // auto-aceptar solo si no hay aviso de resonancia (como antes)
+      hashesEsperados.set(msg.id, msg.sha256);
+      recibidosPorId.set(msg.id, new Set(yaGuardados));
+      emitir({ ...estadoBase, fase: "transfiriendo" });
+      canal.enviar(JSON.stringify({ t: "archivo.aceptar", id: msg.id, modo, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
+      return;
+    }
+    // En los casos de avisar o aceptar-con-pregunta con aviso, o cualquier otro caso, quedar pendiente (preguntar)
+    emitir(estadoBase);
+    config.onOfertaEntrente?.({
+      id: msg.id,
+      nombre: msg.nombre,
+      tipo: msg.tipo,
+      tamano: msg.tamano,
+      destino: msg.destino,
+      origen: estadoBase.origen,
+    });

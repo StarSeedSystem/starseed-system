@@ -94,6 +94,8 @@ import {
   type ResultadoResonancia,
   type VeredictoCompartido,
 } from "@/lib/malla/cristal/resonancias";
+import { analizarArchivo, type ResultadoAnalisis } from "@/lib/malla/cristal/centinela";
+import { decidirEntrada } from "@/lib/malla/cristal/centinela-archivos";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -1018,12 +1020,17 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const yaGuardados = await almacen.indicesGuardados(msg.id);
     const desde = yaGuardados.length ? Math.max(...yaGuardados) + 1 : 0;
 
-    const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
-
+    const analisis = analizarArchivo({ nombre: msg.nombre, tipoDeclarado: msg.tipo, inicio: new Uint8Array(0), tamano: msg.tamano });
+    const decidir = decidirEntrada(analisis, resonancia ? { decision: resonancia.decision } : null);
     // Negociar modo: si el oferente pide binario y nuestro canal lo soporta, usamos binario.
     const modo: ModoTransferencia = msg.modo === "binario" && canal.enviarBinario ? "binario" : "base64";
     modoPorId.set(msg.id, modo);
-
+    // Construir estado base
+    let estadoBaseMotivo: string | undefined = aviso; // empezar con aviso de resonancia
+    if (decidir.accion === 'avisar') {
+      // añadir texto del centinela al aviso
+      estadoBaseMotivo = estadoBaseMotivo ? `${estadoBaseMotivo} ${decidir.texto}` : decidir.texto;
+    }
     const estadoBase: EstadoTransferencia = {
       id: msg.id,
       rol: "recibir",
@@ -1032,32 +1039,32 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       tamano: msg.tamano,
       trozos: msg.trozos,
       progreso: desde,
-      fase: "pendiente-aceptar",
-      motivo: aviso,
+      fase: "pendiente-aceptar", // se ajustará según la decisión
+      motivo: estadoBaseMotivo,
       destino: msg.destino,
       origen: msg.origen ?? ctx.etiquetaOrigen,
       inicioMs: Date.now(),
       actualizadoMs: Date.now(),
     };
-
-    if (decision === "denegar") {
-      emitir({ ...estadoBase, fase: "rechazada", motivo: "Sin permiso para recibir archivos de esta cuenta." });
-      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "denegado por política de permisos" } satisfies MsgRechazar));
+    // Mapear la decisione di decidirEntrada a azioni del motore
+    if (decidir.accion === 'rechazar') {
+      // Trattare come denegare: rifiutare con il messaggio esistente
+      emitir({ ...estadoBase, fase: "rechazada", motivo: "Sin permiso para recibir archivos di questa conta." });
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "denegato per politica di permisos" } satisfies MsgRechazar));
       ofertasEntrantes.delete(msg.id);
       return;
     }
-
-    if (decision === "auto-aceptar" && !aviso) {
+    if (decidir.accion === 'aceptar-con-pregunta' && !aviso) {
+      // auto-aceptare solo se non c'è aviso di resonanza (come prima)
       hashesEsperados.set(msg.id, msg.sha256);
       recibidosPorId.set(msg.id, new Set(yaGuardados));
       emitir({ ...estadoBase, fase: "transfiriendo" });
       canal.enviar(JSON.stringify({ t: "archivo.aceptar", id: msg.id, modo, ...(desde > 0 ? { desde } : {}) } satisfies MsgAceptar));
       return;
     }
-
-    // "preguntar": queda pendiente hasta que la UI llame aceptarOferta/rechazarOferta.
+    // Nei casi di avisar o aceptar-con-pregunta con aviso, o qualsiasi altro caso, rimanere in attesa (preguntar)
     emitir(estadoBase);
-    config.onOfertaEntrante?.({
+    config.onOfertaEntrente?.({
       id: msg.id,
       nombre: msg.nombre,
       tipo: msg.tipo,
