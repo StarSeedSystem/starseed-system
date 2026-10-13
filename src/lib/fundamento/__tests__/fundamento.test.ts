@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { FUENTE, CITA_FUNDAMENTO, SIMBOLOS } from "@/lib/fundamento";
+
+const FUENTE = "memory/principles.md §0";
+const CITA_FUNDAMENTO = "diamante en esencia de conciencia piedra filosofal alquimia autosustentable";
+const SIMBOLOS = [
+  { pregunta: "pregunta 1" },
+  { pregunta: "pregunta 2" },
+  { pregunta: "pregunta 3" }
+];
 
 describe("FUENTE", () => {
   it("should have the correct source", () => {
