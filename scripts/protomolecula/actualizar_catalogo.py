@@ -443,6 +443,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Informe: {a.salida}" + (f" · {res['lineasReescritas']} líneas del catálogo reescritas" if a.aplicar else " · usa --aplicar para reescribir el catálogo"))
     if res.get("aviso"):
         print(res["aviso"], file=sys.stderr)
+    # Engancha el vigía de la Biblioteca 3D (AV1011G) una vez al día
+    try:
+        import importlib.util
+        vig = importlib.util.spec_from_file_location("vigias_3d", "scripts/protomolecula/vigias_3d.py")
+        if vig and vig.loader:
+            mod = importlib.util.module_from_spec(vig)
+            vig.loader.exec_module(mod)
+            mod.principal()
+    except Exception as ex:
+        print(f"Vigía 3D no ejecutado (no es bloqueante): {ex}", file=sys.stderr)
     return 0 if (res["iguales"] + len(res["cambios"])) or not res["errores"] else 1
 
 
