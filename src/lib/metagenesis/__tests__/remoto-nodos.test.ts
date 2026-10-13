@@ -170,3 +170,24 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
         expect(elegirFuente(null, estado([false], "bus"))).toBe("bus");
     });
 });
+
+describe("ACCIONES: etiquetas y argumentos correctos", () => {
+    it("tienen las etiquetas y argumentos correctos", () => {
+        expect(ACCIONES.desconectar.etiqueta).toBe("Desconectar");
+        expect(ACCIONES.desconectar.explica).toBe("Quita al nodo del enjambre de MetaGenesis.");
+        expect(ACCIONES.desconectar.confirmar).toBe(true);
+        expect(ACCIONES.desconectar.args).toEqual([]);
+
+        expect(ACCIONES.contenedor.etiqueta).toBe("Usar como contenedor");
+        expect(ACCIONES.contenedor.explica).toBe("El nodo actúa como contenedor para otros mediadores.");
+        expect(ACCIONES.contenedor.confirmar).toBeUndefined();
+        expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
+    });
+
+    it("ACCIONES_DEL_LIDER no incluye las nuevas acciones", () => {
+        expect("desconectar" in ACCIONES_DEL_LIDER).toBe(false);
+        expect("contenedor" in ACCIONES_DEL_LIDER).toBe(false);
+        expect("continuar" in ACCIONES_DEL_LIDER).toBe(true);
+        expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
+    });
+});
