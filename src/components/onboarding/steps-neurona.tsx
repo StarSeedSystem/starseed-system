@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { listBrains, saveBrain, type Brain } from "@/lib/brains/brains";
+import { listarCerebros, saveBrain, type Brain } from "@/lib/brains/brains";
 // (Adenda 193) Las carpetas elegidas en Permisos se vinculan SOLAS aquí.
 import { listarCarpetas, suscribirCarpetas, mezclarCarpetasEnServidores, type CarpetaVinculada } from "@/lib/storage/carpetas-vinculadas";
 import { ensureHermionePersonalityInstalled } from "@/lib/aurora/personalities";
@@ -83,9 +83,11 @@ export function StepCerebros() {
 
   useEffect(() => {
     let alive = true;
-    listBrains()
-      .then((bs) => { if (alive) setCerebros(bs); })
-      .catch(() => { if (alive) setCerebros([]); });
+    // (2026-10-13) Un fallo de lectura NO es «no tienes cerebros»: si no se pudo leer, se queda en
+    // null y aceptar no crea otro (así nacían cerebros duplicados con el presupuesto agotado).
+    listarCerebros()
+      .then((r) => { if (alive) setCerebros(r.ok ? r.brains : null); })
+      .catch(() => { if (alive) setCerebros(null); });
     setCarpetas(listarCarpetas());
     const off = suscribirCarpetas((l) => { if (alive) setCarpetas(l); });
     return () => { alive = false; off(); };
@@ -117,7 +119,9 @@ export function StepCerebros() {
       const servidores = vincularCarpetas
         ? (mezclarCarpetasEnServidores([], carpetas) as unknown as Brain["servers"])
         : undefined;
-      if ((cerebros?.length ?? 0) === 0) {
+      if (cerebros === null) {
+        setNota("No pude leer tus cerebros ahora (¿sin red o con la pausa de consumo?). No creo otro: inténtalo luego en Cerebros.");
+      } else if (cerebros.length === 0) {
         const b = await saveBrain({ name: "Cerebro principal", ...(servidores ? { servers: servidores } : {}) });
         creado = b?.id ?? null;
         if (b) setCerebros([b]);

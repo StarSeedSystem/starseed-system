@@ -14,6 +14,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { senalEsencial } from "@/lib/consumo/guardian";
 import { OSS_LIBRARY, type OssCategory } from "@/lib/oss-library";
 import { withDefaultBrainSkills } from "@/lib/brain-skills/default-skills";
 
@@ -354,6 +355,58 @@ export async function listBrains(scope?: string, scopeRef?: string | null): Prom
     return ((data as Record<string, unknown>[]) || []).map(normalizeBrain);
   } catch {
     return [];
+  }
+}
+
+/**
+ * (2026-10-13) Lista los cerebros de la cuenta DISTINGUIENDO «no tienes ninguno» de «no pude
+ * leerlos». `listBrains` devuelve `[]` en los dos casos, y `ensureDefaultBrain` tomaba un fallo de
+ * lectura por una cuenta sin cerebros: con el presupuesto del día agotado el guardián del cliente
+ * (`consumo/guardian.ts`) deja pasar las ESCRITURAS pero no las lecturas, así que cada arranque
+ * creaba otro «Cerebro StarSeed» (15 en la cuenta de Alex: 13 el 10-10 entre las 19:48 y las 22:29
+ * UTC). La lectura va marcada como esencial para que el presupuesto local no la tire.
+ */
+export async function listarCerebros(): Promise<{ ok: boolean; brains: Brain[] }> {
+  try {
+    const owner = await uid();
+    if (!owner) return { ok: false, brains: [] };
+    const sb = createClient();
+    const { data, error } = await sb
+      .from("brains")
+      .select("*")
+      .eq("owner", owner)
+      .order("created_at", { ascending: true })
+      .abortSignal(senalEsencial());
+    if (error || !Array.isArray(data)) return { ok: false, brains: [] };
+    return { ok: true, brains: (data as Record<string, unknown>[]).map(normalizeBrain) };
+  } catch {
+    return { ok: false, brains: [] };
+  }
+}
+
+/**
+ * PURA. ¿Se crea el cerebro por defecto? Solo si la lectura SALIÓ BIEN, la cuenta no tiene ninguno
+ * y este aparato nunca vio que la cuenta tuviera alguno (marca local por cuenta).
+ */
+export function debeCrearCerebroPorDefecto(lectura: { ok: boolean; cuantos: number }, yaTuvoCerebro: boolean): boolean {
+  return lectura.ok && lectura.cuantos === 0 && !yaTuvoCerebro;
+}
+
+const CLAVE_TUVO_CEREBRO = "starseed.cerebros.cuenta-con-cerebro.v1";
+
+function cuentaYaTuvoCerebro(owner: string): boolean {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem(CLAVE_TUVO_CEREBRO + ":" + owner) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function marcarCuentaConCerebro(owner: string): void {
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(CLAVE_TUVO_CEREBRO + ":" + owner, "1");
+  } catch {
+    /* sin almacenamiento: la lectura segura basta */
   }
 }
 
@@ -950,10 +1003,17 @@ export function ensureDefaultBrain(): Promise<Brain | null> {
     try {
       const owner = await uid();
       if (!owner) return null;
-      const existing = await listBrains();
-      if (existing.length > 0) {
-        // Ya tiene cerebros: no creamos nada (idempotente).
-        return existing[0] ?? null;
+      const lectura = await listarCerebros();
+      if (lectura.brains.length > 0) {
+        // Ya tiene cerebros: no creamos nada (idempotente). El principal es el más antiguo.
+        marcarCuentaConCerebro(owner);
+        return lectura.brains[0] ?? null;
+      }
+      if (!debeCrearCerebroPorDefecto({ ok: lectura.ok, cuantos: 0 }, cuentaYaTuvoCerebro(owner))) {
+        // No se pudo leer (presupuesto agotado, sin red, freno) o este aparato ya la vio con
+        // cerebro: NO se crea nada. Antes esto creaba un duplicado en cada arranque.
+        ensureDefaultBrainPromise = null;
+        return null;
       }
       // El servidor StarSeed gestionado como ancla del cerebro por defecto.
     const starseedServer: BrainServer = {
@@ -973,6 +1033,7 @@ export function ensureDefaultBrain(): Promise<Brain | null> {
       servers: [starseedServer],
     });
     if (created?.id) {
+      marcarCuentaConCerebro(owner);
       // Siembra selecciones por defecto + skills (incl. starseed-auto-update).
       seedBrainDefaults(created.id);
     }
