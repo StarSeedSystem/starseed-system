@@ -4332,3 +4332,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
+
+## 2026-10-13 02:16 · mg-oracle-1012-1954
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 1 de 1 integradas.
