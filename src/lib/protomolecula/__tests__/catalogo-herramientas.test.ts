@@ -38,7 +38,8 @@ const ids = todas.map((h) => h.id);
 describe("estructura del catálogo", () => {
   it("los ids son únicos, en minúsculas con guiones", () => {
     expect(new Set(ids).size).toBe(ids.length);
-    for (const id of ids) expect(id).toMatch(/^[a-z0-9][a-z0-9-]*$/);
+    // Ids en minúsculas con guiones; se admite un sufijo de versión con punto (p. ej. `qwen-image-2.1`).
+    for (const id of ids) expect(id).toMatch(/^[a-z0-9][a-z0-9-]*(\.[0-9]+)*$/);
   });
 
   it("toda herramienta trae licencia, descripción y al menos una fuente (código o web)", () => {
