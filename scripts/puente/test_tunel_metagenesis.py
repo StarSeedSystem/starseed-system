@@ -45,6 +45,17 @@ class Piezas(unittest.TestCase):
                    "/api/mando/%5c..", "http://otro/api/mando/estado", "", None):
             self.assertFalse(T.ruta_permitida(no), no)
 
+    def test_cors_solo_para_origenes_de_la_lista(self):
+        web = "https://starseed-os.vercel.app"
+        self.assertEqual(dict(T.cabeceras_cors(web + "/"))["Access-Control-Allow-Origin"], web)
+        self.assertEqual(T.cabeceras_cors("https://otra-web.example"), [])
+        self.assertEqual(T.cabeceras_cors(None), [])
+        self.assertEqual(T.cabeceras_cors("https://x.test", permitidos=("https://x.test",))[0][1], "https://x.test")
+        pre = dict(T.cabeceras_cors(web, preflight=True, pedidas=""))
+        self.assertEqual(pre["Access-Control-Allow-Headers"], "authorization, content-type")
+        self.assertIn("OPTIONS", pre["Access-Control-Allow-Methods"])
+        self.assertNotIn("Access-Control-Allow-Credentials", pre)
+
     def test_vigilancia(self):
         self.assertEqual(T.decidir_vigilancia(False, False, True, 3), ("relanzar", 0))
         self.assertEqual(T.decidir_vigilancia(True, True, True, 3), ("latir", 0))
@@ -206,6 +217,39 @@ class PuertaDeVerdad(unittest.TestCase):
         estado, datos = self.pedir("GET", "/api/mando/troceado")
         self.assertEqual(estado, 200)
         self.assertEqual(json.loads(datos)["ruta"], "/api/mando/troceado")
+
+    def pedir_con_cabeceras(self, metodo, ruta, cabeceras):
+        c = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=10)
+        c.request(metodo, ruta, headers=cabeceras)
+        r = c.getresponse()
+        r.read()
+        c.close()
+        return r.status, {k.lower(): v for k, v in r.getheaders()}
+
+    def test_preflight_de_la_web_publica_se_contesta_sin_llegar_a_genesis(self):
+        # (2026-10-12) Sin esto el navegador de otro aparato cortaba la sonda: «la Mac está apagada».
+        Eco.vistas.clear()
+        estado, h = self.pedir_con_cabeceras("OPTIONS", "/api/mando/latido", {
+            "Origin": "https://starseed-os.vercel.app", "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization, x-raro"})
+        self.assertEqual(estado, 204)
+        self.assertEqual(h["access-control-allow-origin"], "https://starseed-os.vercel.app")
+        self.assertEqual(h["access-control-allow-headers"], "authorization")   # lo raro no pasa
+        self.assertNotIn("access-control-allow-credentials", h)               # nunca cookies
+        self.assertEqual(Eco.vistas, [])
+
+    def test_preflight_de_otra_web_se_niega(self):
+        estado, h = self.pedir_con_cabeceras("OPTIONS", "/api/mando/latido", {
+            "Origin": "https://otra-web.example", "Access-Control-Request-Method": "GET"})
+        self.assertEqual(estado, 403)
+        self.assertNotIn("access-control-allow-origin", h)
+
+    def test_la_respuesta_lleva_el_permiso_solo_para_la_web_publica(self):
+        estado, h = self.pedir_con_cabeceras("GET", "/api/mando/estado", {
+            "Origin": "https://starseed-os.vercel.app", "Authorization": "Bearer t"})
+        self.assertEqual((estado, h.get("access-control-allow-origin")), (200, "https://starseed-os.vercel.app"))
+        _, h = self.pedir_con_cabeceras("GET", "/api/mando/estado", {"Origin": "https://otra-web.example"})
+        self.assertNotIn("access-control-allow-origin", h)
 
     def test_genesis_caido_da_502(self):
         p = T.arrancar_puerta(0, destino=("127.0.0.1", 1))

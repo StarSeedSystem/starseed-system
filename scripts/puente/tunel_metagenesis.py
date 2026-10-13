@@ -63,6 +63,15 @@ PID = os.path.expanduser("~/.starseed/tunel-metagenesis.pid")
 #: Cabecera que la puerta añade SIEMPRE: con ella `esPeticionDeEstaMaquina` dice que no.
 FORWARDED = 'for="_metagenesis-tunel"'
 AGENTE = "starseed-tunel-metagenesis/1"
+#: (2026-10-12) Páginas que pueden hablar con el motor por el túnel (CORS). Sin esto el navegador
+#: de cualquier otro aparato cortaba la sonda en el «preflight» (OPTIONS sin
+#: `Access-Control-Allow-Origin`) y MetaGenesis decía «la Mac está apagada o sin túnel» con la Mac
+#: viva y el túnel latiendo. Más orígenes: METAGENESIS_ORIGENES (separados por comas).
+ORIGENES = tuple(o.strip().rstrip("/") for o in
+                 ("https://starseed-os.vercel.app," + os.environ.get("METAGENESIS_ORIGENES", "")).split(",")
+                 if o.strip())
+_METODOS_CORS = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+_CABECERAS_CORS = ("authorization", "content-type", "accept", "cache-control", "x-requested-with")
 
 _RE_URL = re.compile(r"https://([a-z0-9-]+)\.trycloudflare\.com")
 _NO_SON_TUNEL = {"api", "www"}
@@ -110,6 +119,23 @@ def ruta_permitida(objetivo):
         if urllib.parse.unquote(seg) in (".", ".."):
             return False
     return re.match(r"^/api/mando(/|$)", ruta) is not None
+
+
+def cabeceras_cors(origen, permitidos=None, preflight=False, pedidas=""):
+    """PURA. Cabeceras CORS [(nombre, valor)] para un `Origin` permitido; [] si no lo es (y el
+    navegador corta la respuesta). Nunca `Allow-Credentials`: la sesión viaja en el token, jamás
+    en cookies, así que ninguna otra web puede usar la sesión de nadie por aquí."""
+    origen = (origen or "").strip().rstrip("/")
+    if not origen or origen not in (ORIGENES if permitidos is None else permitidos):
+        return []
+    salida = [("Access-Control-Allow-Origin", origen), ("Vary", "Origin")]
+    if preflight:
+        pide = [c.strip().lower() for c in (pedidas or "").split(",") if c.strip()]
+        dejadas = [c for c in pide if c in _CABECERAS_CORS] or ["authorization", "content-type"]
+        salida += [("Access-Control-Allow-Methods", _METODOS_CORS),
+                   ("Access-Control-Allow-Headers", ", ".join(dejadas)),
+                   ("Access-Control-Max-Age", "600")]
+    return salida
 
 
 def decidir_vigilancia(cf_vivo, tunel_ok, local_ok, fallos, fallos_max=FALLOS_MAX):
@@ -243,6 +269,8 @@ class Puerta(http.server.BaseHTTPRequestHandler):
     def _responder(self, codigo, texto):
         cuerpo = json.dumps({"error": texto}, ensure_ascii=False).encode("utf-8")
         self.send_response_only(codigo)
+        for k, v in cabeceras_cors(self.headers.get("Origin")):  # que la web pueda leer el motivo
+            self.send_header(k, v)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(cuerpo)))
         self.end_headers()
@@ -268,6 +296,19 @@ class Puerta(http.server.BaseHTTPRequestHandler):
         if not ruta_permitida(self.path):
             self._cuerpo()
             return self._responder(404, "Por este túnel solo pasa el motor de MetaGenesis (/api/mando).")
+        origen = self.headers.get("Origin")
+        if self.command == "OPTIONS" and self.headers.get("Access-Control-Request-Method"):
+            # El «preflight» del navegador se contesta AQUÍ (Genesis no sabe de CORS): 204 con
+            # permiso para las webs de la lista, 403 sin cabeceras para cualquier otra.
+            self._cuerpo()
+            cors = cabeceras_cors(origen, preflight=True, pedidas=self.headers.get("Access-Control-Request-Headers"))
+            self.send_response_only(204 if cors else 403)
+            for k, v in cors:
+                self.send_header(k, v)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        cors = cabeceras_cors(origen)
         cuerpo = self._cuerpo()
         try:
             conn = http.client.HTTPConnection(*self.destino, timeout=self.tope_s)
@@ -294,8 +335,10 @@ class Puerta(http.server.BaseHTTPRequestHandler):
         try:
             self.send_response_only(r.status, r.reason)
             for k, v in r.getheaders():
-                if k.lower() not in _SALTO:
+                if k.lower() not in _SALTO and not (cors and k.lower().startswith("access-control-")):
                     self.send_header(k, v)
+            for k, v in cors:
+                self.send_header(k, v)
             largo = r.getheader("Content-Length")
             sin_cuerpo = self.command == "HEAD" or r.status in (204, 304) or 100 <= r.status < 200
             if sin_cuerpo or largo is not None:
