@@ -67,10 +67,83 @@ describe("validarAccion", () => {
     expect(validarAccion({ tipo: "notificar", args: { texto: `toma ${CLAVE}` } }).accion).toBeNull();
     expect(validarAccion({ tipo: "notificar", args: { texto: "mira /Users/alex/x" } }).accion).toBeNull();
   });
-  it("los JSON grandes o con código incrustado se rechazan", () => {
-    expect(validarAccion({ tipo: "ui.proponer", args: { uiSpec: { t: "x".repeat(25_000) } } }).accion).toBeNull();
-    expect(validarAccion({ tipo: "ui.proponer", args: { uiSpec: { onclick: "javascript:alert(1)" } } }).accion).toBeNull();
-  });
+   it("los JSON grandes o con código incrustado se rechazan", () => {
+     expect(validarAccion({ tipo: "ui.proponer", args: { uiSpec: { t: "x".repeat(25_000) } } }).accion).toBeNull();
+     expect(validarAccion({ tipo: "ui.proponer", args: { uiSpec: { onclick: "javascript:alert(1)" } } }).accion).toBeNull();
+   });
+
+   it("valida la acción de generación de imagen", () => {
+     // Acción bien formada
+     const r = validarAccion({
+       tipo: "imagen.generar",
+       args: {
+         prompt: "Un gato astronauta",
+         opciones: 4,
+         necesita: "texto legible",
+         referencia: "gato.jpg",
+         comercial: true,
+       },
+     });
+     expect(r.accion).toEqual({
+       tipo: "imagen.generar",
+       args: {
+         prompt: "Un gato astronauta",
+         opciones: 4,
+         necesita: "texto legible",
+         referencia: "gato.jpg",
+         comercial: true,
+       },
+     });
+     expect(r.problemas).toEqual([]);
+
+     // Falta el obligatorio prompt
+     const r2 = validarAccion({
+       tipo: "imagen.generar",
+       args: {
+         opciones: 4,
+         necesita: "texto legible",
+         referencia: "gato.jpg",
+         comercial: true,
+       },
+     });
+     expect(r2.accion).toBeNull();
+     expect(r2.problemas).toContain("Falta «prompt».");
+
+     // Campos no numéricos para opciones
+     const r3 = validarAccion({
+       tipo: "imagen.generar",
+       args: {
+         prompt: "test",
+         opciones: "cuatro",
+         necesita: "texto legible",
+         referencia: "gato.jpg",
+         comercial: true,
+       },
+     });
+     expect(r3.accion).toBeNull();
+     expect(r3.problemas).toContain("Campo «opciones» no es un número.");
+
+     // Descartar campos desconocidos
+     const r4 = validarAccion({
+       tipo: "imagen.generar",
+       args: {
+         prompt: "test",
+         opciones: 4,
+         necesita: "texto legible",
+         referencia: "gato.jpg",
+         comercial: true,
+         extra: "should be discarded",
+       },
+     });
+     expect(r4.accion?.args).toEqual({
+       prompt: "test",
+       opciones: 4,
+       necesita: "texto legible",
+       referencia: "gato.jpg",
+       comercial: true,
+     });
+     expect(r4.problemas[0]).toContain("descartado");
+   });
 });
 
 describe("deshacer", () => {
@@ -84,9 +157,15 @@ describe("deshacer", () => {
     expect("irreversible" in deshacer({ tipo: "computadora.ejecutar", args: {} }, {})).toBe(true);
     expect(deshacer({ tipo: "codigo.proponer", args: {} }, {})).toEqual({ nada: true });
   });
-  it("sin el estado anterior lo dice en vez de inventar", () => {
-    expect("irreversible" in deshacer({ tipo: "dashboard.editar", args: { tablero: "t", cambios: {} } }, {})).toBe(true);
-    expect(deshacer({ tipo: "dashboard.editar", args: { tablero: "t", cambios: { a: 1 } } }, { valor: { cambios: { a: 0 } } }))
-      .toEqual({ accion: { tipo: "dashboard.editar", args: { tablero: "t", cambios: { a: 0 } } } });
-  });
+   it("sin el estado anterior lo dice en vez de inventar", () => {
+     expect("irreversible" in deshacer({ tipo: "dashboard.editar", args: { tablero: "t", cambios: {} } }, {})).toBe(true);
+     expect(deshacer({ tipo: "dashboard.editar", args: { tablero: "t", cambios: { a: 1 } } }, { valor: { cambios: { a: 0 } } }))
+       .toEqual({ accion: { tipo: "dashboard.editar", args: { tablero: "t", cambios: { a: 0 } } } });
+   });
+
+   it("la acción de generación de imagen no deja huella para deshacer", () => {
+     expect(deshacer({ tipo: "imagen.generar", args: { prompt: "test" } }, {})).toEqual({ nada: true });
+     // Incluso con previo, sigue siendo nada porque su deshacer es "nada"
+     expect(deshacer({ tipo: "imagen.generar", args: { prompt: "test" }, any: "previo" }, { any: "previo" })).toEqual({ nada: true });
+   });
 });

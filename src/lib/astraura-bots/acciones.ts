@@ -12,10 +12,11 @@ import { CLAVES_PROHIBIDAS } from "@/lib/nucleo/paquete-sistema";
 import type { Sentido } from "./tipos";
 
 export const TIPOS_ACCION = [
-  "navegar", "abrir-app", "capa-pantalla", "widget.añadir", "widget.mover", "widget.quitar",
-  "pizarra.operar", "dashboard.editar", "escritorio.organizar", "pagina.editar", "ajuste.proponer",
-  "ui.proponer", "protomolecula.operar", "xr.intencion", "codigo.proponer", "computadora.ejecutar",
-  "mensaje.enviar", "publicacion.borrador", "tarea.crear", "memoria.recordar", "notificar",
+   "navegar", "abrir-app", "capa-pantalla", "widget.añadir", "widget.mover", "widget.quitar",
+   "pizarra.operar", "dashboard.editar", "escritorio.organizar", "pagina.editar", "ajuste.proponer",
+   "ui.proponer", "protomolecula.operar", "xr.intencion", "codigo.proponer", "computadora.ejecutar",
+   "mensaje.enviar", "publicacion.borrador", "tarea.crear", "memoria.recordar", "notificar",
+   "imagen.generar",
 ] as const;
 export type TipoAccion = (typeof TIPOS_ACCION)[number];
 
@@ -64,7 +65,8 @@ export const META_ACCION: Record<TipoAccion, MetaAccion> = {
   "publicacion.borrador": m("medio", true, true, "inverso", "lienzo universal", { destino: "id", texto: "texto", bloques: "json" }, ["texto"]),
   "tarea.crear": m("medio", true, false, "inverso", "genesis/poligenesis", { titulo: "texto", criterios: "json", director: "id", origen: "id" }, ["titulo", "criterios"]),
   "memoria.recordar": m("bajo", true, false, "inverso", "brains/memory", { alcance: "id", texto: "texto" }, ["alcance", "texto"]),
-  notificar: m("bajo", false, true, "retirar", "notificaciones", { texto: "texto", a: "id" }, ["texto"]),
+   notificar: m("bajo", false, true, "retirar", "notificaciones", { texto: "texto", a: "id" }, ["texto"]),
+   "imagen.generar": m("bajo", false, false, "nada", "aurora/actions#generar_imagen", { prompt: "texto", opciones: "numero", necesita: "texto", referencia: "texto", comercial: "bool" }, ["prompt"]),
 };
 
 export interface AccionBot {

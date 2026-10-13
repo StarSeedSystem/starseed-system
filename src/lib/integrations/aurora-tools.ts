@@ -1008,20 +1008,20 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
       ),
   },
   // ── GENERAR CON SERVICIOS por función (usa lo que el usuario conectó en /servicios) ──
-  {
-    name: "generar_imagen",
-    description:
-      "Genera una IMAGEN a partir de un prompt usando el servicio de imagen que el usuario conectó en /servicios (Fooocus-API o Stable Diffusion / AUTOMATIC1111) y la guarda en la Biblioteca. Entrada: { prompt }. Úsala para «genera una imagen de…», «créame una ilustración de…», «dibuja…». Si no hay servicio conectado, avisa para configurarlo en /servicios (no inventa la imagen).",
-    integrationId: SCREEN_TOOL_INTEGRATION_ID,
-    actionId: "generar_imagen",
-    kind: "screen",
-    run: (input) =>
-      runServiceGeneration((m) =>
-        m.generarImagen(
-          pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen"),
-        ),
-      ),
-  },
+{
+     name: "generar_imagen",
+     description:
+       "Genera una IMAGEN a partir de un prompt con varias opciones (por defecto 4) usando los modelos locales de Astraura (Qwen-Image, Krea 2, FLUX, etc.) o el servicio gratuito de Pollinations como respaldo. Soporta parámetros como opciones (número de imágenes), necesidades (texto legible, edición, transparencia), referencia (imagen de referencia) y comercial (uso comercial). Entrada: { prompt, opciones?, necesita?, referencia?, comercial? }. Úsala para «genera varias opciones de imagen de…», «créame una imagen editable de…», etc. Siempre devuelve un resultado gracias al fallback gratuito.",
+     integrationId: SCREEN_TOOL_INTEGRATION_ID,
+     actionId: "generar_imagen",
+     kind: "screen",
+     run: (input) =>
+       runServiceGeneration((m) =>
+         m.generarImagen(
+           pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen"),
+         ),
+       ),
+   },
   {
     name: "lanzar_workflow",
     description:
