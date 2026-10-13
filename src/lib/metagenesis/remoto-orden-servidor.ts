@@ -16,6 +16,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
     esAccion,
     esDestino,
+    esDestinoPara,
     isoSinMs,
     textoAFirmar,
     validarArgs,
@@ -69,7 +70,9 @@ export async function procesarOrden(cuerpo: unknown, token: string | null, deps:
     const c = (cuerpo ?? {}) as { accion?: unknown; para?: unknown; args?: unknown };
     if (!esAccion(c.accion)) return { status: 400, body: { ok: false, error: "Acción no admitida." } };
     const para = c.para === undefined ? "lider" : c.para;
-    if (!esDestino(para)) return { status: 400, body: { ok: false, error: "Destino no válido." } };
+    // esDestinoPara (no esDestino a pelo): desconectar/contenedor NUNCA van a «lider»/«todos»/
+    // un medio genérico, solo a un id de nodo — la misma regla que aplica el nodo de Python.
+    if (!esDestino(para) || !esDestinoPara(c.accion, para)) return { status: 400, body: { ok: false, error: "Destino no válido." } };
     const args = (c.args ?? {}) as ArgsOrden;
     const mal = validarArgs(c.accion, args);
     if (mal) return { status: 400, body: { ok: false, error: mal } };
