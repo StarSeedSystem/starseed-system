@@ -338,7 +338,7 @@ export function HermioneStatusBadge({ className }: { className?: string }) {
 
 /* ═══════════════════════════ Tarjeta de neurona ═══════════════════════════ */
 
-function NeuronCard({
+export function NeuronCard({
   neuron: n,
   live,
   brainId,
