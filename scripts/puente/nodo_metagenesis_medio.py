@@ -147,6 +147,61 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return None
 
 
+def disco_total_gb(ruta: str) -> Optional[float]:
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
+
+
+def cpu_pct() -> Optional[float]:
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/stat") as f:
+                linea = f.readline()
+            campos = linea.split()
+            if campos[0] == "cpu":
+                valores = [int(x) for x in campos[1:]]
+                total1 = sum(valores)
+                idle1 = valores[3]
+            else:
+                return None
+            time.sleep(0.3)
+            with open("/proc/stat") as f:
+                linea = f.readline()
+            campos = linea.split()
+            valores = [int(x) for x in campos[1:]]
+            total2 = sum(valores)
+            idle2 = valores[3]
+            total_diff = total2 - total1
+            idle_diff = idle2 - idle1
+            if total_diff <= 0:
+                return None
+            return round(100.0 * (1.0 - idle_diff / total_diff), 1)
+        except Exception:
+            return None
+    # macOS u otros: sin medida directa en /proc/stat
+    return None
+
+
+def ram_total_mb() -> Optional[int]:
+    try:
+        with open("/proc/meminfo") as f:
+            for linea in f:
+                if linea.startswith("MemTotal:"):
+                    return int(linea.split()[1]) // 1024
+    except OSError:
+        pass
+    if sys.platform == "darwin":
+        try:
+            rc, out = _sh(["sysctl", "-n", "hw.memsize"], tope=2)
+            if rc == 0:
+                return int(out.strip()) // (1024 * 1024)
+        except Exception:
+            pass
+    return None
+
+
 def lineas_ps() -> List[str]:
     """`ps` con pid y orden completa (nunca `pgrep -l`, que en la Mac recorta y engaña)."""
     orden = ["ps", "-axo", "pid=,args="] if sys.platform == "darwin" else ["ps", "-eo", "pid=,args="]
