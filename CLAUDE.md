@@ -1238,3 +1238,16 @@ cesión que el reparto (antes el botón miraba solo las sueltas: «0 elegibles, 
 jobs. Medido tras el cambio: 38 elegibles y 4 jobs × 3 agentes lanzados en el acto. **El límite de verdad son
 los escritores**: 2 jobs por escritor vivo en la nube (hoy nvidia y openrouter; google y xkiro vuelven con su
 cupo diario). Síntoma para reconocerlo: «cede 3 que nadie espera» con decenas de listas y 0 elegibles.
+
+### 18. «No carga MetaGenesis»: la página sale y la consola se queda «Midiendo el pulso…» (2026-10-13)
+
+`/api/mando/estado` y `/api/mando/ramificacion` pasaban de 55 s: la Mac estaba sin memoria (presión en
+aviso, 108 MB libres) por los tsc locales de `traer_nube` (uno tras otro, ~1-3 GB cada uno) y todas las
+peticiones esperaban al MISMO cálculo, que no acababa. Ahora `compartirCalculo(…, esperaMs)` responde con
+el estado anterior a los 6 s (el último bueno se guarda en `~/.starseed/cache-estado-genesis.json` y siembra
+el arranque), la ramificación se calcula una vez para las dos rutas (`ramificacion-compartida.ts`) y
+`traer_nube` no lanza tsc con la presión ≥ 2 (fallo del medio: próxima pasada). Soltar reuniones «colgadas» a
+los 3 min fue peor (eran lentas, no colgadas, y se juntaban): a los 15 min. Síntoma: `curl -w %{time_total}`
+de `/api/mando/estado` > 50 s con `sysctl kern.memorystatus_vm_pressure_level` en 2 y un
+`starseed-wt/_traer/*/node_modules/.bin/tsc` vivo. Pendiente: que `comprobar_en_a1.py` funcione de verdad (el
+A1 no tiene el main de la Mac ni `node_modules` en su worktree temporal) y adelgazar el estado (3,4 MB).
