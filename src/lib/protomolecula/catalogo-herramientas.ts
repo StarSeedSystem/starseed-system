@@ -2735,16 +2735,19 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
   },
   {
     id: "stable-diffusion-cpp", nombre: "stable-diffusion.cpp", categoria: "ia-generativa", tipo: "app", origen: "github",
-    descripcion: "Inferencia de modelos de difusión en C/C++ (Stable Diffusion, SDXL, Flux, Wan…) con cuantización GGUF: corre en CPU, Metal, CUDA y Vulkan, sin Python.",
+    descripcion: "Inferencia de modelos de difusión en C/C++ con cuantización GGUF: corre en CPU, Metal, CUDA, Vulkan, OpenCL y SYCL, sin Python. Es la base universal del OS para imágenes locales.",
     licencia: "MIT", codigo: "https://github.com/leejet/stable-diffusion.cpp", web: "https://github.com/leejet/stable-diffusion.cpp",
     medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
     integracion: "servicio-local",
-    formatos: { entrada: ["texto", "png"], salida: ["png", "mp4"] },
-    control: { via: ["cli", "http"], notas: "CLI y servidor local; los pesos GGUF caben en máquinas modestas (lento en CPU)." },
+    formatos: { entrada: ["texto", "png", "gguf"], salida: ["png", "mp4"] },
+    control: { via: ["cli", "http"], notas: "CLI, servidor local y modo RPC. Modelos soportados (2026-10-11): SD 1.5 y 2.x, SDXL, SD 3.5 Medium/Large, FLUX.1 [schnell] y [dev], PixArt-Σ, Qwen-Image, Qwen-Image 2.1, Krea 2 y Wan (vídeo). Sana NO figura: va solo por Diffusers." },
     actualizacion: { fuente: "github-releases", ref: "leejet/stable-diffusion.cpp", ultimaVersion: "master-951-f89d9b1", fechaVersion: "2026-10-09" },
     ia: ["genera-imagen", "genera-video"],
     estado: "integrable", motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.",
-    verificado: "2026-10-10",
+    verificado: "2026-10-11",
+    avisos: [
+      "Su modo RPC (repartir el cálculo entre máquinas) es experimental y NO tiene autenticación: solo dentro de la malla privada y apagado por defecto; nunca expuesto a internet.",
+    ],
   },
   {
     id: "whisper-cpp", nombre: "whisper.cpp", categoria: "ia-generativa", tipo: "app", origen: "github",
