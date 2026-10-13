@@ -94,3 +94,39 @@ def aviso(nombres):
         "aplicado. Conéctalo donde tenga que usarse antes de darte por terminado."
         % lista
     )
+
+
+#: Estados con los que una tarea ya no va a escribir nada más.
+_CERRADAS = ("commit", "hecho", "sustituida", "descartada", "rechazada", "informe")
+
+
+def dependientes_abiertos(tid, colas, progreso=None):
+    """Las tareas AÚN ABIERTAS que dependen de `tid` (en cualquier cola viva). PURA.
+
+    (2026-10-13, medido) La Ola 1012Q se escribe de abajo arriba por contrato: MC1012A crea
+    los tipos de la malla y MC1012F, H, I… los usan después. La puerta de cableado veía
+    «exportas MEDIOS, coordinacionDe… y no lo llama nadie» y le pedía al MISMO modelo que lo
+    conectara: metió imports sin uso en cinco archivos de `src/ai/astraura/mesh/` y cambió
+    cómo se calcula la calidad de LoRa (sin medida ponía 0,3 en vez de «sin dato»), todo
+    fuera de la lista de la tarea. Si hay tareas abiertas que dependen de esta, el cableado
+    es trabajo SUYO, no un olvido: la puerta lo anota y no pide nada.
+
+    `colas`: lista de listas de tareas (dicts con `id` y `depende`); `progreso`: {id: {estado}}.
+    """
+    tid = str(tid or "")
+    progreso = progreso or {}
+    salida = []
+    for tareas in colas or []:
+        for t in tareas or []:
+            if not isinstance(t, dict) or not t.get("id"):
+                continue
+            deps = t.get("depende") or t.get("depende_de") or []
+            deps = deps if isinstance(deps, list) else [deps]
+            if tid not in [str(d) for d in deps]:
+                continue
+            e = progreso.get(str(t["id"]))
+            if isinstance(e, dict) and e.get("estado") in _CERRADAS:
+                continue
+            if str(t["id"]) not in salida:
+                salida.append(str(t["id"]))
+    return salida

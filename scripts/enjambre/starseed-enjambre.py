@@ -4076,6 +4076,32 @@ def tsc_sin_terminar(rc, salida, errores):
     return "salió con rc=%s sin listar errores" % rc
 
 
+def _colas_vivas_para_cableado():
+    """Las tareas de las colas vivas (`olas/cola-*.json`) y las de esta tanda. Nunca lanza."""
+    salida = [list(TAREAS_POR_ID.values())]
+    try:
+        for nombre in sorted(os.listdir(OLAS)):
+            if not (nombre.startswith("cola-") and nombre.endswith(".json")):
+                continue
+            try:
+                d = json.load(open(os.path.join(OLAS, nombre), encoding="utf-8"))
+            except Exception:
+                continue
+            lista = d if isinstance(d, list) else (d or {}).get("tareas") or [] if isinstance(d, dict) else []
+            salida.append([x for x in lista if isinstance(x, dict)])
+    except Exception:
+        pass
+    return salida
+
+
+def _progreso_para_cableado():
+    try:
+        d = json.load(open(os.path.join(OLAS, "progreso.json"), encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
 def _puerta_cableado(tid, t, wt, log, modelo_ok):
     """Lo que la tarea exporta nuevo, ¿lo llama alguien?
 
@@ -4109,6 +4135,15 @@ def _puerta_cableado(tid, t, wt, log, modelo_ok):
             usos[n] = [l.strip() for l in (salida or "").splitlines() if l.strip()]
         propias = [r for r in (t.get("archivos") or [])]
         huerfanos = cableado_ts.sin_cablear(nombres, usos, propias)
+        if huerfanos:
+            # (2026-10-13) Si otras tareas abiertas dependen de esta, conectarlo es trabajo
+            # SUYO (olas escritas de abajo arriba por contrato): no se pide al mismo modelo que
+            # toque archivos fuera de su lista. Ver cableado_ts.dependientes_abiertos.
+            despues = cableado_ts.dependientes_abiertos(tid, _colas_vivas_para_cableado(), _progreso_para_cableado())
+            if despues:
+                paso(tid, "cableado", exporta=len(nombres), sin_usar=",".join(huerfanos)[:200],
+                     lo_cablean=",".join(despues)[:200])
+                return
         paso(tid, "cableado", exporta=len(nombres), sin_usar=",".join(huerfanos)[:200])
         if not huerfanos:
             return

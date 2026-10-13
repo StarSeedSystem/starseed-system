@@ -6,6 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import cableado_ts  # noqa: E402
 from cableado_ts import aviso, es_prueba, exportados_nuevos, sin_cablear
 
 DIFF_PR2 = """--- a/src/lib/mando/medidores.ts
@@ -96,3 +97,15 @@ class TestAviso(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DependientesAbiertos(unittest.TestCase):
+    """(2026-10-13) La Ola 1012Q: MC1012A exporta tipos que usarán MC1012F, H… más tarde."""
+
+    def test_quien_depende_y_sigue_abierta(self):
+        colas = [[{"id": "A"}, {"id": "F", "depende": ["A"]}, {"id": "H", "depende": ["A", "E"]}],
+                 [{"id": "X", "depende_de": "A"}, {"id": "Z"}]]
+        self.assertEqual(cableado_ts.dependientes_abiertos("A", colas, {}), ["F", "H", "X"])
+        self.assertEqual(cableado_ts.dependientes_abiertos("A", colas, {"F": {"estado": "commit"}}), ["H", "X"])
+        self.assertEqual(cableado_ts.dependientes_abiertos("Z", colas, {}), [])
+        self.assertEqual(cableado_ts.dependientes_abiertos("A", None, None), [])
