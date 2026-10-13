@@ -85,6 +85,10 @@ def ids_de_la_tanda_viva(args_procesos, olas):
 #: (2026-10-10, CAP1010) Rondas de trabajo que la Mac se guarda de su propia tanda antes de
 #: ceder el resto a otro medio: con 3 trabajadores, sus 6 listas siguientes.
 RONDAS_RESERVA_MAC = 2
+#: (2026-10-13) Una cadena cedible cabe ENTERA en un job de la nube: 3 trabajadores × 2 tareas
+#: (`buscar_capacidad.TAREAS_POR_RUN`). Con 4, las cadenas de 5-6 tareas se quedaban en una Mac
+#: que con la memoria en aviso solo corre 2 agentes a la vez.
+MAX_CADENA_CEDIBLE = 6
 #: Estados con los que una tarea ya no espera a nadie ni nadie la espera a ella.
 _CERRADAS = ("commit", "sustituida", "descartada", "rechazada", "informe")
 
@@ -116,13 +120,23 @@ def colas_de_la_tanda_viva(args_procesos, olas):
     return salida
 
 
-def esperadas_por_otras(colas, progreso):
+def esperadas_por_otras(colas, progreso, solo_de=None):
     """PURA: ids de los que depende alguna tarea que aún no se cerró. Ceder una de esas a otro
-    medio dejaría su cadena de la Mac esperando a un medio que quizá no la entrega."""
+    medio dejaría su cadena de la Mac esperando a un medio que quizá no la entrega.
+
+    `solo_de` (2026-10-13): cuenta solo a quien espera DESDE ese conjunto (la tanda de la Mac).
+    Medido a las 15:40 (hora de la Mac): de 57 listas en la tanda, 43 las esperaba alguien que
+    NO estaba en la tanda (tareas de otras colas que aún no están listas). Esas no se quedan
+    varadas si la nube se lleva su dependencia: siguen pendientes en su cola y entran solas
+    cuando la dependencia llega a main (`traer_nube.py`). Contarlas dejaba a la nube con 0
+    elegibles y a MetaGenesis con 2 agentes."""
+    solo_de = None if solo_de is None else {str(x) for x in solo_de}
     salida = set()
     for _nombre, tareas in colas or []:
         for t in tareas or []:
             if not isinstance(t, dict) or not t.get("id"):
+                continue
+            if solo_de is not None and str(t["id"]) not in solo_de:
                 continue
             e = ((progreso or {}).get(str(t["id"])) or {})
             if isinstance(e, dict) and e.get("estado") in _CERRADAS:
@@ -150,7 +164,7 @@ def cedibles_de_la_tanda(tanda_ids, listas_mac, tope_mac, esperadas=(), rondas=R
 
 
 def cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por,
-                     rondas=RONDAS_RESERVA_MAC, max_cadena=4):
+                     rondas=RONDAS_RESERVA_MAC, max_cadena=MAX_CADENA_CEDIBLE):
     """PURA. Cadenas completas (cabeza esperada + sus dependientes transitivos) de la tanda de
     la Mac que otro medio puede llevarse ENTERAS sin romper el orden. Determinista: el orden
     es el de `listas_mac` (la prioridad de la Mac).
@@ -215,7 +229,8 @@ def cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas=()):
     estado_mac = estado_mac or {}
     listas_mac = [str(t) for t in (estado_mac.get("listas") or [])]
     tope_mac = estado_mac.get("tope") or 0
-    esperadas = esperadas_por_otras(colas, progreso)
+    # Solo frena lo que espera una tarea que SE QUEDA en la tanda de la Mac (2026-10-13).
+    esperadas = esperadas_por_otras(colas, progreso, solo_de=tanda)
     sueltas = [t for t in cedibles_de_la_tanda(tanda, listas_mac, tope_mac, esperadas)
                if t not in ajenas]
     # Tareas de la tanda con su dict (de las colas) y quién espera a quién DENTRO de la
@@ -240,6 +255,45 @@ def cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas=()):
             vistas.add(tid)
             cedibles.append(tid)
     return cedibles, lote
+
+
+def sin_cadenas_partidas(elegidas, lote, colas):
+    """PURA. `elegidas` sin las cadenas del `lote` que no van ENTERAS en este envío.
+
+    (2026-10-13) Mandar la mitad de una cadena deja `reasignada` la cabeza y varados los
+    dependientes. Antes se quitaba TODO el lote si faltaba un solo miembro de cualquier
+    cadena: una cadena que no cabía dejaba sin envío a todas las demás. Ahora se mira cadena
+    por cadena: las cadenas son las componentes conexas del lote por `depende` (en
+    `cadenas_cedibles` ningún miembro depende ni es esperado por nadie de fuera)."""
+    lote = {str(x) for x in lote or ()}
+    if not lote:
+        return list(elegidas or [])
+    padre = {x: x for x in lote}
+
+    def raiz(x):
+        while padre[x] != x:
+            padre[x] = padre[padre[x]]
+            x = padre[x]
+        return x
+
+    for _nombre, tareas in colas or []:
+        for t in tareas or []:
+            tid = str((t or {}).get("id") or "") if isinstance(t, dict) else ""
+            if tid not in lote:
+                continue
+            deps = t.get("depende") or t.get("depende_de") or []
+            for d in (deps if isinstance(deps, list) else [deps]):
+                if str(d) in lote:
+                    padre[raiz(tid)] = raiz(str(d))
+    elegidos = {str(t.get("id")) for t in elegidas or []}
+    partidas = set()
+    componentes = {}
+    for x in lote:
+        componentes.setdefault(raiz(x), set()).add(x)
+    for miembros in componentes.values():
+        if (miembros & elegidos) and not miembros <= elegidos:
+            partidas |= miembros
+    return [t for t in elegidas or [] if str(t.get("id")) not in partidas]
 
 
 def sin_lo_de_la_mac(colas, tanda_ids, cedibles=(), ajenas=()):
@@ -551,15 +605,19 @@ def elegir(colas, progreso, asuntos_main, ola_actual, tope=20, max_archivos=MAX_
 
 
 def clasificar(colas, progreso, asuntos_main, ola_actual, envios=None,
-               max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE):
+               max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE, mismo_lote=()):
     """PURA. {"elegibles": [ids], <motivo>: [ids], ...} del trabajo que queda, en el orden de
     las colas. No cuenta lo cerrado ni lo que ya está en main (no es trabajo pendiente).
+
+    `mismo_lote` (2026-10-13): las cadenas que la Mac cede ENTERAS (`cedibles_y_lote`). Sin él,
+    sus dependientes salían «esperan a otra tarea» y el botón contaba 0 elegibles aunque el
+    reparto sí las habría mandado: «Buscar más capacidad» decidía con otra regla que el reparto.
 
     Una «agotada» que con la cuenta a cero seguiría fuera por otra razón (privada, por
     ejemplo) sale con ESA razón: reabrirla no la llevaría a la nube."""
     elegidas = {str(t["id"]) for t in elegir(colas, progreso, asuntos_main, ola_actual, tope=10 ** 6,
                                               max_archivos=max_archivos, envios=envios,
-                                              max_envios=max_envios)}
+                                              max_envios=max_envios, mismo_lote=mismo_lote)}
     n_actual = numero_ola(str(ola_actual)) if ola_actual else None
     salida, vistas = {"elegibles": []}, set()
     for _nombre, tareas in colas:
@@ -573,10 +631,11 @@ def clasificar(colas, progreso, asuntos_main, ola_actual, envios=None,
             if tid in elegidas:
                 salida["elegibles"].append(tid)
                 continue
-            motivo = motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos, max_envios)
+            motivo = motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos, max_envios,
+                                  mismo_lote)
             if motivo == "agotada":
                 motivo = motivo_fuera(tarea, progreso, asuntos_main, n_actual, {}, max_archivos,
-                                      max_envios) or "agotada"
+                                      max_envios, mismo_lote) or "agotada"
             if motivo in (None, "estado", "en-main"):
                 continue
             salida.setdefault(motivo, []).append(tid)

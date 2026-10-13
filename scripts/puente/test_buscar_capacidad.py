@@ -437,6 +437,15 @@ class TopeNubeDinamico(unittest.TestCase):
                          tope=(4, "2 escritor(es)"))
         self.assertIn("1 job(s) en marcha de 4 a la vez ahora (2 escritor(es))", t)
         self.assertIn("la tanda de la Mac tiene 118: se queda 6", t)
+        t = B.texto_nube({"elegibles": ["A", "B"]}, {"por_que": "x"}, 0,
+                         mac={"tanda": 309, "se_queda": 4, "cedibles": ["A", "B"], "en_cadenas": 2})
+        self.assertIn("cede 2 (2 en cadenas que viajan enteras)", t)
+
+    def test_techo_de_la_nube_deja_sitio_al_ci(self):
+        # (2026-10-13) 20 jobs a la vez en un repo público Free: 14 para el enjambre, 6 para el CI.
+        self.assertLessEqual(B.MAX_RUNS_NUBE, 20)
+        if not os.environ.get("STARSEED_NUBE_MAX_RUNS"):
+            self.assertEqual(B.MAX_RUNS_NUBE, 14)
 
 
 class CesionDeLaTandaDeLaMac(unittest.TestCase):

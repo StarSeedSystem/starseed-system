@@ -163,11 +163,9 @@ def main():
     colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
     elegidas = elegir(colas, progreso, asuntos, ola_actual(colas), tope=args.tope,
                       envios=envios, mismo_lote=lote)
-    elegidos = {str(t["id"]) for t in elegidas}
-    if lote and (lote - elegidos):
-        # Una cadena no cabía entera en el tope de este envío: no se manda NINGUNA de sus
-        # tareas (mandar la mitad deja reasignada la cabeza y varados los dependientes).
-        elegidas = [t for t in elegidas if str(t["id"]) not in lote]
+    # Una cadena que no cabe entera en el tope de este envío no se manda (mandar la mitad deja
+    # reasignada la cabeza y varados los dependientes); las demás cadenas sí (2026-10-13).
+    elegidas = RN.sin_cadenas_partidas(elegidas, lote, colas)
     cedidas = [t["id"] for t in elegidas if t["id"] in set(cedibles)]
     if tanda:
         print("[reparto] tanda viva de la Mac: %d tarea(s); cedibles %d; cedidas a la nube %d (%s)"

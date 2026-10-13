@@ -875,18 +875,20 @@ def lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None, ceder=True):
         colas_mac = RN.colas_de_la_tanda_viva(procesos, OLAS)
         tanda = {i for _n, ids_ in colas_mac for i in ids_}
         ajenas = RN.leer_prestadas()  # lo que MetaGenesis ya prestó: ni se cede ni se repite
+        lote = set()
         if ceder and tanda:
             try:
                 import asignar_huecos  # noqa: PLC0415
 
-                est = asignar_huecos.reunir()
-                cedibles = [t for t in RN.cedibles_de_la_tanda(tanda, est.get("listas"), est.get("tope"),
-                                                               RN.esperadas_por_otras(colas, progreso))
-                            if t not in ajenas]
+                # (2026-10-13) La misma cesión que la nube: sueltas + cadenas ENTERAS. Con solo
+                # las sueltas el A1 recibía «no hay atraso» con la Mac guardándose 38 listas.
+                cedibles, lote = RN.cedibles_y_lote(tanda, asignar_huecos.reunir(), colas, progreso, ajenas)
             except Exception:  # noqa: BLE001 — sin la foto de la Mac no se cede nada
-                cedibles = []
+                cedibles, lote = [], set()
         colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
-        elegidas = RN.elegir(colas, progreso, rep.asuntos_main(RAIZ), rep.ola_actual(colas), tope=tope, envios=envios)
+        elegidas = RN.elegir(colas, progreso, rep.asuntos_main(RAIZ), rep.ola_actual(colas), tope=tope, envios=envios,
+                             mismo_lote=lote)
+        elegidas = RN.sin_cadenas_partidas(elegidas, lote, colas)
     ids = [t["id"] for t in elegidas]
     cedidas = [i for i in ids if i in set(cedibles)]
     if simular or not elegidas:

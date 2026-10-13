@@ -517,14 +517,18 @@ class CadenasCedibles(unittest.TestCase):
         self.assertEqual(r, [])
 
     def test_cadena_mas_larga_que_max_cadena_no_se_cede(self):
+        # (2026-10-13) max_cadena = 6 (lo que cabe en un job): A + 6 dependientes = 7.
+        hijos = ["B", "C", "D", "E", "F", "G"]
         tareas = self._tareas(
-            ("A", {}), ("B", {"depende": ["A"]}),
-            ("C", {"depende": ["A"]}), ("D", {"depende": ["A"]}),
-            ("E", {"depende": ["A"]}), *(("M%d" % i, {}) for i in range(4)),
+            ("A", {}), *((h, {"depende": ["A"]}) for h in hijos), *(("M%d" % i, {}) for i in range(4)),
         )
         listas = ["M%d" % i for i in range(4)] + ["A", "B"]
-        esp = {"A": ["B", "C", "D", "E"]}
+        esp = {"A": hijos}
         self.assertEqual(R.cadenas_cedibles(tareas, listas, 2, esp), [])
+        # Con 5 dependientes (6 en total) sí cabe en un job y se cede entera.
+        tareas.pop("G")
+        r = R.cadenas_cedibles(tareas, listas, 2, {"A": hijos[:5]})
+        self.assertEqual([sorted(c) for c in r], [sorted(["A"] + hijos[:5])])
 
     def test_la_reserva_de_la_mac_nunca_se_cede(self):
         tareas = self._tareas(("A", {}), ("B", {"depende": ["A"]}))
@@ -669,3 +673,58 @@ class CederCadenasALaNube(unittest.TestCase):
                                            ajenas={"B"})
         self.assertNotIn("B", cedibles)
         self.assertNotIn("B", lote)
+
+
+class CadenasPartidasYClasificar(unittest.TestCase):
+    """(2026-10-13, Alex: «de nuevo solo 2 agentes en MetaGenesis») El botón decidía con las
+    sueltas y el reparto con las cadenas: 0 elegibles y 0 jobs con 38 listas en la Mac."""
+
+    def _colas(self):
+        return [("cola-auto.json", [
+            {"id": "A", "ola": "1010"}, {"id": "B", "ola": "1010", "depende": ["A"]},
+            {"id": "X", "ola": "1010"}, {"id": "Y", "ola": "1010", "depende": ["X"]},
+            {"id": "Z", "ola": "1010", "depende": ["Y"]},
+            {"id": "S", "ola": "1010"},
+        ])]
+
+    def test_solo_se_quita_la_cadena_que_no_va_entera(self):
+        colas = self._colas()
+        lote = {"A", "B", "X", "Y", "Z"}
+        elegidas = [{"id": i} for i in ("S", "A", "B", "X", "Y")]  # a X-Y-Z le falta Z
+        r = [t["id"] for t in R.sin_cadenas_partidas(elegidas, lote, colas)]
+        self.assertEqual(r, ["S", "A", "B"])
+
+    def test_sin_lote_no_cambia_nada(self):
+        elegidas = [{"id": "S"}, {"id": "A"}]
+        self.assertEqual(R.sin_cadenas_partidas(elegidas, set(), self._colas()), elegidas)
+
+    def test_clasificar_cuenta_las_cadenas_como_elegibles(self):
+        colas = self._colas()
+        progreso = {i: {"estado": "pendiente"} for i in "ABXYZS"}
+        sin = R.clasificar(colas, progreso, "", "999")
+        self.assertEqual(sorted(sin["elegibles"]), ["A", "S", "X"])
+        self.assertEqual(sorted(sin.get("espera") or []), ["B", "Y", "Z"])
+        con = R.clasificar(colas, progreso, "", "999", mismo_lote={"A", "B", "X", "Y", "Z"})
+        self.assertEqual(sorted(con["elegibles"]), ["A", "B", "S", "X", "Y", "Z"])
+        self.assertNotIn("espera", con)
+
+    def test_la_esperada_solo_desde_fuera_de_la_tanda_se_cede(self):
+        # (2026-10-13, medido) 43 de 57 listas las esperaba una tarea de OTRA cola que aún no
+        # estaba lista: no se quedan varadas, entran solas cuando la dependencia llega a main.
+        colas = [("cola-auto.json", [{"id": "M1", "ola": "1010"}, {"id": "M2", "ola": "1010"},
+                                     {"id": "A", "ola": "1010"}, {"id": "B", "ola": "1010"}]),
+                 ("cola-otra.json", [{"id": "X", "ola": "1012", "depende": ["A"]}])]
+        tanda = ["M1", "M2", "A", "B"]
+        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 1}, colas, {})
+        self.assertEqual(sorted(cedibles), ["A", "B"])
+        self.assertEqual(lote, set())
+        # Si quien espera a A está EN la tanda, A solo viaja con su cadena.
+        colas[0][1].append({"id": "Y", "ola": "1010", "depende": ["A"]})
+        cedibles, lote = R.cedibles_y_lote(tanda + ["Y"], {"listas": tanda, "tope": 1}, colas, {})
+        self.assertEqual(lote, {"A", "Y"})
+
+    def test_esperadas_solo_de(self):
+        colas = [("c", [{"id": "X", "depende": ["A"]}, {"id": "Y", "depende": ["B"]}])]
+        self.assertEqual(R.esperadas_por_otras(colas, {}), {"A", "B"})
+        self.assertEqual(R.esperadas_por_otras(colas, {}, solo_de={"Y"}), {"B"})
+        self.assertEqual(R.esperadas_por_otras(colas, {}, solo_de=set()), set())

@@ -64,9 +64,11 @@ TRABAJADORES_JOB = 3
 TAREAS_POR_RUN = TRABAJADORES_JOB * 2
 #: (2026-10-10, CAP1010) El tope ya NO es un 2 fijo: crece con las tareas que la nube puede
 #: coger y con los escritores vivos que llegan a ella, hasta este techo. El plan gratuito de
-#: GitHub deja 20 jobs a la vez en un repo público de una cuenta Free; nos quedamos en 6 para
-#: dejar sitio al CI de la publicación (comparte esa cola) y no ahogar los RPM gratuitos.
-MAX_RUNS_NUBE = int(os.environ.get("STARSEED_NUBE_MAX_RUNS") or 6)
+#: GitHub deja 20 jobs a la vez en un repo público de una cuenta Free (los minutos de un repo
+#: público no se cobran). (2026-10-13, Alex: «solo 2 agentes… deberían ser decenas») De 6 a 14:
+#: quedan 6 libres para el CI de la publicación, que comparte esa cola. Los RPM gratuitos ya
+#: los protege `RUNS_POR_ESCRITOR` (dos jobs por escritor vivo), no este techo.
+MAX_RUNS_NUBE = int(os.environ.get("STARSEED_NUBE_MAX_RUNS") or 14)
 #: Jobs por escritor vivo: un job son 3 agentes y un proveedor gratuito aguanta unos 6 a la vez
 #: antes de los 429 (NIM: 40 RPM por clave; un agente de opencode hace 3-6 llamadas por minuto).
 RUNS_POR_ESCRITOR = 2
@@ -242,8 +244,11 @@ def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True, mac=None,
         cabeza += " de %d a la vez ahora (%s)" % (tope[0], tope[1])
     partes = [cabeza, "%d tarea(s) elegible(s)" % len(clases.get("elegibles") or [])]
     if mac and mac.get("tanda"):
-        partes.append("la tanda de la Mac tiene %d: se queda %d para sus próximas rondas y cede %d que nadie espera"
-                      % (mac["tanda"], mac.get("se_queda") or 0, len(mac.get("cedibles") or [])))
+        cede = len(mac.get("cedibles") or [])
+        en_cadenas = int(mac.get("en_cadenas") or 0)
+        partes.append("la tanda de la Mac tiene %d: se queda %d para sus próximas rondas y cede %d%s"
+                      % (mac["tanda"], mac.get("se_queda") or 0, cede,
+                         (" (%d en cadenas que viajan enteras)" % en_cadenas) if en_cadenas else " que nadie espera"))
     if mac and mac.get("prestadas"):
         partes.append("%d ya prestada(s) por MetaGenesis a otro medio (no se repiten)" % len(mac["prestadas"]))
     if plan.get("reabrir"):
@@ -519,16 +524,19 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
         colas_mac = RN.colas_de_la_tanda_viva(procesos, ran.OLAS)
         tanda = {i for _n, ids in colas_mac for i in ids}
         ajenas = RN.leer_prestadas(ahora)
-        cedibles = []
+        # (2026-10-13, Alex: «de nuevo solo 2 agentes en MetaGenesis») La MISMA cesión que el
+        # reparto (`repartir-a-nube.py --ceder`): sueltas + cadenas ENTERAS. Aquí solo se miraban
+        # las sueltas («que nadie espera»): el botón contaba 0 elegibles, decidía 0 jobs y el
+        # reparto, que sí cede cadenas, nunca llegaba a correr.
+        cedibles, lote = [], set()
         if ceder and tanda and estado_mac:
-            cedibles = [t for t in RN.cedibles_de_la_tanda(tanda, estado_mac.get("listas"), estado_mac.get("tope"),
-                                                           RN.esperadas_por_otras(colas, progreso))
-                        if t not in ajenas]
+            cedibles, lote = RN.cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas)
         listas_en_tanda = [t for t in (estado_mac or {}).get("listas") or [] if t in tanda and t not in ajenas]
         salida["mac"] = {"tanda": len(tanda), "cedibles": cedibles, "prestadas": sorted(ajenas),
-                         "se_queda": max(0, len(listas_en_tanda) - len(cedibles))}
+                         "en_cadenas": len(lote),
+                         "se_queda": max(0, len(listas_en_tanda) - len([t for t in cedibles if t in listas_en_tanda]))}
         colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
-        salida["clases"] = RN.clasificar(colas, progreso, asuntos, ran.ola_actual(colas), envios)
+        salida["clases"] = RN.clasificar(colas, progreso, asuntos, ran.ola_actual(colas), envios, mismo_lote=lote)
     except (Exception, SystemExit) as e:  # SystemExit: el reparto aborta así si git falla
         salida["error"] = "%s: %s" % (type(e).__name__, e)
     try:
