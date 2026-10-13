@@ -107,13 +107,30 @@ describe('decisionPorResonancia', () => {
     expect(r.decision).toBe('aviso');
   });
 
-  it('un voto por cuenta: gana el más reciente', () => {
-    const r = decisionPorResonancia('h1', [
-      veredicto({ cuenta: 'c1', nivel: 'peligroso', t: 1 }),
-      veredicto({ cuenta: 'c1', nivel: 'limpio', t: 5 }),
-      veredicto({ cuenta: 'c2', nodo: 'n2', nivel: 'limpio' }),
-      veredicto({ cuenta: 'c3', nodo: 'n3', nivel: 'limpio' }),
-    ], conf);
-    expect(r.decision).toBe('limpio');
-  });
-});
+   it('un voto por cuenta: gana el más reciente', () => {
+     const r = decisionPorResonancia('h1', [
+       veredicto({ cuenta: 'c1', nivel: 'peligroso', t: 1 }),
+       veredicto({ cuenta: 'c1', nivel: 'limpio', t: 5 }),
+       veredicto({ cuenta: 'c2', nodo: 'n2', nivel: 'limpio' }),
+       veredicto({ cuenta: 'c3', nodo: 'n3', nivel: 'limpio' }),
+     ], conf);
+     expect(r.decision).toBe('limpio');
+   });
+    it('sin-datos si el array está vacío', () => {
+      const d = decisionPorResonancia('h5', [], conf);
+      expect(d.decision).toBe('sin-datos');
+      expect(d.cuentas).toBe(0);
+    });
+     it('ignora otro hash', () => {
+       const res = veredicto({hash:'otro',nivel:'peligroso',nodo:'n1',cuenta:'cA',firmaOk:true,t:1});
+       expect(decisionPorResonancia('h5', [res], conf).decision).toBe('sin-datos');
+     });
+      it('ignora veredictos con firmaOk falsa', () => {
+        const res = veredicto({hash:'h6',nivel:'peligroso',nodo:'n1',cuenta:'cA',firmaOk:false,t:1});
+        expect(decisionPorResonancia('h6', [res], conf).decision).toBe('sin-datos');
+      });
+      it('ignora veredictos con confianza baja', () => {
+        const res = veredicto({hash:'h7',nivel:'peligroso',nodo:'n1',cuenta:'cA',firmaOk:true,t:1});
+        expect(decisionPorResonancia('h7', [res], {n1:0.1}).decision).toBe('sin-datos');
+      });
+    });
