@@ -4,9 +4,8 @@
 
 import { snapshotMallaNeuronas, type MallaNeuronasState } from "@/lib/network/malla-neuronas";
 import { identidadDispositivo } from "@/lib/network/identidad-dispositivo";
-import { type NeuronaImg, type MotorImg, type ModeloImagen } from "@/lib/imagenes/plan";
-import { MODELOS_IMAGEN } from "@/lib/imagenes/modelos";
-import { type CapacidadImg } from "@/lib/imagenes/plan";
+import { type NeuronaImg } from "@/lib/imagenes/plan";
+import { MODELOS_IMAGEN, type MotorImg, type ModeloImagen, type CapacidadImg } from "@/lib/imagenes/modelos";
 
 /**
  * Obtiene la lista de neuronas disponibles para usar en la generación de imágenes
