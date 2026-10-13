@@ -60,6 +60,18 @@ describe("resumen del bus", () => {
     const latido = (nodo: string, medio: string, puntos: number, extra: Record<string, unknown> = {}, hace = 0) =>
         fila("mg_latido", { nodo, medio, modo: "real", puntos, salud: { orquestadores: [{ cola: "cola-1010s" }], disco_gb: 40, trabajo: { listas: 3 } }, ...extra }, hace);
 
+    it("el latido con `capacidades_taller` deja el NeuronaTaller del nodo; sin bloque queda null (G3D1011D)", () => {
+        const conTaller = {
+            version: 1,
+            hierro: { gpu: "nvidia", ramGB: 64, vramGB: 16, blender: true, permiteEspacioHf: false, claveExterna: false },
+            capacidades: ["cpu", "cuda-8gb", "cuda-16gb"],
+        };
+        const e = resumirBus([latido("mac-aaaaaa", "mac", 10, { capacidades_taller: conTaller })], AHORA);
+        expect(e.nodos[0].taller).toMatchObject({ id: "mac-aaaaaa", viva: true, hierro: { gpu: "nvidia", vramGB: 16 } });
+        const sin = resumirBus([latido("oracle-a1-bbbbbb", "oracle-a1", 5)], AHORA);
+        expect(sin.nodos[0].taller).toBeNull();
+    });
+
     it("el líder reclamado y vivo va primero; los demás con su latido; la foto da cifras y decisiones", () => {
         const filas = [
             latido("oracle-a1-bbbbbb", "oracle-a1", 1250, { lider_visto: "mac-aaaaaa", termino_visto: 3 }, 60_000),

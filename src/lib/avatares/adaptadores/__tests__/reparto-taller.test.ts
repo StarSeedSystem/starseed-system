@@ -3,7 +3,8 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  capacidadesDeRegistro, capacidadesParaRegistro, elegirNeurona, fidelidadDelPlan, planParaNeurona,
+  analizarCapacidades, capacidadesDeRegistro, capacidadesParaRegistro, elegirNeurona, fidelidadDelPlan,
+  hierroDeCapacidades, neuronaTallerDeLatido, planParaNeurona,
   vinculo, type EncargoTaller, type NeuronaTaller,
 } from "../reparto-taller";
 import type { Hierro } from "../../adn/optimizacion";
@@ -142,5 +143,30 @@ describe("planParaNeurona", () => {
     expect(plan?.listo).toBe(true);
     expect(fidelidadDelPlan(plan!)).toBeGreaterThan(0);
     expect(planParaNeurona(neurona("muda", null), ENCARGO_AVATAR)).toBeNull();
+  });
+});
+
+describe("conexión con el registro que ya existe", () => {
+  it("hierroDeCapacidades no inventa: solo NVIDIA/Apple de la sonda, VRAM y Blender sin medir", () => {
+    expect(hierroDeCapacidades({ platform: "macOS", gpuVendor: "Apple", gpuRenderer: "Apple M1", memoryGb: 8 }))
+      .toEqual({ gpu: "apple", ramGB: 8, vramGB: null, blender: false, permiteEspacioHf: false, claveExterna: false });
+    expect(hierroDeCapacidades({ platform: "Linux", gpuVendor: "NVIDIA Corporation", gpuRenderer: "RTX 4090", memoryGb: 64 }).gpu).toBe("nvidia");
+    expect(hierroDeCapacidades({})).toMatchObject({ gpu: "ninguna", ramGB: 0 });
+  });
+
+  it("analizarCapacidades dice si genera y por qué no", () => {
+    expect(analizarCapacidades({ platform: "macOS", gpuVendor: "Apple", memoryGb: 32 }).motivo).toBe("puede generar aquí");
+    const mac8 = analizarCapacidades({ platform: "macOS", gpuVendor: "Apple", memoryGb: 8 });
+    expect(mac8.capacidades).not.toContain("apple-silicon-32gb");
+    expect(mac8.motivo).toContain("no puede generar aquí");
+    expect(mac8.motivo).toContain("32 GB");
+  });
+
+  it("neuronaTallerDeLatido lee el bloque de una mg_latido y lo da listo para elegir", () => {
+    const datos = { nodo: "mac-alex-01", capacidades_taller: capacidadesParaRegistro(NVIDIA16) };
+    const n = neuronaTallerDeLatido(datos, { cuenta: "alex", viva: true, carga: 2 });
+    expect(n).toMatchObject({ id: "mac-alex-01", cuenta: "alex", carga: 2, viva: true, hierro: NVIDIA16 });
+    expect(elegirNeurona(ENCARGO_AVATAR, [n!]).neurona?.id).toBe("mac-alex-01");
+    expect(neuronaTallerDeLatido({ nodo: "muda-01" })).toBeNull();
   });
 });
