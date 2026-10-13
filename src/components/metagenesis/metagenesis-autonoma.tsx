@@ -34,7 +34,17 @@ import { textoHace } from "@/lib/metagenesis/remoto";
 import { onTableChange } from "@/lib/realtime/realtime";
 
 const CADA_MS = 90_000;
-const BOTONES: AccionOrden[] = ["continuar", "revisar_bloqueadas", "buscar_trabajo", "buscar_capacidad", "reactivar", "ceder"];
+const BOTONES_BASE: AccionOrden[] = ["continuar", "revisar_bloqueadas", "buscar_trabajo", "buscar_capacidad", "reactivar", "ceder"];
+
+/** Calcula si hay algún trabajo en curso en cualquiera de los nodos. */
+function hayTrabajoEnCurso(nodos: NodoVista[]): boolean {
+  return nodos.some((nodo) => {
+    const trabajo = nodo.trabajo ?? {};
+    return Object.values(trabajo).some(
+      (valor) => typeof valor === "number" && valor > 0
+    );
+  });
+}
 
 function IconoMedio({ medio }: { medio: string }) {
     const c = "h-4 w-4 shrink-0";
@@ -261,33 +271,40 @@ export function MetaGenesisAutonoma() {
                                 <p className="text-xs text-white/50">Nada que decidir todavía: todo va solo.</p>
                             )}
                         </div>
-                        <div>
-                            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/50">Pedir algo al que dirige</h3>
-                            <div className="flex flex-wrap gap-1.5">
-                                {[...BOTONES, autonomia ? ("pausar" as const) : ("reanudar" as const)].map((a) => (
-                                    <Button
-                                        key={a}
-                                        size="sm"
-                                        variant={confirmando === a ? "destructive" : "outline"}
-                                        className="h-8 cursor-pointer gap-1.5 text-xs"
-                                        disabled={enviando !== null}
-                                        title={ACCIONES[a].explica}
-                                        onClick={() => void mandar(a)}
-                                        data-testid={`mg-orden-${a}`}
-                                    >
-                                        {enviando === a ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                                        ) : a === "pausar" ? (
-                                            <PauseCircle className="h-3.5 w-3.5" aria-hidden />
-                                        ) : a === "reanudar" ? (
-                                            <PlayCircle className="h-3.5 w-3.5" aria-hidden />
-                                        ) : (
-                                            <Wrench className="h-3.5 w-3.5" aria-hidden />
-                                        )}
-                                        {confirmando === a ? "¿Seguro? Pulsa otra vez" : ACCIONES[a].etiqueta}
-                                    </Button>
-                                ))}
-                            </div>
+                     <div>
+                         <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/50">Pedir algo al que dirige</h3>
+                         <div className="flex flex-wrap gap-1.5">
+                             {
+                               [...BOTONES_BASE,
+                                 ...(hayTrabajoEnCurso(estado?.nodos ?? []) 
+                                   ? ["desconectar", "contenedor"] as const 
+                                   : []),
+                                 autonomia ? ("pausar" as const) : ("reanudar" as const)
+                               ].map((a) => (
+                                 <Button
+                                     key={a}
+                                     size="sm"
+                                     variant={confirmando === a ? "destructive" : "outline"}
+                                     className="h-8 cursor-pointer gap-1.5 text-xs"
+                                     disabled={enviando !== null}
+                                     title={ACCIONES[a].explica}
+                                     onClick={() => void mandar(a)}
+                                     data-testid={`mg-orden-${a}`}
+                                 >
+                                     {enviando === a ? (
+                                         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                                     ) : a === "pausar" ? (
+                                         <PauseCircle className="h-3.5 w-3.5" aria-hidden />
+                                     ) : a === "reanudar" ? (
+                                         <PlayCircle className="h-3.5 w-3.5" aria-hidden />
+                                     ) : (
+                                         <Wrench className="h-3.5 w-3.5" aria-hidden />
+                                     )}
+                                     {confirmando === a ? "¿Seguro? Pulsa otra vez" : ACCIONES[a].etiqueta}
+                                 </Button>
+                             ))}
+                         </div>
+                     </div>
                             {aviso ? (
                                 <p role="status" className={`mt-2 text-xs ${aviso.tono === "verde" ? "text-emerald-200" : "text-rose-200"}`}>
                                     {aviso.texto}
