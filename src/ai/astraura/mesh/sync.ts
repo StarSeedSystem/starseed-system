@@ -38,13 +38,15 @@ import { encodeMessage } from "./codec";
 import { inboundAllowed, meshInboundAllowed } from "./persona-antenna-gate";
 import { getMeshState, setMeshState, setQueueCounts } from "./store";
 import type {
-  AirtimeBudget,
-  MeshPayloadType,
-  MeshSendOptions,
-  MeshTransport,
-  SyncItem,
-  TrafficClass,
-} from "./types";
+   AirtimeBudget,
+   MeshPayloadType,
+   MeshSendOptions,
+   MeshTransport,
+   SyncItem,
+   TrafficClass,
+ } from "./types";
+import { repartirAnchoBanda } from "../../../lib/malla/cristal/ancho-banda";
+import type { Prioridad } from "../../../lib/malla/cristal/tipos";
 
 /* ── Whitelist de campos por tipo (SOP §5.1: jamás viaja un objeto entero) ── */
 
@@ -278,10 +280,33 @@ async function drainOnce(): Promise<void> {
       setMeshState({ lastError: `payload ${item.type} demasiado grande para la malla` });
       return;
     }
-    if (!airtimeAvailableFor(item.cls, encoded.frames.length)) return; // esperar tokens
-
-    const ahora = Date.now();
-    const duracionMs = encoded.frames.length * estimateChunkAirtimeMs();
+    // Bandwidth allocation using repartirAnchoBanda
+    const linkId = "link1";
+    const linkCapacityKbps = 1000000; // 1 Gbps placeholder
+    const capacidades: Record<string, number> = { [linkId]: linkCapacityKbps };
+    const flujos: { id: string; prioridad: Prioridad; demandaKbps: number; enlaces: string[] }[] = [];
+    const prioridadMap: Record<TrafficClass, Prioridad> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+    for (const c of CLASS_ORDER) {
+      if (queues[c].length > 0) {
+        const demandaKbps = queues[c].length > 0 ? 1e9 : 0;
+        flujos.push({
+          id: c,
+          prioridad: prioridadMap[c],
+          demandaKbps,
+          enlaces: [linkId],
+        });
+      }
+    }
+    const asignaciones = repartirAnchoBanda(flujos, capacidades);
+    if (asignaciones[cls] === 0) {
+      // No bandwidth allocated to this class, skip this tick
+      draining = false;
+      return;
+     }
+     
+     const ahora = Date.now();
+     if (!airtimeAvailableFor(item.cls, encoded.frames.length)) return; // esperar tokens
+     const duracionMs = encoded.frames.length * estimateChunkAirtimeMs();
     const configuracion = radioLegalDe(s.region);
     const contenidoCifrado = item.type === "message" || item.type === "state-delta";
     const cifradoLegal = !contenidoCifrado || permiteCifrado(s.region);
