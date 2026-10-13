@@ -14,10 +14,13 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { readFile, rename, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import type { CuentasTareas, EstadoMando, EventoRelevo, RepoInfo } from "@/lib/mando/tipos";
 import { guardianMando } from "@/lib/mando/guardian";
-import { construirRamificacion } from "@/lib/mando/ramificacion";
+import { ramificacionCompartida } from "@/lib/mando/ramificacion-compartida";
 import { compartirCalculo } from "@/lib/mando/calculo-compartido";
 import {
     leerColas,
@@ -112,7 +115,30 @@ export async function GET(request: Request): Promise<Response> {
  * se sigue pasando en CADA petición, antes de llegar aquí.
  */
 const VIGENCIA_ESTADO_MS = 8_000;
-const estadoCompartido = compartirCalculo(calcularEstado, VIGENCIA_ESTADO_MS);
+/**
+ * (2026-10-13, medido) Con la Mac sin memoria un cálculo pasaba de 50 s y MetaGenesis se quedaba
+ * en «Midiendo el pulso del trabajo…». Con un estado anterior, nadie espera más de 6 s: se le da
+ * el anterior (con su `generadoEn`, que dice de cuándo es) y el cálculo sigue. El último estado
+ * bueno se guarda en disco para que un reinicio de Genesis no empiece en blanco.
+ */
+const ESPERA_ESTADO_MS = 6_000;
+const CACHE_ESTADO = path.join(os.homedir(), ".starseed", "cache-estado-genesis.json");
+const estadoCompartido = compartirCalculo(calcularYGuardar, VIGENCIA_ESTADO_MS, undefined, ESPERA_ESTADO_MS);
+void readFile(CACHE_ESTADO, "utf8")
+    .then((crudo) => {
+        const d = JSON.parse(crudo) as EstadoMando;
+        const t = Date.parse(String(d?.generadoEn ?? ""));
+        if (d && typeof d === "object" && Number.isFinite(t)) estadoCompartido.sembrar(d, t);
+    })
+    .catch(() => {});
+
+async function calcularYGuardar(): Promise<EstadoMando> {
+    const estado = await calcularEstado();
+    void writeFile(CACHE_ESTADO + ".tmp", JSON.stringify(estado))
+        .then(() => rename(CACHE_ESTADO + ".tmp", CACHE_ESTADO))
+        .catch(() => {});
+    return estado;
+}
 
 async function calcularEstado(): Promise<EstadoMando> {
     const [relevo, tareas, informes, uso, revisiones, repo, progreso, latidosMac, enMarcha, agentes, bus, eventosBus, rama, commitsGit, asuntosDeMain, veredictos] =
@@ -129,7 +155,7 @@ async function calcularEstado(): Promise<EstadoMando> {
             medirAgentes(),
             leerLatidosDelBus(),
             leerEventosDelBus(20),
-            construirRamificacion(4).catch(() => null),
+            ramificacionCompartida(4).catch(() => null),
             leerCommitsDeOlas(),
             leerAsuntosDeMain(),
             leerVeredictos(),

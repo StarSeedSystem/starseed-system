@@ -12,7 +12,7 @@
  */
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { construirRamificacion } from "@/lib/mando/ramificacion";
+import { ramificacionCompartida } from "@/lib/mando/ramificacion-compartida";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +23,6 @@ export async function GET(peticion: Request): Promise<Response> {
     const url = new URL(peticion.url);
     const pedidas = Number.parseInt(url.searchParams.get("olas") ?? "4", 10);
     const cuantas = Number.isFinite(pedidas) ? Math.min(30, Math.max(1, pedidas)) : 4;
-    const ramificacion = await construirRamificacion(cuantas);
+    const ramificacion = await ramificacionCompartida(cuantas);
     return Response.json(ramificacion, { headers: { "Cache-Control": "no-store" } });
 }

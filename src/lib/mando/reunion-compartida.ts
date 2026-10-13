@@ -25,9 +25,13 @@ const ESPERA_DEFECTO_MS = 6_000;
  * (2026-10-13, medido) Los medidores de Genesis enseñaron la MISMA cifra de las 04:02:58 durante
  * más de 17 minutos con `obsoleto`: una reunión se quedó esperando algo que nunca contestó y,
  * como solo hay una a la vez, ninguna otra arrancó. Las reuniones lentas de verdad acaban en
- * 5-140 s (registro del 13-10); a los 180 s se da por colgada.
+ * 5-140 s (registro del 13-10).
+ *
+ * Primero se puso 180 s y fue peor: con la Mac sin memoria las reuniones NO estaban colgadas,
+ * iban lentísimas, y soltar una a los 3 min y arrancar otra dejaba varias trabajando a la vez
+ * (27 «colgada» en hora y media). 15 min solo suelta lo que de verdad no va a volver.
  */
-const MAX_EN_MARCHA_DEFECTO_MS = 180_000;
+const MAX_EN_MARCHA_DEFECTO_MS = 900_000;
 
 export function crearReunionCompartida<T>(fn: () => Promise<T>, opciones: OpcionesReunion = {}): {
     obtener(): Promise<ResultadoReunion<T>>;
