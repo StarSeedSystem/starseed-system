@@ -1,0 +1,90 @@
+{
+ "ola": "nube-20261012",
+ "tareas": [
+  {
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261012-173134-COL1012J",
+   "id": "COL1012Jb-d1",
+   "titulo": "Neuronas: «esta neurona» como contenedor (o cómo instalar el trabajador) (parte 1 de 2)",
+   "archivos": [
+    "src/components/cerebro/neuronas-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "En src/components/cerebro/neuronas-panel.tsx, en la tarjeta de la neurona ACTUAL, añade la sección «Contenedor de agentes»: si esta neurona tiene nodo de MetaGenesis (cruza por el id de nodo que publique el latido; si no hay forma de cruzarlo, trata la neurona como sin trabajador), los mismos botones que /metagenesis (`botonesNeurona`); si no, `estimarDesdeNavegador` con las señales del navegador (navigator.userAgent, navigator.platform, navigator.deviceMemory, navigator.hardwareConcurrency, navigator.getBattery() si existe, navigator.connection?.saveData o type==='cellular' como red medida, y `maxTouchPoints > 1` para el iPad) y el botón «Instalar el trabajador», que abre un panel con QUÉ es, POR QUÉ y CÓMO: el comando de `comandoInstalar(origen, codigo)` con botón Copiar. Mientras no exista el emisor de códigos (necesita la migración de nodos, §8 del contrato) el panel lo dice con esas palabras y no inventa un código. Solo para miembros de MetaGenesis. Prueba con Testing Library y señales falsas (Mac 8 GB, iPhone, Android).\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261012-173134-COL1012J`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261012-173134-COL1012J:refs/remotes/origin/nube/a1-20261012-173134-COL1012J\"` y `git cherry-pick --no-commit 4fe83d36e389`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/cerebro/__tests__/neuronas-colmena.test.tsx, src/components/cerebro/neuronas-panel.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió COL1012Jb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/cerebro/neuronas-panel.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "COL1012Jb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "COL1012B"
+   ]
+  },
+  {
+   "id": "MC1012C",
+   "titulo": "Malla cristalina: triangulación de Delaunay determinista",
+   "archivos": [
+    "src/lib/malla/cristal/triangulacion.ts",
+    "src/lib/malla/cristal/__tests__/triangulacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `interface Punto {id: string; x: number; y: number}`; `delaunay(puntos: Punto[]): Array<[string, string]>` con Bowyer–Watson (supertriángulo, O(n²) basta para ≤ 300 puntos); devuelve aristas únicas con el par ordenado por id y la lista ordenada; con < 2 puntos, []; con 2, esa arista; con puntos colineales, la cadena que los une en orden; puntos repetidos (misma x,y) se tratan como uno (gana el id menor) y el otro se une a él. `proyectar(lat, lon, lat0, lon0): {x, y}` equirectangular en metros. Determinista: mismo resultado con los puntos en cualquier orden (ordena por id antes de empezar). Pruebas: cuadrado de 4 puntos da 5 aristas; triángulo da 3; colineales; orden de entrada no cambia la salida; proyectar 0,0 → 0,0 y 1° de latitud ≈ 111 km.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  },
+  {
+   "id": "MC1012M",
+   "titulo": "Centinela: antivirus propio por bytes mágicos y estructura",
+   "archivos": [
+    "src/lib/malla/cristal/centinela.ts",
+    "src/lib/malla/cristal/__tests__/centinela.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa el punto 5 de §4. Exporta `type Nivel = 'limpio'|'sospechoso'|'peligroso'` y `analizarArchivo(e: {nombre: string; tipoDeclarado?: string; inicio: Uint8Array; tamano: number; entradasZip?: Array<{ruta: string; tamano: number; comprimido: number}>}): {nivel: Nivel; motivos: string[]}`. Peligroso: ejecutables por bytes mágicos (MZ, ELF 7F454C46, Mach‑O FEEDFACE/FEEDFACF/CAFEBABE y sus inversos), extensiones .exe .dll .scr .bat .cmd .com .msi .ps1 .vbs .jar .apk .dmg .pkg .app; doble extensión (foto.jpg.exe); entradas de ZIP con `..` o rutas absolutas; ratio de compresión > 100 en una entrada de > 10 MB. Sospechoso: el tipo real (por bytes: PNG, JPEG, GIF, PDF, ZIP, MP4 ftyp, WEBP, MP3 ID3) no coincide con la extensión o con tipoDeclarado; '#!' al inicio; HTML o SVG con `<script`, `javascript:` u `on…=` en los primeros 64 KB (decodifica el inicio como UTF‑8); vbaProject.bin dentro de un ZIP de Office; PDF con '/JavaScript' o '/OpenAction'. Limpio si nada. Nunca lanza. Pruebas con bytes fabricados para cada caso (sin ejecutables reales).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  },
+  {
+   "id": "MR1012A",
+   "titulo": "Routers a nodos de la malla: compatibilidad con OpenWrt y pasos honestos",
+   "archivos": [
+    "src/lib/network/routers-malla/compatibilidad-openwrt.ts",
+    "src/lib/network/routers-malla/__tests__/compatibilidad-openwrt.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa el primer punto de §8 del contrato, PURO (los datos de la tabla de hardware entran por parámetro). Exporta `interface ModeloRouter {fabricante: string; modelo: string; version?: string; deOperador?: boolean}`; `interface EntradaTabla {fabricante: string; modelo: string; versiones?: string[]; target: string; perfil: string; soportado: boolean; nota?: string}`; `normalizarModelo(texto)` (minúsculas, sin espacios dobles, quita «router», «wifi», guiones finales); `compatibilidad(m: ModeloRouter, tabla: EntradaTabla[]): {estado: 'soportado'|'no-soportado'|'bloqueado-operador'|'desconocido'; enlace: string | null; pasos: string[]; aviso: string}`: router de operador sin entrada → 'bloqueado-operador' con alternativa (poner detrás un router compatible en modo puente); con entrada soportada → enlace al selector `https://firmware-selector.openwrt.org/?target=<target>&id=<perfil>` (codifica) y pasos (copia de seguridad de la configuración actual, descargar la imagen «factory», subirla desde el panel del router por cable, esperar, entrar a 192.168.1.1, poner contraseña, volver a StarSeed «Adoptar»); aviso SIEMPRE: «Flashear puede dejar el router inservible si la imagen no es la de tu modelo y versión exactos; hazlo tú, con cable y sin cortar la luz». Pruebas de cada estado y de la URL.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  },
+  {
+   "id": "MR1012B",
+   "titulo": "Routers a nodos: plan de bandas, canales y anchos por enlace sin cables",
+   "archivos": [
+    "src/lib/network/routers-malla/plan-radios.ts",
+    "src/lib/network/routers-malla/__tests__/plan-radios.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa «Bandas por enlace» de §8, PURO. Usa `PERFILES_WIFI` de src/ai/astraura/mesh/camr/regulacion.ts (canales legales y PIRE por región). Exporta `interface RadioRouter {id: string; banda: '2g'|'5g'|'6g'; anchosMhz: number[]}`; `interface RouterMalla {id: string; radios: RadioRouter[]}`; `planRadios(e: {region: string; routers: RouterMalla[]; troncales: Array<[string, string]>; ocupacion?: Record<number, number>}): {troncales: Array<{a: string; b: string; banda: '5g'|'6g'|'2g'; canal: number; anchoMhz: number; pireDbm: number}>; clientes: Array<{router: string; banda: '2g'; canal: number}>; avisos: string[]}`: troncal en 6g si ambos tienen radio 6g, si no 5g, si no 2g (aviso); los troncales que comparten router o que se tocan en el grafo interfieren: coloreado DSatur sobre los canales legales de esa banda, prefiriendo los menos ocupados (`ocupacion` 0–1 por canal) y el ancho mayor que ambos radios soportan y que el número de canales libres permita (80 en 5g si hay ≥ 3 bloques libres, si no 40, si no 20); clientes en 2g canales 1/6/11 alternados por router. Región desconocida → aviso y perfil 'EU'. Pruebas: tres routers en triángulo no repiten canal en troncales; sin 5g usa 2g con aviso; PIRE nunca supera la del perfil.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  },
+  {
+   "id": "MR1012C",
+   "titulo": "Routers a nodos: automodulación de ancho y potencia con histéresis",
+   "archivos": [
+    "src/lib/network/routers-malla/automodulacion.ts",
+    "src/lib/network/routers-malla/__tests__/automodulacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa «Automodulación» de §8, PURO. Exporta `ajustarEnlace(actual: {anchoMhz: number; potenciaDbm: number}, medidas: Array<{snrDb: number; reintentosPct: number}>, limites: {anchosMhz: number[]; pireMaxDbm: number}): {anchoMhz: number; potenciaDbm: number; motivo: string}`: usa la mediana de las últimas 5 medidas; baja un escalón de ancho si snr < 20 dB (80) / 15 (40) o reintentos > 15 %; sube un escalón solo si snr supera el umbral del escalón superior + 5 dB y reintentos < 5 % (histéresis); potencia +2 dBm si snr < 15 y hay margen legal, −2 si snr > 35 (menos interferencia), nunca por encima de pireMaxDbm. Explica en `motivo` («la modulación fina la hace el chip; aquí se ajusta ancho y potencia»). Pruebas de bajar, subir con histéresis, no oscilar con medidas en el borde y límite legal.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "MC1012C",
+   "MR1012B",
+   "MC1012M",
+   "MR1012A",
+   "MR1012C",
+   "COL1012Jb-d1"
+  ]
+ }
+}
