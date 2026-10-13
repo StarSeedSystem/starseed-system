@@ -22,7 +22,7 @@ interface Salas {
   salir(conexion: any): void;
   presencia(tema: string): number;
   temaDe(conexion: any): string | undefined;
-  difundir(conexion: any, texto: string): any[];
+  difundir(conexion: any, texto: any): any[];
 }
 
 function crearSalas({ maxSalas = 100, maxPorSala = 100, maxBytes = 100_000 } = {}): Salas {
