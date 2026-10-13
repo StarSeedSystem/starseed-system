@@ -24,7 +24,7 @@ export const MOTORES: Record<MotorImg, InfoMotorImg> = {
   sdcpp: {
     nombre: "stable-diffusion.cpp", licencia: "MIT", corre: "CPU, Metal (Mac), CUDA, Vulkan, OpenCL, SYCL; pesos GGUF cuantizados",
     fuente: "https://github.com/leejet/stable-diffusion.cpp",
-    nota: "Base universal: corre hasta en la A1 (CPU) y en una Mac de 8 GB con modelos pequeños. Su modo RPC (repartir el cálculo entre máquinas) es experimental y SIN autenticación: solo dentro de la malla privada.",
+    nota: "Base universal: corre hasta en la A1 (CPU) y en una Mac de 8 GB con modelos pequeños. Soporta Qwen-Image 2.1, Qwen-Image, Krea 2, FLUX.1 [schnell], FLUX.1 [dev], SD 3.5 Medium/Large, SDXL 1.0, SD 1.5, PixArt-Σ y SD-Turbo. Su modo RPC (repartir el cálculo entre máquinas) es experimental y SIN autenticación: solo dentro de la malla privada.",
   },
   comfyui: {
     nombre: "ComfyUI", licencia: "GPL-3.0", corre: "NVIDIA, AMD, Intel, Apple Silicon; desde 4 GB de VRAM + 8 GB de RAM con streaming de pesos",
@@ -132,6 +132,12 @@ export const MODELOS_IMAGEN: readonly ModeloImagen[] = [
     capacidades: ["texto-a-imagen", "edicion", "texto-legible", "transparencia", "multi-referencia"], hf: "Qwen/Qwen-Image-2.1",
     codigo: "https://github.com/QwenLM/Qwen-Image-2.1",
     nota: "2026-09-20: genera y edita en un modelo, hasta 10 referencias, transparencia nativa. Uso comercial solo con licencia aparte de Qwen. Su Space corre en CPU básica (probablemente llama a un servicio de Qwen): sin comprobar, no se usa como capa.",
+  },
+  {
+    id: "krea-2", nombre: "Krea 2", gama: "alta", vramGB: 0, ramGB: 0, motores: ["sdcpp", "comfyui"],
+    licencia: "Krea 2 Community License (código Apache-2.0)", uso: "condicionado", gated: true, repoGB: 0, pasos: 8, resolucion: 1024,
+    capacidades: ["texto-a-imagen", "rapido"], hf: "krea/Krea-2", codigo: "https://github.com/krea-ai/krea-2",
+    nota: "Licencia Krea 2 Community License (código Apache-2.0). Uso comercial solo con licencia de pago. VRAM no publicada.",
   },
   {
     id: "krea-2-turbo", nombre: "Krea 2 Turbo", gama: "alta", vramGB: 16, ramGB: 24, motores: ["sdcpp", "comfyui"],
