@@ -306,6 +306,42 @@ def sin_lo_de_la_mac(colas, tanda_ids, cedibles=(), ajenas=()):
     return [(n, [t for t in ts if str((t or {}).get("id")) not in fuera]) for n, ts in colas or []]
 
 
+class CerrojoReparto:
+    """Un solo repartidor a la vez (2026-10-13, medido). El reparto a la nube (21:56:41) y el
+    préstamo al A1 (21:56:59) leyeron el mismo progreso y se llevaron IMG1011F, IMG1011G e
+    IMG1011I los DOS: el mismo trabajo en dos medios. Quien reparte toma este cerrojo desde que
+    lee el progreso hasta que lo marca. Mismo directorio que los demás cerrojos del puente."""
+
+    def __init__(self, espera_s=300, ruta=None):
+        self.ruta = ruta or os.path.expanduser("~/.starseed/cerrojos/reparto.lock")
+        self.espera_s, self.f = espera_s, None
+
+    def __enter__(self):
+        import fcntl
+
+        os.makedirs(os.path.dirname(self.ruta), exist_ok=True)
+        self.f = open(self.ruta, "a")
+        t0 = time.time()
+        while True:
+            try:
+                fcntl.flock(self.f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return self
+            except BlockingIOError:
+                if time.time() - t0 >= self.espera_s:
+                    self.f.close()
+                    raise TimeoutError("otro reparto lleva más de %d s en marcha" % self.espera_s)
+                time.sleep(1)
+
+    def __exit__(self, *exc):
+        import fcntl
+
+        try:
+            fcntl.flock(self.f, fcntl.LOCK_UN)
+        finally:
+            self.f.close()
+        return False
+
+
 #: Memoria del nodo de MetaGenesis de ESTA máquina (sus préstamos a otros medios).
 MEMORIA_METAGENESIS = os.path.expanduser("~/.starseed/nodo-metagenesis/memoria.json")
 #: Lo mismo que `GRACIA_ASIGNACION_S` del nodo: un préstamo de hace menos de 6 h sigue vivo.

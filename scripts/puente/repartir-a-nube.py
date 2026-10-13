@@ -208,4 +208,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Un solo repartidor a la vez (nube, A1): ver `repartir_nube.CerrojoReparto`.
+    from repartir_nube import CerrojoReparto
+
+    with CerrojoReparto():
+        main()

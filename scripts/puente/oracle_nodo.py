@@ -839,6 +839,19 @@ def colas_sin_tomar(estado_a1):
 
 
 def lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None, ceder=True):
+    """`_lanzar` con el cerrojo de reparto: la nube y el A1 no se llevan la misma tarea (2026-10-13)."""
+    import repartir_nube as RN
+
+    if simular:
+        return _lanzar(tope, simular, cola_dada, ceder)
+    try:
+        with RN.CerrojoReparto():
+            return _lanzar(tope, simular, cola_dada, ceder)
+    except TimeoutError as e:
+        return {"ok": False, "motivo": str(e)}
+
+
+def _lanzar(tope=TOPE_DEFECTO, simular=False, cola_dada=None, ceder=True):
     """Reparte N tareas del atraso al A1 o, con `cola_dada` (ruta a un JSON de tareas), le manda esa
     cola tal cual (una tarea escrita para él, o una cola que alguien quiere que corra allí).
     `ceder`: la tanda viva de la Mac le cede lo que no va a alcanzar pronto (CAP1010)."""

@@ -728,3 +728,20 @@ class CadenasPartidasYClasificar(unittest.TestCase):
         self.assertEqual(R.esperadas_por_otras(colas, {}), {"A", "B"})
         self.assertEqual(R.esperadas_por_otras(colas, {}, solo_de={"Y"}), {"B"})
         self.assertEqual(R.esperadas_por_otras(colas, {}, solo_de=set()), set())
+
+
+class UnSoloRepartidor(unittest.TestCase):
+    """(2026-10-13) La nube y el A1 se llevaron IMG1011F/G/I a la vez."""
+
+    def test_el_segundo_espera_y_se_rinde_con_motivo(self):
+        import tempfile
+        import os as _os
+
+        with tempfile.TemporaryDirectory() as d:
+            ruta = _os.path.join(d, "reparto.lock")
+            with R.CerrojoReparto(ruta=ruta):
+                with self.assertRaises(TimeoutError):
+                    with R.CerrojoReparto(espera_s=0, ruta=ruta):
+                        pass
+            with R.CerrojoReparto(espera_s=0, ruta=ruta):
+                pass  # libre otra vez
