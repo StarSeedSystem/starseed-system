@@ -1,0 +1,97 @@
+{
+ "ola": "nube-20261013",
+ "tareas": [
+  {
+   "id": "MC1012H",
+   "titulo": "Malla cristalina: viabilidad de cada dato por cada señal (privacidad incluida)",
+   "archivos": [
+    "src/lib/malla/cristal/viabilidad.ts",
+    "src/lib/malla/cristal/__tests__/viabilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §3.1 del contrato. Exporta `interface Viabilidad {valor: number; apto: boolean; motivo: string}` y `viabilidad(dato: Dato, s: SenalMedida, ctx: {cuentaDe: (neuronaId: string) => string | null; bateriaPct?: number | null; cifradoE2E: boolean}): Viabilidad`. Vetos (apto false, valor 0, motivo claro en español): 'interno' si alguna punta no es de la misma cuenta que el origen; 'privado' o 'interno' sin cifradoE2E; 'lora' con bytes > 200 × 8 o tipo 'llamada'; 'nfc' con bytes > 32768; 'servidor' para 'privado'/'interno' solo si cifradoE2E (si no, veto). Valor = calidadSenal × factor de prioridad (P0 premia latencia, P3 premia ancho) × 0.6 si el medio es 'servidor' y la clase no es 'publico' × 0.8 si batería < 20 y el medio es de alto consumo (wifi-lan, webrtc). Pruebas por cada veto y orden relativo esperado (un mensaje privado P0 de 120 B prefiere wifi-lan a servidor; uno de 5 MB nunca va por lora).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012A",
+    "MC1012E"
+   ]
+  },
+  {
+   "id": "MC1012J",
+   "titulo": "Malla cristalina: reparto del ancho de banda por prioridad (max-min ponderado)",
+   "archivos": [
+    "src/lib/malla/cristal/ancho-banda.ts",
+    "src/lib/malla/cristal/__tests__/ancho-banda.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `repartirAnchoBanda(flujos: Array<{id: string; prioridad: Prioridad; demandaKbps: number; enlaces: string[]}>, capacidades: Record<string, number>): Record<string, number>` con llenado de agua ponderado (pesos P0 8, P1 4, P2 2, P3 1): un flujo recibe lo mínimo de sus enlaces, ningún enlace supera su capacidad, nadie recibe más de su demanda y lo sobrante se reparte entre los que aún piden. Pruebas: un enlace con dos flujos 8:1; demanda pequeña satisfecha y el resto al otro; enlace sin capacidad → 0; suma por enlace ≤ capacidad (con tolerancia 1e-6).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012A"
+   ]
+  },
+  {
+   "id": "MC1012K",
+   "titulo": "Malla cristalina: trinquete de claves y cifrado de cada dato (WebCrypto)",
+   "archivos": [
+    "src/lib/malla/cristal/cifrado/trinquete.ts",
+    "src/lib/malla/cristal/cifrado/__tests__/trinquete.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §4.2–4.3 con `globalThis.crypto.subtle` (funciona en el navegador y en Node 22; nada de `node:crypto`). Exporta `interface Cadena {raiz: CryptoKey; n: number; desde: number}`; `iniciarCadena(secreto: ArrayBuffer, contexto: string, ahora: number): Promise<Cadena>` (HKDF‑SHA256 importado como clave HKDF); `siguienteClave(c: Cadena): Promise<{clave: CryptoKey; cadena: Cadena; n: number}>` (deriva la clave de mensaje n con info `starseed-cristal-msg-${n}` y la cadena siguiente con info `starseed-cristal-cadena`; la clave de mensaje es AES‑GCM 256 no extraíble); `debeRotar(c: Cadena, ahora: number): boolean` (≥ 500 claves o ≥ 15 min desde `desde`); `cifrar(clave, datos: Uint8Array, aad: Uint8Array): Promise<{iv: Uint8Array; cifrado: Uint8Array}>` (IV de 12 bytes aleatorio) y `descifrar(...)`. Pruebas: ida y vuelta; con AAD distinta falla; dos cadenas con el mismo secreto derivan claves iguales en el mismo n (cifra con una, descifra con la otra); debeRotar en sus dos límites.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012A"
+   ]
+  },
+  {
+   "id": "MC1012L",
+   "titulo": "Malla cristalina: política de transporte por clase y medio",
+   "archivos": [
+    "src/lib/malla/cristal/cifrado/politica.ts",
+    "src/lib/malla/cristal/cifrado/__tests__/politica.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `politicaDeTransporte(clase: ClaseDato, medio: Medio): {permitido: boolean; cifradoE2E: boolean; firma: boolean; motivo: string}`: firma SIEMPRE; cifradoE2E obligatorio para 'interno' y 'privado' en todos los medios (también 'lora': hoy solo lleva la clave del canal de la radio, eso no basta); 'publico' sin cifrar pero firmado; ningún medio prohibido salvo 'nfc' para 'publico' > 32 KB (motivo). `aadDe(dato: Dato, epoca: number): Uint8Array` = UTF‑8 de `${dato.id}|${dato.clase}|${dato.tipo}|${epoca}`. Pruebas de la tabla completa (3 clases × 9 medios) y de aadDe.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012A"
+   ]
+  },
+  {
+   "id": "MC1012M",
+   "titulo": "Centinela: antivirus propio por bytes mágicos y estructura",
+   "archivos": [
+    "src/lib/malla/cristal/centinela.ts",
+    "src/lib/malla/cristal/__tests__/centinela.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa el punto 5 de §4. Exporta `type Nivel = 'limpio'|'sospechoso'|'peligroso'` y `analizarArchivo(e: {nombre: string; tipoDeclarado?: string; inicio: Uint8Array; tamano: number; entradasZip?: Array<{ruta: string; tamano: number; comprimido: number}>}): {nivel: Nivel; motivos: string[]}`. Peligroso: ejecutables por bytes mágicos (MZ, ELF 7F454C46, Mach‑O FEEDFACE/FEEDFACF/CAFEBABE y sus inversos), extensiones .exe .dll .scr .bat .cmd .com .msi .ps1 .vbs .jar .apk .dmg .pkg .app; doble extensión (foto.jpg.exe); entradas de ZIP con `..` o rutas absolutas; ratio de compresión > 100 en una entrada de > 10 MB. Sospechoso: el tipo real (por bytes: PNG, JPEG, GIF, PDF, ZIP, MP4 ftyp, WEBP, MP3 ID3) no coincide con la extensión o con tipoDeclarado; '#!' al inicio; HTML o SVG con `<script`, `javascript:` u `on…=` en los primeros 64 KB (decodifica el inicio como UTF‑8); vbaProject.bin dentro de un ZIP de Office; PDF con '/JavaScript' o '/OpenAction'. Limpio si nada. Nunca lanza. Pruebas con bytes fabricados para cada caso (sin ejecutables reales).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  },
+  {
+   "id": "MC1012P",
+   "titulo": "Destinos de guardado de cada dato desde los cerebros vinculados",
+   "archivos": [
+    "src/lib/malla/cristal/destinos-almacen.ts",
+    "src/lib/malla/cristal/__tests__/destinos-almacen.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §5 del contrato, PURO (no importes storage/backends.ts: recibe lo que necesita). Exporta `interface DestinoAlmacen {id: string; tipo: 'aparato'|'cerebro'|'biblioteca'|'servidor'; motor: string; publico: boolean; cerebroId?: string}`; `destinosDe(dato: Dato, e: {politicaContexto: string[]; disponibles: DestinoAlmacen[]; elegidosPorDato?: string[]; motoresReales: string[]}): {guardar: DestinoAlmacen[]; descartados: Array<{id: string; motivo: string}>}`: usa `elegidosPorDato` si viene, si no la política del contexto; descarta (con motivo en español) los públicos para datos 'privado'/'interno', los que no existen y los de motor sin implementar (no está en motoresReales → motivo «aún sin motor de guardado»); 'aparato' siempre es válido. Pruebas de cada descarte y del orden (se respeta el orden pedido).",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1009-233520.json": [
+   "MC1012H",
+   "MC1012M",
+   "MC1012L",
+   "MC1012J",
+   "MC1012K",
+   "MC1012P"
+  ]
+ }
+}
