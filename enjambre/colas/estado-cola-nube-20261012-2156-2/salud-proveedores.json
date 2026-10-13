@@ -1,0 +1,70 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-12 21:56:04",
+  "desde": "2026-10-12 13:17:32",
+  "ultimo_429": "2026-10-12 04:16:16",
+  "sin_cupo_hasta": "2026-10-13 18:00:33",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-12 21:56:04",
+  "desde": "2026-10-12 13:16:24",
+  "ultimo_429": "2026-10-11 23:04:56",
+  "motivo": "modelos colgados sin escribir: nvidia/z-ai/glm-5.3, nvidia/moonshotai/kimi-k3",
+  "sin_cupo_hasta": "2026-10-13 03:16:06"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-12 04:15:38",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-13 04:16:17",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-12 21:56:04",
+  "desde": "2026-10-09 01:27:51",
+  "ultimo_429": "2026-10-10 21:53:13",
+  "sin_cupo_hasta": "2026-10-12 18:00:18",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-12 21:56:04",
+  "desde": "2026-10-11 21:33:15",
+  "ultimo_429": "2026-10-12 04:16:16"
+ },
+ "ultimo_revisor_ok": "nim/moonshotai/kimi-k3",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-12 21:56:04",
+  "desde": "2026-10-10 13:31:59",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "sonda de escritura: sin crédito (402)",
+  "ultimo_429": "2026-10-10 13:27:48",
+  "sin_cupo_hasta": "2026-10-13 03:19:37"
+ },
+ "google": {
+  "estado": "vivo",
+  "sin_cupo_hasta": "2026-10-13 18:00:09",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "codex": {
+  "motivo": "el medidor de crédito lo ve con cupo (autocuración)"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-12 21:56:05",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-10 12:08:17 \u001b[0m > build · auto \u001b[0m\u001b[0m→ \u001b[0mRead CLAUDE.md \u001b[0m→ \u001b[0mRead src/lib/social-",
+  "sin_cupo_hasta": "2026-10-10 12:30:50"
+ }
+}
