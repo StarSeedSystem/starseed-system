@@ -4367,3 +4367,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `FS1013B` — otra cosa: sin decisión en 0 h; rama ola/FS1013B conservada
+
+## 2026-10-13 23:19 · mg-oracle-1013-1635
+
+**Lo que se pidió.** Explorador diario: modelos nuevos y versiones nuevas de los instalados
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTIMG1011Gd` — no escribió nada
