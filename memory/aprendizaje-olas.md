@@ -4343,3 +4343,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTPM1010F2K` — los tipos no compilan: 27 errores tsc (rama ola/RTPM1010F2K conservada)
 - `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
 - `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-10-13 09:59 · mg-oracle-1013-0130
+
+**Lo que se pidió.** Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTS1010-EV-ORACLE-1ac` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTIMG1011Gc` — pruebas en rojo: vitest falla (rama conservada)
+- `RTCOL1012Ae` — no escribió nada
