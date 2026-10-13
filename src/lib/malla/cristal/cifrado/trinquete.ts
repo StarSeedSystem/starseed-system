@@ -26,14 +26,14 @@ export async function iniciarCadena(secreto: ArrayBuffer, contexto: string, ahor
     256 // Longitud de la clave derivada en bits
   );
 
-  // Importar los bits derivados como una clave HKDF
-  const raiz = await globalThis.crypto.subtle.importKey(
-    'raw',
-    raizBits,
-    { name: 'HKDF' },
-    false,
-    ['deriveKey', 'deriveBits']
-  );
+    // Importar los bits derivados como una clave HKDF
+    const raiz = await globalThis.crypto.subtle.importKey(
+      'raw',
+      raizBits,
+      { name: 'HKDF' },
+      false,
+      ['deriveKey', 'deriveBits']
+    );
 
   return {
     raiz,
@@ -78,14 +78,14 @@ export async function siguienteClave(c: Cadena): Promise<{clave: CryptoKey; cade
     256 // Longitud de la clave derivada en bits
   );
 
-  // Importar los bits derivados como una clave HKDF
-  const siguienteRaiz = await globalThis.crypto.subtle.importKey(
-    'raw',
-    siguienteRaizBits,
-    { name: 'HKDF' },
-    false,
-    ['deriveKey', 'deriveBits']
-  );
+    // Importar los bits derivados como una clave HKDF
+    const siguienteRaiz = await globalThis.crypto.subtle.importKey(
+      'raw',
+      siguienteRaizBits,
+      { name: 'HKDF' },
+      false,
+      ['deriveKey', 'deriveBits']
+    );
 
   return {
     clave: mensajeClave,
