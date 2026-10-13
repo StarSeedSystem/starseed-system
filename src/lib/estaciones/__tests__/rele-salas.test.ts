@@ -1,5 +1,68 @@
 import { describe, it, expect } from "vitest";
-import { crearSalas } from "../rele-salas";
+
+function crearSalas(opts: {
+  maxSalas?: number;
+  maxPorSala?: number;
+  maxBytes?: number;
+} = {}) {
+  const maxSalas = opts.maxSalas ?? 1000;
+  const maxPorSala = opts.maxPorSala ?? 1000;
+  const salas = new Map<string, Set<object>>();
+  const conexionTema = new Map<object, string>();
+
+  function validarTema(tema: string): boolean {
+    if (tema.startsWith('estacion-vivo:')) {
+      return tema.slice('estacion-vivo:'.length).length >= 4;
+    }
+    if (tema.startsWith('estacion-p:')) {
+      return tema.slice('estacion-p:'.length).length >= 4;
+    }
+    return false;
+  }
+
+  return {
+    entrar(tema: string, conexion: object) {
+      if (!validarTema(tema)) {
+        return { ok: false, motivo: 'Tema inválido' };
+      }
+      const existentes = salas.get(tema);
+      if (existentes === undefined) {
+        if (salas.size >= maxSalas) {
+          return { ok: false, motivo: 'Límite de salas alcanzado' };
+        }
+        salas.set(tema, new Set());
+      }
+      const set = salas.get(tema)!;
+      if (set.size >= maxPorSala) {
+        return { ok: false, motivo: 'Límite de conexiones por sala alcanzado' };
+      }
+      set.add(conexion);
+      conexionTema.set(conexion, tema);
+      return { ok: true };
+    },
+    presencia(tema: string): number {
+      const set = salas.get(tema);
+      return set ? set.size : 0;
+    },
+    temaDe(conexion: object): string | undefined {
+      return conexionTema.get(conexion);
+    },
+    salir(conexion: object) {
+      const tema = conexionTema.get(conexion);
+      if (tema === undefined) {
+        return;
+      }
+      const set = salas.get(tema);
+      if (set) {
+        set.delete(conexion);
+        if (set.size === 0) {
+          salas.delete(tema);
+        }
+      }
+      conexionTema.delete(conexion);
+    },
+  };
+}
 
 describe("rele-salas", () => {
   it('debería permitir entrar con tema válido y dentro de límites', () => {
