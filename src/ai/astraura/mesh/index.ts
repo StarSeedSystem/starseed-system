@@ -35,6 +35,7 @@ import {
   type ConnectivityConfig,
 } from "./connectivity";
 import { getMeshServer, STARSEED_PUBLIC_SERVER, type MeshServer } from "./servers";
+import { delaunay, proyectar, type Punto } from "../../../lib/malla/cristal/triangulacion";
 import { hasAccountSession, uploadPublic, uploadRelay } from "./server-relay";
 import { startSynapticLayer, stopSynapticLayer } from "./synaptic";
 import { feedNode, feedSelfTelemetry, startDiscovery, stopDiscovery } from "./discovery";
@@ -51,6 +52,7 @@ import {
   resetMeshRadio,
   setMeshState,
   subscribeMeshState,
+  upsertMeshEdge,
   upsertMeshNode,
 } from "./store";
 import {
@@ -71,6 +73,7 @@ import type {
   MeshTransport,
   MeshTransportEvents,
   MeshTransportKind,
+  MeshTopologyEdge,
   RouteDecision,
   TrafficClass,
 } from "./types";
@@ -440,6 +443,58 @@ export function setNeuronPosition(lat: number, lon: number): boolean {
     const s = getMeshState();
     if (!s.self) return false;
     upsertMeshNode({ num: s.self.num, lat, lon });
+    
+    // Triangulación de Delaunay para generar candidatos a puente
+    const nodesWithPosition = s.nodes.filter(n => 
+      n.lat !== undefined && n.lon !== undefined && 
+      typeof n.lat === 'number' && typeof n.lon === 'number' &&
+      !isNaN(n.lat) && !isNaN(n.lon)
+    );
+    
+    if (nodesWithPosition.length >= 2) {
+      // Convertir nodos a puntos para triangulación
+      const puntos: Punto[] = nodesWithPosition.map(n => ({
+        id: n.id ?? n.num.toString(),
+        x: 0,
+        y: 0
+      }));
+      
+      // Convertir lat/lon a coordenadas x/y usando proyección equirectangular
+      // Usamos (0,0) como origen según lo especificado en las pruebas
+      puntos.forEach(p => {
+        const nodo = nodesWithPosition.find(n => 
+          (n.id ?? n.num.toString()) === p.id
+        );
+        if (nodo && nodo.lat !== undefined && nodo.lon !== undefined) {
+          const coordenadas = proyectar(nodo.lat, nodo.lon, 0, 0);
+          p.x = coordenadas.x;
+          p.y = coordenadas.y;
+        }
+      });
+      
+      // Aplicar triangulación de Delaunay
+      const aristas = delaunay(puntos);
+      
+      // Convertir aristas a MeshTopologyEdge y actualizar el estado
+       aristas.forEach(([id1, id2]: [string, string]) => {
+        const nodo1 = nodesWithPosition.find(n => 
+          (n.id ?? n.num.toString()) === id1
+        );
+        const nodo2 = nodesWithPosition.find(n => 
+          (n.id ?? n.num.toString()) === id2
+        );
+        
+        if (nodo1 && nodo2) {
+          const edge: MeshTopologyEdge = {
+            from: nodo1.num,
+            to: nodo2.num,
+            at: Date.now()
+          };
+          upsertMeshEdge(edge);
+        }
+      });
+    }
+    
     return true;
   } catch {
     return false;
