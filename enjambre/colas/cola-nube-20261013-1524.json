@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261013",
+ "tareas": [
+  {
+   "id": "FS1013C",
+   "ola": "Ola 1013F · El fundamento de StarSeed dentro del OS: diamante, piedra filosofal y alquimia",
+   "titulo": "Fundamento: que se encuentre (Biblioteca, lanzador de apps y bienvenida)",
+   "archivos": [
+    "src/components/dashboard/apps/app-catalog.ts",
+    "src/lib/library/packages.ts",
+    "src/components/fundamento/__tests__/fundamento-registro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista. Regla de descubribilidad de CLAUDE.md §11: añade la app «Fundamento de StarSeed» (ruta `/fundamento`, icono Gem) al `APP_CATALOG` y a `APP_COLLECTIONS.starseed`, y una ficha en la Biblioteca (`packages.ts`, kind 'app', payload {route:'/fundamento'}; como icono usa una clave que YA exista en ICON_MAP de package-store.tsx — 'Gem' si está, si no 'Sparkles' — porque ese archivo no está en tu lista). No toques el OmniDock. Prueba: el catálogo y la Biblioteca contienen la entrada con esa ruta.",
+   "dependencias_ya_en_main": [
+    "FS1013B"
+   ]
+  }
+ ]
+}
