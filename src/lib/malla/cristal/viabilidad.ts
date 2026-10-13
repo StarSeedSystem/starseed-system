@@ -69,12 +69,12 @@ export function viabilidad(
     factorServidor = 0.6;
   }
   
-  // Factor por batería baja y medio de alto consumo (wifi-lan, webrtc)
-  let factorBateria = 1.0;
-  const consumoAlto = medio === 'wifi-lan' || medio === 'webrtc';
-  if (consumoAlto && ctx.bateriaPct !== null && ctx.bateriaPct < 20) {
-    factorBateria = 0.8;
-  }
+   // Factor por batería baja y medio de alto consumo (wifi-lan, webrtc)
+   let factorBateria = 1.0;
+   const consumoAlto = medio === 'wifi-lan' || medio === 'webrtc';
+   if (consumoAlto && ctx.bateriaPct != null && ctx.bateriaPct < 20) {
+     factorBateria = 0.8;
+   }
   
   const valor = calidad * factorPrioridad * factorServidor * factorBateria;
   
