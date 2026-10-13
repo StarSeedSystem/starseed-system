@@ -832,6 +832,25 @@ export interface RelayInboundItem {
   verified?: boolean;
   /** Fingerprint de la identidad firmante (Adenda 107). */
   signerFp?: string;
+  /**
+   * (Relevo entre cuentas · RC1013C) Cuenta dueña de la fila cuando llegó por
+   * relevo desde OTRA cuenta (recipient_owner = la mía). La interfaz lo usa para
+   * decir «de otra cuenta, por relevo cifrado». Ausente si la fila es de mi cuenta.
+   */
+  cuentaOrigen?: string;
+}
+
+/**
+ * ¿Hay que RETIRAR del servidor esta fila tras leerla? (Relevo entre cuentas ·
+ * RC1013C): solo las de OTRA cuenta dirigidas a la mía que se descifraron bien.
+ * La RLS ya deja borrar al destinatario; las que no se abren se quedan (caducan).
+ */
+export function retirarTrasLeer(
+  fila: { owner_id: string | null },
+  miCuenta: string,
+  descifradoOk: boolean,
+): boolean {
+  return descifradoOk && fila.owner_id !== null && fila.owner_id !== miCuenta;
 }
 
 /* ── Registro de IDENTIDAD ↔ CUENTA (Adenda 107) ───────────────────────────── */
@@ -1512,6 +1531,7 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
             body = null;
           }
         }
+        const deOtraCuenta = owner_id !== null && owner_id !== owner;
         out.push({
           id,
           cls: (String(row.cls ?? "P2") as TrafficClass),
@@ -1520,7 +1540,16 @@ export async function pullRelayInbox(since: number): Promise<{ items: RelayInbou
           from: device_id,
           at,
           locked,
+          // Relevo entre cuentas (RC1013C): etiqueta el origen ajeno para la UI
+          // («de otra cuenta, por relevo cifrado»).
+          ...(deOtraCuenta && owner_id ? { cuentaOrigen: owner_id } : {}),
         });
+        // La fila de OTRA cuenta ya se absolvió y se descifró: retírala del
+        // servidor (la RLS lo permite al destinatario). Best-effort y sin
+        // bloquear la entrega; la que no se abre se queda y caduca sola.
+        if (retirarTrasLeer(fila, owner, !locked)) {
+          void supabase.from("os_mesh_relay").delete().eq("id", id).then(() => undefined, () => undefined);
+        }
       }
       if (data.length < FEED_PAGE) break; // última página: agotado
       if (page === RELAY_INBOX_MAX_PAGES - 1) {
