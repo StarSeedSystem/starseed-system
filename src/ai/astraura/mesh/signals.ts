@@ -26,6 +26,11 @@
 import { estimateDistanceMeters, REGION_BANDS } from "./antennas";
 import { bluetoothLink, externalLink, serialLink } from "./connectivity";
 import type { MeshState } from "./types";
+import {
+  MEDIOS, CLASES_DATO, TIPOS_DATO,
+  type Medio, type ClaseDato, type TipoDato, type Prioridad,
+  COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
+} from "@/lib/malla/cristal/tipos";
 
 export type SignalKind =
   | "mesh" | "wifi" | "cellular" | "bluetooth" | "gps" | "nfc" | "serial" | "telephony";

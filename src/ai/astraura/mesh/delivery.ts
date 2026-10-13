@@ -17,6 +17,11 @@
  */
 
 import { planTransmission, label } from "./synaptic-router";
+import {
+  MEDIOS, CLASES_DATO, TIPOS_DATO,
+  type Medio, type ClaseDato, type TipoDato, type Prioridad,
+  COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
+} from "@/lib/malla/cristal/tipos";
 import type {
   TransmitPlan,
   TransmitLeg,

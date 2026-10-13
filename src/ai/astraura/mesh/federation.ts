@@ -27,6 +27,11 @@ import { getMeshPrivacy } from "./privacy";
 import { getMeshState, setMeshState } from "./store";
 import { getActiveModemPreset } from "./sync";
 import type { RemoteTopology } from "./types";
+import {
+  MEDIOS, CLASES_DATO, TIPOS_DATO,
+  type Medio, type ClaseDato, type TipoDato, type Prioridad,
+  COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
+} from "@/lib/malla/cristal/tipos";
 import { uidActual } from "@/lib/consumo/usuario";
 import { crearBucle, falloDe, MINUTO_MS, type BucleFondo, type FalloConsulta } from "@/lib/network/bucle-fondo";
 import {

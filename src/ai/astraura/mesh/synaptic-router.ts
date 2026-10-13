@@ -27,6 +27,11 @@ import { MESH_CLASS_SIZE_LIMIT } from "./constants";
 import { recommendPreset, PRESET_SPECS } from "./antennas";
 import type { BandGoal } from "./antennas";
 import type { MeshState, TrafficClass } from "./types";
+import {
+  MEDIOS, CLASES_DATO, TIPOS_DATO,
+  type Medio, type ClaseDato, type TipoDato, type Prioridad,
+  COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
+} from "@/lib/malla/cristal/tipos";
 
 /** Ámbito de la información — decide servidor público vs directo privado. */
 export type TransmitScope = "public" | "private" | "local-group";
