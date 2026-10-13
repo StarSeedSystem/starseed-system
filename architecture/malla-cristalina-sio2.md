@@ -165,8 +165,11 @@ pastillas en mensajes, llamadas, publicaciones y archivos.
 
 ## 10. Límites y decisiones pendientes
 
-- **Relevo privado entre cuentas**: la política RLS de `os_mesh_relay` no deja leer al destinatario
-  de otra cuenta. Arreglarlo es una migración: **necesita la palabra de Alex**.
+- **Relevo privado entre cuentas** (palabra de Alex, 2026-10-13): migración
+  `20261013010000_os_mesh_relay_entre_cuentas.sql` aplicada y probada con las cuentas reales.
+  `recipient_owner` = cuenta destinataria; la lee y la retira solo ella; solo se dirige a otra cuenta
+  con relación (vínculo aceptado, DM o grupo en común) y con sobre v:3 por destinatario; tope de 600
+  por hora; pg_cron borra lo caducado. El cliente lo cablea la Ola 1013R (RC1013A–D).
 - **Bluetooth nativo** (btleplug en escritorio, plugin de Kotlin en Android) y serie en Windows/
   Android: siguen pendientes; se enseñan como tales.
 - **Reticulum**: solo detección; un transporte RNS es una ola aparte.

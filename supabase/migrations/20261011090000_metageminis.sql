@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- MetaGeminis · agente social de MetaGenesis (2026-10-11) · SIN APLICAR
+-- MetaGeminis · agente social de MetaGenesis (2026-10-11) · APLICADA el 2026-10-13 en jhgvhkypqadfdkkqoxta (palabra de Alex)
 -- ───────────────────────────────────────────────────────────────────────────
 -- Contrato: architecture/metageminis.md
 -- Qué guarda: las ramas y los agentes, los hallazgos de la investigación, los BORRADORES con su estado
@@ -21,7 +21,7 @@
 -- Escritura: solo la clave de servicio (los agentes) y las RPC de decisión (dueños).
 -- Requiere 20261010091000_metagenesis_accesos.sql. Idempotente.
 -- Probada el 2026-10-10 en un Postgres 16 desechable (con roles y auth.uid() simulados): se aplica dos veces
--- sin error; la RLS impersonando, los triggers y las RPC se comportan como arriba. NO está aplicada en Supabase.
+-- sin error; la RLS impersonando, los triggers y las RPC se comportan como arriba. Aplicada en Supabase el 2026-10-13 y verificada (miembros ven, no miembro 0, anon sin permiso).
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ───────────────────────── ramas y agentes ─────────────────────────
