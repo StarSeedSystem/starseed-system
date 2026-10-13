@@ -33,6 +33,8 @@ WORKFLOW = "enjambre-nube.yml"
 #: Un run que lleva más de esto sin acabar ya no cuenta: el tope del workflow son 45 min
 #: y el job muere a las 6 h, así que algo que pase de ahí está colgado, no trabajando.
 VIEJO_S = 6 * 3600
+#: Estados de un run que aún no tiene máquina (o espera turno en su grupo de concurrencia).
+ESPERAN_MAQUINA = ("queued", "pending", "waiting", "requested")
 
 
 def trabajadores_de(inputs) -> int:
@@ -62,7 +64,7 @@ def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
         if not isinstance(r, dict):
             continue
         estado = str(r.get("status") or "")
-        if estado not in ("in_progress", "queued"):
+        if estado not in ("in_progress",) + ESPERAN_MAQUINA:
             continue
         edad = None
         t = str(r.get("createdAt") or "")
@@ -77,6 +79,8 @@ def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
         if edad is not None and edad > viejo_s:
             continue
         n = trabajadores_de(r.get("inputs"))
+        # Los que esperan máquina (o turno en su grupo de concurrencia: «pending») cuentan contra el
+        # tope del director, como siempre; Genesis los enseña «esperando máquina», no escribiendo.
         agentes += n
         fila = {
             "run": r.get("databaseId"),
@@ -92,10 +96,26 @@ def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
             fila["paso"] = str(paso["nombre"])[:60]
             if paso.get("desde"):
                 fila["paso_desde"] = str(paso["desde"])[:30]
+            if paso.get("numero") is not None:
+                fila["paso_numero"] = paso.get("numero")
+            if paso.get("de_antes"):
+                fila["paso_de_antes"] = True
             if paso.get("hechos") is not None:
                 fila["pasos_hechos"] = int(paso.get("hechos") or 0)
                 fila["pasos_total"] = int(paso.get("total") or 0)
+        if isinstance(r.get("inputs"), dict) and r["inputs"].get("minutos"):
+            fila["minutos_tope"] = r["inputs"].get("minutos")
         vivos.append(fila)
+    # (2026-10-13) Cada run con su diagnóstico: la MISMA regla que usa el director para actuar.
+    try:
+        import vigia_runs_nube as VR
+
+        for fila in vivos:
+            atasco = VR.diagnosticar(fila, vivos, ahora)
+            if atasco:
+                fila["atasco"] = atasco
+    except ImportError:
+        pass
     return {
         "generado": time.strftime("%Y-%m-%d %H:%M:%S"),
         "medio": "nube-gh",
@@ -104,24 +124,56 @@ def resumir(runs, ahora: float, viejo_s: int = VIEJO_S) -> dict:
     }
 
 
-def paso_actual(jobs) -> dict | None:
-    """PURA. Del `jobs` de un run de GitHub al paso en curso: {nombre, desde, hechos, total}.
+def _numero(paso, i):
+    try:
+        return int(paso.get("numero"))
+    except (TypeError, ValueError):
+        return i + 1
 
-    El primer paso `in_progress` del primer job vivo; si ninguno lo está (entre dos pasos),
-    el último terminado. Sin jobs (el run espera máquina) → `{"nombre": "esperando máquina"}`.
+
+def paso_actual(jobs) -> dict | None:
+    """PURA. Del `jobs` de un run de GitHub al paso en curso: {nombre, desde, numero, hechos, total}.
+
+    (2026-10-13, MEDIDO) Se tomaba el PRIMER paso «in_progress», y GitHub deja a menudo «Set up
+    job» o «setup-node» en «in_progress» con el job ya en «Enjambre» (runs 38472212923 y
+    38472833577: Genesis decía «preparando su máquina» con los 7 agentes escribiendo). Manda el
+    paso más AVANZADO de los ya empezados (en curso o hechos), por su número. Sin pasos: si el job
+    espera máquina se dice así; si ya corre, «sin dato del paso» (GitHub a veces no los da), con
+    la hora de arranque del job: no se inventa «preparando».
     """
     if not isinstance(jobs, list) or not jobs:
-        return {"nombre": "esperando máquina", "desde": None, "hechos": 0, "total": 0}
+        return {"nombre": "esperando máquina", "desde": None, "numero": None, "hechos": 0, "total": 0}
     vivo = next((j for j in jobs if isinstance(j, dict) and j.get("estado") == "in_progress"), None) or jobs[0]
-    pasos = [p for p in (vivo.get("pasos") or []) if isinstance(p, dict)] if isinstance(vivo, dict) else []
+    vivo = vivo if isinstance(vivo, dict) else {}
+    pasos = [p for p in (vivo.get("pasos") or []) if isinstance(p, dict)]
     if not pasos:
-        return {"nombre": "esperando máquina" if (vivo or {}).get("estado") == "queued" else "preparando", "desde": None, "hechos": 0, "total": 0}
+        espera = vivo.get("estado") in ESPERAN_MAQUINA
+        return {"nombre": "esperando máquina" if espera else "sin dato del paso",
+                "desde": None if espera else vivo.get("inicio"), "numero": None, "hechos": 0, "total": 0}
     hechos = sum(1 for p in pasos if p.get("estado") == "completed")
-    actual = next((p for p in pasos if p.get("estado") == "in_progress"), None)
-    if actual is None:
-        terminados = [p for p in pasos if p.get("estado") == "completed"]
-        actual = terminados[-1] if terminados else pasos[0]
-    return {"nombre": str(actual.get("nombre") or "?"), "desde": actual.get("inicio"), "hechos": hechos, "total": len(pasos)}
+    numerados = [(_numero(p, i), p) for i, p in enumerate(pasos)]
+    empezados = [(n, p) for n, p in numerados if p.get("estado") in ("in_progress", "completed")]
+    n, actual = max(empezados, key=lambda x: x[0]) if empezados else numerados[0]
+    return {"nombre": str(actual.get("nombre") or "?"), "desde": actual.get("inicio"), "numero": n,
+            "hechos": hechos, "total": len(pasos)}
+
+
+def paso_monotono(previo, nuevo) -> dict | None:
+    """PURA. Un job no vuelve atrás: si la medición nueva viene sin pasos o con un paso anterior al
+    ya visto (GitHub da listas incompletas mientras el job corre), se queda el visto, marcado
+    `de_antes`. Si la nueva va igual o más lejos, manda la nueva."""
+    if not isinstance(previo, dict) or previo.get("numero") is None:
+        return nuevo
+    if not isinstance(nuevo, dict):
+        return dict(previo, de_antes=True)
+    if nuevo.get("numero") is None and nuevo.get("nombre") == "esperando máquina":
+        return nuevo
+    try:
+        if nuevo.get("numero") is not None and int(nuevo["numero"]) >= int(previo["numero"]):
+            return nuevo
+    except (TypeError, ValueError):
+        return nuevo
+    return dict(previo, de_antes=True)
 
 
 def _runs_de_github() -> list:
@@ -139,24 +191,38 @@ def _runs_de_github() -> list:
         return []
     # `gh run list` no trae los inputs: hay que pedirlos run por run, y solo de los vivos.
     for r in runs:
-        if str(r.get("status")) not in ("in_progress", "queued"):
+        if str(r.get("status")) not in ("in_progress",) + ESPERAN_MAQUINA:
             continue
         # (PDA1012) Alex vio «undefined» como detalle de los agentes de la nube: no se sabía en qué
         # paso iba cada run. GitHub sí lo dice: el paso del job que está en curso ahora mismo.
         try:
             q = subprocess.run(
                 ["gh", "api", "/repos/{owner}/{repo}/actions/runs/%s/jobs" % r["databaseId"],
-                 "--jq", "[.jobs[] | {estado: .status, pasos: [.steps[]? | {nombre: .name, estado: .status, inicio: .started_at}]}]"],
+                 "--jq", "[.jobs[] | {estado: .status, inicio: .started_at, pasos: [.steps[]? | {numero: .number, nombre: .name, estado: .status, inicio: .started_at}]}]"],
                 cwd=RAIZ, capture_output=True, text=True, timeout=30,
             )
             if q.returncode == 0:
-                r["paso"] = paso_actual(json.loads(q.stdout or "[]"))
+                r["paso"] = paso_monotono(_paso_guardado(r["databaseId"]), paso_actual(json.loads(q.stdout or "[]")))
         except Exception:
             pass
         # Los inputs de un workflow_dispatch no se pueden leer por la API después del
         # lanzamiento. Se guardan al lanzar, en este mismo archivo, por `nube-gh.py`.
         r["inputs"] = _inputs_guardados(r["databaseId"])
     return runs
+
+
+def _paso_guardado(run_id) -> dict | None:
+    """El último paso medido de ese run (para que no vuelva atrás con una lista incompleta)."""
+    try:
+        with open(SALIDA, encoding="utf-8") as f:
+            previo = json.load(f)
+        for r in previo.get("runs") or []:
+            if str(r.get("run")) == str(run_id) and r.get("paso_numero") is not None:
+                return {"nombre": r.get("paso"), "desde": r.get("paso_desde"), "numero": r.get("paso_numero"),
+                        "hechos": r.get("pasos_hechos", 0), "total": r.get("pasos_total", 0)}
+    except Exception:
+        pass
+    return None
 
 
 def _inputs_guardados(run_id) -> dict:
@@ -166,7 +232,7 @@ def _inputs_guardados(run_id) -> dict:
             previo = json.load(f)
         for r in previo.get("lanzamientos") or []:
             if str(r.get("run")) == str(run_id):
-                return {"trabajadores": r.get("trabajadores"), "cola": r.get("cola")}
+                return {"trabajadores": r.get("trabajadores"), "cola": r.get("cola"), "minutos": r.get("minutos")}
     except Exception:
         pass
     return {}

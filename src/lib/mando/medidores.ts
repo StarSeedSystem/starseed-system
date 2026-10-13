@@ -808,6 +808,10 @@ export interface RunDeLaNube {
     pasos_hechos?: unknown;
     pasos_total?: unknown;
     tareas?: string[];
+    /** (2026-10-13) El paso no es de esta medición: GitHub dio una lista incompleta y se mantiene el último visto. */
+    paso_de_antes?: unknown;
+    /** (2026-10-13) Diagnóstico del vigía de runs (`vigia_runs_nube.py`), el mismo con que actúa el director. */
+    atasco?: unknown;
 }
 
 /** (PDA1012) Un trabajador de la nube como latido del medidor «Agentes». */
@@ -823,6 +827,16 @@ export interface AgenteDeLaNube {
     tareasDeTanda?: string[];
     trabajador?: number;
     trabajadores?: number;
+    /** (2026-10-13) El atasco que vio el vigía de runs y lo que hace el director con él. */
+    atasco?: { tipo: string; motivo: string; cancelar: boolean };
+}
+
+/** PURA. El atasco de un run tal como lo escribe `vigia_runs_nube.py`, o undefined si no es legible. */
+export function atascoDeRun(a: unknown): AgenteDeLaNube["atasco"] {
+    if (!a || typeof a !== "object") return undefined;
+    const o = a as Record<string, unknown>;
+    if (typeof o.tipo !== "string" || typeof o.motivo !== "string") return undefined;
+    return { tipo: o.tipo, motivo: o.motivo, cancelar: o.cancelar === true };
 }
 
 /** PURA. La fase de un trabajador de la nube según el paso del job de GitHub. */
@@ -830,6 +844,8 @@ export function faseDePasoNube(paso: string | undefined): string {
     const p = String(paso ?? "").toLowerCase();
     if (!p) return "preparando";
     if (/esperando m[áa]quina/.test(p)) return "esperando máquina";
+    // (2026-10-13) GitHub a veces no da ningún paso de un job que ya corre: no es «preparando».
+    if (/sin dato del paso/.test(p)) return "sin dato del paso";
     if (/enjambre/.test(p)) return "escribiendo";
     if (/entregar|tachar|rastro|post |complete job/.test(p)) return "entregando";
     return "preparando";
@@ -852,6 +868,7 @@ export function agentesDeRunsNube(runs: readonly RunDeLaNube[]): AgenteDeLaNube[
         const total = Number(r.pasos_total);
         const pasos = Number.isFinite(hechos) && Number.isFinite(total) && total > 0 ? `${hechos} de ${total} pasos hechos` : undefined;
         const tope = Math.min(n, 32);
+        const atasco = atascoDeRun(r.atasco);
         for (let i = 0; i < tope; i += 1) {
             fuera.push({
                 tarea: `nube/${String(r.run)}`,
@@ -865,6 +882,7 @@ export function agentesDeRunsNube(runs: readonly RunDeLaNube[]): AgenteDeLaNube[
                 tareasDeTanda: Array.isArray(r.tareas) ? r.tareas.filter((t) => typeof t === "string" && t).slice(0, 24) : [],
                 trabajador: i + 1,
                 trabajadores: tope,
+                ...(atasco ? { atasco } : {}),
             });
         }
     }
@@ -1259,6 +1277,8 @@ export interface DatosMedidores {
         trabajadores?: number;
         /** (PDA1012) Otro medio (el A1 de Oracle): segundos desde su último latido en el bus. */
         latidoHaceS?: number;
+        /** (2026-10-13) Nube de GitHub: el atasco que vio el vigía de runs y lo que hace el director. */
+        atasco?: { tipo: string; motivo: string; cancelar: boolean };
     }[];
     /**
      * Inventario de contenedores en la nube, tal como lo escribe
@@ -1985,14 +2005,17 @@ export function detalleDeMedidor(
                 if (nubeGh) {
                     // (PDA1012) La nube de GitHub: el paso REAL de su job y las tareas de su tanda.
                     const f = faseDePasoNube(l.paso);
-                    estado = f === "escribiendo" ? "escribiendo" : f;
+                    estado = l.atasco ? "atascado" : f === "escribiendo" ? "escribiendo" : f;
                     const tanda = l.tareasDeTanda ?? [];
                     const quien2 = l.trabajador && l.trabajadores ? `trabajador ${l.trabajador} de ${l.trabajadores}` : "trabajador";
                     porque =
                         `${quien2} en GitHub Actions · paso «${l.paso ?? "sin dato del job todavía"}»${l.pasos ? ` (${l.pasos})` : ""}` +
                         (tanda.length
                             ? ` · su tanda: ${tanda.slice(0, 6).join(", ")}${tanda.length > 6 ? ` y ${tanda.length - 6} más` : ""} · qué tarea lleva cada trabajador lo dice su rama al entregar`
-                            : " · su cola ya no está en esta neurona");
+                            : " · su cola ya no está en esta neurona") +
+                        (l.atasco
+                            ? ` · ATASCO: ${l.atasco.motivo} · ${l.atasco.cancelar ? "el director de la nube lo cancela y devuelve sus tareas sin gastarles un envío" : "el director avisa y no lo corta (puede estar trabajando)"}`
+                            : "");
                 } else if (externo) {
                     estado = "trabajando fuera";
                     porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;
@@ -2066,6 +2089,8 @@ export function detalleDeMedidor(
                 [cuenta("esperando aprobación"), "esperando aprobación"],
                 [cuenta("soñando"), "soñando"],
                 [cuenta("preparando"), "preparando su máquina"],
+                [cuenta("atascado"), "atascados (el director actúa)"],
+                [cuenta("sin dato del paso"), "trabajando sin dato del paso de GitHub"],
                 [cuenta("entregando"), "entregando"],
                 [cuenta("esperando máquina"), "esperando máquina"],
                 [cuenta("trabajando fuera"), "fuera"],

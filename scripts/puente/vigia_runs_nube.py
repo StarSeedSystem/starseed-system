@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Vigía de los runs de la nube: que ningún agente se quede «preparando su máquina» sin que nadie lo vea.
+
+POR QUÉ (2026-10-13, MEDIDO)
+---------------------------
+Alex: «la mayoría de agentes en proceso están "preparando su máquina" desde hace mucho y aún no se
+autoverifica por los directores». Medido en GitHub ese mismo minuto, eran tres cosas distintas:
+
+  · Dos runs llevaban 25-30 min en «Enjambre» (escribiendo) y Genesis decía «preparando»: GitHub
+    deja «Set up job» en «in_progress» y `paso_actual` tomaba el PRIMER paso en curso. Arreglado en
+    `agentes_nube.paso_actual` (manda el más avanzado) y `paso_monotono` (no vuelve atrás).
+  · Un run DUPLICADO: el director y «Buscar más capacidad» lanzaron en el mismo minuto; el reparto
+    del director no creó cola, `cola_creada` tomó la cola recién creada por el otro y la lanzó otra
+    vez. Quedó «pending» (mismo grupo de concurrencia) para repetir las 6 tareas al acabar el primero.
+    Arreglado en `nube-gh.py` (cerrojo + sin adivinar la cola) y aquí se detecta y se cancela.
+  · Ningún director miraba si un run se atasca antes de escribir: con `timeout-minutes: 355`, un
+    `npm ci` colgado ocupaba la máquina seis horas.
+
+Qué hace: `diagnosticar` (PURA) mira cada run vivo con los números de `agentes-nube.json`, y
+`actuar` (lo llama `director-nube.py` en cada pasada) cancela lo que no va a trabajar, devuelve
+sus tareas sin gastarles un envío y lo dice UNA vez en el Chat Director.
+"""
+from __future__ import annotations
+
+import datetime as _dt
+import json
+import os
+import subprocess
+import time
+
+#: Lo normal es menos de 1 min de preparación (checkout, node, dependencias): medido 34-44 s.
+PREPARACION_MAX_S = 12 * 60
+#: Un run que espera máquina más de esto no la va a tener pronto: sus tareas, mejor en otro medio.
+ESPERA_MAX_S = 30 * 60
+#: Sin ningún dato de paso durante tanto tiempo: se avisa, no se cancela (podría estar trabajando).
+SIN_PASOS_AVISO_S = 25 * 60
+#: Margen sobre el tope de minutos con que se lanzó (el enjambre sale solo a su tope; entregar tarda 1 min).
+MARGEN_TOPE_MIN = 20
+ESPERAN = ("queued", "pending", "waiting", "requested")
+TRABAJO = ("enjambre",)
+FINALES = ("entregar", "tachar", "rastro", "post ", "complete job")
+MEMORIA = os.path.expanduser("~/.starseed/nube-vigia.json")
+
+
+def _segundos_desde(iso, ahora):
+    try:
+        return ahora - _dt.datetime.fromisoformat(str(iso).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def es_preparacion(paso) -> bool:
+    """PURA. ¿El paso es de preparación (antes de escribir)? «sin dato» y «esperando» no lo son."""
+    p = str(paso or "").strip().lower()
+    if not p or p in ("sin dato del paso", "esperando máquina"):
+        return False
+    return not any(p.startswith(t) for t in TRABAJO) and not any(p.startswith(f) for f in FINALES)
+
+
+def diagnosticar(fila, filas, ahora):
+    """PURA. El atasco de un run vivo, o None. → {tipo, motivo, cancelar, devolver}."""
+    if not isinstance(fila, dict):
+        return None
+    estado = str(fila.get("estado") or "")
+    minutos = fila.get("minutos")
+    edad_s = (minutos or 0) * 60 if isinstance(minutos, (int, float)) else None
+    cola = fila.get("cola")
+    if estado in ESPERAN:
+        otro = next((f for f in filas or [] if isinstance(f, dict) and f is not fila and f.get("cola") == cola
+                     and cola and str(f.get("estado")) == "in_progress"), None)
+        if otro is not None:
+            return {"tipo": "duplicado", "cancelar": True, "devolver": False,
+                    "motivo": "repite la cola del run %s, que ya la está haciendo" % otro.get("run")}
+        if edad_s is not None and edad_s > ESPERA_MAX_S:
+            return {"tipo": "sin-maquina", "cancelar": True, "devolver": True,
+                    "motivo": "lleva %d min sin máquina de GitHub" % (edad_s // 60)}
+        return None
+    if estado != "in_progress":
+        return None
+    try:
+        tope = int(str(fila.get("minutos_tope") or "").strip())
+    except ValueError:
+        tope = None
+    if tope and isinstance(minutos, (int, float)) and minutos > tope + MARGEN_TOPE_MIN:
+        return {"tipo": "pasado-de-tope", "cancelar": True, "devolver": True,
+                "motivo": "lleva %d min con un tope de %d: no ha salido solo" % (minutos, tope)}
+    paso = fila.get("paso")
+    if es_preparacion(paso):
+        en_paso = _segundos_desde(fila.get("paso_desde"), ahora)
+        if en_paso is not None and en_paso > PREPARACION_MAX_S:
+            return {"tipo": "preparacion-atascada", "cancelar": True, "devolver": True,
+                    "motivo": "lleva %d min en «%s» (lo normal es menos de 1 min)" % (en_paso // 60, paso)}
+    if str(paso or "") == "sin dato del paso" and edad_s is not None and edad_s > SIN_PASOS_AVISO_S:
+        return {"tipo": "sin-pasos", "cancelar": False, "devolver": False,
+                "motivo": "GitHub no da ningún paso de este job desde hace %d min" % (edad_s // 60)}
+    return None
+
+
+def ids_de_cola(datos) -> list:
+    """PURA. Los ids de una cola (lista de tareas o {tareas: [...]})."""
+    tareas = datos if isinstance(datos, list) else (datos or {}).get("tareas") if isinstance(datos, dict) else []
+    return [str(t.get("id")) for t in tareas or [] if isinstance(t, dict) and t.get("id")]
+
+
+def devolver(progreso, ids, run, motivo, fecha):
+    """PURA. Copia del progreso con las que siguen «reasignada · nube» de vuelta a pendiente. → (nuevo, ids)."""
+    salida, hechas = dict(progreso or {}), []
+    for tid in ids:
+        v = salida.get(tid)
+        if isinstance(v, dict) and v.get("estado") == "reasignada" and (v.get("medio") or "") == "nube":
+            v = dict(v)
+            v.update(estado="pendiente", medio=None,
+                     nota="devuelta de la nube %s: el run %s %s y el director lo canceló; no cuenta como envío"
+                     % (fecha, run, motivo))
+            salida[tid] = v
+            hechas.append(tid)
+    return salida, hechas
+
+
+def _leer(ruta, defecto):
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return defecto
+
+
+def _escribir(ruta, datos):
+    tmp = ruta + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+
+
+def _avisar(texto):
+    try:
+        import director_chat
+
+        director_chat.publicar(texto, de="director-nube", rol="director", tipo="aviso")
+    except Exception:
+        print("director-nube: no pude avisar en el Chat Director", flush=True)
+
+
+def actuar(resumen, raiz, ahora=None):
+    """Cancela, devuelve y avisa UNA vez por run. Nunca lanza. → lista de textos de lo hecho."""
+    import repartir_nube as RN
+
+    ahora = time.time() if ahora is None else ahora
+    memoria = _leer(MEMORIA, {})
+    memoria = {k: v for k, v in memoria.items() if isinstance(v, dict) and ahora - float(v.get("t") or 0) < 2 * 86400}
+    hecho = []
+    for fila in (resumen or {}).get("runs") or []:
+        a = fila.get("atasco") if isinstance(fila, dict) else None
+        run = str(fila.get("run")) if isinstance(fila, dict) else ""
+        if not a or not run or run in memoria:
+            continue
+        texto = "Nube · run %s: %s." % (run, a.get("motivo"))
+        if a.get("cancelar"):
+            p = subprocess.run(["gh", "run", "cancel", run], cwd=raiz, capture_output=True, text=True, timeout=60)
+            if p.returncode != 0:
+                print("director-nube: no pude cancelar el run %s: %s" % (run, (p.stderr or "")[-200:]), flush=True)
+                continue
+            texto += " Lo cancelé"
+            vivos_misma_cola = [f for f in resumen.get("runs") or [] if f is not fila and f.get("cola") == fila.get("cola")
+                                and not f.get("atasco")]
+            if a.get("devolver") and fila.get("cola") and not vivos_misma_cola:
+                ruta_prog = os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json")
+                prog = _leer(ruta_prog, {})
+                tareas = prog.get("tareas") if isinstance(prog, dict) and "tareas" in prog else prog
+                ids = ids_de_cola(_leer(os.path.join(raiz, str(fila["cola"])), []))
+                nuevas, devueltas = devolver(tareas, ids, run, "se atascó (%s)" % a.get("tipo"), time.strftime("%Y%m%d"))
+                if devueltas:
+                    if isinstance(prog, dict) and "tareas" in prog:
+                        prog["tareas"] = nuevas
+                    else:
+                        prog = nuevas
+                    _escribir(ruta_prog, prog)
+                    RN.anotar_reaperturas(devueltas, ahora)
+                    texto += " y devolví sus %d tarea(s) a la cola sin gastarles un envío (%s)" % (
+                        len(devueltas), ", ".join(devueltas[:8]))
+            texto += "."
+        else:
+            texto += " Solo aviso: puede estar trabajando y no lo corto."
+        _avisar(texto)
+        memoria[run] = {"t": ahora, "tipo": a.get("tipo")}
+        hecho.append(texto)
+    try:
+        os.makedirs(os.path.dirname(MEMORIA), exist_ok=True)
+        _escribir(MEMORIA, memoria)
+    except OSError:
+        pass
+    return hecho

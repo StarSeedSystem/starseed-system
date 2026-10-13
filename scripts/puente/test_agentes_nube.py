@@ -78,5 +78,44 @@ class TestPasoActual(unittest.TestCase):
         self.assertTrue(r["paso"].startswith("Entregar"))
         self.assertEqual(r["pasos_hechos"], 9)
 
+class TestPasoReal(unittest.TestCase):
+    """(2026-10-13, MEDIDO) Genesis decía «preparando su máquina» con los agentes escribiendo."""
+
+    def test_manda_el_paso_mas_avanzado_no_el_primero_en_curso(self):
+        jobs = [{"estado": "in_progress", "inicio": "2026-10-13T21:39:18Z", "pasos": [
+            {"numero": 1, "nombre": "Set up job", "estado": "in_progress", "inicio": "2026-10-13T21:39:19Z"},
+            {"numero": 4, "nombre": "Dependencias y orquestador", "estado": "completed", "inicio": "2026-10-13T21:39:25Z"},
+            {"numero": 7, "nombre": "Enjambre", "estado": "in_progress", "inicio": "2026-10-13T21:40:09Z"},
+            {"numero": 19, "nombre": "Post Run actions/setup-node@v4", "estado": "pending", "inicio": None}]}]
+        p = AN.paso_actual(jobs)
+        self.assertEqual((p["nombre"], p["numero"]), ("Enjambre", 7))
+
+    def test_sin_pasos_con_el_job_corriendo_no_es_preparando(self):
+        p = AN.paso_actual([{"estado": "in_progress", "inicio": "2026-10-13T22:00:29Z", "pasos": []}])
+        self.assertEqual(p["nombre"], "sin dato del paso")
+        self.assertEqual(p["desde"], "2026-10-13T22:00:29Z")
+        self.assertEqual(AN.paso_actual([{"estado": "queued", "pasos": []}])["nombre"], "esperando máquina")
+
+    def test_el_paso_no_vuelve_atras(self):
+        previo = {"nombre": "Enjambre", "numero": 7, "desde": "x"}
+        self.assertEqual(AN.paso_monotono(previo, {"nombre": "sin dato del paso", "numero": None})["nombre"], "Enjambre")
+        self.assertTrue(AN.paso_monotono(previo, {"nombre": "Set up job", "numero": 1})["de_antes"])
+        self.assertEqual(AN.paso_monotono(previo, {"nombre": "Entregar", "numero": 8})["nombre"], "Entregar")
+        self.assertEqual(AN.paso_monotono(None, {"nombre": "Set up job", "numero": 1})["nombre"], "Set up job")
+
+    def test_un_run_que_espera_turno_se_ve_y_el_duplicado_se_marca(self):
+        runs = [
+            {"databaseId": 1, "status": "in_progress", "createdAt": "2026-10-13T21:44:24Z", "url": "u",
+             "inputs": {"trabajadores": "3", "cola": "enjambre/colas/c.json"}},
+            {"databaseId": 2, "status": "pending", "createdAt": "2026-10-13T21:44:32Z", "url": "u",
+             "inputs": {"trabajadores": "4", "cola": "enjambre/colas/c.json"}},
+        ]
+        r = AN.resumir(runs, 1791929000)
+        self.assertEqual(len(r["runs"]), 2)  # el «pending» ya no queda invisible
+        pend = [f for f in r["runs"] if f["run"] == 2][0]
+        self.assertEqual(pend["atasco"]["tipo"], "duplicado")
+        self.assertNotIn("atasco", [f for f in r["runs"] if f["run"] == 1][0])
+
+
 if __name__ == "__main__":
     unittest.main()

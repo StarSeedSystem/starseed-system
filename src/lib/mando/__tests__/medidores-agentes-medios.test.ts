@@ -58,6 +58,26 @@ describe("agentes de la nube de GitHub", () => {
         expect(d.resumen).toContain("1 entregando");
     });
 
+    it("(2026-10-13) un job sin dato del paso no se cuenta como «preparando su máquina»", () => {
+        expect(faseDePasoNube("sin dato del paso")).toBe("sin dato del paso");
+        const d = detalleDeMedidor("agentes", { latidos: agentesDeRunsNube([{ ...runs[0], agentes: 2, paso: "sin dato del paso" }]) });
+        expect(d.filas[0].estado).toBe("sin dato del paso");
+        expect(d.resumen).toContain("2 trabajando sin dato del paso de GitHub");
+        expect(d.resumen).not.toContain("preparando su máquina");
+    });
+
+    it("(2026-10-13) un run con atasco dice el motivo y lo que hace el director", () => {
+        const atasco = { tipo: "preparacion-atascada", motivo: "lleva 30 min en «Dependencias y orquestador»", cancelar: true };
+        const a = agentesDeRunsNube([{ ...runs[0], agentes: 2, paso: "Dependencias y orquestador", atasco }]);
+        expect(a[0].atasco).toEqual(atasco);
+        const d = detalleDeMedidor("agentes", { latidos: a });
+        expect(d.filas[0].estado).toBe("atascado");
+        expect(d.filas[0].porque).toContain("ATASCO: lleva 30 min");
+        expect(d.filas[0].porque).toContain("el director de la nube lo cancela");
+        expect(d.resumen).toContain("2 atascados (el director actúa)");
+        expect(agentesDeRunsNube([{ ...runs[0], agentes: 1, atasco: { tipo: 1 } }])[0].atasco).toBeUndefined();
+    });
+
     it("un latido sin bytes medidos no escribe «undefined»", () => {
         const d = detalleDeMedidor("agentes", { latidos: [{ tarea: "X1", fase: "escribiendo", modelo: "nim/kimi", minutos: 2, donde: "nube" }] });
         expect(d.filas[0].porque).not.toContain("undefined");

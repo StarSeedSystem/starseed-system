@@ -151,11 +151,39 @@ def cola_creada(salida_reparto: str, nuevas) -> str | None:
             ruta = linea.split(": ", 1)[1].strip()
             if ruta.startswith("enjambre/colas/cola-") and ruta.endswith(".json"):
                 return ruta
+    # (2026-10-13, MEDIDO) El reparto dijo «(simulación)» —no creó nada— y aquí se tomó la cola que
+    # «Buscar más capacidad» acababa de crear en el mismo minuto: se lanzó DOS veces (runs 38472833577
+    # y 38472848625). Si el reparto dice que no creó cola, no hay cola, haya lo que haya en la carpeta.
+    if "(simulación)" in (salida_reparto or ""):
+        return None
     colas = sorted(n for n in (nuevas or ()) if n.startswith("cola-") and n.endswith(".json"))
     return ("enjambre/colas/" + colas[-1]) if colas else None
 
 
+CERROJO_LANZAR = os.path.expanduser("~/.starseed/nube-lanzar.lock")
+
+
 def lanzar(args: list[str]) -> None:
+    """(2026-10-13) Un lanzamiento cada vez: el director de la nube y «Buscar más capacidad»
+    lanzaban en el mismo minuto, repartían a la vez y uno subía la cola del otro. Con el cerrojo
+    el segundo espera (como mucho 3 min) a que el primero acabe y reparte sobre lo que quede."""
+    import fcntl
+
+    os.makedirs(os.path.dirname(CERROJO_LANZAR), exist_ok=True)
+    with open(CERROJO_LANZAR, "w") as cerrojo:
+        limite = time.time() + 180
+        while True:
+            try:
+                fcntl.flock(cerrojo, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.time() > limite:
+                    sys.exit("otro lanzamiento a la nube sigue en marcha desde hace 3 min: lo dejo para la próxima pasada")
+                time.sleep(5)
+        _lanzar(args)
+
+
+def _lanzar(args: list[str]) -> None:
     tope, trabajadores, minutos, cola, ceder = "6", "3", "300", None, False
     it = iter(args)
     for a in it:
@@ -174,6 +202,9 @@ def lanzar(args: list[str]) -> None:
         cola = cola_creada(out, nuevas)
         if not cola:
             sys.exit("el reparto no creó ninguna cola (¿no hay atraso?)")
+    vivo = _run_vivo_con_cola(cola)
+    if vivo:
+        sys.exit("la cola %s ya la lleva el run %s: no la lanzo otra vez" % (cola, vivo))
     # (2026-10-04, NUB1004A) Junto a la cola viaja el estado de la Mac (rotación y salud
     # de modelos), saneado de campos con clave, en `enjambre/colas/estado-<cola>/`. Sin él
     # el runner probaba la rotación entera por orden y perdía la hora con modelos sin cuota
@@ -245,6 +276,21 @@ def lanzar(args: list[str]) -> None:
     _anotar_lanzamiento(cola, trabajadores, minutos, run_id=run_id)
     _podar_ramas_de_cola()
     print("sigue con: python3 scripts/puente/nube-gh.py estado")
+
+
+def _run_vivo_con_cola(cola):
+    """El run vivo (en marcha o esperando máquina) que ya lleva esa cola, o None. Lee lo anotado al
+    lanzar y pregunta a GitHub solo por esos runs. Nunca lanza: ante la duda, None."""
+    try:
+        with open(os.path.join(RAIZ, "starseed_memory_root", "mando", "agentes-nube.json"), encoding="utf-8") as f:
+            anotados = [str(r.get("run")) for r in (json.load(f).get("lanzamientos") or []) if r.get("cola") == cola]
+    except (OSError, ValueError, AttributeError):
+        return None
+    for run in anotados[-3:]:
+        rc, salida = _sh_rc(["gh", "run", "view", run, "--json", "status", "--jq", ".status"], timeout=30)
+        if rc == 0 and salida.strip() in ("in_progress", "queued", "pending", "waiting", "requested"):
+            return run
+    return None
 
 
 def soltar_cedidas(ruta_cola, donde):

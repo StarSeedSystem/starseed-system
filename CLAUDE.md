@@ -1281,3 +1281,22 @@ anterior pasa de 10 min. Síntoma: `generadoEn` de `/api/mando/estado` que no av
 FreeLLMAPI vive también en el A1, SOLO en 127.0.0.1:3001 (`oracle_nodo.py freellmapi`,
 `a1_freellmapi.py`; claves leídas de su `~/.starseed/env`, ninguna escrita; servicio
 `starseed-freellmapi`), y el A1 pasa a 3 trabajadores y colas de 6 tareas.
+
+### 20. «La mayoría de agentes están "preparando su máquina"»: dos tercios eran mentira de la medida y uno, un duplicado (2026-10-13)
+
+Medido en GitHub ese mismo minuto: de los 11 agentes de la nube «preparando», 7 llevaban 25-30 min
+**escribiendo** («Enjambre») y 4 eran un run que acababa de arrancar. GitHub deja «Set up job» (o
+`setup-node`) en «in_progress» con el job muy por delante y a veces devuelve la lista de pasos vacía;
+`agentes_nube.paso_actual` tomaba el PRIMER paso en curso. Ahora manda el más avanzado por número
+(`paso_actual`), un job no vuelve atrás entre mediciones (`paso_monotono`, `paso_de_antes`) y sin
+pasos se dice «sin dato del paso», no «preparando». Además había un **run duplicado**: el director
+de la nube y «Buscar más capacidad» lanzaron el mismo minuto, el reparto del director dijo
+«(simulación)» y `cola_creada` tomó la cola recién creada por el otro → la misma cola lanzada dos
+veces (la segunda «pending», para repetir las 6 tareas). Ahora `nube-gh.py lanzar` toma un cerrojo
+(`~/.starseed/nube-lanzar.lock`), no adivina la cola si el reparto no la creó y no relanza una cola
+que ya lleva un run vivo. Y el **vigía de runs** (`scripts/puente/vigia_runs_nube.py`, en cada pasada
+de `director-nube.py`) cancela el duplicado, el que pasa 30 min sin máquina, el que lleva 12 min en
+un paso de preparación (lo normal: 34-44 s) y el que se pasa 20 min de su tope; devuelve sus tareas
+sin gastarles un envío (reapertura) y lo dice UNA vez en el Chat Director. «Sin dato del paso» 25 min
+solo se avisa. Genesis enseña el atasco en la tarjeta. Síntoma: `gh api …/runs/<id>/jobs` con
+«Set up job=in_progress» y «Enjambre=in_progress» a la vez.

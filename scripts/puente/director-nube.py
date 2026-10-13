@@ -151,10 +151,31 @@ def medir_nube():
         # salida cruda de `resumir()` borraba los lanzamientos anotados y hacía que un run
         # de 4 agentes se contase como 1. (2026-09-22)
         resumen = AN.escribir(AN.resumir(AN._runs_de_github(), time.time()))
+        _ULTIMO_RESUMEN[:] = [resumen]
         return len(resumen.get("runs") or []), int(resumen.get("agentes") or 0)
     except Exception as e:
         print("director-nube: no pude medir la nube: %s: %s" % (type(e).__name__, e), flush=True)
         return 0, 0
+
+
+#: (2026-10-13) La última medición, para que el vigía actúe sobre lo mismo que acaba de escribirse.
+_ULTIMO_RESUMEN = []
+
+
+def vigilar_runs():
+    """(2026-10-13) Alex: «la mayoría de agentes están "preparando su máquina" desde hace mucho y
+    no se autoverifica por los directores». Cada pasada: un run duplicado, sin máquina, atascado
+    preparándose o pasado de su tope se cancela, sus tareas vuelven sin gastar envío y se dice en
+    el Chat Director (una vez por run). Regla y números en `vigia_runs_nube.py`. Nunca lanza."""
+    if not _ULTIMO_RESUMEN:
+        return []
+    try:
+        import vigia_runs_nube as VR
+
+        return VR.actuar(_ULTIMO_RESUMEN[0], RAIZ)
+    except Exception as e:
+        print("director-nube: el vigía de runs falló: %s: %s" % (type(e).__name__, e), flush=True)
+        return []
 
 
 def elegir_contenedor(contenedores):
@@ -287,6 +308,11 @@ def main():
         try:
             _, hoy_n, _ = _cuenta_hoy()
             runs_vivos, agentes_vivos = medir_nube()
+            acciones = vigilar_runs()
+            for texto in acciones:
+                print("[%s] %s" % (time.strftime("%H:%M"), texto), flush=True)
+            if acciones:
+                runs_vivos, agentes_vivos = medir_nube()
             devueltas = reclamar_varadas_de_la_nube(runs_vivos)
             if devueltas:
                 print("[%s] devueltas de la nube a pendiente (allí no quedaba nadie): %s"

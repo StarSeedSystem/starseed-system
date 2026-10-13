@@ -83,6 +83,9 @@ jobs:
           cache: npm
 
       - name: Dependencias y orquestador
+        # (2026-10-13) Lo normal son 34-44 s. Sin tope, un `npm ci` colgado ocupaba la máquina hasta el
+        # `timeout-minutes` del job (355). A los 12 min se corta y el vigía de runs devuelve las tareas.
+        timeout-minutes: 12
         run: |
           npm ci --no-audit --no-fund --loglevel=error
           # (2026-09-30) Versión FIJA, no @latest: con latest un build deja de ser
