@@ -43,11 +43,6 @@ import { getMeshState, pushRouteDecision } from "./store";
 import type { PreferredRoute } from "./connectivity";
 import type { ClaseTrafico, Medicion } from "./camr/tipos";
 import { planificar, type PaquetePlan, type MetricasPlan, type CuotasPlan } from "./camr/planificador";
-import {
-  MEDIOS, CLASES_DATO, TIPOS_DATO,
-  type Medio, type ClaseDato, type TipoDato, type Prioridad,
-  COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
-} from "@/lib/malla/cristal/tipos";
 import { crearAdaptadorSimulado } from "./camr/enlaces";
 import { CONFIG_DEFECTO, crearEstado, cicloBucle, registrarDecision, medirTodos, pasoRecomendar, pasoAplicar, pasoVigilar } from "./camr/bucle";
 import type { MeshRules, RouteDecision, TrafficClass } from "./types";
