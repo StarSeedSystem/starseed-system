@@ -237,7 +237,9 @@ export function planTransmission(req: TransmitRequest, ctx: NetworkContext): Tra
         req.distance === "far"
           ? "destino lejano: relé cifrado por servidor intermedio (la malla no alcanza)"
           : !meshUsable
-            ? "malla no disponible o payload grande: relé cifrado por servidor"
+            ? req.scope === "private" && req.target === "account" && req.recipient
+              ? "relevo cifrado por destinatario"
+              : "malla no disponible o payload grande: relé cifrado por servidor"
             : "sin vecinos a la vista: relé cifrado por servidor",
     });
     // Failover local: si además hay malla y cabe, intentarla como refuerzo.
