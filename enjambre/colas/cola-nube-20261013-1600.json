@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261013",
+ "tareas": [
+  {
+   "id": "CB1013W",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Cerebros compartidos contigo: leerlos (y sus memorias) sin filtrar por dueño",
+   "archivos": [
+    "src/lib/cerebros/compartidos.ts",
+    "src/lib/cerebros/__tests__/compartidos.test.ts",
+    "src/lib/cerebro/memory-files.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §9 a y §2 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. La base ya deja LEER (RLS `br_compartido_leer` y `bmf_compartido_leer`) los cerebros que te compartieron y los públicos de tus grupos; el cliente aún filtra por `owner`. `compartidos.ts` (cliente): `listarCerebrosCompartidos(): Promise<{ ok: boolean; brains: Array<Brain & { compartido: true }> }>` con `select('*').neq('owner', yo).order('created_at')` y `.abortSignal(senalEsencial())` (de `@/lib/consumo/guardian`), normalizando con lo que use `brains.ts` (si `normalizeBrain` no se exporta, normaliza lo mínimo: id, owner, name, scope, scope_ref, description, config, includes, servers); un error → `{ ok: false, brains: [] }`, nunca lanza; y `esCompartido(b, yo)` puro. En `src/lib/cerebro/memory-files.ts`, `listMemoryFiles(brainId)`: con `brainId` filtra SOLO por `brain_id` (la RLS ya limita a lo tuyo y a lo compartido contigo); sin `brainId` sigue igual (owner + brain_id null). No toques las funciones de escritura. Pruebas con mock de `@/utils/supabase/client`: la consulta usa `neq('owner', yo)`; error → ok false; `listMemoryFiles('x')` no añade el filtro de owner."
+  }
+ ]
+}
