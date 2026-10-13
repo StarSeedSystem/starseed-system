@@ -149,7 +149,9 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
             }
         }
     }
-    if (accion === "repartir") {
+    // «repartir» no está en AccionOrden (lista blanca cerrada), pero se deja la validación por
+    // si el valor llega ensanchado desde fuera; por eso se compara como string.
+    if ((accion as string) === "repartir") {
         if (!("destino" in a) || typeof a.destino !== "string" || !RE_NODO.test(a.destino)) {
             return "destino no válido";
         }
