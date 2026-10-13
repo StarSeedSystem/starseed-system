@@ -15,9 +15,13 @@
  *
  * Todo Supabase-backed + realtime + estados vacíos en español. Reutiliza el
  * sistema de cerebros existente (brains) sin romper /cerebros.
+ *
+ * CB1013A (architecture/cerebros-fusion-telepatia.md): pestañas Privados/Públicos,
+ * 7 pilares sin texto cortado (+ Conectores y Procesos activos) y, por cerebro,
+ * Fusionar, Telepatía y Ajustes.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -29,21 +33,39 @@ import HabilidadesPanel from "@/components/cerebro/habilidades-panel";
 import ContextoPanel from "@/components/cerebro/contexto-panel";
 import NeuronasPanel from "@/components/cerebro/neuronas-panel";
 import { PersonalitiesPanel } from "@/components/aurora/personalities-panel";
+import ConectoresPanel from "@/components/cerebro/conectores-panel";
+import ProcesosPanel from "@/components/cerebro/procesos-panel";
+import FusionarDialog from "@/components/cerebro/fusionar-dialog";
+import TelepatiaDialog from "@/components/cerebro/telepatia-dialog";
+import AjustesCerebroDialog from "@/components/cerebro/ajustes-cerebro-dialog";
+import { NuevoCerebroPublico } from "@/components/cerebro/nuevo-cerebro-publico";
+import { RejillaPilares, pilarDesdeUrl, type Pilar } from "@/components/cerebro/pilares";
+import { SectionTabs } from "@/components/ui/section-tabs";
+import {
+  AYUDA_PESTANA,
+  cerebrosDePestana,
+  cuentaPorPestana,
+  pestanaDeCerebro,
+  pestanaDesdeUrl,
+  pestanaInicial,
+  type PestanaCerebros,
+} from "@/lib/cerebros/pestanas";
 import {
   icons as lucideIcons,
   Brain as BrainIcon,
-  FileText,
-  Wand2,
   Sparkles,
   Plus,
   Loader2,
-  ChevronRight,
   ExternalLink,
   Network,
-  Cpu,
   Share2,
   Send,
   BrainCog,
+  GitMerge,
+  Orbit,
+  SlidersHorizontal,
+  Lock,
+  Globe,
   type LucideIcon,
 } from "lucide-react";
 // Adenda 149 · qué personalidades usan el cerebro activo: el dato ya viaja en
@@ -59,52 +81,6 @@ import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
 // Enviar a… (DESTINOS · Adenda 66 §5): distinto de permisos.
 import { ShareToDialog } from "@/components/sharing/share-to-dialog";
 
-type Pillar = "memoria" | "habilidades" | "contexto" | "neuronas" | "egos";
-
-const PILLARS: {
-  id: Pillar;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  blurb: string;
-  accent: string;
-}[] = [
-  {
-    id: "memoria",
-    label: "Memoria",
-    icon: FileText,
-    blurb: "Archivos .md y sus fuentes/servidores: dónde se guardan y sincronizan.",
-    accent: "cyan",
-  },
-  {
-    id: "habilidades",
-    label: "Habilidades",
-    icon: Wand2,
-    blurb: "El programa de soul.md: skills, plugins, claves, permisos y agentes.",
-    accent: "violet",
-  },
-  {
-    id: "contexto",
-    label: "Contexto",
-    icon: Sparkles,
-    blurb: "Los sentidos de Aurora: proveedor por sentido, externos y emociones.",
-    accent: "amber",
-  },
-  {
-    id: "neuronas",
-    label: "Neuronas",
-    icon: Cpu,
-    blurb: "Tus dispositivos como cerebro+servidor: presencia en vivo, permisos y CasaOS.",
-    accent: "emerald",
-  },
-  {
-    id: "egos",
-    label: "Personalidades de Aurora",
-    icon: Sparkles,
-    blurb: "Agentes ego.md: conecta identidades portables de Aurora a este cerebro.",
-    accent: "fuchsia",
-  },
-];
-
 export default function CerebroHub() {
   const { rows: brains, loading, reload } = useRealtimeRows<Brain>(
     "brains",
@@ -113,7 +89,13 @@ export default function CerebroHub() {
   );
 
   const [activeBrainId, setActiveBrainId] = useState<string | null>(null);
-  const [pillar, setPillar] = useState<Pillar>("memoria");
+  const [pillar, setPillar] = useState<Pilar>("memoria");
+  // CB1013A · pestañas Privados/Públicos (null = aún sin decidir: se decide al cargar).
+  const [pestana, setPestana] = useState<PestanaCerebros | null>(null);
+  const [nuevoPublico, setNuevoPublico] = useState(false);
+  const [fusionOpen, setFusionOpen] = useState(false);
+  const [telepatiaOpen, setTelepatiaOpen] = useState(false);
+  const [ajustesOpen, setAjustesOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   // Compartir el cerebro activo (permisos universales por ramas).
   const [shareOpen, setShareOpen] = useState(false);
@@ -123,17 +105,50 @@ export default function CerebroHub() {
   const [memView, setMemView] = useState<MemoryViewId>("lista");
   const [memSub, setMemSub] = useState<MemoryListSub>("archivos");
 
-  // Selecciona el primer cerebro al cargar.
+  // Pestaña inicial: la de la URL, la del cerebro pedido o la que tenga cerebros.
   useEffect(() => {
-    if (!activeBrainId && brains.length) setActiveBrainId(brains[0].id);
-  }, [brains, activeBrainId]);
+    if (pestana || loading) return;
+    const busqueda = typeof window === "undefined" ? "" : window.location.search;
+    const cerebroUrl = new URLSearchParams(busqueda).get("brain");
+    setPestana(pestanaInicial(brains, pestanaDesdeUrl(busqueda), cerebroUrl));
+  }, [brains, loading, pestana]);
+
+  const vista: PestanaCerebros = pestana ?? "privados";
+  const cuentas = useMemo(() => cuentaPorPestana(brains), [brains]);
+  const visibles = useMemo(() => cerebrosDePestana(brains, vista), [brains, vista]);
+
+  // Selecciona el primer cerebro de la pestaña (y cambia si el activo es de la otra).
+  useEffect(() => {
+    if (!visibles.length) return;
+    if (!activeBrainId || !visibles.some((b) => b.id === activeBrainId)) {
+      const pedido = activeBrainId ? brains.find((b) => b.id === activeBrainId) : undefined;
+      if (pedido && pestana === null) return; // aún se está decidiendo la pestaña del cerebro pedido
+      setActiveBrainId(visibles[0].id);
+    }
+  }, [visibles, activeBrainId, brains, pestana]);
+
+  const cambiarPestana = useCallback((v: string) => {
+    const nueva: PestanaCerebros = v === "publicos" ? "publicos" : "privados";
+    setPestana(nueva);
+    setNuevoPublico(false);
+    if (typeof window === "undefined") return;
+    try {
+      const p = new URLSearchParams(window.location.search);
+      p.set("vista", nueva);
+      p.delete("brain");
+      window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   // Lee los query params una vez en cliente (preserva enlaces desde /memorias y /memorias-3d).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
     const tab = p.get("tab");
-    if (tab && (["memoria", "habilidades", "contexto", "neuronas", "egos"] as string[]).includes(tab)) setPillar(tab as Pillar);
+    const pilarUrl = pilarDesdeUrl(tab);
+    if (pilarUrl) setPillar(pilarUrl);
     const mv = p.get("mview");
     if (mv && (["lista", "2d", "3d", "fuentes"] as string[]).includes(mv)) setMemView(mv as MemoryViewId);
     const ms = p.get("msub");
@@ -158,7 +173,7 @@ export default function CerebroHub() {
     }
   }, []);
 
-  const activeBrain = brains.find((b) => b.id === activeBrainId) ?? null;
+  const activeBrain = visibles.find((b) => b.id === activeBrainId) ?? null;
 
   // Adenda 149 · nombres/iconos de las personalidades conectadas al cerebro
   // activo. Los perfiles viven en localStorage (SSR-safe: solo en efecto).
@@ -209,7 +224,7 @@ export default function CerebroHub() {
         <div className="flex items-center gap-2 flex-wrap">
           <BrainIcon className="w-5 h-5 text-cyan-300" />
           <h2 className="text-lg font-semibold text-cyan-50">Cerebro</h2>
-          <span className="text-sm text-white/45">— Memoria · Habilidades · Contexto</span>
+          <span className="text-sm text-white/45">— {AYUDA_PESTANA[vista]}</span>
           <span className="ml-auto flex flex-wrap items-center gap-3">
             {/* Adenda 149 · memoria/cerebro de CADA personalidad de Aurora en
                 esta neurona (drawer de sistemas de Astraura → «Cerebro»). */}
@@ -236,70 +251,151 @@ export default function CerebroHub() {
           </span>
         </div>
 
+        {/* CB1013A · pestañas principales: Privados (cuenta y perfiles) y Públicos (grupos, comunidades y páginas). */}
+        <div className="mt-3">
+          <SectionTabs
+            ariaLabel="Cerebros privados o públicos"
+            value={vista}
+            onValueChange={cambiarPestana}
+            items={[
+              { value: "privados", label: "Privados", icon: Lock, accent: "cyan", badge: loading ? undefined : cuentas.privados, title: AYUDA_PESTANA.privados },
+              { value: "publicos", label: "Públicos", icon: Globe, accent: "emerald", badge: loading ? undefined : cuentas.publicos, title: AYUDA_PESTANA.publicos },
+            ]}
+          />
+        </div>
+
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-white/50 py-4">
             <Loader2 className="w-4 h-4 animate-spin" /> Cargando cerebros…
           </div>
-        ) : brains.length === 0 ? (
+        ) : visibles.length === 0 ? (
           <div className="mt-3 rounded-xl border border-dashed border-white/15 p-6 text-center">
             <BrainIcon className="w-8 h-8 text-white/25 mx-auto mb-2" />
             <p className="text-sm text-white/55">
-              Aún no tienes ningún cerebro. Crea el primero para empezar.
+              {vista === "privados"
+                ? "Aún no tienes ningún cerebro privado. Crea el primero para empezar."
+                : "Aún no hay cerebros públicos. Un cerebro público pertenece a un grupo, comunidad o página que gestionas."}
             </p>
-            <Button className="mt-3 gap-1.5" disabled={creating} onClick={onCreateBrain}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Crear mi primer cerebro
-            </Button>
+            {vista === "privados" ? (
+              <Button className="mt-3 gap-1.5" disabled={creating} onClick={onCreateBrain}>
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Crear mi primer cerebro
+              </Button>
+            ) : nuevoPublico ? (
+              <NuevoCerebroPublico
+                onCerrar={() => setNuevoPublico(false)}
+                onCreado={async (b) => {
+                  setNuevoPublico(false);
+                  await reload();
+                  setActiveBrainId(b.id);
+                }}
+              />
+            ) : (
+              <Button className="mt-3 gap-1.5" onClick={() => setNuevoPublico(true)}>
+                <Plus className="w-4 h-4" /> Crear un cerebro público
+              </Button>
+            )}
           </div>
         ) : (
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            {brains.map((b) => (
-              <button
-                key={b.id}
-                onClick={() => setActiveBrainId(b.id)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                  b.id === activeBrainId
-                    ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
-                    : "border-white/10 text-white/70 hover:bg-white/5",
-                )}
-              >
-                <BrainIcon className="w-3.5 h-3.5" />
-                {b.name}
-              </button>
-            ))}
-            <Button size="sm" variant="outline" className="gap-1.5" disabled={creating} onClick={onCreateBrain}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Nuevo
-            </Button>
-            {activeBrain && (
+          <>
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              {visibles.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setActiveBrainId(b.id)}
+                  aria-pressed={b.id === activeBrainId}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-left text-sm transition-colors",
+                    b.id === activeBrainId
+                      ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+                      : "border-white/10 text-white/70 hover:bg-white/5",
+                  )}
+                >
+                  {pestanaDeCerebro(b) === "publicos" ? <Globe className="w-3.5 h-3.5 shrink-0" /> : <BrainIcon className="w-3.5 h-3.5 shrink-0" />}
+                  {b.name}
+                </button>
+              ))}
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-1.5 border-cyan-500/30 text-cyan-100 cursor-pointer"
-                onClick={() => setShareOpen(true)}
-                title={`Compartir «${activeBrain.name}» (total o por ramas)`}
+                className="gap-1.5"
+                disabled={creating}
+                onClick={vista === "privados" ? onCreateBrain : () => setNuevoPublico((v) => !v)}
               >
-                <Share2 className="w-4 h-4" />
-                Compartir
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Nuevo
               </Button>
+            </div>
+            {vista === "publicos" && nuevoPublico && (
+              <NuevoCerebroPublico
+                onCerrar={() => setNuevoPublico(false)}
+                onCreado={async (b) => {
+                  setNuevoPublico(false);
+                  await reload();
+                  setActiveBrainId(b.id);
+                }}
+              />
             )}
+            {/* Opciones del cerebro activo: Fusionar y Telepatía (CB1013 §4-§5), Ajustes (§8), Compartir y Enviar. */}
             {activeBrain && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 border-white/15 text-white/80 cursor-pointer"
-                onClick={() => setSendToOpen(true)}
-                title={`Enviar «${activeBrain.name}» a un destino (publicación, mensaje, librería…)`}
-              >
-                <Send className="w-4 h-4" />
-                Enviar a…
-              </Button>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-amber-500/30 text-amber-100 cursor-pointer"
+                  onClick={() => setFusionOpen(true)}
+                  title={`Fusionar: mezcla en «${activeBrain.name}» las memorias y configuraciones de otros cerebros`}
+                >
+                  <GitMerge className="w-4 h-4" />
+                  Fusionar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-violet-500/30 text-violet-100 cursor-pointer"
+                  onClick={() => setTelepatiaOpen(true)}
+                  title={`Telepatía: vincula y sincroniza «${activeBrain.name}» sin mezclarlo (carpetas, configuraciones y accesos)`}
+                >
+                  <Orbit className="w-4 h-4" />
+                  Telepatía
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-white/15 text-white/80 cursor-pointer"
+                  onClick={() => setAjustesOpen(true)}
+                  title={`Ajustes de «${activeBrain.name}»: medios, seguridad, privacidad, vinculación y sincronización`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Ajustes
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-cyan-500/30 text-cyan-100 cursor-pointer"
+                  onClick={() => setShareOpen(true)}
+                  title={`Compartir «${activeBrain.name}» (total o por ramas)`}
+                >
+                  <Share2 className="w-4 h-4" />
+                  Compartir
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-white/15 text-white/80 cursor-pointer"
+                  onClick={() => setSendToOpen(true)}
+                  title={`Enviar «${activeBrain.name}» a un destino (publicación, mensaje, librería…)`}
+                >
+                  <Send className="w-4 h-4" />
+                  Enviar a…
+                </Button>
+              </div>
             )}
-          </div>
+          </>
         )}
 
-        {/* Adenda 149 · qué personalidades de Aurora usan el cerebro activo
+        {/* Adenda 149 · qué personalidades usan el cerebro activo
             (dato ya cargado en `includes.personalities`: no hay red aquí). */}
         {activeBrain && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -309,7 +405,7 @@ export default function CerebroHub() {
             </span>
             {brainPersonas.length === 0 ? (
               <span className="text-[11px] text-white/35">
-                ninguna conectada todavía — conéctalas en el pilar «Personalidades de Aurora».
+                ninguna conectada todavía — conéctalas en el pilar «Personalidades».
               </span>
             ) : (
               brainPersonas.map((p) => {
@@ -329,53 +425,13 @@ export default function CerebroHub() {
         )}
       </div>
 
-      {/* ── Pilares (3 interconexiones + Neuronas + Egos) ───── */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {PILLARS.map((p) => {
-          const Icon = p.icon;
-          const active = pillar === p.id;
-          return (
-            <button
-              key={p.id}
-              onClick={() => setPillar(p.id)}
-              className={cn(
-                "group rounded-xl border p-4 text-left transition-all",
-                active
-                  ? "border-white/25 bg-white/[0.06]"
-                  : "border-white/10 bg-black/20 hover:bg-white/[0.03]",
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <div
-                  className={cn(
-                    "rounded-lg p-2",
-                    p.accent === "cyan" && "bg-cyan-500/15 text-cyan-300",
-                    p.accent === "violet" && "bg-violet-500/15 text-violet-300",
-                    p.accent === "amber" && "bg-amber-500/15 text-amber-300",
-                    p.accent === "emerald" && "bg-emerald-500/15 text-emerald-300",
-                    p.accent === "fuchsia" && "bg-fuchsia-500/15 text-fuchsia-300",
-                  )}
-                >
-                  <Icon className="w-5 h-5" />
-                </div>
-                <span className="font-semibold text-white/90">{p.label}</span>
-                <ChevronRight
-                  className={cn(
-                    "ml-auto w-4 h-4 transition-transform",
-                    active ? "text-white/60 translate-x-0.5" : "text-white/25",
-                  )}
-                />
-              </div>
-              <p className="mt-2 text-xs text-white/50">{p.blurb}</p>
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Pilares: 7 botones sin texto cortado (CB1013A · contrato §3) ───── */}
+      <RejillaPilares activo={pillar} onElegir={setPillar} hayCerebro={Boolean(activeBrain)} />
 
       {/* Mapa de interconexión */}
       <div className="rounded-xl border border-white/10 bg-gradient-to-br from-cyan-500/[0.04] via-violet-500/[0.04] to-amber-500/[0.04] p-3">
         <p className="text-[11px] text-white/45 text-center">
-          <span className="text-cyan-300">Memoria</span> escribe el programa →{" "}
+          <span className="text-cyan-300">Memorias</span> escriben el programa →{" "}
           <span className="text-violet-300">Habilidades</span> lo ejecutan →{" "}
           <span className="text-amber-300">Contexto</span> aporta percepción real. Las tres se enlazan por el cerebro
           seleccionado.
@@ -383,29 +439,57 @@ export default function CerebroHub() {
       </div>
 
       {/* ── Panel del pilar activo ──────────────────────────── */}
-      {/* Neuronas son de la CUENTA (dispositivos), no requieren cerebro creado. */}
-      {(brains.length > 0 || pillar === "neuronas") && (
-        <div className="pt-1">
-          {pillar === "memoria" && brains.length > 0 && (
-            <MemoryViews
-              brainId={activeBrainId}
-              brainName={activeBrain?.name}
-              initialView={memView}
-              initialSub={memSub}
-              onViewChange={onMemViewChange}
-            />
-          )}
-          {pillar === "habilidades" && brains.length > 0 && (
-            <HabilidadesPanel brainId={activeBrainId} brainName={activeBrain?.name} />
-          )}
-          {pillar === "contexto" && brains.length > 0 && <ContextoPanel />}
-          {pillar === "neuronas" && (
-            <NeuronasPanel brainId={activeBrainId} brainName={activeBrain?.name} />
-          )}
-          {pillar === "egos" && brains.length > 0 && (
-            <PersonalitiesPanel brainId={activeBrainId} brainName={activeBrain?.name} />
-          )}
-        </div>
+      {/* Neuronas y Procesos activos son de la CUENTA: no requieren cerebro. */}
+      <div className="pt-1">
+        {pillar === "neuronas" && <NeuronasPanel brainId={activeBrain?.id ?? null} brainName={activeBrain?.name} />}
+        {pillar === "procesos" && <ProcesosPanel brainId={activeBrain?.id ?? null} brainName={activeBrain?.name} />}
+        {pillar !== "neuronas" && pillar !== "procesos" && !activeBrain && !loading && (
+          <p className="rounded-xl border border-dashed border-white/15 p-4 text-sm text-white/55">
+            Elige o crea un cerebro en la pestaña {vista === "privados" ? "Privados" : "Públicos"} para ver esta sección.
+          </p>
+        )}
+        {activeBrain && pillar === "memoria" && (
+          <MemoryViews
+            brainId={activeBrain.id}
+            brainName={activeBrain.name}
+            initialView={memView}
+            initialSub={memSub}
+            onViewChange={onMemViewChange}
+          />
+        )}
+        {activeBrain && pillar === "habilidades" && <HabilidadesPanel brainId={activeBrain.id} brainName={activeBrain.name} />}
+        {activeBrain && pillar === "contexto" && <ContextoPanel />}
+        {activeBrain && pillar === "egos" && <PersonalitiesPanel brainId={activeBrain.id} brainName={activeBrain.name} />}
+        {activeBrain && pillar === "conectores" && <ConectoresPanel brainId={activeBrain.id} brainName={activeBrain.name} />}
+      </div>
+
+      {/* ── Fusionar · Telepatía · Ajustes del cerebro activo (CB1013) ── */}
+      {fusionOpen && activeBrain && (
+        <FusionarDialog
+          open
+          onOpenChange={(o) => !o && setFusionOpen(false)}
+          cerebro={activeBrain}
+          cerebros={brains}
+          onHecho={() => void reload()}
+        />
+      )}
+      {telepatiaOpen && activeBrain && (
+        <TelepatiaDialog
+          open
+          onOpenChange={(o) => !o && setTelepatiaOpen(false)}
+          cerebro={activeBrain}
+          cerebros={brains}
+          onHecho={() => void reload()}
+        />
+      )}
+      {ajustesOpen && activeBrain && (
+        <AjustesCerebroDialog
+          open
+          onOpenChange={(o) => !o && setAjustesOpen(false)}
+          cerebro={activeBrain}
+          cerebros={brains}
+          onHecho={() => void reload()}
+        />
       )}
 
       {/* ── Compartir cerebro: modelo universal con acceso parcial por ramas ── */}
@@ -423,7 +507,7 @@ export default function CerebroHub() {
             { id: "memoria", label: "Memoria" },
             { id: "habilidades", label: "Habilidades" },
             { id: "contexto", label: "Contexto" },
-            { id: "egos", label: "Personalidades de Aurora" },
+            { id: "egos", label: "Personalidades" },
           ]}
           description="Comparte este cerebro completo o solo algunas de sus ramas. Privado en lo personal, transparente en lo público."
         />
