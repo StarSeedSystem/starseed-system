@@ -13,8 +13,9 @@ import { HardDrive, Info, Sparkles } from "lucide-react";
 import { FECHA_VERIFICACION_IMAGENES } from "@/lib/imagenes/modelos";
 import { paqueteBase, type HierroImg, type Sugerencia } from "@/lib/imagenes/sugerencias";
 import {
-  archivosDelRepo, eligeArchivosDescarga, espacioSuficiente, gpuDesdeVendor, hierroDesdeSondasWeb,
-  huellaSugerencias, leeHierroServicioLocal, textoGated, URL_SERVICIO_IMAGENES_POR_DEFECTO,
+  archivosDelRepo, eligeArchivosDescarga, espacioSuficiente, hierroDesdeSondasWeb,
+  huellaSugerencias, leeHierroServicioLocal, textoGated, type SeleccionDescarga,
+  URL_SERVICIO_IMAGENES_POR_DEFECTO,
 } from "@/lib/imagenes/adaptadores/hierro-local";
 
 const BASE = process.env.NEXT_PUBLIC_ASTRAURA_IMAGENES_LOCAL_URL ?? URL_SERVICIO_IMAGENES_POR_DEFECTO;
@@ -22,6 +23,9 @@ const CLAVE_HUELLA = "astraura:sugerencia-imagenes-huella";
 const gb = (b: number) => (b / 1024 ** 3).toFixed(1).replace(".", ",");
 
 interface Estado { hierro: HierroImg; discoLibre: number | null; local: boolean }
+
+/** Estado del estado de descarga real por modelo: lo que se pidió a Hugging Face. */
+type Selecciones = Record<string, SeleccionDescarga | null>;
 
 /** Sondas de la web: navigator solo se toca aquí, en cliente, y lo que no dé queda desconocido. */
 async function sondasWeb(): Promise<HierroImg | null> {
@@ -38,7 +42,13 @@ async function sondasWeb(): Promise<HierroImg | null> {
   });
 }
 
-async function instalar(s: Sugerencia): Promise<string> {
+async function instalar(s: Sugerencia, discoLibre: number | null, sel: SeleccionDescarga | null): Promise<string> {
+  // Regla dura del contrato: nada se descarga sin ≥ 3× su tamaño libre. Sin tamaño real o sin disco
+  // medido no hay botón de «un toque»: se le dice a la persona por qué y no se inventa.
+  if (discoLibre !== null && sel && sel.bytesTotales > 0) {
+    const e = espacioSuficiente(discoLibre, sel.bytesTotales);
+    if (!e.ok) return e.mensaje;
+  }
   try {
     const r = await fetch(`${BASE}/instalar`, {
       method: "POST", headers: { "content-type": "application/json" },
@@ -52,7 +62,7 @@ async function instalar(s: Sugerencia): Promise<string> {
 
 export default function SugerenciasInstalacion({ enLaMalla = [], comercial = false }: { enLaMalla?: string[]; comercial?: boolean }) {
   const [est, setEst] = useState<Estado | null>(null);
-  const [tamanos, setTamanos] = useState<Record<string, string>>({});
+  const [selecciones, setSelecciones] = useState<Selecciones>({});
   const [aviso, setAviso] = useState("");
   const paquete = useMemo(
     () => (est ? paqueteBase(est.hierro, { comercial, enLaMalla: est.local ? enLaMalla : [] }) : null),
@@ -82,18 +92,25 @@ export default function SugerenciasInstalacion({ enLaMalla = [], comercial = fal
     } catch { /* sin almacenamiento se muestra cada vez */ }
     let vivo = true;
     void (async () => {
-      const t: Record<string, string> = {};
+      const t: Selecciones = {};
       for (const s of paquete.instalar) {
-        const sel = eligeArchivosDescarga(s.modelo, s.cuantizacion, await archivosDelRepo(s.modelo.hf));
-        t[s.modelo.id] = sel ? `≈ ${gb(sel.bytesTotales)} GB${sel.incompleto ? " (tamaño parcial)" : ""}` : "tamaño sin comprobar";
+        t[s.modelo.id] = eligeArchivosDescarga(s.modelo, s.cuantizacion, await archivosDelRepo(s.modelo.hf));
       }
-      if (vivo) setTamanos(t);
+      if (vivo) setSelecciones(t);
     })();
     return () => { vivo = false; };
   }, [paquete, est, enLaMalla]);
 
   if (!paquete || !est) return null;
   const papel = { rapido: "Rápido", calidad: "Calidad", texto: "Texto legible" } as const;
+  const tamano = (id: string): string | null => {
+    if (!(id in selecciones)) return null; // consultando…
+    const sel = selecciones[id];
+    return sel ? `≈ ${gb(sel.bytesTotales)} GB${sel.incompleto ? " (tamaño parcial)" : ""}` : "tamaño sin comprobar";
+  };
+  const cabeEnDisco = (id: string): boolean =>
+    est.discoLibre === null || !(id in selecciones) || !selecciones[id] || selecciones[id]!.bytesTotales <= 0
+      || espacioSuficiente(est.discoLibre, selecciones[id]!.bytesTotales).ok;
   return (
     <section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 backdrop-blur">
       <header className="mb-3 flex items-center gap-2">
@@ -112,15 +129,23 @@ export default function SugerenciasInstalacion({ enLaMalla = [], comercial = fal
               <p className="font-medium text-white">{papel[s.papel]}: {s.modelo.nombre}</p>
               <p className="mt-1 text-xs text-white/60">{s.porQue}</p>
               <p className="mt-1 text-xs text-white/50">
-                Licencia: {s.modelo.licencia} · Descarga: {tamanos[s.modelo.id] ?? "consultando…"}
+                Licencia: {s.modelo.licencia} · Descarga: {tamano(s.modelo.id) ?? "consultando…"}
                 {est.discoLibre !== null ? ` · Espacio libre: ${gb(est.discoLibre)} GB` : " · Espacio libre: lo comprueba el instalador"}
               </p>
               {s.modelo.gated && <p className="mt-1 text-xs text-amber-200/80">{textoGated(s.modelo)}</p>}
               {est.local && (
-                <button type="button" onClick={() => void instalar(s).then(setAviso)}
-                  className="mt-2 cursor-pointer rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white transition-colors duration-200 hover:bg-white/10">
-                  Instalar en esta neurona
-                </button>
+                <>
+                  <button type="button" disabled={!cabeEnDisco(s.modelo.id)}
+                    onClick={() => void instalar(s, est.discoLibre, selecciones[s.modelo.id] ?? null).then(setAviso)}
+                    className="mt-2 cursor-pointer rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white transition-colors duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">
+                    Instalar en esta neurona
+                  </button>
+                  {!cabeEnDisco(s.modelo.id) && (
+                    <p className="mt-1 text-xs text-amber-200/80">
+                      {espacioSuficiente(est.discoLibre!, selecciones[s.modelo.id]!.bytesTotales).mensaje}
+                    </p>
+                  )}
+                </>
               )}
             </li>
         ))}
