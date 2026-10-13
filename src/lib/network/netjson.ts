@@ -34,6 +34,7 @@
  */
 
 import { PERFILES_WIFI } from "@/ai/astraura/mesh/camr/regulacion";
+import { planRadios, type RadioRouter, type RouterMalla } from "./routers-malla/plan-radios";
 
 const REGION_WIFI_POR_PAIS: Record<string, keyof typeof PERFILES_WIFI> = {
   US: "US", JP: "JP",
@@ -220,6 +221,10 @@ export function buildMeshNode(opts: {
   network?: string[];
 }): NetJsonWirelessInterface {
   const meshId = (opts?.meshId ?? "").toString().trim().slice(0, 32) || "starseed-mesh";
+  // §8 «Bandas por enlace»: conecta planRadios con los datos mínimos de la malla.
+  const plan = planRadios({ region: "EU", routers: [{ id: meshId, radios: [{ id: meshId, banda: "5g" as const, anchosMhz: [80, 40] }] }], troncales: [] });
+  const canal = plan.troncales[0]?.canal ?? 36;
+  const ancho = plan.troncales[0]?.anchoMhz ?? 80;
   const wireless: NetJsonWireless = {
     radio: (opts?.radio ?? "").toString(),
     mode: "802.11s",
