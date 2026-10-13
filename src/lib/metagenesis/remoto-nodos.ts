@@ -38,7 +38,8 @@ export type AccionOrden =
     | "reanudar"
     | "ceder"
     | "desconectar"
-    | "contenedor";
+    | "contenedor"
+    | "repartir";
 
 export interface FichaAccion {
     etiqueta: string;
@@ -71,6 +72,7 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
     desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
     contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
+    repartir: { etiqueta: "Prestar", explica: "Prestar tareas listas a un medio ocioso", args: ["destino", "tope"] },
 };
 
 export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "contenedor">, FichaAccion> = {
@@ -84,6 +86,7 @@ export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "co
     pausar: ACCIONES.pausar,
     reanudar: ACCIONES.reanudar,
     ceder: ACCIONES.ceder,
+    repartir: ACCIONES.repartir,
 };
 
 export const MEDIOS: Record<string, string> = {
@@ -125,6 +128,37 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     }
     if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
         return "trabajadores fuera de 1–4";
+    }
+    if (accion === "contenedor") {
+        // activo is required and must be boolean
+        if (!("activo" in a)) {
+            return "falta argumento: activo";
+        }
+        if (typeof a.activo !== "boolean") {
+            return "activo debe ser booleano";
+        }
+        // if activo is true, then trabajadores must be present and between 1 and 4
+        if (a.activo === true) {
+            if (!("trabajadores" in a)) {
+                return "falta argumento: trabajadores";
+            }
+            if (!(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
+                return "trabajadores fuera de 1–4";
+            }
+        } else {
+            // if activo is false, trabajadores should not be present
+            if ("trabajadores" in a) {
+                return "trabajadores solo se permite si activo es True";
+            }
+        }
+    }
+    if (accion === "repartir") {
+        if (!("destino" in a) || typeof a.destino !== "string" || !RE_NODO.test(a.destino)) {
+            return "destino no válido";
+        }
+        if ("tope" in a && !(Number.isInteger(a.tope) && (a.tope as number) >= 1 && (a.tope as number) <= 8)) {
+            return "tope fuera de 1–8";
+        }
     }
     return null;
 }
