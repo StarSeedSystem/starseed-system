@@ -48,18 +48,20 @@ import { MediationSection } from "@/components/governance/mediation-section";
 import { GroupFacePicker } from "@/components/profiles/group-face-picker";
 import { toast } from "sonner";
 import {
-    UsersRound,
-    Info,
-    Sparkles,
-    Plus,
-    Check,
-    Send,
-    Clock,
-    Lock,
-    Pencil,
-    Network,
-    Settings2,
-} from "lucide-react";
+     UsersRound,
+     Info,
+     Sparkles,
+     Plus,
+     Check,
+     Send,
+     Clock,
+     Lock,
+     Pencil,
+     Network,
+     Settings2,
+ } from "lucide-react";
+
+import { EnlacePoliGenesis } from "@/components/genesis/enlace-poligenesis";
 
 const GOLD = "#E9C46A";
 
@@ -663,7 +665,8 @@ function GrupoPageContent() {
                                     Personalizar
                                 </Button>
                             )}
-                            <ShareButton title={groupName} accent={accent} />
+                             <ShareButton title={groupName} accent={accent} />
+                             <EnlacePoliGenesis slug={slug} entidadId={group?.id} />
                         </div>
                     </div>
                 </div>
