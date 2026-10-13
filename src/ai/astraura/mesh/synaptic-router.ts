@@ -24,14 +24,17 @@
  */
 
 import { MESH_CLASS_SIZE_LIMIT } from "./constants";
-import { recommendPreset, PRESET_SPECS } from "./antennas";
-import type { BandGoal } from "./antennas";
-import type { MeshState, TrafficClass } from "./types";
-import {
-  MEDIOS, CLASES_DATO, TIPOS_DATO,
-  type Medio, type ClaseDato, type TipoDato, type Prioridad,
-  COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
-} from "@/lib/malla/cristal/tipos";
+  import { recommendPreset, PRESET_SPECS } from "./antennas";
+  import type { BandGoal } from "./antennas";
+  import type { MeshState, TrafficClass } from "./types";
+   import {
+     MEDIOS, CLASES_DATO, TIPOS_DATO,
+     type Medio, type ClaseDato, type TipoDato, type Prioridad,
+     COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
+   } from "@/lib/malla/cristal/tipos";
+  import { viabilidad } from "@/lib/malla/cristal/viabilidad";
+  import type { Dato, SenalMedida } from "@/lib/malla/cristal/tipos";
+  import { calidadSenal } from "@/lib/malla/cristal/coste";
 
 /** Ámbito de la información — decide servidor público vs directo privado. */
 export type TransmitScope = "public" | "private" | "local-group";
@@ -181,9 +184,39 @@ export function planTransmission(req: TransmitRequest, ctx: NetworkContext): Tra
   const meshUsable = ctx.meshReady && fitsMesh(req) && ctx.meshAllowed !== false;
   const local = req.distance !== "far"; // 'local' o 'unknown' se tratan como cercano
   const kbps = PRESET_SPECS[preset]?.kbps;
-  // Vías de servidor permitidas por la config del contexto.
-  const canRelay = ctx.hasAccount && ctx.serverAllowed !== false;
-  const canPublic = ctx.hasAccount && ctx.publicAllowed !== false;
+   // Vías de servidor permitidas por la config del contexto.
+   const canRelay = ctx.hasAccount && ctx.serverAllowed !== false;
+   const canPublic = ctx.hasAccount && ctx.publicAllowed !== false;
+
+    // Connect viabilidad: compute viability for wifi-lan as example
+    const dato: Dato = {
+      id: 'dato-' + Date.now(),
+      clase: 'publico',
+      tipo: 'mensaje',
+      bytes: req.sizeBytes,
+      prioridad: req.cls === "P0" ? 0 : req.cls === "P1" ? 1 : req.cls === "P2" ? 2 : 3,
+      origen: 'neurona1',
+      destino: 'neurona2',
+    };
+   const senal: SenalMedida = {
+     de: 'neurona1',
+     a: 'neurona2',
+     medio: 'wifi-lan',
+     rssiDbm: -50,
+     snrDb: 20,
+     rttMs: 50,
+     anchoBandaKbps: 1000,
+     perdidaPct: 0,
+     frecuenciaMhz: 2400,
+     anchoCanalMhz: 20,
+     vistaEn: Date.now(),
+   };
+   const ctxViab = {
+     cuentaDe: (id: string) => null,
+     bateriaPct: null,
+     cifradoE2E: false,
+   };
+   viabilidad(dato, senal, ctxViab);
 
   // 1) PÚBLICO → servidor público (almacena + retransmite). Además, si hay
   //    malla, se ANUNCIA localmente (los vecinos se enteran sin ir a la nube).

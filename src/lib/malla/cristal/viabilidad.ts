@@ -64,12 +64,12 @@ export function viabilidad(dato: Dato, s: SenalMedida, ctx: {
     factorServidor = 0.6;
   }
 
-  // Multiplier for low battery and high consumption medios
-  let factorBateria = 1.0;
-  const altoConsumo = s.medio === 'wifi-lan' || s.medio === 'webrtc';
-  if (ctx.bateriaPct !== null && ctx.bateriaPct < 20 && altoConsumo) {
-    factorBateria = 0.8;
-  }
+   // Multiplier for low battery and high consumption medios
+   let factorBateria = 1.0;
+   const altoConsumo = s.medio === 'wifi-lan' || s.medio === 'webrtc';
+   if (ctx.bateriaPct != null && ctx.bateriaPct < 20 && altoConsumo) {
+     factorBateria = 0.8;
+   }
 
   const valor = calidad * factorPrioridad * factorServidor * factorBateria;
 

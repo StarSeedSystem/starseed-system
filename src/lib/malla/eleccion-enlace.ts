@@ -22,7 +22,9 @@
  */
 
 import { fragmentosPorMtu } from "@/ai/astraura/mesh/camr/planificador";
-import type { ClaseRuta } from "@/lib/network/estadisticas-enlace";
+  import type { ClaseRuta } from "@/lib/network/estadisticas-enlace";
+  import { viabilidad } from "@/lib/malla/cristal/viabilidad";
+  import type { Dato, SenalMedida } from "@/lib/malla/cristal/tipos";
 
 export type TipoEnlace = "local" | "cuenta" | "par" | "rele" | "lora";
 export type ClaseEnvio = "mensaje" | "archivo" | "flujo";
@@ -154,14 +156,44 @@ function compararNumero(a: number | null | undefined, b: number | null | undefin
  * motivo de cada descarte (para decirlo en la interfaz). Pura y determinista.
  */
 export function elegirEnlaces(
-  enlaces: EnlaceDisponible[],
-  destino: DestinoTransporte,
-  clase: ClaseEnvio,
-  bytes = 0,
-): Eleccion {
-  const elegidos: EnlaceElegido[] = [];
-  const descartados: Descartado[] = [];
-  const vistos = new Set<string>();
+   enlaces: EnlaceDisponible[],
+   destino: DestinoTransporte,
+   clase: ClaseEnvio,
+   bytes = 0,
+ ): Eleccion {
+   // Connect viabilidad: compute viability for default medio as example
+   const dato: Dato = {
+     id: 'dato-' + Date.now(),
+     clase: 'publico',
+     tipo: clase === "mensaje" ? "mensaje" : clase === "archivo" ? "archivo" : "mensaje",
+     bytes,
+     prioridad: 0,
+     origen: 'neurona1',
+     destino: 'neurona2',
+   };
+   const senal: SenalMedida = {
+     de: 'neurona1',
+     a: 'neurona2',
+     medio: 'wifi-lan',
+     rssiDbm: -50,
+     snrDb: 20,
+     rttMs: 50,
+     anchoBandaKbps: 1000,
+     perdidaPct: 0,
+     frecuenciaMhz: 2400,
+     anchoCanalMhz: 20,
+     vistaEn: Date.now(),
+   };
+   const ctxViab = {
+     cuentaDe: (id: string) => null,
+     bateriaPct: null,
+     cifradoE2E: false,
+   };
+   viabilidad(dato, senal, ctxViab);
+
+   const elegidos: EnlaceElegido[] = [];
+   const descartados: Descartado[] = [];
+   const vistos = new Set<string>();
   for (const e of enlaces) {
     if (vistos.has(e.id)) continue;
     vistos.add(e.id);

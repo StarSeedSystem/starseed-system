@@ -48,6 +48,8 @@ import {
   type Medio, type ClaseDato, type TipoDato, type Prioridad,
   COORDINACION_BASE, esMedio, esClaseDato, coordinacionDe, claveSenal,
 } from "@/lib/malla/cristal/tipos";
+import { viabilidad } from "@/lib/malla/cristal/viabilidad";
+import type { Dato, SenalMedida } from "@/lib/malla/cristal/tipos";
 import { crearAdaptadorSimulado } from "./camr/enlaces";
 import { CONFIG_DEFECTO, crearEstado, cicloBucle, registrarDecision, medirTodos, pasoRecomendar, pasoAplicar, pasoVigilar } from "./camr/bucle";
 import type { MeshRules, RouteDecision, TrafficClass } from "./types";
@@ -241,12 +243,47 @@ export function decideRoute(input: DecideRouteInput): RouteDecision {
   // Si CAMR no está activo (sin transporte), `planificarCamr` devuelve null
   // y el comportamiento de hoy queda igual.
   const rutasCamr = planificarCamr(input.cls, input.sizeBytes, s, medicionWifi, medicionMesh);
-  const wifiScore = s.wifiHealth.at > 0
-    ? puntuacionCamr(medicionWifi, capacidadWifiKbps, claseCamr, resilienciaWifi, s.wifiHealth.score)
-    : s.wifiHealth.score;
-  const meshScore = s.meshHealth.at > 0
-    ? puntuacionCamr(medicionMesh, capacidadMeshKbps, claseCamr, resilienciaMesh, s.meshHealth.score)
-    : s.meshHealth.score;
+   // Construct Dato for viabilidad (placeholder values)
+   const dato: Dato = {
+     id: 'dato-' + Date.now(),
+     clase: 'publico', // default to avoid interno/privado vetoes
+     tipo: 'mensaje', // default
+     bytes: input.sizeBytes,
+     prioridad: input.cls === "P0" ? 0 : input.cls === "P1" ? 1 : input.cls === "P2" ? 2 : 3,
+     origen: 'neurona1',
+     destino: 'neurona2',
+   };
+
+   // Helper to convert Medicion to SenalMedida
+   const toSenalMedida = (m: Medicion, medio: Medio): SenalMedida => ({
+     de: 'neurona1',
+     a: 'neurona2',
+     medio,
+     rssiDbm: m.rssiDbm ?? undefined,
+     snrDb: m.snrDb ?? undefined,
+     rttMs: m.latenciaMs ?? undefined, // assuming latencyMs is round-trip time
+     anchoBandaKbps: m.anchoBandaKbps ?? undefined,
+     perdidaPct: m.perdida ?? undefined,
+     frecuenciaMhz: 2400, // default
+     anchoCanalMhz: 20, // default
+     vistaEn: m.at ?? Date.now(),
+   });
+
+  // Context for viabilidad (placeholder)
+  const ctxViab = {
+    cuentaDe: (id: string) => null, // no account info
+    bateriaPct: null,
+    cifradoE2E: false,
+  };
+
+  const wifiSenal = toSenalMedida(medicionWifi, 'wifi-lan');
+  const meshSenal = toSenalMedida(medicionMesh, 'wifi-mesh'); // treat mesh as wifi-mesh
+
+  const wifiViab = viabilidad(dato, wifiSenal, ctxViab);
+  const meshViab = viabilidad(dato, meshSenal, ctxViab);
+
+  const wifiScore = wifiViab.valor;
+  const meshScore = meshViab.valor;
   const meshReady = s.status === "ready" || s.status === "degraded";
   const rules = input.neuronRules ?? null;
   const airtime = input.airtimeAvailable ?? true;
