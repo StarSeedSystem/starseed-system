@@ -105,6 +105,7 @@ export async function GET(request: Request): Promise<Response> {
     const veto = await guardianMando(request);
     if (veto) return veto;
 
+    await Promise.race([semilla, new Promise((r) => setTimeout(r, 1_500))]);
     const estado = await estadoCompartido();
     // (2026-10-13) Ligero por defecto: 3,1 MB por sondeo eran sobre todo informes y descripciones
     // que solo enseña el panel de olas, que pide `?completo=1` (`estado-ligero.ts`).
@@ -129,7 +130,9 @@ const VIGENCIA_ESTADO_MS = 8_000;
 const ESPERA_ESTADO_MS = 6_000;
 const CACHE_ESTADO = path.join(os.homedir(), ".starseed", "cache-estado-genesis.json");
 const estadoCompartido = compartirCalculo(calcularYGuardar, VIGENCIA_ESTADO_MS, undefined, ESPERA_ESTADO_MS);
-void readFile(CACHE_ESTADO, "utf8")
+// (2026-10-13, medido) La primera petición tras reiniciar Genesis llegaba antes de que se leyera la
+// caché del disco y esperaba el cálculo entero (27 s): la ruta espera la semilla, como mucho 1,5 s.
+const semilla = readFile(CACHE_ESTADO, "utf8")
     .then((crudo) => {
         const d = JSON.parse(crudo) as EstadoMando;
         const t = Date.parse(String(d?.generadoEn ?? ""));
@@ -182,9 +185,15 @@ async function calcularEstado(): Promise<EstadoMando> {
         };
     }
     // «Últimos eventos»: primero lo que acaba de pasar en el bus (Mac + nube), después la bitácora local.
+    // (2026-10-13, medido) La bitácora va de vieja a nueva y solo crece: sin bus viajaba ENTERA
+    // (1.637 eventos, 433 KB en cada sondeo) y, con bus, se le añadían las MÁS VIEJAS. Ahora, las 40
+    // más nuevas, las más nuevas primero (como el bus).
+    const locales = relevo.eventos.slice(-40).reverse();
     if (eventosBus.length > 0) {
         const vistos = new Set(eventosBus.map((e) => e.id));
-        relevo.eventos = [...eventosBus, ...relevo.eventos.filter((e) => !vistos.has(e.id))].slice(0, 40);
+        relevo.eventos = [...eventosBus, ...locales.filter((e) => !vistos.has(e.id))].slice(0, 40);
+    } else {
+        relevo.eventos = locales;
     }
     // Lo local manda sobre lo que diga el bus de la misma tarea; la nube se añade.
     const idsMac = new Set(latidosMac.map((l) => `${l.cola}|${l.tarea}`));

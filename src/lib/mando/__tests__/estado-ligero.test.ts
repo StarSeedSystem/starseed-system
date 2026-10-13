@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estadoLigero, estadoLigeroCacheado, quiereEstadoCompleto, textoEstado } from "../estado-ligero";
+import { INFORMES_LIGERO, estadoLigero, estadoLigeroCacheado, quiereEstadoCompleto, textoEstado } from "../estado-ligero";
 import type { EstadoMando } from "../tipos";
 
 function estado(): EstadoMando {
@@ -21,6 +21,15 @@ describe("estado ligero (2026-10-13: 3,1 MB por sondeo)", () => {
         expect(l.fila).toBe(e.fila);
         expect(e.informes[0].markdown.length).toBeGreaterThan(1000);
         expect(e.tareas[0].descripcion).toBe("mucho texto");
+    });
+
+    it("en la vista ligera viajan solo los informes más recientes", () => {
+        const e = estado();
+        e.informes = Array.from({ length: 100 }, (_, i) => ({ nombre: `informe-${i}.md`, titulo: `${i}`, markdown: "x", fecha: "" }));
+        const l = estadoLigero(e);
+        expect(l.informes).toHaveLength(INFORMES_LIGERO);
+        expect(l.informes[0].nombre).toBe("informe-0.md");
+        expect(e.informes).toHaveLength(100);
     });
 
     it("pide el completo solo con ?completo=1", () => {

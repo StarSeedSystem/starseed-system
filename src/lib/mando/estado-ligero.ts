@@ -6,13 +6,16 @@
  * enseña; la cabecera de Genesis, MetaGenesis (también por el túnel, desde otro aparato), la flota,
  * los procesos, el diseñador y el bot de Telegram los recibían en cada sondeo y no los usan.
  *
- * CÓMO: por defecto viaja el estado SIN esos textos (los informes conservan nombre, título y fecha;
- * las tareas, todo menos `descripcion` y `archivos`). Quien los necesita pide `?completo=1`. El
+ * CÓMO: por defecto viaja el estado SIN esos textos (los 30 informes más recientes, con nombre,
+ * título y fecha; las tareas, todo menos `descripcion` y `archivos`). Quien los necesita pide `?completo=1`. El
  * cálculo es el mismo y compartido (`calculo-compartido.ts`): esto solo cambia lo que se envía.
  *
  * Módulo PURO (va también a pruebas de cliente): nada de `node:*`.
  */
 import type { EstadoMando } from "./tipos";
+
+/** Cuántos informes (solo nombre, título y fecha) viajan en la vista ligera. */
+export const INFORMES_LIGERO = 30;
 
 /** ¿La petición pide el estado completo (`?completo=1`)? */
 export function quiereEstadoCompleto(url: string): boolean {
@@ -28,7 +31,8 @@ export function quiereEstadoCompleto(url: string): boolean {
 export function estadoLigero(estado: EstadoMando): EstadoMando {
     return {
         ...estado,
-        informes: (estado.informes ?? []).map(({ nombre, titulo, fecha }) => ({ nombre, titulo, fecha, markdown: "" })),
+        // Los más recientes primero (`informes[0]` es el último): fuera del panel de olas nadie los lista.
+        informes: (estado.informes ?? []).slice(0, INFORMES_LIGERO).map(({ nombre, titulo, fecha }) => ({ nombre, titulo, fecha, markdown: "" })),
         tareas: (estado.tareas ?? []).map((t) => {
             const { descripcion: _d, archivos: _a, ...resto } = t;
             void _d;
