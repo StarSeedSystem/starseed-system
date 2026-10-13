@@ -15,6 +15,10 @@ migraciones, el enjambre en marcha y los enlaces guardados, sin que nadie lo vea
 `src/lib/__tests__/nombre-genesis.test.ts` (falla si un texto de `src/` vuelve a decir «Puente de
 Mando», «Centro de Mando» o «Mando» a secas). El botón guardado del dock se renombra solo
 (`renombrarMandoAGenesis` en `src/lib/dock/dock-defaults.ts`, sin volver a encender nada).
+**La familia Genesis** (2026-10-13): **MetaGenesis** (el código del OS: enjambre y desarrolladores),
+**PoliGenesis** (lo de un grupo, con su gobierno), **Genesis** (lo de cada persona) y **ProtoGenesis**
+(la génesis multiagéntica de cada molécula de la Protomolécula: director, agentes a la vez,
+verificador y la decisión del nivel donde vive la molécula). Contrato: `architecture/protogenesis.md`.
 
 ## Acceso a Genesis · léelo antes de tocar nada (2026-09-12)
 
@@ -1222,3 +1226,15 @@ de webpack va en memoria (`next.config.ts`, pico 5,2 GB) y `vercel.json` no prev
 decía «la Mac está apagada» con la Mac viva); nunca `Allow-Credentials`.
 Síntomas: `git merge-base --is-ancestor origin/main main` falla; `/version.json` de producción con
 fecha vieja; `curl -w %{time_total}` de `/api/mando/estado` por encima de 5 s.
+
+### 17. «De nuevo solo 2 agentes»: 43 listas retenidas por quien ni siquiera estaba en la tanda (2026-10-13)
+
+La Mac (memoria en aviso) trabajaba 2 y la nube 0 con 57 listas en la tanda. `esperadas_por_otras` contaba
+como «esperada» cualquier tarea de la que dependiera ALGUIEN, también tareas de otras colas que aún no
+estaban listas: 43 de las 57 quedaban fuera de la cesión. Esas no se quedan varadas si se va su dependencia
+(siguen en su cola y entran solas cuando llega a main). Ahora `cedibles_y_lote` solo frena lo que espera una
+tarea que se queda en la tanda (`solo_de=tanda`); el botón «Buscar más capacidad» y el A1 deciden con la MISMA
+cesión que el reparto (antes el botón miraba solo las sueltas: «0 elegibles, 0 jobs»); techo de la nube 6 → 14
+jobs. Medido tras el cambio: 38 elegibles y 4 jobs × 3 agentes lanzados en el acto. **El límite de verdad son
+los escritores**: 2 jobs por escritor vivo en la nube (hoy nvidia y openrouter; google y xkiro vuelven con su
+cupo diario). Síntoma para reconocerlo: «cede 3 que nadie espera» con decenas de listas y 0 elegibles.

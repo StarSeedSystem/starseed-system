@@ -152,6 +152,43 @@ pastillas en mensajes, llamadas, publicaciones y archivos.
   sobre ella). Para salir a la internet global hace falta **al menos una pasarela** en la malla
   (la conexión de alguien, compartida si quiere): la retícula la encuentra y reparte su ancho.
 
+### 8.1 Routers portátiles: titanio móvil, con SIM o sin ella (Alex, 2026-10-13)
+
+> «los routers portátiles deben también ser formateables para ser titanes mesh sin necesidad de
+> tarjeta SIM o servicios externos, pero también respetando su posibilidad como opción para
+> servicios de internet externos vinculables con la red mesh inteligentemente»
+
+- **Cuál se puede formatear**: los routers de viaje que ya traen un sistema basado en OpenWrt se
+  **adoptan sin flashear** (basta instalar los paquetes de la malla); los demás siguen la tabla de
+  hardware de OpenWrt como cualquier router (§8). Los «MiFi» de bolsillo de operador (4G/5G con
+  firmware cerrado) casi nunca están en esa tabla: StarSeed lo dice (`bloqueado-operador`) y da la
+  alternativa honesta: ese MiFi no se formatea, pero **su internet entra en la malla** a través de
+  un titanio compatible, que se conecta a él por Wi‑Fi (como cliente) o por USB.
+- **Sin SIM es un titanio igual**: la SIM nunca es necesaria. La malla (802.11s + batman‑adv) va
+  por las radios Wi‑Fi; el módem puede quedarse apagado.
+- **Titanio portátil = titanio con batería que se mueve**: coordinación 6 con corriente o con
+  batería ≥ 50 %, 4 entre 20 y 50 %, 3 por debajo del 20 %. Mientras se mueve (su propia
+  volatilidad sube), amortigua menos: fija la red cuando está quieto y no la arrastra cuando viaja.
+  Su tesela lleva batería y si carga; la posición solo si el dueño la comparte.
+- **Puertas a internet opcionales** (`PuertaInternet`): SIM 4G/5G, Wi‑Fi de otra red (casa,
+  hotel: modo cliente), teléfono por USB, cable o satélite. Cada puerta se declara en la tesela
+  de su titanio con lo medido (bajada, subida, latencia), si es **medida** (datos con tope) y **con
+  quién se comparte**: `nadie` (por defecto), `mi-cuenta`, `vinculos`, `grupo` o `publico`.
+- **Vinculadas con inteligencia**: lo interno y lo privado entre neuronas **nunca necesita una
+  puerta** (va por la malla P2P). Solo lo que debe salir a la internet global usa una, y se elige
+  la de menor coste permitida: una medida o cerca de su tope cuesta más; el dueño se reserva un
+  20 % (editable) que nadie más gasta; el cambio de puerta lleva histéresis del 20 % para no
+  oscilar. En el router: el titanio con puerta anuncia `gw_mode server` de batman‑adv con su ancho
+  medido y los demás van en `gw_mode client` (en BATMAN_V, `gw_sel_class` es la mejora mínima para
+  cambiar de puerta). Un guardián en el router cuenta los bytes de la puerta y deja de anunciarla
+  al llegar al tope del dueño; vuelve con el mes nuevo.
+- **Privacidad y responsabilidad**: la tesela nunca lleva números de la SIM (ICCID, IMSI,
+  teléfono) ni su PIN, y StarSeed no pide ni guarda el PIN (se quita en el panel del router o lo
+  escribe la persona allí). Algunas operadoras no permiten compartir los datos de una línea: se
+  avisa antes de compartir fuera de la propia cuenta. Lo de StarSeed viaja cifrado de punta a punta
+  por cualquier puerta; el resto del tráfico de internet va con el cifrado de cada sitio (se dice).
+- Cola: `starseed_memory_root/olas/cola-titanio-portatil-1013.json` (TIP1013A–F).
+
 ## 9. Lo que ya existe y cómo encaja
 
 | Pieza | Dónde | Papel en la retícula |

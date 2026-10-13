@@ -5,6 +5,11 @@
 > (120 pruebas verdes). El catálogo de herramientas (`catalogo-herramientas.ts`) lo escribe otra sesión;
 > aquí las herramientas se citan **por id**. La cola del enjambre: `starseed_memory_root/olas/cola-protomolecula-1010p.json`
 > (ids `PM1010F<fase><letra>`, §12).
+>
+> **ProtoGenesis** (Alex, 2026-10-13): toda creación con la Protomolécula pasa por el proceso
+> multiagéntico de `architecture/protogenesis.md` —encargo con criterios, director que planifica
+> los pasos sobre los átomos, varios agentes a la vez, verificador distinto del autor y decisión
+> de quien manda en el ámbito (Genesis, PoliGenesis o, si hace falta código del OS, MetaGenesis)—.
 
 ## 0 · Las reglas que mandan (de `CLAUDE.md`, no se tocan)
 
