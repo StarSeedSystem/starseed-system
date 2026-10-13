@@ -122,8 +122,8 @@ describe("disposicionOrbes", () => {
     }
   });
 
-it("ordenZ pone enfocado primero", () => {
-  expect(ordenZ(["a", "b", "c"], "b")).toEqual(["b", "a", "c"]);
+it("ordenZ pone enfocado último", () => {
+  expect(ordenZ(["a", "b", "c"], "b")).toEqual(["a", "c", "b"]);
   expect(ordenZ(["a", "b", "c"], "")).toEqual(["a", "b", "c"]);
 });
 

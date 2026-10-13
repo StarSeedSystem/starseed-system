@@ -10,8 +10,9 @@ describe("migracion-bots", () => {
   beforeAll(async () => {
     try {
       // Look for any migration file that might contain astraura_bots
-      const migrationDir = join(process.cwd(), "supabase", "migrations");
-      const files = (await import("node:fs/promises")).readdir(migrationDir);
+       const migrationDir = join(process.cwd(), "supabase", "migrations");
+       const fsPromises = await import("node:fs/promises");
+       const files = await fsPromises.readdir(migrationDir);
       
       // Try to find a migration that creates astraura_bots tables
       for (const file of files) {
@@ -27,7 +28,7 @@ describe("migracion-bots", () => {
       // If we didn't find a specific migration, try the most recent one
       if (!migrationContent) {
         const sqlFiles = files
-          .filter((f) => f.endsWith(".sql"))
+          .filter((f: string) => f.endsWith(".sql"))
           .sort()
           .reverse(); // Most recent first
         
@@ -37,7 +38,7 @@ describe("migracion-bots", () => {
       }
     } catch (error) {
       // If we can't read any migration file, we'll leave migrationContent empty
-      console.warn("Could not read migration file for testing:", error.message);
+       console.warn("Could not read migration file for testing:", (error as Error).message);
     }
     
     low = migrationContent.toLowerCase();

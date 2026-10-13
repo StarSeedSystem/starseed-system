@@ -137,6 +137,10 @@ export function ordenZ(
   ids: readonly string[],
   enfocado: string,
 ): string[] {
-  const resto = ids.filter((i) => i !== enfocado);
-  return enfocado ? [enfocado, ...resto] : [...ids];
+  if (!enfocado) {
+    return [...ids];
+  }
+  const enfocadoElements = ids.filter(i => i === enfocado);
+  const otherElements = ids.filter(i => i !== enfocado);
+  return [...otherElements, ...enfocadoElements];
 }
