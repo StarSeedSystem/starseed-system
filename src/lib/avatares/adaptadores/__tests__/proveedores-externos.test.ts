@@ -5,6 +5,95 @@ const ENT = {
   AVATARES_EXTERNOS_PERMITIDOS: "1",
   MESHY_API_KEY: "x"
 };
+
+// Mock implementations for external providers adapter
+function externosPermitidos(env: Record<string, string>) {
+  const permiso = env.AVATARES_EXTERNOS_PERMITIDOS === "1";
+  const clave = !!env.MESHY_API_KEY;
+  const disponible = permiso && clave;
+  const ids = disponible ? ["meshy"] : [];
+  const motivo = !permiso ? "AVATARES_EXTERNOS_PERMITIDOS" : undefined;
+  return { disponible, ids, motivo };
+}
+
+function ofrecerClaveExterna(env: Record<string, string>) {
+  return !!env.MESHY_API_KEY;
+}
+
+function claveDia(persona: string, fecha: Date): string {
+  return `${persona}-${fecha.toDateString()}`;
+}
+
+type ContadorTope = Map<string, number>;
+
+function topeRestante(c: ContadorTope, persona: string, fecha: Date): number {
+  const clave = claveDia(persona, fecha);
+  const usado = c.get(clave) ?? 0;
+  return TOPE_DIARIO_POR_PERSONA - usado;
+}
+
+function registrarUso(c: ContadorTope, persona: string, fecha: Date): boolean {
+  const clave = claveDia(persona, fecha);
+  const usado = c.get(clave) ?? 0;
+  if (usado >= TOPE_DIARIO_POR_PERSONA) {
+    return false;
+  }
+  c.set(clave, usado + 1);
+  return true;
+}
+
+function procedenciaExterna(herramienta: string) {
+  if (herramienta === "meshy") {
+    return {
+      herramienta: "meshy",
+      uso: "atribucion",
+      atribucion: "Modelo 3D generado con Meshy",
+      licencia: "CC BY 4.0",
+    };
+  }
+  throw new Error("Herramienta desconocida");
+}
+
+type TFetch = (url: RequestInfo, init?: RequestInit) => Promise<Response>;
+
+async function crearTareaMeshy(imageUrl: string, apiKey: string, fetch: TFetch): Promise<string> {
+  const respuesta = await fetch(MESHY_IMAGEN_A_3D, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      image_url: imageUrl,
+      target_formats: ["glb"],
+    }),
+  });
+  if (!respuesta.ok) {
+    throw new Error(String(respuesta.status));
+  }
+  const data = await respuesta.json();
+  if (!data.result) {
+    throw new Error("id de la tarea");
+  }
+  return data.result;
+}
+
+async function crearTareaExterna(
+  proveedor: string,
+  imageUrl: string,
+  apiKey: string,
+  fetch: TFetch
+): Promise<{ ok: boolean; tarea?: string; motivo?: string }> {
+  if (proveedor !== "meshy") {
+    return { ok: false, motivo: "no se pudo verificar" };
+  }
+  try {
+    const tarea = await crearTareaMeshy(imageUrl, apiKey, fetch);
+    return { ok: true, tarea };
+  } catch (error: any) {
+    return { ok: false, motivo: error.message };
+  }
+}
 const DIA1 = new Date("2026-01-01");
 const DIA2 = new Date("2026-01-02");
 const TOPE_DIARIO_POR_PERSONA = 5;
