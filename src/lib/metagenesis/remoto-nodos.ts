@@ -72,17 +72,8 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
     // Colmena (COL1012): van a un ID de nodo concreto, nunca a «lider»/«todos» (igual que el nodo Python).
-    desconectar: {
-        etiqueta: "Desconectar",
-        explica: "Guarda el trabajo a medias de este aparato y lo pasa a otro contenedor antes de que se quede sin internet.",
-        confirmar: true,
-        args: [],
-    },
-    contenedor: {
-        etiqueta: "Usar como contenedor",
-        explica: "Este aparato coge tareas de la cola como la Mac, con los agentes que pueda.",
-        args: ["activo", "trabajadores"],
-    },
+    desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
+    contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
 };
 
 /** Las acciones del nodo NO se ofrecen en «Pedir algo al que dirige»: van en la tarjeta de cada neurona. */
@@ -148,25 +139,14 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
         return "trabajadores fuera de 1–4";
     }
-<<<<<<< HEAD
-=======
-    if (accion === "repartir") {
-        if (!("destino" in a) || typeof a.destino !== "string" || !RE_NODO.test(a.destino)) {
-            return "destino no válido";
-        }
-        if ("tope" in a && !(Number.isInteger(a.tope) && (a.tope as number) >= 1 && (a.tope as number) <= 8)) {
-            return "tope fuera de 1–8";
-        }
-    }
-    // MISMAS reglas que `args_validos` del nodo Python: activo booleano obligatorio; trabajadores
-    // 1–4 SOLO con activo true (con activo false el nodo apaga el contenedor y no quiere ese dato).
-    if (accion === "contenedor") {
-        if (!("activo" in a)) return "falta argumento: activo";
-        if (typeof a.activo !== "boolean") return "activo debe ser booleano";
-        if (a.activo && !("trabajadores" in a)) return "falta argumento: trabajadores";
-        if (!a.activo && "trabajadores" in a) return "trabajadores solo se permite si activo es True";
-    }
->>>>>>> ba1c088b (salvavidas · COL1012Bb: resolución manual del cherry-pick de la nube (2a291b2a))
+// MISMAS reglas que `args_validos` del nodo Python: activo booleano obligatorio; trabajadores
+// 1–4 SOLO con activo true (con activo false el nodo apaga el contenedor y no quiere ese dato).
+if (accion === "contenedor") {
+    if (!("activo" in a)) return "falta argumento: activo";
+    if (typeof a.activo !== "boolean") return "activo debe ser booleano";
+    if (a.activo && !("trabajadores" in a)) return "falta argumento: trabajadores";
+    if (!a.activo && "trabajadores" in a) return "trabajadores solo se permite si activo es True";
+}
     return null;
 }
 

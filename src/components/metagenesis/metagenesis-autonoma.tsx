@@ -29,12 +29,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { miAccesoMetaGenesis } from "@/lib/metagenesis/accesos";
 import { enviarOrden, leerEstadoAutonomo, type LecturaAutonoma } from "@/lib/metagenesis/remoto-nodos-cliente";
-import { ACCIONES, fraseDelMando, textoEstadoOrden, type AccionOrden, type NodoVista } from "@/lib/metagenesis/remoto-nodos";
+import {
+    ACCIONES,
+    ACCIONES_DEL_LIDER,
+    fraseDelMando,
+    textoEstadoOrden,
+    type AccionOrden,
+    type NodoVista,
+} from "@/lib/metagenesis/remoto-nodos";
 import { textoHace } from "@/lib/metagenesis/remoto";
 import { onTableChange } from "@/lib/realtime/realtime";
 
 const CADA_MS = 90_000;
-const BOTONES: AccionOrden[] = ["continuar", "revisar_bloqueadas", "buscar_trabajo", "buscar_capacidad", "reactivar", "ceder"];
+/** Solo las del líder: desconectar/contenedor NO se ofrecen aquí (van en la tarjeta de cada neurona, COL1012I). */
+type AccionLider = keyof typeof ACCIONES_DEL_LIDER;
+const BOTONES: AccionLider[] = ["continuar", "revisar_bloqueadas", "buscar_trabajo", "buscar_capacidad", "reactivar", "ceder"];
 
 function IconoMedio({ medio }: { medio: string }) {
     const c = "h-4 w-4 shrink-0";
@@ -264,14 +273,14 @@ export function MetaGenesisAutonoma() {
                         <div>
                             <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/50">Pedir algo al que dirige</h3>
                             <div className="flex flex-wrap gap-1.5">
-                                {[...BOTONES, autonomia ? ("pausar" as const) : ("reanudar" as const)].map((a) => (
+                                {[...BOTONES, autonomia ? ("pausar" as AccionLider) : ("reanudar" as AccionLider)].map((a) => (
                                     <Button
                                         key={a}
                                         size="sm"
                                         variant={confirmando === a ? "destructive" : "outline"}
                                         className="h-8 cursor-pointer gap-1.5 text-xs"
                                         disabled={enviando !== null}
-                                        title={ACCIONES[a].explica}
+                                        title={ACCIONES_DEL_LIDER[a].explica}
                                         onClick={() => void mandar(a)}
                                         data-testid={`mg-orden-${a}`}
                                     >
@@ -284,7 +293,7 @@ export function MetaGenesisAutonoma() {
                                         ) : (
                                             <Wrench className="h-3.5 w-3.5" aria-hidden />
                                         )}
-                                        {confirmando === a ? "¿Seguro? Pulsa otra vez" : ACCIONES[a].etiqueta}
+                                        {confirmando === a ? "¿Seguro? Pulsa otra vez" : ACCIONES_DEL_LIDER[a].etiqueta}
                                     </Button>
                                 ))}
                             </div>
