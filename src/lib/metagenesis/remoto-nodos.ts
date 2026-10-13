@@ -109,7 +109,15 @@ export function esAccion(x: unknown): x is AccionOrden {
 export function esDestino(x: unknown): x is string {
     return typeof x === "string" && (x === "lider" || x === "todos" || x in MEDIOS || RE_NODO.test(x));
 }
-
+ 
+export function esDestinoPara(accion: AccionOrden, para: unknown): boolean {
+    if (!esDestino(para)) return false;
+    if (accion === "desconectar" || accion === "contenedor") {
+        return para !== "lider" && para !== "todos" && !(para in MEDIOS);
+    }
+    return true;
+}
+ 
 /** PURA. null si los argumentos encajan con la acción; si no, el motivo (igual que en Python). */
 export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     const a = (args ?? {}) as Record<string, unknown>;
@@ -125,6 +133,14 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     }
     if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
         return "trabajadores fuera de 1–4";
+    }
+    // MISMAS reglas que `args_validos` del nodo Python: activo booleano obligatorio; trabajadores
+    // 1–4 SOLO con activo true (con activo false el nodo apaga el contenedor y no quiere ese dato).
+    if (accion === "contenedor") {
+        if (!("activo" in a)) return "falta argumento: activo";
+        if (typeof a.activo !== "boolean") return "activo debe ser booleano";
+        if (a.activo && !("trabajadores" in a)) return "falta argumento: trabajadores";
+        if (!a.activo && "trabajadores" in a) return "trabajadores solo se permite si activo es true";
     }
     return null;
 }
@@ -182,6 +198,10 @@ export interface NodoVista {
     disco_gb: number | null;
     ram_libre_mb: number | null;
     trabajo: Record<string, number | null>;
+    /** ≤ 8 tareas con agente trabajando en este aparato; [] si el latido no las trajo. */
+    enCurso: {id: string; fase: string; punto: {rama: string; sha: string; t: number} | null}[];
+    /** Estado de contenedor del latido (`trabajadores` pasa a llamarse `agentes`, como en colmena.ts); null si no lo apuntó. */
+    contenedor: {activo: boolean; agentes: number; apto: boolean; motivo: string} | null;
 }
 
 export interface DecisionVista {
@@ -226,7 +246,32 @@ export interface FilaBus {
 
 const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
 const txt = (x: unknown, max = 200): string => (typeof x === "string" ? x.slice(0, max) : "");
+const boolDe = (x: unknown): boolean => x === true;
+/** PURA. Un `en_curso` del latido a lo que se pinta, sin fiarse de lo que venga. */
+function enCursoDe(d: Record<string, unknown>): {id: string; fase: string; punto: {rama: string; sha: string; t: number} | null}[] {
+    const lista = Array.isArray(d.en_curso) ? (d.en_curso as Array<Record<string, unknown>>) : [];
+    return lista
+        .map((t) => {
+            const p = (t?.punto ?? null) as Record<string, unknown> | null;
+            const id = txt(t?.id, 80);
+            if (!id) return null;
+            return {
+                id,
+                fase: txt(t?.fase, 40),
+                punto: p ? { rama: txt(p.rama, 120), sha: txt(p.sha, 60), t: num(p.t) ?? 0 } : null,
+            };
+        })
+        .filter((t): t is {id: string; fase: string; punto: {rama: string; sha: string; t: number} | null} => t !== null)
+        .slice(0, 8);
+}
 
+/** PURA. El `contenedor` del latido (§3: {activo, trabajadores, apto, motivo}), o null si falta. */
+function contenedorDe(d: Record<string, unknown>): {activo: boolean; agentes: number; apto: boolean; motivo: string} | null {
+    const c = d.contenedor as Record<string, unknown> | null;
+    if (!c || typeof c !== "object") return null;
+    // El latido dice `trabajadores`; la pantalla y colmena.ts lo llaman `agentes`. Se aceptan ambos.
+    return { activo: boolDe(c.activo), agentes: num(c.trabajadores) ?? num(c.agentes) ?? 0, apto: boolDe(c.apto), motivo: txt(c.motivo, 160) };
+}
 function tsDe(f: FilaBus): number {
     const d = f.datos ?? {};
     const ts = num((d as Record<string, unknown>).ts);
@@ -241,21 +286,23 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
     const hace = ts ? Math.max(0, ahora - ts) : null;
     const orqs = Array.isArray(salud.orquestadores) ? (salud.orquestadores as Array<Record<string, unknown>>) : [];
     const trabajo = (salud.trabajo ?? {}) as Record<string, unknown>;
-    return {
-        nodo: txt(d.nodo, 40),
-        medio,
-        etiqueta: MEDIOS[medio] ?? "Neurona",
-        modo: txt(d.modo, 10) || "real",
-        vivo: hace !== null && hace <= TTL_NODO_MS && baja < ts,
-        lider: !!lider && d.nodo === lider,
-        hace_ms: hace,
-        puntos: num(d.puntos),
-        orquestadores: orqs.map((o) => txt(o?.cola, 80)).filter(Boolean).slice(0, 4),
-        caidos: (Array.isArray(salud.servicios_caidos) ? salud.servicios_caidos : []).map((c) => txt(c, 60)).filter(Boolean).slice(0, 6),
-        disco_gb: num(salud.disco_gb),
-        ram_libre_mb: num(salud.ram_libre_mb),
-        trabajo: Object.fromEntries(Object.entries(trabajo).map(([k, v]) => [k, num(v)])),
-    };
+     return {
+         nodo: txt(d.nodo, 40),
+         medio: txt(d.medio, 40) || "neurona",
+         etiqueta: MEDIOS[medio] ?? "Neurona",
+         modo: txt(d.modo, 10) || "real",
+         vivo: hace !== null && hace <= TTL_NODO_MS && baja < ts,
+         lider: !!lider && d.nodo === lider,
+         hace_ms: hace,
+         puntos: num(d.puntos),
+         orquestadores: orqs.map((o) => txt(o?.cola, 80)).filter(Boolean).slice(0, 4),
+         caidos: (Array.isArray(salud.servicios_caidos) ? salud.servicios_caidos : []).map((c) => txt(c, 60)).filter(Boolean).slice(0, 6),
+         disco_gb: num(salud.disco_gb),
+         ram_libre_mb: num(salud.ram_libre_mb),
+         trabajo: Object.fromEntries(Object.entries(trabajo).map(([k, v]) => [k, num(v)])),
+         enCurso: enCursoDe(d),
+         contenedor: contenedorDe(d),
+     };
 }
 
 /** PURA. Del bus (`relevo_eventos`, tipos `mg_*`) a lo que se pinta. */
@@ -289,7 +336,9 @@ export function resumirBus(filas: FilaBus[], ahora: number): EstadoAutonomo {
                 if (RE_NODO.test(n) && term !== null) {
                     if (!reclamo || term > reclamo.termino || (term === reclamo.termino && (p > reclamo.puntos || (p === reclamo.puntos && n < reclamo.nodo)))) {
                         reclamo = { nodo: n, termino: term, puntos: p };
-                    }
+}
+ 
+
                 }
                 break;
             }
