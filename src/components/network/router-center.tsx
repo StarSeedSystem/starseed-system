@@ -16,6 +16,11 @@ import { useEffect, useMemo, useState } from "react";
 import { thisDeviceId } from "@/lib/neurons/neurons";
 import { toPrettyJson } from "@/lib/network/netjson";
 import {
+  compatibilidad,
+  type EntradaTabla,
+  type ResultadoCompatibilidad,
+} from "@/lib/network/routers-malla/compatibilidad-openwrt";
+import {
   getNetworkConfig,
   setNetworkConfig,
   generateConfigForNeuron,
@@ -45,6 +50,103 @@ const ANTENNA_KINDS: { id: TelecomAntennaKind; label: string }[] = [
   { id: "lora-gateway", label: "Gateway LoRa" },
   { id: "satellite", label: "Satélite" },
 ];
+
+/* Tabla de hardware OpenWrt: hoy vacía (la carga con datos la hace otra tarea);
+ * el comprobador funciona igual y responde «desconocido» con pasos honestos. */
+const TABLA_HARDWARE: EntradaTabla[] = [];
+
+/** Comprobador de compatibilidad OpenWrt (§8 del SOP de la malla cristalina). */
+function CompatibilidadOpenwrt() {
+  const [fabricante, setFabricante] = useState("");
+  const [modelo, setModelo] = useState("");
+  const [version, setVersion] = useState("");
+  const [deOperador, setDeOperador] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoCompatibilidad | null>(null);
+
+  const comprobar = () => {
+    if (!fabricante.trim() || !modelo.trim()) return;
+    setResultado(
+      compatibilidad(
+        {
+          fabricante,
+          modelo,
+          version: version.trim() || undefined,
+          deOperador,
+        },
+        TABLA_HARDWARE,
+      ),
+    );
+  };
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="text-[11px] uppercase tracking-widest text-white/45">
+        ¿Puede tu router instalar OpenWrt?
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <input
+          className="rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white"
+          value={fabricante}
+          onChange={(e) => setFabricante(e.target.value)}
+          placeholder="fabricante (p. ej. TP-Link)"
+        />
+        <input
+          className="rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white"
+          value={modelo}
+          onChange={(e) => setModelo(e.target.value)}
+          placeholder="modelo (p. ej. Archer C7)"
+        />
+        <input
+          className="rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white"
+          value={version}
+          onChange={(e) => setVersion(e.target.value)}
+          placeholder="versión (pegatina; opcional)"
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label className="flex cursor-pointer items-center gap-2 text-[12px] text-white/60">
+          <input
+            type="checkbox"
+            className="cursor-pointer"
+            checked={deOperador}
+            onChange={(e) => setDeOperador(e.target.checked)}
+          />
+          Es el router que me dio mi operador
+        </label>
+        <button
+          onClick={comprobar}
+          className="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
+        >
+          Comprobar
+        </button>
+      </div>
+
+      {resultado && (
+        <div className="mt-2 space-y-1 rounded-lg border border-white/10 bg-black/30 p-2">
+          <div className="text-sm text-white/85">
+            Estado: <span className="font-medium">{resultado.estado}</span>
+          </div>
+          {resultado.enlace && (
+            <a
+              href={resultado.enlace}
+              target="_blank"
+              rel="noreferrer"
+              className="cursor-pointer text-[12px] text-amber-300 underline hover:text-amber-200"
+            >
+              {resultado.enlace}
+            </a>
+          )}
+          <ol className="list-decimal space-y-0.5 pl-5 text-[12px] text-white/60">
+            {resultado.pasos.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ol>
+          <p className="text-[12px] text-rose-300/90">{resultado.aviso}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function RouterCenter({ neuronId }: { neuronId?: string }) {
   const id = neuronId || (typeof window !== "undefined" ? thisDeviceId() : "@device");
@@ -212,6 +314,9 @@ export function RouterCenter({ neuronId }: { neuronId?: string }) {
           {json}
         </pre>
       )}
+
+      {/* Compatibilidad con OpenWrt (instalar firmware libre) */}
+      <CompatibilidadOpenwrt />
 
       {/* Controlador OpenWISP */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
