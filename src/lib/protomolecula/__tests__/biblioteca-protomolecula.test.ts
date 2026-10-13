@@ -69,6 +69,15 @@ describe("fichasProtomolecula", () => {
     expect(f.versionInstalada).toBeUndefined();
   });
 
+  it("la licencia de versiones tiene precedencia sobre la del catálogo", () => {
+    const catalogo = [herramienta({ id: "con-licencia", categoria: "video-composicion", licencia: "GPL-3.0" })];
+    const [f] = fichasProtomolecula({ "con-licencia": { version: "2.0.0", licencia: "Apache-2.0" } }, catalogo);
+    expect(f.licencia).toBe("Apache-2.0");
+    // Sin entrada en versiones se usa la licencia del catálogo.
+    const [g] = fichasProtomolecula({}, catalogo);
+    expect(g.licencia).toBe("GPL-3.0");
+  });
+
   it("versión con SHA verificado se anuncia como instalada", () => {
     const catalogo = [herramienta({ id: "con-sha", categoria: "audio-edicion" })];
     const [f] = fichasProtomolecula({ "con-sha": { version: "1.4.2", sha: "abc123" } }, catalogo);
