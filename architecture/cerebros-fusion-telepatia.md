@@ -45,7 +45,7 @@ Regla de toda la ola: **basta de ilusiones**. Cada número sale de una medida re
 
 - La lógica pura vive en `src/lib/cerebros/pestanas.ts`: `pestanaDeCerebro`, `cerebrosDePestana`, `pestanaDesdeUrl`. El enlace directo es `?vista=privados|publicos`.
 - En **Públicos**, «Nuevo» lista los grupos, comunidades y páginas que la cuenta gestiona (`misEntidades()`) y crea el cerebro con `scope` = `group`/`page` y `scope_ref` = la entidad.
-- Hoy la pestaña Públicos enseña los cerebros públicos **que la cuenta gestiona**. Los de grupos ajenos, de los que eres miembro, llegan con la lectura compartida (§9 a), porque hoy RLS solo deja leer al dueño.
+- La lectura compartida (§9 a) ya está aplicada en la base: los miembros pueden leer los cerebros públicos de sus grupos y los que les compartieron. La pestaña los enseñará cuando aterricen CB1013W y CB1013X, en solo lectura y con la marca «compartido contigo».
 
 ## §3 · Botones principales (pilares): 7 y sin texto cortado
 
@@ -136,7 +136,7 @@ interface VinculoTelepatico {
 **Cómo se aplica, según el destino:**
 
 - **Otro cerebro tuyo:** se aplica de verdad (RLS del dueño). Corre al abrir el cerebro y cuando cambia un archivo (tiempo real de `brain_memory_files`) si `auto` está activo.
-- **Grupo, comunidad o página:** se registra el permiso con `upsertGrant` sobre `{type:"brain"}`, con `sections` según el alcance. Hasta §9 a, los miembros **no pueden leerlo todavía**, y el vínculo queda `pendiente`, diciéndolo.
+- **Grupo, comunidad o página:** se registra el permiso con `upsertGrant` sobre `{type:"brain"}`, con `granteeId` = el **slug** del grupo (así lo guarda `access.ts` en `os_spaces.group_slug`), el rol según el acceso y `sections` según el alcance. Con §9 a aplicada, sus miembros lo leen en el acto y el vínculo queda `activo`. Escribir sigue siendo solo del dueño.
 - **Cuenta externa:** se crea un vínculo en `os_vinculos_externos` (`/api/externos/vinculos`), con `ambito_tipo` `cerebro`, `memoria` o `carpeta` y los permisos `leer`/`escribir`/`memoria`. El token se enseña una sola vez y nunca se guarda en la configuración.
 
 **Interfaz.** Lista de vínculos (estado, alcance y última sincronización), «Nuevo vínculo» (destino → alcance → dirección y acceso → caducidad), «Sincronizar ahora», «Pausar» y «Quitar».
@@ -272,14 +272,34 @@ interface AjustesCerebro { cerebro: AjustesObjetivo; memorias: Record<string, Pa
 |---|---|
 | Destinos de memoria | se aplica (`syncBrainMemoryNow`) |
 | Privacidad que cambia de pestaña | se aplica (`scope`) |
-| Permisos por memoria o carpeta | solo se guarda hasta §9 a |
+| Permisos del cerebro entero (Compartir / Telepatía) | se aplica (lectura, §9 a) |
+| Permisos por memoria o carpeta | solo se guarda (la lectura compartida es por cerebro entero) |
 | Cifrado local | solo se guarda hasta su tarea propia |
 
-## §9 · Lo que necesita la palabra de Alex (migraciones; nada de esto se aplica sin ella)
+## §9 · Migraciones: aprobadas por Alex y aplicadas (2026-10-13)
 
-- **a) Lectura compartida de cerebros.** Una función `security definer` `cerebro_compartido_conmigo(brain_id)` que mire los permisos (`os_spaces` del recurso `brain` + `os_space_editors`, y los roles de `os_entity_roles` para cerebros de grupo o página). Con ella, políticas `select` en `brains` y `brain_memory_files` para quien tenga permiso. Es lo que hace reales los cerebros públicos de grupos ajenos y la telepatía hacia grupos y comunidades.
-- **b) Identidad de réplica** en `brain_server_links` y `brain_selections` (`replica identity full`, o clave primaria). Hoy cualquier borrado o cambio en ellas falla.
-- **c) Un solo cerebro por defecto por cuenta.** Índice único parcial en `brains (owner)` para el de plantilla por defecto, como red de seguridad del arreglo de §1.
+Alex: «apruebo todo». Archivo: `supabase/migrations/20261013150000_cerebros_compartidos.sql`, idempotente y aplicado en el proyecto activo.
+
+- **a) Lectura compartida.** La función `security definer` `cerebro_compartido_conmigo(brain_id)` devuelve verdadero en tres casos:
+  - si eres el dueño;
+  - si el **dueño** compartió el cerebro con permisos universales (`os_spaces` con `doc.sharing.resource = {type:'brain', id}`), con las mismas reglas que `sp_select`: público, miembro del grupo del espacio, perfil propio o editor «member»/«invited»;
+  - si es un cerebro público (`scope` group/community/page) de una entidad que su dueño posee o gestiona (rango ≥ 2) y tú eres miembro (dueño, rol en `os_entity_roles` u `os_memberships`). Sin la condición del dueño, cualquiera podría colgar un cerebro en un grupo ajeno.
+
+  Las políticas `br_compartido_leer` y `bmf_compartido_leer` son **solo de lectura**: escribir sigue siendo cosa del dueño. `anon` no puede llamar a la función.
+- **b) Identidad de réplica `full`** en `brain_server_links` y `brain_selections`. Ya se pueden borrar y cambiar sus filas.
+- **c) Índice único `brains_un_cerebro_por_defecto`** en `brains (owner)` donde `config->>'template' = 'starseed-default'`. Antes de crearlo había 8 cuentas con un cerebro por defecto cada una.
+
+**Probado antes de aplicar**, dentro de una transacción que se deshizo:
+
+| Caso | Resultado |
+|---|---|
+| Sin compartir | otra cuenta ve 0 cerebros y 0 memorias de Alex |
+| Compartido por invitación | esa cuenta ve 1 cerebro y 2 memorias, no puede cambiarlo (0 filas) y una tercera ve 0 |
+| Grupo | el miembro ve el cerebro del grupo y NO el que colgó alguien que no lo gestiona; quien no es miembro ve 0 |
+| Índice único | un segundo cerebro por defecto se rechaza |
+| Identidad de réplica | borrar y cambiar enlaces funciona |
+
+**Lo que falta en el cliente:** `listBrains` y `listMemoryFiles` filtran por `owner`, así que todavía no enseñan lo compartido. Lo traen CB1013W (lectura) y CB1013X (pestañas del hub).
 
 ## §10 · Ola CB1013
 
@@ -290,7 +310,7 @@ interface AjustesCerebro { cerebro: AjustesObjetivo; memorias: Record<string, Pa
 - Los botones Fusionar, Telepatía y Ajustes de cada cerebro.
 - Cinco componentes de partida, que dicen con honestidad «lo está construyendo el enjambre (tarea …)» hasta que su tarea los sustituya: `conectores-panel.tsx`, `procesos-panel.tsx`, `fusionar-dialog.tsx`, `telepatia-dialog.tsx` y `ajustes-cerebro-dialog.tsx`.
 
-**Cola.** `starseed_memory_root/olas/cola-cerebros-1013.json`, con 21 tareas (CB1013B-V). Cada tarea toca 3 archivos como mucho, con 120 líneas nuevas por archivo como mucho. Lo puro va con pruebas. Ninguna tarea toca `cerebro-hub.tsx`: cada una sustituye su componente de partida.
+**Cola.** `starseed_memory_root/olas/cola-cerebros-1013.json`, con 23 tareas (CB1013B-X). Cada tarea toca 3 archivos como mucho, con 120 líneas nuevas por archivo como mucho. Lo puro va con pruebas. Salvo CB1013X, ninguna tarea toca `cerebro-hub.tsx`: cada una sustituye su componente de partida.
 
 | Tareas | Qué traen |
 |---|---|
@@ -302,6 +322,7 @@ interface AjustesCerebro { cerebro: AjustesObjetivo; memorias: Record<string, Pa
 | Q | `cpu_pct`, `ram_total_mb` y `disco_total_gb` en la salud del nodo de MetaGenesis (A1) |
 | R, S, T | Ajustes del cerebro: modelo con herencia; diálogo y Medios; Seguridad, privacidad, vinculación y sincronización |
 | U, V | Textos no cortados en el resto de la sección y prueba de guardia |
+| W, X | Cerebros compartidos contigo: lectura (W) y su sitio en las pestañas, en solo lectura (X, la única que toca el hub) |
 
 **Verificación.**
 
