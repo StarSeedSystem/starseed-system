@@ -26,6 +26,7 @@ import { promisify } from "node:util";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { leerServicios } from "@/lib/mando/director-fuentes";
 import { destinoFijoPublicado, tunelPublicado } from "@/lib/astraura/destino-nube";
+import { analizarPmset } from "@/lib/mando/hardware";
 import {
     calcularAvisos,
     ETIQUETA_DESPIERTO,
@@ -38,6 +39,7 @@ import {
     plistDespierto,
     validarServidor,
     type AstrauraBitnetEstado,
+    type Bateria,
     type AstrauraServidorEstado,
     type EnergiaServidor,
     type EnjambreEstado,
@@ -111,7 +113,12 @@ async function medirEnergia(): Promise<EnergiaServidor> {
     ]);
 
     const configuracion = parsearPmsetG(pmsetG);
-    const bateria = parsearBateria(pmsetBatt);
+    const { porcentaje, cargando: cargandoDesdeAnalizar } = analizarPmset(pmsetBatt);
+    const cargando = cargandoDesdeAnalizar ?? false;
+    const alimentacion = /'AC Power'/.test(pmsetBatt) ? "ac" : /'Battery Power'/.test(pmsetBatt) ? "bateria" : "desconocida";
+    const restanteMatch = pmsetBatt.match(/(\d+:\d{2}) remaining/);
+    const restante = restanteMatch ? restanteMatch[1] : null;
+    const bateria: Bateria = { alimentacion, porcentaje: porcentaje ?? null, cargando, restante };
     const asserciones = parsearAsserciones(pmsetAssert);
     // `pmset -g` ya anota quién impide el reposo en la línea `sleep (…)`;
     // las aserciones pueden nombrar a alguien más (o al mismo, deduplicado).
