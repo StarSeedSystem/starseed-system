@@ -28,7 +28,7 @@ class Entorno(unittest.TestCase):
     def test_solo_viaja_la_lista_blanca_y_nada_de_pago(self):
         env = {"XKIRO_API_KEY": "x1", "ANTHROPIC_API_KEY": "no", "OPENAI_API_KEY": "no",
                "NEXT_PUBLIC_SUPABASE_URL": "https://p.supabase.co", "GROQ_API_KEY": "",
-               "FREELLMAPI_KEY": "local"}
+               "TOKEN_DE_OTRA_COSA": "no"}
         van, faltan = N.variables_para_a1(env)
         self.assertEqual(set(van), {"XKIRO_API_KEY", "NEXT_PUBLIC_SUPABASE_URL"})
         self.assertIn("GROQ_API_KEY", faltan)
@@ -38,6 +38,14 @@ class Entorno(unittest.TestCase):
         env = {"STARSEED_PASARELA_GROQ_URL": "http://127.0.0.1:3001/v1", "STARSEED_PASARELA_GROQ_KEY": "k"}
         van, _ = N.variables_para_a1(env)
         self.assertEqual(van, {})
+
+    def test_freellmapi_viaja_porque_el_a1_tiene_el_suyo_en_local(self):
+        # (2026-10-13) a1_freellmapi.py: mismo puerto local y misma clave unificada que la Mac.
+        env = {"FREELLMAPI_KEY": "k", "STARSEED_PASARELA_FREELLMAPI_URL": "http://127.0.0.1:3001/v1",
+               "STARSEED_PASARELA_FREELLMAPI_KEY": "k", "STARSEED_PASARELA_FREELLMAPI_MODELOS": "auto",
+               "HF_TOKEN": "h"}
+        van, _ = N.variables_para_a1(env)
+        self.assertEqual(set(van), set(env))
 
     def test_contenido_env_cita_lo_raro(self):
         texto = N.contenido_env({"A": "abc-123_./:", "B": "con espacio", "C": "it's"})

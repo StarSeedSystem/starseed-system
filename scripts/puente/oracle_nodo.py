@@ -109,6 +109,11 @@ CLAVES_A1 = (
     # (PDA1011) La puerta de datos que vive en este mismo A1: su URL pública (el nodo de MetaGenesis
     # entra con su llave, sin ficha) y la ficha `bus` del enjambre para publicar el bus por ella.
     "PUERTA_DATOS_URL", "PUERTA_DATOS_FICHA_ENJAMBRE",
+    # (2026-10-13) FreeLLMAPI en el A1, SOLO en 127.0.0.1 (`a1_freellmapi.py`): su clave unificada es
+    # la de la Mac y la pasarela se declara igual, así el orquestador del A1 lo usa sin cambios. HF_TOKEN
+    # es una de las claves de proveedor que reparte (como en la Mac).
+    "FREELLMAPI_KEY", "HF_TOKEN", "STARSEED_PASARELA_FREELLMAPI_URL", "STARSEED_PASARELA_FREELLMAPI_KEY",
+    "STARSEED_PASARELA_FREELLMAPI_MODELOS", "STARSEED_PASARELA_FREELLMAPI_RPM",
 )
 ARCHIVOS_ENV = ("~/.starseed/env", "~/.hermes/.env", os.path.join(RAIZ, ".env.local"))
 NOMBRE_CLAVE_BITNET = "STARSEED_ORACLE_BITNET_KEY"
@@ -1071,6 +1076,21 @@ def probar_bitnet():
             "texto": texto[:240], "sin_clave_responde": sin_clave}
 
 
+def freellmapi():
+    """(2026-10-13) Instala o pone al día FreeLLMAPI en el A1, SOLO en 127.0.0.1:3001
+    (`a1_freellmapi.py`, que corre allí como root). Antes deja las claves al día (`claves()`): el
+    lanzador del A1 las lee de su ~/.starseed/env. Nada se imprime salvo nombres y códigos HTTP."""
+    res = {"claves": claves().get("ok")}
+    try:
+        with open(_ruta_puente("a1_freellmapi.py"), encoding="utf-8") as f:
+            codigo = f.read()
+    except OSError:
+        return dict(res, ok=False, motivo="falta a1_freellmapi.py")
+    rc, salida = ssh("sudo python3 -", entrada=codigo, timeout=3600)
+    lineas = [l for l in salida.splitlines() if l.startswith("[a1-freellmapi]")]
+    return dict(res, ok=rc == 0, pasos=lineas or salida.strip().splitlines()[-8:])
+
+
 def main(argv):
     orden = argv[1] if len(argv) > 1 else "estado"
     tope = int(argv[argv.index("--tope") + 1]) if "--tope" in argv else TOPE_DEFECTO
@@ -1100,6 +1120,8 @@ def main(argv):
             return subprocess.run([sys.executable, _ruta_puente("traer_nube.py"), "revisar", "--aplicar"],
                                   cwd=RAIZ).returncode
         return 0
+    elif orden == "freellmapi":
+        r = freellmapi()
     elif orden == "probar-bitnet":
         r = probar_bitnet()
     elif orden == "bitnet-pesos":
