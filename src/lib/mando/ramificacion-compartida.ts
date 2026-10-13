@@ -16,7 +16,8 @@ import { compartirCalculo, type CalculoCompartido } from "@/lib/mando/calculo-co
 import { construirRamificacion } from "@/lib/mando/ramificacion";
 
 const VIGENCIA_MS = 10_000;
-const ESPERA_MS = 6_000;
+/** (2026-10-13, medido: 6 s por lectura con la Mac en presión de memoria) Con una anterior, ≤ 1,5 s. */
+const ESPERA_MS = 1_500;
 
 type Ramificacion = Awaited<ReturnType<typeof construirRamificacion>>;
 const porCuantas = new Map<number, CalculoCompartido<Ramificacion>>();

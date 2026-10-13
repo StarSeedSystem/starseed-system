@@ -94,6 +94,24 @@ describe("crearReunionCompartida", () => {
         expect(fn).toHaveBeenCalledTimes(3);
     });
 
+    it("con obsoletoTrasMs, una cifra anterior joven no se marca obsoleta aunque venza el tope", async () => {
+        const fn = vi
+            .fn<() => Promise<string>>()
+            .mockResolvedValueOnce("primero")
+            .mockImplementation(() => new Promise<string>(() => {}));
+        let reloj = 1_000;
+        const r = crearReunionCompartida(fn, { frescoMs: 15_000, esperaMs: 1_500, obsoletoTrasMs: 90_000, ahora: () => reloj });
+        await r.obtener();
+        reloj += 20_000; // rancia para recalcular, joven para el aviso
+        const p1 = r.obtener();
+        await vi.advanceTimersByTimeAsync(1_600);
+        expect(await p1).toMatchObject({ datos: "primero", obsoleto: false });
+        reloj += 80_000; // ya pasa de 90 s
+        const p2 = r.obtener();
+        await vi.advanceTimersByTimeAsync(1_600);
+        expect(await p2).toMatchObject({ datos: "primero", obsoleto: true });
+    });
+
     it("sin bueno anterior, un rechazo da null obsoleto y permite reintentar", async () => {
         const fn = vi.fn<() => Promise<string>>().mockRejectedValue(new Error("sin datos"));
         const r = crearReunionCompartida(fn, { frescoMs: 1_000, esperaMs: 6_000 });

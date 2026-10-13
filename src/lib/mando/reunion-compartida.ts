@@ -11,6 +11,9 @@ export interface OpcionesReunion {
     ahora?: () => number;
     /** Aviso cuando se suelta una reunión colgada (por defecto, `console.warn`). */
     avisar?: (texto: string) => void;
+    /** (2026-10-13) Una cifra anterior más joven que esto no se marca «obsoleta» aunque venza el
+     *  tope de espera (por defecto `frescoMs`, como siempre). */
+    obsoletoTrasMs?: number;
 }
 
 export interface ResultadoReunion<T> {
@@ -41,6 +44,7 @@ export function crearReunionCompartida<T>(fn: () => Promise<T>, opciones: Opcion
     const maxEnMarchaMs = opciones.maxEnMarchaMs ?? MAX_EN_MARCHA_DEFECTO_MS;
     const ahora = opciones.ahora ?? (() => Date.now());
     const avisar = opciones.avisar ?? ((texto: string) => console.warn(texto));
+    const obsoletoTrasMs = opciones.obsoletoTrasMs ?? frescoMs;
 
     let ultimo: { datos: T; t: number; desde: number } | null = null;
     let enMarcha: { p: Promise<T | null>; desde: number } | null = null;
@@ -96,7 +100,7 @@ export function crearReunionCompartida<T>(fn: () => Promise<T>, opciones: Opcion
         }
         // Tope vencido o reunión fallida: la cifra vieja se enseña y la llamada sigue
         // por su cuenta; cuando acabe actualizará `ultimo`.
-        return { datos: viejo.datos, t: viejo.t, obsoleto: true };
+        return { datos: viejo.datos, t: viejo.t, obsoleto: ahora() - viejo.t >= obsoletoTrasMs };
     }
 
     return { obtener };

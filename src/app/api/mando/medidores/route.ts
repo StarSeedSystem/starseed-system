@@ -827,7 +827,11 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
  * una sola reunión en marcha, resultado fresco 15 s, y espera con tope de 6 s tras la
  * cual se enseña la última cifra buena con `obsoleto` — nunca más un cero por impaciencia.
  */
-const reunion = crearReunionCompartida(reunir);
+// (2026-10-13, medido) Con la Mac en presión de memoria cada medidor tardaba 6-8 s (esperaba 6 s a la
+// reunión nueva) y la página, con 15 medidores y 4 lecturas a la vez, tardaba 30-40 s en leer la
+// ramificación; por el túnel, igual. Con una cifra anterior nadie espera más de 1,5 s; la cifra
+// lleva su edad (`datosDe`) y solo se marca «obsoleta» pasados 90 s.
+const reunion = crearReunionCompartida(reunir, { esperaMs: 1_500, obsoletoTrasMs: 90_000 });
 
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
