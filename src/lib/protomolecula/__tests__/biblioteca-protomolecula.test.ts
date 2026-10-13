@@ -131,4 +131,55 @@ describe("fichasProtomolecula", () => {
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
   });
+
+  it("usa la información del catálogo cuando se proporciona y hay átomo coincidente", () => {
+    registrarAtomo(atomo("catalog-tool", "codigo", { nombre: "Herramienta del Catálogo" }));
+
+    const catalogo = [herramienta({
+      id: "catalog-tool",
+      categoria: "codigo-creativo",
+      nombre: "Nombre desde Catálogo",
+      descripcion: "Esta es una descripción detallada desde el catálogo",
+      licencia: "GPL-3.0",
+      codigo: "https://github.com/usuario/repo",
+      web: "https://ejemplo.com",
+    })];
+
+    const [ficha] = fichasProtomolecula({}, catalogo);
+
+    expect(ficha.nombre).toBe("Nombre desde Catálogo");
+    expect(ficha.descripcion).toContain("Esta es una descripción detallada desde el catálogo");
+    expect(ficha.licencia).toBe("GPL-3.0");
+    expect(ficha.enlaces.web).toBe("https://ejemplo.com");
+    expect(ficha.enlaces.repo).toBe("https://github.com/usuario/repo");
+    expect(ficha.estado).toBe("integrada"); // por el átomo coincidente
+    expect(ficha.controlReal).toBe("total"); // control del átomo
+  });
+
+  it("ordena las fichas por grupo en las posiciones 0, 6 y 9 del contrato", () => {
+    const gruposYNombres: { categoria: CategoriaAtomo; nombre: string }[] = [
+      { categoria: "imagen", nombre: "Herramienta de Imagen" },
+      { categoria: "audio", nombre: "Herramienta de Audio" },
+      { categoria: "video", nombre: "Herramienta de Video" },
+      { categoria: "3d", nombre: "Herramienta 3D" },
+      { categoria: "arquitectura", nombre: "Herramienta de Arquitectura" },
+      { categoria: "fisicas", nombre: "Herramienta de Físicas" },
+      { categoria: "juegos", nombre: "Herramienta de Juegos" },
+      { categoria: "vr-ar", nombre: "Herramienta de VR-AR" },
+      { categoria: "codigo", nombre: "Herramienta de Código" },
+      { categoria: "ia", nombre: "Herramienta de IA" },
+    ];
+
+    // Se registran en orden inverso al del contrato para exigir la ordenación.
+    for (const { categoria, nombre } of [...gruposYNombres].reverse()) {
+      registrarAtomo(atomo(categoria + "-tool", categoria, { nombre }));
+    }
+
+    const fichas = fichasProtomolecula();
+
+    expect(fichas).toHaveLength(10);
+    expect(fichas[0].categoria).toBe("imagen");
+    expect(fichas[6].categoria).toBe("juegos");
+    expect(fichas[9].categoria).toBe("ia");
+  });
 });
