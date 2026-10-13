@@ -1,6 +1,7 @@
 // src/app/(app)/info/constitution/page.tsx
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { CITA_FUNDAMENTO } from "@/lib/fundamento/fundamento";
 
 const constitutionContent = [
     { 
@@ -185,12 +186,17 @@ export default function ConstitutionPage() {
                 <CardTitle className="font-headline text-3xl">Constitución de la Sociedad StarSeed</CardTitle>
             </CardHeader>
             <CardContent className="space-y-8">
-                <section>
-                    <h2 className="text-xl font-semibold font-headline text-primary">Preámbulo</h2>
-                    <p className="mt-2 text-muted-foreground leading-relaxed">
-                        La Sociedad StarSeed surge con el propósito de crear un entorno en el que todas las formas de vida, presentes y futuras, gocen de una existencia digna, pacífica, próspera y armónica. Inspirada en la cooperación, la sabiduría colectiva, la sostenibilidad ecológica, la justicia social y la evolución espiritual y tecnológica, esta Constitución establece los fundamentos, leyes, derechos y principios que regirán el desarrollo comunitario. Su objetivo es guiar a la humanidad hacia una civilización integrada, consciente, abundante y respetuosa del universo al que pertenece, promoviendo la libertad, la participación, la educación, la salud integral, la innovación y la protección de todos los seres.
-                    </p>
-                </section>
+                 <section>
+                     <h2 className="text-xl font-semibold font-headline text-primary">Preámbulo</h2>
+                     <p className="mt-2 text-muted-foreground leading-relaxed">
+                         La Sociedad StarSeed surge con el propósito de crear un entorno en el que todas las formas de vida, presentes y futuras, gocen de una existencia digna, pacífica, próspera y armónica. Inspirada en la cooperación, la sabiduría colectiva, la sostenibilidad ecológica, la justicia social y la evolución espiritual y tecnológica, esta Constitución establece los fundamentos, leyes, derechos y principios que regirán el desarrollo comunitario. Su objetivo es guiar a la humanidad hacia una civilización integrada, consciente, abundante y respetuosa del universo al que pertenece, promoviendo la libertad, la participación, la educación, la salud integral, la innovación y la protección de todos los seres.
+                     </p>
+                 </section>
+                 <section className="mt-6">
+                     <blockquote className="border-l-4 border-primary pl-4 italic text-muted-foreground">
+                         {CITA_FUNDAMENTO}
+                     </blockquote>
+                 </section>
 
                 <Separator />
 
