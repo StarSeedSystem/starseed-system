@@ -1,0 +1,70 @@
+{
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-13 17:42:58",
+  "desde": "2026-10-12 13:17:32",
+  "ultimo_429": "2026-10-12 04:16:16",
+  "sin_cupo_hasta": "2026-10-13 18:00:33",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-13 17:42:58",
+  "desde": "2026-10-12 13:16:24",
+  "ultimo_429": "2026-10-11 23:04:56",
+  "motivo": "modelos colgados sin escribir: nvidia/z-ai/glm-5.3, nvidia/moonshotai/kimi-k3",
+  "sin_cupo_hasta": "2026-10-13 09:42:37"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-13 17:42:59",
+  "desde": "2026-09-29 16:09:59",
+  "sin_cupo_hasta": "2026-10-13 04:16:17",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-13 17:42:59",
+  "desde": "2026-10-09 01:27:51",
+  "ultimo_429": "2026-10-10 21:53:13",
+  "sin_cupo_hasta": "2026-10-13 18:00:06",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "groq": {
+  "estado": "vivo",
+  "t": "2026-10-13 17:43:01",
+  "desde": "2026-10-11 21:33:15",
+  "ultimo_429": "2026-10-13 00:38:55"
+ },
+ "ultimo_revisor_ok": "groq/openai/gpt-oss-120b",
+ "llm7": {
+  "estado": "caido",
+  "t": "2026-09-09 09:39:25",
+  "desde": "2026-09-09 09:39:25",
+  "ultimo_429": "2026-09-09 09:36:45"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-13 17:43:00",
+  "desde": "2026-10-10 13:31:59",
+  "nota": "fichaje diario hecho por Alex; comprobado con prompt de 60k caracteres → 200",
+  "motivo": "pasarela: $ opencode run --model apinex/free/qwen-3.8-max · 2026-10-13 04:21:12 \u001b[0m> build · free/qwen-3.8-max \u001b[0m\u001b[0m$ \u001b[0mcd /Users/alex/Documents",
+  "ultimo_429": "2026-10-10 13:27:48",
+  "sin_cupo_hasta": "2026-10-13 04:37:15"
+ },
+ "google": {
+  "estado": "vivo",
+  "motivo": "sonda de escritura: cupo del día agotado (429)",
+  "sin_cupo_hasta": "2026-10-13 18:00:05"
+ },
+ "codex": {
+  "motivo": "el medidor de crédito lo ve con cupo (autocuración)"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-13 17:43:01",
+  "desde": "2026-10-07 15:26:19",
+  "motivo": "pasarela: $ opencode run --model freellmapi/auto · 2026-10-13 16:00:56 \u001b[0m> build · auto \u001b[0m \u001b[0m$ \u001b[0mls -la \u001b[0m total 3136 drwxr-xr-x@ 136 alex s",
+  "sin_cupo_hasta": "2026-10-13 16:33:45"
+ }
+}
