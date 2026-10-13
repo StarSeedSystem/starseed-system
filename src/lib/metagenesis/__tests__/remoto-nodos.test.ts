@@ -54,6 +54,26 @@ describe("órdenes: lo que se firma es idéntico en TypeScript y en Python", () 
         expect(validarArgs("revisar_bloqueadas", { rm: "-rf" })).toBe("argumento no admitido: rm");
         expect(validarArgs("lanzar_cola", { cola: "cola-x", tareas_sha: "a;b`c" })).toMatch(/valor no admitido/);
     });
+
+    it("desconectar no quiere argumentos", () => {
+        expect(validarArgs("desconectar", {})).toBeNull();
+        expect(validarArgs("desconectar", { motivo: "x" })).toContain("argumento no admitido");
+    });
+
+    it("contenedor exige activo booleano", () => {
+        expect(validarArgs("contenedor", {})).toBe("falta argumento: activo");
+        expect(validarArgs("contenedor", { activo: "si" })).toBe("activo debe ser booleano");
+        expect(validarArgs("contenedor", { activo: 1 })).toBe("activo debe ser booleano");
+    });
+
+    it("contenedor con activo false rechaza trabajadores", () => {
+        expect(
+            validarArgs("contenedor", { activo: false, trabajadores: 1 })
+        ).toBe("trabajadores solo se permite si activo es True");
+        expect(
+            validarArgs("contenedor", { activo: false, trabajadores: 0 })
+        ).toBe("trabajadores fuera de 1–4");
+    });
 });
 
 describe("resumen del bus", () => {
