@@ -107,6 +107,23 @@ describe('decisionPorResonancia', () => {
     expect(r.decision).toBe('aviso');
   });
 
+  it('ignora veredictos de otro hash', () => {
+    const r = decisionPorResonancia('h9', [
+      veredicto({ hash: 'otro', cuenta: 'c1', nodo: 'n1' }),
+      veredicto({ hash: 'otro', cuenta: 'c2', nodo: 'n2' }),
+    ], conf);
+    expect(r.decision).toBe('sin-datos');
+    expect(r.cuentas).toBe(0);
+  });
+
+  it('una firma no válida sola deja sin datos', () => {
+    const r = decisionPorResonancia('h1', [
+      veredicto({ cuenta: 'c1', firmaOk: false }),
+    ], conf);
+    expect(r.decision).toBe('sin-datos');
+    expect(r.cuentas).toBe(0);
+  });
+
   it('un voto por cuenta: gana el más reciente', () => {
     const r = decisionPorResonancia('h1', [
       veredicto({ cuenta: 'c1', nivel: 'peligroso', t: 1 }),
