@@ -49,11 +49,24 @@ const DIA_MS = 24 * 3600 * 1000;
 const MAX_FILAS = 4000;
 const SELECT = "select=id,t,quien,tipo,tarea,texto,datos";
 
+/**
+ * (2026-10-13, medido con el inspector en la Mac) Una petición a Supabase se quedó colgada 55 min
+ * a pesar de su `AbortSignal.timeout(5000)`: `enCurso` no se soltó nunca y el estado de Genesis,
+ * la ramificación y los medidores se quedaron con la foto de las 08:05:50 UTC (todos esperan aquí).
+ * Ahora cada petición tiene un tope duro propio, nadie espera la recarga más de `ESPERA_MAX_MS` y
+ * una recarga que pasa de `COLGADO_MS` se abandona (con la pausa de «sin red») para que la
+ * siguiente empiece de cero.
+ */
+export const TOPE_PETICION_MS = 8_000;
+export const ESPERA_MAX_MS = 8_000;
+export const COLGADO_MS = 30_000;
+
 interface Memoria {
     filas: Map<number, FilaBusRemoto>;
     maxId: number;
     ultimaCarga: number;
     enCurso: Promise<void> | null;
+    enCursoDesde: number;
     pausaHasta: number;
     motivo: string | null;
     peticiones: number;
@@ -69,6 +82,7 @@ function memoria(): Memoria {
             maxId: 0,
             ultimaCarga: 0,
             enCurso: null,
+            enCursoDesde: 0,
             pausaHasta: 0,
             motivo: null,
             peticiones: 0,
@@ -147,6 +161,15 @@ export async function nubeEnPausa(ahora = Date.now()): Promise<boolean> {
     return pausada;
 }
 
+/** La promesa o un rechazo a los `ms` (por defecto `TOPE_PETICION_MS`), lo que llegue antes. */
+function conTope<T>(p: Promise<T>, ms = TOPE_PETICION_MS): Promise<T> {
+    let reloj: ReturnType<typeof setTimeout> | undefined;
+    const tope = new Promise<never>((_, rechazar) => {
+        reloj = setTimeout(() => rechazar(new Error("el bus no contestó a tiempo")), ms);
+    });
+    return Promise.race([p, tope]).finally(() => clearTimeout(reloj));
+}
+
 async function pedir(m: Memoria, consulta: string, ahora: number): Promise<FilaBusRemoto[] | null> {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const clave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -154,11 +177,11 @@ async function pedir(m: Memoria, consulta: string, ahora: number): Promise<FilaB
     m.peticiones += 1;
     let r: Response;
     try {
-        r = await fetch(`${url}/rest/v1/relevo_eventos?${SELECT}&${consulta}`, {
+        r = await conTope(fetch(`${url}/rest/v1/relevo_eventos?${SELECT}&${consulta}`, {
             headers: { apikey: clave, Authorization: `Bearer ${clave}` },
             cache: "no-store",
             signal: AbortSignal.timeout(5000),
-        });
+        }));
     } catch {
         m.pausaHasta = ahora + pausaPorEstado("red");
         m.motivo = "sin conexión con el bus";
@@ -174,7 +197,7 @@ async function pedir(m: Memoria, consulta: string, ahora: number): Promise<FilaB
         }
         return null;
     }
-    const cuerpo = (await r.json().catch(() => null)) as unknown;
+    const cuerpo = (await conTope(r.json()).catch(() => null)) as unknown;
     if (!Array.isArray(cuerpo)) return null;
     m.motivo = null;
     return cuerpo.map(aFila).filter((f): f is FilaBusRemoto => f !== null);
@@ -229,14 +252,22 @@ async function refrescar(m: Memoria, ahora: number): Promise<void> {
  */
 export async function filasDelBus(ahora = Date.now()): Promise<FilaBusRemoto[]> {
     const m = memoria();
+    if (m.enCurso && ahora - m.enCursoDesde > COLGADO_MS) {
+        // Colgada: se abandona (si acaba más tarde, sus filas valen igual) y se espera como sin red.
+        m.enCurso = null;
+        m.pausaHasta = ahora + pausaPorEstado("red");
+        m.motivo = "el bus no contestó en 30 s: sirvo lo que tengo y lo reintento luego";
+    }
     if (!m.enCurso) {
-        m.enCurso = refrescar(m, ahora)
+        const promesa: Promise<void> = refrescar(m, ahora)
             .catch(() => undefined)
             .finally(() => {
-                m.enCurso = null;
+                if (m.enCurso === promesa) m.enCurso = null;
             });
+        m.enCurso = promesa;
+        m.enCursoDesde = ahora;
     }
-    await m.enCurso;
+    await conTope(m.enCurso, ESPERA_MAX_MS).catch(() => undefined);
     return [...m.filas.values()].sort((a, b) => b.id - a.id);
 }
 

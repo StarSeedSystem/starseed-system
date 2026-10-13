@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+    COLGADO_MS,
     REFRESCO_MS,
+    TOPE_PETICION_MS,
     estadoBusRemoto,
     filasDelBus,
     filasRecientes,
@@ -182,5 +184,40 @@ describe("nube en pausa", () => {
         rmSync(process.env.STARSEED_NUBE_PAUSADA as string, { force: true });
         expect(await nubeEnPausa(AHORA + 30_000)).toBe(true); // dentro de la caché
         expect(await nubeEnPausa(AHORA + 61_000)).toBe(false); // caché caducada
+    });
+});
+
+/** La lectura del archivo de pausa es E/S real: se espera a que la petición salga de verdad. */
+async function hastaQuePida(): Promise<void> {
+    for (let i = 0; i < 20_000 && (globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls.length === 0; i++) {
+        await new Promise((r) => setImmediate(r));
+    }
+}
+
+describe("bus remoto colgado (2026-10-13: 55 min con la foto de las 08:05)", () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("una petición que no contesta se corta con el tope duro y se sirve lo que hay", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        globalThis.fetch = vi.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+        const p = filasDelBus(AHORA);
+        await hastaQuePida();
+        await vi.advanceTimersByTimeAsync(TOPE_PETICION_MS + 100);
+        expect(await p).toEqual([]);
+        expect(estadoBusRemoto(AHORA).motivo).toBe("sin conexión con el bus");
+        expect(estadoBusRemoto(AHORA).pausadoHasta).toBeGreaterThan(AHORA);
+    });
+
+    it("una recarga que pasa de 30 s se abandona: la siguiente no espera a la colgada", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        globalThis.fetch = vi.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+        void filasDelBus(AHORA); // se queda colgada (no se avanzan los relojes)
+        await hastaQuePida();
+        const otra = filasDelBus(AHORA + COLGADO_MS + 1_000);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(await otra).toEqual([]);
+        expect(estadoBusRemoto(AHORA + COLGADO_MS + 1_000).motivo).toContain("no contestó en 30 s");
     });
 });

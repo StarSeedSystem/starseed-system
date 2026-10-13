@@ -102,3 +102,45 @@ describe("compartirCalculo con esperaMs (2026-10-13)", () => {
         expect(await estado()).toBe("real");
     });
 });
+
+describe("compartirCalculo con maxEnMarchaMs (2026-10-13: 55 min con la misma foto)", () => {
+    it("un cálculo colgado más del tope se abandona, arranca otro y el colgado no pisa al nuevo", async () => {
+        vi.useFakeTimers();
+        try {
+            let t = 0;
+            const colgado = diferido<string>();
+            let veces = 0;
+            const estado = compartirCalculo(
+                () => {
+                    veces += 1;
+                    if (veces === 1) return Promise.resolve("primero");
+                    if (veces === 2) return colgado.promesa;
+                    return Promise.resolve("tercero");
+                },
+                1_000,
+                () => t,
+                100,
+                60_000,
+            );
+            expect(await estado()).toBe("primero");
+            t = 2_000; // vencido: arranca el 2.º, que se cuelga
+            const p1 = estado();
+            await vi.advanceTimersByTimeAsync(200);
+            expect(await p1).toBe("primero");
+            t = 30_000; // aún dentro del tope: no arranca otro
+            const p2 = estado();
+            await vi.advanceTimersByTimeAsync(200);
+            expect(await p2).toBe("primero");
+            expect(veces).toBe(2);
+            t = 70_000; // pasado el tope: se abandona y arranca el 3.º
+            expect(await estado()).toBe("tercero");
+            expect(veces).toBe(3);
+            colgado.resolver("segundo-tarde");
+            await vi.advanceTimersByTimeAsync(0);
+            t = 70_500;
+            expect(await estado()).toBe("tercero");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});

@@ -28,22 +28,32 @@ export interface CalculoCompartido<T> {
  * (aunque esté pasado) y el cálculo nuevo tarda más de `esperaMs`, se devuelve el anterior y el
  * cálculo sigue por su cuenta. Sin `esperaMs` (Infinity) todo es como antes.
  */
+/**
+ * `maxEnMarchaMs` (2026-10-13, medido con el inspector): una lectura colgada dentro del cálculo
+ * (la del bus de Supabase) dejó el estado, la ramificación y los medidores 55 min con la misma
+ * foto: el cálculo en vuelo no acababa nunca y nadie arrancaba otro. Pasado ese tiempo se
+ * abandona y se arranca uno nuevo; si el viejo acaba después, solo cuenta si no hay uno más nuevo.
+ */
 export function compartirCalculo<T>(
     calcular: () => Promise<T>,
     vigenciaMs: number,
     ahora: () => number = () => Date.now(),
     esperaMs = Number.POSITIVE_INFINITY,
+    maxEnMarchaMs = Number.POSITIVE_INFINITY,
 ): CalculoCompartido<T> {
-    let ultimo: { t: number; valor: T } | null = null;
+    let ultimo: { t: number; valor: T; desde: number } | null = null;
     let enVuelo: Promise<T> | null = null;
+    let enVueloDesde = 0;
 
     const arrancar = (): Promise<T> => {
-        if (enVuelo) return enVuelo;
+        if (enVuelo && ahora() - enVueloDesde <= maxEnMarchaMs) return enVuelo;
+        const desde = ahora();
         const promesa = calcular().then((valor) => {
-            ultimo = { t: ahora(), valor };
+            if (!ultimo || desde >= ultimo.desde) ultimo = { t: ahora(), valor, desde };
             return valor;
         });
         enVuelo = promesa;
+        enVueloDesde = desde;
         const soltar = () => {
             if (enVuelo === promesa) enVuelo = null;
         };
@@ -77,7 +87,7 @@ export function compartirCalculo<T>(
         ultimo = null;
     };
     compartido.sembrar = (valor: T, t: number) => {
-        if (!ultimo) ultimo = { t, valor };
+        if (!ultimo) ultimo = { t, valor, desde: Number.NEGATIVE_INFINITY };
     };
     return compartido;
 }

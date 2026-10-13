@@ -26,7 +26,7 @@ export function ramificacionCompartida(cuantas: number): Promise<Ramificacion> {
     const n = Math.min(30, Math.max(1, Math.trunc(cuantas) || 4));
     let calculo = porCuantas.get(n);
     if (!calculo) {
-        calculo = compartirCalculo(() => construirRamificacion(n), VIGENCIA_MS, undefined, ESPERA_MS);
+        calculo = compartirCalculo(() => construirRamificacion(n), VIGENCIA_MS, undefined, ESPERA_MS, 600_000);
         porCuantas.set(n, calculo);
     }
     return calculo();

@@ -130,7 +130,9 @@ const VIGENCIA_ESTADO_MS = 8_000;
  */
 const ESPERA_ESTADO_MS = 2_000;
 const CACHE_ESTADO = path.join(os.homedir(), ".starseed", "cache-estado-genesis.json");
-const estadoCompartido = compartirCalculo(calcularYGuardar, VIGENCIA_ESTADO_MS, undefined, ESPERA_ESTADO_MS);
+/** Un cálculo que pasa de 10 min se da por colgado y se arranca otro (`calculo-compartido.ts`). */
+const MAX_EN_MARCHA_ESTADO_MS = 600_000;
+const estadoCompartido = compartirCalculo(calcularYGuardar, VIGENCIA_ESTADO_MS, undefined, ESPERA_ESTADO_MS, MAX_EN_MARCHA_ESTADO_MS);
 // (2026-10-13, medido) La primera petición tras reiniciar Genesis llegaba antes de que se leyera la
 // caché del disco y esperaba el cálculo entero (27 s): la ruta espera la semilla, como mucho 1,5 s.
 const semilla = readFile(CACHE_ESTADO, "utf8")
