@@ -511,7 +511,7 @@ def _traer(fila, espera_integrar_s=60):
             return False, "conflicto al traerla sobre el main de hoy: " + salida.strip()[-300:], es_fallo_del_medio(salida)
         _, cambiados = _git_en(wt, ["diff", "--name-only", orig, "HEAD"])
         cambiados_list = [c for c in cambiados.splitlines() if c.strip()]
-        ok, detalle = _puertos(base_sha=orig, shas=shas, cambiados=cambiados_list, cwd=wt)
+        ok, detalle = _puertas(base_sha=orig, shas=shas, cambiados=cambiados_list, cwd=wt)
         if not ok:
             return False, "en la Mac no pasa: " + detalle, es_fallo_del_medio(detalle)
         propios = [c for c in cambiados.splitlines() if c.strip()]
