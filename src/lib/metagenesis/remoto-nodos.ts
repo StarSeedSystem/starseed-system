@@ -66,7 +66,9 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     detener_cola: { etiqueta: "Detener cola", explica: "Para el orquestador de una cola.", confirmar: true, args: ["cola"] },
     pausar: { etiqueta: "Pausar autonomía", explica: "El líder deja de decidir solo hasta que la reanudes.", confirmar: true, args: [] },
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
-    ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
+     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
+     desconectar: { etiqueta: "Desconectar", explica: "Desconecta un nodo de la red MetaGenesis.", confirmar: true, args: [] },
+     contenedor: { etiqueta: "Usar como contenedor", explica: "Configura este medio como contenedor para otros nodos.", args: ["activo", "trabajadores"] },
 };
 
 export const MEDIOS: Record<string, string> = {
@@ -103,11 +105,32 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
         if (typeof v === "boolean" || (Number.isInteger(v) && Math.abs(v as number) < 1e6)) continue;
         if (typeof v !== "string" || !RE_VALOR.test(v)) return `valor no admitido en ${k}`;
     }
-    if ((accion === "lanzar_cola" || accion === "detener_cola") && !(typeof a.cola === "string" && RE_COLA.test(a.cola))) {
-        return "nombre de cola no válido";
+    if (accion === "lanzar_cola" || accion === "detener_cola") {
+        if (!(typeof a.cola === "string" && RE_COLA.test(a.cola))) {
+            return "nombre de cola no válido";
+        }
     }
-    if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
-        return "trabajadores fuera de 1–4";
+    if (accion === "lanzar_cola") {
+        if (!(Number.isInteger(a.trabajadores) && a.trabajadores >= 1 && a.trabajadores <= 4)) {
+            return "trabajadores fuera de 1–4";
+        }
+    }
+    if (accion === "contenedor") {
+        if (!("activo" in a)) {
+            return "falta argumento: activo";
+        }
+        if (typeof a.activo !== "boolean") {
+            return "activo debe ser booleano";
+        }
+        if (a.activo) {
+            if (!("trabajadores" in a) || !(Number.isInteger(a.trabajadores) && a.trabajadores >= 1 && a.trabajadores <= 4)) {
+                return "trabajadores fuera de 1–4";
+            }
+        } else {
+            if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && a.trabajadores === 0)) {
+                return "trabajadores fuera de 1–4";
+            }
+        }
     }
     return null;
 }
