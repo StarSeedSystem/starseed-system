@@ -1213,5 +1213,10 @@ antecesor y cada lote hacía Jev + pruebas + CI para acabar en «no es avance r�
 y, si lo de origin ya está dentro (`git cherry` todo «-»), se une con «ours» (el árbol no cambia); si
 trae algo nuevo, frena y decide un director. Y el servicio del túnel (`com.starseed.tunel-metagenesis`)
 no estaba instalado: `STARSEED_SOLO=tunel-metagenesis python3 scripts/puente/instalar-servicios.py`.
+Vercel moría por memoria (SIGKILL/OOM, 8 GB sin swap) en cada build desde el 10-10: en Vercel la caché
+de webpack va en memoria (`next.config.ts`, pico 5,2 GB) y `vercel.json` no previsualiza `nube-ola/**`
+(ocupaban el único hueco de build). Y la puerta del túnel contesta el **preflight CORS** de
+`https://starseed-os.vercel.app` (sin él, el navegador cortaba la sonda con `Authorization` y la web
+decía «la Mac está apagada» con la Mac viva); nunca `Allow-Credentials`.
 Síntomas: `git merge-base --is-ancestor origin/main main` falla; `/version.json` de producción con
 fecha vieja; `curl -w %{time_total}` de `/api/mando/estado` por encima de 5 s.
