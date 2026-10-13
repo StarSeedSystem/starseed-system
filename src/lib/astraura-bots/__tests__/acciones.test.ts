@@ -166,6 +166,6 @@ describe("deshacer", () => {
    it("la acción de generación de imagen no deja huella para deshacer", () => {
      expect(deshacer({ tipo: "imagen.generar", args: { prompt: "test" } }, {})).toEqual({ nada: true });
      // Incluso con previo, sigue siendo nada porque su deshacer es "nada"
-     expect(deshacer({ tipo: "imagen.generar", args: { prompt: "test" }, any: "previo" }, { any: "previo" })).toEqual({ nada: true });
+      expect(deshacer({ tipo: "imagen.generar", args: { prompt: "test" } }, { ruta: "/dummy" })).toEqual({ nada: true });
    });
 });
