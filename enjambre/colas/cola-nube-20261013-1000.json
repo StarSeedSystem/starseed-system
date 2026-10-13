@@ -1,0 +1,48 @@
+{
+ "ola": "oracle-20261013",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "AV1011I",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Proveedores externos opcionales (Meshy, Tripo): apagados por defecto y honestos",
+   "archivos": [
+    "src/lib/avatares/adaptadores/proveedores-externos.ts",
+    "src/app/api/avatares/externo/route.ts",
+    "src/lib/avatares/adaptadores/__tests__/proveedores-externos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Ruta de servidor que SOLO funciona si existen a la vez la clave del proveedor en el entorno (`MESHY_API_KEY` o `TRIPO_API_KEY`) y `AVATARES_EXTERNOS_PERMITIDOS=1` (por defecto no está: hoy responde «no disponible» con su motivo). Implementa la llamada solo con la documentación OFICIAL que puedas leer; si no puedes verificarla, deja únicamente la respuesta «no disponible» y dilo. Nunca expone claves al cliente; tope diario por persona; registra la procedencia (Meshy plan gratis: CC BY 4.0 con atribución). `clave-externa` solo se ofrece a `planificar` cuando ambas condiciones se cumplen. Pruebas con fetch simulado."
+  },
+  {
+   "id": "AV1011J",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Propuestas y votos de avatar en grupos y páginas (PoliGenesis)",
+   "archivos": [
+    "src/lib/avatares/adaptadores/propuesta-avatar.ts",
+    "src/components/avatares/propuesta-avatar.tsx",
+    "src/lib/avatares/adaptadores/__tests__/propuesta-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Operación `avatar.cambiar` con `{ref, revBase, cambios}` donde `cambios = diffAdn(actual, propuesto)`. Regístrala con el mecanismo de operaciones de Genesis/PoliGenesis que ya existe (búscalo; la tarea BOT1011J1 añade operaciones de bots en `src/lib/genesis/operaciones.ts`: si el registro admite archivos separados úsalo, si no, edición mínima). Al aprobarse: si `revBase` coincide, `aplicarCambios`; si no, se vuelve a calcular el diff sobre la revisión actual y se avisa. La tarjeta muestra los dos avatares lado a lado (actual y propuesto) y la lista de cambios en palabras. Solo se puede proponer si `decidirCambioAvatar` responde «votacion». Pruebas del rebase.",
+   "dependencias_ya_en_main": [
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "AV1011L",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Plantillas iniciales de avatares 3D con licencia libre (CC0) en la Biblioteca pública",
+   "archivos": [
+    "scripts/avatares/importar_plantillas.py",
+    "scripts/avatares/test_importar_plantillas.py",
+    "src/lib/avatares/plantillas.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Sin modelos base nadie puede elegir un avatar 3D. Busca colecciones VRM con licencia CC0 COMPROBADA en su página oficial (por ejemplo 100Avatars de Polygonal Mind u Open Source Avatars) y prepara un juego inicial pequeño: como mucho 10 modelos y 30 MB en total (Supabase gratuito). El script descarga solo con orden explícita, verifica tamaño y formato, guarda la procedencia (licencia, autor, enlace) y los sube a la Biblioteca pública con la vía que ya exista. `plantillas.ts` lista las plantillas con su ADN de partida (`base: vrm`). Si no puedes verificar la licencia CC0 de una colección, no la uses y dilo. Pruebas sin red.",
+   "dependencias_ya_en_main": [
+    "AV1011D"
+   ]
+  }
+ ]
+}
