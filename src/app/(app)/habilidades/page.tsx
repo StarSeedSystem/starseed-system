@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import AbilitiesHub from "@/components/abilities/abilities-hub";
 import MediaGenPanel from "@/components/media/media-gen-panel";
+import SugerenciasInstalacion from "@/components/imagenes/sugerencias-instalacion";
 import { isCapabilityDisabled, setCapabilityDisabled } from "@/ai/astraura/skills";
 
 // Adenda 138 · La habilidad de GENERACIÓN AUDIOVISUAL está ENCENDIDA por defecto
@@ -38,8 +39,9 @@ function AudiovisualAbilitySection() {
           {enabled ? "Activada para todas" : "Desactivada"}
         </label>
       </div>
-      <div className="mt-4">
+      <div className="mt-4 space-y-4">
         <MediaGenPanel />
+        <SugerenciasInstalacion />
       </div>
     </section>
   );
