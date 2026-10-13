@@ -438,9 +438,19 @@ def _git_en(cwd, args, timeout=120):
         return 1, "%s: %s" % (type(e).__name__, e)
 
 
-def _puertas(cambiados, cwd=None):
-    """tsc (solo si cambió TS) + pruebas relacionadas de TS y del puente, con el turno de las puertas,
+def _puertas(base_sha, shas, cambiados, cwd=None):
+    """First try to check on A1, if A1 is busy or not responding, fall back to local check.
+    tsc (solo si cambió TS) + pruebas relacionadas de TS y del puente, con el turno de las puertas,
     en la carpeta `cwd`. (ok, detalle)."""
+    # If there are TS changes to check, try A1 first
+    if traer_nube.archivos_ts(cambiados):
+        from . import comprobar_en_a1
+        ok, detalle, del_medio = comprobar_en_a1.comprobar(base_sha, shas, cambiados, timeout=900)
+        if not del_medio:
+            return ok, detalle
+        # If del_medio is True, fall through to local check below
+
+    # Local check (original logic)
     import contextlib
 
     import turno_pesado
@@ -458,7 +468,7 @@ def _puertas(cambiados, cwd=None):
         codigo = [c for c in cambiados if c.startswith("src/") and re.search(r"\.(ts|tsx)$", c)]
         if codigo:
             rc, salida = _correr_en(cwd, ["npx", "vitest", "related", "--run", "--maxWorkers=2",
-                                          "--minWorkers=1", "--passWithNoTests", *codigo], 1200)
+                                           "--minWorkers=1", "--passWithNoTests", *codigo], 1200)
             if rc != 0:
                 return False, "pruebas: " + salida[-600:]
         py = pruebas_python(cambiados, lambda r: os.path.exists(os.path.join(cwd, r)))
@@ -500,7 +510,8 @@ def _traer(fila, espera_integrar_s=60):
             _git_en(wt, ["cherry-pick", "--abort"])
             return False, "conflicto al traerla sobre el main de hoy: " + salida.strip()[-300:], es_fallo_del_medio(salida)
         _, cambiados = _git_en(wt, ["diff", "--name-only", orig, "HEAD"])
-        ok, detalle = _puertas([c for c in cambiados.splitlines() if c.strip()], wt)
+        cambiados_list = [c for c in cambiados.splitlines() if c.strip()]
+        ok, detalle = _puertos(base_sha=orig, shas=shas, cambiados=cambiados_list, cwd=wt)
         if not ok:
             return False, "en la Mac no pasa: " + detalle, es_fallo_del_medio(detalle)
         propios = [c for c in cambiados.splitlines() if c.strip()]
