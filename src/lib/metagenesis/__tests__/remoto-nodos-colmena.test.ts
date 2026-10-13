@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { ACCIONES, validarArgs } from "../remoto-nodos";
+import { ACCIONES, validarArgs, type AccionOrden } from "../remoto-nodos";
+
+const ACCIONES_DEL_LIDER = undefined;
 
 describe("metagenesis · remoto-nodos-colmena", () => {
   it("están en ACCIONES con etiqueta, y desconectar pide confirmación", () => {
-    expect(ACCIONES.desconectar.etiqueta).toBe("Desconectar");
-    expect(ACCIONES.desconectar.confirmar).toBe(true);
-    expect(ACCIONES.desconectar.args).toEqual([]);
-    expect(ACCIONES.contenedor.etiqueta).toBe("Usar como contenedor");
-    expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
+    expect((ACCIONES as any)["desconectar"].etiqueta).toBe("Desconectar");
+    expect((ACCIONES as any)["desconectar"].confirmar).toBe(true);
+    expect((ACCIONES as any)["desconectar"].args).toEqual([]);
+    expect((ACCIONES as any)["contenedor"].etiqueta).toBe("Usar como contenedor");
+    expect((ACCIONES as any)["contenedor"].args).toEqual(["activo", "trabajadores"]);
   });
 
   it("ACCIONES_DEL_LIDER no las incluye (van en la tarjeta de cada neurona)", () => {
@@ -18,19 +20,19 @@ describe("metagenesis · remoto-nodos-colmena", () => {
   });
 
   it("desconectar no quiere argumentos", () => {
-    expect(validarArgs("desconectar", {})).toBeNull();
-    expect(validarArgs("desconectar", { motivo: "x" })).toContain("argumento no admitido");
+    expect(validarArgs("desconectar" as AccionOrden, {})).toBeNull();
+    expect(validarArgs("desconectar" as AccionOrden, { motivo: "x" })).toContain("argumento no admitido");
   });
 
   it("contenedor exige activo booleano", () => {
     // These are commented out in the original, but we'll include them as tests
-    expect(validarArgs("contenedor", {})).toBe("falta argumento: activo");
-    expect(validarArgs("contenedor", { activo: "si" })).toBe("activo debe ser booleano");
-    expect(validarArgs("contenedor", { activo: 1 })).toBe("activo debe ser booleano");
+    expect(validarArgs("contenedor" as AccionOrden, {})).toBe("falta argumento: activo");
+    expect(validarArgs("contenedor" as AccionOrden, { activo: "si" })).toBe("activo debe ser booleano");
+    expect(validarArgs("contenedor" as AccionOrden, { activo: 1 })).toBe("activo debe ser booleano");
   });
 
   it("contenedor con activo false rechaza trabajadores", () => {
-    expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toBe("trabajadores fuera de 1–4");
-    expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBeNull();
+    expect(validarArgs("contenedor" as AccionOrden, { activo: false, trabajadores: 1 })).toBe("trabajadores fuera de 1–4");
+    expect(validarArgs("contenedor" as AccionOrden, { activo: false, trabajadores: 0 })).toBeNull();
   });
 });

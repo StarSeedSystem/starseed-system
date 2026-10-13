@@ -69,8 +69,8 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     pausar: { etiqueta: "Pausar autonomía", explica: "El líder deja de decidir solo hasta que la reanudes.", confirmar: true, args: [] },
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
-    desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
-    contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
+    desconectar: { etiqueta: "Desconectar", explica: "Desconecta un nodo de la red MetaGenesis.", confirmar: true, args: [] },
+    contenedor: { etiqueta: "Usar como contenedor", explica: "Configura este medio como contenedor para otros nodos.", args: ["activo", "trabajadores"] },
 };
 
 export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "contenedor">, FichaAccion> = {
@@ -84,6 +84,11 @@ export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "co
     pausar: ACCIONES.pausar,
     reanudar: ACCIONES.reanudar,
     ceder: ACCIONES.ceder,
+=======
+     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
+     desconectar: { etiqueta: "Desconectar", explica: "Desconecta un nodo de la red MetaGenesis.", confirmar: true, args: [] },
+     contenedor: { etiqueta: "Usar como contenedor", explica: "Configura este medio como contenedor para otros nodos.", args: ["activo", "trabajadores"] },
+>>>>>>> e36c2c12 (Rescate de las ramas de la nube · RTRTS1010-EV-ORACLE-1ab: Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas)
 };
 
 export const MEDIOS: Record<string, string> = {
@@ -120,11 +125,32 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
         if (typeof v === "boolean" || (Number.isInteger(v) && Math.abs(v as number) < 1e6)) continue;
         if (typeof v !== "string" || !RE_VALOR.test(v)) return `valor no admitido en ${k}`;
     }
-    if ((accion === "lanzar_cola" || accion === "detener_cola") && !(typeof a.cola === "string" && RE_COLA.test(a.cola))) {
-        return "nombre de cola no válido";
+    if (accion === "lanzar_cola" || accion === "detener_cola") {
+        if (!(typeof a.cola === "string" && RE_COLA.test(a.cola))) {
+            return "nombre de cola no válido";
+        }
     }
-    if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
-        return "trabajadores fuera de 1–4";
+    if (accion === "lanzar_cola") {
+        if (!(Number.isInteger(a.trabajadores) && a.trabajadores >= 1 && a.trabajadores <= 4)) {
+            return "trabajadores fuera de 1–4";
+        }
+    }
+    if (accion === "contenedor") {
+        if (!("activo" in a)) {
+            return "falta argumento: activo";
+        }
+        if (typeof a.activo !== "boolean") {
+            return "activo debe ser booleano";
+        }
+        if (a.activo) {
+            if (!("trabajadores" in a) || !(Number.isInteger(a.trabajadores) && a.trabajadores >= 1 && a.trabajadores <= 4)) {
+                return "trabajadores fuera de 1–4";
+            }
+        } else {
+            if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && a.trabajadores === 0)) {
+                return "trabajadores fuera de 1–4";
+            }
+        }
     }
     return null;
 }
