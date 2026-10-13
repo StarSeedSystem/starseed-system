@@ -226,6 +226,8 @@ export interface EntradaGaleria {
   espacios?: readonly string[];
   /** Neuronas de la malla (IMG1011F) cuando ya existen; se añaden a las de la cuenta. */
   neuronasExtra?: readonly NeuronaImg[];
+  /** Si se pasan, NO se consulta el registro de neuronas (pruebas sin red, o malla ya resuelta). */
+  neuronas?: readonly NeuronaImg[];
   semillaBase?: number;
   /** Web gratis (Pollinations) ejecutada por media-gen: no se duplica su lógica aquí. */
   viaWebGratis?: (semilla: number) => Promise<{ url?: string; segundos?: number } | null>;
@@ -292,4 +294,108 @@ export async function recolectarNeuronasImagen(ramEstaGB = 0): Promise<NeuronaIm
     /* sin registro de neuronas disponible: seguimos con la pestaña y la web gratis */
   }
   return out;
+}
+
+/* ── La orquestadora de la galería (§4): varias opciones, sustituyendo las que fallen ───────── */
+
+/**
+ * Genera la galería de `EntradaGaleria.opciones` opciones (1–8, 4 por defecto):
+ *   1) Recolecta las neuronas de la cuenta con capacidades de imagen (más las de la malla si vienen).
+ *   2) `planImagen` decide las candidatas (hasta 8, capa cercana primero, modelos variados).
+ *   3) Lanza las primeras en PARALELO; cada una que falla se SUSTITUYE por la siguiente del plan.
+ *   4) Si ninguna responde, `ok:false` con los motivos honestos — la regla de oro (Pollinations para una
+ *      sola imagen) sigue en `media-gen.generateImage`, que es quien decide el failover final.
+ * Nunca lanza; con `neuronas` y `ejecutar` inyectados no toca red (así se prueba). Sin `viaWebGratis`
+ * no puede producir la opción web gratis — quien llama la pasa desde media-gen.
+ */
+export async function generarGaleriaImagenes(
+  entrada: EntradaGaleria,
+  ejecutar?: EjecutarOpcion,
+): Promise<GaleriaImagenes> {
+  try {
+    const descartes: string[] = [];
+    const prompt = (entrada?.prompt ?? "").toString().trim();
+    if (!prompt) {
+      return { ok: false, opciones: [], descartes, error: "Describe qué imagen quieres generar." };
+    }
+    const pedidas = Math.max(1, Math.min(8, Math.floor(entrada.opciones ?? 4) || 4));
+    let neuronas: NeuronaImg[];
+    if (entrada.neuronas) {
+      neuronas = [...entrada.neuronas];
+    } else {
+      neuronas = await recolectarNeuronasImagen();
+    }
+    if (entrada.neuronasExtra) neuronas.push(...entrada.neuronasExtra);
+
+    const peticion: PeticionImagen = {
+      opciones: Math.min(8, pedidas * 2), // pide de más para tener sustitutas si alguna falla
+      prioridad: entrada.prioridad ?? "calidad",
+      comercial: entrada.comercial === true,
+      necesita: entrada.necesita ?? (["texto-a-imagen"] as const),
+      conReferencia: entrada.conReferencia === true,
+      permisoRemoto: entrada.permisoRemoto === true,
+      permitirDePago: false, // los servicios de pago se piden con tu clave aparte
+      ...(entrada.espacios && entrada.espacios.length ? { espacios: entrada.espacios } : {}),
+    };
+    const plan = planImagen(peticion, neuronas, entrada.semillaBase ?? 1);
+    descartes.push(...plan.descartes);
+    if (!plan.opciones.length) {
+      return {
+        ok: false,
+        opciones: [],
+        descartes,
+        error: "No hay ninguna opción posible con tus neuronas y permisos actuales.",
+      };
+    }
+
+    const correr: EjecutarOpcion = ejecutar ?? ((op, p) => ejecutarOpcionReal(op, p, entrada.viaWebGratis));
+
+    // Lanza las primeras `pedidas` en paralelo; las que fallen promueven la siguiente del plan.
+    const nombreDe = (op: OpcionImagen) => op.modelo?.nombre ?? op.motor;
+    const pendientes = new Map<number, Promise<OpcionGaleria | null>>();
+    const lanzar = (i: number): void => {
+      if (pendientes.has(i) || i >= plan.opciones.length) return;
+      const op = plan.opciones[i];
+      pendientes.set(
+        i,
+        correr(op, prompt)
+          .then((r) => (r ? armarOpcion(op, r) : null))
+          .catch(() => null),
+      );
+    };
+    for (let i = 0; i < Math.min(pedidas, plan.opciones.length); i++) lanzar(i);
+
+    const opciones: OpcionGaleria[] = [];
+    let siguiente = Math.min(pedidas, plan.opciones.length);
+    for (let i = 0; i < plan.opciones.length && opciones.length < pedidas; i++) {
+      lanzar(i);
+      const r = await pendientes.get(i);
+      if (r) {
+        opciones.push(r);
+        continue;
+      }
+      descartes.push(`${nombreDe(plan.opciones[i])} (${plan.opciones[i].capa}): no respondió; se intentó la siguiente del plan.`);
+      if (siguiente < plan.opciones.length) {
+        lanzar(siguiente);
+        siguiente++;
+      }
+    }
+
+    if (!opciones.length) {
+      return {
+        ok: false,
+        opciones: [],
+        descartes,
+        error: "Ninguna opción respondió. El failover a una sola imagen por la web gratis lo decide media-gen.",
+      };
+    }
+    return { ok: true, opciones, descartes };
+  } catch (e) {
+    return {
+      ok: false,
+      opciones: [],
+      descartes: [],
+      error: e instanceof Error && e.message ? e.message : "Error inesperado preparando las opciones.",
+    };
+  }
 }

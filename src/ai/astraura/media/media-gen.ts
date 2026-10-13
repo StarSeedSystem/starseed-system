@@ -47,6 +47,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { connectionsForService } from "@/lib/services/oss-connections";
+import type { GaleriaImagenes } from "./proveedor-neuronas";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tipos base del catálogo de proveedores
@@ -58,6 +59,7 @@ export type MediaKind = "image" | "video" | "audio";
 /** Motores de generación audiovisual conocidos por Astraura. */
 export type MediaProviderId =
   | "pollinations"
+  | "neuronas"
   | "hf-inference"
   | "automatic1111"
   | "fooocus"
@@ -96,6 +98,15 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
     needsKey: false,
     note:
       "Motor GRATIS y por defecto: funciona desde cualquier navegador, sin instalar nada ni pedir clave. Genera la imagen al vuelo (GET directo, usable como <img src>) y sintetiza voz (texto→voz) para audio. No genera vídeo de forma fiable — para vídeo hace falta un servicio propio.",
+  },
+  {
+    id: "neuronas",
+    label: "Tus neuronas (local)",
+    kinds: ["image"],
+    access: "local-endpoint",
+    needsKey: false,
+    note:
+      "Reparte la petición por tus neuronas (este aparato, la pestaña con WebGPU, otras tuyas y la malla) y devuelve VARIAS opciones a la vez según el plan de capas. Funciona si alguna neurona tiene el servicio local de imágenes encendido; si ninguna responde, cae a Pollinations.",
   },
   {
     id: "hf-inference",
@@ -654,6 +665,8 @@ export interface MediaGenResult {
   provider: MediaProviderId;
   /** Mensaje honesto en español cuando `ok:false`. */
   error?: string;
+  /** Galería completa cuando se pidieron varias opciones (`opciones > 1` o el proveedor "neuronas"). */
+  galeria?: GaleriaImagenes;
 }
 
 const POLLINATIONS_IMAGE_BASE = "https://image.pollinations.ai/prompt";
@@ -684,6 +697,13 @@ export interface GenerateImageOptions {
   provider?: MediaProviderId;
   neuronId?: string;
   negative?: string;
+  /** Cuántas opciones generar a la vez (1–8). >1 activa la galería del proveedor "neuronas". */
+  opciones?: number;
+  /** Prioridad y permisos de la galería (proveedor "neuronas"). */
+  prioridad?: "calidad" | "rapidez";
+  comercial?: boolean;
+  conReferencia?: boolean;
+  permisoRemoto?: boolean;
 }
 
 /** Construye la imagen con Pollinations (siempre disponible; nunca lanza, siempre `ok:true` si hay prompt). */
@@ -915,6 +935,47 @@ export async function generateImage(opts: GenerateImageOptions): Promise<MediaGe
     opts.provider && MEDIA_PROVIDERS.some((p) => p.id === opts.provider)
       ? opts.provider
       : resolveProvider("image", opts.neuronId);
+
+  // Galería: varias opciones a la vez repartidas por capas/neuronas (IMG1011B).
+  const nOpciones =
+    typeof opts.opciones === "number" && Number.isFinite(opts.opciones)
+      ? Math.max(1, Math.min(8, Math.floor(opts.opciones)))
+      : 1;
+  if (nOpciones > 1 || chosen === "neuronas") {
+    try {
+      const mod = await import("./proveedor-neuronas");
+      const galeria = await mod.generarGaleriaImagenes({
+        prompt,
+        opciones: nOpciones,
+        ...(opts.prioridad ? { prioridad: opts.prioridad } : {}),
+        comercial: opts.comercial === true,
+        conReferencia: opts.conReferencia === true,
+        permisoRemoto: opts.permisoRemoto === true,
+        semillaBase:
+          typeof opts.seed === "number" && Number.isFinite(opts.seed) ? Math.floor(opts.seed) : 1,
+        viaWebGratis: async (semilla) => {
+          const r = await pollinationsImage({
+            prompt,
+            width: opts.width,
+            height: opts.height,
+            seed: semilla,
+            model: opts.model,
+          });
+          return r.ok && r.url ? { url: r.url } : null;
+        },
+      });
+      if (galeria.ok) {
+        const first = galeria.opciones.find((o) => o.url) ?? galeria.opciones[0];
+        return { ok: true, ...(first?.url ? { url: first.url } : {}), provider: "neuronas", galeria };
+      }
+      // Regla de oro: si toda la galería falla, una imagen por la web gratis.
+      const planB = await pollinationsImage(args);
+      return { ...planB, galeria };
+    } catch (e) {
+      const planB = await pollinationsImage(args);
+      return { ...planB, galeria: { ok: false, opciones: [], descartes: [], error: safeErrMsg(e) } };
+    }
+  }
 
   if (chosen === "pollinations") return pollinationsImage(args);
 
