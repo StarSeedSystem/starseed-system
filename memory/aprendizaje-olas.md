@@ -4332,3 +4332,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
+
+## 2026-10-13 05:41 · mg-oracle-1012-2153
+
+**Lo que se pidió.** Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 1 integradas.
