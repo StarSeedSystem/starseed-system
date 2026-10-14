@@ -155,7 +155,53 @@ class DisparadorDeTest(unittest.TestCase):
             Nodo(id="a", tipo="log"), Nodo(id="b", tipo="webhook")])
         self.assertEqual("b", disparador_de(flujo).id)
         self.assertIsNone(disparador_de(Flujo(id="g", nombre="g",
-                                              nodos=[Nodo(id="a", tipo="log")])))
+                                               nodos=[Nodo(id="a", tipo="log")])))
+
+
+class PendientesMultiplesDisparadoresTest(PendientesTest):
+    def test_dos_webhooks_devuelve_dos_pares(self):
+        # Crear un flujo con dos disparadores webhook
+        nodo1 = Nodo(id="web1", tipo="webhook", configuracion={"ruta": "ruta1"})
+        nodo2 = Nodo(id="web2", tipo="webhook", configuracion={"ruta": "ruta2"})
+        salida = Nodo(id="salida", tipo="log", configuracion={})
+        guardar_flujo(Flujo(id="multi", nombre="multi",
+                            nodos=[nodo1, nodo2, salida],
+                            conexiones=[]), self.raiz)
+        
+        # Preparar archivos de entrada para ambas rutas
+        entrada = self.raiz / "entrada"
+        entrada.mkdir()
+        (entrada / "111-ruta1.json").write_text(
+            json.dumps({"cuerpo": {"datos": 1}}), encoding="utf-8")
+        (entrada / "222-ruta2.json").write_text(
+            json.dumps({"cuerpo": {"datos": 2}}), encoding="utf-8")
+        
+        # Obtener pendientes
+        resultado = pendientes(self.raiz)
+        
+        # Debería tener dos parejas (mismo flujo, diferentes entradas)
+        self.assertEqual(2, len(resultado))
+        flujo1, items1 = resultado[0]
+        flujo2, items2 = resultado[1]
+        self.assertEqual("multi", flujo1.id)
+        self.assertEqual("multi", flujo2.id)
+        # Cada debería tener un elemento
+        self.assertEqual(1, len(items1))
+        self.assertEqual(1, len(items2))
+        # Verificar campo _disparador
+        self.assertEqual("web1", items1[0]["_disparador"])
+        self.assertEqual("web2", items2[0]["_disparador"])
+        # Verificar campo disparador (tipo de fuente)
+        self.assertEqual("webhook", items1[0]["disparador"])
+        self.assertEqual("webhook", items2[0]["disparador"])
+        # Verificar datos
+        self.assertEqual(1, items1[0]["datos"])
+        self.assertEqual(2, items2[0]["datos"])
+        # Asegurarse de que los archivos se consumieron
+        self.assertFalse((entrada / "111-ruta1.json").exists())
+        self.assertFalse((entrada / "222-ruta2.json").exists())
+        # La segunda llamada debería devolver vacío
+        self.assertEqual([], pendientes(self.raiz))
 
 
 if __name__ == "__main__":
