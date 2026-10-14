@@ -11,6 +11,7 @@ import {
     resumirBus,
     validarArgs,
     type FilaBus,
+    type AccionOrden,
 } from "@/lib/metagenesis/remoto-nodos";
 
 const AHORA = 1_800_000_000_000;
@@ -116,5 +117,16 @@ describe("latido: en_curso y contenedor (§3)", () => {
         const e = resumirBus([latido({ nodo: "nodo-a1", ts: AHORA / 1000, en_curso: largas })], AHORA);
         expect(e.nodos[0].enCurso).toHaveLength(8);
         expect(e.nodos[0].enCurso.every((t) => t.id.length > 0)).toBe(true);
+    });
+});
+
+describe("validarArgs: órdenes de la colmena", () => {
+    it("contenedor con activo false rechaza trabajadores", () => {
+        expect(
+          validarArgs("contenedor" as AccionOrden, { activo: false, trabajadores: 1 })
+        ).toBe("trabajadores solo se permite si activo es True");
+        expect(
+          validarArgs("contenedor" as AccionOrden, { activo: false, trabajadores: 0 })
+        ).toBe("trabajadores fuera de 1–4");
     });
 });
