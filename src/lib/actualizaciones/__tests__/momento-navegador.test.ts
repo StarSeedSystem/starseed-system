@@ -39,7 +39,7 @@ describe("momento medido en el navegador", () => {
   it("sin APIs de batería ni conexión: no se inventan; datos móviles se recuerdan por aparato", async () => {
     const m = await medirMomento();
     expect(m.bateriaPct).toBeNull();
-    expect(m.wifi).toBeNull();
+    expect(m.wifi).toBe(false);
     expect(m.datosPermitidos).toBe(false);
     permitirDatosMoviles(true);
     expect((await medirMomento()).datosPermitidos).toBe(true);
