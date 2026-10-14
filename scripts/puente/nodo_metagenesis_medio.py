@@ -29,19 +29,188 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import re
 import shutil
 import socket
 import subprocess
 import sys
 import time
+import typing
 from typing import Any, Dict, List, Optional, Tuple
 
 import nodo_metagenesis_logica as L
 import colmena_logica as C
+import importlib
+GR = importlib.import_module("gobernador-recursos")
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 CARPETA = os.path.expanduser(os.environ.get("STARSEED_NODO_DIR") or "~/.starseed/nodo-metagenesis")
+
+
+def _herramientas() -> Dict[str, bool]:
+    """Devuelve un dict con la presencia de las herramientas necesarias."""
+    return {
+        "git": shutil.which("git") is not None,
+        "node": shutil.which("node") is not None,
+        "python3": shutil.which("python3") is not None,
+        "opencode": shutil.which("opencode") is not None,
+    }
+
+
+def _so() -> str:
+    """Devuelve el sistema operativo en formato esperado por colmena_logica."""
+    sistem = platform.system()
+    if sistem == "Darwin":
+        return "macos"
+    if sistem == "Linux":
+        return "linux"
+    if sistem == "Windows":
+        return "windows"
+    # Fallback
+    return sistem.lower()
+
+
+def _medio_app() -> str:
+    """Devuelve el medio de la aplicación (por ejemplo, terminal)."""
+    # En este nodo, asumimos que estamos en una terminal.
+    return "terminal"
+
+
+def _bateria() -> Dict[str, Any]:
+    """Devuelve información de la batería si está disponible, sino un dict vacío.
+    Esta implementación no accede a hardware real; se deja vacío para que
+    colmena_logica.capacidad_contenedor ignore la batería.
+    """
+    return {}
+
+
+def _red() -> Dict[str, Any]:
+    """Devuelve información de la red si está disponible, sino un dict vacío.
+    Esta implementación no accede a hardware real; se deja vacío para que
+    colmena_logica.capacidad_contenedor ignore la red medida.
+    """
+    return {}
+
+
+def _wsl() -> bool:
+    """Devuelve True si estamos en Linux bajo WSL2."""
+    if platform.system() != "Linux":
+        return False
+    try:
+        with open("/proc/version", "r", encoding="utf-8") as f:
+            return "microsoft" in f.read().lower()
+    except OSError:
+        return False
+
+
+def _ultimo_latido() -> Optional[float]:
+    """Lee el timestamp del último latido desde un archivo en el directorio del nodo.
+    Returns None si no existe o no se puede leer.
+    """
+    ruta = os.path.join(CARPETA, "ultimo_latido.txt")
+    try:
+        with open(ruta, "r", encoding="utf-8") as f:
+            contenido = f.read().strip()
+            return float(contenido) if contenido else None
+    except (OSError, ValueError):
+        return None
+
+
+def _guardar_latido(ahora: float) -> None:
+    """Guarda el timestamp actual como último latido."""
+    os.makedirs(CARPETA, exist_ok=True)
+    ruta = os.path.join(CARPETA, "ultimo_latido.txt")
+    with open(ruta, "w", encoding="utf-8") as f:
+        f.write(str(ahora))
+
+
+def _en_curso(raiz: str) -> List[Dict[str, Any]]:
+    """Lee el progreso y los puntos de control para devolver las tareas en curso.
+    Máximo 8 entradas, cada una con {id, fase, punto: {rama, sha, t}}.
+    """
+    from colmena_logica import FASES_CON_TRABAJO
+
+    progreso_path = os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json")
+    progreso = {}
+    try:
+        with open(progreso_path, "r", encoding="utf-8") as f:
+            progreso = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        progreso = {}
+
+    puntos_control_path = os.path.join(raiz, "starseed_memory_root", "olas", "puntos-control.json")
+    puntos_control = {}
+    try:
+        with open(puntos_control_path, "r", encoding="utf-8") as f:
+            puntos_control = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        puntos_control = {}
+
+    en_curso = []
+    for tid, tarea in progreso.items():
+        if not isinstance(tarea, dict):
+            continue
+        fase = tarea.get("fase")
+        if fase not in FASES_CON_TRABAJO:
+            continue
+        # Obtener el punto: preferir puntos-control, luego progreso
+        punto = None
+        if tid in puntos_control and isinstance(puntos_control[tid], dict):
+            p = puntos_control[tid]
+            if all(k in p for k in ("rama", "sha", "t")):
+                punto = {"rama": p["rama"], "sha": p["sha"], "t": p["t"]}
+        if punto is None:
+            p = tarea.get("punto")
+            if isinstance(p, dict) and all(k in p for k in ("rama", "sha", "t")):
+                punto = {"rama": p["rama"], "sha": p["sha"], "t": p["t"]}
+        if punto is None:
+            continue
+        en_curso.append({
+            "id": tid,
+            "fase": fase,
+            "punto": punto
+        })
+
+    # Ordenar por timestamp del punto (más reciente primero) y tomar hasta 8
+    en_curso.sort(key=lambda x: x["punto"]["t"], reverse=True)
+    return en_curso[:8]
+
+
+def _contenedor_info(medio: str, disco_gb: Optional[float]) -> Dict[str, Any]:
+    """Devuelve el diccionario contenedor: {activo, agentes, apto, motivo}."""
+    # Determinar el valor por defecto de activo según el medio
+    activo_por_defecto = medio in ("mac", "oracle-a1")
+    ruta_contenedor = os.path.join(CARPETA, "contenedor.json")
+    activo = activo_por_defecto
+    try:
+        with open(ruta_contenedor, "r", encoding="utf-8") as f:
+            datos = json.load(f)
+            if isinstance(datos, dict) and "activo" in datos:
+                activo = bool(datos["activo"])
+    except (OSError, json.JSONDecodeError):
+        # Si no existe o es inválido, usamos el valor por defecto
+        pass
+
+    # Construir el cap para colmena_logica.capacidad_contenedor
+    cap = {
+        "so": _so(),
+        "medio_app": _medio_app(),
+        "herramientas": _herramientas(),
+        "ram_total_mb": GR.memoria_mb().get("ram_total_mb"),
+        "nucleos": os.cpu_count(),
+        "disco_libre_gb": disco_gb,
+        "bateria": _bateria(),
+        "red": _red(),
+        "wsl": _wsl(),
+    }
+    capacidad = C.capacidad_contenedor(cap)
+    return {
+        "activo": activo,
+        "agentes": capacidad.get("agentes", 0),
+        "apto": capacidad.get("apto", False),
+        "motivo": capacidad.get("motivo", ""),
+    }
 
 
 def raiz_repo() -> str:
@@ -475,9 +644,29 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         salud["nube_pausada"] = nube_pausada()
     if medio == "oracle-a1":
         salud["a1"] = estado_a1()
+    # --- Nuevos campos para el latido ---
+    # periodo_s: tiempo transcurrido desde el último latido
+    ultimo = _ultimo_latido()
+    periodo_s = None
+    if ultimo is not None:
+        periodo_s = ahora - ultimo
+    _guardar_latido(ahora)
+    # en_curso: tareas en progreso
+    en_curso = _en_curso(raiz)
+    # contenedor: información sobre la capacidad de contenedor
+    contenedor = _contenedor_info(medio, salud["disco_gb"])
+    # Fin de nuevos campos
     cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orquestador": salud["orquestador"],
-           "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
-    return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap}
+            "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
+    return {
+        "medio": medio,
+        "raiz": raiz,
+        "salud": salud,
+        "cap": cap,
+        "en_curso": en_curso,
+        "contenedor": contenedor,
+        "periodo_s": periodo_s,
+    }
 
 
 # ─── acciones ────────────────────────────────────────────────────────────────────────────
