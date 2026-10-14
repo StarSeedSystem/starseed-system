@@ -115,8 +115,8 @@ export async function leerEstadoAutonomo(ahora = Date.now()): Promise<LecturaAut
             
             // Elegir fuente basada en cuál tiene más nodos vivos
             const modoElegido = elegirFuente(
-                tResultado.ok ? tResultado.estado : null,
-                bResultado.ok ? bResultado.estado : null
+                (tResultado && tResultado.ok) ? tResultado.estado : null,
+                (bResultado && bResultado.ok) ? bResultado.estado : null
             );
             
             // Actualizar caché
@@ -124,7 +124,7 @@ export async function leerEstadoAutonomo(ahora = Date.now()): Promise<LecturaAut
             cache.elegidoEn = ahora;
             
             // Devolver el resultado de la fuente elegida
-            return modoElegido === "tablas" ? tResultado : bResultado;
+                return modoElegido === "tablas" && tResultado !== null ? tResultado : bResultado;
         }
         
         // No es hora de reelegir, usar la caché actual con una sola lectura
