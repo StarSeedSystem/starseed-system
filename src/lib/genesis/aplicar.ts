@@ -98,6 +98,14 @@ export interface PuertosGenesis {
         vincular(id: string, tipo: "page" | "group", entidadId: string, publico: boolean): boolean;
         desvincular(id: string, tipo: "page" | "group", entidadId: string): void;
     };
+    astrauraBots: {
+        /** Lee un bot por su ID. */
+        leer(id: string): Promise<{ ok: true; valores: Record<string, unknown> } | { ok: false; motivo: string }>;
+        /** Upsert: inserta o actualiza el bot. Devuelve cuántas filas cambiaron y el valor anterior si existía. */
+        upsert(id: string, valores: Record<string, unknown>): Promise<{ ok: boolean; filas: number; anterior?: Record<string, unknown>; motivo?: string }>;
+        /** Borra un bot por su ID. */
+        borrar(id: string): Promise<{ ok: boolean; motivo?: string }>;
+    };
     ahora(): number;
     nuevoId(): string;
 }
@@ -338,6 +346,123 @@ export async function aplicarOperacion(
                         ? "Agente creado y vinculado. Vive en tu biblioteca; el resto del grupo lo ve cuando lo compartes como público."
                         : "Agente creado en tu biblioteca.",
                 );
+            }
+            case "bot.crear": {
+                // Determine the dueno and cuentaId based on ambito
+                let dueno: Dueno;
+                let cuentaId: string = "";
+                if (ambito.tipo === "entidad") {
+                    // Read the entity to get its cuentaId (assuming the entity table has a cuentaId field)
+                    const entidadLectura = await p.entidad.leer(ambito.entidad.tipo, ambito.entidad.slug);
+                    if (!entidadLectura.ok) {
+                        return { ok: false, motivo: entidadLectura.motivo };
+                    }
+                    cuentaId = (entidadLectura.valores as any).cuentaId ?? "";
+                    dueno = {
+                        tipo: ambito.entidad.tipo as TipoDueno,
+                        id: ambito.entidad.id,
+                        cuentaId,
+                    };
+                } else {
+                    // We don't allow bot.crear in persona, but just in case
+                    return { ok: false, motivo: "bot.crear solo está permitido en ámbito de entidad." };
+                }
+
+                // Default personalidad (all traits at 0.5)
+                const personalidadDefault: Personalidad = {
+                    calidez: 0.5,
+                    energia: 0.5,
+                    formalidad: 0.5,
+                    curiosidad: 0.5,
+                    humor: 0.5,
+                    concision: 0.5,
+                };
+
+                // Default cuerpo: orbe with tone 0, scale 1, no avatar
+                const cuerpoDefault: Cuerpo = {
+                    forma: "orbe",
+                    tono: 0,
+                    escala: 1,
+                };
+
+                // Default sentidosHabilitados: empty
+                const sentidosHabilitadosDefault: Sentido[] = [];
+
+                // Construct the bot object
+                const bot: Bot = {
+                    id: p.nuevoId(),
+                    nombre: op.datos.nombre,
+                    dueno,
+                    origen: "astraura",
+                    gobierno: op.datos.gobierno,
+                    personalidad: personalidadDefault,
+                    cuerpo: cuerpoDefault,
+                    sentidosHabilitados: sentidosHabilitadosDefault,
+                    activo: true,
+                };
+
+                // Upsert the bot
+                const r = await p.astrauraBots.upsert(bot.id, bot as Record<string, unknown>);
+                if (!r.ok) return { ok: false, motivo: r.motivo ?? "No se pudo crear el bot." };
+                if (r.filas === 0) {
+                    return { ok: false, motivo: "La base de datos no dejó guardar el bot." };
+                }
+
+                // Build the inverso: if there was an anterior bot, we restore it; otherwise, we mark for deletion.
+                let inverso: Inverso | null = null;
+                if (r.anterior) {
+                    inverso = {
+                        tipo: "bot.restaurar",
+                        id: bot.id,
+                        antes: r.anterior,
+                        despues: bot as Record<string, unknown>,
+                    };
+                } else {
+                    inverso = {
+                        tipo: "bot.borrar",
+                        id: bot.id,
+                        antes: bot as Record<string, unknown>,
+                    };
+                }
+
+                return hecho(inverso, "Bot creado.");
+            }
+            case "bot.configurar": {
+                // Read the existing bot
+                const lectura = await p.astrauraBots.leer(op.botId);
+                if (!lectura.ok) {
+                    return { ok: false, motivo: lectura.motivo };
+                }
+                const botActual = lectura.valores as Record<string, unknown>;
+
+                // Validate that the cambio is valid (we already did in validation, but double-check)
+                const cambioValido = ["personalidad", "cuerpo", "sentidos", "permisos", "modelo", "pausar", "borrar"].includes(op.cambio);
+                if (!cambioValido) {
+                    return { ok: false, motivo: "Cambio de bot no válido." };
+                }
+
+                // Create a copy of the bot and update the field
+                const botNuevo = { ...botActual };
+                // We need to set the field indicated by op.cambio to op.valor
+                // We'll use a type assertion to allow indexing by string
+                (botNuevo as any)[op.cambio] = op.valor;
+
+                // Upsert the updated bot
+                const r = await p.astrauraBots.upsert(op.botId, botNuevo);
+                if (!r.ok) return { ok: false, motivo: r.motivo ?? "No se pudo actualizar el bot." };
+                if (r.filas === 0) {
+                    return { ok: false, motivo: "La base de datos no dejó guardar el bot actualizado." };
+                }
+
+                // Build the inverso: restore the previous bot state
+                const inverso: Inverso = {
+                    tipo: "bot.restaurar",
+                    id: op.botId,
+                    antes: botActual,
+                    despues: botNuevo,
+                };
+
+                return hecho(inverso, "Bot configurado.");
             }
         }
         return { ok: false, motivo: "Operación no reconocida." };
