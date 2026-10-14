@@ -84,12 +84,8 @@ export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "co
     pausar: ACCIONES.pausar,
     reanudar: ACCIONES.reanudar,
     ceder: ACCIONES.ceder,
-=======
-     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
-     desconectar: { etiqueta: "Desconectar", explica: "Desconecta un nodo de la red MetaGenesis.", confirmar: true, args: [] },
-     contenedor: { etiqueta: "Usar como contenedor", explica: "Configura este medio como contenedor para otros nodos.", args: ["activo", "trabajadores"] },
->>>>>>> e36c2c12 (Rescate de las ramas de la nube · RTRTS1010-EV-ORACLE-1ab: Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas)
 };
+
 
 export const MEDIOS: Record<string, string> = {
     mac: "Mac de desarrollo",
@@ -131,7 +127,7 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
         }
     }
     if (accion === "lanzar_cola") {
-        if (!(Number.isInteger(a.trabajadores) && a.trabajadores >= 1 && a.trabajadores <= 4)) {
+        if (typeof a.trabajadores !== "number" || !Number.isInteger(a.trabajadores) || a.trabajadores < 1 || a.trabajadores > 4) {
             return "trabajadores fuera de 1–4";
         }
     }
@@ -143,12 +139,14 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
             return "activo debe ser booleano";
         }
         if (a.activo) {
-            if (!("trabajadores" in a) || !(Number.isInteger(a.trabajadores) && a.trabajadores >= 1 && a.trabajadores <= 4)) {
+            if (!("trabajadores" in a) || typeof a.trabajadores !== "number" || !Number.isInteger(a.trabajadores) || a.trabajadores < 1 || a.trabajadores > 4) {
                 return "trabajadores fuera de 1–4";
             }
         } else {
-            if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && a.trabajadores === 0)) {
-                return "trabajadores fuera de 1–4";
+            if ("trabajadores" in a) {
+                if (typeof a.trabajadores !== "number" || !Number.isInteger(a.trabajadores) || a.trabajadores !== 0) {
+                    return "trabajadores fuera de 1–4";
+                }
             }
         }
     }
