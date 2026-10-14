@@ -151,8 +151,10 @@ export function esUrlEmbebible(url: string, origenOS: string): { ok: true; orige
   } catch {
     return { ok: false, motivo: "URL inválida" };
   }
-  if (u.protocol !== "https:") return { ok: false, motivo: "Solo https (nunca javascript:, data: ni blob:)" };
-  if (u.username || u.password) return { ok: false, motivo: "La URL no puede llevar credenciales" };
-  if (u.origin === origenOS) return { ok: false, motivo: "No puede ser del mismo origen que el OS" };
+  const esquema = u.protocol.slice(0, -1);
+  if (["javascript", "data", "blob"].includes(esquema)) return { ok: false, motivo: "Esquema de URL prohibido" };
+  if (u.protocol !== "https:") return { ok: false, motivo: "Solo se permiten URLs con protocolo https:" };
+  if (u.username || u.password) return { ok: false, motivo: "La URL no puede contener credenciales" };
+  if (u.origin === origenOS) return { ok: false, motivo: "La URL no puede ser del mismo origen que el OS" };
   return { ok: true, origen: u.origin };
 }

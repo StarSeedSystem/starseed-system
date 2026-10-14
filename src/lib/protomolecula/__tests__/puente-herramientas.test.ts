@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { vi } from "vitest";
 import {
   crearToken, procesarMensaje, mensajeParaMarco, destinoDe, esUrlEmbebible, sanearParametro,
   MENSAJES_POR_SEGUNDO,
@@ -23,6 +24,19 @@ describe("crearToken", () => {
     const token = crearToken((n) => Uint8Array.from({ length: n }, (_, i) => i * 16 + i % 16));
     expect(token).toMatch(/^[0-9a-f]{32}$/);
   });
+  it("genera un string hexadecimal de 32 caracteres (16 bytes)", () => {
+    const mockAleatorio = vi.fn((n: number) => {
+      const bytes = new Uint8Array(n);
+      for (let i = 0; i < n; i++) bytes[i] = i + 1;
+      return bytes;
+    });
+
+    const token = crearToken(mockAleatorio);
+    expect(typeof token).toBe("string");
+    expect(token.length).toBe(32);
+    expect(/^[0-9a-f]+$/.test(token)).toBe(true);
+    expect(mockAleatorio).toHaveBeenCalledWith(16);
+  });
 });
 
 describe("mensajeParaMarco y destinoDe", () => {
@@ -39,19 +53,77 @@ describe("mensajeParaMarco y destinoDe", () => {
   });
 });
 
+  it("crea un mensaje con la estructura correcta", () => {
+    const payload = { foo: "bar", numero: 42 };
+    const mensaje = mensajeParaMarco("hola", payload, "token123");
+    
+    expect(mensaje).toEqual({
+      protomolecula: 1,
+      tipo: "hola",
+      canal: "token123",
+      foo: "bar",
+      numero: 42,
+    });
+  });
+
 describe("esUrlEmbebible", () => {
   const os = "https://starseed-os.vercel.app";
   it("acepta https ajena y devuelve su origen", () => {
     expect(esUrlEmbebible("https://tool.example.com/app?x=1", os)).toEqual({ ok: true, origen: "https://tool.example.com" });
   });
+  it("rechaza URLs con protocolo http:", () => {
+    const resultado = esUrlEmbebible("http://herramienta.example.com/app", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("Solo se permiten URLs con protocolo https:");
+    }
+  });
+  it("rechaza URLs con credenciales", () => {
+    const resultado = esUrlEmbebible("https://usuario:password@herramienta.example.com/app", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("La URL no puede contener credenciales");
+    }
+  });
+  it("rechaza URLs del mismo origen que el OS", () => {
+    const resultado = esUrlEmbebible("https://starseed-os.vercel.app/app", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("La URL no puede ser del mismo origen que el OS");
+    }
+  });
+  it("rechaza URLs con esquema javascript:", () => {
+    const resultado = esUrlEmbebible("javascript:alert('xss')", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("Esquema de URL prohibido");
+    }
+  });
+  it("rechaza URLs con esquema data:", () => {
+    const resultado = esUrlEmbebible("data:text/plain;base64,SGVsbG8=", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("Esquema de URL prohibido");
+    }
+  });
+  it("rechaza URLs con esquema blob:", () => {
+    const resultado = esUrlEmbebible("blob:https://example.com/123e4567-e89b-12d3-a456-426614174000", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("Esquema de URL prohibido");
+    }
+  });
+  it("maneja URLs inválidas", () => {
+    const resultado = esUrlEmbebible("no-es-una-url", os);
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.motivo).toBe("URL inválida");
+    }
+  });
   it.each([
     ["http://tool.example.com", "https"],
     ["https://u:pw@tool.example.com", "credenciales"],
     ["https://starseed-os.vercel.app/app", "mismo origen"],
-    ["javascript:alert(1)", "https"],
-    ["data:text/html,<b>x</b>", "https"],
-    ["blob:https://x.example/abc", "https"],
-    ["no-es-url", "inválida"],
   ])("rechaza %s", (url, motivo) => {
     const r = esUrlEmbebible(url, os);
     expect(r.ok).toBe(false);
@@ -86,6 +158,15 @@ describe("procesarMensaje · identidad", () => {
   it("envoltorio propio exige origin 'null'", () => {
     const m = marcoDe(null);
     expect(procesarMensaje(ev(m, hola, ORIGEN), m, 0, limite()).entrada).toBeNull();
+    expect(procesarMensaje(ev(m, hola, null), m, 0, limite()).entrada?.tipo).toBe("hola");
+  });
+  it("rechaza origen malo en marco propio con sandbox sin allow-same-origin", () => {
+    const m = marcoDe(null);
+    expect(procesarMensaje(ev(m, hola, ORIGEN), m, 0, limite()).entrada).toBeNull();
+    expect(procesarMensaje(ev(m, hola, null), m, 0, limite()).entrada?.tipo).toBe("hola");
+  });
+  it("acepta origen 'null' en marco propio con sandbox sin allow-same-origin", () => {
+    const m = marcoDe(null);
     expect(procesarMensaje(ev(m, hola, null), m, 0, limite()).entrada?.tipo).toBe("hola");
   });
   it("app ajena exige su origen exacto", () => {
