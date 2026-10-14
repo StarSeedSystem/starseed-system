@@ -16,7 +16,8 @@ import {
   AudioLines, Clapperboard, Headset, CalendarDays, Megaphone, Gamepad2,
   Presentation, Gauge, Tv, LayoutGrid, Layers, Plus, Search, Sparkles,
 } from "lucide-react";
-import { listarEstaciones, ocultasLocales, ocultarLocal } from "@/lib/estaciones/datos";
+import { listarEstaciones, ocultasLocales, ocultarLocal, usuarioEnSesion, pausarEstacion, terminarEstacion } from "@/lib/estaciones/datos";
+import { createClient } from "@/utils/supabase/client";
 import { estacionesInternas } from "@/lib/estaciones/internas";
 import { estacionesDeFaros, type EstacionOida } from "@/lib/estaciones/malla";
 import {
@@ -80,6 +81,8 @@ export function DirectorioEstaciones({ inicial, onPublicar }: DirectorioEstacion
   const [internas, setInternas] = useState<Estacion[]>([]);
   const [oidas, setOidas] = useState<EstacionOida[]>([]);
   const [ocultas, setOcultas] = useState<Set<string>>(() => ocultasLocales());
+  const [uid, setUid] = useState<string | null>(null);
+  const [terminadas, setTerminadas] = useState<Set<string>>(new Set());
   const { rows, loading } = useRealtimeRows<Estacion>("os_estaciones", listarEstaciones);
 
   useEffect(() => {
@@ -88,7 +91,9 @@ export function DirectorioEstaciones({ inicial, onPublicar }: DirectorioEstacion
     import("@/ai/astraura/mesh/server-relay")
       .then((m) => m.pullPublicFeed({ atIso: "", id: "" }))
       .then((res) => { if (vivo) setOidas(estacionesDeFaros(res.items)); })
-      .catch(() => { if (vivo) setOidas([]); }); // la malla caída no rompe el directorio
+      .catch(() => { if (vivo) setOidas([]); });
+    const supabase = createClient();
+    usuarioEnSesion(supabase).then((u) => { if (vivo) setUid(u); });
     return () => { vivo = false; };
   }, []);
 
@@ -97,9 +102,31 @@ export function DirectorioEstaciones({ inicial, onPublicar }: DirectorioEstacion
     setOcultas((s) => { const n = new Set(s); n.add(id); return n; });
   };
 
+  const onPausar = async (id: string, pausada: boolean) => {
+    const ok = await pausarEstacion(id, pausada);
+    if (!ok) alert("No se pudo pausar. Comprueba tu sesión.");
+  };
+
+  const onTerminar = async (id: string) => {
+    if (!window.confirm("¿Terminar esta emisión? Dejará de aparecer en el directorio.")) return;
+    const ok = await terminarEstacion(id);
+    if (ok) {
+      setTerminadas((s) => { const n = new Set(s); n.add(id); return n; });
+    } else {
+      alert("No se pudo terminar. Comprueba tu sesión.");
+    }
+  };
+
+  const onEditar = (id: string) => {
+    router.push(`/estaciones/${id}`);
+  };
+
   const ahora = Date.now();
   const lista = useMemo(
-    () => mezclarFilas(rows, internas, oidas, ocultas), [rows, internas, oidas, ocultas]);
+    () => {
+      const base = mezclarFilas(rows, internas, oidas, ocultas);
+      return base.filter((e) => !terminadas.has(e.id));
+    }, [rows, internas, oidas, ocultas, terminadas]);
   const filtradas = useMemo(
     () => ordenarEstaciones(
       filtrarEstaciones(lista, { tipo, texto, categoria: categoria ?? undefined }, ahora), ahora),
@@ -127,10 +154,13 @@ export function DirectorioEstaciones({ inicial, onPublicar }: DirectorioEstacion
 
       {enDirecto.length > 0 && (
         <section aria-label="En directo ahora" className="flex gap-3 overflow-x-auto pb-1">
-          {enDirecto.map((e) => (
+          {enDirecto.map((e) => {
+            const esMia = !!uid && e.owner_id === uid && e.ambito_tipo === 'persona';
+            return (
             <div key={e.id} className="w-64 shrink-0">
-              <TarjetaEstacion estacion={e} ahora={ahora} onAbrir={abrir} onOcultar={ocultar} />
-            </div>))}
+              <TarjetaEstacion estacion={e} ahora={ahora} onAbrir={abrir} onOcultar={ocultar} esMia={esMia} onEditar={esMia ? onEditar : undefined} onPausar={esMia ? onPausar : undefined} onTerminar={esMia ? onTerminar : undefined} />
+            </div>);
+          })}
         </section>)}
 
       <div className="flex flex-col gap-3">
@@ -169,8 +199,11 @@ export function DirectorioEstaciones({ inicial, onPublicar }: DirectorioEstacion
         </p>
       ) : (
         <section aria-label="Todas las estaciones" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtradas.map((e) => (
-            <TarjetaEstacion key={e.id} estacion={e} ahora={ahora} onAbrir={abrir} onOcultar={ocultar} />))}
+          {filtradas.map((e) => {
+            const esMia = !!uid && e.owner_id === uid && e.ambito_tipo === 'persona';
+            return (
+            <TarjetaEstacion key={e.id} estacion={e} ahora={ahora} onAbrir={abrir} onOcultar={ocultar} esMia={esMia} onEditar={esMia ? onEditar : undefined} onPausar={esMia ? onPausar : undefined} onTerminar={esMia ? onTerminar : undefined} />);
+          })}
         </section>)}
     </main>
   );
