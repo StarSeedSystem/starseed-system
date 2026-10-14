@@ -188,12 +188,20 @@ class Nodo:
         return self._puerta
 
     def _enlazar(self, medio: str, ahora: float) -> None:
-        if self.enlace is not None and self.enlace.modo in ("tablas", "puerta"):
+        if self.enlace is not None and self.enlace.modo == "puerta":
             return
         # (PDA1011) La puerta de datos del A1 primero: arriendo sin peticiones a Supabase por vuelta.
         # Su salud se mira con espera creciente (1, 2, 5, 10 min): estando en el bus, se vuelve sola.
+        # (2026-10-14) …y estando en las TABLAS también. Antes las tablas eran un final: la puerta
+        # no respondió un rato, la Mac pasó al bus y luego a las tablas y ya no volvió a probarla.
+        # El A1 seguía en la puerta: dos arriendos, dos líderes que se creían solos («Nodos vivos:»
+        # cada uno el suyo) y nadie prestaba trabajo, con 123 tareas listas.
         puerta = self._puerta_de_datos()
-        if puerta is not None and ahora >= float(self.mem.get("puerta_reintento") or 0) and puerta.disponible():
+        en_tablas = self.enlace is not None and self.enlace.modo == "tablas"
+        toca_puerta = ahora >= float(self.mem.get("puerta_reintento") or 0)
+        if en_tablas and (puerta is None or not toca_puerta):
+            return
+        if puerta is not None and toca_puerta and puerta.disponible():
             llave = self._llave if self._llave is not None else leer_llave()
             rest = self._rest()
             if llave and rest is not None:
@@ -202,6 +210,10 @@ class Nodo:
                 self.enlace.ultimo_id = ultimo
                 self.mem.pop("puerta_motivo", None)
                 return
+        if en_tablas:
+            # La puerta sigue sin responder: las tablas siguen valiendo y se prueba otra vez en 5 min.
+            self.mem["puerta_reintento"] = ahora + PUERTA_REINTENTO_S
+            return
         if self.enlace is not None and ahora - self._probado_tablas < REPROBAR_TABLAS_S:
             return
         rest = self._rest()

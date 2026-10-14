@@ -626,6 +626,13 @@ def aplicar(decision, foto, seco=False, jev=True):
                     if datos.get("modelo_siguiente"):
                         campos["modelo_siguiente"] = datos["modelo_siguiente"]
                     a_progreso[tid] = campos
+                if acc == "reintentar" and logica.es_del_medio(a.get("clase")):
+                    # (2026-10-14) Sin gastar intento… ni envío a la nube: el fallo fue del medio.
+                    import repartir_nube as RN
+
+                    devuelto = RN.devolver_envio_por_el_medio(tid, os.path.join(RAIZ, "enjambre", "colas"))
+                    if devuelto:
+                        reg["envio_devuelto"] = devuelto
                 reg["resultado"] = "aplicada"
             elif acc == "relajar":
                 quitar = [str(d) for d in datos.get("quitar") or []]

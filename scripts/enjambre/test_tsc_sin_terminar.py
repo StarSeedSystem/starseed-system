@@ -33,7 +33,7 @@ class SinTerminar(unittest.TestCase):
 
 
 class PuertaTsc(unittest.TestCase):
-    def _tsc(self, salidas):
+    def _tsc(self, salidas, heap=2560):
         llamadas = []
 
         def falso_sh(cmd, cwd=None, timeout=None, env=None, log=None):
@@ -47,7 +47,8 @@ class PuertaTsc(unittest.TestCase):
                     "cerrojo",
                     side_effect=lambda *_args, **_kwargs: contextlib.nullcontext(),
                 ), \
-                mock.patch.object(enjambre.time, "sleep"):
+                mock.patch.object(enjambre.time, "sleep"), \
+                mock.patch.object(enjambre, "TSC_HEAP_MB", heap):
             return enjambre.tsc("/tmp/wt", None), llamadas
 
     def test_si_muere_por_memoria_reintenta_con_mas_monton(self):
@@ -55,6 +56,17 @@ class PuertaTsc(unittest.TestCase):
         self.assertEqual((rc, errs), (0, []))
         self.assertEqual(len(llamadas), 2)
         self.assertIn("3584", llamadas[1]["NODE_OPTIONS"])
+
+    def test_el_reintento_nunca_pide_menos_que_el_medio(self):
+        """(2026-10-14) En la nube el job da 6144: el reintento no puede bajar a 3584."""
+        (_rc, _errs), llamadas = self._tsc([(134, OOM), (0, "")], heap=6144)
+        self.assertIn("6144", llamadas[1]["NODE_OPTIONS"])
+
+    def test_el_monton_sale_del_medio(self):
+        self.assertEqual(enjambre.heap_tsc_mb(None), 2560)
+        self.assertEqual(enjambre.heap_tsc_mb("--max-old-space-size=6144"), 6144)
+        self.assertEqual(enjambre.heap_tsc_mb("--trace-warnings --max-old-space-size=4096"), 4096)
+        self.assertEqual(enjambre.heap_tsc_mb("--max-old-space-size=1024"), 2560)
 
     def test_si_muere_dos_veces_la_puerta_no_da_el_visto_bueno(self):
         (rc, errs), _ = self._tsc([(134, OOM), (134, OOM)])

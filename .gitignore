@@ -123,6 +123,10 @@ MENSAJES-DEL-DIRECTOR.md
 # colas/nube-* (scripts/puente/cola_en_rama.py); en main no entran: eran 36 de 40
 # commits sin publicar. Se quedan en disco para contar los envíos.
 enjambre/colas/cola-nube-*.json
+# (2026-10-14) Una cola que `nube-gh.py` o `oracle_nodo.py` no llegaron a lanzar se renombra a
+# `.no-lanzada` (no cuenta como envío). Sin esta línea quedaba SIN SEGUIMIENTO en main y el
+# orquestador de la Mac se negó a arrancar diez horas («ajeno: …json.no-lanzada»).
+enjambre/colas/*.no-lanzada
 # (2026-10-04, NUB1004A) Estado de la Mac que viaja con cada cola en el mismo commit
 # suelto (scripts/puente/nube-gh.py preparar_estado_para_nube); queda en disco como rastro.
 enjambre/colas/estado-*/

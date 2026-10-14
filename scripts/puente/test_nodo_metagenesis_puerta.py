@@ -117,6 +117,41 @@ class TestNodoPorLaPuerta(unittest.TestCase):
         self.reloj.t += N.PUERTA_REINTENTO_S
         self.assertEqual(n.vuelta()["enlace"], "puerta")
 
+    def test_desde_las_tablas_vuelve_a_la_puerta_y_no_quedan_dos_lideres(self):
+        """(2026-10-14) La Mac cayó a las tablas con la puerta caída y ya no volvió: el A1 siguió
+        en la puerta, cada uno se creyó líder único y nadie prestaba trabajo."""
+        sb = SupabaseSimulado(self.reloj, tablas=True)
+        arr = {"lider": None, "termino": 0, "expira": 0.0}
+
+        def latir(c):  # el arriendo de las TABLAS: otro distinto del de la puerta
+            if arr["lider"] in (None, c["_nodo"]) or arr["expira"] < self.reloj():
+                arr["termino"] += 0 if arr["lider"] == c["_nodo"] else 1
+                arr.update(lider=c["_nodo"], expira=self.reloj() + c["_ttl_s"])
+            return 200, {"arriendo": {"lider": arr["lider"], "termino": arr["termino"]},
+                         "nodos": [{"nodo": c["_nodo"], "ts": self.reloj(), "datos": c["_datos"]}], "ordenes": []}
+
+        sb.rpc.update(metagenesis_nodo_hola=lambda c: (200, True), metagenesis_nodo_latir=latir,
+                      metagenesis_nodo_orden_resultado=lambda c: (200, True),
+                      metagenesis_nodo_foto=lambda c: (200, True), metagenesis_nodo_bitacora=lambda c: (200, True))
+        sondas = []
+        disponible = self.puerta.disponible
+        self.puerta.disponible = lambda: sondas.append(self.reloj.t) or disponible()
+        self.puerta.caida = True
+        mac = nodo_puerta(sb, self.puerta, self.reloj, MedioFalso(medio="mac"), "mac-1")
+        self.assertEqual(mac.vuelta()["enlace"], "tablas")
+        for _ in range(4):  # 8 min en las tablas con la puerta caída: como mucho 2 sondas, no una por vuelta
+            self.reloj.t += 120
+            self.assertEqual(mac.vuelta()["enlace"], "tablas")
+        self.assertLessEqual(len(sondas), 3)
+        self.puerta.caida = False
+        a1 = nodo_puerta(sb, self.puerta, self.reloj, MedioFalso(medio="oracle-a1", autoritativo=False), "a1-1")
+        a1.vuelta()
+        self.reloj.t += N.PUERTA_REINTENTO_S
+        im, ia = mac.vuelta(), a1.vuelta()
+        self.assertEqual(im["enlace"], "puerta")
+        self.assertEqual(im["lider"], ia["lider"])
+        self.assertIn(a1.yo, im["vivos"])
+
     def test_llave_sin_dar_de_alta_no_rebota_cada_vuelta(self):
         n = nodo_puerta(self.sb, self.puerta, self.reloj, MedioFalso(), "mac-1", llave="otra-llave-" + "x" * 20)
         for _ in range(3):

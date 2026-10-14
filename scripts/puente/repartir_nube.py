@@ -739,6 +739,42 @@ def envios_vigentes(carpeta_colas, ahora_ts=None, ruta_reaperturas=None):
                             leer_reaperturas(ahora_ts, ruta_reaperturas))
 
 
+#: (2026-10-14) Lo que un fallo del MEDIO puede devolver: como el botón, dos envíos por cadena en dos días.
+MAX_DEVUELTOS_POR_MEDIO = 2
+
+
+def envio_a_devolver(tid, envios_brutos, reaperturas, tope=MAX_DEVUELTOS_POR_MEDIO):
+    """PURA. ¿A qué id de la cadena de `tid` se le devuelve un envío tras un fallo del MEDIO?
+
+    `envios_brutos`: envíos sin descontar ({id: n}); `reaperturas`: las vigentes ({id: [ts]}).
+    None si la cadena no fue a la nube, si ya no le queda envío que devolver o si ya se le
+    devolvieron `tope` en estos dos días: un medio que falla siempre no la manda al infinito.
+    (2026-10-14, medido) FLU1014A y D cayeron por «tsc no terminó (sin memoria)» en los runners; el
+    revisor las devolvió «sin gastar un intento», pero sus tres envíos contaron igual: «agotadas».
+    Con 120 así, el reparto daba 0 elegibles y la nube se quedó parada."""
+    base = base_cadena(tid)
+    reap = reaperturas or {}
+    cadena = [k for k in (envios_brutos or {}) if base_cadena(k) == base]
+    if sum(len(reap.get(k) or []) for k in cadena) >= tope:
+        return None
+    quedan = {k: int(envios_brutos[k] or 0) - len(reap.get(k) or []) for k in cadena}
+    con_envio = sorted((k for k in cadena if quedan[k] > 0), key=lambda k: (-quedan[k], k))
+    return con_envio[0] if con_envio else None
+
+
+def devolver_envio_por_el_medio(tid, carpeta_colas, ahora_ts=None, ruta_reaperturas=None):
+    """Anota la reapertura que decide `envio_a_devolver`. Devuelve el id o None. Nunca lanza."""
+    try:
+        ahora_ts = time.time() if ahora_ts is None else ahora_ts
+        brutos = envios_por_tarea(leer_colas_nube(carpeta_colas, ahora_ts))
+        k = envio_a_devolver(tid, brutos, leer_reaperturas(ahora_ts, ruta_reaperturas))
+        if k:
+            anotar_reaperturas([k], ahora_ts, ruta_reaperturas)
+        return k
+    except Exception:  # noqa: BLE001 — un fallo aquí nunca frena al revisor
+        return None
+
+
 def reclamar_varadas(progreso, runs_en_marcha):
     """PURA. Las que se mandaron a la nube y allí ya no queda nadie que las haga.
 

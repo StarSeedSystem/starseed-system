@@ -78,6 +78,15 @@ if __name__ == "__main__":
 class InformesSueltos(unittest.TestCase):
     """(2026-10-06) Un informe .md en la raíz no bloquea el arranque: va a `_apartado/`."""
 
+    def test_colas_no_lanzadas_son_estorbo(self):
+        """(2026-10-14) ~10 h sin orquestador en la Mac por dos `.no-lanzada` sin seguimiento."""
+        g = clasificar_arbol_sucio(["?? enjambre/colas/cola-nube-20261013-2052.json.no-lanzada",
+                                    "?? scripts/puente/otra.no-lanzada",
+                                    " M enjambre/colas/cola-nube-20261006-2157.json.no-lanzada"])
+        self.assertEqual(g["estorbo"], ["enjambre/colas/cola-nube-20261013-2052.json.no-lanzada"])
+        self.assertEqual(g["trabajo"], ["scripts/puente/otra.no-lanzada",
+                                        "enjambre/colas/cola-nube-20261006-2157.json.no-lanzada"])
+
     def test_informes_de_la_raiz_son_estorbo(self):
         g = clasificar_arbol_sucio(["?? informe_dream.md", "?? sugerencias-2026-10-06.md",
                                     "?? docs/informe.md", "?? notas.md", " M CLAUDE.md"])

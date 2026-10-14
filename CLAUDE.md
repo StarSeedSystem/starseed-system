@@ -1306,3 +1306,24 @@ de detrás sin empezar y el job escribía desde las 22:32. Por eso Genesis, si u
 (la suma de esos topes) y GitHub aún da un paso de preparación, lo cuenta «escribiendo» y lo explica.
 Genesis enseña el atasco en la tarjeta.
 Síntoma: `gh api …/runs/<id>/jobs` con «Set up job=in_progress» y «Enjambre=in_progress» a la vez.
+
+### 21. «0 agentes» y nadie lo cura: cuatro fallos encadenados que los directores veían y no reparaban (2026-10-14)
+
+Medido a las 12:30 (hora de la Mac), con 123 tareas listas:
+1. **Mac sin orquestador ~10 h.** `nube-gh.py`/`oracle_nodo.py` renombran a `.no-lanzada` la cola que no
+   lanzan; dos quedaron sin seguimiento en `enjambre/colas/` y el guardia del orquestador las tomó por trabajo
+   ajeno («no arranco»). Desde las 02:12 el vigilante lo dijo cada 10 min en el Chat Director y su cura no las reconocía. Ahora
+   están en `.gitignore` y `curacion_logica.es_cola_no_lanzada` las aparta como estorbo.
+2. **MetaGenesis partida en dos.** La puerta de datos no respondió un rato, la Mac pasó al bus y luego a las
+   tablas, y las tablas eran un final (`_enlazar` ya no volvía a probar la puerta). El A1 seguía en la puerta:
+   dos arriendos, dos líderes que se creían solos («Nodos vivos:» cada uno el suyo) y ningún préstamo. Ahora
+   desde las tablas se prueba la puerta cada 5 min.
+3. **Main en rojo desde las 04:49** (`sincronia-bots.ts` rompía la guardia de pureza): el A1 no presta con main
+   rojo y la autopublicación se frenó. La reparación de MetaGenesis solo podía tocar la PRUEBA; ahora
+   `rutas_de_evidencia` añade el archivo que el título del caso nombra («… > sincronia-bots.ts: …»).
+4. **Nube con 0 elegibles y 120 «agotadas».** El tsc de la puerta usaba 2560/3584 MB en todos los medios y en
+   el runner moría por memoria; el revisor devolvía la tarea «sin gastar intento» pero el envío sí contaba.
+   Ahora el montón sale del `NODE_OPTIONS` del medio (`heap_tsc_mb`: nube 6144, A1 4096, Mac 2560) y un fallo
+   del medio devuelve el envío (`repartir_nube.envio_a_devolver`, dos por cadena en dos días).
+Síntomas: `/tmp/enjambre.log` con «no arranco · ajeno:»; el registro del nodo con «Nodos vivos:» de un solo
+nodo en la Mac y otro distinto en el A1; `repartir-a-nube.py --simular` con 0 y decenas de «agotada».

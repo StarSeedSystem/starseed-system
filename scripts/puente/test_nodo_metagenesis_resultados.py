@@ -127,6 +127,11 @@ class TestPublicacion(unittest.TestCase):
         self.assertEqual(L.rutas_de_evidencia(SALIDA_CI),
                          ["src/lib/protomolecula/orbe-bus.ts", "src/lib/protomolecula/__tests__/orbe-bus.test.ts"])
         self.assertEqual(L.rutas_de_evidencia("nada que ver"), [])
+        guardia = (" FAIL  src/lib/astraura-bots/__tests__/pureza.test.ts > núcleo puro de los bots de Astraura > "
+                   "sincronia-bots.ts: solo importa del propio núcleo y del núcleo del OS\n"
+                   "AssertionError: expected '@/utils/supabase/client' to match /^(\\.\\/)/\n")
+        self.assertEqual(L.rutas_de_evidencia(guardia),  # (2026-10-14) el culpable, no solo la guardia
+                         ["src/lib/astraura-bots/sincronia-bots.ts", "src/lib/astraura-bots/__tests__/pureza.test.ts"])
 
     def test_tarea_de_reparacion(self):
         p = pub(evidencia=SALIDA_1428 + "\nclave filtrada: " + CLAVE_FALSA)

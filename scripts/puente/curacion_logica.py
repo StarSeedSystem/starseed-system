@@ -58,6 +58,14 @@ def es_informe_suelto(ruta: str) -> bool:
     return nombre.startswith(("informe", "sugerencias")) or "dream" in nombre or "sueno" in nombre
 
 
+def es_cola_no_lanzada(ruta: str) -> bool:
+    """Una cola del reparto que nadie llegó a lanzar (`nube-gh.py` y `oracle_nodo.py` la renombran a
+    `.no-lanzada` para que no cuente como envío). La escribe el PROPIO enjambre, así que nunca es
+    trabajo de nadie. (2026-10-14) Dos de ellas, sin seguimiento, contaron como «trabajo»: el
+    orquestador de la Mac se negó a arrancar ~10 h con 123 tareas listas y nadie lo curó."""
+    return ruta.startswith("enjambre/colas/") and ruta.endswith(".no-lanzada")
+
+
 def clasificar_arbol_sucio(lineas_porcelain: List[str]) -> Dict[str, List[str]]:
     estorbo = []
     trabajo = []
@@ -70,6 +78,7 @@ def clasificar_arbol_sucio(lineas_porcelain: List[str]) -> Dict[str, List[str]]:
                 ruta.endswith((".new", ".tmp", ".orig", ".rej", ".bak", "~"))
                 or ruta == ".DS_Store"
                 or es_informe_suelto(ruta)
+                or es_cola_no_lanzada(ruta)
             ):
                 estorbo.append(ruta)
             else:

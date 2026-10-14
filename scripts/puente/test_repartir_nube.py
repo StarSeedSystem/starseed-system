@@ -496,6 +496,40 @@ class EnviosPorCadena(unittest.TestCase):
         self.assertIsNone(R.motivo_fuera(tarea, {}, [], None, envios={"RSC1006Q": 1}))
 
 
+class EnvioDevueltoPorElMedio(unittest.TestCase):
+    """(2026-10-14) Un fallo del medio no gasta envío: se devuelve, como mucho dos por cadena."""
+
+    def test_se_devuelve_al_de_la_cadena_que_tiene_envios(self):
+        envios = {"FLU1014A": 3, "OTRA": 1}
+        self.assertEqual(R.envio_a_devolver("FLU1014A", envios, {}), "FLU1014A")
+        self.assertEqual(R.envio_a_devolver("RSC1006Qb", {"RSC1006Q": 2}, {}), "RSC1006Q")
+
+    def test_nada_si_no_fue_a_la_nube_o_ya_se_devolvieron_dos(self):
+        self.assertIsNone(R.envio_a_devolver("NUEVA", {"OTRA": 1}, {}))
+        self.assertIsNone(R.envio_a_devolver("FLU1014A", {"FLU1014A": 3}, {"FLU1014A": [1.0, 2.0]}))
+        self.assertIsNone(R.envio_a_devolver("X", {"X": 1}, {"X": [1.0]}, tope=5))  # ya descontado
+
+    def test_se_anota_y_cuenta_contra_el_tope(self):
+        d = tempfile.mkdtemp()
+        try:
+            ruta = os.path.join(d, "reap.json")
+            colas = os.path.join(d, "colas")
+            os.makedirs(colas)
+            ahora = datetime.datetime.now().timestamp()
+            for i in range(3):
+                with open(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), "w") as f:
+                    json.dump({"tareas": [{"id": "FLU1014A"}]}, f)
+                os.utime(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), (ahora, ahora))
+            self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 3)
+            self.assertEqual(R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta), "FLU1014A")
+            self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 2)
+            R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta)
+            self.assertIsNone(R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta))
+            self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 1)
+        finally:
+            shutil.rmtree(d)
+
+
 class CadenasCedibles(unittest.TestCase):
     """(2026-10-11, CAPC1011A) Ceder una cadena ENTERA (tarea esperada + dependientes de la
     tanda) en vez de dejarla en la Mac solo porque alguien está esperando su cabeza."""

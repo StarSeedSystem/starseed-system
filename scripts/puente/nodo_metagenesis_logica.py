@@ -528,6 +528,11 @@ def clase_publicacion(pub: Dict[str, Any]) -> Optional[str]:
 _RE_PY_FILE = re.compile(r'File "[^"]*?/((?:scripts|deploy|servicios|backend)/[^"\s]+\.py)"')
 _RE_PY_TEST = re.compile(r"\((test_[A-Za-z0-9_]+)\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)?\)")
 _RE_TS = re.compile(r"(?:^|[\s(\"'])((?:src|scripts|native)/[\w./\-\[\]()@]+?\.(?:tsx?|mts|mjs))(?=[(:\s\"']|$)", re.M)
+#: (2026-10-14) Una GUARDIA (pureza, sin-node-en-cliente…) nombra en el título del caso el archivo que la
+#: rompe: «FAIL src/lib/astraura-bots/__tests__/pureza.test.ts > … > sincronia-bots.ts: solo importa…».
+#: Sin esto la reparación solo podía tocar la prueba (MGP1014-C715AA): o la relajaba, o no arreglaba nada.
+_RE_FAIL = re.compile(r"FAIL\s+((?:src|native)/[\w./\-\[\]()@]+?/__tests__/[\w.\-]+\.test\.tsx?)\s+>\s*(.+)$", re.M)
+_RE_NOMBRE_TS = re.compile(r"(?<![\w/.\-])([A-Za-z0-9_][\w.\-]*\.tsx?)(?=[:\s]|$)")
 
 
 def rutas_de_evidencia(texto: Any, tope: int = 3) -> List[str]:
@@ -548,6 +553,14 @@ def rutas_de_evidencia(texto: Any, tope: int = 3) -> List[str]:
         meter(m.group(1))
     for m in _RE_TS.finditer(t):
         meter(m.group(1))
+    for m in _RE_FAIL.finditer(t):
+        prueba, base = m.group(1), m.group(1).split("/__tests__/")[0]
+        for nombre in _RE_NOMBRE_TS.findall(m.group(2)):
+            ruta = "%s/%s" % (base, nombre)
+            if ".test." in nombre or ruta in rutas:
+                continue
+            # El archivo culpable va ANTES que su prueba: es lo que hay que arreglar.
+            rutas.insert(rutas.index(prueba) if prueba in rutas else len(rutas), ruta)
     return rutas[:tope]
 
 

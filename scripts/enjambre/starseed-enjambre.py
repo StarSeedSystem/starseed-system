@@ -145,7 +145,21 @@ def _node_del_repo():
     return None
 
 
-ENV_TSC = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=2560"}
+def heap_tsc_mb(node_options, defecto=2560):
+    """PURA. El montón de tsc lo marca el MEDIO: el `NODE_OPTIONS` con que se lanzó el orquestador
+    (la nube 6144, el A1 4096) y, si no dice nada o dice menos, el de la Mac (2560).
+
+    (2026-10-14, medido en el run 38611110290) `ENV_TSC` era 2560 en todos los medios y pisaba el
+    `NODE_OPTIONS` del job: en la nube (runner de 16 GB) el tsc de la puerta moría por memoria con
+    2560 y con 3584, dos de cada tres tareas salían «tsc no terminó (sin memoria)», gastaban su
+    envío a la nube y acababan «agotadas»: la nube se quedó sin nada que coger."""
+    m = re.search(r"--max-old-space-size[= ](\d+)", node_options or "")
+    return max(defecto, int(m.group(1))) if m else defecto
+
+
+#: Lo que se pide en el reintento por memoria: nunca menos de 3584 ni menos que el del medio.
+TSC_HEAP_MB = heap_tsc_mb(os.environ.get("NODE_OPTIONS"))
+ENV_TSC = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=%d" % TSC_HEAP_MB}
 _PATH_NODE = _node_del_repo()
 if _PATH_NODE:
     ENV_TSC["PATH"] = _PATH_NODE
@@ -4048,7 +4062,7 @@ def tsc(cwd, log):
         if intento == 0:
             # Una segunda vuelta con más montón si fue la memoria, tras dejar respirar a la Mac.
             if "memoria" in motivo:
-                env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=3584")
+                env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=%d" % max(3584, TSC_HEAP_MB))
             time.sleep(30)
     return rc, [
         "%s (%s): la puerta no da el visto bueno sin un tsc completo"
