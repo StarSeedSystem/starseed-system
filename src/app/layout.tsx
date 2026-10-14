@@ -61,6 +61,7 @@ import { VoiceNeuronOnboardingLoader } from "@/components/aurora/voice-neuron-on
 // (loaders globales que NO deben ir en el Server Component layout.tsx: ver abajo)
 
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
+import { OrbeProtomoleculaLoader } from "@/components/protomolecula/orbe-loader";
 // Guía dinámica de bienvenida y ayuda (tour vivo de la interfaz). Global,
 // defensiva y SSR-safe: arranca sola en la primera visita y se reabre con el
 // evento 'starseed:open-guide' o el acceso flotante "Guía".
@@ -353,6 +354,10 @@ export default function RootLayout({
                         {/* ORBE de Aurora: acceso universal a la voz + menú
                             Trinity centrado, presente en todas las rutas. */}
                         <AuroraWidget />
+                        {/* Orbe gemela de la Protomolécula (PM1010F0L): FAB arrastrable
+                            junto a la de Aurora; carga dinámica (ssr:false) vía el
+                            wrapper cliente orbe-loader. */}
+                        <OrbeProtomoleculaLoader />
                         {/* Guía dinámica de bienvenida/ayuda: tour vivo que
                             presenta y resalta orbe, menús Trinity, Escritorio,
                             Dashboard, Astraura, Perfil, Cerebros y Librería.
