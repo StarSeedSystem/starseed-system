@@ -34,9 +34,9 @@ function resolverCliente(inyectado?: ClienteSupabase): ClienteSupabase | null {
     try { return createClient(); } catch { return null; }
 }
 
-async function usuarioEnSesion(
-    supabase: ClienteSupabase,
-): Promise<string | null> {
+export async function usuarioEnSesion(
+     supabase: ClienteSupabase,
+ ): Promise<string | null> {
     try {
         const { data } = await supabase.auth.getUser();
         return data.user?.id ?? null;
