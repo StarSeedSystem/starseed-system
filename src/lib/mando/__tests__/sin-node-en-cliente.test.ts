@@ -38,12 +38,13 @@ function importaciones(codigo: string): string[] {
     return fuera;
 }
 
-describe("código de cliente de Genesis sin módulos de Node", () => {
-    it("lo que el navegador carga desde /mando no llega a node:*", () => {
-        // Desde la página de Genesis: todo lo que cuelga de un archivo «use client» va al
-        // bundle del navegador (lo de antes puede ser componente de servidor y sí usa Node).
-        const raiz = path.join(SRC, "app", "(app)", "genesis", "page.tsx");
-        expect(existsSync(raiz)).toBe(true);
+const RAICES = [
+    path.join(SRC, "app", "(app)", "genesis", "page.tsx"),
+    path.join(SRC, "app", "(app)", "metagenesis", "page.tsx")
+];
+
+describe("código de cliente sin módulos de Node", () => {
+    it.each(RAICES)("lo que el navegador carga desde %s no llega a node:*", (raiz) => {
         const problemas: string[] = [];
         const vistos = new Set<string>();
         const pila: [string, boolean, string[]][] = [[raiz, false, [path.relative(RAIZ, raiz)]]];
@@ -51,7 +52,7 @@ describe("código de cliente de Genesis sin módulos de Node", () => {
         while (pila.length) {
             const [archivo, enCliente, camino] = pila.pop()!;
             const codigo = readFileSync(archivo, "utf8");
-            const cliente = enCliente || /^\s*["']use client["']/.test(codigo);
+            const cliente = enCliente || /^\s*["\']use client["\']/.test(codigo);
             const clave = `${archivo}|${cliente}`;
             if (vistos.has(clave)) continue;
             vistos.add(clave);
