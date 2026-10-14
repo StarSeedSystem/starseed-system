@@ -17,6 +17,7 @@ import { createClient } from "@/utils/supabase/client";
 import { senalEsencial } from "@/lib/consumo/guardian";
 import { OSS_LIBRARY, type OssCategory } from "@/lib/oss-library";
 import { withDefaultBrainSkills } from "@/lib/brain-skills/default-skills";
+import { listarCerebrosCompartidos } from "@/lib/cerebros/compartidos";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
