@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   crearToken, procesarMensaje, mensajeParaMarco, destinoDe, esUrlEmbebible, sanearParametro,
   MENSAJES_POR_SEGUNDO,
@@ -22,6 +22,18 @@ describe("crearToken", () => {
   it("16 bytes → 32 caracteres hex", () => {
     const token = crearToken((n) => Uint8Array.from({ length: n }, (_, i) => i * 16 + i % 16));
     expect(token).toMatch(/^[0-9a-f]{32}$/);
+  });
+  it("genera un string hexadecimal de 32 caracteres (16 bytes)", () => {
+    const mockAleatorio = vi.fn((n: number) => {
+      const bytes = new Uint8Array(n);
+      for (let i = 0; i < n; i++) bytes[i] = i + 1;
+      return bytes;
+    });
+    const token = crearToken(mockAleatorio);
+    expect(typeof token).toBe("string");
+    expect(token.length).toBe(32);
+    expect(/^[0-9a-f]+$/.test(token)).toBe(true);
+    expect(mockAleatorio).toHaveBeenCalledWith(16);
   });
 });
 
@@ -152,6 +164,30 @@ describe("procesarMensaje · mensajes", () => {
   it("sin parámetros declarados aún, cambio pasa (hola no recibido)", () => {
     const m = marcoDe();
     expect(procesarMensaje(ev(m, { ...hola, tipo: "cambio", parametroId: "x", valor: 1 }), m, 0, limite()).entrada).not.toBeNull();
+  });
+  it("rechaza mensaje hola con nombre no válido", () => {
+    const m = marcoDe();
+    const r = procesarMensaje(ev(m, { ...hola, nombre: 42 }), m, 0, limite());
+    expect(r.entrada).toBeNull();
+    expect(r.motivo).toContain("nombre");
+  });
+  it("rechaza mensaje cambio con parametroId no válido", () => {
+    const m = marcoDe(ORIGEN, [{ id: "vol", nombre: "V", tipo: "numero" }]);
+    const r = procesarMensaje(ev(m, { ...hola, tipo: "cambio", parametroId: 42, valor: 1 }), m, 0, limite());
+    expect(r.entrada).toBeNull();
+    expect(r.motivo).toContain("parametroId");
+  });
+  it("rechaza mensaje exportar con formato no válido", () => {
+    const m = marcoDe();
+    const r = procesarMensaje(ev(m, { ...hola, tipo: "exportar", formato: 42, datos: {} }), m, 0, limite());
+    expect(r.entrada).toBeNull();
+    expect(r.motivo).toContain("formato");
+  });
+  it("rechaza mensaje error con mensaje no válido", () => {
+    const m = marcoDe();
+    const r = procesarMensaje(ev(m, { ...hola, tipo: "error", mensaje: 42 }), m, 0, limite());
+    expect(r.entrada).toBeNull();
+    expect(r.motivo).toContain("mensaje");
   });
   it("exportar, listo y error válidos", () => {
     const m = marcoDe();
