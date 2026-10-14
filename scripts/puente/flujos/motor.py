@@ -15,8 +15,30 @@ def _ruta(ejecucion: Ejecucion) -> Path:
     return RAIZ_FLUJOS / "ejecuciones" / ejecucion.flujo_id / f"{ejecucion.id}.json"
 def _persistir(ejecucion: Ejecucion) -> None:
     escribir_json(_ruta(ejecucion), asdict(ejecucion))
-def _entradas(flujo: Flujo, nodo_id: str, ejecucion: Ejecucion) -> Items:
-    origenes = [c.origen for c in flujo.conexiones if c.destino == nodo_id]
+def _rama(flujo: Flujo, entrada: Items) -> set[str] | None:
+    """Nodos alcanzables desde el `_disparador` marcado en la entrada.
+
+    Devuelve None cuando ningún ítem trae la marca: se ejecuta todo el grafo.
+    """
+    origen = next((str(item["_disparador"]) for item in entrada
+                   if item.get("_disparador")), None)
+    if not origen:
+        return None
+    hijos: dict[str, list[str]] = {}
+    for conexion in flujo.conexiones:
+        hijos.setdefault(conexion.origen, []).append(conexion.destino)
+    rama: set[str] = set()
+    pendientes = list(hijos.get(origen, []))
+    while pendientes:
+        actual = pendientes.pop()
+        if actual not in rama:
+            rama.add(actual)
+            pendientes.extend(hijos.get(actual, []))
+    return rama
+def _entradas(flujo: Flujo, nodo_id: str, ejecucion: Ejecucion,
+              rama: set[str] | None = None) -> Items:
+    origenes = [c.origen for c in flujo.conexiones if c.destino == nodo_id
+                and (rama is None or c.origen in rama)]
     if not origenes:
         return [dict(item) for item in ejecucion.entrada]
     items: Items = []
@@ -59,20 +81,33 @@ def _continuar(flujo: Flujo, ejecucion: Ejecucion,
                guardar: Callable[[Ejecucion], None]) -> Ejecucion:
     orden = orden_topologico(flujo)
     por_id = {nodo.id: nodo for nodo in flujo.nodos}
+    rama = _rama(flujo, ejecucion.entrada)
     ejecucion.estado = "ejecutando"
     guardar(ejecucion)
     try:
         for indice in range(ejecucion.siguiente, len(orden)):
             nodo = por_id[orden[indice]]
+            if rama is not None and nodo.id not in rama:
+                ejecucion.nodos.setdefault(nodo.id, {
+                    "entrada": [], "salida": [], "error": None,
+                    "ms": 0, "intentos": 0, "estado": "omitido"})
+                ejecucion.siguiente = indice + 1
+                guardar(ejecucion)
+                continue
             if nodo.tipo not in nodos:
                 raise KeyError(f"No hay ejecutor registrado para el tipo {nodo.tipo}")
-            items = _entradas(flujo, nodo.id, ejecucion)
+            items = _entradas(flujo, nodo.id, ejecucion, rama)
             _ejecutar_nodo(nodo, items, nodos[nodo.tipo], ahora, guardar, ejecucion)
             ejecucion.siguiente = indice + 1
             guardar(ejecucion)
-        con_salida = {c.origen for c in flujo.conexiones}
-        terminales = [nodo_id for nodo_id in orden if nodo_id not in con_salida]
-        terminales = terminales or orden[-1:]
+        if rama is not None:
+            conexiones = [c for c in flujo.conexiones if c.origen in rama]
+        else:
+            conexiones = flujo.conexiones
+        con_salida = {c.origen for c in conexiones}
+        candidatos = [n for n in orden if rama is None or n in rama]
+        terminales = [n for n in candidatos if n not in con_salida]
+        terminales = terminales or candidatos[-1:]
         ejecucion.salida = [dict(item) for nodo_id in terminales
                             for item in ejecucion.nodos[nodo_id]["salida"]]
         ejecucion.estado = "completa"

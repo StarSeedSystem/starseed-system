@@ -111,6 +111,57 @@ class MotorFlujosTest(unittest.TestCase):
         self.assertEqual(json.loads(ruta.read_text())["nodos"][0]["configuracion"]["referencia"],
                          "CLAVE_FLUJO")
 
+    def _flujo_dos_disparadores(self) -> Flujo:
+        return Flujo("doble", "Doble",
+                     [Nodo("g1", "webhook"), Nodo("s1", "set"),
+                      Nodo("g2", "webhook"), Nodo("s2", "set")],
+                     [Conexion("g1", "s1"), Conexion("g2", "s2")])
+
+    def _registro_falso(self, vistos: list[str]) -> dict:
+        def ejecutor_set(items, _config):
+            vistos.append("set")
+            return [{**item, "ok": True} for item in items]
+        return {"set": ejecutor_set,
+                "webhook": lambda items, _c: items}
+
+    def test_solo_corre_la_rama_del_disparador(self) -> None:
+        vistos: list[str] = []
+        registro = self._registro_falso(vistos)
+        flujo = self._flujo_dos_disparadores()
+        resultado = ejecutar(flujo, [{"_disparador": "g2", "dato": 1}], registro)
+        self.assertEqual(vistos, ["set"])
+        self.assertEqual(resultado.estado, "completa")
+        self.assertEqual(len(resultado.salida), 1)
+        self.assertEqual(resultado.nodos["s1"]["estado"], "omitido")
+        self.assertEqual(resultado.nodos["g1"]["estado"], "omitido")
+        self.assertEqual(resultado.nodos["s2"]["salida"][0]["dato"], 1)
+
+    def test_sin_marca_ejecuta_todo_el_grafo(self) -> None:
+        vistos: list[str] = []
+        registro = self._registro_falso(vistos)
+        flujo = self._flujo_dos_disparadores()
+        resultado = ejecutar(flujo, [{"dato": 1}], registro)
+        self.assertEqual(vistos, ["set", "set"])
+        self.assertEqual(len(resultado.salida), 2)
+
+    def test_reanudar_respeta_la_rama_guardada(self) -> None:
+        corte = {"hecho": False}
+
+        def set_falloso(items, _config):
+            if not corte["hecho"]:
+                corte["hecho"] = True
+                raise RuntimeError("corte en la rama")
+            return items
+
+        flujo = self._flujo_dos_disparadores()
+        registro = {"set": set_falloso, "webhook": lambda i, _c: i}
+        primera = ejecutar(flujo, [{"_disparador": "g1"}], registro)
+        self.assertEqual(primera.estado, "fallida")
+        segunda = reanudar(primera.id, registro)
+        self.assertEqual(segunda.estado, "completa")
+        self.assertEqual(len(segunda.salida), 1)
+        self.assertEqual(segunda.nodos["s2"]["estado"], "omitido")
+
 
 if __name__ == "__main__":
     unittest.main()
