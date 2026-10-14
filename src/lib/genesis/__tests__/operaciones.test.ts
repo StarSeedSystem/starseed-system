@@ -11,6 +11,14 @@ import {
     type Ambito,
     type ContextoValidacion,
     type EntradaGenesis,
+    type CambioBot,
+    type CambiosBot,
+    type DatosBot,
+    type TipoOperacion,
+    TIPOS_OPERACION,
+    OPERACIONES_POR_AMBITO,
+    esObjeto,
+    arbolConCodigo,
 } from "../operaciones";
 
 const PERSONA: Ambito = { tipo: "persona" };
@@ -175,5 +183,43 @@ describe("lote, vista previa y deshacer", () => {
         expect(puedeDeshacer(base)).toBe(true);
         expect(puedeDeshacer({ ...base, estado: "deshecha" })).toBe(false);
         expect(puedeDeshacer({ ...base, inverso: null })).toBe(false);
+    });
+
+    it("valida las nuevas operaciones de bots", () => {
+        // Simple test to see if basic validation works
+        const rSimple = validarOperacion({ tipo: "perfil.editar", cambios: { nombre: "Test" }, motivo: "Test" }, CTX);
+        console.log("Simple test result:", rSimple);
+        expect(rSimple.ok).toBe(true);
+        // Trivial change to force module reload
+        
+        // Debug: Check what operations are available in persona
+        console.log("OPERACIONES_POR_AMBITO.persona:", OPERACIONES_POR_AMBITO.persona);
+        console.log("Is bot.configurar in OPERACIONES_POR_AMBITO.persona?", OPERACIONES_POR_AMBITO.persona.includes("bot.configurar"));
+        
+        // bot.crear válido (solo en ámbito entidad)
+        const ctxEntidad: ContextoValidacion = { ambito: GRUPO, dock: DOCK, paginasPropias: ["mi-huerto"] };
+        const r1 = validarOperacion({ tipo: "bot.crear", datos: { nombre: "Mi Bot", gobierno: "democratico" }, motivo: "Crear un bot" }, ctxEntidad);
+        console.log("bot.crear result:", r1);
+        expect(r1.ok).toBe(true);
+        if (r1.ok && r1.op.tipo === "bot.crear") {
+            expect(r1.op.datos).toEqual({ nombre: "Mi Bot", gobierno: "democratico" });
+        }
+
+        // bot.configurar test
+        const cambioValue = "personalidad";
+        console.log("cambioValue:", JSON.stringify(cambioValue));
+        console.log("cambioValue length:", cambioValue.length);
+        for (let i = 0; i < cambioValue.length; i++) {
+            console.log(`cambioValue[${i}]: '${cambioValue[i]}' (code: ${cambioValue.charCodeAt(i)})`);
+        }
+        
+        // Test with the exact string
+        const r5 = validarOperacion({ tipo: "bot.configurar", botId: "bot123", cambios: { cambio: "personalidad", valor: { rasgo: "amigable" } }, motivo: "Configurar personalidad" }, CTX);
+        console.log("bot.configurar result:", r5);
+        expect(r5.ok).toBe(true);
+        if (r5.ok && r5.op.tipo === "bot.configurar") {
+            expect(r5.op.botId).toBe("bot123");
+            expect(r5.op.cambios).toEqual({ cambio: "personalidad", valor: { rasgo: "amigable" } });
+        }
     });
 });

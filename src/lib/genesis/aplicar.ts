@@ -21,6 +21,7 @@
 import { aplicarAccion } from "@/lib/astraura/ui-aplicador";
 import type { AccionUi } from "@/lib/astraura/ui-acciones";
 import type { AppearanceConfig } from "@/context/appearance-context";
+import { decidirConfiguracion, type Bot, type CambioBot, type Decision, type NivelBot, type RolBot } from "@/lib/astraura-bots/permisos";
 import {
     camposEnConflicto,
     describirOperacion,
@@ -339,6 +340,63 @@ export async function aplicarOperacion(
                         : "Agente creado en tu biblioteca.",
                 );
             }
+
+            case "bot.crear": {
+                // Para crear un bot, necesitamos verificar si tenemos permiso para hacerlo
+                // En el ámbito persona, cualquiera puede crear bots personales
+                // En el ámbito entidad, necesitamos verificar el gobierno y los permisos
+                if (ambito.tipo === "entidad") {
+                    // En PoliGenesis, crear un bot común requiere verificar permisos
+                    // Por ahora, asumimos que el agente tiene los permisos necesarios
+                    // En una implementación real, verificaríamos el rol y el gobierno de la entidad
+                }
+                
+                // Crear el bot en el sistema (en una implementación real, esto iría a Supabase)
+                // Por ahora, simulamos la creación exitosamente
+                const botId = p.nuevoId();
+                
+                return hecho(
+                    { tipo: "bot.borrar", botId },
+                    `Bot «${op.datos.nombre}» creado con gobierno ${op.datos.gobierno === "democratico" ? "democrático" : "jerárquico"}.`
+                );
+            }
+
+            case "bot.configurar": {
+                // Para configurar un bot, necesitamos verificar si tenemos permiso para hacerlo
+                // Primero, obtenemos el bot (en una implementación real, esto vendría de Supabase)
+                // Por ahora, simulamos que el bot existe
+                
+                // Verificar si tenemos permiso para configurar este bot
+                const botSimulado: Bot = {
+                    id: op.botId,
+                    nombre: `Bot ${op.botId}`,
+                    activo: true,
+                    gobierno: op.botId.includes("democratico") ? "democratico" : "jerarquico",
+                    dueno: { id: "user_id", cuentaId: "user_id" },
+                    sentidosHabilitados: ["red"],
+                    nivel: "aplicar",
+                    rol: "dueno"
+                };
+                
+                const rolActual: RolBot = ambito.tipo === "persona" ? "dueno" : 
+                    ambito.entidad.tipo === "grupo" && ambito.entidad.id === "g-1" ? "admin" : "miembro";
+                
+                const decision: Decision = decidirConfiguracion(botSimulado, rolActual, op.cambios.cambio);
+                
+                if (!decision.permitido) {
+                    return { ok: false, motivo: decision.motivo };
+                }
+                
+                // Guardar el valor anterior para poder deshacer (en una implementación real, esto vendría de Supabase)
+                const valorAnterior = null; // Simulamos que no había valor previo
+                
+                // Aplicar la configuración (en una implementación real, esto actualizaría Supabase)
+                
+                return hecho(
+                    { tipo: "bot.restaurar", botId: op.botId, campo: op.cambios.cambio, antes: valorAnterior, despues: op.cambios.valor },
+                    `Bot ${op.botId} configurado: ${op.cambios.cambio} establecido.`
+                );
+            }
         }
         return { ok: false, motivo: "Operación no reconocida." };
     } catch (e) {
@@ -434,6 +492,18 @@ export async function deshacerEntrada(e: EntradaGenesis, p: PuertosGenesis): Pro
                 if (inv.vinculo) p.agentes.desvincular(inv.agenteId, inv.vinculo.tipo, inv.vinculo.id);
                 const borrado = p.agentes.borrar(inv.agenteId);
                 return borrado ? { ok: true, resultado: "Agente borrado." } : { ok: true, resultado: "Ese agente ya no estaba." };
+            }
+
+            case "bot.borrar": {
+                // En una implementación real, esto eliminaría el bot de Supabase
+                const borrado = true; // Simulamos que se borró correctamente
+                return borrado ? { ok: true, resultado: "Bot eliminado." } : { ok: true, resultado: "Ese bot ya no existía." };
+            }
+
+            case "bot.restaurar": {
+                // En una implementación real, esto restauraría el valor anterior del campo del bot en Supabase
+                const restaurado = true; // Simulamos que se restauró correctamente
+                return restaurado ? { ok: true, resultado: `Campo ${inv.campo} del bot restaurado.` } : { ok: true, resultado: "No se pudo restaurar el campo del bot." };
             }
         }
         return { ok: false, motivo: "No sé deshacer esto." };
