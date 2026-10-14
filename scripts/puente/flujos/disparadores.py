@@ -118,9 +118,36 @@ def _ultimo_epoch(filas: Iterable[dict[str, Any]], actual: float) -> float:
     return actual
 
 
+def disparadores_de(flujo: Flujo) -> list[Nodo]:
+    """TODOS los nodos disparadores del flujo, en orden: un flujo con varios
+    disparadores escucha en todos a la vez (el de n8n de producción tiene 3)."""
+    return [n for n in flujo.nodos if n.tipo in TIPOS_DISPARADOR]
+
+
 def disparador_de(flujo: Flujo) -> Nodo | None:
-    """El primer nodo disparador del flujo, si tiene."""
-    return next((n for n in flujo.nodos if n.tipo in TIPOS_DISPARADOR), None)
+    """El primer nodo disparador del flujo, si tiene (compatibilidad)."""
+    return next(iter(disparadores_de(flujo)), None)
+
+
+# ── estado por flujo y nodo: clave «flujo:nodo» con migración de la vieja ────
+
+def _clave(flujo_id: str, nodo_id: str) -> str:
+    return f"{flujo_id}:{nodo_id}"
+
+
+def _es_primer_disparador(flujo: Flujo, nodo: Nodo) -> bool:
+    primero = disparador_de(flujo)
+    return primero is not None and primero.id == nodo.id
+
+
+def _migrar(cursor: dict[str, Any], flujo: Flujo, nodo: Nodo) -> None:
+    """Pasa la clave vieja (solo flujo) del primer disparador a la nueva
+    «flujo:nodo», sin reentregar lo ya consumido."""
+    if _es_primer_disparador(flujo, nodo) and flujo.id in cursor:
+        clave = _clave(flujo.id, nodo.id)
+        if clave not in cursor:
+            cursor[clave] = cursor[flujo.id]
+        del cursor[flujo.id]
 
 
 # ── consumo de las fuentes (disco, pero nunca red ni procesos) ───────────────
@@ -134,7 +161,8 @@ def _estado(raiz: Path) -> dict[str, dict[str, Any]]:
         return {}
 
 
-def _consumir_gancho(raiz: Path, ruta_gancho: str) -> list[dict[str, Any]]:
+def _consumir_gancho(raiz: Path, ruta_gancho: str,
+                     disparador_id: str) -> list[dict[str, Any]]:
     """Lee y BORRA los archivos `*-ruta.json` dejados en `entrada/`."""
     carpeta = raiz / "entrada"
     if not carpeta.is_dir():
@@ -152,6 +180,7 @@ def _consumir_gancho(raiz: Path, ruta_gancho: str) -> list[dict[str, Any]]:
         cuerpo = datos.get("cuerpo") if isinstance(datos, dict) else None
         item = cuerpo if isinstance(cuerpo, dict) else {"cuerpo": cuerpo}
         item["disparador"] = "webhook"
+        item["_disparador"] = disparador_id
         item["ruta"] = ruta_gancho
         cuerpos.append(item)
     return cuerpos
@@ -160,11 +189,13 @@ def _consumir_gancho(raiz: Path, ruta_gancho: str) -> list[dict[str, Any]]:
 def pendientes(raiz: Path = RAIZ_FLUJOS, ahora: datetime | None = None
                ) -> list[tuple[Flujo, list[dict[str, Any]]]]:
     """Parejas (flujo, entrada) que hay que ejecutar AHORA, de todas las
-    fuentes. Idempotente: lo consumido no se vuelve a entregar."""
+    fuentes y de TODOS los disparadores de cada flujo: una pareja por cada
+    disparador que tenga algo. Cada ítem lleva «_disparador» con el id del
+    nodo que lo capturó. Idempotente: lo consumido no se vuelve a entregar."""
     raiz = Path(raiz)
     momento = ahora or datetime.now()
     estado = _estado(raiz)
-    resultado: list[tuple[Flujo, list[dict[str, Any]]] ] = []
+    resultado: list[tuple[Flujo, list[dict[str, Any]]]] = []
     sucio = False
     for archivo in sorted(raiz.glob("*.json")):
         if archivo.name == ARCHIVO_ESTADO:
@@ -173,48 +204,54 @@ def pendientes(raiz: Path = RAIZ_FLUJOS, ahora: datetime | None = None
             flujo = cargar_flujo(archivo.stem, raiz)
         except Exception:
             continue  # un flujo roto nunca frena a los demás
-        nodo = disparador_de(flujo)
-        if nodo is None:
-            continue
-        config = dict(nodo.configuracion)
-        entrada: list[dict[str, Any]] = []
-        if nodo.tipo == "webhook" and config.get("ruta"):
-            entrada = _consumir_gancho(raiz, str(config["ruta"]))
-        elif nodo.tipo == "cron" and config.get("expresion"):
-            marca = momento.strftime("%Y-%m-%dT%H:%M")
-            cron_estado = estado.setdefault("cron", {})
-            if cron_estado.get(flujo.id) != marca and coincide_cron(
-                    str(config["expresion"]), momento):
-                cron_estado[flujo.id] = marca
+        for nodo in disparadores_de(flujo):
+            config = dict(nodo.configuracion)
+            clave = _clave(flujo.id, nodo.id)
+            entrada: list[dict[str, Any]] = []
+            if nodo.tipo == "webhook" and config.get("ruta"):
+                entrada = _consumir_gancho(raiz, str(config["ruta"]), nodo.id)
+            elif nodo.tipo == "cron" and config.get("expresion"):
+                marca = momento.strftime("%Y-%m-%dT%H:%M")
+                cron_estado = estado.setdefault("cron", {})
+                _migrar(cron_estado, flujo, nodo)
+                if cron_estado.get(clave) != marca and coincide_cron(
+                        str(config["expresion"]), momento):
+                    cron_estado[clave] = marca
+                    sucio = True
+                    entrada = [{"disparador": "cron", "_disparador": nodo.id,
+                                "marca": marca,
+                                "expresion": str(config["expresion"])}]
+            elif nodo.tipo == "bus" and config.get("tipos"):
+                cursor = estado.setdefault("bus", {})
+                _migrar(cursor, flujo, nodo)
+                desde = float(cursor.get(clave) or 0)
+                filas = _leer_jsonl(raiz.parent / "olas" / "canal.jsonl")
+                tipos = {str(t) for t in config["tipos"]}
+                eventos = filtrar_eventos(filas, tipos, desde)
+                cursor[clave] = _ultimo_epoch(filas, desde)
                 sucio = True
-                entrada = [{"disparador": "cron", "marca": marca,
-                            "expresion": str(config["expresion"])}]
-        elif nodo.tipo == "bus" and config.get("tipos"):
-            cursor = estado.setdefault("bus", {})
-            desde = float(cursor.get(flujo.id) or 0)
-            filas = _leer_jsonl(raiz.parent / "olas" / "canal.jsonl")
-            tipos = {str(t) for t in config["tipos"]}
-            eventos = filtrar_eventos(filas, tipos, desde)
-            cursor[flujo.id] = _ultimo_epoch(filas, desde)
-            sucio = True
-            for evento in eventos:
-                evento["disparador"] = "bus"
-            entrada = eventos
-        elif nodo.tipo == "chat":
-            cursor = estado.setdefault("chat", {})
-            desde = float(cursor.get(flujo.id) or 0)
-            filas = _leer_jsonl(raiz.parent / "mando" / "canal.jsonl")
-            cursor[flujo.id] = _ultimo_epoch(filas, desde)
-            sucio = True
-            for fila in filas:
-                orden = parsear_orden_chat(str(fila.get("texto") or ""))
-                if (orden and orden[0] == flujo.id
-                        and float(fila.get("epoch") or 0) > desde):
-                    entrada.append({"disparador": "chat", "texto": orden[1],
-                                    "quien": fila.get("quien", ""),
-                                    "epoch": fila.get("epoch")})
-        if entrada:
-            resultado.append((flujo, entrada))
+                for evento in eventos:
+                    evento["disparador"] = "bus"
+                    evento["_disparador"] = nodo.id
+                entrada = eventos
+            elif nodo.tipo == "chat":
+                cursor = estado.setdefault("chat", {})
+                _migrar(cursor, flujo, nodo)
+                desde = float(cursor.get(clave) or 0)
+                filas = _leer_jsonl(raiz.parent / "mando" / "canal.jsonl")
+                cursor[clave] = _ultimo_epoch(filas, desde)
+                sucio = True
+                for fila in filas:
+                    orden = parsear_orden_chat(str(fila.get("texto") or ""))
+                    if (orden and orden[0] == flujo.id
+                            and float(fila.get("epoch") or 0) > desde):
+                        entrada.append({"disparador": "chat",
+                                        "_disparador": nodo.id,
+                                        "texto": orden[1],
+                                        "quien": fila.get("quien", ""),
+                                        "epoch": fila.get("epoch")})
+            if entrada:
+                resultado.append((flujo, entrada))
     if sucio:
         escribir_json(raiz / ARCHIVO_ESTADO, estado)
     return resultado

@@ -6,8 +6,9 @@ import tempfile
 import unittest
 from datetime import datetime
 
-from scripts.puente.flujos import Flujo, Nodo, guardar_flujo
-from scripts.puente.flujos.disparadores import (coincide_cron, disparador_de,
+from scripts.puente.flujos import Conexion, Flujo, Nodo, guardar_flujo
+from scripts.puente.flujos.disparadores import (ARCHIVO_ESTADO, coincide_cron,
+                                                disparador_de, disparadores_de,
                                                 filtrar_eventos,
                                                 parsear_orden_chat, pendientes)
 
@@ -88,6 +89,7 @@ class PendientesWebhookTest(PendientesTest):
         self.assertEqual(1, len(items))
         self.assertEqual(1, items[0]["hola"])
         self.assertEqual("webhook", items[0]["disparador"])
+        self.assertEqual("entra", items[0]["_disparador"])
         self.assertFalse((entrada / "111-n8n.json").exists())
         self.assertTrue((entrada / "111-otra.json").exists())  # otra ruta intacta
         self.assertEqual([], pendientes(self.raiz))  # no se repite
@@ -156,6 +158,114 @@ class DisparadorDeTest(unittest.TestCase):
         self.assertEqual("b", disparador_de(flujo).id)
         self.assertIsNone(disparador_de(Flujo(id="g", nombre="g",
                                               nodos=[Nodo(id="a", tipo="log")])))
+
+
+class DisparadoresDeTest(unittest.TestCase):
+    def test_devuelve_todos_y_el_primero_sigue_igual(self):
+        flujo = Flujo(id="f", nombre="f", nodos=[
+            Nodo(id="log", tipo="log"),
+            Nodo(id="w1", tipo="webhook", configuracion={"ruta": "a"}),
+            Nodo(id="reloj", tipo="cron"),
+            Nodo(id="w2", tipo="webhook", configuracion={"ruta": "b"})])
+        self.assertEqual(["w1", "reloj", "w2"],
+                         [n.id for n in disparadores_de(flujo)])
+        self.assertEqual("w1", disparador_de(flujo).id)  # compatibilidad
+        vacio = Flujo(id="g", nombre="g", nodos=[Nodo(id="a", tipo="log")])
+        self.assertEqual([], disparadores_de(vacio))
+        self.assertIsNone(disparador_de(vacio))
+
+
+class PendientesVariosWebhooksTest(PendientesTest):
+    """El flujo trasladado de n8n «StarSeed · Producción (puentes)»: 3 webhooks,
+    cada uno con su Set. Antes solo escuchaba el primero; ahora, los tres."""
+
+    RUTAS = ("starseed-produccion-publicada",
+             "starseed-produccion-pieza-lista",
+             "starseed-produccion-revertida")
+
+    def setUp(self):
+        super().setUp()
+        nodos: list[Nodo] = []
+        conexiones: list[Conexion] = []
+        for indice, ruta in enumerate(self.RUTAS):
+            gancho = f"gancho-{indice}"
+            nodos.append(Nodo(id=gancho, tipo="webhook",
+                              configuracion={"ruta": ruta}))
+            nodos.append(Nodo(id=f"set-{indice}", tipo="set", configuracion={}))
+            conexiones.append(Conexion(origen=gancho, destino=f"set-{indice}"))
+        guardar_flujo(Flujo(id="produccion", nombre="StarSeed · Producción",
+                            nodos=nodos, conexiones=conexiones), self.raiz)
+
+    def _dejar(self, ruta: str, cuerpo: dict) -> None:
+        entrada = self.raiz / "entrada"
+        entrada.mkdir(exist_ok=True)
+        (entrada / f"111-{ruta}.json").write_text(
+            json.dumps({"cuerpo": cuerpo}), encoding="utf-8")
+
+    def test_escucha_los_tres_ganchos(self):
+        for indice, ruta in enumerate(self.RUTAS):
+            self._dejar(ruta, {"pieza": indice})
+        primero = pendientes(self.raiz)
+        self.assertEqual(3, len(primero))
+        por_nodo = {items[0]["_disparador"]: items for _, items in primero}
+        self.assertEqual({f"gancho-{i}" for i in range(3)}, set(por_nodo))
+        for indice, ruta in enumerate(self.RUTAS):
+            items = por_nodo[f"gancho-{indice}"]
+            self.assertEqual(1, len(items))
+            self.assertEqual("webhook", items[0]["disparador"])
+            self.assertEqual(ruta, items[0]["ruta"])
+            self.assertEqual(indice, items[0]["pieza"])
+        self.assertEqual([], pendientes(self.raiz))  # nada queda sin consumir
+
+    def test_solo_el_gancho_con_archivos_da_pareja(self):
+        self._dejar(self.RUTAS[1], {"pieza": "lista"})
+        primero = pendientes(self.raiz)
+        self.assertEqual(1, len(primero))
+        self.assertEqual("gancho-1", primero[0][1][0]["_disparador"])
+        self.assertEqual("lista", primero[0][1][0]["pieza"])
+
+
+class PendientesCursorViejoTest(PendientesTest):
+    """El estado previo llevaba la clave «flujo.id»; al pasar a «flujo:nodo»
+    no se reentrega lo ya consumido por el primer disparador."""
+
+    def _escribir_estado(self, estado: dict) -> None:
+        (self.raiz / ARCHIVO_ESTADO).write_text(
+            json.dumps(estado), encoding="utf-8")
+
+    def test_cursor_viejo_del_bus_no_reentrega(self):
+        self._flujo("escucha", Nodo(id="bus", tipo="bus",
+                                    configuracion={"tipos": ["commit"]}))
+        self._escribir_estado({"bus": {"escucha": 7}})
+        canal = self.raiz.parent / "olas" / "canal.jsonl"
+        canal.write_text("\n".join([
+            json.dumps({"tipo": "commit", "epoch": 5, "texto": "viejo"}),
+            json.dumps({"tipo": "commit", "epoch": 9, "texto": "nuevo"}),
+        ]) + "\n", encoding="utf-8")
+        primero = pendientes(self.raiz)
+        self.assertEqual(1, len(primero))
+        self.assertEqual(["nuevo"], [e["texto"] for e in primero[0][1]])
+        self.assertEqual("bus", primero[0][1][0]["_disparador"])
+        leido = json.loads((self.raiz / ARCHIVO_ESTADO)
+                           .read_text(encoding="utf-8"))
+        self.assertEqual({"escucha:bus": 9}, leido["bus"])
+        self.assertEqual([], pendientes(self.raiz))
+
+    def test_cursor_viejo_del_chat_no_reentrega(self):
+        self._flujo("saludar", Nodo(id="chat", tipo="chat", configuracion={}))
+        self._escribir_estado({"chat": {"saludar": 1}})
+        mando = self.raiz.parent / "mando" / "canal.jsonl"
+        mando.write_text("\n".join([
+            json.dumps({"tipo": "mensaje", "epoch": 1,
+                        "texto": "/flujo saludar vieja"}),
+            json.dumps({"tipo": "mensaje", "epoch": 3,
+                        "texto": "/flujo saludar nueva"}),
+        ]) + "\n", encoding="utf-8")
+        primero = pendientes(self.raiz)
+        self.assertEqual(1, len(primero))
+        self.assertEqual(["nueva"], [i["texto"] for i in primero[0][1]])
+        self.assertEqual("chat", primero[0][1][0]["_disparador"])
+        self.assertEqual([], pendientes(self.raiz))
 
 
 if __name__ == "__main__":
