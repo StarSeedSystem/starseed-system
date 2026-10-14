@@ -4007,7 +4007,7 @@ def repo_es_python(cwd):
     return not os.path.exists(os.path.join(cwd, "tsconfig.json"))
 
 
-def tsc(cwd, log):
+def tsc(cwd, log, tid=None):
     if repo_es_python(cwd):
         # Compilación de los .py cambiados respecto a main (o todos los del diff sin commit).
         rc0, cambiados = sh(
@@ -4024,13 +4024,39 @@ def tsc(cwd, log):
             }
         )
         if not pys:
-            return 0, []
+            return 0, [], "Mac"
         with SEM_PESADO, cerrojo("pesado"):
             rc, out = sh(
                 ["python3", "-m", "py_compile"] + pys, cwd=cwd, timeout=300, log=log
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
-        return rc, errores
+        return rc, errores, "Mac"
+    # Check if we should try remote tsc on A1
+    if (
+        os.getenv("STARSEED_MEDIO") == "mac"
+        and os.path.exists(os.path.join(ROOT, "scripts", "puente", "comprobar_en_a1.py"))
+        and tid is not None
+    ):
+        try:
+            # Try to use oracle_nodo if available
+            # We assume oracle_nodo is available in the global scope; if not, we will get an exception when trying to use it.
+            remoto_inicio = time.time()
+            # Construct the remote command: change to repository root, checkout the task branch, run tsc
+            remote_cmd = f"cd {ROOT} && git checkout ola/{tid} && npx tsc --noEmit --skipLibCheck"
+            # Run via SSH with a timeout of 600 seconds (10 minutes)
+            rc_remoto, out_remoto = oracle_nodo.ssh(remote_cmd, None, timeout=600)
+            remoto_duracion = time.time() - remoto_inicio
+            # Extract errors from the output
+            errores_remoto = [l for l in out_remoto.splitlines() if "error TS" in l]
+            motivo_remoto = tsc_sin_terminar(rc_remoto, out_remoto, errores_remoto)
+            if not motivo_remoto:
+                # Remote tsc completed (either success or failure with error output)
+                return rc_remoto, errores_remoto, "A1"
+            # If motivo_remoto is not None, it means the remote tsc failed due to memory or timeout (no error output) -> fall back to local
+        except Exception:
+            # Any exception during the SSH attempt (oracle_nodo not available, connection failed, etc.) -> fall back to local
+            pass
+    # Fall back to local tsc (same as before)
     env = ENV_TSC
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
@@ -4044,7 +4070,7 @@ def tsc(cwd, log):
         errores = [l for l in out.splitlines() if "error TS" in l]
         motivo = tsc_sin_terminar(rc, out, errores)
         if not motivo:
-            return rc, errores
+            return rc, errores, "Mac"
         if intento == 0:
             # Una segunda vuelta con más montón si fue la memoria, tras dejar respirar a la Mac.
             if "memoria" in motivo:
@@ -4053,7 +4079,7 @@ def tsc(cwd, log):
     return rc, [
         "%s (%s): la puerta no da el visto bueno sin un tsc completo"
         % (TSC_SIN_TERMINAR, motivo)
-    ]
+    ], "Mac"
 
 
 #: (2026-10-04) Un tsc que MUERE no es un tsc limpio. La puerta contaba las líneas «error TS»
@@ -7648,8 +7674,10 @@ def ejecutar(t, intento=1):
     # puerta de cableado (2026-09-16): integrado no es aplicado
     _puerta_cableado(tid, t, wt, log, modelo_ok)
     # puerta tsc + reparación
-    latir(tid, "tsc", modelo=modelo_ok)
-    rc, errs = tsc(wt, log)
+    inicio = time.time()
+    rc, errs, origen = tsc(wt, log, tid)
+    duracion = time.time() - inicio
+    latir(tid, "tsc", modelo=modelo_ok, origen=origen, duracion=duracion)
     errores_antes = len(errs)
     # Un tsc que no terminó no se «repara» escribiendo código: se para con su motivo.
     tsc_roto = bool(errs) and str(errs[0]).startswith(TSC_SIN_TERMINAR)
@@ -7665,13 +7693,17 @@ def ejecutar(t, intento=1):
             timeout=900,
             tid=tid,
         )
-        rc, errs = tsc(wt, log)
+        inicio = time.time()
+        rc, errs, origen = tsc(wt, log, tid)
+        duracion = time.time() - inicio
     paso(
         tid,
         "tsc",
         errores_antes=errores_antes,
         errores_despues=len(errs),
         reparado=bool(errores_antes and not errs),
+        origen=origen,
+        duracion=duracion,
     )
     if errs:
         set_estado(

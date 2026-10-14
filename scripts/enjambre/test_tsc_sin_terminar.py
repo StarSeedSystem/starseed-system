@@ -48,7 +48,8 @@ class PuertaTsc(unittest.TestCase):
                     side_effect=lambda *_args, **_kwargs: contextlib.nullcontext(),
                 ), \
                 mock.patch.object(enjambre.time, "sleep"):
-            return enjambre.tsc("/tmp/wt", None), llamadas
+            rc, errs, origen = enjambre.tsc("/tmp/wt", None, None)
+            return (rc, errs), llamadas
 
     def test_si_muere_por_memoria_reintenta_con_mas_monton(self):
         (rc, errs), llamadas = self._tsc([(134, OOM), (0, "")])
