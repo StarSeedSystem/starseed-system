@@ -204,10 +204,15 @@ describe("Dibujo-adivina", () => {
         await clic(opciones[0]);
         await entregar();
         expect(ana.q.getByText(palabra)).toBeInTheDocument();
-        const letras = palabra.replace(/[^a-záéíóúüñ]/gi, "").length;
-        expect(beto.q.getByRole("img", { name: `La palabra tiene ${letras} letras` })).toBeInTheDocument();
-        // nadie que adivina ve la palabra
-        expect(beto.caja.textContent).not.toContain(palabra);
+         const letras = palabra.replace(/[^a-záéíóúüñ]/gi, "").length;
+         expect(beto.q.getByRole("img", { name: `La palabra tiene ${letras} letras` })).toBeInTheDocument();
+         // nadie que adivina ve la palabra
+         // Check the chat messages explicitly
+         const chatMessages = beto.q.getByRole("list", { name: "Intentos" });
+         // Initially, the chat should show the placeholder
+         expect(chatMessages).toHaveTextContent(/Los intentos aparecerán aquí\./i);
+         // After choosing the word, the chat should still not contain the word
+         expect(chatMessages).not.toHaveTextContent(palabra);
 
         const escribir = async (s: Sala, texto: string) => {
             const entrada = s.q.getByLabelText("Escribe tu intento");
@@ -221,11 +226,12 @@ describe("Dibujo-adivina", () => {
         await waitFor(() => expect(carla.q.getByText("zzzz")).toBeInTheDocument());
         expect(beto.q.getByText("zzzz")).toBeInTheDocument();
 
-        await escribir(beto, palabra);
-        await entregar();
-        await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
-        // la palabra acertada NUNCA se enseña en el chat de los demás
-        expect(carla.caja.textContent).not.toContain(`Beto${palabra}`);
+         await escribir(beto, palabra);
+         await entregar();
+         await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
+         // la palabra acertada NUNCA se enseña en el chat de los demás
+         const chatMessagesCarla = carla.q.getByRole("list", { name: "Intentos" });
+         expect(chatMessagesCarla).not.toHaveTextContent(palabra);
         expect(mesa(ana.c).tablero).toMatchObject({ aciertos: [expect.objectContaining({ seat: 1 })] });
         expect(beto.q.getByLabelText("Escribe tu intento")).toBeDisabled(); // ya acertó
 
