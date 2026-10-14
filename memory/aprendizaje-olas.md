@@ -4387,3 +4387,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1abcb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1abcb conservada
 - `RTIMG1011Gd` — los tipos no compilan: 1 errores tsc (rama ola/RTIMG1011Gd conservada)
 - `MC1012H` — los tipos no compilan: 1 errores tsc (rama ola/MC1012H conservada)
+
+## 2026-10-14 06:27 · mg-oracle-1014-0006
+
+**Lo que se pidió.** Puente OS⇄herramienta aislada: protocolo, token por marco, límites y URL embebible
+
+**Resultado.** 1 de 1 integradas.
