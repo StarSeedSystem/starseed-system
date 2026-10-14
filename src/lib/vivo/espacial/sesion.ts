@@ -559,7 +559,12 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         const lectura = await deps.almacen.leer(filaId);
         if (cerrada) return;
         if (!lectura.fila) {
-            fijar({ fase: "error", error: MENSAJES_ERROR[lectura.error] });
+            if (lectura.error !== undefined) {
+                fijar({ fase: "error", error: MENSAJES_ERROR[lectura.error] });
+            } else {
+                // This should not happen, but fallback to a known error.
+                fijar({ fase: "error", error: MENSAJES_ERROR.red });
+            }
             return;
         }
         const fila = lectura.fila;

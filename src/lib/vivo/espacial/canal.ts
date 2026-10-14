@@ -24,6 +24,35 @@
  * Nunca lanza: sin Supabase o sin red devuelve null / avisa por `onSuscrito(false)`.
  */
 
+/**
+ * Elige el transporte adecuado para la sala y abre el canal correspondiente.
+ * @param sala - La sala para la cual se abre el canal.
+ * @param alcance - La alcanzabilidad actual (internet, servidor privado, malla).
+ * @param deps - Las dependencias de la sesión, que incluyen el almacen y la función abrirCanalEscena.
+ * @returns Una conexión de escena o null si no se puede abrir.
+ */
+export function abrirCanalEscenaElegido(
+    sala: import("@/lib/salas/sala").Sala,
+    alcance: import("@/lib/salas/sala").Alcanzabilidad,
+    deps: {
+        almacen: import("./sesion").AlmacenEscena;
+        abrirCanal: (tema: string, clave: string, filaId: string | null) => ConexionEscena | null;
+        aleatorio?: () => number;
+    }
+): ConexionEscena | null {
+    // TODO: Implementar la lógica de elección de transporte usando elegirTransporte y abrirCanalEscenaP2P
+    // Por ahora, delegamos al canal existente de Supabase.
+    // Necesitamos obtener el tema y la clave de la sala, y el filaId.
+    // Por simplicidad, asumimos que la sala tiene un id y que podemos generar un tema y una clave.
+    // Esto es una implementación provisional y debe ser reemplazada por la lógica real.
+    const tema = `escena3d:${sala.id}`;
+    // En una implementación real, la clave debería ser única por pestaña o por instancia.
+    // Aquí usamos un valor fijo para fines de demostración.
+    const clave = "clave-de-prueba";
+    const filaId = null; // Asumimos que no estamos en una sala de llamada para simplificar.
+    return deps.abrirCanal(tema, clave, filaId);
+}
+
 import { createClient } from "@/utils/supabase/client";
 
 export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado";
