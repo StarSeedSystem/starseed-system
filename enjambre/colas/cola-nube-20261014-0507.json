@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "COL1012C",
+   "titulo": "Latido del nodo: qué tareas lleva a medias y si puede ser contenedor",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis_medio.py",
+    "scripts/puente/test_colmena_latido.py"
+   ],
+   "depende": [],
+   "prompt": "El latido de cada nodo (lo que mide `nodo_metagenesis_medio.py`) debe llevar dos campos nuevos (§3 del contrato): `en_curso`: como mucho 8 entradas `{id, fase, punto}` de las tareas que el orquestador de ESTE medio tiene vivas (léelas de `starseed_memory_root/olas/progreso.json` y de `olas/puntos-control.json` si existe —formato `{id: {rama, sha, t}}`—; sin rutas de disco) y `contenedor`: `{activo, agentes, apto, motivo}` con `apto/agentes/motivo` de `colmena_logica.capacidad_contenedor(gobernador_generico.medir())` y `activo` de `~/.starseed/nodo-metagenesis/contenedor.json` (lo escribe la orden `contenedor`, COL1012F; por defecto activo en la Mac y en el A1, apagado en cualquier otro aparato). Añade también `periodo_s` (el periodo real de latido de ese nodo, para `colmena_logica.silencio_max`). Pruebas con un disco falso (tempfile).\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "revisor_quitadas": [
+    "COL1012Lc"
+   ]
+  },
+  {
+   "id": "COL1012K",
+   "titulo": "Instalador del trabajador para cualquier aparato (Linux, macOS, WSL2)",
+   "archivos": [
+    "scripts/puente/instalar_trabajador.sh",
+    "scripts/puente/test_instalar_trabajador.py"
+   ],
+   "depende": [],
+   "prompt": "Crea scripts/puente/instalar_trabajador.sh (bash, `set -uo pipefail`, portable a bash 3.2 de macOS) con `--emparejar <código>`, `--seco` y `--ayuda`: comprueba git, Node ≥ 20.19, python3 ≥ 3.9 y opencode y, si falta algo, dice el comando EXACTO para instalarlo en ese sistema (brew/apt/dnf, y en Android «pkg install» de Termux) sin instalar nada por su cuenta; clona el repo en ~/starseed-trabajador (pregunta antes si ya existe) y, con `colmena_logica.capacidad_contenedor(gobernador_generico.medir())`, explica cuántos agentes podrá aportar y por qué; `npm ci --include=dev`, crea la llave del nodo (`python3 scripts/puente/nodo_metagenesis.py llave`, que solo enseña la huella) e instala el nodo en modo contenedor (`nodo_metagenesis.py instalar`: launchd en macOS con el python3 de Homebrew, systemd --user en Linux/WSL2). El emparejado con el código queda como paso final que imprime «pendiente: falta la migración de nodos (§8)» si el servidor responde 503. Nunca pide contraseñas ni imprime claves. Pruebas en Python que ejecutan el script con `--seco` y un PATH falso (sin red).\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "revisor_quitadas": [
+    "COL1012Lc"
+   ]
+  }
+ ]
+}
