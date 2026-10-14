@@ -1,0 +1,62 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "FLU1014B",
+   "ola": "Ola 1014T · Traslado de n8n Cloud al motor propio de Flujos (la prueba vence el 2026-10-18)",
+   "titulo": "Flujos · un flujo con varios disparadores escucha TODOS (hoy solo el primero)",
+   "archivos": [
+    "scripts/puente/flujos/disparadores.py",
+    "scripts/puente/flujos/test_disparadores.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-14 en la Mac, pasando los 3 eventos del único flujo de n8n Cloud («StarSeed · Producción (puentes)»: 3 webhooks `starseed-produccion-publicada`, `-pieza-lista` y `-revertida`, cada uno con un Set) por el motor propio en una carpeta temporal. `disparador_de` solo devuelve el PRIMER disparador: los eventos de `-pieza-lista` y `-revertida` se quedan para siempre en `entrada/`. Haz que `pendientes()` recorra TODOS los nodos disparadores de cada flujo (añade `disparadores_de(flujo)` y deja `disparador_de` por compatibilidad) y que cada ítem de entrada lleve `\"_disparador\": <id del nodo>`. El estado de cron, bus y chat pasa a llevarse por flujo y nodo (clave `f\"{flujo.id}:{nodo.id}\"`), aceptando la clave vieja `flujo.id` para el primer disparador sin reentregar eventos. Una pareja (flujo, entrada) por disparador que tenga algo. Pruebas: el flujo de 3 webhooks consume los 3 archivos y cada entrada lleva su `_disparador`; un flujo de un disparador sigue igual; el cursor viejo del bus no reentrega. Contrato: architecture/puente-propio-flujos.md §3 y §5 (léelo antes). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; sin red ni procesos en las pruebas; nunca valores de credenciales, solo nombres de variables; comentarios en español."
+  },
+  {
+   "id": "FLU1014C",
+   "ola": "Ola 1014T · Traslado de n8n Cloud al motor propio de Flujos (la prueba vence el 2026-10-18)",
+   "titulo": "Flujos · el motor ejecuta solo la rama del disparador que llegó",
+   "archivos": [
+    "scripts/puente/flujos/motor.py",
+    "scripts/puente/flujos/test_motor.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-14 en la Mac, pasando los 3 eventos del único flujo de n8n Cloud («StarSeed · Producción (puentes)»: 3 webhooks `starseed-produccion-publicada`, `-pieza-lista` y `-revertida`, cada uno con un Set) por el motor propio en una carpeta temporal. `_continuar` ejecuta TODOS los nodos en orden topológico y cada raíz recibe la entrada: un evento de un webhook dispara también las ramas de los otros (salían 3 resultados, dos con el evento cambiado). Si los ítems de entrada traen `_disparador` (lo pone disparadores.py, tarea FLU1014B), calcula los nodos alcanzables desde ese nodo por `flujo.conexiones` y ejecuta solo esos; los demás quedan en `ejecucion.nodos` con `estado: \"omitido\"`, sin ejecutarse. La salida sale de los terminales de esa rama. Sin `_disparador`, todo como hoy. `reanudar` respeta lo mismo (la entrada guardada lleva el `_disparador`). Pruebas con un registro de ejecutores falsos: flujo con dos webhooks y dos set; entrada con `_disparador` del segundo → solo corre su set y la salida tiene 1 ítem; sin `_disparador` → como antes. Contrato: architecture/puente-propio-flujos.md §3 y §5 (léelo antes). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; sin red ni procesos en las pruebas; nunca valores de credenciales, solo nombres de variables; comentarios en español."
+  },
+  {
+   "id": "FLU1014F",
+   "ola": "Ola 1014T · Traslado de n8n Cloud al motor propio de Flujos (la prueba vence el 2026-10-18)",
+   "titulo": "Producción · el emisor de webhooks también entrega al gancho propio de Flujos",
+   "archivos": [
+    "scripts/puente/produccion_webhooks.py",
+    "scripts/puente/test_produccion_webhooks.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-14: nadie emite hoy los eventos que el flujo de n8n esperaba (en la Mac no hay `N8N_WEBHOOK_URL`, `DIFY_WEBHOOK_URL` ni `PRODUCCION_WEBHOOKS`), y `emitir` manda la MISMA URL para todos los eventos mientras el flujo escucha una ruta por evento. El gancho propio (`POST /api/flujos/gancho/<ruta>` de Genesis, firma `X-StarSeed-Firma` con `PRODUCCION_WEBHOOK_SECRETO`) ya contesta 401 sin firma y 202 firmado. Añade: si existe `FLUJOS_GANCHO_BASE` (p. ej. `http://localhost:9002/api/flujos/gancho`), además se envía a `<base>/<ruta>` con `RUTAS_GANCHO = {\"produccion.publicada\": \"starseed-produccion-publicada\", \"produccion.pieza_lista\": \"starseed-produccion-pieza-lista\", \"produccion.revertida\": \"starseed-produccion-revertida\"}`, firmado igual y con el mismo cuerpo; en el resultado solo el host. Nunca lanza. Pruebas con el `http` inyectable: con base → una URL más con la ruta del evento; sin base → como hoy. Contrato: architecture/puente-propio-flujos.md §3 y §5 (léelo antes). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; sin red ni procesos en las pruebas; nunca valores de credenciales, solo nombres de variables; comentarios en español."
+  },
+  {
+   "id": "FLU1014A",
+   "ola": "Ola 1014T · Traslado de n8n Cloud al motor propio de Flujos (la prueba vence el 2026-10-18)",
+   "titulo": "Flujos · el motor tiene ejecutores: enchufar nodos.py al REGISTRO (hoy está vacío y todo flujo falla)",
+   "archivos": [
+    "scripts/puente/flujos/nodos.py",
+    "scripts/puente/flujos/__init__.py",
+    "scripts/puente/flujos/test_registro.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-14 en la Mac, pasando los 3 eventos del único flujo de n8n Cloud («StarSeed · Producción (puentes)»: 3 webhooks `starseed-produccion-publicada`, `-pieza-lista` y `-revertida`, cada uno con un Set) por el motor propio en una carpeta temporal. `motor.REGISTRO` es `{}` y nadie lo llena: `motor.ejecutar` con el registro por defecto (el que usa `servicio.py`) falla en el primer nodo con «No hay ejecutor registrado para el tipo …». Además la firma no casa: el motor llama `funcion(items, params)` y los ejecutores de `nodos.NODOS` son `f(params, items, ctx)`. Haz: (1) al final de nodos.py, `registrar(registro)` que mete en `registro` un adaptador por cada tipo de `NODOS` con la firma del motor (`lambda items, params: f(params, items, {})`, un ctx nuevo por llamada) y ejecutores de PASO para los disparadores `webhook`, `cron`, `bus` y `chat` (devuelven los ítems tal cual). El `webhook` con `configuracion[\"forma\"] == \"n8n\"` devuelve cada ítem como `{\"body\": <ítem sin claves internas>, \"headers\": {}, \"query\": {}, \"params\": {}}` (claves internas: las que empiezan por «_», `disparador` y `ruta`), que es lo que ve un nodo de n8n detrás de su Webhook. (2) En `__init__.py`, importar nodos y llamar `registrar(REGISTRO)` al cargar el paquete (sin import circular: nodos no importa motor). (3) test_registro.py: el registro trae todos los tipos de NODOS y los 4 disparadores; un flujo webhook→set con `{{ $json.campo }}` termina `completa` con el registro por defecto (carpeta temporal: parchea `motor.RAIZ_FLUJOS`), y con forma n8n `{{ $json.body.campo }}` da el mismo valor. Contrato: architecture/puente-propio-flujos.md §3 y §5 (léelo antes). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; sin red ni procesos en las pruebas; nunca valores de credenciales, solo nombres de variables; comentarios en español."
+  },
+  {
+   "id": "FLU1014D",
+   "ola": "Ola 1014T · Traslado de n8n Cloud al motor propio de Flujos (la prueba vence el 2026-10-18)",
+   "titulo": "Flujos · importador de n8n: quitar el «=» de las expresiones, la nota como descripción y el webhook con forma n8n",
+   "archivos": [
+    "scripts/puente/flujos/importar_n8n.py",
+    "scripts/puente/flujos/test_importar_n8n.py",
+    "scripts/puente/flujos/modelo.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-14 en la Mac, pasando los 3 eventos del único flujo de n8n Cloud («StarSeed · Producción (puentes)»: 3 webhooks `starseed-produccion-publicada`, `-pieza-lista` y `-revertida`, cada uno con un Set) por el motor propio en una carpeta temporal. n8n marca una expresión con un «=» delante (`\"={{ $json.body.sha }}\"`) y `normalizar_expresion` (hoy no hace nada) lo deja pasar: nuestro motor resuelve `{{ }}` y conserva el «=», así que sale `\"=sombra1014\"` en vez de `\"sombra1014\"` y las listas salen como texto `\"=['web', 'mando']\"` (sin el «=», `\"{{ $json.body.medios }}\"` ya conserva el tipo lista). Haz: (1) `normalizar_expresion` quita el PRIMER «=» de un texto que empieza por «=» (un texto sin «=» delante no se toca) y se aplica a todos los parámetros traducidos (también dentro de listas y dicts); (2) `n8n-nodes-base.stickyNote` no se convierte en nodo: su texto va a un campo nuevo opcional `descripcion: str = \"\"` del `Flujo` (modelo.py: se guarda y se carga; los flujos viejos sin él siguen cargando) y el informe lo lista como «nota guardada como descripción», no como «no traducido»; los demás nodos desconocidos siguen como `pendiente` y en el informe; (3) el `webhook` importado lleva `\"forma\": \"n8n\"` en su configuración (el motor entregará `{\"body\": …}` como n8n, tarea FLU1014A); (4) `mapear_set` respeta `includeOtherFields` si viene (o lo contrario de `keepOnlySet`); si no viene ninguno, typeVersion ≥ 3 → no conserva, menor → conserva. Pruebas con un JSON mínimo de n8n escrito en el propio test. Contrato: architecture/puente-propio-flujos.md §3 y §5 (léelo antes). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; sin red ni procesos en las pruebas; nunca valores de credenciales, solo nombres de variables; comentarios en español."
+  }
+ ]
+}
