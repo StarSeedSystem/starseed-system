@@ -34,7 +34,7 @@ function resolverCliente(inyectado?: ClienteSupabase): ClienteSupabase | null {
     try { return createClient(); } catch { return null; }
 }
 
-async function usuarioEnSesion(
+export async function usuarioEnSesion(
     supabase: ClienteSupabase,
 ): Promise<string | null> {
     try {
