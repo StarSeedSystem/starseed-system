@@ -229,7 +229,7 @@ export default function MemoriaPanel({
             placeholder="nuevo-fichero.md"
             className="h-8 text-sm bg-black/30"
           />
-          <Button size="sm" className="w-full gap-1.5" disabled={creating || !newName.trim()} onClick={onCreate}>
+          <Button size="sm" className="w-full gap-1.5 whitespace-normal h-auto" disabled={creating || !newName.trim()} onClick={onCreate}>
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             Crear fichero
           </Button>
@@ -261,7 +261,7 @@ export default function MemoriaPanel({
               <Button
                 size="sm"
                 variant="outline"
-                className="ml-auto h-7 gap-1.5 text-xs"
+                className="ml-auto h-7 gap-1.5 text-xs whitespace-normal h-auto"
                 disabled={saving || !dirty}
                 onClick={() => persist(draft)}
               >
@@ -271,7 +271,7 @@ export default function MemoriaPanel({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 gap-1.5 text-xs text-red-300 hover:text-red-200"
+                className="h-7 gap-1.5 text-xs text-red-300 hover:text-red-200 whitespace-normal h-auto"
                 onClick={() => onDelete(active)}
               >
                 <Trash2 className="w-3.5 h-3.5" /> Eliminar
@@ -398,7 +398,7 @@ function SourceEditor({ file, onChanged }: { file: MemoryFile; onChanged: () => 
           <HardDriveDownload className="w-3.5 h-3.5" />
           Sincronizar automáticamente con esta fuente
         </label>
-        <Button size="sm" className="gap-1.5" disabled={saving} onClick={onSave}>
+        <Button size="sm" className="gap-1.5 whitespace-normal h-auto" disabled={saving} onClick={onSave}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Guardar fuente
         </Button>

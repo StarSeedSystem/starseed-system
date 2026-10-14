@@ -1371,9 +1371,9 @@ function PersonalityEditor({
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    className={cn(selectCls, "flex w-full cursor-pointer items-center justify-between gap-2 border px-2.5")}
+                    className={cn(selectCls, "flex w-full cursor-pointer items-center justify-between gap-2 border px-2.5 whitespace-normal h-auto")}
                   >
-                    <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                    <span className="inline-flex items-center gap-1.5 whitespace-normal break-words">
                       <ProfileIcon name="Languages" className="h-3.5 w-3.5 shrink-0 text-[#7fb8ff]" />
                       {personalityLocale
                         ? (findLocale(personalityLocale)?.label ?? personalityLocale)
@@ -1422,7 +1422,7 @@ function PersonalityEditor({
                               onClick={() => chooseLocale(l.code)}
                               title={l.native}
                               className={cn(
-                                "flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left transition-colors duration-150",
+                                "flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left transition-colors duration-150 whitespace-normal h-auto",
                                 personalityLocale === l.code ? "bg-sky-500/15" : "hover:bg-white/[0.06]",
                               )}
                             >
@@ -1431,7 +1431,7 @@ function PersonalityEditor({
                               ) : (
                                 <span className="h-3.5 w-3.5 shrink-0" />
                               )}
-                              <span className="min-w-0 truncate text-[12px] text-white/85">{l.label}</span>
+                              <span className="text-[12px] text-white/85 whitespace-normal break-words">{l.label}</span>
                             </button>
                           ))}
                         </div>
