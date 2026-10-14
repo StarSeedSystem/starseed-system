@@ -316,36 +316,6 @@ class Puras(unittest.TestCase):
         self.assertEqual(M.ancho_banda_bps("VM.Standard.A1.Flex", 2), 2e9)
         self.assertEqual(M.ancho_banda_bps("VM.Standard.E2.1.Micro", 0.125), 0.48e9)
 
-    def test_sin_nodo_devuelve_none(self):
-        self.assertIsNone(M.nodo_resumen({}))
-        self.assertIsNone(M.nodo_resumen(None))
-
-    def test_nodo_completo(self):
-        r = M.nodo_resumen({
-            "nodo": {"vivo": True, "fase": "guardian", "latido": 1,
-                     "guardian": {"t": 1, "ok": False, "sha": "abcdef1234567", "minutos": 12.5,
-                                  "pasos": [{"paso": "tsc", "ok": True}, {"paso": "vitest", "ok": False}]},
-                     "carga": {"cpu_1h": 40.0, "mem_ahora": 22.0},
-                     "horas": [{"cpu": 30.0}, {"cpu": 10.0}, {"cpu": 25.0}]},
-            "servicios": [{"nombre": "bitnet", "ok": True}, {"nombre": "caddy", "ok": True},
-                          {"nombre": "metageminis", "titulo": "MetaGeminis", "ok": False}]})
-        self.assertEqual(r["servicios_ok"], 2)
-        self.assertEqual(r["servicios_total"], 3)
-        # el caído se nombra por su título cuando lo lleva
-        self.assertEqual(r["servicios_caidos"], ["MetaGeminis"])
-        self.assertFalse(r["guardian"]["ok"])
-        self.assertEqual(r["guardian"]["rojos"], ["vitest"])
-        # el sha se recorta a 8 caracteres
-        self.assertEqual(r["guardian"]["sha"], "abcdef12")
-        self.assertEqual(r["horas_sobre_umbral"], 2)
-        self.assertEqual(r["horas_medidas"], 3)
-        self.assertEqual(r["cpu_1h"], 40.0)
-
-    def test_no_copia_urls(self):
-        r = M.nodo_resumen({"nodo": {"vivo": True, "latido": 1},
-                            "servicios": [{"nombre": "caddy", "ok": True,
-                                           "detalle": "https://bitnet.1-2-3-4.sslip.io"}]})
-        self.assertNotIn("sslip", json.dumps(r))
 
 class NodoResumen(unittest.TestCase):
     def test_sin_nodo_devuelve_none(self):
