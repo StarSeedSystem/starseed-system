@@ -53,7 +53,9 @@ export function aplicarMovimientoReducido(c: PreferenciasConfort): PreferenciasC
  * cada corrección se cuenta en `avisos` (para mostrarla en ajustes, nunca en silencio).
  */
 export function sanearConfort(crudo: unknown, delSistema: { movimientoReducido?: boolean; contrasteAlto?: boolean; reducirTransparencia?: boolean } = {}): { confort: PreferenciasConfort; avisos: string[] } {
+    console.log('sanearConfort called with crudo:', crudo, 'delSistema:', delSistema);
     const r = typeof crudo === "object" && crudo !== null && !Array.isArray(crudo) ? (crudo as Record<string, unknown>) : {};
+    console.log('sanearConfort: r:', r);
     const d = CONFORT_DEFECTO;
     const avisos: string[] = [];
     const c: PreferenciasConfort = {
@@ -72,6 +74,7 @@ export function sanearConfort(crudo: unknown, delSistema: { movimientoReducido?:
         alturaOjos: r.alturaOjos === null || r.alturaOjos === undefined ? null : num(r.alturaOjos, 0.8, 2.1, 1.6),
         textoMinGrados: num(r.textoMinGrados, 0.8, 3, d.textoMinGrados),
     };
+    console.log('sanearConfort: c:', c);
     for (const k of Object.keys(r)) {
         if (!(k in d)) avisos.push(`Se ignoró «${k}»: no es una preferencia de confort.`);
         else if (JSON.stringify((c as unknown as Record<string, unknown>)[k]) !== JSON.stringify(r[k]) && r[k] !== undefined) avisos.push(`«${k}» tenía un valor no válido y se corrigió.`);
