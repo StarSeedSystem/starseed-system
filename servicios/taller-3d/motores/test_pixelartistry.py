@@ -8,6 +8,7 @@ import json
 import unittest
 from pathlib import Path
 from unittest import mock
+from unittest.mock import MagicMock
 
 import pixelartistry as pa
 
@@ -70,6 +71,31 @@ class Disponible(unittest.TestCase):
         self.assertIn("solo Windows 10/11", r["fallo"])
         self.assertIn("blender-voxel", r["fallo"])
 
+    def test_disponible_false_en_linux(self):
+        """On Linux, disponible should return False because it requires Windows."""
+        with mock.patch.object(pa.platform, "system", return_value="Linux"):
+            r = pa.disponible(ComfyFalso())
+        self.assertFalse(r["ok"])
+        self.assertIn("solo Windows 10/11", r["fallo"])
+
+    def test_disponible_true_when_conditions_met(self):
+        """When mocked to Windows, with nvidia-smi and ComfyUI responding, disponible returns True."""
+        # Create a custom Comfy object for testing
+        class MockComfy:
+            def get(self, ruta, timeout=5):
+                if ruta == "/system_stats":
+                    return {"devices": [{"name": "RTX 3080", "vram_total": 10e9, "vram_free": 10e9}]}
+                if ruta == "/object_info":
+                    return {n: {} for n in pa.NODOS_REQUERIDOS}
+                return {}
+        
+        # Mock platform to Windows
+        with mock.patch.object(pa.platform, "system", return_value="Windows"):
+            # Mock nvidia-smi to succeed
+            with mock.patch.object(pa, "_hay_nvidia", return_value=True):
+                r = pa.disponible(MockComfy())
+        self.assertTrue(r["ok"])
+
     def test_windows_sin_nvidia_dice_que_no(self):
         with mock.patch.object(pa.platform, "system", return_value="Windows"), \
              mock.patch.object(pa, "_hay_nvidia", return_value=False):
@@ -110,6 +136,64 @@ class Disponible(unittest.TestCase):
         finally:
             mock.patch.stopall()
 
+    def test_generar_not_available(self):
+        """Cuando el motor no está disponible, generar debería devolver un dict de error."""
+        # Make the motor unavailable by patching disponible to return not available
+        with mock.patch.object(pa, "disponible", return_value={"ok": False, "fallo": "motor no disponible"}):
+            r = pa.remallar_imagen("/fake/path/image.png", 512)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIsInstance(r["procedencia"], list)
+        self.assertIsNotNone(r["fallo"])
+        self.assertIn("motor no disponible", r["fallo"].lower())
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
+    def test_generar_available_simulated(self):
+        """When motor is available (mocked), generar should return a successful simulation."""
+        # Mock the entire available check to return True
+        with mock.patch.object(pa, "disponible", return_value={"ok": True}):
+            # Create a temporary directory for workflow files
+            import tempfile
+            tmp = tempfile.mkdtemp()
+            
+            # Create a minimal workflow JSON file
+            workflow_path = Path(tmp) / "PixelArtistry_01_Image_to_Watertight_Mesh.json"
+            workflow_data = {
+                "1": {"class_type": "LoadImage", "inputs": {"image": "test.png"}},
+                "2": {"class_type": "WTiVo_Sampler", "inputs": {"resolution": 1536, "seed": 7}},
+                "3": {"class_type": "MeshQuadReconstruct", "inputs": {}}
+            }
+            workflow_path.write_text(json.dumps(workflow_data), encoding="utf-8")
+            
+            # Mock ComfyUI responses
+            with mock.patch.object(pa.ClienteComfyUI, 'post') as mock_post, \
+                 mock.patch.object(pa.ClienteComfyUI, 'get') as mock_get:
+                
+                # Mock system_stats response (used in loop)
+                mock_get.return_value = {"devices": [{"name": "RTX 3080", "vram_total": 10e9, "vram_free": 10e9}]}
+                
+                # Mock prompt response
+                mock_post.return_value = {"prompt_id": "p1"}
+                
+                # Mock history response
+                def mock_get_side_effect(ruta, timeout=5):
+                    if "history" in ruta:
+                        return {"p1": {"outputs": {"n1": {"files": [{"filename": "malla.glb", "subfolder": "out"}]}}}}
+                    else:
+                        return {"devices": [{"name": "RTX 3080", "vram_total": 10e9, "vram_free": 10e9}]}
+                
+                mock_get.side_effect = mock_get_side_effect
+                
+                r = pa.remallar_imagen("/fake/path/image.png", 1024, carpeta_workflows=tmp)
+            
+            self.assertTrue(r["ok"])
+            self.assertIsInstance(r["glb"], str)
+            self.assertGreater(len(r["glb"]), 0)
+            self.assertIsInstance(r["procedencia"], list)
+            self.assertIsNone(r["fallo"])
+            self.assertGreaterEqual(r["segundos"], 0.0)
+            self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
 
 class ParchearFlujo(unittest.TestCase):
     def test_cambia_solo_entrada_y_resolucion(self):
