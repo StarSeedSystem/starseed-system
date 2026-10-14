@@ -56,7 +56,7 @@ describe("Directorio propias", () => {
   it("muestra Terminar solo en estación propia", async () => {
     estado.tabla = [base({ id: "m1", owner_id: "u1" }), base({ id: "a1", owner_id: "u2", titulo: "Ajena" })];
     render(<DirectorioEstaciones />);
-    await waitFor(() => expect(screen.getByText("Mía")).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText("Mía").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Terminar").length).toBeGreaterThan(0);
     expect(screen.getByText("Ajena")).toBeTruthy();
   });
@@ -65,11 +65,11 @@ describe("Directorio propias", () => {
     const { terminarEstacion } = await import("@/lib/estaciones/datos");
     estado.tabla = [base({ id: "m1" })];
     render(<DirectorioEstaciones />);
-    await waitFor(() => expect(screen.getByText("Mía")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: /Opciones/ }));
+    await waitFor(() => expect(screen.getAllByText("Mía").length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole("button", { name: /Opciones/ })[0]);
     fireEvent.click(screen.getByText("Terminar"));
     await waitFor(() => expect(terminarEstacion).toHaveBeenCalledWith("m1"));
-    await waitFor(() => expect(screen.queryByText("Mía")).toBeNull());
+    await waitFor(() => expect(screen.queryAllByText("Mía")).toHaveLength(0));
   });
 
   it("si terminar falla muestra aviso y mantiene la tarjeta", async () => {
