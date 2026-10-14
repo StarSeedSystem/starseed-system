@@ -20,7 +20,7 @@ export interface EstadoNeuronaActualizacion {
   manual?: boolean;
 }
 
-export type MotivoAtraso = "fallo" | "offline" | "espera-wifi" | "pospuesta" | "manual" | "sin-dato" | "sin-motivo";
+export type MotivoAtraso = "fallo" | "offline" | "espera-wifi" | "pospuesta" | "manual" | "sin-motivo";
 
 export interface Atraso {
   neuronaId: string;
@@ -46,14 +46,14 @@ function motivoDe(n: EstadoNeuronaActualizacion, tiene: string | null): { motivo
   if (n.pospuestaPor === "espera-wifi") return { motivo: "espera-wifi", porque: TEXTO_POSPUESTA["espera-wifi"] };
   if (n.pospuestaPor) return { motivo: "pospuesta", porque: TEXTO_POSPUESTA[n.pospuestaPor] };
   if (n.manual) return { motivo: "manual", porque: "en manual: espera a que la apliques" };
-  if (!tiene) return { motivo: "sin-dato", porque: "no declara qué versión tiene" };
+  if (!tiene) return { motivo: "sin-motivo", porque: "no declara qué versión tiene" };
   return { motivo: "sin-motivo", porque: "sin motivo conocido" };
 }
 
 /** Una fila por neurona y capa por detrás de `ultima`. Orden estable: nombre y luego capa. */
 export function neuronasAtrasadas(neuronas: readonly EstadoNeuronaActualizacion[], ultima: VersionesPorCapa): Atraso[] {
   const out: Atraso[] = [];
-  for (const n of [...neuronas].sort((a, b) => a.nombre.localeCompare(b.nombre) || a.neuronaId.localeCompare(b.neuronaId))) {
+  for (const n of neuronas) {
     for (const capa of CAPAS_ORDEN) {
       const deberia = ultima[capa];
       if (!deberia) continue;
@@ -71,5 +71,11 @@ export function neuronasAtrasadas(neuronas: readonly EstadoNeuronaActualizacion[
       });
     }
   }
+  out.sort((a, b) => {
+    if (a.nombre !== b.nombre) {
+      return a.nombre.localeCompare(b.nombre);
+    }
+    return CAPAS_ORDEN.indexOf(a.capa) - CAPAS_ORDEN.indexOf(b.capa);
+  });
   return out;
 }
