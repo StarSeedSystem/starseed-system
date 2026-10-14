@@ -29,6 +29,7 @@ vi.mock("@/lib/estaciones/datos", () => ({
   listarEstaciones: async () => estado.tabla,
   ocultasLocales: () => new Set(estado.ocultas),
   ocultarLocal: vi.fn(),
+  usuarioEnSesion: async () => null,
 }));
 vi.mock("@/lib/estaciones/internas", () => ({
   estacionesInternas: async () => estado.internas,

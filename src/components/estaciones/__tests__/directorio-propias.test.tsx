@@ -57,8 +57,9 @@ describe("Directorio propias", () => {
     estado.tabla = [base({ id: "m1", owner_id: "u1" }), base({ id: "a1", owner_id: "u2", titulo: "Ajena" })];
     render(<DirectorioEstaciones />);
     await waitFor(() => expect(screen.getAllByText("Mía").length).toBeGreaterThan(0));
-    expect(screen.getAllByText("Terminar").length).toBeGreaterThan(0);
-    expect(screen.getByText("Ajena")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: /Opciones/ })[0]);
+    expect(screen.getByText("Terminar")).toBeTruthy();
+    expect(screen.getAllByText("Ajena").length).toBeGreaterThan(0);
   });
 
   it("al confirmar terminar, llama terminarEstacion y retira la tarjeta", async () => {
@@ -76,10 +77,10 @@ describe("Directorio propias", () => {
     estado.terminarOk = false;
     estado.tabla = [base({ id: "m1" })];
     render(<DirectorioEstaciones />);
-    await waitFor(() => expect(screen.getByText("Mía")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: /Opciones/ }));
+    await waitFor(() => expect(screen.getAllByText("Mía").length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole("button", { name: /Opciones/ })[0]);
     fireEvent.click(screen.getByText("Terminar"));
     await waitFor(() => expect(window.alert).toHaveBeenCalledWith("No se pudo terminar. Comprueba tu sesión."));
-    expect(screen.getByText("Mía")).toBeTruthy();
+    expect(screen.getAllByText("Mía").length).toBeGreaterThan(0);
   });
 });
