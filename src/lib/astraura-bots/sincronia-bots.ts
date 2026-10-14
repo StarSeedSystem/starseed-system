@@ -18,7 +18,7 @@ function esBotValido(b: unknown): b is BotSync {
   }
   return typeof bt.actualizado === "number" && Number.isFinite(bt.actualizado) && bt.actualizado >= 0;
 }
-interface SupabaseClient { channel: (name: string) => { on: (o: any) => { subscribe: () => void }; }; removeChannel: (ch: any) => void; }
+interface SupabaseClient { channel: (name: string) => { on: (event: string, filter: any, callback: (p: any) => void) => { subscribe: () => void }; }; removeChannel: (ch: any) => void; }
 interface Storage { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void; }
 export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
   const rv = r.filter(esBotValido);
