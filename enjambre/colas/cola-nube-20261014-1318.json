@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "RTCOL1012Bdsbbbbbbb",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido · lo que faltó: src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "prompt": "SEGUIMIENTO de RTCOL1012Bd, que ya está integrada (sha 447110773b52). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido\n\n--- encargo original, como contexto ---\nORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea COL1012B («MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido») se hizo en main por otro camino; su rama nube/a1-20261012-151906-COL1012I queda archivada en `refs/archivo/nube/a1-20261012-151906-COL1012I` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.96)\n\nTU TAREA (RTCOL1012Bc · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n     it(\"muestra el botón de desconectar cuando hay trabajo en curso\", async () => {\n         // Modify the first node to have work in progress\n         const nodoConTrabajo = {\n             ...estado.lectura.estado.nodos[0],\n             enCurso: [\n                 {\n                     id: \"task-1\",\n                     fase: \"escribiendo\",\n                     punto: {\n                         rama: \"main\",\n                         sha: \"abc123\",\n                         t: Date.now() - 5 * 60_000, // 5 minutes ago\n                     },\n                 },\n             ],\n         };\n         estado.lectura = {\n\n## CONTINÚA DESDE LA NUBE (rama `nube/38596609983`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/38596609983:refs/remotes/origin/nube/38596609983\"` y `git cherry-pick --no-commit 1fc77edb73a4`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/metagenesis/__tests__/colmena-botones.test.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "depende_de": [],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/38596609983"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "RTCOL1012Bdsbbbbbbb"
+  ]
+ }
+}
