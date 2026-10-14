@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "origen": "metagenesis",
+   "id": "MGP1014-C715AA-d1",
+   "titulo": "Puerta de publicación en rojo: CI en rojo (parte 1 de 3)",
+   "archivos": [
+    "src/lib/astraura-bots/sincronia-bots.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DE METAGENESIS (2026-10-14 06:20): la autopublicación lleva más de 60 min frenada en 374b4144 por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n    const ant = pp.viejo as BotSync | null;\n    const b = reg ?? ant;\n    if (!b) return;\n    const { dueno } = b;\n    if (!dueno || !e.includes(dueno.id) || ![\\\"grupo\\\", \\\"comunidad\\\", \\\"pagina\\\"].includes(dueno.tipo)) return;\n    c({ t: p.eventType as \\\"INSERT\\\" | \\\"U\\\" | \\\"D\\\", r: reg, a: ant });\n  }).subscribe();\n  return () => s.removeChannel(ch);\n}\nexport function abiertosEnEstaNeurona(): string[] {\n  if (typeof window === \\\"undefined\\\") return [];\n  const r = window.localStorage.getItem(\\\"starseed.as\n2026-10-14T11:17:50.8946281Z \n2026-10-14T11:17:50.8950692Z ##[error]AssertionError: expected '@/utils/supabase/client' to match /^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-me…/|@\\\n\n- Expected: \n/^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-memoria|ui-spec|paquete-sistema)$)/\n\n+ Received: \n\"@/utils/supabase/client\"\n\n ❯ src/lib/astraura-bots/__tests__/pureza.test.ts:27:43\n\n\n2026-10-14T11:17:51.1475232Z ##[error]Process completed with exit code 1.\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `npx vitest run src/lib/astraura-bots/__tests__/pureza.test.ts`.\n\nDIRECCIÓN (2026-10-14): el CULPABLE es `src/lib/astraura-bots/sincronia-bots.ts`, no la guardia. Vive en el núcleo PURO de los bots (pureza.test.ts revisa todos los .ts de esa carpeta) y rompe dos reglas: importa `@/utils/supabase/client` y usa `window.localStorage`. Arréglalo con inyección: que las funciones reciban el cliente de tiempo real y el almacén (`{ getItem, setItem }`) como parámetros con su tipo, sin importar nada de fuera del núcleo, y ajusta `__tests__/sincronia-bots.test.ts` a la firma nueva. NO cambies pureza.test.ts (ni la relajes ni la borres). Comprueba con `npx vitest run src/lib/astraura-bots`.\n\n## PARTE 1 DE 3 (la dirección dividió MGP1014-C715AA: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/astraura-bots/sincronia-bots.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MGP1014-C715AA",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "MGP1014-C715AA-d1"
+  ]
+ }
+}
