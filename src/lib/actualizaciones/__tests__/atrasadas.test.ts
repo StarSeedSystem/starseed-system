@@ -104,6 +104,88 @@ describe("neuronasAtrasadas", () => {
     });
   });
 
+  it("lista vacía de neuronas devuelve vacío", () => {
+    expect(neuronasAtrasadas([], dummyUltima)).toHaveLength(0);
+  });
+
+  it("versión igual a la última no es atraso", () => {
+    const neuron = {
+      neuronaId: "1",
+      nombre: "Exacto",
+      online: true,
+      versiones: { datos: "2026.10.10" },
+    };
+    const result = neuronasAtrasadas([neuron], dummyUltima);
+    expect(result.some((r) => r.capa === "datos")).toBe(false);
+  });
+
+  it("versión mayor a la última no es atraso", () => {
+    const neuron = {
+      neuronaId: "1",
+      nombre: "Adelantada",
+      online: true,
+      versiones: { datos: "2026.10.15" },
+    };
+    const result = neuronasAtrasadas([neuron], dummyUltima);
+    expect(result.some((r) => r.capa === "datos")).toBe(false);
+  });
+
+  it("solo una capa atrasada entre varias presentes", () => {
+    const neuron = {
+      neuronaId: "1",
+      nombre: "Parcial",
+      online: true,
+      versiones: {
+        datos: "2026.10.10",
+        interfaz: "2026.10.05",
+        sw: "2026.10.10",
+      },
+    };
+    const result = neuronasAtrasadas([neuron], dummyUltima);
+    expect(result).toHaveLength(1);
+    expect(result[0].capa).toBe("interfaz");
+    expect(result[0].motivo).toBe("sin-motivo");
+  });
+
+  it("offline sin versión da prioridad a offline, no sin-motivo", () => {
+    const neuron = {
+      neuronaId: "1",
+      nombre: "Offline",
+      online: false,
+      versiones: {},
+    };
+    const result = neuronasAtrasadas([neuron], dummyUltima);
+    expect(result.every((r) => r.motivo === "offline")).toBe(true);
+  });
+
+  it("manual con versión antigua mantiene manual", () => {
+    const neuron = {
+      neuronaId: "1",
+      nombre: "Manual",
+      online: true,
+      versiones: { datos: "2026.10.01" },
+      manual: true,
+    };
+    const result = neuronasAtrasadas([neuron], dummyUltima);
+    const datos = result.find((r) => r.capa === "datos");
+    expect(datos?.motivo).toBe("manual");
+  });
+
+  it("texto de atraso en español con fechas", () => {
+    const neuron = {
+      neuronaId: "1",
+      nombre: "Pixel",
+      online: true,
+      versiones: { interfaz: "2026.10.01" },
+      pospuestaPor: "espera-wifi" as const,
+    };
+    const result = neuronasAtrasadas([neuron], dummyUltima);
+    const atraso = result.find((r) => r.capa === "interfaz");
+    expect(atraso?.texto).toContain("Pixel");
+    expect(atraso?.texto).toContain("interfaz");
+    expect(atraso?.texto).toContain("esperando Wi-Fi");
+  });
+
   it("orden estable por nombre y luego capa", () => {
     const neuronas: EstadoNeuronaActualizacion[] = [
       {
