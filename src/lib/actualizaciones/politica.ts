@@ -13,7 +13,7 @@ export const NOMBRE_TIPO: Record<TipoEntidad, string> = { "perfil-privado":"Perf
 export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
   const perfilBase: PoliticaSistema = { datos:{modo:"automatica-todas"}, interfaz:{modo:"automatica-todas"}, sw:{modo:"automatica-esta"}, servicios:{modo:"manual"}, modelos:{modo:"manual"}, nativa:{modo:"manual"} };
   const paginaBase: PoliticaSistema = { datos:{modo:"automatica-todas"}, interfaz:{modo:"automatica-todas"}, sw:{modo:"automatica-todas"}, servicios:{modo:"manual"}, modelos:{modo:"manual"}, nativa:{modo:"manual"} };
-  const osBase: PoliticaSistema = { datos:{modo:"automatica-todas"}, interfaz:{modo:"automatica-todas"}, sw:{modo:"automatica-todas"}, servicios:{modo:"manual"}, modelos:{modo:"programada",ventana:VENTANA_NOCTURNA}, nativa:{modo:"manual"} };
+  const osBase: PoliticaSistema = { datos:{modo:"automatica-todas"}, interfaz:{modo:"automatica-todas"}, sw:{modo:"automatica-todas"}, servicios:{modo:"manual"}, modelos:{modo:"programada", ventana: {desdeH:VENTANA_NOCTURNA.desdeH, hastaH:VENTANA_NOCTURNA.hastaH}}, nativa:{modo:"manual"} };
   if (tipo === "os") return osBase;
   if (["perfil","perfil-privado","grupo-jerarquico","grupo","grupo-democratico"].includes(tipo)) return perfilBase;
   return ["pagina","pagina-publica","comunidad","estudio","evento"].includes(tipo) ? paginaBase : perfilBase;
