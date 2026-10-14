@@ -85,6 +85,19 @@ describe("malla-directa", () => {
       expect(oidasRecibidas.length).toBeGreaterThan(0);
       expect(oidasRecibidas[0]).toHaveLength(1);
     });
+    it("un faro inválido no llega a cb", () => {
+      const oidasRecibidas: unknown[] = [];
+      const baja = escucharEstacionesDirectas((oidas) => {
+        oidasRecibidas.push(oidas);
+      }, {
+        alRecibir: (canal, cb) => {
+          cb({ cuerpo: { kind: "message", id: "x" } });
+          return () => {};
+        },
+      });
+      baja();
+      expect(oidasRecibidas).toHaveLength(0);
+    });
     it("should call cb with valid faro and ignore invalid when deps provided", () => {
       const cb = vi.fn();
       const mockAlRecibirMensaje = vi.fn().mockImplementation((canal: string, callback: (m: unknown) => void) => {
