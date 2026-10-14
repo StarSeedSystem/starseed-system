@@ -463,6 +463,23 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/red-3d" },
   },
   {
+    // Ola 1010S: Genesis en la Biblioteca instalable (paridad con el dock y el
+    // catálogo de apps). Instalar abre su ruta real; el contenido no se duplica.
+    id: "app-genesis", kind: "app", name: "Genesis",
+    description: "Cambia tu cuenta (perfil, páginas, apariencia, dock, tableros y agentes) con un agente que propone y tú decides; PoliGenesis para tus grupos y MetaGenesis para quien desarrolla el OS.",
+    icon: "Gauge", tags: ["app", "genesis", "cuenta", "agente", "sistema"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true,
+    payload: { route: "/genesis" },
+  },
+  {
+    // Ola 1010S: PoliGenesis — el Genesis de los grupos y páginas que gestionas.
+    id: "app-poligenesis", kind: "app", name: "PoliGenesis",
+    description: "Gestiona tus grupos y páginas con tu rol; en modo democrático cada cambio se vota.",
+    icon: "Users", tags: ["app", "poligenesis", "grupos", "páginas", "gobierno"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true,
+    payload: { route: "/poligenesis" },
+  },
+  {
     id: "widget-panel-dashboard", kind: "widget", name: "Panel de Widgets",
     description: "El dashboard con widgets arrastrables del OS: clima, actividad, cripto-escudo, identidad y más.",
     icon: "LayoutGrid", tags: ["widget", "dashboard", "arrastrable"], version: "1.0.0",
