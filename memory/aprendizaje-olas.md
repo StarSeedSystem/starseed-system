@@ -4387,3 +4387,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1abcb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1abcb conservada
 - `RTIMG1011Gd` — los tipos no compilan: 1 errores tsc (rama ola/RTIMG1011Gd conservada)
 - `MC1012H` — los tipos no compilan: 1 errores tsc (rama ola/MC1012H conservada)
+
+## 2026-10-14 11:47 · mg-oracle-1014-0511
+
+**Lo que se pidió.** Nodo de MetaGenesis: órdenes «desconectar
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (RTS1010-MGR2c, RTS1010-TU-LL2e, RTCOL1012Id). Es 75 % de la ola.
+- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Ae` — no escribió nada
+- `RTS1010-MGR2c` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTS1010-MGR2c conservada)
+- `RTS1010-TU-LL2e` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTS1010-TU-LL2e conservada)
+- `RTCOL1012Id` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTCOL1012Id conservada)
