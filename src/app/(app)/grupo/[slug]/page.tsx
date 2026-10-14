@@ -15,6 +15,7 @@ import { SectionTabs } from "@/components/ui/section-tabs";
 import { GlassCard } from "@/components/ui/glass-card";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
+import { EnlacePoliGenesis } from "@/components/genesis/enlace-poligenesis";
 import { GroupRoster } from "@/components/social/group-roster";
 import { GroupJoinRequests } from "@/components/social/group-join-requests";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
@@ -663,7 +664,8 @@ function GrupoPageContent() {
                                     Personalizar
                                 </Button>
                             )}
-                            <ShareButton title={groupName} accent={accent} />
+                             <ShareButton title={groupName} accent={accent} />
+                             <EnlacePoliGenesis slug={slugStr} entidadId={group?.id} />
                         </div>
                     </div>
                 </div>
