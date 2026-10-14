@@ -194,20 +194,21 @@ export default function MemoriaPanel({
                 return (
                   <li key={f.id}>
                     <button
+                      title={f.name}
                       onClick={() => {
                         setActiveId(f.id);
                         setDraft(f.content);
                         setDirty(false);
                       }}
                       className={cn(
-                        "w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors",
+                        "w-full flex items-start gap-2 rounded-lg px-2 py-1.5 text-left transition-colors whitespace-normal",
                         isActive
                           ? "bg-cyan-500/15 border border-cyan-500/30"
                           : "hover:bg-white/5 border border-transparent",
                       )}
                     >
                       <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-cyan-300" : "text-white/45")} />
-                      <span className="truncate text-sm text-white/80">{f.name}</span>
+                      <span className="text-sm text-white/80 whitespace-normal break-words">{f.name}</span>
                       <span className="ml-auto text-[11px]" title={src?.label}>
                         {src?.icon ?? "✨"}
                       </span>
