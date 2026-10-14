@@ -72,7 +72,10 @@ export function MiGenesis() {
                 sugerencias={SUGERENCIAS}
                 atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
             />
-            <SeccionBotsGenesis />
+            <section id="bots" aria-label="Mis bots">
+              <h2 className="text-base font-semibold">Mis bots</h2>
+              <SeccionBotsGenesis />
+            </section>
         </section>
     );
 }

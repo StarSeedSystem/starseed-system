@@ -19,6 +19,8 @@ import {
     BookUser,
     // 2026-09-28: apps en vivo.
     FileText, Table2, LayoutDashboard, Gamepad2, AppWindow, Box, Glasses,
+    // 2026-10-11: Bots de Astraura (BOT1011Zf).
+    Bot,
     // Ola 1010E: Estaciones (transmisiones en directo).
     Cast,
 } from "lucide-react";
@@ -495,6 +497,18 @@ export const APP_CATALOG: StarseedApp[] = [
         status: "native",
         open: { primary: "route", allowed: ["route"], route: "/galeria" },
     },
+    // BOT1011Zf: Bots de Astraura.
+    {
+        id: "bots-astral",
+        name: "Bots de Astraura",
+        short: "Bots",
+        description: "La orbe es el bot: bots personales, sincronizados y de grupo con sentidos, permisos y computadora en la nube.",
+        icon: Bot,
+        accent: "#A78BFA",
+        category: "sistema",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/genesis#bots" },
+    },
     {
         id: "immersive",
         name: "Espacio Inmersivo",
@@ -521,7 +535,7 @@ export function getApp(id: string): StarseedApp | undefined {
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio"],
+    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-astral"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };

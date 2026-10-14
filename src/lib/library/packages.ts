@@ -1704,6 +1704,24 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "n8n", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { externalUrl: "https://github.com/n8n-io/n8n", categoria: "produccion", estado: "activo", licencia: "Licencia de uso sostenible", note: "Webhooks firmados HMAC hacia medios sin conector (§9). Requiere instancia fuera del Mac; apagado hasta entonces." },
   },
+  /* ── OpenBot (CopilotKit) · referencia de patrones y protocolo AG-UI ── */
+  {
+    id: "repo-openbot", kind: "repo", name: "OpenBot (CopilotKit)",
+    description:
+      "Referencia de patrones y protocolo AG-UI (MIT). No se instala: exige CopilotKit Intelligence con licencia y lleva telemetría por defecto; su computadora por bot puede vivir en el A1 con el visto bueno de Alex. Plantilla de agentes autoalojada; cada bot es un coworker con canal, computadora y herramientas concedidas.",
+    icon: "Bot", tags: ["referencia", "patrones", "ag-ui", "copilotkit", "mit"], version: "0.1.2",
+    author: "CopilotKit", sourceRepoId: "starseed-ia-tools", free: true, comingSoon: true,
+    payload: { externalUrl: "https://github.com/CopilotKit/openbot", githubRepo: "CopilotKit/openbot" },
+  },
+  /* ── OpenDots (CopilotKit) · referencia de patrones y protocolo AG-UI ── */
+  {
+    id: "repo-opendots", kind: "repo", name: "OpenDots (CopilotKit)",
+    description:
+      "Referencia de patrones y protocolo AG-UI (MIT). No se instala: exige CopilotKit Intelligence con licencia y lleva telemetría por defecto; su computadora por bot puede vivir en el A1 con el visto bueno de Alex. Plantilla de agentes personales siempre encendidos con texto, llamadas y Slack.",
+    icon: "Bot", tags: ["referencia", "patrones", "ag-ui", "copilotkit", "mit"], version: "0.1.0",
+    author: "CopilotKit", sourceRepoId: "starseed-ia-tools", free: true, comingSoon: true,
+    payload: { externalUrl: "https://github.com/CopilotKit/OpenDots", githubRepo: "CopilotKit/OpenDots" },
+  },
   /* ── LangServe · publicar cadenas como API REST (archivado) ── */
   {
     id: "iatool-langserve", kind: "repo", name: "LangServe (referencia)",
