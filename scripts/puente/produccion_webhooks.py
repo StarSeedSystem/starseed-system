@@ -33,6 +33,13 @@ EVENTOS_VALIDOS = {
     "produccion.pieza_lista",
 }
 
+# Gancho propio de Flujos de Genesis (§3): cada evento tiene su ruta en el gancho.
+RUTAS_GANCHO = {
+    "produccion.publicada": "starseed-produccion-publicada",
+    "produccion.pieza_lista": "starseed-produccion-pieza-lista",
+    "produccion.revertida": "starseed-produccion-revertida",
+}
+
 
 def firmar(cuerpo, secreto):
     """HMAC-SHA256 del cuerpo (bytes) con el secreto (str). Devuelve el hexdigest."""
@@ -146,6 +153,12 @@ def emitir(evento, datos=None, entorno=None, http=None):
             "motivo": "sin PRODUCCION_WEBHOOK_SECRETO: webhooks apagados",
         }
     urls = _urls_configuradas(entorno)
+    # El gancho propio de Flujos: además de las URL externas, se entrega a
+    # `<FLUJOS_GANCHO_BASE>/<ruta del evento>`, con el mismo cuerpo y la misma firma.
+    base = (entorno.get("FLUJOS_GANCHO_BASE") or "").strip().rstrip("/")
+    ruta = RUTAS_GANCHO.get(evento, "")
+    if base and ruta:
+        urls.append("%s/%s" % (base, ruta))
     if not urls:
         return {
             "evento": evento,

@@ -167,6 +167,74 @@ class TestEmitir(unittest.TestCase):
         self.assertEqual(pw.main(["webhooks", "ev", "{mal json"]), 2)
 
 
+class TestGanchoFlujos(unittest.TestCase):
+    """Entrega adicional al gancho propio de Flujos cuando hay FLUJOS_GANCHO_BASE."""
+
+    def test_con_base_se_envia_tambien_al_gancho(self):
+        cliente = ClienteFalso(status=202)
+        env = entorno(FLUJOS_GANCHO_BASE="http://localhost:9002/api/flujos/gancho/")
+        r = pw.emitir("produccion.publicada", {"sha": "abc"}, entorno=env, http=cliente)
+        self.assertTrue(r["enviado"])
+        self.assertEqual(len(r["urls"]), 3)
+        ultimo = r["urls"][-1]
+        self.assertEqual(ultimo["host"], "localhost:9002")
+        self.assertTrue(ultimo["enviado"])
+        req = cliente.llamadas[-1]["req"]
+        self.assertTrue(
+            req.full_url.endswith("/api/flujos/gancho/starseed-produccion-publicada")
+        )
+        cab = req.get_header("X-starseed-firma")
+        self.assertTrue(pw.verificar_firma(req.data, cab, SECRETO))
+        self.assertEqual(json.loads(req.data)["evento"], "produccion.publicada")
+
+    def test_rutas_gancho_de_cada_evento(self):
+        esperadas = {
+            "produccion.publicada": "starseed-produccion-publicada",
+            "produccion.pieza_lista": "starseed-produccion-pieza-lista",
+            "produccion.revertida": "starseed-produccion-revertida",
+        }
+        for evento, ruta in esperadas.items():
+            cliente = ClienteFalso()
+            env = entorno(FLUJOS_GANCHO_BASE="http://localhost:9002/api/flujos/gancho")
+            r = pw.emitir(evento, {}, entorno=env, http=cliente)
+            self.assertTrue(cliente.llamadas[-1]["req"].full_url.endswith("/" + ruta))
+
+    def test_sin_base_como_hoy(self):
+        cliente = ClienteFalso(status=200)
+        r = pw.emitir("produccion.publicada", {}, entorno=entorno(), http=cliente)
+        self.assertEqual(len(r["urls"]), 2)
+        for llamada in cliente.llamadas:
+            self.assertNotIn("gancho", llamada["req"].full_url)
+
+    def test_evento_sin_ruta_no_añade_gancho(self):
+        cliente = ClienteFalso()
+        env = entorno(FLUJOS_GANCHO_BASE="http://localhost:9002/api/flujos/gancho")
+        r = pw.emitir("produccion.otra", {}, entorno=env, http=cliente)
+        self.assertEqual(len(r["urls"]), 2)
+        self.assertEqual(len(cliente.llamadas), 2)
+
+    def test_solo_base_sin_urls_externas_tambien_emite(self):
+        cliente = ClienteFalso()
+        env = {
+            "PRODUCCION_WEBHOOK_SECRETO": SECRETO,
+            "FLUJOS_GANCHO_BASE": "http://localhost:9002/api/flujos/gancho",
+        }
+        r = pw.emitir("produccion.revertida", {}, entorno=env, http=cliente)
+        self.assertTrue(r["enviado"])
+        self.assertEqual(len(r["urls"]), 1)
+        self.assertEqual(r["urls"][0]["host"], "localhost:9002")
+
+    def test_gancho_caido_no_lanza(self):
+        cliente = ClienteFalso(fallos=[OSError("caído"), OSError("caído")])
+        env = {
+            "PRODUCCION_WEBHOOK_SECRETO": SECRETO,
+            "FLUJOS_GANCHO_BASE": "http://localhost:9002/api/flujos/gancho",
+        }
+        r = pw.emitir("produccion.revertida", {}, entorno=env, http=cliente)
+        self.assertFalse(r["enviado"])
+        self.assertEqual(r["urls"][0]["error"], "OSError")
+
+
 if __name__ == "__main__":
     unittest.main()
 
