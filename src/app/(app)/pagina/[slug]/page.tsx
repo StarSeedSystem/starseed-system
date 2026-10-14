@@ -14,6 +14,8 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { GlassCard } from "@/components/ui/glass-card";
 import { EntityHeader } from "@/components/social/entity-header";
+// (Ola 1010) Enlace a PoliGenesis para quien gestiona esta página.
+import { EnlacePoliGenesis } from "@/components/genesis/enlace-poligenesis";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
 import { GroupRoster } from "@/components/social/group-roster";
@@ -616,6 +618,11 @@ function PaginaPageContent() {
                 onCustomize={() => setLayoutEditorOpen(true)}
                 followState={followState}
             />
+
+            {/* (Ola 1010) Acceso a PoliGenesis, junto a las acciones de la cabecera. */}
+            <div className="flex justify-end">
+                <EnlacePoliGenesis slug={slugStr} entidadId={page.id} />
+            </div>
 
             <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-3">
                 <div className={`min-w-0 ${activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}`}>
