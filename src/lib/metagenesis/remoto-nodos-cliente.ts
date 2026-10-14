@@ -31,19 +31,24 @@ export type EnvioOrden = { ok: true; clave: string; modo: "bus" | "tablas" } | {
 /** Tipos del bus que se leen en cada vuelta (la foto va aparte: es la única grande). */
 const TIPOS_LIGEROS = "(mg_latido,mg_lider,mg_baja,mg_orden,mg_orden_hecha,mg_decision)";
 const VENTANA_MS = 2 * 3600_000;
+/** Cada cuánto se vuelve a decidir de dónde se lee: la fuente que latía al arrancar puede callarse. */
+const REELEGIR_MS = 5 * 60_000;
 
 interface Cache {
     modo: "bus" | "tablas" | null;
+    /** Momento de la última elección de `modo`; pasados `REELEGIR_MS` se decide otra vez. */
+    elegidoEn: number;
     filas: Map<number, FilaBus>;
     ultimoId: number;
     foto: FilaBus | null;
 }
 
-const cache: Cache = { modo: null, filas: new Map(), ultimoId: 0, foto: null };
+const cache: Cache = { modo: null, elegidoEn: 0, filas: new Map(), ultimoId: 0, foto: null };
 
 /** Solo para las pruebas. */
 export function _reiniciarCache(): void {
     cache.modo = null;
+    cache.elegidoEn = 0;
     cache.filas.clear();
     cache.ultimoId = 0;
     cache.foto = null;
@@ -101,20 +106,26 @@ async function leerBus(ahora: number): Promise<LecturaAutonoma> {
 /** El estado de MetaGenesis tal como lo publican sus nodos. */
 export async function leerEstadoAutonomo(ahora = Date.now()): Promise<LecturaAutonoma> {
     try {
-        if (cache.modo !== "bus") {
-            const t = await leerTablas(ahora);
-            if (t && !t.ok) return t;
-            if (t?.ok && cache.modo === "tablas") return t;
-            if (t?.ok) {
-                // Primera lectura: tablas solo si alguien late en ellas; los nodos que van por la
-                // puerta de datos del A1 laten en el bus (`elegirFuente`).
-                const b = await leerBus(ahora);
-                cache.modo = elegirFuente(t.estado, b.ok ? b.estado : null);
-                return cache.modo === "tablas" ? t : b;
-            }
+        // Dentro de los 5 min tras la última elección: UNA sola lectura de la fuente elegida,
+        // para no duplicar peticiones por sondeo (2026-10-14).
+        if (cache.modo !== null && ahora - cache.elegidoEn < REELEGIR_MS) {
+            if (cache.modo === "bus") return await leerBus(ahora);
+            const rapida = await leerTablas(ahora);
+            if (rapida && !rapida.ok) return rapida;
+            if (rapida?.ok) return rapida;
+            // Las tablas dejaron de existir: al bus, como antes.
             cache.modo = "bus";
+            cache.elegidoEn = ahora;
+            return await leerBus(ahora);
         }
-        return await leerBus(ahora);
+        // Primera lectura o pasados los 5 min: se leen las DOS y manda `elegirFuente` (la de
+        // más nodos vivos; con un vivo basta para quedarse pillado en la fuente equivocada).
+        const t = await leerTablas(ahora);
+        if (t && !t.ok) return t;
+        const b = await leerBus(ahora);
+        cache.modo = t ? elegirFuente(t.estado, b.ok ? b.estado : null) : "bus";
+        cache.elegidoEn = ahora;
+        return cache.modo === "tablas" && t ? t : b;
     } catch (e) {
         return { ok: false, motivo: e instanceof Error ? e.message : "sin red" };
     }

@@ -151,7 +151,7 @@ describe("resumen de las tablas (modo tablas)", () => {
     });
 });
 
-describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
+describe("elegirFuente: manda la fuente con MÁS nodos vivos (2026-10-14)", () => {
     const estado = (vivos: boolean[], modo: "bus" | "tablas") => ({
         modo, lider: null, termino: 0, autonomia: null, medidores: {}, decisiones: [], ordenes: [],
         fotoHaceMs: null, liderSeco: false,
@@ -161,11 +161,17 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
         })),
     });
 
+    it("bus con 2 vivos y tablas con 1 → bus", () => {
+        expect(elegirFuente(estado([true], "tablas"), estado([true, true], "bus"))).toBe("bus");
+    });
+    it("tablas con 2 vivos y bus con 1 → tablas", () => {
+        expect(elegirFuente(estado([true, true], "tablas"), estado([true], "bus"))).toBe("tablas");
+    });
+    it("a igualdad de vivos (1 y 1) → tablas", () => {
+        expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
+    });
     it("tablas sin latidos y bus con nodos vivos → bus", () => {
         expect(elegirFuente(estado([false, false], "tablas"), estado([true, true], "bus"))).toBe("bus");
-    });
-    it("alguien vivo en las tablas → tablas", () => {
-        expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
     });
     it("nadie vivo en ninguna → tablas si existen; si no, bus", () => {
         expect(elegirFuente(estado([false], "tablas"), estado([false], "bus"))).toBe("tablas");
