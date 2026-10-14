@@ -441,6 +441,11 @@ def _avisar(texto):
 
 # ── instalar ──
 
+#: Módulos de scripts/puente que el nodo de MetaGenesis importa al arrancar (además de los
+#: `nodo_metagenesis*`). La prueba `ModulosDelNodo` falla si uno nuevo no está aquí.
+MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py")
+
+
 def _paquete(destino):
     """Arma la carpeta que viaja al A1. Devuelve la lista de lo incluido (rutas relativas)."""
     incluido = []
@@ -482,7 +487,9 @@ def _paquete(destino):
             if a.startswith("nodo_metagenesis") and a.endswith(".py") and not a.startswith("test_"):
                 poner(os.path.join(carpeta, a), os.path.join("metagenesis", a))
             # (PDA1011) El cliente de la puerta de datos viaja con el nodo: arriendo por la puerta.
-            if a == "puerta_datos_cliente.py":
+            # (2026-10-14) Y lo que el nodo importa al ARRANCAR: sin `colmena_logica.py` (COL1012) el
+            # nodo del A1 moría con ModuleNotFoundError nada más reinstalarlo.
+            if a in MODULOS_DEL_NODO:
                 poner(os.path.join(carpeta, a), os.path.join("metagenesis", a))
     return incluido
 

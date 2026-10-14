@@ -244,5 +244,25 @@ class MedidorEnElCiclo(unittest.TestCase):
         self.assertIn("error", N.medir_oracle(Roto))
 
 
+
+class ModulosDelNodo(unittest.TestCase):
+    """(2026-10-14) Reinstalar el nodo del A1 lo tumbó: importaba `colmena_logica` al arrancar y
+    no viajaba en el paquete. Todo import de nivel superior de los nodo_metagenesis* que no sea de
+    la biblioteca estándar tiene que viajar con ellos."""
+
+    def test_lo_que_el_nodo_importa_al_arrancar_viaja_con_el(self):
+        import re
+        dir_ = os.path.dirname(os.path.abspath(__file__))
+        propios = {f[:-3] for f in os.listdir(dir_) if f.endswith(".py")}
+        viajan = {f[:-3] for f in os.listdir(dir_) if f.startswith("nodo_metagenesis") and f.endswith(".py")
+                  and not f.startswith("test_")} | {m[:-3] for m in N.MODULOS_DEL_NODO}
+        for nombre in sorted(viajan):
+            with open(os.path.join(dir_, nombre + ".py"), encoding="utf-8") as f:
+                for linea in f:
+                    m = re.match(r"(?:import|from) ([A-Za-z_][A-Za-z0-9_]*)", linea)  # solo nivel superior
+                    if m and m.group(1) in propios:
+                        self.assertIn(m.group(1), viajan, "%s importa %s al arrancar" % (nombre, m.group(1)))
+
+
 if __name__ == "__main__":
     unittest.main()
