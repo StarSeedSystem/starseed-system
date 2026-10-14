@@ -27,8 +27,9 @@ class Conexion:
 class Flujo:
     id: str
     nombre: str
-    nodos: list[Nodo]
+    nodos: list[Nodo] = field(default_factory=list)
     conexiones: list[Conexion] = field(default_factory=list)
+    descripcion: str = ""
     flujo_error: str | None = None
 
     def __post_init__(self) -> None:
