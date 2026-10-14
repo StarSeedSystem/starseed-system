@@ -4344,6 +4344,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
 - `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
 
+## 2026-10-13 02:16 · mg-oracle-1012-1954
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 1 de 1 integradas.
+
 ## 2026-10-13 15:06 · mg-oracle-1013-0708
 
 **Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
