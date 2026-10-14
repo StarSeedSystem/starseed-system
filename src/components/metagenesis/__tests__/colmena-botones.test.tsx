@@ -21,4 +21,29 @@ describe("colmena-botones", () => {
         expect(b.desconectar.explica).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
     });
+
+    it("con trabajo en curso y contenedor activo, ambos botones requieren confirmación", () => {
+        const b = botonesNeurona({ 
+            nodo: "mac-a1b2c3", 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 1, 
+            contenedor: { activo: true, agentes: 2, apto: true, motivo: "" } 
+        });
+        // Desconectar button: enabled, requires confirmation because of work in course
+        expect(b.desconectar).toMatchObject({ 
+            visible: true, 
+            habilitado: true, 
+            etiqueta: "Desconectar", 
+            confirmar: true 
+        });
+        expect(b.desconectar.explica).toContain("1 agente");
+        // Contenedor button: enabled to stop being a container, and requires confirmation because of work in course
+        expect(b.contenedor).toMatchObject({ 
+            visible: true, 
+            habilitado: true, 
+            etiqueta: "Dejar de usar como contenedor", 
+            confirmar: true 
+        });
+    });
 });
