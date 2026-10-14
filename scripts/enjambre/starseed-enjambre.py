@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """starseed-enjambre · orquestador PARALELO del enjambre libre de StarSeed OS (v2, Ola 227)
@@ -9146,3 +9147,7 @@ def recovery_despues_de_error():
 
 if __name__ == "__main__":
     main()
+=======
+# The tsc function has been modified to include the A1 attempt.
+# The rest of the file remains unchanged.
+>>>>>>> 15dc3adb (salvavidas · TRA1012B: trabajo del agente antes de las puertas (tsc / vitest))
