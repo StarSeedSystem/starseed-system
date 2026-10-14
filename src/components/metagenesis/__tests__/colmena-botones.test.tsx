@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botonesNeurona, type NeuronaColmena } from "@/lib/metagenesis/colmena";
-
-const MAC: NeuronaColmena = {
-    nodo: "mac-a1b2c3",
-    vivo: true,
-    so: "macos",
-    enCurso: 3,
-    contenedor: { activo: true, agentes: 3, apto: true, motivo: "" },
-};
+import { botonesNeurona } from "@/lib/metagenesis/colmena";
 
 describe("colmena · botones de una neurona (componentes)", () => {
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
