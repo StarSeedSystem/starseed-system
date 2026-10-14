@@ -4387,3 +4387,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1abcb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1abcb conservada
 - `RTIMG1011Gd` — los tipos no compilan: 1 errores tsc (rama ola/RTIMG1011Gd conservada)
 - `MC1012H` — los tipos no compilan: 1 errores tsc (rama ola/MC1012H conservada)
+
+## 2026-10-14 05:01 · mg-oracle-1013-2211
+
+**Lo que se pidió.** Cierre de mallas por vóxeles de Blender sin ventana, con rehorneado de textura (CPU, vale en la A1)
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTWT1011B, RTCOL1012Ae, RTAV1011Ld). Es 75 % de la ola.
+- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTWT1011B` — otra cosa: sin decisión en 0 h; rama ola/RTWT1011B conservada
+- `RTS1010-EV-ORACLE-1a` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTS1010-EV-ORACLE-1a conservada)
+- `RTCOL1012Ae` — otra cosa: red caída: $ opencode run --model openrouter/thinkingmachines/inkling:free · 2026-10-14 04:32:43 [0m > build · thinkingmachines/inkling:fre
+- `RTAV1011Ld` — otra cosa: sin decisión en 0 h; rama ola/RTAV1011Ld conservada
