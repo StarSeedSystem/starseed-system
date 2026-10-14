@@ -177,9 +177,7 @@ la cuenta con 24 GB. Corre con su `~/.starseed/env` propio, que Alex pone con
   «Desplegar» (simulación y, con confirmación, aplicar).
 - **Medios:** `medios_disponibles.py` y `contenedores_nube.py` dejan de decir «descartado»: Oracle
   aparece como `requiere_alex` sin vincular, `usable` vinculada sin máquina y `listo` con la
-  máquina y el orquestador vivos, con la capacidad real (2 OCPU · 12 GB).
-
-## 10. Lo que NUNCA
+  máquina y el orquestador vivos, con la capacidad real (2 OCPU · 12 GB).\n- **Consumo y créditos (OC1010):** medidor real de Oracle (gasto y previsión frente al presupuesto, que es de 1 en la moneda de la cuenta, MXN; crédito de la prueba de 6.150 MXN hasta el 2026-11-05; A1, disco, Object Storage y salida frente a sus límites gratis; riesgo de reclamación por inactividad). Lo mide scripts/puente/medidor_oracle.py cada 30 min por el recolector de créditos. Contrato: architecture/oracle-consumo.md.\n\n## 10. Lo que NUNCA
 
 - Ningún secreto, OCID ni llave en el repo, memorias, registros o chat.
 - Nada público sin autenticación: Astraura con clave, n8n con usuario, SearXNG con límite de

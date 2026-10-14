@@ -1,13 +1,13 @@
 # 💠 Orquestación multiagente económica — regla permanente (Adenda 219 · 2026-09-02)
 
 > **Para cualquier modelo que trabaje en StarSeed, desde cualquier medio** (Claude Code en
-> el Mac, Cowork/claude.ai, Hermes, Gemini, Codex, OpenCode, Antigravity, el propio OS):
-> **ningún modelo, proveedor ni sesión debe agotar sus créditos.** Las tareas se
-> **ramifican** por coste e inteligencia (lo mecánico a modelos gratis/baratos, lo difícil
-> a modelos capaces), el progreso se **autoenruta** a otros modelos y sesiones para que la
-> tarea continúe sola, y cada ola termina con su **punto de relevo** escrito.
+el Mac, Cowork/claude.ai, Hermes, Gemini, Codex, OpenCode, Antigravity, el propio OS):
+**ningún modelo, proveedor ni sesión debe agotar sus créditos.** Las tareas se
+**ramifican** por coste e inteligencia (lo mecánico a modelos gratis/baratos, lo difícil
+a modelos capaces), el progreso se **autoenruta** a otros modelos y sesiones para que la
+tarea continúe sola, y cada ola termina con su **punto de relevo** escrito.
 
-## 0. Cómo se opera Genesis — vinculado a cada sesión (regla permanente · 2026-09-12)
+## 0. Cómo se opera Genesis — vinculado a cada sesión (regla permanente · 2026-09-02)
 
 **Abrir Genesis (2026-09-20):** doble clic en `~/Desktop/Genesis.command` (fuente `scripts/puente/Genesis.command`): revive lo caído por launchd, compila si falta el build (con turno) y abre `http://localhost:9002/genesis`. El visor viejo de :8899 (`Orquestacion-StarSeed.command`) está retirado en `docs/legado/`.
 
@@ -21,7 +21,7 @@ Todo lo que dice cualquier agente o modelo va al canal común `starseed_memory_r
 **Quién vigila qué, y con qué modelo — la pirámide de coste:**
 
 | capa | quién | modelo / coste | cada | qué hace |
-| --- | --- | --- | --- | --- |
+|---|---|---|---|---|
 | 0 · trabajo | el enjambre (N agentes, UN orquestador) | flota gratuita (§5): llm7, NIM, Groq, OpenRouter, Apinex… | continuo | escribe las olas, ≤3 archivos / ≤120 líneas por tarea |
 | 1 · directores 24/7 | `vigilante` · `director` · `guardia` · `eco` · `ecoides` · `telegram` (launchd) | **cero créditos**: Python puro | 90 s / 180 s | relanza el enjambre si hay trabajo real, **reconcilia `progreso.json` con git**, aprueba lo revisado, congela BitNet, replica el canal a los IDE |
 | 2 · dirección | Astra (Codex/ChatGPT) como director principal | cupo de ChatGPT | cuando hace falta | diseña olas, decide dependencias, verifica en localhost |
@@ -34,7 +34,7 @@ UNA vez con otro proveedor lo que quedó `sin_cambios` (p316H) y, si sigue sin s
 peldaño** (p316J + p316K):
 
 | peldaño | quién escribe | cuándo | tope |
-| --- | --- | --- | --- |
+|---|---|---|---|
 | 0 | flota gratuita (§5), 2 intentos con proveedores distintos | siempre primero | — |
 | 1 | **Claude más barato** (el `haiku` más reciente del catálogo vivo de Anthropic) | tras 2 intentos gratis fallidos | 20 tareas/día |
 | 2 | **Claude medio** (`sonnet` más reciente) | solo si la tarea es compleja (≥3 archivos, `dificultad: alta`, o revisión bloqueante de diseño) y haiku falló | 5 tareas/día |
@@ -78,7 +78,7 @@ orquestador (regla rota) con Ollama 7B (no cabe en 8 GB junto al enjambre); lo q
   enjambre parado y voz/BitNet descargados** (`launchctl unload` de `com.starseed.astraura-voice` y
   `com.starseed.astraura`, y se recargan al terminar), con `NODE_OPTIONS=--max-old-space-size=2560`.
   El guardia congela BitNet (y, cuando entre la tarea p316F, también la voz) mientras el enjambre escribe.
-  **Nunca un `next dev` permanente**: Genesis es `next start` sobre el build.
+- **Nunca un `next dev` permanente**: Genesis es `next start` sobre el build.
 - Disco: nunca por debajo de **5 GB libres** (con 1 GB SQLite se corrompió y Hermes perdió sus chats).
   Lo regenerable (cachés de apps, `node_modules` de worktrees, builds viejos, `npm cache`) se borra sin
   preguntar; lo pesado que haya que conservar (modelos, exportes, vídeos) va al **Google Drive
@@ -167,7 +167,7 @@ repositorio).
 | **Google Gemini** | `generativelanguage.googleapis.com` | `GEMINI_API_KEY` | `flash-lite` | ~15 req/min | última reserva (se deja al final para no gastar en Google) |
 | **TokenRouter** | `https://api.tokenrouter.io/v1` | `TOKENROUTER_API_KEY` | `z-ai/glm-5.3-free`, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | **PENDIENTE**: su API exige una clave de INFERENCIA que empieza por `tr_`; los tokens `sk-` del panel (de gestión) devuelven 401 «Missing or malformed API key» | — |
 | **Nous Portal** | — | — | — | cuota del plan | orquestación y verificación |
-| **xKiro** | `https://api.xkiro.com/v1` | `XKIRO_API_KEY` | 40 gratuitos con tool-calling (`qwen3-coder-plus`, `minimax-m3`, `devstral-medium`…) | 5M tokens/día; cuota diaria en los `:free` | **ESCRITOR** (opencode edita de verdad con ellos) y revisor primero |
+| **xKiro** | `https://api.xkiro.com/v1` | `XKIRO_API_KEY` | 40 gratuitos con tool-calling (`qwen3-coder-plus`, `minimax-m3`, `devstral-medium`…) | 5M tokens/día; cuota diaria en the `:free` | **ESCRITOR** (opencode edita de verdad con ellos) y revisor primero |
 | **LLM7.io** (itsfree.ai) | `https://api.llm7.io/v1` | `LLM7_API_KEY` (opcional) | **sin clave**: `gpt-oss` (20B) y `minimax-m2.7` (verificados 2026-09-05, revisión real en 14 s); con token: 44 modelos (deepseek-v4-flash, glm-5.3-flash…). Sus etiquetas «claude/gpt-6» son reventa: no se usan | 10 req/min sin clave (40 con token) | revisor de respaldo, siempre disponible |
 | **FreeTheAi** | `https://api.freetheai.xyz/v1` | `FREETHEAI_API_KEY` | 60+ modelos (gpt-oss-120b…); clave por su Discord (`/signup` y `/checkin` diario; la crea Alex, nunca un agente) | 10-35 req/min, 250/día | revisor de reserva (solo con clave) |
 | **Pasarela declarada por entorno** | `STARSEED_PASARELA_<NOMBRE>_URL` | `STARSEED_PASARELA_<NOMBRE>_KEY` (+ `_MODELOS`, `_RPM`) | cualquier enrutador OpenAI-compatible: **freellmapi** en local (`http://127.0.0.1:3001/v1`, 29 proveedores gratis tras un bearer, ~40 MB RSS), NavyAI, pasarela propia… | el que declare `_RPM` (10 si falta) | revisor; entra sin tocar código en el orquestador y en el catálogo de Genesis |
@@ -180,10 +180,10 @@ repositorio).
   ModelScope, Z.ai, SambaNova, OpenCode Zen (y el token de LLM7 para pasar de 10 a 40 req/min).
 - **github.com/tashfeenahmed/freellmapi** (MIT) — enrutador autoalojado: 29-34 proveedores gratis,
   358-635 endpoints, ~4-7.400 M tokens/mes, un solo bearer, failover automático en 429/5xx, perfiles
-  `auto`, `auto:fast`, `auto:smart`; catálogo vivo en freellmapi.co/models. Candidato a correr en la nube
+  `auto`, `auto:fast`, `auto:smart`; catálogo vivo in freellmapi.co/models. Candidato a correr in the nube
   (Node 20+, ~40 MB) cuando Alex meta sus claves en su panel (puerto 3001); se conecta como pasarela.
 - **github.com/Free-The-Ai/free-ai** — pasarela comunitaria (ver fila FreeTheAi).
-- **github.com/public-apis/public-apis** — ya indexado en `starseed_memory_root/fuentes/apis-publicas.json`.
+- **github.com/public-apis/public-apis** — ya indexado in `starseed_memory_root/fuentes/apis-publicas.json`.
 
 ## 6. Agentes de código disponibles
 
@@ -215,7 +215,7 @@ pasarelas, con `STARSEED_PASARELA_<NOMBRE>_RPM`).
 - Estado compartido: `starseed_memory_root/relevo/` (estado.json · relevo.md · bitacora.jsonl · PROMPT-HERMES.md · PROMPT-CLAUDE.md), CLI `~/.local/bin/starseed-relevo` (Python sin dependencias).
 - Protocolo: `estado --por <agente>` al empezar → `nota --de <agente>` al avanzar → `handoff --de <agente> --a <otro> "resumen"` al parar. `tarea`/`pendiente` para trabajo compartido; `contexto <agente> clave=valor` para sesión/modelo/estado.
 - Qué comparte: uso/cuota por motor (uso-diario.json del enjambre + modelos de progreso.md + límites), contexto de cada agente (sesión, modelo, tamaño), rutas y carpetas, git (HEAD, sin push, sin commit), cola y progreso de olas (procesadas, sin cambios, bloqueantes, restantes), tareas, pendientes, adenda actual, enlaces.
-- Hermes: skill `~/.hermes/skills/starseed-relevo/SKILL.md` + bloque en `~/.hermes/SOUL.md` + enlace en `~/.hermes/memories/MEMORY.md`. Chat nuevo de StarSeed en Hermes = pegar `PROMPT-HERMES.md` (o `starseed-relevo prompt --para hermes`).
+- Hermes: skill `~/.hermes/skills/starseed-relevo/SKILL.md` + bloque en `~/.hermes/SOUL.md` + enlace en `~/.hermes/memories/MEMORY.md`. Chat nuevo de StarSeed in Hermes = pegar `PROMPT-HERMES.md` (o `starseed-relevo prompt --para hermes`).
 - Claude sin puente a la Mac: doc del proyecto `claude/relevo-actual.md`; Alex pega `PROMPT-CLAUDE.md` en la sesión nueva.
 - Un solo agente escribe en el working tree a la vez; los crons de Hermes no hacen git add -A ni push (el watchdog del túnel quedó sin permiso de git el 03-09).
 - Contexto largo = créditos: cada llamada reenvía TODO el historial (>200k tokens es caro aunque los tokens nuevos sean pocos). Sesión nueva + relevo antes que sesión eterna. Nunca reportar como «créditos restantes» un contador de contexto.
@@ -223,8 +223,8 @@ pasarelas, con `STARSEED_PASARELA_<NOMBRE>_RPM`).
 ## 📚 Fuentes externas de APIs, herramientas y patrones (regla permanente · 2026-09-04)
 
 Antes de inventar un endpoint, un conector o un patrón de agente, **se mira si ya existe**. Seis
-catálogos indexados en local, refrescables con `starseed-fuentes refrescar` y consultables con
-`starseed-fuentes buscar <texto>` (acepta español). Índices en `starseed_memory_root/fuentes/`:
+catálogos indexados in local, refrescables con `starseed-fuentes refrescar` y consultables con
+`starseed-fuentes buscar <texto>` (acepta español). Índices in `starseed_memory_root/fuentes/`:
 
 | Fuente | Licencia | Para qué |
 |---|---|---|
@@ -241,7 +241,7 @@ agente **el puntero y el comando de búsqueda**, nunca el catálogo entero (econ
 ### Flota de escritores del enjambre (verificada 2026-09-04)
 
 **xKiro** (`https://api.xkiro.com/v1`, clave en la variable `XKIRO_API_KEY`) — 110 modelos, **40
-gratis con tool-calling** y 5M tokens/día. Comprobado en vivo que **opencode SÍ edita archivos**
+gratis con tool-calling** y 5M tokens/día. Comprobado in vivo que **opencode SÍ edita archivos**
 con ellos (qwen3-coder-plus, minimax-m3 y devstral-medium modificaron un archivo de prueba);
 esto es lo que fallaba con aihubmix y tokenrouter, que se quedan de revisores. Su Cloudflare
 rechaza el User-Agent por defecto de urllib con 403: las llamadas HTTP mandan uno propio.
@@ -285,6 +285,7 @@ igual y, si de verdad no puede, el vigilante lo corta a los dos minutos.
 `starseed-vivo` muestra la salud de los cinco proveedores junto al estado de cada tarea.
 
 
+
 ## 9. Jev de consejero y el crédito de OpenRouter (regla permanente · 2026-09-20)
 
 **Qué es.** Jev (TypeSafe, en OpenRouter) es un modelo de *decisión*, no de texto: recibe el
@@ -321,7 +322,7 @@ y sin modelo (decisión del 13/09): Jev opina, no ordena.
 - En OpenRouter **solo ids `:free`** para agentes y para Hermes: con crédito en la cuenta, un id de
   pago se cobraría sin que nadie lo pidiera. El renovador trae cada 30 min los gratuitos con
   herramientas del catálogo público (`modelos_extra`, los de más contexto primero; copia en
-  `~/.starseed/openrouter-gratuitos.json`), `pasarelas.modelos_utiles` los mete en la rotación y
+  `~/.stroseed/openrouter-gratuitos.json`), `pasarelas.modelos_utiles` los mete en la rotación y
   `enrutar-hermes` le da a Hermes el de más contexto. Así la flota se actualiza sola cuando
   OpenRouter estrena o retira gratuitos. Los 10 $ desbloquean además 1.000 peticiones diarias a
   esos gratuitos.
@@ -352,20 +353,21 @@ solo decide cuántos LANZA: nada en marcha se interrumpe; si el gobernador muere
 (`medios.json`, arriendos de 120 s, failover automático): cada medio corre su propio orquestador
 contra la misma cola y se reparten las tareas por arriendo. Receta para sumar un medio (Linux o
 macOS, arm64 o x86_64):
-  1. `git clone` del repo del OS + `bash scripts/enjambre/instalar.sh` (copia el orquestador a
-     `~/.local/bin`) + Node 22 + las claves en `~/.starseed/env` (las guarda Alex con
-     `scripts/puente/guardar-clave.sh --ambos`; nunca se copian por chat).
-  2. `python3 scripts/puente/gobernador-recursos.py` → dice cuántos caben en ESA máquina.
-  3. `starseed-enjambre.py starseed_memory_root/olas/<cola>.json --workers <maximo_hardware>` con
-     la cola sincronizada (git o Drive) y el vigilante (`com.starseed.vigilante` / systemd) para
-     relanzar solo.
-  4. El medio tiene que poder **publicar**: `git push` autorizado (el contenedor de Cowork NO puede:
-     el proxy deniega `StarSeedSystem/starseed-system` salvo que Alex lo añada a las fuentes de la
-     sesión; hasta entonces sus commits viajan por `git bundle` en el bus).
+   1. `git clone` del repo del OS + `bash scripts/enjambre/instalar.sh` (copia el orquestador a
+      `~/.local/bin`) + Node 22 + las claves en `~/.starseed/env` (las guarda Alex con
+      `scripts/puente/guardar-clave.sh --ambos`; nunca se copian por chat).
+   2. `python3 scripts/puente/gobernador-recursos.py` → dice cuántos caben en ESA máquina.
+   3. `starseed-enjambre.py starseed_memory_root/olas/<cola>.json --workers <maximo_hardware>` con
+      la cola sincronizada (git o Drive) y el vigilante (`com.starseed.vigilante` / systemd) para
+      relanzar solo.
+   4. El medio tiene que poder **publicar**: `git push` autorizado (el contenedor de Cowork NO puede:
+      el proxy deniega `StarSeedSystem/starseed-system` salvo que Alex lo añada a las fuentes de la
+      sesión; hasta entonces sus commits viajan por `git bundle` en el bus).
 Medios que caben hoy: Mac M1 8 GB → 3; contenedor de Cowork 2 vCPU/8 GB → 1 (y muere con la
 sesión); **Oracle Free Tier ARM (2 OCPU/12 GB, gratis) → 1 permanente (núcleos − 1)**; un VPS de 16 GB/8
 núcleos → 5. Hermes suma **agentes de razonamiento** aparte (delegate_task, 4 hijos a la vez, sin
 RAM local: el límite es el RPM gratuito de Gemini), pero esos no pasan puertas ni integran código.
+Oracle: con gasto 0 y margen medido, lo pesado y lo 24/7 va al A1; si el gasto pasa de 0, freno (medios → requiere_alex). Fuente: ~/.starseed/oracle-consumo.json (architecture/oracle-consumo.md §5).
 
 **Los directores recuerdan esto así:** al reportar «agentes escribiendo ahora: N», decir también
 «máximo en esta máquina: M (gobernador)» y, si Alex pide más, proponer el medio siguiente de la
@@ -399,13 +401,13 @@ ser siempre lo más eficientes usando la mayor capacidad disponible simultánea.
 objetivo abstracto: es un **procedimiento obligatorio** antes de dar por bueno cualquier número
 de agentes.
 
-  1. **Sondear TODOS los medios**, nunca suponerlos: `python3 -c` sobre
-     `scripts/puente/medios_disponibles.py` → `sondear()` devuelve cada medio con su estado
-     (`listo` · `usable` · `requiere_alex` · `no_disponible`) y su capacidad real.
-  2. **Encender lo que esté apagado** antes de pedir más hierro. Un medio en `usable` es un medio
-     APAGADO, no uno que ya trabaja.
-  3. **Sumar, no sustituir**: la Mac sigue con su máximo del gobernador mientras la nube trabaja.
-  4. Solo entonces informar del número, y decirlo siempre con su desglose por medio.
+   1. **Sondear TODOS los medios**, nunca suponerlos: `python3 -c` sobre
+      `scripts/puente/medios_disponibles.py` → `sondear()` devuelve cada medio con su estado
+      (`listo` · `usable` · `requiere_alex` · `no_disponible`) y su capacidad real.
+   2. **Encender lo que esté apagado** antes de pedir más hierro. Un medio en `usable` es un medio
+      APAGADO, no uno que ya trabaja.
+   3. **Sumar, no sustituir**: la Mac sigue con su máximo del gobernador mientras la nube trabaja.
+   4. Solo entonces informar del número, y decirlo siempre con su desglose por medio.
 
 **Lo que enseñó el 2026-09-20 sobre el paso 2.** El medio de GitHub Actions llevaba apagado
 DESDE QUE SE ESCRIBIÓ y nadie lo notó, porque su fallo era mudo: cada push dejaba un run de 0 s
@@ -491,7 +493,7 @@ gratuitos tirados sin que saltara ninguna alarma.
 
 El desatascador rechazaba toda rama con «alcance incompleto» a los 6 minutos.
 Coste de una sola noche, con las **cuatro puertas en verde** y la revisión sin
-pegas en los tres casos:
+pega en los tres casos:
 
 | tarea | trabajo del agente | alcance |
 |---|---|---|
@@ -537,7 +539,7 @@ trabajo. Las tres costaron horas y ninguna daba error.
 en progreso, ni en ninguna cola. El vigilante llamaba a `seleccionar_pendientes()`
 **sin la hora**, y sin hora esa función no aparta las bloqueadas por dependencias
 abiertas ni aplica el orden por importancia: devolvía la lista cruda con esa tarea
-imposible a la cabeza. Una ola cada tres minutos, 120 olas, 240 commits de ruido y
+impossible a la cabeza. Una ola cada tres minutos, 120 olas, 240 commits de ruido y
 **cero trabajo entre las 04:00 y las 14:26**.
 
 - **Regla.** Quien pida tareas al planificador le pasa la hora. Sin ella no hay ni
@@ -602,9 +604,9 @@ Cómo se aprovecha, en este orden:
    sesión releyó 750 M tokens de caché). Pasados ~200 M, relevo y sesión nueva.
 
 Medidor: **«Crédito Claude nube»** en el pulso de trabajo de Genesis (`src/lib/mando/credito-claude.ts`,
-`case "credito-claude"` en `medidores.ts`). No hay API, así que el saldo es el DECLARADO:
+case "credito-claude"` en `medidores.ts`). No hay API, así que el saldo es el DECLARADO:
 `python3 scripts/puente/credito_claude_nube.py declarar --restante <USD> [--semanal-todos <%>]`
-(archivo `~/.starseed/credito-claude-nube.json`, chmod 600, fuera del repo). Cada sesión en la
+(archivo `~/.stroseed/credito-claude-nube.json`, chmod 600, fuera del repo). Cada sesión en la
 nube puede dejar su consumo (solo tokens) con `credito_claude_nube.py uso > uso.json` y, en la Mac,
 `credito_claude_nube.py anotar uso.json`: el medidor avisa de las sesiones demasiado largas.
 
@@ -627,10 +629,10 @@ hacen cumplir en tres capas (contrato «consumo», agentes G1/G2/G3):
      respuesta lo trae + media de lo medido de esa ruta × las que no; sin ninguna medida, un
      tamaño típico por tipo de ruta; errores 250 B. Realtime **estimado** = escrituras REST ×
      3 suscriptores × 800 B (los registros de Realtime no cuentan mensajes; se anotan aparte).
-     Es una estimación y se dice así en el medidor (qué % fue medido).
-   - Historial de 45 días en `~/.starseed/consumo-historial.json`; el día anterior se relee
+   Es una estimación y se dice así en el medidor (qué % fue medido).
+   - Historial de 45 días en `~/.stroseed/consumo-historial.json`; el día anterior se relee
      entero una vez al cambiar de día.
-   - Presupuestos en `~/.starseed/presupuestos.json` (se crea solo; Genesis lo edita):
+   - Presupuestos en `~/.stroseed/presupuestos.json` (se crea solo; Genesis lo edita):
      `supabase_peticiones_dia` 25.000 · `supabase_mb_dia` 150 · `supabase_mb_ciclo` 5120 ·
      `ciclo_inicio` (fecha de inicio del ciclo de facturación; null = se supone el primer día
      medido) · `jev_usd_dia` 0,05 · `openrouter_usd_min_saldo` 2.
@@ -641,241 +643,3 @@ hacen cumplir en tres capas (contrato «consumo», agentes G1/G2/G3):
      otra escritura. Con 402 no se escribe nada (`restringido: true`).
    - **Detector de bucles**: una ruta > 1.500 peticiones/h o un agente (user-agent) + ruta > 800/h
      → «BUCLE · ruta · n/h desde «agente»» al canal (como mucho cada 3 h por bucle) y queda como
-     «último bucle detectado» en Genesis. Rutas y agentes van saneados: sin ids ni nada que
-     parezca una clave.
-   - **Nunca en bucle**: si falla la API de registros, la vuelta se corta; un fallo al escribir
-     el freno espera 1 h; «tabla inexistente» (migración `20260929090000_os_freno.sql` sin
-     aplicar) avisa una vez y no se reintenta hasta el día siguiente. `--seco` mide sin escribir
-     el freno ni avisar.
-3. **Topes del servidor** (G3, `scripts/puente/limites_supabase.py`, a mano y una vez; idempotente):
-   por la API de gestión con `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF`: PostgREST
-   `max_rows` = 1000; Auth `rate_limit_token_refresh` 60/5 min por IP, `verify` 15, `otp` 10/h,
-   `anonymous_users` 10/h, `web3` 10/h; Realtime (si la API expone los campos) clientes 60,
-   eventos 50/s, presencia 10/s, uniones 20/s, 50 KB/s. Solo BAJA valores, solo parchea campos
-   que existen y solo imprime nombres y números (la respuesta trae secretos: nunca se imprime).
-   Cambiar Realtime desconecta una vez a los clientes. Primero `--seco`:
-   `python3 scripts/puente/limites_supabase.py --seco` y luego sin `--seco`.
-
-**Medidor en Genesis: «Consumo y créditos»** (bajo el pulso de trabajo;
-`src/components/mando/medidor-consumo.tsx`, `GET/POST /api/mando/consumo`, lector
-`src/lib/mando/consumo.ts`, tipos `src/lib/mando/consumo-tipos.ts`). Una fila por medio con barra y
-estado: Supabase (peticiones y MB de hoy contra el presupuesto, ciclo contra 5 GB con días
-restantes si se conoce el inicio, estado ok · aviso · freno · restringido 402, 3 rutas que más
-piden, 14 días, último bucle), Jev/OpenRouter (USD de hoy / techo, saldo / mínimo) y Claude nube
-(restante declarado, fecha de la declaración, enlace y comando para actualizarlo). Los presupuestos
-se editan ahí mismo (POST local, validado). Lee cada 60 s SOLO con la pestaña visible, y avisa si
-la vigía lleva más de 45 min sin medir.
-
-**Qué hacer cuando salta:** mirar las 3 rutas y el último bucle en el medidor → buscar quién sondea
-esa ruta (`grep -rn "<tabla>" src/`) → frenarlo con `esLider()`/`frenoActivo()`/visibilidad (ver
-contrato G2) → nunca subir el presupuesto para «hacer sitio» a un bucle.
-
-### 15.1 CON1010 · «Pausa de consumo» con 8.000 peticiones: causas medidas y ritmo adaptativo (2026-10-10)
-
-**Qué pasó.** El 10-10 el proyecto llegó a 25.022 peticiones a las 19:48 UTC (días normales: 1.000–4.000)
-y el navegador integrado de la Mac (`localhost:9002`, todas las pestañas que abren los agentes para
-verificar, que comparten aparato) pasó de 8.000 hacia las 12:00 UTC: desde ahí el aviso «Este
-dispositivo usó su presupuesto de hoy». Medido por aparato (IP+agente, sin imprimir la IP) y por
-consulta en la API de registros:
-
-| Ruta (20 h) | n | Quién | Causa raíz | Arreglo |
-|---|---|---|---|---|
-| `neuron_devices` (50 filas con capacidades) | 3.083 | navegador | latido del puente de Hermione cada 20 s en CADA pestaña, también oculta | elige sobre la lista compartida `listNeurons()` (5 min, nada oculta); latido 60 s solo visible (`hermione-bridge.ts`, `hermione-autosync.ts`) |
-| `rpc/merge_user_prefs` | 3.389 | navegador | respaldo de tableros cada 30 s con `savedAt: Date.now()` (nunca igual) | huella del contenido, registro por aparato, re-subida de seguridad ≤ 6 h (`dashboards-sync.ts`) |
-| `auth/v1/user` | 2.492 | navegador | ~21 `getUser()` al cargar cada página + el eco `SIGNED_IN` de supabase-js al volver a la pestaña | `getUser()` compartido 60 s y sin ecos de la misma cuenta (`consumo/auth-ahorro.ts` en `utils/supabase/client.ts`) |
-| `astraura_mesh_nodes` POST/GET | 3.313 / 551 | backend Astraura (curl) | `register_node` subía la fila propia en cada latido local de 30 s, saltándose el tope del 09-10 | parche `~/Documents/IA 1.58 bit/_starseed_consumo/` (latido 5 min, descubrir 5 min) — SIN APLICAR |
-| `astraura_state` POST / GET `updated_at` | 1.464 / 1.133 | backend Astraura | 5 secciones ruidosas cada 2 min; cerebros preguntan a la nube cada 2 min | mismo parche (sección ≤ 1/15 min, cerebros 10 min) |
-| `astraura_state?select=data` | 1.575 | servidores Node | `destinoNube()` releía lo publicado en cada resolución (cada 10 s sin nube) | caché de lo publicado 5 min (`astraura/destino-nube.ts`) |
-
-**Ritmo adaptativo (nuevo, `src/lib/consumo/ritmo.ts`).** Antes de la pausa el aparato baja solo:
-curva del día = presupuesto × (fracción del día + 3 h); nivel 1 (×2) por encima de la curva o > 1.000
-en la hora; nivel 2 (×4) ≥ 85 %, ≥ 1,5× la curva o > 2.000 en la hora; nivel 3 = pausa. Los bucles de
-`bucle-fondo.ts` multiplican su intervalo (salvo `esencial: true`) y el cubo de fichas rellena más
-despacio las lecturas no esenciales. Escribir, Auth y `senalEsencial()` nunca esperan. El registro del
-día (`starseed.supabase.dia.v1`) guarda ahora también la hora en curso y las 15 rutas que más gastan,
-compartidas por las pestañas; el aviso dice cuál gastó más y qué hace el OS, y en nivel 2 avisa ANTES
-de la pausa («Modo ahorro de consumo»).
-
-**Regla nueva.** Un sondeo que sube un valor con marca de tiempo (`savedAt`, `updated_at`, `visto`)
-nunca se considera «igual»: la huella va sobre el CONTENIDO y la fecha solo cambia cuando cambia el
-contenido. Y ningún oyente de `onAuthStateChange` relanza su arranque por un `SIGNED_IN` de la misma
-cuenta: lo filtra `auth-ahorro.ts`, pero el código nuevo debe arrancar «al cambiar la cuenta», no «a
-cada evento».
-
-## 16. Sueños profundos: flota gratuita que lee, Claude que verifica (2026-09-29)
-
-**Qué es.** Una sesión de sueños analiza cada área de StarSeed OS (las 11 de `areas.ts` + mando,
-dashboards, gobernanza) con seis lentes (arquitectura-deuda, ux-accesibilidad-diseno,
-rendimiento-consumo, seguridad-privacidad **privada**, pruebas-fiabilidad, coherencia-triada). SOP:
-`architecture/suenos-profundos.md`.
-
-**Reparto de coste (regla).** Leer y escribir los informes = tareas `tipo: "analisis"` del
-orquestador único con la flota GRATUITA (`scripts/enjambre/analista.py`: lectura compartida por
-área → síntesis por lente → contraste por otro proveedor; OpenRouter solo `:free`). Claude
-(sesiones en la nube del crédito de 250 $, §14, y la interactiva) solo DIRIGE, VERIFICA y
-CONSOLIDA, siempre por la terminal de la Mac y por localhost:9002. Jev aconseja
-accionable/prioridad en la consolidación (local primero, techo diario, lo privado solo en local).
-
-**Estado nuevo `informe`**: el sueño terminó bien sin código que integrar. Es terminal en el
-orquestador, el vigilante, el reconciliador y Genesis, y **nunca** cuenta como «sin_cambios».
-El vigilante no coge ninguna `cola-suenos-*` (ni la de la sesión ni la propuesta).
-
-**Desplegar y lanzar en la Mac:**
-```bash
-cd ~/Documents/starseed-os-main
-bash scripts/enjambre/instalar.sh && bash scripts/enjambre/instalar.sh --comprobar   # orquestador + analista.py
-python3 scripts/puente/reconstruir_mando.py --una-vez                                # panel y /api/mando/suenos
-python3 scripts/puente/suenos.py plan --horas 4 && python3 scripts/puente/suenos.py lanzar --horas 4
-python3 scripts/puente/suenos.py estado        # o http://localhost:9002/genesis?pestana=procesos → «Sueños profundos»
-curl -s -X POST http://localhost:9002/api/mando/suenos -H 'Content-Type: application/json' -d '{"accion":"lanzar","horas":4}'
-```
-**Supervisar (cada hora, tarea programada con «Requerir esta computadora»):** el bloque de
-`scripts/puente/supervisor_suenos.md` — salud → desatascar → verificar 3-6 informes abriendo el
-código citado (`suenos.py por-verificar`, `suenos.py veredicto … --por claude-<modelo>`) →
-`suenos.py consolidar` cuando todo esté verificado (INFORME.md + `olas/cola-suenos-propuesta-<fecha>.json`,
-que NO se lanza: se abre en el Diseñador). Tope del supervisor: ≤ 25 min y ≤ 6 informes por pasada.
-
-**Lección de la primera sesión real (2026-09-29, 4 informes en 151 min).** Tres causas, las tres
-arregladas: (1) ids muertos (403/404) reintentados en cada ronda de cada sueño → ahora la salud es
-de la SESIÓN y un 403/404/410 saca el modelo al primer intento; (2) respuestas buenas rechazadas
-(razonamiento antes del JSON, JSON cortado por max_tokens) → `extraer_json` robusto que rescata lo
-completo y modo JSON donde se sabe; (3) una pausa GLOBAL de 104 s entre llamadas y una lista fija
-de 8 modelos → sin pausa (el ritmo es el cupo por minuto de cada proveedor), flota VIVA sacada del
-informe de pasarelas + rotación + revisores, y reparto por turnos entre todos. De paso, «dictionary
-changed size during iteration» (progreso y latidos tocados por cinco hilos) → RLock y copias atómicas.
-Regla: **una flota gratuita se reparte por turnos entre TODOS los proveedores vivos; nunca una lista fija.**
-
-## 17. Protocolo común de los agentes: un mismo contexto y Jev en todos (regla permanente · 2026-09-30)
-
-**Qué pidió Alex.** «Que se usen más las habilidades, herramientas y conectores de Genesis,
-como el uso de Jev en todos los agentes y subagentes, con el mismo workflow y contextos de memorias y
-entendimientos completos y las mejores decisiones.» SOP: `architecture/protocolo-comun-agentes.md`.
-
-**Regla.** Todo agente carga **el mismo contexto de su rol** y decide la duda por **la misma puerta**:
-- `python3 scripts/puente/contexto_agente.py --rol escritor|revisor|analista|supervisor|subagente
-  [--area X] [--tarea "…"] [--max N]`: reglas permanentes con su fuente, protocolo Jev, herramientas
-  con su orden exacta, área (areas.ts) y relevo. Lo reciben solos el escritor (`contexto_inteligente`,
-  2.200 compacto), el revisor (`revisar`, 900) y el analista (síntesis, 1.400); el supervisor y los
-  subagentes lo piden como primera orden.
-- `python3 scripts/puente/decidir.py si-no|elegir|puntuar --estado … --pregunta … --regla … --quien …`:
-  Jev (BitNet local → Laya → OpenRouter con techo) con la regla de quien pregunta como respaldo.
-  Umbral 0,8 para seguirle; puede vetar, nunca convierte un «no» en «sí»; si calla, manda la regla.
-  Cada consulta es una **experiencia** con `quien`; `decidir.py confirmar <exp> --acierto si|no` cierra
-  el ciclo (calibración y aprendizaje colectivo). `decidir.py uso`: gasto del día frente al techo.
-
-**Dónde decide ya** (además de la tabla de la §9): triaje de las observaciones de cada sueño y
-elección de modelo en su síntesis/contraste (`analista.py`), qué modelo reintenta una tarea de código
-que ya falló, aceptar «sin cambios» tras 2 intentos de proveedores distintos solo con p ≥ 0,85 y qué
-revisor va primero sin «último que respondió» (`consejo_enjambre.py`), y la segunda opinión anotada del
-supervisor Claude al relanzar y en cada hallazgo (`supervisor_suenos.md`). Los fallos de PROVEEDOR
-(429, 5xx, retirado) siguen en la regla: la señal es inequívoca.
-
-**Coste.** ≤ 10 llamadas por sueño (≈ $0,0001 cada una por OpenRouter; gratis en local): una sesión de
-84 sueños cabe de sobra en 0,20 $/día. Con el motor local congelado (enjambre escribiendo) Jev es
-OpenRouter con techo o nada; tras 3 silencios seguidos los sueños no preguntan en 10 min.
-
-
-## 18. Rotación por mérito, nada de pago por defecto y la nube sin modelo clavado (regla permanente · 2026-10-03)
-
-Medido en `progreso.json` (736 tareas, 15-09 → 03-10), integradas/fallidas por escritor:
-nvidia/moonshotai/kimi-k3 **115/9** (37 desde el 20-09), nvidia/deepseek-v4-flash 72/3,
-google/gemini-3.6-flash **57/10** (52 recientes), codex/gpt-5.6-sol 39/4 (suscripción),
-nvidia/deepseek-v4-pro 39/6, tokenrouter/glm-5.3 15/1 … y apinex **2/1 tras 313 eventos de
-intentos**, llm7 caído desde el 09-09. La rotación por hash del id ponía a la cabeza, una de cada
-tres veces, un modelo que casi nunca escribe, y cada intento fallido cuesta 12-25 min de la tarea.
-
-- **Mérito** (`orden_por_merito` en `starseed-enjambre.py`): cota inferior de Wilson de la tasa de
-  acierto POR INTENTO (un fallo es un estado malo con ese modelo o cada aparición en
-  `modelos_fallidos`; así cuentan también los cuelgues). Medido así: gemini-3.6-flash 57/88,
-  kimi-k3 115/251, deepseek-v4-flash 72/155. La cota y no la tasa simple porque con
-  (aciertos+1)/(intentos+2) llm7 —2 de 2— encabezaba a gemini. La carga se reparte entre los
-  `STARSEED_MERITO_CABEZA` (3) mejores; un modelo sin historia vale 0,3 (por delante de los que
-  casi nunca escriben). Tras un fallo, Jev sigue eligiendo entre los sanos (§17).
-- **Nada que cobre por token** sin permiso: `xai`, `deepseek` directo, `anthropic` y `openai` salen
-  de la rotación salvo `STARSEED_PAGO=1` (sus claves viven en `~/.hermes/.env` para Hermes, y el
-  orquestador las lee). Codex se queda: va por suscripción y cupo, no por token.
-- **La nube (GitHub Actions) ya no recibe un modelo clavado.** `repartir_nube.MODELO_NUBE` era
-  `llm7/minimax-m2.7` —caído— y cada tarea de la nube gastaba su primer intento en él (6+ min en
-  el run 36712114201). Vacío: la nube rota entre la cabeza de `MODELOS` (gemini-3.6-flash, kimi-k3,
-  deepseek-v4-pro), que se reordenó con estos datos porque allí no hay `progreso.json`.
-- **Lo privado no sale de la Mac**: `repartir_nube.es_privada()` (tarea con `privado: true` o prompt
-  «🔒 PRIVADO») — SP09294 se había mandado a la nube tres veces.
-- **Un modelo que pide suscripción sale solo** (2026-10-03): apinex pasó sus `free/` a pago y
-  opencode contesta «available only with a subscription» en 1-2 s. `exige_pago()` lo lee en la
-  línea de error de la API (no en la salida de una herramienta) y `apartar_si_pide_pago()` lo
-  saca de la corrida sin gastar intento y baja su mérito; antes Jev lo elegía para reintentar.
-- **Ni un proceso huérfano** (2026-10-03, tras reiniciar la Mac): el LSP de opencode (`tsserver`
-  ~2 GB) sobrevivía a su motor cuando este acababa bien; `recoger_grupo()` mata el grupo al
-  terminar. Y la build del reconstructor **cede a mitad** si el enjambre arranca después de ella
-  (`RC_CEDIDA`): el freno de máquina se mira también durante, no solo al empezar.
-
-Quién gasta qué (para el informe de uso): el enjambre escribe con APIs gratuitas (NIM, Gemini AI
-Studio, xKiro, tokenrouter, OpenRouter `:free`, Groq solo revisor) y Codex por suscripción; Jev
-gasta céntimos de OpenRouter con techo 0,20 $/día (`decidir.py uso`); el crédito de Claude solo lo
-gastan las sesiones de Claude (esta y las tareas programadas, §14); GitHub Actions es gratis en el
-repo público. Los directores en Python y los vigilantes no gastan nada.
-
-## 19. Ramas de la nube y ramas reutilizadas: al día, revisadas y archivadas (regla permanente · 2026-10-06)
-
-- **Al día con main antes de escribir** (`poner_al_dia` en `starseed-enjambre.py`): `worktree()` reutiliza `ola/<id>`; ahora,
-  antes de escribir y de las puertas, se guarda lo pendiente, rebase sobre main y, si choca, el intento viejo se archiva en
-  `refs/archivo/ola/<id>/<sello>` y el agente arranca desde main con la lista de archivos que tocaba en su contexto. Medido:
-  la ola auto-1005-211229 integró 0 de 12 por ramas de 162–571 commits de atraso.
-- **El orquestador instalado no se queda atrás**: `lanzar-enjambre.sh` corre `instalar.sh` antes de lanzar si el repo trae una
-  versión versionada, más nueva y que parsea (si la instalada es más nueva, avisa y la respeta).
-- **Revisión de las superadas** (`revisar_ramas_nube.py`, en cada `traer_nube.py revisar --aplicar`): casos de prueba nuevos
-  frente a main → regla (≥ 3 → rescatar) → Jev (`dominio=ramas-nube`, solo veta perder con p ≥ 0,8) → tarea `RT<id>` en
-  `cola-rescate-nube.json`; archivo verificado (`refs/archivo/…` + `starseed_memory_root/archivo/ramas-nube-<fecha>.bundle`),
-  aprendizaje en `starseed_memory_root/archivo/aprendizaje-ramas-nube.jsonl` y borrado con `--force-with-lease`.
-  Lecciones y la revisión del 2026-10-06 (72 ramas → 18 tareas): `memory/aprendizaje-ramas-nube.md`.
-
-## 20. Capacidad: escritores medidos y la tanda de la Mac que cede (regla permanente · 2026-10-10, CAP1010)
-
-Alex: «¿por qué solo hay 6 agentes en curso? ¿es posible más, en más medios, con más tareas?».
-Medido a las 15:05 (hora de la Mac): 34 listas y 75 en cadena; Mac 3 de 3 (tope del gobernador con
-8 GB, swap 7,5 de 8 GB); la nube «2 jobs en marcha = su tope»; el A1 de Oracle sin un solo agente.
-Lo que de verdad pasaba, con números:
-
-- **Los dos jobs de la nube eran fantasma.** `buscar_capacidad.py` contaba 32 elegibles y «lanzo 2
-  jobs»; el reparto en segundo plano (`repartir-a-nube.py`) daba «0 tareas» porque deja en la Mac
-  TODO lo que está en su tanda viva (118 tareas, regla RM6b), y los dos jobs pedidos se contaban
-  «en camino» 5 minutos sin existir. Y el A1 recibía «no hay atraso» por el mismo filtro.
-  **Arreglo:** la tanda de la Mac **cede** (`repartir_nube.cedibles_de_la_tanda`): la Mac se guarda
-  sus `tope × 2` listas siguientes (en su orden de prioridad) y cede las demás que ninguna tarea
-  viva espera (`esperadas_por_otras`). El reparto (`repartir-a-nube.py --ceder`, que usa el botón) y
-  el A1 (`oracle_nodo.lanzar`, por defecto) aplican el MISMO filtro que el botón cuenta
-  (`reunir_nube`), así que el plan y el reparto ya no discrepan. Lo cedido recibe la orden
-  `soltar` en `olas/control-<cola>.json` (el mismo mecanismo de «Reasignar → otro servidor») SOLO
-  cuando el run ya existe. El «en camino» es lo que salió de verdad; si un despliegue no sale, el
-  botón dice «salieron 0 de 2 job(s) · <motivo>».
-- **El tope de jobs ya no es un 2 fijo** (`tope_runs_nube`): manda el más bajo de tres límites, y es
-  el que se dice — el trabajo (1 job por cada 6 tareas que la nube puede coger), los modelos (2 jobs
-  por cada escritor VIVO cuya clave llega a la nube: google, nvidia, openrouter, xkiro) y el techo
-  `STARSEED_NUBE_MAX_RUNS` (6; GitHub deja 20 jobs a la vez en un repo público Free). Sin escritor en
-  la nube, 0 jobs y lo dice: freellmapi (127.0.0.1 de la Mac) y Codex (sesión de la Mac) no llegan
-  allí, y Groq allí solo revisa.
-- **NIM tenía escritores y la rotación no los veía.** Medido con opencode 1.18.33 en el A1 (edición
-  real de un archivo; con contexto de tamaño real, CLAUDE.md ~14k tokens): `nvidia/nvidia/nemotron-3-super-120b-a12b`
-  ESCRIBE (23 s) y `nvidia/z-ai/glm-5.3` ESCRIBE (56 s); `gpt-oss-20b` contesta sin editar;
-  `deepseek-v4.1-flash` no termina en 300 s; `kimi-k3` tarda 45 s en 16 tokens (saturado en NIM, no
-  la Mac: desde la Mac nemotron contesta en 0,7 s). El id de nemotron en `MODELOS` estaba SIN la
-  organización (`nvidia/nemotron-…` en vez de `nvidia/nvidia/nemotron-…`) y `validar_modelos` lo
-  sacaba en cada arranque; `deepseek-v4-flash-0731` (410, fin de vida 2026-09-21) y
-  `deepseek-v4-pro-0813` (fuera del catálogo) seguían en la rotación. La sonda de NIM era kimi-k3:
-  ahora nemotron. El botón ya no da a un proveedor por muerto porque UN modelo sea lento
-  (`FALLOS_DEL_MODELO`: «no contesta», 5xx → se prueba el siguiente).
-- **Groq NO escribe (medido otra vez):** qwen3.8-27b «Request too large … ITPM 7000, Requested 7498»
-  con la orden mínima (el sistema de opencode ya pasa de 7000) y gpt-oss-120b «'reasoning_content'
-  is unsupported». Sigue de revisor. **En la nube ni eso**: el workflow escribe `~/.starseed/env` con
-  `printf '%q'`, que escapa las comas, y `leer_env` partía «openai/gpt-oss-120b\» → 404 en cada run
-  desde el 10-04. Arreglado en el lector (`valor_env`, deshace los escapes del shell); el workflow no
-  se tocó (sus archivos están protegidos para las herramientas remotas: ver `para_alex` del informe).
-- **Fuera con su motivo** (`buscar_capacidad.RETIRADOS`, el botón los enseña): **apinex** (402 «Free
-  10M tokens used», el resto pide suscripción), **tokenrouter** (glm-5.3-free 503 sin canal; su único
-  `:free` 403 por crédito 0), **GitHub Models** (retirado el 2026-07-30; su API contesta `200
-  text/plain «OK»` a todo, con clave buena, mala o sin clave). Por ese «OK», la sonda de escritor ya
-  no acepta un 200 que no sea una respuesta de chat (`sonda_escritor.es_respuesta_de_chat`).
-
-**Regla:** antes de decir «el tope es N», que el número salga de `tope_runs_nube` con su motivo; y
-antes de meter o sacar un escritor, una edición REAL con opencode y contexto de tamaño real (el
-chat de 16 tokens no dice si escribe: gpt-oss-20b contesta en 0,6 s y no edita).
