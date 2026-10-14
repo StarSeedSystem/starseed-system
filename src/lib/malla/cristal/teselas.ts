@@ -15,7 +15,6 @@ export function crearTesela(
   senales: SenalMedida[],
   reloj: number
 ): Tesela {
-  // TODO: Implementar
   return {
     origen: neurona.id,
     reloj,
@@ -34,8 +33,43 @@ export function crearTesela(
  * @returns Una nueva retícula con la tesela fusionada
  */
 export function fusionarTesela(r: Reticula, t: Tesela): Reticula {
-  // TODO: Implementar
+  const existing = r.teselas[t.origen];
+  if (!existing) {
+    // No existing tesela for this origen, just add it
+    return { teselas: { ...r.teselas, [t.origen]: t } };
+  }
+  // Compare reloj
+  if (t.reloj > existing.reloj) {
+    return { teselas: { ...r.teselas, [t.origen]: t } };
+  }
+  if (t.reloj < existing.reloj) {
+    // Keep existing
+    return r;
+  }
+  // Equal reloj: compare canonical JSON.stringify (excluding? we include whole tesela)
+  const canonT = canonicalJsonStringify(t);
+  const canonE = canonicalJsonStringify(existing);
+  if (canonT < canonE) {
+    return { teselas: { ...r.teselas, [t.origen]: t } };
+  }
+  // Keep existing (if equal or greater)
   return r;
+}
+
+// Helper: produce canonical JSON string with sorted keys at all depths
+function canonicalJsonStringify(obj: unknown): string {
+  return JSON.stringify(obj, canonicalReplacer);
+}
+function canonicalReplacer(_key: string, value: unknown): unknown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+  // Sort object keys
+  const sorted: Record<string, unknown> = {};
+  Object.keys(value).sort().forEach(key => {
+    sorted[key] = value[key as keyof typeof value];
+  });
+  return sorted;
 }
 
 /**
@@ -45,8 +79,11 @@ export function fusionarTesela(r: Reticula, t: Tesela): Reticula {
  * @returns La retícula resultante
  */
 export function fusionarTodas(teselas: Tesela[]): Reticula {
-  // TODO: Implementar
-  return { teselas: {} };
+  let ret: Reticula = { teselas: {} };
+  for (const t of teselas) {
+    ret = fusionarTesela(ret, t);
+  }
+  return ret;
 }
 
 /**
@@ -68,8 +105,21 @@ export function fusionarTodas(teselas: Tesela[]): Reticula {
  * @returns Una nueva retícula sin las teselas caducadas
  */
 export function caducar(r: Reticula, ahora: number, ttlMs: number): Reticula {
-  // TODO: Implementar
-  return r;
+  const cutoff = ahora - ttlMs;
+  const next: Record<string, Tesela> = {};
+  for (const [id, tesela] of Object.entries(r.teselas)) {
+    if (tesela.senales.length === 0) {
+      // No signals, keep it (cannot judge)
+      next[id] = tesela;
+      continue;
+    }
+    const maxVistaEn = Math.max(...tesela.senales.map(s => s.vistaEn));
+    if (maxVistaEn >= cutoff) {
+      next[id] = tesela;
+    }
+    // else: drop (expired)
+  }
+  return { teselas: next };
 }
 
 /**
@@ -85,9 +135,65 @@ export function caducar(r: Reticula, ahora: number, ttlMs: number): Reticula {
  * @param r - La retícula
  * @returns Array de señales medidas combinadas
  */
+import { claveSenal } from "./tipos";
+
 export function senalesDeReticula(r: Reticula): SenalMedida[] {
-  // TODO: Implementar
-  return [];
+  const groups: Map<string, SenalMedida[]> = new Map();
+  for (const tesela of Object.values(r.teselas)) {
+    for (const s of tesela.senales) {
+      const key = claveSenal(s);
+      const list = groups.get(key) ?? [];
+      list.push(s);
+      groups.set(key, list);
+    }
+  }
+  const result: SenalMedida[] = [];
+  for (const [key, signals] of groups.entries()) {
+    // Find signal with max vistaEn to get de,a
+    let maxSignal = signals[0];
+    for (const s of signals) {
+      if (s.vistaEn > maxSignal.vistaEn) {
+        maxSignal = s;
+      }
+    }
+    // Compute aggregated fields
+    let rssiDbm: number | undefined;
+    let snrDb: number | undefined;
+    let rttMs: number | undefined;
+    let perdidaPct: number | undefined;
+    let anchoBandaKbps: number | undefined;
+    let vistaEn = maxSignal.vistaEn; // already max
+    for (const s of signals) {
+      if (typeof s.rssiDbm === 'number') {
+        rssiDbm = rssiDbm === undefined ? s.rssiDbm : Math.min(rssiDbm, s.rssiDbm);
+      }
+      if (typeof s.snrDb === 'number') {
+        snrDb = snrDb === undefined ? s.snrDb : Math.min(snrDb, s.snrDb);
+      }
+      if (typeof s.rttMs === 'number') {
+        rttMs = rttMs === undefined ? s.rttMs : Math.max(rttMs, s.rttMs);
+      }
+      if (typeof s.perdidaPct === 'number') {
+        perdidaPct = perdidaPct === undefined ? s.perdidaPct : Math.max(perdidaPct, s.perdidaPct);
+      }
+      if (typeof s.anchoBandaKbps === 'number') {
+        anchoBandaKbps = anchoBandaKbps === undefined ? s.anchoBandaKbps : Math.min(anchoBandaKbps, s.anchoBandaKbps);
+      }
+    }
+    const combined: SenalMedida = {
+      de: maxSignal.de,
+      a: maxSignal.a,
+      medio: maxSignal.medio, // keep medio from maxSignal (could be any)
+      ...(rssiDbm !== undefined ? { rssiDbm } : {}),
+      ...(snrDb !== undefined ? { snrDb } : {}),
+      ...(rttMs !== undefined ? { rttMs } : {}),
+      ...(perdidaPct !== undefined ? { perdidaPct } : {}),
+      ...(anchoBandaKbps !== undefined ? { anchoBandaKbps } : {}),
+      vistaEn,
+    };
+    result.push(combined);
+  }
+  return result;
 }
 
 /**
@@ -100,6 +206,23 @@ export function senalesDeReticula(r: Reticula): SenalMedida[] {
  * @returns Huella como string hexadecimal (16 caracteres para 64 bits)
  */
 export function huellaReticula(r: Reticula): string {
-  // TODO: Implementar
-  return "";
+  // Build teselas array sorted by origen, without firma field
+  const teselasArray: Omit<Tesela, 'firma'>[] = Object.entries(r.teselas)
+    .map(([id, tesela]) => ({
+      origen: tesela.origen,
+      reloj: tesela.reloj,
+      neurona: tesela.neurona,
+      senales: tesela.senales,
+      huella: tesela.huella,
+    }))
+    .sort((a, b) => a.origen.localeCompare(b.origen));
+  const obj = { teselas: teselasArray };
+  const canonical = canonicalJsonStringify(obj);
+  const hashBytes = new TextEncoder().encode(canonical);
+  let hash = BigInt("0xcbf29ce484222325");
+  for (const b of hashBytes) {
+    hash = (hash ^ BigInt(b)) * BigInt("0x100000001b3");
+  }
+  hash = hash & BigInt("0xffffffffffffffff");
+  return hash.toString(16).padStart(16, '0');
 }
