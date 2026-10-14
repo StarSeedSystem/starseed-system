@@ -5,11 +5,11 @@ import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import * as matchers from "@testing-library/jest-dom/matchers";
 expect.extend(matchers);
 
-  // Mock the necessary hooks and functions
-  vi.mock("@/lib/neurons/neurons", async (importOriginal) => {
-    const actual = await importOriginal();
-    return {
-      ...actual,
+   // Mock the necessary hooks and functions
+   vi.mock("@/lib/neurons/neurons", async (importOriginal) => {
+     const actual = await importOriginal();
+     return {
+       ...(actual ?? {}),
       usePresenciaNeuronas: () => ({
         medios: [],
         conectado: false,

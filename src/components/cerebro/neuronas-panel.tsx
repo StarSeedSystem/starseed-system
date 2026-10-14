@@ -698,36 +698,36 @@ function NeuronCard({
         {n.isThisDevice && (
           <div className="mt-4 space-y-3">
             {/* Mostrar los botones si hay un nodo de MetaGenesis */}
-            {colmenaData.nodo !== null && (
+             {colmenaData!.nodo !== null && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Button
-                  variant={botones.desconectar.habilitado ? "outline" : "ghost"}
+                   variant={botones!.desconectar.habilitado ? "outline" : "ghost"}
                   size="sm"
-                  className={`cursor-pointer h-7 gap-1.5 text-xs border-cyan-400/25 text-cyan-200 hover:bg-cyan-500/10 ${!botones.desconectar.habilitado ? "cursor-default opacity-50" : ""}`}
+                   className={`cursor-pointer h-7 gap-1.5 text-xs border-cyan-400/25 text-cyan-200 hover:bg-cyan-500/10 ${!botones!.desconectar.habilitado ? "cursor-default opacity-50" : ""}`}
                   onClick={() => {
                     // TODO: Implementar la lógica de desconectar
                     toast.info("Funcionalidad de desconectar aún no implementada");
                   }}
-                  disabled={!botones.desconectar.habilitado}
+                   disabled={!botones!.desconectar.habilitado}
                 >
-                  {botones.desconectar.etiqueta}
+                   {botones!.desconectar.etiqueta}
                 </Button>
                 <Button
-                  variant={botones.contenedor.habilitado ? "outline" : "ghost"}
+                   variant={botones!.contenedor.habilitado ? "outline" : "ghost"}
                   size="sm"
-                  className={`cursor-pointer h-7 gap-1.5 text-xs border-emerald-400/25 text-emerald-200 hover:bg-emerald-500/10 ${!botones.contenedor.habilitado ? "cursor-default opacity-50" : ""}`}
+                   className={`cursor-pointer h-7 gap-1.5 text-xs border-emerald-400/25 text-emerald-200 hover:bg-emerald-500/10 ${!botones!.contenedor.habilitado ? "cursor-default opacity-50" : ""}`}
                   onClick={() => {
                     // TODO: Implementar la lógica de contenedor
                     toast.info("Funcionalidad de contenedor aún no implementada");
                   }}
-                  disabled={!botones.contenedor.habilitado}
+                   disabled={!botones!.contenedor.habilitado}
                 >
-                  {botones.contenedor.etiqueta}
+                   {botones!.contenedor.etiqueta}
                 </Button>
               </div>
             )}
             {/* Mostrar el panel de instalación si no hay nodo pero el SO es compatible */}
-            {colmenaData.nodo === null && (
+             {colmenaData!.nodo === null && (
               <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
                 <h3 className="text-xs font-semibold text-white/80 mb-2">Contenedor de agentes</h3>
                 <div className="space-y-2">
