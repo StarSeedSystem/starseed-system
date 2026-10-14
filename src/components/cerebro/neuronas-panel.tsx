@@ -40,59 +40,61 @@ import { NeuronModelsPanel } from "@/components/neurons/neuron-models-panel";
 import { AparatosEnVivo } from "@/components/neurons/aparatos-en-vivo";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import {
-  ensureThisNeuron,
-  listNeurons,
-  removeNeuron,
-  setNeuronName,
-  setNeuronSettings,
-  setPermission,
-  settingsFor,
-  summarizeNeurons,
-  isHermesLinked,
-  linkHermesToNeuron,
-  setNeuronHermioneSync,
-  neuronHermioneSyncEnabled,
-  NEURON_EVENT,
-  type Neuron,
-  type NeuronKind,
-  type NeuronRole,
-  type NeuronSettings,
-} from "@/lib/neurons/neurons";
+   ensureThisNeuron,
+   listNeurons,
+   removeNeuron,
+   setNeuronName,
+   setNeuronSettings,
+   setPermission,
+   settingsFor,
+   summarizeNeurons,
+   isHermesLinked,
+   linkHermesToNeuron,
+   setNeuronHermioneSync,
+   neuronHermioneSyncEnabled,
+   NEURON_EVENT,
+   type Neuron,
+   type NeuronKind,
+   type NeuronRole,
+   type NeuronSettings,
+ } from "@/lib/neurons/neurons";
+import { botonesNeurona, estimarDesdeNavegador, comandoInstalar, SenalesNavegador, soDesdeAgente } from "@/lib/metagenesis/colmena";
 import { useHermioneStatus } from "@/lib/aurora/hermione-autosync";
 import { sendAccountBroadcast } from "@/lib/sync/realtime-sync";
 import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
 import { saveServer, linkServer } from "@/lib/brains/servers";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
 import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
+import { botonesNeurona, estimarDesdeNavegador, comandoInstalar, SenalesNavegador, soDesdeAgente } from "@/lib/metagenesis/colmena";
 import {
-  Monitor,
-  Laptop,
-  Smartphone,
-  Tablet,
-  Server,
-  Cpu,
-  Network,
-  RefreshCw,
-  Radio,
-  Pencil,
-  Check,
-  Trash2,
-  Loader2,
-  FileDown,
-  Send,
-  HardDrive,
-  ExternalLink,
-  Link2,
-  ChevronDown,
-  PanelTop,
-  Mic,
-  MousePointerClick,
-  FolderSync,
-  StickyNote,
-  Brain,
-  Sparkles,
-  Library,
-  Globe,
+   Monitor,
+   Laptop,
+   Smartphone,
+   Tablet,
+   Server,
+   Cpu,
+   Network,
+   RefreshCw,
+   Radio,
+   Pencil,
+   Check,
+   Trash2,
+   Loader2,
+   FileDown,
+   Send,
+   HardDrive,
+   ExternalLink,
+   Link2,
+   ChevronDown,
+   PanelTop,
+   Mic,
+   MousePointerClick,
+   FolderSync,
+   StickyNote,
+   Brain,
+   Sparkles,
+   Library,
+   Globe,
 } from "lucide-react";
 
 /* ─────────────────────────── Constantes de UI ─────────────────────────── */
@@ -415,24 +417,58 @@ function NeuronCard({
     }
   };
 
-  const sendFileRequest = async () => {
-    setRequesting(true);
-    try {
-      await sendAccountBroadcast("file-request", {
-        // Destino: deviceId de sync publicado en capacidades; si la neurona es
-        // antigua y no lo publica aún, su id de neurona (el receptor acepta ambos).
-        toDevice: n.capabilities?.syncDeviceId || n.id,
-        fromDevice: syncDeviceId(),
-        note: requestNote.trim() || undefined,
-        at: Date.now(),
-      });
-      toast.success(`Solicitud enviada a «${n.name}». El archivo aparecerá en tus archivos al subirlo.`);
-      setRequestOpen(false);
-      setRequestNote("");
-    } finally {
-      setRequesting(false);
-    }
-  };
+   const sendFileRequest = async () => {
+     setRequesting(true);
+     try {
+       await sendAccountBroadcast("file-request", {
+         // Destino: deviceId de sync publicado en capacidades; si la neurona es
+         // antigua y no lo publica aún, su id de neurona (el receptor acepta ambos).
+         toDevice: n.capabilities?.syncDeviceId || n.id,
+         fromDevice: syncDeviceId(),
+         note: requestNote.trim() || undefined,
+         at: Date.now(),
+       });
+       toast.success(`Solicitud enviada a «${n.name}». El archivo aparecerá en tus archivos al subirlo.`);
+       setRequestOpen(false);
+       setRequestNote("");
+     } finally {
+       setRequesting(false);
+     }
+   };
+
+   // Para la neurona actual, calcular los datos para la sección de contenedor de agentes
+   let colmenaData: NeuronaColmena | null = null;
+   let botones: { desconectar: Boton; contenedor: Boton; instalar: Boton } | null = null;
+   if (n.isThisDevice) {
+     // We don't have the node id, so we set it to null for now.
+     const nodo: string | null = null;
+
+     // We approximate vivo as whether the neuron is online.
+     const vivo: boolean = n.online ?? false;
+
+     // Determine SO from the capabilities.
+     const ua = `${n.capabilities.platform} ${n.capabilities.browser || ""}`.trim();
+     const so: SO = soDesdeAgente(ua, "", !!n.capabilities.touch);
+
+     // We don't have enCurso, so we set it to 0.
+     const enCurso: number = 0;
+
+     // We don't have contenedor info, so we set it to null.
+     const contenedor: ContenedorNodo | null = null;
+
+     // We don't have desconectando info, so we set it to false.
+     const desconectando: boolean = false;
+
+     colmenaData = {
+       nodo,
+       vivo,
+       so,
+       enCurso,
+       contenedor,
+       desconectando,
+     };
+     botones = botonesNeurona(colmenaData);
+   }
 
   return (
     <div
@@ -649,16 +685,93 @@ function NeuronCard({
         />
       </div>
 
-      {/* ── CasaOS por neurona (SOP §6b) ── */}
-      <CasaOsSection
-        neuron={n}
-        settings={settings}
-        patchSettings={patchSettings}
-        brainId={brainId}
-        brainName={brainName}
-      />
+       {/* ── CasaOS por neurona (SOP §6b) ── */}
+       <CasaOsSection
+         neuron={n}
+         settings={settings}
+         patchSettings={patchSettings}
+         brainId={brainId}
+         brainName={brainName}
+       />
 
-      {/* ── Señales y conectividad por neurona (Adenda 100) ── */}
+        {/* ── Contenedor de agentes ── */}
+        {n.isThisDevice && (
+          <div className="mt-4 space-y-3">
+            {/* Mostrar los botones si hay un nodo de MetaGenesis */}
+            {colmenaData.nodo !== null && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Button
+                  variant={botones.desconectar.habilitado ? "outline" : "ghost"}
+                  size="sm"
+                  className={`cursor-pointer h-7 gap-1.5 text-xs border-cyan-400/25 text-cyan-200 hover:bg-cyan-500/10 ${!botones.desconectar.habilitado ? "cursor-default opacity-50" : ""}`}
+                  onClick={() => {
+                    // TODO: Implementar la lógica de desconectar
+                    toast.info("Funcionalidad de desconectar aún no implementada");
+                  }}
+                  disabled={!botones.desconectar.habilitado}
+                >
+                  {botones.desconectar.etiqueta}
+                </Button>
+                <Button
+                  variant={botones.contenedor.habilitado ? "outline" : "ghost"}
+                  size="sm"
+                  className={`cursor-pointer h-7 gap-1.5 text-xs border-emerald-400/25 text-emerald-200 hover:bg-emerald-500/10 ${!botones.contenedor.habilitado ? "cursor-default opacity-50" : ""}`}
+                  onClick={() => {
+                    // TODO: Implementar la lógica de contenedor
+                    toast.info("Funcionalidad de contenedor aún no implementada");
+                  }}
+                  disabled={!botones.contenedor.habilitado}
+                >
+                  {botones.contenedor.etiqueta}
+                </Button>
+              </div>
+            )}
+            {/* Mostrar el panel de instalación si no hay nodo pero el SO es compatible */}
+            {colmenaData.nodo === null && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <h3 className="text-xs font-semibold text-white/80 mb-2">Contenedor de agentes</h3>
+                <div className="space-y-2">
+                  {/* QUÉ */}
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-white/50 font-semibold">QUÉ</p>
+                    <p className="text-[11px] text-white/40">
+                      El trabajador permite que esta neurona procese tareas del enjambre como lo hace la Mac.
+                    </p>
+                  </div>
+                  {/* POR QUÉ */}
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-white/50 font-semibold">POR QUÉ</p>
+                    <p className="text-[11px] text-white/40">
+                      {(() => {
+                        const senales: SenalesNavegador = {
+                          userAgent: `${n.capabilities.platform} ${n.capabilities.browser || ""}`.trim(),
+                          plataforma: n.capabilities.platform,
+                          memoriaGB: n.capabilities.memoryGb,
+                          nucleos: n.capabilities.cores,
+                          bateria: n.capabilities.battery
+                            ? { nivel: n.capabilities.battery.level ?? 0, cargando: n.capabilities.battery.charging ?? false }
+                            : null,
+                          redMedida: false, // No tenemos esta información en las capacidades
+                        };
+                        const estimacion = estimarDesdeNavegador(senales, !!n.capabilities.touch);
+                        return estimacion.explica;
+                      })()}
+                    </p>
+                  </div>
+                  {/* CÓMO */}
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-white/50 font-semibold">CÓMO</p>
+                    <p className="text-[11px] text-white/40">
+                      El comando de instalación se proporcionará cuando el emisor de códigos esté disponible (después de la migración de nodos).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+       {/* ── Señales y conectividad por neurona (Adenda 100) ── */}
       {n.isThisDevice ? (
         // Esta neurona = dispositivo real ⇒ edita los ajustes de conectividad
         // reales de la cuenta (auto-persistidos por el panel vía localStorage).
