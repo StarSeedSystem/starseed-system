@@ -23,6 +23,8 @@ import {
     Bot,
     // Ola 1010E: Estaciones (transmisiones en directo).
     Cast,
+    // Ola 1013F: Fundamento de StarSeed.
+    Gem,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
