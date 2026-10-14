@@ -39,9 +39,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import nodo_metagenesis_logica as L
 import colmena_logica as C
+import platform
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 CARPETA = os.path.expanduser(os.environ.get("STARSEED_NODO_DIR") or "~/.starseed/nodo-metagenesis")
+
+
+
 
 
 def raiz_repo() -> str:
@@ -465,7 +469,7 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         try:
             import config_director  # noqa: WPS433
             salud["pausado"] = bool(config_director.cargar()[0].get("pausado"))
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: WPS433
             salud["pausado"] = False
         # (OPA1011b) Resultados, no solo latidos: si el trabajo AVANZA.
         try:
@@ -477,7 +481,39 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         salud["a1"] = estado_a1()
     cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orquestador": salud["orquestador"],
            "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
-    return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap}
+    
+    # Nuevos campos para el latido
+    en_curso = _get_en_curso(raiz, ahora)
+    cap_gobernador = _construir_cap_gobernador(medio)
+    contendor_info = C.capacidad_contenedor(cap_gobernador)
+    # Leer el estado del contenedor desde el archivo
+    contenedor_activo = True  # Por defecto
+    contenedor_path = os.path.join(CARPETA, "contenedor.json")
+    if os.path.exists(contenedor_path):
+        try:
+            with open(contenedor_path, "r", encoding="utf-8") as f:
+                contenedor_data = json.load(f)
+            if isinstance(contenedor_data, dict):
+                contenedor_activo = contenedor_data.get("activo", True)
+        except (OSError, ValueError, json.JSONDecodeError):
+            pass
+    contenedor = {
+        "activo": contenedor_activo,
+        "agentes": contendor_info.get("agentes", 0),
+        "apto": contendor_info.get("apto", False),
+        "motivo": contendor_info.get("motivo", "")
+    }
+    periodo_s = 0.0  # Se puede mejorar con mediciones reales en el futuro
+    
+    return {
+        "medio": medio,
+        "raiz": raiz,
+        "salud": salud,
+        "cap": cap,
+        "en_curso": en_curso,
+        "contenedor": contenedor,
+        "periodo_s": periodo_s
+    }
 
 
 # ─── acciones ────────────────────────────────────────────────────────────────────────────
@@ -738,3 +774,185 @@ def reunir_para_rescate(raiz: str) -> Dict[str, Any]:
     asuntos = out.splitlines() if rc == 0 else []
     return {"ids_vivos": ids_vivos, "colas_fuente": colas, "progreso": progreso if isinstance(progreso, dict) else {},
             "asuntos": asuntos}
+
+
+def _get_en_curso(raiz: str, ahora: float) -> List[Dict[str, Any]]:
+    """Obtiene la lista de tareas en curso para este nodo, basado en progreso.json y puntos-control.json.
+    Devuelve hasta 8 entradas de {id, fase, punto} donde punto es {rama, sha, t}.
+    """
+    from colmena_logica import FASES_CON_TRABAJO
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    progreso_path = os.path.join(olas, "progreso.json")
+    puntos_path = os.path.join(olas, "puntos-control.json")
+    
+    progreso = leer_json(progreso_path, {})
+    if not isinstance(progreso, dict):
+        progreso = {}
+    
+    puntos = {}
+    if os.path.exists(puntos_path):
+        puntos_data = leer_json(puntos_path, {})
+        if isinstance(puntos_data, dict):
+            puntos = puntos_data
+    
+    en_curso = []
+    for tid, tarea in progreso.items():
+        if not isinstance(tarea, dict):
+            continue
+        fase = tarea.get("fase")
+        if fase in FASES_CON_TRABAJO:
+            punto = puntos.get(tid, {})
+            # Aseguramos que punto tenga al menos los campos esperados, pero puede estar vacío
+            en_curso.append({
+                "id": str(tid),
+                "fase": fase,
+                "punto": punto  # Puede ser {} o {rama: ..., sha: ..., t: ...}
+            })
+            if len(en_curso) >= 8:
+                break
+    return en_curso
+
+
+def _construir_cap_gobernador(medio: str) -> Dict[str, Any]:
+    """Construye el diccionario de capacidad para colmena_logica.capacidad_contenedor.
+    Lee información del gobernador.json y del sistema.
+    """
+    cap: Dict[str, Any] = {}
+    
+    # Información básica del medio
+    cap["medio"] = medio
+    
+    # Sistema operativo
+    import platform
+    so = platform.system().lower()
+    if so == "darwin":
+        cap["so"] = "otro"  # No hay caso específico para mac en la función
+    elif so == "windows":
+        cap["so"] = "windows"
+    elif so == "linux":
+        cap["so"] = "linux"
+    else:
+        cap["so"] = "otro"
+    
+    # Herramientas: git, node, python3, opencode
+    herramientas = {}
+    for cmd in ["git", "node", "python3", "opencode"]:
+        herramientas[cmd] = shutil.which(cmd) is not None
+    cap["herramientas"] = herramientas
+    
+    # Medio app: no lo tenemos, asumimos que no es navegador ni pwa
+    cap["medio_app"] = ""
+    
+    # WSL: solo relevante en Windows
+    cap["wsl"] = False
+    if cap["so"] == "windows":
+        # Verificar si estamos en WSL
+        if os.path.exists("/proc/version"):
+            try:
+                with open("/proc/version", "r") as f:
+                    if "microsoft" in f.read().lower():
+                        cap["wsl"] = True
+            except OSError:
+                pass
+    
+    # Información de recursos: intentamos leer de gobernador.json
+    gobernador_path = os.path.expanduser("~/.starseed/gobernador.json")
+    if os.path.exists(gobernador_path):
+        try:
+            with open(gobernador_path, "r", encoding="utf-8") as f:
+                gov_data = json.load(f)
+            # Extraemos los campos que necesitamos
+            cap["ram_total_mb"] = gov_data.get("ram_total_mb")
+            cap["nucleos"] = gov_data.get("nucleos")
+            cap["disco_libre_gb"] = gov_data.get("disco_libre_mb", 0) / 1024.0  # Convertimos MB a GB
+            # Batería y red no están disponibles, las dejamos como None o dict vacío
+            cap["bateria"] = None
+            cap["red"] = None
+        except (OSError, ValueError, json.JSONDecodeError):
+            # Si falla, intentamos obtener la información de otra manera
+            pass
+    
+    # Si no tenemos información del gobernador, intentamos obtenerla directamente
+    if cap.get("ram_total_mb") is None:
+        # Obtener información de memoria usando una función similar a la de gobernador-recursos.py
+        mem_info = _memoria_mb()
+        cap["ram_total_mb"] = mem_info.get("ram_total_mb")
+        # Note: we already have ram_libre_mb() but we can use the one from _memoria_mb for consistency
+        # However, we are not required to set ram_libre_mb in the cap for capacidad_contenedor.
+        cap["nucleos"] = os.cpu_count()
+        cap["disco_libre_gb"] = disco_libre_gb(os.path.expanduser("~"))
+        cap["bateria"] = None
+        cap["red"] = None
+    
+    # Aseguramos que los campos numéricos sean floats o ints, None si no se pudieron obtener
+    for key in ["ram_total_mb", "nucleos", "disco_libre_gb"]:
+        if cap.get(key) is not None:
+            try:
+                cap[key] = float(cap[key])
+            except (ValueError, TypeError):
+                cap[key] = None
+    
+    return cap
+
+
+def _memoria_mb() -> Dict[str, Optional[float]]:
+    """Obtiene información de memoria similar a la de gobernador-recursos.py.
+    Devuelve un diccionario con claves: ram_total_mb, ram_libre_mb, etc.
+    Solo necesitamos ram_total_mb para ahora, pero devolvemos más por completitud.
+    """
+    so = platform.system().lower()
+    out: Dict[str, Optional[float]] = {
+        "ram_total_mb": None,
+        "ram_libre_mb": None,
+        # We don't need the others for ahora, but we can set them to None
+        "swap_mb": None,
+        "ram_pura_mb": None,
+        "swap_total_mb": None,
+        "disco_libre_mb": None,
+    }
+    if so == "darwin":
+        # Based on gobernador-recursos.py
+        pagina, libres, puras = 4096, 0, 0
+        try:
+            out_raw = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=5).stdout
+            for linea in out_raw.splitlines():
+                if "page size of" in linea:
+                    try:
+                        pagina = int(linea.split("page size of")[1].split()[0])
+                    except (IndexError, ValueError):
+                        pass
+                for clave in ("Pages free", "Pages inactive", "Pages speculative"):
+                    if linea.startswith(clave):
+                        try:
+                            n = int(linea.split(":")[1].strip().rstrip("."))
+                            libres += n
+                            if clave != "Pages inactive":  # con la swap llena, inactiva es sucia y no recuperable
+                                puras += n
+                        except (IndexError, ValueError):
+                            pass
+            out["ram_libre_mb"] = libres * pagina / 1048576
+            out["ram_pura_mb"] = puras * pagina / 1048576
+            sw = subprocess.run(["sysctl", "-n", "vm.swapusage"], capture_output=True, text=True, timeout=5).stdout
+            try:
+                if "used =" in sw:
+                    out["swap_mb"] = float(sw.split("used =")[1].split("M")[0])
+                if "total =" in sw:
+                    out["swap_total_mb"] = float(sw.split("total =")[1].split("M")[0])
+            except (IndexError, ValueError):
+                pass
+            out["disco_libre_mb"] = shutil.disk_usage(os.path.expanduser("~")).free / 1048576
+            total = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5).stdout
+            if total.strip().isdigit():
+                out["ram_total_mb"] = int(total.strip()) / 1048576
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+    elif so == "linux":
+        try:
+            with open("/proc/meminfo", encoding="utf-8") as f:
+                meminfo = {l.split(":")[0]: float(l.split(":")[1].split()[0]) for l in f if ":" in l}
+            out["ram_libre_mb"] = meminfo.get("MemAvailable", 0) / 1024
+            out["swap_mb"] = (meminfo.get("SwapTotal", 0) - meminfo.get("SwapFree", 0)) / 1024
+            out["ram_total_mb"] = meminfo.get("MemTotal", 0) / 1024
+        except (OSError, ValueError, IndexError):
+            pass
+    return out
