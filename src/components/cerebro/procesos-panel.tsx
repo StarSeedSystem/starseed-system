@@ -23,6 +23,7 @@ import {
 import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
 import { listNeurons } from "@/lib/neurons/neurons";
 import { textoHace } from "@/lib/metagenesis/remoto";
+import { ProcesosHardware } from "./procesos-hardware";
 
 const ETIQUETA_MEDIDA = { cpu: "CPU", ram: "RAM", disco: "Disco", bateria: "Batería" } as const;
 
@@ -90,21 +91,9 @@ export default function ProcesosPanel(_props: ProcesosPanelProps) {
     if (lista.length === 0)
         return <p className="text-sm text-white/60">Sin medida: ningún servidor o neurona vinculado respondió. La medida de esta Mac solo está disponible en la propia Mac o con sesión de MetaGenesis.</p>;
 
-    const avisos = avisosHardware(lista, UMBRALES_POR_DEFECTO);
     return (
         <section aria-label="Hardware de los servidores vinculados" className="space-y-2">
-            {avisos.length > 0 && (
-                <ul aria-label="Avisos de hardware" className="space-y-1">
-                    {avisos.map((a, i) => (
-                        <li key={`${a.servidor}-${a.medida}-${i}`} className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
-                            Aviso: {ETIQUETA_MEDIDA[a.medida]} de {a.servidor} en {a.valor} % (umbral {a.umbral} %)
-                        </li>
-                    ))}
-                </ul>
-            )}
-            <ul className="space-y-2">
-                {lista.map((h) => <FilaHardware key={h.id} h={h} />)}
-            </ul>
+            <ProcesosHardware hardware={lista} umbrales={UMBRALES_POR_DEFECTO} />
         </section>
     );
 }
