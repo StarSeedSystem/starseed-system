@@ -1,0 +1,47 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "CB1013O",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: tarjetas de hardware por servidor",
+   "archivos": [
+    "src/components/cerebro/procesos-hardware.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Componente `export function ProcesosHardware({ hardware, umbrales, ocultos }: { hardware: HardwareServidor[]; umbrales: UmbralesProcesos; ocultos?: string[] })`. Una tarjeta por servidor (nombre, tipo en palabras, hora de la medida y fuente) con cinco filas: CPU (% y núcleos/carga), RAM (usada/total en GB y %), GPU (% y nombre), Disco (libre/total en GB y % usado) y Batería (% y si carga). Barras con `porcentaje()`; si el valor es null, la fila dice «sin medida en este aparato» SIN barra. Las filas que pasan su umbral (`avisosHardware`) se marcan en ámbar con el umbral escrito. Rejilla adaptable sin cortar textos. Exporta también `export default ProcesosHardware`.",
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  },
+  {
+   "id": "CB1013K",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: normalizar cada fuente a ProcesoActivo (puro)",
+   "archivos": [
+    "src/lib/cerebros/procesos-normalizar.ts",
+    "src/lib/cerebros/__tests__/procesos-normalizar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO, entradas `unknown` leídas con defensa. Exporta una función por fuente que devuelve `ProcesoActivo[]` (lee los archivos citados para conocer las formas reales): `desdeAgentesMac(r)` (`/api/mando/agentes`: sesiones activas → tipo 'genesis', y procesos tipo agente/orquestador), `desdeLatidos(r)` (`/api/mando/medidores` → `latidos[]`: tarea, fase, modelo, minutos, donde), `desdeNodos(r)` (`leerEstadoAutonomo()`: orquestadores de cada nodo vivo → 'genesis' con donde = nodo), `desdePoligenesis(r)` (operaciones 'propuesta' de `leerHistorial()` y propuestas abiertas → 'poligenesis'), `desdeSuenos(r)` (`/api/mando/suenos` y `fetchAstraura158DreamStatus`), `desdeImaginacion(r)` (`fetchAstraura158ImaginationStatus` y `imagine_runs` en curso), `desdeInstalaciones(r)` (estado 'pedida' → descarga, 'descargada' → instalación; las demás no son activas), `desdeActualizaciones(r)` (capas con versión pendiente), `desdeVentanas(r)` (ventanas minimizadas de `readDesktopsSnapshot()` → 'app-fondo') y `desdePresencia(r)` (neuronas con `visible === false` → 'app-fondo' con donde = la neurona). Cada proceso con `fuente` (la ruta o función de origen) y `progreso` null salvo que la fuente dé uno real. Más `unirProcesos(...listas)` (sin duplicar por id, en marcha primero) y `agruparPorTipo`. Pruebas con muestras de cada forma (incluida una vacía o rota → []).",
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  },
+  {
+   "id": "CB1013P",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: ajustes (tipos visibles, intervalo, umbrales, servidores ocultos, límites por cerebro)",
+   "archivos": [
+    "src/lib/cerebros/procesos-preferencias.ts",
+    "src/components/cerebro/procesos-ajustes.tsx",
+    "src/lib/cerebros/__tests__/procesos-preferencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (Ajustables) (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. `procesos-preferencias.ts`: clave `starseed.cerebros.procesos.v1` (comprueba que el prefijo `starseed.cerebros.` se sincroniza en `SYNCED_PREFIXES` de src/lib/settings-sync.ts; si no, usa una clave con un prefijo que sí se sincronice y dilo en un comentario), `PreferenciasProcesos { tipos: TipoProceso[]; intervaloSeg: number; umbrales: UmbralesProcesos; ocultos: string[] }`, `normalizarPreferencias(raw)` (intervalo entre 5 y 120, 15 por defecto; umbrales entre 1 y 100), `leerPreferencias()`, `guardarPreferencias(p)` (localStorage + `pushPreferences()`), un hook `usarPreferenciasProcesos()` y `limitesDeCerebro(brainId)`/`guardarLimites(brainId, { cpuMaxPct, ramMaxMb })` en `starseed.brain.<id>.limites`. `procesos-ajustes.tsx`: `export function ProcesosAjustes({ brainId }: { brainId: string | null })` con casillas de tipos, deslizador del intervalo, campos de umbrales, servidores ocultos y, si hay cerebro, los límites con el aviso «Guardado; lo aplicará el orquestador (hoy nadie lo aplica todavía)». Pruebas de normalizar (valores fuera de rango, basura → por defecto).",
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  }
+ ]
+}
