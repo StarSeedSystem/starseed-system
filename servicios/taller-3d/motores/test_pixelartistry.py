@@ -213,6 +213,23 @@ class RemallarImagen(unittest.TestCase):
         self.assertEqual(r["glb"], "malla.glb")
         self.assertEqual(llamadas["n"], 3)
 
+    def test_cuando_no_disponible_devuelve_dict_de_error(self):
+        # Sin ComfyUI al otro lado (caída simulada, sin red real): remallar_imagen
+        # responde con el dict común de error y la procedencia honesta intacta.
+        caido = mock.MagicMock()
+        caido.get.side_effect = OSError("conexión rehusada (simulado)")
+        r = pa.remallar_imagen("/fake/path/image.png", resolucion=512,
+                               carpeta_workflows=self.tmp, comfy=caido,
+                               dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIsInstance(r["procedencia"], list)
+        self.assertGreaterEqual(len(r["procedencia"]), 2)  # flujo y nodos
+        self.assertIsInstance(r["fallo"], str)
+        self.assertGreaterEqual(len(r["fallo"]), 1)
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
     def test_tiempo_agotado(self):
         carpeta = _flujo_en_disco(self.tmp)
         comfy = ComfyFalso(historial={"p1": None})
