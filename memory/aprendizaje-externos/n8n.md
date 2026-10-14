@@ -30,9 +30,28 @@ Formato del contrato `architecture/puente-propio-flujos.md` §2. Revisión a mit
 | Google Drive | Nodo nativo | **pendiente** | Nodo Drive sobre `src/lib/storage/gdrive-driver.ts` | Media | — |
 | Editor visual | Lienzo de nodos, historial de ejecuciones | Editor en Genesis (FLU1005Hc: lienzo dnd-kit, panel, historial, Ejecutar/Activar) | — | — | FLU1005Hc |
 
-## Para el traslado del 2026-10-14
+## Traslado, 2026-10-14 (aviso programado del inicio)
 
-1. Hecho por adelantado el 2026-10-11: el único flujo ya está exportado, al día y convertido.
-2. Del 14 al 17: el motor propio corre ese flujo en sombra (sus 3 webhooks) comparando con n8n Cloud.
-3. El 17: el enrutador de producción apaga n8n Cloud y los webhooks apuntan al motor propio.
-   Si Alex crea flujos nuevos en n8n antes del 17: `python3 scripts/puente/flujos/exportar_externos.py n8n --carpeta ~/Downloads`.
+- **Exportación**: la sesión de n8n Cloud del navegador integrado caducó (redirige a «signin») y Claude no
+  escribe contraseñas: no se pudo releer la instancia. Lo último exportado (2026-10-11) es posterior a la
+  última edición del único flujo (2026-10-05). Si Alex creó flujos después del 11: iniciar sesión en n8n Cloud
+  y descargar cada flujo (⋯ → Download) a `~/Downloads`, y luego
+  `python3 scripts/puente/flujos/exportar_externos.py n8n --carpeta ~/Downloads`.
+- **Nadie depende hoy de n8n Cloud**: ningún proceso llama a `produccion_webhooks.emitir` y en la Mac no hay
+  `N8N_WEBHOOK_URL` ni `PRODUCCION_WEBHOOKS`. Sus 3 ejecuciones de octubre no vinieron de ningún proceso en marcha. Además su
+  Webhook pide la cabecera `X-StarSeed-Token` y nuestro emisor firma con `X-StarSeed-Firma`. Que venza el 18 no
+  apaga nada que funcione.
+- **Sombra (los 3 eventos por el motor propio, carpeta temporal)**: hoy **0 de 3** dan lo que da n8n.
+  1. `motor.REGISTRO` está vacío: «publicada» se recoge y falla en el primer nodo («No hay ejecutor
+     registrado para el tipo pendiente»). Ningún flujo puede correr con el servicio tal como está.
+  2. Solo escucha el PRIMER webhook: «pieza-lista» y «revertida» se quedan sin consumir.
+  3. Con los ejecutores enchufados y solo la rama del disparador, corre, pero el importador deja el «=» de n8n
+     delante de cada expresión (`"=sombra1014"`, listas como texto).
+  - El gancho HTTP de Genesis sí funciona: sin firma 401, firmado 202 (archivo de prueba borrado después).
+  - Informe completo: `memory/aprendizaje-externos/sombra-2026-10-14.json`.
+- **Tareas** (`cola-traslado-n8n-1014.json`, Ola 1014T): FLU1014A registro de ejecutores, B todos los
+  disparadores, C solo la rama del disparador, D importador («=», nota, forma n8n, Set fiel), E sombra
+  permanente (`flujos/sombra.py` + prueba de los 3 eventos), F emisor al gancho propio por evento, G
+  autopublicar avisa «publicada».
+- **El 17** (último traslado): `python3 scripts/puente/flujos/sombra.py` debe dar 3 de 3; entonces el flujo
+  corre en casa (`FLUJOS_GANCHO_BASE` en `~/.starseed/env`) y n8n Cloud puede vencer sin pérdida.

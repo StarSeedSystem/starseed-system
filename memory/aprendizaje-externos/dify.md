@@ -21,3 +21,9 @@ Formato del contrato `architecture/puente-propio-flujos.md` §2. Revisión a mit
 | Apps de IA publicadas como API | App = prompt con variables + conocimiento + modelo, con registro y anotaciones | Apps de IA propias (FLU1005F) | Comparar con las apps reales de la cuenta (requiere sesión) | Media | — |
 | Flujos de IA (workflow/chatflow) | Lienzo con nodos de LLM, condiciones y herramientas | Motor de flujos propio + nodo `ia` | — | — | FLU1005A, FLU1005B |
 | Registro y anotaciones | Cada llamada queda registrada; respuestas anotables | Registro de las apps propias (FLU1005F) | — | — | FLU1005F |
+
+## Traslado, 2026-10-14
+
+- `exportar_externos.py dify`: la API responde y la cuenta sigue con **0 bases y 0 documentos**
+  (`dify-export/2026-10-14/`, vacía). No hay nada que cargar en el conocimiento propio (FLU1005E).
+- Las apps y los créditos del Sandbox siguen sin dato: el navegador integrado no tiene la sesión de cloud.dify.ai.

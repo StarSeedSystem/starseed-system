@@ -1,0 +1,138 @@
+{
+ "flujo": "starseed-producci-n-puentes",
+ "registro_del_motor": [],
+ "disparador_que_escucha": "wh-publicada",
+ "eventos": [
+  {
+   "evento": "produccion.publicada",
+   "ruta": "starseed-produccion-publicada",
+   "n8n_esperado": {
+    "evento": "publicada",
+    "sha": "sombra1014",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-14T15:13:17.521857+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "hoy": {
+    "recogido_por_disparadores": true,
+    "sin_consumir": [],
+    "ejecuciones": [
+     {
+      "estado": "fallida",
+      "error": "'No hay ejecutor registrado para el tipo pendiente'",
+      "salida": []
+     }
+    ]
+   },
+   "tras_arreglo": {
+    "estado": "completa",
+    "error": null,
+    "salida": [
+     {
+      "evento": "publicada",
+      "sha": "=sombra1014",
+      "medios": "=['web', 'mando']",
+      "tareas": "=['T-SOMBRA']",
+      "momento": "=2026-10-14T15:13:17.521857+00:00",
+      "datos": "={'nota': 'prueba en sombra'}"
+     }
+    ]
+   },
+   "coincide_hoy": false,
+   "coincide_tras_arreglo": false
+  },
+  {
+   "evento": "produccion.pieza_lista",
+   "ruta": "starseed-produccion-pieza-lista",
+   "n8n_esperado": {
+    "evento": "pieza-lista",
+    "sha": "sombra1014",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-14T15:13:17.532185+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "hoy": {
+    "recogido_por_disparadores": false,
+    "sin_consumir": [
+     "1791990797532-starseed-produccion-pieza-lista.json"
+    ],
+    "ejecuciones": []
+   },
+   "tras_arreglo": {
+    "estado": "completa",
+    "error": null,
+    "salida": [
+     {
+      "evento": "pieza-lista",
+      "sha": "=sombra1014",
+      "medios": "=['web', 'mando']",
+      "tareas": "=['T-SOMBRA']",
+      "momento": "=2026-10-14T15:13:17.532185+00:00",
+      "datos": "={'nota': 'prueba en sombra'}"
+     }
+    ]
+   },
+   "coincide_hoy": false,
+   "coincide_tras_arreglo": false
+  },
+  {
+   "evento": "produccion.revertida",
+   "ruta": "starseed-produccion-revertida",
+   "n8n_esperado": {
+    "evento": "revertida",
+    "sha": "sombra1014",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-14T15:13:17.538965+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "hoy": {
+    "recogido_por_disparadores": false,
+    "sin_consumir": [
+     "1791990797539-starseed-produccion-revertida.json"
+    ],
+    "ejecuciones": []
+   },
+   "tras_arreglo": {
+    "estado": "completa",
+    "error": null,
+    "salida": [
+     {
+      "evento": "revertida",
+      "sha": "=sombra1014",
+      "medios": "=['web', 'mando']",
+      "tareas": "=['T-SOMBRA']",
+      "momento": "=2026-10-14T15:13:17.538965+00:00",
+      "datos": "={'nota': 'prueba en sombra'}"
+     }
+    ]
+   },
+   "coincide_hoy": false,
+   "coincide_tras_arreglo": false
+  }
+ ],
+ "nota": "Sombra del 2026-10-14 (.transfer/sombra-n8n-1014/sombra.py): «hoy» = camino real del servicio; «tras_arreglo» = ejecutores de nodos.py enchufados, solo la rama del disparador e ítem con forma n8n."
+}
