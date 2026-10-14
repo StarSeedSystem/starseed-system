@@ -176,12 +176,12 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
 describe("ACCIONES: etiquetas y argumentos correctos", () => {
     it("tienen las etiquetas y argumentos correctos", () => {
         expect(ACCIONES.desconectar.etiqueta).toBe("Desconectar");
-        expect(ACCIONES.desconectar.explica).toBe("Quita al nodo del enjambre de MetaGenesis.");
+        expect(ACCIONES.desconectar.explica).toBe("Desconecta un nodo de la red MetaGenesis.");
         expect(ACCIONES.desconectar.confirmar).toBe(true);
         expect(ACCIONES.desconectar.args).toEqual([]);
 
         expect(ACCIONES.contenedor.etiqueta).toBe("Usar como contenedor");
-        expect(ACCIONES.contenedor.explica).toBe("El nodo actúa como contenedor para otros mediadores.");
+        expect(ACCIONES.contenedor.explica).toBe("Configura este medio como contenedor para otros nodos.");
         expect(ACCIONES.contenedor.confirmar).toBeUndefined();
         expect(ACCIONES.contenedor.args).toEqual(["activo", "trabajadores"]);
     });
