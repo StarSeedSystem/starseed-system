@@ -177,3 +177,90 @@ describe("lote, vista previa y deshacer", () => {
         expect(puedeDeshacer({ ...base, inverso: null })).toBe(false);
     });
 });
+
+describe("bot.crear y bot.configurar", () => {
+    it("valida bot.crear con datos correctos", () => {
+        const r = validarOperacion(
+            { tipo: "bot.crear", datos: { nombre: "Bot1", gobierno: "jerarquico" }, motivo: "m" },
+            { ambito: GRUPO }
+        );
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.op).toEqual({
+            tipo: "bot.crear",
+            motivo: "m",
+            datos: { nombre: "Bot1", gobierno: "jerarquico" },
+        });
+    });
+
+    it("valida bot.configurar con datos correctos", () => {
+        const r = validarOperacion(
+            { tipo: "bot.configurar", datos: { botId: "bot123", cambio: "personalidad", valor: "{\"nivel\": 5}" }, motivo: "m" },
+            { ambito: PERSONA }
+        );
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.op).toEqual({
+            tipo: "bot.configurar",
+            motivo: "m",
+            datos: { botId: "bot123", cambio: "personalidad", valor: "{\"nivel\": 5}" },
+        });
+    });
+
+    it("descarta campos extra en bot.crear", () => {
+        const r = validarOperacion(
+            { tipo: "bot.crear", datos: { nombre: "Bot1", gobierno: "jerarquico", extra: "ignorado" }, motivo: "m" },
+            { ambito: GRUPO }
+        );
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.op.datos).toEqual({ nombre: "Bot1", gobierno: "jerarquico" });
+    });
+
+    it("rechaza gobierno inválido en bot.crear", () => {
+        const r = validarOperacion(
+            { tipo: "bot.crear", datos: { nombre: "Bot1", gobierno: "invalid" }, motivo: "m" },
+            { ambito: GRUPO }
+        );
+        expect(r.ok).toBe(false);
+        expect(r.problemas).toContain("«gobierno» debe ser 'jerarquico' o 'democratico'.");
+    });
+
+    it("rechaza cambio inválido en bot.configurar", () => {
+        const r = validarOperacion(
+            { tipo: "bot.configurar", datos: { botId: "bot123", cambio: "invalid", valor: "{}" }, motivo: "m" },
+            { ambito: PERSONA }
+        );
+        expect(r.ok).toBe(false);
+        expect(r.problemas).toContain("«cambio» debe ser uno de: personalidad, cuerpo, sentidos, permisos, modelo, pausar, borrar.");
+    });
+
+    it("rechaza valor que parece código en bot.configurar", () => {
+        const r = validarOperacion(
+            { tipo: "bot.configurar", datos: { botId: "bot123", cambio: "personalidad", valor: "function(){}" }, motivo: "m" },
+            { ambito: PERSONA }
+        );
+        expect(r.ok).toBe(false);
+        expect(r.problemas).toContain("«valor» contiene algo que parece código; Genesis solo acepta contenido.");
+    });
+
+    it("rechaza bot.crear en ámbito persona", () => {
+        const r = validarOperacion(
+            { tipo: "bot.crear", datos: { nombre: "Bot1", gobierno: "jerarquico" }, motivo: "m" },
+            { ambito: PERSONA }
+        );
+        console.log("r.ok:", r.ok, "r.problemas:", r.problemas);
+        expect(r.ok).toBe(false);
+        expect(r.problemas).toContain("«bot.crear» no está disponible aquí.");
+    });
+
+    it("acepta cadena vacía en valor de bot.configurar", () => {
+        const r = validarOperacion(
+            { tipo: "bot.configurar", datos: { botId: "bot123", cambio: "personalidad", valor: "" }, motivo: "m" },
+            { ambito: PERSONA }
+        );
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.op.datos.valor).toBe("");
+    });
+});

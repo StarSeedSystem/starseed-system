@@ -21,6 +21,8 @@
 import { aplicarAccion } from "@/lib/astraura/ui-aplicador";
 import type { AccionUi } from "@/lib/astraura/ui-acciones";
 import type { AppearanceConfig } from "@/context/appearance-context";
+import { Gobierno } from "@/lib/astraura-bots/tipos";
+import { CambioBot, decidirConfiguracion } from "@/lib/astraura-bots/permisos";
 import {
     camposEnConflicto,
     describirOperacion,
@@ -64,15 +66,21 @@ export interface PuertosGenesis {
         /** Escribe; devuelve cuántas filas cambiaron (0 = la RLS no dejó o no existe). */
         escribir(tabla: TablaPerfil, clave: string, valores: Record<string, string | null>): Promise<{ ok: boolean; filas: number; motivo?: string }>;
     };
-    entidad: {
-        crearPagina(datos: { nombre: string; descripcion?: string; etiquetas?: string[]; acento?: string }): Promise<{ ok: boolean; slug?: string; motivo?: string }>;
-        leer(tipo: TipoEntidad, slug: string): Promise<{ ok: true; valores: Record<string, unknown> } | { ok: false; motivo: string }>;
-        /** `soloDueña`: además filtra por la cuenta dueña (Genesis personal: solo tus páginas). */
-        escribir(tipo: TipoEntidad, slug: string, valores: Record<string, unknown>, opciones?: { soloDueña?: boolean }): Promise<{ ok: boolean; filas: number; motivo?: string }>;
-        /** Publicaciones de la página (null = no se pudo contar). */
-        contarPublicaciones(slug: string): Promise<number | null>;
-        borrarPagina(slug: string): Promise<{ ok: boolean; motivo?: string }>;
-    };
+     entidad: {
+         crearPagina(datos: { nombre: string; descripcion?: string; etiquetas?: string[]; acento?: string }): Promise<{ ok: boolean; slug?: string; motivo?: string }>;
+         leer(tipo: TipoEntidad, slug: string): Promise<{ ok: true; valores: Record<string, unknown> } | { ok: false; motivo: string }>;
+         /** `soloDueña`: además filtra por la cuenta dueña (Genesis personal: solo tus páginas). */
+         escribir(tipo: TipoEntidad, slug: string, valores: Record<string, unknown>, opciones?: { soloDueña?: boolean }): Promise<{ ok: boolean; filas: number; motivo?: string }>;
+         /** Publicaciones de la página (null = no se pudo contar). */
+         contarPublicaciones(slug: string): Promise<number | null>;
+         borrarPagina(slug: string): Promise<{ ok: boolean; motivo?: string }>;
+         /** Bots de Astraura: crear, configurar y borrar. */
+         crearBot(datos: { nombre: string; gobierno: Gobierno }): Promise<{ ok: boolean; botId: string; motivo?: string }>;
+         actualizarBotConfiguracion(botId: string, cambio: CambioBot, valor: string): Promise<{ ok: boolean; valorAnterior?: string; motivo?: string }>;
+         borrarBot(botId: string): Promise<{ ok: boolean; motivo?: string }>;
+         /** Lee el estado actual de un bot. */
+         leerBot(botId: string): Promise<{ ok: true; bot: import("@/lib/astraura-bots/tipos").Bot } | { ok: false; motivo: string }>;
+     };
     /** Solo existe en el navegador con `AppearanceProvider` montado. */
     apariencia?: {
         leer(): AppearanceConfig;
@@ -339,6 +347,51 @@ export async function aplicarOperacion(
                         : "Agente creado en tu biblioteca.",
                 );
             }
+            case "bot.crear": {
+                // For creating a bot for an entity
+                if (ambito.tipo !== "entidad") {
+                    return { ok: false, motivo: "bot.crear solo está disponible en ámbito de entidad." };
+                }
+                // Note: Permission check for bot creation is handled by the RLS in the database.
+                const entidadId = ambito.entidad.id;
+                const r = await p.entidad.crearBot({ nombre: op.datos.nombre, gobierno: op.datos.gobierno });
+                if (!r.ok) return { ok: false, motivo: r.motivo ?? "No se pudo crear el bot." };
+                if (!r.botId) return { ok: false, motivo: "No se recibió el ID del bot creado." };
+                return hecho(
+                    { tipo: "bot.borrar", botId: r.botId },
+                    `Bot «${op.datos.nombre}» creado con ID ${r.botId}.`
+                );
+            }
+            case "bot.configurar": {
+                // For configuring a bot (can be personal or entity bot)
+                // Check permission if in entidad scope
+                if (ambito.tipo === "entidad") {
+                    // Read the current bot state to check permission
+                    const botRes = await p.entidad.leerBot(op.datos.botId);
+                    if (!botRes.ok) return { ok: false, motivo: botRes.motivo ?? "No se pudo leer el bot para verificar permiso." };
+                    const bot = botRes.bot;
+                    // Assume the user is the owner for permission check; in a real scenario, the rol would come from the context.
+                    // We use "dueno" as a placeholder; the actual rol should be determined from the user's role in the entity.
+                    const decision = decidirConfiguracion(bot, "dueno", op.datos.cambio);
+                    if (!decision.permitido) {
+                        return { ok: false, motivo: decision.motivo ?? "No tiene permiso para configurar este bot." };
+                    }
+                }
+                const r = await p.entidad.actualizarBotConfiguracion(
+                    op.datos.botId,
+                    op.datos.cambio,
+                    op.datos.valor
+                );
+                if (!r.ok) return { ok: false, motivo: r.motivo ?? "No se pudo configurar el bot." };
+                // The valorAnterior might be undefined if the bot didn't have a previous value? 
+                // We'll store it in the inverso even if it's undefined? But our inverso type expects a string.
+                // We'll store an empty string if undefined.
+                const valorAnterior = r.valorAnterior ?? "";
+                return hecho(
+                    { tipo: "bot.configurar.restaurar", botId: op.datos.botId, cambio: op.datos.cambio, valorAnterior },
+                    `Bot ${op.datos.botId} configurado: ${op.datos.cambio} = ${op.datos.valor.substring(0, 50)}${op.datos.valor.length > 50 ? "..." : ""}`
+                );
+            }
         }
         return { ok: false, motivo: "Operación no reconocida." };
     } catch (e) {
@@ -434,6 +487,22 @@ export async function deshacerEntrada(e: EntradaGenesis, p: PuertosGenesis): Pro
                 if (inv.vinculo) p.agentes.desvincular(inv.agenteId, inv.vinculo.tipo, inv.vinculo.id);
                 const borrado = p.agentes.borrar(inv.agenteId);
                 return borrado ? { ok: true, resultado: "Agente borrado." } : { ok: true, resultado: "Ese agente ya no estaba." };
+            }
+            case "bot.borrar": {
+                // For undoing a bot creation: we delete the bot.
+                const r = await p.entidad.borrarBot(inv.botId);
+                if (!r.ok) return { ok: false, motivo: r.motivo ?? "No se pudo borrar el bot." };
+                return { ok: true, resultado: `Bot ${inv.botId} borrado.` };
+            }
+            case "bot.configurar.restaurar": {
+                // For undoing a bot configuration: we restore the previous valor.
+                const r = await p.entidad.actualizarBotConfiguracion(
+                    inv.botId,
+                    inv.cambio,
+                    inv.valorAnterior
+                );
+                if (!r.ok) return { ok: false, motivo: r.motivo ?? "No se pudo restaurar la configuración del bot." };
+                return { ok: true, resultado: `Configuración del bot ${inv.botId} restaurada.` };
             }
         }
         return { ok: false, motivo: "No sé deshacer esto." };

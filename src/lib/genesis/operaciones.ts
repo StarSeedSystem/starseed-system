@@ -24,6 +24,8 @@
 import { validarContraInvariantes, type Violacion } from "@/lib/nucleo/invariantes";
 import { pareceCodigo } from "@/lib/nucleo/ui-spec";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
+import { Gobierno } from "@/lib/astraura-bots/tipos";
+import { CambioBot } from "@/lib/astraura-bots/permisos";
 
 /* ── Vocabulario ─────────────────────────────────────────────────────────── */
 
@@ -36,7 +38,9 @@ export type TipoOperacion =
     | "dock.quitar"
     | "dashboard.widget.añadir"
     | "dashboard.widget.quitar"
-    | "agente.crear";
+    | "agente.crear"
+    | "bot.crear"
+    | "bot.configurar";
 
 export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "perfil.editar",
@@ -48,12 +52,14 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "dashboard.widget.añadir",
     "dashboard.widget.quitar",
     "agente.crear",
+    "bot.crear",
+    "bot.configurar",
 ];
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
 export const OPERACIONES_POR_AMBITO: Record<"persona" | "entidad", readonly TipoOperacion[]> = {
-    persona: TIPOS_OPERACION,
-    entidad: ["pagina.editar", "agente.crear"],
+    persona: TIPOS_OPERACION.filter(t => t !== "bot.crear"),
+    entidad: [...TIPOS_OPERACION.filter(t => t === "pagina.editar" || t === "agente.crear" || t === "bot.crear" || t === "bot.configurar")],
 };
 
 export type TipoEntidad = "pagina" | "grupo";
@@ -128,7 +134,9 @@ export type Operacion =
     | (Base & { tipo: "dock.quitar"; id: string })
     | (Base & { tipo: "dashboard.widget.añadir"; tablero?: string; widget: string; talla?: "S" | "M" | "L" })
     | (Base & { tipo: "dashboard.widget.quitar"; tablero?: string; widget: string })
-    | (Base & { tipo: "agente.crear"; agente: DatosAgente });
+    | (Base & { tipo: "agente.crear"; agente: DatosAgente })
+    | (Base & { tipo: "bot.crear"; datos: { nombre: string; gobierno: Gobierno } })
+    | (Base & { tipo: "bot.configurar"; datos: { botId: string; cambio: CambioBot; valor: string } });
 
 /** Lo que la validación sabe del entorno (lo pasa quien llama; todo opcional). */
 export interface ContextoValidacion {
@@ -190,6 +198,7 @@ function esObjeto(v: unknown): v is Record<string, unknown> {
 
 /** Texto limpio o `null` si no es texto, es demasiado largo o parece código. */
 function texto(v: unknown, max: number, campo: string, problemas: string[], vacioPermitido = false): string | undefined {
+    console.log("texto called with v:", v, "tipo:", typeof v);
     if (v === undefined || v === null) return undefined;
     if (typeof v !== "string") {
         problemas.push(`«${campo}» debe ser texto.`);
@@ -205,6 +214,7 @@ function texto(v: unknown, max: number, campo: string, problemas: string[], vaci
         return undefined;
     }
     if (pareceCodigo(limpio)) {
+        console.log("texto: detected code in", campo, ":", limpio);
         problemas.push(`«${campo}» contiene algo que parece código; Genesis solo acepta contenido.`);
         return undefined;
     }
@@ -294,13 +304,18 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
             return fallo();
         }
         const ambitoTipo = ctx.ambito.tipo;
-        if (!OPERACIONES_POR_AMBITO[ambitoTipo].includes(tipo as TipoOperacion)) {
+        const includes = OPERACIONES_POR_AMBITO[ambitoTipo].includes(tipo as TipoOperacion);
+        console.log("ambitoTipo:", ambitoTipo, "tipo:", tipo, "array:", OPERACIONES_POR_AMBITO[ambitoTipo], "includes:", includes);
+        if (!includes) {
+            console.log("Adding problem for ambito check");
             problemas.push(
                 ambitoTipo === "entidad"
                     ? `En PoliGenesis «${tipo}» no está disponible: aquí solo se cambia lo de la entidad.`
                     : `«${tipo}» no está disponible aquí.`,
             );
-            return fallo();
+            const result = fallo();
+            console.log("Returning fallo:", result);
+            return result;
         }
         const motivo = texto(bruto.motivo ?? "Lo pediste tú.", LIMITES.motivo, "motivo", problemas) ?? "";
         if (problemas.length) return fallo();
@@ -498,6 +513,41 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 if (problemas.length) return fallo();
                 return { ok: true, avisos, op: { tipo: "agente.crear", motivo, agente: agente as DatosAgente } };
             }
+            case "bot.crear": {
+                const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                const nombre = texto(d.nombre, LIMITES.nombre, "nombre", problemas);
+                const gobiernoRaw = d.gobierno;
+                let gobierno: Gobierno | undefined;
+                if (gobiernoRaw === "jerarquico" || gobiernoRaw === "democratico") {
+                    gobierno = gobiernoRaw as Gobierno;
+                } else {
+                    problemas.push("«gobierno» debe ser 'jerarquico' o 'democratico'.");
+                }
+                if (problemas.length) return fallo();
+                return { ok: true, avisos, op: { tipo: "bot.crear", motivo, datos: { nombre, gobierno } } };
+            }
+            case "bot.configurar": {
+                const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                const botId = texto(d.botId, 100, "botId", problemas);
+                const cambioRaw = d.cambio;
+                let cambio: CambioBot | undefined;
+                const cambiosValidos = ["personalidad", "cuerpo", "sentidos", "permisos", "modelo", "pausar", "borrar"] as const;
+                if (typeof cambioRaw === "string" && cambiosValidos.includes(cambioRaw as CambioBot)) {
+                    cambio = cambioRaw as CambioBot;
+                } else {
+                    problemas.push("«cambio» debe ser uno de: personalidad, cuerpo, sentidos, permisos, modelo, pausar, borrar.");
+                }
+                const valor = texto(d.valor, 4000, "valor", problemas, true);
+                console.log("bot.configurar valor:", valor, "pareceCodigo:", valor && pareceCodigo(valor));
+                if (valor && pareceCodigo(valor)) {
+                    problemas.push("«valor» contiene algo que parece código; Genesis solo acepta contenido.");
+                }
+                if (problemas.length) {
+                    console.log("bot.configurar: returning fallo due to problems:", problemas);
+                    return fallo();
+                }
+                return { ok: true, avisos, op: { tipo: "bot.configurar", motivo, datos: { botId, cambio, valor: valor ?? "" } } };
+            }
         }
         problemas.push("Operación no reconocida.");
         return fallo();
@@ -628,8 +678,23 @@ export function describirOperacion(op: Operacion, ambito: Ambito): VistaPrevia {
                 ],
                 deshacer: "Deshacer lo borra de tu biblioteca.",
             };
+            case "bot.crear":
+                return {
+                    titulo: `Crear el bot «${op.datos.nombre}»`,
+                    detalles: [`gobierno: ${op.datos.gobierno}`],
+                    deshacer: "Deshacer elimina el bot y su configuración.",
+                };
+            case "bot.configurar":
+                return {
+                    titulo: `Configurar el bot ${op.datos.botId}`,
+                    detalles: [
+                        `cambio: ${op.datos.cambio}`,
+                        `valor: ${valorCorto(op.datos.valor)}`,
+                    ],
+                    deshacer: "Deshacer repone el valor anterior.",
+                };
+        }
     }
-}
 
 /* ── Rol y modo de gobierno (PoliGenesis) ────────────────────────────────── */
 
@@ -683,7 +748,9 @@ export type Inverso =
     | { tipo: "dock.restaurar"; id: string; existia: boolean; estabaActivo: boolean }
     | { tipo: "widget.quitar"; tablero: string; widgetId: string }
     | { tipo: "widget.reponer"; tablero: string; widget: Record<string, unknown> }
-    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } };
+    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } }
+    | { tipo: "bot.borrar"; botId: string }
+    | { tipo: "bot.configurar.restaurar"; botId: string; cambio: CambioBot; valorAnterior: string };
 
 export type EstadoEntrada = "aplicada" | "deshecha" | "propuesta" | "fallida";
 

@@ -81,6 +81,7 @@ const PATRONES_CODIGO: readonly RegExp[] = [
     /\bon[a-z]+\s*=/i,
     /\beval\s*\(/i,
     /\bnew\s+Function\s*\(/i,
+    /function\s*\(/i,
     /data\s*:\s*text\/html/i,
 ];
 
@@ -131,6 +132,7 @@ function depurarCadena(valor: string, donde: string, ctx: Contexto): string | un
         return undefined;
     }
     if (pareceCodigo(limpia)) {
+        console.log("detected code in valor:", limpia);
         invalidar(ctx, `Cadena con aspecto de código en ${donde}: la interfaz es dato, no código.`);
         return undefined;
     }
