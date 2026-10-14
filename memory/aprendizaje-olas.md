@@ -4359,6 +4359,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RC1013D` — los tipos no compilan: 1 errores tsc (rama ola/RC1013D conservada)
 - `RTRTCOL1012Bdsb` — otra cosa: sin decisión en 0 h; rama ola/RTRTCOL1012Bdsb conservada
 
+## 2026-10-13 17:53 · mg-oracle-1013-0959
+
+**Lo que se pidió.** Relevo entre cuentas: recoger lo que otra cuenta me dejó y retirarlo al leerlo
+
+**Resultado.** 2 de 3 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTCOL1012Bdsbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTCOL1012Bdsbb conservada
+
 ## 2026-10-13 20:41 · mg-oracle-1013-1344
 
 **Lo que se pidió.** Alex Bordón Garrigós
