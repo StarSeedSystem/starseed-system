@@ -38,33 +38,45 @@ function importaciones(codigo: string): string[] {
     return fuera;
 }
 
-describe("código de cliente de Genesis sin módulos de Node", () => {
-    it("lo que el navegador carga desde /mando no llega a node:*", () => {
-        // Desde la página de Genesis: todo lo que cuelga de un archivo «use client» va al
-        // bundle del navegador (lo de antes puede ser componente de servidor y sí usa Node).
-        const raiz = path.join(SRC, "app", "(app)", "genesis", "page.tsx");
-        expect(existsSync(raiz)).toBe(true);
-        const problemas: string[] = [];
-        const vistos = new Set<string>();
-        const pila: [string, boolean, string[]][] = [[raiz, false, [path.relative(RAIZ, raiz)]]];
-        let clientes = 0;
-        while (pila.length) {
-            const [archivo, enCliente, camino] = pila.pop()!;
-            const codigo = readFileSync(archivo, "utf8");
-            const cliente = enCliente || /^\s*["']use client["']/.test(codigo);
-            const clave = `${archivo}|${cliente}`;
-            if (vistos.has(clave)) continue;
-            vistos.add(clave);
-            if (cliente) clientes += 1;
-            for (const esp of importaciones(codigo)) {
-                if (NODE.test(esp)) {
-                    if (cliente) problemas.push(`${camino.join(" → ")} importa ${esp}`);
-                    continue;
-                }
-                const r = resolver(archivo, esp);
-                if (r && r.startsWith(SRC)) pila.push([r, cliente, [...camino, path.relative(RAIZ, r)]]);
+/**
+ * Comprueba que el código de cliente de una página no importe módulos de Node.
+ * Devuelve un objeto con los problemas encontrados y el número de módulos cliente encontrados.
+ */
+function comprobarPagina(rutaRelativaDesdeSrc: string) {
+    const raiz = path.join(SRC, rutaRelativaDesdeSrc);
+    expect(existsSync(raiz)).toBe(true);
+    const problemas: string[] = [];
+    const vistos = new Set<string>();
+    const pila: [string, boolean, string[]][] = [[raiz, false, [path.relative(RAIZ, raiz)]]];
+    let clientes = 0;
+    while (pila.length) {
+        const [archivo, enCliente, camino] = pila.pop()!;
+        const codigo = readFileSync(archivo, "utf8");
+        const cliente = enCliente || /^\s*["']use client["']/.test(codigo);
+        const clave = `${archivo}|${cliente}`;
+        if (vistos.has(clave)) continue;
+        vistos.add(clave);
+        if (cliente) clientes += 1;
+        for (const esp of importaciones(codigo)) {
+            if (NODE.test(esp)) {
+                if (cliente) problemas.push(`${camino.join(" → ")} importa ${esp}`);
+                continue;
             }
+            const r = resolver(archivo, esp);
+            if (r && r.startsWith(SRC)) pila.push([r, cliente, [...camino, path.relative(RAIZ, r)]]);
         }
+    }
+    return { problemas, clientes };
+}
+
+describe("código de cliente de Genesis y Metagenesis sin módulos de Node", () => {
+    const paginas = [
+        { nombre: "genesis", ruta: "app/(app)/genesis/page.tsx" },
+        { nombre: "metagenesis", ruta: "app/(app)/metagenesis/page.tsx" }
+    ];
+
+    it.each(paginas)("lo que el navegador carga desde //$nombre no llega a node:*", ({ ruta }) => {
+        const { problemas, clientes } = comprobarPagina(ruta);
         expect(clientes).toBeGreaterThan(0);
         expect(problemas).toEqual([]);
     });
