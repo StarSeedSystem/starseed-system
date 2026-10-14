@@ -4,13 +4,39 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Set
 from uuid import uuid4
 from .modelo import (Ejecucion, Flujo, Nodo, RAIZ_FLUJOS, cargar_flujo,
                      escribir_json, guardar_flujo, orden_topologico, validar_flujo)
 Items = list[dict[str, Any]]
 FuncionNodo = Callable[[Items, dict[str, Any]], Items]
 REGISTRO: dict[str, FuncionNodo] = {}
+
+
+def _alcanzables_desde(flujo: Flujo, nodo_id_inicial: str) -> Set[str]:
+    """Devuelve el conjunto de IDs de nodos alcanzables desde nodo_id_inicial
+    siguiendo las conexiones del flujo."""
+    alcanzables: Set[str] = set()
+    visitar: list[str] = [nodo_id_inicial]
+    
+    # Crear mapa de conexiones para búsqueda eficiente
+    conexiones_salida: dict[str, list[str]] = {}
+    for conexion in flujo.conexiones:
+        if conexion.origen not in conexiones_salida:
+            conexiones_salida[conexion.origen] = []
+        conexiones_salida[conexion.origen].append(conexion.destino)
+    
+    while visitar:
+        actual = visitar.pop(0)
+        if actual in alcanzables:
+            continue
+        alcanzables.add(actual)
+        if actual in conexiones_salida:
+            visitar.extend(conexiones_salida[actual])
+    
+    return alcanzables
+
+
 def _ruta(ejecucion: Ejecucion) -> Path:
     return RAIZ_FLUJOS / "ejecuciones" / ejecucion.flujo_id / f"{ejecucion.id}.json"
 def _persistir(ejecucion: Ejecucion) -> None:
@@ -57,6 +83,18 @@ def _ejecutar_nodo(nodo: Nodo, items: Items, funcion: FuncionNodo,
 def _continuar(flujo: Flujo, ejecucion: Ejecucion,
                nodos: dict[str, FuncionNodo], ahora: Callable[[], Any],
                guardar: Callable[[Ejecucion], None]) -> Ejecucion:
+    # Determinar si hay un disparador en la entrada y calcular nodos alcanzables
+    nodo_disparador_id: str | None = None
+    nodos_alcanzables: Set[str] | None = None
+    
+    if ejecucion.entrada:
+        # Buscar el campo disparador en el primer elemento de entrada
+        primer_item = ejecucion.entrada[0]
+        if isinstance(primer_item, dict) and "disparador" in primer_item:
+            nodo_disparador_id = primer_item["disparador"]
+            # Calcular nodos alcanzables desde el disparador
+            nodos_alcanzables = _alcanzables_desde(flujo, nodo_disparador_id)
+    
     orden = orden_topologico(flujo)
     por_id = {nodo.id: nodo for nodo in flujo.nodos}
     ejecucion.estado = "ejecutando"
@@ -64,6 +102,16 @@ def _continuar(flujo: Flujo, ejecucion: Ejecucion,
     try:
         for indice in range(ejecucion.siguiente, len(orden)):
             nodo = por_id[orden[indice]]
+            
+            # Si hay un disparador definido, solo ejecutar nodos alcanzables
+            if nodos_alcanzables is not None and nodo.id not in nodos_alcanzables:
+                # Marcar nodo como omitido sin ejecutarlo
+                registro = {"entrada": [], "salida": [], "error": None,
+                            "ms": 0, "intentos": 0, "estado": "omitido"}
+                ejecucion.nodos[nodo.id] = registro
+                guardar(ejecucion)
+                continue
+            
             if nodo.tipo not in nodos:
                 raise KeyError(f"No hay ejecutor registrado para el tipo {nodo.tipo}")
             items = _entradas(flujo, nodo.id, ejecucion)
