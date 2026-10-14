@@ -67,7 +67,9 @@ export const SYNCED_KEYS = [
     "starseed.library.published.v1",     // ramas marcadas como públicas (preparadas para la red)
     "starseed.aurora.voice.v1",          // voz de Aurora: motor (navegador/Kokoro/Kitten) + voz elegida
     "starseed.aurora.vision.v1",             // visión de Aurora: activada + modelo elegido
-    "starseed.astraura.installed-models.v1", // modelos de navegador instalados (opt-in) por el usuario
+     "starseed.astraura.installed-models.v1", // modelos de navegador instalados (opt-in) por el usuario
+     "starseed.astraura.bots.v1",
+     "starseed.astraura.bots.orbes.v1",
     "starseed.library.seed.v1",              // versión de defaults sembrados en la cuenta (biblioteca)
     "starseed.updates.seen.v1",              // avisos de actualización/instalación ya vistos por el usuario
     "starseed.library.ratings.v1",           // valoración local (estrellas) de paquetes de la Biblioteca
