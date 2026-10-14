@@ -65,8 +65,10 @@ import {
     Lock,
     Pencil,
     Network,
-    Settings2,
+     Settings2,
 } from "lucide-react";
+import { EnlacePoliGenesis } from "@/components/genesis/enlace-poligenesis";
+
 
 const GOLD = "#E9C46A";
 
@@ -597,25 +599,28 @@ function PaginaPageContent() {
             )}
 
             
-            <EntityHeader
-                entity={{
-                    id: page.id,
-                    kind: page.kind,
-                    slug: page.slug,
-                    name: page.name,
-                    description: page.description ?? "",
-                    coverUrl: effectiveCover ?? "",
-                    // (Adenda 220) la foto de la página existía en la tabla pero nunca llegaba a la cabecera.
-                    avatarUrl: page.avatarUrl,
-                    memberCount: safeMemberCount,
-                    accent: accent
-                }}
-                isOwner={isOwner}
-                isCommunity={isCommunity}
-                onEdit={() => setEditOpen(true)}
-                onCustomize={() => setLayoutEditorOpen(true)}
-                followState={followState}
-            />
+             <div className="flex items-center gap-4">
+                 <EntityHeader
+                     entity={{
+                         id: page.id,
+                         kind: page.kind,
+                         slug: page.slug,
+                         name: page.name,
+                         description: page.description ?? "",
+                         coverUrl: effectiveCover ?? "",
+                         // (Adenda 220) la foto de la página existía en la tabla pero nunca llegaba a la cabecera.
+                         avatarUrl: page.avatarUrl,
+                         memberCount: safeMemberCount,
+                         accent: accent
+                     }}
+                     isOwner={isOwner}
+                     isCommunity={isCommunity}
+                     onEdit={() => setEditOpen(true)}
+                     onCustomize={() => setLayoutEditorOpen(true)}
+                     followState={followState}
+                 />
+                 <EnlacePoliGenesis entidadId={page?.id} slug={slugStr} />
+             </div>
 
             <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-3">
                 <div className={`min-w-0 ${activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}`}>
