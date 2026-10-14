@@ -60,6 +60,19 @@ HOME = os.path.expanduser("~")
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.join(HOME, "starseed-system")
 ESTADO_DIR = os.environ.get("STARSEED_NODO_ESTADO") or "/var/lib/starseed/nodo"
 ORQUESTADOR = os.environ.get("STARSEED_ORQUESTADOR") or os.path.join(HOME, "bin", "starseed-enjambre.py")
+
+
+def orquestador_para(raiz, explicito=os.environ.get("STARSEED_ORQUESTADOR"), defecto=ORQUESTADOR):
+    """El orquestador de la PROPIA cola: el `scripts/enjambre/starseed-enjambre.py` del main que trae.
+
+    (2026-10-14, medido) El A1 corría `~/bin/starseed-enjambre.py` del 10-10: cada cola llegaba con
+    el main de la Mac al día y la ejecutaba un orquestador de cuatro días antes (sin el montón de tsc
+    por medio, sin el «soltar» con medio…), y nada lo ponía al día salvo reinstalar el nodo. Como en
+    la nube, que instala el suyo desde lo que trae. Un STARSEED_ORQUESTADOR puesto a mano manda."""
+    if explicito:
+        return explicito
+    propio = os.path.join(raiz, "scripts", "enjambre", "starseed-enjambre.py")
+    return propio if os.path.isfile(propio) else defecto
 LOGS = os.path.join(HOME, "registros")
 ARCHIVO_OLAS = os.path.join(HOME, "archivo-olas")
 PREFIJO_COLA = "colas/oracle-"
@@ -629,7 +642,7 @@ class Nodo:
         self.vivo = {"fase": "cola", "desde": inicio, "cola": os.path.basename(cola)}
         self.escribir_estado(forzar=True)
         log = os.path.join(LOGS, "cola-%s.log" % clave.replace("/", "_"))
-        rc, dur = self.correr(["timeout", "-k", "60", "%dm" % MINUTOS_COLA, "python3", "-u", ORQUESTADOR, cola,
+        rc, dur = self.correr(["timeout", "-k", "60", "%dm" % MINUTOS_COLA, "python3", "-u", orquestador_para(RAIZ), cola,
                                "--workers", str(TRABAJADORES)], log, MINUTOS_COLA * 60 + 180)
         ts = time.strftime("%Y%m%d-%H%M%S")
         creadas = self.entregar(base, ts)

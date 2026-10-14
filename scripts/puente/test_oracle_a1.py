@@ -195,5 +195,20 @@ class MainVivoDeLaMac(unittest.TestCase):
         self.assertTrue(nodo._resumen_main_mac()["error"])
 
 
+
+class OrquestadorDeLaCola(unittest.TestCase):
+    """(2026-10-14) El A1 corría un orquestador de cuatro días antes que el main de la cola."""
+
+    def test_el_de_la_cola_si_lo_trae_y_si_no_el_instalado(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        self.assertEqual(A.orquestador_para(d, explicito=None, defecto="/instalado"), "/instalado")
+        os.makedirs(os.path.join(d, "scripts", "enjambre"))
+        propio = os.path.join(d, "scripts", "enjambre", "starseed-enjambre.py")
+        open(propio, "w").close()
+        self.assertEqual(A.orquestador_para(d, explicito=None, defecto="/instalado"), propio)
+        self.assertEqual(A.orquestador_para(d, explicito="/a-mano", defecto="/instalado"), "/a-mano")
+
+
 if __name__ == "__main__":
     unittest.main()
