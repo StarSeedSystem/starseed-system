@@ -13,13 +13,16 @@ vi.mock("../../security/ssrf", () => ({
     }
   },
   safeFetch: vi.fn(),
-  SsrfError: class extends Error {
-    constructor(message: string, httpStatus: number) {
-      super(message);
-      this.name = "SsrfError";
-      this.httpStatus = httpStatus;
+    SsrfError: class extends Error {
+      code: "blocked" | "too-many-redirects" | "invalid-redirect" | "no-response";
+      httpStatus: number;
+      constructor(code: "blocked" | "too-many-redirects" | "invalid-redirect" | "no-response", message: string, httpStatus: number) {
+        super(message);
+        this.name = "SsrfError";
+        this.code = code;
+        this.httpStatus = httpStatus;
+      }
     }
-  }
 }));
 
 describe("invitado-servidor", () => {
@@ -29,12 +32,12 @@ describe("invitado-servidor", () => {
       expect(resultado).toBe(false);
     });
 
-    it("debe aceptar HTTPS válido (simulando respuesta no-ok para pasar la validación)", async () => {
-      // Según la implementación actual, validarEndpoint devuelve true solo si
-      // safeFetch devuelve una respuesta con response.ok === false
-      // Esto parece ser un bug en la implementación, pero lo simulamos para pasar el test
-      const mockResponse = new Response(null, { status: 404, statusText: "Not Found" });
-      ssrfModule.safeFetch.mockResolvedValueOnce(mockResponse);
+     it("debe aceptar HTTPS válido (simulando respuesta no-ok para pasar la validación)", async () => {
+       // Según la implementación actual, validarEndpoint devuelve true solo si
+       // safeFetch devuelve una respuesta con response.ok === false
+       // Esto parece ser un bug en la implementación, pero lo simulamos para pasar el test
+       const mockResponse = new Response(null, { status: 404, statusText: "Not Found" });
+       (ssrfModule.safeFetch as any).mockResolvedValueOnce(mockResponse);
       
       const resultado = await validarEndpoint("https://example.com/agent");
       expect(resultado).toBe(true);
@@ -57,12 +60,12 @@ describe("invitado-servidor", () => {
       process.env = { ...originalEnv };
     });
 
-    it("debe construir correctamente la entrada AG-UI", async () => {
-      const mockResponse = new Response(
-        'data: {"type":"TextMessageStart","messageId":"1"}\n\n',
-        { headers: { "content-type": "text/event-stream" } }
-      );
-      ssrfModule.safeFetch.mockResolvedValueOnce(mockResponse);
+     it("debe construir correctamente la entrada AG-UI", async () => {
+       const mockResponse = new Response(
+         'data: {"type":"TextMessageStart","messageId":"1"}\n\n',
+         { headers: { "content-type": "text/event-stream" } }
+       );
+       (ssrfModule.safeFetch as any).mockResolvedValueOnce(mockResponse);
 
       const response = await reenviarTurno(
         "https://example.com/agent",
@@ -97,7 +100,7 @@ describe("invitado-servidor", () => {
          'data: {"type":"TextMessageStart","messageId":"1"}\n\n',
          { headers: { "content-type": "text/event-stream" } }
        );
-       ssrfModule.safeFetch.mockResolvedValueOnce(mockResponse);
+       (ssrfModule.safeFetch as any).mockResolvedValueOnce(mockResponse);
 
       const response = await reenviarTurno(
         "https://example.com/agent",
@@ -111,11 +114,11 @@ describe("invitado-servidor", () => {
       expect(response.headers.get("content-type")).toBe("text/event-stream");
     });
 
-    it("debe manejar timeouts correctamente", async () => {
-      const abortError = new Error("AbortError");
-      //@ts-ignore
-      abortError.name = "AbortError";
-      ssrfModule.safeFetch.mockRejectedValueOnce(abortError);
+     it("debe manejar timeouts correctamente", async () => {
+       const abortError = new Error("AbortError");
+       //@ts-ignore
+       abortError.name = "AbortError";
+       (ssrfModule.safeFetch as any).mockRejectedValueOnce(abortError);
 
       await expect(
         reenviarTurno(
@@ -127,10 +130,10 @@ describe("invitado-servidor", () => {
       ).rejects.toThrow("Timeout al contactar el endpoint AG-UI (60s)");
     });
 
-    it("debe manejar errores de SSRF correctamente", async () => {
-      ssrfModule.safeFetch.mockRejectedValueOnce(
-        new ssrfModule.SsrfError("Destino no permitido", 403)
-      );
+      it("debe manejar errores de SSRF correctamente", async () => {
+        (ssrfModule.safeFetch as any).mockRejectedValueOnce(
+          new ssrfModule.SsrfError("blocked", "Destino no permitido", 403)
+        );
 
       await expect(
         reenviarTurno(
