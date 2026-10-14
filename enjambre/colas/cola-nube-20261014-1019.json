@@ -1,0 +1,44 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "FLU1014A",
+   "ola": "Ola 1014T · Traslado de n8n Cloud al motor propio de Flujos (la prueba vence el 2026-10-18)",
+   "titulo": "Flujos · el motor tiene ejecutores: enchufar nodos.py al REGISTRO (hoy está vacío y todo flujo falla)",
+   "archivos": [
+    "scripts/puente/flujos/nodos.py",
+    "scripts/puente/flujos/__init__.py",
+    "scripts/puente/flujos/test_registro.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-14 en la Mac, pasando los 3 eventos del único flujo de n8n Cloud («StarSeed · Producción (puentes)»: 3 webhooks `starseed-produccion-publicada`, `-pieza-lista` y `-revertida`, cada uno con un Set) por el motor propio en una carpeta temporal. `motor.REGISTRO` es `{}` y nadie lo llena: `motor.ejecutar` con el registro por defecto (el que usa `servicio.py`) falla en el primer nodo con «No hay ejecutor registrado para el tipo …». Además la firma no casa: el motor llama `funcion(items, params)` y los ejecutores de `nodos.NODOS` son `f(params, items, ctx)`. Haz: (1) al final de nodos.py, `registrar(registro)` que mete en `registro` un adaptador por cada tipo de `NODOS` con la firma del motor (`lambda items, params: f(params, items, {})`, un ctx nuevo por llamada) y ejecutores de PASO para los disparadores `webhook`, `cron`, `bus` y `chat` (devuelven los ítems tal cual). El `webhook` con `configuracion[\"forma\"] == \"n8n\"` devuelve cada ítem como `{\"body\": <ítem sin claves internas>, \"headers\": {}, \"query\": {}, \"params\": {}}` (claves internas: las que empiezan por «_», `disparador` y `ruta`), que es lo que ve un nodo de n8n detrás de su Webhook. (2) En `__init__.py`, importar nodos y llamar `registrar(REGISTRO)` al cargar el paquete (sin import circular: nodos no importa motor). (3) test_registro.py: el registro trae todos los tipos de NODOS y los 4 disparadores; un flujo webhook→set con `{{ $json.campo }}` termina `completa` con el registro por defecto (carpeta temporal: parchea `motor.RAIZ_FLUJOS`), y con forma n8n `{{ $json.body.campo }}` da el mismo valor. Contrato: architecture/puente-propio-flujos.md §3 y §5 (léelo antes). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; sin red ni procesos en las pruebas; nunca valores de credenciales, solo nombres de variables; comentarios en español."
+  },
+  {
+   "id": "FLU1014D",
+   "ola": "Ola 1014T · Traslado de n8n Cloud al motor propio de Flujos (la prueba vence el 2026-10-18)",
+   "titulo": "Flujos · importador de n8n: quitar el «=» de las expresiones, la nota como descripción y el webhook con forma n8n",
+   "archivos": [
+    "scripts/puente/flujos/importar_n8n.py",
+    "scripts/puente/flujos/test_importar_n8n.py",
+    "scripts/puente/flujos/modelo.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-14 en la Mac, pasando los 3 eventos del único flujo de n8n Cloud («StarSeed · Producción (puentes)»: 3 webhooks `starseed-produccion-publicada`, `-pieza-lista` y `-revertida`, cada uno con un Set) por el motor propio en una carpeta temporal. n8n marca una expresión con un «=» delante (`\"={{ $json.body.sha }}\"`) y `normalizar_expresion` (hoy no hace nada) lo deja pasar: nuestro motor resuelve `{{ }}` y conserva el «=», así que sale `\"=sombra1014\"` en vez de `\"sombra1014\"` y las listas salen como texto `\"=['web', 'mando']\"` (sin el «=», `\"{{ $json.body.medios }}\"` ya conserva el tipo lista). Haz: (1) `normalizar_expresion` quita el PRIMER «=» de un texto que empieza por «=» (un texto sin «=» delante no se toca) y se aplica a todos los parámetros traducidos (también dentro de listas y dicts); (2) `n8n-nodes-base.stickyNote` no se convierte en nodo: su texto va a un campo nuevo opcional `descripcion: str = \"\"` del `Flujo` (modelo.py: se guarda y se carga; los flujos viejos sin él siguen cargando) y el informe lo lista como «nota guardada como descripción», no como «no traducido»; los demás nodos desconocidos siguen como `pendiente` y en el informe; (3) el `webhook` importado lleva `\"forma\": \"n8n\"` en su configuración (el motor entregará `{\"body\": …}` como n8n, tarea FLU1014A); (4) `mapear_set` respeta `includeOtherFields` si viene (o lo contrario de `keepOnlySet`); si no viene ninguno, typeVersion ≥ 3 → no conserva, menor → conserva. Pruebas con un JSON mínimo de n8n escrito en el propio test. Contrato: architecture/puente-propio-flujos.md §3 y §5 (léelo antes). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; sin red ni procesos en las pruebas; nunca valores de credenciales, solo nombres de variables; comentarios en español."
+  },
+  {
+   "id": "CB1013P",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: ajustes (tipos visibles, intervalo, umbrales, servidores ocultos, límites por cerebro)",
+   "archivos": [
+    "src/lib/cerebros/procesos-preferencias.ts",
+    "src/components/cerebro/procesos-ajustes.tsx",
+    "src/lib/cerebros/__tests__/procesos-preferencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (Ajustables) (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. `procesos-preferencias.ts`: clave `starseed.cerebros.procesos.v1` (comprueba que el prefijo `starseed.cerebros.` se sincroniza en `SYNCED_PREFIXES` de src/lib/settings-sync.ts; si no, usa una clave con un prefijo que sí se sincronice y dilo en un comentario), `PreferenciasProcesos { tipos: TipoProceso[]; intervaloSeg: number; umbrales: UmbralesProcesos; ocultos: string[] }`, `normalizarPreferencias(raw)` (intervalo entre 5 y 120, 15 por defecto; umbrales entre 1 y 100), `leerPreferencias()`, `guardarPreferencias(p)` (localStorage + `pushPreferences()`), un hook `usarPreferenciasProcesos()` y `limitesDeCerebro(brainId)`/`guardarLimites(brainId, { cpuMaxPct, ramMaxMb })` en `starseed.brain.<id>.limites`. `procesos-ajustes.tsx`: `export function ProcesosAjustes({ brainId }: { brainId: string | null })` con casillas de tipos, deslizador del intervalo, campos de umbrales, servidores ocultos y, si hay cerebro, los límites con el aviso «Guardado; lo aplicará el orquestador (hoy nadie lo aplica todavía)». Pruebas de normalizar (valores fuera de rango, basura → por defecto).",
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  }
+ ]
+}
