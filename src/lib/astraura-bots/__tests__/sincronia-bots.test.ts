@@ -189,9 +189,23 @@ describe("fusionarBots", () => {
     expect(resultado.actualizado.bot1).toBe(10);
   });
 
-   // Prueba adicional: que las dos claves estén en SYNCED_KEYS (esto pertenece a settings-sync, pero lo incluimos aquí por la tarea)
-   test("las dos claves están en SYNCED_KEYS", () => {
-     expect(SYNCED_KEYS).toContain("starseed.astraura.bots.v1");
-     expect(SYNCED_KEYS).toContain("starseed.astraura.bots.orbes.v1");
-   });
+    test("empate en timestamp gana el local", () => {
+      const bot = crearBot("bot1", "Bot 1");
+      const local = crearEntrada([bot], { bot1: 10 });
+      const remoto = crearEntrada(
+        [crearBot("bot1", "Bot 1 Remoto", { nombre: "Bot 1 Remoto" })], // same id, different name
+        { bot1: 10 } // same timestamp
+      );
+
+      const resultado = fusionarBots(local, remoto);
+      // Debe ganar el local porque el remoto no es más reciente
+      expect(resultado.bots[0].nombre).toBe("Bot 1");
+      expect(resultado.actualizado.bot1).toBe(10);
+    });
+
+    // Prueba adicional: que las dos claves estén en SYNCED_KEYS (esto pertenece a settings-sync, pero lo incluimos aquí por la tarea)
+    test("las dos claves están en SYNCED_KEYS", () => {
+      expect(SYNCED_KEYS).toContain("starseed.astraura.bots.v1");
+      expect(SYNCED_KEYS).toContain("starseed.astraura.bots.orbes.v1");
+    });
 });
