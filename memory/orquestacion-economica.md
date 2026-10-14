@@ -436,6 +436,7 @@ El 2026-09-20 hubo agentes parados no por falta de máquinas sino por falta de t
 Un director que informe «3 agentes» sin decir cuántas tareas quedan pendientes está dando media
 verdad: **más agentes que tareas no es capacidad, es ruido.**
 
+Oracle: con gasto 0 y margen medido, lo pesado y lo 24/7 va al A1; si el gasto pasa de 0, freno (medios → requiere_alex). Fuente: ~/.starseed/oracle-consumo.json (architecture/oracle-consumo.md §5).
 ## 11. Cinco trampas medidas el 2026-09-20 (06:00–06:40) que dejaban tareas «sin cambios»
 
 Todas costaron tandas enteras y ninguna era culpa del modelo:
