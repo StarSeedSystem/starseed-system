@@ -4401,3 +4401,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTAV1011Dc` — no escribió nada
 - `CB1013E` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CB1013E conservada)
 - `RTIMG1011Gd` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTIMG1011Gd conservada)
+
+## 2026-10-14 19:46 · mg-oracle-1014-1253
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (S1010-ACT5, S1010-ACT2). Es 50 % de la ola.
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-ACT5` — otra cosa: sin decisión en 0 h; rama ola/S1010-ACT5 conservada
+- `S1010-ACT2` — otra cosa: degenerado: src/lib/actualizaciones/politica.ts: encogió de 141 a 44 líneas (más de la mitad)
