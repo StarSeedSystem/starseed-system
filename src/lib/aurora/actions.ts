@@ -25,6 +25,7 @@ import { getApp } from "@/components/dashboard/apps/app-catalog";
 import { newCanvas, saveCanvas } from "@/lib/canvas/canvas";
 import type { AuroraUndoInfo } from "@/lib/aurora/undo";
 import type { PersonalityProfile } from "@/lib/aurora/personalities";
+import { manejarAccionProtomolecula } from "@/lib/protomolecula/accion-agente";
 
 /**
  * Aurora tiene CONTROL TOTAL del OS. Por defecto, TODOS los accesos están
