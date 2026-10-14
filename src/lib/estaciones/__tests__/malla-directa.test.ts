@@ -52,8 +52,39 @@ describe("malla-directa", () => {
       expect(enviarMensaje).toHaveBeenNthCalledWith(2, { enlaceId: "link2" }, "estacion", faroDeEstacion(estacion));
       expect(enviarMensaje).toHaveBeenNthCalledWith(3, { enlaceId: "link3" }, "estacion", faroDeEstacion(estacion));
     });
+
+    it("anuncia con dependencias inyectadas: dos enlaces bien y un tercero falla (enviados = 2)", async () => {
+      const resultados: Array<{ ok: boolean; enlace?: { id: string } }> = [
+        { ok: true, enlace: { id: "en-1" } },
+        { ok: true, enlace: { id: "en-2" } },
+        { ok: false },
+      ];
+      let idx = 0;
+      const r = await anunciarPorEnlacesDirectos(createMockEstacion(), {
+        enlaces: async () => [{ id: "en-1" }, { id: "en-2" }, { id: "en-3" }],
+        enviar: async () => resultados[idx++],
+      });
+      expect(r.enviados).toBe(2);
+      expect(r.enlaces).toEqual(["en-1", "en-2"]);
+      expect(enlacesLocalesVivos).not.toHaveBeenCalled();
+      expect(enviarMensaje).not.toHaveBeenCalled();
+    });
   });
   describe("escucharEstacionesDirectas", () => {
+    it("un faro válido recibido llega a cb", () => {
+      const oidasRecibidas: unknown[] = [];
+      const baja = escucharEstacionesDirectas((oidas) => {
+        oidasRecibidas.push(oidas);
+      }, {
+        alRecibir: (canal, cb) => {
+          cb({ cuerpo: { kind: "estacion", id: "e1", name: "Radio 1", category: "audio", media_url: "/r1" } });
+          return () => {};
+        },
+      });
+      baja();
+      expect(oidasRecibidas.length).toBeGreaterThan(0);
+      expect(oidasRecibidas[0]).toHaveLength(1);
+    });
     it("should call cb with valid faro and ignore invalid when deps provided", () => {
       const cb = vi.fn();
       const mockAlRecibirMensaje = vi.fn().mockImplementation((canal: string, callback: (m: unknown) => void) => {
