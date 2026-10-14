@@ -356,7 +356,7 @@ function GoogleDriveMemoryCard({ brainId, brainName }: { brainId: string; brainN
       </p>
 
       {!conectado ? (
-        <Button size="sm" className="gap-1.5" disabled={ocupado} onClick={conectar}>
+        ${p1}${p2} className=${p3}${newClassName}${p3}${p5}>
           {ocupado ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />} Conectar Google Drive
         </Button>
       ) : (
@@ -374,10 +374,10 @@ function GoogleDriveMemoryCard({ brainId, brainName }: { brainId: string; brainN
 
           {!tieneCarpeta ? (
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={carpetaAutomatica}>
+              ${p1}${p2} className=${p3}${newClassName}${p3}${p5}>
                 <FolderOpen className="w-3.5 h-3.5" /> Carpeta del cerebro (automática)
               </Button>
-              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={elegirOtra}>
+              ${p1}${p2} className=${p3}${newClassName}${p3}${p5}>
                 <FolderOpen className="w-3.5 h-3.5" /> Elegir otra
               </Button>
             </div>
@@ -388,10 +388,10 @@ function GoogleDriveMemoryCard({ brainId, brainName }: { brainId: string; brainN
                   <Switch checked={esPrincipal} onCheckedChange={cambiarModo} />
                   {esPrincipal ? "Principal" : "Espejo (copia)"}
                 </label>
-                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={elegirOtra}>
+                ${p1}${p2} className=${p3}${newClassName}${p3}${p5}>
                   <FolderOpen className="w-3.5 h-3.5" /> Elegir otra carpeta
                 </Button>
-                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs ml-auto" disabled={ocupado} onClick={sincronizarAhora}>
+                ${p1}${p2} className=${p3}${newClassName}${p3}${p5}>
                   <RefreshCw className="w-3.5 h-3.5" /> Sincronizar ahora
                 </Button>
               </div>
@@ -403,7 +403,7 @@ function GoogleDriveMemoryCard({ brainId, brainName }: { brainId: string; brainN
               )}
             </>
           )}
-          <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs text-red-300 border-red-500/30" disabled={ocupado} onClick={desconectar}>
+          ${p1}${p2} className=${p3}${newClassName}${p3}${p5}>
             <Unplug className="w-3.5 h-3.5" /> Desconectar
           </Button>
         </div>
@@ -450,7 +450,7 @@ function ObsidianCard({ brainId, obsidian, onChanged }: { brainId: string; obsid
       <div className="flex items-center gap-2">
         <span className="text-base leading-none">🪨</span>
         <span className="text-sm font-semibold text-violet-50">Obsidian (puente GitHub)</span>
-        <Button size="sm" variant="outline" className="ml-auto h-7 gap-1.5 text-xs" onClick={() => setAdding((s) => !s)}>
+        ${p1}${p2} className=${p3}${newClassName}${p3}${p5}> setAdding((s) => !s)}>
           <Plus className="w-3.5 h-3.5" /> Conectar
         </Button>
       </div>
@@ -474,7 +474,7 @@ function ObsidianCard({ brainId, obsidian, onChanged }: { brainId: string; obsid
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (p.ej. Mi bóveda)" className="h-8 text-sm bg-black/30" />
           <Input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="Repo GitHub (owner/repo)" className="h-8 text-sm bg-black/30" />
           <Input value={vaultPath} onChange={(e) => setVaultPath(e.target.value)} placeholder="Ruta de la bóveda (opcional)" className="h-8 text-sm bg-black/30" />
-          <Button size="sm" className="gap-1.5" disabled={saving || !name.trim()} onClick={add}>
+          ${p1}${p2} className=${p3}${newClassName}${p3}${p5}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Conectar bóveda
           </Button>
         </div>
@@ -528,7 +528,7 @@ function ExternalServerCard({ brainId, linked, onChanged }: { brainId: string; l
       <div className="flex items-center gap-2">
         <Server className="w-4 h-4 text-amber-300" />
         <span className="text-sm font-semibold text-amber-50">Almacenamiento propio / servidor externo</span>
-        <Button size="sm" variant="outline" className="ml-auto h-7 gap-1.5 text-xs" onClick={() => setAdding((s) => !s)}>
+        ${p1}${p2} className=${p3}${newClassName}${p3}${p5}> setAdding((s) => !s)}>
           <Plus className="w-3.5 h-3.5" /> Añadir
         </Button>
       </div>
@@ -560,7 +560,7 @@ function ExternalServerCard({ brainId, linked, onChanged }: { brainId: string; l
               <Switch checked={auto} onCheckedChange={setAuto} /> auto
             </label>
           </div>
-          <Button size="sm" className="gap-1.5" disabled={saving || !name.trim() || !endpoint.trim()} onClick={add}>
+          ${p1}${p2} className=${p3}${newClassName}${p3}${p5}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Enlazar como fuente
           </Button>
         </div>
@@ -623,7 +623,7 @@ function PermissionsCard({ brain, onSaved }: { brain: Brain | null; onSaved: () 
         <select value={level} onChange={(e) => setLevel(e.target.value as BrainPermission["level"])} className="h-8 rounded-md border border-white/10 bg-black/30 px-2 text-xs text-white/85">
           {PERM_LEVELS.map((l) => <option key={l} value={l} className="bg-zinc-900">{l}</option>)}
         </select>
-        <Button size="sm" className="gap-1.5 shrink-0" disabled={!who.trim() || !brain} onClick={add}><Plus className="w-4 h-4" /></Button>
+        ${p1}${p2} className=${p3}${newClassName}${p3}${p5}><Plus className="w-4 h-4" /></Button>
       </div>
     </div>
   );
