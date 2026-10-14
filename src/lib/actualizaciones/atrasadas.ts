@@ -20,7 +20,7 @@ export interface EstadoNeuronaActualizacion {
   manual?: boolean;
 }
 
-export type MotivoAtraso = "fallo" | "offline" | "espera-wifi" | "pospuesta" | "manual" | "sin-dato" | "sin-motivo";
+export type MotivoAtraso = "offline" | "pospuesta" | "espera-wifi" | "fallo" | "manual" | "sin-motivo";
 
 export interface Atraso {
   neuronaId: string;
@@ -46,7 +46,6 @@ function motivoDe(n: EstadoNeuronaActualizacion, tiene: string | null): { motivo
   if (n.pospuestaPor === "espera-wifi") return { motivo: "espera-wifi", porque: TEXTO_POSPUESTA["espera-wifi"] };
   if (n.pospuestaPor) return { motivo: "pospuesta", porque: TEXTO_POSPUESTA[n.pospuestaPor] };
   if (n.manual) return { motivo: "manual", porque: "en manual: espera a que la apliques" };
-  if (!tiene) return { motivo: "sin-dato", porque: "no declara qué versión tiene" };
   return { motivo: "sin-motivo", porque: "sin motivo conocido" };
 }
 
