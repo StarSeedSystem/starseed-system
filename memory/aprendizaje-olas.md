@@ -4401,3 +4401,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTAV1011Dc` — no escribió nada
 - `CB1013E` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CB1013E conservada)
 - `RTIMG1011Gd` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTIMG1011Gd conservada)
+
+## 2026-10-14 21:08 · mg-oracle-1014-1349
+
+**Lo que se pidió.** Gobernador genérico: medir cualquier aparato para la colmena
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RTCOL1012L, RTCOL1012Ae). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012L` — no escribió nada
+- `RTCOL1012Ae` — no escribió nada
+- `WT1011C` — pruebas en rojo: vitest falla (rama conservada)
