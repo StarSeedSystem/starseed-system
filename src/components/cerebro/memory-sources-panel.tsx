@@ -374,10 +374,10 @@ function GoogleDriveMemoryCard({ brainId, brainName }: { brainId: string; brainN
 
           {!tieneCarpeta ? (
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={carpetaAutomatica}>
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs whitespace-normal h-auto" disabled={ocupado} onClick={carpetaAutomatica}>
                 <FolderOpen className="w-3.5 h-3.5" /> Carpeta del cerebro (automática)
               </Button>
-              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={elegirOtra}>
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs whitespace-normal h-auto" disabled={ocupado} onClick={elegirOtra}>
                 <FolderOpen className="w-3.5 h-3.5" /> Elegir otra
               </Button>
             </div>
@@ -388,10 +388,10 @@ function GoogleDriveMemoryCard({ brainId, brainName }: { brainId: string; brainN
                   <Switch checked={esPrincipal} onCheckedChange={cambiarModo} />
                   {esPrincipal ? "Principal" : "Espejo (copia)"}
                 </label>
-                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={ocupado} onClick={elegirOtra}>
+                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs whitespace-normal h-auto" disabled={ocupado} onClick={elegirOtra}>
                   <FolderOpen className="w-3.5 h-3.5" /> Elegir otra carpeta
                 </Button>
-                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs ml-auto" disabled={ocupado} onClick={sincronizarAhora}>
+                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs ml-auto whitespace-normal h-auto" disabled={ocupado} onClick={sincronizarAhora}>
                   <RefreshCw className="w-3.5 h-3.5" /> Sincronizar ahora
                 </Button>
               </div>
@@ -474,7 +474,7 @@ function ObsidianCard({ brainId, obsidian, onChanged }: { brainId: string; obsid
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (p.ej. Mi bóveda)" className="h-8 text-sm bg-black/30" />
           <Input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="Repo GitHub (owner/repo)" className="h-8 text-sm bg-black/30" />
           <Input value={vaultPath} onChange={(e) => setVaultPath(e.target.value)} placeholder="Ruta de la bóveda (opcional)" className="h-8 text-sm bg-black/30" />
-          <Button size="sm" className="gap-1.5" disabled={saving || !name.trim()} onClick={add}>
+          <Button size="sm" className="gap-1.5 whitespace-normal h-auto" disabled={saving || !name.trim()} onClick={add}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Conectar bóveda
           </Button>
         </div>
@@ -539,7 +539,7 @@ function ExternalServerCard({ brainId, linked, onChanged }: { brainId: string; l
         <ul className="space-y-1.5">
           {memSources.map((s) => (
             <li key={s.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2">
-              <span className="text-xs text-white/80 truncate flex-1">{s.name}</span>
+              <span className="text-xs text-white/80 truncate flex-1" title={s.name}>{s.name}</span>
               <Badge variant="outline" className="text-[9px] border-white/15 text-white/50">{s.endpoint || "sin endpoint"}</Badge>
               <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-200/80">{SYNC_DIRECTIONS.find((d) => d.id === s.link.sync.direction)?.label ?? "Bidireccional"}{s.link.sync.auto ? " · auto" : ""}</Badge>
               <Badge variant="outline" className={cn("text-[9px]", s.status === "conectado" ? "border-emerald-500/40 text-emerald-300" : "border-white/15 text-white/40")}>{s.status || "pendiente"}</Badge>
@@ -560,7 +560,7 @@ function ExternalServerCard({ brainId, linked, onChanged }: { brainId: string; l
               <Switch checked={auto} onCheckedChange={setAuto} /> auto
             </label>
           </div>
-          <Button size="sm" className="gap-1.5" disabled={saving || !name.trim() || !endpoint.trim()} onClick={add}>
+          <Button size="sm" className="gap-1.5 whitespace-normal h-auto" disabled={saving || !name.trim() || !endpoint.trim()} onClick={add}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Enlazar como fuente
           </Button>
         </div>
@@ -611,7 +611,7 @@ function PermissionsCard({ brain, onSaved }: { brain: Brain | null; onSaved: () 
         <ul className="space-y-1.5">
           {perms.map((p) => (
             <li key={p.who} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2">
-              <span className="text-xs text-white/80 truncate flex-1">{p.who}</span>
+              <span className="text-xs text-white/80 truncate flex-1" title={p.who}>{p.who}</span>
               <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-200/80">{p.level}</Badge>
               <button onClick={() => remove(p.who)} className="text-white/30 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
             </li>
