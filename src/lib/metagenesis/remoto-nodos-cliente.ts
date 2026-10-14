@@ -31,15 +31,17 @@ export type EnvioOrden = { ok: true; clave: string; modo: "bus" | "tablas" } | {
 /** Tipos del bus que se leen en cada vuelta (la foto va aparte: es la única grande). */
 const TIPOS_LIGEROS = "(mg_latido,mg_lider,mg_baja,mg_orden,mg_orden_hecha,mg_decision)";
 const VENTANA_MS = 2 * 3600_000;
+const REELEGIR_MS = 5 * 60_000; // 5 minutos
 
 interface Cache {
     modo: "bus" | "tablas" | null;
     filas: Map<number, FilaBus>;
     ultimoId: number;
     foto: FilaBus | null;
+    elegidoEn: number; // timestamp de la última elección de fuente
 }
 
-const cache: Cache = { modo: null, filas: new Map(), ultimoId: 0, foto: null };
+const cache: Cache = { modo: null, filas: new Map(), ultimoId: 0, foto: null, elegidoEn: 0 };
 
 /** Solo para las pruebas. */
 export function _reiniciarCache(): void {
@@ -101,15 +103,40 @@ async function leerBus(ahora: number): Promise<LecturaAutonoma> {
 /** El estado de MetaGenesis tal como lo publican sus nodos. */
 export async function leerEstadoAutonomo(ahora = Date.now()): Promise<LecturaAutonoma> {
     try {
+        // ¿Es hora de reelegir la fuente? (cada REELEGIR_MS ms)
+        const debeReeleer = ahora - cache.elegidoEn >= REELEGIR_MS;
+        
+        if (debeReeleer) {
+            // Leer ambas fuentes para decidir
+            const [tResultado, bResultado] = await Promise.all([
+                leerTablas(ahora),
+                leerBus(ahora)
+            ]);
+            
+            // Elegir fuente basada en cuál tiene más nodos vivos
+            const modoElegido = elegirFuente(
+                tResultado.ok ? tResultado.estado : null,
+                bResultado.ok ? bResultado.estado : null
+            );
+            
+            // Actualizar caché
+            cache.modo = modoElegido;
+            cache.elegidoEn = ahora;
+            
+            // Devolver el resultado de la fuente elegida
+            return modoElegido === "tablas" ? tResultado : bResultado;
+        }
+        
+        // No es hora de reelegir, usar la caché actual con una sola lectura
         if (cache.modo !== "bus") {
             const t = await leerTablas(ahora);
             if (t && !t.ok) return t;
             if (t?.ok && cache.modo === "tablas") return t;
             if (t?.ok) {
-                // Primera lectura: tablas solo si alguien late en ellas; los nodos que van por la
-                // puerta de datos del A1 laten en el bus (`elegirFuente`).
+                // Primera lectura: tablas solo si alguien late en ellas
                 const b = await leerBus(ahora);
                 cache.modo = elegirFuente(t.estado, b.ok ? b.estado : null);
+                // Nota: No actualizamos elegidoEn aquí porque no es una reevaluación completa
                 return cache.modo === "tablas" ? t : b;
             }
             cache.modo = "bus";

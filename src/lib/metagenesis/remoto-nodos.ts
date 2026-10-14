@@ -508,9 +508,20 @@ export function resumirTablas(t: FilasTablas, ahora: number): EstadoAutonomo {
  * fuente donde hay alguien vivo; si en ninguna late nadie, las tablas (lo que dicen es verdad).
  */
 export function elegirFuente(tablas: EstadoAutonomo | null, bus: EstadoAutonomo | null): "tablas" | "bus" {
-    if (tablas && tablas.nodos.some((n) => n.vivo)) return "tablas";
-    if (bus && bus.nodos.some((n) => n.vivo)) return "bus";
-    return tablas ? "tablas" : "bus";
+    // Si una fuente no existe (null), usar la otra si existe
+    if (tablas === null && bus !== null) return "bus";
+    if (bus === null && tablas !== null) return "tablas";
+    // Si ambas son null, devolver bus (comportamiento original cuando ambas null)
+    if (tablas === null && bus === null) return "bus";
+    
+    // Ambas existen, comparar cantidad de nodos vivos
+    const tablasVivos = tablas.nodos.filter((n) => n.vivo).length;
+    const busVivos = bus.nodos.filter((n) => n.vivo).length;
+    
+    if (tablasVivos > busVivos) return "tablas";
+    if (busVivos > tablasVivos) return "bus";
+    // En caso de empate, preferir tablas
+    return "tablas";
 }
 
 /** PURA. Una frase para la cabecera: quién dirige y desde dónde, sin jerga. */

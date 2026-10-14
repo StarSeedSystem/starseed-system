@@ -171,6 +171,15 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
         expect(elegirFuente(estado([false], "tablas"), estado([false], "bus"))).toBe("tablas");
         expect(elegirFuente(null, estado([false], "bus"))).toBe("bus");
     });
+
+    it("elige la fuente con más nodos vivos", () => {
+        // bus con 2 vivos y tablas con 1 → bus
+        expect(elegirFuente(estado([true], "tablas"), estado([true, true], "bus"))).toBe("bus");
+        // 1 y 1 → tablas
+        expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
+        // 0 y 0 → como hoy
+        expect(elegirFuente(estado([false], "tablas"), estado([false], "bus"))).toBe("tablas");
+    });
 });
 
 describe("ACCIONES: etiquetas y argumentos correctos", () => {
