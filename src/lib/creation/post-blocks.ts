@@ -54,7 +54,16 @@ export type PostBlockType =
      * (su Editor API/headless/MCP son futuros según su propio README), así que
      * el OS no edita por ti: abre el editor y publica el vídeo que exportes.
      */
-    | "video";
+    | "video"
+    // ── Protomolécula (Ola 1010P): INSTANTÁNEA serializada de una molécula ──
+    /**
+     * Bloque `protomolecula`: lleva en `code` el texto de `serializarBloque`
+     * (`src/lib/protomolecula/bloque-protomolecula.ts`, JSON versionado
+     * `{pm: 1, molecula}`). Es una COPIA instantánea (contenido = referencia,
+     * no duplicación de entidades), y un cliente viejo lo ignora como ignora
+     * `penpot`/`video` al no estar en RICH_BLOCK_TYPES antiguos.
+     */
+    | "protomolecula";
 
 /** Tipo de recurso referenciado por un bloque `referencia` (o por el SourcePicker). */
 export type PostBlockRefKind =
@@ -160,6 +169,8 @@ export const RICH_BLOCK_TYPES: readonly PostBlockType[] = [
     // Adenda 67 · P4 (aditivos: los antiguos siguen exactamente igual).
     "penpot",
     "video",
+    // Protomolécula (Ola 1010P, aditivo: los antiguos siguen exactamente igual).
+    "protomolecula",
 ] as const;
 
 /** ¿Es un bloque RICO (serializado en ss:meta, renderizado por el post-blocks-renderer)? */
