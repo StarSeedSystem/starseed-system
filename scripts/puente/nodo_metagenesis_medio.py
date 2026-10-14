@@ -147,6 +147,70 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return None
 
 
+def cpu_pct() -> Optional[float]:
+    """Percentage of CPU usage (Linux: two readings of /proc/stat separated by 0.3s).
+    Returns None on macOS or other platforms."""
+    if sys.platform != "linux":
+        return None
+    try:
+        with open("/proc/stat") as f:
+            line1 = f.readline()
+        time.sleep(0.3)
+        with open("/proc/stat") as f:
+            line2 = f.readline()
+    except OSError:
+        return None
+    if not line1.startswith("cpu ") or not line2.startswith("cpu "):
+        return None
+    def _cp_times(line: str) -> Tuple[int, int]:
+        # user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice
+        parts = line.split()
+        if len(parts) < 8:
+            return 0, 0
+        # Convert to integers
+        nums = list(map(int, parts[1:1+8]))  # first 8 fields
+        total = sum(nums)
+        idle = nums[3] + nums[4]  # idle + iowait
+        return total, idle
+    total1, idle1 = _cp_times(line1)
+    total2, idle2 = _cp_times(line2)
+    total_diff = total2 - total1
+    if total_diff <= 0:
+        return None
+    idle_diff = idle2 - idle1
+    usage = (total_diff - idle_diff) / total_diff
+    return round(usage * 100, 1)
+
+
+def ram_total_mb() -> Optional[int]:
+    """Total RAM in MB (Linux: /proc/meminfo MemTotal; macOS: sysctl -n hw.memsize with 2s timeout).
+    Returns None on failure."""
+    if sys.platform == "linux":
+        try:
+            with open("/proc/meminfo") as f:
+                for linea in f:
+                    if linea.startswith("MemTotal:"):
+                        return int(linea.split()[1]) // 1024
+        except OSError:
+            pass
+        return None
+    if sys.platform == "darwin":
+        rc, out = _sh(["sysctl", "-n", "hw.memsize"], tope=2)
+        if rc == 0 and out.strip().isdigit():
+            return int(out.strip()) // (1024 * 1024)
+        return None
+    return None
+
+
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """Total disk space in GB for the given path.
+    Returns None on failure."""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
+
+
 def lineas_ps() -> List[str]:
     """`ps` con pid y orden completa (nunca `pgrep -l`, que en la Mac recorta y engaña)."""
     orden = ["ps", "-axo", "pid=,args="] if sys.platform == "darwin" else ["ps", "-eo", "pid=,args="]
@@ -433,15 +497,18 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     salud: Dict[str, Any] = {
         "repo": os.path.isdir(os.path.join(raiz, ".git")),
         "orquestador": sabe_orquestar(raiz),
-        "autoritativo": autoritativo,
+         "autoritativo": autoritativo,
         "orquestadores": orqs,
         "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "ram_libre_mb": ram_libre_mb(),
+        "ram_total_mb": ram_total_mb(),
+        "cpu_pct": cpu_pct(),
+        "disco_total_gb": disco_total_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "nucleos": os.cpu_count(),
         "carga": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
         "servicios_caidos": [],
         "guardianes_caidos": [],
-    }
+     }
     if medio == "mac":
         caidos, guardianes = servicios_mac()
         salud["servicios_caidos"] = [c.replace("com.starseed.", "") for c in caidos]
@@ -476,7 +543,7 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     if medio == "oracle-a1":
         salud["a1"] = estado_a1()
     cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orquestador": salud["orquestador"],
-           "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
+         "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
     return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap}
 
 
@@ -635,7 +702,7 @@ def ejecutar(a: Dict[str, Any], medio: str, raiz: str, seco: bool,
                 "accion": "guardar_todo",
                 "t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "nonce": "desconectar-guardartodo",
-            }
+          }
             with open(control, "w", encoding="utf-8") as f:
                 json.dump(orden_guardar, f, ensure_ascii=False)
         except Exception:
