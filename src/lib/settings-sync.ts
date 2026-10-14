@@ -93,9 +93,11 @@ export const SYNCED_KEYS = [
     // ── THE HUGGING BAY (jul-2026 · huggingbay.ts / installed-models.ts) ──────
     //    `huggingBay` vive DENTRO de starseed.astraura.intelligence.v1 (ya
     //    sincronizado arriba); solo el registro de candidatos es una clave nueva.
-    "starseed.astraura.huggingbay-candidates.v1", // modelos de Hugging Bay marcados "Usar en Astraura"
-    // ── Contexto Total de Aurora (jul-2026 · ai/astraura/user-context.ts) ─────
-    "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
+     "starseed.astraura.huggingbay-candidates.v1", // modelos de Hugging Bay marcados "Usar en Astraura"
+     "starseed.astraura.bots.v1",                  // bots sincronizados (perfil y entidad)
+     "starseed.astraura.bots.orbes.v1",            // estado abierto/cerrado de orbes por neurona
+     // ── Contexto Total de Aurora (jul-2026 · ai/astraura/user-context.ts) ─────
+     "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
     // ── Ola 1003 · capas de conciencia por entidad (personalidad/agente), local preferente ──
     "starseed.astraura.capas-entidad.v1", // capas por entidad — astraura/capas-entidad.ts + use-capas-entidad.ts
     // ── Personalidades de Aurora (Adenda 63 · lib/aurora/personalities.ts) ────
