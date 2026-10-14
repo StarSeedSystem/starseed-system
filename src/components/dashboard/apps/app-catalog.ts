@@ -23,6 +23,8 @@ import {
     Bot,
     // Ola 1010E: Estaciones (transmisiones en directo).
     Cast,
+    // Ola 1010P: Protomolécula (creación y edición universal).
+    Atom,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -177,6 +179,25 @@ export const APP_CATALOG: StarseedApp[] = [
             primary: "route",
             allowed: ["route", "window", "tab"],
             route: "/estaciones",
+        },
+    },
+    {
+        // Ola 1010P · PM1010F0I: Protomolécula — la función universal de
+        // creación y edición (architecture/protomolecula.md). App de ventana
+        // con ruta propia /protomolecula (acepta ?molecula=<id>). El dock
+        // es F0J y la ficha de Biblioteca es F2K.
+        id: "protomolecula",
+        name: "Protomolécula",
+        short: "Protomolécula",
+        description: "Crea y edita imágenes, audio, 3D y más: a mano, por voz o con la IA. Las herramientas llegan por fases.",
+        icon: Atom,
+        accent: "#00F0FF",
+        category: "starseed",
+        status: "native",
+        open: {
+            primary: "window",
+            allowed: ["window", "route", "tab", "popup"],
+            route: "/protomolecula",
         },
     },
     {
@@ -534,8 +555,8 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-astral"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "protomolecula", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
+    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "protomolecula", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-astral"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };
