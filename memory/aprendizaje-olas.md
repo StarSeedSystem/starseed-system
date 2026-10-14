@@ -4415,3 +4415,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-ACT5` — otra cosa: sin decisión en 0 h; rama ola/S1010-ACT5 conservada
 - `S1010-ACT2` — otra cosa: degenerado: src/lib/actualizaciones/politica.ts: encogió de 141 a 44 líneas (más de la mitad)
+
+## 2026-10-14 22:33 · mg-oracle-1014-1513
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (S1010-ES1, RTRTS1010-EV-ORACLE-1acbb). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (RTCOL1012Ic, RTS1010-TU-LL2d). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-ES1` — otra cosa: sin decisión en 0 h; rama ola/S1010-ES1 conservada
+- `RTCOL1012Ic` — no escribió nada
+- `RTS1010-TU-LL2d` — no escribió nada
+- `RTRTS1010-EV-ORACLE-1acbb` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-14 21:30:34 [0m > build · auto [0m [0m→ [0mRead CLAUDE.md [0m→ [0mRead arc
