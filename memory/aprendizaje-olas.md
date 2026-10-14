@@ -4387,3 +4387,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1abcb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1abcb conservada
 - `RTIMG1011Gd` — los tipos no compilan: 1 errores tsc (rama ola/RTIMG1011Gd conservada)
 - `MC1012H` — los tipos no compilan: 1 errores tsc (rama ola/MC1012H conservada)
+
+## 2026-10-14 12:52 · mg-oracle-1014-0552
+
+**Lo que se pidió.** Almacén del ADN en la Biblioteca y avatar 3D en perfiles, grupos, comunidades y páginas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTAV1011Dc` — no escribió nada
+- `CB1013E` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CB1013E conservada)
+- `RTIMG1011Gd` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTIMG1011Gd conservada)
