@@ -59,6 +59,8 @@ import {
   BookUser,
   // Apps en vivo (2026-09-28)
   FileText, Table2, LayoutDashboard, Gamepad2, Box, Glasses,
+  // Genesis y PoliGenesis (Ola 1010S)
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -172,6 +174,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   BookUser,
   // Apps en vivo (2026-09-28)
   FileText, Table2, LayoutDashboard, Gamepad2, Box, Glasses,
+  // Genesis y PoliGenesis (Ola 1010S)
+  Users,
 };
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */

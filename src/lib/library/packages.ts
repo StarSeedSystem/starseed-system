@@ -463,6 +463,22 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/red-3d" },
   },
   {
+    // Ola 1010S · GN1010C: Genesis y PoliGenesis, como paquetes instalables
+    // (paridad con el dock y el catálogo de apps).
+    id: "app-genesis", kind: "app", name: "Genesis",
+    description: "Cambia tu cuenta (perfil, páginas, apariencia, dock, tableros y agentes) con un agente que propone y tú decides; PoliGenesis para tus grupos y MetaGenesis para quien desarrolla el OS.",
+    icon: "Gauge", tags: ["app", "genesis", "cuenta", "personalizacion", "agentes"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/genesis" },
+  },
+  {
+    id: "app-poligenesis", kind: "app", name: "PoliGenesis",
+    description: "Gestiona tus grupos y páginas con tu rol; en modo democrático cada cambio se vota.",
+    icon: "Users", tags: ["app", "poligenesis", "grupos", "paginas", "votaciones"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/poligenesis" },
+  },
+  {
     id: "widget-panel-dashboard", kind: "widget", name: "Panel de Widgets",
     description: "El dashboard con widgets arrastrables del OS: clima, actividad, cripto-escudo, identidad y más.",
     icon: "LayoutGrid", tags: ["widget", "dashboard", "arrastrable"], version: "1.0.0",
