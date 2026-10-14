@@ -15,6 +15,7 @@ import produccion_webhooks as pw
 SECRETO = "secreto-de-prueba"
 URL_A = "https://n8n.ejemplo.com/webhook/abc123"
 URL_B = "https://dify.ejemplo.com/v1/hook/xyz"
+URL_BASE_PROPIO = "http://localhost:9002/api/flujos/gancho"
 
 
 class RespuestaFalsa:
@@ -165,6 +166,78 @@ class TestEmitir(unittest.TestCase):
         self.assertEqual(pw.main(["webhooks", "produccion.publicada", "{}"]), 0)
         self.assertEqual(pw.main(["webhooks"]), 2)
         self.assertEqual(pw.main(["webhooks", "ev", "{mal json"]), 2)
+
+
+class TestGanchoPropio(unittest.TestCase):
+    def test_con_base_y_evento_mapeado_envia_al_gancho_propio(self):
+        """Con FLUJOS_GANCHO_BASE y evento en RUTAS_GANCHO, se envía al gancho propio (además de las URLs configuradas)."""
+        cliente = ClienteFalso(status=200)
+        env = entorno(
+            FLUJOS_GANCHO_BASE=URL_BASE_PROPIO,
+        )
+        r = pw.emitir("produccion.publicada", {"sha": "abc"}, entorno=env, http=cliente)
+        # Debe haber enviado (al menos una URL devolvió 200)
+        self.assertTrue(r["enviado"])
+        # Debe haber llamado tres veces: n8n, dify y el gancho propio
+        self.assertEqual(len(cliente.llamadas), 3)
+        # Buscamos la llamada al gancho propio
+        propia_url_esperada = URL_BASE_PROPIO + "/starseed-produccion-publicada"
+        llamada_propia = None
+        for llamada in cliente.llamadas:
+            if llamada["req"].full_url == propia_url_esperada:
+                llamada_propia = llamada
+                break
+        self.assertIsNotNone(llamada_propia, "No se encontró la llamada al gancho propio")
+        # La firma debe ser válida
+        cuerpo = llamada_propia["req"].data
+        cab = llamada_propia["req"].get_header("X-starseed-firma")
+        self.assertTrue(pw.verificar_firma(cuerpo, cab, SECRETO))
+        # En el resultado, debe haber un elemento para el gancho propio con solo el host
+        hosts_resultado = [u["host"] for u in r["urls"]]
+        self.assertIn("localhost:9002", hosts_resultado)
+        # Encontramos el resultado correspondiente al gancho propio
+        resultado_propio = None
+        for u in r["urls"]:
+            if u["host"] == "localhost:9002":
+                resultado_propio = u
+                break
+        self.assertIsNotNone(resultado_propio)
+        self.assertTrue(resultado_propio["enviado"])
+
+    def test_con_base_y_evento_no_mapeado_no_envia_al_gancho_propio(self):
+        """Con FLUJOS_GANCHO_BASE pero evento no en RUTAS_GANCHO, no se envía al gancho propio."""
+        cliente = ClienteFalso(status=200)
+        env = entorno(
+            FLUJOS_GANCHO_BASE=URL_BASE_PROPIO,
+        )
+        # Usamos un evento que no está en el mapeo
+        r = pw.emitir("evento_inexistente", {"sha": "abc"}, entorno=env, http=cliente)
+        # Debe haber enviado (porque n8n y dify están configuradas y devuelven 200)
+        self.assertTrue(r["enviado"])
+        # Debe haber llamado dos veces: n8n y dify (no se llama al gancho propio porque el evento no está mapeado)
+        self.assertEqual(len(cliente.llamadas), 2)
+        # Ninguna de las llamadas debe ser al gancho propio
+        for llamada in cliente.llamadas:
+            self.assertNotIn(URL_BASE_PROPIO, llamada["req"].full_url)
+        # En el resultado, no debe aparecer el host del gancho propio
+        hosts = [u["host"] for u in r["urls"]]
+        self.assertNotIn("localhost:9002", hosts)
+
+    def test_sin_base_no_envia_al_gancho_propio(self):
+        """Sin FLUJOS_GANCHO_BASE, no se envía al gancho propio aunque el evento esté mapeado."""
+        cliente = ClienteFalso(status=200)
+        env = entorno()  # sin FLUJOS_GANCHO_BASE
+        r = pw.emitir("produccion.publicada", {"sha": "abc"}, entorno=env, http=cliente)
+        # En el entorno por defecto, tenemos URL_A y URL_B, así que debería haber llamadas a esas dos.
+        self.assertEqual(len(cliente.llamadas), 2)
+        # Ninguna de las llamadas debe ser al gancho propio
+        for llamada in cliente.llamadas:
+            self.assertNotIn(URL_BASE_PROPIO, llamada["req"].full_url)
+        # El resultado debe mostrar que se envió (porque las dos URLs externas devolvieron 200)
+        self.assertTrue(r["enviado"])
+        # Y en las urls del resultado, no debe aparecer el host del gancho propio
+        hosts = [u["host"] for u in r["urls"]]
+        self.assertNotIn("localhost:9002", hosts)
 
 
 if __name__ == "__main__":
