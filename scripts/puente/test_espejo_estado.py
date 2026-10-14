@@ -20,6 +20,22 @@ VIEJO = AHORA - 30 * 24 * 3600  # hace un mes
 class PruebasSeleccion(unittest.TestCase):
     """qué_copiar: contrato de qué sale de la Mac hacia el espejo."""
 
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.olas_dir = self.tmp.name
+        # Create some test files
+        for nombre in ["progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+                       "cola-1.json", "cola-2.json", "cola-antigua.json",
+                       "evento1.jsonl", "evento2.jsonl", "log.txt"]:
+            with open(os.path.join(self.olas_dir, nombre), "w", encoding="utf-8") as f:
+                if nombre.endswith(".json"):
+                    json.dump({"test": nombre}, f)
+                else:
+                    f.write("test line\n")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
     def pares(self, *nombres, mtime=RECIENTE):
         return [(n, mtime) for n in nombres]
 
@@ -45,17 +61,51 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_que_copiar_selecciona_correctamente(self):
+        # Create the listado as tuples (filename, mtime)
+        ahora = 0.0
+        listado = [(nombre, ahora) for nombre in os.listdir(self.olas_dir)]
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.olas = self.tmp.name
-        for nombre, lineas in (("progreso.json", 1), ("cola-a.json", 1), ("ola-x.jsonl", 300)):
+        files_to_create = [
+            ("progreso.json", 1, '{"prueba": "progreso.json"}'),
+            ("progreso.md", 300, "# Line {}\n"),
+            ("medios.json", 1, '{"prueba": "medios.json"}'),
+            ("puntos-control.json", 1, '{"prueba": "puntos-control.json"}'),
+            ("cola-1.json", 1, '{"prueba": "cola-1.json"}'),
+            ("cola-2.json", 1, '{"prueba": "cola-2.json"}'),
+            ("cola-antigua.json", 1, '{"prueba": "cola-antigua.json"}'),
+            ("evento1.jsonl", 200, "Line {}\n"),
+            ("evento2.jsonl", 200, "Line {}\n"),
+            ("log.txt", 200, "Log line {}\n"),
+            # Files needed by existing tests
+            ("cola-a.json", 1, '{"prueba": "cola-a.json"}'),
+            ("ola-x.jsonl", 300, "Line {}\n"),
+        ]
+        for nombre, lineas, contenido in files_to_create:
             with open(os.path.join(self.olas, nombre), "w", encoding="utf-8") as f:
                 if nombre.endswith(".json"):
-                    json.dump({"prueba": nombre}, f)
+                    f.write(contenido)
                 else:
-                    f.write(("línea de %s\n" % nombre) * lineas)
+                    f.write(contenido * lineas)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -69,11 +119,48 @@ class PruebasEmpaquetar(unittest.TestCase):
         return tarfile.open(fileobj=contenido, mode="r:gz")
 
     def test_archivos_en_la_raiz_del_tar_y_logs_recortados(self):
-        with self._tar(["progreso.json", "cola-a.json", "ola-x.jsonl"]) as tar:
-            self.assertEqual(sorted(tar.getnames()), ["cola-a.json", "ola-x.jsonl", "progreso.json"])
-            self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
-                             espejo_estado.LOG_LINEAS)
-            self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+          with self._tar(["progreso.json", "cola-a.json", "ola-x.jsonl"]) as tar:
+              self.assertEqual(sorted(tar.getnames()), ["cola-a.json", "ola-x.jsonl", "progreso.json"])
+              self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
+                               espejo_estado.LOG_LINEAS)
+              self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+
+    def test_empaquetar_crea_tar_gz(self):
+        seleccion = [
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "evento1.jsonl",
+            "log.txt",
+        ]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ruta_tar = empaquetar(seleccion, self.olas, tmp_dir)
+            self.assertTrue(os.path.exists(ruta_tar))
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                extra_dir = os.path.join(tmp_dir, "extra")
+                os.makedirs(extra_dir, exist_ok=True)
+                tar.extractall(path=extra_dir)
+                contenido_extra = os.listdir(extra_dir)
+                # The current implementation puts files directly in the extraction directory
+                # So we expect the files to be directly in extra_dir, not in a subdirectory
+                self.assertEqual(set(contenido_extra), set(seleccion))
+                esperadas_lineas = {
+                    "progreso.json": 1,
+                    "progreso.md": 300,
+                    "medios.json": 1,
+                    "puntos-control.json": 1,
+                    "cola-1.json": 1,
+                    "evento1.jsonl": 200,
+                    "log.txt": 200,
+                }
+                for nombre, esperada in esperadas_lineas.items():
+                    ruta_extra = os.path.join(extra_dir, nombre)
+                    with open(ruta_extra, "r", encoding="utf-8") as f:
+                        lineas = f.read().splitlines()
+                    self.assertEqual(len(lineas), esperada, f"{nombre}: {len(lineas)} != {esperada}")
+
 
 
 class PruebasEnviarEstado(unittest.TestCase):

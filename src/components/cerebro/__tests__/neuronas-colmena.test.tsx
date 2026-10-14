@@ -120,22 +120,49 @@ vi.mock("@/lib/metagenesis/colmena", () => ({
 }));
 
 describe("NeuronasPanel", () => {
-  it("renders the contenedor de agentes section for the actual neuron", async () => {
-    const NeuronasPanel = (await import("../neuronas-panel")).default;
-    render(
-      <AppearanceProvider>
-        <ConfirmProvider>
-          <NeuronasPanel brainId="test-brain-id" brainName="Test Brain" />
-        </ConfirmProvider>
-      </AppearanceProvider>
-    );
+    it("renders the contenedor de agentes section for the actual neuron", async () => {
+        const NeuronasPanel = (await import("../neuronas-panel")).default;
+        render(
+            <AppearanceProvider>
+                <ConfirmProvider>
+                    <NeuronasPanel brainId="test-brain-id" brainName="Test Brain" />
+                </ConfirmProvider>
+            </AppearanceProvider>,
+        );
 
-    // Wait for the neuron data to load
-    await waitFor(() => {
-      expect(screen.getByText("Contenedor de agentes")).toBeInTheDocument();
+        // Wait for the neuron data to load
+        await waitFor(() => {
+            expect(screen.getByText("Contenedor de agentes")).toBeInTheDocument();
+        });
+
+        // Check that the contenedor de agentes section is present
+        expect(screen.getByText("Contenedor de agentes")).toBeInTheDocument();
     });
 
-    // Check that the contenedor de agentes section is present
-    expect(screen.getByText("Contenedor de agentes")).toBeInTheDocument();
-  });
+    it("shows the install worker button for compatible systems", async () => {
+        const NeuronasPanel = (await import("../neuronas-panel")).default;
+        render(
+            <AppearanceProvider>
+                <ConfirmProvider>
+                    <NeuronasPanel brainId="test-brain-id" brainName="Test Brain" />
+                </ConfirmProvider>
+            </AppearanceProvider>,
+        );
+
+        // Wait for the neuron data to load
+        await waitFor(() => {
+            expect(screen.getByText("Contenedor de agentes")).toBeInTheDocument();
+        });
+
+        // Check that the install worker button is present
+        const installButton = await screen.findByText(/Instalar el trabajador/i);
+        expect(installButton).toBeInTheDocument();
+        // Should be enabled because the system is compatible
+        expect(installButton).not.toBeDisabled();
+        // Should have the correct explanation
+        expect(installButton).toHaveAttribute(
+            "title",
+            "Un comando en la terminal de este aparato."
+        );
+    });
 });
