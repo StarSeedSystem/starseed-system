@@ -182,6 +182,22 @@ export const APP_CATALOG: StarseedApp[] = [
         },
     },
     {
+        // Ola 1013F: Fundamento de StarSeed — diamante, piedra filosofal y alquimia.
+        id: "fundamento",
+        name: "Fundamento de StarSeed",
+        short: "Fundamento",
+        description: "Diamante, piedra filosofal y alquimia: el fundamento filosófico del OS.",
+        icon: Gem,
+        accent: "#A855F7",
+        category: "starseed",
+        status: "native",
+        open: {
+            primary: "route",
+            allowed: ["route", "tab"],
+            route: "/fundamento",
+        },
+    },
+    {
         // Ola 228: página Voces — estudio de voces y emisión de voz del OS.
         id: "voces",
         name: "Voces",
@@ -536,7 +552,7 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "fundamento", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
     sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-astral"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
