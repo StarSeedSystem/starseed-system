@@ -33,21 +33,21 @@ describe('crearSalas', () => {
     const salas = crearSalas({ maxSalas: 2, maxPorSala: 100, maxBytes: 100 });
     // Llenar hasta el límite
     for (let i = 0; i < 2; i++) {
-      const tema = `estacion-vivo:Tema${i}12345678`;
+      const tema = `estacion-vivo:Tema${i}`;
       const conexion = {};
       const result = salas.entrar(tema, conexion);
       expect(result.ok).toBe(true);
     }
     // Intentar agregar una nueva sala
     const conexionNueva = {};
-    const result = salas.entrar('estacion-vivo:TemaNuevo12345678', conexionNueva);
+    const result = salas.entrar('estacion-vivo:TemaNuevo', conexionNueva);
     expect(result.ok).toBe(false);
     expect(result.motivo).toBe('Límite de salas alcanzado');
   });
 
   it('debería alcanzar límite de conexiones por sala', () => {
     const salas = crearSalas({ maxSalas: 100, maxPorSala: 2, maxBytes: 100 });
-    const tema = 'estacion-vivo:Tema112345678';
+    const tema = 'estacion-vivo:Tema1';
     // Llenar la sala hasta el límite
     for (let i = 0; i < 2; i++) {
       const conexion = {};
@@ -63,7 +63,7 @@ describe('crearSalas', () => {
 
   it('debería salir correctamente', () => {
     const salas = crearSalas();
-    const tema = 'estacion-p:Tema12345678';
+    const tema = 'estacion-p:Tema1';
     const conexion1 = {};
     const conexion2 = {};
     salas.entrar(tema, conexion1);
@@ -79,7 +79,7 @@ describe('crearSalas', () => {
 
   it('debería no reenviar al emisor en difundir', () => {
     const salas = crearSalas({ maxSalas: 100, maxPorSala: 100, maxBytes: 100 });
-    const tema = 'estacion-vivo:Tema112345678';
+    const tema = 'estacion-vivo:Tema1';
     const emisor = {};
     const receptor1 = {};
     const receptor2 = {};
@@ -96,7 +96,7 @@ describe('crearSalas', () => {
 
   it('debería descartar texto no string en difundir', () => {
     const salas = crearSalas();
-    const tema = 'estacion-vivo:Tema112345678';
+    const tema = 'estacion-vivo:Tema1';
     const conexion = {};
     salas.entrar(tema, conexion);
     // Número
@@ -115,7 +115,7 @@ describe('crearSalas', () => {
 
   it('debería descartar texto demasiado largo en difundir', () => {
     const salas = crearSalas({ maxSalas: 100, maxPorSala: 100, maxBytes: 10 });
-    const tema = 'estacion-vivo:Tema112345678';
+    const tema = 'estacion-vivo:Tema1';
     const conexion = {};
     salas.entrar(tema, conexion);
     const textoLargo = '{"t":"est","datos":"esto es muy largo"}'; // más de 10 bytes
@@ -124,39 +124,36 @@ describe('crearSalas', () => {
   });
 
   it('debería descartar texto que no empieza por {\"t\":\"est\" en difundir', () => {
-    const tema = 'estacion-vivo:Tema112345678';
-    // Válido
-    const salasValidas = crearSalas();
-    const conexionValida = {};
-    salasValidas.entrar(tema, conexionValida);
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:Tema1';
+    const conexion = {};
+    salas.entrar(tema, conexion);
     const textoValido = '{"t":"est","datos":"ok"}';
-    let destino = salasValidas.difundir(conexionValida, textoValido);
-    expect(destino.length).toBe(0); // estamos solos en la sala
-    // Vamos a agregar un receptor para probar.
-    const receptor = {};
-    salasValidas.entrar(tema, receptor);
-    destino = salasValidas.difundir(conexionValida, textoValido);
-    expect(destino.length).toBe(1);
-    expect(destino[0]).toBe(receptor);
-    // Inválido - crear una nueva sala para asegurarnos de estar solos
-    const salasInv = crearSalas();
-    const conexionInv = {};
-    salasInv.entrar(tema, conexionInv);
     const textoInvalido1 = '{"t":"otro","datos":"ok"}';
     const textoInvalido2 = '{"t":"est"'; // incompleto
     const textoInvalido3 = 'no es json';
-    destino = salasInv.difundir(conexionInv, textoInvalido1);
+    // Válido
+    let destino = salas.difundir(conexion, textoValido);
+    expect(destino.length).toBe(0); // estamos solos en la sala
+    // Vamos a agregar un receptor para probar.
+    const receptor = {};
+    salas.entrar(tema, receptor);
+    destino = salas.difundir(conexion, textoValido);
+    expect(destino.length).toBe(1);
+    expect(destino[0]).toBe(receptor);
+    // Inválido
+    destino = salas.difundir(conexion, textoInvalido1);
     expect(destino.length).toBe(0);
-    destino = salasInv.difundir(conexionInv, textoInvalido2);
+    destino = salas.difundir(conexion, textoInvalido2);
     expect(destino.length).toBe(0);
-    destino = salasInv.difundir(conexionInv, textoInvalido3);
+    destino = salas.difundir(conexion, textoInvalido3);
     expect(destino.length).toBe(0);
   });
 
   it('debería devolver la presencia correcta', () => {
     const salas = crearSalas({ maxSalas: 2, maxPorSala: 2, maxBytes: 100 });
-    const tema1 = 'estacion-vivo:Tema112345678';
-    const tema2 = 'estacion-vivo:Tema212345678';
+    const tema1 = 'estacion-vivo:Tema1';
+    const tema2 = 'estacion-vivo:Tema2';
     expect(salas.presencia(tema1)).toBe(0);
     expect(salas.presencia(tema2)).toBe(0);
     const c1 = {};
@@ -177,7 +174,7 @@ describe('crearSalas', () => {
 
   it('debería devolver el tema de una conexión', () => {
     const salas = crearSalas();
-    const tema = 'estacion-p:TemaX12345678';
+    const tema = 'estacion-p:TemaX';
     const conexion = {};
     const result = salas.entrar(tema, conexion);
     expect(result.ok).toBe(true);
