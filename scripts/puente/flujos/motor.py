@@ -55,24 +55,64 @@ def _ejecutar_nodo(nodo: Nodo, items: Items, funcion: FuncionNodo,
             time.sleep(nodo.espera_ms * (intento + 1) / 1000)
     return []
 def _continuar(flujo: Flujo, ejecucion: Ejecucion,
-               nodos: dict[str, FuncionNodo], ahora: Callable[[], Any],
-               guardar: Callable[[Ejecucion], None]) -> Ejecucion:
+                nodos: dict[str, FuncionNodo], ahora: Callable[[], Any],
+                guardar: Callable[[Ejecucion], None]) -> Ejecucion:
+    # Determinar si hay un disparador en la entrada
+    disparador_id = None
+    for item in ejecucion.entrada:
+        if "_disparador" in item:
+            disparador_id = item["_disparador"]
+            break
+    
+    # Calcular el conjunto de nodos alcanzables desde el disparador
+    if disparador_id is not None:
+        # Construir lista de adyacencia para conexiones salientes
+        adyacencia = {nodo.id: [] for nodo in flujo.nodos}
+        for conexion in flujo.conexiones:
+            adyacencia[conexion.origen].append(conexion.destino)
+        
+        # BFS para encontrar nodos alcanzables
+        alcanzables = set()
+        visita = [disparador_id]
+        while visita:
+            actual = visita.pop(0)
+            if actual in alcanzables:
+                continue
+            alcanzables.add(actual)
+            visita.extend(adyacencia.get(actual, []))
+    else:
+        # Si no hay disparador, alcanzar todos los nodos
+        alcanzables = {nodo.id for nodo in flujo.nodos}
+    
     orden = orden_topologico(flujo)
     por_id = {nodo.id: nodo for nodo in flujo.nodos}
     ejecucion.estado = "ejecutando"
     guardar(ejecucion)
     try:
         for indice in range(ejecucion.siguiente, len(orden)):
-            nodo = por_id[orden[indice]]
+            nodo_id = orden[indice]
+            nodo = por_id[nodo_id]
+            if nodo_id not in alcanzables:
+                # Marcar nodo como omitido
+                registro = {"entrada": [], "salida": [], "error": None,
+                            "ms": 0, "intentos": 0, "estado": "omitido"}
+                ejecucion.nodos[nodo_id] = registro
+                guardar(ejecucion)
+                ejecucion.siguiente = indice + 1
+                continue
             if nodo.tipo not in nodos:
                 raise KeyError(f"No hay ejecutor registrado para el tipo {nodo.tipo}")
             items = _entradas(flujo, nodo.id, ejecucion)
             _ejecutar_nodo(nodo, items, nodos[nodo.tipo], ahora, guardar, ejecucion)
             ejecucion.siguiente = indice + 1
             guardar(ejecucion)
-        con_salida = {c.origen for c in flujo.conexiones}
-        terminales = [nodo_id for nodo_id in orden if nodo_id not in con_salida]
-        terminales = terminales or orden[-1:]
+        # Calcular nodos terminales del subgrafo alcanzable
+        con_salida_alcanzable = set()
+        for c in flujo.conexiones:
+            if c.origen in alcanzables and c.destino in alcanzables:
+                con_salida_alcanzable.add(c.origen)
+        terminales = [nodo_id for nodo_id in alcanzables if nodo_id not in con_salida_alcanzable]
+        terminales = terminales or [next(iter(alcanzables))] if alcanzables else []
         ejecucion.salida = [dict(item) for nodo_id in terminales
                             for item in ejecucion.nodos[nodo_id]["salida"]]
         ejecucion.estado = "completa"

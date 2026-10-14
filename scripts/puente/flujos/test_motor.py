@@ -102,14 +102,84 @@ class MotorFlujosTest(unittest.TestCase):
         with patch.dict(os.environ, {"CLAVE_FLUJO": secreto}):
             flujo = Flujo("seguro", "Seguro",
                           [Nodo("n", "eco", {"referencia": "CLAVE_FLUJO",
-                                               "incorrecto": secreto})])
+                                                "incorrecto": secreto})])
             ruta = guardar_flujo(flujo)
             ejecutar(flujo, [{"secreto": secreto}], {"eco": lambda items, _c: items})
         self.assertNotIn(secreto, ruta.read_text(encoding="utf-8"))
         ejecucion = next(Path("starseed_memory_root/flujos/ejecuciones/seguro").glob("*.json"))
         self.assertNotIn(secreto, ejecucion.read_text(encoding="utf-8"))
         self.assertEqual(json.loads(ruta.read_text())["nodos"][0]["configuracion"]["referencia"],
-                         "CLAVE_FLUJO")
+                          "CLAVE_FLUJO")
+
+    def test_ejecuta_solo_rama_disparador(self) -> None:
+        # Fluxo con dos ramas independientes: webhook1 -> set1, webhook2 -> set2
+        def accion_passthrough(items, _config):
+            return items
+
+        def accion_set(campo: str):
+            def aplicar(items, _config):
+                return [{**item, campo: True} for item in items]
+            return aplicar
+
+        flujo = Flujo(
+            "rama_disparador",
+            "Rama Disparador",
+            [
+                Nodo("webhook1", "webhook"),
+                Nodo("set1", "set", {"campo": "set1"}),
+                Nodo("webhook2", "webhook"),
+                Nodo("set2", "set", {"campo": "set2"}),
+            ],
+            [
+                Conexion("webhook1", "set1"),
+                Conexion("webhook2", "set2"),
+            ],
+        )
+        nodos = {
+            "webhook": accion_passthrough,
+            "set": lambda items, config: accion_set(config["campo"])(items, {}),
+        }
+
+        # Caso 1: sin _disparador -> se ejecutan ambas ramas
+        resultado_todo = ejecutar(flujo, [{"valor": 1}], nodos)
+        self.assertEqual(resultado_todo.estado, "completa")
+        # Comprobar que todos los nodos están completos
+        for nodo_id in ["webhook1", "set1", "webhook2", "set2"]:
+            self.assertEqual(
+                resultado_todo.nodos[nodo_id]["estado"], "completo",
+                f"El nodo {nodo_id} debería estar completo"
+            )
+        # La salida debe tener dos items: uno de cada rama
+        self.assertEqual(len(resultado_todo.salida), 2)
+        # Uno tiene set1: True, el otro set2: True
+        campos = [set(item.keys()) - {"valor"} for item in resultado_todo.salida]
+        self.assertIn({"set1"}, campos)
+        self.assertIn({"set2"}, campos)
+
+        # Caso 2: con _disparador en el segundo webhook -> solo se ejecuta la segunda rama
+        entrada_con_disparador = [{"valor": 1, "_disparador": "webhook2"}]
+        resultado_parcial = ejecutar(flujo, entrada_con_disparador, nodos)
+        self.assertEqual(resultado_parcial.estado, "completa")
+        # Los nodos de la primera rama deben estar omitidos
+        self.assertEqual(
+            resultado_parcial.nodos["webhook1"]["estado"], "omitido"
+        )
+        self.assertEqual(
+            resultado_parcial.nodos["set1"]["estado"], "omitido"
+        )
+        # Los nodos de la segunda rama deben estar completos
+        self.assertEqual(
+            resultado_parcial.nodos["webhook2"]["estado"], "completo"
+        )
+        self.assertEqual(
+            resultado_parcial.nodos["set2"]["estado"], "completo"
+        )
+        # La salida debe tener un solo item (de la segunda rama)
+        self.assertEqual(len(resultado_parcial.salida), 1)
+        item = resultado_parcial.salida[0]
+        self.assertEqual(item["valor"], 1)
+        self.assertTrue(item.get("set2"))
+        self.assertFalse(item.get("set1", False))  # No debe tener set1
 
 
 if __name__ == "__main__":
