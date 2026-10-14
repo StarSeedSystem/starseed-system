@@ -353,7 +353,24 @@ export async function listBrains(scope?: string, scopeRef?: string | null): Prom
     if (scope) q = q.eq("scope", scope);
     if (scope && scope !== "account" && scopeRef) q = q.eq("scope_ref", scopeRef);
     const { data } = await q;
-    return ((data as Record<string, unknown>[]) || []).map(normalizeBrain);
+    const owned = ((data as Record<string, unknown>[]) || []).map(normalizeBrain);
+
+    const compartidosRes = await listarCerebrosCompartidos();
+    let compartidos = compartidosRes.ok ? compartidosRes.brains.map(b => {
+      const { compartido, ...rest } = b as any;
+      return rest as Brain;
+    }) : [];
+
+    if (scope) {
+      compartidos = compartidos.filter(b => b.scope === scope);
+      if (scope !== "account" && scopeRef) {
+        compartidos = compartidos.filter(b => b.scope_ref === scopeRef);
+      }
+    }
+
+    const seen = new Set(owned.map(b => b.id));
+    const merged = [...owned, ...compartidos.filter(b => !seen.has(b.id))];
+    return merged;
   } catch {
     return [];
   }
