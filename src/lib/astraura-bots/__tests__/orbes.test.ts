@@ -7,6 +7,23 @@ import {
 } from "../orbes";
 
 describe("disposicionOrbes", () => {
+  it("should return empty array for empty input", () => {
+    const res = disposicionOrbes([], { ancho: 800, alto: 600, diametro: 80 });
+    expect(res).toHaveLength(0);
+  });
+
+  it("should handle a single non-principal orb with saved position", () => {
+    const res = disposicionOrbes(
+      [{ id: "a", pos: { xRatio: 0.3, yRatio: 0.4 } }],
+      { ancho: 800, alto: 600, diametro: 80 },
+    );
+    expect(res.length).toBe(1);
+    expect(res[0].id).toBe("a");
+    expect(res[0].visible).toBe(true);
+    expect(res[0].pos.xRatio).toBeCloseTo(0.3, 5);
+    expect(res[0].pos.yRatio).toBeCloseTo(0.4, 5);
+  });
+
   it("una sola orbe (principal) conserva su posición", () => {
     const res = disposicionOrbes(
       [{ id: "a", principal: true, pos: { xRatio: 0.3, yRatio: 0.4 } }],
@@ -31,6 +48,38 @@ describe("disposicionOrbes", () => {
     expect(res.length).toBe(3);
     expect(res.every((r) => r.visible)).toBe(true);
     // Ningún par está más cerca que diametro + 8 = 88 px.
+    for (let i = 0; i < res.length; i++) {
+      for (let j = i + 1; j < res.length; j++) {
+        const dx = (res[i].pos.xRatio - res[j].pos.xRatio) * 800;
+        const dy = (res[i].pos.yRatio - res[j].pos.yRatio) * 600;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        expect(dist).toBeGreaterThanOrEqual(88 - 0.01); // tolerancia numérica
+      }
+    }
+  });
+
+  it("should respect saved positions for multiple orbs when they don't overlap", () => {
+    const res = disposicionOrbes(
+      [
+        { id: "p", principal: true, pos: { xRatio: 0.2, yRatio: 0.2 } },
+        { id: "a", pos: { xRatio: 0.5, yRatio: 0.5 } },
+        { id: "b", pos: { xRatio: 0.8, yRatio: 0.8 } },
+      ],
+      { ancho: 800, alto: 600, diametro: 80 },
+    );
+    expect(res.length).toBe(3);
+    expect(res.every((r) => r.visible)).toBe(true);
+    // Verify saved positions are respected
+    const p = res.find((r) => r.id === "p")!;
+    const a = res.find((r) => r.id === "a")!;
+    const b = res.find((r) => r.id === "b")!;
+    expect(p.pos.xRatio).toBeCloseTo(0.2, 5);
+    expect(p.pos.yRatio).toBeCloseTo(0.2, 5);
+    expect(a.pos.xRatio).toBeCloseTo(0.5, 5);
+    expect(a.pos.yRatio).toBeCloseTo(0.5, 5);
+    expect(b.pos.xRatio).toBeCloseTo(0.8, 5);
+    expect(b.pos.yRatio).toBeCloseTo(0.8, 5);
+    // Verify no overlap (distance >= diametro + 8 = 88 px)
     for (let i = 0; i < res.length; i++) {
       for (let j = i + 1; j < res.length; j++) {
         const dx = (res[i].pos.xRatio - res[j].pos.xRatio) * 800;
@@ -135,22 +184,40 @@ it("pone delante la enfocada", () => {
   expect(resultado).toEqual(["a", "c", "b"]);
 });
 
-it("si no está enfocado, devuelve el mismo orden", () => {
-  const ids = ["a", "b", "c"];
-  const enfocado = "d"; // not in list
-  const resultado = ordenZ(ids, enfocado);
-  expect(resultado).toEqual(["a", "b", "c"]);
-});
+  it("si no está enfocado, devuelve el mismo orden", () => {
+    const ids = ["a", "b", "c"];
+    const enfocado = "d"; // not in list
+    const resultado = ordenZ(ids, enfocado);
+    expect(resultado).toEqual(["a", "b", "c"]);
+  });
 
-it("maneja duplicados", () => {
-  const ids = ["a", "b", "a", "c"];
-  const enfocado = "a";
-  const resultado = ordenZ(ids, enfocado);
-  // All 'a' should be moved to the end
-  expect(resultado).toEqual(["b", "c", "a", "a"]);
-});
+  it("should return the same array if the focused orb is the first", () => {
+    const ids = ["a", "b", "c"];
+    const enfocado = "a"; // already first
+    const resultado = ordenZ(ids, enfocado);
+    expect(resultado).toEqual(["a", "b", "c"]);
+  });
 
-it("MAX_ORBES_VISIBLES = 5", () => {
-  expect(MAX_ORBES_VISIBLES).toBe(5);
-});
+  it("maneja duplicados", () => {
+    const ids = ["a", "b", "a", "c"];
+    const enfocado = "a";
+    const resultado = ordenZ(ids, enfocado);
+    // All 'a' should be moved to the end
+    expect(resultado).toEqual(["b", "c", "a", "a"]);
+  });
+
+  it("should keep the relative order of the other orbs", () => {
+    const ids = ["a", "b", "c", "d"];
+    const enfocado = "b";
+    const resultado = ordenZ(ids, enfocado);
+    // The focused orb should be at the end
+    expect(resultado[resultado.length - 1]).toBe("b");
+    // The other orbs should maintain their relative order
+    const otros = resultado.filter(id => id !== "b");
+    expect(otros).toEqual(["a", "c", "d"]);
+  });
+
+  it("MAX_ORBES_VISIBLES = 5", () => {
+    expect(MAX_ORBES_VISIBLES).toBe(5);
+  });
 });

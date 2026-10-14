@@ -13,43 +13,52 @@ describe("migracion-bots", () => {
        const migrationDir = join(process.cwd(), "supabase", "migrations");
        const fsPromises = await import("node:fs/promises");
        const files = await fsPromises.readdir(migrationDir);
-      
-      // Try to find a migration that creates astraura_bots tables
-      for (const file of files) {
-        if (file.endsWith(".sql")) {
-          const content = await readFile(join(migrationDir, file), "utf-8");
-          if (content.includes("astraura_bots")) {
-            migrationContent = content;
-            break;
-          }
-        }
-      }
-      
-      // If we didn't find a specific migration, try the most recent one
-      if (!migrationContent) {
-        const sqlFiles = files
-          .filter((f: string) => f.endsWith(".sql"))
-          .sort()
-          .reverse(); // Most recent first
-        
-        if (sqlFiles.length > 0) {
-          migrationContent = await readFile(join(migrationDir, sqlFiles[0]), "utf-8");
-        }
-      }
-    } catch (error) {
-      // If we can't read any migration file, we'll leave migrationContent empty
-       console.warn("Could not read migration file for testing:", (error as Error).message);
-    }
-    
-    low = migrationContent.toLowerCase();
-  });
+       
+       // Try to find a migration that creates astraura_bots tables
+       for (const file of files) {
+         if (file.endsWith(".sql")) {
+           const content = await readFile(join(migrationDir, file), "utf-8");
+           if (content.includes("astraura_bots")) {
+             migrationContent = content;
+             break;
+           }
+         }
+       }
+       
+       // If we didn't find a specific migration, try the most recent one
+       if (!migrationContent) {
+         const sqlFiles = files
+           .filter((f: string) => f.endsWith(".sql"))
+           .sort()
+           .reverse(); // Most recent first
+         
+         if (sqlFiles.length > 0) {
+           migrationContent = await readFile(join(migrationDir, sqlFiles[0]), "utf-8");
+         }
+       }
+     } catch (error) {
+       // If we can't read any migration file, we'll leave migrationContent empty
+        console.warn("Could not read migration file for testing:", (error as Error).message);
+     }
+     
+     low = migrationContent.toLowerCase();
+   });
 
-  it("crea las tres tablas de forma idempotente", () => {
-    expect(low).toContain("create table if not exists public.astraura_bots");
-    expect(low).toContain("create table if not exists public.astraura_bots_consentimientos");
-    expect(low).toContain("create table if not exists public.astraura_bots_registro");
-    expect(low).not.toContain("drop table");
-  });
+   it("no concede permisos a anon salvo el select de la política", () => {
+     // Check that no permissions are granted to anon/anonymous users
+     const anonGrants = low.match(/grant\s+[^\n;]*\s+to\s+anon/gi) ?? [];
+     expect(anonGrants.length).toBe(0);
+     // Check that no permissions are granted to public
+     const publicGrants = low.match(/grant\s+[^\n;]*\s+to\s+public/gi) ?? [];
+     expect(publicGrants.length).toBe(0);
+   });
+
+   it("crea las tres tablas de forma idempotente", () => {
+     expect(low).toContain("create table if not exists public.astraura_bots");
+     expect(low).toContain("create table if not exists public.astraura_bots_consentimientos");
+     expect(low).toContain("create table if not exists public.astraura_bots_registro");
+     expect(low).not.toContain("drop table");
+   });
 
   it("activa RLS en las tres tablas", () => {
     expect(low).toContain("alter table public.astraura_bots enable row level security");
@@ -147,5 +156,23 @@ describe("migracion-bots", () => {
     expect(low).toContain("astraura_bots_consentimientos");
     expect(low).toContain("astraura_bots_registro");
     expect(low).toContain("alter publication supabase_realtime add table");
+  });
+
+  it("no concede permisos a anon salvo el select de la política", () => {
+    // Check that no permissions are granted to anon/anonymous users
+    const anonGrants = low.match(/grant\s+[^\n;]*\s+to\s+anon/gi) ?? [];
+    expect(anonGrants.length).toBe(0);
+    // Check that no permissions are granted to public
+    const publicGrants = low.match(/grant\s+[^\n;]*\s+to\s+public/gi) ?? [];
+    expect(publicGrants.length).toBe(0);
+  });
+
+  it("crea los índices esperados", () => {
+    // Índices explícitos
+    expect(low).toContain("create index if not exists astraura_bots_cuenta_idx on public.astraura_bots (cuenta_id)");
+    expect(low).toContain("create index if not exists astraura_bots_dueno_idx on public.astraura_bots (dueno_tipo, dueno_id)");
+    expect(low).toContain("create index if not exists astraura_bots_registro_bot_idx on public.astraura_bots_registro (bot_id, creado_en desc)");
+    // Índice implícito de la clave primaria en consentimientos (verify PRIMARY KEY constraint exists)
+    expect(low).toMatch(/primary key\s*\(bot_id,\s*cuenta_id,\s*sentido\)/);
   });
 });

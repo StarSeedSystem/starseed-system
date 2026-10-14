@@ -125,6 +125,14 @@ describe("reducirEventos · errores y límites", () => {
 });
 
 describe("reducirEventos · desconocidos", () => {
+  it("evento vacío desde estado inicial incrementa desconocidos", () => {
+    const estado = reducirEventos(ESTADO_AG_UI_VACIO, {});
+    expect(estado).toEqual({
+      ...ESTADO_AG_UI_VACIO,
+      eventosDesconocidos: 1
+    });
+  });
+
   it("eventos desconocidos se cuentan y no rompen", () => {
     let s = estado();
     s = reducirEventos(s, { type: "EventoInexistente", valor: 1 });
@@ -158,5 +166,22 @@ describe("llamadasComoPropuestas", () => {
     s = reducirEventos(s, { type: "ToolCallEnd", toolCallId: "tc3" });
     const r = llamadasComoPropuestas(s);
     expect(r.problemas.some((p) => p.includes("rotos"))).toBe(true);
+  });
+  it("no incluye tool calls que no han terminado", () => {
+    let estado = reducirEventos(ESTADO_AG_UI_VACIO, {});
+    estado = reducirEventos(estado, {
+      type: 'ToolCallStart',
+      toolCallId: 'call1',
+      toolCallName: 'navegar',
+    });
+    estado = reducirEventos(estado, {
+      type: 'ToolCallArgs',
+      toolCallId: 'call1',
+      delta: '{"ruta":"/genesis"}',
+    });
+    // No END event
+    const { acciones, problemas } = llamadasComoPropuestas(estado);
+    expect(acciones).toHaveLength(0);
+    expect(problemas).toHaveLength(0);
   });
 });
