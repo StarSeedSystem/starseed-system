@@ -14,6 +14,23 @@ async function uid(): Promise<string | null> {
   }
 }
 
+function normalizeIncludes(raw: unknown) {
+  const r = (raw || {}) as Partial<Brain["includes"]>;
+  const arr = (v: unknown): string[] => Array.isArray(v) ? v as string[] : [];
+  return {
+    vaults: arr(r.vaults),
+    backends: arr(r.backends),
+    personalities: arr(r.personalities),
+    runtimes: arr(r.runtimes),
+    tokens: arr(r.tokens),
+    memories: arr(r.memories),
+    connections: arr(r.connections),
+    bindScope: !!r.bindScope,
+    permissions: (r.permissions as Brain["includes"]["permissions"]) ?? [],
+    aiProvider: (r.aiProvider as string) || undefined,
+  };
+}
+
 function normalizeBrain(row: Record<string, unknown>): Brain {
   return {
     id: String(row.id ?? ""),
@@ -23,18 +40,10 @@ function normalizeBrain(row: Record<string, unknown>): Brain {
     scope_ref: (row.scope_ref as string) ?? null,
     description: (row.description as string) || "",
     config: (row.config as Record<string, unknown>) || {},
-    includes: (row.includes as Brain["includes"]) || {
-      vaults: [],
-      backends: [],
-      personalities: [],
-      runtimes: [],
-      tokens: [],
-      memories: [],
-      connections: [],
-      bindScope: false,
-      permissions: [],
-    },
+    includes: normalizeIncludes(row.includes),
     servers: Array.isArray(row.servers) ? (row.servers as Brain["servers"]) : [],
+    created_at: (row.created_at as string) ?? undefined,
+    updated_at: (row.updated_at as string) ?? undefined,
   };
 }
 
@@ -47,7 +56,7 @@ export async function listarCerebrosCompartidos(): Promise<{ ok: boolean; brains
       .from("brains")
       .select("*")
       .neq("owner", owner)
-      .order("created_at", { ascending: false })
+      .order("created_at")
       .abortSignal(senalEsencial());
     if (error || !Array.isArray(data)) return { ok: false, brains: [] };
     const brains = (data as Record<string, unknown>[]).map(normalizeBrain);
