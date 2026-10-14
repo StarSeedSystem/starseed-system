@@ -12,7 +12,7 @@ import {
     Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
     RadioTower, Antenna, Binary, AudioLines, Gauge, Smile, FlaskConical,
     // Ola 6 · Adenda 158.
-    Sparkles, Users,
+    Sparkles, Users, Gem,
     // Ola 285 · K6: Canales StarSeed.
     Rss,
     // 2026-09-28: Contactos.
@@ -257,6 +257,22 @@ export const APP_CATALOG: StarseedApp[] = [
             route: "/omnifrecuencias",
             href: "https://omnifrecuencias.vercel.app",
             embeddable: true,
+        },
+    },
+    {
+        // Fundamento de StarSeed — el diamante, la piedra filosofal y la alquimia
+        id: "fundamento",
+        name: "Fundamento de StarSeed",
+        short: "Fundamento",
+        description: "El fundamento de StarSeed: diamante, piedra filosofal y alquimia.",
+        icon: Gem,
+        accent: "#A855F7",
+        category: "starseed",
+        status: "native",
+        open: {
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/fundamento",
         },
     },
 
@@ -534,7 +550,7 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "fundamento", "red-mesh", "senales", "red-feed", "canales", "estaciones", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
     sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-astral"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
