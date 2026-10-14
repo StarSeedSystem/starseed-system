@@ -116,4 +116,41 @@ describe('decisionPorResonancia', () => {
     ], conf);
     expect(r.decision).toBe('limpio');
   });
+
+  it('sin-datos vacío (0 veredictos fiables)', () => {
+    const r = decisionPorResonancia('h5', [], conf);
+    expect(r.decision).toBe('sin-datos');
+    expect(r.cuentas).toBe(0);
+    expect(r.motivo).toContain('pocos');
+  });
+
+  it('ignora veredicto con hash diferente', () => {
+    const r = decisionPorResonancia('h5', [
+      veredicto({ hash: 'otro', nivel: 'peligroso', nodo: 'n1', cuenta: 'cA', firmaOk: true, t: 1 }),
+    ], conf);
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('ignora veredicto sin firmaOk', () => {
+    const r = decisionPorResonancia('h6', [
+      veredicto({ hash: 'h6', nivel: 'peligroso', nodo: 'n1', cuenta: 'cA', firmaOk: false, t: 1 }),
+    ], conf);
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('ignora confianza baja (umbral 0.4, confianza 0.1)', () => {
+    const r = decisionPorResonancia('h7', [
+      veredicto({ hash: 'h7', nivel: 'peligroso', nodo: 'n1', cuenta: 'cA', firmaOk: true, t: 1 }),
+    ], { n1: 0.1 });
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('más reciente por nodo: el peligroso reciente gana sobre limpio anterior', () => {
+    const r = decisionPorResonancia('h9', [
+      veredicto({ hash: 'h9', nivel: 'limpio', nodo: 'n1', cuenta: 'cA', firmaOk: true, t: 1 }),
+      veredicto({ hash: 'h9', nivel: 'peligroso', nodo: 'n1', cuenta: 'cA', firmaOk: true, t: 2 }),
+    ], conf);
+    expect(r.decision).toBe('aviso');
+    expect(r.motivo).toContain('una cuenta');
+  });
 });
