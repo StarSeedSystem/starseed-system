@@ -58,6 +58,8 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     // ── Sexta oleada ──
     "CLOCK_DATE", "TASKS_QUICK", "QUICK_NOTES", "AURORA_LAST", "BADGES",
     "NETWORK_FEED_MINI",
+    // ── Protomolécula (ola 1010P) ──
+    "PROTOMOLECULA",
 ];
 
 describe("WIDGET_MANIFEST completitud", () => {

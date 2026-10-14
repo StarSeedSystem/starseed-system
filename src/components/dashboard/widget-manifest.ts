@@ -141,6 +141,9 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     BADGES: { label: "Insignias", category: "perfil", w: 3, h: 4, minW: 2, minH: 3, relevance: 62 },
     NETWORK_FEED_MINI: { label: "Feed de la Red", category: "social", w: 4, h: 5, minW: 2, minH: 3, data: ["common.feed"], relevance: 79 },
 
+    // ── Protomolécula (ola 1010P): función universal de creación y edición ──
+    PROTOMOLECULA: { label: "Protomolécula", category: "creatividad", w: 4, h: 5, minW: 3, minH: 4, relevance: 60 },
+
     // ── Ola 305: los 21 huérfanos entran en el manifiesto ─────────
     // Ningún WidgetType puede quedarse sin entrada: hasta ahora caían al
     // DEFAULT_MANIFEST {minW:2,minH:2} y el usuario podía encogerlos hasta

@@ -177,6 +177,11 @@ const SovereignNodeWidget = dynamic(
     () => import("@/components/dashboard/widgets/gen2/sovereign-node-widget").then((mod) => mod.SovereignNodeWidget),
     { ssr: false, loading: dashboardWidgetLoading }
 );
+// Protomolécula: carga perezosa para no engordar el chunk común del dashboard
+const PanelProtomoleculaAutonomo = dynamic(
+    () => import("@/components/protomolecula/panel-protomolecula").then((mod) => mod.PanelProtomoleculaAutonomo),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -512,6 +517,10 @@ function cuerpoClasico(
             return <BadgesWidget />;
         case 'NETWORK_FEED_MINI':
             return <NetworkFeedWidget />;
+
+        // ── Protomolécula (ola 1010P) ──
+        case 'PROTOMOLECULA':
+            return <PanelProtomoleculaAutonomo compacto />;
 
         default:
             return (
