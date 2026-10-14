@@ -6,7 +6,9 @@ import {
   ContextoDecision,
   Decision,
   sanearPolitica,
+  resumenPolitica,
   PoliticaSistema,
+  PoliticaCapa,
   CapaActualizacion,
 } from "../politica";
 
@@ -25,7 +27,7 @@ describe("politicaPorDefecto", () => {
     const policy = politicaPorDefecto("pagina-publica");
     expect(policy.datos.modo).toBe("automatica-todas");
     expect(policy.interfaz.modo).toBe("automatica-todas");
-    expect(policy.sw.modo).toBe("manual"); // Overridden to manual
+    expect(policy.sw.modo).toBe("automatica-todas");
     expect(policy.servicios.modo).toBe("manual");
     expect(policy.modelos.modo).toBe("manual");
     expect(policy.nativa.modo).toBe("manual");
@@ -39,6 +41,17 @@ describe("politicaPorDefecto", () => {
   it("returns correct policy for grupo-democratico", () => {
     const policy = politicaPorDefecto("grupo-democratico");
     expect(policy).toEqual(politicaPorDefecto("perfil-privado"));
+  });
+
+  it("returns correct policy for os", () => {
+    const policy = politicaPorDefecto("os");
+    expect(policy.datos.modo).toBe("automatica-todas");
+    expect(policy.interfaz.modo).toBe("automatica-todas");
+    expect(policy.sw.modo).toBe("automatica-todas");
+    expect(policy.servicios.modo).toBe("manual");
+    expect(policy.modelos.modo).toBe("programada");
+    expect(policy.modelos.ventana).toEqual({ desdeH: 22, hastaH: 6 });
+    expect(policy.nativa.modo).toBe("manual");
   });
 });
 
@@ -111,6 +124,18 @@ describe("decidirPolitica", () => {
     const p: PoliticaCapa = { modo: "programada" }; // ventana is undefined
     expect(decidirPolitica(p, baseCtx)).toBe("esperar");
   });
+
+  it("returns esperar for grupo-democratico when approval required and not granted", () => {
+    const ctx: ContextoDecision = { ...baseCtx, requiereAprobacion: true, aprobada: false };
+    const p: PoliticaCapa = { modo: "automatica-todas" };
+    expect(decidirPolitica(p, ctx)).toBe("esperar");
+  });
+
+  it("returns aplicar for grupo-democratico when approval granted", () => {
+    const ctx: ContextoDecision = { ...baseCtx, requiereAprobacion: true, aprobada: true };
+    const p: PoliticaCapa = { modo: "automatica-todas" };
+    expect(decidirPolitica(p, ctx)).toBe("aplicar");
+  });
 });
 
 describe("sanearPolitica", () => {
@@ -170,5 +195,10 @@ describe("sanearPolitica", () => {
     };
     const result = sanearPolitica(input);
     expect(result.datos).toEqual({ modo: "automatica-todas" }); // ventana ignored
+  });
+
+  it("resumenPolitica: perfil y os", () => {
+    expect(resumenPolitica(politicaPorDefecto("perfil-privado"))).toBe("3 capas automáticas · 3 con aviso");
+    expect(resumenPolitica(politicaPorDefecto("os"))).toBe("3 capas automáticas · 1 programada · 2 con aviso");
   });
 });
