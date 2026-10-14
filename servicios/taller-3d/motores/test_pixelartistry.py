@@ -224,5 +224,25 @@ class RemallarImagen(unittest.TestCase):
         self.assertIn("tiempo agotado", r["fallo"])
 
 
+class RemallarNoDisponible(unittest.TestCase):
+    """Sin parches de plataforma: en esta máquina el motor no está disponible."""
+
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """Si el motor no está disponible, remallar_imagen devuelve el dict de error."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            result = pa.remallar_imagen("/fake/path/image.png", resolucion=512,
+                                        carpeta_workflows=tmp, comfy=pa.ClienteComfyUI(),
+                                        dormir=lambda _: None)
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # flujo y nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
