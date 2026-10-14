@@ -516,8 +516,8 @@ export function elegirFuente(tablas: EstadoAutonomo | null, bus: EstadoAutonomo 
 
     // Ambos tienen nodos vivos o ninguno tiene nodos vivos
     if (viveTablas && viveBus) {
-        const numTablas = tablas.nodos.filter(n => n.vivo).length;
-        const numBus = bus.nodos.filter(n => n.vivo).length;
+        const numTablas = tablas!.nodos.filter(n => n.vivo).length;
+        const numBus = bus!.nodos.filter(n => n.vivo).length;
         return numTablas >= numBus ? "tablas" : "bus";
     }
 
