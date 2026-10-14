@@ -23,6 +23,7 @@ import {
     buildSandboxDoc,
     type PostBlock,
 } from "@/lib/creation/post-blocks";
+import { VistaBloqueProtomolecula } from "@/components/protomolecula/vista-bloque";
 import { astrauraChat } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
 import { loadLeaflet, type LeafletNS } from "@/lib/map/leaflet-loader";
@@ -135,6 +136,8 @@ function BlockRender({ block, accent, reduced }: { block: PostBlock; accent?: st
             return <PenpotBlock block={block} />;
         case "video":
             return <VideoBlock block={block} />;
+        case "protomolecula":
+            return <VistaBloqueProtomolecula texto={block.text ?? ""} />;
         default:
             return null;
     }
