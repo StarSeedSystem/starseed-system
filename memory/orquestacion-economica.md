@@ -366,6 +366,7 @@ Medios que caben hoy: Mac M1 8 GB → 3; contenedor de Cowork 2 vCPU/8 GB → 1 
 sesión); **Oracle Free Tier ARM (2 OCPU/12 GB, gratis) → 1 permanente (núcleos − 1)**; un VPS de 16 GB/8
 núcleos → 5. Hermes suma **agentes de razonamiento** aparte (delegate_task, 4 hijos a la vez, sin
 RAM local: el límite es el RPM gratuito de Gemini), pero esos no pasan puertas ni integran código.
+Oracle: con gasto 0 y margen medido, lo pesado y lo 24/7 va al A1; si el gasto pasa de 0, freno (medios → requiere_alex). Fuente: ~/.starseed/oracle-consumo.json (architecture/oracle-consumo.md §5).
 
 **Los directores recuerdan esto así:** al reportar «agentes escribiendo ahora: N», decir también
 «máximo en esta máquina: M (gobernador)» y, si Alex pide más, proponer el medio siguiente de la
