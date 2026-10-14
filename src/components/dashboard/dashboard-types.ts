@@ -113,7 +113,9 @@ export type WidgetType =
     | 'QUICK_NOTES'           // Productividad — notas rápidas persistentes
     | 'AURORA_LAST'           // IA — última respuesta de Aurora + abrir chat
     | 'BADGES'                // Perfil — insignias obtenidas (Módulo 7)
-    | 'NETWORK_FEED_MINI';    // Social — mini-previsualizaciones del feed real de la Red
+    | 'NETWORK_FEED_MINI'     // Social — mini-previsualizaciones del feed real de la Red
+    // ── Protomolécula (ola 1010P) ──
+    | 'PROTOMOLECULA';        // Creatividad — función universal de creación y edición (átomos con parámetros, dictado en tiempo real)
 
 /**
  * Tipo de dispositivo objetivo de un tablero (pantalla principal adaptativa).
