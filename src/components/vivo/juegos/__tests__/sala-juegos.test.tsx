@@ -201,13 +201,20 @@ describe("Dibujo-adivina", () => {
         const opciones = ana.q.getAllByRole("button").filter((b) => b.className.includes("palabraOpcion"));
         expect(opciones).toHaveLength(3);
         const palabra = opciones[0].textContent ?? "";
-        await clic(opciones[0]);
-        await entregar();
-        expect(ana.q.getByText(palabra)).toBeInTheDocument();
-        const letras = palabra.replace(/[^a-záéíóúüñ]/gi, "").length;
-        expect(beto.q.getByRole("img", { name: `La palabra tiene ${letras} letras` })).toBeInTheDocument();
-        // nadie que adivina ve la palabra
-        expect(beto.caja.textContent).not.toContain(palabra);
+         await clic(opciones[0]);
+         await entregar();
+         expect(ana.q.getByText(palabra)).toBeInTheDocument();
+         const letras = palabra.replace(/[^a-záéíóúüñ]/gi, "").length;
+         expect(beto.q.getByRole("img", { name: `La palabra tiene ${letras} letras` })).toBeInTheDocument();
+         // nadie que adivina ve la palabra
+          // Verificar explícitamente los mensajes del chat
+         const chatMessages = beto.q.getByRole("list", { name: "Intentos" });
+          // inicialmente, el chat debería mostrar el marcador de posición
+         expect(chatMessages).toHaveTextContent(/Los intentos aparecerán aquí./i);
+          // después de elegir la palabra, el chat todavía no debería contener la palabra
+         expect(chatMessages).not.toHaveTextContent(palabra);
+          // y también comprobar todo el textContent de la caja (no debería contener la palabra)
+         expect(beto.caja.textContent).not.toContain(palabra);
 
         const escribir = async (s: Sala, texto: string) => {
             const entrada = s.q.getByLabelText("Escribe tu intento");
