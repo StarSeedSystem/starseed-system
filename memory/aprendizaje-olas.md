@@ -4344,6 +4344,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
 - `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
 
+<<<<<<< HEAD
 ## 2026-10-13 15:06 · mg-oracle-1013-0708
 
 **Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
@@ -4387,3 +4388,14 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTS1010-EV-ORACLE-1abcb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1abcb conservada
 - `RTIMG1011Gd` — los tipos no compilan: 1 errores tsc (rama ola/RTIMG1011Gd conservada)
 - `MC1012H` — los tipos no compilan: 1 errores tsc (rama ola/MC1012H conservada)
+=======
+## 2026-10-13 15:52 · mg-oracle-1013-0908
+
+**Lo que se pidió.** Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Ie` — pruebas en rojo: vitest falla (rama conservada)
+- `RTCOL1012Ae` — no escribió nada
+>>>>>>> 3041ddb0 (chore(memoria): aprendizaje de la ola mg-oracle-1013-0908)
