@@ -4367,3 +4367,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `FS1013B` — otra cosa: sin decisión en 0 h; rama ola/FS1013B conservada
+
+## 2026-10-14 02:40 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Protomolécula
+
+**Resultado.** 2 de 8 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — los tipos no compilan (PM1010F0Gc, BOT1011Zg, RTIMG1011Gd, MC1012H). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (RTAV1011Lc, RTRTRTS1010-EV-ORACLE-1abcb). Es 25 % de la ola.
+- nvidia/z-ai/glm-5.3 no integró ninguna de sus 3 tareas.
+- openrouter/nvidia/nemotron-3-super-120b-a12b:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `PM1010F0Gc` — los tipos no compilan: 30 errores tsc (rama ola/PM1010F0Gc conservada)
+- `BOT1011Zg` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/BOT1011Zg conservada)
+- `RTAV1011Lc` — otra cosa: sin decisión en 0 h; rama ola/RTAV1011Lc conservada
+- `RTRTRTS1010-EV-ORACLE-1abcb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1abcb conservada
+- `RTIMG1011Gd` — los tipos no compilan: 1 errores tsc (rama ola/RTIMG1011Gd conservada)
+- `MC1012H` — los tipos no compilan: 1 errores tsc (rama ola/MC1012H conservada)
