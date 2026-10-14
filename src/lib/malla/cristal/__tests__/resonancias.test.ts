@@ -107,6 +107,22 @@ describe('decisionPorResonancia', () => {
     expect(r.decision).toBe('aviso');
   });
 
+  it('sin-datos con lista vacía y cuentas a 0', () => {
+    const r = decisionPorResonancia('h5', [], conf);
+    expect(r.decision).toBe('sin-datos');
+    expect(r.cuentas).toBe(0);
+  });
+
+  it('ignora veredictos de otro hash', () => {
+    const r = decisionPorResonancia('h5', [veredicto({ hash: 'otro' })], conf);
+    expect(r.decision).toBe('sin-datos');
+  });
+
+  it('firma mala o confianza baja dejan la decisión en sin-datos', () => {
+    expect(decisionPorResonancia('h6', [veredicto({ hash: 'h6', firmaOk: false })], conf).decision).toBe('sin-datos');
+    expect(decisionPorResonancia('h7', [veredicto({ hash: 'h7' })], { n1: 0.1 }).decision).toBe('sin-datos');
+  });
+
   it('un voto por cuenta: gana el más reciente', () => {
     const r = decisionPorResonancia('h1', [
       veredicto({ cuenta: 'c1', nivel: 'peligroso', t: 1 }),
