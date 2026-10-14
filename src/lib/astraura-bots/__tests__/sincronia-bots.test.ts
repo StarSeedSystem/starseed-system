@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'vitest';
-import { fusionarBots } from "../sincronia-bots";
+import { describe, test, expect, vi } from 'vitest';
+import { fusionarBots, suscribirBotsEntidad, abiertosEnEstaNeurona, marcarAbierto } from "../sincronia-bots";
 
 /**
  * Bot de ejemplo para pruebas (incluye el campo actualizado para sincronía).
@@ -176,5 +176,490 @@ describe("fusionarBots", () => {
     const resultado = fusionarBots(local, remoto);
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["A", "B"]);
+  });
+});
+
+describe("suscribirBotsEntidad", () => {
+  test("should call supabase.channel and subscribe", () => {
+    const mockChannel = {
+      onCalled: false,
+      subscribeCalled: false,
+      lastEvent: null,
+      on: vi.fn().mockImplementation((event, filter, callback) => {
+        mockChannel.lastEvent = { event: "*", filter, callback };
+        return mockChannel;
+      }),
+      subscribe: vi.fn().mockReturnThis(),
+      removeChannel: vi.fn()
+    };
+    const supabase = {
+      channel: vi.fn().mockReturnValue(mockChannel),
+      removeChannel: vi.fn()
+    };
+    const storage = {
+      getItem: vi.fn(),
+      setItem: vi.fn()
+    };
+    const callback = vi.fn();
+    const e = ["grupo1", "comunidad1"];
+
+    const unsubscribe = suscribirBotsEntidad(e, callback, supabase, storage);
+
+    expect(supabase.channel).toHaveBeenCalledWith("astraura-bots-realtime");
+    expect(mockChannel.on).toHaveBeenCalled();
+    expect(mockChannel.subscribe).toHaveBeenCalled();
+    expect(typeof unsubscribe).toBe("function");
+  });
+
+  test("should return unsubscribe function that calls removeChannel", () => {
+    const mockChannel = {
+      onCalled: false,
+      subscribeCalled: false,
+      removeChannelCalled: false,
+      on: vi.fn().mockImplementation((event, filter, callback) => {
+        mockChannel.lastEvent = { event: "*", filter, callback };
+        return mockChannel;
+      }),
+      subscribe: vi.fn().mockReturnThis(),
+      removeChannel: vi.fn()
+    };
+    const supabase = {
+      channel: vi.fn().mockReturnValue(mockChannel),
+      removeChannel: vi.fn()
+    };
+    const storage = {
+      getItem: vi.fn(),
+      setItem: vi.fn()
+    };
+    const callback = vi.fn();
+    const e = ["grupo1"];
+    const mockChannelInstance = supabase.channel("astraura-bots-realtime");
+
+    const unsubscribe = suscribirBotsEntidad(e, callback, supabase, storage);
+    unsubscribe();
+
+    expect(supabase.removeChannel).toHaveBeenCalledWith(mockChannelInstance);
+  });
+
+  test("should call callback when a valid message arrives", () => {
+    const mockChannel = {
+      onCalled: false,
+      subscribeCalled: false,
+      lastEvent: null,
+      on: vi.fn().mockImplementation((event, filter, callback) => {
+        mockChannel.lastEvent = { event: "*", filter, callback };
+        return mockChannel;
+      }),
+      subscribe: vi.fn().mockReturnThis(),
+      removeChannel: vi.fn()
+    };
+    const supabase = {
+      channel: vi.fn().mockReturnValue(mockChannel),
+      removeChannel: vi.fn()
+    };
+    const storage = {
+      getItem: vi.fn(),
+      setItem: vi.fn()
+    };
+    const callback = vi.fn();
+    const e = ["grupo1"];
+
+    suscribirBotsEntidad(e, callback, supabase, storage);
+
+    const mockPayload = {
+      nuevo: {
+        id: "bot1",
+        nombre: "Bot 1",
+        dueno: {
+          tipo: "grupo",
+          id: "grupo1",
+          cuentaId: "cuenta1"
+        },
+        origen: "astraura",
+        gobierno: "jerarquico",
+        personalidad: {
+          calidez: 0.5,
+          energia: 0.5,
+          formalidad: 0.5,
+          curiosidad: 0.5,
+          humor: 0.5,
+          concision: 0.5
+        },
+        cuerpo: {
+          forma: "orbe",
+          tono: 200,
+          escala: 1
+        },
+        sentidosHabilitados: ["pantalla"],
+        activo: true,
+        actualizado: 1000
+      },
+      viejo: null
+    };
+
+    // Simulate a message: call the callback with a payload that has eventType and the data
+    if (mockChannel.lastEvent?.callback) {
+      const payload = {
+        eventType: mockChannel.lastEvent.event,
+        ...mockPayload
+      };
+      mockChannel.lastEvent.callback(payload);
+    }
+
+    expect(callback).toHaveBeenCalledWith({
+      t: "*",
+      r: mockPayload.nuevo,
+      a: null
+    });
+  });
+
+  test("should ignore message if dueno not in entity list", () => {
+    const mockChannel = {
+      onCalled: false,
+      subscribeCalled: false,
+      lastEvent: null,
+      on: vi.fn().mockImplementation((event, filter, callback) => {
+        mockChannel.lastEvent = { event: "*", filter, callback };
+        return mockChannel;
+      }),
+      subscribe: vi.fn().mockReturnThis(),
+      removeChannel: vi.fn()
+    };
+    const supabase = {
+      channel: vi.fn().mockReturnValue(mockChannel),
+      removeChannel: vi.fn()
+    };
+    const storage = {
+      getItem: vi.fn(),
+      setItem: vi.fn()
+    };
+    const callback = vi.fn();
+    const e = ["grupo1"];
+
+    suscribirBotsEntidad(e, callback, supabase, storage);
+
+    const mockPayload = {
+      nuevo: {
+        id: "bot1",
+        nombre: "Bot 1",
+        dueno: {
+          tipo: "perfil", // not in e
+          id: "perfil1",
+          cuentaId: "cuenta1"
+        },
+        origen: "astraura",
+        gobierno: "jerarquico",
+        personalidad: {
+          calidez: 0.5,
+          energia: 0.5,
+          formalidad: 0.5,
+          curiosidad: 0.5,
+          humor: 0.5,
+          concision: 0.5
+        },
+        cuerpo: {
+          forma: "orbe",
+          tono: 200,
+          escala: 1
+        },
+        sentidosHabilitados: ["pantalla"],
+        activo: true,
+        actualizado: 1000
+      },
+      viejo: null
+    };
+
+    if (mockChannel.lastEvent?.callback) {
+      const payload = {
+        eventType: mockChannel.lastEvent.event,
+        ...mockPayload
+      };
+      mockChannel.lastEvent.callback(payload);
+    }
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  test("should ignore message if dueno tipo is not grupo, comunidad, or pagina", () => {
+    const mockChannel = {
+      onCalled: false,
+      subscribeCalled: false,
+      lastEvent: null,
+      on: vi.fn().mockImplementation((event, filter, callback) => {
+        mockChannel.lastEvent = { event: "*", filter, callback };
+        return mockChannel;
+      }),
+      subscribe: vi.fn().mockReturnThis(),
+      removeChannel: vi.fn()
+    };
+    const supabase = {
+      channel: vi.fn().mockReturnValue(mockChannel),
+      removeChannel: vi.fn()
+    };
+    const storage = {
+      getItem: vi.fn(),
+      setItem: vi.fn()
+    };
+    const callback = vi.fn();
+    const e = ["perfil1"];
+
+    suscribirBotsEntidad(e, callback, supabase, storage);
+
+    const mockPayload = {
+      nuevo: {
+        id: "bot1",
+        nombre: "Bot 1",
+        dueno: {
+          tipo: "perfil",
+          id: "perfil1",
+          cuentaId: "cuenta1"
+        },
+        origen: "astraura",
+        gobierno: "jerarquico",
+        personalidad: {
+          calidez: 0.5,
+          energia: 0.5,
+          formalidad: 0.5,
+          curiosidad: 0.5,
+          humor: 0.5,
+          concision: 0.5
+        },
+        cuerpo: {
+          forma: "orbe",
+          tono: 200,
+          escala: 1
+        },
+        sentidosHabilitados: ["pantalla"],
+        activo: true,
+        actualizado: 1000
+      },
+      viejo: null
+    };
+
+    if (mockChannel.lastEvent?.callback) {
+      const payload = {
+        eventType: mockChannel.lastEvent.event,
+        ...mockPayload
+      };
+      mockChannel.lastEvent.callback(payload);
+    }
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+});
+
+describe("abiertosEnEstaNeurona", () => {
+  test("should return empty array when storage returns null", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn()
+    };
+
+    const result = abiertosEnEstaNeurona(supabase, storage);
+    expect(result).toEqual([]);
+  });
+
+  test("should return parsed array when storage returns valid JSON array of strings", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue('["item1", "item2"]'),
+      setItem: vi.fn()
+    };
+
+    const result = abiertosEnEstaNeurona(supabase, storage);
+    expect(result).toEqual(["item1", "item2"]);
+  });
+
+  test("should return empty array when storage returns invalid JSON", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue('invalid json'),
+      setItem: vi.fn()
+    };
+
+    const result = abiertosEnEstaNeurona(supabase, storage);
+    expect(result).toEqual([]);
+  });
+
+  test("should return empty array when storage returns non-array", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue('{"key": "value"}'),
+      setItem: vi.fn()
+    };
+
+    const result = abiertosEnEstaNeurona(supabase, storage);
+    expect(result).toEqual([]);
+  });
+});
+
+describe("marcarAbierto", () => {
+  test("should add item when a is true and item not present", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn()
+    };
+
+    marcarAbierto("item1", true, supabase, storage);
+
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["item1"]));
+  });
+
+  test("should not add duplicate when a is true and item already present", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue(JSON.stringify(["item1"])),
+      setItem: vi.fn()
+    };
+
+    marcarAbierto("item1", true, supabase, storage);
+
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["item1"]));
+  });
+
+  test("should remove item when a is false and item present", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue(JSON.stringify(["item1", "item2"])),
+      setItem: vi.fn()
+    };
+
+    marcarAbierto("item1", false, supabase, storage);
+
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["item2"]));
+  });
+
+  test("should not remove item when a is false and item not present", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue(JSON.stringify(["item1"])),
+      setItem: vi.fn()
+    };
+
+    marcarAbierto("item2", false, supabase, storage);
+
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["item1"]));
+  });
+
+  test("should persist the list via storage.setItem", () => {
+    const supabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event, filter, callback) => {
+          return {
+            on: vi.fn().mockReturnThis(),
+            subscribe: vi.fn(),
+            removeChannel: vi.fn()
+          };
+        }),
+        subscribe: vi.fn(),
+        removeChannel: vi.fn()
+      })
+    };
+    const storage = {
+      getItem: vi.fn().mockReturnValue(JSON.stringify(["item1"])),
+      setItem: vi.fn()
+    };
+
+    marcarAbierto("item2", true, supabase, storage);
+
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["item1", "item2"]));
   });
 });
