@@ -40,16 +40,22 @@ def sugerir_variable(nombre: str) -> str:
 
 def normalizar_expresion(valor: Any) -> Any:
     if isinstance(valor, str):
+        if valor.startswith('='):
+            return valor[1:]
         return valor
+    if isinstance(valor, dict):
+        return {k: normalizar_expresion(v) for k, v in valor.items()}
+    if isinstance(valor, list):
+        return [normalizar_expresion(item) for item in valor]
     return valor
 
 def mapear_webhook(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
     cfg = {}
     if "path" in params:
-        cfg["ruta"] = params["path"]
+        cfg["ruta"] = normalizar_expresion(params["path"])
     if "httpMethod" in params:
-        cfg["metodo"] = params["httpMethod"]
+        cfg["metodo"] = normalizar_expresion(params["httpMethod"])
     creds = node.get("credentials", {})
     if creds:
         for k, v in creds.items():
@@ -57,6 +63,7 @@ def mapear_webhook(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
             if nombre:
                 cfg["credencial"] = sugerir_variable(nombre)
                 break
+    cfg["forma"] = "n8n"
     return cfg, "traducido"
 
 def mapear_cron(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
@@ -67,7 +74,7 @@ def mapear_cron(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
         cfg["expresion"] = "*/5 * * * *"
         return cfg, "aproximado"
     if "rule" in params:
-        cfg["expresion"] = params["rule"].get("interval", "*/5 * * * *")
+        cfg["expresion"] = normalizar_expresion(params["rule"].get("interval", "*/5 * * * *"))
         return cfg, "aproximado"
     cfg["expresion"] = "*/5 * * * *"
     return cfg, "aproximado"
@@ -76,7 +83,7 @@ def mapear_http(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
     cfg = {}
     cfg["url"] = normalizar_expresion(params.get("url", ""))
-    cfg["metodo"] = params.get("method", "GET")
+    cfg["metodo"] = normalizar_expresion(params.get("method", "GET"))
     # credenciales
     creds = node.get("credentials", {})
     if creds:
@@ -95,18 +102,28 @@ def mapear_set(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
         nombre = a.get("name")
         valor = a.get("value")
         if nombre:
-            campos[nombre] = valor
-    return {"campos": campos, "conservar": True}, "traducido"
+            campos[nombre] = normalizar_expresion(valor)
+    # Determine conservar
+    conservar = None
+    if "includeOtherFields" in params:
+        conservar = normalizar_expresion(params["includeOtherFields"])
+    elif "keepOnlySet" in params:
+        conservar = not normalizar_expresion(params["keepOnlySet"])
+    else:
+        type_version = node.get("typeVersion", 0)
+        conservar = type_version < 3  # if typeVersion < 3 then conserve, else not
+    return {"campos": campos, "conservar": conservar}, "traducido"
 
 def mapear_if(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
     condiciones = params.get("conditions", {})
     exprs = []
     for c in condiciones.get("conditions", []):
-        left = c.get("leftValue")
+        left_val = c.get("leftValue")
+        left = normalizar_expresion(left_val)
         op = OP_MAP.get(c.get("operator"), "==")
-        right = c.get("rightValue")
-        # quitar {{ }} si existen
+        right_val = c.get("rightValue")
+        right = normalizar_expresion(right_val)
         left_s = str(left) if left else "cierto"
         right_s = str(right) if right else "''"
         exprs.append(f"{left_s} {op} {right_s}")
@@ -117,7 +134,7 @@ def mapear_if(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
 
 def mapear_switch(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
-    expr = params.get("value") or params.get("rules", {}).get("value", "")
+    expr = normalizar_expresion(params.get("value") or params.get("rules", {}).get("value", ""))
     cfg = {"expresion": expr, "casos": {}, "campo": "caso"}
     return cfg, "aproximado"
 
@@ -127,8 +144,8 @@ def mapear_fusion(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
 def mapear_telegram(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
     cfg = {
-        "chat_id": params.get("chatId") or params.get("chat_id"),
-        "texto": params.get("text") or params.get("message"),
+        "chat_id": normalizar_expresion(params.get("chatId") or params.get("chat_id")),
+        "texto": normalizar_expresion(params.get("text") or params.get("message")),
     }
     creds = node.get("credentials", {})
     if creds:
@@ -169,13 +186,22 @@ def importar(json_n8n: Dict[str, Any]) -> Tuple[Flujo, Dict[str, Any]]:
         "traducidos": [],
         "aproximados": [],
         "no_traducidos": [],
+        "descripciones": [],
     }
+    descripcion_texto = ""
 
     for n in nodos_n8n:
         nid = n.get("id")
         nname = n.get("name")
         ntype = n.get("type")
         if not nid:
+            continue
+        if ntype == "n8n-nodes-base.stickyNote":
+            params = n.get("parameters", {})
+            texto = params.get("text", "")
+            texto = normalizar_expresion(texto)
+            descripcion_texto = texto
+            informe["descripciones"].append({"id": nid, "nombre": nname, "tipo_n8n": ntype})
             continue
         nombre_a_id[nname] = nid
         tipo_genesis = TYPE_MAP.get(ntype, "pendiente")
@@ -210,7 +236,7 @@ def importar(json_n8n: Dict[str, Any]) -> Tuple[Flujo, Dict[str, Any]]:
                     conexiones.append(Conexion(origen=id_origen, destino=id_dest))
 
     flujo_id = re.sub(r"[^a-z0-9]+", "-", nombre.lower()).strip("-") or "flujo"
-    flujo = Flujo(id=flujo_id, nombre=nombre, nodos=nodos, conexiones=conexiones)
+    flujo = Flujo(id=flujo_id, nombre=nombre, descripcion=descripcion_texto, nodos=nodos, conexiones=conexiones)
 
     informe["resumen"] = {
         "nodos_totales": len(nodos),
