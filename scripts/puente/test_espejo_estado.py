@@ -45,6 +45,38 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_que_copiar_selecciona_correctamente(self):
+        # Create a listado with all files that should be selected
+        ahora = AHORA
+        reciente = ahora - 3600  # 1 hour ago
+        listado = self.pares(
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+            mtime=reciente
+        )
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
@@ -74,6 +106,75 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+
+    def test_empaquetar_crea_tar_gz(self):
+        seleccion = [
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "evento1.jsonl",
+            "log.txt",
+        ]
+        # Create the files in self.olas
+        for nombre in seleccion:
+            file_path = os.path.join(self.olas, nombre)
+            if nombre.endswith(".json"):
+                if nombre == "progreso.json":
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({"ola": "1012C"}, f)
+                elif nombre == "medios.json":
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({"medios": ["oracle-a1"]}, f)
+                elif nombre == "puntos-control.json":
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({"puntos": [{"nombre": "pc1"}]}, f)
+                elif nombre == "cola-1.json":
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({"tareas": []}, f)
+                else:
+                    # For any other json, we write a default
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        json.dump({}, f)
+            else:
+                if nombre == "progreso.md":
+                    # Create a file with 300 lines
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write("\n".join([f"Línea {i}" for i in range(300)]))
+                elif nombre == "evento1.jsonl":
+                    # Create a file with 200 lines
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        for i in range(200):
+                            f.write(json.dumps({"evento": i, "ts": 1000+i}) + "\n")
+                elif nombre == "log.txt":
+                    # Create a file with 200 lines
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write("\n".join([f"Log line {i}" for i in range(200)]))
+                else:
+                    # For any other file, we write a default line
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write("default line\n")
+        # Now call empaquetar via _tar
+        with self._tar(seleccion) as tar:
+            self.assertEqual(set(tar.getnames()), set(seleccion))
+            # Now extract and check line counts
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tar.extractall(path=tmp_dir)
+                esperadas_lineas = {
+                    "progreso.json": 1,
+                    "progreso.md": 300,
+                    "medios.json": 1,
+                    "puntos-control.json": 1,
+                    "cola-1.json": 1,
+                    "evento1.jsonl": 200,
+                    "log.txt": 200,
+                }
+                for nombre, esperada in esperadas_lineas.items():
+                    ruta_extra = os.path.join(tmp_dir, nombre)
+                    with open(ruta_extra, "r", encoding="utf-8") as f:
+                        lineas = f.read().splitlines()
+                    self.assertEqual(len(lineas), esperada, f"{nombre}: {len(lineas)} != {esperada}")
 
 
 class PruebasEnviarEstado(unittest.TestCase):
