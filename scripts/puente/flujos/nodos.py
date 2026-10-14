@@ -201,3 +201,33 @@ NODOS: dict[str, Any] = {
     "set": nodo_set,
     "esperar": nodo_esperar,
 }
+
+
+def _webhook_adapter(items: Items, params: Params) -> Items:
+    forma = params.get("forma", "")
+    salida: Items = []
+    for item in items:
+        if forma == "n8n":
+            # Remove internal keys: those starting with '_' and also 'disparador' and 'ruta'
+            filtered = {k: v for k, v in item.items() 
+                        if not k.startswith('_') and k not in ('disparador', 'ruta')}
+            salida.append({
+                "body": filtered,
+                "headers": {},
+                "query": {},
+                "params": {}
+            })
+        else:
+            salida.append(item)
+    return salida
+
+
+def registrar(registro: dict[str, FuncionNodo]) -> None:
+    # Adapt existing nodes from NODOS to the motor's signature: (items, params) -> items
+    for nombre, funcion in NODOS.items():
+        registro[nombre] = lambda items, params, f=funcion: f(params, items, {})
+    # Add trigger executors
+    registro["webhook"] = _webhook_adapter
+    registro["cron"] = lambda items, params: items
+    registro["bus"] = lambda items, params: items
+    registro["chat"] = lambda items, params: items
