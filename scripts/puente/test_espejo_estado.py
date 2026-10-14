@@ -65,6 +65,22 @@ class PruebasSeleccion(unittest.TestCase):
         }
         self.assertEqual(set(seleccion), esperados)
 
+    def test_que_copiar_selecciona_todos_los_recientes(self):
+        listado = self.pares(
+            "progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+            "cola-1.json", "cola-2.json", "cola-antigua.json",
+            "evento1.jsonl", "evento2.jsonl", "log.txt",
+            mtime=AHORA
+        )
+        ahora = AHORA
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+            "cola-1.json", "cola-2.json", "cola-antigua.json",
+            "evento1.jsonl", "evento2.jsonl", "log.txt"
+        }
+        self.assertEqual(set(seleccion), esperados)
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
