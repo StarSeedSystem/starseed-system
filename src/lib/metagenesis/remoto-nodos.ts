@@ -505,11 +505,23 @@ export function resumirTablas(t: FilasTablas, ahora: number): EstadoAutonomo {
  * MetaGenesis está latiendo» con la Mac y el A1 vivos: los dos van por la PUERTA DE DATOS del A1
  * (`EnlacePuerta`), que deja su latido como espejo en el BUS y nunca en `metagenesis_nodos`
  * (`ultimo_latido` vacío). Y las órdenes se guardaban en una tabla que ningún nodo lee. Manda la
- * fuente donde hay alguien vivo; si en ninguna late nadie, las tablas (lo que dicen es verdad).
+ * fuente donde hay más nodos vivos; a igualdad, las tablas; sin vivos en ninguna, como hoy.
  */
 export function elegirFuente(tablas: EstadoAutonomo | null, bus: EstadoAutonomo | null): "tablas" | "bus" {
-    if (tablas && tablas.nodos.some((n) => n.vivo)) return "tablas";
-    if (bus && bus.nodos.some((n) => n.vivo)) return "bus";
+    const viveTablas = tablas ? tablas.nodos.some(n => n.vivo) : false;
+    const viveBus = bus ? bus.nodos.some(n => n.vivo) : false;
+
+    if (viveTablas && !viveBus) return "tablas";
+    if (viveBus && !viveTablas) return "bus";
+
+    // Ambos tienen nodos vivos o ninguno tiene nodos vivos
+    if (viveTablas && viveBus) {
+        const numTablas = tablas.nodos.filter(n => n.vivo).length;
+        const numBus = bus.nodos.filter(n => n.vivo).length;
+        return numTablas >= numBus ? "tablas" : "bus";
+    }
+
+    // Ninguno tiene nodos vivos: comportamiento actual
     return tablas ? "tablas" : "bus";
 }
 

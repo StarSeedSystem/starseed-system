@@ -37,9 +37,11 @@ interface Cache {
     filas: Map<number, FilaBus>;
     ultimoId: number;
     foto: FilaBus | null;
+    elegidoEn: number; // timestamp of the last source election
 }
 
-const cache: Cache = { modo: null, filas: new Map(), ultimoId: 0, foto: null };
+const REELEGIR_MS = 5 * 60_000; // 5 minutes
+const cache: Cache = { modo: null, filas: new Map(), ultimoId: 0, foto: null, elegidoEn: 0 };
 
 /** Solo para las pruebas. */
 export function _reiniciarCache(): void {
@@ -101,18 +103,28 @@ async function leerBus(ahora: number): Promise<LecturaAutonoma> {
 /** El estado de MetaGenesis tal como lo publican sus nodos. */
 export async function leerEstadoAutonomo(ahora = Date.now()): Promise<LecturaAutonoma> {
     try {
+        // Si ha pasado el tiempo de relección, forzamos una nueva elección de fuente
+        if (ahora - cache.elegidoEn > REELEGIR_MS) {
+            cache.modo = null;
+        }
+
         if (cache.modo !== "bus") {
             const t = await leerTablas(ahora);
             if (t && !t.ok) return t;
-            if (t?.ok && cache.modo === "tablas") return t;
+            if (t?.ok && cache.modo === "tablas") {
+                // Ya estamos en modo tablas y dentro de la ventana: devolvemos la lectura
+                return t;
+            }
             if (t?.ok) {
-                // Primera lectura: tablas solo si alguien late en ellas; los nodos que van por la
-                // puerta de datos del A1 laten en el bus (`elegirFuente`).
+                // Primera lectura o relección: comparamos tablas y bus
                 const b = await leerBus(ahora);
-                cache.modo = elegirFuente(t.estado, b.ok ? b.estado : null);
+                const modoElegido = elegirFuente(t.estado, b.ok ? b.estado : null);
+                cache.modo = modoElegido;
+                cache.elegidoEn = ahora; // actualizamos el timestamp de la última elección
                 return cache.modo === "tablas" ? t : b;
             }
             cache.modo = "bus";
+            cache.elegidoEn = ahora; // elegimos bus por defecto cuando fallan las tablas
         }
         return await leerBus(ahora);
     } catch (e) {
