@@ -1,5 +1,25 @@
 import type { Bot, Dueno } from "./tipos";
-import { createClient } from "@/utils/supabase/client";
+
+// Interfaces for dependency injection
+interface Almacen {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+}
+
+interface SupabaseClient {
+  channel: (name: string) => {
+    on: (options: { event: string; schema: string; table: string; }, callback: (payload: unknown) => void) => {
+      subscribe: () => Subscription;
+    };
+  };
+  removeChannel: (subscription: Subscription) => void;
+}
+
+interface Subscription {
+  [key: string]: unknown;
+}
+
+// Funciones sin cambios
 interface BotSync extends Bot { actualizado: number; }
 function esBotValido(b: unknown): b is BotSync {
   if (!b || typeof b !== "object" || Array.isArray(b)) return false;
@@ -35,31 +55,40 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
   }
   return res;
 }
-export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "D"; r: BotSync | null; a: BotSync | null }) => void) {
-  const s = createClient();
+
+// Funciones con inyección de dependencias
+export function suscribirBotsEntidad(
+  e: string[],
+  c: (c: { t: "INSERT" | "U" | "D"; r: BotSync | null; a: BotSync | null }) => void,
+  supabaseClient: SupabaseClient
+): () => void {
+  const s = supabaseClient;
   let w = false;
   const ch = s.channel("astraura-bots-realtime").on("postgres_changes", { event: "*", schema: "public", table: "astraura_bots" }, (p) => {
-    const pp = p as any;
-    if (pp.error) {
-      if (!w) {
-        console.warn("Tabla astraura_bots no encontrada en Supabase. La suscripción a bots de entidad está inactiva.");
-        w = true;
+    // Check if p is a non-null object
+    if (p && typeof p === "object" && !Array.isArray(p)) {
+      const pp = p as { error?: unknown; nuevo?: BotSync | null; viejo?: BotSync | null; eventType?: string };
+      if (pp.error) {
+        if (!w) {
+          console.warn("Tabla astraura_bots no encontrada en Supabase. La suscripción a bots de entidad está inactiva.");
+          w = true;
+        }
+        return;
       }
-      return;
+      const reg = pp.nuevo as BotSync | null;
+      const ant = pp.viejo as BotSync | null;
+      const b = reg ?? ant;
+      if (!b) return;
+      const { dueno } = b;
+      if (!dueno || !e.includes(dueno.id) || !["grupo", "comunidad", "pagina"].includes(dueno.tipo)) return;
+      c({ t: pp.eventType as "INSERT" | "U" | "D", r: reg, a: ant });
     }
-    const reg = pp.nuevo as BotSync | null;
-    const ant = pp.viejo as BotSync | null;
-    const b = reg ?? ant;
-    if (!b) return;
-    const { dueno } = b;
-    if (!dueno || !e.includes(dueno.id) || !["grupo", "comunidad", "pagina"].includes(dueno.tipo)) return;
-    c({ t: p.eventType as "INSERT" | "U" | "D", r: reg, a: ant });
   }).subscribe();
   return () => s.removeChannel(ch);
 }
-export function abiertosEnEstaNeurona(): string[] {
+export function abiertosEnEstaNeurona(almacen: Almacen): string[] {
   if (typeof window === "undefined") return [];
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
+  const r = almacen.getItem("starseed.astraura.bots.orbes.v1");
   if (!r) return [];
   try {
     const v = JSON.parse(r);
@@ -67,9 +96,9 @@ export function abiertosEnEstaNeurona(): string[] {
     return [];
   } catch { return []; }
 }
-export function marcarAbierto(b: string, a: boolean): void {
+export function marcarAbierto(b: string, a: boolean, almacen: Almacen): void {
   if (typeof window === "undefined") return;
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
+  const r = almacen.getItem("starseed.astraura.bots.orbes.v1");
   let c: string[] = [];
   if (r) {
     try {
@@ -82,5 +111,5 @@ export function marcarAbierto(b: string, a: boolean): void {
   } else {
     c = c.filter(i => i !== b);
   }
-  window.localStorage.setItem("starseed.astraura.bots.orbes.v1", JSON.stringify(c));
+  almacen.setItem("starseed.astraura.bots.orbes.v1", JSON.stringify(c));
 }
