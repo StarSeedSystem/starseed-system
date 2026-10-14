@@ -135,11 +135,7 @@ describe("neuronasAtrasadas", () => {
       neuronaId: "1",
       nombre: "Parcial",
       online: true,
-      versiones: {
-        datos: "2026.10.10",
-        interfaz: "2026.10.05",
-        sw: "2026.10.10",
-      },
+      versiones: { datos: "2026.10.10", interfaz: "2026.10.05", sw: "2026.10.10", servicios: "2026.10.10", modelos: "2026.10.10", nativa: "2026.10.10" },
     };
     const result = neuronasAtrasadas([neuron], dummyUltima);
     expect(result).toHaveLength(1);
