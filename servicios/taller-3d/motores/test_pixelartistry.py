@@ -223,6 +223,25 @@ class RemallarImagen(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
 
+    @mock.patch('pixelartistry.disponible')
+    def test_cuando_no_disponible_devuelve_dict_de_error(self, mock_disponible):
+        mock_disponible.return_value = {"ok": False, "fallo": "simulado"}
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=mock.MagicMock(),
+            dormir=lambda _: None,
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # flujo and nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
