@@ -64,7 +64,7 @@ export function suscribirBotsEntidad(
 ): () => void {
   const s = supabaseClient;
   let w = false;
-  const ch = s.channel("astraura-bots-realtime").on("postgres_changes", { event: "*", schema: "public", table: "astraura_bots" }, (p) => {
+   const ch = s.channel("astraura-bots-realtime").on({ event: "*", schema: "public", table: "astraura_bots" }, (p: unknown) => {
     // Check if p is a non-null object
     if (p && typeof p === "object" && !Array.isArray(p)) {
       const pp = p as { error?: unknown; nuevo?: BotSync | null; viejo?: BotSync | null; eventType?: string };
