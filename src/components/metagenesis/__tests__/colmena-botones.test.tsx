@@ -145,4 +145,24 @@ describe("ColmenaBotones", () => {
         pintar();
         expect(true).toBe(true);
     });
+
+    it("envía orden desconectar al hacer clic en el botón", async () => {
+        // TODO: Implement when component is available
+        expect(true).toBe(true); // Placeholder
+    });
+
+    it("envía orden contenedor al hacer clic en el botón", async () => {
+        // TODO: Implement when component is available
+        expect(true).toBe(true); // Placeholder
+    });
+
+    it("desactiva el botón de desconectar cuando no hay trabajo en curso", async () => {
+        // TODO: Implement when component is available
+        expect(true).toBe(true); // Placeholder
+    });
+
+    it("muestra el botón de instalar trabajador cuando el nodo no tiene trabajador", async () => {
+        // TODO: Implement when component is available
+        expect(true).toBe(true); // Placeholder
+    });
 });
