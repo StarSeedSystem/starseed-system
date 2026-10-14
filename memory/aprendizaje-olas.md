@@ -4344,46 +4344,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
 - `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
 
-## 2026-10-13 15:06 · mg-oracle-1013-0708
+## 2026-10-13 15:52 · mg-oracle-1013-0908
 
-**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+**Lo que se pidió.** Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
 
-**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
-
-**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
-- 2 tareas se fueron por lo mismo — otra cosa (RTRTRTS1010-EV-ORACLE-1ab, RTRTCOL1012Bdsb). Es 50 % de la ola.
-- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 3 tareas.
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
 
 **Lo que quedó fuera, una por una:**
-- `RTRTRTS1010-EV-ORACLE-1ab` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1ab conservada
-- `RC1013D` — los tipos no compilan: 1 errores tsc (rama ola/RC1013D conservada)
-- `RTRTCOL1012Bdsb` — otra cosa: sin decisión en 0 h; rama ola/RTRTCOL1012Bdsb conservada
-
-## 2026-10-13 20:41 · mg-oracle-1013-1344
-
-**Lo que se pidió.** Alex Bordón Garrigós
-
-**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
-
-**Lo que quedó fuera, una por una:**
-- `FS1013B` — otra cosa: sin decisión en 0 h; rama ola/FS1013B conservada
-
-## 2026-10-14 02:40 · relevo-oracle-a1-cd000b
-
-**Lo que se pidió.** Protomolécula
-
-**Resultado.** 2 de 8 integradas. 6 tareas se quedaron fuera.
-
-**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
-- 4 tareas se fueron por lo mismo — los tipos no compilan (PM1010F0Gc, BOT1011Zg, RTIMG1011Gd, MC1012H). Es 50 % de la ola.
-- 2 tareas se fueron por lo mismo — otra cosa (RTAV1011Lc, RTRTRTS1010-EV-ORACLE-1abcb). Es 25 % de la ola.
-- nvidia/z-ai/glm-5.3 no integró ninguna de sus 3 tareas.
-- openrouter/nvidia/nemotron-3-super-120b-a12b:free no integró ninguna de sus 2 tareas.
-
-**Lo que quedó fuera, una por una:**
-- `PM1010F0Gc` — los tipos no compilan: 30 errores tsc (rama ola/PM1010F0Gc conservada)
-- `BOT1011Zg` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/BOT1011Zg conservada)
-- `RTAV1011Lc` — otra cosa: sin decisión en 0 h; rama ola/RTAV1011Lc conservada
-- `RTRTRTS1010-EV-ORACLE-1abcb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1abcb conservada
-- `RTIMG1011Gd` — los tipos no compilan: 1 errores tsc (rama ola/RTIMG1011Gd conservada)
-- `MC1012H` — los tipos no compilan: 1 errores tsc (rama ola/MC1012H conservada)
+- `RTCOL1012Ie` — pruebas en rojo: vitest falla (rama conservada)
+- `RTCOL1012Ae` — no escribió nada
