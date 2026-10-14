@@ -461,7 +461,7 @@ function ObsidianCard({ brainId, obsidian, onChanged }: { brainId: string; obsid
         <ul className="space-y-1.5">
           {obsidian.map((b) => (
             <li key={b.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2">
-              <span className="text-xs text-white/80 truncate flex-1">{b.name}</span>
+              <span className="text-xs text-white/80 truncate flex-1" title={b.name}>{b.name}</span>
               <Badge variant="outline" className="text-[9px] border-white/15 text-white/50">{String(b.config?.repo || b.config?.vaultPath || "sin ruta")}</Badge>
               <Badge variant="outline" className={cn("text-[9px]", b.enabled ? "border-emerald-500/40 text-emerald-300" : "border-white/15 text-white/40")}>{b.enabled ? "activa" : "pausada"}</Badge>
               <button onClick={() => remove(b.id)} className="text-white/30 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
