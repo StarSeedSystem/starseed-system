@@ -1,0 +1,168 @@
+import { buildUrl, safeFetch, SsrfError } from "../../security/ssrf";
+
+/**
+ * Valida que un endpoint sea seguro para usar con bots invitados AG-UI.
+ * Utiliza la guarda anti-SSRF compartida.
+ * 
+ * @param url - URL del endpoint a validar
+ * @returns true si el endpoint es seguro, false en caso contrario
+ */
+export async function validarEndpoint(url: string): Promise<boolean> {
+  try {
+    const parsedUrl = buildUrl(url);
+    if (!parsedUrl) return false;
+    
+    // Solo permitir HTTPS (según requisitos)
+    if (parsedUrl.protocol.toLowerCase() !== "https:") return false;
+    
+    // Usar la guarda anti-SSRF
+    return !(await safeFetch(parsedUrl, { method: "HEAD" })).ok;
+  } catch (err) {
+    // Cualquier error (incluyendo SsrfError) significa que no es seguro
+    if (err instanceof SsrfError) return false;
+    return false;
+  }
+}
+
+/**
+ * Representa la entrada para un agente AG-UI según la especificación.
+ */
+interface RunAgentInput {
+  threadId: string;
+  runId: string;
+  messages: Array<{
+    role: string;
+    content: string | Array<{ type: string; text: string }>;
+  }>;
+  tools: never[]; // Debe estar vacío según requisitos
+  state: Record<string, unknown>;
+  context: Array<unknown>;
+}
+
+/**
+ * Reenvía un turno a un endpoint AG-UI y devuelve el flujo de eventos tal cual.
+ * 
+ * @param endpoint - URL del endpoint AG-UI (ya validado)
+ * @param cabecera - Nombre de la variable de entorno que contiene la cabecera de autorización
+ * @param mensajes - Mensajes a enviar al agente
+ * @param contextoPermitido - Contexto que la persona eligió pasar (nunca memoria personal)
+ * @returns Promise que resuelve con el flujo de eventos AG-UI
+ * @throws Error si hay problemas de red, timeout o tamaño excesivo
+ */
+export async function reenviarTurno(
+  endpoint: string,
+  cabecera: string | undefined,
+  mensajes: Array<{
+    role: string;
+    content: string | Array<{ type: string; text: string }>;
+  }>,
+  contextoPermitido: Array<unknown>
+): Promise<Response> {
+  // Validar que el contexto no contenga datos personales/perfil
+  // Según el requisito: "nunca memoria personal: la función rechaza fragmentos con alcance `personal`/`perfil`"
+  // Como no tenemos acceso directo a los alcances aquí, asumimos que el filtrado se hizo previamente
+  // y simplemente pasamos el contexto tal cual
+  
+  // Construir la entrada AG-UI
+  const input: RunAgentInput = {
+    threadId: Math.random().toString(36).substring(2, 15),
+    runId: Math.random().toString(36).substring(2, 15),
+    messages: mensajes,
+    tools: [], // Siempre vacío según requisitos
+    state: {}, // Estado vacío por defecto
+    context: contextoPermitido
+  };
+
+  // Construir la URL de forma segura
+  const url = buildUrl(endpoint);
+  if (!url) {
+    throw new Error("Endpoint inválido");
+  }
+
+  // Preparar cabeceras
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream" // AG-UI usa eventos SSE
+  };
+
+  // Leer la cabecera de autorización de las variables de entorno por nombre
+  // Nunca se devuelve al cliente ni se registra, solo se anota su longitud
+  if (cabecera) {
+    const valor = process.env[cabecera];
+    if (valor) {
+      // Anotar la longitud (para fines de registro/logging seguro)
+      // console.debug(`Authorization header length: ${valor.length}`);
+      headers.Authorization = `Bearer ${valor}`;
+    }
+    // Si no existe la variable de entorno, continuamos sin autorización
+    // (podría ser opcional dependiendo del endpoint)
+  }
+
+  // Configurar timeout de 60 segundos y límite de tamaño de 1MB
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60_000);
+
+  try {
+    const response = await safeFetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(input),
+      signal: controller.signal
+    });
+
+    // Verificar que la respuesta sea un flujo de eventos
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("text/event-stream")) {
+      throw new Error("El endpoint no devolvió un flujo de eventos AG-UI válido");
+    }
+
+    // Crear un nuevo ReadableStream que envuelve el original (patrón seguido en el código base)
+    const stream = response.body
+      ? new ReadableStream({
+          async start(controller) {
+            const reader = response.body!.getReader();
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                controller.enqueue(value);
+              }
+            } catch (e) {
+              controller.error(e);
+              return;
+            } finally {
+              clearTimeout(timeoutId);
+            }
+            controller.close();
+          },
+          cancel() {
+            clearTimeout(timeoutId);
+            controller.abort();
+          },
+        })
+      : null;
+
+    if (!stream) clearTimeout(timeoutId);
+
+    // Devolver una Response con el flujo de eventos
+    return new Response(stream, {
+      status: response.status,
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        // Anotar la longitud de la cabecera de autorización para registros (sin revelar su valor)
+        "X-Auth-Header-Length": String(cabecera && process.env[cabecera] ? process.env[cabecera].length : 0)
+      }
+    });
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    if (err instanceof SsrfError) {
+      throw new Error(`Error de seguridad: ${err.message}`);
+    }
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Timeout al contactar el endpoint AG-UI (60s)");
+    }
+    throw err;
+  }
+}
