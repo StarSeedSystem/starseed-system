@@ -28,7 +28,7 @@ describe("momento", () => {
     expect(puedeAplicarAhora(sinWifi, UMBRAL_DESCARGA_GRANDE_BYTES + 1, "modelos")).toMatchObject({ motivo: "espera-wifi" });
     expect(puedeAplicarAhora(sinWifi, UMBRAL_DESCARGA_GRANDE_BYTES, "modelos")).toEqual({ ok: true });
     expect(puedeAplicarAhora({ ...sinWifi, datosPermitidos: true }, 1e9, "modelos")).toEqual({ ok: true });
-    expect(puedeAplicarAhora({ ...MOMENTO_LIBRE, wifi: null }, 1e9, "modelos")).toMatchObject({ motivo: "espera-wifi" });
+     expect(puedeAplicarAhora({ ...MOMENTO_LIBRE, wifi: false }, 1e9, "modelos")).toMatchObject({ motivo: "espera-wifi" });
   });
 });
 

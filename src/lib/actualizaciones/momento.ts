@@ -19,8 +19,8 @@ export interface ContextoMomento {
   /** 0-100, o null si el aparato no lo dice. */
   bateriaPct: number | null;
   cargando: boolean;
-  /** Conexión sin límite (Wi-Fi o cable). null = desconocida. */
-  wifi: boolean | null;
+  /** Conexión sin límite (Wi-Fi o cable). */
+  wifi: boolean;
   datosPermitidos: boolean;
 }
 
@@ -48,8 +48,8 @@ export function puedeAplicarAhora(ctx: ContextoMomento, tamanoBytes: number, cap
   if (ctx.enDirecto && !enCaliente) return no("directo");
   if (ctx.escribiendo && !enCaliente) return no("escribiendo");
   if (typeof ctx.bateriaPct === "number" && ctx.bateriaPct < UMBRAL_BATERIA_PCT && !ctx.cargando && !enCaliente) return no("bateria-baja");
-  const grande = (Number.isFinite(tamanoBytes) ? tamanoBytes : 0) > UMBRAL_DESCARGA_GRANDE_BYTES;
-  if (grande && ctx.wifi !== true && !ctx.datosPermitidos) return no("espera-wifi");
+   const grande = (Number.isFinite(tamanoBytes) ? tamanoBytes : 0) > UMBRAL_DESCARGA_GRANDE_BYTES;
+   if (grande && !ctx.wifi && !ctx.datosPermitidos) return no("espera-wifi");
   return { ok: true };
 }
 

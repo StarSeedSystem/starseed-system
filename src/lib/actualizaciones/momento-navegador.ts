@@ -77,9 +77,9 @@ async function hayLlamadaActiva(): Promise<boolean> {
 export async function medirMomento(): Promise<ContextoMomento> {
   const tipos = [...ocupados.values()];
   const llamada = await hayLlamadaActiva();
-  let bateriaPct: number | null = null;
-  let cargando = false;
-  let wifi: boolean | null = null;
+   let bateriaPct: number | null = null;
+   let cargando: boolean = false;
+   let wifi: boolean = false;
   try {
     const nav = (typeof navigator !== "undefined" ? navigator : null) as
       | (Navigator & { getBattery?: () => Promise<BateriaMin>; connection?: ConexionMin })
