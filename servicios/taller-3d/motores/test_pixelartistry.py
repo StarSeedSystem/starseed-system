@@ -224,5 +224,36 @@ class RemallarImagen(unittest.TestCase):
         self.assertIn("tiempo agotado", r["fallo"])
 
 
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """When the motor is not available, remallar_imagen should return an error dict."""
+        # Put a workflow file in the temporary directory so we pass the workflow check
+        _flujo_en_disco(self.tmp)
+        # Create a fake ComfyUI that fails on /system_stats
+        class ComfyFalloSistema:
+            def get(self, ruta, timeout=5):
+                if ruta == "/system_stats":
+                    raise RuntimeError("conexión rehusada (simulado)")
+                # For other routes, we don't care because it will fail at system_stats
+                return {}
+            def post(self, ruta, datos, timeout=30):
+                return {"prompt_id": "p1"}
+
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=ComfyFalloSistema(),
+            dormir=lambda _: None
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # flujo and nodos pieces
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
