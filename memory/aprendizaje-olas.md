@@ -4333,37 +4333,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
 
-## 2026-10-13 01:20 · mg-oracle-1012-1741
+## 2026-10-12 22:42 · mg-oracle-1012-1504
 
-**Lo que se pidió.** Biblioteca por categorías: una ficha por herramienta con licencia, enlaces, versión y estado real
+**Lo que se pidió.** Genesis
 
-**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
-
-**Lo que quedó fuera, una por una:**
-- `RTPM1010F2K` — los tipos no compilan: 27 errores tsc (rama ola/RTPM1010F2K conservada)
-- `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
-- `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
-
-## 2026-10-13 15:06 · mg-oracle-1013-0708
-
-**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
-
-**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
-- 2 tareas se fueron por lo mismo — otra cosa (RTRTRTS1010-EV-ORACLE-1ab, RTRTCOL1012Bdsb). Es 50 % de la ola.
-- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 3 tareas.
+- 2 tareas se fueron por lo mismo — otra cosa (S1010-TU-LL3, WT1011A). Es 50 % de la ola.
 
 **Lo que quedó fuera, una por una:**
-- `RTRTRTS1010-EV-ORACLE-1ab` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1ab conservada
-- `RC1013D` — los tipos no compilan: 1 errores tsc (rama ola/RC1013D conservada)
-- `RTRTCOL1012Bdsb` — otra cosa: sin decisión en 0 h; rama ola/RTRTCOL1012Bdsb conservada
-
-## 2026-10-13 20:41 · mg-oracle-1013-1344
-
-**Lo que se pidió.** Alex Bordón Garrigós
-
-**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
-
-**Lo que quedó fuera, una por una:**
-- `FS1013B` — otra cosa: sin decisión en 0 h; rama ola/FS1013B conservada
+- `S1010-TU-LL3` — otra cosa: sin decisión en 0 h; rama ola/S1010-TU-LL3 conservada
+- `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
