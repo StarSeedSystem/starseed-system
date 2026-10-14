@@ -10,32 +10,39 @@ probados (nada de un segundo orquestador peleando con el vigilante):
     vigilante que relanza el orquestador); bloqueadas = `revisor_bloqueadas.py` (OPB1011);
     capacidad = `buscar_capacidad.py`; una cola nueva se ENLISTA en `olas/` y la recoge el
     vigilante (el mismo que ya relanza solo).
+
   · Linux (A1, otra máquina): servicios systemd `starseed-*`; si el A1 tiene su medio del
     enjambre (`oracle_a1.py`, OPO1011) la cola se deja en su bandeja
     `~/.starseed/nodo-metagenesis/entrantes/`; si no, se lanza el orquestador como el lanzador
     de la nube (árbol limpio, sin otro orquestador vivo).
 
-  · Resultados (OPA1011b, solo en el medio con las colas): fallidas que nadie retoma, visto bueno
-    esperando, integraciones de las últimas 2 h y la autopublicación (`estado_publicacion`, solo
-    lectura); las tareas listas en el orden de la Mac (`candidatos_reparto`) para prestar las del
-    final; y `enlistar_reparacion` (cola `cola-metagenesis-<fecha>` y, si nadie más la coge, delante
-    en la tanda viva).
+  · Resultados (OPA1011b, solo en el medio con las colas): fallidas que nadie retoma,
+    visto bueno esperando, integraciones de las últimas 2 h y la publicación.
 
 Todo lo que se lanza va desacoplado (no bloquea el latido) y deja su registro en
 `/tmp/starseed-nodo-<acción>.log`. En modo SECO nada de esto se ejecuta: se dice qué se haría.
 Solo biblioteca estándar. Nunca se imprime una clave ni el nombre de la máquina.
 """
 from __future__ import annotations
+import sys
+import os
+
+if __package__ is None or __package__ == '':
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import json
-import os
 import re
 import shutil
 import socket
 import subprocess
-import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
+
+import nodo_metagenesis_logica as L
+import colmena_logica as C
+
+import nodo_metagenesis_logica as L
+import colmena_logica as C
 
 import nodo_metagenesis_logica as L
 import colmena_logica as C
@@ -116,7 +123,7 @@ def huella_maquina() -> str:
     return socket.gethostname()
 
 
-# ─── medidas ─────────────────────────────────────────────────────────────────────────────
+# ─── medidas ─────────────────────────────────────────────────────────────────────────
 
 
 def ram_libre_mb() -> Optional[int]:
@@ -259,8 +266,8 @@ def estado_publicacion(raiz: str, carpeta: Optional[str] = None) -> Dict[str, An
     ev = ev if isinstance(ev, dict) and ev.get("sha") and ev.get("sha") == est.get("sha") else None
     return {"activa": bool(activa), "fase": str(est.get("fase") or ""), "detalle": str(est.get("detalle") or "")[:240],
             "sha": str(est.get("sha") or "")[:12], "sin_publicar": int(n.strip()) if rc == 0 and n.strip().isdigit() else None,
-            "evidencia": ({"sha": str(ev.get("sha"))[:12], "motivo": str(ev.get("motivo") or "")[:120],
-                           "texto": str(ev.get("texto") or "")[-2400:]} if ev else None)}
+            "evidencia": {"sha": str(ev.get("sha"))[:12], "motivo": str(ev.get("motivo") or "")[:120],
+                        "texto": str(ev.get("texto") or "")[-2400:]} if ev else None}
 
 
 def resultados_mac(raiz: str, ahora: float) -> Dict[str, Any]:
@@ -271,7 +278,7 @@ def resultados_mac(raiz: str, ahora: float) -> Dict[str, Any]:
     progreso = progreso if isinstance(progreso, dict) else {}
     rc, out = _sh(["git", "log", "main", "--since=72 hours ago", "--format=%s"], cwd=raiz, tope=30)
     asuntos = out.splitlines() if rc == 0 else []
-    rc2, out2 = _sh(["git", "log", "main", "--since=2 hours ago", "--format=%s"], cwd=raiz, tope=20)
+    rc2, out2 = _sh(["git", "main", "--since=2 hours ago", "--format=%s"], cwd=raiz, tope=20)
     fall = L.fallidas_sin_resolver(progreso, asuntos, ahora)
     vb = L.esperando_visto_bueno(progreso, ahora, asuntos)
     return {"fallidas": fall[:8], "n_fallidas": len(fall), "visto_bueno": vb[:8], "n_visto_bueno": len(vb),
@@ -434,7 +441,7 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         "repo": os.path.isdir(os.path.join(raiz, ".git")),
         "orquestador": sabe_orquestar(raiz),
         "autoritativo": autoritativo,
-        "orquestadores": orqs,
+        "orquetors": orqs,
         "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "ram_libre_mb": ram_libre_mb(),
         "nucleos": os.cpu_count(),
@@ -475,12 +482,93 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         salud["nube_pausada"] = nube_pausada()
     if medio == "oracle-a1":
         salud["a1"] = estado_a1()
-    cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orquestador": salud["orquestador"],
+    cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orjestador": salud["orjestador"],
            "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
-    return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap}
+
+    # --- en_curso ---
+    en_curso = []
+    progreso_path = os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json")
+    progreso = leer_json(progreso_path, {})
+    if isinstance(progreso, dict):
+        from colmena_logica import FASES_CON_TRABAJO
+        puntos_path = os.path.join(raiz, "starseed_memory_root", "olas", "puntos-control.json")
+        puntos = leer_json(puntos_path, {}) if os.path.exists(puntos_path) else {}
+        for tarea_id, tarea_info in progreso.items():
+            if not isinstance(tarea_info, dict):
+                continue
+            fase = tarea_info.get("fase")
+            if fase in FASES_CON_TRABAJO:
+                punto_info = puntos.get(tarea_id, {})
+                if not isinstance(punto_info, dict):
+                    punto_info = {}
+                rama = punto_info.get("rama", "")
+                sha = punto_info.get("sha", "")
+                t = punto_info.get("t", 0.0)
+                en_curso.append({
+                    "id": tarea_id,
+                    "fase": fase,
+                    "punto": {
+                        "rama": rama,
+                        "sha": sha,
+                        "t": t,
+                    }
+                })
+                if len(en_curso) >= 8:
+                    break
+
+    # --- contenedor ---
+    contendor_path = os.path.join(os.path.expanduser("~/.starseed/nodo-metagenesis"), "contenedor.json")
+    activo = False
+    if os.path.exists(contendor_path):
+        try:
+            with open(contendor_path, encoding="utf-8") as f:
+                data = json.load(f)
+            activo = bool(data.get("activo", False))
+        except Exception:
+            activo = False
+    else:
+        # By default, active in Mac and A1
+        medio_actual = detectar_medio()
+        activo = medio_actual in ("mac", "oracle-a1")
+
+    # Build cap for capacidad_contenedor
+    so = sys.platform
+    if so == "darwin":
+        so = "mac"
+    elif so.startswith("linux"):
+        so = "linux"
+    elif so.startswith("win"):
+        so = "windows"
+    herramientas = {
+        "git": bool(shutil.which("git")),
+        "node": bool(shutil.which("node")),
+        "python3": bool(shutil.which("python3")),
+        "opencode": bool(shutil.which("opencode")),
+    }
+    cap_for_container = {
+        "so": so,
+        "herramientas": herramientas,
+        "ram_total_mb": ram_total_mb(),
+        "nucleos": os.cpu_count(),
+        "disco_libre_gb": salud["disco_gb"],
+        "bateria": {},
+        "red": {},
+        "medio_app": "",
+    }
+    contendor_info = colmena_logica.capacidad_contenedor(cap_for_container)
+    contendor_dict = {
+        "activo": activo,
+        "agentes": contendor_info.get("agentes", 0),
+        "apto": contendor_info.get("apto", False),
+        "motivo": contendor_info.get("motivo", ""),
+    }
+    periodo_s = 300.0
+
+    return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap,
+            "en_curso": en_curso, "contenedor": contendor_dict, "periodo_s": periodo_s}
 
 
-# ─── acciones ────────────────────────────────────────────────────────────────────────────
+# ─── acciones ────────────────────────────────────────────────────────────────────────
 
 
 def _python() -> str:
@@ -493,7 +581,7 @@ def lanzar_desacoplado(nombre: str, orden: List[str], cwd: str) -> Tuple[str, st
     try:
         with open(log, "ab") as salida:
             subprocess.Popen(orden, cwd=cwd, stdin=subprocess.DEVNULL, stdout=salida, stderr=subprocess.STDOUT,
-                             start_new_session=True, env=dict(os.environ, STARSEED_ROOT=cwd))
+                              start_new_session=True, env=dict(os.environ, STARSEED_ROOT=cwd))
         return "en_marcha", "lanzado (%s)" % os.path.basename(log)
     except Exception as e:  # noqa: BLE001
         return "fallo", "no pude lanzar: %s" % type(e).__name__
@@ -701,10 +789,10 @@ def lanzar_cola(args: Dict[str, Any], medio: str, raiz: str) -> Tuple[str, str]:
     trabajadores = str(max(1, min(4, int(args.get("trabajadores") or 2))))
     os.environ.setdefault("STARSEED_DONDE", medio)
     return lanzar_desacoplado("orquestador-" + cola, [_python(), orq, os.path.join("starseed_memory_root", "olas", cola + ".json"),
-                                                     "--workers", trabajadores], raiz)
+                                                      "--workers", trabajadores], raiz)
 
 
-# ─── rescate de trabajo (solo en el medio con las colas en disco) ────────────────────────
+# ─── rescate de trabajo (solo en el medio con las colas en disco) ────────
 
 
 def reunir_para_rescate(raiz: str) -> Dict[str, Any]:
@@ -738,3 +826,18 @@ def reunir_para_rescate(raiz: str) -> Dict[str, Any]:
     asuntos = out.splitlines() if rc == 0 else []
     return {"ids_vivos": ids_vivos, "colas_fuente": colas, "progreso": progreso if isinstance(progreso, dict) else {},
             "asuntos": asuntos}
+
+
+def ram_total_mb() -> Optional[int]:
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    if sys.platform == "darwin":
+        rc, out = _sh(["sysctl", "-n", "hw.memsize"], tope=10)
+        if rc == 0:
+            return int(out.strip()) // (1024 * 1024)
+    return None
