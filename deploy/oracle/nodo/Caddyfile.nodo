@@ -10,3 +10,12 @@ bitnet.{$STARSEED_HOST} {
 		output discard
 	}
 }
+
+# Genesis del A1: sirve la aplicación Next.js en el puerto 9002 solo en localhost.
+# El header X-Real-IP permite que esPeticionDeEstaMaquina identifique correctamente
+# las peticiones externas (requisito del guardián para sesión y es_metagenesis).
+genesis.{$STARSEED_HOST} {
+	reverse_proxy 127.0.0.1:9002 {
+		header_up X-Real-IP {remote_host}
+	}
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=StarSeed Genesis service for A1 node
+After=network.target
+
+[Service]
+Type=simple
+User=starseed
+WorkingDirectory=/opt/starseed/genesis
+Environment=STARSEED_MANDO=1
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+# oracle_a1.py copia el directorio .next que el guardián dio por verde a este
+# directorio de SERVICIO antes de iniciar el servicio.
+ExecStart=next start -p 9002 -H 127.0.0.1
+Restart=on-failure
+RestartSec=5
+MemoryMax=3G
+
+[Install]
+WantedBy=multi-user.target
