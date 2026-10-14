@@ -94,8 +94,7 @@ describe("neuronasAtrasadas", () => {
         versiones: { datos: "2026.10.01" }, // atrás en datos
       },
     ];
-    const ultimaSinDatos = { ...dummyUltima };
-    delete ultimaSinDatos.datos; // ahora datos no está en ultima
+    const { datos: _, ...ultimaSinDatos } = dummyUltima;
     const result = neuronasAtrasadas(neuronas, ultimaSinDatos);
     // debería haber 5 capas (todas excepto datos)
     expect(result).toHaveLength(5);
