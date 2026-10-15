@@ -1,7 +1,6 @@
 "use client";
 
-import { useId } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import { usarPreferenciasProcesos, limitesDeCerebro, guardarLimites } from "@/lib/cerebros/procesos-preferencias";
 import type { TipoProceso } from "@/lib/cerebros/procesos";
@@ -20,8 +19,25 @@ const tiposDisponibles: { id: TipoProceso; etiqueta: string }[] = [
 
 export function ProcesosAjustes({ brainId }: { brainId: string | null }) {
   const prefijoForm = useId();
-  const { prefs, guardando, actualizarTipos, actualizarIntervalo, actualizarUmbrales, actualizarOcultos } = usarPreferenciasProcesos();
+  const { prefs, guardando: guardandoPrefs, actualizarTipos, actualizarIntervalo, actualizarUmbrales, actualizarOcultos } = usarPreferenciasProcesos();
   const limites = brainId ? limitesDeCerebro(brainId) : null;
+
+  const [cpuInput, setCpuInput] = useState<string>(brainId && limites?.cpuMaxPct != null ? String(limites.cpuMaxPct) : "");
+  const [ramInput, setRamInput] = useState<string>(brainId && limites?.ramMaxMb != null ? String(limites.ramMaxMb) : "");
+  const [limitesGuardados, setLimitesGuardados] = useState(false);
+
+  const guardarLimitesCerebro = () => {
+    if (!brainId) return;
+    const cpuVal = cpuInput.trim() === "" ? null : Number(cpuInput);
+    const ramVal = ramInput.trim() === "" ? null : Number(ramInput);
+    const val = {
+      cpuMaxPct: cpuVal == null || Number.isNaN(cpuVal) ? null : cpuVal,
+      ramMaxMb: ramVal == null || Number.isNaN(ramVal) ? null : ramVal,
+    };
+    guardarLimites(brainId, val);
+    setLimitesGuardados(true);
+    setTimeout(() => setLimitesGuardados(false), 3000);
+  };
 
   const Toggle = ({ id, checked, onChange, label, className }: { id: string; checked: boolean; onChange: (v: boolean) => void; label: string; className?: string }) => (
     <label className={cn("inline-flex items-center gap-2 cursor-pointer", className)}>
@@ -135,20 +151,53 @@ export function ProcesosAjustes({ brainId }: { brainId: string | null }) {
         </div>
       </div>
 
-      {brainId && limites && (
-        <div className="mt-6 p-4 bg-white/5 border border-white/10 rounded-lg">
-          <div className="flex items-center gap-2 text-cyan-400 mb-2">
-            <CheckCircle2 className="h-4 w-4" />
-            <span className="text-sm font-medium">Límites de cerebro guardados</span>
+      {brainId && (
+        <div className="mt-6 p-4 bg-white/5 border border-white/10 rounded-lg space-y-3">
+          <h3 className="text-base font-semibold text-white">Límites por cerebro</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs text-white/60">CPU máx. (%)</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={cpuInput}
+                onChange={(e) => setCpuInput(e.target.value)}
+                className="w-full mt-1 px-3 py-2 rounded bg-white/10 text-sm text-white border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                placeholder="Sin límite"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-white/60">RAM máx. (MB)</span>
+              <input
+                type="number"
+                min={1}
+                value={ramInput}
+                onChange={(e) => setRamInput(e.target.value)}
+                className="w-full mt-1 px-3 py-2 rounded bg-white/10 text-sm text-white border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                placeholder="Sin límite"
+              />
+            </label>
           </div>
-          <p className="text-xs text-white/70">
-            CPU máx.: {limites.cpuMaxPct ?? "—"} % &nbsp;|&nbsp; RAM máx.: {limites.ramMaxMb ?? "—"} MB
-          </p>
-          <p className="text-xs text-white/50 mt-1">El orquestador los aplicará cuando estén disponibles.</p>
+          <button
+            onClick={guardarLimitesCerebro}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors cursor-pointer whitespace-normal h-auto"
+          >
+            Guardar límites
+          </button>
+          {limites && (
+            <p className="text-xs text-white/70">
+              Guardados: CPU máx. {limites.cpuMaxPct ?? "—"} % | RAM máx. {limites.ramMaxMb ?? "—"} MB
+            </p>
+          )}
+          <p className="text-xs text-white/50">Guardado; lo aplicará el orquestador (hoy nadie lo aplica todavía)</p>
+          {limitesGuardados && (
+            <p className="text-xs text-cyan-300">Guardado; lo aplicará el orquestador (hoy nadie lo aplica todavía)</p>
+          )}
         </div>
       )}
 
-      {guardando && (
+      {guardandoPrefs && (
         <div className="fixed bottom-4 right-4 bg-cyan-500/20 border border-cyan-400/30 text-cyan-100 px-4 py-2 rounded-lg text-sm">
           Guardado; se aplicará el orquestador (hoy nadie lo aplica todavía)
         </div>

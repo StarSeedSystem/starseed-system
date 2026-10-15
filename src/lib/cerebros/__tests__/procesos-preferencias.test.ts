@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizarPreferencias, type PreferenciasProcesos, type UmbralesProcesos } from "../procesos-preferencias";
-import type { TipoProceso } from "./procesos";
+import type { TipoProceso } from "../procesos";
 
 describe("normalizarPreferencias", () => {
   it("valores fuera de rango van a por defecto", () => {
