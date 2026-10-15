@@ -158,7 +158,7 @@ describe("elegirEnlaces con opciones", () => {
     // Función de puntuación que prefiere menor rttMs
     const puntuarPorRtt = (e: EnlaceDisponible) => {
       // Menor rttMs es mejor, así que negamos para que menor valor = mayor puntuación
-      return e.rttMs !== null ? -e.rttMs : -9999; // los sin medida van al final
+       return e.rttMs != null ? -e.rttMs : -9999; // los sin medida van al final
     };
     
     const resultado = elegirEnlaces([enlaceA, enlaceB, enlaceC], destino, "mensaje", 0, {

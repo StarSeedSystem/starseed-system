@@ -24,6 +24,7 @@
 import { fragmentosPorMtu } from "@/ai/astraura/mesh/camr/planificador";
 import type { ClaseRuta } from "@/lib/network/estadisticas-enlace";
 import { vetoPorPolitica, ordenarPorViabilidad } from "./cristal/adaptador-elegidores";
+import type { Medio } from "./cristal/tipos";
 
 export type TipoEnlace = "local" | "cuenta" | "par" | "rele" | "lora";
 export type ClaseEnvio = "mensaje" | "archivo" | "flujo";
@@ -224,27 +225,28 @@ export function elegirEnlaces(
     }
     elegidos.push({ enlace: e, rango: rangoEnlace(e), motivo: motivoRango(e) });
   }
-  // Si se especificó una función de puntuar en opciones, usamos un comparador que
-  // primero ordena por rango, luego por la puntuación dentro del mismo rango
-  if (opciones?.puntuar) {
-    elegidos.sort(
-      (a, b) =>
-        a.rango - b.rango ||
-        opciones.puntuar(a.enlace) - opciones.puntuar(b.enlace) ||
-        compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
-        compararNumero(a.enlace.capacityKbps, b.enlace.capacityKbps, false) ||
-        (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
-    );
-  } else {
-    // Ordenamiento original cuando no se especifica función de puntuar
-    elegidos.sort(
-      (a, b) =>
-        a.rango - b.rango ||
-        compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
-        compararNumero(a.enlace.capacityKbps, b.enlace.capacityKbps, false) ||
-        (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
-    );
-  }
+   // Si se especificó una función de puntuar en opciones, usamos un comparador que
+   // primero ordena por rango, luego por la puntuación dentro del mismo rango
+   if (opciones?.puntuar) {
+     const puntuar = opciones.puntuar;
+     elegidos.sort(
+       (a, b) =>
+         a.rango - b.rango ||
+         puntuar(a.enlace) - puntuar(b.enlace) ||
+         compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
+         compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
+         (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
+     );
+   } else {
+     // Ordenamiento original cuando no se especifica función de puntuar
+     elegidos.sort(
+       (a, b) =>
+         a.rango - b.rango ||
+         compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
+         compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
+         (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
+     );
+   }
 
   return { elegidos, descartados };
 }
