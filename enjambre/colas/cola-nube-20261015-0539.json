@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "S1010-EV-ORACLE-1ac",
+   "ola": "Ola 1010S · Estaciones en vivo: Omnifrecuencias, Audiomorphic y relé en Oracle",
+   "titulo": "Relé de estaciones (lógica pura de salas) con pruebas",
+   "archivos": [
+    "servicios/estaciones-rele/salas.mjs",
+    "src/lib/estaciones/__tests__/rele-salas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo StarSeed OS. NO git. Objetivo: un relé propio (a desplegar en el Oracle gratuito) que reparta los mensajes de las estaciones en vivo sin gastar el cupo de Supabase Realtime. Crea `servicios/estaciones-rele/salas.mjs` (JavaScript ESM puro, sin dependencias, ≤ 120 líneas) que exporte `crearSalas({ maxSalas = 200, maxPorSala = 500, maxBytes = 40000 } = {})` con estos métodos: `entrar(tema, conexion)` → `{ ok, motivo? }` (rechaza un tema que no cumpla /^estacion-(vivo|p):[A-Za-z0-9_:-]{8,80}$/, y salas o conexiones de más); `salir(conexion)`; `difundir(conexion, texto)` → lista de conexiones destino (las demás de su sala; descarta textos que no sean string, que pasen de maxBytes o que no empiecen por '{\"t\":\"est\"'); `presencia(tema)` → número de conexiones; `temaDe(conexion)`. Una conexión es cualquier objeto (se usa como clave de un Map). Prueba `src/lib/estaciones/__tests__/rele-salas.test.ts` (vitest, entorno node; importa con `../../../../servicios/estaciones-rele/salas.mjs`): entrar, salir, que no se reenvía al emisor, tema inválido, límites, texto ajeno descartado, presencia. Ejecuta `npx vitest run src/lib/estaciones/__tests__/rele-salas.test.ts`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261012-224204`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261012-224204:refs/remotes/origin/nube/a1-20261012-224204\"` y `git cherry-pick --no-commit e698bffcb990 e8eee08e280b e61d6002651c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, servicios/estaciones-rele/salas.mjs, src/lib/estaciones/__tests__/rele-salas.test.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261012-224204"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "S1010-EV-ORACLE-1ac"
+  ]
+ }
+}
