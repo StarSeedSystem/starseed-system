@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "CB1013T",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: Seguridad y privacidad, Vinculación y sincronización",
+   "archivos": [
+    "src/components/cerebro/ajustes-seguridad.tsx",
+    "src/components/cerebro/ajustes-sync.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 y §9 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. `ajustes-seguridad.tsx` (`export function AjustesSeguridad({ valor, onCambio, nivel })`): privacidad (privado/perfil/grupo/público; en el nivel cerebro, explicar que cambiar a grupo/público lo mueve a la pestaña Públicos y lo hace el `scope`), cifrado local (con la marca «solo se guarda por ahora») y lista de acceso (quién: perfil, cuenta, grupo o página; nivel leer/escribir/admin) con la nota «Con Compartir o Telepatía lo leen quienes tengan permiso; escribir sigue siendo solo tuyo» (lectura compartida aplicada, §9 a); en memorias y carpetas, marca 'solo se guarda por ahora'. `ajustes-sync.tsx` (`export function AjustesSync({ valor, onCambio, cerebro })`): dirección (enviar, recibir, ambas, ninguna), «sincronizar solo», destinos (los de memory-destinations), y un resumen de los vínculos de Telepatía del cerebro (`normalizarVinculos(cerebro.config)` de src/lib/cerebros/telepatia.ts) con un botón que abre el diálogo de Telepatía mediante un callback opcional `onAbrirTelepatia`. Todo controlado por props (sin guardar por sí mismo).",
+   "revisor_quitadas": [
+    "CB1013E",
+    "CB1013R"
+   ]
+  }
+ ]
+}
