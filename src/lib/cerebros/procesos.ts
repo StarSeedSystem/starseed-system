@@ -1,7 +1,8 @@
 // Procesos activos del cerebro: normalización de datos de múltiples fuentes a ProcesoActivo[].
-// Módulo puro, sin disco ni red. Contrato: architecture/cerebros-fusion-telepatia.md §7.
+// Módulo puro, sin disco ni red. Contrato: architecture/cerebros-fusion-telepatia.md Section 7.
 
 import {
+  ProcesoActivo,
   fromAgentesMac,
   fromLatidos,
   fromNodos,
@@ -21,7 +22,7 @@ import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
 /**
  * Lee procesos activos de todas las fuentes y los combina en una única lista.
  * 
- * Esta es la función principal que implementa §7 de architecture/cerebros-fusion-telepatia.md.
+ * Esta es la función principal que implementa Section 7 de architecture/cerebros-fusion-telepatia.md.
  * Combina datos de:
  * - desdeAgentesMac (/api/mando/agentes)
  * - desdeLatidos (/api/mando/medidores)
@@ -85,7 +86,7 @@ export async function leerProcesosActivos(): Promise<ProcesoActivo[]> {
     desdeSuenos = [];
   }
 
-  // 6. Procesos de imaginación (desdeImaginacion)
+  // 6. Procesos de imaginacion (desdeImaginacion)
   let desdeImaginacion: ProcesoActivo[] = [];
   try {
     const imaginacion = await (await import("@/lib/mando/suenos"))?.fetchAstraura158ImaginationStatus?.().catch(() => null);
