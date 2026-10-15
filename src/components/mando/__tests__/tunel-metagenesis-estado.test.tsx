@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TunelMetaGenesisEstado } from "../tunel-metagenesis-estado";
 
@@ -86,12 +86,12 @@ describe("TunelMetaGenesisEstado", () => {
       } as Response;
     };
 
-    render(<TunelMetagenesisEstado />);
-    expect(screen.getByText(/cargando estado del túnel de metagenesis/i)).toBeInTheDocument();
+    render(<TunelMetaGenesisEstado />);
+    expect(screen.getByText(/Cargando estado del túnel/i)).toBeInTheDocument();
 
     // Wait for the data to be fetched and displayed
     await waitFor(() => {
-      expect(screen.getByText(/túnel de metagenesis: activo \(pid 12345\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/Túnel de MetaGenesis: activo \(pid 12345\)/i)).toBeInTheDocument();
       expect(screen.getByText(/últimas líneas:/i)).toBeInTheDocument();
       expect(screen.getByText("Linea 1")).toBeInTheDocument();
       expect(screen.getByText("Linea 2")).toBeInTheDocument();
