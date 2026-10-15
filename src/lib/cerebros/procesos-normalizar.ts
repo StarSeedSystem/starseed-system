@@ -484,6 +484,4 @@ export {
   desdeActualizaciones,
   desdeVentanas,
   desdePresencia,
-  unirProcesos,
-  agruparPorTipo,
 };
