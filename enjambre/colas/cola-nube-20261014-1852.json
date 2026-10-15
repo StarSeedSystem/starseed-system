@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "CB1013X",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Pestañas del hub: los cerebros compartidos contigo, en solo lectura",
+   "archivos": [
+    "src/components/cerebro/cerebro-hub.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §2 y §9 a (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. ÚNICA tarea de la ola que toca el hub: cambios mínimos. Carga `listarCerebrosCompartidos()` al montar y tras cada `reload()`, y úsalo junto a los propios para las pestañas (`cerebrosDePestana` / `cuentaPorPestana` sobre `[...brains, ...compartidos]`): un cerebro va a su pestaña por su `scope`, como los demás. Un cerebro compartido lleva en su botón el icono `Users` y la marca «compartido contigo» (en `title` y en un texto pequeño visible); al elegirlo, la fila de opciones enseña SOLO «Enviar a…» y un aviso «Solo lectura: es de otra cuenta; escribir sigue siendo de su dueño», sin Fusionar, Telepatía, Ajustes ni Compartir. No cambies la carga de los propios (`useRealtimeRows`). Si `listarCerebrosCompartidos()` falla, todo sigue como hoy, sin aviso ruidoso.",
+   "dependencias_ya_en_main": [
+    "CB1013W"
+   ]
+  }
+ ]
+}
