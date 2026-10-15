@@ -1,9 +1,9 @@
-import { listConnectors } from '@/lib/connectors';
-import { INTEGRATIONS, loadIntegrationConfig } from '@/lib/integrations';
-import { loadAbilities, type Ability } from '@/lib/abilities/abilities';
-import { type AbilityLink } from '@/lib/abilities/abilities';
-import { useRealtimeRows } from '@/lib/realtime/realtime';
-import { readJson } from '@/ai/moa/runtime';
+import { listConnectors } from '../connectors/store';
+import { INTEGRATIONS, loadIntegrationConfig } from '../integrations';
+import { loadAbilities, type Ability } from '../abilities/abilities';
+import { type AbilityLink } from '../abilities/abilities';
+import { useRealtimeRows } from '../realtime/realtime';
+
 
 // Tipos
 export type TipoConector = 'conector' | 'integracion' | 'mcp' | 'cuenta-externa' | 'canal';
@@ -81,7 +81,7 @@ export async function leerFuentesConectores(brainId: string | null): Promise<{
   // 2. INTEGRATIONS + loadIntegrationConfig(id, brainId) -> tipo: integracion
   try {
     for (const integracion of INTEGRATIONS) {
-      const { id, name } = integracion;
+       const { id, label } = integracion;
       let config = null;
       try {
         config = await loadIntegrationConfig(id, brainId);
@@ -94,14 +94,14 @@ export async function leerFuentesConectores(brainId: string | null): Promise<{
       const estado: EstadoConector = config && config.enabled ? 'conectado' : 'disponible';
       const enlace = `/integraciones/${id}`; // Asumimos que existe una ruta para configurar cada integración
       const enCerebro = estáIntegracionEnCerebro(brainId, id);
-      fuentes.push({
-        id,
-        nombre: name,
-        tipo,
-        estado,
-        enCerebro,
-        enlace,
-      });
+       fuentes.push({
+         id,
+         nombre: label,
+         tipo,
+         estado,
+         enCerebro,
+         enlace,
+       });
     }
   } catch (error) {
     avisos.push(`Error al procesar INTEGRATIONS: ${error instanceof Error ? error.message : String(error)}`);
@@ -111,7 +111,7 @@ export async function leerFuentesConectores(brainId: string | null): Promise<{
   try {
     const abilities = await loadAbilities();
     // Obtener los enlaces de habilidades para este cerebro
-    const links: AbilityLink[] = await leerEnlacesHabilidadesParaCerebro(brainId);
+     const links: AbilityLink[] = await leerEnlacesHabilidadesParaCerebro(brainId, avisos);
     // Crear un mapa de enlaces por ref para búsqueda rápida
     const enlacesPorRef = new Map<string, AbilityLink>();
     for (const link of links) {
@@ -230,7 +230,7 @@ function estáIntegracionEnCerebro(brainId: string, integracionId: string): bool
   return !!valor && !!valor.enabled;
 }
 
-async function leerEnlacesHabilidadesParaCerebro(brainId: string): Promise<AbilityLink[]> {
+async function leerEnlacesHabilidadesParaCerebro(brainId: string, avisos: string[]): Promise<AbilityLink[]> {
   // Usamos useRealtimeRows para obtener los enlaces en tiempo real, pero como estamos en una función async
   // y no en un componente, podemos intentar leer directamente de la base o usar una función similar.
   // Sin embargo, para simplificar, asumimos que existe una función para obtener los enlaces de un cerebro.

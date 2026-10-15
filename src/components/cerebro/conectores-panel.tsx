@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2, Zap, Server, Microchip, User, MessageCircle, AlertTriangle } from "lucide-react";
-import { leerFuentesConectores, type ConectorCerebro, type TipoConector, type EstadoConector } from "@/lib/cerebros/conectores-fuentes";
+import { leerFuentesConectores, leerJsonLocal, claveConectores, type ConectorCerebro, type TipoConector, type EstadoConector } from "@/lib/cerebros/conectores-fuentes";
 import { pushPreferences } from "@/lib/settings-sync";
 
 export interface ConectoresPanelProps {
@@ -155,33 +155,24 @@ export default function ConectoresPanel({ brainId, brainName }: ConectoresPanelP
                       </p>
                     )}
                   </div>
-                  <Switch
-                    checked={fuente.enCerebro}
-                    onChange={(checked) => {
-                      const clave = `starseed.brain.${brainId}.conectores`;
-                      const valorActual: Record<string, boolean> =
-                        (() => {
-                          if (typeof window === "undefined") return {};
-                          try {
-                            const raw = window.localStorage.getItem(clave);
-                            return raw ? JSON.parse(raw) : {};
-                          } catch {
-                            return {};
-                          }
-                        })() || {};
-                      const nuevoValor = { ...valorActual, [fuente.id]: checked };
-                      window.localStorage.setItem(clave, JSON.stringify(nuevoValor));
-                      pushPreferences().then((result) => {
-                        if (!result.ok) {
-                          toast.error(`No se pudo sincronizar: ${result.reason || result.message}`);
-                        } else {
-                          toast.success("Preferencia guardada");
-                        }
-                      });
-                    }}
-                    className="ml-0"
-                    aria-label={`Usar ${fuente.nombre} en este cerebro`}
-                  />
+                   <Switch
+                     checked={fuente.enCerebro}
+                     onChange={(checked) => {
+                       const clave = claveConectores(brainId!);
+                       const valorActual: Record<string, boolean> = leerJsonLocal(clave) ?? {};
+                       const nuevoValor = { ...valorActual, [fuente.id]: checked };
+                       window.localStorage.setItem(clave, JSON.stringify(nuevoValor));
+                       pushPreferences().then((result) => {
+                         if (!result.ok) {
+                           toast.error(`No se pudo sincronizar: ${result.reason || result.message}`);
+                         } else {
+                           toast.success("Preferencia guardada");
+                         }
+                       });
+                     }}
+                     className="ml-0"
+                     aria-label={`Usar ${fuente.nombre} en este cerebro`}
+                   />
                 </div>
               ))}
             </div>

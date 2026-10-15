@@ -1,17 +1,24 @@
-// Mock de las dependencias con rutas relativas
-jest.mock('../connectors', () => ({
-  listConnectors: jest.fn(),
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../connectors/store', () => ({
+  listConnectors: vi.fn(),
 }));
-jest.mock('../integrations', () => ({
+vi.mock('../integrations', () => ({
   INTEGRATIONS: [],
-  loadIntegrationConfig: jest.fn(),
+  loadIntegrationConfig: vi.fn(),
 }));
-jest.mock('../abilities/abilities', () => ({
-  loadAbilities: jest.fn(),
+vi.mock('../abilities/abilities', () => ({
+  loadAbilities: vi.fn(),
 }));
-jest.mock('../realtime/realtime', () => ({
-  useRealtimeRows: jest.fn(),
+vi.mock('../realtime/realtime', () => ({
+  useRealtimeRows: vi.fn(),
 }));
+
+// Import the mocked modules to access their mocks
+import { listConnectors } from '../connectors/store';
+import { loadIntegrationConfig } from '../integrations';
+import { loadAbilities } from '../abilities/abilities';
+import { useRealtimeRows } from '../realtime/realtime';
 
 import { leerFuentesConectores } from "./conectores-fuentes";
 
@@ -30,23 +37,27 @@ const localStorageMock = (() => {
 })();
 
 // Mock de fetch
-const fetchMock = jest.fn();
+const fetchMock = vi.fn();
 
-Object.defineProperty(window, "localStorage", {
+// Create a mock window object
+const windowMock = {};
+Object.defineProperty(windowMock, "localStorage", {
   value: localStorageMock,
   writable: true,
 });
-
-Object.defineProperty(window, "fetch", {
+Object.defineProperty(windowMock, "fetch", {
   value: fetchMock,
   writable: true,
 });
+
+// Set the mock window as the global window
+global.window = windowMock;
 
 describe("leerFuentesConectores", () => {
   beforeEach(() => {
     localStorageMock.clear();
     fetchMock.mockClear();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("should return empty arrays when brainId is null", async () => {
@@ -57,24 +68,19 @@ describe("leerFuentesConectores", () => {
 
   it("should process listConnectors", async () => {
     // Mock listConnectors to return a simple conector
-    const mockListConnectors = require('../connectors').listConnectors;
-    mockListConnectors.mockReturnValueOnce([
+    const mockList = [
       {
         connector: { id: "test-conector", name: "Test Conector", category: "test", kind: "test", authType: "none", status: "available", free: true, recommended: true, icon: "Test", description: "Test", repo: "", docsUrl: "", configHint: "" },
         config: { id: "test-conector", enabled: true },
         status: "available",
       },
-    ]);
+    ];
+    listConnectors.mockReturnValueOnce(mockList);
 
     // Mock other dependencies
-    const mockLoadIntegrationConfig = require('../integrations').loadIntegrationConfig;
-    mockLoadIntegrationConfig.mockResolvedValueOnce(null);
-
-    const mockLoadAbilities = require('../abilities/abilities').loadAbilities;
-    mockLoadAbilities.mockResolvedValueOnce([]);
-
-    const mockUseRealtimeRows = require('../realtime/realtime').useRealtimeRows;
-    mockUseRealtimeRows.mockReturnValue({ rows: [], reload: jest.fn() });
+    loadIntegrationConfig.mockResolvedValueOnce(null);
+    loadAbilities.mockResolvedValueOnce([]);
+    useRealtimeRows.mockReturnValue({ rows: [], reload: vi.fn() });
 
     const brainId = "test-brain";
     const resultado = await leerFuentesConectores(brainId);
