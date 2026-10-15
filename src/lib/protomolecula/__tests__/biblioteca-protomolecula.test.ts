@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { fichasProtomolecula, ORDEN_GRUPOS_PROTO } from "../biblioteca-protomolecula";
-import { registrarAtomo, limpiarRegistro } from "../registro-atomos";
+import { registrarAtomo, limpiarRegistro, listarAtomos } from "../registro-atomos";
 import type { DefinicionAtomo, Parametro, CategoriaAtomo } from "../registro-atomos";
 import { CATEGORIAS_PROTOMOLECULA } from "../catalogo-herramientas";
 import type { HerramientaProto } from "../catalogo-herramientas";
@@ -27,7 +27,7 @@ function herramienta(parcial: Partial<HerramientaProto> & { id: string; categori
   };
 }
 
-function atomo(herramientaId: string, categoria: CategoriaAtomo = "imagen", extra: Partial<DefinicionAtomo> = {}): DefinicionAtomo {
+function atomo(herramientaId: string, categoria: CategoriaAtomo = "raster-pintura", extra: Partial<DefinicionAtomo> = {}): DefinicionAtomo {
   const parametro: Parametro = { id: "p", nombre: "P", tipo: "numero" };
   return { herramientaId, nombre: herramientaId, categoria, integracion: "libreria-js", control: "total", parametros: [parametro], entradas: [], salidas: [], ...extra };
 }
@@ -122,4 +122,3 @@ describe("fichasProtomolecula", () => {
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
   });
-});
