@@ -16,11 +16,7 @@ describe("Registro de Fundamento de StarSeed", () => {
   });
 
   it("existe en la Biblioteca como paquete app con ruta /fundamento", () => {
-<<<<<<< HEAD
     const pkg = STARSEED_CORE_REPO.packages.find(p => p.kind === "app" && typeof p.payload.route === "string" && p.payload.route === "/fundamento");
-=======
-    const pkg = STARSEED_CORE_REPO.packages.find(p => p.kind === "app" && p.payload && typeof p.payload === "object" && (p.payload as any).route === "/fundamento");
->>>>>>> 7be6a1c5 (salvavidas · FS1013C: trabajo del agente antes de las puertas (tsc / vitest))
     expect(pkg).toBeDefined();
     expect(pkg?.name).toBe("Fundamento de StarSeed");
     expect(pkg?.icon).toBe("Gem");
