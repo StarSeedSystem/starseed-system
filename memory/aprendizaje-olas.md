@@ -4402,6 +4402,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CB1013E` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CB1013E conservada)
 - `RTIMG1011Gd` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTIMG1011Gd conservada)
 
+<<<<<<< HEAD
 ## 2026-10-14 19:46 · mg-oracle-1014-1253
 
 **Lo que se pidió.** Genesis
@@ -4419,10 +4420,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 ## 2026-10-15 00:02 · mg-oracle-1014-1639
 
 **Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+=======
+## 2026-10-14 21:08 · mg-oracle-1014-1349
+
+**Lo que se pidió.** Gobernador genérico: medir cualquier aparato para la colmena
+>>>>>>> 9a399037 (chore(memoria): aprendizaje de la ola mg-oracle-1014-1349)
 
 **Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+<<<<<<< HEAD
 - 2 tareas se fueron por lo mismo — no escribió nada (RTRTRTRTS1010-EV-ORACLE-1ac, RTCOL1012Be). Es 50 % de la ola.
 - sin modelo anotado no integró ninguna de sus 2 tareas.
 
@@ -4430,3 +4437,11 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+=======
+- 2 tareas se fueron por lo mismo — no escribió nada (RTCOL1012L, RTCOL1012Ae). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012L` — no escribió nada
+- `RTCOL1012Ae` — no escribió nada
+- `WT1011C` — pruebas en rojo: vitest falla (rama conservada)
+>>>>>>> 9a399037 (chore(memoria): aprendizaje de la ola mg-oracle-1014-1349)
