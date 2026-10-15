@@ -4368,6 +4368,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `FS1013B` — otra cosa: sin decisión en 0 h; rama ola/FS1013B conservada
 
+<<<<<<< HEAD
 ## 2026-10-14 02:40 · relevo-oracle-a1-cd000b
 
 **Lo que se pidió.** Protomolécula
@@ -4427,6 +4428,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - sin modelo anotado no integró ninguna de sus 2 tareas.
 
 **Lo que quedó fuera, una por una:**
-- `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
-- `RTCOL1012Be` — no escribió nada
-- `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+-  — no escribió nada
+-  — no escribió nada
+-  — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+
+## 2026-10-13 22:30 · mg-oracle-1013-1545
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+-  — otra cosa: sin decisión en 0 h; rama ola/RTAV1011Lb conservada
