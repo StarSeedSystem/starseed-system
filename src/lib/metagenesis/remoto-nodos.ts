@@ -19,6 +19,7 @@
  */
 
 import type { ContenedorNodo } from "@/lib/metagenesis/colmena";
+import { neuronaTallerDeLatido, type NeuronaTaller } from "@/lib/avatares/adaptadores/reparto-taller";
 
 /** Sin latir este tiempo, un nodo no cuenta como vivo (igual que `TTL_LIDER_S` del nodo). */
 export const TTL_NODO_MS = 900_000;
@@ -203,6 +204,11 @@ export interface NodoVista {
     etiqueta: string;
     modo: "real" | "seco" | string;
     vivo: boolean;
+    /**
+     * (G3D1011D · contrato avatares-3d §11) El `NeuronaTaller` de esta neurona, leído del
+     * `capacidades_taller` de su último latido con `capacidadesDeRegistro`; null si aún no publicó.
+     */
+    taller?: NeuronaTaller | null;
     lider: boolean;
     hace_ms: number | null;
     puntos: number | null;
@@ -302,12 +308,14 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
     const hace = ts ? Math.max(0, ahora - ts) : null;
     const orqs = Array.isArray(salud.orquestadores) ? (salud.orquestadores as Array<Record<string, unknown>>) : [];
     const trabajo = (salud.trabajo ?? {}) as Record<string, unknown>;
+    const vivo = hace !== null && hace <= TTL_NODO_MS && baja < ts;
     return {
         nodo: txt(d.nodo, 40),
         medio,
         etiqueta: MEDIOS[medio] ?? "Neurona",
         modo: txt(d.modo, 10) || "real",
-        vivo: hace !== null && hace <= TTL_NODO_MS && baja < ts,
+        vivo,
+        taller: neuronaTallerDeLatido(d, { viva: vivo, carga: num(trabajo.en_curso) ?? 0 }),
         lider: !!lider && d.nodo === lider,
         hace_ms: hace,
         puntos: num(d.puntos),
