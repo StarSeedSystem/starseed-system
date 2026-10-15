@@ -187,26 +187,26 @@ describe("fichasProtomolecula", () => {
       }
     };
 
-    const catalogo = [{
-      id: "full-tool",
-      nombre: "Nombre desde Católico",
-      descripcion: "Descripción desde el catálogo",
-      licencia: "GPL-3.0",
-      codigo: "https://github.com/usuario/repo",
-      web: "https://ejemplo.com",
-      tipo: "app" as const,
-      origen: "otro" as const,
-      medios: { web: "embebible" as const, android: false, ios: false, macos: true, windows: true, linux: true, servidor: false },
-      integracion: "iframe-aislado" as const,
-      formatos: { entrada: [], salida: [] },
-      control: { via: ["postMessage"], notas: "" },
-      actualizacion: { fuente: "github-releases", ref: `ejemplo/full-tool`, ultimaVersion: null, fechaVersion: null },
-      ia: [],
-      estado: "integrable",
-      motivo: "",
-      verificado: "2026-10-10",
-      categoria: "raster-pintura" as const,
-    }];
+     const catalogo = [{
+       id: "full-tool",
+       nombre: "Nombre desde Catálogo",
+       descripcion: "Descripción desde el catálogo",
+       licencia: "GPL-3.0",
+       codigo: "https://github.com/usuario/repo",
+       web: "https://ejemplo.com",
+       tipo: "app" as const,
+       origen: "otro" as const,
+       medios: { web: "embebible" as const, android: false, ios: false, macos: true, windows: true, linux: true, servidor: false },
+       integracion: "iframe-aislado" as const,
+       formatos: { entrada: [], salida: [] },
+       control: { via: ["postMessage"], notas: "" },
+       actualizacion: { fuente: "github-releases", ref: `ejemplo/full-tool`, ultimaVersion: null, fechaVersion: null },
+       ia: [],
+       estado: "integrable",
+       motivo: "",
+       verificado: "2026-10-10",
+       categoria: "raster-pintura" as const,
+     }] as const;
 
     const [ficha] = fichasProtomolecula(versiones, catalogo);
 
