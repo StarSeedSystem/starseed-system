@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "MC1012F",
+   "titulo": "Malla amorfa: la red aleatoria continua (puentes Si–O–Si, temperatura y estado vítreo)",
+   "archivos": [
+    "src/lib/malla/cristal/cristalizacion.ts",
+    "src/lib/malla/cristal/__tests__/cristalizacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §1 del contrato: la retícula es un SÓLIDO AMORFO (vidrio de sílice, red aleatoria continua): orden de corto alcance (cada neurona busca su coordinación, cada puente une dos) y NINGÚN patrón periódico. Exporta `temperaturaDe(historial: Array<{clave: string; t: number; calidad: number}>, ventanaMs = 120000, ahora: number): Record<string, number>` (por neurona: desviación típica de la calidad de sus señales en la ventana, normalizada a 0–1 con 0.25 → 1; sin historial → 0.5); `estadoDe(temperaturaMedia: number): EstadoVitreo` (≥ 0.6 'fundido', ≥ 0.25 'subenfriado', si no 'vitreo'); `cristalizar(r: Reticula, opc: {confianza?: Record<string, number>; temperatura?: Record<string, number>} = {}): Cristal`. Algoritmo determinista: (1) candidatos = señales medidas (senalesDeReticula) + aristas de `delaunay` sobre `posicionesEstimadas` sin señal medida SOLO si ambos extremos comparten un medio con alcance para esa distancia (lora 15 km, wifi 300 m, ble 50 m; coste 0.8; medio = el compartido de más capacidad); (2) Kruskal por coste (desempate a, b, medio) para garantizar conexión; (3) añadir candidatos que cierren un triángulo con puentes ya elegidos, en orden de coste, mientras ambos extremos estén por debajo de su coordinación objetivo = coordinacionDe(n) ± defecto: +1 si la neurona está 'fundida' (temperatura ≥ 0.6: más redundancia mientras las señales bailan), −1 si su mejor candidato restante cuesta > 0.7 (defecto de coordinación por geometría); mínimo 1. Entre dos neuronas, un solo puente (el medio de menor coste). `estado` = estadoDe(media de temperatura); `huella` = huellaReticula(r) + ':' + número de puentes. Pruebas: 5 neuronas en línea quedan conectadas; un cuadrado con diagonales da triángulos; nadie supera su coordinación objetivo; mismo resultado barajando teselas; una neurona aislada sin puentes no rompe nada; 12 neuronas en posiciones aleatorias fijas NO dan todas la misma coordinación (amorfo, no periódico) pero la media está entre 3 y 5.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012B",
+    "MC1012C",
+    "MC1012D",
+    "MC1012E"
+   ]
+  },
+  {
+   "id": "MR1012B",
+   "titulo": "Routers a nodos: plan de bandas, canales y anchos por enlace sin cables",
+   "archivos": [
+    "src/lib/network/routers-malla/plan-radios.ts",
+    "src/lib/network/routers-malla/__tests__/plan-radios.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa «Bandas por enlace» de §8, PURO. Usa `PERFILES_WIFI` de src/ai/astraura/mesh/camr/regulacion.ts (canales legales y PIRE por región). Exporta `interface RadioRouter {id: string; banda: '2g'|'5g'|'6g'; anchosMhz: number[]}`; `interface RouterMalla {id: string; radios: RadioRouter[]}`; `planRadios(e: {region: string; routers: RouterMalla[]; troncales: Array<[string, string]>; ocupacion?: Record<number, number>}): {troncales: Array<{a: string; b: string; banda: '5g'|'6g'|'2g'; canal: number; anchoMhz: number; pireDbm: number}>; clientes: Array<{router: string; banda: '2g'; canal: number}>; avisos: string[]}`: troncal en 6g si ambos tienen radio 6g, si no 5g, si no 2g (aviso); los troncales que comparten router o que se tocan en el grafo interfieren: coloreado DSatur sobre los canales legales de esa banda, prefiriendo los menos ocupados (`ocupacion` 0–1 por canal) y el ancho mayor que ambos radios soportan y que el número de canales libres permita (80 en 5g si hay ≥ 3 bloques libres, si no 40, si no 20); clientes en 2g canales 1/6/11 alternados por router. Región desconocida → aviso y perfil 'EU'. Pruebas: tres routers en triángulo no repiten canal en troncales; sin 5g usa 2g con aviso; PIRE nunca supera la del perfil.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  },
+  {
+   "id": "MR1012C",
+   "titulo": "Routers a nodos: automodulación de ancho y potencia con histéresis",
+   "archivos": [
+    "src/lib/network/routers-malla/automodulacion.ts",
+    "src/lib/network/routers-malla/__tests__/automodulacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa «Automodulación» de §8, PURO. Exporta `ajustarEnlace(actual: {anchoMhz: number; potenciaDbm: number}, medidas: Array<{snrDb: number; reintentosPct: number}>, limites: {anchosMhz: number[]; pireMaxDbm: number}): {anchoMhz: number; potenciaDbm: number; motivo: string}`: usa la mediana de las últimas 5 medidas; baja un escalón de ancho si snr < 20 dB (80) / 15 (40) o reintentos > 15 %; sube un escalón solo si snr supera el umbral del escalón superior + 5 dB y reintentos < 5 % (histéresis); potencia +2 dBm si snr < 15 y hay margen legal, −2 si snr > 35 (menos interferencia), nunca por encima de pireMaxDbm. Explica en `motivo` («la modulación fina la hace el chip; aquí se ajusta ancho y potencia»). Pruebas de bajar, subir con histéresis, no oscilar con medidas en el borde y límite legal.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  },
+  {
+   "id": "MC1012U",
+   "titulo": "Centinela y resonancias antes de aceptar un archivo por la malla",
+   "archivos": [
+    "src/lib/network/archivos-malla.ts",
+    "src/lib/malla/cristal/centinela-archivos.ts",
+    "src/lib/malla/cristal/__tests__/centinela-archivos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. En centinela-archivos.ts exporta `decidirEntrada(analisis: {nivel, motivos}, resonancia: {decision} | null): {accion: 'aceptar-con-pregunta'|'avisar'|'rechazar'; texto: string}` (peligroso o cuarentena → rechazar; sospechoso o aviso → avisar con los motivos; si no, lo de siempre: preguntar). En src/lib/network/archivos-malla.ts, en el punto donde hoy se pide permiso para aceptar un archivo de otro aparato, analiza con `analizarArchivo` el nombre, el tipo declarado y el primer trozo cuando llega (si el primer trozo aún no llegó, analiza nombre y tipo con `inicio` vacío) y aplica decidirEntrada: rechazar responde con el mensaje de rechazo que ya existe y el motivo; avisar añade el texto al aviso de aceptación. No cambies el protocolo ni los mensajes del canal. Las pruebas existentes de archivos-malla deben seguir en verde; añade las de decidirEntrada.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012M",
+    "MC1012N"
+   ]
+  },
+  {
+   "id": "MC1012Y",
+   "titulo": "Permisos de antenas: un solo flujo honesto por medio",
+   "archivos": [
+    "src/lib/malla/cristal/permisos-antenas.ts",
+    "src/components/malla/permisos-antenas.tsx",
+    "src/lib/malla/cristal/__tests__/permisos-antenas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §7 del contrato. permisos-antenas.ts (puro): `inventarioPorMedio(p: {plataforma: 'web-chromium'|'web-safari'|'web-firefox'|'android-chromium'|'tauri-escritorio'|'tauri-android'; tieneBluetooth: boolean; tieneSerial: boolean; tieneNfc: boolean; tieneGeo: boolean}): Array<{antena: string; disponible: boolean; motivo: string; comoPedir: string | null}>` con la tabla del contrato (lo que no se puede en ese medio lleva su motivo y qué haría falta: «instala la app nativa», «usa Chrome en Android»…). permisos-antenas.tsx ('use client'): detecta la plataforma y las APIs (`'bluetooth' in navigator`, `'serial' in navigator`, `'NDEFReader' in window`, geolocalización, `esAppNativa`), lista cada antena con su estado y un botón «Permitir» que llama a la API del navegador SOLO al pulsarlo (geolocation.getCurrentPosition, bluetooth.requestDevice({acceptAllDevices: true}), serial.requestPort, new NDEFReader().scan()); recuerda lo concedido en localStorage con try/catch. Nunca pide nada solo. Pruebas del inventario puro.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "MC1012F",
+   "MR1012B",
+   "MR1012C",
+   "MC1012Y",
+   "MC1012U"
+  ]
+ }
+}
