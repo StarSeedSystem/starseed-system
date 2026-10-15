@@ -1,7 +1,30 @@
 // Procesos activos del cerebro: normalización de datos de múltiples fuentes a ProcesoActivo[].
 // Módulo puro, sin disco ni red. Contrato: architecture/cerebros-fusion-telepatia.md §7.
 
-import { type ProcesoActivo, type TipoProceso, type EstadoProceso } from "./procesos";
+export type TipoProceso =
+  | "genesis"
+  | "poligenesis"
+  | "sueno"
+  | "imaginacion"
+  | "descarga"
+  | "instalacion"
+  | "actualizacion"
+  | "app-fondo"
+  | "servicio";
+
+export type EstadoProceso = "en-marcha" | "esperando" | "pausado" | "fallando";
+
+export interface ProcesoActivo {
+  id: string;
+  tipo: TipoProceso;
+  nombre: string;
+  estado: EstadoProceso;
+  progreso: number | null; // 0..1; null = sin medida
+  donde: string;
+  desde: number | null;
+  detalle?: string;
+  fuente: string;
+}
 
 export interface ProcesoFuera {
   id: string;
