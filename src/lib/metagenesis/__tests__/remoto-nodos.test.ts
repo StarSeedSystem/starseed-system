@@ -199,13 +199,7 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
     });
 });
-<<<<<<< HEAD
-=======
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 77fe31f5 (salvavidas · RTRTRTCOL1012Bdsbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
 describe("textoEstadoOrden", () => {
     it("cada estado mapea al texto correcto", () => {
         const estados = {
@@ -228,4 +222,3 @@ describe("textoEstadoOrden", () => {
         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
     });
 });
->>>>>>> 7cc919ca (salvavidas · RTRTRTCOL1012Bdsbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
