@@ -76,6 +76,13 @@ describe("fichasProtomolecula", () => {
     expect(f.versionDisponible).toBeUndefined();
   });
 
+  it("la licencia de versiones tiene precedencia sobre la del catálogo", () => {
+    const catalogo = [herramienta({ id: "completa", categoria: "ia-generativa", licencia: "GPL-3.0", web: "https://ejemplo.com" })];
+    const [f] = fichasProtomolecula({ completa: { version: "2.0.0", licencia: "Apache-2.0" } }, catalogo);
+    expect(f.licencia).toBe("Apache-2.0");
+    expect(f.enlaces.web).toBe("https://ejemplo.com");
+  });
+
   it("herramienta sin repositorio sale sin enlace de repo (nada que comprobar)", () => {
     const catalogo = [herramienta({ id: "estandar", categoria: "conversion-formatos", codigo: null })];
     const [f] = fichasProtomolecula({}, catalogo);
@@ -121,5 +128,24 @@ describe("fichasProtomolecula", () => {
     expect(fichas.map((f) => f.id)).toEqual(["imagen", "recurso"]);
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
+  it("convierte un átomo registrado en una ficha de biblioteca (adaptado)", () => {
+    const atomo = atomo("test-tool", "imagen", { nombre: "Herramienta de Prueba" });
+    registrarAtomo(atomo);
+    
+    const resultado = fichasProtomolecula();
+    
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].id).toBe("test-tool");
+    expect(resultado[0].nombre).toBe("Herramienta de Prueba");
+    expect(resultado[0].categoria).toBe("imagen"); // group id for categoria "imagen" is "imagen"
+    expect(resultado[0].categoriaEtiqueta).toBe("Imagen");
+    expect(resultado[0].descripcion).toBe("Átomo integrado de Herramienta de Prueba.");
+    expect(resultado[0].licencia).toBe("desconocida");
+    expect(resultado[0].enlaces.web).toBeUndefined();
+    expect(resultado[0].enlaces.repo).toBeUndefined();
+    expect(resultado[0].integracion).toBe("libreria-js");
+    expect(resultado[0].controlReal).toBe("total");
+    expect(resultado[0].estado).toBe("integrada");
+    expect(resultado[0].proximamente).toBeUndefined();
   });
 });
