@@ -76,6 +76,13 @@ describe("fichasProtomolecula", () => {
     expect(f.versionDisponible).toBeUndefined();
   });
 
+  it("la licencia de versiones tiene precedencia sobre la del catálogo", () => {
+    const catalogo = [herramienta({ id: "completa", categoria: "ia-generativa", licencia: "GPL-3.0", web: "https://ejemplo.com" })];
+    const [f] = fichasProtomolecula({ completa: { version: "2.0.0", licencia: "Apache-2.0" } }, catalogo);
+    expect(f.licencia).toBe("Apache-2.0");
+    expect(f.enlaces.web).toBe("https://ejemplo.com");
+  });
+
   it("herramienta sin repositorio sale sin enlace de repo (nada que comprobar)", () => {
     const catalogo = [herramienta({ id: "estandar", categoria: "conversion-formatos", codigo: null })];
     const [f] = fichasProtomolecula({}, catalogo);
