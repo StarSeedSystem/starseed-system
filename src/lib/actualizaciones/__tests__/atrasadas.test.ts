@@ -4,6 +4,7 @@ import type { CapaActualizacion } from "../manifiesto";
 
 describe("neuronasAtrasadas", () => {
 <<<<<<< HEAD
+<<<<<<< HEAD
   const dummyCapas: CapaActualizacion[] = ["datos", "interfaz", "sw", "servicios", "modelos", "nativa"];
   const dummyUltima: Record<CapaActualizacion, string> = {
     datos: "2026.10.10",
@@ -229,6 +230,9 @@ describe("neuronasAtrasadas", () => {
     // Además, dentro de cada grupo de 6, el orden debe ser el de CAPAS_ORDEN
     // Pero como estamos iterando en el mismo orden en el bucle, ya debería estar.
   });
+=======
+  // Tests will be added here
+>>>>>>> e28035a7 (salvavidas · S1010-ACT5: trabajo del agente antes de las puertas (tsc / vitest))
 =======
   // Tests will be added here
 >>>>>>> e28035a7 (salvavidas · S1010-ACT5: trabajo del agente antes de las puertas (tsc / vitest))
