@@ -14,11 +14,11 @@ import type {
 import { crearTesela } from "../teselas";
 
 describe("temperaturaDe", () => {
-  it("should return empty record for empty historial", () => {
-    const historial: Array<{clave: string; t: number; calidad: number}> = [];
-    const result = temperaturaDe(historial);
-    expect(result).toEqual({});
-  });
+    it("should return empty record for empty historial", () => {
+      const historial: Array<{clave: string; t: number; calidad: number}> = [];
+      const result = temperaturaDe(historial, 120000, 0);
+      expect(result).toEqual({});
+    });
 
   it("should compute temperature for a single neuron with constant calidad", () => {
     const ahora = 1000;
@@ -36,10 +36,9 @@ describe("temperaturaDe", () => {
     const ahora = 1000;
     const historial: Array<{clave: string; t: number; calidad: number}> = [
       { clave: "neurona1", t: 0, calidad: 0.0 },
-      { clave: "neurona1", t: 500, calidad: 1.0 },
-      { clave: "neurona1", t: 1000, calidad: 0.0 },
+      { clave: "neurona1", t: 1000, calidad: 1.0 },
     ];
-    // mean = 0.5, variance = ((0-0.5)^2 + (1-0.5)^2 + (0-0.5)^2)/3 = (0.25+0.25+0.25)/3 = 0.25, std = 0.5
+    // mean = 0.5, variance = ((0-0.5)^2 + (1-0.5)^2)/2 = (0.25+0.25)/2 = 0.25, std = 0.5
     // temperature = std * 2 = 1.0
     const result = temperaturaDe(historial, 120000, ahora);
     expect(result.neurona1).toBeCloseTo(1.0);

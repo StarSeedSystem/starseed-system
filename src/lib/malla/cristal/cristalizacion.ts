@@ -303,12 +303,18 @@ function costeSenal(s: SenalMedida): number {
 }
 
 function alcanceMedio(m: Medio): number | null {
-  const alcance: Record<Medio, number> = {
+  const alcance: Record<Medio, number | null> = {
     lora: 15000,
     'wifi-lan': 300,
     ble: 50,
+    webrtc: null,
+    'wifi-mesh': null,
+    reticulum: null,
+    serie: null,
+    servidor: null,
+    nfc: null,
   };
-  return alcance[m] ?? null;
+  return alcance[m];
 }
 
 function capacidadMedio(m: Medio): number {
