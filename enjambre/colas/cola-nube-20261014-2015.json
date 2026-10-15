@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "CB1013Rb",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: modelo puro con herencia (cerebro, memoria, carpeta)",
+   "archivos": [
+    "src/lib/cerebros/ajustes.ts",
+    "src/lib/cerebros/__tests__/ajustes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO. Exporta los tipos EXACTOS de §8 (`Capacidad`, `AjustesObjetivo`, `AjustesCerebro`), `CAPACIDADES` con etiqueta en español, `AJUSTES_POR_DEFECTO` (privacidad según la pestaña: 'privado' para account/profile, 'grupo' para group/page; cifradoLocal false; capacidades 'auto'; almacenamiento []; sync { direccion: 'ambas', auto: true, destinos: [] }; acceso []), `leerAjustes(cerebro: { scope?: string | null; config?: Record<string, unknown> | null }): AjustesCerebro` (defensivo con `config.ajustes`), `conAjustes(config, objetivo: { tipo: 'cerebro' } | { tipo: 'memoria' | 'carpeta'; id: string }, parcial: Partial<AjustesObjetivo>): Record<string, unknown>` (devuelve config NUEVO; en memorias y carpetas guarda SOLO lo que difiere del cerebro), `ajustesEfectivos(a: AjustesCerebro, objetivo)` (lo de la memoria o carpeta pisa lo del cerebro, campo a campo) y `APLICACION: Record<'medios.almacenamiento' | 'privacidad' | 'acceso' | 'cifradoLocal' | 'sync' | 'medios.capacidades', 'se-aplica' | 'solo-se-guarda'>` con lo que dice §8 (almacenamiento y privacidad del cerebro 'se-aplica'; acceso por memoria/carpeta y cifrado 'solo-se-guarda'; capacidades 'solo-se-guarda' hasta que el orquestador las lea). Pruebas de herencia, de que no se guardan copias iguales y de datos rotos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261014-110841-CB1013R`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261014-110841-CB1013R:refs/remotes/origin/nube/a1-20261014-110841-CB1013R\"` y `git cherry-pick --no-commit 2f2efac9b02b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/cerebros/__tests__/ajustes.test.ts, src/lib/cerebros/ajustes.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261014-110841-CB1013R"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "CB1013Rb"
+  ]
+ }
+}
