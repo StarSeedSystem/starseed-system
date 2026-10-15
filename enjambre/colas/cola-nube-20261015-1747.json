@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "VZF1015A",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Oído · registro y elector de motores (Phonon-2, Parakeet v3, VibeASR, Whisper web, navegador)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/motores-oido.ts",
+    "src/lib/aurora/stt-oss/__tests__/motores-oido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy no hay registro de motores de oído: Aurora solo usa `SpeechRecognition` del navegador. Crea un módulo PURO (sin DOM ni fetch): tipo `MotorOido` = { id: 'phonon-2'|'parakeet-v3'|'vibeasr-158'|'whisper-web'|'navegador'|'malla', idiomas: string[] ('*' = todos los de Parakeet), tipo: 'navegador'|'local'|'endpoint'|'malla', flujo: boolean, licencia, atribucion?, tamanoMB? }, el catálogo `MOTORES_OIDO` con los datos del §1 del contrato (Phonon-2: idiomas ['en'] más 'es' como «aceptable», flujo true, CC-BY-4.0, 164 MB; Parakeet v3: los 25 idiomas, CC-BY-4.0; VibeASR; Whisper web: es, en, ca, fr, de, pt, it; navegador: cualquiera) y `elegirOido({ idioma, disponibles, medidas, fase: 'parcial'|'final', preferido? })` que aplica las reglas del §3: en fase «parcial» el de menor latencia medida con `flujo`; en «final» el más preciso para ese idioma (medido el 2026-10-15 en el A1: Parakeet v3 int8 acierta mejor el español y va a 11× tiempo real en CPU; Phonon-2 va a 7× por HTTP, pesa 164 MB y en Apple silicon es mucho más rápido). Español y otros → parakeet-v3 si está, si no vibeasr-158, si no phonon-2, si no whisper-web; inglés → el de menor tiempo real medido entre phonon-2 y parakeet-v3 (sin medidas: phonon-2 en Apple silicon y en neuronas con poco disco, parakeet-v3 en CPU con disco); sin ninguno → 'navegador' (el suelo, nunca null). Un `preferido` disponible manda. Devuelve también `motivo` legible. Pruebas: los casos de cada regla y el suelo. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015B",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Oído · cliente OpenAI-compatible `/v1/audio/transcriptions` (Phonon, Parakeet, cualquier servidor)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/oido-openai.ts",
+    "src/lib/aurora/stt-oss/__tests__/oido-openai.test.ts"
+   ],
+   "depende": [],
+   "prompt": "No existe cliente de `/v1/audio/transcriptions`. Crea `transcribirOpenAI(audio: Blob, { base, modelo, idioma?, hotwords?: string[], claveBearer?, timeoutMs = 20000, fetchImpl = fetch })` → `{ ok: true, texto, idioma?, motor, ms } | { ok: false, motivo }`. Multipart con `file` y `model` (forma Whisper; `language` si hay idioma; los hotwords van en `prompt` unidos por coma). Nunca lanza; error HTTP o tiempo agotado → `ok:false` con motivo corto (sin la URL ni la clave en el motivo). Añade `urlOidoLocal(motor)` que da la base de los servidores locales del demonio: phonon-2 → `/api/voz-local/oido/phonon`, parakeet-v3 → `/api/voz-local/oido/parakeet`. Pruebas con un `fetchImpl` falso: forma del multipart, idioma, hotwords, error, tiempo agotado. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015C",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Demonio de voz · `/asr` con `motor`, `lang` e `idioma`; proxy a los servidores de oído; y las rutas de clonar (404)",
+   "archivos": [
+    "native/astraura-voice/daemon.mjs",
+    "src/app/api/voz-local/[...ruta]/route.ts"
+   ],
+   "depende": [],
+   "prompt": "En `daemon.mjs`: (1) `handleAsr` acepta `motor` (phonon-2 | parakeet-v3 | vibeasr) y `lang` en el multipart o en el JSON; con motor phonon-2 o parakeet-v3 reenvía el audio (ya normalizado a 16 kHz) a su servidor local (`ASTRAURA_OIDO_PHONON_URL`, por defecto http://127.0.0.1:4470/v1, y `ASTRAURA_OIDO_PARAKEET_URL`, por defecto http://127.0.0.1:4471/v1) por `/audio/transcriptions`; si no responde, cae a VibeASR como hoy; rellena `idioma` cuando el motor lo dé y `motor` con el que contestó. (2) Nuevas rutas `GET /oido/estado` (qué servidores de oído responden) y `POST /oido/phonon` y `/oido/parakeet` (proxy directo). (3) El despachador NO enruta hoy `/clonar`, `/clones` ni `DELETE /clones/<id>` aunque `handleClonar`, `handleListarClones` y `handleBorrarClon` existen (dan 404): enrútalos y añade DELETE a los métodos de CORS. En `route.ts` añade `oido` a la lista blanca de rutas. La prueba existente `src/lib/__tests__/daemon-voz-sintaxis.test.ts` debe seguir en verde (sintaxis del demonio). Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015F",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Biblioteca y capas · fichas de Phonon-2 y Parakeet v3 con su atribución CC-BY-4.0 y su SHA",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "config/capas-astraura.json"
+   ],
+   "depende": [],
+   "prompt": "En `packages.ts`, categoría de voces (hoy no hay ninguna entrada de oído): fichas `kind: \"ai-source\"` de Phonon-2 (github fermionresearch/phonon, huggingface FermionResearch/Phonon-2 y Phonon-2-CoreML, CC-BY-4.0 pesos / Apache-2.0 código) y Parakeet TDT 0.6B v3 (nvidia/parakeet-tdt-0.6b-v3 e istupakov/parakeet-tdt-0.6b-v3-onnx, CC-BY-4.0), cada una con la atribución exacta del §7 del contrato, para qué sirve en la fusión y `comingSoon` con motivo donde el medio no lo corra (web). En `capas-astraura.json` las dos capas de papel «oído» con su SHA256 real: consúltalo en la API de Hugging Face (`https://huggingface.co/api/models/FermionResearch/Phonon-2/tree/main` da el `lfs.oid` de cada archivo); si no puedes obtenerlo, NO inventes uno: deja la capa fuera y dilo en el commit. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015I",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Una sola puerta de voz · `hablar(texto, { contexto, persona, prioridad })` y un único `callar()`",
+   "archivos": [
+    "src/lib/aurora/voz-unica.ts",
+    "src/lib/aurora/__tests__/voz-unica.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy hay cuatro puertas (engine.speak, engine.speakQueued, hablarStarSeed, hablarRito) y `callarRito` no calla a `vozRT`. Crea la puerta única: `hablar(texto, { contexto: 'conversacion'|'aviso'|'ventana'|'guia'|'rito'|'lectura'|'mando'|'llamada', persona?, prioridad? })`. Regla de prioridad del §3: con conversación en vivo (`vozRT().disponible()` y turno abierto) va por `decirRT`; un aviso no corta la conversación (espera al silencio, como mucho 8 s, y si no, se descarta con registro); guía y ritos en cola; el resto por `speakWithConfiguredEngine` (la cadena del registro con su suelo). `callar()` para TODO: vozRT, la cola, el mezclador y el motor local. Inyecta las dependencias (un objeto `motores`) para probar sin audio. Pruebas: prioridad, cola, callar. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015P",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Plática · medidas por neurona y motor (primer sonido, tiempo real del oído y de la voz, correcciones)",
+   "archivos": [
+    "src/lib/aurora/medidas-voz.ts",
+    "src/lib/aurora/__tests__/medidas-voz.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Las medidas viven hoy por navegador en `starseed.voz-rt.medidas.v1`. Crea `anotarMedida({ neurona, motor, tipo: 'primer-sonido'|'tiempo-real-oido'|'tiempo-real-voz'|'correccion', valor })` y `medidasDe(neurona)` → resumen (media móvil y p90 de las últimas 50) que usa `elegirOido`; guarda por neurona (el id de `identidad-dispositivo.ts`) en `starseed.voz.medidas.v2`, migra lo viejo una vez y nunca lanza (try/catch en el almacenamiento). Pruebas. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "VZF1015I",
+   "VZF1015P",
+   "VZF1015A",
+   "VZF1015B",
+   "VZF1015C",
+   "VZF1015F"
+  ]
+ }
+}
