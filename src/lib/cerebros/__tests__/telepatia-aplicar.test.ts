@@ -116,7 +116,7 @@ describe("quitarVinculo", () => {
     vi.mocked(saveBrain).mockResolvedValue(null);
     const result = await quitarVinculo(mockBrain, "vinc-1");
     expect(result).toBeNull();
-  });
+  );
 });
 
 describe("sincronizarAhora", () => {
@@ -256,6 +256,5 @@ describe("sincronizarAhora", () => {
         ultimaSync: expect.any(String),
       })
     );
-  });
+  );
 });
-
