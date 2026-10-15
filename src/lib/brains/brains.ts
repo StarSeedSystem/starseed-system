@@ -273,7 +273,7 @@ export function generationServiceById(id: string): GenerationService | undefined
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-async function uid(): Promise<string | null> {
+export async function uid(): Promise<string | null> {
   try {
     const sb = createClient();
     const { data } = await sb.auth.getUser();
