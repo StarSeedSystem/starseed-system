@@ -15,7 +15,7 @@ import {
 describe("conectores (lógica pura)", () => {
   describe("reunirConectores", () => {
     it("une todos los tipos de conectores", () => {
-      const f = {
+      const f: Parameters<typeof reunirConectores>[0] = {
         conectores: [
           { id: "github", name: "GitHub", status: "connected" },
           { id: "google", name: "Google", status: "needs-auth" },
@@ -142,7 +142,7 @@ describe("conectores (lógica pura)", () => {
     });
 
     it("ordena correctamente por estado y luego por nombre", () => {
-      const f = {
+      const f: Parameters<typeof reunirConectores>[0] = {
         conectores: [
           { id: "z", name: "Zeta", status: "available" },
           { id: "a", name: "Alpha", status: "connected" },
