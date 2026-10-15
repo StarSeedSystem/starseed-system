@@ -528,12 +528,34 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
         # reparto (`repartir-a-nube.py --ceder`): sueltas + cadenas ENTERAS. Aquí solo se miraban
         # las sueltas («que nadie espera»): el botón contaba 0 elegibles, decidía 0 jobs y el
         # reparto, que sí cede cadenas, nunca llegaba a correr.
+        listas_mac = [str(t) for t in (estado_mac or {}).get("listas") or []]
+        tope_mac = estado_mac.get("tope") or 0
         cedibles, lote = [], set()
         if ceder and tanda and estado_mac:
             cedibles, lote = RN.cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas)
+            # Build tareas_tanda and esperadas_por for the tanda
+            tareas_tanda = {}
+            for _nombre, ts in colas or []:
+                for t in ts or []:
+                    if isinstance(t, dict) and t.get("id") and str(t["id"]) in tanda:
+                        tareas_tanda.setdefault(str(t["id"]), t)
+            esperadas_por = {}
+            for tid, t in tareas_tanda.items():
+                deps = t.get("depende") or t.get("depende_de") or []
+                for d in (deps if isinstance(deps, list) else [deps]):
+                    if d:
+                        esperadas_por.setdefault(str(d), set()).add(tid)
+            # Compute chains lent: chains that have at least one task not in ajenas
+            cadenas = RN.cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por)
+            num_cadenas_lentadas = 0
+            for cadena in cadenas:
+                if any(task not in ajenas for task in cadena):
+                    num_cadenas_lentadas += 1
+        else:
+            num_cadenas_lentadas = 0
         listas_en_tanda = [t for t in (estado_mac or {}).get("listas") or [] if t in tanda and t not in ajenas]
         salida["mac"] = {"tanda": len(tanda), "cedibles": cedibles, "prestadas": sorted(ajenas),
-                         "en_cadenas": len(lote),
+                         "en_cadenas": num_cadenas_lentadas,
                          "se_queda": max(0, len(listas_en_tanda) - len([t for t in cedibles if t in listas_en_tanda]))}
         colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
         salida["clases"] = RN.clasificar(colas, progreso, asuntos, ran.ola_actual(colas), envios, mismo_lote=lote)
