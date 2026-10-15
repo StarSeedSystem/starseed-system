@@ -4430,3 +4430,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+
+## 2026-10-15 18:27 · mg-oracle-1015-1047
+
+**Lo que se pidió.** Motor PixelArtistry del taller: malla cerrada y low-poly horneado por la API de ComfyUI
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (COL1012M, RTWT1011Ac, RTBOT1011Gd, MGP1014-561AD5b). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `COL1012M` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTWT1011Ac` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTBOT1011Gd` — otra cosa: ningún proveedor respondió (todos caídos)
+- `MGP1014-561AD5b` — otra cosa: ningún proveedor respondió (todos caídos)
