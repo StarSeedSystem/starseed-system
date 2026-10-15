@@ -104,6 +104,7 @@ function queFalta(plan: PlanAvatar): string {
   return necesita ?? paso.motivo;
 }
 
+<<<<<<< HEAD
 // ─── Conexión con el registro de neuronas que ya existe ──────────────────────
 
 /** Lo que el registro (`neuron_devices.capabilities`, ver `src/lib/neurons/neurons.ts`) mide de verdad. */
@@ -164,6 +165,8 @@ export function neuronaTallerDeLatido(
   };
 }
 
+=======
+>>>>>>> da763949 (salvavidas · G3D1011D: trabajo del agente antes de las puertas (tsc / vitest))
 /** «propia» si es de la cuenta; «ofrecida» si la ofreció un grupo o comunidad de quien encarga; si no, null. */
 export function vinculo(n: NeuronaTaller, e: EncargoTaller): "propia" | "ofrecida" | null {
   if (e.cuenta && n.cuenta === e.cuenta) return "propia";

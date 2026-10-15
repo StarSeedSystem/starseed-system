@@ -3,8 +3,12 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+<<<<<<< HEAD
   analizarCapacidades, capacidadesDeRegistro, capacidadesParaRegistro, elegirNeurona, fidelidadDelPlan,
   hierroDeCapacidades, neuronaTallerDeLatido, planParaNeurona,
+=======
+  capacidadesDeRegistro, capacidadesParaRegistro, elegirNeurona, fidelidadDelPlan, planParaNeurona,
+>>>>>>> da763949 (salvavidas · G3D1011D: trabajo del agente antes de las puertas (tsc / vitest))
   vinculo, type EncargoTaller, type NeuronaTaller,
 } from "../reparto-taller";
 import type { Hierro } from "../../adn/optimizacion";
@@ -145,6 +149,7 @@ describe("planParaNeurona", () => {
     expect(planParaNeurona(neurona("muda", null), ENCARGO_AVATAR)).toBeNull();
   });
 });
+<<<<<<< HEAD
 
 describe("conexión con el registro que ya existe", () => {
   it("hierroDeCapacidades no inventa: solo NVIDIA/Apple de la sonda, VRAM y Blender sin medir", () => {
@@ -170,3 +175,5 @@ describe("conexión con el registro que ya existe", () => {
     expect(neuronaTallerDeLatido({ nodo: "muda-01" })).toBeNull();
   });
 });
+=======
+>>>>>>> da763949 (salvavidas · G3D1011D: trabajo del agente antes de las puertas (tsc / vitest))
