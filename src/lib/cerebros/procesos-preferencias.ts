@@ -19,9 +19,9 @@ export interface PreferenciasProcesos {
   ocultos: string[];
 }
 
-const CLAVE = "starseed.cerebros.procesos.v1" as const;
-// starseed.cerebros. no está en SYNCED_PREFIXES de src/lib/settings-sync.ts;
-// usamos esta clave para preferencias de procesos del cerebro
+// El prefijo `starseed.cerebros.` NO está en SYNCED_PREFIXES de src/lib/settings-sync.ts;
+// se usa `starseed.brain.` (sí sincronizado) para que la clave viaje con la cuenta.
+const CLAVE = "starseed.brain.procesos.v1" as const;
 
 /** normaliza intervalos (5-120) y umbrales (1-100) y aplica defaults */
 export function normalizarPreferencias(raw: unknown): PreferenciasProcesos {
