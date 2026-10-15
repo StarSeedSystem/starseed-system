@@ -92,7 +92,7 @@ export function validarEncargo(x: unknown): {
 
   // Validar ambito
   const ambitosValidos: Ambito[] = ["personal", "perfil", "grupo", "publica"];
-  if (!ambitosValidos.includes(encargo.ambito)) {
+  if (!ambitosValidos.includes(encargo.ambito as Ambito)) {
     return {
       ok: false,
       errores: [`ambito inválido: ${encargo.ambito}`],
@@ -119,7 +119,7 @@ export function validarEncargo(x: unknown): {
 
   // Validar origen
   const origenesValidos = ["texto", "dictado", "agente"];
-  if (!origenesValidos.includes(encargo.origen)) {
+  if (!origenesValidos.includes(encargo.origen as string)) {
     return {
       ok: false,
       errores: [`origen inválido: ${encargo.origen}`],
