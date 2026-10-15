@@ -4333,6 +4333,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `S1010-TU-LL2c` — los tipos no compilan: 9 errores tsc (rama ola/S1010-TU-LL2c conservada)
 - `PM1010F0Ec` — los tipos no compilan: 4 errores tsc (rama ola/PM1010F0Ec conservada)
 
+<<<<<<< HEAD
 ## 2026-10-13 01:20 · mg-oracle-1012-1741
 
 **Lo que se pidió.** Biblioteca por categorías: una ficha por herramienta con licencia, enlaces, versión y estado real
@@ -4344,6 +4345,8 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
 - `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
 
+=======
+>>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
 ## 2026-10-13 03:50 · mg-oracle-1012-2102
 
 **Lo que se pidió.** diamante en esencia de conciencia
@@ -4352,6 +4355,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
 - nvidia/nvidia/nemotron-3-super-120b-a12b integró 2 tareas sin fallar una.
+<<<<<<< HEAD
 
 ## 2026-10-13 15:06 · mg-oracle-1013-0708
 
@@ -4439,3 +4443,5 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+=======
+>>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
