@@ -141,7 +141,7 @@ function desdeLatidos(r: unknown): ProcesoActivo[] {
         const obj = latido as Record<string, unknown>;
 
         const id = (obj.tarea as string) || (obj.id as string) || "sin-tarea";
-        const tipo = (obj.modelo ? "genesis" : "servicio") as TipoProceso;
+        const tipo = (obj.modelo && obj.fase === "en-marcha" ? "genesis" : "servicio") as TipoProceso;
         const nombre = (obj.tarea as string) || (obj.modelo as string) || "Tarea en latido";
         const estado = (obj.fase as EstadoProceso) || "en-marcha";
         const donde = (obj.modelo as string) || (obj.tarea as string) || "mac";
@@ -335,7 +335,7 @@ function desdeInstalaciones(r: unknown): ProcesoActivo[] {
         const id = (obj.id as string) || (obj.instalacion_id as string) || "sin-id";
         const tipo = (obj.estado === "pedida" ? "descarga" : "instalacion") as TipoProceso;
         const nombre = (obj.nombre as string) || (obj.descripcion as string) || "Instalación";
-        const estado = (obj.estado as EstadoProceso) || (obj.estado === "pedida" ? "esperando" : "en-marcha");
+        const estado = obj.estado === "pedida" ? "esperando" : (obj.estado === "descargada" ? "en-marcha" : (obj.estado as EstadoProceso) || "en-marcha");
         const donde = (obj.aplicacion as string) || (obj.servidor as string) || "mac";
         const desde = (obj.creado_en ? new Date(obj.creado_en as string).getTime() : null);
         const detalle = (obj.estado as string) + " - " + (obj.descripcion as string || "");
@@ -414,7 +414,7 @@ function desdeVentanas(r: unknown): ProcesoActivo[] {
         const estado = (obj.minimizada ? "pausado" : "en-marcha") as EstadoProceso;
         const donde = (obj.aplicacion as string) || (obj.servidor as string) || "mac";
         const desde = (obj.minimizada_desde ? new Date(obj.minimizada_desde as string).getTime() : null);
-        const detalle = (obj.minimizada ? "Minimizada" : "En primer plano");
+        const detalle = obj.minimizada ? "Minimizada" : undefined;
 
         resultados.push({
           id,
