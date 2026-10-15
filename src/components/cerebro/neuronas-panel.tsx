@@ -658,7 +658,7 @@ function NeuronCard({
               title={r.hint}
               onClick={() => patchSettings({ role: r.id })}
               className={cn(
-                "px-3 py-1.5 text-xs transition-colors cursor-pointer",
+                "px-3 py-1.5 text-xs transition-colors cursor-pointer whitespace-normal",
                 (settings.role ?? "ambos") === r.id
                   ? "bg-emerald-500/20 text-emerald-100"
                   : "text-white/55 hover:bg-white/5",
