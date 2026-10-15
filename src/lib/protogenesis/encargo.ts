@@ -99,6 +99,11 @@ export function validarEncargo(x: unknown): {
     };
   }
 
+  // Validar intencion
+  if (typeof encargo.intencion !== "string" || encargo.intencion.length > LIMITES.intencion) {
+    return { ok: false, errores: ["intencion inválida o demasiado larga"] };
+  }
+
   // Validar autor
   if (
     typeof encargo.autor !== "object" ||
@@ -107,6 +112,9 @@ export function validarEncargo(x: unknown): {
     !("id" in encargo.autor)
   ) {
     return { ok: false, errores: ["autor debe tener tipo e id"] };
+  }
+  if (encargo.autor.tipo !== "persona" && encargo.autor.tipo !== "agente") {
+    return { ok: false, errores: [`autor tipo inválido: ${encargo.autor.tipo}`] };
   }
 
   // Validar origen
