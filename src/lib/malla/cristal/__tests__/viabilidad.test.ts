@@ -2,7 +2,7 @@
 // Función pura: sin node:* ni Supabase ni window
 
 import { describe, it, expect } from 'vitest'
-import { viabilidad } from './viabilidad.ts'
+import { viabilidad } from '../viabilidad'
 import type { Dato, SenalMedida, Medio, ClaseDato, Prioridad, TipoDato } from '../tipos'
 
 // Helper to create a basic Dato
@@ -38,7 +38,7 @@ function crearSenal(overrides: Partial<SenalMedida> = {}): SenalMedida {
 }
 
 // Helper to create a basic ctx
-function crearCtx(overrides: Partial<{ cuentaDe: (neuronaId: string) => string | null; bateriaPct?: number | null; cifradoE2E: boolean }> = {}): Required<Omit<typeof crearCtx, 'cuentaDe'>> & { cuentaDe: (neuronaId: string) => string | null } {
+function crearCtx(overrides: Partial<{ cuentaDe: (neuronaId: string) => string | null; bateriaPct?: number | null; cifradoE2E: boolean }> = {}): { cuentaDe: (neuronaId: string) => string | null; bateriaPct?: number | null; cifradoE2E: boolean } {
   const cuentaDeDefault = (neuronaId: string) => {
     if (neuronaId === 'neurona1' || neuronaId === 'neurona2') return 'cuentaA'
     return null
