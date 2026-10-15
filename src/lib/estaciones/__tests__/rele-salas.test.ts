@@ -33,33 +33,21 @@ describe('crearSalas', () => {
     const salas = crearSalas({ maxSalas: 2, maxPorSala: 100, maxBytes: 100 });
     // Llenar hasta el límite
     for (let i = 0; i < 2; i++) {
-<<<<<<< HEAD
       const tema = `estacion-vivo:Tema${i}12345678`;
-=======
-      const tema = `estacion-vivo:Tema${i}`;
->>>>>>> e698bffc (salvavidas · S1010-EV-ORACLE-1a: trabajo del agente antes de las puertas (tsc / vitest))
       const conexion = {};
       const result = salas.entrar(tema, conexion);
       expect(result.ok).toBe(true);
     }
     // Intentar agregar una nueva sala
     const conexionNueva = {};
-<<<<<<< HEAD
     const result = salas.entrar('estacion-vivo:TemaNuevo12345678', conexionNueva);
-=======
-    const result = salas.entrar('estacion-vivo:TemaNuevo', conexionNueva);
->>>>>>> e698bffc (salvavidas · S1010-EV-ORACLE-1a: trabajo del agente antes de las puertas (tsc / vitest))
     expect(result.ok).toBe(false);
     expect(result.motivo).toBe('Límite de salas alcanzado');
   });
 
   it('debería alcanzar límite de conexiones por sala', () => {
     const salas = crearSalas({ maxSalas: 100, maxPorSala: 2, maxBytes: 100 });
-<<<<<<< HEAD
     const tema = 'estacion-vivo:Tema112345678';
-=======
-    const tema = 'estacion-vipo:Tema1';
->>>>>>> e698bffc (salvavidas · S1010-EV-ORACLE-1a: trabajo del agente antes de las puertas (tsc / vitest))
     // Llenar la sala hasta el límite
     for (let i = 0; i < 2; i++) {
       const conexion = {};
@@ -75,11 +63,7 @@ describe('crearSalas', () => {
 
   it('debería salir correctamente', () => {
     const salas = crearSalas();
-<<<<<<< HEAD
     const tema = 'estacion-p:Tema12345678';
-=======
-    const tema = 'estacion-p:Tema1';
->>>>>>> e698bffc (salvavidas · S1010-EV-ORACLE-1a: trabajo del agente antes de las puertas (tsc / vitest))
     const conexion1 = {};
     const conexion2 = {};
     salas.entrar(tema, conexion1);
@@ -95,11 +79,7 @@ describe('crearSalas', () => {
 
   it('debería no reenviar al emisor en difundir', () => {
     const salas = crearSalas({ maxSalas: 100, maxPorSala: 100, maxBytes: 100 });
-<<<<<<< HEAD
     const tema = 'estacion-vivo:Tema112345678';
-=======
-    const tema = 'estacion-vivo:Tema1';
->>>>>>> e698bffc (salvavidas · S1010-EV-ORACLE-1a: trabajo del agente antes de las puertas (tsc / vitest))
     const emisor = {};
     const receptor1 = {};
     const receptor2 = {};
@@ -116,11 +96,7 @@ describe('crearSalas', () => {
 
   it('debería descartar texto no string en difundir', () => {
     const salas = crearSalas();
-<<<<<<< HEAD
     const tema = 'estacion-vivo:Tema112345678';
-=======
-    const tema = 'estacion-vivo:Tema1';
->>>>>>> e698bffc (salvavidas · S1010-EV-ORACLE-1a: trabajo del agente antes de las puertas (tsc / vitest))
     const conexion = {};
     salas.entrar(tema, conexion);
     // Número
