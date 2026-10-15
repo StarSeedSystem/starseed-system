@@ -7,9 +7,9 @@ import {
   formaCorta,
   desdeFormaCorta,
 } from "../sesion-sincronia";
-import type { Operacion, Cambio, Accion, Autor, ParametroRef } from "./tipos";
+import type { Operacion, Cambio, Accion, Autor, ParametroRef } from "../tipos";
 import type { ElementoSala } from "@/lib/salas/sincronia-sala";
-import type { Molecula } from "./tipos";
+import type { Molecula } from "../tipos";
 
 const autor: Autor = { tipo: "persona", id: "usuario1" };
 const ref: ParametroRef = { atomoId: "ato1", parametroId: "volumen" };
@@ -136,7 +136,7 @@ it("codifica y decodifica operación exacta con número", () => {
   if (reconstructo) {
     expect(reconstructo.objetivo).toEqual(ref);
     expect(reconstructo.accion.tipo).toBe("exacta");
-    expect(reconstructo.accion.valor).toBe(42.5);
+    expect((reconstructo.accion as { tipo: "exacta"; valor: 42.5 }).valor).toBe(42.5);
   }
 });
 
@@ -154,7 +154,7 @@ it("codifica y decodifica operación exacta con número", () => {
     const reconstructo = desdeFormaCorta(corta);
     expect(reconstructo).not.toBeNull();
     if (reconstructo) {
-      expect(reconstructo.accion.valor).toBe(true);
+      expect((reconstructo.accion as { tipo: "exacta"; valor: true }).valor).toBe(true);
     }
   });
 
@@ -173,8 +173,8 @@ it("codifica y decodifica operación exacta con número", () => {
     expect(reconstructo).not.toBeNull();
     if (reconstructo) {
       expect(reconstructo.accion.tipo).toBe("relativa");
-      expect(reconstructo.accion.cantidad).toBe(-5.5);
-      expect(reconstructo.accion.modo).toBe("delta");
+      expect((reconstructo.accion as { tipo: "relativa"; cantidad: -5.5; modo: "delta" }).cantidad).toBe(-5.5);
+      expect((reconstructo.accion as { tipo: "relativa"; cantidad: -5.5; modo: "delta" }).modo).toBe("delta");
     }
   });
 
