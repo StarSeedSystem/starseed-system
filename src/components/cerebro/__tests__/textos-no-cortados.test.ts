@@ -110,8 +110,8 @@ describe("Guardia: textos no cortados en botones", () => {
       }
     }
 
-    if (errors.length > 0) {
-      fail(errors.join("\n\n"));
-    }
+     if (errors.length > 0) {
+       expect.fail(errors.join("\n\n"));
+     }
   });
 });
