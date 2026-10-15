@@ -16,7 +16,7 @@ export type Criterio = {
 };
 
 export type Autor = {
-  tipo: "persona" | "agente" | "sistema";
+  tipo: "persona" | "agente";
   id: string;
 };
 
