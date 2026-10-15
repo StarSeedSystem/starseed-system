@@ -1,0 +1,161 @@
+import type { Computo } from "./tipos";
+import type { Ambito } from "@/lib/nucleo/alcance-memoria";
+
+export interface Candidato {
+  tipo: Computo;
+  neuronaId?: string;
+  libreMB: number;
+  gpu: boolean;
+  consentimiento: boolean;
+  cuentaPropia: boolean;
+  ocupacion: number;
+}
+
+export function elegirComputo(
+  req: { memoriaMB: number; gpu: boolean; latenciaCritica: boolean; ambito: Ambito; pesado: boolean },
+  candidatos: Candidato[]
+): { destino: Computo; neuronaId?: string; motivos: string[] } {
+  const motivos: string[] = [];
+  let filtrados = [...candidatos];
+
+  // Regla 1: Ámbito
+  if (req.ambito === "personal") {
+    filtrados = filtrados.filter(c => c.cuentaPropia);
+    motivos.push("Ámbito personal: solo neuronas de la misma cuenta");
+  } else {
+    // grupo, perfil, pública: misma cuenta o con consentimiento
+    filtrados = filtrados.filter(c => c.cuentaPropia || c.consentimiento);
+    motivos.push("Ámbito grupal/público: neuronas de la misma cuenta o con consentimiento");
+  }
+
+  if (filtrados.length === 0) {
+    return { destino: "navegador", motivos: [...motivos, "Sin candidatos tras filtro de ámbito"] };
+  }
+
+  // Regla 2: Latencia crítica
+  if (req.latenciaCritica) {
+    const tiposPermitidos = ["navegador", "app-nativa", "neurona-nas", "neurona-procesador"];
+    const antes = filtrados.length;
+    filtrados = filtrados.filter(c => tiposPermitidos.includes(c.tipo));
+    motivos.push(
+      `Latencia crítica: de ${antes} candidatos, ${filtrados.length} permiten mismo aparato o red local`
+    );
+    if (filtrados.length === 0) {
+      return {
+        destino: "navegador",
+        motivos: [...motivos, "Sin candidatos para latencia crítica, usando navegador como fallback"],
+      };
+    }
+  }
+
+  // Regla 3 y 4: Pesado o ligero
+  if (req.pesado) {
+    // Pesado: preferir neurona con GPU/CPU libres y consentimiento
+    const candidatosNeurona = filtrados.filter(
+      c =>
+        (c.tipo === "neurona-nas" || c.tipo === "neurona-procesador") &&
+        c.consentimiento &&
+        (!req.gpu || c.gpu) && // Si requiere GPU, debe tenerla; si no, no importa
+        c.libreMB > 0 // Al menos algún memoria libre
+    );
+
+    if (candidatosNeurona.length > 0) {
+      // Elegir la neurona con menor ocupación (más libre)
+      const mejor = candidatosNeurona.reduce((a, b) =>
+        a.ocupacion < b.ocupacion ? a : b
+      );
+      motivos.push(
+        `Tarea pesada: seleccionada neurona ${mejor.tipo} con ID ${mejor.neuronaId ?? "desconocida"} por menor ocupación (${mejor.ocupacion})`
+      );
+      return {
+        destino: mejor.tipo,
+        neuronaId: mejor.neuronaId,
+        motivos,
+      };
+    }
+
+    // No hay neurona adecuada, intentar nube (solo nube, ya que Oracle A1 es para lo ligero)
+    const candidatosNube = filtrados.filter(
+      c => c.tipo === "nube"
+    );
+    if (candidatosNube.length > 0) {
+      const mejor = candidatosNube.reduce((a, b) =>
+        a.ocupacion < b.ocupacion ? a : b
+      );
+      motivos.push(
+        `Tarea pesada: sin neurona adecuada, usando nube (menor ocupación: ${mejor.ocupacion})`
+      );
+      return {
+        destino: "nube",
+        neuronaId: undefined,
+        motivos,
+      };
+    }
+
+    // Fallback a navegador
+    motivos.push(
+      "Tarea pesada: sin neurona ni nube disponibles, usando navegador como fallback"
+    );
+    return { destino: "navegador", motivos };
+  } else {
+    // Tarea ligera: considerar Oracle A1 y nube
+    // Primero, intentar Oracle A1 (solo para lo ligero y sin GPU)
+    if (!req.gpu) {
+      const candidatosOracle = filtrados.filter(c => c.tipo === "oracle-a1");
+      if (candidatosOracle.length > 0) {
+        const mejor = candidatosOracle.reduce((a, b) =>
+          a.ocupacion < b.ocupacion ? a : b
+        );
+        motivos.push(
+          `Tarea ligera: seleccionado Oracle A1 (menor ocupación: ${mejor.ocupacion})`
+        );
+        return {
+          destino: "oracle-a1",
+          neuronaId: undefined,
+          motivos,
+        };
+      }
+    }
+
+    // Segundo, intentar nube
+    const candidatosNube = filtrados.filter(c => c.tipo === "nube");
+    if (candidatosNube.length > 0) {
+      const mejor = candidatosNube.reduce((a, b) =>
+        a.ocupacion < b.ocupacion ? a : b
+      );
+      motivos.push(
+        `Tarea ligera: seleccionado nube (menor ocupación: ${mejor.ocupacion})`
+      );
+      return {
+        destino: "nube",
+        neuronaId: undefined,
+        motivos,
+      };
+    }
+
+    // Tercero, intentar neuronas (para tareas ligeras también pueden usar neuronas)
+    const candidatosNeurona = filtrados.filter(
+      c =>
+        c.tipo === "neurona-nas" || c.tipo === "neurona-procesador"
+    );
+    if (candidatosNeurona.length > 0) {
+      const mejor = candidatosNeurona.reduce((a, b) =>
+        a.ocupacion < b.ocupacion ? a : b
+      );
+      motivos.push(
+        `Tarea ligera: seleccionada neurona ${mejor.tipo} con ID ${mejor.neuronaId ?? "desconocida"} (menor ocupación: ${mejor.ocupacion})`
+      );
+      return {
+        destino: mejor.tipo,
+        neuronaId: mejor.neuronaId,
+        motivos,
+      };
+    }
+
+    // Fallback a navegador
+    motivos.push(
+      "Tarea ligera: sin opciones óptimas, usando navegador como fallback"
+    );
+    return { destino: "navegador", motivos };
+  }
+}
