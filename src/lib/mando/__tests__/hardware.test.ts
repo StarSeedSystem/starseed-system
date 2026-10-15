@@ -120,6 +120,20 @@ describe("analizarIoreg", () => {
     expect(result.uso).toBeNull();
     expect(result.nombre).toBe("Apple M1 Pro");
   });
+
+  it("should parse ioreg output correctly", () => {
+    const ioregOutput = `
+      +-o Root <class IORegistryRoot, id 0x100000100, retain 11>
+        +-o AppleGPU <class AppleGPU, id 0x100000200, retain 12>
+          {
+            "model" = "Apple M1 Pro"
+            "Device Utilization %" = 42
+          }
+    `;
+    const result = analizarIoreg(ioregOutput);
+    expect(result.uso).toBe(42);
+    expect(result.nombre).toBe("Apple M1 Pro");
+  });
 });
 
 describe("analizarPmset", () => {
