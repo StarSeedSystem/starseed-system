@@ -533,7 +533,7 @@ function NeuronCard({
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer h-7 gap-1.5 text-xs border-cyan-400/25 text-cyan-200 hover:bg-cyan-500/10"
+                className="cursor-pointer h-7 gap-1.5 text-xs border-cyan-400/25 text-cyan-200 hover:bg-cyan-500/10 whitespace-normal h-auto"
                 onClick={() => setRequestOpen((v) => !v)}
               >
                 <FileDown className="w-3.5 h-3.5" /> Solicitar archivo
@@ -543,8 +543,8 @@ function NeuronCard({
                 size="sm"
                 className={
                   isHermesLinked(n.capabilities)
-                    ? "cursor-default h-7 gap-1.5 text-xs text-emerald-300/80"
-                    : "cursor-pointer h-7 gap-1.5 text-xs border-fuchsia-400/30 text-fuchsia-200 hover:bg-fuchsia-500/10"
+                    ? "cursor-default h-7 gap-1.5 text-xs text-emerald-300/80 whitespace-normal h-auto"
+                    : "cursor-pointer h-7 gap-1.5 text-xs border-fuchsia-400/30 text-fuchsia-200 hover:bg-fuchsia-500/10 whitespace-normal h-auto"
                 }
                 disabled={isHermesLinked(n.capabilities)}
                 onClick={async () => {

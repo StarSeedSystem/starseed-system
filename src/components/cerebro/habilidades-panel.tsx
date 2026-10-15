@@ -245,7 +245,7 @@ export default function HabilidadesPanel({
                   <Button
                     size="sm"
                     variant="outline"
-                    className={cn("h-7 gap-1 text-xs shrink-0", isAttached && "opacity-50")}
+                    className={cn("h-7 gap-1 text-xs shrink-0 whitespace-normal h-auto", isAttached && "opacity-50")}
                     disabled={isAttached || busy === key}
                     onClick={() => onAttach(a)}
                   >
