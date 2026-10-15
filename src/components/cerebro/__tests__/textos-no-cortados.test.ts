@@ -27,7 +27,7 @@ describe("textos no cortados en botones", () => {
   it("no usa truncate/line-clamp/whitespace-nowrap en etiquetas de button/Button", () => {
     const files = findFiles();
     const errores: string[] = [];
-    const regexTag = /<(button|Button)([^>]*?)>/gs;
+    const regexTag = /<(button|Button)([^>]*?)>/g;
     for (const file of files) {
       const content = fs.readFileSync(file, "utf-8");
       let m: RegExpExecArray | null;
