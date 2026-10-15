@@ -13,12 +13,12 @@ describe("extraerDirectivas", () => {
 
   it("extrae varias directivas en orden", () => {
     const r = extraerDirectivas(`${navega("/red")} vamos, ${`[[BOT: {"tipo":"notificar","args":{"texto":"hola"}}]]`}`);
-    expect(r.acciones.map((a) => a.tipo)).toEqual(["navegar", "notificar"]);
+    expect(r.acciones).toEqual([{ tipo: "navegar", args: { ruta: "/red" } }, { tipo: "notificar", args: { texto: "hola" } }]);
     expect(r.problemas).toEqual([]);
   });
 
   it("el JSON roto va a problemas y no se ejecuta nada", () => {
-    const r = extraerDirectivas(`Mira ${`[[BOT: {"tipo": navegar}]]`} ¿viste?`);
+    const r = extraerDirectivas(`Mira ${`[[BOT: {"tipo": navigate}]]`} ¿viste?`);
     expect(r.acciones).toEqual([]);
     expect(r.problemas.join(" ")).toContain("JSON está roto");
     expect(r.limpio).toBe("Mira ¿viste?");
@@ -63,5 +63,37 @@ describe("extraerDirectivas", () => {
     const r = extraerDirectivas("Empiezo [[BOT: {\"tipo\":\"navegar\"");
     expect(r.acciones).toEqual([]);
     expect(r.problemas.some((p) => p.includes("sin cierre"))).toBe(true);
+  });
+
+  // Added from cloud branch nube/a1-20261014-142215
+  it("extrae varias directivas BOT de un texto largo", () => {
+    const texto = `[[BOT: {\"tipo\":\"navegar\",\"args\":{\"ruta\":\"/dashboard\"}}]][[BOT: {\"tipo\":\"abrir-app\",\"args\":{\"app\":\"nexus\"}}]]`;
+    const resultado = extraerDirectivas(texto);
+    expect(resultado.acciones).toHaveLength(2);
+    expect(resultado.acciones[0].tipo).toBe("navegar");
+    expect(resultado.acciones[1].tipo).toBe("abrir-app");
+    expect(resultado.problemas).toHaveLength(0);
+  });
+
+  it("rechaza JSON roto y quita el bloque del texto limpio", () => {
+    const texto = `[[BOT: {\"tipo\":\"navegar\",\"args\":{\"ruta\":\"/dashboard\",}}]][[BOT: {\"tipo\":\"navegar\",\"args\":{\"ruta\":\"/cerebro\"}}]]`;
+    const resultado = extraerDirectivas(texto);
+    expect(resultado.acciones).toHaveLength(2);
+    expect(resultado.problemas.length).toBeGreaterThan(0);
+  });
+
+  it("devuelve texto limpio sin bloques extraídos", () => {
+    const texto = `Hola mundo [[BOT: {\"tipo\":\"navegar\",\"args\":{\"ruta\":\"/dashboard\"}}]] Adiós.`;
+    const resultado = extraerDirectivas(texto);
+    expect(resultado.limpio).toBe("Hola mundo Adiós.");
+    expect(resultado.acciones).toHaveLength(1);
+  });
+
+  it("no procesa texto vacío", () => {
+    const texto = "";
+    const resultado = extraerDirectivas(texto);
+    expect(resultado.acciones).toHaveLength(0);
+    expect(resultado.problemas).toHaveLength(0);
+    expect(resultado.limpio).toBe("");
   });
 });
