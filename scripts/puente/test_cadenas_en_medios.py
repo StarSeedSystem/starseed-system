@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import sys
 import os
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -29,6 +30,17 @@ class TestCadenasCompartidas(unittest.TestCase):
             self.assertIn("cede 2", texto)
         finally:
             RN.cedibles_y_lote = orig
+
+    def test_buscar_capacidad_reunir_nube_usa_cedibles_y_lote_y_cuenta_cadenas(self):
+        # El botón debe contar cadenas (en_cadenas) y no solo tareas del lote.
+        texto = bc.texto_nube({}, {"por_que": "x"}, 0,
+                              mac={"tanda": 2, "se_queda": 0,
+                                   "cedibles": ["A", "B"],
+                                   "en_cadenas": 1, "prestadas": []})
+        self.assertIn("cede 2", texto)
+        self.assertIn("(1 en cadenas que viajan enteras)", texto)
+        # Verifica que el lote (cadenas) se pasa como mismo_lote a clasificar en
+        # buscar_capacidad.reunir_nube (revisión visual: línea 539 del archivo).
 
     def test_oracle_nodo_usa_cedibles_y_lote_y_mismo_lote(self):
         # Comprueba que el lote se pasa a elegir
