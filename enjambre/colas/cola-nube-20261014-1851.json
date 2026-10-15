@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "MC1012Hb",
+   "titulo": "Malla cristalina: viabilidad de cada dato por cada señal (privacidad incluida)",
+   "archivos": [
+    "src/lib/malla/cristal/viabilidad.ts",
+    "src/lib/malla/cristal/__tests__/viabilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §3.1 del contrato. Exporta `interface Viabilidad {valor: number; apto: boolean; motivo: string}` y `viabilidad(dato: Dato, s: SenalMedida, ctx: {cuentaDe: (neuronaId: string) => string | null; bateriaPct?: number | null; cifradoE2E: boolean}): Viabilidad`. Vetos (apto false, valor 0, motivo claro en español): 'interno' si alguna punta no es de la misma cuenta que el origen; 'privado' o 'interno' sin cifradoE2E; 'lora' con bytes > 200 × 8 o tipo 'llamada'; 'nfc' con bytes > 32768; 'servidor' para 'privado'/'interno' solo si cifradoE2E (si no, veto). Valor = calidadSenal × factor de prioridad (P0 premia latencia, P3 premia ancho) × 0.6 si el medio es 'servidor' y la clase no es 'publico' × 0.8 si batería < 20 y el medio es de alto consumo (wifi-lan, webrtc). Pruebas por cada veto y orden relativo esperado (un mensaje privado P0 de 120 B prefiere wifi-lan a servidor; uno de 5 MB nunca va por lora).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261014-024024-MC1012H`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261014-024024-MC1012H:refs/remotes/origin/nube/a1-20261014-024024-MC1012H\"` y `git cherry-pick --no-commit a6bbe52ebb5b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/malla/cristal/__tests__/viabilidad.test.ts, src/lib/malla/cristal/viabilidad.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261014-024024-MC1012H",
+   "dependencias_ya_en_main": [
+    "MC1012A",
+    "MC1012E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "MC1012Hb"
+  ]
+ }
+}
