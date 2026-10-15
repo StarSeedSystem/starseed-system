@@ -16,7 +16,7 @@ export interface ConfigMalla {
   };
 }
 
-function htmodePorBandaYAncho(banda: '2g' | '5g' | '6g', anchoMhz: number): string {
+export function htmodePorBandaYAncho(banda: '2g' | '5g' | '6g', anchoMhz: number): string {
   switch (banda) {
     case '2g':
       return 'HT20';
@@ -45,6 +45,7 @@ config wifi-device '${router}-radio0'
     option type 'mac80211'
     option channel '${canal}'
     option hwmode '11${banda === '2g' ? 'g' : 'a'}'
+    option htmode '${htmode}'
     option path '1e140000.pci'
     option country '${region}'
     option txpower '${pireDbm}'
@@ -61,7 +62,7 @@ config wifi-config 'ap-lan'
     option mode 'ap'
     option ssid '${cliente.ssid}'
     option encryption 'sae'
-    option key '${clave.clave}'
+    option key '${cliente.clave}'
     option network 'lan'
   `.trim();
 
@@ -104,6 +105,7 @@ config wifi-device '${router}-radio0'
     option type 'mac80211'
     option channel '${canal}'
     option hwmode '11${banda === '2g' ? 'g' : 'a'}'
+    option htmode '${htmode}'
     option path '1e140000.pci'
     option country '${region}'
     option txpower '${pireDbm}'
@@ -120,7 +122,7 @@ config wifi-config 'ap-lan'
     option mode 'ap'
     option ssid '${cliente.ssid}'
     option encryption 'sae'
-    option key '${clave.clave}'
+    option key '${cliente.clave}'
     option network 'lan'
 WIRELESS_EOF
 
