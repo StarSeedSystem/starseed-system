@@ -13,7 +13,10 @@ import type {
   Sesion,
   Origen,
   Autor,
+  Ambito,
+  Computo,
 } from "./tipos";
+import { elegirComputo, Candidato } from "./planificador-computo";
 import { decidir, decidirOperacion } from "./permisos";
 import { obtenerAtomo, candidatosDe } from "./registro-atomos";
 import { entenderVarias } from "./dictado";
@@ -196,6 +199,21 @@ export function crearControlador(o: {
 
   function insertarAtomo(herramientaId: string, titulo?: string): { ok: true; atomo: AtomoEnUso } {
     const atomo: AtomoEnUso = { id: nuevoId(), herramientaId, titulo, estado: "activo" };
+    
+    // Determinar dónde debe ejecutarse el átomo usando el planificador puro
+    // Valores provisionales - en una implementación real estos vendrían de la definición de la herramienta y el contexto del sistema
+    const req = { 
+      memoriaMB: 512, 
+      gpu: false, 
+      latenciaCritica: false, 
+      ambito: sesionEfectiva.ambito, 
+      pesado: false 
+    };
+    const candidatos: Candidato[] = [];
+    
+    const resultado = elegirComputo(req, candidatos);
+    atomo.ejecutaEn = resultado.destino;
+    
     estado = {
       molecula: { ...estado.molecula, atomos: [...estado.molecula.atomos, atomo], actualizadaEn: ahora(), version: estado.molecula.version + 1 },
       historial: estado.historial,

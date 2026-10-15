@@ -43,14 +43,14 @@ describe("planificador-computo", () => {
     expect(result.motivos).toContain("Ámbito personal: solo neuronas de la misma cuenta");
   });
 
-  it("debe permitir mismo cuenta y consentimiento en ámbito grupal", () => {
-    const req = {
-      memoriaMB: 100,
-      gpu: false,
-      latenciaCritica: false,
-      ambito: "grupo",
-      pesado: false,
-    };
+    it("debe permitir mismo cuenta y consentimiento en ámbito grupal", () => {
+      const req = {
+        memoriaMB: 100,
+        gpu: false,
+        latenciaCritica: false,
+        ambito: "grupo" as Ambito,
+        pesado: false,
+      };
     const candidatos: Candidato[] = [
       { ...candidatoBase, cuentaPropia: false, consentimiento: false }, // no pasa
       { ...candidatoBase, cuentaPropia: true, consentimiento: false }, // pasa por cuentaPropia
