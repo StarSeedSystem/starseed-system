@@ -59,8 +59,8 @@ describe('uciMalla', () => {
     expect(wireless).toContain("network 'bat0_hardif_mesh'");
     expect(wireless).toContain("option mode 'ap'");
     expect(wireless).toContain("ssid 'starseed-ap'");
-    expect(wireless).toContain('country ES');
-    expect(wireless).toContain('txpower 20');
+    expect(wireless).toContain("option country 'ES'");
+    expect(wireless).toContain("txpower '20'");
   });
 
   it('generates network config with bat0 and batadv and BATMAN_V', () => {
@@ -71,7 +71,7 @@ describe('uciMalla', () => {
     expect(network).toContain("option master 'bat0'");
     expect(network).toContain("option type 'bridge'");
     expect(network).toContain("list device 'bat0'");
-    expect(network).toContain('list device lan');
+    expect(network).toContain("list device 'lan'");
   });
 
   it('uses correct htmode for 5g 80MHz', () => {
