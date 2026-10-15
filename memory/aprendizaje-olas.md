@@ -4430,3 +4430,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+
+## 2026-10-15 11:06 · mg-oracle-1015-0313
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTRTRTRTS1010-EV-ORACLE-1abc, COL1012M, CB1013Q, S1010-ACT5c). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTS1010-EV-ORACLE-1abc` — otra cosa: ningún proveedor respondió (todos caídos)
+- `COL1012M` — otra cosa: ningún proveedor respondió (todos caídos)
+- `CB1013Q` — otra cosa: ningún proveedor respondió (todos caídos)
+- `S1010-ACT5c` — otra cosa: ningún proveedor respondió (todos caídos)
