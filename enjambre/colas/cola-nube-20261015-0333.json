@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "CB1013Kb",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: normalizar cada fuente a ProcesoActivo (puro)",
+   "archivos": [
+    "src/lib/cerebros/procesos-normalizar.ts",
+    "src/lib/cerebros/__tests__/procesos-normalizar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO, entradas `unknown` leídas con defensa. Exporta una función por fuente que devuelve `ProcesoActivo[]` (lee los archivos citados para conocer las formas reales): `desdeAgentesMac(r)` (`/api/mando/agentes`: sesiones activas → tipo 'genesis', y procesos tipo agente/orquestador), `desdeLatidos(r)` (`/api/mando/medidores` → `latidos[]`: tarea, fase, modelo, minutos, donde), `desdeNodos(r)` (`leerEstadoAutonomo()`: orquestadores de cada nodo vivo → 'genesis' con donde = nodo), `desdePoligenesis(r)` (operaciones 'propuesta' de `leerHistorial()` y propuestas abiertas → 'poligenesis'), `desdeSuenos(r)` (`/api/mando/suenos` y `fetchAstraura158DreamStatus`), `desdeImaginacion(r)` (`fetchAstraura158ImaginationStatus` y `imagine_runs` en curso), `desdeInstalaciones(r)` (estado 'pedida' → descarga, 'descargada' → instalación; las demás no son activas), `desdeActualizaciones(r)` (capas con versión pendiente), `desdeVentanas(r)` (ventanas minimizadas de `readDesktopsSnapshot()` → 'app-fondo') y `desdePresencia(r)` (neuronas con `visible === false` → 'app-fondo' con donde = la neurona). Cada proceso con `fuente` (la ruta o función de origen) y `progreso` null salvo que la fuente dé uno real. Más `unirProcesos(...listas)` (sin duplicar por id, en marcha primero) y `agruparPorTipo`. Pruebas con muestras de cada forma (incluida una vacía o rota → []).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261015-013156-CB1013K`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261015-013156-CB1013K:refs/remotes/origin/nube/a1-20261015-013156-CB1013K\"` y `git cherry-pick --no-commit 0a2bce73bdd6 736bfa8dd81c e592afd5634e 49da201fff4a 8533dcf367d0 4726c393c890 3b1e21d981d0 b25a9e436f67 786672e58742 6357c46927fd edbc23d01401`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: SOLUTION_SUMMARY.md, src/app/api/mando/agentes/route.ts, src/app/api/mando/procesos/route.ts, src/lib/cerebros/__tests__/procesos-normalizar.test.ts, src/lib/cerebros/procesos-normalizar.ts, src/lib/cerebros/procesos.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261015-013156-CB1013K",
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "CB1013Kb"
+  ]
+ }
+}
