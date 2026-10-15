@@ -53,6 +53,7 @@ import {
 import {
   icons as lucideIcons,
   Brain as BrainIcon,
+  Users,
   Sparkles,
   Plus,
   Loader2,
@@ -105,27 +106,61 @@ export default function CerebroHub() {
   const [memView, setMemView] = useState<MemoryViewId>("lista");
   const [memSub, setMemSub] = useState<MemoryListSub>("archivos");
 
+  // NEW: Current user ID for distinguishing owned and shared brains
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Function to get the current user's ID
+  async function getCurrentUserId(): Promise<string | null> {
+    try {
+      const sb = createClient();
+      const { data } = await sb.auth.getUser();
+      return data?.user?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Effect to set the current user ID on mount
+  useEffect(() => {
+    getCurrentUserId().then(setCurrentUserId);
+  }, []);
+
+  // Compute owned and shared brains
+  const ownedBrains = useMemo(() => {
+    if (!currentUserId) return [];
+    return brains.filter(b => b.owner === currentUserId);
+  }, [brains, currentUserId]);
+
+  const sharedBrains = useMemo(() => {
+    if (!currentUserId) return [];
+    return brains
+      .filter(b => b.owner !== currentUserId && b.owner != null)
+      .map(b => ({ ...b, compartido: true }));
+  }, [brains, currentUserId]);
+
+  const allBrains = useMemo(() => [...ownedBrains, ...sharedBrains], [ownedBrains, sharedBrains]);
+
   // Pestaña inicial: la de la URL, la del cerebro pedido o la que tenga cerebros.
   useEffect(() => {
     if (pestana || loading) return;
     const busqueda = typeof window === "undefined" ? "" : window.location.search;
     const cerebroUrl = new URLSearchParams(busqueda).get("brain");
-    setPestana(pestanaInicial(brains, pestanaDesdeUrl(busqueda), cerebroUrl));
-  }, [brains, loading, pestana]);
+    setPestana(pestanaInicial(allBrains, pestanaDesdeUrl(busqueda), cerebroUrl));
+  }, [allBrains, loading, pestana]);
 
-  const vista: PestanaCerebros = pestana ?? "privados";
-  const cuentas = useMemo(() => cuentaPorPestana(brains), [brains]);
-  const visibles = useMemo(() => cerebrosDePestana(brains, vista), [brains, vista]);
+   const vista: PestanaCerebros = pestana ?? "privados";
+   const cuentas = useMemo(() => cuentaPorPestana(allBrains), [allBrains]);
+   const visibles = useMemo(() => cerebrosDePestana(allBrains, vista), [allBrains, vista]);
 
-  // Selecciona el primer cerebro de la pestaña (y cambia si el activo es de la otra).
-  useEffect(() => {
-    if (!visibles.length) return;
-    if (!activeBrainId || !visibles.some((b) => b.id === activeBrainId)) {
-      const pedido = activeBrainId ? brains.find((b) => b.id === activeBrainId) : undefined;
-      if (pedido && pestana === null) return; // aún se está decidiendo la pestaña del cerebro pedido
-      setActiveBrainId(visibles[0].id);
-    }
-  }, [visibles, activeBrainId, brains, pestana]);
+   // Selecciona el primer cerebro de la pestaña (y cambia si el activo es de la otra).
+   useEffect(() => {
+     if (!visibles.length) return;
+     if (!activeBrainId || !visibles.some((b) => b.id === activeBrainId)) {
+       const pedido = activeBrainId ? allBrains.find((b) => b.id === activeBrainId) : undefined;
+       if (pedido && pestana === null) return; // aún se está decidiendo la pestaña del cerebro pedido
+       setActiveBrainId(visibles[0].id);
+     }
+   }, [visibles, activeBrainId, allBrains, pestana]);
 
   const cambiarPestana = useCallback((v: string) => {
     const nueva: PestanaCerebros = v === "publicos" ? "publicos" : "privados";
@@ -299,23 +334,34 @@ export default function CerebroHub() {
         ) : (
           <>
             <div className="mt-3 flex items-center gap-2 flex-wrap">
-              {visibles.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => setActiveBrainId(b.id)}
-                  aria-pressed={b.id === activeBrainId}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-left text-sm transition-colors",
-                    b.id === activeBrainId
-                      ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
-                      : "border-white/10 text-white/70 hover:bg-white/5",
-                  )}
-                >
-                  {pestanaDeCerebro(b) === "publicos" ? <Globe className="w-3.5 h-3.5 shrink-0" /> : <BrainIcon className="w-3.5 h-3.5 shrink-0" />}
-                  {b.name}
-                </button>
-              ))}
+             {visibles.map((b) => (
+                 <button
+                   key={b.id}
+                   type="button"
+                   onClick={() => setActiveBrainId(b.id)}
+                   aria-pressed={b.id === activeBrainId}
+                   title={b.compartido ? `${b.name} (compartido contigo)` : b.name}
+                   className={cn(
+                     "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-left text-sm transition-colors",
+                     b.id === activeBrainId
+                       ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+                       : "border-white/10 text-white/70 hover:bg-white/5",
+                   )}
+                 >
+                   {b.compartido ? (
+                     <>
+                       <Users className="w-3.5 h-3.5 shrink-0" />
+                       {b.name}
+                       <span className="ml-1 text-xs text-white/60">compartido contigo</span>
+                     </>
+                   ) : (
+                     <>
+                       {pestanaDeCerebro(b) === "publicos" ? <Globe className="w-3.5 h-3.5 shrink-0" /> : <BrainIcon className="w-3.5 h-3.5 shrink-0" />}
+                       {b.name}
+                     </>
+                   )}
+                 </button>
+               ))}
               <Button
                 size="sm"
                 variant="outline"
@@ -337,61 +383,70 @@ export default function CerebroHub() {
                 }}
               />
             )}
-            {/* Opciones del cerebro activo: Fusionar y Telepatía (CB1013 §4-§5), Ajustes (§8), Compartir y Enviar. */}
-            {activeBrain && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-amber-500/30 text-amber-100 cursor-pointer"
-                  onClick={() => setFusionOpen(true)}
-                  title={`Fusionar: mezcla en «${activeBrain.name}» las memorias y configuraciones de otros cerebros`}
-                >
-                  <GitMerge className="w-4 h-4" />
-                  Fusionar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-violet-500/30 text-violet-100 cursor-pointer"
-                  onClick={() => setTelepatiaOpen(true)}
-                  title={`Telepatía: vincula y sincroniza «${activeBrain.name}» sin mezclarlo (carpetas, configuraciones y accesos)`}
-                >
-                  <Orbit className="w-4 h-4" />
-                  Telepatía
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-white/15 text-white/80 cursor-pointer"
-                  onClick={() => setAjustesOpen(true)}
-                  title={`Ajustes de «${activeBrain.name}»: medios, seguridad, privacidad, vinculación y sincronización`}
-                >
-                  <SlidersHorizontal className="w-4 h-4" />
-                  Ajustes
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-cyan-500/30 text-cyan-100 cursor-pointer"
-                  onClick={() => setShareOpen(true)}
-                  title={`Compartir «${activeBrain.name}» (total o por ramas)`}
-                >
-                  <Share2 className="w-4 h-4" />
-                  Compartir
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-white/15 text-white/80 cursor-pointer"
-                  onClick={() => setSendToOpen(true)}
-                  title={`Enviar «${activeBrain.name}» a un destino (publicación, mensaje, librería…)`}
-                >
-                  <Send className="w-4 h-4" />
-                  Enviar a…
-                </Button>
-              </div>
-            )}
+             {/* Opciones del cerebro activo: Fusionar y Telepatía (CB1013 §4-§5), Ajustes (§8), Compartir y Enviar. */}
+             {activeBrain && (
+                 <div className="mt-3 flex flex-wrap items-center gap-2">
+                   {!activeBrain.compartido && (
+                     <>
+                       <Button
+                         size="sm"
+                         variant="outline"
+                         className="gap-1.5 border-amber-500/30 text-amber-100 cursor-pointer"
+                         onClick={() => setFusionOpen(true)}
+                         title={`Fusionar: mezcla en «${activeBrain.name}» las memorias y configuraciones de otros cerebros`}
+                       >
+                         <GitMerge className="w-4 h-4" />
+                         Fusionar
+                       </Button>
+                       <Button
+                         size="sm"
+                         variant="outline"
+                         className="gap-1.5 border-violet-500/30 text-violet-100 cursor-pointer"
+                         onClick={() => setTelepatiaOpen(true)}
+                         title={`Telepatía: vincula y sincroniza «${activeBrain.name}» sin mezclarlo (carpetas, configuraciones y accesos)`}
+                       >
+                         <Orbit className="w-4 h-4" />
+                         Telepatía
+                       </Button>
+                       <Button
+                         size="sm"
+                         variant="outline"
+                         className="gap-1.5 border-white/15 text-white/80 cursor-pointer"
+                         onClick={() => setAjustesOpen(true)}
+                         title={`Ajustes de «${activeBrain.name}»": medios, seguridad, privacidad, vinculación y sincronización`}
+                       >
+                         <SlidersHorizontal className="w-4 h-4" />
+                         Ajustes
+                       </Button>
+                       <Button
+                         size="sm"
+                         variant="outline"
+                         className="gap-1.5 border-cyan-500/30 text-cyan-100 cursor-pointer"
+                         onClick={() => setShareOpen(true)}
+                         title={`Compartir «${activeBrain.name}» (total o por ramas)`}
+                       >
+                         <Share2 className="w-4 h-4" />
+                         Compartir
+                       </Button>
+                     </>
+                   )}
+                   <Button
+                     size="sm"
+                     variant="outline"
+                     className="gap-1.5 border-white/15 text-white/80 cursor-pointer"
+                     onClick={() => setSendToOpen(true)}
+                     title={`Enviar «${activeBrain.name}» a un destino (publicación, mensaje, librería…)`}
+                   >
+                     <Send className="w-4 h-4" />
+                     Enviar a…
+                   </Button>
+                    {activeBrain.compartido && (
+                      <span className="text-xs text-white/60 ml-2">
+                        Solo lectura: es de otra cuenta; escribir sigue siendo de su dueño
+                      </span>
+                    )}
+                 </div>
+               )}
           </>
         )}
 
