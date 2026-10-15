@@ -20,6 +20,8 @@ export interface PreferenciasProcesos {
 }
 
 const CLAVE = "starseed.cerebros.procesos.v1" as const;
+// starseed.cerebros. no está en SYNCED_PREFIXES de src/lib/settings-sync.ts;
+// usamos esta clave para preferencias de procesos del cerebro
 
 /** normaliza intervalos (5-120) y umbrales (1-100) y aplica defaults */
 export function normalizarPreferencias(raw: unknown): PreferenciasProcesos {
@@ -34,7 +36,9 @@ export function normalizarPreferencias(raw: unknown): PreferenciasProcesos {
 
   const o = raw as Partial<PreferenciasProcesos>;
 
-  const tipos = Array.isArray(o.tipos) ? o.tipos.filter((v): v is TipoProceso => typeof v === "string") : def.tipos;
+  const tipos = Array.isArray(o.tipos)
+    ? o.tipos.filter((v): v is TipoProceso => typeof v === "string" && v.trim() !== "")
+    : def.tipos;
 
   const intervaloSeg = typeof o.intervaloSeg === "number" && Number.isFinite(o.intervaloSeg)
     ? Math.max(5, Math.min(120, Math.round(o.intervaloSeg)))
@@ -50,7 +54,9 @@ export function normalizarPreferencias(raw: unknown): PreferenciasProcesos {
     bateria: typeof umbralesRaw.bateria === "number" && Number.isFinite(umbralesRaw.bateria) ? Math.max(1, Math.min(100, Math.round(umbralesRaw.bateria))) : def.umbrales.bateria,
   };
 
-  const ocultos = Array.isArray(o.ocultos) ? o.ocultos.filter((v): v is string => typeof v === "string") : def.ocultos;
+  const ocultos = Array.isArray(o.ocultos)
+    ? o.ocultos.filter((v): v is string => typeof v === "string" && v.trim() !== "")
+    : def.ocultos;
 
   return { tipos, intervaloSeg, umbrales, ocultos };
 }
