@@ -94,6 +94,8 @@ import {
   type ResultadoResonancia,
   type VeredictoCompartido,
 } from "@/lib/malla/cristal/resonancias";
+import { analizarArchivo } from "@/lib/malla/cristal/centinela";
+import { decidirEntrada } from "@/lib/malla/cristal/centinela-archivos";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -1014,9 +1016,31 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       limpio: undefined,
       'sin-datos': undefined,
     };
-    const aviso = avisoResonancia[resonancia.decision];
     const yaGuardados = await almacen.indicesGuardados(msg.id);
     const desde = yaGuardados.length ? Math.max(...yaGuardados) + 1 : 0;
+
+    // Centinela (§4.5 de la malla cristalina): antes de aceptar se analiza el
+    // archivo con lo que hay a mano — nombre, tipo declarado y el primer trozo
+    // cuando ya llegó (reanudación o trozos que llegaron antes que la oferta);
+    // si el primer trozo aún no llegó, se analiza nombre y tipo con `inicio`
+    // vacío. `decidirEntrada` une el análisis local con la resonancia.
+    const primerTrozo = yaGuardados.includes(0) ? await almacen.leerTrozo(msg.id, 0) : null;
+    const analisis = analizarArchivo({
+      nombre: msg.nombre,
+      tipoDeclarado: msg.tipo,
+      inicio: new Uint8Array(primerTrozo ?? new ArrayBuffer(0)),
+      tamano: msg.tamano,
+    });
+    const entrada = decidirEntrada(analisis, resonancia);
+    // «Avisar» añade el texto del centinela al aviso de aceptación (la
+    // resonancia ya pone el suyo). Un aviso nunca deja auto-aceptar: la
+    // oferta pasa a «preguntar» con el motivo en la tarjeta.
+    const aviso =
+      entrada.accion === "avisar"
+        ? [avisoResonancia[resonancia.decision], entrada.texto]
+            .filter((s): s is string => !!s)
+            .join(" ") || undefined
+        : avisoResonancia[resonancia.decision];
 
     const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
 
@@ -1039,6 +1063,16 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       inicioMs: Date.now(),
       actualizadoMs: Date.now(),
     };
+
+    // Centinela: peligroso local o cuarentena de la red → se rechaza sin
+    // preguntar, respondiendo con el mensaje de rechazo que ya existe en el
+    // protocolo (`archivo.rechazar`) y el motivo del centinela.
+    if (entrada.accion === "rechazar") {
+      emitir({ ...estadoBase, fase: "rechazada", motivo: entrada.texto });
+      canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: entrada.texto } satisfies MsgRechazar));
+      ofertasEntrantes.delete(msg.id);
+      return;
+    }
 
     if (decision === "denegar") {
       emitir({ ...estadoBase, fase: "rechazada", motivo: "Sin permiso para recibir archivos de esta cuenta." });
