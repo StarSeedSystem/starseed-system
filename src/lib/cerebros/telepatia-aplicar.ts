@@ -1,11 +1,11 @@
 // src/lib/cerebros/telepatia-aplicar.ts
-import { type Brain, saveBrain } from "../brains";
+import { type Brain, saveBrain } from "@/lib/brains/brains";
 import { type VinculoTelepatico } from "./telepatia";
-import { createClient } from "../../utils/supabase/client";
-import { listMemoryFiles } from "./memory-files";
-import { pushPreferences } from "../settings-sync";
-import { upsertGrant } from "../../sharing/access";
-import { fetchEvents } from "../../os-social";
+import { createClient } from "@/utils/supabase/client";
+import { listMemoryFiles } from "@/lib/cerebros/memory-files";
+import { pushPreferences } from "@/lib/settings-sync";
+import { upsertGrant } from "@/lib/sharing/access";
+import { fetchEvents } from "@/lib/os-social";
 
 export async function guardarVinculo(cerebro: Brain, v: VinculoTelepatico): Promise<Brain | null> {
   const telepatia = (cerebro.config.telepatia as VinculoTelepatico[]) || [];
@@ -54,13 +54,13 @@ export async function sincronizarAhora(
       }
       if (!slug) return { ok: false, operaciones: 0, estado: v.estado ?? "pendiente", motivo: "No se pudo determinar el slug del grupo/comunidad/página." };
       const rol = v.acceso === "escribir" ? "edit" : "view";
-      const ref: ResourceRef = {
+      const ref: import("@/lib/sharing/access").ResourceRef = {
         type: "brain",
         id: cerebro.id,
         ownerId: cerebro.owner ?? undefined,
         title: cerebro.name,
       };
-      const grant: AccessGrant = {
+      const grant: import("@/lib/sharing/access").AccessGrant = {
         granteeKind: v.destino.tipo === "grupo" || v.destino.tipo === "comunidad" ? "group" : "page",
         granteeId: slug,
         role: rol,
