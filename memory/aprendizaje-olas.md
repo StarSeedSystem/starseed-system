@@ -4430,3 +4430,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+
+## 2026-10-15 22:22 · mg-oracle-1015-1442
+
+**Lo que se pidió.** Gobernador genérico: medir cualquier aparato para la colmena
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (CB1013Q, RTCOL1012Ae). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (RTCOL1012L, RTRTRTRTS1010-EV-ORACLE-1ac). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CB1013Q` — no escribió nada
+- `RTCOL1012L` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCOL1012Ae` — no escribió nada
+- `RTRTRTRTS1010-EV-ORACLE-1ac` — otra cosa: ningún proveedor respondió (todos caídos)
