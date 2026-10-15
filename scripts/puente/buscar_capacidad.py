@@ -528,8 +528,6 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
         # reparto (`repartir-a-nube.py --ceder`): sueltas + cadenas ENTERAS. Aquí solo se miraban
         # las sueltas («que nadie espera»): el botón contaba 0 elegibles, decidía 0 jobs y el
         # reparto, que sí cede cadenas, nunca llegaba a correr.
-        listas_mac = [str(t) for t in (estado_mac or {}).get("listas") or []]
-        tope_mac = estado_mac.get("tope") or 0
         cedibles, lote = [], set()
         if ceder and tanda and estado_mac:
             cedibles, lote = RN.cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas)
