@@ -36,25 +36,24 @@ export function viabilidad(
     }
   }
 
-  // Veto 2: 'privado' o 'interno' sin cifradoE2E
-  if ((dato.clase === 'privado' || dato.clase === 'interno') && !ctx.cifradoE2E) {
-    return { valor: 0, apto: false, motivo: dato.clase === 'privado' ? 'privado' : 'interno' }
-  }
-
-  // Veto 3: 'lora' con bytes > 200 × 8 o tipo 'llamada'
+  // Veto 2: 'lora' con bytes > 200 × 8 o tipo 'llamada'
   if (s.medio === 'lora' && (dato.bytes > 200 * 8 || dato.tipo === 'llamada')) {
     return { valor: 0, apto: false, motivo: 'lora' }
   }
 
-  // Veto 4: 'nfc' con bytes > 32768
+  // Veto 3: 'nfc' con bytes > 32768
   if (s.medio === 'nfc' && dato.bytes > 32768) {
     return { valor: 0, apto: false, motivo: 'nfc' }
   }
 
-  // Veto 5: 'servidor' para 'privado'/'interno' solo si cifradoE2E (si no, veto)
-  // Note: This is partially covered by veto 2, but we keep it as per specification
+  // Veto 4: 'servidor' para 'privado'/'interno' solo si cifradoE2E (si no, veto)
   if (s.medio === 'servidor' && (dato.clase === 'privado' || dato.clase === 'interno') && !ctx.cifradoE2E) {
     return { valor: 0, apto: false, motivo: 'servidor' }
+  }
+
+  // Veto 5: 'privado' o 'interno' sin cifradoE2E
+  if ((dato.clase === 'privado' || dato.clase === 'interno') && !ctx.cifradoE2E) {
+    return { valor: 0, apto: false, motivo: dato.clase === 'privado' ? 'privado' : 'interno' }
   }
 
   // Si pasó todos los vetos, calculamos el valor
@@ -82,13 +81,13 @@ export function viabilidad(
     factorServidor = 0.6
   }
 
-  // Factor 0.8 si batería < 20 y el medio es de alto consumo (wifi-lan, webrtc)
-  let factorBateria = 1.0
-  if (ctx.bateriaPct !== null && ctx.bateriaPct < 20) {
-    if (s.medio === 'wifi-lan' || s.medio === 'webrtc') {
-      factorBateria = 0.8
-    }
-  }
+   // Factor 0.8 si batería < 20 y el medio es de alto consumo (wifi-lan, webrtc)
+   let factorBateria = 1.0
+   if (ctx.bateriaPct != null && ctx.bateriaPct < 20) {
+     if (s.medio === 'wifi-lan' || s.medio === 'webrtc') {
+       factorBateria = 0.8
+     }
+   }
 
   const valor = calidad * factor * factorServidor * factorBateria
   // Aseguramos que el valor no exceda 1 (por si los factores lo aumentan, aunque en nuestro caso no)
