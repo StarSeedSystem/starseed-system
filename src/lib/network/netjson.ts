@@ -34,6 +34,7 @@
  */
 
 import { PERFILES_WIFI } from "@/ai/astraura/mesh/camr/regulacion";
+import { ajustarEnlace, type AnchoMhzActual, type Medida, type Limites, type ResultadoAjuste } from "@/lib/network/routers-malla/automodulacion";
 
 const REGION_WIFI_POR_PAIS: Record<string, keyof typeof PERFILES_WIFI> = {
   US: "US", JP: "JP",
@@ -337,61 +338,88 @@ export function composeDeviceConfig(opts: {
  * neurona reparta WiFi e integre malla al mismo tiempo".
  */
 export function neuronRouterConfig(opts: {
-  hostname: string;
-  ssid: string;
-  key: string;
-  meshId?: string;
-  country?: string;
-  lanCidr?: string;
-}): NetJsonDeviceConfig {
-  const lan = parseLanCidr(opts?.lanCidr);
-  const radio24 = buildRadio({ name: "radio0", band: "2.4", country: opts?.country });
-  const radio5 = buildRadio({ name: "radio1", band: "5", country: opts?.country });
-
-  const interfaces: NetJsonInterface[] = [];
-  const lanMembers: string[] = ["eth0"];
-
-  // Radio 2,4 GHz: siempre Access Point (mejor alcance/compatibilidad universal).
-  interfaces.push(
-    buildAccessPoint({ iface: "wlan0", radio: "radio0", ssid: opts?.ssid ?? "", key: opts?.key ?? "", network: ["lan"] }),
-  );
-  lanMembers.push("wlan0");
-
-  const meshId = opts?.meshId;
-  if (meshId) {
-    // Con meshId: radio 5 GHz dedicada a la malla 802.11s (backhaul de más ancho de banda).
-    interfaces.push(buildMeshNode({ iface: "mesh0", radio: "radio1", meshId, network: ["lan"] }));
-    lanMembers.push("mesh0");
-  } else {
-    // Sin malla: la 5 GHz es un segundo SSID de la misma red (banda dual clásica).
+    hostname: string;
+    ssid: string;
+    key: string;
+    meshId?: string;
+    country?: string;
+    lanCidr?: string;
+  }): NetJsonDeviceConfig {
+    const lan = parseLanCidr(opts?.lanCidr);
+    const regionKey = REGION_WIFI_POR_PAIS[opts?.country ?? 'US'] ?? 'US';
+    const perfil = PERFILES_WIFI[regionKey];
+    
+    // Helper to compute ajustarEnlace result for a band
+    const computeWidthAndPower = (band: '2.4' | '5', defaultWidth: number): number => {
+      const actual: AnchoMhzActual = {
+        anchoMhz: defaultWidth,
+        potenciaDbm: 20 // placeholder tx power (dBm)
+      };
+      const medidas: Medida[] = []; // no measurements available; function will return Sin cambios
+      const limites: Limites = {
+        anchosMhz: band === '2.4' ? [20, 40] : [20, 40, 80, 160],
+        pireMaxDbm: Math.max(
+          ...(band === '2.4'
+            ? (perfil?.g24 ?? []).map(c => c.pireDbm)
+            : (perfil?.g5 ?? []).map(c => c.pireDbm)
+          ),
+          band === '2.4' ? 20 : 30 // fallback if no channels
+        )
+      };
+      const res = ajustarEnlace(actual, medidas, limites);
+      return res.anchoMhz;
+    };
+    
+    const width24 = computeWidthAndPower('2.4', 20);
+    const width5 = computeWidthAndPower('5', 80);
+    
+    const radio24 = buildRadio({ name: "radio0", band: "2.4", width: width24, country: opts?.country });
+    const radio5 = buildRadio({ name: "radio1", band: "5", width: width5, country: opts?.country });
+    
+    const interfaces: NetJsonInterface[] = [];
+    const lanMembers: string[] = ["eth0"];
+    
+    // Radio 2,4 GHz: siempre Access Point (mejor alcance/compatibilidad universal).
     interfaces.push(
-      buildAccessPoint({
-        iface: "wlan1",
-        radio: "radio1",
-        ssid: `${(opts?.ssid ?? "StarSeed").toString().trim() || "StarSeed"}-5G`,
-        key: opts?.key ?? "",
-        network: ["lan"],
-      }),
+      buildAccessPoint({ iface: "wlan0", radio: "radio0", ssid: opts?.ssid ?? "", key: opts?.key ?? "", network: ["lan"] }),
     );
-    lanMembers.push("wlan1");
+    lanMembers.push("wlan0");
+    
+    const meshId = opts?.meshId;
+    if (meshId) {
+      // Con meshId: radio 5 GHz dedicada a la malla 802.11s (backhaul de más ancho de banda).
+      interfaces.push(buildMeshNode({ iface: "mesh0", radio: "radio1", meshId, network: ["lan"] }));
+      lanMembers.push("mesh0");
+    } else {
+      // Sin malla: la 5 GHz es un segundo SSID de la misma red (banda dual clásica).
+      interfaces.push(
+        buildAccessPoint({
+          iface: "wlan1",
+          radio: "radio1",
+          ssid: `${(opts?.ssid ?? "StarSeed").toString().trim() || "StarSeed"}-5G`,
+          key: opts?.key ?? "",
+          network: ["lan"],
+        }),
+      );
+      lanMembers.push("wlan1");
+    }
+    
+    interfaces.push(buildBridge({ name: "lan", members: lanMembers, address: lan.address, mask: lan.mask }));
+    
+    // DHCP server sobre la LAN (passthrough UCI — ver NetJsonDhcpEntry).
+    const dhcp: NetJsonDhcpEntry[] = [
+      {
+        config_name: "dhcp",
+        config_value: "lan",
+        interface: "lan",
+        start: 100,
+        limit: 150,
+        leasetime: "12h",
+      },
+    ];
+    
+    return composeDeviceConfig({ hostname: opts?.hostname ?? "", radios: [radio24, radio5], interfaces, dhcp });
   }
-
-  interfaces.push(buildBridge({ name: "lan", members: lanMembers, address: lan.address, mask: lan.mask }));
-
-  // DHCP server sobre la LAN (passthrough UCI — ver NetJsonDhcpEntry).
-  const dhcp: NetJsonDhcpEntry[] = [
-    {
-      config_name: "dhcp",
-      config_value: "lan",
-      interface: "lan",
-      start: 100,
-      limit: 150,
-      leasetime: "12h",
-    },
-  ];
-
-  return composeDeviceConfig({ hostname: opts?.hostname ?? "", radios: [radio24, radio5], interfaces, dhcp });
-}
 
 /* ───────────────────────── Serialización y validación ───────────────────────── */
 
