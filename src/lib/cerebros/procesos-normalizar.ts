@@ -181,7 +181,7 @@ function desdeNodos(r: unknown): ProcesoActivo[] {
         const id = (obj.id as string) || (obj.nodo as string) || (obj.nombre as string) || "nodo-desconocido";
         const tipo = (obj.tipo as TipoProceso) || (obj.tipo === "mac" || obj.tipo === "a1" || obj.tipo === "neurona" || obj.tipo === "nube" || obj.tipo === "otro" ? obj.tipo as TipoProceso : "servicio");
         const nombre = (obj.nombre as string) || (obj.nodo as string) || "Nodo";
-        const estado = (obj.estado as EstadoProceso) || "en-marcha";
+        const estado = (obj.estado === "pedida" ? "esperando" : (obj.estado as EstadoProceso) || "en-marcha");
         const donde = (obj.nodo as string) || (obj.id as string) || "mac";
         const desde = ahora;
         const detalle = (obj.tipo as string) + " en " + donde;
