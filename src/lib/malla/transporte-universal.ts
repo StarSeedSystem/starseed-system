@@ -186,7 +186,7 @@ export function crearEnviador(deps: DepsEnvio) {
     } catch {
       lista = [];
     }
-    const eleccion = elegirEnlaces(lista, destino, "mensaje", tamano(cuerpo));
+    const eleccion = elegirEnlaces(lista, destino, "mensaje", tamano(cuerpo), {});
     const intentos: IntentoEnvio[] = [];
     const base = { intentos, descartados: eleccion.descartados };
     if (!eleccion.elegidos.length) {
@@ -549,7 +549,7 @@ export interface CanalArchivoElegido {
 
 /** Elige el canal para un archivo hacia `destino` (multitrayecto si hay varios enlaces al mismo aparato). */
 export async function canalParaArchivo(destino: DestinoTransporte, bytes = 0): Promise<CanalArchivoElegido> {
-  const eleccion = elegirEnlaces(await enlacesDisponibles(), destino, "archivo", bytes);
+  const eleccion = elegirEnlaces(await enlacesDisponibles(), destino, "archivo", bytes, {});
   const enlaces = enlacesParaReparto(eleccion);
   const subs = enlaces
     .map((e) => ({ e, canal: canalDeEnlace(e) }))
@@ -597,7 +597,7 @@ export async function enviarArchivo(
 export function enlaceLocalHacia(destino: DestinoTransporte): EnlaceLocalVivo | null {
   for (const e of enlacesLocalesVivos()) {
     const d = enlaceLocalDisponible(e);
-    if (elegirEnlaces([d], destino, "flujo").elegidos.length) return e;
+    if (elegirEnlaces([d], destino, "flujo", 0, {}).elegidos.length) return e;
   }
   return null;
 }
