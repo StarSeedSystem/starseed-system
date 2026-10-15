@@ -63,6 +63,41 @@ describe("TunelMetaGenesisEstado", () => {
     expect(await screen.findByText(/Línea 3 \[túnel\]/i)).toBeInTheDocument();
   });
 
+  it("muestra túnel activo cuando el servicio está cargado (sin URLs trycloudflare)", async () => {
+    const data = {
+      cargado: true,
+      pid: 12345,
+      ultimasLineas: ["Linea 1", "Linea 2"],
+      medidoEn: new Date().toISOString(),
+    };
+    // Override the default mock implementation for this specific call
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/mando/tunel-metagenesis")) {
+        return {
+          ok: true,
+          json: () => data, // Synchronous function returning data directly
+        } as Response;
+      }
+      // Respuesta por defecto para otros endpoints
+      return {
+        ok: true,
+        json: async () => ({})
+      } as Response;
+    };
+
+    render(<TunelMetagenesisEstado />);
+    expect(screen.getByText(/cargando estado del túnel de metagenesis/i)).toBeInTheDocument();
+
+    // Wait for the data to be fetched and displayed
+    await waitFor(() => {
+      expect(screen.getByText(/túnel de metagenesis: activo \(pid 12345\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/últimas líneas:/i)).toBeInTheDocument();
+      expect(screen.getByText("Linea 1")).toBeInTheDocument();
+      expect(screen.getByText("Linea 2")).toBeInTheDocument();
+    });
+  });
+
   it("muestra túnel parado cuando el servicio no está cargado", async () => {
     // Cambiar el mock para devolver servicio no cargado
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
