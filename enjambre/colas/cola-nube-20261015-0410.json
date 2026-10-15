@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "MGP1015-561AD5",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: CI en rojo",
+   "archivos": [
+    "src/lib/astraura-bots/__tests__/pureza.test.ts"
+   ],
+   "depende": [],
+   "origen": "metagenesis",
+   "prompt": "NOTA DE METAGENESIS (2026-10-15 04:09): la autopublicación lleva más de 60 min frenada en 6e0e3764 por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n    const ant = pp.viejo as BotSync | null;\n    const b = reg ?? ant;\n    if (!b) return;\n    const { dueno } = b;\n    if (!dueno || !e.includes(dueno.id) || ![\\\"grupo\\\", \\\"comunidad\\\", \\\"pagina\\\"].includes(dueno.tipo)) return;\n    c({ t: p.eventType as \\\"INSERT\\\" | \\\"U\\\" | \\\"D\\\", r: reg, a: ant });\n  }).subscribe();\n  return () => s.removeChannel(ch);\n}\nexport function abiertosEnEstaNeurona(): string[] {\n  if (typeof window === \\\"undefined\\\") return [];\n  const r = window.localStorage.getItem(\\\"starseed.as\n2026-10-15T03:08:02.6015880Z \n2026-10-15T03:08:02.6020828Z ##[error]AssertionError: expected '@/utils/supabase/client' to match /^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-me…/|@\\\n\n- Expected: \n/^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-memoria|ui-spec|paquete-sistema)$)/\n\n+ Received: \n\"@/utils/supabase/client\"\n\n ❯ src/lib/astraura-bots/__tests__/pureza.test.ts:27:43\n\n\n2026-10-15T03:08:02.8363903Z ##[error]Process completed with exit code 1.\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `npx vitest run src/lib/astraura-bots/__tests__/pureza.test.ts`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "MGP1015-561AD5"
+  ]
+ }
+}
