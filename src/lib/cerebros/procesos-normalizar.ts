@@ -116,7 +116,7 @@ function desdeAgentesMac(r: unknown): ProcesoActivo[] {
             estado: (obj.estado as EstadoProceso) || "en-marcha",
             progreso: null,
             donde: (obj.aplicacion as string) || (obj.servidor as string) || "mac",
-            desde: now,
+            desde: ahora,
             detalle: undefined,
             fuente: "agentes-mac",
           });
