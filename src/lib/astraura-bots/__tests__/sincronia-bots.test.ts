@@ -69,6 +69,13 @@ function hacerBotInvalido(): any {
   };
 }
 
+// Mocks para el cliente de Supabase y el almacenamiento
+const mockCliente = {} as any;
+const mockAlmacenamiento = {
+  getItem: (_key: string) => null,
+  setItem: (_key: string, _value: string) => void 0
+};
+
 describe("fusionarBots", () => {
   test("gana el más reciente por actualizado", () => {
     const local: any[] = [
@@ -79,7 +86,7 @@ describe("fusionarBots", () => {
       hacerBot("bot1", 2000), // más reciente
       hacerBot("bot3", 1500)
     ];
-    const resultado = fusionarBots(local, remoto);
+    const resultado = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     // Orden no garantizado, pero verificamos contenido
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["bot1", "bot2", "bot3"]);
@@ -91,7 +98,7 @@ describe("fusionarBots", () => {
   test("predeterminado garantizado: se conserva el local si no está en remoto", () => {
     const local: any[] = [hacerBot("bot-default", 1000)];
     const remoto: any[] = [];
-    const resultado = fusionarBots(local, remoto);
+    const resultado = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     expect(resultado.length).toBe(1);
     expect(resultado[0].id).toBe("bot-default");
     expect(resultado[0].actualizado).toBe(1000);
@@ -100,7 +107,7 @@ describe("fusionarBots", () => {
   test("borrado remoto no propaga: se conserva el local ausente en remoto", () => {
     const local: any[] = [hacerBot("bot-local", 1000)];
     const remoto: any[] = [hacerBot("bot-remoto", 2000)]; // otro bot
-    const resultado = fusionarBots(local, remoto);
+    const resultado = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["bot-local", "bot-remoto"]);
     // Ambos deben estar presentes
@@ -111,7 +118,7 @@ describe("fusionarBots", () => {
   test("ids nuevos de ambos lados: se incluyen bots exclusivos de cada lado", () => {
     const local: any[] = [hacerBot("local-only", 1000)];
     const remoto: any[] = [hacerBot("remoto-only", 2000)];
-    const resultado = fusionarBots(local, remoto);
+    const resultado = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["local-only", "remoto-only"]);
   });
@@ -125,8 +132,8 @@ describe("fusionarBots", () => {
       hacerBot("A", 150), // gana remoto
       hacerBot("C", 50)
     ];
-    const resultado1 = fusionarBots(local, remoto);
-    const resultado2 = fusionarBots(local, remoto);
+    const resultado1 = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
+    const resultado2 = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     // Ordenar por id para comparación estable
     const ordenado1 = [...resultado1].sort((a, b) => a.id.localeCompare(b.id));
     const ordenado2 = [...resultado2].sort((a, b) => a.id.localeCompare(b.id));
@@ -139,7 +146,7 @@ describe("fusionarBots", () => {
       hacerBotInvalido(), // inválido: falta nombre
       hacerBot("bot-remoto-valido", 2000) // válido
     ];
-    const resultado = fusionarBots(local, remoto);
+    const resultado = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     const ids = resultado.map(b => b.id).sort();
     const expected = ["bot-valido", "bot-remoto-valido"].sort();
     expect(ids).toEqual(expected);
@@ -150,7 +157,7 @@ describe("fusionarBots", () => {
   test("no se pierde el predeterminado por fusión (caso remoto más reciente)", () => {
     const local: any[] = [hacerBot("predeterminado", 1000)]; // id especial para predeterminado
     const remoto: any[] = [hacerBot("predeterminado", 2000)]; // más reciente
-    const resultado = fusionarBots(local, remoto);
+    const resultado = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     expect(resultado.length).toBe(1);
     expect(resultado[0].id).toBe("predeterminado");
     // Debe ganar el remoto por ser más reciente
@@ -158,14 +165,14 @@ describe("fusionarBots", () => {
   });
 
   test("array vacío local y remoto devuelve array vacío", () => {
-    const resultado = fusionarBots([], []);
+    const resultado = fusionarBots([], [], mockCliente, mockAlmacenamiento);
     expect(resultado).toEqual([]);
   });
 
   test("local vacío, remoto con bots válidos devuelve los remotos", () => {
     const local: any[] = [];
     const remoto: any[] = [hacerBot("A", 1000), hacerBot("B", 2000)];
-    const resultado = fusionarBots(local, remoto);
+    const resultado = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["A", "B"]);
   });
@@ -173,7 +180,7 @@ describe("fusionarBots", () => {
   test("remoto vacío, local con bots devuelve los locales", () => {
     const local: any[] = [hacerBot("A", 1000), hacerBot("B", 2000)];
     const remoto: any[] = [];
-    const resultado = fusionarBots(local, remoto);
+    const resultado = fusionarBots(local, remoto, mockCliente, mockAlmacenamiento);
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["A", "B"]);
   });
