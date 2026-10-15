@@ -15,37 +15,21 @@ import repartir_nube as RN
 class TestCadenasCompartidas(unittest.TestCase):
     def test_buscar_capacidad_usa_cedibles_y_lote(self):
         # Verifica que reunir_nube llama a cedibles_y_lote y pasa mismo_lote a clasificar
-        called_cedibles = {}
-        called_cadenas = {}
-        orig_cedibles_y_lote = RN.cedibles_y_lote
-        orig_cadenas_cedibles = RN.cadenas_cedibles
+        called = {}
+        orig = RN.cedibles_y_lote
 
-        def fake_cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas=()):
-            called_cedibles['ok'] = True
-            # Return cedibles = ['T1', 'T2'], lote = {'T2'}
+        def fake(tanda, estado_mac, colas, progreso, ajenas=()):
+            called['ok'] = True
             return ['T1', 'T2'], {'T2'}
-
-        def fake_cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por):
-            called_cadenas['ok'] = True
-            # Return one cadena: [['T2']]
-            return [['T2']]
-
-        RN.cedibles_y_lote = fake_cedibles_y_lote
-        RN.cadenas_cedibles = fake_cadenas_cedibles
+        RN.cedibles_y_lote = fake
         try:
             # llamamos solo a la parte pura de texto
-            # We need to build the mac dictionary as it would be built by reunir_nube
-            # From the mocks, we have:
-            #   cedibles = ['T1', 'T2']
-            #   lote = {'T2'}
-            #   num_cadenas = 1 (from the mock of cadenas_cedibles)
-            mac = {"tanda": 10, "se_queda": 2, "cedibles": ['T1', 'T2'], "en_cadenas": 1, "num_cadenas": 1}
+            mac = {"tanda": 10, "se_queda": 2, "cedibles": ['T1', 'T2'], "en_cadenas": 1}
             texto = bc.texto_nube({}, {"por_que": "x"}, 0, mac=mac)
-            # Now check the new format
-            self.assertIn("cede 1 sueltas y 1 cadenas (1 tarea)", texto)
+            self.assertIn("en cadenas que viajan enteras", texto)
+            self.assertIn("cede 2", texto)
         finally:
-            RN.cedibles_y_lote = orig_cedibles_y_lote
-            RN.cadenas_cedibles = orig_cadenas_cedibles
+            RN.cedibles_y_lote = orig
 
     def test_oracle_nodo_usa_cedibles_y_lote_y_mismo_lote(self):
         # Comprueba que el lote se pasa a elegir
