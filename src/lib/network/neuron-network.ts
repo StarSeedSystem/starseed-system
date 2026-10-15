@@ -45,7 +45,7 @@ import {
   type NetJsonInterface,
 } from "./netjson";
 
-import { uciMalla, htmodePorBandaYAncho, type ConfigMalla } from "../routers-malla/uci-malla";
+import { uciMalla, htmodePorBandaYAncho, type ConfigMalla } from "./routers-malla/uci-malla";
 
 /* ═══════════════════════════════════════════════════════════════════════
  * 1) ROL DE RED por neurona
