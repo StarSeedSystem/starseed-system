@@ -4368,7 +4368,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `FS1013B` — otra cosa: sin decisión en 0 h; rama ola/FS1013B conservada
 
-<<<<<<< HEAD
+## 2026-10-13 22:30 · mg-oracle-1013-1545
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTAV1011Lb` — otra cosa: sin decisión en 0 h; rama ola/RTAV1011Lb conservada
+
 ## 2026-10-14 02:40 · relevo-oracle-a1-cd000b
 
 **Lo que se pidió.** Protomolécula
@@ -4416,13 +4424,3 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-ACT5` — otra cosa: sin decisión en 0 h; rama ola/S1010-ACT5 conservada
 - `S1010-ACT2` — otra cosa: degenerado: src/lib/actualizaciones/politica.ts: encogió de 141 a 44 líneas (más de la mitad)
-=======
-## 2026-10-13 22:30 · mg-oracle-1013-1545
-
-**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
-
-**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
-
-**Lo que quedó fuera, una por una:**
-- `RTAV1011Lb` — otra cosa: sin decisión en 0 h; rama ola/RTAV1011Lb conservada
->>>>>>> d825968d (salvavidas · RTRTRTS1010-EV-ORACLE-1abcb: trabajo del agente antes de las puertas (tsc / vitest))
