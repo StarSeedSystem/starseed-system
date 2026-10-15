@@ -149,103 +149,89 @@ export function leerAjustes(cerebro: {
  * @returns Nuevo config sin mutar el original
  */
 export function conAjustes(
-   config: Record<string, unknown>,
-   objetivo:
-     | { tipo: "cerebro" }
-     | { tipo: "memoria" | "carpeta"; id: string },
-   parcial: Partial<AjustesObjetivo>
- ): Record<string, unknown> {
-   // No mutar el config original
-   const nuevoConfig = { ...config };
+  config: Record<string, unknown>,
+  objetivo:
+    | { tipo: "cerebro" }
+    | { tipo: "memoria" | "carpeta"; id: string },
+  parcial: Partial<AjustesObjetivo>
+): Record<string, unknown> {
+  // No mutar el config original
+  const nuevoConfig = { ...config };
 
-   // Obtener o crear la estructura de ajustes con tipado adecuado
-   let ajustes: AjustesCerebro;
-   if (nuevoConfig.ajustes && typeof nuevoConfig.ajustes === "object") {
-     ajustes = nuevoConfig.ajustes as AjustesCerebro;
-   } else {
-     ajustes = {
-       cerebro: {} as AjustesObjetivo,
-       memorias: {},
-       carpetas: {}
-     };
-     nuevoConfig.ajustes = ajustes;
+   // Inicializar la estructura de ajustes si no existe
+   if (!nuevoConfig.ajustes || typeof nuevoConfig.ajustes !== "object") {
+     nuevoConfig.ajustes = {};
    }
 
-   // Función auxiliar para igualdad profunda
-   const deepEqual = (a: unknown, b: unknown): boolean => {
-     if (a === b) return true;
+   // Work with references to avoid repeating the property access
+   const cerebro = nuevoConfig.ajustes.cerebro as Partial<AjustesObjetivo> | undefined;
+   const memorias = nuevoConfig.ajustes.memorias as Record<string, Partial<AjustesObjetivo>> | undefined;
+   const carpetas = nuevoConfig.ajustes.carpetas as Record<string, Partial<AjustesObjetivo>> | undefined;
 
-     if (a == null || b == null) return a === b;
+  switch (objetivo.tipo) {
+    case "cerebro":
+      // Para el cerebro, combinar con los ajustes existentes
+      ajustes.cerebro = { ...(ajustes.cerebro ?? {}), ...parcial };
+      break;
+    case "memoria":
+    case "carpeta":
+      // Para memorias y carpetas, guardar solo lo que difiere del cerebro
+      const coleccion =
+        objetivo.tipo === "memoria" ? ajustes.memorias : ajustes.carpetas;
+      const id = objetivo.id;
 
-     if (Array.isArray(a) && Array.isArray(b)) {
-       if (a.length !== b.length) return false;
-       for (let i = 0; i < a.length; i++) {
-         if (!deepEqual(a[i], b[i])) return false;
-       }
-       return true;
-     }
+      // Calcular la diferencia: solo lo que está en parcial pero no en el cerebro (o es diferente)
+      const diferencias = {} as Record<string, unknown>;
+      for (const clave in parcial) {
+        const valorParcial = parcial[clave as keyof Partial<AjustesObjetivo>];
+        const valorCerebro = ajustes.cerebro?.[clave as keyof Partial<AjustesObjetivo>];
 
-     if (typeof a === 'object' && typeof b === 'object') {
-       const keysA = Object.keys(a as object);
-       const keysB = Object.keys(b as object);
-       if (keysA.length !== keysB.length) return false;
-       for (const key of keysA) {
-         // @ts-ignore
-         if (!(key in (b as object))) return false;
-         // @ts-ignore
-         if (!deepEqual((a as any)[key], (b as any)[key])) return false;
-       }
-       return true;
-     }
+        let esDiferente = false;
 
-     return false;
-   };
+        // Para arrays, comparar contenido
+        if (Array.isArray(valorParcial) && Array.isArray(valorCerebro)) {
+          esDiferente = JSON.stringify(valorParcial) !== JSON.stringify(valorCerebro);
+        } 
+        // Para objetos simples (no arrays, no null), comparar directamente
+        else if (
+          valorParcial !== null && 
+          typeof valorParcial === "object" && 
+          valorCerebro !== null && 
+          typeof valorCerebro === "object"
+        ) {
+          // Para objetos simples, comparar profundamente
+          esDiferente = JSON.stringify(valorParcial) !== JSON.stringify(valorCerebro);
+        }
+        // Para valores primitivos y null/undefined, comparar directamente
+        else {
+          esDiferente = valorParcial !== valorCerebro;
+        }
 
-   switch (objetivo.tipo) {
-     case "cerebro":
-       // Para el cerebro, combinar con los ajustes existentes
-       ajustes.cerebro = { ...ajustes.cerebro, ...parcial };
-       break;
-     case "memoria":
-     case "carpeta":
-       // Para memorias y carpetas, guardar solo lo que difiere del cerebro
-       const coleccion =
-         objetivo.tipo === "memoria" ? ajustes.memorias : ajustes.carpetas;
-       const id = objetivo.id;
+        if (esDiferente) {
+          (diferencias as any)[clave] = valorParcial;
+        }
+      }
 
-       // Calcular la diferencia: solo lo que está en parcial pero no en el cerebro (o es diferente)
-       const diferencias = {} as Record<string, unknown>;
-       for (const clave in parcial) {
-         const valorParcial = parcial[clave as keyof Partial<AjustesObjetivo>];
-         const valorCerebro = ajustes.cerebro?.[clave as keyof Partial<AjustesObjetivo>];
-
-         let esDiferente = !deepEqual(valorParcial, valorCerebro);
-
-         if (esDiferente) {
-           (diferencias as any)[clave] = valorParcial;
+       // Solo guardar si hay diferencias
+       if (Object.keys(diferencias).length > 0) {
+         if (!coleccion) {
+           // Inicializar la colección si no existe
+           const nuevaColeccion: Record<string, Partial<AjustesObjetivo>> = {};
+           nuevaColeccion[id] = diferencias;
+           if (objetivo.tipo === "memoria") {
+             ajustes.memorias = nuevaColeccion;
+           } else {
+             ajustes.carpetas = nuevaColeccion;
+           }
+         } else {
+           coleccion[id] = diferencias;
          }
        }
+      break;
+  }
 
-        // Solo guardar si hay diferencias
-        if (Object.keys(diferencias).length > 0) {
-          if (!coleccion) {
-            // Inicializar la colección si no existe
-            const nuevaColeccion: Record<string, Partial<AjustesObjetivo>> = {};
-            nuevaColeccion[id] = diferencias;
-            if (objetivo.tipo === "memoria") {
-              ajustes.memorias = nuevaColeccion;
-            } else {
-              ajustes.carpetas = nuevaColeccion;
-            }
-          } else {
-            coleccion[id] = diferencias;
-          }
-       }
-       break;
-   }
-
-   return nuevoConfig;
- }
+  return nuevoConfig;
+}
 
 /**
  * Aplica la herencia: lo de la memoria o carpeta pisa lo del cerebro, campo a campo.
@@ -254,70 +240,70 @@ export function conAjustes(
  * @returns Ajustes efectivos para el objetivo
  */
 export function ajustesEfectivos(
-   ajustes: AjustesCerebro,
-   objetivo:
-     | { tipo: "cerebro" }
-     | { tipo: "memoria" | "carpeta"; id: string }
+  ajustes: AjustesCerebro,
+  objetivo:
+    | { tipo: "cerebro" }
+    | { tipo: "memoria" | "carpeta"; id: string }
 ): AjustesObjetivo {
-   // Empezar con los ajustes del cerebro
-   let resultado = { ...ajustes.cerebro };
+  // Empezar con los ajustes del cerebro
+  let resultado = { ...ajustes.cerebro };
 
-   switch (objetivo.tipo) {
-     case "memoria":
-     case "carpeta":
-       // Aplicar ajustes de la memoria o carpeta (pisan los del cerebro, campo a campo)
-       const ajustesObjetivo =
-         objetivo.tipo === "memoria"
-           ? ajustes.memorias[objetivo.id]
-           : ajustes.carpetas[objetivo.id];
-       if (ajustesObjetivo) {
-         // Hacer un merge profundo de los campos
-         resultado = {
-           ...resultado,
-           privacidad:
-             ajustesObjetivo.privacidad !== undefined
-               ? ajustesObjetivo.privacidad
-               : resultado.privacidad,
-           cifradoLocal:
-             ajustesObjetivo.cifradoLocal !== undefined
-               ? ajustesObjetivo.cifradoLocal
-               : resultado.cifradoLocal,
-           medios: {
-             capacidades: {
-               ...(resultado.medios?.capacidades ?? {}),
-               ...(ajustesObjetivo.medios?.capacidades ?? {}),
-             },
-             almacenamiento:
-               ajustesObjetivo.medios?.almacenamiento !== undefined && ajustesObjetivo.medios.almacenamiento.length > 0
-                 ? ajustesObjetivo.medios.almacenamiento
-                 : resultado.medios.almacenamiento,
-           },
-           sync: {
-             direccion:
-               ajustesObjetivo.sync?.direccion !== undefined
-                 ? ajustesObjetivo.sync.direccion
-                 : resultado.sync.direccion,
-             auto:
-               ajustesObjetivo.sync?.auto !== undefined
-                 ? ajustesObjetivo.sync.auto
-                 : resultado.sync.auto,
-             destinos:
-               ajustesObjetivo.sync?.destinos !== undefined && ajustesObjetivo.sync.destinos.length > 0
-                 ? ajustesObjetivo.sync.destinos
-                 : resultado.sync.destinos,
-           },
-           acceso:
-             ajustesObjetivo.acceso !== undefined && ajustesObjetivo.acceso.length > 0
-               ? ajustesObjetivo.acceso
-               : resultado.acceso,
-         };
-       }
-       break;
-     case "cerebro":
-     default:
-       // Para el cerebro, no hay herencia adicional
-       break;
-   }
+  switch (objetivo.tipo) {
+    case "memoria":
+    case "carpeta":
+      // Aplicar ajustes de la memoria o carpeta (pisan los del cerebro, campo a campo)
+      const ajustesObjetivo =
+        objetivo.tipo === "memoria"
+          ? ajustes.memorias[objetivo.id]
+          : ajustes.carpetas[objetivo.id];
+      if (ajustesObjetivo) {
+        // Hacer un merge profundo de los campos
+        resultado = {
+          ...resultado,
+          privacidad:
+            ajustesObjetivo.privacidad !== undefined
+              ? ajustesObjetivo.privacidad
+              : resultado.privacidad,
+          cifradoLocal:
+            ajustesObjetivo.cifradoLocal !== undefined
+              ? ajustesObjetivo.cifradoLocal
+              : resultado.cifradoLocal,
+          medios: {
+            capacidades: {
+              ...(resultado.medios?.capacidades ?? {}),
+              ...(ajustesObjetivo.medios?.capacidades ?? {}),
+            },
+            almacenamiento:
+              ajustesObjetivo.medios?.almacenamiento?.length > 0
+                ? ajustesObjetivo.medios.almacenamiento
+                : resultado.medios.almacenamiento,
+          },
+          sync: {
+            direccion:
+              ajustesObjetivo.sync?.direccion !== undefined
+                ? ajustesObjetivo.sync.direccion
+                : resultado.sync.direccion,
+            auto:
+              ajustesObjetivo.sync?.auto !== undefined
+                ? ajustesObjetivo.sync.auto
+                : resultado.sync.auto,
+            destinos:
+              ajustesObjetivo.sync?.destinos?.length > 0
+                ? ajustesObjetivo.sync.destinos
+                : resultado.sync.destinos,
+          },
+          acceso:
+            ajustesObjetivo.acceso?.length > 0
+              ? ajustesObjetivo.acceso
+              : resultado.acceso,
+        };
+      }
+      break;
+    case "cerebro":
+    default:
+      // Para el cerebro, no hay herencia adicional
+      break;
+  }
 
-   return resultado;
- }
+  return resultado;
+}

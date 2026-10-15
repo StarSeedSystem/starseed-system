@@ -243,10 +243,9 @@ describe("ajustes del cerebro", () => {
       });
       const resultado = conAjustes(paso1, { tipo: "cerebro" }, {
         cifradoLocal: true,
-         medios: {
-           capacidades: { texto: "texto-rapido" },
-           almacenamiento: []
-         }
+        medios: {
+          capacidades: { texto: "texto-rapido" }
+        }
       });
 
       expect(resultado.ajustes).toEqual({
@@ -261,21 +260,21 @@ describe("ajustes del cerebro", () => {
     });
 
     it("debe guardar solo diferencias para memorias", () => {
-       // Primero establecer ajustes de cerebro
-       const configConCerebro = conAjustes(configBase, { tipo: "cerebro" }, {
-         privacidad: "privado",
-         cifradoLocal: false,
-         medios: {
-           capacidades: {},
-           almacenamiento: []
-         },
-         sync: {
-           direccion: "ambas",
-           auto: true,
-           destinos: []
-         },
-         acceso: []
-       });
+      // Primero establecer ajustes de cerebro
+      const configConCerebro = conAjustes(configBase, { tipo: "cerebro" }, {
+        privacidad: "privado",
+        cifradoLocal: false,
+        medios: {
+          capacidades: {},
+          almacenamiento: []
+        },
+        sync: {
+          direccion: "ambas",
+          auto: true,
+          destinos: []
+        },
+        acceso: []
+      });
 
       // Luego ajustar una memoria con el mismo valor (no debe guardar nada)
       let resultado = conAjustes(configConCerebro, { tipo: "memoria", id: "mem1" }, {
@@ -293,24 +292,24 @@ describe("ajustes del cerebro", () => {
         acceso: []
       });
 
-       // No debe haber ajustes de memoria porque no hay diferencias
-       expect(resultado.ajustes).toEqual({
-         cerebro: {
-           privacidad: "privado",
-           cifradoLocal: false,
-           medios: {
-             capacidades: {},
-             almacenamiento: []
-           },
-           sync: {
-             direccion: "ambas",
-             auto: true,
-             destinos: []
-           },
-           acceso: []
-         }
-         // No debe haber memorias ni carpetas
-       });
+      // No debe haber ajustes de memoria porque no hay diferencias
+      expect(resultado.ajustes).toEqual({
+        cerebro: {
+          privacidad: "privado",
+          cifradoLocal: false,
+          medios: {
+            capacidades: {},
+            almacenamiento: []
+          },
+          sync: {
+            direccion: "ambas",
+            auto: true,
+            destinos: []
+          },
+          acceso: []
+        }
+        // No debe haber memorias ni carpetas
+      });
 
       // Ahora ajustar con un valor diferente (debe guardar la diferencia)
       resultado = conAjustes(resultado, { tipo: "memoria", id: "mem1" }, {
@@ -373,10 +372,9 @@ describe("ajustes del cerebro", () => {
       const resultado = conAjustes(configConCerebro, { tipo: "carpeta", id: "carp1" }, {
         privacidad: "publico", // diferente
         cifradoLocal: false, // diferente
-         medios: {
-           almacenamiento: ["externo"] // diferente
-           , capacidades: {}
-         }
+        medios: {
+          almacenamiento: ["externo"] // diferente
+        }
       });
 
       // Debe guardar todas las diferencias en la carpeta
@@ -597,6 +595,5 @@ describe("ajustes del cerebro", () => {
       expect(resultadoMem).toEqual(ajustes.cerebro);
       expect(resultadoCarp).toEqual(ajustes.cerebro);
     });
-    });
-
+  });
 });
