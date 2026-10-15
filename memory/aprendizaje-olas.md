@@ -4344,6 +4344,15 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCOL1012Bc` — otra cosa: sin decisión en 0 h; rama ola/RTCOL1012Bc conservada
 - `RTAV1011Dd` — pruebas en rojo: vitest falla (rama conservada)
 
+## 2026-10-13 03:50 · mg-oracle-1012-2102
+
+**Lo que se pidió.** diamante en esencia de conciencia
+
+**Resultado.** 2 de 2 integradas.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-super-120b-a12b integró 2 tareas sin fallar una.
+
 ## 2026-10-13 15:06 · mg-oracle-1013-0708
 
 **Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
