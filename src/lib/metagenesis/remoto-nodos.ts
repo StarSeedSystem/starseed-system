@@ -111,6 +111,14 @@ export function esDestino(x: unknown): x is string {
     return typeof x === "string" && (x === "lider" || x === "todos" || x in MEDIOS || RE_NODO.test(x));
 }
 
+export function esDestinoPara(accion: AccionOrden, para: unknown): boolean {
+    if (!esDestino(para)) return false;
+    if (accion === "desconectar" || accion === "contenedor") {
+        return para !== "lider" && para !== "todos" && !(para in MEDIOS);
+    }
+    return true;
+}
+
 /** PURA. null si los argumentos encajan con la acción; si no, el motivo (igual que en Python). */
 export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     const a = (args ?? {}) as Record<string, unknown>;
@@ -124,7 +132,7 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     if ((accion === "lanzar_cola" || accion === "detener_cola") && !(typeof a.cola === "string" && RE_COLA.test(a.cola))) {
         return "nombre de cola no válido";
     }
-    if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
+    if (accion !== "contenedor" && "trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
         return "trabajadores fuera de 1–4";
     }
     if (accion === "contenedor") {
@@ -258,6 +266,31 @@ export interface FilaBus {
 
 const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
 const txt = (x: unknown, max = 200): string => (typeof x === "string" ? x.slice(0, max) : "");
+const boolDe = (x: unknown): boolean => x === true;
+
+function enCursoDe(d: Record<string, unknown>): TareaEnCurso[] {
+    const lista = Array.isArray(d.en_curso) ? (d.en_curso as Array<Record<string, unknown>>) : [];
+    return lista
+        .map((t) => {
+            const p = (t?.punto ?? null) as Record<string, unknown> | null;
+            const id = txt(t?.id, 80);
+            if (!id) return null;
+            return {
+                id,
+                fase: txt(t?.fase, 40),
+                punto: p ? { rama: txt(p.rama, 120), sha: txt(p.sha, 60), t: num(p.t) ?? 0 } : null,
+            };
+        })
+        .filter((t): t is TareaEnCurso => t !== null)
+        .slice(0, 8);
+}
+
+function contenedorDe(d: Record<string, unknown>): ContenedorNodo | null {
+    const c = d.contenedor as Record<string, unknown> | null;
+    if (!c || typeof c !== "object") return null;
+    // El latido dice `trabajadores`; la pantalla y colmena.ts lo llaman `agentes`. Se aceptan ambos.
+    return { activo: boolDe(c.activo), agentes: num(c.trabajadores) ?? num(c.agentes) ?? 0, apto: boolDe(c.apto), motivo: txt(c.motivo, 160) };
+}
 
 function tsDe(f: FilaBus): number {
     const d = f.datos ?? {};
@@ -287,6 +320,8 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
         disco_gb: num(salud.disco_gb),
         ram_libre_mb: num(salud.ram_libre_mb),
         trabajo: Object.fromEntries(Object.entries(trabajo).map(([k, v]) => [k, num(v)])),
+        enCurso: enCursoDe(d),
+        contenedor: contenedorDe(d),
     };
 }
 
