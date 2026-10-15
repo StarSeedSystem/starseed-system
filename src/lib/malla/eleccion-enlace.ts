@@ -23,6 +23,37 @@
 
 import { fragmentosPorMtu } from "@/ai/astraura/mesh/camr/planificador";
 import type { ClaseRuta } from "@/lib/network/estadisticas-enlace";
+import { politicaDeTransporte } from "@/lib/malla/cristal/cifrado/politica";
+import type { Medio, ClaseDato } from "@/lib/malla/cristal/tipos";
+
+/** Obtiene el medio de transporte a partir de un enlace disponible. */
+function obtenerMedioDeEnlace(e: EnlaceDisponible): Medio {
+  switch (e.tipo) {
+    case "lora":
+      return "lora";
+    case "rele":
+      return "servidor";
+    case "local":
+      // For local connections without internet, likely direct like BLE
+      return "ble";
+    case "cuenta":
+    case "par":
+      // For cuenta/par connections, we need to check other properties
+      if (e.ruta === "misma-red-local") {
+        return "wifi-lan"; // Local network
+      } else if (e.ruta === "internet-directo" || e.ruta === "reenviado-turn") {
+        return "webrtc"; // WebRTC over internet
+      } else if (e.sinInternet) {
+        return "ble"; // Direct connection without internet
+      } else {
+        // Default to webrtc for unknown cuenta/par connections
+        return "webrtc";
+      }
+    default:
+      // Fallback
+      return "webrtc";
+  }
+}
 
 export type TipoEnlace = "local" | "cuenta" | "par" | "rele" | "lora";
 export type ClaseEnvio = "mensaje" | "archivo" | "flujo";
@@ -158,11 +189,22 @@ export function elegirEnlaces(
   destino: DestinoTransporte,
   clase: ClaseEnvio,
   bytes = 0,
+  opciones?: { clase?: 'interno' | 'privado' | 'publico'; puntuar?: (e: EnlaceDisponible) => number }
 ): Eleccion {
   const elegidos: EnlaceElegido[] = [];
   const descartados: Descartado[] = [];
   const vistos = new Set<string>();
-  for (const e of enlaces) {
+  
+  // If opciones is provided, we may need to filter by politico de transporte
+  let enlacesFiltrados: EnlaceDisponible[] = enlaces;
+  if (opciones?.clase !== undefined) {
+    enlacesFiltrados = enlaces.filter(e => {
+      const medio = obtenerMedioDeEnlace(e);
+      return politicaDeTransporte(opciones.clase, medio).permitido;
+    });
+  }
+
+  for (const e of enlacesFiltrados) {
     if (vistos.has(e.id)) continue;
     vistos.add(e.id);
     const descartar = (motivo: string) => descartados.push({ id: e.id, tipo: e.tipo, motivo });
@@ -194,13 +236,38 @@ export function elegirEnlaces(
     }
     elegidos.push({ enlace: e, rango: rangoEnlace(e), motivo: motivoRango(e) });
   }
-  elegidos.sort(
-    (a, b) =>
-      a.rango - b.rango ||
-      compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
-      compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
-      (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
-  );
+  
+  // Sort the elegidos
+  if (opciones?.puntuar !== undefined) {
+    // If we have a custom puntuar function, we need to sort by:
+    // 1. rango (as before)
+    // 2. then by the puntuar function within the same rango
+    elegidos.sort((a, b) => {
+      if (a.rango !== b.rango) {
+        return a.rango - b.rango;
+      }
+      // Same rango, sort by puntuar function
+      const puntuacionA = opciones.puntuar!(a.enlace);
+      const puntuacionB = opciones.puntuar!(b.enlace);
+      if (puntuacionA !== puntuacionB) {
+        return puntuacionA - puntuacionB; // ascending order
+      }
+      // If puntuar is also equal, use the original tiebreakers
+      return compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
+             compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
+             (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0);
+    });
+  } else {
+    // Original sorting logic when no custom puntuar is provided
+    elegidos.sort(
+      (a, b) =>
+        a.rango - b.rango ||
+        compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
+        compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
+        (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
+    );
+  }
+  
   return { elegidos, descartados };
 }
 
