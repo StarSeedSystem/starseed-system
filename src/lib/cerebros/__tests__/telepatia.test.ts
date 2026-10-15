@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as telepatia from '../telepatia';
+import type { VinculoTelepatico } from '../telepatia';
 
 describe('telepatia', () => {
   describe('validarVinculo', () => {
@@ -29,8 +30,8 @@ describe('telepatia', () => {
 
     it('acepta vinculo válido', () => {
       const r = telepatia.validarVinculo(valido);
-      expect(r.ok).toBe(true);
-      expect(r.vinculo).toEqual(valido);
+       expect(r.ok).toBe(true);
+       expect((r as { ok: true; vinculo: VinculoTelepatico }).vinculo).toEqual(valido);
     });
   });
 
@@ -54,60 +55,60 @@ describe('telepatia', () => {
     });
   });
 
-  describe('conVinculo', () => {
-    const vinculo = {
-      destino: { tipo: 's', id: '1' },
-      alcance: 'completo',
-      configuraciones: { servers: {} },
-      fechaCreacion: '2023-01-01T00:00:00Z',
-      fechaCaducidad: '2024-01-01T00:00:00Z'
-    };
+   describe('conVinculo', () => {
+     const vinculo: VinculoTelepatico = {
+       destino: { tipo: 's', id: '1' },
+       alcance: 'completo',
+       configuraciones: { servers: {} },
+       fechaCreacion: '2023-01-01T00:00:00Z',
+       fechaCaducidad: '2024-01-01T00:00:00Z'
+     };
 
-    it('añade a config vacío', () => {
-      const r = telepatia.conVinculo({}, vinculo);
-      expect(r.telepatia).toEqual([vinculo]);
-    });
+     it('añade a config vacío', () => {
+       const r = telepatia.conVinculo({}, vinculo);
+       expect((r.telepatia as VinculoTelepatico[])).toEqual([vinculo]);
+     });
 
-    it('reemplaza vinculo existente por id', () => {
-      const existente = { ...vinculo, destino: { tipo: 's', id: '1' } };
-      const nuevo = { ...vinculo, destino: { tipo: 's', id: '1' }, configuraciones: { skills: {} } };
-      const config = { telepatia: [existente] };
-      const r = telepatia.conVinculo(config, nuevo);
-      expect(r.telepatia).toHaveLength(1);
-      expect(r.telepatia[0]).toEqual(nuevo);
-    });
+     it('reemplaza vinculo existente por id', () => {
+       const existente = { ...vinculo, destino: { tipo: 's', id: '1' } };
+       const nuevo = { ...vinculo, destino: { tipo: 's', id: '1' }, configuraciones: { skills: {} } };
+       const config = { telepatia: [existente] };
+       const r = telepatia.conVinculo(config, nuevo);
+       expect(r.telepatia).toHaveLength(1);
+       expect((r.telepatia as VinculoTelepatico[])[0]).toEqual(nuevo);
+     });
 
-    it('añade cuando el id no existe', () => {
-      const existente = { ...vinculo, destino: { tipo: 's', id: '1' } };
-      const nuevo = { ...vinculo, destino: { tipo: 's', id: '2' } };
-      const config = { telepatia: [existente] };
-      const r = telepatia.conVinculo(config, nuevo);
-      expect(r.telepatia).toHaveLength(2);
-      expect(r.telepatia).toContainEqual(existente);
-      expect(r.telepatia).toContainEqual(nuevo);
-    });
+     it('añade cuando el id no existe', () => {
+       const existente = { ...vinculo, destino: { tipo: 's', id: '1' } };
+       const nuevo = { ...vinculo, destino: { tipo: 's', id: '2' } };
+       const config = { telepatia: [existente] };
+       const r = telepatia.conVinculo(config, nuevo);
+       expect((r.telepatia as VinculoTelepatico[])).toHaveLength(2);
+       expect((r.telepatia as VinculoTelepatico[])).toContainEqual(existente);
+       expect((r.telepatia as VinculoTelepatico[])).toContainEqual(nuevo);
+     });
   });
 
-  describe('sinVinculo', () => {
-    const vinculo = {
-      destino: { tipo: 's', id: '1' },
-      alcance: 'completo',
-      configuraciones: { servers: {} },
-      fechaCreacion: '2023-01-01T00:00:00Z',
-      fechaCaducidad: '2024-01-01T00:00:00Z'
-    };
+   describe('sinVinculo', () => {
+     const vinculo: VinculoTelepatico = {
+       destino: { tipo: 's', id: '1' },
+       alcance: 'completo',
+       configuraciones: { servers: {} },
+       fechaCreacion: '2023-01-01T00:00:00Z',
+       fechaCaducidad: '2024-01-01T00:00:00Z'
+     };
 
-    it('elimina por id', () => {
-      const config = { telepatia: [vinculo] };
-      const r = telepatia.sinVinculo(config, '1');
-      expect(r.telepatia).toEqual([]);
-    });
+     it('elimina por id', () => {
+       const config = { telepatia: [vinculo] };
+       const r = telepatia.sinVinculo(config, '1');
+       expect((r.telepatia as VinculoTelepatico[])).toEqual([]);
+     });
 
-    it('hace nada si id no existe', () => {
-      const config = { telepatia: [vinculo] };
-      const r = telepatia.sinVinculo(config, '2');
-      expect(r.telepatia).toEqual([vinculo]);
-    });
+     it('hace nada si id no existe', () => {
+       const config = { telepatia: [vinculo] };
+       const r = telepatia.sinVinculo(config, '2');
+       expect((r.telepatia as VinculoTelepatico[])).toEqual([vinculo]);
+     });
 
     it('devuelve config sin cambios si no tiene telepatia', () => {
       const config = { foo: 'bar' };
@@ -116,14 +117,14 @@ describe('telepatia', () => {
     });
   });
 
-  describe('estaCaducado', () => {
-    const vinculo = {
-      destino: { tipo: 's', id: '1' },
-      alcance: 'completo',
-      configuraciones: { servers: {} },
-      fechaCreacion: '2023-01-01T00:00:00Z',
-      fechaCaducidad: '2023-01-02T00:00:00Z'
-    };
+   describe('estaCaducado', () => {
+     const vinculo: VinculoTelepatico = {
+       destino: { tipo: 's', id: '1' },
+       alcance: 'completo',
+       configuraciones: { servers: {} },
+       fechaCreacion: '2023-01-01T00:00:00Z',
+       fechaCaducidad: '2023-01-02T00:00:00Z'
+     };
 
     it('devuelve true si vencido', () => {
       const ahora = new Date('2023-01-03T00:00:00Z').getTime();
@@ -136,14 +137,14 @@ describe('telepatia', () => {
     });
   });
 
-  describe('planSincronizacion', () => {
-    const vinculo = {
-      destino: { tipo: 's', id: '1' },
-      alcance: 'completo',
-      configuraciones: { servers: {}, skills: {} },
-      fechaCreacion: '2023-01-01T00:00:00Z',
-      fechaCaducidad: '2030-01-01T00:00:00Z'
-    };
+   describe('planSincronizacion', () => {
+     const vinculo: VinculoTelepatico = {
+       destino: { tipo: 's', id: '1' },
+       alcance: 'completo',
+       configuraciones: { servers: {}, skills: {} },
+       fechaCreacion: '2023-01-01T00:00:00Z',
+       fechaCaducidad: '2030-01-01T00:00:00Z'
+     };
 
     it('devuelve [] para vinculo vencido', () => {
       const vencido = { ...vinculo, fechaCaducidad: '2023-01-02T00:00:00Z' };
