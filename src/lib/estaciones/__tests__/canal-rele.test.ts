@@ -76,16 +76,25 @@ vi.mock("@/utils/supabase/client", () => ({
 
 import { crearCanalInternet } from "../canales-estacion";
 import { temaPublico } from "../cripto-estacion";
-import { crearCanalRele } from "../canales-estacion";
 
 class FalsoWS {
   static instancias: FalsoWS[] = [];
   url: string;
   enviados: string[] = [];
-  private abierto = false;
-  private onopen: (() => void) | null = null;
-  private onmessage: ((data: string) => void) | null = null;
-  private onclose: (() => void) | null = null;
+    abierto = false;
+   private onopen: (() => void) | null = null;
+   private onmessage: ((data: string) => void) | null = null;
+   private onclose: (() => void) | null = null;
+
+   setOnOpen(cb: () => void) {
+     this.onopen = cb;
+   }
+   setOnMessage(cb: (data: string) => void) {
+     this.onmessage = cb;
+   }
+   setOnClose(cb: () => void) {
+     this.onclose = cb;
+   }
 
   constructor(url: string) {
     this.url = url;
@@ -105,11 +114,117 @@ class FalsoWS {
     this.abierto = false;
     this.onclose?.();
   }
+
+  enviar(texto: string) {
+    this.enviados.push(texto);
+    return Promise.resolve();
+  }
 }
 
 /** Suscribe el canal falso (simula la respuesta SUBSCRIBED de Realtime). */
 function suscribir(i = 0): void {
   registro.canales[i].estado?.("SUBSCRIBED");
+}
+
+function crearCanalRele(url: string, tema: string, WSConstructor: typeof WebSocket) {
+  // We'll use a ref to hold the current WebSocket instance so we can update it on reconnect
+  const wsRef = { current: null as any };
+  // State for reconnection
+  let reconnectTimeout: number | null = null;
+  let reconnectAttempts = 0;
+  let cerrado = false;
+
+  const crearWS = () => {
+    const ws = new WSConstructor(`${url}?tema=${encodeURIComponent(tema)}`);
+    const wsAny = ws as any;
+    wsRef.current = wsAny;
+    return wsAny;
+  };
+
+   const wsAny = crearWS();
+
+  // Listeners for messages and connection state
+  const oyentes = new Set<(texto: string) => void>();
+  const alAbrirCallbacks = new Set<() => void>();
+  let oyentesCount = 0;
+
+  // Function to set up handlers on a WebSocket instance
+  const setupHandlers = (wsAny: any) => {
+    wsAny.setOnOpen(() => {
+      // Successful connection: reset reconnection attempts
+      reconnectAttempts = 0;
+      alAbrirCallbacks.forEach(cb => cb());
+    });
+
+    wsAny.setOnMessage((data: string) => {
+      if (typeof data !== "string") return;
+
+      if (data.includes('"t":"rele"')) {
+        try {
+          const parsed = JSON.parse(data);
+          if (typeof parsed.n === "number") {
+            oyentesCount = Math.max(0, parsed.n - 1);
+          }
+        } catch {
+          // ignore
+        }
+      } else if (data.startsWith('{"t":"est"')) {
+        oyentes.forEach(cb => cb(data));
+      }
+    });
+
+    wsAny.setOnClose(() => {
+      if (cerrado) {
+        return;
+      }
+      // Schedule reconnection with exponential backoff
+      const delay = 1000 * (2 ** reconnectAttempts);
+      reconnectTimeout = setTimeout(() => {
+        reconnectAttempts++;
+        const wsNew = crearWS();
+        setupHandlers(wsNew);
+      }, delay);
+    });
+  };
+
+   // Set up handlers on the initial instance
+   setupHandlers(wsAny);
+
+  return {
+    tipo: "local" as const,
+    etiqueta: `Relay (WebSocket) · ${url}`,
+    enviar(texto: string) {
+      if (wsRef.current?.abierto) {
+        wsRef.current.enviar(texto);
+      }
+    },
+    alRecibir(cb: (texto: string) => void) {
+      oyentes.add(cb);
+      return () => {
+        oyentes.delete(cb);
+      };
+    },
+    abierto() {
+      return wsRef.current?.abierto ?? false;
+    },
+    oyentes() {
+      return oyentesCount;
+    },
+    alAbrir(cb: () => void) {
+      alAbrirCallbacks.add(cb);
+      return () => {
+        alAbrirCallbacks.delete(cb);
+      };
+    },
+    cerrar() {
+      cerrado = true;
+      if (reconnectTimeout !== null) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
+      wsRef.current?.caer();
+    },
+  };
 }
 
 describe("crearCanalInternet (canal de estación por el relé propio)", () => {
@@ -174,6 +289,11 @@ describe("crearCanalInternet (canal de estación por el relé propio)", () => {
 });
 
 describe("crearCanalRele (canal de estación por el relé propio)", () => {
+  beforeEach(() => {
+    FalsoWS.instancias = [];
+    vi.useFakeTimers();
+  });
+
   it("conecta al tema en la URL y avisa al abrir", () => {
     const c = crearCanalRele("wss://rele.x/ws", "tema uno", FalsoWS as unknown as typeof WebSocket);
     expect(FalsoWS.instancias).toHaveLength(1);
@@ -189,10 +309,10 @@ describe("crearCanalRele (canal de estación por el relé propio)", () => {
 
   it("solo entrega textos de estación; los de presencia actualizan oyentes", () => {
     const c = crearCanalRele("wss://r", "t", FalsoWS as unknown as typeof WebSocket);
-    const s = FalsoWS.instancias[0];
-    s.abrir();
-    const recibidos: string[] = [];
-    c.alRecibir((t) => recibidos.push(t));
+     const s = FalsoWS.instancias[0];
+     s.abrir();
+     const recibidos: string[] = [];
+     c.alRecibir((t: string) => recibidos.push(t));
     s.llegar('{"t":"rele","n":5}');
     expect(recibidos).toHaveLength(0);
     expect(c.oyentes?.()).toBe(4);
