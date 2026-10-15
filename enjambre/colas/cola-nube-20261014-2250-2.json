@@ -1,0 +1,46 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "MC1012T",
+   "titulo": "Los elegidores de vía consultan la viabilidad por dato",
+   "archivos": [
+    "src/lib/malla/cristal/adaptador-elegidores.ts",
+    "src/lib/malla/eleccion-enlace.ts",
+    "src/lib/malla/cristal/__tests__/adaptador-elegidores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Une §3.5 del contrato. En adaptador-elegidores.ts exporta `vetoPorPolitica(clase, medio)` (usa politicaDeTransporte) y `ordenarPorViabilidad<E extends {id: string; medio?: string}>(enlaces: E[], puntuar: (e: E) => number): E[]` estable. En src/lib/malla/eleccion-enlace.ts añade a `elegirEnlaces` un parámetro OPCIONAL al final `opciones?: {clase?: 'interno'|'privado'|'publico'; puntuar?: (e: EnlaceDisponible) => number}`: sin él, el comportamiento es EXACTAMENTE el de hoy (las pruebas existentes de src/lib/malla/__tests__/eleccion-enlace.test.ts deben seguir en verde sin cambiarlas); con él, primero descarta los enlaces vetados para esa clase (con su motivo en la lista de descartes que ya existe) y luego ordena los que quedan por la puntuación dentro del mismo rango. Cambio mínimo en eleccion-enlace.ts (≤ 25 líneas). Pruebas nuevas del adaptador y de elegirEnlaces con opciones.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "revisor_quitadas": [
+    "MC1012H"
+   ],
+   "dependencias_ya_en_main": [
+    "MC1012L"
+   ]
+  },
+  {
+   "id": "RTRTCOL1012Bdsbbbbbbbb",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido · lo que fa",
+   "archivos": [
+    "servicios/taller-3d/motores/test_pixelartistry.py",
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTCOL1012Bdsbbbbbbb («Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar» y «contenedor» y campos nuevos del latido · lo que faltó: src/components/metagenesis/__tests__/colmena-botones.test.tsx») se hizo en main por otro camino; su rama nube/38625177615 queda archivada en `refs/archivo/nube/38625177615` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.96)\n\nTU TAREA (RTRTCOL1012Bdsbbbbbbbb · solo estos archivos: servicios/taller-3d/motores/test_pixelartistry.py, src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# servicios/taller-3d/motores/test_pixelartistry.py\n    def test_cuando_no_disponible_devuelve_dict_de_error(self):\n        # Sin Windows o sin ComfyUI al otro lado, remallar_imagen responde con el\n        # dict común de error: ok=False, glb=None, procedencia con sus dos piezas.\n        result = pa.remallar_imagen(\n            \"/fake/path/image.png\",\n            resolucion=512,\n            carpeta_workflows=self.tmp,\n            comfy=pa.ClienteComfyUI(),\n            dormir=lambda _: None,\n        )\n        self.assertFalse(result[\"ok\"])\n        self.assertIsNone(result[\"glb\"])\n        self.assertIsInstance(result[\"procedencia\"], list)\n        self.assertGreaterEqual(len(result[\"procedencia\"]), 2)  # flujo y nodos\n        self.assertIsInstance(result[\"fallo\"], str)\n        self.assertGreaterEqual(len(result[\"fallo\"]), 1)\n        self.assertGreaterEqual(result[\"segundos\"], 0.0)\n        self.assertGreaterEqual(result[\"pico_memoria_gb\"], 0.0)\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({\n            nodo: \"mac-a1b2c3\",\n            vivo: true,\n            so: \"macos\",\n            enCurso: 0,\n            contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" },\n        } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 } as NeuronaColmena);\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"elige la fuente con más nodos vivos\", () => {\n        // bus con 2 vivos y tablas con 1 → bus\n        expect(elegirFuente(estado([true], \"tablas\"), estado([true, true], \"bus\"))).toBe(\"bus\");\n        // 1 y 1 → tablas\n        expect(elegirFuente(estado([true], \"tablas\"), estado([true], \"bus\"))).toBe(\"tablas\");\n        // 0 y 0 → como hoy\n        expect(elegirFuente(estado([false], \"tablas\"), estado([false], \"bus\"))).toBe(\"tablas\");\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "RTCOL1012Bdsbbbbbbb",
+    "rama": "nube/38625177615"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "RTRTCOL1012Bdsbbbbbbbb",
+   "MC1012T"
+  ]
+ }
+}
