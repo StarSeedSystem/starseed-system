@@ -21,4 +21,11 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(b.desconectar.explica).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
     });
+
+    it("con trabajo en curso y contenedor activo, ambos botones piden confirmación", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, contenedor: { activo: true, agentes: 2, apto: true, motivo: "" } });
+        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar", confirmar: true });
+        expect(b.desconectar.explica).toContain("1 agente");
+        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor", confirmar: true });
+    });
 });
