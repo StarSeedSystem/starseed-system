@@ -74,10 +74,10 @@ describe("TunelMetaGenesisEstado", () => {
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/api/mando/tunel-metagenesis")) {
-        return {
-          ok: true,
-          json: () => data, // Synchronous function returning data directly
-        } as Response;
+      return {
+        ok: true,
+        json: () => Promise.resolve({})
+      } as Response;
       }
       // Respuesta por defecto para otros endpoints
       return {
