@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { fusionarBots } from "../sincronia-bots";
 
 /**
@@ -176,5 +176,116 @@ describe("fusionarBots", () => {
     const resultado = fusionarBots(local, remoto);
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["A", "B"]);
+  });
+});
+
+
+// Tests for suscribirBotsEntidad
+describe("suscribirBotsEntidad", () => {
+  test("should call supabase.channel and subscribe", () => {
+    // Mock supabase client
+    const mockChannel = {
+      on: vi.fn().mockReturnValue({ subscribe: vi.fn() }),
+      removeChannel: vi.fn()
+    };
+    const mockSupabase = {
+      channel: vi.fn().mockReturnValue(mockChannel)
+    };
+
+    const callback = vi.fn();
+    const unsubscribe = suscribirBotsEntidad(["entity1"], callback, mockSupabase);
+
+    expect(mockSupabase.channel).toHaveBeenCalledWith("astraura-bots-realtime");
+    expect(mockChannel.on).toHaveBeenCalledWith(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "astraura_bots" },
+      expect.any(Function)
+    );
+    expect(mockChannel.on.mock.calls[0][2]).toBeInstanceOf(Function);
+    // We don't test the inner logic of the callback here
+    unsubscribe();
+    expect(mockChannel.removeChannel).toHaveBeenCalled();
+  });
+
+
+// Tests for abiertosEnEstaNeurona
+describe("abiertosEnEstaNeurona", () => {
+  test("should return empty array when storage returns null", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn()
+    };
+    const result = abiertosEnEstaNeurona(mockStorage);
+    expect(result).toEqual([]);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+
+  test("should return parsed array when storage returns valid JSON", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["bot1","bot2"]'),
+      setItem: vi.fn()
+    };
+    const result = abiertosEnEstaNeurona(mockStorage);
+    expect(result).toEqual(["bot1", "bot2"]);
+  });
+
+  test("should return empty array when storage returns invalid JSON", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('invalid'),
+      setItem: vi.fn()
+    };
+    const result = abiertosEnEstaNeurona(mockStorage);
+    expect(result).toEqual([]);
+  });
+
+
+// Tests for marcarAbierto
+describe("marcarAbierto", () => {
+  test("should add item to list when not present", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["existing"]'),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage, "new-item", true);
+    expect(mockStorage.setItem).toHaveBeenCalledWith(
+      "starseed.astraura.bots.orbes.v1",
+      '["existing","new-item"]'
+    );
+  });
+
+  test("should remove item from list when present", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["item1","item2","item3"]'),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage, "item2", false);
+    expect(mockStorage.setItem).toHaveBeenCalledWith(
+      "starseed.astraura.bots.orbes.v1",
+      '["item1","item3"]'
+    );
+  });
+
+  test("should do nothing when adding duplicate", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["item1","item2"]'),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage, "item2", true);
+    expect(mockStorage.setItem).toHaveBeenCalledWith(
+      "starseed.astraura.bots.orbes.v1",
+      '["item1","item2"]'
+    );
+  });
+
+  test("should handle null storage", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage, "item", true);
+    expect(mockStorage.setItem).toHaveBeenCalledWith(
+      "starseed.astraura.bots.orbes.v1",
+      '["item"]'
+    );
   });
 });

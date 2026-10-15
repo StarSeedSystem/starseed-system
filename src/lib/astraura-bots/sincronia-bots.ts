@@ -1,5 +1,5 @@
 import type { Bot, Dueno } from "./tipos";
-import { createClient } from "@/utils/supabase/client";
+
 interface BotSync extends Bot { actualizado: number; }
 function esBotValido(b: unknown): b is BotSync {
   if (!b || typeof b !== "object" || Array.isArray(b)) return false;
@@ -18,6 +18,8 @@ function esBotValido(b: unknown): b is BotSync {
   }
   return typeof bt.actualizado === "number" && Number.isFinite(bt.actualizado) && bt.actualizado >= 0;
 }
+interface SupabaseClient { channel: (name: string) => { on: (event: string, filter: any, callback: (p: any) => void) => { subscribe: () => void }; }; removeChannel: (ch: any) => void; }
+interface Storage { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void; }
 export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
   const rv = r.filter(esBotValido);
   const lm = new Map(l.map(b => [b.id, b]));
@@ -35,10 +37,13 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
   }
   return res;
 }
-export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "D"; r: BotSync | null; a: BotSync | null }) => void) {
-  const s = createClient();
+export function suscribirBotsEntidad(
+  e: string[],
+  c: (c: { t: "INSERT" | "U" | "D"; r: BotSync | null; a: BotSync | null }) => void,
+  supabase: SupabaseClient
+) {
   let w = false;
-  const ch = s.channel("astraura-bots-realtime").on("postgres_changes", { event: "*", schema: "public", table: "astraura_bots" }, (p) => {
+  const ch = supabase.channel("astraura-bots-realtime").on("postgres_changes", { event: "*", schema: "public", table: "astraura_bots" }, (p) => {
     const pp = p as any;
     if (pp.error) {
       if (!w) {
@@ -55,11 +60,10 @@ export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "
     if (!dueno || !e.includes(dueno.id) || !["grupo", "comunidad", "pagina"].includes(dueno.tipo)) return;
     c({ t: p.eventType as "INSERT" | "U" | "D", r: reg, a: ant });
   }).subscribe();
-  return () => s.removeChannel(ch);
+  return () => supabase.removeChannel(ch);
 }
-export function abiertosEnEstaNeurona(): string[] {
-  if (typeof window === "undefined") return [];
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
+export function abiertosEnEstaNeurona(storage: Storage): string[] {
+  const r = storage.getItem("starseed.astraura.bots.orbes.v1");
   if (!r) return [];
   try {
     const v = JSON.parse(r);
@@ -67,9 +71,12 @@ export function abiertosEnEstaNeurona(): string[] {
     return [];
   } catch { return []; }
 }
-export function marcarAbierto(b: string, a: boolean): void {
-  if (typeof window === "undefined") return;
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
+export function marcarAbierto(
+  storage: Storage,
+  b: string,
+  a: boolean
+): void {
+  const r = storage.getItem("starseed.astraura.bots.orbes.v1");
   let c: string[] = [];
   if (r) {
     try {
@@ -82,5 +89,5 @@ export function marcarAbierto(b: string, a: boolean): void {
   } else {
     c = c.filter(i => i !== b);
   }
-  window.localStorage.setItem("starseed.astraura.bots.orbes.v1", JSON.stringify(c));
+  storage.setItem("starseed.astraura.bots.orbes.v1", JSON.stringify(c));
 }
