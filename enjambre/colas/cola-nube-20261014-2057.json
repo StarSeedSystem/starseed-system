@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "CB1013V",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Textos no cortados: Habilidades, Neuronas y prueba de guardia",
+   "archivos": [
+    "src/components/cerebro/habilidades-panel.tsx",
+    "src/components/cerebro/neuronas-panel.tsx",
+    "src/components/cerebro/__tests__/textos-no-cortados.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §3 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Quita el corte de las etiquetas de botones en habilidades-panel.tsx y neuronas-panel.tsx igual que CB1013U. Luego la prueba de guardia: lee con `fs` todos los `src/components/cerebro/*.tsx` y `src/components/aurora/personalities-panel.tsx` y falla si la etiqueta de APERTURA de un `<button` o `<Button` (desde `<` hasta su `>` de cierre de apertura, que puede ocupar varias líneas) lleva en su className `truncate`, `line-clamp-` o `whitespace-nowrap`; el mensaje enumera archivo y línea. Debe pasar en verde con todo arreglado (si CB1013U aún no estuviera en main, espera: depende de ella).",
+   "dependencias_ya_en_main": [
+    "CB1013U"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "CB1013V"
+  ]
+ }
+}
