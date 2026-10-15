@@ -23,6 +23,7 @@
 
 import { fragmentosPorMtu } from "@/ai/astraura/mesh/camr/planificador";
 import type { ClaseRuta } from "@/lib/network/estadisticas-enlace";
+import { vetoPorPolitica, ordenarPorViabilidad } from "./cristal/adaptador-elegidores";
 
 export type TipoEnlace = "local" | "cuenta" | "par" | "rele" | "lora";
 export type ClaseEnvio = "mensaje" | "archivo" | "flujo";
@@ -158,6 +159,10 @@ export function elegirEnlaces(
   destino: DestinoTransporte,
   clase: ClaseEnvio,
   bytes = 0,
+  opciones?: {
+    clase?: 'interno' | 'privado' | 'publico';
+    puntuar?: (e: EnlaceDisponible) => number;
+  }
 ): Eleccion {
   const elegidos: EnlaceElegido[] = [];
   const descartados: Descartado[] = [];
@@ -165,6 +170,31 @@ export function elegirEnlaces(
   for (const e of enlaces) {
     if (vistos.has(e.id)) continue;
     vistos.add(e.id);
+    
+    // Aplicamos el veto por política si se especifica una clase en opciones
+    if (opciones?.clase) {
+      // Determinamos el Medio a partir del TipoEnlace (simplificación)
+      let medio: Medio;
+      switch (e.tipo) {
+        case "local": medio = "webrtc"; break;
+        case "cuenta": medio = "webrtc"; break;
+        case "par": medio = "webrtc"; break;
+        case "rele": medio = "servidor"; break;
+        case "lora": medio = "lora"; break;
+        default: medio = "webrtc";
+      }
+      
+      if (vetoPorPolitica(opciones.clase, medio)) {
+        // Este enlace está vetoado por la política de transporte
+        descartados.push({ 
+          id: e.id, 
+          tipo: e.tipo, 
+          motivo: `veto por política de transporte: clase ${opciones.clase} no permitido en medio ${medio}`
+        });
+        continue;
+      }
+    }
+    
     const descartar = (motivo: string) => descartados.push({ id: e.id, tipo: e.tipo, motivo });
     if (!alcanzaDestino(e, destino)) {
       descartar("no llega a ese destino");
@@ -194,13 +224,28 @@ export function elegirEnlaces(
     }
     elegidos.push({ enlace: e, rango: rangoEnlace(e), motivo: motivoRango(e) });
   }
-  elegidos.sort(
-    (a, b) =>
-      a.rango - b.rango ||
-      compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
-      compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
-      (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
-  );
+  // Si se especificó una función de puntuar en opciones, usamos un comparador que
+  // primero ordena por rango, luego por la puntuación dentro del mismo rango
+  if (opciones?.puntuar) {
+    elegidos.sort(
+      (a, b) =>
+        a.rango - b.rango ||
+        opciones.puntuar(a.enlace) - opciones.puntuar(b.enlace) ||
+        compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
+        compararNumero(a.enlace.capacityKbps, b.enlace.capacityKbps, false) ||
+        (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
+    );
+  } else {
+    // Ordenamiento original cuando no se especifica función de puntuar
+    elegidos.sort(
+      (a, b) =>
+        a.rango - b.rango ||
+        compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
+        compararNumero(a.enlace.capacityKbps, b.enlace.capacityKbps, false) ||
+        (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
+    );
+  }
+
   return { elegidos, descartados };
 }
 
