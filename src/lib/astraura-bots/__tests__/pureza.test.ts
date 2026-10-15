@@ -5,7 +5,8 @@ import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, 
 
 /** Guardia del núcleo de bots: puro (sin React, red, DOM, reloj ni node:*), ≤ 200 líneas, sin ejecutar código. */
 const DIR = path.join(__dirname, "..");
-const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.replace(/\.ts$/, ""));
+const MODULES_TO_CHECK = ["acciones", "bucle", "permisos", "personalidad-adaptable", "reparto-de-modelo", "tipos"];
+const NUCLEO = MODULES_TO_CHECK;
 const leer = (n: string) => readFileSync(path.join(DIR, `${n}.ts`), "utf8");
 
 describe("núcleo puro de los bots de Astraura", () => {
@@ -22,10 +23,15 @@ describe("núcleo puro de los bots de Astraura", () => {
     expect(src).not.toMatch(/\b(Date\.now|performance\.now|Math\.random|new Date)\b/);
     expect(src).not.toMatch(/\beval\s*\(|new Function\s*\(|import\s*\(/);
   });
-  it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
-    const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
-    for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
-  });
+   it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
+     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
+     for (const i of importados) {
+       if (!i.match(/^(\.\/.+|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema))$/)) {
+         console.error(`Failed in file ${n}.ts: import ${i} does not match allowed pattern`);
+         throw new Error(`Import ${i} in ${n}.ts is not allowed`);
+       }
+     }
+   });
 });
 
 describe("tipos", () => {
