@@ -49,7 +49,7 @@ describe("validarEncargo", () => {
     };
     const result = validarEncargo(encargoSinCriterios);
     expect(result.ok).toBe(false);
-    expect(result.errores).toContain("sin criterios comprobables no hay encargo");
+    expect((result as { ok: false; errores: string[] }).errores).toContain("sin criterios comprobables no hay encargo");
   });
 
   it("debe errorar cuando el tipo de criterio es inválido", () => {
@@ -67,7 +67,7 @@ describe("validarEncargo", () => {
     };
     const result = validarEncargo(encargo);
     expect(result.ok).toBe(false);
-    expect(result.errores).toContain("tipo de criterio inválido: invalido");
+    expect((result as { ok: false; errores: string[] }).errores).toContain("tipo de criterio inválido: invalido");
   });
 
   it("debe errorar cuando el criterio no tiene texto string", () => {
@@ -85,7 +85,7 @@ describe("validarEncargo", () => {
     };
     const result = validarEncargo(encargo);
     expect(result.ok).toBe(false);
-    expect(result.errores).toContain("cada criterio debe tener una propiedad texto string");
+    expect((result as { ok: false; errores: string[] }).errores).toContain("cada criterio debe tener una propiedad texto string");
   });
 
   it("debe errorar cuando el ambito es inválido", () => {
@@ -101,7 +101,7 @@ describe("validarEncargo", () => {
     };
     const result = validarEncargo(encargo);
     expect(result.ok).toBe(false);
-    expect(result.errores).toContain("ambito inválido: invalido");
+    expect((result as { ok: false; errores: string[] }).errores).toContain("ambito inválido: invalido");
   });
 
   it("debe errorar cuando el autor falta tipo", () => {
@@ -117,7 +117,7 @@ describe("validarEncargo", () => {
     };
     const result = validarEncargo(encargo);
     expect(result.ok).toBe(false);
-    expect(result.errores).toContain("autor debe tener tipo e id");
+    expect((result as { ok: false; errores: string[] }).errores).toContain("autor debe tener tipo e id");
   });
 
   it("debe errorar cuando el autor falta id", () => {
@@ -133,7 +133,7 @@ describe("validarEncargo", () => {
     };
     const result = validarEncargo(encargo);
     expect(result.ok).toBe(false);
-    expect(result.errores).toContain("autor debe tener tipo e id");
+    expect((result as { ok: false; errores: string[] }).errores).toContain("autor debe tener tipo e id");
   });
 
   it("deve errorar cuando el origen es inválido", () => {
@@ -149,7 +149,7 @@ describe("validarEncargo", () => {
     };
     const result = validarEncargo(encargo);
     expect(result.ok).toBe(false);
-    expect(result.errores).toContain("origen inválido: invalido");
+    expect((result as { ok: false; errores: string[] }).errores).toContain("origen inválido: invalido");
   });
 
   it("debe aceptar todos los tipos de criterio válidos", () => {
@@ -176,7 +176,11 @@ describe("validarEncargo", () => {
 });
 
 describe("validarPlan", () => {
-  const ctx = {
+  const ctx: {
+    existeAtomo: (id: string) => "si" | "solo-enlace" | "no";
+    hayConversion: (de: string, a: string) => boolean;
+    formatoDe: (entrada: string) => string | null;
+  } = {
     existeAtomo: (id: string) => "si",
     hayConversion: (de: string, a: string) => true,
     formatoDe: (entrada: string) => entrada,
@@ -217,7 +221,7 @@ describe("validarPlan", () => {
 
     const plan: Plan = {
       encargoId: "E001",
-      pasos: pasosExtras,
+      pasos: pasosExtras as Paso[],
     };
     const result = validarPlan(plan, ctx);
     expect(result.ok).toBe(false);
@@ -343,7 +347,11 @@ describe("validarPlan", () => {
   });
 
   it("debe avisar cuando la entrada no tiene conversor disponible", () => {
-    const ctxSinConversion = {
+    const ctxSinConversion: {
+      existeAtomo: (id: string) => "si" | "solo-enlace" | "no";
+      hayConversion: (de: string, a: string) => boolean;
+      formatoDe: (entrada: string) => string | null;
+    } = {
       existeAtomo: (id: string) => "si",
       hayConversion: (de: string, a: string) => false,
       formatoDe: (entrada: string) => null,
