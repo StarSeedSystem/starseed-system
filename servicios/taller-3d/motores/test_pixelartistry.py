@@ -224,5 +224,31 @@ class RemallarImagen(unittest.TestCase):
         self.assertIn("tiempo agotado", r["fallo"])
 
 
+class RemallarNoDisponible(unittest.TestCase):
+    """Sin Windows (o sin ComfyUI al otro lado), remallar_imagen responde con el
+    dict común de error: ok=False, glb=None, procedencia con sus dos piezas."""
+
+    def test_cuando_no_disponible_devuelve_dict_de_error(self):
+        import tempfile
+        # Plataforma parcheada (como en Disponible): disponible() dice que no sin tocar la red.
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(pa.platform, "system", return_value="Darwin"):
+            result = pa.remallar_imagen(
+                "/fake/path/image.png",
+                resolucion=512,
+                carpeta_workflows=tmp,
+                comfy=pa.ClienteComfyUI(),
+                dormir=lambda _: None,
+            )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # flujo y nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
