@@ -1,4 +1,5 @@
 import { PERFILES_WIFI, CanalWifi } from '@/ai/astraura/mesh/camr/regulacion';
+import { uciMalla, guionAplicar, type UciMallaEntrada, TroncalConfig, ClienteConfig } from './uci-malla';
 
 export interface RadioRouter {
   id: string;
@@ -37,6 +38,14 @@ export interface PlanRadiosOutput {
   troncales: TroncalResult[];
   clientes: ClienteResult[];
   avisos: string[];
+  routerUciConfigs: RouterUciConfig[];
+}
+
+export interface RouterUciConfig {
+  router: string;
+  wireless: string;
+  network: string;
+  script: string;
 }
 
 export function planRadios(e: PlanRadiosInput): PlanRadiosOutput {
@@ -265,11 +274,57 @@ export function planRadios(e: PlanRadiosInput): PlanRadiosOutput {
       // Increment for next router
       clienteNumero++;
     }
-  }
-  
-  return {
-    troncales: troncalesResult,
-    clientes: clientesResult,
-    avisos
-  };
+    }
+   // Build router-specific configs for UCI and script
+   const routerUciConfigs: RouterUciConfig[] = [];
+   for (const router of e.routers) {
+     // Find troncal link for this router (first occurrence)
+     const troncalLink = troncalesResult.find(
+       (t) => t.a === router.id || t.b === router.id
+     );
+     // Find client AP for this router
+     const cliente = clientesResult.find((c) => c.router === router.id);
+     if (!troncalLink || !cliente) {
+       // Skip routers without both troncal and cliente config
+       continue;
+     }
+     // Determine troncal config (banda, canal, anchoMhz, pireDbm) from the link
+     const troncalConfig: TroncalConfig = {
+       banda: troncalLink.banda,
+       canal: troncalLink.canal,
+       anchoMhz: troncalLink.anchoMhz,
+       pireDbm: troncalLink.pireDbm,
+     };
+     // Cliente config: canal, ssid, clave
+     // SSID and clave are not provided in plan-radios; we need to get them from somewhere.
+     // We don't have them. We'll use empty strings for now.
+     const clienteConfig: ClienteConfig = {
+       canal: cliente.canal,
+       ssid: '',
+       clave: '',
+     };
+     const uciInput: UciMallaEntrada = {
+       router: router.id,
+       meshId: '',
+       claveMalla: '',
+       region: e.region,
+       troncal: troncalConfig,
+       cliente: clienteConfig,
+     };
+     const { wireless, network } = uciMalla(uciInput);
+     const script = guionAplicar(uciInput);
+     routerUciConfigs.push({
+       router: router.id,
+       wireless,
+       network,
+       script,
+     });
+   }
+
+   return {
+     troncales: troncalesResult,
+     clientes: clientesResult,
+     avisos,
+     routerUciConfigs,
+   };
 }
