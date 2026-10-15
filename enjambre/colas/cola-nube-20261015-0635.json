@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "MR1012D",
+   "titulo": "Routers a nodos: configuración OpenWrt (802.11s + batman-adv) y guion para aplicarla",
+   "archivos": [
+    "src/lib/network/routers-malla/uci-malla.ts",
+    "src/lib/network/routers-malla/__tests__/uci-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa «Tras OpenWrt» de §8, PURO. Exporta `uciMalla(e: {router: string; meshId: string; claveMalla: string; region: string; troncal: {banda: '2g'|'5g'|'6g'; canal: number; anchoMhz: number; pireDbm: number}; cliente: {canal: number; ssid: string; clave: string}}): {wireless: string; network: string}` con el texto UCI: radio de la troncal con su canal/htmode (HE80/VHT80/HT40/HT20 según banda y ancho) y `country`; interfaz `mode 'mesh'` con `mesh_id`, `encryption 'sae'`, `key`, `mesh_fwding '0'`, `network 'bat0_hardif_mesh'`; AP en 2,4 GHz puenteado a `lan`; en network: `bat0` con `proto 'batadv'`, `routing_algo 'BATMAN_V'`, la hardif `proto 'batadv_hardif'` `master 'bat0'`, y `bat0` dentro del puente `br-lan`. `guionAplicar(cfg): string` = guion sh para pegar por SSH en el router (instala `kmod-batman-adv batctl-default wpad-mesh-mbedtls` con opkg, escribe /etc/config/wireless y /etc/config/network con heredoc, `wifi reload` y `/etc/init.d/network restart`) con una copia de seguridad previa en /etc/config/*.antes-starseed. Nunca metas claves en comentarios ni en nombres. Pruebas: contiene las líneas clave; htmode correcto por banda/ancho; el guion hace la copia antes de escribir.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MR1012B"
+   ]
+  }
+ ]
+}
