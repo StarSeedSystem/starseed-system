@@ -4415,3 +4415,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-ACT5` — otra cosa: sin decisión en 0 h; rama ola/S1010-ACT5 conservada
 - `S1010-ACT2` — otra cosa: degenerado: src/lib/actualizaciones/politica.ts: encogió de 141 a 44 líneas (más de la mitad)
+
+## 2026-10-15 01:31 · mg-oracle-1014-1804
+
+**Lo que se pidió.** sin medida
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (CB1013P, CB1013K, RTIMG1011Gd). Es 75 % de la ola.
+- google/gemini-3.6-flash no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CB1013P` — los tipos no compilan: 1 errores tsc (rama ola/CB1013P conservada)
+- `CB1013K` — los tipos no compilan: 110 errores tsc (rama ola/CB1013K conservada)
+- `CAPC1011Ccs` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/CAPC1011Ccs conservada)
+- `RTIMG1011Gd` — los tipos no compilan: 35 errores tsc (rama ola/RTIMG1011Gd conservada)
