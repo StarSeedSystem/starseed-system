@@ -1,6 +1,8 @@
 "use client";
 
 import { esRutaConsola, esRutaMinima } from "@/components/layout/solo-fuera-de-consola";
+import dynamic from "next/dynamic";
+const OrbesBotsDynamic = dynamic(() => import("@/components/astraura-bots/orbes-bots").then(mod => mod.OrbesBots), { ssr: false });
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -1247,98 +1249,102 @@ export function AuroraWidget() {
           Conserva aria-label="Aurora" + data-aurora-state + onContextMenu
           (contratos de open-aurora / AuroraMemoryPanel).
       ══════════════════════════════════════════════════════════════════ */}
-      <div className="fixed z-50 select-none" style={orbStyle}>
-        <div className="relative flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
-          <button
-            type="button"
-            onPointerDown={onOrbPointerDown}
-            onPointerMove={onOrbPointerMove}
-            onPointerUp={finishGesture}
-            onPointerCancel={cancelGesture}
-            onContextMenu={(e) => {
-              // Siempre prevenimos el menú nativo del navegador sobre el orbe.
-              e.preventDefault();
-              // El Exocórtex se abre SOLO con clic DERECHO REAL de ratón. Un
-              // mantener-pulsado táctil SINTETIZA un contextmenu en móvil/WebView:
-              // ese gesto es TRINITY, no Exocórtex. Si acabamos de registrar un
-              // gesto táctil sobre el orbe (o hay uno en curso desde touch/pen),
-              // vetamos la apertura del Exocórtex y dejamos que el hold sea Trinity.
-              const g = gesture.current;
-              const touchGestureActive =
-                (g && (g.pointerType === "touch" || g.pointerType === "pen")) ||
-                Date.now() - lastTouchGestureRef.current < 900;
-              if (touchGestureActive) return;
-              // Clic derecho REAL de ratón: cancela el temporizador de hold para
-              // que este mismo gesto no arme también Trinity a los 480ms.
-              if (g && g.longTimer) { clearTimeout(g.longTimer); g.longTimer = null; }
-              openExocortexChat();
-            }}
-            aria-label="Aurora"
-            data-guide="orbe"
-            // Coreografía entre páginas: al navegar, el orbe gira en 3D (globals.css).
-            data-ss-coreo="logo"
-            data-aurora-state={state}
-            title={!supported
-              ? "Tu navegador no soporta voz · toca para opciones · clic derecho abre el chat en el Exocórtex"
-              : voiceUnavailable
-                ? "Voz no disponible · toca para reintentar · mantén pulsado para el menú Trinity"
-                : needsMicPermission
-                  ? "Toca para dar permiso de micrófono · mantén pulsado para el menú Trinity · clic derecho abre el chat"
-                  : noSttHere
-                    ? `${capabilities.note} · toca para abrir el chat · clic derecho abre el chat en el Exocórtex`
-                    : visSpeaking
-                      ? "Hablando… (toca para interrumpir) · mantén pulsado para el menú Trinity · arrástrame para moverme"
-                      : visListening
-                        ? "Escuchando… (toca para parar) · mantén pulsado para el menú Trinity · arrástrame para moverme"
-                        : "Hablar con Aurora (toca) · mantén pulsado para el menú Trinity · clic derecho abre el chat en el Exocórtex"}
-            className={cn(
-              "relative rounded-full flex items-center justify-center touch-none cursor-pointer",
-              "transition-transform active:scale-95",
-              moving && "scale-110",
-              !supported && "opacity-60",
-            )}
-            style={{ width: orbSize, height: orbSize }}
-          >
-            <AuroraOrb
-              size={orbSize}
-              speaking={visSpeaking}
-              listening={visListening}
-              paused={paused}
-              supported={supported}
-              unavailable={voiceUnavailable}
-              thinking={rawThinking}
-              personaId={personaId}
-            />
-            {/* Indicador de "Aurora activa" (LED verde). Cede su sitio cuando hay
-                una insignia de estado (voz no disponible / falta micrófono). */}
-            {enabled && !voiceUnavailable && !needsMicPermission && (
-              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-zinc-950" />
-            )}
-            {/* Estado visible: voz no disponible → insignia carmesí (reintenta al tocar). */}
-            {voiceUnavailable && (
-              <span
-                className="absolute -bottom-1 -right-1 grid h-4.5 w-4.5 place-items-center rounded-full border border-rose-300/60 bg-rose-600/90 shadow-[0_0_10px_rgba(220,20,60,0.6)]"
-                style={{ width: 18, height: 18 }}
-                title="Voz no disponible · toca el orbe para reintentar"
-              >
-                <MicOff className="h-2.5 w-2.5 text-white" />
-              </span>
-            )}
-            {/* Estado adaptado: hay reconocimiento pero FALTA el permiso de
-                micrófono → insignia ámbar (el toque pide el permiso). */}
-            {!voiceUnavailable && needsMicPermission && (
-              <span
-                className="absolute -bottom-1 -right-1 grid place-items-center rounded-full border border-amber-200/70 bg-amber-500/90 shadow-[0_0_10px_rgba(255,191,0,0.55)]"
-                style={{ width: 18, height: 18 }}
-                title="Toca el orbe para dar permiso de micrófono"
-              >
-                <MicOff className="h-2.5 w-2.5 text-zinc-900" />
-              </span>
-            )}
-          </button>
+       <div className="fixed z-50 select-none" style={orbStyle}>
+         <div className="relative flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
+           <button
+             type="button"
+             onPointerDown={onOrbPointerDown}
+             onPointerMove={onOrbPointerMove}
+             onPointerUp={finishGesture}
+             onPointerCancel={cancelGesture}
+             onContextMenu={(e) => {
+               // Siempre prevenimos el menú nativo del navegador sobre el orbe.
+               e.preventDefault();
+               // El Exocórtex se abre SOLO con clic DERECHO REAL de ratón. Un
+               // mantener-pulsado táctil SINTETIZA un contextmenu en móvil/WebView:
+               // ese gesto es TRINITY, no Exocórtex. Si acabamos de registrar un
+               // gesto táctil sobre el orbe (o hay uno en curso desde touch/pen),
+               // vetamos la apertura del Exocórtex y dejamos que el hold sea Trinity.
+               const g = gesture.current;
+               const touchGestureActive =
+                 (g && (g.pointerType === "touch" || g.pointerType === "pen")) ||
+                 Date.now() - lastTouchGestureRef.current < 900;
+               if (touchGestureActive) return;
+               // Clic derecho REAL de ratón: cancela el temporizador de hold para
+               // que este mismo gesto no arme también Trinity a los 480ms.
+               if (g && g.longTimer) { clearTimeout(g.longTimer); g.longTimer = null; }
+               openExocortexChat();
+             }}
+             aria-label="Aurora"
+             data-guide="orbe"
+             // Coreografía entre páginas: al navegar, el orbe gira en 3D (globals.css).
+             data-ss-coreo="logo"
+             data-aurora-state={state}
+             title={!supported
+               ? "Tu navegador no soporta voz · toca para opciones · clic derecho abre el chat en el Exocórtex"
+               : voiceUnavailable
+                 ? "Voz no disponible · toca para reintentar · mantén pulsado para el menú Trinity · clic derecho abre el chat"
+                 : needsMicPermission
+                   ? "Toca para dar permiso de micrófono · mantén pulsado para el menú Trinity · clic derecho abre el chat"
+                   : noSttHere
+                     ? `${capabilities.note} · toca para abrir el chat · clic derecho abre el chat en el Exocórtex`
+                     : visSpeaking
+                       ? "Hablando… (toca para interrumpir) · mantén pulsado para el menú Trinity · arrástrame para moverme"
+                       : visListening
+                         ? "Escuchando… (toca para parar) · mantén pulsado para el menú Trinity · arrástrame para moverme"
+                         : "Hablar con Aurora (toca) · mantén pulsado para el menú Trinity · clic derecho abre el chat en el Exocórtex"}
+             className={cn(
+               "relative rounded-full flex items-center justify-center touch-none cursor-pointer",
+               "transition-transform active:scale-95",
+               moving && "scale-110",
+               !supported && "opacity-60",
+             )}
+             style={{ width: orbSize, height: orbSize }}
+           >
+             <AuroraOrb
+               size={orbSize}
+               speaking={visSpeaking}
+               listening={visListening}
+               paused={paused}
+               supported={supported}
+               unavailable={voiceUnavailable}
+               thinking={rawThinking}
+               personaId={personaId}
+             />
+             {/* Indicador de "Aurora activa" (LED verde). Cede su sitio cuando hay
+                 una insignia de estado (voz no disponible / falta micróxico). */}
+             {enabled && !voiceUnavailable && !needsMicPermission && (
+               <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-zinc-950" />
+             )}
+             {/* Estado visible: voz no disponible → insignia carmesí (reintenta al tocar). */}
+             {voiceUnavailable && (
+               <span
+                 className="absolute -bottom-1 -right-1 grid h-4.5 w-4.5 place-items-center rounded-full border border-rose-300/60 bg-rose-600/90 shadow-[0_0_10px_rgba(220,20,60,0.6)]"
+                 style={{ width: 18, height: 18 }}
+                 title="Voz no disponible · toca el orbe para reintentar"
+               >
+                 <MicOff className="h-2.5 w-2.5 text-white" />
+               </span>
+             )}
+             {/* Estado adaptado: hay reconocimiento pero FALTA el permiso de
+                 micrófono → insignia ámbar (el toque pide el permiso). */}
+             {!voiceUnavailable && needsMicPermission && (
+               <span
+                 className="absolute -bottom-1 -right-1 grid place-items-center rounded-full border border-amber-200/70 bg-amber-500/90 shadow-[0_0_10px_rgba(255,191,0,0.55)]"
+                 style={{ width: 18, height: 18 }}
+                 title="Toca el orbe para dar permiso de micrógeno"
+               >
+                 <MicOff className="h-2.5 w-2.5 text-zinc-900" />
+               </span>
+             )}
+            </button>
+          </div>
+           {/* Orbes hermanas de los bots (BOT1011C2) */}
+           {!esRutaConsola(window.location.pathname) && !esRutaMinima(window.location.pathname) && (
+             <OrbesBotsDynamic />
+           )}
         </div>
-      </div>
-    </>
+     </>
   );
 }
 
