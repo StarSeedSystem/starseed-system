@@ -46,7 +46,7 @@ export type Paso = {
 export interface Plan {
   encargoId: string;
   pasos: Paso[];
-}
+};
 
 export const LIMITES = {
   pasos: 24,
@@ -60,7 +60,9 @@ export const LIMITES = {
  * - Si no tiene criterios → error: "sin criterios comprobables no hay encargo"
  * - Devuelve {ok: true, encargo} o {ok: false, errores: string[]}
  */
-export function validarEncargo(x: unknown): { ok: true; encargo: Encargo } | { ok: false; errores: string[] } {
+export function validarEncargo(x: unknown): {
+  ok: true; encargo: Encargo;
+} | { ok: false; errores: string[] } {
   if (typeof x !== "object" || x === null || Array.isArray(x)) {
     return { ok: false, errores: ["encargo debe ser un objeto"] };
   }
@@ -159,47 +161,41 @@ export function validarPlan(
     errores.push(`máximo ${LIMITES.pasos} pasos, recibieron ${pasos.length}`);
   }
 
-  // IDs únicos y depende a pasos existentes
+  // IDs únicos y construiremos un mapa
   const idsPasos = new Set<string>();
   const pasoMap = new Map<string, Paso>();
 
   for (const paso of pasos) {
-    // ID único
-    if (!paso.id) {
-      errores.push(`paso sin id`);
-    } else {
+    if (paso.id) {
       if (idsPasos.has(paso.id)) {
         errores.push(`id de paso duplicado: ${paso.id}`);
       } else {
         idsPasos.add(paso.id);
       }
     }
-
-    // depends a pasos existentes
-    if (paso.depende) {
+    if (paso.depende && Array.isArray(paso.depende)) {
       for (const dep of paso.depende) {
         if (!idsPasos.has(dep)) {
           errores.push(`paso ${paso.id}: depende de paso inexistente: ${dep}`);
         }
       }
     }
-
-    pasoMap.set(paso.id, paso);
+    pasoMap.set(paso.id || `anon-${Math.random()}`, paso);
   }
 
-  // Detectar ciclos (DFS)
+  // Detectar ciclos usando DFS
   const visitando = new Set<string>();
-  visitado = new Set<string>();
+  const visitado = new Set<string>();
 
-  function detectarCiclo(id: string): boolean {
+  function tieneCiclo(id: string): boolean {
     visitando.add(id);
     const paso = pasoMap.get(id);
-    if (paso && paso.depende) {
+    if (paso && paso.depende && Array.isArray(paso.depende)) {
       for (const dep of paso.depende) {
         if (visitando.has(dep)) {
-          return true; // ciclo detectado
+          return true;
         }
-        if (!visitado.has(dep) && detectarCiclo(dep)) {
+        if (!visitado.has(dep) && tieneCiclo(dep)) {
           return true;
         }
       }
@@ -209,26 +205,36 @@ export function validarPlan(
     return false;
   }
 
-  // ... (continuará validación detallada)
+  for (const paso of pasos) {
+    if (paso.id && !visitado.has(paso.id)) {
+      if (tieneCiclo(paso.id)) {
+        errores.push(`plan tiene un ciclo en los pasos`);
+        break;
+      }
+    }
+  }
 
   // Validar cada paso
   for (const paso of pasos) {
     // átomo 'no' → error
     if (paso.atomo === "no") {
-      errores.push(`paso ${paso.id}: átomo 'no' no es válido`);
+      errores.push(`paso ${paso.id || '?'}: átomo 'no' no es válido`);
     }
 
     // 'solo-enlace' → aviso "próximamente"
     if (paso.atomo === "solo-enlace") {
-      avisos.push(`paso ${paso.id}: átomo 'solo-enlace' — próximamente`);
+      avisos.push(`paso ${paso.id || '?'}: átomo 'solo-enlace' — próximamente`);
     }
 
     // Validar entradas que son salidas de otros pasos
-    if (paso.entradas) {
+    if (paso.entradas && Array.isArray(paso.entradas)) {
       for (const entrada of paso.entradas) {
-        // Si la entrada es la salida de otro paso
-        const pasoOrigen = pasos.find((p) => p.salida && p.salida.formato === entrada || p.id === entrada);
-        if (pasoOrigen && pasoOrigen !== paso) {
+        // Buscar si esta entrada es la salida de otro paso
+        const pasoOrigen = pasos.find(
+          (p) => p.id && p.id !== paso.id && p.salida && p.salida.formato === entrada
+        );
+
+        if (pasoOrigen) {
           const formatoSalida = pasoOrigen.salida?.formato || "";
           const hayConv = ctx.hayConversion(formatoSalida, entrada);
           if (!hayConv) {
