@@ -2,7 +2,11 @@
 // Módulo puro, sin disco ni red. Contrato: architecture/cerebros-fusion-telepatia.md Section 7.
 
 import {
-  ProcesoActivo,
+  type ProcesoActivo,
+  type TipoProceso,
+  type EstadoProceso,
+  type TipoServidor,
+  type HardwareServidor,
   fromAgentesMac,
   fromLatidos,
   fromNodos,
@@ -16,6 +20,11 @@ import {
   unirProcesos,
   agruparPorTipo,
 } from "./procesos-normalizar";
+
+export type { TipoProceso, EstadoProceso, TipoServidor };
+export { ProcesoActivo };
+export type { HardwareServidor };
+export { fromAgentesMac, fromLatidos, fromNodos, fromPoligenesis, fromSuenos, fromImaginacion, fromInstalaciones, fromActualizaciones, fromVentanas, fromPresencia, unirProcesos, agruparPorTipo };
 
 import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
 

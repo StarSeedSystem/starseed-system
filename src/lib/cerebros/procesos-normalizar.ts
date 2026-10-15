@@ -1,7 +1,7 @@
 // Procesos activos del cerebro: normalización de datos de múltiples fuentes a ProcesoActivo[].
 // Módulo puro, sin disco ni red. Contrato: architecture/cerebros-fusion-telepatia.md §7.
 
-import { ProcesoActivo, TipoProceso, EstadoProceso } from "./procesos";
+import { type ProcesoActivo, type TipoProceso, type EstadoProceso } from "./procesos";
 
 export interface ProcesoFuera {
   id: string;
@@ -41,6 +41,12 @@ export function agruparPorTipo(procesos: ProcesoActivo[]): Record<string, Proces
     grupos[p.tipo].push(p);
   }
   return grupos;
+}
+
+/** Porcentaje usado/total redondeado a 1 decimal; null si falta algo o total ≤ 0. */
+export function porcentaje(usado: number | null, total: number | null): number | null {
+  if (usado == null || total == null || total <= 0) return null;
+  return Math.round((usado / total) * 1000) / 10;
 }
 
 function esActivo(v: unknown): boolean {
@@ -91,386 +97,153 @@ function convertToProcesoActivo(raw: unknown, fuente: string, ahora: number): Pr
   };
 }
 
-function desdeAgentesMac(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
-
-  try {
-    const agentes = Array.isArray(r) ? r : (r as Record<string, unknown>)?.agentes;
-    if (Array.isArray(agentes)) {
-      for (const agente of agentes) {
-        if (typeof agente !== "object" || agente === null) continue;
-        const obj = agente as Record<string, unknown>;
-
-        const procesos = Array.isArray(obj.procesos) ? obj.procesos : [];
-        for (const proc of procesos) {
-          const activo = convertToProcesoActivo(proc, "agentes-mac", ahora);
-          if (activo) resultados.push(activo);
-        }
-
-        if (obj.tipo === "agente" && obj.id) {
-          resultados.push({
-            id: obj.id as string,
-            tipo: "genesis" as TipoProceso,
-            nombre: (obj.nombre as string) || "Agente",
-            estado: (obj.estado as EstadoProceso) || "en-marcha",
-            progreso: null,
-            donde: (obj.aplicacion as string) || (obj.servidor as string) || "mac",
-            desde: ahora,
-            detalle: undefined,
-            fuente: "agentes-mac",
-          });
-        }
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
+export interface UmbralesProcesos {
+  cpu: number;
+  ram: number;
+  disco: number;
+  bateria: number;
 }
 
-function desdeLatidos(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
+export const UMBRALES_POR_DEFECTO: UmbralesProcesos = { cpu: 85, ram: 90, disco: 90, bateria: 20 };
 
-  try {
-    const latidos = Array.isArray(r) ? r : (r as Record<string, unknown>)?.latidos;
-    if (Array.isArray(latidos)) {
-      for (const latido of latidos) {
-        if (typeof latido !== "object" || latido === null) continue;
-        const obj = latido as Record<string, unknown>;
-
-        const id = (obj.tarea as string) || (obj.id as string) || "sin-tarea";
-        const tipo = (obj.modelo && obj.fase === "en-marcha" ? "genesis" : "servicio") as TipoProceso;
-        const nombre = (obj.tarea as string) || (obj.modelo as string) || "Tarea en latido";
-        const estado = (obj.fase as EstadoProceso) || "en-marcha";
-        const donde = (obj.modelo as string) || (obj.tarea as string) || "mac";
-        const desde = (obj.minutos as number) ? (Date.now() - (obj.minutos as number) * 60 * 1000) : (obj.tiempo_inicio ? new Date(obj.tiempo_inicio as string).getTime() : null);
-        const detalle = (obj.fase as string) + (obj.modelo ? ` (${obj.modelo})` : "");
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "latidos",
-        });
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
+export interface AvisoHardware {
+  servidor: string;
+  medida: "cpu" | "ram" | "disco" | "bateria";
+  valor: number;
+  umbral: number;
 }
 
-function desdeNodos(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
-
-  try {
-    const nodos = Array.isArray(r) ? r : (r as Record<string, unknown>)?.nodos;
-    if (Array.isArray(nodos)) {
-      for (const nodo of nodos) {
-        if (typeof nodo !== "object" || nodo === null) continue;
-        const obj = nodo as Record<string, unknown>;
-
-        const id = (obj.id as string) || (obj.nodo as string) || (obj.nombre as string) || "nodo-desconocido";
-        const tipo = (obj.tipo as TipoProceso) || (obj.tipo === "mac" || obj.tipo === "a1" || obj.tipo === "neurona" || obj.tipo === "nube" || obj.tipo === "otro" ? obj.tipo as TipoProceso : "servicio");
-        const nombre = (obj.nombre as string) || (obj.nodo as string) || "Nodo";
-        const estado = (obj.estado === "pedida" ? "esperando" : (obj.estado as EstadoProceso) || "en-marcha");
-        const donde = (obj.nodo as string) || (obj.id as string) || "mac";
-        const desde = ahora;
-        const detalle = (obj.tipo as string) + " en " + donde;
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "nodos",
-        });
-      }
-    }
-  } catch {
+/** Avisos por encima del umbral (batería por debajo y solo si no carga); null nunca avisa. */
+export function avisosHardware(lista: HardwareServidor[], u: UmbralesProcesos): AvisoHardware[] {
+  const avisos: AvisoHardware[] = [];
+  for (const h of lista) {
+    const ramPct = porcentaje(h.ramUsadaMb, h.ramTotalMb);
+    const { discoLibreGb, discoTotalGb } = h;
+    const discoUsadoGb =
+      discoLibreGb != null && discoTotalGb != null ? discoTotalGb - discoLibreGb : null;
+    const discoPct = porcentaje(discoUsadoGb, discoTotalGb);
+    if (h.cpuPct != null && h.cpuPct >= u.cpu)
+      avisos.push({ servidor: h.nombre, medida: "cpu", valor: h.cpuPct, umbral: u.cpu });
+    if (ramPct != null && ramPct >= u.ram)
+      avisos.push({ servidor: h.nombre, medida: "ram", valor: ramPct, umbral: u.ram });
+    if (discoPct != null && discoPct >= u.disco)
+      avisos.push({ servidor: h.nombre, medida: "disco", valor: discoPct, umbral: u.disco });
+    if (h.bateriaPct != null && h.cargando === false && h.bateriaPct <= u.bateria)
+      avisos.push({ servidor: h.nombre, medida: "bateria", valor: h.bateriaPct, umbral: u.bateria });
   }
-
-  return resultados;
+  return avisos;
 }
 
-function desdePoligenesis(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
+export type TipoServidor = "mac" | "a1" | "neurona" | "nube" | "otro";
 
-  try {
-    const historial = (r as Record<string, unknown>)?.historial;
-    if (typeof historial === "object" && historial !== null) {
-      const ops = Array.isArray(historial.operaciones) ? historial.operaciones : [];
-      for (const op of ops) {
-        if (typeof op !== "object" || op === null) continue;
-        const obj = op as Record<string, unknown>;
-
-        const id = (obj.id as string) || (obj._id as string) || "poligenesis-sin-id";
-        const tipo = "poligenesis" as TipoProceso;
-        const nombre = (obj.accion as string) || "Propuesta de PoliGenesis";
-        const estado = (obj.estado as EstadoProceso) || "esperando";
-        const donde = (obj.origen as string) || (obj.cuenta as string) || "poligenesis";
-        const desde = (obj.creado_en ? new Date(obj.creado_en as string).getTime() : null);
-        const detalle = (obj.accion as string) + " - " + (obj.descripcion as string || "") ;
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "poligenesis",
-        });
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
+export interface HardwareServidor {
+  id: string;
+  nombre: string;
+  tipo: TipoServidor;
+  cpuPct: number | null;
+  nucleos: number | null;
+  carga: number | null;
+  ramUsadaMb: number | null;
+  ramTotalMb: number | null;
+  gpuPct: number | null;
+  gpuNombre: string | null;
+  discoLibreGb: number | null;
+  discoTotalGb: number | null;
+  bateriaPct: number | null;
+  cargando: boolean | null;
+  medidoEn: number | null;
+  fuente: string;
 }
 
-function desdeSuenos(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
+export const ETIQUETA_TIPO: Record<TipoProceso, string> = {
+  genesis: "Genesis",
+  poligenesis: "PoliGenesis",
+  sueno: "Sueños",
+  imaginacion: "Imaginación",
+  descarga: "Descargas",
+  instalacion: "Instalaciones",
+  actualizacion: "Actualizaciones",
+  "app-fondo": "Apps en segundo plano",
+  servicio: "Servicios",
+};
 
-  try {
-    const suenos = (r as Record<string, unknown>)?.suenos;
-    if (Array.isArray(suenos)) {
-      for (const sueno of suenos) {
-        if (typeof sueno !== "object" || sueno === null) continue;
-        const obj = sueno as Record<string, unknown>;
-
-        const id = (obj.id as string) || (obj.run_id as string) || "sin-id";
-        const tipo = "sueno" as TipoProceso;
-        const nombre = (obj.titulo as string) || (obj.name as string) || "Sueño sin título";
-        const estado = (obj.estado as EstadoProceso) || "esperando";
-        const donde = (obj.modelo as string) || (obj.servidor as string) || "mac";
-        const desde = (obj.creado_en ? new Date(obj.creado_en as string).getTime() : null);
-        const detalle = (obj.estado as string) + " - " + (obj.modelo as string || "");
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "suenos",
-        });
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
+/** Lee la respuesta de `/api/mando/hardware` (§7.1), de forma defensiva. */
+export function hardwareDesdeMac(r: unknown, ahora: number): HardwareServidor | null {
+  const o = registro(r);
+  if (!o) return null;
+  return {
+    id: texto(o.id) ?? "esta-mac",
+    nombre: texto(o.nombre) ?? "Esta Mac",
+    tipo: "mac",
+    cpuPct: numero(o.cpuPct),
+    nucleos: numero(o.nucleos),
+    carga: numero(o.carga),
+    ramUsadaMb: numero(o.ramUsadaMb),
+    ramTotalMb: numero(o.ramTotalMb),
+    gpuPct: numero(o.gpuPct),
+    gpuNombre: texto(o.gpuNombre),
+    discoLibreGb: numero(o.discoLibreGb),
+    discoTotalGb: numero(o.discoTotalGb),
+    bateriaPct: numero(o.bateriaPct),
+    cargando: typeof o.cargando === "boolean" ? o.cargando : null,
+    medidoEn: numero(o.medidoEn) ?? ahora,
+    fuente: "mando",
+  };
 }
 
-function desdeImaginacion(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
-
-  try {
-    const imaginacion = (r as Record<string, unknown>)?.imaginacion;
-    if (typeof imaginacion === "object" && imaginacion !== null) {
-      const ejecuciones = Array.isArray(imaginacion.ejecuciones) ? imaginacion.ejecuciones : [];
-      for (const ejec of ejecuciones) {
-        if (typeof ejec !== "object" || ejec === null) continue;
-        const obj = ejec as Record<string, unknown>;
-
-        const id = (obj.id as string) || (obj.run_id as string) || "sin-id";
-        const tipo = "imaginacion" as TipoProceso;
-        const nombre = (obj.titulo as string) || (obj.name as string) || "Imaginación sin título";
-        const estado = (obj.estado as EstadoProceso) || "esperando";
-        const donde = (obj.modelo as string) || (obj.servidor as string) || "mac";
-        const desde = (obj.creado_en ? new Date(obj.creado_en as string).getTime() : null);
-        const detalle = (obj.estado as string) + " - " + (obj.modelo as string || "");
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "imaginacion",
-        });
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
+export function hardwareDesdeNodo(n: unknown, ahora: number): HardwareServidor | null {
+  const o = registro(n);
+  if (!o) return null;
+  const nodo = texto(o.nodo);
+  if (!nodo) return null;
+  const ramTotalMb = numero(o.ram_total_mb);
+  const ramLibreMb = numero(o.ram_libre_mb);
+  const ramUsadaMb = ramTotalMb != null && ramLibreMb != null ? ramTotalMb - ramLibreMb : null;
+  return {
+    id: nodo,
+    nombre: nodo,
+    tipo: texto(o.medio) === "movil" || texto(o.medio) === "navegador" ? "neurona" : "a1",
+    cpuPct: numero(o.cpu_pct),
+    nucleos: numero(o.nucleos),
+    carga: numero(o.carga),
+    ramUsadaMb,
+    ramTotalMb,
+    gpuPct: null,
+    gpuNombre: null,
+    discoLibreGb: numero(o.disco_gb),
+    discoTotalGb: numero(o.disco_total_gb),
+    bateriaPct: numero(o.bateria_pct),
+    cargando: typeof o.cargando === "boolean" ? o.cargando : null,
+    medidoEn: numero(o.medido_en) ?? ahora,
+    fuente: "nodo",
+  };
 }
 
-function desdeInstalaciones(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
-
-  try {
-    const instalaciones = (r as Record<string, unknown>)?.instalaciones;
-    if (Array.isArray(instalaciones)) {
-      for (const inst of instalaciones) {
-        if (typeof inst !== "object" || inst === null) continue;
-        const obj = inst as Record<string, unknown>;
-
-        const id = (obj.id as string) || (obj.instalacion_id as string) || "sin-id";
-        const tipo = (obj.estado === "pedida" ? "descarga" : "instalacion") as TipoProceso;
-        const nombre = (obj.nombre as string) || (obj.descripcion as string) || "Instalación";
-        const estado = obj.estado === "pedida" ? "esperando" : (obj.estado === "descargada" ? "en-marcha" : (obj.estado as EstadoProceso) || "en-marcha");
-        const donde = (obj.aplicacion as string) || (obj.servidor as string) || "mac";
-        const desde = (obj.creado_en ? new Date(obj.creado_en as string).getTime() : null);
-        const detalle = (obj.estado as string) + " - " + (obj.descripcion as string || "");
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "instalaciones",
-        });
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
-}
-
-function desdeActualizaciones(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
-
-  try {
-    const actualizaciones = (r as Record<string, unknown>)?.actualizaciones;
-    if (Array.isArray(actualizaciones)) {
-      for (const act of actualizaciones) {
-        if (typeof act !== "object" || act === null) continue;
-        const obj = act as Record<string, unknown>;
-
-        const id = (obj.id as string) || (obj.version as string) || "sin-version";
-        const tipo = "actualizacion" as TipoProceso;
-        const nombre = (obj.nombre as string) || (obj.descripcion as string) || "Actualización";
-        const estado = (obj.estado as EstadoProceso) || "esperando";
-        const donde = (obj.aplicacion as string) || (obj.servidor as string) || "mac";
-        const desde = (obj.creado_en ? new Date(obj.creado_en as string).getTime() : null);
-        const detalle = (obj.version as string) + " - " + (obj.estado as string);
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "actualizaciones",
-        });
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
-}
-
-function desdeVentanas(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
-
-  try {
-    const ventanas = (r as Record<string, unknown>)?.ventanas;
-    if (Array.isArray(ventanas)) {
-      for (const ventana of ventanas) {
-        if (typeof ventana !== "object" || ventana === null) continue;
-        const obj = ventana as Record<string, unknown>;
-
-        const id = (obj.id as string) || (obj.ventana_id as string) || "sin-id";
-        const tipo = "app-fondo" as TipoProceso;
-        const nombre = (obj.titulo as string) || (obj.aplicacion as string) || "Ventana sin título";
-        const estado = (obj.minimizada ? "pausado" : "en-marcha") as EstadoProceso;
-        const donde = (obj.aplicacion as string) || (obj.servidor as string) || "mac";
-        const desde = (obj.minimizada_desde ? new Date(obj.minimizada_desde as string).getTime() : null);
-        const detalle = obj.minimizada ? "Minimizada" : undefined;
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "ventanas",
-        });
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
-}
-
-function desdePresencia(r: unknown): ProcesoActivo[] {
-  const ahora = Date.now();
-  const resultados: ProcesoActivo[] = [];
-
-  try {
-    const presencia = (r as Record<string, unknown>)?.presencia;
-    if (Array.isArray(presencia)) {
-      for (const neurona of presencia) {
-        if (typeof neurona !== "object" || neurona === null) continue;
-        const obj = neurona as Record<string, unknown>;
-
-        const id = (obj.id as string) || (obj.neurona_id as string) || "sin-id";
-        const tipo = "app-fondo" as TipoProceso;
-        const nombre = (obj.nombre as string) || (obj.titulo as string) || "Neurona oculta";
-        const estado = (obj.visible === false ? "pausado" : "en-marcha") as EstadoProceso;
-        const donde = (obj.neurona_id as string) || (obj.device_id as string) || "mac";
-        const desde = (obj.oculta_desde ? new Date(obj.oculta_desde as string).getTime() : null);
-        const detalle = (obj.visible === false ? "Neurona minimizada o invisible" : "Neurona visible");
-
-        resultados.push({
-          id,
-          tipo,
-          nombre,
-          estado,
-          progreso: null,
-          donde,
-          desde,
-          detalle,
-          fuente: "presencia",
-        });
-      }
-    }
-  } catch {
-  }
-
-  return resultados;
+export function hardwareDesdeNeurona(n: unknown, ahora: number): HardwareServidor | null {
+  const o = registro(n);
+  if (!o) return null;
+  const caps = registro(o.capabilities) ?? registro(o.capacidades) ?? o;
+  const bat = registro(caps.battery) ?? registro(caps.bateria);
+  const quo = registro(caps.quota) ?? registro(caps.cuota);
+  const id = texto(o.id) ?? texto(o.device_id) ?? texto(o.nombre) ?? "neurona";
+  return {
+    id,
+    nombre: texto(o.nombre) ?? id,
+    tipo: "neurona",
+    cpuPct: null,
+    nucleos: null,
+    carga: null,
+    ramUsadaMb: null,
+    ramTotalMb: null,
+    gpuPct: null,
+    gpuNombre: null,
+    discoLibreGb: numero(quo?.libre_gb) ?? numero(quo?.free_gb),
+    discoTotalGb: numero(quo?.total_gb),
+    bateriaPct: numero(bat?.level),
+    cargando: typeof bat?.charging === "boolean" ? bat.charging : null,
+    medidoEn: numero(o.medido_en) ?? ahora,
+    fuente: "neurona",
+  };
 }
 
 export {
@@ -485,3 +258,15 @@ export {
   desdeVentanas,
   desdePresencia,
 };
+
+function registro(v: unknown): Record<string, unknown> | null {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : null;
+}
+
+function numero(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function texto(v: unknown): string | null {
+  return typeof v === "string" && v.trim() !== "" ? v : null;
+}
