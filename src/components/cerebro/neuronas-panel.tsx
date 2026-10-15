@@ -500,7 +500,7 @@ function NeuronCard({
           </div>
         ) : (
           <>
-            <span className="text-sm font-semibold text-white/90 truncate max-w-[220px]">{n.name}</span>
+            <span className="text-sm font-semibold text-white/90 max-w-[220px]">{n.name}</span>
             <Button variant="ghost" size="sm" className="cursor-pointer h-7 px-1.5" onClick={() => { setDraftName(n.name); setEditing(true); }}>
               <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="sr-only">Renombrar neurona</span>
@@ -1034,15 +1034,15 @@ function CasaOsSection({
             >
               <PanelTop className="w-3.5 h-3.5" /> {embedOpen ? "Ocultar vista" : "Vista embebida"}
             </Button>
-            <Button
-              size="sm"
-              className="cursor-pointer h-8 gap-1.5 text-xs bg-emerald-600/80 hover:bg-emerald-600 text-white"
-              disabled={linking}
-              onClick={() => void linkAsMemoryServer()}
-            >
-              {linking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-              Vincular como servidor de memoria
-            </Button>
+<Button
+  size="sm"
+  className="cursor-pointer h-8 gap-1.5 text-xs bg-emerald-600/80 hover:bg-emerald-600 text-white whitespace-normal h-auto"
+  disabled={linking}
+  onClick={() => void linkAsMemoryServer()}
+>
+  {linking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+  Vincular como servidor de memoria
+</Button>
           </div>
           <p className="text-[10px] text-white/35">
             Nota: si el OS corre en https y el panel es http de red local, el navegador puede bloquear la

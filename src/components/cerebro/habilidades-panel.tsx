@@ -230,7 +230,7 @@ export default function HabilidadesPanel({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-sm text-white/85 truncate">{a.name}</span>
+                      <span className="text-sm text-white/85">{a.name}</span>
                       <Badge variant="outline" className="border-white/15 text-white/50 text-[9px] py-0">
                         {ABILITY_KIND_LABELS[a.kind as AbilityKind] ?? a.kind}
                       </Badge>
