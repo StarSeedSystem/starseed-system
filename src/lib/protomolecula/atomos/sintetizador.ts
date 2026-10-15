@@ -1,4 +1,4 @@
-import type { DefinicionAtomo, VistaAtomo } from "../tipos";
+import type { DefinicionAtomo, VistaAtomo } from "../registro-atomos";
 import type { Parametro } from "../tipos";
 
 /** Parámetros del sintetizador Web Audio */
