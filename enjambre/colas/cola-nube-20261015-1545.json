@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "CB1013I",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Conectores: fuentes del cliente y panel del pilar",
+   "archivos": [
+    "src/lib/cerebros/conectores-fuentes.ts",
+    "src/components/cerebro/conectores-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §6 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. `conectores-fuentes.ts` (cliente): `leerFuentesConectores(brainId)` reúne `listConnectors()` (src/lib/connectors), `INTEGRATIONS` + `loadIntegrationConfig(id, brainId)` (configurada = tiene configuración), `loadAbilities()` marcando enlazadas las de `ability_links` de este cerebro (mira cómo lo hace habilidades-panel.tsx), `fetch('/api/externos/vinculos')` filtrando ámbito este cerebro, y los canales de `localStorage['starseed.brain.<id>.channels']`; cada fuente con try/catch: si una falla, sigue con las demás y lo anota en `avisos: string[]`. Sustituye el componente de partida `conectores-panel.tsx` (mantén `ConectoresPanelProps { brainId; brainName? }` y el default): grupos por tipo con su cuenta real, insignia de estado en palabras, interruptor «Usar en este cerebro» (guarda en `claveConectores(brainId)` y llama a `pushPreferences()` de `@/lib/settings-sync`), enlace «Configurar» a `/conexiones` (o al panel que corresponda), los avisos de fuentes que fallaron y un estado vacío honesto.",
+   "revisor_quitadas": [
+    "CB1013H"
+   ]
+  }
+ ]
+}
