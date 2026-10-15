@@ -59,7 +59,7 @@ describe("validarEncargo", () => {
       ambito: "personal",
       intencion: "crear una molécula",
       criterios: [
-        { tipo: "invalido", texto: "criterio malo" } as Criterio,
+        { tipo: "invalido", texto: "criterio malo" } as unknown as Criterio,
       ],
       autor: { tipo: "persona", id: "U003" },
       origen: "texto",
