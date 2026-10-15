@@ -19,6 +19,7 @@
  */
 
 /** Sin latir este tiempo, un nodo no cuenta como vivo (igual que `TTL_LIDER_S` del nodo). */
+import { ContenedorNodo } from "./colmena";
 export const TTL_NODO_MS = 900_000;
 /** Una orden sin respuesta en 15 min caducó (el nodo la rechaza por vieja). */
 export const ORDEN_CADUCA_MS = 15 * 60_000;
@@ -158,7 +159,7 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
             }
         }
     }
-    if (accion === "repartir") {
+    if ((accion as unknown) === "repartir") {
         if (!("destino" in a) || typeof a.destino !== "string" || !RE_NODO.test(a.destino)) {
             return "destino no válido";
         }
@@ -222,6 +223,8 @@ export interface NodoVista {
     disco_gb: number | null;
     ram_libre_mb: number | null;
     trabajo: Record<string, number | null>;
+    enCurso: TareaEnCurso[];
+    contenedor: ContenedorNodo | null;
 }
 
 export interface DecisionVista {
@@ -231,6 +234,12 @@ export interface DecisionVista {
     motivo: string;
     resultado: string;
     seco: boolean;
+}
+
+export interface TareaEnCurso {
+    id: string;
+    fase: string;
+    punto: { rama: string; sha: string; t: number } | null;
 }
 
 export interface OrdenVista {
@@ -512,9 +521,18 @@ export function resumirTablas(t: FilasTablas, ahora: number): EstadoAutonomo {
  * fuente donde hay alguien vivo; si en ninguna late nadie, las tablas (lo que dicen es verdad).
  */
 export function elegirFuente(tablas: EstadoAutonomo | null, bus: EstadoAutonomo | null): "tablas" | "bus" {
-    if (tablas && tablas.nodos.some((n) => n.vivo)) return "tablas";
-    if (bus && bus.nodos.some((n) => n.vivo)) return "bus";
-    return tablas ? "tablas" : "bus";
+    if (tablas === null) {
+        return "bus";
+    }
+    if (bus === null) {
+        return "tablas";
+    }
+    const tablasVivos = tablas.nodos.filter(n => n.vivo).length;
+    const busVivos = bus.nodos.filter(n => n.vivo).length;
+    if (busVivos > tablasVivos) {
+        return "bus";
+    }
+    return "tablas";
 }
 
 /** PURA. Una frase para la cabecera: quién dirige y desde dónde, sin jerga. */
@@ -541,5 +559,5 @@ export function textoEstadoOrden(estado: string): string {
         fallo: "falló",
         caducada: "nadie la recogió a tiempo",
     };
-    return t[estado] ?? state;
+    return t[estado] ?? estado;
 }
