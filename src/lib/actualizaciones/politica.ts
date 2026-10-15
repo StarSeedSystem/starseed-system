@@ -3,7 +3,7 @@ export { type CapaActualizacion } from "./manifiesto";
 export type ModoPolitica = "automatica-todas" | "automatica-esta" | "programada" | "manual";
 export interface PoliticaCapa { modo: ModoPolitica; ventana?: { desdeH: number; hastaH: number }; }
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
-export type TipoEntidad = "perfil-privado" | "pagina-publica" | "grupo-jerarquico" | "grupo-democratico";
+export type TipoEntidad = "perfil-privado" | "perfil" | "pagina-publica" | "pagina" | "grupo-jerarquico" | "grupo" | "grupo-democratico" | "comunidad" | "estudio" | "evento" | "os";
 export type Decision = "aplicar" | "avisar" | "esperar";
 export interface ContextoDecision { ahoraH: number; esNeuronaElegida: boolean; aprobada?: boolean; requiereAprobacion?: boolean; }
 export const MODOS_POLITICA: ModoPolitica[] = ["automatica-todas", "automatica-esta", "programada", "manual"];
