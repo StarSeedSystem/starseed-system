@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "id": "MC1012T",
+   "titulo": "Los elegidores de vía consultan la viabilidad por dato",
+   "archivos": [
+    "src/lib/malla/cristal/adaptador-elegidores.ts",
+    "src/lib/malla/eleccion-enlace.ts",
+    "src/lib/malla/cristal/__tests__/adaptador-elegidores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Une §3.5 del contrato. En adaptador-elegidores.ts exporta `vetoPorPolitica(clase, medio)` (usa politicaDeTransporte) y `ordenarPorViabilidad<E extends {id: string; medio?: string}>(enlaces: E[], puntuar: (e: E) => number): E[]` estable. En src/lib/malla/eleccion-enlace.ts añade a `elegirEnlaces` un parámetro OPCIONAL al final `opciones?: {clase?: 'interno'|'privado'|'publico'; puntuar?: (e: EnlaceDisponible) => number}`: sin él, el comportamiento es EXACTAMENTE el de hoy (las pruebas existentes de src/lib/malla/__tests__/eleccion-enlace.test.ts deben seguir en verde sin cambiarlas); con él, primero descarta los enlaces vetados para esa clase (con su motivo en la lista de descartes que ya existe) y luego ordena los que quedan por la puntuación dentro del mismo rango. Cambio mínimo en eleccion-enlace.ts (≤ 25 líneas). Pruebas nuevas del adaptador y de elegirEnlaces con opciones.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "revisor_quitadas": [
+    "MC1012H"
+   ],
+   "dependencias_ya_en_main": [
+    "MC1012L"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "MC1012T"
+  ]
+ }
+}
