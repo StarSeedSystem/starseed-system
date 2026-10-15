@@ -51,7 +51,8 @@ describe("acciones colmena: desconectar y contenedor", () => {
 
     it("contenedor con activo false rechaza trabajadores", () => {
         expect(validarArgs("contenedor", { activo: false })).toBeNull();
-        expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores solo se permite si activo es True");
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toBe("trabajadores solo se permite si activo es True");
     });
 });
 
@@ -102,10 +103,7 @@ describe("latido: en_curso y contenedor (§3)", () => {
         const e = resumirBus([latido({ nodo: "nodo-a1", ts: (AHORA - 60_000) / 1000 })], AHORA);
         expect(e.nodos[0].enCurso).toEqual([]);
         expect(e.nodos[0].contenedor).toBeNull();
-        const raro = resumirBus(
-            [latido({ nodo: "nodo-a1", ts: AHORA / 1000, en_curso: "nada", contenedor: { activo: true } })],
-            AHORA,
-        );
+        const raro = resumirBus([latido({ nodo: "nodo-a1", ts: AHORA / 1000, en_curso: "nada", contenedor: { activo: true } })], AHORA);
         expect(raro.nodos[0].enCurso).toEqual([]);
         expect(raro.nodos[0].contenedor).toEqual({ activo: true, agentes: 0, apto: false, motivo: "" });
     });

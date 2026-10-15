@@ -18,8 +18,6 @@
  * SOP: architecture/metagenesis-autonoma.md
  */
 
-import type { ContenedorNodo } from "@/lib/metagenesis/colmena";
-
 /** Sin latir este tiempo, un nodo no cuenta como vivo (igual que `TTL_LIDER_S` del nodo). */
 export const TTL_NODO_MS = 900_000;
 /** Una orden sin respuesta en 15 min caducó (el nodo la rechaza por vieja). */
@@ -71,12 +69,10 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     pausar: { etiqueta: "Pausar autonomía", explica: "El líder deja de decidir solo hasta que la reanudes.", confirmar: true, args: [] },
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
-    // Colmena (COL1012): van a un ID de nodo concreto, nunca a «lider»/«todos» (igual que el nodo Python).
     desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
     contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
 };
 
-/** Las acciones del nodo NO se ofrecen en «Pedir algo al que dirige»: van en la tarjeta de cada neurona. */
 export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "contenedor">, FichaAccion> = {
     continuar: ACCIONES.continuar,
     revisar_bloqueadas: ACCIONES.revisar_bloqueadas,
@@ -90,15 +86,7 @@ export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "co
     ceder: ACCIONES.ceder,
 };
 
-/** PURA. true si `para` puede recibir esta acción: desconectar/contenedor solo a un id de nodo concreto. */
-export function esDestinoPara(accion: AccionOrden, para: unknown): boolean {
-    if (!esDestino(para)) return false;
-    if (accion === "desconectar" || accion === "contenedor") {
-        return para !== "lider" && para !== "todos" && !(para in MEDIOS);
-    }
-    return true;
-}
-
+/** Las acciones del nodo NO se ofrecen en «Pedir algo al que dirige»: van en la tarjeta de cada neurona. */
 export const MEDIOS: Record<string, string> = {
     mac: "Mac de desarrollo",
     "oracle-a1": "Oracle A1 (24/7)",
@@ -123,6 +111,14 @@ export function esDestino(x: unknown): x is string {
     return typeof x === "string" && (x === "lider" || x === "todos" || x in MEDIOS || RE_NODO.test(x));
 }
 
+export function esDestinoPara(accion: AccionOrden, para: unknown): boolean {
+    if (!esDestino(para)) return false;
+    if (accion === "desconectar" || accion === "contenedor") {
+        return para !== "lider" && para !== "todos" && !(para in MEDIOS);
+    }
+    return true;
+}
+
 /** PURA. null si los argumentos encajan con la acción; si no, el motivo (igual que en Python). */
 export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     const a = (args ?? {}) as Record<string, unknown>;
@@ -136,16 +132,39 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     if ((accion === "lanzar_cola" || accion === "detener_cola") && !(typeof a.cola === "string" && RE_COLA.test(a.cola))) {
         return "nombre de cola no válido";
     }
-    if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
+    if (accion !== "contenedor" && "trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
         return "trabajadores fuera de 1–4";
     }
-    // MISMAS reglas que `args_validos` del nodo Python: activo booleano obligatorio; trabajadores
-    // 1–4 SOLO con activo true (con activo false el nodo apaga el contenedor y no quiere ese dato).
     if (accion === "contenedor") {
-        if (!("activo" in a)) return "falta argumento: activo";
-        if (typeof a.activo !== "boolean") return "activo debe ser booleano";
-        if (a.activo && !("trabajadores" in a)) return "falta argumento: trabajadores";
-        if (!a.activo && "trabajadores" in a) return "trabajadores solo se permite si activo es True";
+        // activo is required and must be boolean
+        if (!("activo" in a)) {
+            return "falta argumento: activo";
+        }
+        if (typeof a.activo !== "boolean") {
+            return "activo debe ser booleano";
+        }
+        // if activo is true, then trabajadores must be present and between 1 and 4
+        if (a.activo === true) {
+            if (!("trabajadores" in a)) {
+                return "falta argumento: trabajadores";
+            }
+            if (!(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
+                return "trabajadores fuera de 1–4";
+            }
+        } else {
+            // if activo is false, trabajadores should not be present
+            if ("trabajadores" in a) {
+                return "trabajadores solo se permite si activo es True";
+            }
+        }
+    }
+    if (accion === "repartir") {
+        if (!("destino" in a) || typeof a.destino !== "string" || !RE_NODO.test(a.destino)) {
+            return "destino no válido";
+        }
+        if ("tope" in a && !(Number.isInteger(a.tope) && (a.tope as number) >= 1 && (a.tope as number) <= 8)) {
+            return "tope fuera de 1–8";
+        }
     }
     return null;
 }
@@ -189,14 +208,6 @@ export function nonceValido(n: unknown): n is string {
 
 // ─── lo que se ve ────────────────────────────────────────────────────────────
 
-/** Una tarea en curso del latido (`en_curso`, contrato §3): sin rutas ni nombres de máquina. */
-export interface TareaEnCurso {
-    id: string;
-    fase: string;
-    /** Punto desde el que otra neurona podría seguirla (rama/sha/t del último salvavidas). */
-    punto: { rama: string; sha: string; t: number } | null;
-}
-
 export interface NodoVista {
     nodo: string;
     medio: string;
@@ -211,38 +222,6 @@ export interface NodoVista {
     disco_gb: number | null;
     ram_libre_mb: number | null;
     trabajo: Record<string, number | null>;
-    /** ≤ 8 tareas con agente trabajando en este aparato; [] si el latido no las trajo. */
-    enCurso: TareaEnCurso[];
-    /** Estado de contenedor del latido (`trabajadores` pasa a llamarse `agentes`, como en colmena.ts); null si no lo apuntó. */
-    contenedor: ContenedorNodo | null;
-}
-
-const boolDe = (x: unknown): boolean => x === true;
-
-/** PURA. Un `en_curso` del latido a lo que se pinta, sin fiarse de lo que venga. */
-function enCursoDe(d: Record<string, unknown>): TareaEnCurso[] {
-    const lista = Array.isArray(d.en_curso) ? (d.en_curso as Array<Record<string, unknown>>) : [];
-    return lista
-        .map((t) => {
-            const p = (t?.punto ?? null) as Record<string, unknown> | null;
-            const id = txt(t?.id, 80);
-            if (!id) return null;
-            return {
-                id,
-                fase: txt(t?.fase, 40),
-                punto: p ? { rama: txt(p.rama, 120), sha: txt(p.sha, 60), t: num(p.t) ?? 0 } : null,
-            };
-        })
-        .filter((t): t is TareaEnCurso => t !== null)
-        .slice(0, 8);
-}
-
-/** PURA. El `contenedor` del latido (§3: {activo, trabajadores, apto, motivo}), o null si falta. */
-function contenedorDe(d: Record<string, unknown>): ContenedorNodo | null {
-    const c = d.contenedor as Record<string, unknown> | null;
-    if (!c || typeof c !== "object") return null;
-    // El latido dice `trabajadores`; la pantalla y colmena.ts lo llaman `agentes`. Se aceptan ambos.
-    return { activo: boolDe(c.activo), agentes: num(c.trabajadores) ?? num(c.agentes) ?? 0, apto: boolDe(c.apto), motivo: txt(c.motivo, 160) };
 }
 
 export interface DecisionVista {
@@ -287,6 +266,31 @@ export interface FilaBus {
 
 const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
 const txt = (x: unknown, max = 200): string => (typeof x === "string" ? x.slice(0, max) : "");
+const boolDe = (x: unknown): boolean => x === true;
+
+function enCursoDe(d: Record<string, unknown>): TareaEnCurso[] {
+    const lista = Array.isArray(d.en_curso) ? (d.en_curso as Array<Record<string, unknown>>) : [];
+    return lista
+        .map((t) => {
+            const p = (t?.punto ?? null) as Record<string, unknown> | null;
+            const id = txt(t?.id, 80);
+            if (!id) return null;
+            return {
+                id,
+                fase: txt(t?.fase, 40),
+                punto: p ? { rama: txt(p.rama, 120), sha: txt(p.sha, 60), t: num(p.t) ?? 0 } : null,
+            };
+        })
+        .filter((t): t is TareaEnCurso => t !== null)
+        .slice(0, 8);
+}
+
+function contenedorDe(d: Record<string, unknown>): ContenedorNodo | null {
+    const c = d.contenedor as Record<string, unknown> | null;
+    if (!c || typeof c !== "object") return null;
+    // El latido dice `trabajadores`; la pantalla y colmena.ts lo llaman `agentes`. Se aceptan ambos.
+    return { activo: boolDe(c.activo), agentes: num(c.trabajadores) ?? num(c.agentes) ?? 0, apto: boolDe(c.apto), motivo: txt(c.motivo, 160) };
+}
 
 function tsDe(f: FilaBus): number {
     const d = f.datos ?? {};
@@ -505,23 +509,11 @@ export function resumirTablas(t: FilasTablas, ahora: number): EstadoAutonomo {
  * MetaGenesis está latiendo» con la Mac y el A1 vivos: los dos van por la PUERTA DE DATOS del A1
  * (`EnlacePuerta`), que deja su latido como espejo en el BUS y nunca en `metagenesis_nodos`
  * (`ultimo_latido` vacío). Y las órdenes se guardaban en una tabla que ningún nodo lee. Manda la
- * fuente donde hay más nodos vivos; a igualdad, las tablas; sin vivos en ninguna, como hoy.
+ * fuente donde hay alguien vivo; si en ninguna late nadie, las tablas (lo que dicen es verdad).
  */
 export function elegirFuente(tablas: EstadoAutonomo | null, bus: EstadoAutonomo | null): "tablas" | "bus" {
-    const viveTablas = tablas ? tablas.nodos.some(n => n.vivo) : false;
-    const viveBus = bus ? bus.nodos.some(n => n.vivo) : false;
-
-    if (viveTablas && !viveBus) return "tablas";
-    if (viveBus && !viveTablas) return "bus";
-
-    // Ambos tienen nodos vivos o ninguno tiene nodos vivos
-    if (viveTablas && viveBus) {
-        const numTablas = tablas!.nodos.filter(n => n.vivo).length;
-        const numBus = bus!.nodos.filter(n => n.vivo).length;
-        return numTablas >= numBus ? "tablas" : "bus";
-    }
-
-    // Ninguno tiene nodos vivos: comportamiento actual
+    if (tablas && tablas.nodos.some((n) => n.vivo)) return "tablas";
+    if (bus && bus.nodos.some((n) => n.vivo)) return "bus";
     return tablas ? "tablas" : "bus";
 }
 
@@ -549,5 +541,5 @@ export function textoEstadoOrden(estado: string): string {
         fallo: "falló",
         caducada: "nadie la recogió a tiempo",
     };
-    return t[estado] ?? estado;
+    return t[estado] ?? state;
 }
