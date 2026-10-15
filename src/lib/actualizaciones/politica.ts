@@ -1,141 +1,44 @@
-/**
- * Política de actualización por sistema y por capa (contrato §4).
- * ═══════════════════════════════════════════════════════════════
- * Quien recibe una versión decide CÓMO le llega, capa por capa: automática en todas sus neuronas,
- * automática solo en una, programada en una ventana horaria o manual (avisar). Al crear un perfil,
- * una página, un grupo o una comunidad se propone la política por defecto de su tipo; luego se
- * cambia en su Genesis.
- *
- * Puro: sin React, sin red, sin `node:*`. Nunca lanza.
- */
-
 import { CAPAS_ORDEN, type CapaActualizacion } from "./manifiesto";
-
+export { type CapaActualizacion } from "./manifiesto";
 export type ModoPolitica = "automatica-todas" | "automatica-esta" | "programada" | "manual";
-
-export const MODOS_POLITICA: readonly ModoPolitica[] = ["automatica-todas", "automatica-esta", "programada", "manual"];
-
-export const NOMBRE_MODO: Record<ModoPolitica, string> = {
-  "automatica-todas": "Automática en todas mis neuronas",
-  "automatica-esta": "Automática solo en esta neurona",
-  programada: "Programada",
-  manual: "Manual (avisarme)",
-};
-
-export const NOMBRE_MODO_CORTO: Record<ModoPolitica, string> = {
-  "automatica-todas": "Auto · todas",
-  "automatica-esta": "Auto · esta",
-  programada: "Programada",
-  manual: "Manual",
-};
-
-export interface VentanaHoraria {
-  /** Hora local de inicio (0-23). */
-  desdeH: number;
-  /** Hora local de fin, exclusiva (0-23). Si es menor que `desdeH`, la ventana cruza la medianoche. */
-  hastaH: number;
-}
-
-export interface PoliticaCapa {
-  modo: ModoPolitica;
-  ventana?: VentanaHoraria;
-}
-
+export interface PoliticaCapa { modo: ModoPolitica; ventana?: { desdeH: number; hastaH: number }; }
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
-
-/** Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil). */
-export type TipoEntidad = "perfil" | "pagina" | "grupo" | "comunidad" | "estudio" | "evento" | "os";
-
-export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
-  perfil: "perfil privado",
-  pagina: "página pública",
-  grupo: "grupo",
-  comunidad: "comunidad",
-  estudio: "grupo de estudio",
-  evento: "evento",
-  os: "StarSeed OS",
-};
-
-export const VENTANA_NOCTURNA: VentanaHoraria = { desdeH: 3, hastaH: 6 };
-
-const P = (modo: ModoPolitica, ventana?: VentanaHoraria): PoliticaCapa => (ventana ? { modo, ventana: { ...ventana } } : { modo });
-
-/**
- * Política por defecto según el tipo (contrato §4):
- *   · perfil privado → datos e interfaz automáticas; servicios, modelos y app nativa avisan;
- *   · página o espacio público de un grupo → sigue la rama estable sola en lo declarativo;
- *   · el OS → igual que un perfil, pero los modelos (descargas grandes) en la ventana nocturna.
- * Lo que una entidad democrática PUBLICA se vota antes (eso es la aprobación del manifiesto,
- * no esta política): lo ya aprobado llega automático a quien lo tenga así.
- */
-export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
-  const base: PoliticaSistema = {
-    datos: P("automatica-todas"),
-    interfaz: P("automatica-todas"),
-    sw: P("automatica-esta"),
-    servicios: P("manual"),
-    modelos: P("manual"),
-    nativa: P("manual"),
-  };
-  if (tipo === "os") return { ...base, modelos: P("programada", VENTANA_NOCTURNA) };
-  return base;
-}
-
-export interface ContextoDecision {
-  /** Hora local actual (0-23). */
-  ahoraH: number;
-  /** Esta neurona es la elegida para «automática solo en esta neurona». */
-  esNeuronaElegida: boolean;
-}
-
+export type TipoEntidad = "perfil-privado" | "perfil" | "os" | "pagina-publica" | "pagina" | "grupo-jerarquico" | "grupo" | "grupo-democratico" | "comunidad" | "estudio" | "evento";
 export type Decision = "aplicar" | "avisar" | "esperar";
-
-function dentroDeVentana(h: number, v: VentanaHoraria): boolean {
-  if (v.desdeH === v.hastaH) return true; // ventana de 24 h
-  return v.desdeH < v.hastaH ? h >= v.desdeH && h < v.hastaH : h >= v.desdeH || h < v.hastaH;
+export interface ContextoDecision { ahoraH: number; esNeuronaElegida: boolean; aprobada?: boolean; requiereAprobacion?: boolean; }
+export const MODOS_POLITICA: ModoPolitica[] = ["automatica-todas", "automatica-esta", "programada", "manual"];
+export const NOMBRE_MODO: Record<ModoPolitica, string> = { "automatica-todas": "Automática (todas)", "automatica-esta": "Automática (esta neurona)", "programada": "Programada", "manual": "Manual (avisarme)" };
+export const VENTANA_NOCTURNA = { desdeH: 3, hastaH: 6 };
+export const NOMBRE_TIPO: Record<TipoEntidad, string> = { "perfil-privado":"Perfil privado","perfil":"Perfil","os":"Genesis","pagina-publica":"Página pública","pagina":"Página","grupo-jerarquico":"Grupo jerárquico","grupo":"Grupo","grupo-democratico":"Grupo democrático","comunidad":"Comunidad","estudio":"Estudio","evento":"Evento" };
+export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
+  const perfilBase: PoliticaSistema = { datos:{modo:"automatica-todas"}, interfaz:{modo:"automatica-todas"}, sw:{modo:"automatica-esta"}, servicios:{modo:"manual"}, modelos:{modo:"manual"}, nativa:{modo:"manual"} };
+  const paginaBase: PoliticaSistema = { datos:{modo:"automatica-todas"}, interfaz:{modo:"automatica-todas"}, sw:{modo:"automatica-todas"}, servicios:{modo:"manual"}, modelos:{modo:"manual"}, nativa:{modo:"manual"} };
+  const osBase: PoliticaSistema = { datos:{modo:"automatica-todas"}, interfaz:{modo:"automatica-todas"}, sw:{modo:"automatica-todas"}, servicios:{modo:"manual"}, modelos:{modo:"programada", ventana: {desdeH:VENTANA_NOCTURNA.desdeH, hastaH:VENTANA_NOCTURNA.hastaH}}, nativa:{modo:"manual"} };
+  if (tipo === "os") return osBase;
+  if (["perfil","perfil-privado","grupo-jerarquico","grupo","grupo-democratico"].includes(tipo)) return perfilBase;
+  return ["pagina","pagina-publica","comunidad","estudio","evento"].includes(tipo) ? paginaBase : perfilBase;
 }
-
-/** Qué hacer con una capa pendiente en ESTA neurona según su política. */
-export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
-  switch (p.modo) {
-    case "automatica-todas":
-      return "aplicar";
-    case "automatica-esta":
-      return ctx.esNeuronaElegida ? "aplicar" : "avisar";
-    case "programada":
-      return dentroDeVentana(ctx.ahoraH, p.ventana ?? VENTANA_NOCTURNA) ? "aplicar" : "esperar";
-    default:
-      return "avisar";
-  }
-}
-
-const hora = (x: unknown): number | null => (Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 23 ? (x as number) : null);
-
-/** Sanea una política que llega del almacenamiento: lo que falte o venga mal queda en manual. */
-export function sanearPolitica(x: unknown): PoliticaSistema {
-  const src = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
-  const out = {} as PoliticaSistema;
-  for (const capa of CAPAS_ORDEN) {
-    const c = src[capa] as Record<string, unknown> | undefined;
-    const modo = c && MODOS_POLITICA.includes(c.modo as ModoPolitica) ? (c.modo as ModoPolitica) : "manual";
-    if (modo === "programada") {
-      const v = c?.ventana as Record<string, unknown> | undefined;
-      const d = hora(v?.desdeH);
-      const h = hora(v?.hastaH);
-      out[capa] = P("programada", d !== null && h !== null ? { desdeH: d, hastaH: h } : VENTANA_NOCTURNA);
-    } else out[capa] = P(modo);
-  }
-  return out;
-}
-
-/** Texto corto de una política para una ficha («Datos e interfaz automáticas; el resto, avisar»). */
 export function resumenPolitica(p: PoliticaSistema): string {
-  const auto = CAPAS_ORDEN.filter((c) => p[c].modo === "automatica-todas" || p[c].modo === "automatica-esta");
-  const prog = CAPAS_ORDEN.filter((c) => p[c].modo === "programada");
-  const partes: string[] = [];
-  if (auto.length) partes.push(`${auto.length} ${auto.length === 1 ? "capa automática" : "capas automáticas"}`);
-  if (prog.length) partes.push(`${prog.length} programada${prog.length === 1 ? "" : "s"}`);
-  const man = CAPAS_ORDEN.length - auto.length - prog.length;
-  if (man) partes.push(`${man} con aviso`);
-  return partes.join(" · ");
+  let auto=0, prog=0, avis=0; for (const capa of CAPAS_ORDEN) { const c=p[capa]; if (c.modo==="programada") prog++; else if (c.modo.startsWith("automatica")) auto++; else avis++; }
+  const partes:string[]=[]; if (auto>0) partes.push(`${auto} ${auto===1?"capa automática":"capas automáticas"}`); if (prog>0) partes.push(`${prog} ${prog===1?"programada":"programadas"}`); if (avis>0) partes.push(`${avis} con aviso`); return partes.join(" · ")||"sin política";
+}
+export function decidirPolitica(p: PoliticaCapa, ctx: ContextoDecision): Decision {
+  if (ctx.requiereAprobacion && !ctx.aprobada) return "esperar";
+  switch (p.modo) {
+    case "automatica-todas": return "aplicar";
+    case "automatica-esta": return ctx.esNeuronaElegida ? "aplicar" : "avisar";
+    case "programada": if (!p.ventana) return "esperar"; const {desdeH,hastaH}=p.ventana; if (desdeH===hastaH) return "aplicar"; if (desdeH<hastaH) return ctx.ahoraH>=desdeH && ctx.ahoraH<hastaH ? "aplicar":"esperar"; return ctx.ahoraH>=desdeH || ctx.ahoraH<hastaH ? "aplicar":"esperar";
+    default: return "avisar";
+  }
+}
+export function sanearPolitica(x: unknown): PoliticaSistema {
+  const src = x && typeof x==="object" && !Array.isArray(x) ? x as Record<string,unknown> : {};
+  const out = {} as PoliticaSistema; for (const capa of CAPAS_ORDEN) {
+    const c = src[capa] as Record<string,unknown>|undefined; if (!c || typeof c!=="object" || Array.isArray(c)) { out[capa]={modo:"manual"}; continue; }
+    const modo = c.modo; if (typeof modo!=="string" || !MODOS_POLITICA.includes(modo as ModoPolitica)) { out[capa]={modo:"manual"}; continue; }
+    if (modo==="programada") {
+      const ventana = c.ventana as Record<string,unknown>|undefined; if (!ventana || typeof ventana!=="object" || Array.isArray(ventana) || typeof ventana.desdeH!=="number" || typeof ventana.hastaH!=="number" || ventana.desdeH<0 || ventana.desdeH>23 || ventana.hastaH<0 || ventana.hastaH>23) { out[capa]={modo:"programada", ventana:VENTANA_NOCTURNA}; continue; }
+      out[capa]={modo:"programada", ventana:{desdeH:ventana.desdeH, hastaH:ventana.hastaH}};
+    } else { out[capa]={modo:modo as ModoPolitica}; }
+  } return out;
 }
