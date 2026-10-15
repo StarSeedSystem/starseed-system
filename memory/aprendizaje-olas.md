@@ -4415,3 +4415,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-ACT5` — otra cosa: sin decisión en 0 h; rama ola/S1010-ACT5 conservada
 - `S1010-ACT2` — otra cosa: degenerado: src/lib/actualizaciones/politica.ts: encogió de 141 a 44 líneas (más de la mitad)
+
+## 2026-10-15 00:02 · mg-oracle-1014-1639
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RTRTRTRTS1010-EV-ORACLE-1ac, RTCOL1012Be). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
+- `RTCOL1012Be` — no escribió nada
+- `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
