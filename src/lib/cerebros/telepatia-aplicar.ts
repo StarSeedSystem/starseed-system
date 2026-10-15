@@ -2,7 +2,7 @@
 import { type Brain, saveBrain } from "@/lib/brains/brains";
 import { type VinculoTelepatico } from "./telepatia";
 import { createClient } from "@/utils/supabase/client";
-import { listMemoryFiles } from "@/lib/cerebros/memory-files";
+import { listMemoryFiles } from "@/lib/cerebro/memory-files";
 import { pushPreferences } from "@/lib/settings-sync";
 import { upsertGrant } from "@/lib/sharing/access";
 import { fetchEvents } from "@/lib/os-social";
@@ -81,11 +81,6 @@ export async function sincronizarAhora(
       }
     }
     case "cuenta": {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ token: "ssk_abc_123" }),
-      } as Response);
-
       const body = JSON.stringify({
         accion: "crear",
         ambitoTipo: "cerebro",
@@ -104,7 +99,7 @@ export async function sincronizarAhora(
         return {
           ok: true,
           operaciones: 1,
-          estado: v.estado ?? "activo",
+          estado: "activo",
           motivo: undefined,
           token: data.token,
         };

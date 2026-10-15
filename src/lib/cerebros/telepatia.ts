@@ -1,5 +1,5 @@
 // src/lib/cerebros/telepatia.ts
-// Tipos y funciones puras para el sistema de Telepatía de cerebros (Contrato CB1013 §5)
+// Tipos para el sistema de Telepatía de cerebros (Contrato CB1013 §5)
 import type { Brain } from '@/lib/brains/brains';
 import type { MemoryFile } from '@/lib/cerebro/memory-files';
 

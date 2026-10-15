@@ -1,10 +1,40 @@
-import { describe, it, expect, vi } from "vitest";
-import { type Brain } from "../../brains";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { type Brain } from "../../brains/brains";
 import {
   guardarVinculo,
   quitarVinculo,
   sincronizarAhora,
 } from "../telepatia-aplicar";
+
+let saveBrain: any;
+let upsertGrant: any;
+let createClient: any;
+
+beforeEach(async () => {
+  vi.mock("@/lib/brains/brains");
+  vi.mock("@/lib/sharing/access");
+  vi.mock("@/utils/supabase/client");
+  const brainMod = await import("@/lib/brains/brains");
+  const sharingMod = await import("@/lib/sharing/access");
+  const supabaseMod = await import("@/utils/supabase/client");
+  saveBrain = brainMod.saveBrain;
+  upsertGrant = sharingMod.upsertGrant;
+  createClient = supabaseMod.createClient;
+  // Mock implementations
+  saveBrain.mockImplementation((brain: Brain) => Promise.resolve(brain));
+  upsertGrant.mockResolvedValue(undefined);
+  // Mock supabase client to return a slug
+  const mockSupa = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: () => Promise.resolve({ data: { slug: "test-slug" }, error: null }),
+        }),
+      }),
+    }),
+  };
+  createClient.mockReturnValue(mockSupa);
+});
 
 const mockBrain: Brain = {
   id: "brain-1",
@@ -32,8 +62,13 @@ const mockBrain: Brain = {
 
 const mockVinculo = {
   id: "vinc-1",
-  destino: { tipo: "cerebro", id: "brain-2" },
-  alcance: { completo: true, memorias: [], carpetas: [], configuraciones: [] },
+  destino: { tipo: "cerebro", id: "brain-2" } as const,
+  alcance: { 
+    completo: true, 
+    memorias: [] as string[], 
+    carpetas: [] as string[], 
+    configuraciones: [] as string[] 
+  },
   direccion: "ambas" as const,
   acceso: "leer" as const,
   auto: true,
@@ -43,21 +78,29 @@ const mockVinculo = {
 
 describe("guardarVinculo", () => {
   it("debe guardar un nuevo vínculo en el cerebro", async () => {
-    const saved = await Promise.resolve({ ...mockBrain, config: { ...mockBrain.config, telepatia: [mockVinculo] } } as Brain);
-    vi.fn().mockResolvedValue(saved);
-    (saved as any).config = { ...mockBrain.config, telepatia: [mockVinculo] };
     const result = await guardarVinculo(mockBrain, mockVinculo);
-    expect(result).toEqual(saved);
+    expect(result).toEqual({
+      ...mockBrain,
+      config: { ...mockBrain.config, telepatia: [mockVinculo] },
+    });
+    expect(saveBrain).toHaveBeenCalledWith({
+      ...mockBrain,
+      config: { ...mockBrain.config, telepatia: [mockVinculo] },
+    });
   });
 });
 
 describe("quitarVinculo", () => {
   it("debe quitar un vínculo por id", async () => {
-    const nextTelepatia = mockBrain.config.telepatia?.filter((v) => v.id !== "vinc-1");
-    const saved = await Promise.resolve({ ...mockBrain, config: { ...mockBrain.config, telepatia: nextTelepatia } } as Brain);
-    vi.fn().mockResolvedValue(saved);
     const result = await quitarVinculo(mockBrain, "vinc-1");
-    expect(result).toEqual(saved);
+    expect(result).toEqual({
+      ...mockBrain,
+      config: { ...mockBrain.config, telepatia: [] },
+    });
+    expect(saveBrain).toHaveBeenCalledWith({
+      ...mockBrain,
+      config: { ...mockBrain.config, telepatia: [] },
+    });
   });
 });
 
