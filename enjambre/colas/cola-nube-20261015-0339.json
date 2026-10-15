@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "CB1013L",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: leer las fuentes en el cliente (con topes y sin romperse)",
+   "archivos": [
+    "src/lib/cerebros/procesos-fuentes.ts",
+    "src/lib/cerebros/__tests__/procesos-fuentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo de cliente. Exporta `leerProcesos(o?: { incluirMac?: boolean }): Promise<{ procesos: ProcesoActivo[]; hardware: HardwareServidor[]; fuentes: Array<{ nombre: string; ok: boolean; ms: number; motivo?: string }> }>`: en paralelo y cada una con tope de 4 s (AbortSignal.timeout o Promise.race), `/api/mando/agentes`, `/api/mando/medidores`, `/api/mando/suenos` y `/api/mando/hardware` (solo responden en la Mac o con sesión de MetaGenesis: un 401/403/404 cuenta como «no disponible aquí», no como error), `leerEstadoAutonomo()` (src/lib/metagenesis/remoto-nodos-cliente.ts), `leerHistorial()`, `fetchAstraura158DreamStatus`/`ImaginationStatus`, `listRuns()` de imagine, las instalaciones (`useInstalaciones` es un hook: usa la función de lectura del store), `readDesktopsSnapshot()` y `listNeurons()` para el hardware de las neuronas. Normaliza con CB1013J/K. Si una fuente falla, sigue y lo dice en `fuentes`. Nunca lanza. Pruebas con mocks de fetch y de los módulos: una fuente caída no tumba las demás; 404 → «no disponible aquí»; el tope de 4 s corta una fuente colgada.",
+   "revisor_quitadas": [
+    "CB1013K"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  }
+ ]
+}
