@@ -221,12 +221,18 @@ export function desdeFormaCorta(s: string): Operacion | null {
     return null;
   }
   
-  const partes = s.split(":");
-  if (partes.length !== 3) {
+  // Find first and last colon to split into 3 parts: action, middle (clave), value
+  const firstColonIndex = s.indexOf(':');
+  const lastColonIndex = s.lastIndexOf(':');
+  
+  // Must have at least two colons (for action:clave:value format)
+  if (firstColonIndex === -1 || lastColonIndex === -1 || firstColonIndex === lastColonIndex) {
     return null;
   }
-
-  const [accionChar, clave, valorCodificado] = partes;
+  
+  const accionChar = s.slice(0, firstColonIndex);
+  const clave = s.slice(firstColonIndex + 1, lastColonIndex);
+  const valorCodificado = s.slice(lastColonIndex + 1);
   
   // Parseamos la clave para obtener atomoId y parametroId
   const partesClave = clave.split("::");
@@ -274,7 +280,7 @@ export function desdeFormaCorta(s: string): Operacion | null {
     default:
       return null;
   }
-
+  
   // Creamos una operación con datos mínimos válidos
   // En una implementación real, estos vendrían del contexto o se dejarían como placeholders
   return {
