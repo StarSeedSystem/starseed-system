@@ -4415,3 +4415,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `S1010-ACT5` — otra cosa: sin decisión en 0 h; rama ola/S1010-ACT5 conservada
 - `S1010-ACT2` — otra cosa: degenerado: src/lib/actualizaciones/politica.ts: encogió de 141 a 44 líneas (más de la mitad)
+
+## 2026-10-15 03:47 · mg-oracle-1014-1946
+
+**Lo que se pidió.** Genesis
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (S1010-ACT2b, RTRTRTS1010-EV-ORACLE-1abcbb, RTGN1010A-d3d). Es 75 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-ACT2b` — otra cosa: degenerado: src/lib/actualizaciones/politica.ts: encogió de 141 a 44 líneas (más de la mitad)
+- `RTRTRTS1010-EV-ORACLE-1abcbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTS1010-EV-ORACLE-1abcbb conservada
+- `RTGN1010A-d3d` — otra cosa: sin decisión en 0 h; rama ola/RTGN1010A-d3d conservada
