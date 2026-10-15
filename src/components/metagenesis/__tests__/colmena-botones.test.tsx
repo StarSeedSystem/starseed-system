@@ -46,4 +46,189 @@ describe("colmena-botones", () => {
             confirmar: true 
         });
     });
+
+    it("con nodo vivo pero no desconectando, el botón de desconectar está deshabilitado", () => {
+        const b = botonesNeurona({ 
+            nodo: "mac-a1b2c3", 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 0, 
+            desconectando: false 
+        });
+        expect(b.desconectar).toMatchObject({ 
+            visible: true, 
+            habilitado: false, 
+            etiqueta: "Desconectar", 
+            confirmar: false 
+        });
+        expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
+    });
+
+    it("con nodo y en modo desconectando, el botón de desconectar está deshabilitado y muestra el estado", () => {
+        const b = botonesNeurona({ 
+            nodo: "mac-a1b2c3", 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 1, 
+            desconectando: true 
+        });
+        expect(b.desconectar).toMatchObject({ 
+            visible: true, 
+            habilitado: false, 
+            etiqueta: "Desconectando…", 
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor." 
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está visible y habilitado para macOS", () => {
+        const b = botonesNeurona({ 
+            nodo: null, 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 0 
+        });
+        expect(b.instalar).toMatchObject({ 
+            visible: true, 
+            habilitado: true, 
+            etiqueta: "Instalar el trabajador", 
+            explica: "Un comando en la terminal de este aparato." 
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está visible y habilitado para Android", () => {
+        const b = botonesNeurona({ 
+            nodo: null, 
+            vivo: true, 
+            so: "android", 
+            enCurso: 0 
+        });
+        expect(b.instalar).toMatchObject({ 
+            visible: true, 
+            habilitado: true, 
+            etiqueta: "Instalar el trabajador", 
+            explica: "En Android, dentro de Termux (experimental, 1 agente)." 
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está visible y habilitado para Linux", () => {
+        const b = botonesNeurona({ 
+            nodo: null, 
+            vivo: true, 
+            so: "linux", 
+            enCurso: 0 
+        });
+        expect(b.instalar).toMatchObject({ 
+            visible: true, 
+            habilitado: true, 
+            etiqueta: "Instalar el trabajador", 
+            explica: "Un comando en la terminal de este aparato." 
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está visible y habilitado para Windows", () => {
+        const b = botonesNeurona({ 
+            nodo: null, 
+            vivo: true, 
+            so: "windows", 
+            enCurso: 0 
+        });
+        expect(b.instalar).toMatchObject({ 
+            visible: true, 
+            habilitado: true, 
+            etiqueta: "Instalar el trabajador", 
+            explica: "En Windows se instala dentro de WSL2." 
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está oculto para iOS", () => {
+        const b = botonesNeurona({ 
+            nodo: null, 
+            vivo: true, 
+            so: "ios", 
+            enCurso: 0 
+        });
+        expect(b.instalar).toMatchObject({ 
+            visible: false, 
+            habilitado: false, 
+            etiqueta: "", 
+            explica: "" 
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está oculto para otro SO", () => {
+        const b = botonesNeurona({ 
+            nodo: null, 
+            vivo: true, 
+            so: "otro", 
+            enCurso: 0 
+        });
+        expect(b.instalar).toMatchObject({ 
+            visible: false, 
+            habilitado: false, 
+            etiqueta: "", 
+            explica: "" 
+        });
+    });
+
+    it("con contenedor inactivo pero apto y con agentes, el botón de contenedor está habilitado", () => {
+        const b = botonesNeurona({ 
+            nodo: "mac-a1b2c3", 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 0, 
+            contenedor: { activo: false, agentes: 2, apto: true, motivo: "" } 
+        });
+        expect(b.contenedor).toMatchObject({ 
+            visible: true, 
+            habilitado: true, 
+            etiqueta: "Usar como contenedor (2 agentes)", 
+            explica: "Este aparato coge tareas de la cola como la Mac." 
+        });
+    });
+
+    it("con contenedor inactivo pero no apto, el botón de contenedor está deshabilitado y muestra motivo", () => {
+        const b = botonesNeurona({ 
+            nodo: "mac-a1b2c3", 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 0, 
+            contenedor: { activo: false, agentes: 0, apto: false, motivo: "No tiene suficiente memoria" } 
+        });
+        expect(b.contenedor).toMatchObject({ 
+            visible: true, 
+            habilitado: false, 
+            etiqueta: "Usar como contenedor", 
+            explica: "No tiene suficiente memoria" 
+        });
+    });
+
+    it("sin nodo, sin contenedor, enCurso = 0, el botón de desconectar está oculto", () => {
+        const b = botonesNeurona({ 
+            nodo: null, 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 0 
+        });
+        expect(b.desconectar).toMatchObject({ 
+            visible: false, 
+            habilitado: false, 
+            etiqueta: "", 
+            explica: "" 
+        });
+    });
+
+    it("sin nodo, sin contenedor, enCurso = 0, el botón de contenedor está oculto", () => {
+        const b = botonesNeurona({ 
+            nodo: null, 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 0 
+        });
+        expect(b.contenedor).toMatchObject({ 
+            visible: false, 
+            habilitado: false, 
+            etiqueta: "", 
+            explica: "" 
+        });
+    });
 });
