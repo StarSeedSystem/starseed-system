@@ -4430,3 +4430,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+
+## 2026-10-15 05:01 · mg-oracle-1014-2148
+
+**Lo que se pidió.** Gobernador genérico: medir cualquier aparato para la colmena
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RTCOL1012L, RTCOL1012Ae). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012L` — no escribió nada
+- `RTCOL1012Ae` — no escribió nada
+- `RTCOL1012Ic` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTCOL1012Ic conservada)
+- `RTS1010-TU-LL2d` — los tipos no compilan: 8 errores tsc (rama ola/RTS1010-TU-LL2d conservada)
