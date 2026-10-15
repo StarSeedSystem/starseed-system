@@ -1,0 +1,34 @@
+{
+ "ola": "nube-20261014",
+ "tareas": [
+  {
+   "ola": "Ola 1011K · Capacidad: ceder CADENAS enteras a la nube y al A1",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Las mismas cadenas en el botón «Buscar más capacidad» y en el préstamo al A1 · lo que faltó: scripts/puente/buscar_capacidad.py, scripts/puente/oracle_nodo.py",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "dependencias_ya_en_main": [
+    "CAPC1011Bc"
+   ],
+   "segundos": 4760,
+   "t": "2026-10-12 22:25:07",
+   "rama": "ola/CAPC1011Cb",
+   "sha": "c06f679333a69264316152b1e4072bdb1c7a1091",
+   "revisor": "bloqueante",
+   "motivo_vb": "revisión bloqueante confirmada",
+   "faltan": [],
+   "adelantar": "2026-10-12 20:13:54",
+   "modelos_fallidos": [
+    "nvidia/moonshotai/kimi-k3"
+   ],
+   "id": "CAPC1011Ccsb",
+   "prompt": "SEGUIMIENTO de CAPC1011Cc, que ya está integrada (sha 2ee7e043369a). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/buscar_capacidad.py, scripts/puente/oracle_nodo.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Las mismas cadenas en el botón «Buscar más capacidad» y en el préstamo al A1\n\n--- encargo original, como contexto ---\nUsa `repartir_nube.cedibles_y_lote` (CAPC1011B) en los otros dos sitios que hoy calculan `cedibles` a mano: `_reparto_nube` de scripts/puente/buscar_capacidad.py (lo que enseña el botón, para que diga lo mismo que el reparto real: «cede N sueltas y M cadenas (K tareas)») y el préstamo al A1 en scripts/puente/oracle_nodo.py (donde está `RN.cedibles_de_la_tanda`), pasando `mismo_lote` a `elegir`/`clasificar` si lo admiten. Prueba en scripts/puente/test_cadenas_en_medios.py con funciones y disco falsos de que los dos usan la función común y de que el resumen del botón cuenta las cadenas. Las pruebas existentes de esos dos módulos siguen en verde.\n\n## REPARACIÓN\nCorrige todos los errores de TypeScript de los archivos declarados:\n{\"t\": \"2026-10-12 22:25:07\", \"tarea\": \"CAPC1011Cb\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\nTrabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios escritos en disco sin pedir confirmación.\nIMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` (un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, nunca la suite entera.\n- Puertas: alcance → cableado → tsc → vitest → revisión → integración; nada está hecho hasta que se ve en Genesis de la Mac.\n-rw-r--r--@   1 alex  staff       0 Oct 12 21:05 .tsc_verify.log\n-rw-r--r--@   1 alex  staff    1098 Oct 12 21:05 tsc-check.json\n-rw-r--r--@   1 alex  staff     761 Oct 12 21:05 tsconfig.json\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261015-013156-CAPC1011Ccs`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261015-013156-CAPC1011Ccs:refs/remotes/origin/nube/a1-20261015-013156-CAPC1011Ccs\"` y `git cherry-pick --no-commit 0a8f4dc9ae0e f2e7edc7144c adcb8c71871d 47955d40939d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/buscar_capacidad.py, scripts/puente/test_cadenas_en_medios.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "depende_de": [],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261015-013156-CAPC1011Ccs"
+  }
+ ]
+}
