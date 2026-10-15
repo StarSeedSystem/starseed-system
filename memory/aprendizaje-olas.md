@@ -4430,3 +4430,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+
+## 2026-10-15 07:24 · mg-oracle-1014-2330
+
+**Lo que se pidió.** Fundamento de StarSeed
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (FS1013Cb, RTOPO1011T1d, RTPM1010F2Kd, RTAV1011Lc). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `FS1013Cb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTOPO1011T1d` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTPM1010F2Kd` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTAV1011Lc` — otra cosa: ningún proveedor respondió (todos caídos)
