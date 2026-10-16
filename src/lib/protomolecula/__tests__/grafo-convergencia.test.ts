@@ -120,7 +120,7 @@ describe("grafo-convergencia", () => {
       },
       (de, a) => {
         // Conversión de un paso: obj -> glb
-        if (de === "obj" && a === "glb") return ["inter".toString()] ? ["inter"] : null;
+        if (de === "obj" && a === "glb") return ["inter"];
         return null;
       },
     );

@@ -14,6 +14,7 @@
 // valor seguro. SSR-safe: nada de window en el cuerpo del módulo.
 
 import { createClient } from "@/utils/supabase/client";
+import { analizarConvergencia, type Arista } from "@/lib/protomolecula/grafo-convergencia";
 import {
   genId,
   summarizeCanvas,
@@ -251,6 +252,19 @@ export function pruneEdges(canvas: Canvas): Canvas {
   const ids = new Set((canvas.blocks ?? []).map((b) => b.id));
   const edges = getEdges(canvas).filter((e) => ids.has(e.from) && ids.has(e.to));
   return { ...canvas, edges } as Canvas;
+}
+
+// F2I (pizarras) · conecta CanvasEdge con el grafo de convergencia de la Protomolécula.
+// PENDIENTE-DE: integración completa con átomos y definiciones (cola F2).
+export function convergenciaCanvas(canvas: Canvas): ReturnType<typeof analizarConvergencia> {
+  const aristas: Arista[] = getEdges(canvas).map((e) => ({ de: e.from, a: e.to }));
+  // Conexión mínima: usa los bloques como átomos provisionales; la definición real llega con F2I.
+  return analizarConvergencia(
+    (canvas.blocks ?? []).map((b) => ({ id: b.id, herramientaId: "prototemp" })),
+    aristas,
+    () => undefined,
+    () => null,
+  );
 }
 
 // Persiste un lienzo incluyendo su columna `edges`. Reutiliza saveCanvas para
