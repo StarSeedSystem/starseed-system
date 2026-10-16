@@ -104,6 +104,7 @@
     "react-resizable-panels": "^4.11.2",
     "recharts": "^2.15.1",
     "sonner": "^2.0.7",
+    "onnxruntime-web": "1.30.0",
     "sqlite-vec": "^0.1.9",
     "sqlite3": "^6.0.1",
     "tailwind-merge": "^3.0.1",
