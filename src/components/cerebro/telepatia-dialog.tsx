@@ -193,7 +193,8 @@ export default function TelepatiaDialog({ open, onOpenChange, cerebro, cerebros,
     navigator.clipboard.writeText(token);
     setMostrandoToken(token);
     setTimeout(() => setMostrandoToken(null), 3000);
-  };\n
+  };
+
   const esExpirado = (expiraEn?: string | null) => expiraEn && new Date(expiraEn) < new Date();
 
   return (
