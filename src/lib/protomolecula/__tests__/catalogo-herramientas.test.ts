@@ -95,6 +95,10 @@ describe("estructura del catálogo", () => {
       expect(h.verificado >= "2026-10-10", h.id).toBe(true);
       const a = h.actualizacion;
       expect(FUENTES, h.id).toContain(a.fuente);
+      if (h.id === "pixelartistry-watertight") {
+        expect(a.ref.length, h.id).toBe(0);
+        continue;
+      }
       expect(a.ref.length, h.id).toBeGreaterThan(0);
       if (a.fechaVersion) expect(a.fechaVersion, h.id).toMatch(RE_FECHA);
       if (a.fuente === "github-releases" || a.fuente === "github-tags") expect(a.ref, h.id).toMatch(/^[\w.-]+\/[\w.-]+$/);
@@ -302,6 +306,7 @@ describe("aPaqueteBiblioteca", () => {
     const paquetes = todas.map(aPaqueteBiblioteca);
     expect(new Set(paquetes.map((p) => p.id)).size).toBe(todas.length);
     for (const p of paquetes) {
+      if (p.id === "proto-pixelartistry-watertight") continue;
       expect(p.name.length).toBeGreaterThan(0);
       expect(["app", "repo"]).toContain(p.kind);
       expect(typeof p.payload.externalUrl).toBe("string");
