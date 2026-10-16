@@ -4,23 +4,23 @@ import { DOCK_DEFAULTS_VERSION, normalizeDockState } from "@/lib/dock/dock-defau
 const otro = { id: "dashboard", label: "Dashboard", enabled: true, origin: "preset" };
 
 describe("estaciones", () => {
-  it("v22 sin estaciones las añade y estampa la versión", () => {
-    const payload = { defaultsVersion: 22, items: [{ id: "senales", enabled: true }] };
+  it("v24 sin protomolecula la añade y estampa la versión", () => {
+    const payload = { defaultsVersion: 23, items: [{ id: "senales", enabled: true }] };
     const r = normalizeDockState(payload);
     expect(r.changed).toBe(true);
     expect(r.payload.defaultsVersion).toBe(DOCK_DEFAULTS_VERSION);
-    expect(r.payload.items.some((i) => i.id === "estaciones" && i.enabled === true)).toBe(true);
+    expect(r.payload.items.some((i) => i.id === "protomolecula" && i.enabled === true)).toBe(true);
   });
 
-  it("v23 con estaciones deshabilitadas se respeta y no cambia nada", () => {
+  it("v24 con protomolecula deshabilitada se respeta y no cambia nada", () => {
     const payload = {
-      defaultsVersion: 23,
-      items: [{ id: "estaciones", enabled: false }, { id: "senales", enabled: true }],
+      defaultsVersion: 24,
+      items: [{ id: "protomolecula", enabled: false }, { id: "senales", enabled: true }],
     };
     const r = normalizeDockState(payload);
     expect(r.changed).toBe(false);
-    expect(r.payload.defaultsVersion).toBe(23);
-    expect(r.payload.items.filter((i) => i.id === "estaciones")[0].enabled).toBe(false);
+    expect(r.payload.defaultsVersion).toBe(24);
+    expect(r.payload.items.filter((i) => i.id === "protomolecula")[0].enabled).toBe(false);
   });
 
   it("la semilla de respaldo coincide con el preset", () => {

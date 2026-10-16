@@ -41,12 +41,12 @@ describe("parseDockPayload", () => {
 });
 
 describe("normalizeDockState · payload viejo (sin defaultsVersion)", () => {
-  it("AÑADE los botones ausentes y estampa la versión", () => {
+  it("AÑADE los botones ausentes (incluido protomolecula) y estampa la versión", () => {
     const r = normalizeDockState([otro]);
     expect(r.changed).toBe(true);
     expect(r.payload.defaultsVersion).toBe(DOCK_DEFAULTS_VERSION);
     expect(idsHabilitados(r.payload.items)).toEqual(
-      expect.arrayContaining(["senales", "red-feed"]),
+      expect.arrayContaining(["senales", "red-feed", "estaciones", "protomolecula"]),
     );
   });
 
@@ -60,7 +60,7 @@ describe("normalizeDockState · payload viejo (sin defaultsVersion)", () => {
     ]);
     expect(r.changed).toBe(true);
     expect(idsHabilitados(r.payload.items)).toEqual(
-      expect.arrayContaining(["senales", "red-feed"]),
+      expect.arrayContaining(["senales", "red-feed", "estaciones", "protomolecula"]),
     );
   });
 
@@ -101,7 +101,7 @@ describe("normalizeDockSyncValue · camino del sync entrante", () => {
     expect(changed).toBe(true);
     const payload = value as { defaultsVersion: number; items: Array<{ id: string; enabled?: boolean }> };
     expect(payload.defaultsVersion).toBe(DOCK_DEFAULTS_VERSION);
-    expect(idsHabilitados(payload.items)).toEqual(expect.arrayContaining(["senales", "red-feed"]));
+    expect(idsHabilitados(payload.items)).toEqual(expect.arrayContaining(["senales", "red-feed", "estaciones", "protomolecula"]));
   });
 
   it("deja intacto un valor que no es estado de dock (no inventa items)", () => {

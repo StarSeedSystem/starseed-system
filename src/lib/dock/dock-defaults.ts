@@ -65,7 +65,7 @@ export const DOCK_STORAGE_KEY = 'starseed.dock.items.v2';
  * banderas one-shot por navegador (`starseed.dock.items.migrated.vN`), que era
  * justo lo que no llegaba a las cuentas viejas.
  */
-export const DOCK_DEFAULTS_VERSION = 23; // v23 (2026-10-07) añade `estaciones`: la página Estaciones es nueva y sin esta garantía no aparecería en el dock de las cuentas ya existentes.
+export const DOCK_DEFAULTS_VERSION = 24; // v24 (2026-10-10) añade `protomolecula`: la Protomolécula (función universal de creación y edición) es nueva y sin esta garantía no aparecería en el dock de las cuentas ya existentes.
 
 /**
  * Ids que el OS garantiza presentes y encendidos hasta DOCK_DEFAULTS_VERSION.
@@ -89,7 +89,7 @@ export const DOCK_DEFAULTS_VERSION = 23; // v23 (2026-10-07) añade `estaciones`
  * personas, que sustituye a «seguir» personas) es nueva y sin esta garantía no
  * aparecería en el dock de las cuentas ya existentes.
  */
-export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'contactos', 'estaciones'] as const;
+export const DOCK_DEFAULT_ON_IDS = ['senales', 'red-feed', 'imaginacion', 'voces', 'mando', 'mundo-avatares', 'laboratorio', 'canales', 'contactos', 'estaciones', 'protomolecula'] as const;
 
 /**
  * Forma mínima de un item del dock para ESTE módulo. Deliberadamente laxa
@@ -163,6 +163,11 @@ const FALLBACK_SEEDS: Record<string, DockItemLike> = {
   // Ola 1010E: Estaciones (espejo de su entrada en DOCK_PRESETS).
   estaciones: {
     id: 'estaciones', label: 'Estaciones', iconKey: 'Cast', path: '/estaciones',
+    color: 'emerald', enabled: true, origin: 'preset',
+  },
+  // Ola 1010P: Protomolécula (espejo de su entrada en DOCK_PRESETS).
+  protomolecula: {
+    id: 'protomolecula', label: 'Protomolécula', iconKey: 'Atom', path: '/protomolecula',
     color: 'emerald', enabled: true, origin: 'preset',
   },
 };
