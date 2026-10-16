@@ -1,5 +1,31 @@
 import { describe, test, expect } from 'vitest';
 import { fusionarBots } from "../sincronia-bots";
+import { createClient } from "../../../utils/supabase/client";
+type SupabaseClient = ReturnType<typeof createClient>;
+
+type Almacen = {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+};
+
+const crearMocks = () => {
+  const cliente: any = {
+    channel: () => ({
+      on: () => ({
+        subscribe: () => ({
+          unsubscribe: () => {}
+        })
+      })
+    })
+  };
+
+  const almacen: Almacen = {
+    getItem: () => null,
+    setItem: () => {}
+  };
+
+  return { cliente, almacen };
+};
 
 /**
  * Bot de ejemplo para pruebas (incluye el campo actualizado para sincronía).
@@ -71,6 +97,7 @@ function hacerBotInvalido(): any {
 
 describe("fusionarBots", () => {
   test("gana el más reciente por actualizado", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [
       hacerBot("bot1", 1000), // más antiguo
       hacerBot("bot2", 2000)
@@ -89,6 +116,7 @@ describe("fusionarBots", () => {
   });
 
   test("predeterminado garantizado: se conserva el local si no está en remoto", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [hacerBot("bot-default", 1000)];
     const remoto: any[] = [];
     const resultado = fusionarBots(local, remoto);
@@ -98,6 +126,7 @@ describe("fusionarBots", () => {
   });
 
   test("borrado remoto no propaga: se conserva el local ausente en remoto", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [hacerBot("bot-local", 1000)];
     const remoto: any[] = [hacerBot("bot-remoto", 2000)]; // otro bot
     const resultado = fusionarBots(local, remoto);
@@ -109,6 +138,7 @@ describe("fusionarBots", () => {
   });
 
   test("ids nuevos de ambos lados: se incluyen bots exclusivos de cada lado", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [hacerBot("local-only", 1000)];
     const remoto: any[] = [hacerBot("remoto-only", 2000)];
     const resultado = fusionarBots(local, remoto);
@@ -117,6 +147,7 @@ describe("fusionarBots", () => {
   });
 
   test("determinismo: misma entrada produce misma salida", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [
       hacerBot("A", 100),
       hacerBot("B", 200)
@@ -134,6 +165,7 @@ describe("fusionarBots", () => {
   });
 
   test("basura del remoto descartada: se ignoran bots no válidos", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [hacerBot("bot-valido", 1000)];
     const remoto: any[] = [
       hacerBotInvalido(), // inválido: falta nombre
@@ -148,6 +180,7 @@ describe("fusionarBots", () => {
   });
 
   test("no se pierde el predeterminado por fusión (caso remoto más reciente)", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [hacerBot("predeterminado", 1000)]; // id especial para predeterminado
     const remoto: any[] = [hacerBot("predeterminado", 2000)]; // más reciente
     const resultado = fusionarBots(local, remoto);
@@ -158,11 +191,13 @@ describe("fusionarBots", () => {
   });
 
   test("array vacío local y remoto devuelve array vacío", () => {
+    const { cliente, almacen } = crearMocks();
     const resultado = fusionarBots([], []);
     expect(resultado).toEqual([]);
   });
 
   test("local vacío, remoto con bots válidos devuelve los remotos", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [];
     const remoto: any[] = [hacerBot("A", 1000), hacerBot("B", 2000)];
     const resultado = fusionarBots(local, remoto);
@@ -171,6 +206,7 @@ describe("fusionarBots", () => {
   });
 
   test("remoto vacío, local con bots devuelve los locales", () => {
+    const { cliente, almacen } = crearMocks();
     const local: any[] = [hacerBot("A", 1000), hacerBot("B", 2000)];
     const remoto: any[] = [];
     const resultado = fusionarBots(local, remoto);
