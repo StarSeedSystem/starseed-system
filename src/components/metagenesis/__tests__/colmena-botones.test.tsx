@@ -130,13 +130,15 @@ describe("ColmenaBotones", () => {
     });
 
     it("muestra el botón de instalar trabajador cuando el nodo no tiene trabajador", async () => {
-        const nodoSinTrabajador = nodoVistaPrueba({});
+        const nodoSinTrabajador = nodoVistaPrueba({
+            trabajo: {},
+        });
         pintar(nodoSinTrabajador);
         const botonInstalarTrabajador = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-trabajador");
         expect(botonInstalarTrabajador).toBeInTheDocument();
         expect(botonInstalarTrabajador).toHaveTextContent("Instalar trabajador");
         expect(botonInstalarTrabajador).not.toBeDisabled();
-        expect(botonInstalarTrabajador).toHaveAttribute("title", "Instalar un trabajador en este nodo para ejecutar agentes.");
+        expect(botonInstalarTrabajador).toHaveAttribute("title", "Instala un trabajador (agente) en este contenedor.");
     });
 
     it("envía orden desconectar al hacer clic en el botón", async () => {
@@ -181,11 +183,9 @@ describe("ColmenaBotones", () => {
     it("desactiva el botón de desconectar cuando no hay trabajo en curso", async () => {
         const nodoSinTrabajo = nodoVistaPrueba({
             enCurso: [],
+            trabajo: {},
         });
         pintar(nodoSinTrabajo);
-        const botonDesconectar = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-desconectar");
-        expect(botonDesconectar).toBeInTheDocument();
-        expect(botonDesconectar).toHaveTextContent("Desconectar");
-        expect(botonDesconectar).toBeDisabled();
+        expect(screen.queryByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-desconectar")).not.toBeInTheDocument();
     });
 });
