@@ -4445,3 +4445,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
 =======
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+
+## 2026-10-16 08:20 · mg-oracle-1016-0114
+
+**Lo que se pidió.** sin medida
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (WT1011Cb, CB1013Eb-d1b). Es 50 % de la ola.
+- freellmapi/auto no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CB1013Gb` — los tipos no compilan: 27 errores tsc (rama ola/CB1013Gb conservada)
+- `WT1011Cb` — otra cosa: sin decisión en 0 h; rama ola/WT1011Cb conservada
+- `CB1013Bb-d1b` — no escribió nada
+- `CB1013Eb-d1b` — otra cosa: sin decisión en 0 h; rama ola/CB1013Eb-d1b conservada
