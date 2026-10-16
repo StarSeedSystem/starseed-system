@@ -371,7 +371,7 @@ class Nodo:
                     nodos_info[n] = {"medio": medio, "vivo": True, "modo": v.get("modo"), "contenedor": cont}
                     en_curso = v.get("en_curso") or []
                     ocupados[n] = len(en_curso) if isinstance(en_curso, list) else 0
-                plan_relevo = C.plan_relevo(latidos_dict, bajas_dict, asignadas_dict, nodos_info, ocupados, {}, t)
+                 plan_relevo = C.plan_relevo(latidos_dict, bajas_dict, asignadas_dict, nodos_info, ocupados, tareas_dict, t)
                 for r in plan_relevo:
                     minutos = int((t - (r.get("punto") or {}).get("t", t)) // 60) if r.get("punto") else None
                     decision = {"tipo": "mg_decision", "de": r.get("de"), "a": r.get("a"), "id": r.get("id"), "minutos_perdidos": minutos, "motivo": r.get("motivo") or r.get("espera")}
