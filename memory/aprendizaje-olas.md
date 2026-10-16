@@ -4445,3 +4445,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
 =======
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+
+## 2026-10-16 12:27 · mg-oracle-1016-0321
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «des
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTRTRTRTRTRTCOL1012Bdsbbbbbbbb, RTRTRTRTRTRTCOL1012Bdsbbbbbbb, RTRTRTCOL1012Bdsbbbbbbbcb, RTRTCOL1012Bdsbbbbbbbbbbc). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTRTRTCOL1012Bdsbbbbbbbb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTRTRTRTRTCOL1012Bdsbbbbbbb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTRTCOL1012Bdsbbbbbbbcb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
