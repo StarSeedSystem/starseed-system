@@ -530,9 +530,46 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 });
                 if (!nombre && !problemas.length) problemas.push("El agente necesita un nombre.");
                 if (problemas.length) return fallo();
-                return { ok: true, avisos, op: { tipo: "agente.crear", motivo, agente: agente as DatosAgente } };
-            }
-        }
+                 return { ok: true, avisos, op: { tipo: "agente.crear", motivo, agente: agente as DatosAgente } };
+             }
+             case "bot.crear": {
+                 const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                 const nombre = texto(d.nombre, LIMITES.nombre, "nombre", problemas);
+                 const gobierno = d.gobierno;
+                 if (gobierno !== "jerarquico" && gobierno !== "democratico") {
+                     problemas.push(`«gobierno» debe ser "jerarquico" o "democratico".`);
+                 }
+                 if (!nombre && !problemas.length) problemas.push("El bot nuevo necesita un nombre.");
+                 if (problemas.length) return fallo();
+                 return { ok: true, avisos, op: { tipo: "bot.crear", motivo, datos: { nombre, gobierno } as DatosBotNuevo } };
+             }
+             case "bot.configurar": {
+                 const b = esObjeto(bruto.cambios) ? bruto.cambios : {};
+                 const botId = typeof b.botId === "string" ? b.botId.trim() : "";
+                 if (!PATRON_ID.test(botId)) {
+                     problemas.push(`«botId» no es válido.`);
+                 }
+                 const cambio = b.cambio;
+                 if (!["personalidad", "cuerpo", "sentidos", "permisos", "modelo", "pausar", "borrar"].includes(cambio)) {
+                     problemas.push(`«cambio» debe ser uno de: personalidad, cuerpo, sentidos, permisos, modelo, pausar, borrar.`);
+                 }
+                 const valor = b.valor;
+                 let valorJson = "";
+                 try {
+                     valorJson = JSON.stringify(valor);
+                 } catch {
+                     problemas.push(`«valor» no es un valor JSON válido.`);
+                 }
+                 if (valorJson.length > 4000) {
+                     problemas.push(`«valor» supera los 4000 caracteres.`);
+                 }
+                 if (pareceCodigo(valorJson)) {
+                     problemas.push(`«valor» contiene algo que parece código; Genesis solo acepta contenido.`);
+                 }
+                 if (problemas.length) return fallo();
+                 return { ok: true, avisos, op: { tipo: "bot.configurar", motivo, cambios: { botId, cambio, valor } as CambiosBot } };
+             }
+         }
         problemas.push("Operación no reconocida.");
         return fallo();
     } catch {
@@ -717,7 +754,9 @@ export type Inverso =
     | { tipo: "dock.restaurar"; id: string; existia: boolean; estabaActivo: boolean }
     | { tipo: "widget.quitar"; tablero: string; widgetId: string }
     | { tipo: "widget.reponer"; tablero: string; widget: Record<string, unknown> }
-    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } };
+    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } }
+    | { tipo: "bot.borrar"; botId: string }
+    | { tipo: "bot.restaurar"; botId: string; campo: CambioBot; antes: unknown; despues: unknown };
 
 export type EstadoEntrada = "aplicada" | "deshecha" | "propuesta" | "fallida";
 
