@@ -69,7 +69,7 @@ describe("resumen del bus", () => {
         const e = resumirBus([latido("mac-aaaaaa", "mac", 10, { capacidades_taller: conTaller })], AHORA);
         expect(e.nodos[0].taller).toMatchObject({ id: "mac-aaaaaa", viva: true, hierro: { gpu: "nvidia", vramGB: 16 } });
         const sin = resumirBus([latido("oracle-a1-bbbbbb", "oracle-a1", 5)], AHORA);
-        expect(sin.nodos[0].taller).toBeNull();
+        expect(e.nodos[0].taller).toBeNull();
     });
 
     it("el líder reclamado y vivo va primero; los demás con su latido; la foto da cifras y decisiones", () => {
@@ -176,16 +176,20 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
     it("tablas sin latidos y bus con nodos vivos → bus", () => {
         expect(elegirFuente(estado([false, false], "tablas"), estado([true, true], "bus"))).toBe("bus");
     });
+
     it("alguien vivo en las tablas → tablas", () => {
-        expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
+        expect(elegirFuente(estado([true], "tablas"), state([true], "bus"))).toBe("tablas");
     });
+
     it("nadie vivo en ninguna → tablas si existen; si no, bus", () => {
         expect(elegirFuente(estado([false], "tablas"), estado([false], "bus"))).toBe("tablas");
         expect(elegirFuente(null, estado([false], "bus"))).toBe("bus");
     });
+
     it("bus con 2 vivos y tablas con 1 → bus", () => {
         expect(elegirFuente(estado([true], "tablas"), estado([true, true], "bus"))).toBe("bus");
     });
+
     it("1 vivo en cada fuente → tablas (igualdad)", () => {
         expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
     });
@@ -209,5 +213,28 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         expect("contenedor" in ACCIONES_DEL_LIDER).toBe(false);
         expect("continuar" in ACCIONES_DEL_LIDER).toBe(true);
         expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
+    });
+});
+
+describe("textoEstadoOrden", () => {
+    it("cada estado mapea al texto correcto", () => {
+        const estados = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+        Object.entries(estados).forEach(([estado, esperado]) => {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        });
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
     });
 });
