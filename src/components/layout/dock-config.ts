@@ -15,6 +15,7 @@ import {
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Cast, Gauge,
   Smile, FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses,
+  Atom,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -77,7 +78,9 @@ export type DockIconKey =
   // ── Contactos (2026-09-28) ──
   | 'BookUser'
   // ── Apps en vivo (2026-09-28) ──
-  | 'FileText' | 'Table2' | 'Gamepad2' | 'Box' | 'Glasses' | 'Cast';
+  | 'FileText' | 'Table2' | 'Gamepad2' | 'Box' | 'Glasses' | 'Cast'
+  // ── Protomolécula (Ola 1010P) ──
+  | 'Atom';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -91,7 +94,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge, Smile,
-FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses, Cast,
+  FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses, Cast, Atom,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
@@ -270,6 +273,8 @@ export const DOCK_PRESETS: DockItemConfig[] = [
 { id: 'canales', label: 'Canales', iconKey: 'Rss', path: '/canales', color: 'emerald', enabled: true, origin: 'preset' },
 // Ola 286 · Estaciones: directorio de transmisiones en directo libres.
 { id: 'estaciones', label: 'Estaciones', iconKey: 'Cast', path: '/estaciones', color: 'emerald', enabled: true, origin: 'preset' },
+// Ola 1010P · Protomolécula: función universal de creación y edición.
+{ id: 'protomolecula', label: 'Protomolécula', iconKey: 'Atom', path: '/protomolecula', color: 'emerald', enabled: true, origin: 'preset' },
 // Ola 228: página Voces — estudio de voces y emisión de voz del OS.
   { id: 'voces',         label: 'Voces',               iconKey: 'AudioLines',      path: '/voces',                 color: 'purple',  enabled: true,  origin: 'preset' },
   // Ola 231: Genesis — consola de producción y desarrollo (solo local).
