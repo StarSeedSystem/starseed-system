@@ -654,6 +654,127 @@ const LABS_PACKAGES: LibraryPackage[] = [
     author: "Kokoro · StarSeed Labs", sourceRepoId: "starseed-labs", free: true,
     payload: { skillId: "aurora-voice-kokoro", route: "/settings" },
   },
+  /* ═══════════════════════ CATEGORÍA «VOICES» (Adenda 218) ═══════════════════════
+     Todos los motores de voces del OS con su repositorio, para que la Biblioteca
+     muestre versión instalada frente a publicada (los `repo` con
+     `payload.githubRepo` se consultan en tiempo real por releases). El primero
+     es el nuestro: VoiceMorphic, la voz nativa de Astraura. */
+  {
+    id: "voz-voicemorphic", kind: "repo", name: "VoiceMorphic · voz nativa de Astraura",
+    description:
+      "Nuestro sistema de voz: fusión adaptada sobre OmniVoice portado a llama.cpp (GGUF Q8_0, Metal/CPU), con clonación por referencia, instrucción de estilo, entonación por contexto y anticipación de frases. Funciona sin internet. Motor por defecto en macOS, Windows y Linux. En evolución hacia pesos ternarios (1,58-bit).",
+    icon: "AudioWaveform", tags: ["voces", "voz", "tts", "local", "starseed", "1.58"], version: "1.0.0",
+    author: "StarSeed", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/StarSeedSystem/starseed-system/tree/main/native/astraura-voice", githubRepo: "StarSeedSystem/starseed-system", categoria: "voces", motorId: "voicemorphic", route: "/settings" },
+  },
+  {
+    id: "voz-kokoro", kind: "repo", name: "Kokoro · voz local en el navegador",
+    description:
+      "Motor TTS de 82 M parámetros (Apache-2.0) en WebAssembly/WebGPU: ~80 MB, sin internet, menos de tiempo real incluso en móviles. Motor por defecto en Android, iOS y web. Voces españolas ef_dora, em_alex y em_santa.",
+    icon: "Mic", tags: ["voces", "voz", "tts", "local", "movil", "wasm"], version: "0.9.4",
+    author: "hexgrad", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/hexgrad/kokoro", githubRepo: "hexgrad/kokoro", categoria: "voces", motorId: "kokoro" },
+  },
+  {
+    id: "voz-chatterbox", kind: "repo", name: "Chatterbox · Resemble AI",
+    description:
+      "TTS de 0,5 B parámetros (MIT) con control de exageración emocional y clonación zero-shot. PyTorch: necesita GPU o una CPU potente y ~1,5 GB de pesos. Se integra como segundo daemon detrás del mismo contrato de VoiceMorphic. Su dial de estilo ya viaja como instrucción por timbre.",
+    icon: "Sparkles", tags: ["voces", "voz", "tts", "emocion", "pytorch"], version: "0.1.0",
+    author: "Resemble AI", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/resemble-ai/chatterbox", githubRepo: "resemble-ai/chatterbox", categoria: "voces", motorId: "chatterbox" },
+  },
+  {
+    id: "voz-voxcpm", kind: "repo", name: "VoxCPM · OpenBMB",
+    description:
+      "TTS tokenizer-free de 0,5 B (Apache-2.0) con prosodia consciente del contexto y clonación. PyTorch. Su entonación por contexto es lo que VoiceMorphic imita por cláusulas; candidato a fusión en cuanto exista port cuantizado.",
+    icon: "Waves", tags: ["voces", "voz", "tts", "prosodia", "pytorch"], version: "0.1.0",
+    author: "OpenBMB", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/OpenBMB/VoxCPM", githubRepo: "OpenBMB/VoxCPM", categoria: "voces", motorId: "voxcpm" },
+  },
+  {
+    id: "voz-openvoice2", kind: "repo", name: "OpenVoice V2 · MyShell (nube gratuita)",
+    description:
+      "Clonación de voz (MIT) usada por Spaces públicos de Hugging Face: requiere internet y depende de que estén despiertos. Solo respaldo; nunca por defecto en descargas.",
+    icon: "Cloud", tags: ["voces", "voz", "tts", "nube", "respaldo"], version: "2.0.0",
+    author: "MyShell", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/myshell-ai/OpenVoice", githubRepo: "myshell-ai/OpenVoice", categoria: "voces", motorId: "openvoice2" },
+  },
+  {
+    id: "voz-referencias", kind: "research", name: "Referencias de voz humana · fuentes públicas",
+    description:
+      "Catálogo verificado de datasets, archivos y bibliotecas de efectos con audio humano para clonar, afinar o entrenar voces, con licencia y uso comercial por fuente: Common Voice (CC0), MLS (CC BY), CSS10, LibriVox, VCTK, CIEMPIESS, Expresso, EmoV-DB, RAVDESS, CREMA-D, BBC Sound Effects, Freesound, Internet Archive… Para español con licencia libre: MLS, Common Voice y CSS10 primero.",
+    icon: "Library", tags: ["voces", "datasets", "referencias", "licencias", "investigacion"], version: "1.0.0",
+    author: "StarSeed", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/jim-schwoebel/voice_datasets", categoria: "voces", catalogo: "FUENTES_REFERENCIA", route: "/settings" },
+  },
+  /* ── KittenTTS / KittenML — repo (fuente de paquetes) ── */
+  {
+    id: "repo-kittentts", kind: "repo", name: "KittenTTS / KittenML",
+    description:
+      "Voces TTS open source ultraligeras de KittenML (beta, por ahora en inglés). Es un repo/fuente: cuando publique su índice de paquetes (JSON con shape LibraryRepo) se añadirá como fuente. Mientras, puedes guardar el enlace o abrir su GitHub.",
+    icon: "Cat", tags: ["repo", "tts", "voz", "oss", "beta"], version: "0.1.0",
+    author: "KittenML", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/KittenML", note: "beta · inglés" },
+  },
+  /* ═══════════════════════ CATEGORÍA «AI-SOURCES» (Voces fusionadas de Astraura) ═══════════════════════
+     Fichas de Phonon-2 (github fermionresearch/phonon, huggingface FermionResearch/Phonon-2
+     y Phonon-2-CoreML, CC-BY-4.0 pesos / Apache-2.0 código) y Parakeet TDT 0.6B v3
+     (nvidia/parakeet-tdt-0.6b-v3 e istupakov/parakeet-tdt-0.6b-v3-onnx,
+     CC-BY-4.0), cada una con la atribución exacta del §7 del contrato,
+     para qué sirve en la fusión y `comingSoon` con motivo donde el medio
+     no lo corra (web). */
+  {
+    id: "ai-phonon-2", kind: "ai-source", name: "Phonon-2 (Fermion Research)",
+    description:
+      "Motor de reconocimiento de voz (audio → texto con puntuación). Derivado de NVIDIA Parakeet TDT 0.6B v3. 0,6 B de parámetros y 164 MB de descarga. Pesos CC-BY-4.0, código Apache-2.0. Para el oído de voz fusionada de Astraura; `comingSoon` para web donde el medio no corre (es un daemon de servidor).",
+    icon: "Headphones", tags: ["ia", "voz", "stt", "reconocimiento", "local", "astraura", "comingsoon"], version: "1.0.0",
+    author: "Fermion Research · StarSeed Labs", sourceRepoId: "starseed-labs", free: true,
+    payload: { catalogSourceId: "phonon-2" },
+  },
+  {
+    id: "ai-parakeet-tdt-0.6b-v3", kind: "ai-source", name: "Parakeet TDT 0.6B v3 (NVIDIA)",
+    description:
+      "Motor de reconocimiento de voz (audio → texto con puntuación). 0,6 B de parámetros. Reconoce 25 idiomas europeos, entre ellos español, y detecta solo el idioma. Pesos CC-BY-4.0 con atribución a NVIDIA. Para el oído de calidad en la fusión de Astraura; `comingSoon` para web donde el medio no corre.",
+    icon: "Languages", tags: ["ia", "voz", "stt", "multilenguaje", "calidad", "astraura", "comingsoon"], version: "1.0.0",
+    author: "NVIDIA · StarSeed Labs", sourceRepoId: "starseed-labs", free: true,
+    payload: { catalogSourceId: "parakeet-tdt-0.6b-v3" },
+  },
+  {
+    id: "ai-parakeet-tdt-0.6b-v3-onnx", kind: "ai-source", name: "Parakeet TDT 0.6B v3 (ONNX)",
+    description:
+      "Motor de reconocimiento de voz (audio → texto con puntuación). Exportación ONNX int8 para web. Reconoce 25 idiomas europeos, entre ellos español. Para el oído de calidad en la fusión de Astraura; `comingSoon` para web donde el medio no corre.",
+    icon: "GitBranch", tags: ["ia", "voz", "stt", "multilenguaje", "onnx", "webgpu", "astraura", "comingsoon"], version: "1.0.0",
+    author: "istupakov · StarSeed Labs", sourceRepoId: "starseed-labs", free: true,
+    payload: { catalogSourceId: "parakeet-tdt-0.6b-v3-onnx" },
+  },
+  /* ── TabFM · modelo tabular (Google Research) — research/servicio ── */
+  {
+    id: "research-tabfm", kind: "research", name: "TabFM · Modelo tabular (Google)",
+    description:
+      "Modelo fundacional para datos tabulares de Google Research. Es un servicio Python/servidor: NO se ejecuta en el navegador. Instalar GUARDA el enlace en tu biblioteca y abre el repositorio para desplegarlo donde corresponda.",
+    icon: "Table", tags: ["investigacion", "tabular", "google", "python"], version: "1.0.0",
+    author: "Google Research", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/google-research/tabfm" },
+  },
+  /* ── Sipp · GGUF en el navegador (beta) — project + fuente IA ── */
+  {
+    id: "project-sipp", kind: "project", name: "Sipp · GGUF en navegador",
+    description:
+      "Motor experimental que corre modelos GGUF en el navegador (arranque muy rápido, alternativa beta a WebLLM). Instalar guarda el enlace, abre su GitHub y activa la fuente «Sipp» en Astraura para que Aurora pueda probarla.",
+    icon: "Beaker", tags: ["proyecto", "gguf", "webgpu", "beta"], version: "0.1.0",
+    author: "Noumena Labs", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/noumena-labs/Sipp", catalogSourceId: "sipp-local" },
+  },
+  /* ── AgentOS · patrones de agentes — function (referencia/beta) ── */
+  {
+    id: "fn-agentos", kind: "function", name: "AgentOS · patrones de agentes",
+    description:
+      "Patrones de orquestación de agentes (referencia). No es una skill ejecutable hoy: instalar GUARDA el enlace en tu biblioteca y abre su GitHub para estudiar/adaptar sus patrones al Exocórtex.",
+    icon: "Workflow", tags: ["referencia", "agentes", "orquestacion", "beta"], version: "0.1.0",
+    author: "Rivet", sourceRepoId: "starseed-labs", free: true,
+    payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "patrones de orquestación" },
+  },
+  ];
   /* ═══════════════════════ CATEGORÍA «VOCES» (Adenda 218) ═══════════════════════
      Todos los motores de voz del OS con su repositorio, para que la Biblioteca
      muestre versión instalada frente a publicada (los `repo` con
