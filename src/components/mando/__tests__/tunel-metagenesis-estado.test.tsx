@@ -223,12 +223,4 @@ describe("TunelMetaGenesisEstado", () => {
     
     vi.useRealTimers();
   });
-    // Wait for the stopped state to appear
-    await waitFor(() => {
-      expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
-    });
-    // Then check that the section is not shown
-    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
-  });
-
 });
