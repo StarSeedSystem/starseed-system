@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  StarSeed OS — Daemon de oído Astraura (Phonon-2)
+  Plantilla launchd (macOS)
+
+  Agente de usuario (LaunchAgent) que arranca el daemon al iniciar sesión y lo
+  mantiene vivo (KeepAlive). install.mjs sustituye los marcadores __NODE__,
+  __DAEMON__, __WORKDIR__, __STDOUT_LOG__, __STDERR_LOG__ y __PATH_VENV__
+  por rutas reales y copia el resultado a ~/Library/LaunchAgents/com.starseed.oido.plist,
+  luego lo carga con `launchctl load -w`.
+
+  Carga/descarga manual:
+    launchctl load  -w ~/Library/LaunchAgents/com.starseed.oido.plist
+    launchctl unload   ~/Library/LaunchAgents/com.starseed.oido.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.starseed.oido</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__NODE__</string>
+        <string>__DAEMON__</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__WORKDIR__</string>
+
+    <!-- Arranca al cargar (login) y se re-lanza si muere. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Reinicio no demasiado agresivo si entra en bucle de fallo. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>__STDOUT_LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__STDERR_LOG__</string>
+
+    <!--
+      PATH para el agente y sus hijos (Ola 263 · 2026-09-06):
+      launchd NO hereda el PATH del usuario: arranca el agente con el mínimo del
+      sistema (/usr/bin:/bin:/usr/sbin:/sbin), que no incluye Homebrew — y en
+      Apple Silicon Homebrew vive en /opt/homebrew. Sin este PATH el demonio no
+      encontraba `ffmpeg` (tono, efectos y conversión a 16 kHz del oído quedaban
+      desactivados aunque `which ffmpeg` en una shell sí lo viera). El demonio
+      además resuelve la ruta absoluta por su cuenta (STARSEED_FFMPEG, PATH,
+      /opt/homebrew/bin…): este PATH es el segundo cinturón de seguridad.
+    -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!--
+      Prioridad del proceso (Ola 255 · 2026-09-06):
+      ProcessType "Background" hace que macOS aplique a este agente —y a TODOS sus
+      hijos: tts-server, asr_stream_server, ffmpeg— la clase de servicio de fondo:
+      CPU limitada y prioridad de E/S baja. Con la memoria al límite (swap ~3,8 GB),
+      cada fallo de página del modelo mmap se sirve a prioridad de disco de fondo y
+      la inferencia se arrastra: el mismo asr_stream_server transcribe un WAV de
+      2,96 s en 15 s desde una shell normal y en 120-186 s desde el demonio
+      (RTF 5 → ~40-60). La síntesis TTS sufre lo mismo (4,4 s de audio en 48 s).
+
+      "Interactive" restaura CPU e I/O normales (igual que `Standard`, que ya usa el
+      backend Astraura), `LowPriorityIO=false` evita la prioridad de E/S de fondo y
+      `Nice=0` deja la prioridad del proceso en la del sistema (ps -o pri vuelve a
+      ~31 frente al 4 de Background).
+    -->
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>LowPriorityIO</key>
+    <false/>
+    <key>Nice</key>
+    <integer>0</integer>
+</dict>
+</plist>
