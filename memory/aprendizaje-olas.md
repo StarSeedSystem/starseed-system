@@ -4445,3 +4445,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
 =======
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+
+## 2026-10-16 18:43 · mg-oracle-1016-1204
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — el proveedor dijo que no (RTRTRTRTS1010-EV-ORACLE-1ac, RTRTCOL1012Bdsbbbbbbbcbb, RTS1010-EV-ORACLE-1acbbb). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTS1010-EV-ORACLE-1ac` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
+- `RTRTCOL1012Bdsbbbbbbbcbb` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
+- `RTS1010-EV-ORACLE-1acbbb` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
