@@ -129,4 +129,67 @@ describe("ColmenaBotones", () => {
         const tiempoInfo = await screen.findByText(/Último punto hace 5 min/);
         expect(tiempoInfo).toBeInTheDocument();
     });
+
+    it("muestra el botón de instalar trabajador cuando el nodo no tiene trabajador", async () => {
+        const nodoSinTrabajador = nodoVistaPrueba({
+            trabajador: null,
+        });
+        pintar(nodoSinTrabajador);
+        const botonInstalarTrabajador = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-trabajador");
+        expect(botonInstalarTrabajador).toBeInTheDocument();
+        expect(botonInstalarTrabajador).toHaveTextContent("Instalar trabajador");
+        expect(botonInstalarTrabajador).not.toBeDisabled();
+        expect(botonInstalarTrabajador).toHaveAttribute("title", "Instalar un trabajador en este nodo para ejecutar agentes.");
+    });
+
+    it("envía orden desconectar al hacer clic en el botón", async () => {
+        const nodoConTrabajo = nodoVistaPrueba({
+            enCurso: [
+                {
+                    id: "task-1",
+                    fase: "escribiendo",
+                    punto: {
+                        rama: "main",
+                        sha: "abc123",
+                        t: Date.now() - 5 * 60_000,
+                    },
+                },
+            ],
+        });
+        pintar(nodoConTrabajo);
+        const botonDesconectar = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-desconectar");
+        fireEvent.click(botonDesconectar);
+        await waitFor(() => {
+            expect(enviarOrden).toHaveBeenCalledWith("desconectar", "oracle-a1-bbbbbb");
+        });
+    });
+
+    it("envía orden contenedor al hacer clic en el botón", async () => {
+        const nodoConContenedor = nodoVistaPrueba({
+            contenedor: {
+                activo: false,
+                agentes: 2,
+                apto: true,
+                motivo: "Listo para trabajar",
+            },
+        });
+        pintar(nodoConContenedor);
+        const botonContenedor = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-contenedor");
+        fireEvent.click(botonContenedor);
+        await waitFor(() => {
+            expect(enviarOrden).toHaveBeenCalledWith("contenedor", "oracle-a1-bbbbbb");
+        });
+    });
+
+    it("desactiva el botón de desconectar cuando no hay trabajo en curso", async () => {
+        const nodoSinTrabajo = nodoVistaPrueba({
+            trabajador: null,
+            enCurso: [],
+        });
+        pintar(nodoSinTrabajo);
+        const botonDesconectar = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-desconectar");
+        expect(botonDesconectar).toBeInTheDocument();
+        expect(botonDesconectar).toHaveTextContent("Desconectar");
+        expect(botonDesconectar).toBeDisabled();
+    });
 });
