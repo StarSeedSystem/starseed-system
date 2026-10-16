@@ -1,4 +1,5 @@
 import type { Bot, Dueno } from "./tipos";
+import { onTableChange, type RealtimePayload } from "@/lib/realtime/realtime";
 
 export interface BotSync extends Bot { actualizado: number; }
 
@@ -40,8 +41,8 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
 }
 
 export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "D"; r: BotSync | null; a: BotSync | null }) => void) {
-  const ch = onTableChange("astraura_bots", { filter: e.map(entityId => `dueno.id=eq.${entityId}`).join(' or '), event: "*" }, (p) => {
-    const pp = p as any;
+  const ch = onTableChange("astraura_bots", { filter: e.map(entityId => `dueno.id=eq.${entityId}`).join(' or '), event: "*" }, (payload: RealtimePayload) => {
+    const pp = payload as any;
     if (pp.error) {
       console.warn("Tabla astraura_bots no encontrada en Supabase. La suscripción a bots de entidad está inactiva.");
       return;
@@ -52,7 +53,7 @@ export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "
     if (!b) return;
     const { dueno } = b;
     if (!dueno || !e.includes(dueno.id) || !["grupo", "comunidad", "pagina"].includes(dueno.tipo)) return;
-    c({ t: p.eventType as "INSERT" | "U" | "D", r: reg, a: ant });
+    c({ t: payload.eventType as "INSERT" | "U" | "D", r: reg, a: ant });
   });
   return () => ch();
 }

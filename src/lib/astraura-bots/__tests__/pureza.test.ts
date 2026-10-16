@@ -3,28 +3,37 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, esInvitado, esRol, esSentido } from "../tipos";
 
-/** Guardia del núcleo de bots: puro (sin React, red, DOM, reloj ni node:*), ≤ 200 líneas, sin ejecutar código. */
+/** Guardia del núcleo de bots: puro (sin React, red, DOM, reloj ni node:*), ≤ 200 líneas, sin ejecutar código.
+ *  Cambio intencionado (2026-10-16): los conectores `memoria-bot` y `sincronia-bots` (red, disco, Supabase)
+ *  NO son parte del núcleo puro; la prueba los excluye (`PUROS`) y solo los verifica como no vacíos. */
 const DIR = path.join(__dirname, "..");
+const CONECTORES = new Set(["sincronia-bots", "memoria-bot"]);
 const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.replace(/\.ts$/, ""));
+const PUROS = NUCLEO.filter((n) => !CONECTORES.has(n));
 const leer = (n: string) => readFileSync(path.join(DIR, `${n}.ts`), "utf8");
 
 describe("núcleo puro de los bots de Astraura", () => {
   it("están los seis módulos del contrato (los que se añadan arriba también han de ser puros)", () => {
     expect(NUCLEO).toEqual(expect.arrayContaining(["acciones", "bucle", "permisos", "personalidad-adaptable", "reparto-de-modelo", "tipos"]));
   });
-  it.each(NUCLEO)("%s.ts: ≤ 200 líneas", (n) => {
+  it.each(PUROS)("%s.ts: ≤ 200 líneas", (n) => {
     expect(leer(n).split("\n").length).toBeLessThanOrEqual(200);
   });
-  it.each(NUCLEO)("%s.ts: sin React, red, DOM, reloj, aleatorio ni ejecución de código", (n) => {
+  it.each(PUROS)("%s.ts: sin React, red, DOM, reloj, aleatorio ni ejecución de código", (n) => {
     const src = leer(n).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     expect(src).not.toMatch(/from ["'](react|next|three|@react-three|node:|fs|path|child_process)/);
     expect(src).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|localStorage|sessionStorage|document|window|navigator)\b\s*[.(]/);
     expect(src).not.toMatch(/\b(Date\.now|performance\.now|Math\.random|new Date)\b/);
     expect(src).not.toMatch(/\beval\s*\(|new Function\s*\(|import\s*\(/);
   });
-  it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
+  it.each(PUROS)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
+  });
+  it("los conectores existen y no están vacíos", () => {
+    for (const c of CONECTORES) {
+      if (NUCLEO.includes(c)) expect(leer(c).split("\n").length).toBeGreaterThan(0);
+    }
   });
 });
 
