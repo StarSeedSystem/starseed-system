@@ -20,7 +20,7 @@ export const runtime = "nodejs";
 const DAEMON = "http://127.0.0.1:4444";
 // (Ola 266) `clonar`/`clones` son el flujo de clonación con poco audio del
 // editor de voces: multipart (audio+texto), listado y borrado (DELETE).
-const RUTAS = new Set(["status", "tts", "warm", "identity", "asr", "clonar", "clones"]);
+const RUTAS = new Set(["status", "tts", "warm", "identity", "asr", "clonar", "clones", "oido"]);
 
 async function reenviar(req: NextRequest, ruta: string[]): Promise<Response> {
     const destino = ruta.join("/");
