@@ -4445,3 +4445,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
 =======
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+
+## 2026-10-16 03:13 · mg-oracle-1015-2049
+
+**Lo que se pidió.** Gobernador genérico: medir cualquier aparato para la colmena
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (RTCOL1012L, RTCOL1012Ae, RTRTRTRTS1010-EV-ORACLE-1ac). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CB1013Q` — otra cosa: red caída: $ opencode run --model nvidia/nvidia/nemotron-3-super-120b-a12b · 2026-10-16 02:57:11 [0m > build · nvidia/nemotron-3-super-120b
+- `RTCOL1012L` — no escribió nada
+- `RTCOL1012Ae` — no escribió nada
+- `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
