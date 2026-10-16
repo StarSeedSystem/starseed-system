@@ -19,3 +19,24 @@ describe("Catálogo de apps · BOT1011Zf", () => {
     expect(res[0].id).toBe("bots-astral");
   });
 });
+
+describe("Catálogo de apps · PM1010F0I (Protomolécula)", () => {
+  it("contiene la app 'protomolecula' con ruta propia /protomolecula", () => {
+    const app = getApp("protomolecula");
+    expect(app).toBeDefined();
+    expect(app?.name).toBe("Protomolécula");
+    expect(app?.open?.primary).toBe("window");
+    expect(app?.open?.route).toBe("/protomolecula");
+  });
+
+  it("APP_COLLECTIONS.starseed y .sistema incluyen 'protomolecula'", () => {
+    expect(APP_COLLECTIONS.starseed).toContain("protomolecula");
+    expect(APP_COLLECTIONS.sistema).toContain("protomolecula");
+  });
+
+  it("resolveApps resuelve 'protomolecula' sin errores", () => {
+    const res = resolveApps(["protomolecula"], "starseed");
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe("protomolecula");
+  });
+});
