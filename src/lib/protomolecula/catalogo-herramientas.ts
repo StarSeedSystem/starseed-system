@@ -1714,6 +1714,31 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
       "GPL: solo como programa aparte, no enlazado en el paquete del OS.",
     ],
   },
+  {
+    id: "pixelartistry-watertight",
+    nombre: "PixelArtistry Watertight Meshes",
+    categoria: "modelado-3d",
+    tipo: "app",
+    origen: "otro",
+    descripcion: "Flujos de ComfyUI: imagen a malla cerrada (lista para imprimir) o low-poly con texturas horneadas, con Pixal3D/TRELLIS.2 y los nodos WTiVo, Mesh Quad Reconstruct, LODTailor y CuMesh.",
+    licencia: "MIT",
+    codigo: null,
+    web: null,
+    medios: { web: "no", android: false, ios: false, macos: false, windows: true, linux: false, servidor: false },
+    integracion: "app-nativa-puente",
+    formatos: { entrada: ["png", "jpeg", "webp"], salida: ["glb", "stl", "3mf"] },
+    control: { via: ["ninguno"], notas: "Flujos de ComfyUI sin API documentada; control solo por ventana." },
+    actualizacion: { fuente: "web", ref: "", ultimaVersion: null, fechaVersion: null },
+    ia: [],
+    estado: "proximamente",
+    motivo: "Instalador y flujos MIT; nodos GPL-3.0 o MIT. Solo Windows 10/11 con NVIDIA RTX 20+ (umbrales 6 GB→1024, 8 GB→1536, 16 GB→2048; 32 GB RAM recomendados). Proyecto muy nuevo (5 commits, sin versiones).",
+    verificado: "2026-10-11",
+    avisos: [
+      "Proyecto muy nuevo: 5 commits y sin versiones.",
+      "Solo Windows 10/11 con NVIDIA RTX 20+.",
+      "Nodos con licencias GPL-3.0 o MIT: usa programa aparte.",
+    ],
+  },
 
   // ── materiales-shaders ──────────────────────────────────────────
   {
