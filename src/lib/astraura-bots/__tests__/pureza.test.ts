@@ -5,7 +5,9 @@ import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, 
 
 /** Guardia del núcleo de bots: puro (sin React, red, DOM, reloj ni node:*), ≤ 200 líneas, sin ejecutar código. */
 const DIR = path.join(__dirname, "..");
+const CONECTORES = new Set(["sincronia-bots", "memoria-bot"]);
 const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.replace(/\.ts$/, ""));
+const PUROS = NUCLEO.filter((n) => !CONECTORES.has(n));
 const leer = (n: string) => readFileSync(path.join(DIR, `${n}.ts`), "utf8");
 
 describe("núcleo puro de los bots de Astraura", () => {
