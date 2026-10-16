@@ -9,7 +9,7 @@ describe("motivoDescarte", () => {
   const basePeticion: PeticionPlan = {
     partida: "imagen",
     esqueleto: "soma30",
-    capacidades: ["cpu"], // start with only cpu
+    capacidades: ["cpu"] as const, // start with only cpu
     region: null,
     comercial: false,
     permitirDePago: false,
