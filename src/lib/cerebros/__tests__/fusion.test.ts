@@ -5,7 +5,8 @@ import {
   quitarFrontmatter,
   normalizar,
   planFusion,
-  PlanFusion
+  PlanFusion,
+  type Brain
 } from '../fusion';
 
 // Helper to create a mock Brain
