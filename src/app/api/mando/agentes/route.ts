@@ -13,6 +13,7 @@
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { leerAgentes } from "@/lib/mando/agentes";
+import { leerProcesosActivos } from "@/lib/cerebros/procesos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
