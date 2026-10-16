@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261016",
+ "tareas": [
+  {
+   "id": "MC1012F",
+   "titulo": "Malla amorfa: la red aleatoria continua (puentes Si–O–Si, temperatura y estado vítreo)",
+   "archivos": [
+    "src/lib/malla/cristal/cristalizacion.ts",
+    "src/lib/malla/cristal/__tests__/cristalizacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Implementa §1 del contrato: la retícula es un SÓLIDO AMORFO (vidrio de sílice, red aleatoria continua): orden de corto alcance (cada neurona busca su coordinación, cada puente une dos) y NINGÚN patrón periódico. Exporta `temperaturaDe(historial: Array<{clave: string; t: number; calidad: number}>, ventanaMs = 120000, ahora: number): Record<string, number>` (por neurona: desviación típica de la calidad de sus señales en la ventana, normalizada a 0–1 con 0.25 → 1; sin historial → 0.5); `estadoDe(temperaturaMedia: number): EstadoVitreo` (≥ 0.6 'fundido', ≥ 0.25 'subenfriado', si no 'vitreo'); `cristalizar(r: Reticula, opc: {confianza?: Record<string, number>; temperatura?: Record<string, number>} = {}): Cristal`. Algoritmo determinista: (1) candidatos = señales medidas (senalesDeReticula) + aristas de `delaunay` sobre `posicionesEstimadas` sin señal medida SOLO si ambos extremos comparten un medio con alcance para esa distancia (lora 15 km, wifi 300 m, ble 50 m; coste 0.8; medio = el compartido de más capacidad); (2) Kruskal por coste (desempate a, b, medio) para garantizar conexión; (3) añadir candidatos que cierren un triángulo con puentes ya elegidos, en orden de coste, mientras ambos extremos estén por debajo de su coordinación objetivo = coordinacionDe(n) ± defecto: +1 si la neurona está 'fundida' (temperatura ≥ 0.6: más redundancia mientras las señales bailan), −1 si su mejor candidato restante cuesta > 0.7 (defecto de coordinación por geometría); mínimo 1. Entre dos neuronas, un solo puente (el medio de menor coste). `estado` = estadoDe(media de temperatura); `huella` = huellaReticula(r) + ':' + número de puentes. Pruebas: 5 neuronas en línea quedan conectadas; un cuadrado con diagonales da triángulos; nadie supera su coordinación objetivo; mismo resultado barajando teselas; una neurona aislada sin puentes no rompe nada; 12 neuronas en posiciones aleatorias fijas NO dan todas la misma coordinación (amorfo, no periódico) pero la media está entre 3 y 5.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012B",
+    "MC1012C",
+    "MC1012D",
+    "MC1012E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "MC1012F"
+  ]
+ }
+}
