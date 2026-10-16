@@ -41,7 +41,8 @@ export type AccionOrden =
     | "reanudar"
     | "ceder"
     | "desconectar"
-    | "contenedor";
+    | "contenedor"
+    | "instalar_trabajador";
 
 export interface FichaAccion {
     etiqueta: string;
@@ -75,6 +76,11 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     // Colmena (COL1012): van a un ID de nodo concreto, nunca a «lider»/«todos» (igual que el nodo Python).
     desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
     contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
+    instalar_trabajador: {
+        etiqueta: "Instalar trabajador",
+        explica: "Instala un trabajador (agente) en este contenedor.",
+        args: [],
+    },
 };
 
 /** Las acciones del nodo NO se ofrecen en «Pedir algo al que dirige»: van en la tarjeta de cada neurona. */
@@ -89,6 +95,7 @@ export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "co
     pausar: ACCIONES.pausar,
     reanudar: ACCIONES.reanudar,
     ceder: ACCIONES.ceder,
+    instalar_trabajador: ACCIONES.instalar_trabajador,
 };
 
 /** PURA. true si `para` puede recibir esta acción: desconectar/contenedor solo a un id de nodo concreto. */
