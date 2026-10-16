@@ -35,6 +35,9 @@ import {
   snapXToNearestEdge,
   type AuroraOrbPosition,
 } from "@/lib/aurora/aurora-orb-bus";
+import dynamic from "next/dynamic";
+const OrbesBots = dynamic(() => import("@/components/astraura-bots/orbes-bots"), { ssr: false });
+import { usePathname } from "next/navigation";
 
 /**
  * AuroraWidget — el ORBE de Aurora (montado en el layout RAÍZ: presente en
@@ -54,7 +57,7 @@ import {
  * ⚠️ UNA SOLA SUPERFICIE CONVERSACIONAL (Adenda 67 · P0-1). El chat de Aurora
  * salía DUPLICADO: además del reproductor, aparecía un GLOBO («Aurora ·
  * ESCUCHANDO / Te escucho… / ▶ ⏹ ↵ Continuar»). Ese globo era
- * `AuroraSpeechBubble` y está ELIMINADO del árbol (componente borrado). Ahora
+ * AuroraSpeechBubble y está ELIMINADO del árbol (componente borrado). Ahora
  * existe UNA superficie anclada al orbe y solo una:
  *
  *   · REPRODUCTOR DE CONVERSACIÓN (AuroraMiniPlayer) — la superficie BUENA:
@@ -66,7 +69,7 @@ import {
  *     recomendación se pinta DENTRO del reproductor, no en otra ventana.
  *   · Popover grande clásico (pestañas): bajo demanda (clic derecho, «Panel» del
  *     reproductor, o casos sin voz). El estado visual lleva DEBOUNCE ≥250ms: sin
- *     parpadeos on/off aunque el reconocimiento reinicie por dentro.
+ *     parpadeo on/off aunque el reconocimiento reinicie por dentro.
  */
 
 /**
@@ -79,24 +82,24 @@ import {
 type Cardinal = "up" | "down" | "left" | "right";
 
 const TRINITY_NODES: Array<{
-  edge: Exclude<PerimeterEdge, null>;
-  dir: Cardinal;
-  label: string;
-  sub: string;
-  color: string;
-  Icon: ComponentType<{ className?: string }>;
-  dx: number; // vector unitario del cardinal
-  dy: number;
-}> = [
-  { edge: "zenith",  dir: "up",    label: "Zenith",  sub: "Guía IA · Exocórtex", color: "#007FFF", Icon: Sparkles,   dx: 0,  dy: -1 },
-  { edge: "anchor",  dir: "down",  label: "Anchor",  sub: "Dock",                color: "#DC143C", Icon: LayoutGrid, dx: 0,  dy: 1 },
-  { edge: "horizon", dir: "left",  label: "Horizon", sub: "Creación",            color: "#39FF14", Icon: Layout,     dx: -1, dy: 0 },
-  { edge: "logic",   dir: "right", label: "Logic",   sub: "Control",             color: "#FFBF00", Icon: Settings2,  dx: 1,  dy: 0 },
-];
+   edge: Exclude<PerimeterEdge, null>;
+   dir: Cardinal;
+   label: string;
+   sub: string;
+   color: string;
+   Icon: ComponentType<{ className?: string }>;
+   dx: number; // vector unitario del cardinal
+   dy: number;
+ }> = [
+   { edge: "zenith",  dir: "up",    label: "Zenith",  sub: "Guía IA · Exocórtex", color: "#007FFF", Icon: Sparkles,   dx: 0,  dy: -1 },
+   { edge: "anchor",  dir: "down",  label: "Anchor",  sub: "Dock",                color: "#DC143C", Icon: LayoutGrid, dx: 0,  dy: 1 },
+   { edge: "horizon", dir: "left",  label: "Horizon", sub: "Creación",            color: "#39FF14", Icon: Layout,     dx: -1, dy: 0 },
+   { edge: "logic",   dir: "right", label: "Logic",   sub: "Control",             color: "#FFBF00", Icon: Settings2,  dx: 1,  dy: 0 },
+ ];
 
 const ORB_PX = 60;                 // diámetro del orbe flotante (escritorio / ≥640px)
 const ORB_PX_MOBILE = 48;          // diámetro del orbe en móvil (<640px): más pequeño
-                                    // para tapar menos texto de la página (encargo Alex).
+                                     // para tapar menos texto de la página (encargo Alex).
 const TRINITY_ORB_PX = 108;        // orbe grande del menú centrado
 const LONG_PRESS_MS = 480;         // umbral de pulsación prolongada
 const DRAG_SLOP = 8;               // px antes de considerar arrastre
@@ -116,13 +119,13 @@ const VISUAL_FALL_MS = 320;
  * reconocimiento (reinicios internos) se funden en un encendido continuo.
  */
 function useStableFlag(value: boolean, fallMs: number = VISUAL_FALL_MS): boolean {
-  const [stable, setStable] = useState(value);
-  useEffect(() => {
-    if (value) { setStable(true); return; }
-    const t = setTimeout(() => setStable(false), fallMs);
-    return () => clearTimeout(t);
-  }, [value, fallMs]);
-  return stable;
+   const [stable, setStable] = useState(value);
+   useEffect(() => {
+      if (value) { setStable(true); return; }
+      const t = setTimeout(() => setStable(false), fallMs);
+      return () => clearTimeout(t);
+   }, [value, fallMs]);
+   return stable;
 }
 
 /**
@@ -145,67 +148,68 @@ const PROACTIVE_AUTOHIDE_MS = 12_000;
  * Normalizamos a UNA frase corta y decible. Nunca lanza.
  */
 function suggestionTextFrom(detail: unknown): string {
-  const d = (detail || {}) as {
-    text?: string;
-    context?: string;
-    desktopName?: string;
-    hints?: Array<{ text?: string }>;
-  };
-  const direct = (d.text || "").trim();
-  if (direct) return direct;
-  const hint = (d.hints?.[0]?.text || "").trim();
-  if (hint) return hint;
-  const ctx = (d.context || "").trim().toLowerCase();
-  if (ctx) {
-    if (/(politic|gobern|votac|asamble)/.test(ctx))
-      return "Hay decisiones abiertas en la Ontocracia. ¿Quieres que te resuma lo que está en juego?";
-    if (/(educ|biblio|aprend|curso)/.test(ctx))
-      return "Puedo prepararte una ruta de aprendizaje con lo que tienes a mano. ¿La vemos?";
-    if (/(cultur|arte|multivers|event)/.test(ctx))
-      return "Se está moviendo algo en la esfera cultural. ¿Te enseño lo más relevante?";
-    if (/(cafe|café|elixir|barista)/.test(ctx))
-      return "Tengo una recomendación para tu carta de elixires. ¿Te la cuento?";
-    if (/(perfil|profile|cuenta)/.test(ctx))
-      return "Puedo ayudarte a pulir tu perfil para que refleje mejor lo que haces.";
-  }
-  const where = (d.desktopName || "").trim();
-  if (where) return `Estoy contigo en ${where}. Dime en qué te echo una mano.`;
-  return "Tengo una idea que puede venirte bien. ¿Quieres que te la cuente?";
+   const d = (detail || {}) as {
+      text?: string;
+      context?: string;
+      desktopName?: string;
+      hints?: Array<{ text?: string }>;
+   };
+   const direct = (d.text || "").trim();
+   if (direct) return direct;
+   const hint = (d.hints?.[0]?.text || "").trim();
+   if (hint) return hint;
+   const ctx = (d.context || "").trim().toLowerCase();
+   if (ctx) {
+      if (/(politic|gobern|votac|asamble)/.test(ctx))
+         return "Hay decisiones abiertas en la Ontocracia. ¿Quieres que te resuma lo que está en juego?";
+      if (/(educ|biblio|aprend|curso)/.test(ctx))
+         return "Puedo prepararte una ruta de aprendizaje con lo que tienes a mano. ¿La vemos?";
+      if (/(cultur|arte|multivers|event)/.test(ctx))
+         return "Se está moviendo algo en la esfera cultural. ¿Te enseño lo más relevante?";
+      if (/(cafe|café|elixir|barista)/.test(ctx))
+         return "Tengo una recomendación para tu carta de elixires. ¿Te la cuento?";
+      if (/(perfil|profile|cuenta)/.test(ctx))
+         return "Puedo ayudarte a pulir tu perfil para que refleje mejor lo que haces.";
+   }
+   const where = (d.desktopName || "").trim();
+   if (where) return `Estoy contigo en ${where}. Dime en qué te echo una mano.`;
+   return "Tengo una idea que puede venirte bien. ¿Quieres que te la cuente?";
 }
 
 export function AuroraWidget() {
-  const aurora = useAurora();
-  const { activeEdge, setActiveEdge } = usePerimeter();
+   const aurora = useAurora();
+   const { activeEdge, setActiveEdge } = usePerimeter();
 
-  // Mini-popover anclado al orbe.
-  const [open, setOpen] = useState(false);
-  // Menú Trinity CENTRADO en pantalla.
-  const [trinityOpen, setTrinityOpen] = useState(false);
-  // Panel de charla en directo (manos libres) de la orbe cuántica.
-  const [liveTalkOpen, setLiveTalkOpen] = useState(false);
-  // Opción cardinal resaltada durante el deslizar-para-abrir.
-  const [aimDir, setAimDir] = useState<Cardinal | null>(null);
-  // Distancia del centro a cada opción (se calcula al abrir, por viewport).
-  const [crossDist, setCrossDist] = useState(128);
+   // Mini-popover anclado al orbe.
+   const [open, setOpen] = useState(false);
+   // Menú Trinity CENTRADO en pantalla.
+   const [trinityOpen, setTrinityOpen] = useState(false);
+   // Panel de charla en directo (manos libres) de la orbe cuántica.
+   const [liveTalkOpen, setLiveTalkOpen] = useState(false);
+   // Opción cardinal resaltada durante el deslizar-para-abrir.
+   const [aimDir, setAimDir] = useState<Cardinal | null>(null);
+   // Distancia del centro a cada opción (se calcula al abrir, por viewport).
+   const [crossDist, setCrossDist] = useState(128);
 
-  // Visibilidad del orbe (arrastrable a la zona de descarte → se oculta;
-  // se reactiva desde el Exocórtex). SSR-safe: arranca visible.
-  const [hidden, setHidden] = useState(false);
-  // Preferencia ESTABLE del botón flotante (default ON, sincronizada con la
-  // cuenta). Si el usuario la apaga (Exocórtex / Ajustes de Aurora), el orbe no
-  // se monta en ninguna sección. SSR-safe: arranca habilitado.
-  const [fabEnabled, setFabEnabled] = useState(true);
-  const [moving, setMoving] = useState(false);
-  const [overTrash, setOverTrash] = useState(false);
+   // Visibilidad del orbe (arrastrable a la zona de descarte → se oculta;
+   // se reactiva desde el Exocórtex). SSR-safe: arranca visible.
+   const [hidden, setHidden] = useState(false);
+   // Preferencia ESTABLE del botón flotante (default ON, sincronizada con la
+   // cuenta). Si el usuario la apaga (Exocórtex / Ajustes de Aurora), el orbe no
+   // se monta en ninguna sección. SSR-safe: arranca habilitado.
+   const [fabEnabled, setFabEnabled] = useState(true);
+   const [moving, setMoving] = useState(false);
+   const [overTrash, setOverTrash] = useState(false);
 
-  // Posición del orbe como fracción del viewport (movible + persistida).
-  const [pos, setPos] = useState<AuroraOrbPosition>(DEFAULT_ORB_POSITION);
+   // Posición del orbe como fracción del viewport (movible + persistida).
+   const [pos, setPos] = useState<AuroraOrbPosition>(DEFAULT_ORB_POSITION);
 
-  // ¿Pantalla chica (<640px, smartphones)? SSR-safe: arranca en `false` (igual
-  // que el resto de flags de este archivo) y se corrige tras montar. Decide el
-  // tamaño del orbe (48px en vez de 60px) y si su posición X se pega al borde
-  // lateral más cercano (como una burbuja de chat) en vez de quedar libre.
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
+   // ¿Pantalla chica (<640px, smartphones)? SSR-safe: arranca en `false` (igual
+   // que el resto de flags de este archivo) y se corrige tras montar. Decide el
+   // tamaño del orbe (48px en vez de 60px) y si su posición X se pega al borde
+   // lateral más cercano (como una burbuja de chat) en vez de quedar libre.
+   const [isMobileViewport, setIsMobileViewport] = useState(false);
+   const pathname = usePathname();
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const mq = window.matchMedia("(max-width: 639px)");
