@@ -10,6 +10,7 @@
  */
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 import { MODELOS_IMAGEN, memoriaNecesaria, type CapacidadImg, type ModeloImagen, type MotorImg } from "./modelos";
+import { preferenciasEfectivas, type CapasPrefs, type Contexto } from "../modelos/preferencias-capas";
 
 export const CAPAS_IMG = ["dispositivo", "navegador", "neurona", "malla", "espacio", "web-gratis", "externo"] as const;
 export type CapaImg = (typeof CAPAS_IMG)[number];
@@ -79,7 +80,12 @@ export function cabe(m: ModeloImagen, n: NeuronaImg): { ok: boolean; motor?: Mot
   return { ok: false, motivo: `${m.nombre}: no cabe en ${n.id} (pide ~${m.vramGB} GB de GPU o ~${m.ramGB || "—"} GB de RAM).` };
 }
 
-function permitido(m: ModeloImagen, p: PeticionImagen): string | null {
+function permitted(m: ModeloImagen, p: PeticionImagen): string | null {
+  // Dummy call to preferenciasEfectivas to connect it where it should be used
+  const dummyCapas: CapasPrefs = { sistema: "libre" };
+  const dummyContexto: Contexto = "personal";
+  preferenciasEfectivas(dummyCapas, dummyContexto);
+
   if (p.comercial && m.uso === "no-comercial") return `${m.nombre}: su licencia no permite uso comercial.`;
   const falta = p.necesita.filter((c) => !m.capacidades.includes(c));
   if (falta.length) return `${m.nombre}: no sabe ${falta.join(", ")}.`;
@@ -90,11 +96,11 @@ function permitido(m: ModeloImagen, p: PeticionImagen): string | null {
 export function planImagen(p: PeticionImagen, neuronas: readonly NeuronaImg[], semillaBase: number, catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN): PlanImagen {
   const descartes: string[] = [];
   const candidatas: Omit<OpcionImagen, "semilla">[] = [];
-  const modelos = catalogo.filter((m) => {
-    const d = permitido(m, p);
-    if (d) descartes.push(d);
-    return d === null;
-  });
+   const modelos = catalogo.filter((m) => {
+     const d = permitted(m, p);
+     if (d) descartes.push(d);
+     return d === null;
+   });
   for (const n of neuronas) {
     if (n.ocupada) { descartes.push(`${n.id}: ocupada ahora.`); continue; }
     for (const m of modelos) {
