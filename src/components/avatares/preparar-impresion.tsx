@@ -15,19 +15,12 @@ export default function PrepararImpresion() {
     prioridad: plan.prioridad,
   };
   const resultado = planificar(peticion);
-<<<<<<< HEAD
   const puede = resultado.listo;
   return (
     <div className="rounded-2xl border p-4">
       <h3 className="text-lg font-semibold">Preparar para imprimir</h3>
       <p>Destino: {plan.destino} · Cerrada: {String(plan.cerrada)} · Prioridad: {plan.prioridad}</p>
       <p className="text-sm text-white/70">Neurona actual: Blender + CPU. Motores disponibles con malla cerrada.</p>
-=======
-  return (
-    <div className="rounded-2xl border p-4">
-      <h3 className="text-lg font-semibold">Preparar para imprimir</h3>
-      <p>Destino: {plan.destino} · Cerrada: {String(plan.cerrada)}</p>
->>>>>>> 32e5a0c6 (salvavidas · WT1011C: trabajo del agente antes de las puertas (tsc / vitest))
       <ul>
         {resultado.pasos.map(p => (
           <li key={p.etapa} className="cursor-pointer">
@@ -35,7 +28,6 @@ export default function PrepararImpresion() {
           </li>
         ))}
       </ul>
-<<<<<<< HEAD
       <div className="mt-3 text-sm">
         <p className={puede ? "text-emerald-300" : "text-amber-300"}>{puede ? "Se puede cerrar y entregar" : "No hay motor para cerrar en esta neurona"}</p>
         <p>Formatos de salida: GLB · STL · 3MF (malla cerrada, sin texturas)</p>
@@ -50,8 +42,6 @@ export default function PrepararImpresion() {
           </div>
         )}
       </div>
-=======
->>>>>>> 32e5a0c6 (salvavidas · WT1011C: trabajo del agente antes de las puertas (tsc / vitest))
     </div>
   );
 }
