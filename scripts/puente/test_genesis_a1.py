@@ -26,7 +26,8 @@ class TestGenesisA1(unittest.TestCase):
     maxDiff = None
 
     def setUp(self):
-        self.ruta_base = "/home/starseed/starseed-wt/COL1012M"
+        # Raíz del repo que contiene este test: vale en el A1, en la Mac y en cualquier worktree.
+        self.ruta_base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     def test_no_hay_starseed_local_en_servicio(self):
         ruta_servicio = os.path.join(self.ruta_base, "deploy/oracle/nodo/systemd/starseed-genesis.service")
