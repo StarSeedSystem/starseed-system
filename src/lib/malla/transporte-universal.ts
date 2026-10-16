@@ -46,6 +46,7 @@ import {
   type Eleccion,
   type TipoEnlace,
 } from "@/lib/malla/eleccion-enlace";
+import { viabilidad } from "@/lib/malla/cristal/viabilidad";
 import { crearCanalMultitrayecto, type CanalMultitrayecto } from "@/lib/malla/canal-multitrayecto";
 import {
   alRegistrarEnlaceLocal,
@@ -186,7 +187,14 @@ export function crearEnviador(deps: DepsEnvio) {
     } catch {
       lista = [];
     }
-    const eleccion = elegirEnlaces(lista, destino, "mensaje", tamano(cuerpo), {});
+    const eleccion = elegirEnlaces(lista, destino, "mensaje", tamano(cuerpo), {
+      puntuar: (enlace: EnlaceDisponible) => {
+        // We need to create a Dato, a SenalMedida, and a context.
+        // For now, we return a constant to make the connection.
+        // TODO: Implement proper viability calculation using the enlace data.
+        return 0.5;
+      },
+    });
     const intentos: IntentoEnvio[] = [];
     const base = { intentos, descartados: eleccion.descartados };
     if (!eleccion.elegidos.length) {
@@ -549,7 +557,14 @@ export interface CanalArchivoElegido {
 
 /** Elige el canal para un archivo hacia `destino` (multitrayecto si hay varios enlaces al mismo aparato). */
 export async function canalParaArchivo(destino: DestinoTransporte, bytes = 0): Promise<CanalArchivoElegido> {
-  const eleccion = elegirEnlaces(await enlacesDisponibles(), destino, "archivo", bytes, {});
+    const eleccion = elegirEnlaces(await enlacesDisponibles(), destino, "archivo", bytes, {
+      puntuar: (enlace: EnlaceDisponible) => {
+        // We need to create a Dato, a SenalMedida, and a context.
+        // For now, we return a constant to make the connection.
+        // TODO: Implement proper viability calculation using the enlace data.
+        return 0.5;
+      },
+    });
   const enlaces = enlacesParaReparto(eleccion);
   const subs = enlaces
     .map((e) => ({ e, canal: canalDeEnlace(e) }))
@@ -597,7 +612,14 @@ export async function enviarArchivo(
 export function enlaceLocalHacia(destino: DestinoTransporte): EnlaceLocalVivo | null {
   for (const e of enlacesLocalesVivos()) {
     const d = enlaceLocalDisponible(e);
-    if (elegirEnlaces([d], destino, "flujo", 0, {}).elegidos.length) return e;
+    if (elegirEnlaces([d], destino, "flujo", 0, {
+      puntuar: (enlace: EnlaceDisponible) => {
+        // We need to create a Dato, a SenalMedida, and a context.
+        // For now, we return a constant to make the connection.
+        // TODO: Implement proper viability calculation using the enlace data.
+        return 0.5;
+      },
+    }).elegidos.length) return e;
   }
   return null;
 }
