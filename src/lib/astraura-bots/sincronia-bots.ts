@@ -1,5 +1,7 @@
 import type { Bot } from "./tipos";
+
 interface BotSync extends Bot { actualizado: number; }
+
 function esBotValido(b: unknown): b is BotSync {
   if (!b || typeof b !== "object" || Array.isArray(b)) return false;
   const bt = b as BotSync;
@@ -17,6 +19,7 @@ function esBotValido(b: unknown): b is BotSync {
   }
   return typeof bt.actualizado === "number" && Number.isFinite(bt.actualizado) && bt.actualizado >= 0;
 }
+
 export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
   const rv = r.filter(esBotValido);
   const lm = new Map(l.map(b => [b.id, b]));
@@ -33,31 +36,4 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
     if (e) res.push(e);
   }
   return res;
-}
-
-  if (typeof window === "undefined") return [];
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
-  if (!r) return [];
-  try {
-    const v = JSON.parse(r);
-    if (Array.isArray(v)) return v.filter((i): i is string => typeof i === "string");
-    return [];
-  } catch { return []; }
-}
-export function marcarAbierto(b: string, a: boolean): void {
-  if (typeof window === "undefined") return;
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
-  let c: string[] = [];
-  if (r) {
-    try {
-      const p = JSON.parse(r);
-      if (Array.isArray(p)) c = p.filter((i): i is string => typeof i === "string");
-    } catch { c = []; }
-  }
-  if (a) {
-    if (!c.includes(b)) c.push(b);
-  } else {
-    c = c.filter(i => i !== b);
-  }
-  window.localStorage.setItem("starseed.astraura.bots.orbes.v1", JSON.stringify(c));
 }
