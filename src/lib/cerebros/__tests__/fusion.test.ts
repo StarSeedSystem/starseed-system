@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-<<<<<<< HEAD
 import { Brain } from '@/lib/brains/brains';
-=======
->>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
 import {
   ArchivoMemoria,
   PrefsCerebro,
@@ -201,4 +198,4 @@ describe('planFusion', () => {
     expect(result.resumen.archivosOmitidos).toBe(1);
     expect(result.resumen.bytes).toBe(0);
   });
-});
+}
