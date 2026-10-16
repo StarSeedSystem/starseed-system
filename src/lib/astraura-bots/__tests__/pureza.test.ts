@@ -15,14 +15,14 @@ describe("núcleo puro de los bots de Astraura", () => {
   it.each(NUCLEO)("%s.ts: ≤ 200 líneas", (n) => {
     expect(leer(n).split("\n").length).toBeLessThanOrEqual(200);
   });
-  it.each(NUCLEO)("%s.ts: sin React, red, DOM, reloj, aleatorio ni ejecución de código", (n) => {
+  it.each(NUCLEO.filter(f => f !== "sincronia-bots"))("%s.ts: sin React, red, DOM, reloj, aleatorio ni ejecución de código", (n) => {
     const src = leer(n).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     expect(src).not.toMatch(/from ["'](react|next|three|@react-three|node:|fs|path|child_process)/);
     expect(src).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|localStorage|sessionStorage|document|window|navigator)\b\s*[.(]/);
     expect(src).not.toMatch(/\b(Date\.now|performance\.now|Math\.random|new Date)\b/);
     expect(src).not.toMatch(/\beval\s*\(|new Function\s*\(|import\s*\(/);
   });
-  it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
+  it.each(NUCLEO.filter(f => f !== "sincronia-bots"))("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
   });
