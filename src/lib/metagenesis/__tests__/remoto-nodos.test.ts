@@ -69,7 +69,7 @@ describe("resumen del bus", () => {
         const e = resumirBus([latido("mac-aaaaaa", "mac", 10, { capacidades_taller: conTaller })], AHORA);
         expect(e.nodos[0].taller).toMatchObject({ id: "mac-aaaaaa", viva: true, hierro: { gpu: "nvidia", vramGB: 16 } });
         const sin = resumirBus([latido("oracle-a1-bbbbbb", "oracle-a1", 5)], AHORA);
-        expect(e.nodos[0].taller).toBeNull();
+        expect(sin.nodos[0].taller).toBeNull();
     });
 
     it("el líder reclamado y vivo va primero; los demás con su latido; la foto da cifras y decisiones", () => {
@@ -178,8 +178,8 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
     });
 
     it("alguien vivo en las tablas → tablas", () => {
-        expect(elegirFuente(estado([true], "tablas"), state([true], "bus"))).toBe("tablas");
-    });
+         expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
+     });
 
     it("nadie vivo en ninguna → tablas si existen; si no, bus", () => {
         expect(elegirFuente(estado([false], "tablas"), estado([false], "bus"))).toBe("tablas");
