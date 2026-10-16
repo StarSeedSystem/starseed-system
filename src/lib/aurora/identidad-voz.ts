@@ -130,6 +130,6 @@ export function identidadVoz(opts?: {
     motor,
     vozRT: voz,
     origen: "default",
-    origenData: { almacenado },
+    origenData: almacenado !== null ? { almacenado } : undefined,
   };
 }
