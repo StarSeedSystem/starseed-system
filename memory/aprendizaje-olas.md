@@ -4416,12 +4416,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1011Gd` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RTIMG1011Gd conservada)
 
 ## 2026-10-14 19:46 · mg-oracle-1014-1253
+=======
+## 2026-10-12 22:42 · mg-oracle-1012-1504
+>>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 
 **Lo que se pidió.** Genesis
 
 **Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
 
 **Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+<<<<<<< HEAD
 - 2 tareas se fueron por lo mismo — otra cosa (S1010-ACT5, S1010-ACT2). Es 50 % de la ola.
 - openrouter/thinkingmachines/inkling:free no integró ninguna de sus 2 tareas.
 
@@ -4444,4 +4448,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
 =======
+<<<<<<< HEAD
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+=======
+- 2 tareas se fueron por lo mismo — otra cosa (S1010-TU-LL3, WT1011A). Es 50 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `S1010-TU-LL3` — otra cosa: sin decisión en 0 h; rama ola/S1010-TU-LL3 conservada
+- `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
+>>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
+>>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
