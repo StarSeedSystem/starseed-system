@@ -265,23 +265,27 @@ export function planFusion(e: {
     addUnique(includes.tokens, inc.tokens);
     addUnique(includes.memories, inc.memories);
     addUnique(includes.connections, inc.connections);
-    includes.bindScope = includes.bindScope || inc.bindScope;
-    allPermissions.push(...inc.permissions);
-    if (!aiProvider && inc.aiProvider) {
-      aiProvider = inc.aiProvider;
-    }
+     includes.bindScope = includes.bindScope || inc.bindScope;
+     if (Array.isArray(inc.permissions)) {
+       allPermissions.push(...inc.permissions);
+     } else {
+       allPermissions.push(inc.permissions);
+     }
+     if (!aiProvider && inc.aiProvider) {
+       aiProvider = inc.aiProvider;
+     }
   }
-  // Deduplicate permissions by JSON.stringify
-  const seen = new Set<string>();
-  const uniquePermissions: (BrainPermission | Record<string, unknown>)[] = [];
-  for (const perm of allPermissions) {
-    const key = JSON.stringify(perm);
-    if (!seen.has(key)) {
-      seen.add(key);
-      uniquePermissions.push(perm);
-    }
-  }
-  includes.permissions = uniquePermissions;
+   // Deduplicate permissions by JSON.stringify
+   const seen = new Set<string>();
+   const uniquePermissions: (BrainPermission | Record<string, unknown>)[] = [];
+   for (const perm of allPermissions) {
+     const key = JSON.stringify(perm);
+     if (!seen.has(key)) {
+       seen.add(key);
+       uniquePermissions.push(perm);
+     }
+   }
+   includes.permissions = uniquePermissions as BrainPermission[] | Record<string, unknown>;
   includes.aiProvider = aiProvider;
   // Compute servers: union by id, and same endpoint counts as one
   const servers: BrainServer[] = [];
@@ -315,8 +319,15 @@ export function planFusion(e: {
     }
   }
    // Compute config: destino wins, add fusionados and fusionadoEn
+   let destinoConfig: Record<string, unknown> = {};
    const destinoConfigRaw = archivosMap.get(e.destino.id)?.get('config')?.content;
-   const destinoConfig: Record<string, unknown> = destinoConfigRaw ?? {};
+   if (destinoConfigRaw) {
+     try {
+       destinoConfig = JSON.parse(destinoConfigRaw) as Record<string, unknown>;
+     } catch {
+       destinoConfig = {};
+     }
+   }
    const config: Record<string, unknown> = { ...destinoConfig };
    const fusionados = e.origenes.map(o => o.id);
    // Remove duplicates that are already in destino.config.fusionados
