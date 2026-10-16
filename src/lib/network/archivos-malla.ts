@@ -1018,16 +1018,21 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     };
     const aviso = avisoResonancia[resonancia.decision];
 
-    // Centinela (§5): analiza el archivo con lo que hay (primer trozo aún no llegó → inicio vacío).
+    // Centinela (§5): analiza el archivo con lo que hay (primer trozo si llegó, si no inicio vacío).
+    const yaGuardados = await almacen.indicesGuardados(msg.id);
+    let inicioBuf = new Uint8Array(0);
+    if (yaGuardados.length > 0) {
+      const primerTrozo = await almacen.leerTrozo(msg.id, yaGuardados[0]);
+      if (primerTrozo) inicioBuf = new Uint8Array(primerTrozo);
+    }
     const analisisArchivo = analizarArchivo({
       nombre: msg.nombre,
       tipoDeclarado: msg.tipo,
-      inicio: new Uint8Array(0),
+      inicio: inicioBuf,
       tamano: msg.tamano,
     });
     const entrada = decidirEntrada(analisisArchivo, resonancia ? { decision: resonancia.decision } : null);
 
-    const yaGuardados = await almacen.indicesGuardados(msg.id);
     const desde = yaGuardados.length ? Math.max(...yaGuardados) + 1 : 0;
 
     // Aplicación inmediata del centinela (rechazar no pasa por política de recepción).
