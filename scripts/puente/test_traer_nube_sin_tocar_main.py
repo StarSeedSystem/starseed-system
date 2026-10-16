@@ -45,12 +45,14 @@ class TraerSinTocarMain(unittest.TestCase):
         _git(self.raiz, "init", "-q", "-b", "main")
         _git(self.raiz, "config", "user.email", "prueba@starseed.local")
         _git(self.raiz, "config", "user.name", "Prueba")
-        open(os.path.join(self.raiz, "a.txt"), "w").write("uno\n")
+        with open(os.path.join(self.raiz, "a.txt"), "w") as f:
+            f.write("uno\n")
         _git(self.raiz, "add", "a.txt")
         _git(self.raiz, "commit", "-q", "-m", "base")
         self.base = _git(self.raiz, "rev-parse", "HEAD")
         _git(self.raiz, "checkout", "-q", "-b", "nube/x")
-        open(os.path.join(self.raiz, "b.txt"), "w").write("dos\n")
+        with open(os.path.join(self.raiz, "b.txt"), "w") as f:
+            f.write("dos\n")
         _git(self.raiz, "add", "b.txt")
         _git(self.raiz, "commit", "-q", "-m", "Ola 1 · X1: algo")
         self.sha = _git(self.raiz, "rev-parse", "HEAD")
@@ -90,7 +92,8 @@ class TraerSinTocarMain(unittest.TestCase):
     def test_si_main_avanza_con_otra_cosa_se_reaplica_encima(self):
         def puertas(base_sha, shas, cambiados, cwd=None):
             # Mientras se comprueba, el orquestador integra otra tarea en main (otro archivo).
-            open(os.path.join(self.raiz, "c.txt"), "w").write("tres\n")
+            with open(os.path.join(self.raiz, "c.txt"), "w") as f:
+                f.write("tres\n")
             _git(self.raiz, "add", "c.txt")
             _git(self.raiz, "commit", "-q", "-m", "Ola 2 · Y1: otra")
             return True, "verde"
@@ -103,7 +106,8 @@ class TraerSinTocarMain(unittest.TestCase):
 
     def test_si_main_avanza_tocando_lo_mismo_se_reintenta(self):
         def puertas(base_sha, shas, cambiados, cwd=None):
-            open(os.path.join(self.raiz, "b.txt"), "w").write("otro\n")
+            with open(os.path.join(self.raiz, "b.txt"), "w") as f:
+                f.write("otro\n")
             _git(self.raiz, "add", "b.txt")
             _git(self.raiz, "commit", "-q", "-m", "Ola 2 · Y1: lo mismo")
             return True, "verde"

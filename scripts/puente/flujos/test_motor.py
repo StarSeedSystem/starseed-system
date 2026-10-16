@@ -31,8 +31,8 @@ class MotorFlujosTest(unittest.TestCase):
                 return [{**item, nombre: True} for item in items]
             return aplicar
 
-        flujo = Flujo("ramas", "Ramas", [Nodo("a", "a"), Nodo("b", "b"),
-                      Nodo("c", "c")], [Conexion("a", "b"), Conexion("a", "c")])
+        flujo = Flujo(id="ramas", nombre="Ramas", nodos=[Nodo("a", "a"), Nodo("b", "b"), Nodo("c", "c")],
+                      conexiones=[Conexion("a", "b"), Conexion("a", "c")])
         resultado = ejecutar(flujo, {"valor": 1},
                              {letra: accion(letra) for letra in "abc"})
         self.assertEqual([nombre for nombre, _ in vistos], ["a", "b", "c"])
@@ -41,12 +41,12 @@ class MotorFlujosTest(unittest.TestCase):
 
     def test_validacion_del_grafo(self) -> None:
         with self.assertRaisesRegex(ValueError, "únicos"):
-            Flujo("f", "F", [Nodo("x", "t"), Nodo("x", "t")])
+            Flujo(id="f", nombre="F", nodos=[Nodo("x", "t"), Nodo("x", "t")])
         with self.assertRaisesRegex(ValueError, "ciclo"):
-            Flujo("f", "F", [Nodo("x", "t"), Nodo("y", "t")],
-                  [Conexion("x", "y"), Conexion("y", "x")])
-        validar_flujo(Flujo("f", "F", [Nodo("x", "t"), Nodo("b", "bucle")],
-                            [Conexion("x", "b"), Conexion("b", "x")]))
+            Flujo(id="f", nombre="F", nodos=[Nodo("x", "t"), Nodo("y", "t")],
+                  conexiones=[Conexion("x", "y"), Conexion("y", "x")])
+        validar_flujo(Flujo(id="f", nombre="F", nodos=[Nodo("x", "t"), Nodo("b", "bucle")],
+                            conexiones=[Conexion("x", "b"), Conexion("b", "x")]))
 
     def test_reintenta_con_espera_creciente(self) -> None:
         intentos = 0
@@ -122,15 +122,15 @@ class MotorFlujosTest(unittest.TestCase):
             return aplicar
 
         flujo = Flujo(
-            "rama_disparador",
-            "Rama Disparador",
-            [
+            id="rama_disparador",
+            nombre="Rama Disparador",
+            nodos=[
                 Nodo("webhook1", "webhook"),
                 Nodo("set1", "set", {"campo": "set1"}),
                 Nodo("webhook2", "webhook"),
                 Nodo("set2", "set", {"campo": "set2"}),
             ],
-            [
+            conexiones=[
                 Conexion("webhook1", "set1"),
                 Conexion("webhook2", "set2"),
             ],
