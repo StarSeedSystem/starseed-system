@@ -415,9 +415,8 @@ export async function aplicarOperacion(
                     return { ok: false, motivo: "La base de datos no dejó guardar el bot." };
                 }
                 return hecho({ tipo: "bot.restaurar", botId: op.cambios.botId, campo, antes, después }, `Bot configurado.`);
-            }
-         }
-         return { ok: false, motivo: "Operación no reconocida." };
+        }
+        return { ok: false, motivo: "Operación no reconocida." };
     } catch (e) {
         return { ok: false, motivo: e instanceof Error ? e.message : "No se pudo aplicar." };
     }
