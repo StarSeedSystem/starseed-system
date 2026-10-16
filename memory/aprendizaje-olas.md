@@ -4430,3 +4430,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+
+## 2026-10-16 01:03 · mg-oracle-1015-1632
+
+**Lo que se pidió.** CI en rojo
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1015-0826AD` — otra cosa: sin decisión en 0 h; rama ola/MGP1015-0826AD conservada
