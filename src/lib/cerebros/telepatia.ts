@@ -27,105 +27,65 @@ export function validarVinculo(v: unknown): { ok: true; vinculo: VinculoTelepati
   if (v === null || typeof v !== 'object') {
     return { ok: false, motivo: 'Vinculo no es un objeto' };
   }
-  const vinculo = v as VinculoTelepatico;
+  const vinculo = v as Record<string, unknown>;
 
-  // Validate id
   if (typeof vinculo.id !== 'string' || !vinculo.id.trim()) {
     return { ok: false, motivo: 'Vinculo.id debe ser una cadena no vacía' };
   }
 
-  // Validate destino
-  if (!vinculo.destino || typeof vinculo.destino !== 'object') {
+  const destino = vinculo.destino as Record<string, unknown> | undefined;
+  if (!destino || typeof destino.tipo !== 'string' || typeof destino.id !== 'string' || !destino.id.trim()) {
     return { ok: false, motivo: 'Destino inválido' };
   }
-  const { tipo, id } = vinculo.destino;
-  if (typeof tipo !== 'string' || !tipo.trim()) {
-    return { ok: false, motivo: 'Destino.tipo debe ser una cadena no vacía' };
-  }
-  if (typeof id !== 'string' || !id.trim()) {
-    return { ok: false, motivo: 'Destino.id debe ser una cadena no vacía' };
-  }
-  const allowedTipos = ['cerebro', 'grupo', 'comunidad', 'pagina', 'cuenta'];
-  if (!allowedTipos.includes(tipo)) {
-    return { ok: false, motivo: `Destino.tipo no válido: ${tipo}` };
-  }
-  // Additional constraints based on tipo
-  if (tipo === 'cerebro' && tipo !== 'cerebro') {
-    // This is redundant but included for clarity
-    return { ok: false, motivo: 'Destino.tipo debe ser "cerebro" para este caso' };
-  }
-  if ((tipo === 'grupo' || tipo === 'comunidad' || tipo === 'pagina') && !(tipo === 'grupo' || tipo === 'comunidad' || tipo === 'pagina')) {
-    return { ok: false, motivo: 'Destino.tipo debe ser "grupo", "comunidad" o "pagina"' };
-  }
-  if (tipo === 'cuenta' && tipo !== 'cuenta') {
-    return { ok: false, motivo: 'Destino.tipo debe ser "cuenta"' };
+  const allowedTipos = ['cerebro', 'grupo', 'comunidad', 'pagina', 'cuenta'] as const;
+  if (!allowedTipos.includes(destino.tipo as any)) {
+    return { ok: false, motivo: `Destino.tipo no válido: ${destino.tipo}` };
   }
 
-  // Validate alcance
-  if (!vinculo.alcance || typeof vinculo.alcance !== 'object') {
+  const alcance = vinculo.alcance as Record<string, unknown> | undefined;
+  if (!alcance || typeof alcance.completo !== 'boolean') {
     return { ok: false, motivo: 'Alcance inválido' };
   }
-  const { completo, memorias, carpetas, configuraciones } = vinculo.alcance;
-  if (typeof completo !== 'boolean') {
-    return { ok: false, motivo: 'Alcance.completo debe ser booleano' };
+  const memorias = Array.isArray(alcance.memorias) ? alcance.memorias : [];
+  const carpetas = Array.isArray(alcance.carpetas) ? alcance.carpetas : [];
+  const configuraciones = Array.isArray(alcance.configuraciones) ? alcance.configuraciones : [];
+  if (!memorias.every(m => typeof m === 'string') || !carpetas.every(c => typeof c === 'string') || !configuraciones.every(c => typeof c === 'string')) {
+    return { ok: false, motivo: 'Alcance contiene elementos no string' };
   }
-  if (!Array.isArray(memorias) || memorias.some(m => typeof m !== 'string')) {
-    return { ok: false, motivo: 'Alcance.memorias debe ser un array de strings' };
+  if (!alcance.completo && memorias.length === 0 && carpetas.length === 0 && configuraciones.length === 0) {
+    return { ok: false, motivo: 'Alcance debe tener al menos un elemento cuando no es completo' };
   }
-  if (!Array.isArray(carpetas) || carpetas.some(c => typeof c !== 'string')) {
-    return { ok: false, motivo: 'Alcance.carpetas debe ser un array de strings' };
-  }
-  if (!Array.isArray(configuraciones) || configuraciones.some(c => typeof c !== 'string')) {
-    return { ok: false, motivo: 'Alcance.configuraciones debe ser un array de strings' };
-  }
-  // Validate that configuraciones are from the allowed list
   for (const conf of configuraciones) {
     if (!CONFIGURACIONES_TELEPATIA.includes(conf as any)) {
       return { ok: false, motivo: `Configuración no válida en alcance: ${conf}` };
     }
   }
 
-  // Validate direccion
-  if (vinculo.direccion !== 'enviar' && vinculo.direccion !== 'recibir' && vinculo.direccion !== 'ambas') {
+  if (!['enviar', 'recibir', 'ambas'].includes(vinculo.direccion as string)) {
     return { ok: false, motivo: 'Direccion debe ser "enviar", "recibir" o "ambas"' };
   }
-
-  // Validate acceso
-  if (vinculo.acceso !== 'leer' && vinculo.acceso !== 'escribir') {
+  if (!['leer', 'escribir'].includes(vinculo.acceso as string)) {
     return { ok: false, motivo: 'Acceso debe ser "leer" o "escribir"' };
   }
-
-  // Validate auto
   if (typeof vinculo.auto !== 'boolean') {
     return { ok: false, motivo: 'Auto debe ser booleano' };
   }
-
-  // Validate estado
-  if (vinculo.estado !== 'activo' && vinculo.estado !== 'pausado' && vinculo.estado !== 'pendiente') {
+  if (!['activo', 'pausado', 'pendiente'].includes(vinculo.estado as string)) {
     return { ok: false, motivo: 'Estado debe ser "activo", "pausado" o "pendiente"' };
   }
 
-  // Validate creadoEn (ISO string)
-  const esISO = (fecha: string) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(fecha);
-  if (typeof vinculo.creadoEn !== 'string' || !esISO(vinculo.creadoEn)) {
+  const esISO = (fecha: unknown) => typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(fecha);
+  if (!esISO(vinculo.creadoEn)) {
     return { ok: false, motivo: 'Fecha de creación debe ser una cadena ISO válida' };
   }
-
-  // Validate expiraEn (can be undefined, null, or ISO string)
-  if (vinculo.expiraEn !== undefined && vinculo.expiraEn !== null) {
-    if (typeof vinculo.expiraEn !== 'string' || !esISO(vinculo.expiraEn)) {
-      return { ok: false, motivo: 'Fecha de caducidad debe ser una cadena ISO válida o null/undefined' };
-    }
+  if (vinculo.expiraEn !== undefined && vinculo.expiraEn !== null && !esISO(vinculo.expiraEn)) {
+    return { ok: false, motivo: 'Fecha de caducidad debe ser ISO o null' };
+  }
+  if (vinculo.ultimaSync !== undefined && vinculo.ultimaSync !== null && !esISO(vinculo.ultimaSync)) {
+    return { ok: false, motivo: 'Ultima sincronizacion debe ser ISO o null' };
   }
 
-  // Validate ultimaSync (can be undefined, null, or ISO string)
-  if (vinculo.ultimaSync !== undefined && vinculo.ultimaSync !== null) {
-    if (typeof vinculo.ultimaSync !== 'string' || !esISO(vinculo.ultimaSync)) {
-      return { ok: false, motivo: 'Ultima sincronizacion debe ser una cadena ISO válida o null/undefined' };
-    }
-  }
-
-  return { ok: true, vinculo: vinculo as VinculoTelepatico };
+  return { ok: true, vinculo: v as VinculoTelepatico };
 }
 
 export function normalizarVinculos(config: Record<string, unknown> | null | undefined): VinculoTelepatico[] {
