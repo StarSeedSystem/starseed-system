@@ -2,9 +2,10 @@
 // Funciones puras, sin node:* ni Supabase
 
 import type { 
-  Medio, NeuronaReticula, SenalMedida, Tesela, Reticula, 
-  EstadoVitreo, Cristal, Puente, coordinacionDe
-} from "./tipos";
+   Medio, NeuronaReticula, SenalMedida, Tesela, Reticula, 
+   EstadoVitreo, Cristal, Puente
+ } from "./tipos";
+import { coordinacionDe } from "./tipos";
 import { delaunay } from "./triangulacion";
 import { senalesDeReticula, huellaReticula } from "./teselas";
 import { posicionesEstimadas } from "./geometria";
@@ -313,7 +314,7 @@ export function cristalizar(
     if (yaSeleccionado) continue;
     
     // Verificar si cerraría un triángulo
-    if (!cerriraTriangulo(candidato.a, candidato.b)) continue;
+     if (!cerrariaTriangulo(candidato.a, candidato.b)) continue;
     
     // Verificar coordenación
     const coordA = puentesActuales[candidato.a] || 0;

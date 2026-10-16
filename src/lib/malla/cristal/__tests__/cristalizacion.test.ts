@@ -131,19 +131,19 @@ describe("cristalizacion", () => {
       expect(resultado.puentes.length).toBeGreaterThanOrEqual(4);
     });
 
-    it("debería manejar una neurona aislada", () => {
-      const neurona = crearNeurona("sola");
-      const tesela = crearTesela(neurona, [], 1000); // Sin señales
-      const retícula: Reticula = { teselas: { [tesela.origen]: tesela } };
-      
-      const resultado = cristalizar(retícula);
-      
-      // Una neurona aislada no debería romper nada
-      expect(resultado.puentes.length).toBe(0);
-      expect(resultado.coordinacion["sola"]).toBe(0);
-      expect(resultado.estado).toBe("vitreo"); // temperatura por defecto 0.5 -> subenfriado? Espera, 0.5 >= 0.25 -> subenfriado
-      // Vamos a verificar qué temperatura se está usando
-    });
+     it("debería manejar una neurona aislada", () => {
+       const neurona = crearNeurona("sola");
+       const tesela = crearTesela(neurona, [], 1000); // Sin señales
+       const retícula: Reticula = { teselas: { [tesela.origen]: tesela } };
+       
+       const resultado = cristalizar(retícula);
+       
+       // Una neurona aislada no debería romper nada
+       expect(resultado.puentes.length).toBe(0);
+       expect(resultado.coordinacion["sola"]).toBe(0);
+       expect(resultado.estado).toBe("subenfriado");
+       // Vamos a verificar qué temperatura se está usando
+     });
 
     it("debería dar el mismo resultado barajando teselas", () => {
       // Crear un conjunto de teselas
