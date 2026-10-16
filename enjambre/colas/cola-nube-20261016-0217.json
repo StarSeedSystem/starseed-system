@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261016",
+ "tareas": [
+  {
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261012-173134-COL1012J",
+   "id": "COL1012Jb-d2",
+   "titulo": "Neuronas: «esta neurona» como contenedor (o cómo instalar el trabajador) (parte 2 de 2)",
+   "archivos": [
+    "src/components/cerebro/__tests__/neuronas-colmena.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "En src/components/cerebro/neuronas-panel.tsx, en la tarjeta de la neurona ACTUAL, añade la sección «Contenedor de agentes»: si esta neurona tiene nodo de MetaGenesis (cruza por el id de nodo que publique el latido; si no hay forma de cruzarlo, trata la neurona como sin trabajador), los mismos botones que /metagenesis (`botonesNeurona`); si no, `estimarDesdeNavegador` con las señales del navegador (navigator.userAgent, navigator.platform, navigator.deviceMemory, navigator.hardwareConcurrency, navigator.getBattery() si existe, navigator.connection?.saveData o type==='cellular' como red medida, y `maxTouchPoints > 1` para el iPad) y el botón «Instalar el trabajador», que abre un panel con QUÉ es, POR QUÉ y CÓMO: el comando de `comandoInstalar(origen, codigo)` con botón Copiar. Mientras no exista el emisor de códigos (necesita la migración de nodos, §8 del contrato) el panel lo dice con esas palabras y no inventa un código. Solo para miembros de MetaGenesis. Prueba con Testing Library y señales falsas (Mac 8 GB, iPhone, Android).\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261012-173134-COL1012J`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261012-173134-COL1012J:refs/remotes/origin/nube/a1-20261012-173134-COL1012J\"` y `git cherry-pick --no-commit 4fe83d36e389`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/cerebro/__tests__/neuronas-colmena.test.tsx, src/components/cerebro/neuronas-panel.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió COL1012Jb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/cerebro/__tests__/neuronas-colmena.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "COL1012Jb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "COL1012Jb-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "COL1012Jb-d2"
+  ]
+ }
+}
