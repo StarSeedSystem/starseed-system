@@ -14,8 +14,8 @@ interface ColmenaBotonesProps {
 function ColmenaBotones({ nodo, enVuelo, mandarOrden }: ColmenaBotonesProps) {
     const enCurso = nodo.enCurso?.length > 0;
     const contenedorActivo = nodo.contenedor?.activo;
-    const sinTrabajador = !nodo.trabajador;
-    const hayTrabajador = nodo.trabajador !== null && nodo.trabajador !== undefined;
+    const sinTrabajador = nodo.trabajo ? Object.keys(nodo.trabajo).length === 0 : false;
+    const hayTrabajador = nodo.trabajo ? Object.keys(nodo.trabajo).length > 0 : false;
 
     const enviarDesconectar = async () => {
         await mandarOrden("desconectar", nodo.nodo);

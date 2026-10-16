@@ -8,19 +8,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { EstadoAutonomo } from "@/lib/metagenesis/remoto-nodos";
-import type { NodoVista } from "@/lib/metagenesis/remoto-nodos";
+import type { NodoVista, AccionOrden } from "@/lib/metagenesis/remoto-nodos";
 import { within } from "@testing-library/react";
 
 const AHORA = Date.now();
 
-const enviarOrden = vi.fn(async () => ({ ok: true, clave: "nonce-1", modo: "bus" }));
+const enviarOrden = vi.fn(async (accion: string, nodo: string) => ({ ok: true, clave: "nonce-1", modo: "bus" }));
 
 vi.mock("@/lib/metagenesis/accesos", () => ({
     miAccesoMetaGenesis: async () => ({ miembro: true, dueno: false }),
 }));
 vi.mock("@/lib/metagenesis/remoto-nodos-cliente", () => ({
     leerEstadoAutonomo: async () => null,
-    enviarOrden: (...a: unknown[]) => (enviarOrden as unknown as (...x: unknown[]) => unknown)(...a),
+    enviarOrden: (...a: unknown[]) => Promise.resolve({ ok: true, clave: "nonce-1", modo: "bus" }),
 }));
 vi.mock("@/lib/realtime/realtime", () => ({ onTableChange: () => () => {} }));
 
@@ -54,8 +54,8 @@ function pintar(nodo: NodoVista) {
             <ColmenaBotones
                 nodo={nodo}
                 enVuelo={false}
-                mandarOrden={async (accion: AccionOrden, nodo: string) => {
-                    await enviarOrden(accion, nodo);
+                mandarOrden={async (accion: AccionOrden, nodo?: string) => {
+                    await enviarOrden(accion, nodo!);
                 }}
             />
         </AppearanceProvider>,
