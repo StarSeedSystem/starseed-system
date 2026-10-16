@@ -56,7 +56,7 @@ export function validarVinculo(v: unknown): { ok: true; vinculo: VinculoTelepati
     return { ok: false, motivo: 'Alcance debe tener al menos un elemento cuando no es completo' };
   }
   for (const conf of configuraciones) {
-    if (!CONFIGURACIONES_TELEPATIA.includes(conf as any)) {
+    if (!CONFIGURACIONES_TELEPATIA.some(c => c === conf)) {
       return { ok: false, motivo: `Configuración no válida en alcance: ${conf}` };
     }
   }
