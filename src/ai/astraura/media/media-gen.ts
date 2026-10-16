@@ -48,6 +48,11 @@
 
 import { connectionsForService } from "@/lib/services/oss-connections";
 import type { GaleriaImagenes } from "./proveedor-neuronas";
+import { detectarWebGpu, estadoCapa, licenciaCatalogo, describeWorker } from "@/lib/imagenes/adaptadores/webgpu-sd-turbo";
+
+// Datos conectados del contrato IMG1011H (§1, §8): licencia y descripción del motor WebGPU + SD-Turbo.
+const LICENCIA_SD_TURBO = licenciaCatalogo(); // "Stability AI (su LICENSE.md; sin etiqueta en Hugging Face) — sin comprobar del todo"
+const DESCRIPCION_WEBGPU = describeWorker();
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tipos base del catálogo de proveedores
@@ -101,12 +106,12 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
   },
   {
     id: "neuronas",
-    label: "Tus neuronas (local)",
+    label: "Tus neuronas (local) — licencia SD-Turbo: " + LICENCIA_SD_TURBO,
     kinds: ["image"],
     access: "local-endpoint",
     needsKey: false,
     note:
-      "Reparte la petición por tus neuronas (este aparato, la pestaña con WebGPU, otras tuyas y la malla) y devuelve VARIAS opciones a la vez según el plan de capas. Funciona si alguna neurona tiene el servicio local de imágenes encendido; si ninguna responde, cae a Pollinations.",
+      "Reparte la petición por tus neuronas (este aparato, la pestaña con WebGPU, otras tuyas y la malla) y devuelve VARIAS opciones a la vez según el plan de capas. Funciona si alguna neurona tiene el servicio local de imágenes encendido; si ninguna responde, cae a Pollinations. " + DESCRIPCION_WEBGPU,
   },
   {
     id: "hf-inference",
@@ -931,6 +936,7 @@ export async function generateImage(opts: GenerateImageOptions): Promise<MediaGe
     return { ok: false, provider: opts?.provider ?? "pollinations", error: "Describe qué imagen quieres generar." };
   }
   const args: GenerateImageOptions = { ...opts, prompt };
+  const capaNavegador = detectarWebGpu() ? estadoCapa(true) : estadoCapa(false);
   const chosen: MediaProviderId =
     opts.provider && MEDIA_PROVIDERS.some((p) => p.id === opts.provider)
       ? opts.provider

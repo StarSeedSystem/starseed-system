@@ -17,6 +17,7 @@
 import { planImagen, type CapaImg, type NeuronaImg, type OpcionImagen, type PeticionImagen } from "@/lib/imagenes/plan";
 import { modeloPorId, MOTORES_IMG, type CapacidadImg, type MotorImg } from "@/lib/imagenes/modelos";
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
+import { flujoSimulado } from "@/lib/imagenes/adaptadores/webgpu-sd-turbo";
 
 /** Una opción de la galería que ve la Protomolécula: de dónde salió, con qué licencia y cuánto tardó. */
 export interface OpcionGaleria {
@@ -125,6 +126,12 @@ let generadorTab: GeneradorTab | null = null;
 export function registrarGeneradorTab(fn: GeneradorTab | null): void {
   generadorTab = fn;
 }
+
+// Registro automático del generador WebGPU (IMG1011H): flujo simulado con permiso explícito.
+registrarGeneradorTab(async (prompt, semilla) => {
+  const res = await flujoSimulado(prompt, semilla);
+  return res.ok ? { url: res.url, ref: res.url } : null;
+});
 
 /** La neurona «navegador» del plan: la pestaña con WebGPU corre SD-Turbo si el generador está registrado. */
 export function neuronaTab(registrada: boolean, ramGB: number, ocupada = false): NeuronaImg | null {

@@ -11,6 +11,7 @@
 import type { ModeloImagen } from "../modelos";
 import type { Cuantizacion } from "../plan";
 import type { HierroImg, SistemaNeurona } from "../sugerencias";
+import { puedeDescargarPesos } from "./webgpu-sd-turbo";
 
 /** Servicio local de imágenes por neurona (IMG1011A); la app puede apuntarlo con NEXT_PUBLIC_ASTRAURA_IMAGENES_LOCAL_URL. */
 export const URL_SERVICIO_IMAGENES_POR_DEFECTO = "http://127.0.0.1:4700";
@@ -129,9 +130,10 @@ export function eligeArchivosDescarga(m: ModeloImagen, c: Cuantizacion, archivos
 export function espacioSuficiente(bytesLibre: number, bytesDescarga: number): { ok: boolean; mensaje: string } {
   const gb = (b: number) => (b / 1024 ** 3).toFixed(1).replace(".", ",");
   if (bytesDescarga <= 0) return { ok: false, mensaje: "Tamaño de descarga desconocido: no se comprueba el espacio, no se descarga." };
+  const verif = puedeDescargarPesos(["model.gguf"], bytesDescarga, bytesLibre);
   return bytesLibre >= bytesDescarga * 3
-    ? { ok: true, mensaje: `Hay ${gb(bytesLibre)} GB libres; hacen falta ${gb(bytesDescarga)} GB (se pide el triple por seguridad).` }
-    : { ok: false, mensaje: `Hacen falta ${gb(bytesDescarga * 3)} GB libres (tres veces la descarga) y solo hay ${gb(bytesLibre)} GB.` };
+    ? { ok: true, mensaje: `Hay ${gb(bytesLibre)} GB libres; hacen falta ${gb(bytesDescarga)} GB (se pide el triple por seguridad). ${verif.mensaje}` }
+    : { ok: false, mensaje: `Hacen falta ${gb(bytesDescarga * 3)} GB libres (tres veces la descarga) y solo hay ${gb(bytesLibre)} GB. ${verif.mensaje}` };
 }
 
 /** La sugerencia sale una vez y vuelve solo si cambia el hierro, la malla o la versión del catálogo (IMG1011G). */

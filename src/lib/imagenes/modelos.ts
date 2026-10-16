@@ -8,6 +8,7 @@
  * nuevos; nada no comercial se ofrece para un uso comercial. PURO.
  */
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
+import { licenciaCatalogo, describeWorker } from "./adaptadores/webgpu-sd-turbo";
 
 export const FECHA_VERIFICACION_IMAGENES = "2026-10-11";
 
@@ -34,6 +35,7 @@ export const MOTORES: Record<MotorImg, InfoMotorImg> = {
   "onnx-web": {
     nombre: "ONNX Runtime Web + WebGPU", licencia: "MIT", corre: "En la pestaña del navegador con WebGPU, sin instalar nada",
     fuente: "https://github.com/microsoft/onnxruntime-inference-examples/tree/main/js/sd-turbo",
+    nota: describeWorker(),
   },
   "a1111-forge": {
     nombre: "SD WebUI Forge (API de AUTOMATIC1111)", licencia: "AGPL-3.0", corre: "NVIDIA sobre todo",
@@ -72,7 +74,7 @@ const TODO: readonly MotorImg[] = ["sdcpp", "comfyui", "diffusers", "a1111-forge
 export const MODELOS_IMAGEN: readonly ModeloImagen[] = [
   {
     id: "sd-turbo", nombre: "SD-Turbo", gama: "navegador", vramGB: 4, ramGB: 4, motores: ["onnx-web", "sdcpp"],
-    licencia: "Stability AI (su LICENSE.md; sin etiqueta en Hugging Face)", uso: "condicionado", gated: false, repoGB: 13,
+    licencia: licenciaCatalogo(), uso: "condicionado", gated: false, repoGB: 13,
     pasos: 1, resolucion: 512, capacidades: ["texto-a-imagen", "rapido"], hf: "stabilityai/sd-turbo",
     nota: "Corre en la pestaña con WebGPU (Microsoft lo muestra en menos de 1 s en una RTX 4090). Licencia sin comprobar del todo.",
   },
