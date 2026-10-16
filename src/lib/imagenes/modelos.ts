@@ -9,7 +9,7 @@
  */
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
-export const FECHA_VERIFICACION_IMAGENES = "2026-10-11";
+export const FECHA_VERIFICACION_IMAGENES = "2026-10-16";
 
 export const MOTORES_IMG = ["sdcpp", "comfyui", "diffusers", "onnx-web", "a1111-forge"] as const;
 export type MotorImg = (typeof MOTORES_IMG)[number];
@@ -139,6 +139,38 @@ export const MODELOS_IMAGEN: readonly ModeloImagen[] = [
     capacidades: ["texto-a-imagen", "rapido"], hf: "krea/Krea-2-Turbo", codigo: "https://github.com/krea-ai/krea-2",
     nota: "Estilo y exploración creativa; uso comercial con licencia de pago de Krea. Krea-2-Raw es la base para afinar. VRAM sin publicar.",
   },
+  {
+    id: "qwen-image-2.1-turbo",
+    nombre: "Qwen-Image 2.1 Turbo",
+    gama: "alta",
+    vramGB: 0,
+    ramGB: 0,
+    motores: ["sdcpp"] as const,
+    licencia: "Qwen Research License (solo investigación o evaluación)",
+    uso: "no-comercial",
+    gated: false,
+    pasos: 8,
+    resolucion: 1024,
+    capacidades: ["texto-a-imagen", "edicion", "texto-legible", "transparencia", "multi-referencia", "rapido"] as const,
+    hf: "Qwen/Qwen-Image-2.1-Turbo",
+    nota: "Campos vramGB y ramGB orientativos y por verificar. Arquitectura 7B en 8 pasos y CFG 1. GGUF disponible en unsloth/Qwen-Image-2.1-Turbo-GGUF. Compatibile con stable-diffusion.cpp, ComfyUI, diffusers y ONNX Web.",
+  },
+  {
+    id: "z-image-turbo",
+    nombre: "Z-Image Turbo",
+    gama: "entrada", // por verificar
+    vramGB: 0, // por verificar
+    ramGB: 0, // por verificar
+    motores: ["sdcpp"] as const, // por verificar
+    licencia: "Apache-2.0",
+    uso: "libre",
+    gated: false,
+    pasos: 0, // por verificar
+    resolucion: 0, // por verificar
+    capacidades: ["texto-a-imagen"] as const, // por verificar
+    hf: "Tongyi-MAI/Z-Image-Turbo",
+    nota: "Datos por verificar: gama, vramGB, ramGB, motores, pasos, resolucion, capacidades. Licencia Apache-2.0 -> uso libre.",
+  }
 ];
 
 export const modeloPorId = (id: string): ModeloImagen | undefined => MODELOS_IMAGEN.find((m) => m.id === id);

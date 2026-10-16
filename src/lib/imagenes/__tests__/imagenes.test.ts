@@ -20,16 +20,18 @@ describe("catálogo verificado", () => {
   it("ids únicos y todos los modelos que pidió Alex", () => {
     const ids = MODELOS_IMAGEN.map((m) => m.id);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const id of ["sd15", "sana-1600m", "pixart-sigma", "sdxl", "sd35-medium", "sd35-large", "flux1-dev", "flux1-schnell", "qwen-image", "qwen-image-2.1", "krea-2-turbo"]) {
+      for (const id of ["sd15", "sana-1600m", "pixart-sigma", "sdxl", "sd35-medium", "sd35-large", "flux1-dev", "flux1-schnell", "qwen-image", "qwen-image-2.1", "krea-2-turbo", "qwen-image-2.1-turbo", "z-image-turbo"]) {
       expect(ids).toContain(id);
     }
   });
-  it("licencias honestas: Qwen-Image 2.1, Krea 2 y FLUX.1 dev no son comerciales; FLUX schnell y Qwen-Image sí", () => {
+  it("licencias honestas: Qwen-Image 2.1, Krea 2 y FLUX.1 dev no son comerciales; FLUX schnell, Qwen-Image y Z-Image Turbo sí; Qwen-Image 2.1 Turbo no comercial", () => {
     expect(M("qwen-image-2.1").uso).toBe("no-comercial");
     expect(M("krea-2-turbo").uso).toBe("no-comercial");
     expect(M("flux1-dev").uso).toBe("no-comercial");
     expect(M("flux1-schnell").uso).toBe("libre");
     expect(M("qwen-image").uso).toBe("libre");
+    expect(M("z-image-turbo").uso).toBe("libre");
+    expect(M("qwen-image-2.1-turbo").uso).toBe("no-comercial");
   });
   it("la medida real del instalador manda sobre la orientativa", () => {
     expect(memoriaNecesaria(M("sdxl"), "gpu")).toBe(8);
