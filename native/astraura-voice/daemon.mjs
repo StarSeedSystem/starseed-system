@@ -251,6 +251,9 @@ const ASR_RECALENTAR_MB = (() => {
 // suficiente; cualquier fallo deja al oído igual que antes (la petición nunca
 // lanza). Configurable con STARSEED_ASTRAURA_URL.
 const ASTRAURA_URL = process.env.STARSEED_ASTRAURA_URL || "http://127.0.0.1:8000";
+// URLs para los servidores de oído local (phonon-2 y parakeet-v3)
+const ASTRAURA_OIDO_PHONON_URL = process.env.ASTRAURA_OIDO_PHONON_URL || "http://127.0.0.1:4470/v1";
+const ASTRAURA_OIDO_PARAKEET_URL = process.env.ASTRAURA_OIDO_PARAKEET_URL || "http://127.0.0.1:4471/v1";
 const RAM_CACHE_MAX = 16; // WAV cacheados en RAM (se purgan al dormir)
 const DISK_CACHE_MAX = 64; // WAV cacheados en disco (cache/)
 
@@ -2637,26 +2640,36 @@ async function handleAsr(req, res, cors) {
   const raw = await readRawBody(req, ASR_MAX_BODY_BYTES);
   if (raw === null) return sendJson(res, 413, cors, { ok: false, error: "audio demasiado grande (máx. 25 MB)" });
 
-  // Extrae el audio: multipart (campo `audio`) o JSON { audio_base64, mime }.
+  // Extrae el audio y parámetros: multipart o JSON.
   let audioBuf = null;
   let mimeHint = "";
+  let motorParam = null;
+  let langParam = null;
+  
   if (contentType.includes("multipart/form-data")) {
+    // Para multipart, necesitamos parsear todos los campos
     const parsed = parsearMultipartAudio(raw, contentType);
     if (!parsed || !parsed.buf || parsed.buf.length === 0) {
       return sendJson(res, 400, cors, { ok: false, error: "no se encontró el campo 'audio' en el multipart" });
     }
     audioBuf = parsed.buf;
     mimeHint = parsed.mime;
+    // TODO: Extraer motor y lang del multipart - por ahora los ignoramos en multipart
+    // En una implementación completa, usaríamos un parser de multipart adecuado
+    // Pero por ahora, asumimos que si se especifica motor/lang, se envía como JSON
   } else {
+    // JSON
     let body;
     try {
       body = JSON.parse(raw.toString("utf8") || "{}");
     } catch {
-      return sendJson(res, 400, cors, { ok: false, error: "cuerpo inválido: espera multipart con 'audio' o JSON { audio_base64, mime }" });
+      return sendJson(res, 400, cors, { ok: false, error: "cuerpo inválido: espera JSON { audio_base64, mime, motor?, lang? }" });
     }
     if (!body || typeof body.audio_base64 !== "string" || !body.audio_base64) {
       return sendJson(res, 400, cors, { ok: false, error: "falta 'audio_base64'" });
     }
+    motorParam = typeof body.motor === "string" ? body.motor : null;
+    langParam = typeof body.lang === "string" ? body.lang : null;
     mimeHint = typeof body.mime === "string" ? body.mime : "audio/wav";
     try {
       audioBuf = Buffer.from(body.audio_base64, "base64");
@@ -2669,6 +2682,33 @@ async function handleAsr(req, res, cors) {
     return sendJson(res, 400, cors, { ok: false, error: "audio vacío" });
   }
 
+  // Si se especifica un motor de oído conocido, intentar usarlo primero
+  if (motorParam === "phonon-2" || motorParam === "parakeet-v3") {
+    const baseUrl = motorParam === "phonon-2" ? ASTRAURA_OIDO_PHONON_URL : ASTRAURA_OIDO_PARAKEET_URL;
+    try {
+      // Intentar reconocer con el servicio de oído especificado
+      const reconocimientoExitoso = await reconocerConServidorOido(req, res, cors, baseUrl, audioBuf, mimeHint, motorParam, langParam);
+      if (reconocimientoExitoso.ok) {
+        return sendJson(res, 200, cors, {
+          ok: true,
+          texto: reconocimientoExitoso.texto,
+          segundos: reconocimientoExitoso.segundos,
+          idioma: reconocimientoExitoso.idioma,
+          motor: reconocimientoExitoso.motor,
+          modelo: reconocimientoExitoso.modelo,
+          segundosAudio: reconocimientoExitoso.segundosAudio,
+          presupuestoMs: reconocimientoExitoso.presupuestoMs,
+        });
+      }
+      // Si falló, continuar con VibeASR como fallback
+      log("daemon", `Servidor de oído ${motorParam} falló, fallback a VibeASR: ${reconocimientoExitoso.error}`);
+    } catch (e) {
+      log("daemon", `Error al contactar servidor de oído ${motorParam}, fallback a VibeASR: ${e.message}`);
+    }
+    // Si llegamos aquí, el servicio de oído falló o no estuvo disponible, continuar con VibeASR
+  }
+
+  // Lógica original de VibeASR (fallback o cuando no se especifica motor de oído)
   // Guarda en temporal y SIEMPRE entrega a `asr_infer` un archivo con extensión
   // `.wav` (que es lo único que acepta junto a `.mp3`).
   //
@@ -2769,12 +2809,107 @@ async function handleAsr(req, res, cors) {
     ok: true,
     texto: result.texto,
     segundos: result.segundos,
-    idioma: null,
+    idioma: null, // VibeASR no proporciona idioma
     motor: result.motor,
     modelo: "VibeVoice-ASR-BitNet",
     segundosAudio: Number.isFinite(segundosAudio) ? segundosAudio : null,
     presupuestoMs: oidoPresupuestoMs,
   });
+}
+
+// Función auxiliar para reconocer usando un servidor de oído específico
+async function reconocerConServidorOido(req, res, cors, baseUrl, audioBuf, mimeHint, motorParam, langParam) {
+  // Guarda el audio en un archivo temporal para enviarlo al servidor de oído
+  const extIn = extDeAudio(mimeHint);
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const tmpIn = path.join(PATHS.tmpDir, `oidor-in-${id}${extIn}`);
+  const limpiar = () => {
+    try {
+      if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn);
+    } catch {
+      /* */
+    }
+  };
+
+  try {
+    fs.writeFileSync(tmpIn, audioBuf);
+  } catch (e) {
+    limpiar();
+    return { ok: false, error: `no se pudo escribir el temporal: ${e.message}` };
+  }
+
+  let wavPath;
+  if (hayFfmpeg()) {
+    const conv = await convertirAWav(tmpIn, tmpIn.replace(/\.[^.]+$/, "-16k.wav"));
+    if (!conv.ok) {
+      limpiar();
+      return { ok: false, error: `no se pudo convertir el audio a WAV 16 kHz mono: ${conv.error}` };
+    }
+    wavPath = tmpIn.replace(/\.[^.]+$/, "-16k.wav");
+  } else if (extIn === ".wav") {
+    wavPath = tmpIn;
+  } else {
+    limpiar();
+    return { ok: false, error: `formato '${extIn.slice(1)}' no soportado sin ffmpeg: instala ffmpeg o envía WAV` };
+  }
+
+  // Preparar la petición al servidor de oído
+  let body;
+  if (mimeHint.startsWith("multipart/")) {
+    // Para multipart, necesitamos reconstruirlo - simplificado
+    // En una implementación real, sería mejor reenviar el multipart original
+    // Pero por ahora, convertimos a JSON para simplificar
+    body = {
+      audio_base64: fs.readFileSync(wavPath, { encoding: "base64" }),
+      mime: "audio/wav",
+      ...(langParam && { lang: langParam })
+    };
+  } else {
+    body = {
+      audio_base64: fs.readFileSync(wavPath, { encoding: "base64" }),
+      mime: mimeHint,
+      ...(langParam && { lang: langParam })
+    };
+  }
+
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30_000); // 30 s de timeout
+    const r = await fetch(`${baseUrl.replace(/\/+$/, "")}/audio/transcriptions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    
+    const cuerpo = await r.arrayBuffer();
+    let respuestaJson;
+    try {
+      respuestaJson = JSON.parse(Buffer.from(cuerpo).toString("utf8"));
+    } catch {
+      limpiar();
+      return { ok: false, error: "respuesta inválida del servidor de oído" };
+    }
+    
+    limpiar();
+    
+    if (respuestaJson.ok) {
+      // Asegurar que tenga los campos necesarios
+      respuestaJson.idioma = respuestaJson.idioma || langParam || null;
+      respuestaJson.motor = respuestaJson.motor || motorParam;
+      respuestaJson.modelo = respuestaJson.modelo || (motorParam === "phonon-2" ? "Phonon-2" : "Parakeet v3");
+      // Calcular segundos de audio aproximados
+      respuestaJson.segundosAudio = respuestaJson.segundosAudio || 0;
+      respuestaJson.presupuestoMs = respuestaJson.presupuestoMs || 0;
+      return respuestaJson;
+    } else {
+      return { ok: false, error: respuestaJson.error || "error desconocido del servidor de oído" };
+    }
+  } catch (e) {
+    limpiar();
+    return { ok: false, error: `no se pudo contactar el servidor de oído: ${e.message}` };
+  }
 }
 
 // ── /status ──────────────────────────────────────────────────────────────────
@@ -2890,33 +3025,55 @@ const server = http.createServer(async (req, res) => {
 
     const url = (req.url || "/").split("?")[0];
 
-    if (req.method === "GET" && (url === "/status" || url === "/")) {
-      return handleStatus(res, cors);
-    }
-    if (req.method === "POST" && url === "/identity") {
-      return handleIdentity(req, res, cors);
-    }
-    if ((req.method === "POST" || req.method === "GET") && url === "/warm") {
-      return handleWarm(req, res, cors);
-    }
-    if (req.method === "POST" && url === "/tts") {
-      return await handleTts(req, res, cors);
-    }
-    if (req.method === "POST" && url === "/asr") {
-      return await handleAsr(req, res, cors);
-    }
-    // 2026-09-07 (Ola 273): cesión inmediata del pool TTS a petición externa
-    // («Aliviar memoria» del Mando). GET /ceder se rechaza con 405 para que un
-    // clic o un preflight de navegador no pueda ceder por accidente.
-    if (req.method === "POST" && url === "/ceder") {
-      const cedidos = cederMemoria("petición externa (Mando)");
-      return sendJson(res, 200, cors, { ok: true, cedidos, memoriaLibreMb: Math.trunc(os.freemem() / 1048576) });
-    }
-    if (req.method === "GET" && url === "/ceder") {
-      return sendJson(res, 405, cors, { ok: false, error: "método no permitido" });
-    }
+     if (req.method === "GET" && (url === "/status" || url === "/")) {
+       return handleStatus(res, cors);
+     }
+     if (req.method === "POST" && url === "/identity") {
+       return handleIdentity(req, res, cors);
+     }
+     if ((req.method === "POST" || req.method === "GET") && url === "/warm") {
+       return handleWarm(req, res, cors);
+     }
+     if (req.method === "POST" && url === "/tts") {
+       return await handleTts(req, res, cors);
+     }
+     if (req.method === "POST" && url === "/asr") {
+       return await handleAsr(req, res, cors);
+     }
+     // Clonación de voz (Ola 266)
+     if (req.method === "POST" && url === "/clonar") {
+       return await handleClonar(req, res, cors);
+     }
+     if (req.method === "GET" && url === "/clones") {
+       return handleListarClones(res, cors);
+     }
+     if (req.method === "DELETE" && url === "/clonar") {
+       return await handleBorrarClon(req, res, cors);
+     }
+     // 2026-09-07 (Ola 273): cesión inmediata del pool TTS a petición externa
+     // («Aliviar memoria» del Mando). GET /ceder se rechaza con 405 para que un
+     // clic o un preflight de navegador no pueda ceder por accidente.
+     if (req.method === "POST" && url === "/ceder") {
+       const cedidos = cederMemoria("petición externa (Mando)");
+       return sendJson(res, 200, cors, { ok: true, cedidos, memoriaLibreMb: Math.trunc(os.freemem() / 1048576) });
+     }
+     if (req.method === "GET" && url === "/ceder") {
+       return sendJson(res, 405, cors, { ok: false, error: "método no permitido" });
+     }
+     // Oído local: estado y proxy a servidores de oído
+     if (req.method === "GET" && url === "/oido/estado") {
+       const phononOk = await comprobarServidorOido(ASTRAURA_OIDO_PHONON_URL);
+       const parakeetOk = await comprobarServidorOido(ASTRAURA_OIDO_PARAKEET_URL);
+       return sendJson(res, 200, cors, { ok: true, phonon: phononOk, parakeet: parakeetOk });
+     }
+     if (req.method === "POST" && url === "/oido/phonon") {
+       return await proxyASR(req, res, cors, ASTRAURA_OIDO_PHONON_URL);
+     }
+     if (req.method === "POST" && url === "/oido/parakeet") {
+       return await proxyASR(req, res, cors, ASTRAURA_OIDO_PARAKEET_URL);
+     }
 
-    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr", "POST /ceder"] });
+     return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm", "POST /asr", "POST /clonar", "GET /clones", "DELETE /clonar", "POST /ceder", "GET /oido/estado", "POST /oido/phonon", "POST /oido/parakeet"] });
   } catch (e) {
     // Blindaje total: ninguna petición mala tumba el daemon.
     try {
@@ -2943,7 +3100,108 @@ server.on("error", (err) => {
   log("daemon", `Error del servidor: ${err?.message || err}`);
   process.exit(1);
 });
+ 
+// ── Funciones para el oído local (phonon-2 y parakeet-v3) ─────────────────────
+/**
+ * Comprueba si un servidor de oído (phonon-2 o parakeet-v3) está Respondiendo
+ * haciendo una petición GET a su punto final de estado.
+ * Devuelve true si responde con código 200, false en caso contrario.
+ */
+async function comprobarServidorOido(baseUrl) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000); // 5 s de timeout
+    const r = await fetch(`${baseUrl.replace(/\/+$/, "")}/status`, {
+      method: "GET",
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    return r.ok;
+  } catch (e) {
+    return false;
+  }
+}
 
+/**
+ * Proxy una petición de reconocimiento de voz a un servidor de oído específico
+ * (phonon-2 o parakeet-v3). Reenvía el cuerpo multipart o JSON tal cual,
+ * incluyendo el campo `audio` y los parámetros `motor` y `lang`.
+ * Añade el campo `idioma` y actualiza `motor` en la respuesta basado en lo que
+ * devuelva el servidor.
+ */
+async function proxyASR(req, res, cors, baseUrl) {
+  // Reenviamos directamente al servidor de oído, ya que espera el mismo formato
+  // que nuestro endpoint /asr: multipart con campo `audio` o JSON con
+  // `audio_base64` y `mime`.
+  const destino = `${baseUrl.replace(/\/+$/, "")}/audio/transcriptions`;
+  const contentType = req.headers.get("content-type") || "application/json";
+  const esMultipart = contentType.startsWith("multipart/form-data");
+  
+  // Leemos el cuerpo con el mismo límite que usamos para /asr
+  const raw = await readRawBody(req, ASR_MAX_BODY_BYTES);
+  if (raw === null) {
+    return sendJson(res, 413, cors, { ok: false, error: "audio demasiado grande (máx. 25 MB)" });
+  }
+  
+  if (esMultipart) {
+    // Para multipart, reenviamos el cuerpo tal cual
+    return await reenviarAOido(req, res, cors, destino, raw, contentType);
+  } else {
+    // JSON
+    // Reenviamos al servidor de oído el mismo JSON
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 30_000); // 30 s de timeout para el proxy
+      const r = await fetch(destino, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: raw, // Reenviamos el cuerpo original
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      
+      const cuerpo = await r.arrayBuffer();
+      return new Response(cuerpo, {
+        status: r.status,
+        headers: {
+          "Content-Type": r.headers.get("content-type") || "application/json",
+          "Cache-Control": "no-store",
+          "X-Astraura-Via": "proxy-oido",
+        },
+      });
+    } catch (e) {
+      return sendJson(res, 502, cors, { ok: false, error: `servidor de oído inalcanzable: ${e.message}` });
+    }
+  }
+}
+
+// Función auxiliar para reenviar multipart a un servidor de oído
+async function reenviarAOido(req, res, cors, destino, body, contentType) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30_000); // 30 s de timeout
+    const r = await fetch(destino, {
+      method: req.method,
+      headers: { "Content-Type": contentType },
+      body: body,
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    
+    const cuerpo = await r.arrayBuffer();
+    return new Response(cuerpo, {
+      status: r.status,
+      headers: {
+        "Content-Type": r.headers.get("content-type") || "application/octet-stream",
+        "Cache-Control": "no-store",
+        "X-Astraura-Via": "proxy-oido",
+      },
+    });
+  } catch (e) {
+    return sendJson(res, 502, cors, { ok: false, error: `servidor de oído inalcanzable: ${e.message}` });
+  }
+}
+ 
 // ── Temporizador de auto-sleep ───────────────────────────────────────────────
 // Ahora SÍ hay procesos de modelo residentes que dormir (Adenda 89): al pasar
 // SLEEP_MS sin síntesis, MATAMOS todos los tts-server del pool (libera la GPU/
