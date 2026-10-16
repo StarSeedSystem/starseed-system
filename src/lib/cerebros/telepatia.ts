@@ -38,7 +38,7 @@ export function validarVinculo(v: unknown): { ok: true; vinculo: VinculoTelepati
     return { ok: false, motivo: 'Destino inválido' };
   }
   const allowedTipos = ['cerebro', 'grupo', 'comunidad', 'pagina', 'cuenta'] as const;
-  if (!allowedTipos.includes(destino.tipo as any)) {
+  if (!allowedTipos.some(t => t === destino.tipo)) {
     return { ok: false, motivo: `Destino.tipo no válido: ${destino.tipo}` };
   }
 
@@ -90,7 +90,7 @@ export function validarVinculo(v: unknown): { ok: true; vinculo: VinculoTelepati
 
 export function normalizarVinculos(config: Record<string, unknown> | null | undefined): VinculoTelepatico[] {
   if (!config || typeof config !== 'object') return [];
-  const lista = (config as any).telepatia;
+  const lista = (config as Record<string, unknown>).telepatia;
   if (!Array.isArray(lista)) return [];
   const validos: VinculoTelepatico[] = [];
   for (const item of lista) {
@@ -102,8 +102,13 @@ export function normalizarVinculos(config: Record<string, unknown> | null | unde
 
 export function conVinculo(config: Record<string, unknown>, v: VinculoTelepatico): Record<string, unknown> {
   const nuevo = { ...config };
-  const existentes = Array.isArray((config as any).telepatia) ? [...(config as any).telepatia] : [];
-  const idx = existentes.findIndex((x: any) => x && typeof x === 'object' && x.id === v.id);
+  const existentesRaw = (config as Record<string, unknown>).telepatia;
+  const existentes = Array.isArray(existentesRaw) ? [...existentesRaw] : [];
+  const idx = existentes.findIndex((x) => {
+    if (!x || typeof x !== 'object') return false;
+    const r = x as Record<string, unknown>;
+    return r.id === v.id;
+  });
   if (idx >= 0) {
     existentes[idx] = v;
   } else {
@@ -115,8 +120,13 @@ export function conVinculo(config: Record<string, unknown>, v: VinculoTelepatico
 
 export function sinVinculo(config: Record<string, unknown>, id: string): Record<string, unknown> {
   const nuevo = { ...config };
-  const existentes = Array.isArray((config as any).telepatia) ? (config as any).telepatia : [];
-  nuevo.telepatia = existentes.filter((x: any) => !(x && typeof x === 'object' && x.id === id));
+  const existentesRaw = (config as Record<string, unknown>).telepatia;
+  const existentes = Array.isArray(existentesRaw) ? existentesRaw : [];
+  nuevo.telepatia = existentes.filter((x) => {
+    if (!x || typeof x !== 'object') return true;
+    const r = x as Record<string, unknown>;
+    return r.id !== id;
+  });
   return nuevo;
 }
 
