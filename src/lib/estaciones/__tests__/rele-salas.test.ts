@@ -72,11 +72,11 @@ describe("estaciones · rele de salas", () => {
     const receptor = {};
     salas.entrar(tema, emisor);
     salas.entrar(tema, receptor);
-    // asumimos que difundir devuelve un array de conexiones que deben recibir el mensaje
-    const resultado = salas.difundir(tema, '{"t":"est", "hola":1}');
-    // resultado debería contener al receptor pero no al emisor
-    expect(resultado).toContainEqual(receptor);
-    expect(resultado).not.toContainEqual(emisor);
+     // asumimos que difundir devuelve un array de conexiones que deben recibir el mensaje
+     const resultado = salas.difundir(tema, '{"t":"est", "hola":1}', emisor);
+     // resultado debería contener al receptor pero no al emisor
+     expect(resultado).toContain(receptor);
+     expect(resultado).not.toContain(emisor);
   });
 
   it("debería descartar texto no string en difundir", () => {

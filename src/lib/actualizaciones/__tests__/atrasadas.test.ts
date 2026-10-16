@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { neuronasAtrasadas, type EstadoNeuronaActualizacion, type VersionesPorCapa } from "../atrasadas";
+import { neuronasAtrasadas, type EstadoNeuronaActualizacion } from "../atrasadas";
+import type { VersionesPorCapa } from "../capas";
 
 const dummyUltima: VersionesPorCapa = {
   datos: "2026.10.10",
