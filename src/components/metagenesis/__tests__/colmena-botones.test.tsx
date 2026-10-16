@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { botonesNeurona } from "../colmena";
+import { botonesNeurona } from "@/lib/metagenesis/colmena";
 
 describe("colmena · botones de neurona", () => {
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
