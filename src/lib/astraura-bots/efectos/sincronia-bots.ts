@@ -1,4 +1,4 @@
-import type { Bot, Dueno } from "./tipos";
+import type { Bot, Dueno } from "../tipos";
 import { createClient } from "@/utils/supabase/client";
 interface BotSync extends Bot { actualizado: number; }
 function esBotValido(b: unknown): b is BotSync {
