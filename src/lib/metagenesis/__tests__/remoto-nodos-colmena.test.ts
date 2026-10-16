@@ -3,7 +3,6 @@
  * `contenedor`) en el módulo puro de la pantalla. Mismas reglas que el nodo Python (COL1012A).
  * Contrato: architecture/colmena-relevo-contenedores.md §3.
  */
-import { describe, it, expect } from "vitest";
 import {
     ACCIONES,
     ACCIONES_DEL_LIDER,
@@ -11,6 +10,8 @@ import {
     resumirBus,
     validarArgs,
     type FilaBus,
+import { describe, it, expect } from "vitest";
+    type AccionOrden,
 } from "@/lib/metagenesis/remoto-nodos";
 
 const AHORA = 1_800_000_000_000;
