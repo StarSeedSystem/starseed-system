@@ -53,9 +53,9 @@ function osFalsoConBot(botId: string = "test-bot-id", botNombre: string = "Test 
           dueno: { tipo: "perfil", id: "user-id", cuentaId: "account-id" },
           activo: true
         } as Record<string, unknown>
-      ]
-    ]),
-  };
+       ]
+     ]
+   };
   
   const p: PuertosGenesis = {
     perfil: {
