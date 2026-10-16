@@ -33,6 +33,12 @@ EVENTOS_VALIDOS = {
     "produccion.pieza_lista",
 }
 
+RUTAS_GANCHO = {
+    "produccion.publicada": "starseed-produccion-publicada",
+    "produccion.pieza_lista": "starseed-produccion-pieza-lista",
+    "produccion.revertida": "starseed-produccion-revertida",
+}
+
 
 def firmar(cuerpo, secreto):
     """HMAC-SHA256 del cuerpo (bytes) con el secreto (str). Devuelve el hexdigest."""
@@ -146,6 +152,11 @@ def emitir(evento, datos=None, entorno=None, http=None):
             "motivo": "sin PRODUCCION_WEBHOOK_SECRETO: webhooks apagados",
         }
     urls = _urls_configuradas(entorno)
+    # Si está configurado el gancho propio de Flujos, también se envía allí
+    base_flujos = (entorno.get("FLUJOS_GANCHO_BASE") or "").strip()
+    if base_flujos and evento in RUTAS_GANCHO:
+        url_flujos = base_flujos.rstrip('/') + '/' + RUTAS_GANCHO[evento]
+        urls.append(url_flujos)
     if not urls:
         return {
             "evento": evento,
