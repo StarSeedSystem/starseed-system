@@ -33,8 +33,17 @@ function ColmenaBotones({ nodo, enVuelo, mandarOrden }: ColmenaBotonesProps) {
     const sePuedeConfigurarContenedor = !contenedorActivo && nodo.vivo;
     const sePuedeInstalarTrabajador = sinTrabajador && nodo.vivo && !enCurso;
 
+    const enCursoLength = nodo.enCurso?.length || 0;
+    const haceMsTrabajo = nodo.enCurso?.[0]?.punto?.t ? Date.now() - nodo.enCurso[0].punto.t : null;
+    const textoHaceTrabajo = haceMsTrabajo ? `Último punto hace ${Math.round(haceMsTrabajo / 60000)} min` : null;
+
     return (
         <div className="flex flex-wrap gap-2">
+            {textoHaceTrabajo ? (
+                <span className="text-xs text-white/40 ml-2">
+                    {textoHaceTrabajo}
+                </span>
+            ) : null}
             {sePuedeDesconectar ? (
                 <Button
                     size="sm"
