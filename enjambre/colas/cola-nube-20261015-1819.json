@@ -1,0 +1,66 @@
+{
+ "ola": "nube-20261015",
+ "tareas": [
+  {
+   "id": "VZF1015D",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Oído · servidor Parakeet v3 compatible con OpenAI (onnx-asr), solo en 127.0.0.1",
+   "archivos": [
+    "native/astraura-voice/oido/parakeet_servidor.py",
+    "native/astraura-voice/oido/oido_logica.py",
+    "native/astraura-voice/oido/test_oido_logica.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-15 en el A1: `pip install onnx-asr[cpu,hub]` y `onnx_asr.load_model(\"nemo-parakeet-tdt-0.6b-v3\", quantization=\"int8\")` transcribe español. Crea un servidor con la biblioteca estándar (`http.server`, sin frameworks) que carga el modelo UNA vez y expone `POST /v1/audio/transcriptions` (multipart `file`, `model`, `language`) → `{\"text\": …, \"language\": …}` y `GET /salud`; escucha solo en 127.0.0.1 (puerto `ASTRAURA_OIDO_PARAKEET_PUERTO`, 4471). `oido_logica.py` PURO: leer el multipart (límite 25 MB), validar el modelo, normalizar el idioma («es-MX» → «es»), y el JSON de respuesta. Pruebas de la lógica sin el modelo. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015E",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Oído · instalador por medio (Mac: MLX/Core ML; Linux y A1: CPU con torch de CPU) y medidas reales",
+   "archivos": [
+    "native/astraura-voice/oido/instalar-oido.sh",
+    "native/astraura-voice/oido/medir_oido.py",
+    "native/astraura-voice/oido/com.starseed.oido.plist"
+   ],
+   "depende": [],
+   "prompt": "Instalador idempotente en `~/.astraura/oido/venv`: en Apple silicon `pip install fermion-research` (usa MLX/Core ML); en Linux y en el A1 PRIMERO `pip install --no-deps torch --index-url https://download.pytorch.org/whl/cpu` y luego `fermion-research` (medido: sin eso pip trae el torch con CUDA y el entorno pesa 5,6 GB en aarch64), más `onnx-asr[cpu,hub]` para Parakeet. Comprueba ≥ 3 GB libres antes de empezar y lo dice si no. `medir_oido.py` arranca los dos servidores, manda un audio de prueba (genera uno con `say` en macOS o lo descarga si se le pasa una ruta), mide el tiempo real de cada motor y escribe `~/.starseed/oido-medidas.json` ({motor: {tiempoReal, ms, idioma, fecha}}). El plist de launchd lanza `fermion serve phonon-2 --host 127.0.0.1 --port 4470 --threads 2` con `ProcessType Interactive` y la ruta absoluta del binario (CLAUDE.md, trampa 4: nunca un shell como programa). Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015M",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Un solo resolutor de identidad de voz por persona (agente › personalidad › cerebro › neurona › cuenta)",
+   "archivos": [
+    "src/lib/aurora/identidad-voz.ts",
+    "src/lib/aurora/__tests__/identidad-voz.test.ts",
+    "src/lib/aurora/voz-rt.ts"
+   ],
+   "depende": [],
+   "prompt": "Hay seis mapas de «qué voz tiene esta persona» sin coordinar (VOZ_POR_PERSONA de voz-rt, pines del registro, timbres/voz-inicial/voz-rito, INSTRUCT del demonio, seedKindFor de openvoice2, xai-persona-voices). Crea `identidadVoz({ agente?, personalidad, cerebro?, neurona?, cuenta? })` → `{ timbre, motor, vozRT, origen }` con esa precedencia, leyendo los mapas existentes (no los borres) y que `vozDePersona` de `voz-rt.ts` la use. Pruebas de la precedencia y de que la voz F1 de Alex se conserva por defecto. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "CB1013Pb",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: ajustes (tipos visibles, intervalo, umbrales, servidores ocultos, límites por cerebro)",
+   "archivos": [
+    "src/lib/cerebros/procesos-preferencias.ts",
+    "src/components/cerebro/procesos-ajustes.tsx",
+    "src/lib/cerebros/__tests__/procesos-preferencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (Ajustables) (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. `procesos-preferencias.ts`: clave `starseed.cerebros.procesos.v1` (comprueba que el prefijo `starseed.cerebros.` se sincroniza en `SYNCED_PREFIXES` de src/lib/settings-sync.ts; si no, usa una clave con un prefijo que sí se sincronice y dilo en un comentario), `PreferenciasProcesos { tipos: TipoProceso[]; intervaloSeg: number; umbrales: UmbralesProcesos; ocultos: string[] }`, `normalizarPreferencias(raw)` (intervalo entre 5 y 120, 15 por defecto; umbrales entre 1 y 100), `leerPreferencias()`, `guardarPreferencias(p)` (localStorage + `pushPreferences()`), un hook `usarPreferenciasProcesos()` y `limitesDeCerebro(brainId)`/`guardarLimites(brainId, { cpuMaxPct, ramMaxMb })` en `starseed.brain.<id>.limites`. `procesos-ajustes.tsx`: `export function ProcesosAjustes({ brainId }: { brainId: string | null })` con casillas de tipos, deslizador del intervalo, campos de umbrales, servidores ocultos y, si hay cerebro, los límites con el aviso «Guardado; lo aplicará el orquestador (hoy nadie lo aplica todavía)». Pruebas de normalizar (valores fuera de rango, basura → por defecto).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261015-013156-CB1013P`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261015-013156-CB1013P:refs/remotes/origin/nube/a1-20261015-013156-CB1013P\"` y `git cherry-pick --no-commit ad881279d8a4 f93b34db294a ce3858bd2e22 1a74aaf1c699`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/cerebro/procesos-ajustes.tsx, src/lib/cerebros/__tests__/procesos-preferencias.test.ts, src/lib/cerebros/procesos-preferencias.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261015-013156-CB1013P",
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1014-124341.json": [
+   "CB1013Pb",
+   "VZF1015E",
+   "VZF1015D",
+   "VZF1015M"
+  ]
+ }
+}
