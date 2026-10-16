@@ -44,7 +44,6 @@ function nodoVistaPrueba(extra: Partial<NodoVista> = {}): NodoVista {
         trabajo: {},
         enCurso: [],
         contenedor: null,
-        trabajador: null,
         ...extra,
     };
 }
@@ -55,7 +54,7 @@ function pintar(nodo: NodoVista) {
             <ColmenaBotones
                 nodo={nodo}
                 enVuelo={false}
-                mandarOrden={async (accion: string, nodo: string) => {
+                mandarOrden={async (accion: AccionOrden, nodo: string) => {
                     await enviarOrden(accion, nodo);
                 }}
             />
@@ -131,9 +130,7 @@ describe("ColmenaBotones", () => {
     });
 
     it("muestra el botón de instalar trabajador cuando el nodo no tiene trabajador", async () => {
-        const nodoSinTrabajador = nodoVistaPrueba({
-            trabajador: null,
-        });
+        const nodoSinTrabajador = nodoVistaPrueba({});
         pintar(nodoSinTrabajador);
         const botonInstalarTrabajador = await screen.findByTestId("mg-nodo-oracle-oracle-a1-bbbbbb-trabajador");
         expect(botonInstalarTrabajador).toBeInTheDocument();
@@ -183,7 +180,6 @@ describe("ColmenaBotones", () => {
 
     it("desactiva el botón de desconectar cuando no hay trabajo en curso", async () => {
         const nodoSinTrabajo = nodoVistaPrueba({
-            trabajador: null,
             enCurso: [],
         });
         pintar(nodoSinTrabajo);
