@@ -167,6 +167,74 @@ class TestEmitir(unittest.TestCase):
         self.assertEqual(pw.main(["webhooks", "ev", "{mal json"]), 2)
 
 
+class TestFlujos(unittest.TestCase):
+    def test_envio_a_flujos_cuando_base_configurada(self):
+        base_flujos = "http://localhost:9002/api/flujos/gancho"
+        evento = "produccion.publicada"
+        ruta_esperada = "starseed-produccion-publicada"
+        url_flujos_esperada = base_flujos + "/" + ruta_esperada
+        cliente = ClienteFalso(status=200)
+        env = entorno(
+            FLUJOS_GANCHO_BASE=base_flujos,
+            N8N_WEBHOOK_URL="",  # vacías para isolar
+            DIFY_WEBHOOK_URL="",
+            PRODUCCION_WEBHOOKS="",
+        )
+        r = pw.emitir(evento, {"sha": "abc"}, entorno=env, http=cliente)
+        # Debe enviarse al menos a una URL (la de Flujos)
+        self.assertTrue(r["enviado"])
+        self.assertEqual(len(r["urls"]), 1)
+        self.assertEqual(r["urls"][0]["host"], urllib.parse.urlsplit(url_flujos_esperada).netloc)
+        self.assertTrue(r["urls"][0]["enviado"])
+        # Verificar la llamada: mismo cuerpo y firma
+        llamada = cliente.llamadas[0]
+        self.assertEqual(llamada["timeout"], 5)
+        req = llamada["req"]
+        cuerpo = req.data
+        cab = req.get_header("X-starseed-firma")
+        self.assertTrue(pw.verificar_firma(cuerpo, cab, SECRETO))
+        carga = json.loads(cuerpo)
+        self.assertEqual(carga["evento"], evento)
+        self.assertEqual(carga["sha"], "abc")
+        self.assertIn("momento", carga)
+
+    def test_no_envio_a_flujos_cuando_base_no_configurada(self):
+        evento = "produccion.publicada"
+        cliente = ClienteFalso(status=200)
+        env = entorno(FLUJOS_GANCHO_BASE="")  # base vacía
+        r = pw.emitir(evento, {}, entorno=env, http=cliente)
+        # Sin base de Flujos, solo las URLs normales (que en este entorno están vacías)
+        # pero estamos poniendo N8N y DIFY en vacío y PRODUCCION_WEBHOOKS vacío, entonces no hay URLs
+        # sin embargo, el entorno base tiene N8N y DIFY definidos en la función entorno()
+        # Vamos a anular explícitamente para que no haya URLs normales
+        env = {
+            "PRODUCCION_WEBHOOK_SECRETO": SECRETO,
+            "FLUJOS_GANCHO_BASE": "",
+            "N8N_WEBHOOK_URL": "",
+            "DIFY_WEBHOOK_URL": "",
+            "PRODUCCION_WEBHOOKS": "",
+        }
+        r = pw.emitir(evento, {}, entorno=env, http=cliente)
+        self.assertFalse(r["enviado"])
+        self.assertEqual(r["urls"], [])
+        self.assertIn("URLs", r["motivo"])
+
+    def test_no_envio_a_flujos_para_evento_no_mapeado(self):
+        base_flujos = "http://localhost:9002/api/flujos/gancho"
+        evento = "otro.evento"  # no está en RUTAS_GANCHO
+        cliente = ClienteFalso(status=200)
+        env = entorno(FLUJOS_GANCHO_BASE=base_flujos)
+        r = pw.emitir(evento, {}, entorno=env, http=cliente)
+        # Debe enviarse solo a las URLs normales (N8N y DIFY) y no a Flujos
+        self.assertTrue(r["enviado"])  # porque hay URLs normales
+        self.assertEqual(len(r["urls"]), 2)  # N8N y DIFY
+        hosts = {u["host"] for u in r["urls"]}
+        self.assertEqual(hosts, {"n8n.ejemplo.com", "dify.ejemplo.com"})
+        # Ninguna de las URLs debe ser la de Flujos
+        for u in r["urls"]:
+            self.assertNotEqual(u["host"], urllib.parse.urlsplit(base_flujos).netloc)
+
+
 if __name__ == "__main__":
     unittest.main()
 
