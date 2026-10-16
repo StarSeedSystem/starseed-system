@@ -36,8 +36,8 @@ function osFalsoConBot(botId: string = "test-bot-id", botNombre: string = "Test 
         description: "viejo", 
         tags: ["a"], 
         accent: "#000000" 
-      } as Record<string, unknown>]),
-    ],
+       } as Record<string, unknown>]
+     ])
     bots: new Map<string, Record<string, unknown>>([
       [
         botId, 
