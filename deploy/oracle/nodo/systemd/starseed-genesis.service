@@ -14,7 +14,7 @@ Group=starseed
 WorkingDirectory=/opt/starseed/genesis
 Environment=STARSEED_MANDO=1 Environment=STARSEED_MEDIO=oracle Environment=STARSEED_DONDE=oracle Environment=STARSEED_ROOT=/home/starseed/starseed-system
 Environment=STARSEED_WT=/home/starseed/starseed-wt NODE_OPTIONS=--max-old-space-size=2048
-ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/oracle_a1.py genesis
+ExecStart=/home/starseed/.local/bin/next start -p 9002 -H 127.0.0.1
 Restart=on-failure
 RestartSec=30
 MemoryMax=3G
