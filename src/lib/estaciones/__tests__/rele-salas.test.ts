@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { crearSalas } from "../salas";
+import { crearSalas } from "../../salas/sala";
 
 describe("salas · lógica de salas", () => {
   it('debería permitir entrar con tema válido y dentro de límites', () => {
