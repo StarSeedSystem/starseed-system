@@ -123,6 +123,11 @@ def disparador_de(flujo: Flujo) -> Nodo | None:
     return next((n for n in flujo.nodos if n.tipo in TIPOS_DISPARADOR), None)
 
 
+def disparadores_de(flujo: Flujo) -> list[Nodo]:
+    """Lista de nodos disparadores del flujo, en orden."""
+    return [n for n in flujo.nodos if n.tipo in TIPOS_DISPARADOR]
+
+
 # ── consumo de las fuentes (disco, pero nunca red ni procesos) ───────────────
 
 def _estado(raiz: Path) -> dict[str, dict[str, Any]]:
@@ -158,13 +163,13 @@ def _consumir_gancho(raiz: Path, ruta_gancho: str) -> list[dict[str, Any]]:
 
 
 def pendientes(raiz: Path = RAIZ_FLUJOS, ahora: datetime | None = None
-               ) -> list[tuple[Flujo, list[dict[str, Any]]]]:
+                ) -> list[tuple[Flujo, list[dict[str, Any]]]]:
     """Parejas (flujo, entrada) que hay que ejecutar AHORA, de todas las
     fuentes. Idempotente: lo consumido no se vuelve a entregar."""
     raiz = Path(raiz)
     momento = ahora or datetime.now()
     estado = _estado(raiz)
-    resultado: list[tuple[Flujo, list[dict[str, Any]]] ] = []
+    resultado: list[tuple[Flujo, list[dict[str, Any]]]] = []
     sucio = False
     for archivo in sorted(raiz.glob("*.json")):
         if archivo.name == ARCHIVO_ESTADO:
@@ -173,48 +178,80 @@ def pendientes(raiz: Path = RAIZ_FLUJOS, ahora: datetime | None = None
             flujo = cargar_flujo(archivo.stem, raiz)
         except Exception:
             continue  # un flujo roto nunca frena a los demás
-        nodo = disparador_de(flujo)
-        if nodo is None:
+        nodos_disparadores = disparadores_de(flujo)
+        if not nodos_disparadores:
             continue
-        config = dict(nodo.configuracion)
-        entrada: list[dict[str, Any]] = []
-        if nodo.tipo == "webhook" and config.get("ruta"):
-            entrada = _consumir_gancho(raiz, str(config["ruta"]))
-        elif nodo.tipo == "cron" and config.get("expresion"):
-            marca = momento.strftime("%Y-%m-%dT%H:%M")
-            cron_estado = estado.setdefault("cron", {})
-            if cron_estado.get(flujo.id) != marca and coincide_cron(
-                    str(config["expresion"]), momento):
-                cron_estado[flujo.id] = marca
-                sucio = True
-                entrada = [{"disparador": "cron", "marca": marca,
-                            "expresion": str(config["expresion"])}]
-        elif nodo.tipo == "bus" and config.get("tipos"):
-            cursor = estado.setdefault("bus", {})
-            desde = float(cursor.get(flujo.id) or 0)
-            filas = _leer_jsonl(raiz.parent / "olas" / "canal.jsonl")
-            tipos = {str(t) for t in config["tipos"]}
-            eventos = filtrar_eventos(filas, tipos, desde)
-            cursor[flujo.id] = _ultimo_epoch(filas, desde)
-            sucio = True
-            for evento in eventos:
-                evento["disparador"] = "bus"
-            entrada = eventos
-        elif nodo.tipo == "chat":
-            cursor = estado.setdefault("chat", {})
-            desde = float(cursor.get(flujo.id) or 0)
-            filas = _leer_jsonl(raiz.parent / "mando" / "canal.jsonl")
-            cursor[flujo.id] = _ultimo_epoch(filas, desde)
-            sucio = True
-            for fila in filas:
-                orden = parsear_orden_chat(str(fila.get("texto") or ""))
-                if (orden and orden[0] == flujo.id
-                        and float(fila.get("epoch") or 0) > desde):
-                    entrada.append({"disparador": "chat", "texto": orden[1],
-                                    "quien": fila.get("quien", ""),
-                                    "epoch": fila.get("epoch")})
-        if entrada:
-            resultado.append((flujo, entrada))
+        for idx, nodo in enumerate(nodos_disparadores):
+            es_primero = (idx == 0)
+            config = dict(nodo.configuracion)
+            entrada: list[dict[str, Any]] = []
+            if nodo.tipo == "webhook" and config.get("ruta"):
+                entrada = _consumir_gancho(raiz, str(config["ruta"]))
+                for item in entrada:
+                    item["_disparador"] = nodo.id
+            elif nodo.tipo == "cron" and config.get("expresion"):
+                marca = momento.strftime("%Y-%m-%dT%H:%M")
+                key_nuevo = f"{flujo.id}:{nodo.id}"
+                key_viejo = flujo.id
+                cron_state = estado.setdefault("cron", {})
+                last_marca = cron_state.get(key_nuevo)
+                if es_primero:
+                    old_marca = cron_state.get(key_viejo)
+                    if old_marca is not None and (last_marca is None or old_marca > last_marca):
+                        last_marca = old_marca
+                if last_marca != marca and coincide_cron(str(config["expresion"]), momento):
+                    cron_state[key_nuevo] = marca
+                    sucio = True
+                    entrada = [{"disparador": "cron", "marca": marca,
+                                "expresion": str(config["expresion"]),
+                                "_disparador": nodo.id}]
+            elif nodo.tipo == "bus" and config.get("tipos"):
+                key_nuevo = f"{flujo.id}:{nodo.id}"
+                key_viejo = flujo.id
+                bus_state = estado.setdefault("bus", {})
+                desde = float(bus_state.get(key_nuevo) or 0)
+                if es_primero:
+                    old_desde = float(bus_state.get(key_viejo) or 0)
+                    if old_desde > desde:
+                        desde = old_desde
+                filas = _leer_jsonl(raiz.parent / "olas" / "canal.jsonl")
+                tipos = {str(t) for t in config["tipos"]}
+                eventos = filtrar_eventos(filas, tipos, desde)
+                nuevo_cursor = _ultimo_epoch(filas, desde)
+                bus_state[key_nuevo] = nuevo_cursor
+                if nuevo_cursor > desde:  # tenemos nuevos eventos
+                    sucio = True
+                    for evento in eventos:
+                        evento["disparador"] = "bus"
+                        evento["_disparador"] = nodo.id
+                    entrada = eventos
+            elif nodo.tipo == "chat":
+                key_nuevo = f"{flujo.id}:{nodo.id}"
+                key_viejo = flujo.id
+                chat_state = estado.setdefault("chat", {})
+                desde = float(chat_state.get(key_nuevo) or 0)
+                if es_primero:
+                    old_desde = float(chat_state.get(key_viejo) or 0)
+                    if old_desde > desde:
+                        desde = old_desde
+                filas = _leer_jsonl(raiz.parent / "mando" / "canal.jsonl")
+                entrada = []
+                nuevo_desde = desde
+                for fila in filas:
+                    orden = parsear_orden_chat(str(fila.get("texto") or ""))
+                    if (orden and orden[0] == flujo.id
+                            and float(fila.get("epoch") or 0) > desde):
+                        entrada.append({"disparador": "chat", "texto": orden[1],
+                                        "quien": fila.get("quien", ""),
+                                        "epoch": fila.get("epoch"),
+                                        "_disparador": nodo.id})
+                        if float(fila.get("epoch") or 0) > nuevo_desde:
+                            nuevo_desde = float(fila.get("epoch") or 0)
+                chat_state[key_nuevo] = nuevo_desde
+                if nuevo_desde > desde:  # encontramos nuevas órdenes
+                    sucio = True
+            if entrada:
+                resultado.append((flujo, entrada))
     if sucio:
         escribir_json(raiz / ARCHIVO_ESTADO, estado)
     return resultado
