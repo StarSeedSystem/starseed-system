@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import type { Brain, BrainIncludes, BrainServer, BrainPermission } from '@/lib/brains/brains';
+=======
+import type { Brain, BrainIncludes, BrainServer } from '@/lib/brains/brains';
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
 
 export interface ArchivoMemoria {
   id?: string;
@@ -27,6 +31,7 @@ export function normalizar(texto: string): string {
   return sinFrontmatter.trim();
 }
 
+<<<<<<< HEAD
 export function seccionesDe(texto: string): string[] {
   const lines = texto.split('\n');
   const sections: string[] = [];
@@ -51,6 +56,8 @@ export function utf8ByteLength(str: string): number {
   return new TextEncoder().encode(str).length;
 }
 
+=======
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
 export interface PlanFusion {
   archivos: Array<{
     name: string;
@@ -123,6 +130,7 @@ export function planFusion(e: {
           break;
         }
       }
+<<<<<<< HEAD
         // Process remaining origenes
         for (let i = firstOrigenIndex + 1; i < e.origenes.length; i++) {
           const origen = e.origenes[i];
@@ -148,11 +156,58 @@ export function planFusion(e: {
             }
           }
         }
+=======
+      // Process remaining origenes
+      for (let i = firstOrigenIndex + 1; i < e.origenes.length; i++) {
+        const origen = e.origenes[i];
+        const origenFile = archivosMap.get(origen.id)?.get(name);
+        if (!origenFile) continue;
+        const origenContent = quitarFrontmatter(origenFile.content);
+        if (normalizar(finalContent) === normalizar(origenContent)) {
+          continue;
+        }
+        const sections = [];
+        let current = '';
+        const lines = origenContent.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('## ')) {
+            if (current) {
+              sections.push(current);
+            }
+            current = line;
+          } else {
+            current += (current ? '\n' : '') + line;
+          }
+        }
+        if (current) {
+          sections.push(current);
+        }
+        for (const section of sections) {
+          const normalizedSection = normalizar(section);
+          if (!normalizar(finalContent).includes(normalizedSection)) {
+            const sectionLines = section.split('\n');
+            const heading = sectionLines[0];
+            const contentLines = sectionLines.slice(1);
+            const sectionContent = contentLines.join('\n');
+            const fusionHeading = `## Fusionado de «${origen.name}» (${origen.id.substring(0, 8)}) · ${e.fecha}`;
+            const fusionSection = fusionHeading + (sectionContent ? '\n' + sectionContent : '');
+            if (finalContent) {
+              finalContent += '\n\n' + fusionSection;
+            } else {
+              finalContent = fusionSection;
+            }
+            addedBytes += Buffer.byteLength(fusionSection, 'utf8');
+            contribuidores.push(origen.id);
+          }
+        }
+      }
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
     } else {
       let isEqual = true;
       for (const origen of e.origenes) {
         const origenFile = archivosMap.get(origen.id)?.get(name);
         if (!origenFile) continue;
+<<<<<<< HEAD
           const origenContent = quitarFrontmatter(origenFile.content);
           if (normalizar(finalContent) !== normalizar(origenContent)) {
             isEqual = false;
@@ -172,6 +227,46 @@ export function planFusion(e: {
               }
             }
           }
+=======
+        const origenContent = quitarFrontmatter(origenFile.content);
+        if (normalizar(finalContent) !== normalizar(origenContent)) {
+          isEqual = false;
+          const sections = [];
+          let current = '';
+          const lines = origenContent.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('## ')) {
+              if (current) {
+                sections.push(current);
+              }
+              current = line;
+            } else {
+              current += (current ? '\n' : '') + line;
+            }
+          }
+          if (current) {
+            sections.push(current);
+          }
+          for (const section of sections) {
+            const normalizedSection = normalizar(section);
+            if (!normalizar(finalContent).includes(normalizedSection)) {
+              const sectionLines = section.split('\n');
+              const heading = sectionLines[0];
+              const contentLines = sectionLines.slice(1);
+              const sectionContent = contentLines.join('\n');
+              const fusionHeading = `## Fusionado de «${origen.name}» (${origen.id.substring(0, 8)}) · ${e.fecha}`;
+              const fusionSection = fusionHeading + (sectionContent ? '\n' + sectionContent : '');
+              if (finalContent) {
+                finalContent += '\n\n' + fusionSection;
+              } else {
+                finalContent = fusionSection;
+              }
+              addedBytes += Buffer.byteLength(fusionSection, 'utf8');
+              contribuidores.push(origen.id);
+            }
+          }
+        }
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
       }
       if (!isEqual) {
         action = 'anexar';
@@ -221,10 +316,17 @@ export function planFusion(e: {
       try {
         return JSON.parse(brainIncludes) as BrainIncludes;
       } catch {
+<<<<<<< HEAD
         return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined } as BrainIncludes;
       }
     }
     return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined } as BrainIncludes;
+=======
+        return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined };
+      }
+    }
+    return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined };
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
   };
   // Start with destino includes
   let destIncludes = getIncludesFromBrain(e.destino.id);
@@ -236,6 +338,7 @@ export function planFusion(e: {
   addUnique(includes.memories, destIncludes.memories);
   addUnique(includes.connections, destIncludes.connections);
   includes.bindScope = includes.bindScope || destIncludes.bindScope;
+<<<<<<< HEAD
    // Merge permissions: we'll just concatenate and then unique by who and level? 
    // For simplicity, we'll just concat and later we can unique by JSON.stringify
    let allPermissions: (BrainPermission | Record<string, unknown>)[] = [];
@@ -244,6 +347,11 @@ export function planFusion(e: {
    } else {
      allPermissions.push(destIncludes.permissions);
    }
+=======
+  // Merge permissions: we'll just concatenate and then unique by who and level? 
+  // For simplicity, we'll just concat and later we can unique by JSON.stringify
+  const allPermissions: (BrainPermission | Record<string, unknown>)[] = [...destIncludes.permissions];
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
   // AI Provider: destino's or first origen's if destino doesn't have
   let aiProvider = destIncludes.aiProvider;
   if (!aiProvider) {
@@ -265,6 +373,7 @@ export function planFusion(e: {
     addUnique(includes.tokens, inc.tokens);
     addUnique(includes.memories, inc.memories);
     addUnique(includes.connections, inc.connections);
+<<<<<<< HEAD
      includes.bindScope = includes.bindScope || inc.bindScope;
      if (Array.isArray(inc.permissions)) {
        allPermissions.push(...inc.permissions);
@@ -286,6 +395,25 @@ export function planFusion(e: {
      }
    }
    includes.permissions = uniquePermissions as BrainPermission[] | Record<string, unknown>;
+=======
+    includes.bindScope = includes.bindScope || inc.bindScope;
+    allPermissions.push(...inc.permissions);
+    if (!aiProvider && inc.aiProvider) {
+      aiProvider = inc.aiProvider;
+    }
+  }
+  // Deduplicate permissions by JSON.stringify
+  const seen = new Set<string>();
+  const uniquePermissions: (BrainPermission | Record<string, unknown>)[] = [];
+  for (const perm of allPermissions) {
+    const key = JSON.stringify(perm);
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniquePermissions.push(perm);
+    }
+  }
+  includes.permissions = uniquePermissions;
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
   includes.aiProvider = aiProvider;
   // Compute servers: union by id, and same endpoint counts as one
   const servers: BrainServer[] = [];
@@ -318,6 +446,7 @@ export function planFusion(e: {
       (origenServers as BrainServer[]).forEach(addServer);
     }
   }
+<<<<<<< HEAD
    // Compute config: destino wins, add fusionados and fusionadoEn
    let destinoConfig: Record<string, unknown> = {};
    const destinoConfigRaw = archivosMap.get(e.destino.id)?.get('config')?.content;
@@ -348,6 +477,30 @@ export function planFusion(e: {
      }
      return {} as PrefsCerebro;
    };
+=======
+  // Compute config: destino wins, add fusionados and fusionadoEn
+  const destinoConfig = archivosMap.get(e.destino.id)?.get('config')?.content ?? {};
+  const config = { ...destinoConfig };
+  const fusionados = e.origenes.map(o => o.id);
+  // Remove duplicates that are already in destino.config.fusionados
+  const existingFusionados = Array.isArray(destinoConfig.fusionados) ? destinoConfig.fusionados : [];
+  const newFusionados = fusionados.filter(id => !existingFusionados.includes(id));
+  config.fusionados = [...existingFusionados, ...newFusionados];
+  config.fusionadoEn = e.fecha;
+  // Compute prefs: merge as per contract
+  const prefs: PrefsCerebro = {};
+  const getPrefsFromBrain = (brainId: string) => {
+    const prefsContent = archivosMap.get(brainId)?.get('prefs')?.content;
+    if (prefsContent) {
+      try {
+        return JSON.parse(prefsContent) as PrefsCerebro;
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  };
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
   const destinoPrefs = getPrefsFromBrain(e.destino.id);
   // Start with destino prefs
   Object.assign(prefs, destinoPrefs);
