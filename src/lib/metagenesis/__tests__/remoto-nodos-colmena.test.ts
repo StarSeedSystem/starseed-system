@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /**
  * Pruebas de COL1012B: órdenes «desconectar»/«contenedor» y campos nuevos del latido (`en_curso`,
  * `contenedor`) en el módulo puro de la pantalla. Mismas reglas que el nodo Python (COL1012A).
@@ -32,11 +33,20 @@ describe("acciones colmena: desconectar y contenedor", () => {
     });
 });
 
+=======
+import { describe, expect, it } from "vitest";
+import { validarArgs } from "../remoto-nodos";
+
+// Rescate de la rama nube a1-20261013-130438-RTS1010-EV-ORACLE-1acb: el único caso que
+// refleja el contrato VIGENTE de `validarArgs` en main (los de «contenedor» prueban el
+// contrato del lado Python, que el TypeScript todavía no replica).
+>>>>>>> 3b1111b8 (salvavidas · RTRTRTRTS1010-EV-ORACLE-1abbbb: trabajo del agente antes de las puertas (tsc / vitest))
 describe("validarArgs: órdenes de la colmena", () => {
     it("desconectar no quiere argumentos", () => {
         expect(validarArgs("desconectar", {})).toBeNull();
         expect(validarArgs("desconectar", { motivo: "x" })).toContain("argumento no admitido");
     });
+<<<<<<< HEAD
 
     it("contenedor exige activo booleano", () => {
         expect(validarArgs("contenedor", {})).toBe("falta argumento: activo");
@@ -120,3 +130,6 @@ describe("latido: en_curso y contenedor (§3)", () => {
         expect(e.nodos[0].enCurso.every((t) => t.id.length > 0)).toBe(true);
     });
 });
+=======
+});
+>>>>>>> 3b1111b8 (salvavidas · RTRTRTRTS1010-EV-ORACLE-1abbbb: trabajo del agente antes de las puertas (tsc / vitest))
