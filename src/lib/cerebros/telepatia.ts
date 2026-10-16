@@ -27,12 +27,8 @@ export interface VinculoTelepatico {
 
 /** Obtiene vínculos telepáticos de un cerebro (lectura defensiva). */
 export function obtenerVinculos(cerebro: Brain): VinculoTelepatico[] {
-<<<<<<< HEAD
   const raw = ((cerebro?.config as Record<string, unknown>)?.telepatia as unknown) ?? [];
   if (!Array.isArray(raw)) return [];
-=======
-  const raw = ((cerebro?.config as Record<string, unknown>)?.telepatia as VinculoTelepatico[]) ?? [];
->>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
   return raw.filter((v) => v && typeof v === "object");
 }
 
@@ -64,11 +60,7 @@ export function normalizarVinculo(v: unknown): VinculoTelepatico | null {
   const creadoEn = String(vo.creadoEn || new Date().toISOString());
   const expiraEn = vo.expiraEn ? (typeof vo.expiraEn === "string" ? vo.expiraEn : null) : null;
   const ultimaSync = vo.ultimaSync ? (typeof vo.ultimaSync === "string" ? vo.ultimaSync : null) : null;
-<<<<<<< HEAD
   return { id, destino, alcance: { completo, memorias, carpetas, configuraciones }, direccion, acceso, auto, estado, creadoEn, expiraEn, ultimaSync };
-=======
-  return { id, destino, alcance: { completo: Boolean(vo.completo) || false, memorias, carpetas, configuraciones }, direccion, acceso, auto, estado, creadoEn, expiraEn, ultimaSync };
->>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
 }
 
 /** Normaliza una lista de vínculos; descarta lo inválido. */
@@ -86,32 +78,20 @@ export function validarVinculo(
   switch (vinculo.destino.tipo) {
     case "cerebro": {
       const existe = todosLosCerebros.some((c) => c.id === vinculo.destino.id);
-<<<<<<< HEAD
       if (!existe) errores.push("no existe");
-=======
-      if (!existe) errores.push(`El cerebro con id ${vinculo.destino.id} no existe`);
->>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
       break;
     }
     case "grupo":
     case "comunidad":
     case "pagina": {
       if (!entidades?.some((e) => e.id === vinculo.destino.id && e.tipo === vinculo.destino.tipo)) {
-<<<<<<< HEAD
         errores.push("no existe");
-=======
-        errores.push(`La entidad ${vinculo.destino.tipo} con id ${vinculo.destino.id} no existe`);
->>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
       }
       break;
     }
     case "cuenta": {
       if (!vinculo.destino.id || typeof vinculo.destino.id !== "string") {
-<<<<<<< HEAD
         errores.push("no existe");
-=======
-        errores.push("La cuenta debe tener un id");
->>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
       }
       break;
     }
@@ -141,11 +121,7 @@ export function validarVinculo(
   if (!vinculo.creadoEn) errores.push("Falta creadoEn");
   if (vinculo.expiraEn && typeof vinculo.expiraEn !== "string") errores.push("ExpiraEn no válido");
   if (vinculo.ultimaSync && typeof vinculo.ultimaSync !== "string") errores.push("UltimaSync no válida");
->>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
   return errores;
-}
-
-/** Plan de sincronización: operaciones puras de origen a destino respetando dirección/acceso. */
 export interface OperacionSincronizacion {
   tipo: "archivo" | "config";
   nombre: string;
