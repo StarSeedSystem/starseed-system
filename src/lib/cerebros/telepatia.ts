@@ -117,28 +117,25 @@ export function planSincronizacion(
   archivos: { id: string; name: string; actualizadoEn?: string; meta?: Record<string, unknown> }[],
 ): OperacionSincronizacion[] {
   const plan: OperacionSincronizacion[] = [];
-  const destinoId = destino.id;
+  if (vinculo.estado !== "activo") return plan;
   const origenId = origen.id;
-  if (vinculo.direccion === "enviar" && vinculo.acceso === "leer" && origen.id === destinoId) {
-    return [];
-  }
-  if (vinculo.direccion === "recibir" && vinculo.acceso === "escribir" && origen.id === destinoId) {
-    return [];
-  }
-  const actualizacionesDeOrigen = (archivos.filter((a) => a.actualizadoEn && new Date(a.actualizadoEn) > new Date()) || []);
-  for (const actual of actualizacionesDeOrigen) {
-    if (!vinculo.almacenadoCompletamente(actual.name)) continue;
-    const de = `${origenId}/${actual.name}`;
-    const a = `${destinoId}/${actual.name}`;
-    if (vinculo.meta?.telepatia === vinculo.id) {
-      continue;
+  const destinoId = destino.id;
+  const alcance = vinculo.alcance;
+  for (const archivo of archivos) {
+    if (almacenadoCompletamente(alcance, archivo.name)) {
+      if (archivo.meta?.telepatia === vinculo.id) continue;
+      plan.push({ tipo: "archivo", nombre: archivo.name, de: `${origenId}/${archivo.name}`, a: `${destinoId}/${archivo.name}` });
     }
-    plan.push({ tipo: "archivo", nombre: actual.name, de, a });
   }
-  for (const cfg of vinculo.almacenadoCompletamenteConfiguraciones()) {
-    const de = `${origenId}/config/${cfg}`;
-    const a = `${destinoId}/config/${cfg}`;
-    plan.push({ tipo: "config", nombre: cfg, de, a });
+  if (alcance.completo) {
+    const configs = ["servers", "runtimes", "skills", "storage", "apps", "moa", "channels", "conectores", "includes.personalities"];
+    for (const cfg of configs) {
+      plan.push({ tipo: "config", nombre: cfg, de: `${origenId}/config/${cfg}`, a: `${destinoId}/config/${cfg}` });
+    }
+  } else {
+    for (const cfg of alcance.configuraciones) {
+      plan.push({ tipo: "config", nombre: cfg, de: `${origenId}/config/${cfg}`, a: `${destinoId}/config/${cfg}` });
+    }
   }
   return plan;
 }
@@ -160,7 +157,11 @@ export function destinoEnPalabras(vinculo: VinculoTelepatico, cerebroMap: Record
   }
   if (["grupo", "comunidad", "pagina"].includes(vinculo.destino.tipo)) {
     const ent = entidadesMap?.[vinculo.destino.id];
-    return ent ? `${vinculo.destino.tipo} ${ent.nombre}` : `${vinculo.destino.tipo} ${vinculo.destino.id.substring(0, 8)}...`;
+    const tipoCapital = vinculo.destino.tipo.charAt(0).toUpperCase() + vinculo.destino.tipo.slice(1);
+    if (vinculo.destino.tipo === "pagina") {
+      return ent ? `Página ${ent.nombre}` : `Página ${vinculo.destino.id.substring(0, 8)}...`;
+    }
+    return ent ? `${tipoCapital} ${ent.nombre}` : `${tipoCapital} ${vinculo.destino.id.substring(0, 8)}...`;
   }
   if (vinculo.destino.tipo === "cuenta") {
     return `Cuenta externa (${vinculo.destino.id})`;
@@ -185,11 +186,12 @@ export function estadoConMotivo(vinculo: VinculoTelepatico): { estado: string; m
   if (vinculo.estado === "pausado") motivo = "Sincronización pausada manualmente";
   else if (vinculo.estado === "pendiente") motivo = "Esperando aceptación del propietario";
   else if (vinculo.expiraEn && new Date(vinculo.expiraEn) < hoy) {
-    motivo = "Expiró hace ${vinculo.expiraEn}";
+    motivo = `Expiró el ${vinculo.expiraEn}`;
     return { estado: "caducado", motivo };
   }
   if (vinculo.ultimaSync && new Date(vinculo.ultimaSync) < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
-    motivo = motivo ? motivo + ", última sync hace ${vinculo.ultimaSync}" : `Última sync hace ${vinculo.ultimaSync}`;
+    const texto = `Última sync el ${vinculo.ultimaSync}`;
+    motivo = motivo ? `${motivo}, ${texto}` : texto;
   }
   return { estado: vinculo.estado, motivo: motivo || "Activo y sincronizando" };
 }
