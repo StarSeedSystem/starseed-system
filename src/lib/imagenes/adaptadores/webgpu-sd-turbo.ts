@@ -255,6 +255,6 @@ export const generadorTab: (prompt: string, semilla: number) => Promise<{ url?: 
   };
 
 // Register the generadorTab when this module is loaded.
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && webgpuDisponible()) {
   registrarGeneradorTab(generadorTab);
 }
