@@ -33,6 +33,16 @@ export {
 } from "@/lib/aurora/stt-oss/opt-in";
 
 export {
+  // Motor de oído (registro + elector)
+  MOTORES_OIDO,
+  elegirOido,
+  type MotorOido,
+  type MotorOidoId,
+  type OpcionesEleccionOido,
+  type ResultadoOido,
+} from "@/lib/aurora/stt-oss/motores-oido";
+
+export {
   // Motor
   isOssSttSupported,
   loadModel,

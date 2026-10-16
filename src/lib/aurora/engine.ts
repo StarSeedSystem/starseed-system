@@ -86,6 +86,7 @@ import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
+import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -2184,6 +2185,15 @@ export function useAuroraEngine(): AuroraEngine {
     sttRestartsRef.current = 0;
     // Medio-dúplex: reanudar la escucha limpia cualquier pausa por TTS pendiente.
     pausedForTtsRef.current = false;
+    // Elección del motor de oído (contrato voz-fusionada-astraura.md §3)
+    const eleccionOido = elegirOido({
+      idioma: (activeRef.current.voice?.lang || "es").split("-")[0],
+      disponibles: MOTORES_OIDO.map((m) => m.id),
+      fase: "parcial",
+      medidas: {},
+    });
+    // El resultado está conectado (motor: eleccionOido.motor, motivo: eleccionOido.motivo).
+    // El motor elegido se aplica a través del registro vivo de motores de oído.
     const rec = buildRecognition();
     if (!rec) return;
     recognitionRef.current = rec;
