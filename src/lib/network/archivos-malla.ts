@@ -94,6 +94,8 @@ import {
   type ResultadoResonancia,
   type VeredictoCompartido,
 } from "@/lib/malla/cristal/resonancias";
+import { analizarArchivo } from "@/lib/malla/cristal/centinela";
+import { decidirEntrada } from "@/lib/malla/cristal/centinela-archivos";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -1015,25 +1017,65 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       'sin-datos': undefined,
     };
     const aviso = avisoResonancia[resonancia.decision];
+
+    // Centinela (§5): analiza el archivo con lo que hay (primer trozo aún no llegó → inicio vacío).
+    const analisisArchivo = analizarArchivo({
+      nombre: msg.nombre,
+      tipoDeclarado: msg.tipo,
+      inicio: new Uint8Array(0),
+      tamano: msg.tamano,
+    });
+    const entrada = decidirEntrada(analisisArchivo, resonancia ? { decision: resonancia.decision } : null);
+
     const yaGuardados = await almacen.indicesGuardados(msg.id);
     const desde = yaGuardados.length ? Math.max(...yaGuardados) + 1 : 0;
+
+    // Aplicación inmediata del centinela (rechazar no pasa por política de recepción).
+    if (entrada.accion === 'rechazar') {
+      const motivoRechazo = entrada.texto ? `Rechazado por el centinela: ${entrada.texto}` : 'Rechazado por el centinela.';
+      const estadoRechazo: EstadoTransferencia = {
+        id: msg.id,
+        rol: 'recibir',
+        nombre: msg.nombre,
+        tipo: msg.tipo,
+        tamano: msg.tamano,
+        trozos: msg.trozos,
+        progreso: 0,
+        fase: 'rechazada',
+        motivo: motivoRechazo,
+        destino: msg.destino,
+        origen: msg.origen ?? ctx.etiquetaOrigen,
+        inicioMs: Date.now(),
+        actualizadoMs: Date.now(),
+      };
+      emitir(estadoRechazo);
+      canal.enviar(JSON.stringify({ t: 'archivo.rechazar', id: msg.id, motivo: motivoRechazo } satisfies MsgRechazar));
+      ofertasEntrantes.delete(msg.id);
+      return;
+    }
+
+    // Avisos: se añade al aviso existente (resonancia o centinela).
+    let avisoFinal = aviso;
+    if (entrada.accion === 'avisar' && entrada.texto) {
+      avisoFinal = aviso ? `${aviso} | ${entrada.texto}` : entrada.texto;
+    }
 
     const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
 
     // Negociar modo: si el oferente pide binario y nuestro canal lo soporta, usamos binario.
-    const modo: ModoTransferencia = msg.modo === "binario" && canal.enviarBinario ? "binario" : "base64";
+    const modo: ModoTransferencia = msg.modo === 'binario' && canal.enviarBinario ? 'binario' : 'base64';
     modoPorId.set(msg.id, modo);
 
     const estadoBase: EstadoTransferencia = {
       id: msg.id,
-      rol: "recibir",
+      rol: 'recibir',
       nombre: msg.nombre,
       tipo: msg.tipo,
       tamano: msg.tamano,
       trozos: msg.trozos,
       progreso: desde,
-      fase: "pendiente-aceptar",
-      motivo: aviso,
+      fase: 'pendiente-aceptar',
+      motivo: avisoFinal,
       destino: msg.destino,
       origen: msg.origen ?? ctx.etiquetaOrigen,
       inicioMs: Date.now(),
@@ -1047,7 +1089,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       return;
     }
 
-    if (decision === "auto-aceptar" && !aviso) {
+    if (decision === "auto-aceptar" && !avisoFinal) {
       hashesEsperados.set(msg.id, msg.sha256);
       recibidosPorId.set(msg.id, new Set(yaGuardados));
       emitir({ ...estadoBase, fase: "transfiriendo" });
