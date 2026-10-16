@@ -89,23 +89,42 @@ export function validarVinculo(v: unknown): { ok: true; vinculo: VinculoTelepati
 }
 
 export function normalizarVinculos(config: Record<string, unknown> | null | undefined): VinculoTelepatico[] {
-  // TODO
-  return [];
+  if (!config || typeof config !== 'object') return [];
+  const lista = (config as any).telepatia;
+  if (!Array.isArray(lista)) return [];
+  const validos: VinculoTelepatico[] = [];
+  for (const item of lista) {
+    const r = validarVinculo(item);
+    if (r.ok) validos.push(r.vinculo);
+  }
+  return validos;
 }
 
 export function conVinculo(config: Record<string, unknown>, v: VinculoTelepatico): Record<string, unknown> {
-  // TODO
-  return config;
+  const nuevo = { ...config };
+  const existentes = Array.isArray((config as any).telepatia) ? [...(config as any).telepatia] : [];
+  const idx = existentes.findIndex((x: any) => x && typeof x === 'object' && x.id === v.id);
+  if (idx >= 0) {
+    existentes[idx] = v;
+  } else {
+    existentes.push(v);
+  }
+  nuevo.telepatia = existentes;
+  return nuevo;
 }
 
 export function sinVinculo(config: Record<string, unknown>, id: string): Record<string, unknown> {
-  // TODO
-  return config;
+  const nuevo = { ...config };
+  const existentes = Array.isArray((config as any).telepatia) ? (config as any).telepatia : [];
+  nuevo.telepatia = existentes.filter((x: any) => !(x && typeof x === 'object' && x.id === id));
+  return nuevo;
 }
 
 export function estaCaducado(v: VinculoTelepatico, ahora: number): boolean {
-  // TODO
-  return false;
+  if (!v.expiraEn) return false;
+  const ts = Date.parse(v.expiraEn);
+  if (Number.isNaN(ts)) return false;
+  return ahora >= ts;
 }
 
 export function planSincronizacion(
@@ -113,6 +132,67 @@ export function planSincronizacion(
   origen: { archivos: Array<{ name: string; content: string; updated_at?: string | null }>; prefs: Record<string, unknown> },
   destino: { archivos: Array<{ name: string; content: string; updated_at?: string | null }>; prefs: Record<string, unknown> }
 ): Array<{ tipo: 'archivo' | 'config' | 'carpeta'; nombre: string; de: 'origen' | 'destino'; a: 'origen' | 'destino' }> {
-  // TODO
-  return [];
+  if (v.estado !== 'activo') return [];
+  if (estaCaducado(v, Date.now())) return [];
+
+  const allowedOrigenADestino = v.direccion === 'enviar' || v.direccion === 'ambas';
+  const allowedDestinoAOrigen = (v.direccion === 'recibir' || v.direccion === 'ambas') && v.acceso !== 'leer';
+
+  const ops: Array<{ tipo: 'archivo' | 'config' | 'carpeta'; nombre: string; de: 'origen' | 'destino'; a: 'origen' | 'destino' }> = [];
+
+  const nombresArchivos = v.alcance.completo
+    ? Array.from(new Set([...origen.archivos.map(a => a.name), ...destino.archivos.map(a => a.name)]))
+    : v.alcance.memorias;
+
+  const mapArchivo = (arr: typeof origen.archivos) => new Map(arr.map(a => [a.name, a]));
+  const orMap = mapArchivo(origen.archivos);
+  const deMap = mapArchivo(destino.archivos);
+
+  const parseTs = (s?: string | null) => {
+    if (!s) return null;
+    const t = Date.parse(s);
+    return Number.isNaN(t) ? null : t;
+  };
+
+  for (const nombre of nombresArchivos) {
+    const orF = orMap.get(nombre);
+    const deF = deMap.get(nombre);
+    if (orF && !deF) {
+      if (allowedOrigenADestino) ops.push({ tipo: 'archivo', nombre, de: 'origen', a: 'destino' });
+    } else if (!orF && deF) {
+      if (allowedDestinoAOrigen) ops.push({ tipo: 'archivo', nombre, de: 'destino', a: 'origen' });
+    } else if (orF && deF) {
+      const tOr = parseTs(orF.updated_at);
+      const tDe = parseTs(deF.updated_at);
+      if (tOr === null && tDe !== null) {
+        if (allowedDestinoAOrigen) ops.push({ tipo: 'archivo', nombre, de: 'destino', a: 'origen' });
+      } else if (tDe === null && tOr !== null) {
+        if (allowedOrigenADestino) ops.push({ tipo: 'archivo', nombre, de: 'origen', a: 'destino' });
+      } else if (tOr !== null && tDe !== null) {
+        if (tOr > tDe && allowedOrigenADestino) ops.push({ tipo: 'archivo', nombre, de: 'origen', a: 'destino' });
+        else if (tDe > tOr && allowedDestinoAOrigen) ops.push({ tipo: 'archivo', nombre, de: 'destino', a: 'origen' });
+      }
+    }
+  }
+
+  for (const carpeta of v.alcance.carpetas) {
+    if (allowedOrigenADestino) ops.push({ tipo: 'carpeta', nombre: carpeta, de: 'origen', a: 'destino' });
+    if (allowedDestinoAOrigen) ops.push({ tipo: 'carpeta', nombre: carpeta, de: 'destino', a: 'origen' });
+  }
+
+  const configs = v.alcance.completo
+    ? [...CONFIGURACIONES_TELEPATIA]
+    : v.alcance.configuraciones;
+
+  for (const cfg of configs) {
+    const orVal = origen.prefs[cfg];
+    const deVal = destino.prefs[cfg];
+    if (orVal !== undefined && deVal === undefined) {
+      if (allowedOrigenADestino) ops.push({ tipo: 'config', nombre: cfg, de: 'origen', a: 'destino' });
+    } else if (deVal !== undefined && orVal === undefined) {
+      if (allowedDestinoAOrigen) ops.push({ tipo: 'config', nombre: cfg, de: 'destino', a: 'origen' });
+    }
+  }
+
+  return ops;
 }
