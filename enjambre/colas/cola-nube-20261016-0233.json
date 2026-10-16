@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261016",
+ "tareas": [
+  {
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261014-125224-CB1013E",
+   "id": "CB1013Eb-d2",
+   "titulo": "Telepatía: lógica pura de vínculos y plan de sincronización (parte 2 de 2)",
+   "archivos": [
+    "src/lib/cerebros/__tests__/telepatia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §5 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO. Exporta los tipos `DestinoTelepatia` y `VinculoTelepatico` EXACTOS de §5; `CONFIGURACIONES_TELEPATIA = ['servers','runtimes','skills','storage','apps','moa','channels','conectores','includes.personalities'] as const`; `validarVinculo(v: unknown): { ok: true; vinculo: VinculoTelepatico } | { ok: false; motivo: string }` (destino con tipo e id válidos; alcance con algo si no es completo; configuraciones solo de la lista; fechas ISO); `normalizarVinculos(config: Record<string, unknown> | null | undefined): VinculoTelepatico[]` (lee `config.telepatia`, descarta inválidos); `conVinculo(config, v)` (devuelve config NUEVO con el vínculo puesto o reemplazado por id) y `sinVinculo(config, id)`; `estaCaducado(v, ahora: number)`; `planSincronizacion(v: VinculoTelepatico, origen: { archivos: Array<{ name: string; content: string; updated_at?: string | null }>; prefs: Record<string, unknown> }, destino: igual): Array<{ tipo: 'archivo' | 'config' | 'carpeta'; nombre: string; de: 'origen' | 'destino'; a: 'origen' | 'destino' }>`: alcance completo → todos los archivos y todas las configuraciones de la lista; si no, solo los nombrados; 'carpeta' → una operación por carpeta (la aplica la capa de cliente); copia lo más nuevo por `updated_at` (si falta en un lado, del que lo tiene); dirección 'enviar' solo origen→destino, 'recibir' solo destino→origen, 'ambas' las dos; acceso 'leer' = el otro lado solo lee → nunca hay operaciones destino→origen; vínculo 'pausado', 'pendiente' o caducado → plan vacío; NUNCA hay operaciones de borrar. Pruebas de cada regla.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261014-125224-CB1013E`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261014-125224-CB1013E:refs/remotes/origin/nube/a1-20261014-125224-CB1013E\"` y `git cherry-pick --no-commit 02398ab3b33e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/cerebros/__tests__/telepatia.test.ts, src/lib/cerebros/telepatia.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió CB1013Eb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/cerebros/__tests__/telepatia.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CB1013Eb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CB1013Eb-d1"
+   ]
+  }
+ ]
+}
