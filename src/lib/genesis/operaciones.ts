@@ -36,7 +36,9 @@ export type TipoOperacion =
     | "dock.quitar"
     | "dashboard.widget.añadir"
     | "dashboard.widget.quitar"
-    | "agente.crear";
+    | "agente.crear"
+    | "bot.crear"
+    | "bot.configurar";
 
 export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "perfil.editar",
@@ -48,6 +50,8 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "dashboard.widget.añadir",
     "dashboard.widget.quitar",
     "agente.crear",
+    "bot.crear",
+    "bot.configurar",
 ];
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
