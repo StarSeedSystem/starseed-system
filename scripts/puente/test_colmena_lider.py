@@ -30,8 +30,8 @@ class PlanRelevoLider(unittest.TestCase):
         self.assertEqual(plan[0]["id"], "A1")
 
     def test_a1_llama_20_min_y_se_releva(self):
-        lat = {"mac-1": latido(AHORA - 10, [{"id": "B1", "fase": "reparando"}]),
-               "oracle-a1-1": latido(AHORA - 1200)}
+        lat = {"mac-1": latido(AHORA - 1200, [{"id": "B1", "fase": "reparando"}]),
+               "oracle-a1-1": latido(AHORA - 10)}
         nodos = {"mac-1": nodo("mac"), "oracle-a1-1": nodo("oracle-a1")}
         plan = C.plan_relevo(lat, {}, {}, nodos, {}, {}, AHORA)
         self.assertTrue(any(p["id"] == "B1" and p["a"] == "oracle-a1-1" for p in plan))
