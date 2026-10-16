@@ -3,19 +3,6 @@ import { neuronasAtrasadas, type EstadoNeuronaActualizacion, type MotivoAtraso }
 import type { CapaActualizacion } from "../manifiesto";
 
 describe("neuronasAtrasadas", () => {
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-  // Tests will be added here
-=======
-<<<<<<< HEAD
->>>>>>> a58b2f9e (salvavidas · S1010-ACT5c: trabajo del agente antes de las puertas (tsc / vitest))
-=======
-  // Tests will be added here
-=======
-<<<<<<< HEAD
->>>>>>> a58b2f9e (salvavidas · S1010-ACT5c: trabajo del agente antes de las puertas (tsc / vitest))
   const dummyCapas: CapaActualizacion[] = ["datos", "interfaz", "sw", "servicios", "modelos", "nativa"];
   const dummyUltima: Record<CapaActualizacion, string> = {
     datos: "2026.10.10",
@@ -241,17 +228,4 @@ describe("neuronasAtrasadas", () => {
     // Además, dentro de cada grupo de 6, el orden debe ser el de CAPAS_ORDEN
     // Pero como estamos iterando en el mismo orden en el bucle, ya debería estar.
   });
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> a58b2f9e (salvavidas · S1010-ACT5c: trabajo del agente antes de las puertas (tsc / vitest))
-=======
-  // Tests will be added here
->>>>>>> e28035a7 (salvavidas · S1010-ACT5: trabajo del agente antes de las puertas (tsc / vitest))
->>>>>>> 6b43bff8 (salvavidas · S1010-ACT5b: trabajo del agente antes de las puertas (tsc / vitest))
-<<<<<<< HEAD
->>>>>>> a58b2f9e (salvavidas · S1010-ACT5c: trabajo del agente antes de las puertas (tsc / vitest))
-=======
->>>>>>> a58b2f9e (salvavidas · S1010-ACT5c: trabajo del agente antes de las puertas (tsc / vitest))
 });
