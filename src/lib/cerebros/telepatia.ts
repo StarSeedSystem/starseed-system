@@ -27,8 +27,12 @@ export interface VinculoTelepatico {
 
 /** Obtiene vínculos telepáticos de un cerebro (lectura defensiva). */
 export function obtenerVinculos(cerebro: Brain): VinculoTelepatico[] {
+<<<<<<< HEAD
   const raw = ((cerebro?.config as Record<string, unknown>)?.telepatia as unknown) ?? [];
   if (!Array.isArray(raw)) return [];
+=======
+  const raw = ((cerebro?.config as Record<string, unknown>)?.telepatia as VinculoTelepatico[]) ?? [];
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
   return raw.filter((v) => v && typeof v === "object");
 }
 
@@ -41,11 +45,18 @@ export function normalizarVinculo(v: unknown): VinculoTelepatico | null {
   const tipo = String(vo.tipo);
   if (!["cerebro", "grupo", "comunidad", "pagina", "cuenta"].includes(tipo)) return null;
   const destino: DestinoTelepatia = { tipo: tipo as "cerebro" | "grupo" | "comunidad" | "pagina" | "cuenta", id: String(vo.idDestino || vo.id) };
+<<<<<<< HEAD
   const alcanceRaw = vo.alcance as Partial<{ completo: boolean; memorias: unknown[]; carpetas: unknown[]; configuraciones: unknown[] }>;
   const completo = Boolean(alcanceRaw?.completo);
   const memorias = Array.isArray(alcanceRaw?.memorias) ? alcanceRaw.memorias.filter((m) => typeof m === "string") : [];
   const carpetas = Array.isArray(alcanceRaw?.carpetas) ? alcanceRaw.carpetas.filter((c) => typeof c === "string") : [];
   const configuraciones = Array.isArray(alcanceRaw?.configuraciones) ? alcanceRaw.configuraciones.filter((c) => typeof c === "string") : [];
+=======
+  const alcance = vo.alcance as Partial<{ completo: boolean; memorias: unknown[]; carpetas: unknown[]; configuraciones: unknown[] }>;
+  const memorias = Array.isArray(alcance?.memorias) ? alcance.memorias.filter((m) => typeof m === "string") : [];
+  const carpetas = Array.isArray(alcance?.carpetas) ? alcance.carpetas.filter((c) => typeof c === "string") : [];
+  const configuraciones = Array.isArray(alcance?.configuraciones) ? alcance.configuraciones.filter((c) => typeof c === "string") : [];
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
   const direccion = ["enviar", "recibir", "ambas"].includes(String(vo.direccion)) ? String(vo.direccion) as "enviar" | "recibir" | "ambas" : "ambas";
   const acceso = ["leer", "escribir"].includes(String(vo.acceso)) ? String(vo.acceso) as "leer" | "escribir" : "leer";
   const auto = Boolean(vo.auto);
@@ -53,7 +64,11 @@ export function normalizarVinculo(v: unknown): VinculoTelepatico | null {
   const creadoEn = String(vo.creadoEn || new Date().toISOString());
   const expiraEn = vo.expiraEn ? (typeof vo.expiraEn === "string" ? vo.expiraEn : null) : null;
   const ultimaSync = vo.ultimaSync ? (typeof vo.ultimaSync === "string" ? vo.ultimaSync : null) : null;
+<<<<<<< HEAD
   return { id, destino, alcance: { completo, memorias, carpetas, configuraciones }, direccion, acceso, auto, estado, creadoEn, expiraEn, ultimaSync };
+=======
+  return { id, destino, alcance: { completo: Boolean(vo.completo) || false, memorias, carpetas, configuraciones }, direccion, acceso, auto, estado, creadoEn, expiraEn, ultimaSync };
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
 }
 
 /** Normaliza una lista de vínculos; descarta lo inválido. */
@@ -71,25 +86,38 @@ export function validarVinculo(
   switch (vinculo.destino.tipo) {
     case "cerebro": {
       const existe = todosLosCerebros.some((c) => c.id === vinculo.destino.id);
+<<<<<<< HEAD
       if (!existe) errores.push("no existe");
+=======
+      if (!existe) errores.push(`El cerebro con id ${vinculo.destino.id} no existe`);
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
       break;
     }
     case "grupo":
     case "comunidad":
     case "pagina": {
       if (!entidades?.some((e) => e.id === vinculo.destino.id && e.tipo === vinculo.destino.tipo)) {
+<<<<<<< HEAD
         errores.push("no existe");
+=======
+        errores.push(`La entidad ${vinculo.destino.tipo} con id ${vinculo.destino.id} no existe`);
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
       }
       break;
     }
     case "cuenta": {
       if (!vinculo.destino.id || typeof vinculo.destino.id !== "string") {
+<<<<<<< HEAD
         errores.push("no existe");
+=======
+        errores.push("La cuenta debe tener un id");
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
       }
       break;
     }
   }
   if (!vinculo.alcance.completo) {
+<<<<<<< HEAD
     if (vinculo.alcance.memorias.some((m) => typeof m !== "string" || !m.trim())) errores.push("no válida");
     if (vinculo.alcance.carpetas.some((c) => typeof c !== "string" || !c.trim())) errores.push("no válida");
     if (vinculo.alcance.configuraciones.some((c) => typeof c !== "string" || !c.trim())) errores.push("no válida");
@@ -101,6 +129,19 @@ export function validarVinculo(
   if (!vinculo.creadoEn) errores.push("Falta creadoEn");
   if (vinculo.expiraEn && typeof vinculo.expiraEn !== "string") errores.push("no válido");
   if (vinculo.ultimaSync && typeof vinculo.ultimaSync !== "string") errores.push("no válida");
+=======
+    if (vinculo.alcance.memorias.some((m) => typeof m !== "string" || !m.trim())) errores.push("Una memoria no válida");
+    if (vinculo.alcance.carpetas.some((c) => typeof c !== "string" || !c.trim())) errores.push("Una carpeta no válida");
+    if (vinculo.alcance.configuraciones.some((c) => typeof c !== "string" || !c.trim())) errores.push("Una configuración no válida");
+  }
+  if (!["enviar", "recibir", "ambas"].includes(vinculo.direccion)) errores.push("Dirección no válida");
+  if (!["leer", "escribir"].includes(vinculo.acceso)) errores.push("Acceso no válido");
+  if (typeof vinculo.auto !== "boolean") errores.push("Auto no booleano");
+  if (!["activo", "pausado", "pendiente"].includes(vinculo.estado)) errores.push("Estado no válido");
+  if (!vinculo.creadoEn) errores.push("Falta creadoEn");
+  if (vinculo.expiraEn && typeof vinculo.expiraEn !== "string") errores.push("ExpiraEn no válido");
+  if (vinculo.ultimaSync && typeof vinculo.ultimaSync !== "string") errores.push("UltimaSync no válida");
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
   return errores;
 }
 
@@ -119,6 +160,7 @@ export function planSincronizacion(
   archivos: { id: string; name: string; actualizadoEn?: string; meta?: Record<string, unknown> }[],
 ): OperacionSincronizacion[] {
   const plan: OperacionSincronizacion[] = [];
+<<<<<<< HEAD
   if (vinculo.estado !== "activo") return plan;
   const origenId = origen.id;
   const destinoId = destino.id;
@@ -138,6 +180,30 @@ export function planSincronizacion(
     for (const cfg of alcance.configuraciones) {
       plan.push({ tipo: "config", nombre: cfg, de: `${origenId}/config/${cfg}`, a: `${destinoId}/config/${cfg}` });
     }
+=======
+  const destinoId = destino.id;
+  const origenId = origen.id;
+  if (vinculo.direccion === "enviar" && vinculo.acceso === "leer" && origen.id === destinoId) {
+    return [];
+  }
+  if (vinculo.direccion === "recibir" && vinculo.acceso === "escribir" && origen.id === destinoId) {
+    return [];
+  }
+  const actualizacionesDeOrigen = (archivos.filter((a) => a.actualizadoEn && new Date(a.actualizadoEn) > new Date()) || []);
+  for (const actual of actualizacionesDeOrigen) {
+    if (!vinculo.almacenadoCompletamente(actual.name)) continue;
+    const de = `${origenId}/${actual.name}`;
+    const a = `${destinoId}/${actual.name}`;
+    if (vinculo.meta?.telepatia === vinculo.id) {
+      continue;
+    }
+    plan.push({ tipo: "archivo", nombre: actual.name, de, a });
+  }
+  for (const cfg of vinculo.almacenadoCompletamenteConfiguraciones()) {
+    const de = `${origenId}/config/${cfg}`;
+    const a = `${destinoId}/config/${cfg}`;
+    plan.push({ tipo: "config", nombre: cfg, de, a });
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
   }
   return plan;
 }
@@ -155,6 +221,7 @@ export function contarVinculosVinculados(cerebro: Brain): number {
 export function destinoEnPalabras(vinculo: VinculoTelepatico, cerebroMap: Record<string, Brain>, entidadesMap?: Record<string, { tipo: string; nombre: string }>): string {
   if (vinculo.destino.tipo === "cerebro") {
     const otro = cerebroMap[vinculo.destino.id];
+<<<<<<< HEAD
     return otro?.name || `Cerebro ${vinculo.destino.id}`;
   }
   if (["grupo", "comunidad", "pagina"].includes(vinculo.destino.tipo)) {
@@ -164,6 +231,13 @@ export function destinoEnPalabras(vinculo: VinculoTelepatico, cerebroMap: Record
       return ent ? `Página ${ent.nombre}` : `Página ${vinculo.destino.id}`;
     }
     return ent ? `${tipoCapital} ${ent.nombre}` : `${tipoCapital} ${vinculo.destino.id}`;
+=======
+    return otro?.name || `Cerebro ${vinculo.destino.id.substring(0, 8)}...`;
+  }
+  if (["grupo", "comunidad", "pagina"].includes(vinculo.destino.tipo)) {
+    const ent = entidadesMap?.[vinculo.destino.id];
+    return ent ? `${vinculo.destino.tipo} ${ent.nombre}` : `${vinculo.destino.tipo} ${vinculo.destino.id.substring(0, 8)}...`;
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
   }
   if (vinculo.destino.tipo === "cuenta") {
     return `Cuenta externa (${vinculo.destino.id})`;
@@ -188,12 +262,20 @@ export function estadoConMotivo(vinculo: VinculoTelepatico): { estado: string; m
   if (vinculo.estado === "pausado") motivo = "Sincronización pausada manualmente";
   else if (vinculo.estado === "pendiente") motivo = "Esperando aceptación del propietario";
   else if (vinculo.expiraEn && new Date(vinculo.expiraEn) < hoy) {
+<<<<<<< HEAD
     motivo = `expiró el ${vinculo.expiraEn}`;
     return { estado: "caducado", motivo };
   }
   if (vinculo.ultimaSync && new Date(vinculo.ultimaSync) < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
     const texto = `Última sync el ${vinculo.ultimaSync}`;
     motivo = motivo ? `${motivo}, ${texto}` : texto;
+=======
+    motivo = "Expiró hace ${vinculo.expiraEn}";
+    return { estado: "caducado", motivo };
+  }
+  if (vinculo.ultimaSync && new Date(vinculo.ultimaSync) < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
+    motivo = motivo ? motivo + ", última sync hace ${vinculo.ultimaSync}" : `Última sync hace ${vinculo.ultimaSync}`;
+>>>>>>> 96625d65 (salvavidas · CB1013G: trabajo del agente antes de las puertas (tsc / vitest))
   }
   return { estado: vinculo.estado, motivo: motivo || "Activo y sincronizando" };
 }
