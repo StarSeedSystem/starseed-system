@@ -1,5 +1,4 @@
 import { render, screen, waitFor } from "@testing-library/react";
-<<<<<<< HEAD
 import { describe, it, expect, vi } from "vitest";
 import { AppearanceProvider } from "@/context/appearance-context";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
@@ -55,58 +54,14 @@ expect.extend(matchers);
       NEURON_EVENT: "starseed:neurons",
       thisDeviceId: vi.fn().mockReturnValue("test-device-id"),
       detectCapabilities: vi.fn().mockResolvedValue({
-=======
-
-// Mock the necessary hooks and functions
-vi.mock("@/lib/neurons/neurons", () => ({
-  usePresenciaNeuronas: () => ({
-    medios: [],
-    conectado: false,
-  }),
-  ensureThisNeuron: vi.fn().mockResolvedValue({
-    id: "test-id",
-    name: "Test Neuron",
-    kind: "desktop",
-    capabilities: {
-      platform: "macOS",
-      browser: "Chrome 148",
-      memoryGB: 8,
-      cores: 4,
-      touch: false,
-    },
-    permissions: {
-      sync: true,
-    },
-    online: true,
-    isThisDevice: true,
-  }),
-  listNeurons: vi.fn().mockResolvedValue([
-    {
-      id: "test-id",
-      name: "Test Neuron",
-      kind: "desktop",
-      capabilities: {
->>>>>>> 4fe83d36 (salvavidas · COL1012J: trabajo del agente antes de las puertas (tsc / vitest))
         platform: "macOS",
         browser: "Chrome 148",
         memoryGB: 8,
         cores: 4,
         touch: false,
-<<<<<<< HEAD
       }),
     };
   });
-=======
-      },
-      permissions: {
-        sync: true,
-      },
-      online: true,
-      isThisDevice: true,
-    },
-  ]),
-}));
->>>>>>> 4fe83d36 (salvavidas · COL1012J: trabajo del agente antes de las puertas (tsc / vitest))
 
 vi.mock("@/lib/aurora/hermione-autosync", () => ({
   useHermioneStatus: vi.fn().mockReturnValue({
@@ -155,7 +110,6 @@ vi.mock("@/lib/metagenesis/colmena", () => ({
     explica: "Con el trabajador instalado, al menos 3 agente(s) a la vez.",
   }),
   comandoInstalar: vi.fn().mockReturnValue("curl -fsSL <origen>/trabajador.sh | bash -s -- --emparejar <codigo>"),
-<<<<<<< HEAD
   soDesdeAgente: vi.fn().mockImplementation((ua, _, touch) => {
     // Mock implementation: return a fixed SO based on the platform in ua
     if (ua.includes("macOS")) return "macos";
@@ -163,14 +117,11 @@ vi.mock("@/lib/metagenesis/colmena", () => ({
     if (ua.includes("Linux")) return "linux";
     return "unknown";
   }),
-=======
->>>>>>> 4fe83d36 (salvavidas · COL1012J: trabajo del agente antes de las puertas (tsc / vitest))
 }));
 
 describe("NeuronasPanel", () => {
   it("renders the contenedor de agentes section for the actual neuron", async () => {
     const NeuronasPanel = (await import("../neuronas-panel")).default;
-<<<<<<< HEAD
     render(
       <AppearanceProvider>
         <ConfirmProvider>
@@ -182,13 +133,6 @@ describe("NeuronasPanel", () => {
     // Wait for the neuron data to load
     await waitFor(() => {
       expect(screen.getByText("Contenedor de agentes")).toBeInTheDocument();
-=======
-    render(<NeuronasPanel brainId="test-brain-id" brainName="Test Brain" />);
-
-    // Wait for the neuron data to load
-    await waitFor(() => {
-      expect(screen.getByText("Test Neuron")).toBeInTheDocument();
->>>>>>> 4fe83d36 (salvavidas · COL1012J: trabajo del agente antes de las puertas (tsc / vitest))
     });
 
     // Check that the contenedor de agentes section is present
