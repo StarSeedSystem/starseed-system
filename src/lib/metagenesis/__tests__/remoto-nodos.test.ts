@@ -211,3 +211,21 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
     });
 });
+
+describe("textoEstadoOrden", () => {
+    it("cada estado mapea al texto correcto", () => {
+        expect(textoEstadoOrden("pendiente")).toBe("esperando a un nodo");
+        expect(textoEstadoOrden("tomada")).toBe("la tiene un nodo");
+        expect(textoEstadoOrden("hecha")).toBe("hecha");
+        expect(textoEstadoOrden("en_marcha")).toBe("en marcha");
+        expect(textoEstadoOrden("seca")).toBe("solo simulada (nodo en prueba)");
+        expect(textoEstadoOrden("nada")).toBe("no hacía falta");
+        expect(textoEstadoOrden("rechazada")).toBe("rechazada");
+        expect(textoEstadoOrden("fallo")).toBe("falló");
+        expect(textoEstadoOrden("caducada")).toBe("nadie la recogió a tiempo");
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    });
+});
