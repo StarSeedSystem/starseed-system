@@ -153,19 +153,21 @@ def cpu_pct() -> Optional[float]:
         try:
             with open("/proc/stat") as f:
                 linea = f.readline()
-                if linea.startswith("cpu "):
-                    tiempos1 = list(map(int, linea.split()[1:]))
-                    idle1 = tiempos1[3]  # cuarto valor es idle time
-                    total1 = sum(tiempos1)
+                if not linea.startswith("cpu "):
+                    return None
+                tiempos1 = list(map(int, linea.split()[1:]))
+                idle1 = tiempos1[3]  # cuarto valor es idle time
+                total1 = sum(tiempos1)
             
             time.sleep(0.3)
             
             with open("/proc/stat") as f:
                 linea = f.readline()
-                if linea.startswith("cpu "):
-                    tiempos2 = list(map(int, linea.split()[1:]))
-                    idle2 = tiempos2[3]
-                    total2 = sum(tiempos2)
+                if not linea.startswith("cpu "):
+                    return None
+                tiempos2 = list(map(int, linea.split()[1:]))
+                idle2 = tiempos2[3]
+                total2 = sum(tiempos2)
             
             total_diff = total2 - total1
             idle_diff = idle2 - idle1
@@ -173,7 +175,7 @@ def cpu_pct() -> Optional[float]:
             if total_diff > 0:
                 return round((total_diff - idle_diff) * 100.0 / total_diff, 1)
         except OSError:
-            pass
+            return None
     return None
 
 
@@ -496,9 +498,12 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         "autoritativo": autoritativo,
         "orquestadores": orqs,
         "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
+        "disco_total_gb": disco_total_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "ram_libre_mb": ram_libre_mb(),
+        "ram_total_mb": ram_total_mb(),
         "nucleos": os.cpu_count(),
         "carga": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
+        "cpu_pct": cpu_pct(),
         "servicios_caidos": [],
         "guardianes_caidos": [],
     }
