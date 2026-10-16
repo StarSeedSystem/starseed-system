@@ -13,6 +13,7 @@ import {
   TOPE_DIARIO_POR_PERSONA,
   MESHY_IMAGEN_A_3D,
   ContadorTope,
+  TFetch,
 } from "../proveedores-externos";
 
 // Constants used in the test cases
