@@ -14,18 +14,8 @@ interface ColmenaBotonesProps {
 function ColmenaBotones({ nodo, enVuelo, mandarOrden }: ColmenaBotonesProps) {
     const enCurso = nodo.enCurso?.length > 0;
     const contenedorActivo = nodo.contenedor?.activo;
-<<<<<<< HEAD
-<<<<<<< HEAD
     const sinTrabajador = nodo.trabajo ? Object.keys(nodo.trabajo).length === 0 : false;
     const hayTrabajador = nodo.trabajo ? Object.keys(nodo.trabajo).length > 0 : false;
-=======
-    const sinTrabajador = !nodo.trabajador;
-    const hayTrabajador = nodo.trabajador !== null && nodo.trabajador !== undefined;
->>>>>>> 3d0e7714 (salvavidas · RTRTS1010-TU-LL1cobjb: trabajo del agente antes de las puertas (tsc / vitest))
-=======
-    const sinTrabajador = !nodo.trabajador;
-    const hayTrabajador = nodo.trabajador !== null && nodo.trabajador !== undefined;
->>>>>>> 3d0e7714 (salvavidas · RTRTS1010-TU-LL1cobjb: trabajo del agente antes de las puertas (tsc / vitest))
 
     const enviarDesconectar = async () => {
         await mandarOrden("desconectar", nodo.nodo);
