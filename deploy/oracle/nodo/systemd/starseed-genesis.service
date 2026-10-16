@@ -1,0 +1,30 @@
+[Unit]
+Description=StarSeed · genesis en el A1 como espejo del estado de la Mac (COL1012M · 2026-10-16)
+After=network-online.target starseed-medio.service
+Wants=network-online.target
+# requiere: build de la Mac de Next.js en ~/starseed-system (verde por el guardián)
+# El repositorio de /opt/starseed/nodo trae scripts/puente/oracle_nodo.py que lo deja en el A1 (esta tarea).
+# Nunca ejecuta una build roja, solo la verde del guardián.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/opt/starseed/genesis
+Environment=STARSEED_MANDO=1 Environment=STARSEED_MEDIO=oracle Environment=STARSEED_DONDE=oracle Environment=STARSEED_ROOT=/home/starseed/starseed-system
+Environment=STARSEED_WT=/home/starseed/starseed-wt NODE_OPTIONS=--max-old-space-size=2048
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/oracle_a1.py genesis
+Restart=on-failure
+RestartSec=30
+MemoryMax=3G
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
