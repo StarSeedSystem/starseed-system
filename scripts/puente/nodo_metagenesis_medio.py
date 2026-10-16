@@ -476,7 +476,127 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     if medio == "oracle-a1":
         salud["a1"] = estado_a1()
     cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orquestador": salud["orquestador"],
-           "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
+            "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
+    # Añadir campos nuevos al latido: en_curso, contenedor, periodo_s
+    # periodo_s: periodo real de latido de ese nodo
+    periodo_s = float(os.environ.get("STARSEED_NODO_LATIDO_S", L.LATIDO_S))
+    # en_curso: tareas en curso del orquestador de este medio
+    en_curso = []
+    # contenedor: información de contenedor
+    contenedor_info = {"activo": False, "agentes": 0, "apto": False, "motivo": ""}
+
+    # --- Implementación de en_curso ---
+    try:
+        # Obtener la cola viva (la que está siendo procesada por el orquestador de este medio)
+        cola_viva_json = M.cola_viva()  # Devuelve algo like "cola-1012C.json" o None
+        if cola_viva_json:
+            # Ruta de la cola viva
+            olas = os.path.join(M.raiz_repo(), "starseed_memory_root", "olas")
+            cola_path = os.path.join(olas, cola_viva_json)
+            # Leer la cola viva para obtener la lista de tareas
+            cola_data = M.leer_json(cola_path, [])
+            if not isinstance(cola_data, list):
+                cola_data = []
+            # Obtener el progreso global
+            progreso_path = os.path.join(M.raiz_repo(), "starseed_memory_root", "olas", "progreso.json")
+            progreso = M.leer_json(progreso_path, {})
+            if not isinstance(progreso, dict):
+                progreso = {}
+            # Leer los puntos de control (si existen) para obtener el punto (rama, sha, t) de cada tarea
+            puntos_path = os.path.join(olas, "puntos-control.json")
+            puntos_data = M.leer_json(puntos_path, {})
+            if not isinstance(puntos_data, dict):
+                puntos_data = {}
+            # Recopilar las tareas en curso (máximo 8)
+            for tarea in cola_data:
+                if not isinstance(tarea, dict):
+                    continue
+                tid = str(tarea.get("id") or "")
+                if not tid:
+                    continue
+                # Verificar si la tarea está en progreso y en una fase de trabajo
+                tarea_progreso = progreso.get(tid)
+                if not isinstance(tarea_progreso, dict):
+                    continue
+                fase = tarea_progreso.get("estado")
+                if fase not in L.FASES_CON_TRABAJO:
+                    continue
+                # Obtener el punto de la tarea de los puntos de control
+                punto_info = puntos_data.get(tid, {})
+                if not isinstance(punto_info, dict):
+                    punto_info = {}
+                # Extraer rama, sha, t del punto
+                rama = str(punto_info.get("rama") or "")
+                sha = str(punto_info.get("sha") or "")
+                t_point = punto_info.get("t")
+                if t_point is None:
+                    t_point = 0.0
+                else:
+                    try:
+                        t_point = float(t_point)
+                    except (ValueError, TypeError):
+                        t_point = 0.0
+                # Añadir a la lista de en_curso (máximo 8)
+                if len(en_curso) < 8:
+                    en_curso.append({
+                        "id": tid,
+                        "fase": fase,
+                        "punto": {
+                            "rama": rama,
+                            "sha": sha,
+                            "t": t_point
+                        }
+                    })
+    except Exception:
+        # En caso de error, dejamos en_curso como lista vacía
+        pass
+
+    # --- Implementación de contenedor ---
+    try:
+        # Leer el estado del contenedor desde el archivo
+        contenedor_ruta = os.path.join(M.CARPETA, "contenedor.json")
+        contenedor_dato = M.leer_json(contenedor_ruta, {})
+        if not isinstance(contenedor_dato, dict):
+            contenedor_dato = {}
+        activo = bool(contenedor_dato.get("activo", False))
+
+        # Construir el diccionario de capacidad para pasar a capacidad_contenedor
+        # Necesitamos: so, herramientas, ram_total_mb, disco_libre_gb, bateria, red, medio_app, wsl
+        # Vamos a construirlo con la información que tenemos y valores por defecto para lo que no sabemos
+        import platform
+        capacidad_info = {
+            "so": sys.platform,
+            "herramientas": {
+                "git": shutil.which("git") is not None,
+                "node": shutil.which("node") is not None,
+                "python3": shutil.which("python3") is not None,
+                "opencode": shutil.which("opencode") is not None,
+            },
+            "ram_total_mb": 0,  # No tenemos la memoria total, usamos 0 como placeholder (la función manejará valores inválidos)
+            "disco_libre_gb": M.disco_libre_gb(M.raiz_repo() if os.path.isdir(M.raiz_repo()) else os.path.expanduser("~")),
+            "bateria": {},  # No tenemos información de batería
+            "red": {"medida": False},  # Asumimos no red medida
+            "medio_app": "desconocido",  # No sabemos si es navegador o PWA
+            "wsl": "Microsoft" in platform.uname().release if platform.system() == "Windows" else False,
+        }
+        # Llamar a la lógica pura para obtener la capacidad del contenedor
+        capa_result = C.capacidad_contenedor(capacidad_info)
+        # El resultado es un diccionario con: apto, agentes, motivo, falta
+        # Nous sommes intéressés par apto, agentes et motif
+        contenedor_info = {
+            "activo": activo,
+            "agentes": capa_result.get("agentes", 0),
+            "apto": capa_result.get("apto", False),
+            "motivo": capa_result.get("motivo", ""),
+        }
+    except Exception:
+        # En caso de error, dejamos los valores por defecto
+        pass
+
+    salud["periodo_s"] = periodo_s
+    salud["en_curso"] = en_curso
+    salud["contenedor"] = contenedor_info
+
     return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap}
 
 
