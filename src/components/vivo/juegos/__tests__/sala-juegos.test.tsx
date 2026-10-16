@@ -58,6 +58,16 @@ const entregar = () => act(async () => { red.entregarTodo(); await Promise.resol
 const clic = (el: HTMLElement) => act(async () => { fireEvent.click(el); await Promise.resolve(); });
 const mesa = (c: Controlador) => c.getSnapshot().estado as EstadoMesa;
 
+function escapeRegExp(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function textoContienePalabra(texto: string | null, palabra: string): boolean {
+    if (!texto || !palabra) return false;
+    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
+    return r.test(texto);
+}
+
 async function elegirJuego(sala: Sala, juego: string) {
     await clic(sala.q.getByRole("radio", { name: new RegExp(juego) }));
     await clic(sala.q.getByRole("button", { name: "Empezar con este juego" }));
@@ -206,8 +216,8 @@ describe("Dibujo-adivina", () => {
         expect(ana.q.getByText(palabra)).toBeInTheDocument();
         const letras = palabra.replace(/[^a-záéíóúüñ]/gi, "").length;
         expect(beto.q.getByRole("img", { name: `La palabra tiene ${letras} letras` })).toBeInTheDocument();
-        // nadie que adivina ve la palabra
-        expect(beto.caja.textContent).not.toContain(palabra);
+        // nadie que adivina ve la palabra (como palabra completa, no como subcadena accidental)
+        expect(textoContienePalabra(beto.caja.textContent, palabra)).toBe(false);
 
         const escribir = async (s: Sala, texto: string) => {
             const entrada = s.q.getByLabelText("Escribe tu intento");
@@ -225,7 +235,7 @@ describe("Dibujo-adivina", () => {
         await entregar();
         await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
         // la palabra acertada NUNCA se enseña en el chat de los demás
-        expect(carla.caja.textContent).not.toContain(`Beto${palabra}`);
+        expect(textoContienePalabra(carla.caja.textContent, `Beto${palabra}`)).toBe(false);
         expect(mesa(ana.c).tablero).toMatchObject({ aciertos: [expect.objectContaining({ seat: 1 })] });
         expect(beto.q.getByLabelText("Escribe tu intento")).toBeDisabled(); // ya acertó
 
