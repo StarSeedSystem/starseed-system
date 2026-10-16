@@ -24,6 +24,7 @@
 import { validarContraInvariantes, type Violacion } from "@/lib/nucleo/invariantes";
 import { pareceCodigo } from "@/lib/nucleo/ui-spec";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
+import { type CambioBot } from "@/lib/astraura-bots/permisos.ts";
 
 /* ── Vocabulario ─────────────────────────────────────────────────────────── */
 
@@ -56,8 +57,24 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
 export const OPERACIONES_POR_AMBITO: Record<"persona" | "entidad", readonly TipoOperacion[]> = {
-    persona: TIPOS_OPERACION,
-    entidad: ["pagina.editar", "agente.crear"],
+    persona: [
+        "perfil.editar",
+        "pagina.crear",
+        "pagina.editar",
+        "apariencia.aplicar",
+        "dock.añadir",
+        "dock.quitar",
+        "dashboard.widget.añadir",
+        "dashboard.widget.quitar",
+        "agente.crear",
+        "bot.configurar",
+    ],
+    entidad: [
+        "pagina.editar",
+        "agente.crear",
+        "bot.crear",
+        "bot.configurar",
+    ],
 };
 
 export type TipoEntidad = "pagina" | "grupo";
@@ -118,6 +135,17 @@ export interface DatosAgente {
     visibilidad?: "private" | "public";
 }
 
+export interface DatosBotNuevo {
+    nombre: string;
+    gobierno: "jerarquico" | "democratico";
+}
+
+export interface CambiosBot {
+    botId: string;
+    cambio: CambioBot;
+    valor: unknown;
+}
+
 interface Base {
     /** Por qué, en una frase (se enseña en la vista previa). */
     motivo: string;
@@ -133,6 +161,8 @@ export type Operacion =
     | (Base & { tipo: "dashboard.widget.añadir"; tablero?: string; widget: string; talla?: "S" | "M" | "L" })
     | (Base & { tipo: "dashboard.widget.quitar"; tablero?: string; widget: string })
     | (Base & { tipo: "agente.crear"; agente: DatosAgente });
+    | (Base & { tipo: "bot.crear"; datos: DatosBotNuevo });
+    | (Base & { tipo: "bot.configurar"; cambios: CambiosBot });
 
 /** Lo que la validación sabe del entorno (lo pasa quien llama; todo opcional). */
 export interface ContextoValidacion {
