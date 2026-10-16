@@ -352,11 +352,16 @@ class Nodo:
             try:
                 latidos_dict = {l.get("nodo"): {"t": float(l.get("ts",0)), "periodo_s": float(l.get("periodo_s",300)), "en_curso": l.get("en_curso",[])} for l in nov.get("latidos",[]) if l.get("nodo")}
                 bajas_dict = {b.get("nodo"): {"t": float(b.get("ts",0)), "traspaso": bool(b.get("traspaso"))} for b in nov.get("bajas",[]) if b.get("nodo")}
-                asignadas_dict = {}
-                for a in nov.get("asignaciones",[]):
-                    did = a.get("id")
-                    if did:
-                        asignadas_dict[str(did)] = {"a": a.get("a"), "t": float(a.get("ts",0))}
+                 asignadas_dict = {}
+                 tareas_dict = {}
+                 for a in nov.get("asignaciones",[]):
+                     did = a.get("id")
+                     if did:
+                         asignadas_dict[str(did)] = {"a": a.get("a"), "t": float(a.get("ts",0))}
+                         task_info = a.copy()
+                         if 'id' in task_info:
+                             del task_info['id']
+                         tareas_dict[str(did)] = task_info
                 nodos_info = {}
                 ocupados = {}
                 for n, v in vivos.items():
