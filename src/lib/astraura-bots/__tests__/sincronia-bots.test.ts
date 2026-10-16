@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  fusionarBots,
-  abiertosEnEstaNeurona,
-  marcarAbierto,
-  migrarAbiertosDesdeAntigua,
-} from "../adaptadores/sincronia-bots";
+import { fusionarBots } from "../efectos/sincronia-bots";
+import { abiertosEnEstaNeurona, marcarAbierto, migrarAbiertosDesdeAntigua } from "../adaptadores/sincronia-bots";
 import type { Bot } from "../tipos";
 
 function botEjemplo(id: string): Bot {
@@ -31,7 +27,7 @@ function botEjemplo(id: string): Bot {
 describe("fusionarBots", () => {
   it("gana el más reciente por actualizado", () => {
     const local = { bots: [botEjemplo("b1"), botEjemplo("b2")], actualizado: { b1: 1000, b2: 2000 } };
-    const remoto = { bots: [botEjemplo("b1"), botEjemplo("b3")], actualizado: { b1: 2000, b3: 1500 } };
+    const remoto = { bots: [botEjemplo("b1"), botEjvaro("b3")], actualizado: { b1: 2000, b3: 1500 } };
     const res = fusionarBots(local, remoto);
     const ids = res.bots.map((b) => b.id).sort();
     expect(ids).toEqual(["b1", "b2", "b3"]);
@@ -85,6 +81,7 @@ describe("migración de abiertos", () => {
     expect(res).toContain("bot-a");
     marcarAbierto("bot-a", false);
     expect(abiertosEnEstaNeurona()).not.toContain("bot-a");
+    window.localStorage.removeItem("starseed.astraura.bots.abiertos.v1");
     window.localStorage.removeItem("starseed.astraura.orbes-abiertos");
   });
 });

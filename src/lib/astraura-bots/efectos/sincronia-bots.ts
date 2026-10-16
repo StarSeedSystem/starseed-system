@@ -1,13 +1,6 @@
-/**
- * Bots/dots de Astraura · SINCRONÍA de bots entre neuronas (BOT1011Y).
- * Puro: sin React, red, DOM, reloj ni `node:*` (guardia en __tests__/pureza.test.ts).
- * Aquí solo se decide QUÉ bot gana al fusionar; la suscripción a Realtime y el estado
- * de orbes abiertas por neurona viven en `adaptadores/sincronia-bots.ts` (contrato §3.3).
- */
-import type { Bot } from "./tipos";
-
-/** Bot con la marca de su última actualización (la pone quien escribe, nunca este módulo). */
-export interface BotSync extends Bot { actualizado: number; }
+import type { Bot, Dueno } from "../tipos";
+import { createClient } from "@/utils/supabase/client";
+interface BotSync extends Bot { actualizado: number; }
 function esBotValido(b: unknown): b is BotSync {
   if (!b || typeof b !== "object" || Array.isArray(b)) return false;
   const bt = b as BotSync;
@@ -17,7 +10,7 @@ function esBotValido(b: unknown): b is BotSync {
     const v = bt.personalidad[r];
     if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1) return false;
   }
-  const { forma, tono, escala } = bt.cuerpo;
+  { forma, tono, escala } = bt.cuerpo;
   if (!forma || !["orbe", "avatar-2d", "avatar-3d", "vrm", "ser-genesis"].includes(forma) || typeof tono !== "number" || !Number.isFinite(tono) || tono < 0 || tono > 360 || typeof escala !== "number" || !Number.isFinite(escala) || escala < 0.5 || escala > 2) return false;
   const sentidos = ["pantalla", "captura-pantalla", "archivos", "red", "correo", "terminal", "camara", "microfono", "sensores", "ubicacion", "portapapeles", "aparatos"];
   for (const s of bt.sentidosHabilitados) {
