@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { Brain } from '@/lib/brains/brains';
 import {
   ArchivoMemoria,
   PrefsCerebro,

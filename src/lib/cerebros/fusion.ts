@@ -1,4 +1,4 @@
-import type { Brain, BrainIncludes, BrainServer } from '@/lib/brains/brains';
+import type { Brain, BrainIncludes, BrainServer, BrainPermission } from '@/lib/brains/brains';
 
 export interface ArchivoMemoria {
   id?: string;
@@ -221,10 +221,10 @@ export function planFusion(e: {
       try {
         return JSON.parse(brainIncludes) as BrainIncludes;
       } catch {
-        return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined };
+        return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined } as BrainIncludes;
       }
     }
-    return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined };
+    return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined } as BrainIncludes;
   };
   // Start with destino includes
   let destIncludes = getIncludesFromBrain(e.destino.id);
@@ -236,9 +236,14 @@ export function planFusion(e: {
   addUnique(includes.memories, destIncludes.memories);
   addUnique(includes.connections, destIncludes.connections);
   includes.bindScope = includes.bindScope || destIncludes.bindScope;
-  // Merge permissions: we'll just concatenate and then unique by who and level? 
-  // For simplicity, we'll just concat and later we can unique by JSON.stringify
-  const allPermissions: (BrainPermission | Record<string, unknown>)[] = [...destIncludes.permissions];
+   // Merge permissions: we'll just concatenate and then unique by who and level? 
+   // For simplicity, we'll just concat and later we can unique by JSON.stringify
+   let allPermissions: (BrainPermission | Record<string, unknown>)[] = [];
+   if (Array.isArray(destIncludes.permissions)) {
+     allPermissions.push(...destIncludes.permissions);
+   } else {
+     allPermissions.push(destIncludes.permissions);
+   }
   // AI Provider: destino's or first origen's if destino doesn't have
   let aiProvider = destIncludes.aiProvider;
   if (!aiProvider) {
@@ -309,28 +314,29 @@ export function planFusion(e: {
       (origenServers as BrainServer[]).forEach(addServer);
     }
   }
-  // Compute config: destino wins, add fusionados and fusionadoEn
-  const destinoConfig = archivosMap.get(e.destino.id)?.get('config')?.content ?? {};
-  const config = { ...destinoConfig };
-  const fusionados = e.origenes.map(o => o.id);
-  // Remove duplicates that are already in destino.config.fusionados
-  const existingFusionados = Array.isArray(destinoConfig.fusionados) ? destinoConfig.fusionados : [];
-  const newFusionados = fusionados.filter(id => !existingFusionados.includes(id));
-  config.fusionados = [...existingFusionados, ...newFusionados];
-  config.fusionadoEn = e.fecha;
+   // Compute config: destino wins, add fusionados and fusionadoEn
+   const destinoConfigRaw = archivosMap.get(e.destino.id)?.get('config')?.content;
+   const destinoConfig: Record<string, unknown> = destinoConfigRaw ?? {};
+   const config: Record<string, unknown> = { ...destinoConfig };
+   const fusionados = e.origenes.map(o => o.id);
+   // Remove duplicates that are already in destino.config.fusionados
+   const existingFusionados = Array.isArray(destinoConfig.fusionados) ? destinoConfig.fusionados : [];
+   const newFusionados = fusionados.filter(id => !existingFusionados.includes(id));
+   config.fusionados = [...existingFusionados, ...newFusionados];
+   config.fusionadoEn = e.fecha;
   // Compute prefs: merge as per contract
-  const prefs: PrefsCerebro = {};
-  const getPrefsFromBrain = (brainId: string) => {
-    const prefsContent = archivosMap.get(brainId)?.get('prefs')?.content;
-    if (prefsContent) {
-      try {
-        return JSON.parse(prefsContent) as PrefsCerebro;
-      } catch {
-        return {};
-      }
-    }
-    return {};
-  };
+   const prefs: PrefsCerebro = {};
+   const getPrefsFromBrain = (brainId: string) => {
+     const prefsContent = archivosMap.get(brainId)?.get('prefs')?.content;
+     if (prefsContent) {
+       try {
+         return JSON.parse(prefsContent) as PrefsCerebro;
+       } catch {
+         return {} as PrefsCerebro;
+       }
+     }
+     return {} as PrefsCerebro;
+   };
   const destinoPrefs = getPrefsFromBrain(e.destino.id);
   // Start with destino prefs
   Object.assign(prefs, destinoPrefs);
