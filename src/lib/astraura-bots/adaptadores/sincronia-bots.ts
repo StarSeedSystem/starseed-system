@@ -1,32 +1,8 @@
 "use client";
 
 import type { Bot } from "../tipos";
-import { createClient } from "@/utils/supabase/client";
 import { onTableChange } from "@/lib/realtime/realtime";
-
-export function fusionarBots(
-  local: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>,
-  remoto: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>
-): { bots: Bot[]; actualizado: Record<string, number> } {
-  const botsPorId = new Map<string, Bot>();
-  const actualizadoPorId: Record<string, number> = {};
-
-  for (const bot of local.bots) {
-    botsPorId.set(bot.id, bot);
-    actualizadoPorId[bot.id] = local.actualizado[bot.id] ?? 0;
-  }
-
-  for (const bot of remoto.bots) {
-    const timestampRemoto = remoto.actualizado[bot.id] ?? 0;
-    const timestampLocal = actualizadoPorId[bot.id];
-    if (!botsPorId.has(bot.id) || timestampRemoto > timestampLocal) {
-      botsPorId.set(bot.id, bot);
-      actualizadoPorId[bot.id] = timestampRemoto;
-    }
-  }
-
-  return { bots: Array.from(botsPorId.values()), actualizado: actualizadoPorId };
-}
+import { abiertosEnEstaNeurona, marcarAbierto } from "../sincronia-bots";
 
 export function suscribirBotsEntidad(
   entidades: Readonly<{ tipo: string; id: string; cuentaId: string }[]>,
@@ -59,7 +35,7 @@ export function suscribirBotsEntidad(
       const merged = fusionarBots(localEnvelope, remoteEnvelope);
       botsCache = merged.bots;
       actualizadoCache = merged.actualizado;
-      
+
       cb([...botsCache]);
     } catch (e) {
       console.warn('Error in suscribirBotsEntidad:', e);
@@ -69,33 +45,12 @@ export function suscribirBotsEntidad(
   return onTableChange("astraura_bots", { filter, event: "*" }, handleChange);
 }
 
-const CLAVE_ABIERTOS = "starseed.astraura.bots.abiertos.v1";
+const CLAVE_ABIERTOS = "starseed.astraura.bots.orbes.v1";
 
 export function abiertosEnEstaNeurona(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const bruto = window.localStorage.getItem(CLAVE_ABIERTOS);
-    return bruto === null ? [] : Array.isArray(JSON.parse(bruto)) 
-      ? JSON.parse(bruto) : [];
-  } catch { return []; }
+  return abiertosEnEstaNeurona(window.localStorage);
 }
 
 export function marcarAbierto(botId: string, abierto: boolean): void {
-  if (typeof window === "undefined") return;
-  try {
-    const abiertos = abiertosEnEstaNeurona();
-    if (abierto) {
-      if (!abiertos.includes(botId)) {
-        window.localStorage.setItem(
-          CLAVE_ABIERTOS,
-          JSON.stringify([...abiertos, botId])
-        );
-      }
-    } else {
-      window.localStorage.setItem(
-        CLAVE_ABIERTOS,
-        JSON.stringify(abiertos.filter(id => id !== botId))
-      );
-    }
-  } catch { /* best effort */ }
+  marcarAbierto(botId, abierto, window.localStorage);
 }
