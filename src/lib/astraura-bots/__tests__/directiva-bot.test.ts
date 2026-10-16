@@ -64,4 +64,11 @@ describe("extraerDirectivas", () => {
     expect(r.acciones).toEqual([]);
     expect(r.problemas.some((p) => p.includes("sin cierre"))).toBe(true);
   });
+
+  it("no procesa texto vacío", () => {
+    const r = extraerDirectivas("");
+    expect(r.acciones).toHaveLength(0);
+    expect(r.problemas).toHaveLength(0);
+    expect(r.limpio).toBe("");
+  });
 });
