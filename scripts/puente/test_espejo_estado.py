@@ -139,7 +139,7 @@ class PruebasEmpaquetar(unittest.TestCase):
                     self.assertEqual(nombres, set(seleccion))
                     esperadas_lineas = {
                         "progreso.json": 1,
-                        "progreso.md": 200,
+                        "progreso.md": 300,
                         "medios.json": 1,
                         "puntos-control.json": 1,
                         "cola-1.json": 1,
