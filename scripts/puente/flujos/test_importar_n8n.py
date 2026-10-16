@@ -61,6 +61,100 @@ class ImportarN8nTest(unittest.TestCase):
         self.assertEqual(flujo.nodos[0].tipo, "pendiente")
         self.assertEqual(informe["resumen"]["no_traducidos"], 1)
 
+    def test_stickyNote_description(self):
+        flujo_json = {
+            "name": "Flujo con stickyNote",
+            "nodes": [
+                {
+                    "id": "s1",
+                    "name": "Nota",
+                    "type": "n8n-nodes-base.stickyNote",
+                    "parameters": {
+                        "note": "Esta es una nota"
+                    }
+                }
+            ],
+            "connections": {}
+        }
+        flujo, informe = importar(flujo_json)
+        # The stickyNote should not create a node
+        self.assertEqual(len(flujo.nodos), 0)
+        # The description should be set
+        self.assertEqual(flujo.descripcion, "Esta es una nota")
+        # The informe should have one descripcion
+        self.assertEqual(len(informe["descripciones"]), 1)
+        self.assertEqual(informe["descripciones"][0]["id"], "s1")
+        self.assertEqual(informe["descripciones"][0]["nombre"], "Nota")
+        self.assertEqual(informe["descripciones"][0]["tipo_n8n"], "n8n-nodes-base.stickyNote")
+        # The resumen should reflect the descripcion count
+        self.assertEqual(informe["resumen"]["descripciones"], 1)
+
+    def test_set_options(self):
+        # Test includeOtherFields
+        flujo_json = {
+            "name": "Set with includeOtherFields",
+            "nodes": [
+                {
+                    "id": "s1",
+                    "name": "Set",
+                    "type": "n8n-nodes-base.set",
+                    "parameters": {
+                        "assignments": {
+                            "assignments": [
+                                {"name": "campo1", "value": "valor1"}
+                            ]
+                        },
+                        "options": {
+                            "includeOtherFields": True
+                        }
+                    }
+                }
+            ],
+            "connections": {}
+        }
+        flujo, informe = importar(flujo_json)
+        self.assertEqual(len(flujo.nodos), 1)
+        nodo = flujo.nodos[0]
+        self.assertEqual(nodo.tipo, "set")
+        self.assertEqual(nodo.configuracion["campos"], {"campo1": "valor1"})
+        self.assertTrue(nodo.configuracion["conservar"])
+
+        # Test keepOnlySet
+        flujo_json["nodes"][0]["parameters"]["options"] = {
+            "keepOnlySet": True
+        }
+        flujo, informe = importar(flujo_json)
+        self.assertEqual(len(flujo.nodos), 1)
+        nodo = flujo.nodos[0]
+        self.assertEqual(nodo.tipo, "set")
+        self.assertEqual(nodo.configuracion["campos"], {"campo1": "valor1"})
+        self.assertFalse(nodo.configuracion["conservar"])  # opposite of keepOnlySet
+
+        # Test neither present, typeVersion >= 3 -> conservar = False
+        flujo_json["nodes"][0]["parameters"] = {
+            "assignments": {
+                "assignments": [
+                    {"name": "campo1", "value": "valor1"}
+                ]
+            },
+            "typeVersion": 3
+        }
+        flujo, informe = importar(flujo_json)
+        self.assertEqual(len(flujo.nodos), 1)
+        nodo = flujo.nodos[0]
+        self.assertEqual(nodo.tipo, "set")
+        self.assertEqual(nodo.configuracion["campos"], {"campo1": "valor1"})
+        self.assertFalse(nodo.configuracion["conservar"])
+
+        # Test neither present, typeVersion < 3 -> conservar = True
+        flujo_json["nodes"][0]["parameters"]["typeVersion"] = 2
+        flujo, informe = importar(flujo_json)
+        self.assertEqual(len(flujo.nodos), 1)
+        nodo = flujo.nodos[0]
+        self.assertEqual(nodo.tipo, "set")
+        self.assertEqual(nodo.configuracion["campos"], {"campo1": "valor1"})
+        self.assertTrue(nodo.configuracion["conservar"])
+
 
 if __name__ == "__main__":
     unittest.main()

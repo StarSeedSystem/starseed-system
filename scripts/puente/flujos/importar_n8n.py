@@ -40,16 +40,23 @@ def sugerir_variable(nombre: str) -> str:
 
 def normalizar_expresion(valor: Any) -> Any:
     if isinstance(valor, str):
+        if valor.startswith('='):
+            return valor[1:]
         return valor
-    return valor
+    elif isinstance(valor, list):
+        return [normalizar_expresion(v) for v in valor]
+    elif isinstance(valor, dict):
+        return {k: normalizar_expresion(v) for k, v in valor.items()}
+    else:
+        return valor
 
 def mapear_webhook(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
     cfg = {}
     if "path" in params:
-        cfg["ruta"] = params["path"]
+        cfg["ruta"] = normalizar_expresion(params["path"])
     if "httpMethod" in params:
-        cfg["metodo"] = params["httpMethod"]
+        cfg["metodo"] = normalizar_expresion(params["httpMethod"])
     creds = node.get("credentials", {})
     if creds:
         for k, v in creds.items():
@@ -64,10 +71,15 @@ def mapear_cron(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     cfg = {}
     # n8n scheduleTrigger usa triggerTimes o rule; lo aproximamos
     if "triggerTimes" in params:
+        # We don't use triggerTimes for expression, but we normalize it if we were to use it?
+        # Since we are not translating it, we leave it as is? But to be safe, we normalize.
+        # However, the requirement says to apply to all translated parameters. We are not translating triggerTimes.
+        # We'll skip normalizing triggerTimes because we are not using it.
         cfg["expresion"] = "*/5 * * * *"
         return cfg, "aproximado"
     if "rule" in params:
-        cfg["expresion"] = params["rule"].get("interval", "*/5 * * * *")
+        interval = params["rule"].get("interval", "*/5 * * * *")
+        cfg["expresion"] = normalizar_expresion(interval)
         return cfg, "aproximado"
     cfg["expresion"] = "*/5 * * * *"
     return cfg, "aproximado"
@@ -76,7 +88,7 @@ def mapear_http(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
     cfg = {}
     cfg["url"] = normalizar_expresion(params.get("url", ""))
-    cfg["metodo"] = params.get("method", "GET")
+    cfg["metodo"] = normalizar_expresion(params.get("method", "GET"))
     # credenciales
     creds = node.get("credentials", {})
     if creds:
@@ -95,17 +107,32 @@ def mapear_set(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
         nombre = a.get("name")
         valor = a.get("value")
         if nombre:
-            campos[nombre] = valor
-    return {"campos": campos, "conservar": True}, "traducido"
+            campos[nombre] = normalizar_expresion(valor)
+    # Determine conservar based on includeOtherFields, keepOnlySet, and typeVersion
+    options = params.get("options", {})
+    include_other = options.get("includeOtherFields")
+    keep_only = options.get("keepOnlySet")
+    if include_other is not None:
+        conservar = include_other
+    elif keep_only is not None:
+        conservar = not keep_only  # opposite of keepOnlySet
+    else:
+        # If neither is present, look at typeVersion
+        type_version = params.get("typeVersion", 0)
+        if type_version >= 3:
+            conservar = False
+        else:
+            conservar = True
+    return {"campos": campos, "conservar": conservar}, "traducido"
 
 def mapear_if(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
     condiciones = params.get("conditions", {})
     exprs = []
     for c in condiciones.get("conditions", []):
-        left = c.get("leftValue")
+        left = normalizar_expresion(c.get("leftValue"))
         op = OP_MAP.get(c.get("operator"), "==")
-        right = c.get("rightValue")
+        right = normalizar_expresion(c.get("rightValue"))
         # quitar {{ }} si existen
         left_s = str(left) if left else "cierto"
         right_s = str(right) if right else "''"
@@ -117,7 +144,7 @@ def mapear_if(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
 
 def mapear_switch(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
-    expr = params.get("value") or params.get("rules", {}).get("value", "")
+    expr = normalizar_expresion(params.get("value") or params.get("rules", {}).get("value", ""))
     cfg = {"expresion": expr, "casos": {}, "campo": "caso"}
     return cfg, "aproximado"
 
@@ -127,8 +154,8 @@ def mapear_fusion(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
 def mapear_telegram(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
     cfg = {
-        "chat_id": params.get("chatId") or params.get("chat_id"),
-        "texto": params.get("text") or params.get("message"),
+        "chat_id": normalizar_expresion(params.get("chatId") or params.get("chat_id")),
+        "texto": normalizar_expresion(params.get("text") or params.get("message")),
     }
     creds = node.get("credentials", {})
     if creds:
@@ -164,11 +191,13 @@ def importar(json_n8n: Dict[str, Any]) -> Tuple[Flujo, Dict[str, Any]]:
 
     nombre_a_id: Dict[str, str] = {}
     nodos: List[Nodo] = []
+    descripcion_flujo = ""
 
     informe = {
         "traducidos": [],
         "aproximados": [],
         "no_traducidos": [],
+        "descripciones": [],
     }
 
     for n in nodos_n8n:
@@ -176,6 +205,13 @@ def importar(json_n8n: Dict[str, Any]) -> Tuple[Flujo, Dict[str, Any]]:
         nname = n.get("name")
         ntype = n.get("type")
         if not nid:
+            continue
+        if ntype == "n8n-nodes-base.stickyNote":
+            params = n.get("parameters", {})
+            nota = params.get("note", "")
+            nota_normalizada = normalizar_expresion(nota)
+            descripcion_flujo = nota_normalizada
+            informe["descripciones"].append({"id": nid, "nombre": nname, "tipo_n8n": ntype})
             continue
         nombre_a_id[nname] = nid
         tipo_genesis = TYPE_MAP.get(ntype, "pendiente")
@@ -210,13 +246,14 @@ def importar(json_n8n: Dict[str, Any]) -> Tuple[Flujo, Dict[str, Any]]:
                     conexiones.append(Conexion(origen=id_origen, destino=id_dest))
 
     flujo_id = re.sub(r"[^a-z0-9]+", "-", nombre.lower()).strip("-") or "flujo"
-    flujo = Flujo(id=flujo_id, nombre=nombre, nodos=nodos, conexiones=conexiones)
+    flujo = Flujo(id=flujo_id, nombre=nombre, descripcion=descripcion_flujo, nodos=nodos, conexiones=conexiones)
 
     informe["resumen"] = {
         "nodos_totales": len(nodos),
         "traducidos": len(informe["traducidos"]),
         "aproximados": len(informe["aproximados"]),
         "no_traducidos": len(informe["no_traducidos"]),
+        "descripciones": len(informe["descripciones"]),
     }
     return flujo, informe
 

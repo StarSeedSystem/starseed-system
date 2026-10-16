@@ -28,6 +28,7 @@ class Flujo:
     id: str
     nombre: str
     nodos: list[Nodo]
+    descripcion: str = ""
     conexiones: list[Conexion] = field(default_factory=list)
     flujo_error: str | None = None
 
