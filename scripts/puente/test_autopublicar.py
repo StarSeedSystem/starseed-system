@@ -203,6 +203,8 @@ class CicloCompleto(unittest.TestCase):
         self.assertEqual(e["fase"], "publicado")
         self.assertEqual(e["historial"][-1]["resultado"], "publicado")
         self.assertIn("Autopublicación completa", m.avisos[-1])
+        self.assertIn("aviso_flujos", e)
+        self.assertIn("motivo", e)
 
     def test_ci_en_rojo_veta_y_trae_el_motivo(self):
         m = Falso(runs=[run("completed", "failure")])
