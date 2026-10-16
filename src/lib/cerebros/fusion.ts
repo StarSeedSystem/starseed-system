@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import type { Brain, BrainIncludes, BrainServer, BrainPermission } from '@/lib/brains/brains';
+=======
+import type { Brain, BrainIncludes, BrainServer } from '@/lib/brains/brains';
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
 
 export interface ArchivoMemoria {
   id?: string;
@@ -229,12 +233,17 @@ export function planFusion(e: {
     }
   };
   // Helper to get includes from a brain
+<<<<<<< HEAD
   const getIncludesFromBrain = (brainId: string): BrainIncludes => {
+=======
+  const getIncludesFromBrain = (brainId: string) => {
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
     const brainIncludes = archivosMap.get(brainId)?.get('includes')?.content;
     if (brainIncludes) {
       try {
         return JSON.parse(brainIncludes) as BrainIncludes;
       } catch {
+<<<<<<< HEAD
         return {
           vaults: [],
           backends: [],
@@ -261,6 +270,12 @@ export function planFusion(e: {
       permissions: [],
       aiProvider: undefined
     };
+=======
+        return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined };
+      }
+    }
+    return { vaults: [], backends: [], personalities: [], runtimes: [], tokens: [], memories: [], connections: [], bindScope: false, permissions: [], aiProvider: undefined };
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
   };
   // Start with destino includes
   let destIncludes = getIncludesFromBrain(e.destino.id);
@@ -274,10 +289,14 @@ export function planFusion(e: {
   includes.bindScope = includes.bindScope || destIncludes.bindScope;
   // Merge permissions: we'll just concatenate and then unique by who and level? 
   // For simplicity, we'll just concat and later we can unique by JSON.stringify
+<<<<<<< HEAD
   // Handle both BrainPermission[] and Record<string, unknown> types
   const allPermissions: (BrainPermission | Record<string, unknown>)[] = Array.isArray(destIncludes.permissions) 
     ? [...destIncludes.permissions] 
     : [destIncludes.permissions];
+=======
+  const allPermissions: (BrainPermission | Record<string, unknown>)[] = [...destIncludes.permissions];
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
   // AI Provider: destino's or first origen's if destino doesn't have
   let aiProvider = destIncludes.aiProvider;
   if (!aiProvider) {
@@ -300,12 +319,16 @@ export function planFusion(e: {
     addUnique(includes.memories, inc.memories);
     addUnique(includes.connections, inc.connections);
     includes.bindScope = includes.bindScope || inc.bindScope;
+<<<<<<< HEAD
     // Handle both BrainPermission[] and Record<string, unknown> types for origen's permissions
     if (Array.isArray(inc.permissions)) {
       allPermissions.push(...inc.permissions);
     } else {
       allPermissions.push(inc.permissions);
     }
+=======
+    allPermissions.push(...inc.permissions);
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
     if (!aiProvider && inc.aiProvider) {
       aiProvider = inc.aiProvider;
     }
@@ -313,6 +336,7 @@ export function planFusion(e: {
   // Deduplicate permissions by JSON.stringify
   const seen = new Set<string>();
   const uniquePermissions: (BrainPermission | Record<string, unknown>)[] = [];
+<<<<<<< HEAD
   // Normalize allPermissions to an array of (BrainPermission | Record<string, unknown>)
   for (const perm of allPermissions) {
     if (Array.isArray(perm)) {
@@ -334,6 +358,16 @@ export function planFusion(e: {
     }
   }
   includes.permissions = finalUniquePermissions;
+=======
+  for (const perm of allPermissions) {
+    const key = JSON.stringify(perm);
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniquePermissions.push(perm);
+    }
+  }
+  includes.permissions = uniquePermissions;
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
   includes.aiProvider = aiProvider;
   // Compute servers: union by id, and same endpoint counts as one
   const servers: BrainServer[] = [];
@@ -367,12 +401,17 @@ export function planFusion(e: {
     }
   }
   // Compute config: destino wins, add fusionados and fusionadoEn
+<<<<<<< HEAD
   const destinoConfigRaw = archivosMap.get(e.destino.id)?.get('config')?.content;
   let destinoConfig: Record<string, unknown> = {};
   if (destinoConfigRaw && typeof destinoConfigRaw === 'object' && !Array.isArray(destinoConfigRaw)) {
     destinoConfig = destinoConfigRaw;
   }
   const config: Record<string, unknown> = { ...destinoConfig };
+=======
+  const destinoConfig = archivosMap.get(e.destino.id)?.get('config')?.content ?? {};
+  const config = { ...destinoConfig };
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
   const fusionados = e.origenes.map(o => o.id);
   // Remove duplicates that are already in destino.config.fusionados
   const existingFusionados = Array.isArray(destinoConfig.fusionados) ? destinoConfig.fusionados : [];
@@ -403,6 +442,7 @@ export function planFusion(e: {
         prefs[key] = origenPrefs[key];
       } else {
         // Both have the key
+<<<<<<< HEAD
         const destinoVal = prefs[key] as unknown;
         const origenVal = origenPrefs[key] as unknown;
         // If both are arrays, union by id (if objects have id) or by value
@@ -424,6 +464,21 @@ export function planFusion(e: {
               if (typedItem.id && !idSet.has(typedItem.id)) {
                 idSet.add(typedItem.id);
                 union.push(typedItem);
+=======
+        const destinoVal = prefs[key];
+        const origenVal = origenPrefs[key];
+        // If both are arrays, union by id (if objects have id) or by value
+        if (Array.isArray(destinoVal) && Array.isArray(origenVal)) {
+          // Try to union by id if elements are objects with id property
+          if (destinoVal.every((item: any) => typeof item === 'object' && item !== null && 'id' in item) &&
+              origenVal.every((item: any) => typeof item === 'object' && item !== null && 'id' in item)) {
+            const idSet = new Set<string>();
+            const union: any[] = [];
+            for (const item of [...destinoVal, ...origenVal]) {
+              if (item.id && !idSet.has(item.id)) {
+                idSet.add(item.id);
+                union.push(item);
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
               }
             }
             prefs[key] = union;
@@ -431,8 +486,12 @@ export function planFusion(e: {
             // Union by JSON.stringify
             const seen = new Set<string>();
             const union: any[] = [];
+<<<<<<< HEAD
             const combined = [...destinoVal, ...origenVal];
             for (const item of combined) {
+=======
+            for (const item of [...destinoVal, ...origenVal]) {
+>>>>>>> 6216383e (salvavidas · CB1013B: trabajo del agente antes de las puertas (tsc / vitest))
               const keyStr = JSON.stringify(item);
               if (!seen.has(keyStr)) {
                 seen.add(keyStr);
