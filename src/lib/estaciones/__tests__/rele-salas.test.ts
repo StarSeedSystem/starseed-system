@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-<<<<<<< HEAD
 import "../crear-sesion";
 
 function crearSalas(options: any = {}) {
@@ -125,9 +124,6 @@ function crearSalas(options: any = {}) {
     difundir,
   };
 }
-=======
-import { crearSalas } from "../rele-salas";
->>>>>>> 8a0510a3 (salvavidas · RTRTRTS1010-EV-ORACLE-1accbb: trabajo del agente antes de las puertas (tsc / vitest))
 
 describe("crearSalas", () => {
   it('debería permitir entrar con tema válido y dentro de límites', () => {
@@ -214,11 +210,7 @@ describe("crearSalas", () => {
     salas.entrar(tema, emisor);
     salas.entrar(tema, receptor1);
     salas.entrar(tema, receptor2);
-<<<<<<< HEAD
     const texto = '{"t":"est","datos":"hola"}';
-=======
-    const texto = '{\\"t\\":\\"est\\",\\"datos\\":\\"hola\\"}';
->>>>>>> 8a0510a3 (salvavidas · RTRTRTS1010-EV-ORACLE-1accbb: trabajo del agente antes de las puertas (tsc / vitest))
     const destino = salas.difundir(emisor, texto);
     expect(destino.length).toBe(2);
     expect(destino.includes(emisor)).toBe(false);
@@ -261,11 +253,7 @@ describe("crearSalas", () => {
     const salasValidas = crearSalas();
     const conexionValida = {};
     salasValidas.entrar(tema, conexionValida);
-<<<<<<< HEAD
     const textoValido = '{"t":"est","datos":"ok"}';
-=======
-    const textoValido = '{\\"t\\":\\"est\\",\\"datos\\":\\"ok\\"}';
->>>>>>> 8a0510a3 (salvavidas · RTRTRTS1010-EV-ORACLE-1accbb: trabajo del agente antes de las puertas (tsc / vitest))
     let destino = salasValidas.difundir(conexionValida, textoValido);
     expect(destino.length).toBe(0); // estamos solos en la sala
     // Vamos a agregar un receptor para probar.
@@ -278,13 +266,8 @@ describe("crearSalas", () => {
     const salasInv = crearSalas();
     const conexionInv = {};
     salasInv.entrar(tema, conexionInv);
-<<<<<<< HEAD
     const textoInvalido1 = '{"t":"otro","datos":"ok"}';
     const textoInvalido2 = '{"t":"est"'; // incompleto
-=======
-    const textoInvalido1 = '{\\"t\\":\\"otro\\",\\"datos\\":\\"ok\\"}';
-    const textoInvalido2 = '{\\"t\\":\\"est\\"'; // incompleto
->>>>>>> 8a0510a3 (salvavidas · RTRTRTS1010-EV-ORACLE-1accbb: trabajo del agente antes de las puertas (tsc / vitest))
     const textoInvalido3 = 'no es json';
     destino = salasInv.difundir(conexionInv, textoInvalido1);
     expect(destino.length).toBe(0);
