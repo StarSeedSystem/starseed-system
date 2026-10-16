@@ -15,7 +15,7 @@
  */
 
 /** Cómo se entera una neurona de una versión nueva del OS. */
-export type ModoActualizacion = "automatica" | "manual";
+export type ModoActualizacion = "automatica" | "manual" | "inteligente";
 
 /** Preferencia de actualización persistida para UNA neurona. */
 export interface PreferenciaNeurona {
@@ -23,6 +23,8 @@ export interface PreferenciaNeurona {
   modo: ModoActualizacion;
   ultimaComprobacion: number | null;
   versionVista: string | null;
+  /** Anulaciones por área (clave: nombre del área, valor: modo de actualización). */
+  porArea?: Record<string, ModoActualizacion>;
 }
 
 /** Por defecto manual: nadie se lleva una recarga por sorpresa mientras trabaja. */
@@ -49,7 +51,10 @@ function leerTodas(): Record<string, PreferenciaNeurona> {
     const out: Record<string, PreferenciaNeurona> = {};
     for (const k of Object.keys(p)) {
       const v = (p as Record<string, unknown>)[k];
-      if (v && typeof v === "object") out[k] = v as PreferenciaNeurona;
+      if (v && typeof v === "object") {
+        // Ensure we preserve all properties, including porArea
+        out[k] = v as PreferenciaNeurona;
+      }
     }
     return out;
   } catch {
@@ -71,10 +76,11 @@ export function leerPreferencia(neuronaId: string): PreferenciaNeurona {
   }
   const modo: ModoActualizacion = p.modo === "automatica" ? "automatica" : "manual";
   return {
-    neuronaId,
+    neuronaId: p.neuronaId,
     modo,
     ultimaComprobacion: typeof p.ultimaComprobacion === "number" ? p.ultimaComprobacion : null,
     versionVista: typeof p.versionVista === "string" ? p.versionVista : null,
+    porArea: p.porArea,
   };
 }
 
@@ -86,9 +92,10 @@ export function guardarPreferencia(p: PreferenciaNeurona): void {
     const todas = leerTodas();
     todas[p.neuronaId] = {
       neuronaId: p.neuronaId,
-      modo: p.modo === "automatica" ? "automatica" : "manual",
+      modo: p.modo,
       ultimaComprobacion: p.ultimaComprobacion,
       versionVista: p.versionVista,
+      porArea: p.porArea,
     };
     store.setItem(CLAVE_PREFERENCIAS, JSON.stringify(todas));
   } catch { /* modo privado / sin cuota: degradación silenciosa */ }
@@ -131,4 +138,52 @@ export function decidirAccion(
   }
   if (pref.modo === "automatica") return "aplicar";
   return "avisar";
+}
+
+/**
+ * Decide qué hacer con una actualización de modelo en modo inteligente.
+ * - modo: el modo de actualización para esta área (o neurona).
+ * - enReposo: si la neurona está en reposo (sin conversación, sin turno pesado).
+ * - cargando: si el dispositivo portátil está cargando (opcional, solo relevante para portátiles).
+ * - cabe: si la actualización cabe en los recursos de la neurona.
+ * - mejora: si la actualización representa una mejora medible.
+ * Devuelve 'instalar' si se debe instalar automáticamente, 'avisar' si se debe avisar al usuario,
+ * o 'nada' si no se debe hacer nada.
+ */
+export function decidirAccionModelo({
+  modo,
+  enReposo,
+  cargando,
+  cabe,
+  mejora,
+}: {
+  modo: ModoActualizacion;
+  enReposo: boolean;
+  cargando?: boolean;
+  cabe: boolean;
+  mejora: boolean;
+}): "instalar" | "avisar" | "nada" {
+  if (modo !== "inteligente") {
+    // For non-intelligent modes, we don't auto-install; let the existing logic handle it.
+    return "nada";
+  }
+
+  // For intelligent mode:
+  // If cargando is provided (not undefined), we treat the device as portable.
+  // For portable devices, we only require that it is charging (cargando === true).
+  // For stationary devices (cargando is undefined), we require enReposo, cabe, and mejora.
+  if (typeof cargando !== "undefined") {
+    // Portable device: install only if charging; if there is an improvement but not charging, avisar so user can manually install.
+    if (cargando) {
+      return "instalar";
+    }
+    return mejora ? "avisar" : "nada";
+  } else {
+    // Stationary device: install only if at rest, fits, and is an improvement.
+    if (enReposo && cabe && mejora) {
+      return "instalar";
+    }
+    // If there is an improvement but conditions not met, avisar so user can manually install.
+    return mejora ? "avisar" : "nada";
+  }
 }
