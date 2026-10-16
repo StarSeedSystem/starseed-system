@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { fusionarBots } from "../sincronia-bots";
+import { fusionarBots } from "../efectos/sincronia-bots";
 
 /**
  * Bot de ejemplo para pruebas (incluye el campo actualizado para sincronía).
