@@ -57,32 +57,3 @@ export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "
   });
   return () => ch();
 }
-
-export function abiertosEnEstaNeurona(): string[] {
-  if (typeof window === "undefined") return [];
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
-  if (!r) return [];
-  try {
-    const v = JSON.parse(r);
-    if (Array.isArray(v)) return v.filter((i): i is string => typeof i === "string");
-    return [];
-  } catch { return []; }
-}
-
-export function marcarAbierto(b: string, a: boolean): void {
-  if (typeof window === "undefined") return;
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
-  let c: string[] = [];
-  if (r) {
-    try {
-      const p = JSON.parse(r);
-      if (Array.isArray(p)) c = p.filter((i): i is string => typeof i === "string");
-    } catch { c = []; }
-  }
-  if (a) {
-    if (!c.includes(b)) c.push(b);
-  } else {
-    c = c.filter(i => i !== b);
-  }
-  window.localStorage.setItem("starseed.astraura.bots.orbes.v1", JSON.stringify(c));
-}
