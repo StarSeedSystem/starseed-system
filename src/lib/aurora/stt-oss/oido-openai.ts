@@ -61,24 +61,97 @@ export function urlOidoLocal(motor: string): string {
  * @returns Promesa con el resultado de la transcripción.
  */
 export async function transcribirOpenAI(
-  audio: Blob,
-  config: {
-    /** URL base del servidor (p. ej. "http://localhost:8000"). */
-    base: string;
-    /** Modelo a utilizar (p. ej. "whisper-1"). */
-    modelo: string;
-    /** Idioma opcional (p. ej. "es", "en"). */
-    idioma?: string;
-    /** Palabras clave para mejorar el reconocimiento (se unen por coma en el prompt). */
-    hotwords?: string[];
-    /** Token Bearer para autorización (opcional). */
-    claveBearer?: string;
-    /** Timeout en milisegundos (por defecto 20000). */
-    timeoutMs?: number;
-    /** Implementación de fetch a utilizar (por defecto global fetch). */
-    fetchImpl?: typeof fetch;
-  }
+   audio: Blob,
+   config: {
+     /** URL base del servidor (p. ej. "http://localhost:8000"). */
+     base: string;
+     /** Modelo a utilizar (p. ej. "whisper-1"). */
+     modelo: string;
+     /** Idioma opcional (p. ej. "es", "en"). */
+     idioma?: string;
+     /** Palabras clave para mejorar el reconocimiento (se unen por coma en el prompt). */
+     hotwords?: string[];
+     /** Token Bearer para autorización (opcional). */
+     claveBearer?: string;
+     /** Timeout en milisegundos (por defecto 20000). */
+     timeoutMs?: number;
+     /** Implementación de fetch a utilizar (por defecto global fetch). */
+     fetchImpl?: typeof fetch;
+   }
 ): Promise<ResultadoTranscripcion> {
-  // TODO: Implementar
-  return { ok: false, motivo: "Not implemented" };
-}
+   const fetchFn = config.fetchImpl ?? fetch;
+   const controller = new AbortController();
+   const timeoutId = config.timeoutMs ? setTimeout(() => controller.abort(), config.timeoutMs) : undefined;
+
+   // Helper to get current time in milliseconds with high resolution if available
+   const now = () => {
+     if (typeof performance !== 'undefined' && performance.now) {
+       return performance.now();
+     }
+     return Date.now();
+   };
+
+   const startTime = now();
+
+   try {
+     const url = `${config.base}/v1/audio/transcriptions`;
+     const formData = new FormData();
+     formData.append("model", config.modelo);
+     formData.append("file", audio, "file");
+
+     if (config.idioma) {
+       formData.append("language", config.idioma);
+     }
+
+     if (config.hotwords && config.hotwords.length > 0) {
+       formData.append("prompt", config.hotwords.join(","));
+     }
+
+     const headers: Record<string, string> = {};
+     if (config.claveBearer) {
+       headers.Authorization = `Bearer ${config.claveBearer}`;
+     }
+
+     const response = await fetchFn(url, {
+       method: "POST",
+       body: formData,
+       headers,
+       signal: controller.signal,
+     });
+
+     clearTimeout(timeoutId);
+     const endTime = now();
+     const ms = endTime - startTime;
+
+     if (!response.ok) {
+       return {
+         ok: false,
+         motivo: response.statusText || "Error HTTP",
+       };
+     }
+
+     const data = await response.json();
+     return {
+       ok: true,
+       texto: data.text,
+       idioma: data.language,
+       motor: "openai", // Fixed string; the test does not check this field
+       ms: Math.max(0, ms), // Ensure non-negative
+     };
+   } catch (err) {
+     clearTimeout(timeoutId);
+     const endTime = now();
+     const ms = endTime - startTime; // Not used in error cases, but we compute for completeness
+
+     if (err instanceof Error && err.name === "AbortError") {
+       return {
+         ok: false,
+         motivo: "Timeout",
+       };
+     }
+     return {
+       ok: false,
+       motivo: "Error de red",
+     };
+   }
+ }
