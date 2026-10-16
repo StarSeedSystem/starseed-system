@@ -2,10 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { type NodoVista } from "@/lib/metagenesis/remoto-nodos";
-<<<<<<< HEAD
-=======
-import { textoHace } from "@/lib/metagenesis/remoto";
->>>>>>> 3d0e7714 (salvavidas · RTRTS1010-TU-LL1cobjb: trabajo del agente antes de las puertas (tsc / vitest))
 import { type AccionOrden } from "@/lib/metagenesis/remoto-nodos";
 
 interface ColmenaBotonesProps {
