@@ -224,5 +224,41 @@ class RemallarImagen(unittest.TestCase):
         self.assertIn("tiempo agotado", r["fallo"])
 
 
+class RemallarImagenNoDisponible(unittest.TestCase):
+    """Pruebas de remallar_imagen cuando el motor no está disponible."""
+    def setUp(self):
+        # Simula SO no-Windows para que disponible() devuelva False
+        self.parches = [
+            mock.patch.object(pa.platform, "system", return_value="Linux")
+        ]
+        for p in self.parches:
+            p.start()
+        import tempfile
+        self._d = tempfile.TemporaryDirectory()
+        self.addCleanup(self._d.cleanup)
+        self.tmp = self._d.name
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """Cuando el motor no está disponible, remallar_imagen debe devolver un dict de error."""
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=pa.ClienteComfyUI(),
+            dormir=lambda _: None
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # piezas de flujo y nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
