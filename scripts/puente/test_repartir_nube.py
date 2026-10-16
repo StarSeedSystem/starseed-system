@@ -516,10 +516,15 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
             colas = os.path.join(d, "colas")
             os.makedirs(colas)
             ahora = datetime.datetime.now().timestamp()
+            # (2026-10-16) `leer_colas_nube` fecha cada cola por su NOMBRE, no por el
+            # mtime: con el nombre hardcodeado al 2026-10-14 el test caducó a los dos
+            # días. Sale de «ahora», siempre dentro de la ventana.
             for i in range(3):
-                with open(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), "w") as f:
+                momento = datetime.datetime.fromtimestamp(ahora) - datetime.timedelta(minutes=i)
+                ruta_cola = os.path.join(colas, "cola-nube-%s.json" % momento.strftime("%Y%m%d-%H%M"))
+                with open(ruta_cola, "w") as f:
                     json.dump({"tareas": [{"id": "FLU1014A"}]}, f)
-                os.utime(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), (ahora, ahora))
+                os.utime(ruta_cola, (ahora, ahora))
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 3)
             self.assertEqual(R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta), "FLU1014A")
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 2)
