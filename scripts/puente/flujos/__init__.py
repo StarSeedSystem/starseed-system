@@ -1,8 +1,12 @@
 """Núcleo público de los Flujos de Genesis."""
 
 from .modelo import (Conexion, Ejecucion, Flujo, Nodo, cargar_flujo,
-                     guardar_flujo, orden_topologico, validar_flujo)
+                      guardar_flujo, orden_topologico, validar_flujo)
 from .motor import REGISTRO, ejecutar, reanudar
+from . import nodos
+
+# Registrar los nodos y disparadores en el registro global
+nodos.registrar(REGISTRO)
 
 __all__ = [
     "Conexion", "Ejecucion", "Flujo", "Nodo", "REGISTRO",

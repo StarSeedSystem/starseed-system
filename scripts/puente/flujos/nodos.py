@@ -201,3 +201,36 @@ NODOS: dict[str, Any] = {
     "set": nodo_set,
     "esperar": nodo_esperar,
 }
+
+
+def registrar(registro: dict[str, Any]) -> None:
+    """Registra los nodos y disparadores en el registro proporcionado."""
+    # Adaptar los nodos de acción
+    for tipo, funcion in NODOS.items():
+        # El motor llama: funcion(items, params)
+        # Nuestros nodos: funcion(params, items, ctx)
+        # Creamos un adaptador que fija ctx en un nuevo diccionario vacío por llamada
+        registro[tipo] = lambda items, params, f=funcion: f(params, items, {})
+    
+    # Disparadores: devuelven los ítems tal cual
+    def _webhook(items, params):
+        forma = params.get("forma", "")
+        if forma == "n8n":
+            resultado = []
+            for item in items:
+                # Remove internal keys: those starting with '_', and the keys 'disparador' and 'ruta'
+                body = {k: v for k, v in item.items() 
+                        if not k.startswith('_') and k not in ('disparador', 'ruta')}
+                resultado.append({
+                    "body": body,
+                    "headers": {},
+                    "query": {},
+                    "params": {}
+                })
+            return resultado
+        else:
+            return items
+    registro["webhook"] = _webhook
+    registro["cron"] = lambda items, params: items
+    registro["bus"] = lambda items, params: items
+    registro["chat"] = lambda items, params: items
