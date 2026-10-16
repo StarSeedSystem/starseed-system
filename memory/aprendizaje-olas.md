@@ -4430,3 +4430,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
 - `RTCOL1012Be` — no escribió nada
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
+
+## 2026-10-16 02:43 · mg-oracle-1015-1908
+
+**Lo que se pidió.** sin medida
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (CB1013G, CB1013Bb-d1). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (RTRTS1010-TU-LL1cobjb, COL1012M). Es 50 % de la ola.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CB1013G` — los tipos no compilan: 30 errores tsc (rama ola/CB1013G conservada)
+- `RTRTS1010-TU-LL1cobjb` — otra cosa: sin decisión en 0 h; rama ola/RTRTS1010-TU-LL1cobjb conservada
+- `COL1012M` — otra cosa: sin decisión en 0 h; rama ola/COL1012M conservada
+- `CB1013Bb-d1` — los tipos no compilan: 1 errores tsc (rama ola/CB1013Bb-d1 conservada)
