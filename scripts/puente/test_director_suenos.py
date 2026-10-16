@@ -148,8 +148,8 @@ class EnDisco(unittest.TestCase):
         self.sesion = os.path.join(self.dir, "profundo", "2026-09-29")
         self.olas = os.path.join(self.dir, "olas")
         os.makedirs(self.sesion)
-        json.dump(informe("SA09291", "voz", "arquitectura-deuda", [hallazgo("Unificar el cliente de voz")]),
-                  open(os.path.join(self.sesion, "voz--arquitectura-deuda.json"), "w"))
+        with open(os.path.join(self.sesion, "voz--arquitectura-deuda.json"), "w") as f:
+            json.dump(informe("SA09291", "voz", "arquitectura-deuda", [hallazgo("Unificar el cliente de voz")]), f)
         with open(os.path.join(self.sesion, "social--pruebas-fiabilidad.md"), "w", encoding="utf-8") as f:
             f.write("# 🌙 Sueño profundo\n\n> Tarea SA092911 · …\n\n## Riesgos\n\n"
                     "1. **Añadir tiempo límite al fetch** — `src/lib/feed/a.ts:40` · impacto 4 · esfuerzo 1 · confianza 0.70 · sin timeout\n")
@@ -173,14 +173,17 @@ class EnDisco(unittest.TestCase):
                        bus=lambda texto, datos: self.dichos.append(("bus", datos)) or True,
                        decir=lambda texto, quien, tipo: self.dichos.append(texto))
         self.assertTrue(os.path.exists(os.path.join(self.sesion, "INFORME.md")))
-        cola = json.load(open(os.path.join(self.olas, "cola-suenos-propuesta-2026-09-29.json")))
+        with open(os.path.join(self.olas, "cola-suenos-propuesta-2026-09-29.json")) as f:
+            cola = json.load(f)
         self.assertEqual(len(cola), 2)
-        self.assertEqual(len(json.load(open(self.memoria))["claves"]), 2)
+        with open(self.memoria) as f:
+            self.assertEqual(len(json.load(f)["claves"]), 2)
         self.assertEqual(len(self.dichos), 2)
         self.assertEqual(self.dichos[1], ("bus", {"sesion": "2026-09-29", "propuestas": 2, "cola": "cola-suenos-propuesta-2026-09-29.json"}))
         self.assertTrue(r["anuncio"]["reportes"])
         self.assertFalse(r["anuncio"]["telegram"])
-        consolidado = json.load(open(os.path.join(self.sesion, "consolidado.json")))
+        with open(os.path.join(self.sesion, "consolidado.json")) as f:
+            consolidado = json.load(f)
         self.assertEqual(consolidado["top"][0]["jev"].split(":")[0], "regla")
         self.assertFalse(consolidado["informe"].startswith("/"))
         # Segunda pasada: lo ya encargado no vuelve a la cola.
@@ -290,7 +293,8 @@ class Hermes(unittest.TestCase):
             finally:
                 S._hermes = viejo
             self.assertTrue(r["telegram"])
-            args = open(registro).read().splitlines()
+            with open(registro) as f:
+                args = f.read().splitlines()
             self.assertEqual(args[:3], ["send", "-t", "telegram:Maggasukha"])
             self.assertIn("-s", args)
             self.assertEqual(args[-1], "resumen")

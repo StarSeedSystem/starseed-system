@@ -515,11 +515,16 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
             ruta = os.path.join(d, "reap.json")
             colas = os.path.join(d, "colas")
             os.makedirs(colas)
-            ahora = datetime.datetime.now().timestamp()
+            ahora_dt = datetime.datetime.now()
+            ahora = ahora_dt.timestamp()
             for i in range(3):
-                with open(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), "w") as f:
+                # Fechas relativas a hoy: `leer_colas_nube` solo cuenta colas de los
+                # últimos 2 días y una fecha fija caduca al tercer día.
+                marca = (ahora_dt - datetime.timedelta(minutes=i)).strftime("%Y%m%d-%H%M")
+                ruta_cola = os.path.join(colas, "cola-nube-%s.json" % marca)
+                with open(ruta_cola, "w") as f:
                     json.dump({"tareas": [{"id": "FLU1014A"}]}, f)
-                os.utime(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), (ahora, ahora))
+                os.utime(ruta_cola, (ahora, ahora))
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 3)
             self.assertEqual(R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta), "FLU1014A")
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 2)

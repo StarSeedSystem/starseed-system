@@ -249,7 +249,8 @@ class ProtocoloDelSupervisor(unittest.TestCase):
 
     def test_las_ordenes_del_supervisor_existen(self):
         import re
-        texto = open(os.path.join(DIRECTORIO, "supervisor_suenos.md"), encoding="utf-8").read()
+        with open(os.path.join(DIRECTORIO, "supervisor_suenos.md"), encoding="utf-8") as f:
+            texto = f.read()
         self.assertIn("contexto_agente.py --rol supervisor", texto)
         subordenes = set(re.findall(r"decidir\.py ([a-z][a-z-]*)", texto))
         self.assertTrue({"si-no", "confirmar", "uso"} <= subordenes, subordenes)

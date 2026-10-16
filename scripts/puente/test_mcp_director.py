@@ -375,6 +375,9 @@ class PruebaProcesoReal(unittest.TestCase):
             finally:
                 proc.kill()
                 proc.wait()
+                for tubo in (proc.stdin, proc.stdout, proc.stderr):
+                    if tubo is not None:
+                        tubo.close()
 
 
 if __name__ == "__main__":

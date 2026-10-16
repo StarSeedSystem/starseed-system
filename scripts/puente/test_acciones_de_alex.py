@@ -120,10 +120,10 @@ class YaLoHiceMideLaPasarelaAhora(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         self.antes = A.INFORME
         A.INFORME = os.path.join(self.dir, "pasarelas-informe.json")
-        json.dump({"pasarelas": [{"clave": "apinex", "estado": "fichaje", "http": 402,
-                                  "modelo": "free/glm-5.3-flash",
-                                  "variable": "STARSEED_PASARELA_APINEX_KEY"}]},
-                  open(A.INFORME, "w"))
+        with open(A.INFORME, "w") as f:
+            json.dump({"pasarelas": [{"clave": "apinex", "estado": "fichaje", "http": 402,
+                                      "modelo": "free/glm-5.3-flash",
+                                      "variable": "STARSEED_PASARELA_APINEX_KEY"}]}, f)
 
     def tearDown(self):
         A.INFORME = self.antes

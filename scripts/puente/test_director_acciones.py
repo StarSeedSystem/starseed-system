@@ -148,7 +148,8 @@ class PlistAccionesTest(unittest.TestCase):
 
     def test_carga_y_tiene_el_mismo_patron(self):
         import plistlib
-        con = plistlib.load(open(os.path.join(DIRECTORIO, "com.starseed.acciones.plist"), "rb"))
+        with open(os.path.join(DIRECTORIO, "com.starseed.acciones.plist"), "rb") as f:
+            con = plistlib.load(f)
         self.assertEqual(con["Label"], "com.starseed.acciones")
         args = con["ProgramArguments"]
         self.assertEqual(len(args), 2)

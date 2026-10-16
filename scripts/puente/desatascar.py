@@ -990,7 +990,8 @@ def _tareas_de_las_colas(olas=None):
         if not (n.startswith("cola-") and n.endswith(".json")):
             continue
         try:
-            d = json.load(open(os.path.join(olas, n), encoding="utf-8"))
+            with open(os.path.join(olas, n), encoding="utf-8") as f:
+                d = json.load(f)
         except Exception:
             continue
         tareas = d if isinstance(d, list) else (d.get("tareas") or d.get("trabajos"))

@@ -199,8 +199,10 @@ class Aplicar(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         self.cola = os.path.join(self.dir, "cola-auto-x.json")
         self.prog = os.path.join(self.dir, "progreso.json")
-        json.dump([{"id": "A"}, {"id": "B"}], open(self.cola, "w"))
-        json.dump({"A": {"estado": "en_curso"}, "D": {"estado": "pendiente"}}, open(self.prog, "w"))
+        with open(self.cola, "w") as f:
+            json.dump([{"id": "A"}, {"id": "B"}], f)
+        with open(self.prog, "w") as f:
+            json.dump({"A": {"estado": "en_curso"}, "D": {"estado": "pendiente"}}, f)
         self.antes = A.PROGRESO
         A.PROGRESO = self.prog
 
@@ -214,9 +216,11 @@ class Aplicar(unittest.TestCase):
         e["listas_tareas"] = [{"id": "C", "titulo": "c"}, {"id": "D", "titulo": "d"}]
         d = A.decidir(e, pedida="D")
         hechas = A.aplicar(e, d)
-        cola = json.load(open(self.cola))
+        with open(self.cola) as f:
+            cola = json.load(f)
         self.assertEqual([t["id"] for t in cola], ["D", "A", "B", "C"])
-        self.assertTrue(json.load(open(self.prog))["D"]["adelantar"])
+        with open(self.prog) as f:
+            self.assertTrue(json.load(f)["D"]["adelantar"])
         self.assertTrue(any("cola viva" in h for h in hechas))
 
     def test_comprobar_no_toca_nada(self):
@@ -226,7 +230,8 @@ class Aplicar(unittest.TestCase):
         d = A.decidir(e)
         d["puede"] = False  # lo que haría `comprobar`: decidir sin aplicar
         self.assertEqual(A.aplicar(e, d), [])
-        self.assertEqual([t["id"] for t in json.load(open(self.cola))], ["A", "B"])
+        with open(self.cola) as f:
+            self.assertEqual([t["id"] for t in json.load(f)], ["A", "B"])
 
 
 if __name__ == "__main__":
