@@ -1720,7 +1720,11 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     categoria: "modelado-3d",
     tipo: "app",
     origen: "otro",
+<<<<<<< HEAD
     descripcion: "Flujos de ComfyUI: imagen a malla cerrada (lista para imprimir) o low-poly con texturas horneadas, con Pixal3D/TRELLIS.2 y los nodos WTiVo, Mesh Quad Reconstruct, LODTailor y CuMesh.",
+=======
+    descripcion: "Flujos de ComfyUI para generar mallas cerradas (watertight) lista para imprimir a partir de imagen, con Pixal3D/TRELLIS.2 y nodos WTiVo, Mesh Quad Reconstruct, LODTailor y CuMesh.",
+>>>>>>> e3f9d76b (salvavidas · WT1011C: trabajo del agente antes de las puertas (tsc / vitest))
     licencia: "MIT",
     codigo: null,
     web: null,
