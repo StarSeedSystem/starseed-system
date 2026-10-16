@@ -1,5 +1,4 @@
-import type { Bot, Dueno } from "./tipos";
-import { createClient } from "@/utils/supabase/client";
+import type { Bot } from "./tipos";
 interface BotSync extends Bot { actualizado: number; }
 function esBotValido(b: unknown): b is BotSync {
   if (!b || typeof b !== "object" || Array.isArray(b)) return false;
