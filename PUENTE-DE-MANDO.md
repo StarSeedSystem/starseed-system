@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-09 03:20:36 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-10-14 15:45:27 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,19 +12,25 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola Dream 2026-09-27 · lo que el análisis nocturno encontró |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 15 |
-| HEAD | `c2d3cc7b chore(memoria): aprendizaje de la ola auto-1009-030124` |
-| Sin publicar | 5 commits |
+| Ola arriba | Ola 1010S · Estaciones: dueña y canal en vivo |
+| Agentes escribiendo | **6** |
+| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 0 |
+| Últimas 6 olas | en curso 2 · pendientes 43 · integradas 37 |
+| HEAD | `b28ffa9d Ola 1010S · Medidor de Oracle · OC1010C: Referencias del medidor de Oracle en la ` |
+| Sin publicar | 43 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1009-030124.json`, hace 5s)
+## Quién escribe ahora (latido de `cola-auto-1014-124341.json`, hace 12s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CPA1009S` | hecho | openrouter/cohere/north-mini-code: | 1 min | 33 s | 155279 |
+| `MC1012Hb` | tsc | nvidia/moonshotai/kimi-k3 | 14 min | 837 s | 401539 |
+| `CB1013Rb` | hecho | nvidia/nvidia/nemotron-3-super-120 | 16 min | 979 s | 182950 |
+| `CB1013Eb` | tsc | nvidia/moonshotai/kimi-k3 | 25 min | 1517 s | 240369 |
+| `TRA1012Bc` | tsc | codex/gpt-5.6-sol | 29 min | 1735 s | 240044 |
+| `CB1013Bb` | hecho | nvidia/nvidia/nemotron-3-super-120 | 83 min | 4970 s | 159716 |
+| `RTBOT1011C1d` | hecho | nvidia/nvidia/nemotron-3-super-120 | 122 min | 7299 s | 231094 |
+| `XR1010AAc` | hecho | codex/gpt-5.6-sol | 160 min | 9606 s | 353020 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
