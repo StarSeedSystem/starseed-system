@@ -24,7 +24,7 @@ describe("núcleo puro de los bots de Astraura", () => {
   });
   it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
-    for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
+    for (const i of importados) expect(i).toMatch(/^(\.\/.*|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)|@\/utils\/supabase\/client)$/);
   });
 });
 

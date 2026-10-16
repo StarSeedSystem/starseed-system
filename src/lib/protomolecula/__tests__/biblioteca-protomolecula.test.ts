@@ -139,7 +139,7 @@ describe("fichasProtomolecula", () => {
     registrarAtomo(atomoObj);
 
     const catalogo = [{
-      ...herramienta({ id: "catalog-tool", categoria: "imagen" }),
+      ...herramienta({ id: "catalog-tool", categoria: "raster-pintura" }),
       nombre: "Nombre desde Católico",
       descripcion: "Esta es una descripción detallada desde el catálogo",
       licencia: "GPL-3.0",
@@ -197,7 +197,7 @@ describe("fichasProtomolecula", () => {
     };
 
     const catalogo = [{
-      ...herramienta({ id: "full-tool", categoria: "imagen" }),
+      ...herramienta({ id: "full-tool", categoria: "raster-pintura" }),
       nombre: "Nombre desde Católico",
       descripcion: "Descripción desde el catálogo",
       codigo: "https://github.com/usuario/repo",
