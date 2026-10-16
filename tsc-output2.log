@@ -1,0 +1,4 @@
+tsc-turno: turno tomado (pid 52823), compilando…
+src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts(138,44): error TS2322: Type '"imagen"' is not assignable to type '"xr" | "raster-pintura" | "vector-diseno" | "foto-raw" | "documentos-pdf" | "pizarras-diagramas" | "audio-edicion" | "sintesis-audio" | "video-composicion" | "animacion-motion" | ... 14 more ... | "recursos-abiertos"'.
+src/lib/protomolecula/__tests__/biblioteca-protomolecula.test.ts(196,41): error TS2322: Type '"imagen"' is not assignable to type '"xr" | "raster-pintura" | "vector-diseno" | "foto-raw" | "documentos-pdf" | "pizarras-diagramas" | "audio-edicion" | "sintesis-audio" | "video-composicion" | "animacion-motion" | ... 14 more ... | "recursos-abiertos"'.
+Terminated

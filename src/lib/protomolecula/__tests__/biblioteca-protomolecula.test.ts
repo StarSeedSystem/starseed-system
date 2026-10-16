@@ -5,6 +5,10 @@ import type { DefinicionAtomo, Parametro, CategoriaAtomo } from "../registro-ato
 import { CATEGORIAS_PROTOMOLECULA } from "../catalogo-herramientas";
 import type { HerramientaProto } from "../catalogo-herramientas";
 
+function getCategoriaAtomo(): CategoriaAtomo {
+  return "imagen";
+}
+
 function herramienta(parcial: Partial<HerramientaProto> & { id: string; categoria: HerramientaProto["categoria"] }): HerramientaProto {
   return {
     nombre: parcial.id,
@@ -27,7 +31,7 @@ function herramienta(parcial: Partial<HerramientaProto> & { id: string; categori
   };
 }
 
-function atomo(herramientaId: string, categoria: CategoriaAtomo = "imagen", extra: Partial<DefinicionAtomo> = {}): DefinicionAtomo {
+function atomo(herramientaId: string, categoria: CategoriaAtomo, extra: Partial<DefinicionAtomo> = {}): DefinicionAtomo {
   const parametro: Parametro = { id: "p", nombre: "P", tipo: "numero" };
   return { herramientaId, nombre: herramientaId, categoria, integracion: "libreria-js", control: "total", parametros: [parametro], entradas: [], salidas: [], ...extra };
 }
@@ -76,6 +80,13 @@ describe("fichasProtomolecula", () => {
     expect(f.versionDisponible).toBeUndefined();
   });
 
+  it("la licencia de versiones tiene precedencia sobre la del catálogo", () => {
+    const catalogo = [herramienta({ id: "completa", categoria: "ia-generativa", licencia: "GPL-3.0", web: "https://ejemplo.com" })];
+    const [f] = fichasProtomolecula({ completa: { version: "2.0.0", licencia: "Apache-2.0" } }, catalogo);
+    expect(f.licencia).toBe("Apache-2.0");
+    expect(f.enlaces.web).toBe("https://ejemplo.com");
+  });
+
   it("herramienta sin repositorio sale sin enlace de repo (nada que comprobar)", () => {
     const catalogo = [herramienta({ id: "estandar", categoria: "conversion-formatos", codigo: null })];
     const [f] = fichasProtomolecula({}, catalogo);
@@ -121,5 +132,85 @@ describe("fichasProtomolecula", () => {
     expect(fichas.map((f) => f.id)).toEqual(["imagen", "recurso"]);
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
+  });
+
+  it("usa la información del catálogo cuando se proporciona", () => {
+    const atomoObj = atomo("catalog-tool", "imagen" as CategoriaAtomo, { nombre: "Nombre del Átomo" });
+    registrarAtomo(atomoObj);
+
+    const catalogo = [{
+      ...herramienta({ id: "catalog-tool", categoria: "imagen" }),
+      nombre: "Nombre desde Católico",
+      descripcion: "Esta es una descripción detallada desde el catálogo",
+      licencia: "GPL-3.0",
+      codigo: "https://github.com/usuario/repo",
+      web: "https://ejemplo.com",
+      motivo: ""
+    }];
+
+    const resultado = fichasProtomolecula({}, catalogo);
+
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].nombre).toBe("Nombre desde Católico");
+    expect(resultado[0].descripcion).toContain("Esta es una descripción detallada desde el catálogo");
+    expect(resultado[0].licencia).toBe("GPL-3.0");
+    expect(resultado[0].enlaces.web).toBe("https://ejemplo.com");
+    expect(resultado[0].enlaces.repo).toBe("https://github.com/usuario/repo");
+  });
+
+  it("ordena las fichas según el orden especificado en el contrato", () => {
+    // Crear átomos de diferentes categorías
+    registrarAtomo(atomo("juego-tool", "juegos", { nombre: "Herramienta de Juegos" }));
+    registrarAtomo(atomo("img-tool", "imagen", { nombre: "Herramienta de Imagen" }));
+    registrarAtomo(atomo("ia-tool", "ia", { nombre: "Herramienta de IA" }));
+
+    const resultado = fichasProtomolecula();
+
+    // Verificar que tenemos 3 fichas
+    expect(resultado).toHaveLength(3);
+
+    // Verificar que la ficha de imagen está antes que la de juegos, y la de juegos antes que la de ia
+    const imgFicha = resultado.find(f => f.nombre === "Herramienta de Imagen");
+    const juegoFicha = resultado.find(f => f.nombre === "Herramienta de Juegos");
+    const iaFicha = resultado.find(f => f.nombre === "Herramienta de IA");
+
+    expect(imgFicha).toBeDefined();
+    expect(juegoFicha).toBeDefined();
+    expect(iaFicha).toBeDefined();
+
+    // We expect the order to be: imagen, juegos, ia? 
+    // But note: the group order: imagen (0), juegos (6), ia (9) -> so imagen first, then juegos, then ia.
+    const indices = resultado.map(f => f.nombre);
+    expect(indices.indexOf("Herramienta de Imagen")).toBeLessThan(indices.indexOf("Herramienta de Juegos"));
+    expect(indices.indexOf("Herramienta de Juegos")).toBeLessThan(indices.indexOf("Herramienta de IA"));
+  });
+
+  it("maneja correctamente cuando se proporcionan tanto versiones como catalogo", () => {
+    const atomoObj = atomo("full-tool", "imagen", { nombre: "Nombre del Átomo" });
+    registrarAtomo(atomoObj);
+
+    const versiones = {
+      "full-tool": {
+        version: "2.0.0",
+        licencia: "Apache-2.0"
+      }
+    };
+
+    const catalogo = [{
+      ...herramienta({ id: "full-tool", categoria: "imagen" }),
+      nombre: "Nombre desde Católico",
+      descripcion: "Descripción desde el catálogo",
+      codigo: "https://github.com/usuario/repo",
+      web: "https://ejemplo.com",
+      motivo: "Estado de prueba"
+    }];
+
+    const resultado = fichasProtomolecula(versiones, catalogo);
+
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].nombre).toBe("Nombre desde Católico");
+    expect(resultado[0].descripcion).toContain("Descripción desde el catálogo");
+    expect(resultado[0].licencia).toBe("Apache-2.0");
+    expect(resultado[0].enlaces.web).toBe("https://ejemplo.com");
   });
 });
