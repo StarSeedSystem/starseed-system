@@ -3,7 +3,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, esInvitado, esRol, esSentido } from "../tipos";
 
-/** Guardia del núcleo de bots: puro (sin React, red, DOM, reloj ni node:*), ≤ 200 líneas, sin ejecutar código. */
+/** Guardia del núcleo de bots: puro (sin React, red, DOM, reloj ni node:*), ≤ 200 líneas, sin ejecutar código.
+ *  Cambio intencionado (2026-10-16): los conectores `memoria-bot` y `sincronia-bots` (red, disco, Supabase)
+ *  NO son parte del núcleo puro; la prueba los excluye (`PUROS`) y solo los verifica como no vacíos. */
 const DIR = path.join(__dirname, "..");
 const CONECTORES = new Set(["sincronia-bots", "memoria-bot"]);
 const NUCLEO = readdirSync(DIR).filter((f) => f.endsWith(".ts")).map((f) => f.replace(/\.ts$/, ""));
