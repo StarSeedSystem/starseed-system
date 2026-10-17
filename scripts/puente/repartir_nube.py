@@ -436,14 +436,16 @@ def leer_colas_nube(carpeta, ahora_ts, dias=2):
         m = re.match(r"cola-nube-(\d{8})-(\d{4})", nombre)
         if not m or not nombre.endswith(".json"):
             continue
+        ruta = _os.path.join(carpeta, nombre)
         try:
-            cuando = _dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M")
-        except ValueError:
+            mtime = _os.path.getmtime(ruta)
+            cuando = _dt.datetime.fromtimestamp(mtime)
+        except (OSError, ValueError):
             continue
         if cuando < limite:
             continue
         try:
-            with open(_os.path.join(carpeta, nombre), encoding="utf-8") as f:
+            with open(ruta, encoding="utf-8") as f:
                 d = _json.load(f)
         except (OSError, ValueError):
             continue
