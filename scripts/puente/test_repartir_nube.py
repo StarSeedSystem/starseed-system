@@ -530,6 +530,46 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
             shutil.rmtree(d)
 
 
+class LeerColasNubeFechaPorMtime(unittest.TestCase):
+    """(2026-10-17, MGP1016-2CE2A9) `leer_colas_nube` usa `mtime` del archivo, no el nombre:
+    una regresión a `strptime` excluiría archivos con nombre antiguo pero `mtime` reciente."""
+
+    def test_nombre_antiguo_con_mtime_reciente_se_cuenta(self):
+        d = tempfile.mkdtemp()
+        try:
+            colas = os.path.join(d, "colas")
+            os.makedirs(colas)
+            ahora = datetime.datetime.now().timestamp()
+            # Nombre sugiere 2026-01-01, muy viejo; `mtime` es hoy.
+            ruta = os.path.join(colas, "cola-nube-20260101-0000.json")
+            with open(ruta, "w") as f:
+                json.dump({"tareas": [{"id": "MTIME01"}]}, f)
+            os.utime(ruta, (ahora, ahora))
+            resultado = R.leer_colas_nube(colas, ahora)
+            ids = [tid for _, ids in resultado for tid in ids]
+            self.assertIn("MTIME01", ids)
+        finally:
+            shutil.rmtree(d)
+
+    def test_nombre_viejo_sin_reciente_no_se_cuenta(self):
+        d = tempfile.mkdtemp()
+        try:
+            colas = os.path.join(d, "colas")
+            os.makedirs(colas)
+            ahora = datetime.datetime.now().timestamp()
+            ruta = os.path.join(colas, "cola-nube-20260101-0000.json")
+            with open(ruta, "w") as f:
+                json.dump({"tareas": [{"id": "MTIME01"}]}, f)
+            # `mtime` hace 10 días: debe excluirlo (límite = hoy - 2 días).
+            viejo = ahora - 10 * 86400
+            os.utime(ruta, (viejo, viejo))
+            resultado = R.leer_colas_nube(colas, ahora)
+            ids = [tid for _, ids in resultado for tid in ids]
+            self.assertNotIn("MTIME01", ids)
+        finally:
+            shutil.rmtree(d)
+
+
 class CadenasCedibles(unittest.TestCase):
     """(2026-10-11, CAPC1011A) Ceder una cadena ENTERA (tarea esperada + dependientes de la
     tanda) en vez de dejarla en la Mac solo porque alguien está esperando su cabeza."""
