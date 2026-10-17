@@ -4445,3 +4445,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
 =======
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+
+## 2026-10-17 07:09 · mg-oracle-1016-2323
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · MetaGenesis en la web: órdenes «desconectar
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (RTRTRTRTCOL1012Bdsbbbbbc-d1, MGP1011-1ECCC4d). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — los tipos no compilan (MGP1014-C715AA-d2c, RTRTCOL1012Bdsc). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTCOL1012Bdsbbbbbc-d1` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-17 06:06:59 [0m > build · auto [0m [0m✱ [0mGlob "MENSAJES-DEL-DIRECTOR.md"[
+- `MGP1014-C715AA-d2c` — los tipos no compilan: 12 errores tsc (rama ola/MGP1014-C715AA-d2c conservada)
+- `RTRTCOL1012Bdsc` — los tipos no compilan: 1 errores tsc (rama ola/RTRTCOL1012Bdsc conservada)
+- `MGP1011-1ECCC4d` — otra cosa: ningún proveedor respondió (todos caídos)
