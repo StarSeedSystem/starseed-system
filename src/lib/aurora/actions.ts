@@ -1108,6 +1108,18 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       }
     },
   },
+  {
+    name: "protomolecula",
+    describe:
+      "Controla la PROTOMOLÉCULA (creación y edición universal) por la misma puerta que la mano: cada cambio lleva tu nombre y se puede deshacer. Args {accion, molecula?}: «abrir» (orbe o página; con {herramienta} añade un átomo), «estado» (controles con valor, unidad y rango; {atomo} filtra), «mover» ({parametro, valor} exacto o {parametro, cambio, modo: delta|porcentaje-valor|porcentaje-rango|pasos}; {atomo} si hay dos iguales), «dictar» ({frase}), «deshacer» (solo lo tuyo) y «proponer-codigo» (próximamente, fase F7). Lo que pida confirmación queda pendiente en el panel.",
+    example: '[[ACCION: protomolecula {"accion":"mover","parametro":"brillo","valor":50}]]',
+    handler: async (args, ctx) => {
+      const { manejarAccionProtomolecula } = await import("@/lib/protomolecula/accion-agente");
+      const r = manejarAccionProtomolecula(args, { abrirRuta: (ruta) => ctx.router.push(ruta) });
+      if (r.status) ctx.onStatus?.(r.status);
+      return r;
+    },
+  },
 ];
 
 // Índice por nombre para ejecución O(1).
