@@ -4445,3 +4445,22 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
 =======
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+
+## 2026-10-17 23:39 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** terminal
+
+**Resultado.** 0 de 7 integradas. 7 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — otra cosa (COL1012Ld-d1b, MGP1014-C715AA-d1b, MGP1016-5B8110b, RTGN1010A-d3d-d2b, RTPM1010F2Kd-d1c, RTPM1010F2Kd-d2c). Es 86 % de la ola.
+- sin modelo anotado no integró ninguna de sus 7 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `COL1012Ld-d1b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `XR1010AAc` — no escribió nada
+- `MGP1014-C715AA-d1b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `MGP1016-5B8110b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTGN1010A-d3d-d2b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTPM1010F2Kd-d1c` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTPM1010F2Kd-d2c` — otra cosa: ningún proveedor respondió (todos caídos)
