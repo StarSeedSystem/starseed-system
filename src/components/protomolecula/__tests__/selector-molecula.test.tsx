@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-blocks";
 import { CLAVE_INDICE, PREFIJO_MOLECULA, type AlmacenLocal } from "@/lib/protomolecula/almacen-moleculas";
-import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
+import { leerBloque, serializarBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import { SelectorMolecula, TEXTO_CONFIRMACION, prepararMolecula } from "../selector-molecula";
 
 afterEach(() => cleanup());
@@ -106,8 +106,64 @@ describe("SelectorMolecula", () => {
     expect(screen.getByRole("link", { name: "Protomolécula" }).getAttribute("href")).toBe("/protomolecula");
   });
 });
+ 
+  it("should display loading state initially", () => {
+    const { container } = render(<SelectorMolecula ambitoPost="personal" alElegir={vi.fn()} />);
+    const element = screen.getByText(/Cargando tus moléculas\./i);
+    expect(container.contains(element)).toBe(true);
+  });
 
-describe("prepararMolecula", () => {
+  it("should show error when storage is not available", async () => {
+    const almacenModule = await import("@/lib/protomolecula/almacen-moleculas");
+    const almacenNavegadorSpy = vi.spyOn(almacenModule, "almacenNavegador");
+    almacenNavegadorSpy.mockReturnValue(null);
+    const { container } = render(<SelectorMolecula ambitoPost="personal" alElegir={vi.fn()} />);
+    const element = screen.getByText(
+      /No se pudo leer el almacén de moléculas de este aparato: el navegador no deja usar su almacenamiento local./i
+    );
+    expect(container.contains(element)).toBe(true);
+    almacenNavegadorSpy.mockRestore();
+  });
+  it("should call alElegir with serialized block when confirmed", () => {
+    const alElegir = vi.fn();
+    // We need a molecule with avisos
+    const aWithAviso = sembrar(
+      almacenMemoria(),
+      [molecula("m1", "Mural", "grupo", { tipo: "entity", id: "e1" })]
+    );
+    render(
+      <SelectorMolecula
+        ambitoPost="publica"
+        alElegir={alElegir}
+        almacen={aWithAviso}
+        ambitoDe={sinReservas}
+      >
+      </SelectorMolecula>
+    );
+    // Click the molecule button
+    fireEvent.click(screen.getByRole("button", { name: /Mural/ }));
+    // Wait for the pendiente to be set (the avisos to be shown)
+    const alertElement = screen.getByRole("alert");
+    expect(alertElement.textContent).toMatch(/Antes de insertar «Mural»/i);
+    // Click the checkbox
+    fireEvent.click(screen.getByRole("checkbox", { name: TEXTO_CONFIRMACION }));
+    // Click the insert button
+    fireEvent.click(screen.getByRole("button", { name: "Insertar instantánea" }));
+    // Check that alElegir was called
+    expect(alElegir).toHaveBeenCalledTimes(1);
+    // Now, we need to check the argument: the serialized block
+    // We can get the molecule from the storage and serialize it
+    const stored = aWithAviso.getItem(PREFIJO_MOLECULA + "m1");
+    const bruta = JSON.parse(stored);
+    const s = serializarBloque(bruta);
+    expect(s.ok).toBe(true);
+    if (s.ok) {
+      expect(alElegir).toHaveBeenCalledWith(s.valor);
+    }
+  });
+
+ 
+  describe("prepararMolecula", () => {
   it("si comprobar el ámbito falla, avisa como si fuese privada (exige confirmar)", () => {
     const a = sembrar(almacenMemoria(), [molecula("m1", "Mural", "grupo", { tipo: "entity", id: "e1" })]);
     const p = prepararMolecula(a, "m1", "grupo", () => { throw new Error("sin red"); });
