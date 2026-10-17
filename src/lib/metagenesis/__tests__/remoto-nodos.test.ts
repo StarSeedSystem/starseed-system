@@ -183,12 +183,15 @@ describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
 
     it("nadie vivo en ninguna → tablas si existen; si no, bus", () => {
         return elegirFuente(estado([false], "tablas"), estado([false], "bus"));
+<<<<<<< HEAD
     });
     it("bus con 2 vivos y tablas con 1 → bus", () => {
         expect(elegirFuente(estado([true], "tablas"), estado([true, true], "bus"))).toBe("bus");
     });
     it("1 vivo en cada fuente → tablas (igualdad)", () => {
         expect(elegirFuente(estado([true], "tablas"), estado([true], "bus"))).toBe("tablas");
+=======
+>>>>>>> 03a8b624 (salvavidas · RTRTCOL1012Bds: trabajo del agente antes de las puertas (tsc / vitest))
     });
 });
 
