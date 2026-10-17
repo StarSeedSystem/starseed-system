@@ -516,10 +516,15 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
             colas = os.path.join(d, "colas")
             os.makedirs(colas)
             ahora = datetime.datetime.now().timestamp()
+            base_time = datetime.datetime.fromtimestamp(ahora)
             for i in range(3):
-                with open(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), "w") as f:
+                # Create a timestamp i hours ago to ensure the file is within the last 2 days
+                file_time = base_time - datetime.timedelta(hours=i)
+                filename = file_time.strftime("cola-nube-%Y%m%d-%H%M.json")
+                with open(os.path.join(colas, filename), "w") as f:
                     json.dump({"tareas": [{"id": "FLU1014A"}]}, f)
-                os.utime(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), (ahora, ahora))
+                # Set the modification time to match the file_time (so that if the function used mtime, it would also work)
+                os.utime(os.path.join(colas, filename), (file_time.timestamp(), file_time.timestamp()))
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 3)
             self.assertEqual(R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta), "FLU1014A")
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 2)
