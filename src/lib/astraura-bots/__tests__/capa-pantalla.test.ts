@@ -64,10 +64,19 @@ describe("normalizarCapa · rechazos", () => {
     expect(problemasDe(normalizarCapa({ forma: "nota", texto: `usa ${CLAVE}` }))[0]).toMatch(/forma de clave/);
     expect(problemasDe(normalizarCapa({ forma: "nota" }))).toEqual(["Una nota necesita texto."]);
   });
-  it("resaltar y flecha sin objetivo, u objetivo con forma de selector, se rechazan", () => {
-    expect(problemasDe(normalizarCapa({ forma: "resaltar" }))[0]).toMatch(/necesita un objetivo/);
-    expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "div > a[href]" }))[0]).toMatch(/identificador/);
-  });
+it("resaltar y flecha sin objetivo, u objetivo con forma de selector, se rechazan", () => {
+     expect(problemasDe(normalizarCapa({ forma: "resaltar" }))[0]).toMatch(/necesita un objetivo/);
+     expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "div > a[href]" }))[0]).toMatch(/identificador/);
+   });
+
+   it('debe rechazar objetivo vacío (resaltar)', () => {
+     const resultado = normalizarCapa({ 
+       forma: 'resaltar', 
+       objetivo: '' 
+     });
+     expect('problemas' in resultado).toBe(true);
+     expect((resultado as { problemas: string[] }).problemas[0]).toContain('El objetivo no es un identificador de elemento válido');
+   });
 });
 
 describe("apilar y retirar", () => {
@@ -91,7 +100,19 @@ describe("apilar y retirar", () => {
     expect(retirar(antes, "no-existe")).toHaveLength(3);
     expect(antes).toHaveLength(3);
   });
-  it("retirarDeBot quita solo lo de ese bot (al pausarlo nada suyo queda en pantalla)", () => {
-    expect(retirarDeBot([capa("a1"), capa("b1", "bot-b"), capa("a2")], "bot-a").map((c) => c.id)).toEqual(["b1"]);
-  });
+it("retirarDeBot quita solo lo de ese bot (al pausarlo nada suyo queda en pantalla)", () => {
+     expect(retirarDeBot([capa("a1"), capa("b1", "bot-b"), capa("a2")], "bot-a").map((c) => c.id)).toEqual(["b1"]);
+   });
+
+   it('debe devolver el mismo array si se añade menos de 8 capas', () => {
+     const capasIniciales = [
+       capa('capa-1'),
+       capa('capa-2')
+     ];
+     
+     const resultado = apilar(capasIniciales, capa('capa-3'));
+     
+     expect(resultado).toHaveLength(3);
+     expect(resultado.map((c: any) => c.id)).toEqual(['capa-1', 'capa-2', 'capa-3']);
+   });
 });
