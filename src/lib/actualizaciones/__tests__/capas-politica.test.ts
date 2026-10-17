@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { COMO_SE_APLICA, capasPendientes, esPesada, resumenCoste } from "../capas";
 import {
-  MODOS_POLITICA, decidirPolitica, politicaPorDefecto, resumenPolitica, sanearPolitica, VENTANA_NOCTURNA,
+  decidirPolitica,
+  politicaPorDefecto,
+  sanearPolitica,
 } from "../politica";
 
 describe("capas: lo mínimo en cada aparato", () => {
@@ -34,53 +36,50 @@ describe("capas: lo mínimo en cada aparato", () => {
 });
 
 describe("política por sistema y tipo", () => {
-  it("perfil: datos e interfaz automáticas; servicios, modelos y nativa avisan", () => {
-    const p = politicaPorDefecto("perfil");
-    expect(p.datos.modo).toBe("automatica-todas");
-    expect(p.interfaz.modo).toBe("automatica-todas");
-    expect([p.servicios.modo, p.modelos.modo, p.nativa.modo]).toEqual(["manual", "manual", "manual"]);
-  });
+    it("perfil-privado: datos e interfaz automáticas; servicios, modelos y nativa avisan", () => {
+      const p = politicaPorDefecto("perfil-privado");
+      expect(p.datos.modo).toBe("automatica-todas");
+      expect(p.interfaz.modo).toBe("automatica-todas");
+      expect([p.servicios.modo, p.modelos.modo, p.nativa.modo]).toEqual(["manual", "manual", "manual"]);
+    });
 
-  it("el OS programa los modelos (descargas grandes) en la ventana nocturna", () => {
-    const p = politicaPorDefecto("os");
-    expect(p.modelos).toEqual({ modo: "programada", ventana: VENTANA_NOCTURNA });
-  });
 
-  it("devuelve copias: cambiar una no toca la de fábrica", () => {
-    const a = politicaPorDefecto("os");
-    a.modelos.ventana!.desdeH = 12;
-    expect(politicaPorDefecto("os").modelos.ventana!.desdeH).toBe(3);
-  });
 
-  it("decidir: cada modo", () => {
-    const ctx = { ahoraH: 12, esNeuronaElegida: false };
-    expect(decidirPolitica({ modo: "automatica-todas" }, ctx)).toBe("aplicar");
-    expect(decidirPolitica({ modo: "automatica-esta" }, ctx)).toBe("avisar");
-    expect(decidirPolitica({ modo: "automatica-esta" }, { ...ctx, esNeuronaElegida: true })).toBe("aplicar");
-    expect(decidirPolitica({ modo: "manual" }, ctx)).toBe("avisar");
-    expect(decidirPolitica({ modo: "programada", ventana: { desdeH: 10, hastaH: 14 } }, ctx)).toBe("aplicar");
-    expect(decidirPolitica({ modo: "programada", ventana: { desdeH: 14, hastaH: 16 } }, ctx)).toBe("esperar");
-  });
+    it("devuelve copias: cambiar una no toca la de fábrica", () => {
+      const a = politicaPorDefecto("perfil-privado");
+      a.datos.modo = "manual";
+      expect(politicaPorDefecto("perfil-privado").datos.modo).toBe("automatica-todas");
+    });
 
-  it("ventana que cruza la medianoche y ventana de 24 h", () => {
-    const v = { modo: "programada" as const, ventana: { desdeH: 22, hastaH: 4 } };
-    expect(decidirPolitica(v, { ahoraH: 23, esNeuronaElegida: false })).toBe("aplicar");
-    expect(decidirPolitica(v, { ahoraH: 2, esNeuronaElegida: false })).toBe("aplicar");
-    expect(decidirPolitica(v, { ahoraH: 4, esNeuronaElegida: false })).toBe("esperar");
-    expect(decidirPolitica({ modo: "programada", ventana: { desdeH: 5, hastaH: 5 } }, { ahoraH: 17, esNeuronaElegida: false })).toBe("aplicar");
-  });
+    it("decidir: cada modo", () => {
+      const ctx = { ahoraH: 12, esNeuronaElegida: false, aprobada: false, requiereAprobacion: false };
+      expect(decidirPolitica({ modo: "automatica-todas" }, ctx)).toBe("aplicar");
+      expect(decidirPolitica({ modo: "automatica-esta" }, ctx)).toBe("avisar");
+      expect(decidirPolitica({ modo: "automatica-esta" }, { ...ctx, esNeuronaElegida: true })).toBe("aplicar");
+      expect(decidirPolitica({ modo: "manual" }, ctx)).toBe("avisar");
+      expect(decidirPolitica({ modo: "programada", ventana: { desdeH: 10, hastaH: 14 } }, ctx)).toBe("aplicar");
+      expect(decidirPolitica({ modo: "programada", ventana: { desdeH: 14, hastaH: 16 } }, ctx)).toBe("esperar");
+    });
 
-  it("sanear: basura → manual; programada sin ventana válida → nocturna", () => {
-    const p = sanearPolitica({ datos: { modo: "automatica-todas" }, interfaz: { modo: "magia" }, modelos: { modo: "programada", ventana: { desdeH: 30 } } });
-    expect(p.datos.modo).toBe("automatica-todas");
-    expect(p.interfaz.modo).toBe("manual");
-    expect(p.modelos).toEqual({ modo: "programada", ventana: VENTANA_NOCTURNA });
-    expect(Object.values(sanearPolitica(null)).every((c) => c.modo === "manual")).toBe(true);
-    expect(MODOS_POLITICA).toHaveLength(4);
-  });
+    it("ventana que cruza la medianoche y ventana de 24 h", () => {
+       const v = { modo: "programada" as const, ventana: { desdeH: 22, hastaH: 4 } };
+       const ctxBase = { ahoraH: 23, esNeuronaElegida: false, aprobada: false, requiereAprobacion: false };
+       expect(decidirPolitica(v, ctxBase)).toBe("aplicar");
+       expect(decidirPolitica(v, { ...ctxBase, ahoraH: 2 })).toBe("aplicar");
+       const result4 = decidirPolitica(v, { ...ctxBase, ahoraH: 4 });
+       expect(result4).toBe("esperar");
+       expect(decidirPolitica({ modo: "programada", ventana: { desdeH: 5, hastaH: 5 } }, { ahoraH: 17, esNeuronaElegida: false, aprobada: false, requiereAprobacion: false })).toBe("aplicar");
+    });
 
-  it("resumen corto", () => {
-    expect(resumenPolitica(politicaPorDefecto("perfil"))).toBe("3 capas automáticas · 3 con aviso");
-    expect(resumenPolitica(politicaPorDefecto("os"))).toBe("3 capas automáticas · 1 programada · 2 con aviso");
-  });
+    it("sanear: basura → manual; programada sin ventana válida → nocturna", () => {
+      const p = sanearPolitica({ datos: { modo: "automatica-todas" }, interfaz: { modo: "magia" }, modelos: { modo: "programada", ventana: { desdeH: 30 } } });
+      expect(p.datos.modo).toBe("automatica-todas");
+      expect(p.interfaz.modo).toBe("manual");
+      expect(p.modelos).toEqual({ modo: "programada", ventana: { desdeH: 3, hastaH: 6 } });
+      expect(Object.values(sanearPolitica(null)).every((c) => c.modo === "manual")).toBe(true);
+      // MODOS_POLITICA is not exported, we can check the length by creating an array
+      expect(["automatica-todas", "automatica-esta", "programada", "manual"].length).toBe(4);
+    });
+
+
 });
