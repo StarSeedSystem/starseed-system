@@ -1,7 +1,14 @@
+import type { Brain } from "@/lib/brains/brains";
+
+/**
+ * Telepatía del cerebro: vínculos purificados y normalizados.
+ * Módulo puro, sin disco ni red. Contrato: architecture/cerebros-fusion-telepatia.md §5.
+ */
+
 export type DestinoTelepatia =
-  | { tipo: "cerebro"; id: string }
-  | { tipo: "grupo" | "comunidad" | "pagina"; id: string }
-  | { tipo: "cuenta"; id: string };
+  | { tipo: "cerebro"; id: string } // otro cerebro tuyo
+  | { tipo: "grupo" | "comunidad" | "pagina"; id: string } // una entidad
+  | { tipo: "cuenta"; id: string }; // cuenta externa (os_vinculos_externos)
 
 export interface VinculoTelepatico {
   id: string;
@@ -23,81 +30,81 @@ export interface VinculoTelepatico {
 
 export const CONFIGURACIONES_TELEPATIA = ['servers','runtimes','skills','storage','apps','moa','channels','conectores','includes.personalities'] as const;
 
-export function validarVinculo(v: unknown): { ok: true; vinculo: VinculoTelepatico } | { ok: false; motivo: string } {
-  if (v === null || typeof v !== 'object') {
-    return { ok: false, motivo: 'Vinculo no es un objeto' };
-  }
-  const vinculo = v as Record<string, unknown>;
-
-  if (typeof vinculo.id !== 'string' || !vinculo.id.trim()) {
-    return { ok: false, motivo: 'Vinculo.id debe ser una cadena no vacía' };
-  }
-
-  const destino = vinculo.destino as Record<string, unknown> | undefined;
-  if (!destino || typeof destino.tipo !== 'string' || typeof destino.id !== 'string' || !destino.id.trim()) {
-    return { ok: false, motivo: 'Destino inválido' };
-  }
-  const allowedTipos = ['cerebro', 'grupo', 'comunidad', 'pagina', 'cuenta'] as const;
-  if (!allowedTipos.some(t => t === destino.tipo)) {
-    return { ok: false, motivo: `Destino.tipo no válido: ${destino.tipo}` };
-  }
-
-  const alcance = vinculo.alcance as Record<string, unknown> | undefined;
-  if (!alcance || typeof alcance.completo !== 'boolean') {
-    return { ok: false, motivo: 'Alcance inválido' };
-  }
-  const memorias = Array.isArray(alcance.memorias) ? alcance.memorias : [];
-  const carpetas = Array.isArray(alcance.carpetas) ? alcance.carpetas : [];
-  const configuraciones = Array.isArray(alcance.configuraciones) ? alcance.configuraciones : [];
-  if (!memorias.every(m => typeof m === 'string') || !carpetas.every(c => typeof c === 'string') || !configuraciones.every(c => typeof c === 'string')) {
-    return { ok: false, motivo: 'Alcance contiene elementos no string' };
-  }
-  if (!alcance.completo && memorias.length === 0 && carpetas.length === 0 && configuraciones.length === 0) {
-    return { ok: false, motivo: 'Alcance debe tener al menos un elemento cuando no es completo' };
-  }
-  for (const conf of configuraciones) {
-    if (!CONFIGURACIONES_TELEPATIA.some(c => c === conf)) {
-      return { ok: false, motivo: `Configuración no válida en alcance: ${conf}` };
-    }
-  }
-
-  if (!['enviar', 'recibir', 'ambas'].includes(vinculo.direccion as string)) {
-    return { ok: false, motivo: 'Direccion debe ser "enviar", "recibir" o "ambas"' };
-  }
-  if (!['leer', 'escribir'].includes(vinculo.acceso as string)) {
-    return { ok: false, motivo: 'Acceso debe ser "leer" o "escribir"' };
-  }
-  if (typeof vinculo.auto !== 'boolean') {
-    return { ok: false, motivo: 'Auto debe ser booleano' };
-  }
-  if (!['activo', 'pausado', 'pendiente'].includes(vinculo.estado as string)) {
-    return { ok: false, motivo: 'Estado debe ser "activo", "pausado" o "pendiente"' };
-  }
-
-  const esISO = (fecha: unknown) => typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(fecha);
-  if (!esISO(vinculo.creadoEn)) {
-    return { ok: false, motivo: 'Fecha de creación debe ser una cadena ISO válida' };
-  }
-  if (vinculo.expiraEn !== undefined && vinculo.expiraEn !== null && !esISO(vinculo.expiraEn)) {
-    return { ok: false, motivo: 'Fecha de caducidad debe ser ISO o null' };
-  }
-  if (vinculo.ultimaSync !== undefined && vinculo.ultimaSync !== null && !esISO(vinculo.ultimaSync)) {
-    return { ok: false, motivo: 'Ultima sincronizacion debe ser ISO o null' };
-  }
-
-  return { ok: true, vinculo: v as VinculoTelepatico };
+// Obtiene vínculos telepáticos de un cerebro (lectura defensiva).
+export function obtenerVinculos(cerebro: Brain): VinculoTelepatico[] {
+  const raw = ((cerebro?.config as Record<string, unknown>)?.telepatia as VinculoTelepatio[]) ?? [];
+  return raw.filter((v) => v && typeof v === "object");
 }
 
-export function normalizarVinculos(config: Record<string, unknown> | null | undefined): VinculoTelepatico[] {
-  if (!config || typeof config !== 'object') return [];
-  const lista = (config as Record<string, unknown>).telepatia;
-  if (!Array.isArray(lista)) return [];
-  const validos: VinculoTelepatico[] = [];
-  for (const item of lista) {
-    const r = validarVinculo(item);
-    if (r.ok) validos.push(r.vinculo);
+/** Normaliza un vínculo sin mutar el original; descarta lo inválido. */
+export function normalizarVinculo(v: unknown): VinculoTelepatico | null {
+  if (!v || typeof v !== "object") return null;
+  const vo = v as Record<string, unknown>;
+  const id = String(vo.id);
+  if (!id) return null;
+  const tipo = String(vo.tipo);
+  if (!["cerebro", "grupo", "comunidad", "pagina", "cuenta"].includes(tipo)) return null;
+  const destino: DestinoTelepatia = { tipo: tipo as "cerebro" | "grupo" | "comunidad" | "pagina" | "cuenta", id: String(vo.idDestino || vo.id) };
+  const alcance = vo.alcance as Partial<{ completo: boolean; memorias: unknown[]; carpetas: unknown[]; configuraciones: unknown[] }>;
+  const memorias = Array.isArray(alcance?.memorias) ? alcance.memorias.filter((m) => typeof m === "string") : [];
+  const carpetas = Array.isArray(alcance?.carpetas) ? alcance.carpetas.filter((c) => typeof c === "string") : [];
+  const configuraciones = Array.isArray(alcance?.configuraciones) ? alcance.configuraciones.filter((c) => typeof c === "string") : [];
+  const direccion = ["enviar", "recibir", "ambas"].includes(String(vo.direccion)) ? String(vo.direccion) as "enviar" | "recibir" | "ambas" : "ambas";
+  const acceso = ["leer", "escribir"].includes(String(vo.acceso)) ? String(vo.acceso) as "leer" | "escribir" : "leer";
+  const auto = Boolean(vo.auto);
+  const estado = ["activo", "pausado", "pendiente"].includes(String(vo.estado)) ? String(vo.estado) as "activo" | "pausado" | "pendiente" : "activo";
+  const creadoEn = String(vo.creadoEn || new Date().toISOString());
+  const expiraEn = vo.expiraEn ? (typeof vo.expiraEn === "string" ? vo.expiraEn : null) : null;
+  const ultimaSync = vo.ultimaSync ? (typeof vo.ultimaSync === "string" ? vo.ultimaSync : null) : null;
+  return { id, destino, alcance: { completo: Boolean(vo.completo) || false, memorias, carpetas, configuraciones }, direccion, acceso, auto, estado, creadoEn, expiraEn, ultimaSync };
+}
+
+/** Normaliza una lista de vínculos; descarta lo inválido. */
+export function normalizarVinculos(lista: unknown[]): VinculoTelepatico[] {
+  return lista.map(normalizarVinculo).filter((v): v is VinculoTelepatico => v !== null);
+}
+
+/** Valida que el vinculo sea correcto. */
+export function validarVinculo(
+  vinculo: VinculoTelepatio,
+  todosLosCerebros: Brain[],
+  entidades?: { id: string; tipo: string; nombre: string }[]
+): string[] {
+  const errores: string[] = [];
+  switch (vinculo.destino.tipo) {
+    case "cerebro": {
+      const existe = todosLosCerebros.some((c) => c.id === vinculo.destino.id);
+      if (!existe) errores.push(`El cerebro con id ${vinculo.destino.id} no existe`);
+      break;
+    }
+    case "grupo":
+    case "comunidad":
+    case "pagina": {
+      if (!entidades?.some((e) => e.id === vinculo.destino.id && e.tipo === vinculo.destino.tipo)) {
+        errores.push(`La entidad ${vinculo.destino.tipo} con id ${vinculo.destino.id} no existe`);
+      }
+      break;
+    }
+    case "cuenta": {
+      if (!vinculo.destino.id || typeof vinculo.destino.id !== "string") {
+        errores.push("La cuenta debe tener un id");
+      }
+      break;
+    }
   }
-  return validos;
+  if (!vinculo.alcance.completo) {
+    if (vinculo.alcance.memorias.some((m) => typeof m !== "string" || !m.trim())) errores.push("Una memoria no válida");
+    if (vinculo.alcance.carpetas.some((c) => typeof c !== "string" || !c.trim())) errores.push("Una carpeta no válida");
+    if (vinculo.alcance.configuraciones.some((c) => typeof c !== "string" || !c.trim())) errores.push("Una configuración no válida");
+  }
+  if (!["enviar", "recibir", "ambas"].includes(vinculo.direccion)) errores.push("Dirección no válida");
+  if (!["leer", "escribir"].includes(vinculo.acceso)) errores.push("Acceso no válido");
+  if (typeof vinculo.auto !== "boolean") errores.push("Auto no booleano");
+  if (!["activo", "pausado", "pendiente"].includes(vinculo.estado)) errores.push("Estado no válido");
+  if (!vinculo.creadoEn) errores.push("Falta creadoEn");
+  if (vinculo.expiraEn && typeof vinculo.expiraEn !== "string") errores.push("ExpiraEn no válido");
+  if (vinculo.ultimaSync && typeof vinculo.ultimaSync !== "string") errores.push("UltimaSync no válida");
+  return errores;
 }
 
 export function conVinculo(config: Record<string, unknown>, v: VinculoTelepatico): Record<string, unknown> {
@@ -205,4 +212,46 @@ export function planSincronizacion(
   }
 
   return ops;
+}
+
+/** Destino en palabras para UI. */
+export function destinoEnPalabras(vinculo: VinculoTelepatio, cerebroMap: Record<string, Brain>, entidadesMap?: Record<string, { tipo: string; nombre: string }>): string {
+  if (vinculo.destino.tipo === "cerebro") {
+    const otro = cerebroMap[vinculo.destino.id];
+    return otro?.name || `Cerebro ${vinculo.destino.id.substring(0, 8)}...`;
+  }
+  if (["grupo", "comunidad", "pagina"].includes(vinculo.destino.tipo)) {
+    const ent = entidadesMap?.[vinculo.destino.id];
+    return ent ? `${vinculo.destino.tipo} ${ent.nombre}` : `${vinculo.destino.tipo} ${vinculo.destino.id.substring(0, 8)}...`;
+  }
+  if (vinculo.destino.tipo === "cuenta") {
+    return `Cuenta externa (${vinculo.destino.id})`;
+  }
+  return vinculo.destino.id;
+}
+
+/** Alcance resumido para UI. */
+export function alcanceResumido(alcance: { completo: boolean; memorias: string[]; carpetas: string[]; configuraciones: string[] }): string {
+  if (alcance.completo) return "Cerebro completo";
+  const partes: string[] = [];
+  if (alcance.memorias.length) partes.push(`${alcance.memorias.length} memoria${alcance.memorias.length === 1 ? "" : "s"}`);
+  if (alcance.carpetas.length) partes.push(`${alcance.carpetas.length} carpeta${alcance.carpetas.length === 1 ? "" : "s"}`);
+  if (alcance.configuraciones.length) partes.push(`${alcance.configuraciones.length} configuración${alcance.configuraciones.length === 1 ? "" : "s"}`);
+  return partes.length ? partes.join(", ") : "Nada seleccionado";
+}
+
+/** Estado con motivo para UI. */
+export function estadoConMotivo(vinculo: VinculoTelepatio): { estado: string; motivo: string } {
+  const hoy = new Date();
+  let motivo = "";
+  if (vinculo.estado === "pausado") motivo = "Sincronización pausada manualmente";
+  else if (vinculo.estado === "pendiente") motivo = "Esperando aceptación del propietario";
+  else if (vinculo.expiraEn && new Date(vinculo.expiraEn) < hoy) {
+    motivo = `Expiró hace ${vinculo.expiraEn}`;
+    return { estado: "caducado", motivo };
+  }
+  if (vinculo.ultimaSync && new Date(vinculo.ultimaSync) < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
+    motivo = motivo ? motivo + ", última sync hace ${vinculo.ultimaSync}" : `Última sync hace ${vinculo.ultimaSync}`;
+  }
+  return { estado: vinculo.estado, motivo: motivo || "Activo y sincronizando" };
 }
