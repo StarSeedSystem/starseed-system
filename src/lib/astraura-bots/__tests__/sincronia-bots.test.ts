@@ -1,4 +1,4 @@
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect, vi, afterEach } from 'vitest';
 import { fusionarBots, suscribirBotsEntidad, abiertosEnEstaNeurona, marcarAbierto, type BotSync } from "../sincronia-bots";
 
 const mockStorage = {
@@ -273,9 +273,128 @@ describe("suscribirBotsEntidad", () => {
 });
 
 describe("abiertosEnEstaNeurona", () => {
-  // tests will be added here
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test("debe devolver un array vacío si el almacenamiento devuelve null", () => {
+    const storage = mockStorage;
+    storage.getItem.mockReturnValue(null);
+
+    const resultado = abiertosEnEstaNeurona(storage);
+
+    expect(resultado).toEqual([]);
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+
+  test("debe devolver un array vacío si el almacenamiento devuelve un string que no es JSON", () => {
+    const storage = mockStorage;
+    storage.getItem.mockReturnValue("no es json");
+
+    const resultado = abiertosEnEstaNeurona(storage);
+
+    expect(resultado).toEqual([]);
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+
+  test("debe devolver un array vacío si el almacenamiento devuelve un JSON que no es un array", () => {
+    const storage = mockStorage;
+    storage.getItem.mockReturnValue(JSON.stringify({}));
+
+    const resultado = abiertosEnEstaNeurona(storage);
+
+    expect(resultado).toEqual([]);
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+
+  test("debe devolver el array de strings si el almacenamiento devuelve un JSON válido", () => {
+    const storage = mockStorage;
+    const valor = ["id1", "id2"];
+    storage.getItem.mockReturnValue(JSON.stringify(valor));
+
+    const resultado = abiertosEnEstaNeurona(storage);
+
+    expect(resultado).toEqual(valor);
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+
+  test("debe filtrar los valores que no son strings", () => {
+    const storage = mockStorage;
+    const valor = ["id1", 123, "id2"];
+    storage.getItem.mockReturnValue(JSON.stringify(valor));
+
+    const resultado = abiertosEnEstaNeurona(storage);
+
+    expect(resultado).toEqual(["id1", "id2"]);
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
 });
 
 describe("marcarAbierto", () => {
-  // tests will be added here
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test("no hace nada si window es undefined", () => {
+    // We cannot easily mock window being undefined in this environment, but the function checks for it.
+    // We'll skip this test for now, or we can try to mock it.
+    // Since we are in a Node environment, window is undefined, so the function should return early.
+    const storage = mockStorage;
+    marcarAbierto("id1", true, storage);
+    expect(storage.getItem).not.toHaveBeenCalled();
+    expect(storage.setItem).not.toHaveBeenCalled();
+  });
+
+  test("llama a getItem y setItem del almacenamiento cuando se agrega un nuevo id", () => {
+    const storage = mockStorage;
+    storage.getItem.mockReturnValue(null); // Nothing stored
+
+    marcarAbierto("id1", true, storage);
+
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["id1"]));
+  });
+
+  test("llama a getItem y setItem del almacenamiento cuando se agrega un id que ya existe (no debe duplicar)", () => {
+    const storage = mockStorage;
+    const almacenado = JSON.stringify(["id1", "id2"]);
+    storage.getItem.mockReturnValue(almacenado);
+
+    marcarAbierto("id1", true, storage);
+
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["id1", "id2"])); // Should not add duplicate
+  });
+
+  test("llama a getItem y setItem del almacenamiento cuando se elimina un id existente", () => {
+    const storage = mockStorage;
+    const almacenado = JSON.stringify(["id1", "id2", "id3"]);
+    storage.getItem.mockReturnValue(almacenado);
+
+    marcarAbierto("id2", false, storage);
+
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["id1", "id3"]));
+  });
+
+  test("llama a getItem y setItem del almacenamiento cuando se elimina un id que no existe", () => {
+    const storage = mockStorage;
+    const almacenado = JSON.stringify(["id1", "id2"]);
+    storage.getItem.mockReturnValue(almacenado);
+
+    marcarAbierto("id3", false, storage);
+
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["id1", "id2"])); // No change
+  });
+
+  test("maneja correctamente el almacenamiento corrupto (no JSON)", () => {
+    const storage = mockStorage;
+    storage.getItem.mockReturnValue("not json");
+
+    marcarAbierto("id1", true, storage);
+
+    expect(storage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(storage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", JSON.stringify(["id1"]));
+  });
 });
