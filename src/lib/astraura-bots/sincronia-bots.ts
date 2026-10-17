@@ -1,6 +1,8 @@
 import type { Bot, Dueno } from "./tipos";
-import { createClient } from "@/utils/supabase/client";
-interface BotSync extends Bot { actualizado: number; }
+import { onTableChange, type RealtimePayload } from "@/lib/realtime/realtime";
+
+export interface BotSync extends Bot { actualizado: number; }
+
 function esBotValido(b: unknown): b is BotSync {
   if (!b || typeof b !== "object" || Array.isArray(b)) return false;
   const bt = b as BotSync;
@@ -18,6 +20,7 @@ function esBotValido(b: unknown): b is BotSync {
   }
   return typeof bt.actualizado === "number" && Number.isFinite(bt.actualizado) && bt.actualizado >= 0;
 }
+
 export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
   const rv = r.filter(esBotValido);
   const lm = new Map(l.map(b => [b.id, b]));
@@ -35,16 +38,12 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
   }
   return res;
 }
+
 export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "D"; r: BotSync | null; a: BotSync | null }) => void) {
-  const s = createClient();
-  let w = false;
-  const ch = s.channel("astraura-bots-realtime").on("postgres_changes", { event: "*", schema: "public", table: "astraura_bots" }, (p) => {
+  const ch = onTableChange("astraura_bots", { filter: e.map(entityId => `dueno.id=eq.${entityId}`).join(' or '), event: "*" }, (p) => {
     const pp = p as any;
     if (pp.error) {
-      if (!w) {
-        console.warn("Tabla astraura_bots no encontrada en Supabase. La suscripción a bots de entidad está inactiva.");
-        w = true;
-      }
+      console.warn("Tabla astraura_bots no encontrada en Supabase. La suscripción a bots de entidad está inactiva.");
       return;
     }
     const reg = pp.nuevo as BotSync | null;
@@ -54,9 +53,10 @@ export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "
     const { dueno } = b;
     if (!dueno || !e.includes(dueno.id) || !["grupo", "comunidad", "pagina"].includes(dueno.tipo)) return;
     c({ t: p.eventType as "INSERT" | "U" | "D", r: reg, a: ant });
-  }).subscribe();
-  return () => s.removeChannel(ch);
+  });
+  return () => ch();
 }
+
 export function abiertosEnEstaNeurona(): string[] {
   if (typeof window === "undefined") return [];
   const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
@@ -67,6 +67,7 @@ export function abiertosEnEstaNeurona(): string[] {
     return [];
   } catch { return []; }
 }
+
 export function marcarAbierto(b: string, a: boolean): void {
   if (typeof window === "undefined") return;
   const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
