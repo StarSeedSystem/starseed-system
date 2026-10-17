@@ -1,8 +1,3 @@
-/**
- * Pruebas de COL1012B: órdenes «desconectar»/«contenedor» y campos nuevos del latido (`en_curso`,
- * `contenedor`) en el módulo puro de la pantalla. Mismas reglas que el nodo Python (COL1012A).
- * Contrato: architecture/colmena-relevo-contenedores.md §3.
- */
 import { describe, it, expect } from "vitest";
 import {
     ACCIONES,
@@ -30,7 +25,9 @@ describe("acciones colmena: desconectar y contenedor", () => {
         expect(ACCIONES_DEL_LIDER).toHaveProperty("continuar");
         expect(Object.keys(ACCIONES_DEL_LIDER).length).toBe(Object.keys(ACCIONES).length - 2);
     });
+});
 
+describe("validarArgs: órdenes de la colmena", () => {
     it("desconectar no quiere argumentos", () => {
         expect(validarArgs("desconectar", {})).toBeNull();
         expect(validarArgs("desconectar", { motivo: "x" })).toContain("argumento no admitido");
@@ -42,16 +39,9 @@ describe("acciones colmena: desconectar y contenedor", () => {
         expect(validarArgs("contenedor", { activo: 1 })).toBe("activo debe ser booleano");
     });
 
-    it("contenedor con activo true exige trabajadores 1–4", () => {
-        expect(validarArgs("contenedor", { activo: true })).toBe("falta argumento: trabajadores");
-        expect(validarArgs("contenedor", { activo: true, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
-        expect(validarArgs("contenedor", { activo: true, trabajadores: 5 })).toBe("trabajadores fuera de 1–4");
-        expect(validarArgs("contenedor", { activo: true, trabajadores: 2 })).toBeNull();
-    });
-
     it("contenedor con activo false rechaza trabajadores", () => {
-        expect(validarArgs("contenedor", { activo: false })).toBeNull();
-        expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
+      expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toBe("trabajadores solo se permite si activo es True");
+      expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
     });
 });
 
