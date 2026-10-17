@@ -153,6 +153,14 @@ export const BLOCK_KINDS: BlockKindDef[] = [
     connect: "Indica nombre del widget + configuración.",
   },
   {
+    kind: "protomolecula",
+    category: "herramientas",
+    label: "Protomolécula",
+    icon: "Atom",
+    blurb: "Bloque de creación y edición universal (átomos con parámetros, dictado en tiempo real).",
+    connect: "Selecciona una molécula del catálogo.",
+  },
+  {
     kind: "browser",
     category: "medios",
     label: "Navegador",
@@ -194,8 +202,8 @@ export function defaultBlock(kind: BlockKind, index = 0): CanvasBlock {
     kind,
     x: 40 + (index % 5) * 36,
     y: 40 + (index % 5) * 36,
-    w: kind === "browser" || kind === "image" ? 360 : 280,
-    h: kind === "browser" ? 260 : kind === "text" ? 180 : 200,
+    w: kind === "browser" || kind === "image" ? 360 : kind === "protomolecula" ? 420 : 280,
+    h: kind === "browser" ? 260 : kind === "text" ? 180 : kind === "protomolecula" ? 360 : 200,
     data: {},
     title: def?.label,
   };

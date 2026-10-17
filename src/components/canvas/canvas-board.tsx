@@ -44,6 +44,7 @@ import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePrompt } from "@/components/ui/confirm-dialog";
+import { BloquePizarraProtomolecula } from "@/components/protomolecula/bloque-pizarra";
 import {
   Plus,
   Save,
@@ -1785,34 +1786,35 @@ export default function CanvasBoard({
             })}
           </svg>
 
-          {visibleBlocks.map((b) => (
-            <BlockCard
-              key={b.id}
-              block={b}
-              editing={editingId === b.id}
-              selected={selectedId === b.id}
-              vaults={vaults}
-              memories={memories}
-              connectMode={connectMode}
-              connectActive={connectFrom === b.id}
-              memoryView={isMemoryView}
-              onSelect={() => selectBlock(b.id)}
-              onConnectClick={() => onBlockConnectClick(b.id)}
-              onEditToggle={() => {
-                const opening = editingId !== b.id;
-                setEditingId(opening ? b.id : null);
-                selectBlock(b.id);
-                if (opening && (b.kind === "vault" || b.kind === "memory")) ensureRefData();
-              }}
-              onRemove={() => removeBlock(b.id)}
-              onGroup={() => setBlockGroup(b.id)}
-              onPointerDownMove={(e) => onPointerDownBlock(e, b, "move")}
-              onPointerDownResize={(e) => onPointerDownBlock(e, b, "resize")}
-              onData={(patch) => updateBlockData(b.id, patch)}
-              onTitle={(t) => updateBlock(b.id, { title: t })}
-              onPickFile={(e) => onPickFile(b.id, e)}
-            />
-          ))}
+           {visibleBlocks.map((b) => (
+             <BlockCard
+               key={b.id}
+               block={b}
+               editing={editingId === b.id}
+               selected={selectedId === b.id}
+               vaults={vaults}
+               memories={memories}
+               connectMode={connectMode}
+               connectActive={connectFrom === b.id}
+               memoryView={isMemoryView}
+               onSelect={() => selectBlock(b.id)}
+               onConnectClick={() => onBlockConnectClick(b.id)}
+               onEditToggle={() => {
+                 const opening = editingId !== b.id;
+                 setEditingId(opening ? b.id : null);
+                 selectBlock(b.id);
+                 if (opening && (b.kind === "vault" || b.kind === "memory")) ensureRefData();
+               }}
+               onRemove={() => removeBlock(b.id)}
+               onGroup={() => setBlockGroup(b.id)}
+               onPointerDownMove={(e) => onPointerDownBlock(e, b, "move")}
+               onPointerDownResize={(e) => onPointerDownBlock(e, b, "resize")}
+               onData={(patch) => updateBlockData(b.id, patch)}
+               onTitle={(t) => updateBlock(b.id, { title: t })}
+               onPickFile={(e) => onPickFile(b.id, e)}
+               edges={edges}
+             />
+           ))}
         </div>
         </div>
 
@@ -2009,6 +2011,7 @@ function BlockCard({
   onData,
   onTitle,
   onPickFile,
+  edges,
 }: {
   block: CanvasBlock;
   editing: boolean;
@@ -2028,9 +2031,14 @@ function BlockCard({
   onData: (patch: Record<string, any>) => void;
   onTitle: (t: string) => void;
   onPickFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  edges: CanvasEdge[];
 }) {
   const def = blockKindDef(block.kind);
   const locked = !!block.locked;
+  // Compute incoming and outgoing edges for this block
+  const aristasEntrantes = edges.filter(e => e.to === block.id);
+  const aristasSalientes = edges.filter(e => e.from === block.id);
+
   return (
     <div
       data-block={block.id}
@@ -2117,9 +2125,21 @@ function BlockCard({
       {/* Cuerpo */}
       <div className="flex-1 min-h-0 overflow-auto p-2 text-xs text-white/80">
         {editing ? (
-          <BlockEditor block={block} vaults={vaults} memories={memories} onData={onData} onPickFile={onPickFile} />
+          <BlockEditor
+            block={block}
+            vaults={vaults}
+            memories={memories}
+            onData={onData}
+            onPickFile={onPickFile}
+            aristasEntrantes={aristasEntrantes}
+            aristasSalientes={aristasSalientes}
+          />
         ) : (
-          <BlockPreview block={block} />
+          <BlockPreview
+            block={block}
+            aristasEntrantes={aristasEntrantes}
+            aristasSalientes={aristasSalientes}
+          />
         )}
       </div>
 
@@ -2141,9 +2161,91 @@ function BlockCard({
 }
 
 // ---- Vista (no edición) ----------------------------------------------------
-function BlockPreview({ block }: { block: CanvasBlock }) {
+function BlockPreview({ block, aristasEntrantes, aristasSalientes }: { block: CanvasBlock; aristasEntrantes: CanvasEdge[]; aristasSalientes: CanvasEdge[] }) {
   const d = block.data || {};
   switch (block.kind) {
+    case "protomolecula": {
+      const moleculaId = d.moleculaId ?? "";
+      return (
+        <BloquePizarraProtomolecula
+          moleculaId={moleculaId}
+          aristasEntrantes={aristasEntrantes}
+          aristasSalientes={aristasSalientes}
+        />
+      );
+    }
+    case "text":
+      return d.text ? (
+        <div className="whitespace-pre-wrap text-white/85">{d.text}</div>
+      ) : (
+        <Empty label="Nota vacía — pulsa el lápiz para escribir." />
+      );
+    case "image":
+      return d.url ? (
+        <FilePreview file={{ url: d.url, name: block.title ?? d.fileName, type: "imagen" } as FileLike} context="pizarra" />
+      ) : (
+        <Empty label="Pega una URL de imagen." />
+      );
+    case "browser":
+      return d.url ? (
+        <iframe
+          src={d.url}
+          title={block.title ?? "navegador"}
+          className="w-full h-full min-h-[120px] rounded-md border border-white/10 bg-white"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <Empty label="Pega una URL embebible." />
+      );
+    case "link":
+      return d.url ? (
+        <FilePreview file={{ url: d.url, name: block.title, type: "enlace" } as FileLike} context="pizarra" />
+      ) : (
+        <Empty label="Pega un enlace." />
+      );
+    case "file":
+      return d.fileName || d.url ? (
+        <FilePreview file={{ url: d.url, name: d.fileName ?? block.title, size: d.size } as FileLike} context="pizarra" />
+      ) : (
+        <Empty label="Sube un archivo o pega su URL." />
+      );
+    case "vault":
+      return d.name ? (
+        <div className="inline-flex items-center gap-1.5 text-white/85">
+          <Archive className="w-3.5 h-3.5 text-amber-300" /> {d.name}
+        </div>
+      ) : (
+        <Empty label="Selecciona un baúl." />
+      );
+    case "memory":
+      return d.name ? (
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 text-white/85">
+            <Brain className="w-3.5 h-3.5 text-fuchsia-300" /> {d.name}
+          </div>
+          {d.content && <div className="text-[10px] text-white/50 line-clamp-4 whitespace-pre-wrap">{d.content}</div>}
+        </div>
+      ) : (
+        <Empty label="Selecciona una memoria." />
+      );
+    case "app":
+    case "widget":
+      return d.name ? (
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 text-white/85">
+            {block.kind === "app" ? <AppWindow className="w-3.5 h-3.5 text-amber-300" /> : <LayoutGrid className="w-3.5 h-3.5 text-fuchsia-300" />}
+            {d.name}
+          </div>
+          {d.config && <pre className="text-[10px] text-white/45 whitespace-pre-wrap break-all">{d.config}</pre>}
+        </div>
+      ) : (
+        <Empty label={`Indica el nombre del ${block.kind === "app" ? "app/programa" : "widget"}.`} />
+      );
+    default:
+      return <Empty label="Sin contenido." />;
+  }
+}
     case "text":
       return d.text ? (
         <div className="whitespace-pre-wrap text-white/85">{d.text}</div>
@@ -2228,15 +2330,137 @@ function BlockEditor({
   memories,
   onData,
   onPickFile,
+  aristasEntrantes,
+  aristasSalientes,
 }: {
   block: CanvasBlock;
   vaults: VaultRef[];
   memories: MemoryRef[];
   onData: (patch: Record<string, any>) => void;
   onPickFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  aristasEntrantes: CanvasEdge[];
+  aristasSalientes: CanvasEdge[];
 }) {
   const d = block.data || {};
   switch (block.kind) {
+    case "protomolecula": {
+      const moleculaId = d.moleculaId ?? "";
+      return (
+        <BloquePizarraProtomolecula
+          moleculaId={moleculaId}
+          aristasEntrantes={aristasEntrantes}
+          aristasSalientes={aristasSalientes}
+        />
+      );
+    }
+    case "text":
+      return (
+        <Textarea
+          autoFocus
+          value={d.text ?? ""}
+          onChange={(e) => onData({ text: e.target.value })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="Escribe tu nota, idea o markdown…"
+          className="w-full h-full min-h-[100px] bg-white/5 text-xs resize-none"
+        />
+      );
+    case "image":
+      return (
+        <Input
+          autoFocus
+          value={d.url ?? ""}
+          onChange={(e) => onData({ url: e.target.value })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="https://…/imagen.png"
+          className="bg-white/5 text-xs"
+        />
+      );
+    case "link":
+      return (
+        <Input
+          autoFocus
+          value={d.url ?? ""}
+          onChange={(e) => onData({ url: e.target.value })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="https://… (interno o externo)"
+          className="bg-white/5 text-xs"
+        />
+      );
+    case "browser":
+      return (
+        <div className="space-y-1.5" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <Input
+            autoFocus
+            value={d.url ?? ""}
+            onChange={(e) => onData({ url: e.target.value })}
+            placeholder="https://… (URL embebible)"
+            className="bg-white/5 text-xs"
+          />
+          <p className="text-[10px] text-white/35">Se incrusta con sandbox. Algunos sitios bloquean el embebido.</p>
+        </div>
+      );
+    case "file":
+      return (
+        <div className="space-y-2" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <label className="block">
+            <input type="file" className="hidden" onChange={onPickFile} />
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 text-amber-100 text-[11px] px-2.5 py-1.5 cursor-pointer hover:bg-amber-500/10">
+              <Upload className="w-3.5 h-3.5" /> Subir archivo
+            </span>
+          </label>
+          <Input
+            value={d.url ?? ""}
+            onChange={(e) => onData({ url: e.target.value })}
+            placeholder="…o pega una URL de archivo"
+            className="bg-white/5 text-xs"
+          />
+          {d.fileName && <div className="text-[10px] text-white/50">Seleccionado: {d.fileName}</div>}
+        </div>
+      );
+    case "vault":
+      return (
+        <Picker
+          items={vaults.map((v) => ({ id: v.id, name: v.name }))}
+          selectedId={d.vaultId}
+          emptyLabel="Sin baúles. Crea uno en Baúles."
+          onPick={(it) => onData({ vaultId: it.id, name: it.name })}
+        />
+      );
+    case "memory":
+      return (
+        <Picker
+          items={memories.map((m) => ({ id: m.id, name: m.name, content: m.content }))}
+          selectedId={d.memoryId}
+          emptyLabel="Sin memorias disponibles."
+          onPick={(it) => onData({ memoryId: it.id, name: it.name, content: (it as any).content ?? "" })}
+        />
+      );
+    case "app":
+    case "widget":
+      return (
+        <div className="space-y-1.5" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <Input
+            autoFocus
+            value={d.name ?? ""}
+            onChange={(e) => onData({ name: e.target.value })}
+            placeholder={block.kind === "app" ? "Nombre del app/programa" : "Nombre del widget"}
+            className="bg-white/5 text-xs"
+          />
+          <Textarea
+            value={d.config ?? ""}
+            onChange={(e) => onData({ config: e.target.value })}
+            placeholder="Configuración (ruta, comando, params, JSON…)"
+            className="bg-white/5 text-xs min-h-[60px] resize-none"
+          />
+        </div>
+      );
+    default:
+      return <Empty label="Sin editor para este tipo." />;
+  }
+}
     case "text":
       return (
         <Textarea
@@ -2505,6 +2729,88 @@ function PropertiesData({
 }) {
   const d = block.data || {};
   switch (block.kind) {
+    case "protomolecula": {
+      return (
+        <div className="space-y-1">
+          <label className="text-[10px] uppercase tracking-wider text-amber-200/60">Molécula ID</label>
+          <Input
+            value={d.moleculaId ?? ""}
+            onChange={(e) => onData({ moleculaId: e.target.value })}
+            placeholder="ID de la molécula"
+            className="h-8 bg-white/5 text-xs"
+          />
+        </div>
+      );
+    }
+    case "text":
+      return (
+        <Textarea
+          value={d.text ?? ""}
+          onChange={(e) => onData({ text: e.target.value })}
+          placeholder="Texto / nota / markdown…"
+          className="bg-white/5 text-xs min-h-[90px] resize-none"
+        />
+      );
+    case "image":
+    case "link":
+    case "browser":
+      return (
+        <Input
+          value={d.url ?? ""}
+          onChange={(e) => onData({ url: e.target.value })}
+          placeholder="https://…"
+          className="h-8 bg-white/5 text-xs"
+        />
+      );
+    case "file":
+      return (
+        <div className="space-y-1.5">
+          <Input
+            value={d.fileName ?? ""}
+            onChange={(e) => onData({ fileName: e.target.value })}
+            placeholder="Nombre del archivo"
+            className="h-8 bg-white/5 text-xs"
+          />
+          <Input
+            value={d.url ?? ""}
+            onChange={(e) => onData({ url: e.target.value })}
+            placeholder="URL del archivo"
+            className="h-8 bg-white/5 text-xs"
+          />
+        </div>
+      );
+    case "vault":
+    case "memory":
+      return (
+        <Input
+          value={d.name ?? ""}
+          onChange={(e) => onData({ name: e.target.value })}
+          placeholder={block.kind === "vault" ? "Nombre del baúl" : "Nombre de la memoria"}
+          className="h-8 bg-white/5 text-xs"
+        />
+      );
+    case "app":
+    case "widget":
+      return (
+        <div className="space-y-1.5">
+          <Input
+            value={d.name ?? ""}
+            onChange={(e) => onData({ name: e.target.value })}
+            placeholder={block.kind === "app" ? "Nombre del app/programa" : "Nombre del widget"}
+            className="h-8 bg-white/5 text-xs"
+          />
+          <Textarea
+            value={d.config ?? ""}
+            onChange={(e) => onData({ config: e.target.value })}
+            placeholder="Configuración (ruta, comando, params, JSON…)"
+            className="bg-white/5 text-xs min-h-[60px] resize-none"
+          />
+        </div>
+      );
+    default:
+      return <p className="text-[11px] text-white/35 italic">Sin datos editables para este tipo.</p>;
+  }
+}
     case "text":
       return (
         <Textarea
