@@ -65,19 +65,18 @@ describe("estaciones · rele de salas", () => {
     expect(salas.presencia(tema)).toBe(2);
   });
 
-    it("debería no reenviar al emisor en difundir", () => {
-      const salas = crearSalas({ maxBytes: 100 });
-      const tema = "estacion-difusion:1";
-      const emisor = {};
-      const receptor = {};
-      salas.entrar(tema, emisor);
-      salas.entrar(tema, receptor);
-      // asumimos que difundir devuelve un array de conexiones que deben recibir el mensaje
-      const resultado = salas.difundir(tema, '{"t":"est", "hola":1}', emisor);
-      // resultado debería contener al receptor pero no al emisor
-      expect(resultado).toContain(receptor);
-      expect(resultado).not.toContain(emisor);
-    });
+  it("debería no reenviar al emisor en difundir", () => {
+    const salas = crearSalas({ maxBytes: 100 });
+    const tema = "estacion-difusion:1";
+    const emisor = {};
+    const receptor = {};
+    salas.entrar(tema, emisor);
+    salas.entrar(tema, receptor);
+    // asumimos que difundir devuelve un array de conexiones que deben recibir el mensaje
+    const resultado = salas.difundir(tema, '{"t":"est", "hola":1}', emisor);
+    // resultado debería contener al receptor pero no al emisor
+    expect(resultado).toContain(receptor);
+    expect(resultado).not.toContain(emisor);
   });
 
   it("debería descartar texto no string en difundir", () => {
@@ -134,5 +133,4 @@ describe("estaciones · rele de salas", () => {
     expect(salas.temaDe(conexion)).toBe(tema);
     salas.salir(conexion);
     expect(salas.temaDe(conexion)).toBeUndefined();
-  });
-});
+;});});
