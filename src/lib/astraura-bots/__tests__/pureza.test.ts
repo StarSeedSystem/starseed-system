@@ -22,11 +22,18 @@ describe("núcleo puro de los bots de Astraura", () => {
     expect(src).not.toMatch(/\b(Date\.now|performance\.now|Math\.random|new Date)\b/);
     expect(src).not.toMatch(/\beval\s*\(|new Function\s*\(|import\s*\(/);
   });
-  it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
-    const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
-    for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
-  });
-});
+   it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
+     const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
+     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
+   });
+
+   it("los conectores existen y no están vacíos", () => {
+     const CONECTORES = ["correo", "sensores", "aparatos"] as const;
+     for (const c of CONECTORES) {
+       if (NUCLEO.includes(c)) expect(leer(c).split("\n").length).toBeGreaterThan(0);
+     }
+   });
+ });
 
 describe("tipos", () => {
   it("los sentidos íntimos son sentidos y no se repiten", () => {
