@@ -33,6 +33,14 @@ export {
 } from "@/lib/aurora/stt-oss/opt-in";
 
 export {
+  // Corrector por glosario (voz fusionada)
+  glosarioBase,
+  corregirConGlosario,
+  type CambioGlosario,
+  type ResultadoGlosario,
+} from "@/lib/aurora/stt-oss/glosario-oido";
+
+export {
   // Motor de oído (registro + elector)
   MOTORES_OIDO,
   elegirOido,

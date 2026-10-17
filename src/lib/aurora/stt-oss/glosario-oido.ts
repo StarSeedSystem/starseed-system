@@ -20,8 +20,8 @@ function lev(a: string, b: string): number {
 }
 function distNorm(original: string, candidato: string): number { const mx = Math.max(original.length, candidato.length); return mx === 0 ? 0 : lev(original, candidato) / mx; }
 
-export function glosarioBase(): string[] {
-  return ["Astraura", "StarSeed", "Genesis", "MetaGenesis", "PoliGenesis", "ProtoGenesis", "Aurora", "Hermes"];
+export function glosarioBase(nombresExtra: string[] = []): string[] {
+  return ["Astraura", "StarSeed", "Genesis", "MetaGenesis", "PoliGenesis", "ProtoGenesis", "Aurora", "Hermes", ...nombresExtra];
 }
 
 export function corregirConGlosario(texto: string, glosario: string[], idioma: string = "es"): ResultadoGlosario {
