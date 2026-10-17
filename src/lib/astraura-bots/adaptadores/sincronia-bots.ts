@@ -76,7 +76,7 @@ export function abiertosEnEstaNeurona(): string[] {
   try {
     const bruto = window.localStorage.getItem(CLAVE_ABIERTOS);
     return bruto === null ? [] : Array.isArray(JSON.parse(bruto)) 
-      ? JSON.parse(bruto) : [];
+      ? JSON.parse(bruto).filter((item): item is string => typeof item === "string") : [];
   } catch { return []; }
 }
 
@@ -84,18 +84,17 @@ export function marcarAbierto(botId: string, abierto: boolean): void {
   if (typeof window === "undefined") return;
   try {
     const abiertos = abiertosEnEstaNeurona();
+    let nuevosAbiertos: string[];
     if (abierto) {
-      if (!abiertos.includes(botId)) {
-        window.localStorage.setItem(
-          CLAVE_ABIERTOS,
-          JSON.stringify([...abiertos, botId])
-        );
-      }
+      // Add botId if not present
+      nuevosAbiertos = [...new Set([...abiertos, botId])];
     } else {
-      window.localStorage.setItem(
-        CLAVE_ABIERTOS,
-        JSON.stringify(abiertos.filter(id => id !== botId))
-      );
+      // Remove botId if present
+      nuevosAbiertos = abiertos.filter(id => id !== botId);
     }
+    window.localStorage.setItem(
+      CLAVE_ABIERTOS,
+      JSON.stringify(nuevosAbiertos)
+    );
   } catch { /* best effort */ }
 }
