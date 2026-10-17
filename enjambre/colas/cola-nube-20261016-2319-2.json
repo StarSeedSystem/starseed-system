@@ -1,0 +1,24 @@
+{
+ "ola": "oracle-20261016",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "G3D1011E",
+   "ola": "Ola 1011D · Generación 3D local optimizada por destino: Pixal3D e image-to-3dlab para la Protomolécula, los bots y los avatares de perfiles y páginas",
+   "titulo": "«Imagen → 3D» en la Protomolécula, el editor de avatares y el cuerpo del bot",
+   "archivos": [
+    "src/components/avatares/generar-3d.tsx",
+    "src/lib/avatares/adaptadores/use-generar-3d.ts",
+    "src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md` (léelo ENTERO; el §1 dice qué hay de verdad en cada herramienta y el §11 es esta ola). El núcleo puro YA está escrito y probado (76 pruebas) y NO se modifica: `src/lib/avatares/adn/` — en especial `optimizacion.ts` (planOptimizacion, resolucionPara, siguienteIntento, lodPara, capacidadesDe), `motores.ts` (MOTORES_3D, REQUISITOS_3D) y `canalizacion.ts` (planificar con `prioridad`, usoPermitido). Úsalos con sus nombres reales. Otra cola (cola-avatares-1011) hace el servicio `servicios/taller-3d/taller.py` (tarea AV1011F) y el editor (AV1011B): si ya existen, engánchate a ellos; si no, deja tu pieza con la interfaz descrita aquí y dilo en el resumen (no los crees tú). Reglas: «basta de ilusiones» (si algo no puede correr en esta neurona, se dice por qué; nada simulado); la Mac de Alex tiene 8 GB y la A1 no tiene GPU: ahí NO se genera; nunca descargas automáticas de pesos (Pixal3D ~46 GB, image-to-3dlab 13–14 GB): solo con orden explícita, solo las variantes necesarias y tras comprobar ≥ 3 veces su tamaño libre en disco; nada de claves en código ni registros; ningún sondeo a Supabase; lo remoto (Space de Hugging Face) solo con permiso expreso y nunca con fotos de personas sin su consentimiento; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas de todo (pytest o vitest) sin red ni GPU (simuladas). Al terminar, resumen honesto de qué funciona y qué no.\n\nTAREA: Diálogo «Crear en 3D desde una imagen»: elegir imagen (de la Biblioteca o del aparato), el destino lo da el contexto (Protomolécula, avatar, bot o pieza) con `planOptimizacion`. Muestra el plan por etapa con su motor y, si no hay, POR QUÉ (los `descartes` de `planificar` en palabras) y qué neurona podría (`elegirNeurona`). Si solo queda el Space remoto, pide permiso con aviso claro (la imagen sale del aparato) y una casilla extra si la imagen contiene personas. Progreso real, reintento automático con `siguienteIntento` si falta memoria, y el resultado (GLB + LOD del manifiesto) a la Biblioteca con su procedencia y atribuciones (`usoPermitido`). Monta el botón en: el panel de la Protomolécula (búscalo en src/components y src/lib/protomolecula), la sección de piezas del editor de avatares (AV1011B) y el cuerpo del bot (AV1011C), solo donde ya existan; si no, deja el componente exportado y dilo. Pruebas del hook.",
+   "revisor_quitadas": [
+    "G3D1011D"
+   ],
+   "dependencias_ya_en_main": [
+    "G3D1011F"
+   ]
+  }
+ ]
+}
