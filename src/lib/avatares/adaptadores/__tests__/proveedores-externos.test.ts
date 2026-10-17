@@ -18,10 +18,10 @@ describe("motivoDescarte", () => {
     cerrada: false,
   };
 
-  it("sin permiso ni clave: no disponible", () => {
-    // For Meshy, which requires "clave-externa", and we have neither permiso para pagar ni clave
-    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] };
-    const motivo = motivoDescarte(meshMotor, p);
+    it("sin permiso ni clave: no disponible", () => {
+      // For Meshy, which requires "clave-externa", and we have neither permiso para pagar ni clave
+      const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+      const motivo = motivoDescarte(meshMotor, p);
     expect(motivo).not.toBeNull();
     expect(motivo).toContain("meshyn"); // The motor's nombre is "Meshy (servicio)"
     expect(motivo).toContain("clave-externa");
