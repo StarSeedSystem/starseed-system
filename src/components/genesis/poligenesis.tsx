@@ -20,6 +20,7 @@ import { puertosDelOs } from "@/lib/genesis/puertos-os";
 import { misEntidades, modoDe, proponer, propuestaAprobada, propuestasDe, type EntidadGestionable, type PropuestaGenesis } from "@/lib/genesis/entidades";
 import { decidirAplicacion, type Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
+import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
@@ -65,6 +66,19 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
         const descripcion = l.ok && typeof l.valores.description === "string" ? l.valores.description : undefined;
         return { contexto: { entidad: { nombre: entidad.nombre, tipo: entidad.tipo, descripcion } } };
     }, [entidad, puertos]);
+
+    const mapRolToBot = (rol: string): RolBot => {
+        switch (rol) {
+            case "owner":
+                return "dueno";
+            case "gestión":
+                return "admin";
+            case "colaboración":
+                return "miembro";
+            default:
+                return "miembro";
+        }
+    };
 
     const aplicarAprobada = async (p: PropuestaGenesis) => {
         if (!p.op || !ambito) return;
@@ -130,7 +144,14 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     </span>
                 ) : null}
             </div>
-
+            {entidad && (
+              <BotsEntidad
+                entidadId={entidad.id}
+                entidadTipo={entidad.tipo as "grupo" | "pagina" | "comunidad"}
+                usuarioRol={mapRolToBot(entidad.rol)}
+                entidadGobierno={modo ? (modo.democratico ? "democratico" : "jerarquico") : null}
+              />
+            )}
             {ambito && decision ? (
                 <PanelOperaciones
                     key={ambito.tipo === "entidad" ? ambito.entidad.id : "x"}
