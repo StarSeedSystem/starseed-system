@@ -4445,3 +4445,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CB1013W` — otra cosa: sin decisión en 0 h; rama ola/CB1013W conservada
 =======
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+
+## 2026-10-17 13:29 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** CI en rojo
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1011-1ECCC4d` — otra cosa: ningún proveedor respondió (todos caídos)
