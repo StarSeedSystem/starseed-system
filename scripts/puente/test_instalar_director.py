@@ -31,7 +31,8 @@ class TestRutaPython(unittest.TestCase):
         ruta = self._toml()
         with mock.patch.object(inst, "CODEX_TOML", ruta):
             inst.codex(True)
-        texto = open(ruta, encoding="utf-8").read()
+        with open(ruta, encoding="utf-8") as f:
+            texto = f.read()
         self.assertIn('command = "/x/python3"', texto)
         self.assertNotIn('command = "python3"', texto)
 
@@ -40,7 +41,8 @@ class TestRutaPython(unittest.TestCase):
         with mock.patch.object(inst, "CODEX_TOML", ruta):
             self.assertEqual(inst.codex(True), "cambiado")
             self.assertEqual(inst.codex(True), "ya")
-        texto = open(ruta, encoding="utf-8").read()
+        with open(ruta, encoding="utf-8") as f:
+            texto = f.read()
         self.assertEqual(texto.count("mcp_servers.%s]" % inst.NOMBRE), 1)
 
     def test_orden_claude_termina_con_py_y_mcp(self):
