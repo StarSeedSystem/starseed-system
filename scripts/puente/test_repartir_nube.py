@@ -510,22 +510,28 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
         self.assertIsNone(R.envio_a_devolver("X", {"X": 1}, {"X": [1.0]}, tope=5))  # ya descontado
 
     def test_se_anota_y_cuenta_contra_el_tope(self):
+        # (2026-10-17) Reloj FIJO. `leer_colas_nube` fecha cada cola por su NOMBRE y solo cuenta
+        # las de los dos últimos días; con `datetime.now()` y nombres del 14, la prueba caducó
+        # sola el 16 a las 09:00 (puerta de publicación en rojo en 8bf2e354, sin cambio de código).
         d = tempfile.mkdtemp()
         try:
             ruta = os.path.join(d, "reap.json")
             colas = os.path.join(d, "colas")
             os.makedirs(colas)
-            ahora = datetime.datetime.now().timestamp()
+            ahora = datetime.datetime(2026, 10, 14, 10, 0).timestamp()
             for i in range(3):
                 with open(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), "w") as f:
                     json.dump({"tareas": [{"id": "FLU1014A"}]}, f)
-                os.utime(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), (ahora, ahora))
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 3)
             self.assertEqual(R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta), "FLU1014A")
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 2)
             R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta)
             self.assertIsNone(R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta))
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 1)
+            # Pasados los dos días, esas colas ya no cuentan ni hay envío que devolver.
+            tres_dias_despues = ahora + 3 * 86400
+            self.assertIsNone(R.envios_vigentes(colas, tres_dias_despues, ruta).get("FLU1014A"))
+            self.assertIsNone(R.devolver_envio_por_el_medio("FLU1014A", colas, tres_dias_despues, ruta))
         finally:
             shutil.rmtree(d)
 
