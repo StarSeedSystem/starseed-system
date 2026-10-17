@@ -45,14 +45,14 @@ describe("neuronas atrasadas y por qué", () => {
     expect(r[0].texto).toBe("Tablet va atrasada en interfaz (2026.10.01 → 2026.10.10): esperando Wi-Fi.");
   });
 
-  it("prioridad de motivos: fallo > fuera de línea > Wi-Fi > pospuesta > manual > sin dato", () => {
+  it("prioridad de motivos: fallo > fuera de línea > Wi-Fi > pospuesta > manual > sin motivo", () => {
     const base = { neuronaId: "x", nombre: "X", online: true, versiones: {} };
     const motivo = (o: object) => neuronasAtrasadas([{ ...base, ...o }], { interfaz: "2" })[0].motivo;
     expect(motivo({ fallo: "humo", online: false })).toBe("fallo");
     expect(motivo({ online: false, pospuestaPor: "llamada" })).toBe("offline");
     expect(motivo({ pospuestaPor: "llamada", manual: true })).toBe("pospuesta");
     expect(motivo({ manual: true })).toBe("manual");
-    expect(motivo({})).toBe("sin-dato");
+    expect(motivo({})).toBe("sin-motivo");
     expect(motivo({ versiones: { interfaz: "1" } })).toBe("sin-motivo");
   });
 

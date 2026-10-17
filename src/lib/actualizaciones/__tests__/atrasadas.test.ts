@@ -69,9 +69,9 @@ describe("neuronasAtrasadas", () => {
     const ultima: VersionesPorCapa = { datos: "2026.01.01", interfaz: "2026.01.01" };
     const atrasos = neuronasAtrasadas(neuronas, ultima);
     expect(atrasos).toHaveLength(2);
-    expect(atrasos[0].motivo).toBe("sin-dato");
+    expect(atrasos[0].motivo).toBe("sin-motivo");
     expect(atrasos[0].tiene).toBeNull();
-    expect(atrasos[1].motivo).toBe("sin-dato");
+    expect(atrasos[1].motivo).toBe("sin-motivo");
   });
 
   it("prioritizes 'fallo' over other reasons", () => {
