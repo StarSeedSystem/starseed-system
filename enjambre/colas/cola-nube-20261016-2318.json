@@ -1,0 +1,82 @@
+{
+ "ola": "nube-20261016",
+ "tareas": [
+  {
+   "id": "MGP1016-D4B8FD",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: pruebas del puente en rojo",
+   "archivos": [
+    "scripts/puente/test_repartir_nube.py"
+   ],
+   "depende": [],
+   "origen": "metagenesis",
+   "prompt": "NOTA DE METAGENESIS (2026-10-16 22:27): la autopublicación lleva más de 60 min frenada en 8bf2e354 por «pruebas del puente en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n>\n  _warnings.warn(self.warn_message, ResourceWarning)\n./opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 403: 'Forbidden'>\n  _warnings.warn(self.warn_message, ResourceWarning)\n........s......................................................................................................................................................................................................................F........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................\n======================================================================\nFAIL: test_se_anota_y_cuenta_contra_el_tope (test_repartir_nube.EnvioDevueltoPorElMedio.test_se_anota_y_cuenta_contra_el_tope)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_repartir_nube.py\", line 523, in test_se_anota_y_cuenta_contra_el_tope\n    self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get(\"FLU1014A\"), 3)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: None != 3\n\n----------------------------------------------------------------------\nRan 2755 tests in 94.553s\n\nFAILED (failures=1, skipped=2)\n\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `python3 -m unittest scripts/puente/test_repartir_nube.py`."
+  },
+  {
+   "id": "MGP1014-561AD5c",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: CI en rojo",
+   "archivos": [
+    "src/lib/astraura-bots/__tests__/pureza.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DE METAGENESIS (2026-10-14 22:09): la autopublicación lleva más de 60 min frenada en 6e0e3764 por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n    const ant = pp.viejo as BotSync | null;\n    const b = reg ?? ant;\n    if (!b) return;\n    const { dueno } = b;\n    if (!dueno || !e.includes(dueno.id) || ![\\\"grupo\\\", \\\"comunidad\\\", \\\"pagina\\\"].includes(dueno.tipo)) return;\n    c({ t: p.eventType as \\\"INSERT\\\" | \\\"U\\\" | \\\"D\\\", r: reg, a: ant });\n  }).subscribe();\n  return () => s.removeChannel(ch);\n}\nexport function abiertosEnEstaNeurona(): string[] {\n  if (typeof window === \\\"undefined\\\") return [];\n  const r = window.localStorage.getItem(\\\"starseed.as\n2026-10-15T03:08:02.6015880Z \n2026-10-15T03:08:02.6020828Z ##[error]AssertionError: expected '@/utils/supabase/client' to match /^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-me…/|@\\\n\n- Expected: \n/^(\\.\\/|@\\/lib\\/nucleo\\/(alcance-memoria|ui-spec|paquete-sistema)$)/\n\n+ Received: \n\"@/utils/supabase/client\"\n\n ❯ src/lib/astraura-bots/__tests__/pureza.test.ts:27:43\n\n\n2026-10-15T03:08:02.8363903Z ##[error]Process completed with exit code 1.\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `npx vitest run src/lib/astraura-bots/__tests__/pureza.test.ts`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261016-070944`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261016-070944:refs/remotes/origin/nube/a1-20261016-070944\"` y `git cherry-pick --no-commit 340b0c84781e 015d0c84d1dc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, src/lib/astraura-bots/__tests__/pureza.test.ts, src/lib/astraura-bots/__tests__/sincronia-bots.test.ts, src/lib/astraura-bots/efectos/sincronia-bots.ts, src/lib/astraura-bots/sincronia-bots.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261016-070944"
+  },
+  {
+   "id": "APM1017A",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · oferta de cada neurona (qué presta, a quién y con qué topes)",
+   "archivos": [
+    "src/lib/recursos/oferta.ts",
+    "src/lib/recursos/__tests__/oferta.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Tipos y funciones PURAS del §3 del contrato. `OfertaNeurona` = { nodoId, cuentaId, medio, computo: { nucleos, ramLibreMb, gpu, vramMb?, motores: string[] }, almacen: { prestaMb, volumenes: string[] }, apps: { id, version }[] (solo prestables), enlaces: { subidaKbps?, bajadaKbps?, latenciaMs?: Record<nodo, number> }, energia: { bateriaPct?, cargando?, enUso: boolean }, presta: { cuenta: boolean, grupos: string[], publico: boolean, topes: { cpuPct, ramMb, discoMb, horas?, soloCargando } }, t }. Lo no medido es `undefined`, nunca un número inventado. `ofertaVisiblePara(oferta, quien: { cuentaId, grupos })` devuelve la oferta recortada a lo que esa persona puede usar (sin apps ni volúmenes si no le presta; sin latencias a nodos ajenos) o null. `capacidadPrestable(oferta)` aplica los topes (lo que presta, no lo que tiene; con batería < 20 % sin cargar o `enUso` fuerte, cómputo 0). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017D",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · sesión de préstamo: permiso por uso, caducidad, revocación y aviso en el anfitrión",
+   "archivos": [
+    "src/lib/recursos/sesion-prestamo.ts",
+    "src/lib/recursos/__tests__/sesion-prestamo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§9): `crearSesion({ anfitrion, invitado, alcance: { tipo: 'capacidad'|'app'|'volumen', id }, duracionMs, ahora })` → sesión con id aleatorio inyectable, `vence`, `revocada:false`; `permitido(sesion, accion, ahora)`; `revocar(sesion)`; `avisoAnfitrion(sesiones, ahora)` → lo que el anfitrión debe ver en pantalla (quién usa qué y desde cuándo). Una sesión nunca amplía su alcance; la de una app solo permite entradas a la ventana de esa app. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017E",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Malla · relé `capacidad.*`: pedir cualquier capacidad a otra neurona (imagen, voz, oído, transcodificar…)",
+   "archivos": [
+    "src/lib/network/capacidad-por-malla.ts",
+    "src/lib/network/__tests__/capacidad-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Generaliza el patrón de `src/lib/network/ia-por-malla.ts` (léelo: espacio de nombres, topes de tamaño, trozos, fin, error y cancelar) a `CAPACIDAD_NS = \"capacidad.\"` con `tipo`: imagen | voz | oido | palabra | transcodificar | render | buscar | construir. Cliente: `pedirCapacidad(enviar, { tipo, cuerpo, sesionId, timeoutMs })` que reúne los trozos y nunca lanza (`{ ok:false, motivo }`). Codificar y validar mensajes con guardas de tipo. No cambies ia-por-malla.ts. Pruebas con un canal falso: éxito, trozos desordenados, error, cancelar y tiempo agotado. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017G",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "A1 · capacidad «transcodificar»: escalera de calidades HLS con ffmpeg para las neuronas débiles",
+   "archivos": [
+    "scripts/puente/servir_transcodificar.py",
+    "scripts/puente/test_servir_transcodificar.py"
+   ],
+   "depende": [],
+   "prompt": "`ordenes_escalera(entrada, salida_dir, alturas=(1080, 720, 480, 240))` PURA que devuelve la orden de ffmpeg (lista de argumentos, sin shell) para HLS con varias calidades y su `master.m3u8`, sin subir de la altura original; `transcodificar(entrada, salida_dir, ejecutar)` con el ejecutor inyectable, tope de tiempo y error claro si ffmpeg no está (`shutil.which`). Nada de rutas fuera de `salida_dir`. Pruebas sin ejecutar ffmpeg. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1016-151706.json": [
+   "MGP1014-561AD5c",
+   "APM1017A",
+   "APM1017D",
+   "APM1017E",
+   "MGP1016-D4B8FD",
+   "APM1017G"
+  ]
+ }
+}
