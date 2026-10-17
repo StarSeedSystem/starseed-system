@@ -33,6 +33,9 @@ import {
 import { SourcePicker, type SourceRef } from "@/components/creation/source-picker";
 // (Adenda 219) Marco de forma opcional para portada y vídeo.
 import { MarcoDeMedio } from "@/components/creation/marco-de-medio";
+// (Ola 1010P · PM1010F2H) Bloque «Protomolécula»: instantánea de una molécula.
+import { SelectorMolecula } from "@/components/protomolecula/selector-molecula";
+import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import {
     LayoutTemplate,
     Code2,
@@ -53,6 +56,7 @@ import {
     Locate,
     Film,
     ExternalLink,
+    Atom,
     type LucideIcon,
 } from "lucide-react";
 
@@ -82,6 +86,8 @@ export const NEW_BLOCK_DEFS: BlockDef[] = [
     // ── Adenda 67 · P4 (aditivos) ──
     { type: "penpot", label: "Diseño Penpot", icon: PencilRuler, group: "contenido" },
     { type: "video", label: "Vídeo", icon: Film, group: "contenido" },
+    // ── Ola 1010P · Protomolécula (aditivo) ──
+    { type: "protomolecula", label: "Protomolécula", icon: Atom, group: "contenido" },
 ];
 
 // ── SourceRef → parche de bloque `referencia` ────────────────────────────────
@@ -183,6 +189,8 @@ export function RichBlockEditor({
             return <PenpotEditor block={block} patch={patch} />;
         case "video":
             return <VideoEditor block={block} patch={patch} />;
+        case "protomolecula":
+            return <ProtomoleculaEditor block={block} patch={patch} />;
         default:
             return null;
     }
@@ -311,6 +319,26 @@ function VideoEditor({ block, patch }: EditorProps) {
                     exportado.
                 </span>
             </div>
+        </div>
+    );
+}
+
+// ── Protomolécula (Ola 1010P · PM1010F2H) ────────────────────────────────────
+//
+// `code` lleva el texto de `serializarBloque`: una INSTANTÁNEA (contrato §13.8).
+// El Lienzo publica en la red y aún no tiene selector de ámbito: se avisa como
+// publicación «pública», el caso más exigente.
+
+function ProtomoleculaEditor({ block, patch }: EditorProps) {
+    const leida = block.code ? leerBloque(block.code) : null;
+    if (!leida?.ok) return <SelectorMolecula ambitoPost="publica" alElegir={(texto) => patch({ code: texto })} />;
+    return (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2.5 text-[11px] text-white/70">
+            <Atom className="h-3.5 w-3.5 shrink-0 text-violet-300" />
+            <span className="flex-1">Instantánea de «{leida.valor.titulo || "Sin título"}»: viaja dentro de la publicación (próximamente: verla en el muro y abrir una copia propia).</span>
+            <Button type="button" size="sm" variant="ghost" className="h-7 cursor-pointer text-[11px]" onClick={() => patch({ code: undefined })}>
+                Cambiar molécula
+            </Button>
         </div>
     );
 }
