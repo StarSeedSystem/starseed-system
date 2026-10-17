@@ -158,4 +158,40 @@ describe("TunelMetaGenesisEstado", () => {
     
     vi.useRealTimers();
   });
+
+  it("no muestra el encabezado «Últimas líneas» cuando no hay líneas", async () => {
+    // Cambiar el mock para devolver servicio cargado pero sin líneas
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      llamadas.push({ url, init });
+      
+      if (url.includes("/api/mando/tunel-metagenesis")) {
+        return {
+          ok: true,
+          json: async () => ({
+            cargado: true,
+            pid: 12345,
+            ultimasLineas: [], // <-- No hay líneas
+            medidoEn: new Date().toISOString()
+          })
+        } as Response;
+      }
+      
+      return {
+        ok: true,
+        json: async () => ({})
+      } as Response;
+    };
+
+    render(<TunelMetaGenesisEstado />);
+    
+    // Esperar a que se haga la primera llamada y se procese el resultado
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+    
+    // Ahora verificar que aparece el estado activo pero NO aparece el encabezado de líneas
+    expect(screen.getByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
+  });
 });
