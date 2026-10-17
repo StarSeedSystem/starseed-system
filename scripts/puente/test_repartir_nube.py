@@ -515,7 +515,9 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
             ruta = os.path.join(d, "reap.json")
             colas = os.path.join(d, "colas")
             os.makedirs(colas)
-            ahora = datetime.datetime.now().timestamp()
+            # Set `ahora` to be two days after the date in the filename (20261014) so that the files are within the last two days.
+            ahora_dt = datetime.datetime(2026, 10, 16)
+            ahora = ahora_dt.timestamp()
             for i in range(3):
                 with open(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), "w") as f:
                     json.dump({"tareas": [{"id": "FLU1014A"}]}, f)
