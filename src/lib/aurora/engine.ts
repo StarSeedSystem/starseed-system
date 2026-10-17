@@ -49,6 +49,8 @@ import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-accione
 import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
 import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
+import { bloqueTono, preferenciasPersona } from "@/lib/astraura-bots/adaptadores/tono-chat";
+import { SITUACIONES } from "@/lib/astraura-bots/personalidad-adaptable";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -1494,11 +1496,21 @@ export function useAuroraEngine(): AuroraEngine {
     // texto ESCRITO (send) y refuerza el de voz. Si algo falla, usa el original.
     let base = raw || "";
     try { base = normalizeStarseedTerms(base); } catch { base = raw || ""; }
-    const text = base.trim();
-    if (!text) return;
-    setTranscript(text);
-    pushUser(text);
-    const n = norm(text);
+const text = base.trim();
+if (!text) return;
+const n = norm(text);
+// DETECCIÓN DE SITUACIÓN PARA TONO DEL BOT
+const situacionDetectada =
+  n.includes("trabajo") ? "trabajo" :
+  n.includes("aprendizaje") || n.includes("estudio") ? "aprendizaje" :
+  n.includes("juego") || n.includes("diversión") || n.includes("diversion") ? "juego" :
+  n.includes("duelo") || n.includes("tristeza") || n.includes("luto") ? "duelo" :
+  n.includes("crisis") || n.includes("emergencia") || n.includes("urgente") ? "crisis" :
+  "neutra";
+const botPred = botPredeterminado;
+const tonoBlock = bloqueTono(botPred, undefined, { situacion: situacionDetectada, sesion: "privada" });
+setTranscript(text);
+pushUser(text);
 
     // navegación directa
     if (/(abre|abrir|ve a|vete a|lleva a|llevame a|llévame a|ir a|navega|muestra|mostrar)/.test(n)) {
@@ -1661,12 +1673,13 @@ export function useAuroraEngine(): AuroraEngine {
       // Aurora entienda cada contexto/sección y responda/actúe interconectando.
       let knowledge = "";
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
-      const system =
-        buildSystemPrompt(activeRef.current) + "\n\n" +
-        actionsSystemPromptSection() +
-        (toolsSection ? "\n\n" + toolsSection : "") +
-        (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
-        contextNote;
+const system =
+  buildSystemPrompt(activeRef.current) + "\n\n" +
+  tonoBlock + "\n\n" +
+  actionsSystemPromptSection() +
+  (toolsSection ? "\n\n" + toolsSection : "") +
+  (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
+  contextNote;
       // Se incluye el historial reciente (conversationRef) antes del mensaje actual.
       // Así mantenemos el contexto continuo en los comandos de voz.
       const historyMessages = conversationRef.current.map((msg): ChatMessage => ({
