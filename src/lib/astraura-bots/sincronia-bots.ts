@@ -40,8 +40,8 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
 }
 
 export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "D"; r: BotSync | null; a: BotSync | null }) => void) {
-  const ch = onTableChange("astraura_bots", { filter: e.map(entityId => `dueno.id=eq.${entityId}`).join(' or '), event: "*" }, (p) => {
-    const pp = p as any;
+  const ch = onTableChange("astraura_bots", { filter: e.map(entityId => `dueno.id=eq.${entityId}`).join(' or '), event: "*" }, (payload: RealtimePayload) => {
+    const pp = payload as any;
     if (pp.error) {
       console.warn("Tabla astraura_bots no encontrada en Supabase. La suscripción a bots de entidad está inactiva.");
       return;
@@ -52,36 +52,7 @@ export function suscribirBotsEntidad(e: string[], c: (c: { t: "INSERT" | "U" | "
     if (!b) return;
     const { dueno } = b;
     if (!dueno || !e.includes(dueno.id) || !["grupo", "comunidad", "pagina"].includes(dueno.tipo)) return;
-    c({ t: p.eventType as "INSERT" | "U" | "D", r: reg, a: ant });
+    c({ t: payload.eventType as "INSERT" | "U" | "D", r: reg, a: ant });
   });
   return () => ch();
-}
-
-export function abiertosEnEstaNeurona(): string[] {
-  if (typeof window === "undefined") return [];
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
-  if (!r) return [];
-  try {
-    const v = JSON.parse(r);
-    if (Array.isArray(v)) return v.filter((i): i is string => typeof i === "string");
-    return [];
-  } catch { return []; }
-}
-
-export function marcarAbierto(b: string, a: boolean): void {
-  if (typeof window === "undefined") return;
-  const r = window.localStorage.getItem("starseed.astraura.bots.orbes.v1");
-  let c: string[] = [];
-  if (r) {
-    try {
-      const p = JSON.parse(r);
-      if (Array.isArray(p)) c = p.filter((i): i is string => typeof i === "string");
-    } catch { c = []; }
-  }
-  if (a) {
-    if (!c.includes(b)) c.push(b);
-  } else {
-    c = c.filter(i => i !== b);
-  }
-  window.localStorage.setItem("starseed.astraura.bots.orbes.v1", JSON.stringify(c));
 }
