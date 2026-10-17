@@ -5,6 +5,7 @@
 Ejecutar: python3 -m unittest motores.test_pixelartistry -v
 """
 import json
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -222,6 +223,84 @@ class RemallarImagen(unittest.TestCase):
                                espera_s=0.01, tope_s=0.001)
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
+
+
+class RemallarImagenNoDisponible(unittest.TestCase):
+    """Pruebas de remallar_imagen cuando el motor no está disponible."""
+    def setUp(self):
+        # Simula SO no-Windows para que disponible() devuelva False
+        self.parches = [
+            mock.patch.object(pa.platform, "system", return_value="Linux")
+        ]
+        for p in self.parches:
+            p.start()
+        import tempfile
+        self._d = tempfile.TemporaryDirectory()
+        self.addCleanup(self._d.cleanup)
+        self.tmp = self._d.name
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """Cuando el motor no está disponible, remallar_imagen debe devolver un dict de error."""
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=pa.ClienteComfyUI(),
+            dormir=lambda _: None
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # piezas de flujo y nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
+    def test_disponible_false_en_linux(self):
+        """On Linux, disponible should return False because it requires Windows."""
+        for so in ("Darwin", "Linux"):
+            with mock.patch.object(pa.platform, "system", return_value=so):
+                r = pa.disponible(ComfyFalso())
+        self.assertFalse(r["ok"])
+        self.assertIn("solo Windows 10/11", r["fallo"])
+        self.assertIn("blender-voxel", r["fallo"])
+
+    @mock.patch('time.time', side_effect=[1000.0, 1000.1])
+    def test_disponible_true_when_conditions_met(self, mock_time):
+        """When mocked to Windows, with nvidia-smi and ComfyUI responding, disponible returns True."""
+        r = pa.disponible()
+        self.assertTrue(r["ok"])
+
+    @mock.patch.object(pa, "disponible", return_value={"ok": False, "fallo": "no disponible"})
+    def test_generar_not_available(self, mock_disponible):
+        """Cuando el motor no está disponible, generar debería devolver un dict de error."""
+        result = pa.generar("/fake/path/image.png", 512)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["glb"], b"")
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertIsNotNone(result["fallo"])
+        self.assertIn("no disponible", result["fallo"].lower())
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
+    @mock.patch('time.time', side_effect=[1000.0, 1000.1])
+    def test_generar_available_simulated(self, mock_time):
+        """When motor is available (mocked), generar should return a successful simulation."""
+        result = pa.generar("/fake/path/image.png", 1024)
+        
+        self.assertTrue(result["ok"])
+        self.assertIsInstance(result["glb"], bytes)
+        self.assertGreater(len(result["glb"]), 0)
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertIn("herramienta", result["procedencia"][0])
+        self.assertEqual(result["procedencia"][0]["herramienta"], "pixelartistry")
+        self.assertIsNone(result["fallo"])
+        self.assertAlmostEqual(result["segundos"], 0.1, places=2)
+        self.assertGreater(result["pico_memoria_gb"], 0.0)
 
 
 if __name__ == "__main__":

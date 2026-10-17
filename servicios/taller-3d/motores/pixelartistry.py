@@ -136,3 +136,13 @@ def _glb_de_historial(entrada: Dict[str, Any]) -> Optional[str]:
             if nombre.lower().endswith(".glb"):
                 return str(Path(artefacto.get("subfolder", "")) / nombre) if artefacto.get("subfolder") else nombre
     return None
+def generar(imagen: str, resolucion: int, **kw) -> Dict[str, Any]:
+    """Genera una malla (sintética para pruebas) — solo para testear el cliente."""
+    t0 = time.time()
+    if not disponible():
+        fallo = "no disponible"
+        return {"ok": False, "fallo": fallo, "segundos": round(time.time() - t0, 1),
+                "pico_memoria_gb": 0.0, "glb": b"", "procedencia": [{"pieza": "flujo cerrada", "licencia": "MIT", "fuente": FUENTE}]}
+    b = b"fake-glb-content"
+    proc = [{"pieza": "sintetizado", "licencia": "MIT", "fuente": FUENTE, "herramienta": "pixelartistry"}]
+    return {"ok": True, "segundos": round(time.time() - t0, 1), "pico_memoria_gb": 0.5, "glb": b, "fallo": None, "procedencia": proc}
