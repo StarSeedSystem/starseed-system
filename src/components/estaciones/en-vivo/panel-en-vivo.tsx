@@ -22,6 +22,7 @@ import {
   posicionEn,
   type FaseSesion,
 } from "@/lib/estaciones/transmision-parametrica";
+import { estadoCanalInternet, type EstadoCanalEstacion } from "@/lib/estaciones/canales-estacion";
 import { formatearMs, textoReloj } from "./formato-en-vivo";
 import { BotonFondoAudiomorphic } from "./boton-fondo-audiomorphic";
 
@@ -36,6 +37,25 @@ const ETIQUETA_FASE: Record<FaseSesion, string> = {
   pausada: "En pausa",
   terminada: "Terminada",
 };
+
+type CanalFoto = { tipo: string; etiqueta: string; abierto: boolean };
+
+function tieneEstado(c: CanalFoto): c is CanalFoto & { estado: () => EstadoCanalEstacion } {
+  return typeof (c as { estado?: unknown }).estado === "function";
+}
+
+/**
+ * Fase y motivo del canal (S1010-ES2): de su propio `estado()` si lo trae; si es el de internet,
+ * del canal vivo de la pestaña (la foto de la sesión solo copia tipo, etiqueta y abierto); si no, null.
+ */
+function estadoDeCanal(c: CanalFoto): EstadoCanalEstacion | null {
+  try {
+    if (tieneEstado(c)) return c.estado();
+    return c.tipo === "internet" ? estadoCanalInternet() : null;
+  } catch {
+    return null;
+  }
+}
 
 const boton =
   "inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full border border-white/10 px-4 text-sm text-white/85 transition-colors duration-200 hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-40";
@@ -177,13 +197,25 @@ export function PanelEnVivo({ href }: { href: string }) {
             <p className="mt-1 flex items-center gap-2 text-sm text-white/70"><WifiOff className="h-4 w-4" aria-hidden /> Sin canales abiertos</p>
           ) : (
             <ul className="mt-1 flex flex-col gap-0.5 text-sm text-white/80">
-              {s.canales.map((c, i) => (
-                <li key={`${c.etiqueta}-${i}`} className="flex items-center gap-2">
-                  {c.tipo === "internet" ? <Wifi className="h-4 w-4" aria-hidden /> : <Cable className="h-4 w-4" aria-hidden />}
-                  <span className="truncate">{c.etiqueta}</span>
-                  <span className={`ml-auto text-xs ${c.abierto ? "text-emerald-300" : "text-white/45"}`}>{c.abierto ? "abierto" : "conectando"}</span>
-                </li>
-              ))}
+              {s.canales.map((c, i) => {
+                const e = estadoDeCanal(c);
+                const abierto = e ? e.fase === "abierto" : c.abierto;
+                return (
+                  <li key={`${c.etiqueta}-${i}`} className={`flex items-center gap-2 ${e?.fase === "error" ? "flex-wrap" : ""}`}>
+                    {c.tipo === "internet" ? <Wifi className="h-4 w-4" aria-hidden /> : <Cable className="h-4 w-4" aria-hidden />}
+                    <span className="truncate">{c.etiqueta}</span>
+                    {e?.fase === "error" ? (
+                      <span role="status" className="basis-full break-words pl-6 text-xs text-amber-200/90">
+                        sin conexión: {e.motivo ?? "Supabase Realtime no dio motivo"}
+                      </span>
+                    ) : (
+                      <span className={`ml-auto text-xs ${abierto ? "text-emerald-300" : "text-white/45"}`}>
+                        {abierto ? "abierto" : e?.fase === "cerrado" ? "cerrado" : e ? "conectando…" : "conectando"}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
           <p className="mt-1 text-xs text-white/55">

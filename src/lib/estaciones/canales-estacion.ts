@@ -13,12 +13,73 @@
  *     la ida y vuelta es de pocos ms, así que el reloj común baja a ±1 ms. Coste cero.
  *
  * Los dos se importan perezosos: este módulo solo baja cuando alguien sintoniza una estación.
+ *
+ * S1010-ES2 (2026-10-17): el canal de internet dice por qué no conecta. Guarda el último estado
+ * de la suscripción y el motivo (saneado: sin direcciones, claves ni el tema de la estación) y,
+ * si en 10 s no llega SUBSCRIBED, pasa a «error» con ese motivo en vez de quedarse en
+ * «conectando» para siempre. `FotoSesion` (sesion-en-vivo.ts) solo copia tipo, etiqueta y
+ * abierto, así que el panel lee el estado vivo del canal de la pestaña con `estadoCanalInternet()`.
  */
 
 import { temaPrivado, temaPublico } from "./cripto-estacion";
 import type { CanalEstacion } from "./sesion-en-vivo";
 
 const PREFIJO_SOBRE = '{"t":"est"';
+
+export type FaseCanal = "conectando" | "abierto" | "error" | "cerrado";
+export interface EstadoCanalEstacion {
+  fase: FaseCanal;
+  motivo: string | null;
+}
+/** Canal que además sabe decir en qué fase está y por qué (método opcional para los demás). */
+export type CanalConEstado = CanalEstacion & { estado(): EstadoCanalEstacion };
+
+export interface OpcionesCanalInternet {
+  /** Espera máxima a SUBSCRIBED antes de dar el canal por caído (10 s por defecto). */
+  esperaMs?: number;
+  poner?: (fn: () => void, ms: number) => unknown;
+  quitar?: (h: unknown) => void;
+}
+
+export const ESPERA_SUSCRIPCION_MS = 10_000;
+const MAX_MOTIVO = 160;
+
+/** Lectores del estado de los canales de internet vivos en esta pestaña (el último manda). */
+const vivosInternet = new Set<() => EstadoCanalEstacion>();
+
+/** Estado del canal de internet vivo de esta pestaña; null si no hay ninguno. */
+export function estadoCanalInternet(): EstadoCanalEstacion | null {
+  const lectores = Array.from(vivosInternet);
+  const ultimo = lectores[lectores.length - 1];
+  return ultimo ? ultimo() : null;
+}
+
+function mensajeDe(err: unknown): string | null {
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object" && "message" in err) {
+    const m = (err as { message?: unknown }).message;
+    return typeof m === "string" ? m : null;
+  }
+  return null;
+}
+
+/** El mensaje del error, sin el tema, direcciones, claves ni datos largos. Null si no dice nada. */
+export function motivoSeguro(err: unknown, tema: string): string | null {
+  let t = mensajeDe(err);
+  if (!t) return null;
+  if (tema) t = t.split(tema).join("(tema de la estación)");
+  t = t
+    .replace(/\b(?:https?|wss?):\/\/\S+/gi, "(dirección oculta)")
+    .replace(/\b[\w-]+\.supabase\.(?:co|in|net)\S*/gi, "(dirección oculta)")
+    .replace(/\beyJ[\w-]*\.[\w-]+\.[\w-]*/g, "(clave oculta)")
+    .replace(/\bsb_[a-z]+_[\w-]+/gi, "(clave oculta)")
+    .replace(/\b[\w-]{32,}\b/g, "(dato oculto)")
+    .replace(/^["'\s]+|["'\s]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+  return t.length > MAX_MOTIVO ? `${t.slice(0, MAX_MOTIVO - 1)}…` : t;
+}
 
 function claveTab(): string {
   try {
@@ -29,7 +90,11 @@ function claveTab(): string {
 }
 
 /** Canal de difusión de Supabase para una estación. Null si no hay cliente (sin red o sin config). */
-export async function crearCanalInternet(id: string, token: string | null): Promise<CanalEstacion | null> {
+export async function crearCanalInternet(
+  id: string,
+  token: string | null,
+  op: OpcionesCanalInternet = {},
+): Promise<CanalConEstado | null> {
   let cliente: ReturnType<typeof import("@/utils/supabase/client").createClient>;
   try {
     const { createClient } = await import("@/utils/supabase/client");
@@ -59,16 +124,51 @@ export async function crearCanalInternet(id: string, token: string | null): Prom
       conectados = null;
     }
   });
-  canal.subscribe((estado: string) => {
+  // Se llaman sin receptor: el setTimeout del navegador exige `this` = window (OPD1010).
+  const poner = op.poner ?? ((fn: () => void, ms: number) => globalThis.setTimeout(fn, ms));
+  const quitar = op.quitar ?? ((h: unknown) => globalThis.clearTimeout(h as ReturnType<typeof setTimeout>));
+  const esperaMs = op.esperaMs ?? ESPERA_SUSCRIPCION_MS;
+  let fase: FaseCanal = "conectando";
+  let motivo: string | null = null;
+  let ultimoEstado: string | null = null;
+  let espera: unknown = null;
+  let cerradoPorNos = false;
+  const soltarEspera = () => {
+    if (espera !== null) quitar(espera);
+    espera = null;
+  };
+  const leer = (): EstadoCanalEstacion => ({ fase, motivo });
+  vivosInternet.add(leer);
+  espera = poner(() => {
+    espera = null;
+    if (fase !== "conectando") return;
+    fase = "error";
+    motivo = `sin respuesta de Supabase Realtime en ${Math.round(esperaMs / 1000)} s`;
+  }, esperaMs);
+  canal.subscribe((estado: string, err?: unknown) => {
+    if (cerradoPorNos) return; // el CLOSED de removeChannel lo pedimos nosotros
+    ultimoEstado = estado;
     if (estado === "SUBSCRIBED") {
+      soltarEspera();
       suscrito = true;
+      fase = "abierto";
+      motivo = null;
       void canal.track({ k: yo }).catch(() => undefined);
       for (const cb of Array.from(alAbrir)) cb();
     } else if (estado === "CLOSED" || estado === "CHANNEL_ERROR" || estado === "TIMED_OUT") {
       suscrito = false;
+      const dicho = motivoSeguro(err, tema);
+      if (estado === "CLOSED") {
+        fase = "cerrado";
+        motivo = dicho ?? "Supabase Realtime cerró el canal";
+      } else {
+        fase = "error";
+        motivo = `${dicho ?? (estado === "TIMED_OUT" ? "Supabase Realtime no contestó a tiempo" : "error del canal de Supabase Realtime")} (${ultimoEstado})`;
+      }
     }
   });
   return {
+    estado: leer,
     tipo: "internet",
     etiqueta: "Internet (Supabase Realtime)",
     enviar(texto) {
@@ -91,6 +191,11 @@ export async function crearCanalInternet(id: string, token: string | null): Prom
     },
     cerrar() {
       suscrito = false;
+      cerradoPorNos = true;
+      soltarEspera();
+      vivosInternet.delete(leer);
+      fase = "cerrado";
+      motivo = null;
       oyentes.clear();
       alAbrir.clear();
       try {
