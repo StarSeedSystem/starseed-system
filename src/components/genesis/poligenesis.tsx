@@ -20,6 +20,7 @@ import { puertosDelOs } from "@/lib/genesis/puertos-os";
 import { misEntidades, modoDe, proponer, propuestaAprobada, propuestasDe, type EntidadGestionable, type PropuestaGenesis } from "@/lib/genesis/entidades";
 import { decidirAplicacion, type Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
+import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
@@ -148,6 +149,10 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Comprobando tu rol y el modo de gobierno…
                 </p>
             )}
+
+            {ambito?.tipo === "entidad" && entidad ? (
+                <BotsEntidad key={ambito.entidad.id} entidad={ambito.entidad} rol={entidad.dueña ? "dueno" : entidad.rango >= 3 ? "admin" : entidad.rango >= 2 ? "miembro" : "observador"} />
+            ) : null}
 
             {enVotacion.length + aprobadas.length > 0 ? (
                 <section className="space-y-2" aria-label="Propuestas de PoliGenesis">
