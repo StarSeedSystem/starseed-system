@@ -55,3 +55,22 @@ Formato del contrato `architecture/puente-propio-flujos.md` §2. Revisión a mit
   autopublicar avisa «publicada».
 - **El 17** (último traslado): `python3 scripts/puente/flujos/sombra.py` debe dar 3 de 3; entonces el flujo
   corre en casa (`FLUJOS_GANCHO_BASE` en `~/.starseed/env`) y n8n Cloud puede vencer sin pérdida.
+
+## Último traslado (2026-10-18, el día que vence la prueba)
+
+- **Sombra: 3 de 3.** `python3 .transfer/sombra-n8n-1014/sombra.py` da hoy, por el camino REAL (gancho → disparadores →
+  motor), lo mismo que el Set de n8n para «publicada», «pieza-lista» y «revertida». Informe:
+  `memory/aprendizaje-externos/sombra-2026-10-18.json`. Faltaba una cosa: el importador no marcaba los webhooks de n8n
+  con `forma: "n8n"` y el ejecutor pasaba el cuerpo suelto (los `$json.body.*` salían vacíos). Arreglado en
+  `flujos/importar_n8n.py` con su prueba, y el flujo se reimportó desde `n8n-export/2026-10-11/` (copia del anterior en
+  `starseed_memory_root/archivo/flujos-1018/`).
+- **El servicio `com.starseed.flujos` llevaba vivo desde el 14-10 02:04** con el código de antes de FLU1014A–D (Python
+  carga los módulos al arrancar): se reinició para que use el motor nuevo.
+- **En casa de punta a punta:** `FLUJOS_GANCHO_BASE` en `~/.starseed/env` (copia en `env.respaldo-20261018`). Un evento
+  firmado de prueba («prueba-traslado-1018») entró por el gancho de Genesis (202) y el servicio lo ejecutó «completa».
+- **Enrutador:** `produccion_puentes.py` aparta `n8n_cloud` desde el 2026-10-18 aunque `N8N_CLOUD_URL` siga en el
+  entorno (PUENTES1017, commit 531e7e259) y respeta el apagado a mano.
+- **Exportación final:** la instancia pide iniciar sesión (sin API en la prueba). Solo había 1 flujo y la exportación del
+  11-10 está al día según el registro; si Alex entra antes de que venza, se vuelve a exportar para comparar.
+- **Pendiente del enjambre:** FLU1014E (sombra permanente en `flujos/sombra.py`) y FLU1014G (autopublicar emite
+  «publicada»).

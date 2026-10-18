@@ -52,7 +52,9 @@ def normalizar_expresion(valor: Any) -> Any:
 
 def mapear_webhook(node: Dict[str, Any]) -> Tuple[Dict[str,Any], str]:
     params = node.get("parameters", {})
-    cfg = {}
+    # (2026-10-18) Un webhook de n8n entrega {body, headers, query, params}: sin «forma» el
+    # ejecutor pasaba el cuerpo suelto y los Set con $json.body.* salían vacíos (sombra 0 de 3).
+    cfg = {"forma": "n8n"}
     if "path" in params:
         cfg["ruta"] = normalizar_expresion(params["path"])
     if "httpMethod" in params:

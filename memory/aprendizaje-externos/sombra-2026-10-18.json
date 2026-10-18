@@ -1,0 +1,230 @@
+{
+ "flujo": "starseed-producci-n-puentes",
+ "registro_del_motor": [
+  "bus",
+  "chat",
+  "chat_director",
+  "conocimiento",
+  "cron",
+  "esperar",
+  "fusion",
+  "http",
+  "ia",
+  "ntfy",
+  "set",
+  "si",
+  "switch",
+  "telegram",
+  "webhook"
+ ],
+ "disparador_que_escucha": "wh-publicada",
+ "eventos": [
+  {
+   "evento": "produccion.publicada",
+   "ruta": "starseed-produccion-publicada",
+   "n8n_esperado": {
+    "evento": "publicada",
+    "sha": "sombra1014",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-18T05:10:41.338541+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "hoy": {
+    "recogido_por_disparadores": true,
+    "sin_consumir": [],
+    "ejecuciones": [
+     {
+      "estado": "completa",
+      "error": null,
+      "salida": [
+       {
+        "evento": "publicada",
+        "sha": "sombra1014",
+        "medios": [
+         "web",
+         "mando"
+        ],
+        "tareas": [
+         "T-SOMBRA"
+        ],
+        "momento": "2026-10-18T05:10:41.338541+00:00",
+        "datos": {
+         "nota": "prueba en sombra"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "tras_arreglo": {
+    "estado": "completa",
+    "error": null,
+    "salida": [
+     {
+      "evento": "publicada",
+      "sha": "sombra1014",
+      "medios": [
+       "web",
+       "mando"
+      ],
+      "tareas": [
+       "T-SOMBRA"
+      ],
+      "momento": "2026-10-18T05:10:41.338541+00:00",
+      "datos": {
+       "nota": "prueba en sombra"
+      }
+     }
+    ]
+   },
+   "coincide_hoy": true,
+   "coincide_tras_arreglo": true
+  },
+  {
+   "evento": "produccion.pieza_lista",
+   "ruta": "starseed-produccion-pieza-lista",
+   "n8n_esperado": {
+    "evento": "pieza-lista",
+    "sha": "sombra1014",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-18T05:10:41.406955+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "hoy": {
+    "recogido_por_disparadores": true,
+    "sin_consumir": [],
+    "ejecuciones": [
+     {
+      "estado": "completa",
+      "error": null,
+      "salida": [
+       {
+        "evento": "pieza-lista",
+        "sha": "sombra1014",
+        "medios": [
+         "web",
+         "mando"
+        ],
+        "tareas": [
+         "T-SOMBRA"
+        ],
+        "momento": "2026-10-18T05:10:41.406955+00:00",
+        "datos": {
+         "nota": "prueba en sombra"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "tras_arreglo": {
+    "estado": "completa",
+    "error": null,
+    "salida": [
+     {
+      "evento": "pieza-lista",
+      "sha": "sombra1014",
+      "medios": [
+       "web",
+       "mando"
+      ],
+      "tareas": [
+       "T-SOMBRA"
+      ],
+      "momento": "2026-10-18T05:10:41.406955+00:00",
+      "datos": {
+       "nota": "prueba en sombra"
+      }
+     }
+    ]
+   },
+   "coincide_hoy": true,
+   "coincide_tras_arreglo": true
+  },
+  {
+   "evento": "produccion.revertida",
+   "ruta": "starseed-produccion-revertida",
+   "n8n_esperado": {
+    "evento": "revertida",
+    "sha": "sombra1014",
+    "medios": [
+     "web",
+     "mando"
+    ],
+    "tareas": [
+     "T-SOMBRA"
+    ],
+    "momento": "2026-10-18T05:10:41.435014+00:00",
+    "datos": {
+     "nota": "prueba en sombra"
+    }
+   },
+   "hoy": {
+    "recogido_por_disparadores": true,
+    "sin_consumir": [],
+    "ejecuciones": [
+     {
+      "estado": "completa",
+      "error": null,
+      "salida": [
+       {
+        "evento": "revertida",
+        "sha": "sombra1014",
+        "medios": [
+         "web",
+         "mando"
+        ],
+        "tareas": [
+         "T-SOMBRA"
+        ],
+        "momento": "2026-10-18T05:10:41.435014+00:00",
+        "datos": {
+         "nota": "prueba en sombra"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "tras_arreglo": {
+    "estado": "completa",
+    "error": null,
+    "salida": [
+     {
+      "evento": "revertida",
+      "sha": "sombra1014",
+      "medios": [
+       "web",
+       "mando"
+      ],
+      "tareas": [
+       "T-SOMBRA"
+      ],
+      "momento": "2026-10-18T05:10:41.435014+00:00",
+      "datos": {
+       "nota": "prueba en sombra"
+      }
+     }
+    ]
+   },
+   "coincide_hoy": true,
+   "coincide_tras_arreglo": true
+  }
+ ]
+}

@@ -39,6 +39,8 @@ class ImportarN8nTest(unittest.TestCase):
         self.assertEqual(len(flujo.nodos), 5)
         tipos = {n.id: n.tipo for n in flujo.nodos}
         self.assertEqual(tipos["w1"], "webhook")
+        webhook = next(n for n in flujo.nodos if n.id == "w1")
+        self.assertEqual(webhook.configuracion.get("forma"), "n8n")
         self.assertEqual(tipos["i1"], "si")
         self.assertEqual(tipos["h1"], "http")
         self.assertEqual(tipos["s1"], "set")
