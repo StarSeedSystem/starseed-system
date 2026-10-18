@@ -165,12 +165,13 @@ describe("resumen de las tablas (modo tablas)", () => {
 
 describe("elegirFuente: donde hay alguien vivo (2026-10-13)", () => {
     const estado = (vivos: boolean[], modo: "bus" | "tablas") => ({
-        modo, lider: null, termino: 0, autonomia: null, medidores: {}, decisiones: [], ordenes: [],
+        modo, lider: null, termino: 0, autonomia: null, medidores: {}, decisiones: [],
         fotoHaceMs: null, liderSeco: false,
         nodos: vivos.map((vivo, i) => ({
             nodo: `n${i}`, medio: "mac", etiqueta: "", modo: "real", vivo, lider: false, hace_ms: null, puntos: null,
             orquestadores: [], caidos: [], disco_gb: null, ram_libre_mb: null, trabajo: {}, enCurso: [], contenedor: null,
         })),
+        ordenes: [],
     });
 
     it("tablas sin latidos y bus con nodos vivos → bus", () => {
