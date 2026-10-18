@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deshacer, validarAccion, type AccionBot } from "../acciones";
 import { MAX_ORBES_VISIBLES } from "../orbes";
 import { disponerTrinity, type EntradaEspacio } from "@/lib/xr/espacio-trinity";
-import type { ContextoVoz } from "@/lib/xr/intenciones-voz";
+import type { ContextoVoz, ResultadoVoz } from "@/lib/xr/intenciones-voz";
+import * as xrIntencionesVoz from "@/lib/xr/intenciones-voz";
+import * as xrEspacioTrinity from "@/lib/xr/espacio-trinity";
+
+const originalDisponerTrinity = disponerTrinity;
 
 type Respuesta = { ok: boolean; message: string };
 type Herramienta = { name: string; describe: string; example: string; handler: (args: Record<string, unknown>, ctx: unknown) => Promise<Respuesta> };
@@ -77,6 +81,47 @@ describe("xr.intencion", () => {
     expect(r).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("mundo") });
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
   });
+
+  it("error frase no válida", async () => {
+    const a = { tipo: "xr.intencion", args: { frase: 123 } } as AccionBot;
+    const d = {};
+    const r = await ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe(`Esta pieza solo traduce «xr.intencion», no «xr.intencion».`);
+    expect(r.previo).toEqual({});
+  });
+
+  it("error frase vacía", async () => {
+    const a = { tipo: "xr.intencion", args: { frase: "" } } as AccionBot;
+    const d = {};
+    const r = await ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("No te he oído. Dime qué quieres hacer.");
+    expect(r.previo).toEqual({});
+  });
+
+  it("devuelve tarjeta", async () => {
+    const a = { tipo: "xr.intencion", args: { frase: "crea un mundo" } } as AccionBot;
+    const d = {};
+    const m: ResultadoVoz = { ok: true, pasos: [], confirmar: false, tarjeta: null };
+    vi.spyOn(xrIntencionesVoz, "entenderVoz").mockReturnValue(m);
+    const r = await ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(true);
+    expect(r.motivo).toBe("Tarjeta lista: no se hace nada hasta que la confirmes.");
+    expect(r.tarjeta).toEqual({ titulo: TITULO_PROPUESTA_BOT, lineas: [], acciones: ["confirmar", "cambiar", "cancelar"] });
+    expect(r.previo).toEqual({});
+  });
+
+  it("devuelve error de entenderVoz", async () => {
+    const a = { tipo: "xr.intencion", args: { frase: "frase no entendida" } } as AccionBot;
+    const d = {};
+    const m: ResultadoVoz = { ok: false, razon: "no-entendido", pregunta: "¿Qué quieres decir?", sugerencias: [] };
+    vi.spyOn(xrIntencionesVoz, "entenderVoz").mockReturnValue(m);
+    const r = await ejecutarIntencionXR(a, ctxVoz, d);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("¿Qué quieres decir?");
+    expect(r.previo).toEqual({});
+  });
 });
 describe("anclaDeBot", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -102,10 +147,22 @@ describe("anclaDeBot", () => {
       expect(az).toBeLessThan(Math.abs(logic.azimutDeg) - grados(Math.atan2(logic.ancho / 2, logic.distancia)));
     }
   });
-  it("con una mano, las orbes van al lado libre (Horizon queda del dominante)", () => {
-    const e: EntradaEspacio = { ...ESPACIO_POR_DEFECTO, postura: "una-mano", manoDominante: "derecha" };
-    for (let i = 0; i < MAX_ORBES_VISIBLES; i++) expect(anclaDeBot("b", i, e).posicion[0]).toBeLessThan(0);
-  });
+    it("con una mano, las orbes van al lado libre (Horizon queda del dominante)", () => {
+      const e: EntradaEspacio = { ...ESPACIO_POR_DEFECTO, postura: "una-mano", manoDominante: "derecha" };
+      for (let i = 0; i < MAX_ORBES_VISIBLES; i++) expect(anclaDeBot("b", i, e).posicion[0]).toBeLessThan(0);
+    });
+
+    it("misma posición para mismo índice", () => {
+      const base = originalDisponerTrinity(ESPACIO_POR_DEFECTO);
+      vi.spyOn(xrEspacioTrinity, "disponerTrinity").mockReturnValue(base);
+      try {
+        const p0a = anclaDeBot("bot1", 0);
+        const p0b = anclaDeBot("bot2", 0);
+        expect(p0a.posicion).toEqual(p0b.posicion);
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
 });
 describe("registrarEnEjecutor", () => {
   it("añade los dos ejecutores y el de XR usa el contexto de voz del que llama", async () => {
