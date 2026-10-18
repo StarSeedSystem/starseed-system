@@ -1,0 +1,30 @@
+[Unit]
+Description=Servicio Starseed OIDO (Fermion phonon-2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Usuario=starseed
+Grupo=starseed
+# Directorio de trabajo
+WorkingDirectory=/home/starseed/oido
+# Archivo de entorno (solo nombre de variable, nunca valor)
+EnvironmentFile=/home/starseed/oido/oido.env
+# Verificar memoria libre >= 1.5 GB antes de arrancar
+ExecStartPre=/usr/bin/bash -c 'MEMFREE=$(free -m | awk '\''/^Mem:/ {print $7}'\'') ; if [ "$MEMFREE" -lt 1500 ]; then echo "Memoria libre insuficiente: ${MEMFREE} MB < 1500 MB"; exit 1; fi'
+# Lanzar fermion serve vinculado solo a 127.0.0.1
+ExecStart=/home/starseed/oido/venv/bin/fermion serve phonon-2 --host 127.0.0.1 --port 4470 --threads 2 --api-key $OIDO_CLAVE
+# Reiniciar en caso de fallo
+Restart=on-failure
+RestartSec=5
+# Seguridad
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+# No permitir que el servicio escuche fuera de 127.0.0.1 (ya está en host)
+# Si se necesita cambiar, editar el ExecStart
+
+[Install]
+WantedBy=multi-user.target
