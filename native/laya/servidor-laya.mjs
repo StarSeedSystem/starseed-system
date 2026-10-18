@@ -69,10 +69,19 @@ export function descargarLaya() {
   }
 }
 
+export function opcionesCarga(entorno = process.env) {
+  const dir = (entorno.LAYA_MODEL_DIR || "").trim();
+  return dir ? { modelDir: dir } : { cacheDir: LAYA_CACHE };
+}
+
 async function asegurarLaya() {
   if (!layaInstancia) {
+    // (2026-10-18) `new Laya({ subfolder: "multilingual" })` de @receptron/laya 0.1.x nunca cargó: el repo
+    // receptron/laya-onnx solo publica el checkpoint inglés en la raíz y la configuración salía vacía
+    // («Cannot read properties of undefined (reading 'max_len')», comprobado en el A1). Ahora: `Laya.load()` de
+    // 0.2.x con el checkpoint publicado, o la exportación propia (p. ej. laya-multilingual) si LAYA_MODEL_DIR la da.
     const { Laya } = await import("@receptron/laya");
-    layaInstancia = new Laya({ subfolder: "multilingual", cacheDir: LAYA_CACHE });
+    layaInstancia = await Laya.load(opcionesCarga());
     cargado = true;
   }
   if (timerInactividad) clearTimeout(timerInactividad);
@@ -88,7 +97,8 @@ export function crearManejador() {
     const prioHeader = req.headers["x-prioridad"];
     const esPrioritaria = Array.isArray(prioHeader) ? prioHeader.includes("conversacion") : prioHeader === "conversacion";
 
-    if (metodo === "GET" && (url === "/status" || url === "/")) {
+    // `/health` lo consulta el Mando (src/app/api/mando/jev/route.ts); antes solo existía `/status` y Laya salía caído.
+    if (metodo === "GET" && (url === "/status" || url === "/health" || url === "/")) {
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ cargado, ramLibreMb: obtenerRamLibreMb(), motivo: cargado ? "ok" : "descargado por inactividad" }));
     }

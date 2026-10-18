@@ -9,6 +9,6 @@
     "start": "node servidor-laya.mjs"
   },
   "dependencies": {
-    "@receptron/laya": "^0.1.0"
+    "@receptron/laya": "^0.2.0"
   }
 }

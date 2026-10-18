@@ -7,6 +7,7 @@ import {
   conversacionEnCurso,
   obtenerRamLibreMb,
   ramLibreDeVmStat,
+  opcionesCarga,
 } from "../../../native/laya/servidor-laya.mjs";
 
 describe("Laya Servidor Local", () => {
@@ -53,5 +54,10 @@ describe("Laya Servidor Local", () => {
     const vm = "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:  10000.\nPages inactive:  6000.\n";
     expect(ramLibreDeVmStat(vm)).toBe(250);
     expect(ramLibreDeVmStat("Pages free:  10000.\nPages inactive:  6000.\n")).toBe(63);
+  });
+
+  it("carga el checkpoint publicado o la exportación propia de LAYA_MODEL_DIR", () => {
+    expect(opcionesCarga({})).toHaveProperty("cacheDir");
+    expect(opcionesCarga({ LAYA_MODEL_DIR: " /modelos/laya-multilingual " })).toEqual({ modelDir: "/modelos/laya-multilingual" });
   });
 });
