@@ -4458,3 +4458,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-18 17:46 · mg-oracle-1018-0830
+
+**Lo que se pidió.** MotorLlamada admite canales directos (sin Supabase)
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTS1010-TU-LL2c, RTS1010-MGR2b, RTS1010-EV-ORACLE-2, RTCOL1012I). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTS1010-TU-LL2c` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTS1010-MGR2b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTS1010-EV-ORACLE-2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCOL1012I` — otra cosa: ningún proveedor respondió (todos caídos)
