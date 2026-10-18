@@ -148,8 +148,17 @@ describe("analizarPmset", () => {
     expect(result.cargando).toBe(false);
   });
 
-  it("should return null if percentage not found", () => {
-    const pmset = "Some text without percentage";
-    expect(analizarPmset(pmset)).toEqual({ porcentaje: null, cargando: null });
-  });
-});
+   it("should return null if percentage not found", () => {
+     const pmset = "Some text without percentage";
+     expect(analizarPmset(pmset)).toEqual({ porcentaje: null, cargando: null });
+   });
+
+   it("should handle AC attached without battery", () => {
+     // When AC attached but no battery, pmset may show percentage without state
+     const pmset = "Now drawing from 'AC Power'\n -internalbattery:     90%";
+     const result = analizarPmset(pmset);
+     expect(result.porcentaje).toBe(90);
+     // No state after percentage -> cargando should be null
+     expect(result.cargando).toBeNull();
+   });
+ });
