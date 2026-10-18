@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAdnEntry } from "@/lib/avatares/adaptadores/almacen-adn";
 import { parseAdnEntry, saveAdnToLibrary } from "@/lib/avatares/adaptadores/almacen-adn";
 import { decidirCambioAvatar } from "@/lib/avatares/adn/permisos";
-import { AdnAvatar } from "@/lib/avatares/adn/adn";
+import { AdnAvatar, VERSION_ADN, texto } from "@/lib/avatares/adn/adn";
 import { PLANTILLAS_AVATAR, adnDePlantilla, refDePlantilla } from "@/lib/avatares/plantillas";
 import { AvatarVivo } from "@/components/avatares/avatar-vivo";
 
@@ -101,7 +101,55 @@ export default function SelectorAvatar3d({
       ? { tipo: "perfil", id: profileId }
       : { tipo: "comunidad", id: entityId ?? "sin-dueno" };
 
-  const handleElegirPlantilla = useCallback(
+   /** Crea un ADN mínimo a partir de una referencia «biblioteca:» para usar con AvatarVivo en modo ADN. */
+   const createAdnFromBibliotecaRef = (ref: string): AdnAvatar | null => {
+     if (!ref.startsWith("biblioteca:")) return null;
+
+     // Truncar el id a 80 caracteres si es necesario (límite de saneado)
+     const id = ref.length > 80 ? ref.slice(0, 80) : ref;
+
+     // Extraer el nombre del archivo sin extensión
+     let nombre = "Avatar";
+     try {
+       const path = ref.slice("biblioteca:".length);
+       const parts = path.split('/');
+       const filenameWithExt = parts[parts.length - 1];
+       const filename = filenameWithExt.split('.')[0];
+       if (filename) {
+         nombre = texto(filename, 40); // truncar a 40 como en adnPorDefecto
+       }
+     } catch {
+       // Si falla, dejamos el nombre por defecto
+     }
+
+     const dueno = duenoActual();
+
+     return {
+       v: VERSION_ADN,
+       id,
+       nombre,
+       dueno,
+       base: { tipo: "vrm", ref },
+       esqueleto: { tipo: "vrm-humanoide", articulaciones: 55 },
+       morfologia: {},
+       materiales: {},
+       piezas: [],
+       expresionBase: {},
+       aura: { tono: 260, intensidad: 0.6, ligadaEmocion: true },
+       movimiento: { energia: 0.5, amplitud: 0.5, ritmo: 0.5, postura: 0.5 },
+       visibilidad: "privado",
+       procedencia: [],
+       rev: 0,
+     };
+   };
+
+   const adnDesdeRef = useMemo(() => {
+     return currentAdnRef.startsWith("biblioteca:") 
+       ? createAdnFromBibliotecaRef(currentAdnRef)
+       : null;
+   }, [currentAdnRef]);
+
+   const handleElegirPlantilla = useCallback(
     async (idPlantilla: string) => {
       const adn = adnDePlantilla(idPlantilla, duenoActual(), `adn-${Date.now().toString(36)}`);
       if (!adn) return;
@@ -145,46 +193,53 @@ export default function SelectorAvatar3d({
       )}
 
       <div className="space-y-4">
-        {adnAvatar ? (
-          <div className="rounded-lg border bg-card p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="font-medium">Avatar actual</h4>
-              <Badge variant="secondary">{adnAvatar.nombre || "Avatar"}</Badge>
-            </div>
+         {adnAvatar ? (
+           <div className="rounded-lg border bg-card p-4">
+             <div className="flex items-center justify-between mb-4">
+               <h4 className="font-medium">Avatar actual</h4>
+               <Badge variant="secondary">{adnAvatar.nombre || "Avatar"}</Badge>
+             </div>
 
-            <div className="aspect-square max-w-md mx-auto mb-4">
-              <AvatarVivo
-                fuente={
-                  currentAdnRef.startsWith("biblioteca:") || currentAdnRef.startsWith("genesis:")
-                    ? { tipo: "glb", url: currentAdnRef }
-                    : currentAdnRef === "vrm-persona"
-                    ? { tipo: "glb", url: "vrm-persona" }
-                    : { tipo: "procedural", svg: "orbe-gris" }
-                }
-                tamano={400}
-              />
-            </div>
+             <div className="aspect-square max-w-md mx-auto mb-4">
+               {adnDesdeRef ? (
+                 <AvatarVivo
+                   adn={adnDesdeRef}
+                   tamano={400}
+                 />
+               ) : (
+                 <AvatarVivo
+                   fuente={
+                     currentAdnRef.startsWith("genesis:")
+                       ? { tipo: "glb", url: currentAdnRef }
+                       : currentAdnRef === "vrm-persona"
+                       ? { tipo: "glb", url: "vrm-persona" }
+                       : { tipo: "procedural", svg: "orbe-gris" }
+                   }
+                   tamano={400}
+                 />
+               )}
+             </div>
 
-            {previewOnly && (
-              <div className="text-center text-sm text-muted-foreground">
-                Vista previa del avatar 3D
-              </div>
-            )}
-          </div>
-        ) : (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center p-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <span className="text-2xl">🎭</span>
-              </div>
-              <h4 className="font-medium mb-2">Sin avatar</h4>
-              <p className="text-sm text-muted-foreground mb-4">
-                El avatar aún no está configurado. Si AV1011A no está listo, se mostrará la orbe.
-              </p>
-              <Badge variant="outline">Vista previa: orbe</Badge>
-            </CardContent>
-          </Card>
-        )}
+             {previewOnly && (
+               <div className="text-center text-sm text-muted-foreground">
+                 Vista previa del avatar 3D
+               </div>
+             )}
+           </div>
+         ) : (
+           <Card className="border-dashed">
+             <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                 <span className="text-2xl">🎭</span>
+               </div>
+               <h4 className="font-medium mb-2">Sin avatar</h4>
+               <p className="text-sm text-muted-foreground mb-4">
+                 El avatar aún no está configurado. Si AV1011A no está listo, se mostrará la orbe.
+               </p>
+               <Badge variant="outline">Vista previa: orbe</Badge>
+             </CardContent>
+           </Card>
+         )}
       </div>
 
       {isOpen && !previewOnly && (
