@@ -42,6 +42,26 @@ def horas_hasta_medianoche_utc(ahora=None):
     return max(0.25, round(resto / 3600.0, 2))
 
 
+#: (2026-10-18) Los cupos diarios no vuelven todos a las 00:00 UTC: los de Google (Gemini) vuelven a
+#: medianoche del Pacífico (ai.google.dev/gemini-api/docs/rate-limits) y son por PROYECTO, no por clave.
+ZONA_CUPO_DIARIO = {"google": "America/Los_Angeles"}
+
+
+def horas_hasta_medianoche(ahora=None, zona="UTC"):
+    """PURA: horas hasta la próxima medianoche en `zona` (IANA), mínimo 0,25. Sin zoneinfo, UTC."""
+    if zona == "UTC":
+        return horas_hasta_medianoche_utc(ahora)
+    try:
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+        ahora = time.time() if ahora is None else ahora
+        local = datetime.fromtimestamp(ahora, ZoneInfo(zona))
+        siguiente = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return max(0.25, round((siguiente.timestamp() - ahora) / 3600.0, 2))
+    except Exception:
+        return horas_hasta_medianoche_utc(ahora)
+
+
 def es_respuesta_de_chat(cuerpo):
     """PURA: ¿el cuerpo de un 200 es una respuesta de chat (JSON con `choices`)?
 
@@ -56,7 +76,7 @@ def es_respuesta_de_chat(cuerpo):
     return isinstance(d, dict) and isinstance(d.get("choices"), list)
 
 
-def clasificar(codigo, cuerpo, ahora=None):
+def clasificar(codigo, cuerpo, ahora=None, proveedor=None):
     """PURA. (apto, motivo, horas_sin_cupo, modelo_muerto).
 
     - 200 → apto. Con cuerpo, solo si es una respuesta de chat: un 200 que no lo es (el
@@ -80,7 +100,8 @@ def clasificar(codigo, cuerpo, ahora=None):
         return False, "modelo solo de pago (%s)" % codigo, 0, True
     if codigo == 429:
         if _DIARIO.search(c) or "quota" in c:
-            return False, "cupo del día agotado (429)", horas_hasta_medianoche_utc(ahora), False
+            zona = ZONA_CUPO_DIARIO.get(proveedor or "", "UTC")
+            return False, "cupo del día agotado (429)", horas_hasta_medianoche(ahora, zona), False
         return False, "saturado (429)", 0.25, False
     if codigo == 402 or _CREDITO.search(c):
         return False, "sin crédito (%s)" % codigo, 24, False
@@ -135,15 +156,15 @@ def sondear(modelo, cfg_opencode, entorno, abrir=_abrir, ahora=None):
                 texto = leer(65536).decode("utf-8", "replace") if callable(leer) else ""
             except Exception:
                 texto = ""
-            return clasificar(getattr(r, "status", 200), texto, ahora)
+            return clasificar(getattr(r, "status", 200), texto, ahora, str(modelo or "").partition("/")[0])
     except urllib.error.HTTPError as e:
         try:
             texto = e.read().decode("utf-8", "replace")[:400]
         except Exception:
             texto = str(e)
-        return clasificar(e.code, texto, ahora)
+        return clasificar(e.code, texto, ahora, str(modelo or "").partition("/")[0])
     except Exception:
-        return clasificar(None, "", ahora)
+        return clasificar(None, "", ahora, str(modelo or "").partition("/")[0])
 
 
 class Memoria(object):

@@ -135,3 +135,18 @@ class Memoria(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CupoDeGoogleVuelveAMedianocheDelPacifico(unittest.TestCase):
+    """(2026-10-18) Gemini resetea su cupo diario a medianoche del Pacífico, no a las 00:00 UTC."""
+
+    def test_google_pacifico_y_los_demas_utc(self):
+        ahora = 1792281600 + 13 * 3600  # 2026-10-18 13:00 UTC = 06:00 en Los Ángeles (PDT, UTC-7)
+        cuerpo = '{"error": {"message": "You exceeded your current quota, per day"}}'
+        _, _, h_google, _ = S.clasificar(429, cuerpo, ahora, "google")
+        _, _, h_otro, _ = S.clasificar(429, cuerpo, ahora, "openrouter")
+        self.assertEqual(h_otro, 11.0)    # hasta las 00:00 UTC
+        self.assertEqual(h_google, 18.0)  # hasta las 00:00 PDT = 07:00 UTC del día siguiente
+
+    def test_zona_desconocida_cae_a_utc(self):
+        self.assertEqual(S.horas_hasta_medianoche(86400 * 5 - 1800, "Zona/Inventada"), 0.5)
