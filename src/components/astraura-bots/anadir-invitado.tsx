@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Link } from "next/link";
+import Link from "next/link";
 import { 
   Plus, 
   X, 
@@ -38,17 +38,26 @@ export function AnadirInvitado({
   const handleSubmit = async () => {
     setBusy(true);
     try {
-      const entrada: EntradaInvitado = {
-        tipo,
-        nombre: nombre.trim(),
-      } as EntradaInvitado;
-
-      if (tipo === "openai-compatible") {
-        entrada.url = url.trim();
-        entrada.variable = variable.trim();
-      } else if (tipo === "ag-ui") {
-        entrada.endpoint = endpoint.trim();
-      }
+       let entrada: EntradaInvitado;
+       if (tipo === "openai-compatible") {
+         entrada = { 
+           tipo, 
+           nombre: nombre.trim(),
+           url: url.trim(),
+           variable: variable.trim()
+         };
+       } else if (tipo === "ag-ui") {
+         entrada = { 
+           tipo, 
+           nombre: nombre.trim(),
+           endpoint: endpoint.trim()
+         };
+       } else {
+         entrada = { 
+           tipo, 
+           nombre: nombre.trim()
+         };
+       }
 
       const resultado = crearInvitado(entrada, perfilId, cuentaId);
       if ("problemas" in resultado) {
