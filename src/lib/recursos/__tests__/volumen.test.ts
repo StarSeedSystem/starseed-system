@@ -5,7 +5,9 @@ import {
   bandasDeRango,
   diferencia,
   replicasDeseadas,
-  elegirFuentes
+  elegirFuentes,
+  Tenedor,
+  Oferta
 } from "../volumen";
 
 describe("volumen.ts", () => {
