@@ -1,0 +1,137 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "AV1011Jb",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Propuestas y votos de avatar en grupos y páginas (PoliGenesis)",
+   "archivos": [
+    "src/lib/avatares/adaptadores/propuesta-avatar.ts",
+    "src/components/avatares/propuesta-avatar.tsx",
+    "src/lib/avatares/adaptadores/__tests__/propuesta-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Operación `avatar.cambiar` con `{ref, revBase, cambios}` donde `cambios = diffAdn(actual, propuesto)`. Regístrala con el mecanismo de operaciones de Genesis/PoliGenesis que ya existe (búscalo; la tarea BOT1011J1 añade operaciones de bots en `src/lib/genesis/operaciones.ts`: si el registro admite archivos separados úsalo, si no, edición mínima). Al aprobarse: si `revBase` coincide, `aplicarCambios`; si no, se vuelve a calcular el diff sobre la revisión actual y se avisa. La tarjeta muestra los dos avatares lado a lado (actual y propuesto) y la lista de cambios en palabras. Solo se puede proponer si `decidirCambioAvatar` responde «votacion». Pruebas del rebase.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261013-171455-AV1011J`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261013-171455-AV1011J:refs/remotes/origin/nube/a1-20261013-171455-AV1011J\"` y `git cherry-pick --no-commit 46d2541cb248`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/avatares/propuesta-avatar.tsx, src/lib/avatares/adaptadores/__tests__/propuesta-avatar.test.ts, src/lib/avatares/adaptadores/propuesta-avatar.ts, src/lib/genesis/operaciones.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261013-171455-AV1011J",
+   "dependencias_ya_en_main": [
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "AV1011C",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "La orbe del bot puede ser su avatar 3D: emoción, voz y movimiento",
+   "archivos": [
+    "src/lib/avatares/adaptadores/adn-de-bot.ts",
+    "src/components/avatares/cuerpo-3d-bot.tsx",
+    "src/lib/avatares/adaptadores/__tests__/adn-de-bot.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Cuando `bot.cuerpo.forma` es `avatar-3d` o `vrm`, `bot.cuerpo.avatarRef` apunta al ADN (`biblioteca:`). `adnDeBot(bot)` lo carga o crea `adnPorDefecto` con el tono de la orbe y dueño `{tipo:'bot'}`. La emoción del bot (valencia y activación de `src/lib/astraura-bots/tipos.ts`) mueve expresiones (happy/sad/angry/surprised/relaxed) y la intensidad del aura si `aura.ligadaEmocion`; al hablar, visemas por `sincronia-voz.ts` y gestos con `moverAvatar` respetando `adn.movimiento`. Punto de integración: la tarea BOT1011U de la cola de bots crea `src/components/astraura-bots/cuerpo-bot.tsx`; si ya existe, monta ahí `<Cuerpo3dBot>` para esas formas; si no existe, deja el componente exportado y dilo en el resumen (no lo crees tú). Tamaño de widget flotante, pausa al ocultarse, sin animación con prefers-reduced-motion. Pruebas de `adnDeBot` y del mapeo emoción→expresiones.",
+   "dependencias_ya_en_main": [
+    "AV1011A"
+   ]
+  },
+  {
+   "id": "AV1011E",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Sincronía del avatar en escenas compartidas y en XR",
+   "archivos": [
+    "src/lib/vivo/espacial/avatares.ts",
+    "src/lib/avatares/adaptadores/sincronia-adn.ts",
+    "src/lib/avatares/adaptadores/__tests__/sincronia-adn.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade a `MetaAvatar` campos opcionales `adnRef` y `adnRev` (sin romper a quien no los mande). Al entrar alguien, los presentes leen su ADN UNA vez (caché por ref+rev). Edición en vivo: los lotes de `lote()` viajan por el MISMO canal de la escena como evento `adn` con `{ref, rev, cambios}`; quien recibe filtra con `sanearCambio` y aplica solo si la revisión es más nueva. En XR, el nivel de avatar sale de la calidad actual (`src/lib/xr/`) y se dibuja con `adnParaCalidad`. Mantén las reglas de 10 Hz del archivo y que las pruebas existentes de espacial sigan en verde.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "PM1010F2D",
+   "ola": "Ola 1010P · Protomolécula: función universal de creación y edición (átomos con parámetros, dictado en tiempo real, convergencia, sincronía P2P)",
+   "titulo": "Conversores reales de audio y 3D (PCM→WAV, OBJ→glTF) y registro de todos los básicos",
+   "archivos": [
+    "src/lib/protomolecula/conv-binarios.ts",
+    "src/lib/protomolecula/convertidores-base.ts",
+    "src/lib/protomolecula/__tests__/conv-binarios.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/protomolecula.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §1 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica. §11.1 fija los nombres de las interfaces del runtime. El núcleo puro YA está escrito y probado (120 pruebas) y NO se modifica: `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts` (ábrelos y usa sus nombres reales). `src/lib/protomolecula/catalogo-herramientas.ts` lo escribe OTRA sesión: no lo crees ni lo edites; las herramientas se citan por id (string). Petición de Alex (2026-10-10): «Protomolécula» = función universal de creación y edición (imagen, audio, vídeo, sonido, síntesis, 3D con texturas programables, arquitectura, físicas, videojuegos, VR/AR) que se controla a mano o por la IA de Astraura con dictado en tiempo real de cada parámetro (valor exacto o relativo), presente en el lienzo universal, la biblioteca, pizarras, dashboards, widgets, escritorios, estaciones, llamadas mesh y mensajes de agentes, privada o pública, y sincronizada por la malla P2P primero.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/protomolecula.md` y `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo: ya pasó con una rama que se inventó `tipos.ts` y `parametros.ts`). Escribe SOLO tus archivos, con los nombres y firmas que te da este prompt y el §11.1 del contrato, no edites ningún archivo del núcleo para que un import resuelva y, si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de la Protomolécula en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Sin dependencias npm nuevas. Pruebas sin red ni hardware (lo del navegador se inyecta). Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (PM1010F2D): `conv-binarios.ts` exporta `CONVERSORES_BINARIOS: ConversorDef[]`, `via: \"js\"`: 1) `pcm`→`wav`: la entrada son muestras `Float32` crudas en little-endian dentro de un `Uint8Array`; `opciones.frecuencia` (por defecto 44100) y `opciones.canales` (por defecto 1); salida WAV PCM de 16 bits con la cabecera RIFF de 44 bytes, muestras acotadas a [−1, 1] y redondeadas; entrada de longitud no múltiplo de 4 → error claro. 2) `obj`→`gltf`: entrada texto OBJ con `v`, `vn` y `f` (caras `v`, `v/vt`, `v//vn`, `v/vt/vn`; índices NEGATIVOS relativos; triangula polígonos en abanico); salida el JSON glTF 2.0 como texto, con UN buffer incrustado en base64 (`data:application/octet-stream;base64,…`), accesores de POSICIÓN con `min`/`max` correctos, de NORMAL si el OBJ las trae e índices `UNSIGNED_INT`. Sin materiales ni texturas (dilo en un comentario: lo que no soporta se IGNORA, no se inventa). Si no cabe en 120 líneas, deja OBJ→glTF con solo posiciones e índices y dilo en tu última línea. `convertidores-base.ts`: `registrarConvertidoresBase()` (idempotente) que registra `CONVERSORES_TEXTO` (F2C) y `CONVERSORES_BINARIOS`. Pruebas (≥ 12): cabecera WAV byte a byte (RIFF, fmt, data, tamaños), saturación, longitud inválida; OBJ de un triángulo y de un cuadrado (2 triángulos), índices negativos, `v//vn`, `min`/`max` de posiciones, base64 decodificable al tamaño esperado; `registrarConvertidoresBase()` hace que `rutaDeConversion(\"pcm\", \"wav\")` y `(\"obj\", \"gltf\")` existan y sea idempotente. Integración: llama a `registrarConvertidoresBase()` desde el sitio que ya inicializa el runtime (el hook `use-molecula.ts` o `registrarAtomosPropios()`; elige uno, ≤ 3 líneas, y NO añadas un cuarto archivo: si hace falta tocar otro, dilo en tu última línea).",
+   "dependencias_ya_en_main": [
+    "PM1010F2B",
+    "PM1010F2C"
+   ]
+  },
+  {
+   "id": "VGM1016A",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Vigía · las áreas como dato (qué vigilar, dónde y con qué catálogo)",
+   "archivos": [
+    "config/vigia-areas.json",
+    "scripts/puente/vigia_areas.py",
+    "scripts/puente/test_vigia_areas.py"
+   ],
+   "depende": [],
+   "prompt": "Crea `config/vigia-areas.json` con las áreas del §2 del contrato (imagen, video, 3d, voz, oido, palabra, reflejo, vision, incrustaciones, audio, motores), cada una con: `pipeline_tags`, `autores` vigilados, `cuantizadores` (unsloth, city96, QuantStack, bartowski, lmstudio-community, mlx-community), `catalogo` (ruta del archivo que actualiza), `repos_github` (solo en motores: ggerganov/llama.cpp, leejet/stable-diffusion.cpp, ggerganov/whisper.cpp, comfyanonymous/ComfyUI, fermionresearch/phonon, microsoft/onnxruntime, sst/opencode) y `licencias_conocidas` ({\"qwen-research\": \"personal\", \"apache-2.0\": \"libre\", …}). `vigia_areas.py`: `cargar_areas(ruta)` que valida (campos obligatorios, sin duplicados, rutas relativas al repo) y devuelve la lista; error claro si algo falta. Pruebas. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español."
+  },
+  {
+   "id": "VZF1015M",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Un solo resolutor de identidad de voz por persona (agente › personalidad › cerebro › neurona › cuenta)",
+   "archivos": [
+    "src/lib/aurora/identidad-voz.ts",
+    "src/lib/aurora/__tests__/identidad-voz.test.ts",
+    "src/lib/aurora/voz-rt.ts"
+   ],
+   "depende": [],
+   "prompt": "Hay seis mapas de «qué voz tiene esta persona» sin coordinar (VOZ_POR_PERSONA de voz-rt, pines del registro, timbres/voz-inicial/voz-rito, INSTRUCT del demonio, seedKindFor de openvoice2, xai-persona-voices). Crea `identidadVoz({ agente?, personalidad, cerebro?, neurona?, cuenta? })` → `{ timbre, motor, vozRT, origen }` con esa precedencia, leyendo los mapas existentes (no los borres) y que `vozDePersona` de `voz-rt.ts` la use. Pruebas de la precedencia y de que la voz F1 de Alex se conserva por defecto. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015Q",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Malla · cada neurona anuncia sus capacidades de voz medidas (oído y habla)",
+   "archivos": [
+    "src/lib/network/malla-neuronas.ts",
+    "src/lib/network/capacidades-nodo.ts",
+    "src/lib/network/__tests__/ficha-voz.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Añade a `FichaDispositivo` (y a `construirFicha`) y a `CapacidadesNodo` el campo opcional `voz: { oido: [{ motor, idiomas, tiempoReal, flujo }], habla: [{ motor, primerSonidoMs }] }` con lo MEDIDO (de `medidas-voz.ts`), nunca lo declarado; sin medidas no se anuncia. Compatible con fichas viejas sin el campo. Si `capacidades-nodo.ts` vive en otra carpeta, usa su ruta real y dilo en el commit. Pruebas. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015P"
+   ]
+  },
+  {
+   "id": "MC1012Q",
+   "titulo": "Motor de la retícula: mide, publica teselas, fusiona y recristaliza",
+   "archivos": [
+    "src/lib/malla/cristal/motor.ts",
+    "src/lib/malla/cristal/usar-cristal.ts",
+    "src/lib/malla/cristal/__tests__/motor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. motor.ts (sin React): `crearMotorCristal(deps: {miNeurona: () => NeuronaReticula; medir: () => Promise<SenalMedida[]>; reloj: () => number; firmar: (t: Tesela) => Promise<string | null>; difundir: (t: Tesela) => void; ahora: () => number})` devuelve `{vuelta(): Promise<void>; recibir(t: Tesela): void; intervaloMs(): number; estado(): {reticula: Reticula; cristal: Cristal | null; huella: string; vecinosConMismaHuella: number; ultimaVuelta: number}; suscribir(fn): () => void}`. vuelta: mide, crea su tesela con reloj(), la firma, la fusiona, la difunde, caduca (ttl 3 × su intervalo) y relaja con relajarLocal (cambiadas = [yo]); guarda un historial de calidad por señal (últimos 2 min) para temperaturaDe; notifica. recibir: EN TIEMPO REAL, fusiona y relaja al momento solo el vecindario de esa tesela (cambiadas = [origen]), sin difundir. `intervaloMs()` = 5000 si mi zona está 'fundida', 15000 'subenfriada', 60000 'vítrea' (el bucle que monte el motor lo usa). `vecinosConMismaHuella` cuenta las teselas recibidas cuyo campo `huella` coincide con la mía (el motor rellena `huella` en su tesela). usar-cristal.ts ('use client'): `useCristal(motor)` con useSyncExternalStore. Pruebas del motor con dependencias falsas: dos motores que se pasan teselas convergen a la misma huella; una neurona que deja de latir sale tras el ttl; recibir una tesela relaja sin esperar a la siguiente vuelta; intervaloMs cambia con la temperatura.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012B",
+    "MC1012F",
+    "MC1012G"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-032954.json": [
+   "VGM1016A",
+   "MC1012Q",
+   "VZF1015Q",
+   "AV1011C",
+   "AV1011E",
+   "VZF1015M",
+   "PM1010F2D",
+   "AV1011Jb"
+  ]
+ }
+}
