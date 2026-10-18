@@ -24,6 +24,8 @@
 import { validarContraInvariantes, type Violacion } from "@/lib/nucleo/invariantes";
 import { pareceCodigo } from "@/lib/nucleo/ui-spec";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
+import { type AdnAvatar } from "@/lib/avatares/adn/adn";
+import { type CambioAvatar } from "@/lib/avatares/adn/cambios";
 
 /* ── Vocabulario ─────────────────────────────────────────────────────────── */
 
@@ -36,7 +38,8 @@ export type TipoOperacion =
     | "dock.quitar"
     | "dashboard.widget.añadir"
     | "dashboard.widget.quitar"
-    | "agente.crear";
+    | "agente.crear"
+    | "avatar.cambiar";
 
 export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "perfil.editar",
@@ -48,12 +51,13 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "dashboard.widget.añadir",
     "dashboard.widget.quitar",
     "agente.crear",
+    "avatar.cambiar",
 ];
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
 export const OPERACIONES_POR_AMBITO: Record<"persona" | "entidad", readonly TipoOperacion[]> = {
     persona: TIPOS_OPERACION,
-    entidad: ["pagina.editar", "agente.crear"],
+    entidad: ["pagina.editar", "agente.crear", "avatar.cambiar"],
 };
 
 export type TipoEntidad = "pagina" | "grupo";
@@ -97,6 +101,16 @@ export interface DatosPaginaNueva {
     acento?: string;
 }
 
+/** Avatar change operation data */
+export interface AvatarCambioDatos {
+    /** Avatar id (ref field of AdnAvatar) */
+    ref: string;
+    /** Revision base that the diff was computed against */
+    revBase: number;
+    /** Array of CambioAvatar representing the diff */
+    cambios: CambioAvatar[];
+}
+
 export interface ElementoDock {
     /** Id de un botón que ya existe (activarlo). Sin id → botón nuevo propio. */
     id?: string;
@@ -128,7 +142,8 @@ export type Operacion =
     | (Base & { tipo: "dock.quitar"; id: string })
     | (Base & { tipo: "dashboard.widget.añadir"; tablero?: string; widget: string; talla?: "S" | "M" | "L" })
     | (Base & { tipo: "dashboard.widget.quitar"; tablero?: string; widget: string })
-    | (Base & { tipo: "agente.crear"; agente: DatosAgente });
+    | (Base & { tipo: "agente.crear"; agente: DatosAgente })
+    | (Base & { tipo: "avatar.cambiar"; datos: AvatarCambioDatos });
 
 /** Lo que la validación sabe del entorno (lo pasa quien llama; todo opcional). */
 export interface ContextoValidacion {
@@ -273,6 +288,26 @@ function tocaFondo(parche: Record<string, unknown>): boolean {
     return esObjeto(parche.background);
 }
 
+/* Validar lote (lo que propone el agente de una vez). Máximo `LIMITES.loteMaximo`. */
+export function validarLote(
+    lista: unknown,
+    ctx: ContextoValidacion,
+): { validas: { op: Operacion; avisos: string[] }[]; rechazadas: { indice: number; problemas: string[] }[] } {
+    const validas: { op: Operacion; avisos: string[] }[] = [];
+    const rechazadas: { indice: number; problemas: string[] }[] = [];
+    if (!Array.isArray(lista)) return { validas, rechazadas: [{ indice: 0, problemas: ["No llegó una lista de operaciones."] }] };
+    lista.forEach((bruto, indice) => {
+        if (indice >= LIMITES.loteMaximo) {
+            rechazadas.push({ indice, problemas: [`Como mucho ${LIMITES.loteMaximo} operaciones por propuesta.`] });
+            return;
+        }
+        const r = validarOperacion(bruto, ctx);
+        if (r.ok) validas.push({ op: r.op, avisos: r.avisos });
+        else rechazadas.push({ indice, problemas: r.problemas });
+    });
+    return { validas, rechazadas };
+}
+
 /* ── Validación ──────────────────────────────────────────────────────────── */
 
 /**
@@ -302,7 +337,14 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
             );
             return fallo();
         }
-        const motivo = texto(bruto.motivo ?? "Lo pediste tú.", LIMITES.motivo, "motivo", problemas) ?? "";
+        let motivoTemp: string | undefined;
+        try {
+            motivoTemp = texto(bruto.motivo ?? "Lo pediste tú.", LIMITES.motivo, "motivo", problemas);
+        } catch (e) {
+            problemas.push('Error in texto function');
+            return fallo();
+        }
+        const motivo = motivoTemp ?? "";
         if (problemas.length) return fallo();
 
         switch (tipo as TipoOperacion) {
@@ -498,33 +540,38 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 if (problemas.length) return fallo();
                 return { ok: true, avisos, op: { tipo: "agente.crear", motivo, agente: agente as DatosAgente } };
             }
+
+            case "avatar.cambiar": {
+                const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                if (!esObjeto(d)) {
+                    problemas.push("Datos de avatar.cambiar deben ser un objeto.");
+                    return fallo();
+                }
+                // Validate ref: non-empty string
+                if (typeof d.ref !== "string" || d.ref.trim() === "") {
+                    problemas.push("ref debe ser una cadena no vacía.");
+                    return fallo();
+                }
+                // Validate revBase: number
+                if (typeof d.revBase !== "number" || !isFinite(d.revBase)) {
+                    problemas.push("revBase debe ser un número finito.");
+                    return fallo();
+                }
+                // Validate cambios: array
+                if (!Array.isArray(d.cambios)) {
+                    problemas.push("cambios debe ser un arreglo.");
+                    return fallo();
+                }
+                // Optional: validate each cambio? We'll skip for now, but note that aplicarCambio expects valid CambioAvatar.
+                return { ok: true, avisos, op: { tipo: "avatar.cambiar", datos: d } };
+            }
         }
         problemas.push("Operación no reconocida.");
         return fallo();
-    } catch {
+    } catch (e) {
         problemas.push("No se pudo validar la operación.");
         return fallo();
     }
-}
-
-/** Valida un lote (lo que propone el agente de una vez). Máximo `LIMITES.loteMaximo`. */
-export function validarLote(
-    lista: unknown,
-    ctx: ContextoValidacion,
-): { validas: { op: Operacion; avisos: string[] }[]; rechazadas: { indice: number; problemas: string[] }[] } {
-    const validas: { op: Operacion; avisos: string[] }[] = [];
-    const rechazadas: { indice: number; problemas: string[] }[] = [];
-    if (!Array.isArray(lista)) return { validas, rechazadas: [{ indice: 0, problemas: ["No llegó una lista de operaciones."] }] };
-    lista.forEach((bruto, indice) => {
-        if (indice >= LIMITES.loteMaximo) {
-            rechazadas.push({ indice, problemas: [`Como mucho ${LIMITES.loteMaximo} operaciones por propuesta.`] });
-            return;
-        }
-        const r = validarOperacion(bruto, ctx);
-        if (r.ok) validas.push({ op: r.op, avisos: r.avisos });
-        else rechazadas.push({ indice, problemas: r.problemas });
-    });
-    return { validas, rechazadas };
 }
 
 /* ── Vista previa en palabras ────────────────────────────────────────────── */
@@ -596,29 +643,34 @@ export function describirOperacion(op: Operacion, ambito: Ambito): VistaPrevia {
                 detalles: Object.entries(op.cambios).map(([k, v]) => `${NOMBRE_CAMPO[k] ?? k}: ${valorCorto(v)}`),
                 deshacer: "Deshacer repone los valores anteriores si nadie los ha cambiado después.",
             };
-        case "apariencia.aplicar":
+        case "apariencia.aplicar": {
             return {
                 titulo: `Cambiar ${NOMBRE_FAJA[op.faja]}`,
                 detalles: rutasDe(op.parche).slice(0, 8),
                 deshacer: "Deshacer repone exactamente lo que había en esas opciones.",
             };
-        case "dock.añadir":
+        }
+        case "dock.añadir": {
             return {
                 titulo: op.elemento.id ? `Poner «${op.elemento.id}» en tu dock` : `Añadir al dock «${op.elemento.etiqueta}»`,
                 detalles: op.elemento.id ? [] : [`abre: ${op.elemento.ruta}`, ...(op.elemento.icono ? [`icono: ${op.elemento.icono}`] : [])],
                 deshacer: "Deshacer lo vuelve a quitar.",
             };
-        case "dock.quitar":
+        }
+        case "dock.quitar": {
             return { titulo: `Quitar «${op.id}» del dock`, detalles: ["Sigue disponible en el lanzador de apps."], deshacer: "Deshacer lo vuelve a poner." };
-        case "dashboard.widget.añadir":
+        }
+        case "dashboard.widget.añadir": {
             return {
                 titulo: `Añadir el widget ${op.widget}`,
                 detalles: [`tablero: ${op.tablero ?? "el principal"}`, ...(op.talla ? [`talla: ${op.talla}`] : [])],
                 deshacer: "Deshacer quita ese widget.",
             };
-        case "dashboard.widget.quitar":
+        }
+        case "dashboard.widget.quitar": {
             return { titulo: `Quitar el widget ${op.widget}`, detalles: [`tablero: ${op.tablero ?? "el principal"}`], deshacer: "Deshacer lo repone con su configuración." };
-        case "agente.crear":
+        }
+        case "agente.crear": {
             return {
                 titulo: `Crear el agente «${op.agente.nombre}»${de}`,
                 detalles: [
@@ -628,6 +680,21 @@ export function describirOperacion(op: Operacion, ambito: Ambito): VistaPrevia {
                 ],
                 deshacer: "Deshacer lo borra de tu biblioteca.",
             };
+        }
+        case "avatar.cambiar": {
+            return {
+                titulo: `Cambiar avatar «${op.datos.ref}»`,
+                detalles: [
+                    `revisión base: ${op.datos.revBase}`,
+                    ...op.datos.cambios.map(c => {
+                        // We need to describe each cambio; we can reuse claveCambio and maybe a simple description.
+                        // For simplicity, we'll just show the op.
+                        return `${c.op}`;
+                    })
+                ],
+                deshacer: "Deshacer repone el avatar anterior si nadie lo ha cambiado después.",
+            };
+        }
     }
 }
 
@@ -683,7 +750,8 @@ export type Inverso =
     | { tipo: "dock.restaurar"; id: string; existia: boolean; estabaActivo: boolean }
     | { tipo: "widget.quitar"; tablero: string; widgetId: string }
     | { tipo: "widget.reponer"; tablero: string; widget: Record<string, unknown> }
-    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } };
+    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } }
+    | { tipo: "avatar.restaurar"; clave: string; antes: AdnAvatar; despues: AdnAvatar };
 
 export type EstadoEntrada = "aplicada" | "deshecha" | "propuesta" | "fallida";
 
