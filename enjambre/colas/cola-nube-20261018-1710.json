@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "id": "SUC1018F-d1",
+   "titulo": "Avatares · el selector usa el visor VRM vivo para las referencias «biblioteca:» (AV1011A) (parte 1 de 2)",
+   "archivos": [
+    "src/components/avatares/selector-avatar-3d.tsx"
+   ],
+   "depende": [],
+   "prompt": "`selector-avatar-3d.tsx` pasa una referencia `biblioteca:` como si fuera una URL GLB a `model-viewer` (no carga). Desde AV1011A existe `<AvatarVivo adn calidad />` y `resolver-ref-biblioteca.ts`: úsalos para esas referencias y deja `model-viewer` para URLs GLB de verdad. Un solo lienzo WebGL visible a la vez en la lista (los demás, miniatura estática). Prueba de la función pura que elige el visor. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente).\n\n## PARTE 1 DE 2 (la dirección dividió SUC1018F: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/avatares/selector-avatar-3d.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SUC1018F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ]
+}
