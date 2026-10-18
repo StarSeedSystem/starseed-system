@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { VistaBloqueProtomolecula } from "../vista-bloque";
 import { useRouter } from "next/navigation";
 
 // Mock next/navigation
@@ -14,11 +15,10 @@ vi.mock("@/lib/protomolecula/bloque-protomolecula", () => ({
 vi.mock("@/lib/protomolecula/almacen-moleculas", () => ({
   guardarMolecula: vi.fn(),
 }));
-const formatearValorMock = vi.fn((p: any, v: any) => `${v}${p.unidad ?? ""}`);
-vi.mock("../../../lib/protomolecula/parametros", () => ({
-  formatearValor: formatearValorMock,
+vi.mock("@/lib/protomolecula/parametros", () => ({
+  formatearValor: vi.fn((p: any, v: any) => `${v}${p.unidad ?? ""}`),
 }));
-vi.mock("../../../lib/protomolecula/registro-atomos", () => ({
+vi.mock("@/lib/protomolecula/registro-atomos", () => ({
   obtenerAtomo: vi.fn(),
 }));
 
@@ -36,26 +36,18 @@ describe("VistaBloqueProtomolecula", () => {
     cleanup();
   });
 
-  it("renders error message for invalid input", async () => {
-    const { VistaBloqueProtomolecula } = await import("../vista-bloque");
-    const { leerBloque } = await import("@/lib/protomolecula/bloque-protomolecula");
-    leerBloque.mockReturnValueOnce({
+  it("renders error message for invalid input", () => {
+    (require("@/lib/protomolecula/bloque-protomolecula").leerBloque as vi.Mock).mockReturnValueOnce({
       ok: false,
       motivo: "Invalid JSON",
     });
 
     render(<VistaBloqueProtomolecula texto='{"invalid":}' />);
 
-    // We'll remove the toBeInTheDocument and just rely on getByText not throwing
-    screen.getByText(/Esta molécula no se puede mostrar: Invalid JSON/i);
+    expect(screen.getByText(/Esta molécula no se puede mostrar: Invalid JSON/i)).toBeInTheDocument();
   });
 
-  it("renders read-only card for valid molecule", async () => {
-    const { VistaBloqueProtomolecula } = await import("../vista-bloque");
-    const { leerBloque } = await import("@/lib/protomolecula/bloque-protomolecula");
-    const { obtenerAtomo } = await import("../../../lib/protomolecula/registro-atomos");
-    const { formatearValor } = await import("../../../lib/protomolecula/parametros");
-
+  it("renders read-only card for valid molecule", () => {
     const mockMolecula = {
       id: "mol-1",
       titulo: "Test Molecule",
@@ -74,12 +66,13 @@ describe("VistaBloqueProtomolecula", () => {
       actualizadaEn: Date.now(),
     };
 
-    leerBloque.mockReturnValueOnce({
+    (require("@/lib/protomolecula/bloque-protomolecula").leerBloque as vi.Mock).mockReturnValueOnce({
       ok: true,
       molecula: mockMolecula,
     });
 
-    obtenerAtomo.mockReturnValueOnce({
+    // Mock obtenerAtomo to return a definition
+    (require("@/lib/protomolecula/registro-atomos").obtenerAtomo as vi.Mock).mockReturnValueOnce({
       herramientaId: "herramienta-1",
       nombre: "Herramienta de prueba",
       categoria: "imagen",
@@ -92,30 +85,22 @@ describe("VistaBloqueProtomolecula", () => {
       salidas: [],
     });
 
+    // Mock formatearValor to return a formatted string
+    (require("@/lib/protomolecula/parametros").formatearValor as vi.Mock).mockImplementation((p: any, v: any) => {
+      return `${v}${p.unidad ?? ""}`;
+    });
+
     render(<VistaBloqueProtomolecula texto='{"valid":}' />);
 
-    // We'll check each text element by using getByText and not using toBeInTheDocument.
-    // We'll just call getByText and if it doesn't throw, the test passes for that assertion.
-    // We'll do multiple getByText calls.
-    screen.getByText(/Test Molecule/i);
-    screen.getByText(/personal/i);
-    screen.getByText(/Capa 1/i);
-    screen.getByText(/Herramienta de prueba/i);
-    screen.getByText(/Parámetro 1:/i);
-    // We expect to see the mocked formatearValor output
-    screen.getByText(/42\s*px/i); // Allow for optional whitespace between number and unit
-    // Check that the mock was called with the correct arguments
-    expect(formatearValorMock).toHaveBeenCalledWith(
-      { id: "param1", nombre: "Parámetro 1", tipo: "numero", unidad: "px" },
-      42
-    );
+    expect(screen.getByText(/Test Molecule/i)).toBeInTheDocument();
+    expect(screen.getByText(/personal/i)).toBeInTheDocument();
+    expect(screen.getByText(/Capa 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/Herramienta de prueba/i)).toBeInTheDocument();
+    expect(screen.getByText(/Parámetro 1:/i)).toBeInTheDocument();
+    expect(screen.getByText(/42px/i)).toBeInTheDocument();
   });
 
-  it("creates a copy and navigates when button is clicked", async () => {
-    const { VistaBloqueProtomolecula } = await import("../vista-bloque");
-    const { leerBloque } = await import("@/lib/protomolecula/bloque-protomolecula");
-    const { guardarMolecula } = await import("@/lib/protomolecula/almacen-moleculas");
-
+  it("creates a copy and navigates when button is clicked", () => {
     const mockMolecula = {
       id: "mol-1",
       titulo: "Test Molecule",
@@ -128,22 +113,23 @@ describe("VistaBloqueProtomolecula", () => {
       actualizadaEn: Date.now(),
     };
 
-    leerBloque.mockReturnValueOnce({
+    (require("@/lib/protomolecula/bloque-protomolecula").leerBloque as vi.Mock).mockReturnValueOnce({
       ok: true,
       molecula: mockMolecula,
     });
 
-    guardarMolecula.mockReturnValueOnce(true);
+    // Mock guardarMolecula to return true
+    (require("@/lib/protomolecula/almacen-moleculas").guardarMolecula as vi.Mock).mockReturnValueOnce(true);
 
-    render(<VistaBloqueProtomolecula texto='{"valid":}' />);
+    const { container } = render(<VistaBloqueProtomolecula texto='{"valid":}' />);
 
     const button = screen.getByRole("button", { name: /abrir copia propia/i });
-    // Check that the button is enabled by checking the disabled property
-    expect(button.disabled).toBe(false);
+    expect(button).toBeEnabled();
 
     fireEvent.click(button);
 
     expect(guardarMolecula).toHaveBeenCalled();
+    expect(mockRouter.push).toHaveBeenCalledWith("/protomolecula?molecula=mol-1-copia-");
     // Note: the idNuevo includes a timestamp, so we can't match exactly. We'll check that it starts with the expected string.
     expect(mockRouter.push).toHaveBeenCalledWith(expect.stringContaining("/protomolecula?molecula=mol-1-copia-"));
   });
