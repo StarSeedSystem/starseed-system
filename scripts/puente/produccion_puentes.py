@@ -1,7 +1,7 @@
 """Enrutador de puentes de producción §10."""
 from __future__ import annotations
 import json, os, tempfile
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 STATE_PATH = os.path.expanduser("~/.starseed/produccion/puentes.json")
@@ -10,14 +10,34 @@ BRIDGES = [
     {"id": "bandeja", "tipo": "propio", "capacidades": ["avisos"], "env": []},
     {"id": "chat_director", "tipo": "propio", "capacidades": ["avisos"], "env": []},
     {"id": "n8n_hf", "tipo": "externo", "capacidades": ["redes","drive"], "env": ["N8N_HF_URL"], "cupo": 1000},
-    {"id": "n8n_cloud", "tipo": "externo", "capacidades": ["redes","drive"], "env": ["N8N_CLOUD_URL"], "cupo": 1000},
+    # (2026-10-17) La prueba de n8n Cloud vence el 2026-10-18 (architecture/puente-propio-flujos.md §5):
+    # desde ese día queda apartado aunque su URL siga en el entorno, y sus flujos corren en casa
+    # (motor propio de Flujos, que recibe por el gancho propio de produccion_webhooks) o en n8n_hf.
+    {"id": "n8n_cloud", "tipo": "externo", "capacidades": ["redes","drive"], "env": ["N8N_CLOUD_URL"], "cupo": 1000,
+     "vence": "2026-10-18"},
 ]
 
-def activos(entorno: Dict[str,str]) -> List[Dict[str,Any]]:
+
+def vigente(b: Dict[str, Any], ahora: Optional[datetime] = None) -> bool:
+    """Un puente con `vence` deja de existir para el enrutador desde ese día (incluido)."""
+    vence = b.get("vence")
+    if not vence:
+        return True
+    hoy = (ahora or datetime.utcnow()).date()
+    return hoy < date.fromisoformat(vence)
+
+def activos(entorno: Dict[str,str], ahora: Optional[datetime] = None,
+            estado: Optional[Dict[str,Any]] = None) -> List[Dict[str,Any]]:
+    """Puentes que existen ahora: los propios siempre; un externo, si tiene su URL en el entorno,
+    no ha vencido y nadie lo apagó a mano (`activar_puente(id, False)`, que antes se ignoraba)."""
     res=[]
     for b in BRIDGES:
         if b["tipo"]=="propio":
             res.append(b); continue
+        if not vigente(b, ahora):
+            continue
+        if (estado or {}).get(b["id"], {}).get("activo") is False:
+            continue
         if all(entorno.get(v) for v in b["env"]):
             res.append(b)
     return res
@@ -98,7 +118,7 @@ def enrutar(evento: str, capacidad: str, datos: Any, entorno: Optional[Dict[str,
     entorno = dict(os.environ) if entorno is None else entorno
     ahora=ahora or datetime.utcnow()
     estado=_cargar()
-    candidatos=[b for b in activos(entorno) if capacidad in b["capacidades"]]
+    candidatos=[b for b in activos(entorno, ahora, estado) if capacidad in b["capacidades"]]
     if evento=="avisos":
         candidatos=[b for b in candidatos if b["tipo"]=="propio"]
     candidatos=[b for b in candidatos if _cupo_libre(b,estado)]
@@ -112,16 +132,3 @@ def enrutar(evento: str, capacidad: str, datos: Any, entorno: Optional[Dict[str,
             return {"puente":b["id"],"ok":True}
     return {"puente":None,"ok":False,"motivo":"sin puentes"}
 
-
-def activar_puente(nombre: str, activo: bool):
-    estado = _cargar()
-    if nombre not in estado:
-        estado[nombre] = {}
-    estado[nombre]["activo"] = activo
-    estado[nombre]["actualizado"] = datetime.utcnow().isoformat()
-    _guardar(estado)
-    return {"ok": True, "nombre": nombre, "activo": activo}
-
-
-def obtener_puentes_estado():
-    return _cargar()

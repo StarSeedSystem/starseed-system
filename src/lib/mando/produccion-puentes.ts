@@ -10,13 +10,20 @@ export interface PuenteInfo {
   capacidades: string[];
   env?: string[];
   cupo?: number;
+  /** Día (AAAA-MM-DD) desde el que el puente deja de existir para el enrutador. */
+  vence?: string;
+}
+
+/** Igual que `vigente()` de scripts/puente/produccion_puentes.py: vencido desde ese día incluido. */
+export function puenteVigente(p: PuenteInfo, ahora: Date = new Date()): boolean {
+  return !p.vence || ahora.toISOString().slice(0, 10) < p.vence;
 }
 
 export const BRIDGES: PuenteInfo[] = [
   { id: "bandeja", tipo: "propio", capacidades: ["avisos"], env: [] },
   { id: "chat_director", tipo: "propio", capacidades: ["avisos"], env: [] },
   { id: "n8n_hf", tipo: "externo", capacidades: ["redes", "drive"], env: ["N8N_HF_URL"], cupo: 1000 },
-  { id: "n8n_cloud", tipo: "externo", capacidades: ["redes", "drive"], env: ["N8N_CLOUD_URL"], cupo: 1000 },
+  { id: "n8n_cloud", tipo: "externo", capacidades: ["redes", "drive"], env: ["N8N_CLOUD_URL"], cupo: 1000, vence: "2026-10-18" },
 ];
 
 export interface EstadoPuente {
@@ -53,7 +60,7 @@ export async function obtenerPuentes(): Promise<PathDetails[]> {
 
   const entornos = { ...process.env };
   const configurados = BRIDGES.filter((p) =>
-    p.tipo === "propio" || p.env?.every((e) => entornos[e] !== undefined)
+    p.tipo === "propio" || (puenteVigente(p) && p.env?.every((e) => entornos[e] !== undefined))
   );
 
   return configurados.map((p) => {

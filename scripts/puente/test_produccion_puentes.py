@@ -71,3 +71,39 @@ class EntornoPorDefecto(unittest.TestCase):
                              ahora=datetime(2026, 1, 1))
         self.assertEqual(res, {"puente": "n8n_hf", "ok": True})
 
+
+class VenceN8nCloud(unittest.TestCase):
+    """(2026-10-17) n8n Cloud queda apartado desde el 2026-10-18 aunque su URL siga en el entorno."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        pp.STATE_PATH = os.path.join(self.tmp, "puentes.json")
+        self.entorno = {"N8N_HF_URL": "u", "N8N_CLOUD_URL": "u"}
+
+    def ids(self, ahora, estado=None):
+        return [b["id"] for b in pp.activos(self.entorno, ahora, estado)]
+
+    def test_antes_del_vencimiento_sigue(self):
+        self.assertIn("n8n_cloud", self.ids(datetime(2026, 10, 17, 23, 59)))
+
+    def test_desde_el_dia_18_apartado(self):
+        self.assertNotIn("n8n_cloud", self.ids(datetime(2026, 10, 18, 0, 0)))
+        self.assertIn("n8n_hf", self.ids(datetime(2026, 10, 18, 0, 0)))
+        self.assertIn("bandeja", self.ids(datetime(2026, 11, 1)))
+
+    def test_el_enrutador_no_lo_prueba_tras_vencer(self):
+        probados = []
+        def enviar(b, d):
+            probados.append(b["id"])
+            return (b["id"] == "n8n_cloud", 0.1)
+        res = pp.enrutar("evento", "redes", {}, self.entorno, enviar, datetime(2026, 10, 19))
+        self.assertNotIn("n8n_cloud", probados)
+        self.assertFalse(res["ok"])
+
+    def test_apagado_a_mano_no_existe(self):
+        self.assertNotIn("n8n_hf", self.ids(datetime(2026, 10, 1), {"n8n_hf": {"activo": False}}))
+        pp.activar_puente("n8n_hf", False)
+        res = pp.enrutar("evento", "redes", {}, {"N8N_HF_URL": "u"}, lambda b, d: (True, 0.1), datetime(2026, 10, 1))
+        self.assertEqual(res["puente"], None)
+        pp.activar_puente("n8n_hf", True)
+        self.assertIn("n8n_hf", self.ids(datetime(2026, 10, 1), pp._cargar()))
