@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ejecutarAccion } from "../adaptadores/ejecutor-acciones";
 import { validarAccion, type AccionBot } from "../acciones";
+import type { DepsEjecutor } from "../adaptadores/ejecutor-acciones";
+import { Mock } from "vitest";
 
 // Mock the dependencies
 vi.mock("../adaptadores/computadora-cliente");
@@ -34,12 +36,12 @@ describe("ejecutorAccion", () => {
     const accion = valida({ tipo: "computadora.ejecutar", args: { orden: "ls -la", motivo: "Prueba" } });
     const deps = makeDeps();
     const mockResultado = { ok: true, datos: { salida: "hola mundo", codigo: 0 } };
-    ejecutar.mockResolvedValue(mockResultado);
+    (ejecutar as Mock).mockResolvedValue(mockResultado);
 
     const resultado = await ejecutarAccion(accion, deps);
 
-    expect(ejecutar).toHaveBeenCalledTimes(1);
-    expect(ejecutar).toHaveBeenCalledWith("bot:test", "ls -la", {});
+    expect(ejecutar as Mock).toHaveBeenCalledTimes(1);
+    expect(ejecutar as Mock).toHaveBeenCalledWith("bot:test", "ls -la", {});
     expect(resultado).toEqual({ ok: true, previo: {}, motivo: "Orden ejecutada: hola mundo" });
   });
 
@@ -47,7 +49,7 @@ describe("ejecutorAccion", () => {
     const accion = valida({ tipo: "computadora.ejecutar", args: { orden: "ls -la" } });
     const deps = makeDeps();
     const mockResultado = { ok: false, motivo: "Computadora no disponible" };
-    ejecutar.mockResolvedValue(mockResultado);
+    (ejecutar as Mock).mockResolvedValue(mockResultado);
 
     const resultado = await ejecutarAccion(accion, deps);
 
