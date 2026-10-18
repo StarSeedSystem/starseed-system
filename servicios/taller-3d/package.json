@@ -1,0 +1,25 @@
+{
+  "name": "starseed-taller-3d",
+  "version": "0.1.0",
+  "description": "Taller 3D local de StarSeed OS: optimizador por destino (LOD, texturas, atlas y meshopt) según planOptimizacion (architecture/astraura-avatares-3d.md §11). Solo CPU: vale para la A1 y la Mac.",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bin": {
+    "taller-3d-optimizar": "optimizar.mjs"
+  },
+  "scripts": {
+    "optimizar": "node optimizar.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "meshoptimizer": "1.3.0",
+    "sharp": "0.35.5"
+  }
+}
