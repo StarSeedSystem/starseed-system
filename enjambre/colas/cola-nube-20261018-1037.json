@@ -1,0 +1,70 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "MR1012E",
+   "titulo": "Routers a nodos: panel en la configuración de neuronas y cerebros",
+   "archivos": [
+    "src/components/network/routers-malla-panel.tsx",
+    "src/components/network/router-center.tsx",
+    "src/components/network/__tests__/routers-malla-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Panel 'use client' «Routers de la malla»: añadir router (fabricante, modelo, versión, ¿es del operador?); muestra `compatibilidad` (con la tabla que se pase por prop; si no hay, estado 'desconocido' y el enlace a https://openwrt.org/toh/start para buscarlo), el aviso y los pasos; tras marcar «ya tiene OpenWrt»: región, troncales entre routers (elegir pares), `planRadios` en una tabla por enlace (banda, canal, ancho, potencia) editable dentro de lo legal, y por router los botones «Copiar guion» (guionAplicar) y «Descargar configuración» (Blob .txt). La clave de la malla se genera en el navegador (crypto.getRandomValues, 24 bytes en base64url) y solo se muestra al copiar. Guarda la lista de routers (sin claves) en localStorage con try/catch. Móntalo en router-center.tsx (cambio mínimo). Diseño del OS, legible en móvil. Prueba jsdom: añadir un router de operador muestra 'bloqueado-operador'.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MR1012A",
+    "MR1012B",
+    "MR1012C",
+    "MR1012D"
+   ]
+  },
+  {
+   "id": "VZR1011B",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Chatterbox en el registro de motores y en Spaces públicos",
+   "archivos": [
+    "src/lib/aurora/tts-oss/chatterbox.ts",
+    "src/lib/aurora/tts-oss/engine-registry.ts",
+    "src/lib/aurora/tts-oss/__tests__/chatterbox.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: Añade `chatterbox` a `VOICE_ENGINE_REGISTRY` (MIT, español sí, clonación sí, emociones por exageración, latencia medida) y a la cadena AUTO detrás del híbrido OmniVoice y antes de Kokoro, sin quitar a nadie. Cliente `chatterbox.ts`: primero el servicio local de VZR1011A; si no hay, descubre Spaces públicos de Chatterbox con la API pública de Hugging Face como hace `openvoice-discovery.ts` (contrato real sondeado, salud por endpoint, apartar 6 h el que falla), llamados desde el navegador de cada persona con su cuota. Corrige de paso la licencia de `openvoice2` en el registro: OpenVoice V2 es MIT con uso comercial libre según su README (decía «CC-BY-NC (checkpoints)»). Pruebas de la cadena y del cliente.",
+   "revisor_quitadas": [
+    "VZR1011A"
+   ]
+  },
+  {
+   "id": "VZR1011F",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Robot real: el Open Duck Mini como cuerpo físico de un bot",
+   "archivos": [
+    "src/lib/astraura-bots/robot-pato.ts",
+    "src/lib/astraura-bots/__tests__/robot-pato.test.ts",
+    "native/robot-pato/README.md"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: Añade la forma de cuerpo `robot` y las acciones del pato (caminar, girar, emoción, bailar, negar con la cabeza — las 5 de needle-duck) a las acciones tipadas de los bots con riesgo MEDIO (algo físico: con el nivel por defecto se propone y la persona confirma) y una acción `robot.alto` de riesgo bajo que siempre funciona al instante. Adaptador a un Open Duck Mini v2 en la red local (https://github.com/apirrone/Open_Duck_Mini, Apache-2.0; su programa de a bordo es Open_Duck_Mini_Runtime en una Raspberry Pi Zero 2W): lee la interfaz REAL de control de ese runtime; si no expone una por red, documenta en el README un servidor mínimo para la Pi que traduzca las 5 acciones a su runtime, con token local y solo en la red privada. v2 no tiene micrófono ni altavoz: la voz sale de la neurona más cercana. Sin el robot, todo dice «no hay pato conectado». Pruebas sin hardware."
+  },
+  {
+   "id": "VZR1011G",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "El pato simulado en el navegador y en XR (MuJoCo + su política de caminar)",
+   "archivos": [
+    "src/lib/robots/pato-simulado.ts",
+    "src/components/robots/pato-simulado.tsx",
+    "src/lib/robots/__tests__/pato-simulado.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: Cuerpo de pato para un bot sin hardware: el modelo del Open Duck Mini de Open Duck Playground y su política de caminar en ONNX (la misma que usa https://github.com/andrisgauracs/needle-duck, Apache-2.0) corriendo en el navegador con una versión de MuJoCo para WebAssembly (busca una mantenida y comprueba su licencia antes de instalarla, versión exacta) y onnxruntime-web. Recibe las mismas 5 acciones que el robot real y se puede poner en una escena 3D o XR. Los recursos pesados se descargan solo si la persona lo activa; si el navegador no puede, se dice y el bot sigue con su orbe. Pruebas de la traducción acción→órdenes de la política, con el simulador simulado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-032954.json": [
+   "VZR1011B",
+   "MR1012E",
+   "VZR1011F",
+   "VZR1011G"
+  ]
+ }
+}
