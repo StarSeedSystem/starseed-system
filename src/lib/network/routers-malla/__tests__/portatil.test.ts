@@ -2,15 +2,15 @@ import { describe, it, expect } from "vitest";
 
 // Import the functions being tested
 import { 
-  TIPOS_PORTATIL, 
-  coordinacionPortatil, 
-  portatil, 
-  factorAmortiguacion, 
-  compatibilidadPortatil, 
-  modelo, 
-  tabla, 
-  resumenSinSim 
-} from "../../portatil";
+   TIPOS_PORTATIL, 
+   coordinacionPortatil, 
+   portatil, 
+   factorAmortiguacion, 
+   compatibilidadPortatil, 
+   modelo, 
+   tabla, 
+   resumenSinSim 
+ } from "../portatil";
 
 describe("portatil", () => {
   it("contiene los tres tipos del contrato", () => {
