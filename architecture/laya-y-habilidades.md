@@ -48,7 +48,7 @@ hasta entonces, sus respuestas en español cuentan con su confianza real, que es
 - **Ya existía:** `decision-hibrida.ts` (Needle → Laya → Jev → modelo grande, para elegir herramienta),
   `decisiones.ts` (`decidir`, `moderar`, `enrutar`, `intencion` por `/api/jev/systemone`), `jev.py` (el enjambre
   pregunta a Laya local antes que a Jev remoto), la capa «reflejo» de `reparto-de-modelo.ts` y la ficha en la Biblioteca.
-- **Roto y arreglado hoy (commits 25da561a0 y el de este contrato):**
+- **Roto y arreglado hoy (commits 25da561a0 y ee4dd0fd1):**
   1. en la Mac la RAM libre salía 4 veces más pequeña (páginas de 16 KB contadas como de 4 KB) y Laya nunca se cargaba;
   2. el servidor pedía `subfolder: "multilingual"`, que no existe en el paquete ONNX publicado: **Laya local nunca
      llegó a responder** («reading 'max_len'»); ahora usa `Laya.load()` de 0.2.x o `LAYA_MODEL_DIR`;
