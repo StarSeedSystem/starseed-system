@@ -1,0 +1,99 @@
+{
+ "ola": "nube-20261017",
+ "tareas": [
+  {
+   "id": "VZF1015U",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "El Oracle A1 como servidor de oído 24/7 de la malla (Phonon-2 en CPU, con clave y solo por la puerta)",
+   "archivos": [
+    "deploy/oracle/nodo/oido/instalar-oido-a1.sh",
+    "deploy/oracle/nodo/oido/starseed-oido.service"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-15 en el A1 (2 OCPU, CPU): `fermion serve phonon-2 --threads 2` transcribe 11 s de habla en 1,6 s (6,9× tiempo real) con < 2 s por petición en español. Instalador idempotente como usuario `starseed` en `/home/starseed/oido/venv` con el torch de CPU primero (`pip install --no-deps torch --index-url https://download.pytorch.org/whl/cpu`, luego `fermion-research`); servicio systemd que lanza `fermion serve phonon-2 --host 127.0.0.1 --port 4470 --threads 2 --api-key $OIDO_CLAVE` (la clave sale de un archivo de entorno con permisos 600, nunca en el unit). Nunca escucha fuera de 127.0.0.1: la malla llega por el relé de voz o por la puerta del A1. Comprueba memoria libre ≥ 1,5 GB antes de arrancar. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015E"
+   ]
+  },
+  {
+   "id": "VZF1015V",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Oído · corrector por glosario de nombres propios (StarSeed, Astraura, Genesis…) tras cualquier motor",
+   "archivos": [
+    "src/lib/aurora/stt-oss/glosario-oido.ts",
+    "src/lib/aurora/stt-oss/__tests__/glosario-oido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-15: Phonon-2 escribió «Star Sed», «StarSead» (con hotwords) y «Estora»; Parakeet v3 «Star Said» y «Astora». Crea `corregirConGlosario(texto, glosario: string[], idioma)` PURO: cambia una forma cercana por la del glosario solo si la distancia de edición normalizada es pequeña (≤ 0,34 sobre la forma sin espacios ni mayúsculas, juntando hasta dos palabras seguidas) y la forma original NO es una palabra común del idioma (lista corta de palabras frecuentes de es/en para no romper «star», «said», «sed»…); `glosarioBase()` = Astraura, StarSeed, Genesis, MetaGenesis, PoliGenesis, ProtoGenesis, Aurora, Hermes, más los nombres que se le pasen (usuario, bots, grupo). Devuelve el texto y la lista de cambios. Pruebas con las salidas reales de arriba. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A"
+   ]
+  },
+  {
+   "id": "COL1012K",
+   "titulo": "Instalador del trabajador para cualquier aparato (Linux, macOS, WSL2)",
+   "archivos": [
+    "scripts/puente/instalar_trabajador.sh",
+    "scripts/puente/test_instalar_trabajador.py"
+   ],
+   "depende": [],
+   "prompt": "Crea scripts/puente/instalar_trabajador.sh (bash, `set -uo pipefail`, portable a bash 3.2 de macOS) con `--emparejar <código>`, `--seco` y `--ayuda`: comprueba git, Node ≥ 20.19, python3 ≥ 3.9 y opencode y, si falta algo, dice el comando EXACTO para instalarlo en ese sistema (brew/apt/dnf, y en Android «pkg install» de Termux) sin instalar nada por su cuenta; clona el repo en ~/starseed-trabajador (pregunta antes si ya existe) y, con `colmena_logica.capacidad_contenedor(gobernador_generico.medir())`, explica cuántos agentes podrá aportar y por qué; `npm ci --include=dev`, crea la llave del nodo (`python3 scripts/puente/nodo_metagenesis.py llave`, que solo enseña la huella) e instala el nodo en modo contenedor (`nodo_metagenesis.py instalar`: launchd en macOS con el python3 de Homebrew, systemd --user en Linux/WSL2). El emparejado con el código queda como paso final que imprime «pendiente: falta la migración de nodos (§8)» si el servidor responde 503. Nunca pide contraseñas ni imprime claves. Pruebas en Python que ejecutan el script con `--seco` y un PATH falso (sin red).\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "revisor_quitadas": [
+    "COL1012Lc"
+   ]
+  },
+  {
+   "id": "PG1013B",
+   "ola": "Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · PoliGenesis · MetaGenesis)",
+   "titulo": "ProtoGenesis: pasos listos y reparto multiagéntico determinista",
+   "archivos": [
+    "src/lib/protogenesis/reparto.ts",
+    "src/lib/protogenesis/__tests__/reparto.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/protogenesis.md (léelo entero) y architecture/protomolecula.md §3, §7 y §8. Tipos de la Protomolécula SIEMPRE de src/lib/protomolecula/tipos.ts (Molecula, Ambito, Operacion, Cambio, EstadoValores, Computo, ReferenciaEntidad). Exporta `type EstadoPaso = 'pendiente' | 'en-curso' | 'verificando' | 'hecho' | 'fallido' | 'necesita-mano'`, `nivelesDe(plan): string[][]` (niveles topológicos, orden estable por id), `pasosListos(plan, estados: Record<string, EstadoPaso>): Paso[]` (pendientes con todas sus dependencias 'hecho'), `repartirPasos(listos: Paso[], agentes: Array<{id: string; ocupado: boolean; puede?: string[]}>, tope = LIMITES.agentes): Array<{paso: string; agente: string}>`: determinista, un agente libre por paso, como mucho `tope` a la vez, respeta `puede` (lista de átomos que sabe usar; vacía = todos), nunca dos pasos al mismo agente ni un paso a dos. `progreso(plan, estados)` = {hechos, total, enCurso, bloqueados}. Pruebas: tres pasos independientes van a tres agentes a la vez; un paso que espera no sale; tope respetado; mismo resultado con la lista barajada.",
+   "dependencias_ya_en_main": [
+    "PG1013A"
+   ]
+  },
+  {
+   "id": "PG1013C",
+   "ola": "Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · PoliGenesis · MetaGenesis)",
+   "titulo": "ProtoGenesis: verificación de cada criterio por alguien distinto del autor",
+   "archivos": [
+    "src/lib/protogenesis/verificacion.ts",
+    "src/lib/protogenesis/__tests__/verificacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/protogenesis.md (léelo entero) y architecture/protomolecula.md §3, §7 y §8. Tipos de la Protomolécula SIEMPRE de src/lib/protomolecula/tipos.ts (Molecula, Ambito, Operacion, Cambio, EstadoValores, Computo, ReferenciaEntidad). Exporta `interface Resultado {formato: string; duracionS?: number; bytes?: number; texto?: string; capas?: string[]}` y `verificarPaso(paso: Paso, r: Resultado, quien: {id: string; tipo: 'pruebas' | 'bot' | 'persona'}, autorId: string, manuales?: Record<number, boolean>): {ok: boolean; pendientes: string[]; fallos: string[]}`: si quien.id === autorId → ok false con «el autor no puede verificarse a sí mismo»; 'formato' compara normalizado; 'duracion-max' y 'tamano-max' numéricos; 'sin-secretos' busca `sk-`, `gsk_`, `Bearer `, `ghp_`, `AKIA` y rutas absolutas de disco (`/Users/`, `/home/`, `C:\\`) — en las pruebas monta esas cadenas con join para no dejar formas reales; 'capas-presentes' exige todas; 'persona' queda pendiente hasta `manuales[i]`. `siguienteIntento(intentos: number)`: 'reintentar' si < LIMITES.intentos, si no 'necesita-mano'. Pruebas de cada criterio.",
+   "dependencias_ya_en_main": [
+    "PG1013A"
+   ]
+  },
+  {
+   "id": "PG1013D",
+   "ola": "Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · PoliGenesis · MetaGenesis)",
+   "titulo": "ProtoGenesis: quién decide el resultado y propuesta a MetaGenesis",
+   "archivos": [
+    "src/lib/protogenesis/decision.ts",
+    "src/lib/protogenesis/__tests__/decision.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/protogenesis.md (léelo entero) y architecture/protomolecula.md §3, §7 y §8. Tipos de la Protomolécula SIEMPRE de src/lib/protomolecula/tipos.ts (Molecula, Ambito, Operacion, Cambio, EstadoValores, Computo, ReferenciaEntidad). Usa `decidirAplicacion` y `rangoDeRol` de src/lib/genesis/operaciones.ts (léelo). Exporta `decidirResultado(e: {ambito: Ambito; esDueno: boolean; rol?: string | null; democratico?: boolean; tocaFueraDeLaMolecula: boolean}): {modo: 'aceptar' | 'proponer-voto' | 'proponer-metagenesis' | 'sin-permiso'; motivo: string}`: si toca fuera de la molécula → 'proponer-metagenesis' («un átomo, un conversor o código del OS lo decide MetaGenesis»); 'personal' o 'perfil' → 'aceptar' solo si esDueno; 'grupo' → según decidirAplicacion (aplicar → 'aceptar', proponer → 'proponer-voto'); 'publica' → como grupo. `propuestaMetaGenesis(encargo: Encargo, falta: {tipo: 'atomo' | 'conversor' | 'otro'; detalle: string}): {id: string; titulo: string; archivos: string[]; depende: string[]; prompt: string}` con id `PGM` + 8 caracteres de un hash estable del encargo y lo que falta, archivos vacíos (los pone MetaGenesis), y un prompt que NO incluye la intención si el ámbito es 'personal' (solo el tipo de lo que falta). Pruebas de cada modo y de que lo personal no sale.",
+   "dependencias_ya_en_main": [
+    "PG1013A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1017-170159.json": [
+   "PG1013B",
+   "PG1013C",
+   "PG1013D",
+   "COL1012K",
+   "VZF1015U",
+   "VZF1015V"
+  ]
+ }
+}
