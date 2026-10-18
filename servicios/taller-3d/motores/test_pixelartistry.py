@@ -110,6 +110,19 @@ class Disponible(unittest.TestCase):
         finally:
             mock.patch.stopall()
 
+    def test_disponible_false_en_linux(self):
+        """En Linux, disponible debe devolver False porque requiere Windows."""
+        with mock.patch.object(pa.platform, "system", return_value="Linux"):
+            self.assertFalse(pa.disponible()["ok"])
+
+    def test_disponible_true_when_conditions_met(self):
+        """Cuando se simula Windows, con nvidia-smi y ComfyUI respondiendo, disponible devuelve True."""
+        with mock.patch.object(pa.platform, "system", return_value="Windows"), \
+             mock.patch.object(pa, "_hay_nvidia", return_value=True), \
+             mock.patch("urllib.request.urlopen", return_value=mock.MagicMock(read=lambda: b"{}")):
+            comfy = ComfyFalso(clases={n: {} for n in pa.NODOS_REQUERIDOS})
+            self.assertTrue(pa.disponible(comfy)["ok"])
+
 
 class ParchearFlujo(unittest.TestCase):
     def test_cambia_solo_entrada_y_resolucion(self):
@@ -222,6 +235,42 @@ class RemallarImagen(unittest.TestCase):
                                espera_s=0.01, tope_s=0.001)
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
+
+
+class RemallarImagenNoDisponible(unittest.TestCase):
+    """Pruebas de remallar_imagen cuando el motor no está disponible."""
+    def setUp(self):
+        # Simula SO no-Windows para que disponible() devuelva False
+        self.parches = [
+            mock.patch.object(pa.platform, "system", return_value="Linux")
+        ]
+        for p in self.parches:
+            p.start()
+        import tempfile
+        self._d = tempfile.TemporaryDirectory()
+        self.addCleanup(self._d.cleanup)
+        self.tmp = self._d.name
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """Cuando el motor no está disponible, remallar_imagen debe devolver un dict de error."""
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=pa.ClienteComfyUI(),
+            dormir=lambda _: None
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # piezas de flujo y nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
 
 
 if __name__ == "__main__":
