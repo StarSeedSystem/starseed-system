@@ -213,7 +213,7 @@ export function huellaReticula(r: Reticula): string {
       reloj: tesela.reloj,
       neurona: tesela.neurona,
       senales: tesela.senales,
-      huella: tesela.huella,
+      huela: tesela.huella,
     }))
     .sort((a, b) => a.origen.localeCompare(b.origen));
   const obj = { teselas: teselasArray };
@@ -221,8 +221,10 @@ export function huellaReticula(r: Reticula): string {
   const hashBytes = new TextEncoder().encode(canonical);
   let hash = BigInt("0xcbf29ce484222325");
   for (const b of hashBytes) {
-    hash = (hash ^ BigInt(b)) * BigInt("0x100000001b3");
+    hash = ((hash ^ BigInt(b)) * BigInt("0x100000001b3")) & BigInt("0xffffffffffffffff");
   }
+  return hash.toString(16).padStart(16, '0');
+}
   hash = hash & BigInt("0xffffffffffffffff");
   return hash.toString(16).padStart(16, '0');
 }
