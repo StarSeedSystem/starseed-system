@@ -4450,6 +4450,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 =======
 <<<<<<< HEAD
 >>>>>>> f4a37b5d (chore(memoria): aprendizaje de la ola mg-oracle-1012-2102)
+<<<<<<< HEAD
 =======
 - 2 tareas se fueron por lo mismo — otra cosa (S1010-TU-LL3, WT1011A). Es 50 % de la ola.
 
@@ -4458,3 +4459,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+=======
+
+## 2026-10-17 00:36 · mg-oracle-1016-1630
+
+**Lo que se pidió.** pruebas del puente en rojo
+
+**Resultado.** 1 de 4 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MGP1016-2CE2A9` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-16 23:18:22 [0m > build · auto [0m [0m→ [0mRead CLAUDE.md [0m→ [0mRead arc
+- `MGP1016-5B8110` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/MGP1016-5B8110 conservada)
+- `RTRTRTRTRTRTCOL1012Bdsbbbbbbbb` — los tipos no compilan: 7 errores tsc (rama ola/RTRTRTRTRTRTCOL1012Bdsbbbbbbbb conservada)
+>>>>>>> 2f13fa33 (chore(memoria): aprendizaje de la ola mg-oracle-1016-1630)

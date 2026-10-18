@@ -437,10 +437,11 @@ def leer_colas_nube(carpeta, ahora_ts, dias=2):
         if not m or not nombre.endswith(".json"):
             continue
         try:
-            cuando = _dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M")
-        except ValueError:
+            mtime = _os.stat(_os.path.join(carpeta, nombre)).st_mtime
+            when_file = _dt.datetime.fromtimestamp(mtime)
+        except (OSError, ValueError):
             continue
-        if cuando < limite:
+        if when_file < limite:
             continue
         try:
             with open(_os.path.join(carpeta, nombre), encoding="utf-8") as f:
