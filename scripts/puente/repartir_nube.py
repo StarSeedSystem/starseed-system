@@ -425,6 +425,7 @@ def leer_colas_nube(carpeta, ahora_ts, dias=2):
     import datetime as _dt
     import json as _json
     import os as _os
+    import re
 
     limite = _dt.datetime.fromtimestamp(ahora_ts) - _dt.timedelta(days=dias)
     salida = []
@@ -436,11 +437,19 @@ def leer_colas_nube(carpeta, ahora_ts, dias=2):
         m = re.match(r"cola-nube-(\d{8})-(\d{4})", nombre)
         if not m or not nombre.endswith(".json"):
             continue
+        # Extract date and time from filename
+        date_str = m.group(1)  # YYYYMMDD
+        time_str = m.group(2)  # HHMM
         try:
-            cuando = _dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M")
+            when_file = _dt.datetime.strptime(date_str + time_str, "%Y%m%d%H%M")
         except ValueError:
-            continue
-        if cuando < limite:
+            # If we can't parse, fall back to mtime
+            try:
+                mtime = _os.stat(_os.path.join(carpeta, nombre)).st_mtime
+                when_file = _dt.datetime.fromtimestamp(mtime)
+            except (OSError, ValueError):
+                continue
+        if when_file < limite:
             continue
         try:
             with open(_os.path.join(carpeta, nombre), encoding="utf-8") as f:
