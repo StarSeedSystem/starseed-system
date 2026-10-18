@@ -1,0 +1,26 @@
+[Unit]
+Description=Servicio de oído de StarSeed para Oracle A1 (Phonon-2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+# Dirección del entorno virtual donde se instaló fermion-research
+Environment=VENV_PATH=/home/starseed/oido/venv
+# Archivo de entorno con la variable OIDO_CLAVE (permisos 600)
+EnvironmentFile=-/home/starseed/oido/.oido_env
+# Ejecutar comprobación de memoria antes de arrancar
+ExecStartPre=/usr/bin/bash -c 'free_mem_kb=$(awk '\''/MemFree/ {print $2}'\'' /proc/meminfo); free_mem_mb=$((free_mem_kb / 1024)); if [ "$free_mem_mb" -lt 1500 ]; then echo "Error: Memoria libre insuficiente: ${free_mem_mb} MB < 1500 MB"; exit 1; fi'
+# Comando principal: fermion serve phonon-2 con los parámetros especificados
+ExecStart=/home/starseed/oido/venv/bin/fermion serve phonon-2 --host 127.0.0.1 --port 4470 --threads 2 --api-key $OIDO_CLAVE
+# Reiniciar en caso de fracaso
+Restart=on-failure
+RestartSec=5
+# Limitar recursos si es necesario (opcional)
+# MemoryMax=2G
+# CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target
