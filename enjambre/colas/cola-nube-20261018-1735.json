@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "RFI1018A",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Referencias · cargar y validar el catálogo (tipos, temas, clases de uso y canales)",
+   "archivos": [
+    "src/lib/library/referencias/catalogo.ts",
+    "src/lib/library/referencias/__tests__/catalogo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Tipos TypeScript exactos del JSON (`EntradaReferencia`, `TemaReferencia`, `ClaseUso`, `Canal`) y `validarCatalogo(json)` → { ok, catalogo } | { ok:false, motivos } (ids únicos, tema existente, URLs https, clase y canales válidos). `porTema(catalogo)`, `buscar(catalogo, texto, filtros)` (nombre, qué es, subtema; filtros por tema, tipo, acceso y clase). Prueba con el JSON real (34 entradas, 7 temas). Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "RFI1018C",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Diseño · principios de usabilidad y de redacción clara, con palabras propias y su referencia",
+   "archivos": [
+    "src/lib/design/principios-referencia.ts",
+    "src/lib/design/__tests__/principios-referencia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos + comprobaciones PURAS para el Director de diseño: 8 principios de usabilidad inspirados en la referencia `dont-make-me-think` (lo obvio no se piensa, convenciones, páginas que se escanean, menos palabras, navegación que dice dónde estás, clics sin duda…) y 8 reglas de redacción clara inspiradas en `asd-ste100` (frases cortas, voz activa, una instrucción por frase, palabras simples y constantes…), TODO redactado con palabras propias en español, con su id de referencia; nunca citas largas ni texto del libro o del estándar. `revisarTexto(texto)` devuelve avisos medibles (longitud de frase, pasiva frecuente, jerga). Pruebas. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "RFI1018J",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Movimiento · reproductor de animaciones Lottie en el OS (dotLottie, MIT)",
+   "archivos": [
+    "src/components/movimiento/lottie-vista.tsx",
+    "src/components/movimiento/__tests__/lottie-vista.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente con `@lottiefiles/dotlottie-react` (instalado por Claude; si aún no está en package.json, la prueba lo simula y el componente hace import dinámico): reproduce un .lottie o .json de la Biblioteca, respeta «reducir movimiento» (muestra el primer fotograma), se pausa fuera de pantalla y muestra la licencia y el autor si los trae. Prueba con Testing Library. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  }
+ ]
+}
