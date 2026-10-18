@@ -43,6 +43,13 @@ export {
 } from "@/lib/aurora/stt-oss/motores-oido";
 
 export {
+  // Oído en flujo (Phonon-2 WebSocket)
+  abrirFlujoOido,
+  type FlujoOido,
+  type OpcionesFlujoOido,
+} from "@/lib/aurora/stt-oss/oido-flujo";
+
+export {
   // Motor
   isOssSttSupported,
   loadModel,
