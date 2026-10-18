@@ -243,20 +243,22 @@ describe("ajustes del cerebro", () => {
       });
       const resultado = conAjustes(paso1, { tipo: "cerebro" }, {
         cifradoLocal: true,
-        medios: {
-          capacidades: { texto: "texto-rapido" }
-        }
+         medios: {
+           capacidades: { texto: "texto-rapido" },
+           almacenamiento: []
+         }
       });
 
-      expect(resultado.ajustes).toEqual({
-        cerebro: {
-          privacidad: "publico",
-          cifradoLocal: true,
-          medios: {
-            capacidades: { texto: "texto-rapido" }
-          }
-        }
-      });
+       expect(resultado.ajustes).toEqual({
+         cerebro: {
+           privacidad: "publico",
+           cifradoLocal: true,
+           medios: {
+             capacidades: { texto: "texto-rapido" },
+             almacenamiento: []
+           }
+         }
+       });
     });
 
     it("debe guardar solo diferencias para memorias", () => {
@@ -362,27 +364,29 @@ describe("ajustes del cerebro", () => {
       const resultado = conAjustes(configConCerebro, { tipo: "carpeta", id: "carp1" }, {
         privacidad: "publico", // diferente
         cifradoLocal: false, // diferente
-        medios: {
-          almacenamiento: ["externo"] // diferente
-        }
+         medios: {
+           capacidades: {},
+           almacenamiento: ["externo"] // diferente
+         }
       });
 
-      // Debe guardar todas las diferencias en la carpeta
-      expect(resultado.ajustes).toEqual({
-        cerebro: {
-          privacidad: "grupo",
-          cifradoLocal: true,
-        },
-        carpetas: {
-          carp1: {
-            privacidad: "publico",
-            cifradoLocal: false,
-            medios: {
-              almacenamiento: ["externo"]
-            }
-          }
-        }
-      });
+       // Debe guardar todas las diferencias en la carpeta
+       expect(resultado.ajustes).toEqual({
+         cerebro: {
+           privacidad: "grupo",
+           cifradoLocal: true,
+         },
+         carpetas: {
+           carp1: {
+             privacidad: "publico",
+             cifradoLocal: false,
+             medios: {
+               capacidades: {},
+               almacenamiento: ["externo"]
+             }
+           }
+         }
+       });
     });
 
     it("debe manejar arrays en comparaciones", () => {

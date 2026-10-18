@@ -158,31 +158,28 @@ export function conAjustes(
   // No mutar el config original
   const nuevoConfig = { ...config };
 
-  // Inicializar la estructura de ajustes si no existe
-  if (!nuevoConfig.ajustes || typeof nuevoConfig.ajustes !== "object") {
-    nuevoConfig.ajustes = {};
-  }
+   // Inicializar la estructura de ajustes si no existe
+   if (!nuevoConfig.ajustes || typeof nuevoConfig.ajustes !== "object") {
+     nuevoConfig.ajustes = {};
+   }
 
-  // Ahora sabemos que nuevoConfig.ajustes es un objeto, pero necesitamos decirle a TypeScript su forma
-  const ajustes = nuevoConfig.ajustes as {
-    cerebro?: Partial<AjustesObjetivo>;
-    memorias?: Record<string, Partial<AjustesObjetivo>>;
-    carpetas?: Record<string, Partial<AjustesObjetivo>>;
-  };
+    // Work with references to avoid repeating the property access
+    const ajustes = nuevoConfig.ajustes as {
+      cerebro?: Partial<AjustesObjetivo>;
+      memorias?: Record<string, Partial<AjustesObjetivo>>;
+      carpetas?: Record<string, Partial<AjustesObjetivo>>;
+    };
 
   switch (objetivo.tipo) {
-    case "cerebro":
-      // Para el cerebro, combinar con los ajustes existentes
-      const cerebroActual = ajustes.cerebro ?? {};
-      ajustes.cerebro = { ...cerebroActual, ...parcial };
-      break;
+     case "cerebro":
+       // Para el cerebro, combinar con los ajustes existentes
+       ajustes.cerebro = { ...(ajustes.cerebro ?? {}), ...parcial };
+       break;
     case "memoria":
     case "carpeta":
       // Para memorias y carpetas, guardar solo lo que difiere del cerebro
       const coleccion =
-        objetivo.tipo === "memoria"
-          ? ajustes.memorias ?? {}
-          : ajustes.carpetas ?? {};
+        objetivo.tipo === "memoria" ? ajustes.memorias : ajustes.carpetas;
       const id = objetivo.id;
 
       // Calcular la diferencia: solo lo que está en parcial pero no en el cerebro (o es diferente)
@@ -196,12 +193,12 @@ export function conAjustes(
         // Para arrays, comparar contenido
         if (Array.isArray(valorParcial) && Array.isArray(valorCerebro)) {
           esDiferente = JSON.stringify(valorParcial) !== JSON.stringify(valorCerebro);
-        }
+        } 
         // Para objetos simples (no arrays, no null), comparar directamente
         else if (
-          valorParcial !== null &&
-          typeof valorParcial === "object" &&
-          valorCerebro !== null &&
+          valorParcial !== null && 
+          typeof valorParcial === "object" && 
+          valorCerebro !== null && 
           typeof valorCerebro === "object"
         ) {
           // Para objetos simples, comparar profundamente
@@ -212,25 +209,32 @@ export function conAjustes(
           esDiferente = valorParcial !== valorCerebro;
         }
 
+        // Log for debugging
+        if (clave === "privacidad" || clave === "medios" || clave === "sync" || clave === "acceso" || clave === "cifradoLocal") {
+          console.log(`Field ${clave}: valorParcial=${JSON.stringify(valorParcial)}, valorCerebro=${JSON.stringify(valorCerebro)}, esDiferente=${esDiferente}`);
+        }
+
         if (esDiferente) {
           (diferencias as any)[clave] = valorParcial;
+          console.log(`Added field ${clave} to diferencias`);
         }
       }
 
-      // Solo guardar si hay diferencias
-      if (Object.keys(diferencias).length > 0) {
-        if (objetivo.tipo === "memoria") {
-          if (!ajustes.memorias || typeof ajustes.memorias !== "object") {
-            ajustes.memorias = {};
-          }
-          ajustes.memorias[id] = diferencias;
-        } else {
-          if (!ajustes.carpetas || typeof ajustes.carpetas !== "object") {
-            ajustes.carpetas = {};
-          }
-          ajustes.carpetas[id] = diferencias;
-        }
-      }
+       // Solo guardar si hay diferencias
+       if (Object.keys(diferencias).length > 0) {
+         if (!coleccion) {
+           // Inicializar la colección si no existe
+           const nuevaColeccion: Record<string, Partial<AjustesObjetivo>> = {};
+           nuevaColeccion[id] = diferencias;
+           if (objetivo.tipo === "memoria") {
+             ajustes.memorias = nuevaColeccion;
+           } else {
+             ajustes.carpetas = nuevaColeccion;
+           }
+         } else {
+           coleccion[id] = diferencias;
+         }
+       }
       break;
   }
 
@@ -277,10 +281,9 @@ export function ajustesEfectivos(
               ...(resultado.medios?.capacidades ?? {}),
               ...(ajustesObjetivo.medios?.capacidades ?? {}),
             },
-            almacenamiento:
-              ajustesObjetivo.medios?.almacenamiento?.length > 0
-                ? ajustesObjetivo.medios.almacenamiento
-                : resultado.medios.almacenamiento,
+             almacenamiento: (ajustesObjetivo.medios && ajustesObjetivo.medios.almacenamiento && ajustesObjetivo.medios.almacenamiento.length > 0)
+               ? ajustesObjetivo.medios.almacenamiento
+               : resultado.medios.almacenamiento,
           },
           sync: {
             direccion:
@@ -292,14 +295,14 @@ export function ajustesEfectivos(
                 ? ajustesObjetivo.sync.auto
                 : resultado.sync.auto,
             destinos:
-              ajustesObjetivo.sync?.destinos?.length > 0
-                ? ajustesObjetivo.sync.destinos
-                : resultado.sync.destinos,
+               (ajustesObjetivo.sync && ajustesObjetivo.sync.destinos && ajustesObjetivo.sync.destinos.length > 0)
+                 ? ajustesObjetivo.sync.destinos
+                 : resultado.sync.destinos,
           },
           acceso:
-            ajustesObjetivo.acceso?.length > 0
-              ? ajustesObjetivo.acceso
-              : resultado.acceso,
+             (ajustesObjetivo.acceso && ajustesObjetivo.acceso.length > 0)
+               ? ajustesObjetivo.acceso
+               : resultado.acceso,
         };
       }
       break;
