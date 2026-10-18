@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deshacer, validarAccion, type AccionBot } from "../acciones";
 import { MAX_ORBES_VISIBLES } from "../orbes";
 import { disponerTrinity, type EntradaEspacio } from "@/lib/xr/espacio-trinity";
-import type { ContextoVoz, ResultadoVoz, TarjetaConfirmacion } from "@/lib/xr/intenciones-voz";
+import type { ContextoVoz, ResultadoVoz, TarjetaConfirmacion, entenderVoz } from "@/lib/xr/intenciones-voz";
 
 type Respuesta = { ok: boolean; message: string };
 type Herramienta = { name: string; describe: string; example: string; handler: (args: Record<string, unknown>, ctx: unknown) => Promise<Respuesta> };
@@ -60,7 +60,7 @@ describe("protomolecula.operar", () => {
   });
 });
 describe("xr.intencion", () => {
-  let entenderVozSpy: ReturnType<typeof vi.spyOn> | null = null;
+   let entenderVozSpy: any = null;
   afterEach(() => {
     if (entenderVozSpy) {
       entenderVozSpy.mockRestore();
@@ -85,10 +85,10 @@ describe("xr.intencion", () => {
     expect(ejecutarIntencionXR(operar(MOVER), ctxVoz)).toMatchObject({ ok: false, tarjeta: null, motivo: expect.stringContaining("solo traduce «xr.intencion»") });
   });
   it("devuelve error de entenderVoz", async () => {
-    const a = voz("frase no entendida");
-    const d = { onStatus: vi.fn() };
-    const intencionesVoz = await import("@/lib/xr/intenciones-voz");
-    const m: ResultadoVoz = { ok: false, razon: "no-entendido", pregunta: "¿Qué quieres decir?", sugerencias: [] };
+     const a = voz("frase no entendida");
+     const d = { onStatus: vi.fn() };
+     const intencionesVoz = await import("@/lib/xr/intenciones-voz");
+     const m: ResultadoVoz = { ok: false, razon: "no-entendido", pregunta: "¿Qué quieres decir?", sugerencias: [] };
     entenderVozSpy = vi.spyOn(intencionesVoz, "entenderVoz").mockReturnValue(m);
     const r = await ejecutarIntencionXR(a, ctxVoz, d);
     expect(r.ok).toBe(false);
@@ -97,17 +97,17 @@ describe("xr.intencion", () => {
     expect(r.tarjeta).toBeNull();
   });
   it("devuelve tarjeta", async () => {
-    const a = voz("crea un mundo");
-    const d = { onStatus: vi.fn() };
-    const m: ResultadoVoz = { ok: true, pasos: [], confirmar: false, tarjeta: null };
-    const intencionesVoz = await import("@/lib/xr/intenciones-voz");
-    entenderVozSpy = vi.spyOn(intencionesVoz, "entenderVoz").mockReturnValue(m);
+     const a = voz("crea un mundo");
+     const d = { onStatus: vi.fn() };
+     const m: ResultadoVoz = { ok: true, pasos: [], confirmar: false, tarjeta: null };
+     const intencionesVoz = await import("@/lib/xr/intenciones-voz");
+     entenderVozSpy = vi.spyOn(intencionesVoz, "entenderVoz").mockReturnValue(m);
     const r = await ejecutarIntencionXR(a, ctxVoz, d);
     expect(r.ok).toBe(true);
     expect(r.motivo).toBe("Tarjeta lista: no se hace nada hasta que la confirmes.");
     expect(r.previo).toEqual({});
-    expect(r.tarjeta).not.toBeNull();
-    expect(r.tarjeta.titulo).toBe(TITULO_PROPUESTA_BOT);
+     expect(r.tarjeta).not.toBeNull();
+     expect(r.tarjeta!.titulo).toBe(TITULO_PROPUESTA_BOT);
   });
 });
 describe("anclaDeBot", () => {
