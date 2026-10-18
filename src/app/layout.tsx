@@ -61,7 +61,6 @@ import { VoiceNeuronOnboardingLoader } from "@/components/aurora/voice-neuron-on
 // (loaders globales que NO deben ir en el Server Component layout.tsx: ver abajo)
 
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
-import { OrbeProtomolecula } from "@/components/protomolecula/orbe-protomolecula";
 // Guía dinámica de bienvenida y ayuda (tour vivo de la interfaz). Global,
 // defensiva y SSR-safe: arranca sola en la primera visita y se reabre con el
 // evento 'starseed:open-guide' o el acceso flotante "Guía".
@@ -97,6 +96,7 @@ import { ActualizacionNativa } from "@/components/pwa/actualizacion-nativa";
 // en `@/lib/nucleo/paquete-sistema`. Sin este cableado, `revisar` falla CERRADO
 // («nucleo-configurado») y ningún paquete compartido sería instalable.
 import { ArranqueNucleo } from "@/components/system/arranque-nucleo";
+import dynamic from "next/dynamic";
 import { A11yBoot } from "@/components/a11y/a11y-boot";
 // Foco + anuncio aria-live al cambiar de ruta (SPA), para teclado/lector.
 import { RouteFocus } from "@/components/a11y/route-focus";
@@ -171,6 +171,8 @@ const fontCode = Source_Code_Pro({
   subsets: ["latin"],
   variable: "--font-code",
 });
+
+const OrbeProtomolecula = dynamic(() => import("@/components/protomolecula/orbe-protomolecula"), { ssr: false });
 
 export const metadata: Metadata = {
   title: "StarSeed System",

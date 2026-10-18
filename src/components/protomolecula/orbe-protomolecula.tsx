@@ -14,8 +14,8 @@ export function OrbeProtomolecula(){
   const[activada,setActivada]=useState(false);
   const[panelAbierto,setPanelAbierto]=useState(false);
   const[dragging,setDragging]=useState(false);
-  const[dragStart,setDragStart]=useState(null);
-  const ref=useRef(null);
+  const[dragStart,setDragStart]=useState<{x: number, y: number} | null>(null);
+  const ref=useRef<HTMLDivElement>(null);
   const pathname=usePathname();
   useEffect(()=>{
     if(typeof window!=="undefined"){
@@ -25,7 +25,7 @@ export function OrbeProtomolecula(){
     }
   },[]);
   useEffect(()=>{
-    const storageHandler=e=>{
+    const storageHandler=(e: StorageEvent)=>{
       if(e.key==="starseed.protomolecula.orbe.enabled.v1")setActivada(e.newValue!=="false");
       if(e.key==="starseed.protomolecula.orbe.pos.v1"&&e.newValue){
         const pos=JSON.parse(e.newValue);
@@ -45,8 +45,8 @@ export function OrbeProtomolecula(){
     return()=>{window.removeEventListener(PROTO_ORB_ABRIR_EVENT,openHandler);window.removeEventListener(PROTO_ORB_FAB_EVENT,fabHandler)};
   },[activada]);
   useEffect(()=>{
-    const escHandler=e=>e.key==="Escape"&&panelAbierto&&setPanelAbierto(false);
-    const clickOutsideHandler=e=>{
+    const escHandler=(e: KeyboardEvent)=>e.key==="Escape"&&panelAbierto&&setPanelAbierto(false);
+    const clickOutsideHandler=(e: MouseEvent)=>{
       if(panelAbierto&&ref.current&&!ref.current.contains(e.target as Node)){
         setPanelAbierto(false);
       }
@@ -55,10 +55,10 @@ export function OrbeProtomolecula(){
     window.addEventListener("mousedown",clickOutsideHandler);
     return()=>{window.removeEventListener("keydown",escHandler);window.removeEventListener("mousedown",clickOutsideHandler);};
   },[panelAbierto,ref]);
-  const pointerDown=e=>{if(!activada)return;setDragStart({x:e.clientX,y:e.clientY});};
-  const pointerMove=e=>{if(!dragStart)return;const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;if(Math.hypot(dx,dy)>5){setDragging(true);moveTo(e.clientX,e.clientY);}};
-  const pointerUp=e=>{if(!dragStart)return;if(Math.hypot(e.clientX-dragStart.x,e.clientY-dragStart.y)<=5&&activada)setPanelAbierto(!panelAbierto);setDragStart(null);setDragging(false);};
-  function moveTo(clientX,clientY){
+  const pointerDown=(e: React.PointerEvent)=>{if(!activada)return;setDragStart({x:e.clientX,y:e.clientY});};
+  const pointerMove=(e: React.PointerEvent)=>{if(!dragStart)return;const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;if(Math.hypot(dx,dy)>5){setDragging(true);moveTo(e.clientX,e.clientY);}};
+  const pointerUp=(e: React.PointerEvent)=>{if(!dragStart)return;if(Math.hypot(e.clientX-dragStart.x,e.clientY-dragStart.y)<=5&&activada)setPanelAbierto(!panelAbierto);setDragStart(null);setDragging(false);};
+  function moveTo(clientX: number, clientY: number){
     if(!ref.current)return;
     const viewport={ancho:window.innerWidth,alto:window.innerHeight};
     const newPos={x:pos.x+(clientX-dragStart!.x),y:pos.y+(clientY-dragStart!.y)};
@@ -66,7 +66,7 @@ export function OrbeProtomolecula(){
     setPos(limitedPos);
     guardarPosicion(window.localStorage,limitedPos);
   }
-  function limitPos(pos,viewport){
+  function limitPos(pos: {x: number, y: number}, viewport: {ancho: number, alto: number}){
     return{
       x:Math.min(Math.max(0,pos.x),viewport.ancho-TAMANO_ORBE),
       y:Math.min(Math.max(0,pos.y),viewport.alto-TAMANO_ORBE)
