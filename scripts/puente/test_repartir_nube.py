@@ -523,6 +523,9 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
 =======
             ahora = datetime.datetime.now().timestamp()
             marca = datetime.datetime.fromtimestamp(ahora)
+<<<<<<< HEAD
+>>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
+=======
 >>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
             for i in range(3):
                 # Nombres fechados HOY: leer_colas_nube filtra por la fecha del nombre
@@ -531,6 +534,10 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
                 with open(os.path.join(colas, nombre), "w") as f:
                     json.dump({"tareas": [{"id": "FLU1014A"}]}, f)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+                os.utime(os.path.join(colas, nombre), (ahora, ahora))
+>>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
 =======
                 os.utime(os.path.join(colas, nombre), (ahora, ahora))
 >>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
