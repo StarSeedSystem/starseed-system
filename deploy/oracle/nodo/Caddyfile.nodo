@@ -10,3 +10,8 @@ bitnet.{$STARSEED_HOST} {
 		output discard
 	}
 }
+genesis.{$STARSEED_HOST} {
+	reverse_proxy 127.0.0.1:9002 {
+		header_up X-Real-IP {remote_host}
+	}
+}
