@@ -55,6 +55,10 @@ describe('normalizarVinculos', () => {
     expect(normalizarVinculos(null)).toEqual([]);
   });
 
+  it('devuelve [] para string no válido', () => {
+    expect(normalizarVinculos("bad")).toEqual([]);
+  });
+
   it('filtra inválidos', () => {
     const config = { telepatia: [vinculoValido, { id: '' }] };
     const res = normalizarVinculos(config);
@@ -83,6 +87,28 @@ describe('sinVinculo', () => {
     const cfg = { telepatia: [vinculoValido] };
     const out = sinVinculo(cfg, 'v1');
     expect((out as any).telepatia).toHaveLength(0);
+  });
+});
+
+describe('usa valores por defecto para campos faltantes', () => {
+  it('asigna ambas y leer cuando faltan direccion y acceso', () => {
+    const v = normalizarVinculos([{ id: "v2", destino: { tipo: "cuenta", id: "c1" } }]);
+    expect(v[0].direccion).toBe("ambas");
+    expect(v[0].acceso).toBe("leer");
+  });
+});
+
+describe('rechaza lo que no es objeto con id y destino', () => {
+  it('rechaza null', () => {
+    expect(validarVinculo(null).ok).toBe(false);
+  });
+
+  it('rechaza objeto vacío', () => {
+    expect(validarVinculo({}).ok).toBe(false);
+  });
+
+  it('acepta objeto con id y destino vacío (solo id válido)', () => {
+    expect(validarVinculo({ id: "v", destino: {} }).ok).toBe(true);
   });
 });
 
