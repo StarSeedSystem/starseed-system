@@ -4458,3 +4458,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-18 23:09 · mg-oracle-1018-1527
+
+**Lo que se pidió.** Enlace «Gestionar con PoliGenesis
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTGN1010A-d3, RTCOL1012Be, RTRTCOL1012Bdsbbbbbbbbbbc, RTRTCOL1012Bdsbbbbbbbbbbbb). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTGN1010A-d3` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCOL1012Be` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTCOL1012Bdsbbbbbbbbbbbb` — otra cosa: ningún proveedor respondió (todos caídos)
