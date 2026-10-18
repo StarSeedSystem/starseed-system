@@ -75,6 +75,42 @@ class PruebasEmpaquetar(unittest.TestCase):
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
+    def test_empaquetar_crea_tar_gz(self):
+        """(rescate de una rama de la nube) El paquete de una ola entera: la selección completa
+        en la raíz del tar, el .md de 300 líneas va entero y los logs que miden justo
+        LOG_LINEAS no pierden ninguna línea (borde del recorte)."""
+        seleccion = ["progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+                     "cola-1.json", "evento1.jsonl", "log.txt"]
+        with tempfile.TemporaryDirectory() as tmp:
+            olas = os.path.join(tmp, "olas")
+            os.makedirs(olas)
+            for nombre in seleccion:
+                if nombre == "progreso.md":
+                    texto = "\n".join("Línea %d" % i for i in range(300))
+                elif nombre == "evento1.jsonl":
+                    texto = "\n".join(json.dumps({"evento": i, "ts": 1000 + i})
+                                      for i in range(espejo_estado.LOG_LINEAS))
+                elif nombre == "log.txt":
+                    texto = "\n".join("Log %d" % i for i in range(espejo_estado.LOG_LINEAS))
+                else:
+                    texto = json.dumps({"prueba": nombre})
+                with open(os.path.join(olas, nombre), "w", encoding="utf-8") as f:
+                    f.write(texto)
+            ruta_tar = empaquetar(seleccion, olas, os.path.join(tmp, "salida"))
+            self.assertTrue(os.path.exists(ruta_tar))
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                # los archivos van directos a la raíz del paquete, no dentro de una subcarpeta
+                self.assertEqual(set(tar.getnames()), set(seleccion))
+                esperadas = {
+                    "progreso.json": 1, "progreso.md": 300, "medios.json": 1,
+                    "puntos-control.json": 1, "cola-1.json": 1,
+                    "evento1.jsonl": espejo_estado.LOG_LINEAS,
+                    "log.txt": espejo_estado.LOG_LINEAS,
+                }
+                for nombre, esperada in esperadas.items():
+                    lineas = tar.extractfile(nombre).read().decode("utf-8").splitlines()
+                    self.assertEqual(len(lineas), esperada, "%s: %d != %d" % (nombre, len(lineas), esperada))
+
 
 class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
