@@ -684,6 +684,14 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
         hechos.append("disco con %.1f GB: limpiado %s" % (libre, ", ".join(limpiados) or (r.get("detalle") or "nada")))
         if limpiados:
             avisar_fn("Autocuración: quedaban %.1f GB libres y limpié lo regenerable (%s)." % (libre, ", ".join(limpiados)))
+        try:  # y lo que su lista blanca no ve; con una limpiar_fn inyectada (pruebas) no se toca el disco real
+            import limpieza_caches as LC
+            hecho = LC.aplicar(LC.plan(**LC.recoger(libre_fn())), LC.borrar, LC.recortar) if limpiar_fn is limpiar else []
+            if hecho:
+                hechos.append("disco con %.1f GB: %s" % (libre, LC.resumen(hecho)))
+                avisar_fn("Autocuración: %s." % LC.resumen(hecho))
+        except Exception as e:
+            hechos.append("no pude limpiar las cachés fuera de la lista blanca: %s: %s" % (type(e).__name__, e))
 
     # Trabajadores parados con trabajo que se puede desatascar: se llenan solos.
     if any(sondas):
