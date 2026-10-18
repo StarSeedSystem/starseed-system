@@ -8,7 +8,7 @@ import {
   senalesDeReticula,
   huellaReticula,
 } from "../teselas";
-import type { NeuronaReticula, SenalMedida } from "../tipos";
+import type { NeuronaReticula, SenalMedida, Tesela, Reticula } from "../tipos";
 
 describe("teselas (CRDT)", () => {
   describe("crearTesela", () => {
