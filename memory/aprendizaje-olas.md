@@ -4458,3 +4458,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-18 10:57 · mg-oracle-1018-0400
+
+**Lo que se pidió.** Motor PixelArtistry del taller: malla cerrada y low-poly horneado por la API de ComfyUI
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (RTWT1011Ad, MGP1011-1ECCC4d, RTCOL1012Ae). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTWT1011Ad` — otra cosa: ningún proveedor respondió (todos caídos)
+- `MGP1011-1ECCC4d` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCOL1012L` — no escribió nada
+- `RTCOL1012Ae` — otra cosa: ningún proveedor respondió (todos caídos)
