@@ -1,7 +1,8 @@
-import type { CapacidadesNodo } from "../../network/capacidades-nodo";
-import type { Candidato } from "../../protomolecula/planificador-computo";
-import type { LinkedServer } from "../../brains/servers";
+import type { CapacidadesNodo } from "../network/capacidades-nodo";
+import type { Candidato } from "../protomolecula/planificador-computo";
+import type { LinkedServer } from "../brains/servers";
 import type { OfertaNeurona, Peticion, PlanResultado } from "./oferta";
+export type { OfertaNeurona, Peticion, PlanResultado } from "./oferta";
 
 export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo): OfertaNeurona {
   return {
