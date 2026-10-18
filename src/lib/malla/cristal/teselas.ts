@@ -206,23 +206,24 @@ export function senalesDeReticula(r: Reticula): SenalMedida[] {
  * @returns Huella como string hexadecimal (16 caracteres para 64 bits)
  */
 export function huellaReticula(r: Reticula): string {
-  // Build teselas array sorted by origen, without firma field
-  const teselasArray: Omit<Tesela, 'firma'>[] = Object.entries(r.teselas)
-    .map(([id, tesela]) => ({
-      origen: tesela.origen,
-      reloj: tesela.reloj,
-      neurona: tesela.neurona,
-      senales: tesela.senales,
-      huella: tesela.huella,
-    }))
-    .sort((a, b) => a.origen.localeCompare(b.origen));
-  const obj = { teselas: teselasArray };
-  const canonical = canonicalJsonStringify(obj);
-  const hashBytes = new TextEncoder().encode(canonical);
-  let hash = BigInt("0xcbf29ce484222325");
-  for (const b of hashBytes) {
-    hash = (hash ^ BigInt(b)) * BigInt("0x100000001b3");
-  }
-  hash = hash & BigInt("0xffffffffffffffff");
-  return hash.toString(16).padStart(16, '0');
-}
+    // Build teselas array sorted by origen, without firma field
+    const teselasArray: Omit<Tesela, 'firma'>[] = Object.entries(r.teselas)
+      .map(([id, tesela]) => ({
+        origen: tesela.origen,
+        reloj: tesela.reloj,
+        neurona: tesela.neurona,
+        senales: tesela.senales,
+        huella: tesela.huella,
+      }))
+      .sort((a, b) => a.origen.localeCompare(b.origen));
+    const obj = { teselas: teselasArray };
+    const canonical = canonicalJsonStringify(obj);
+    const hashBytes = new TextEncoder().encode(canonical);
+    let hash = BigInt("0xcbf29ce484222325");
+    const PRIMO = BigInt("0x100000001b3");
+    const MASCARA = BigInt("0xffffffffffffffff");
+    for (const b of hashBytes) {
+      hash = ((hash ^ BigInt(b)) * PRIMO) & MASCARA;
+    }
+    return hash.toString(16).padStart(16, '0');
+ }
