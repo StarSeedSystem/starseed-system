@@ -53,7 +53,22 @@ describe("prepararGeneracion", () => {
     expect(p.plan.pasos[0].motor?.id).toBe("pixal3d-espacio");
     expect(p.motivo).toMatch(/podría generar con Pixal3D.*no está instalado.*saldría de este aparato/);
   });
-  it("sin el registro de neuronas no dice que no haya ninguna", () => expect(prepararGeneracion(ctx({ neuronas: null }), deps()).neurona).toMatch(/no se leyó el registro/));
+  it("sin el registro de neuronas no dice que no hay ninguna", () => expect(prepararGeneracion(ctx({ neuronas: null }), deps()).neurona).toMatch(/no se leyó el registro/));
+  it("planifica avatar con GPU apple de 32 GB y taller local", () => {
+    const hierro = { gpu: "apple", ramGB: 32, vramGB: null, blender: true, permiteEspacioHf: false, claveExterna: false };
+    const plan = prepararGeneracion(ctx({ destino: "avatar", partida: "imagen", comercial: false, hierro }), deps({ taller: async () => ok() }));
+    expect(plan.via).toBe("local");
+    expect(plan.plan.pasos.length).toBe(5);
+    const generar = plan.plan.pasos.find(p => p.etapa === "generar");
+    expect(generar?.motor?.id).toBe("trellis2");
+  });
+  it("permite espacio HF cuando está habilitado (sin GPU ni blender)", () => {
+    const hierro = { gpu: "ninguna", ramGB: 0, vramGB: null, blender: false, permiteEspacioHf: true, claveExterna: false };
+    const plan = prepararGeneracion(ctx({ destino: "bot", partida: "imagen" }), deps({ espacio: async () => ok() }));
+    expect(plan.via).toBe("remota");
+    const generar = plan.plan.pasos.find(p => p.etapa === "generar");
+    expect(generar?.motor?.remoto).toBe(true);
+  });
 });
 
 describe("generar3d", () => {
@@ -82,7 +97,8 @@ describe("generar3d", () => {
   });
   it("si tarda demasiado incluso con el intento más ligero, lo dice así (no «no cabe»)", async () => {
     const c = ctx({ hierro: NV16, destino: "pieza" }), d = deps({ taller: vi.fn(async () => ({ ok: false as const, fallo: "lento" as const, motivo: "más de 20 min" })) });
-    expect(await generar3d(img(), op, prepararGeneracion(c, d), c, d, () => {})).toMatchObject({ fase: "error", motivo: expect.stringMatching(/^Tarda demasiado.*\(512\): más de 20 min$/) });
+    const fin = await generar3d(img(), op, prepararGeneracion(c, d), c, d, () => {});
+    expect(fin).toMatchObject({ fase: "error", motivo: expect.stringMatching(/^Tarda demasiado.*\(512\): más de 20 min$/) });
   });
   it("remoto: sin permiso o sin consentimiento de las personas no sale nada del aparato", async () => {
     const espacio = vi.fn(async () => ok([], []));
@@ -100,8 +116,7 @@ describe("generar3d", () => {
   });
   it("si la Biblioteca no guarda, lo dice", async () => {
     const d = deps({ espacio: async () => ok(), guardar: vi.fn(async () => ({ ok: false as const, motivo: "sin sesión" })) });
-    expect(await generar3d(img(), { ...op, permisoRemoto: true }, prepararGeneracion(ctx(), d), ctx(), d, () => {}))
-      .toEqual({ fase: "error", motivo: "Se generó, pero no se pudo guardar en la Biblioteca: sin sesión" });
+    expect(await generar3d(img(), { ...op, permisoRemoto: true }, prepararGeneracion(ctx(), d), ctx(), d, () => {})).toEqual({ fase: "error", motivo: "Se generó, pero no se pudo guardar en la Biblioteca: sin sesión" });
   });
 });
 
