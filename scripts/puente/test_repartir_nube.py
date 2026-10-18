@@ -518,36 +518,10 @@ class EnvioDevueltoPorElMedio(unittest.TestCase):
             ruta = os.path.join(d, "reap.json")
             colas = os.path.join(d, "colas")
             os.makedirs(colas)
-<<<<<<< HEAD
             ahora = datetime.datetime(2026, 10, 14, 10, 0).timestamp()
-=======
-            ahora = datetime.datetime.now().timestamp()
-            marca = datetime.datetime.fromtimestamp(ahora)
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
-=======
->>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
-=======
->>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
             for i in range(3):
-                # Nombres fechados HOY: leer_colas_nube filtra por la fecha del nombre
-                # contra `ahora` − 2 días, y una fecha clavada caduca al tercer día.
-                nombre = "cola-nube-%s.json" % (marca + datetime.timedelta(minutes=i)).strftime("%Y%m%d-%H%M")
-                with open(os.path.join(colas, nombre), "w") as f:
+                with open(os.path.join(colas, "cola-nube-20261014-09%02d.json" % i), "w") as f:
                     json.dump({"tareas": [{"id": "FLU1014A"}]}, f)
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-                os.utime(os.path.join(colas, nombre), (ahora, ahora))
->>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
-=======
-                os.utime(os.path.join(colas, nombre), (ahora, ahora))
->>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
-=======
-                os.utime(os.path.join(colas, nombre), (ahora, ahora))
->>>>>>> 63380691 (Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor · COL1012Ld-d1: Gobernador genérico: medir cualquier aparato para la colmena (parte 1 de 2))
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 3)
             self.assertEqual(R.devolver_envio_por_el_medio("FLU1014A", colas, ahora, ruta), "FLU1014A")
             self.assertEqual(R.envios_vigentes(colas, ahora, ruta).get("FLU1014A"), 2)
