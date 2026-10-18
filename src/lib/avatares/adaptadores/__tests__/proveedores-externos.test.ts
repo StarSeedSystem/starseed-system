@@ -85,19 +85,32 @@ describe("crearTarea con fetch simulado", () => {
     expect(cabecera(llamadas[0], "Content-Type")).toBeUndefined();
     expect(JSON.parse(String(llamadas[1].init?.body))).toEqual({ input: "file_abc123", model: MODELO.tripo });
   });
-  it("apagado no toca la red; errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
-    const apagado = simulado([]);
-    expect((await crearTarea("meshy", PNG, {}, apagado.buscar)).ok).toBe(false);
-    expect(apagado.llamadas).toHaveLength(0);
-    const motivos = (await Promise.all([
-      crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 401, cuerpo: { message: "Missing or invalid API key" } }]).buscar),
-      crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 402, cuerpo: {} }]).buscar),
-      crearTarea("tripo", PNG, ENCENDIDO, simulado([{ cuerpo: { code: 2010, message: "Insufficient credits" } }]).buscar),
-      crearTarea("tripo", PNG, ENCENDIDO, simulado(["sin-red"]).buscar),
-    ])).map((c) => (c.ok ? "" : c.motivo));
-    [/rechazó la clave/, /sin créditos/, /2010.*Insufficient credits/, /sin red/].forEach((re, i) => expect(motivos[i]).toMatch(re));
-    expect(motivos.join(" ")).not.toContain(CLAVE);
-  });
+   it("apagado no toca la red; errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
+     const apagado = simulado([]);
+     expect((await crearTarea("meshy", PNG, {}, apagado.buscar)).ok).toBe(false);
+     expect(apagado.llamadas).toHaveLength(0);
+     const motivos = (await Promise.all([
+       crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 401, cuerpo: { message: "Missing or invalid API key" } }]).buscar),
+       crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 402, cuerpo: {} }]).buscar),
+       crearTarea("tripo", PNG, ENCENDIDO, simulado([{ cuerpo: { code: 2010, message: "Insufficient credits" } }]).buscar),
+       crearTarea("tripo", PNG, ENCENDIDO, simulado(["sin-red"]).buscar),
+     ])).map((c) => (c.ok ? "" : c.motivo));
+     [/rechazó la clave/, /sin créditos/, /2010.*Insufficient credits/, /sin red/].forEach((re, i) => expect(motivos[i]).toMatch(re));
+     expect(motivos.join(" ")).not.toContain(CLAVE);
+   });
+   it("respuesta sin result: lanza", async () => {
+     const { buscar } = simulado([{ status: 200, cuerpo: {} }]);
+     const resultado = await crearTarea("meshy", PNG, ENCENDIDO, buscar);
+     expect(resultado.ok).toBe(false);
+     expect(resultado.motivo).toBe("Meshy no devolvió el id de la tarea.");
+   });
+   it("tripo: «no disponible» sin llamar a la red", async () => {
+     const sinTripo = { AVATARES_EXTERNOS_PERMITIDOS: "0" }; // Sin permiso
+     const { buscar, llamadas } = simulado([{ status: 200, cuerpo: {} }]);
+     const resultado = await crearTarea("tripo", PNG, sinTripo, buscar);
+     expect(resultado.ok).toBe(false);
+     expect(llamadas).toHaveLength(0); // No debe llamar a la red
+   });
 });
 describe("consultarTarea: una sola petición por llamada", () => {
   const consulta = (p: "meshy" | "tripo", id: string, cuerpo: unknown) => consultarTarea(p, id, ENCENDIDO, simulado([{ cuerpo }]).buscar);
