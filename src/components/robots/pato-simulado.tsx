@@ -8,6 +8,12 @@ export function PatoSimuladoComponent() {
   const [activarSimulacion, setActivarSimulacion] = useState(false);
   const patoRef = useRef<ReturnType<typeof obtenerPatoSimulado> | null>(null);
   const [mensajeError, setMensajeError] = useState<string | null>(null);
+  // Estado para los controles
+  const [direccionCaminar, setDireccionCaminar] = useState<"adelante" | "atras" | "izquierda" | "derecha">("adelante");
+  const [direccionGirar, setDireccionGirar] = useState<"izquierda" | "derecha">("izquierda");
+  const [gradosGirar, setGradosGirar] = useState(90);
+  const [expresionEmoticon, setExpresionEmoticon] = useState<"feliz" | "triste" | "confundido" | "asustado" | "enojado" | "somnoliento" | "asentir" | "mirar_arriba" | "mirar_abajo" | "mirar_izquierda" | "mirar_derecha" | "mirar_alrededor">("feliz");
+  const [estiloBaile, setEstiloBaile] = useState<"moverse" | "cabecear" | "girar" | "caminata_lunar" | "pollo">("moverse");
   
   // Inicializar el pato cuando se monta el componente
   useEffect(() => {
@@ -27,29 +33,64 @@ export function PatoSimuladoComponent() {
   
   // Cuando el usuario activa la simulación, intentar cargar los recursos pesados
   useEffect(() => {
-    if (activarSimulacion && patoRef.current) {
-      patoRef.current.recargar().then(() => {
-        setEstado(patoRef.current.obtenerEstado());
-      }).catch(error => {
-        setMensajeError(`Error al cargar recursos: ${error instanceof Error ? error.message : String(error)}`);
-        setEstado({ estado: "error", mensaje: error instanceof Error ? error.message : String(error) });
-      });
-    }
+     if (activarSimulacion && patoRef.current) {
+       patoRef.current.recargar().then(() => {
+         setEstado(patoRef.current!.obtenerEstado());
+       }).catch(error => {
+         setMensajeError(`Error al cargar recursos: ${error instanceof Error ? error.message : String(error)}`);
+         setEstado({ estado: "error", mensaje: error instanceof Error ? error.message : String(error) });
+       });
+     }
   }, [activarSimulacion]);
   
-  const manejarAccion = async (accion: AccionPato) => {
-    if (!patoRef.current) {
-      setMensajeError("Pato no inicializado");
-      return;
-    }
-    
-    const resultado = await patoRef.current.ejecutarAccion(accion);
-    if (!resultado.éxito) {
-      setMensajeError(resultado.mensaje || "Error desconocido");
-    } else {
-      setMensajeError(null);
-    }
-  };
+   const manejarAccion = async (accion: AccionPato) => {
+     if (!patoRef.current) {
+       setMensajeError("Pato no inicializado");
+       return;
+     }
+     
+     const resultado = await patoRef.current.ejecutarAccion(accion);
+     if (!resultado.éxito) {
+       setMensajeError(resultado.mensaje || "Error desconocido");
+     } else {
+       setMensajeError(null);
+     }
+   };
+
+   const manejarCaminar = async () => {
+     await manejarAccion({
+       tipo: "caminar",
+       direccion: direccionCaminar
+     });
+   };
+
+   const manejarGirar = async () => {
+     await manejarAccion({
+       tipo: "girar",
+       direccion: direccionGirar,
+       grados: gradosGirar
+     });
+   };
+
+   const manejarEmoticon = async () => {
+     await manejarAccion({
+       tipo: "emoticon",
+       expresion: expresionEmoticon
+     });
+   };
+
+   const manejarBaile = async () => {
+     await manejarAccion({
+       tipo: "baile",
+       estilo: estiloBaile
+     });
+   };
+
+   const manejarSacudirCabeza = async () => {
+     await manejarAccion({
+       tipo: "sacudir_cabeza"
+     });
+   };
   
   // Si está cargando (mostrar este estado primero)
   if (estado.estado === "cargando") {
@@ -296,12 +337,5 @@ export function PatoSimuladoComponent() {
         <p className="mt-4 text-sm text-red-500 dark:text-red-400">{mensajeError}</p>
       )}
     </div>
-  );
-  
-  // Estado para los controles (moved inside component to avoid closure issues)
-  const [direccionCaminar, setDireccionCaminar] = useState<"adelante" | "atras" | "izquierda" | "derecha">("adelante");
-  const [direccionGirar, setDireccionGirar] = useState<"izquierda" | "derecha">("izquierda");
-  const [gradosGirar, setGradosGirar] = useState(90);
-  const [expresionEmoticon, setExpresionEmoticon] = useState<"feliz" | "triste" | "confundido" | "asustado" | "enojado" | "somnoliento" | "asentir" | "mirar_arriba" | "mirar_abajo" | "mirar_izquierda" | "mirar_derecha" | "mirar_alrededor">("feliz");
-  const [estiloBaile, setEstiloBaile] = useState<"moverse" | "cabecear" | "girar" | "caminata_lunar" | "pollo">("moverse");
+   );
 }
