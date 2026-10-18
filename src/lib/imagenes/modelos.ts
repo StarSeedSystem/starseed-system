@@ -9,7 +9,7 @@
  */
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
-export const FECHA_VERIFICACION_IMAGENES = "2026-10-11";
+export const FECHA_VERIFICACION_IMAGENES = "2026-10-16";
 
 export const MOTORES_IMG = ["sdcpp", "comfyui", "diffusers", "onnx-web", "a1111-forge"] as const;
 export type MotorImg = (typeof MOTORES_IMG)[number];
