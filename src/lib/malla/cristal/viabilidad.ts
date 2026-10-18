@@ -25,15 +25,15 @@ export function viabilidad(
   // Veto 1: 'interno' si alguna punta no es de la misma cuenta que el origen
   if (dato.clase === 'interno') {
     const cuentaOrigen = ctx.cuentaDe(dato.origen)
-    if (cuentaOrigen === null) {
-      // Si no podemos determinar la cuenta del origen, asumimos que no es interno válido
-      return { valor: 0, apto: false, motivo: 'interno' }
+    if (cuentaOrigen !== null) {
+      // Solo podemos hacer el veto si sabemos la cuenta del origen
+      const cuentaDe = ctx.cuentaDe(s.de)
+      const cuentaA = ctx.cuentaDe(s.a)
+      if (cuentaDe !== cuentaOrigen || cuentaA !== cuentaOrigen) {
+        return { valor: 0, apto: false, motivo: 'interno' }
+      }
     }
-    const cuentaDe = ctx.cuentaDe(s.de)
-    const cuentaA = ctx.cuentaDe(s.a)
-    if (cuentaDe !== cuentaOrigen || cuentaA !== cuentaOrigen) {
-      return { valor: 0, apto: false, motivo: 'interno' }
-    }
+    // Si no sabemos la cuenta del origen, no aplicamos el veto interno.
   }
 
   // Veto 2: 'lora' con bytes > 200 × 8 o tipo 'llamada'
