@@ -223,6 +223,31 @@ class RemallarImagen(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
 
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """Con el motor caído, remallar_imagen devuelve el dict de error completo."""
+        # el flujo en disco garantiza que lo que falla es el motor, no la instalación
+        _flujo_en_disco(self.tmp)
+
+        class ComfyCaido:
+            def get(self, ruta, timeout=5):
+                raise OSError("conexión rehusada (simulado)")
+
+            def post(self, ruta, datos, timeout=30):
+                return {"prompt_id": "p1"}
+
+        r = pa.remallar_imagen("/fake/path/image.png", resolucion=512,
+                               carpeta_workflows=self.tmp, comfy=ComfyCaido(),
+                               dormir=lambda _: None)
+        self.assertFalse(r["ok"])
+        self.assertIsNone(r["glb"])
+        self.assertIsInstance(r["procedencia"], list)
+        self.assertGreaterEqual(len(r["procedencia"]), 2)  # piezas de flujo y de nodos
+        self.assertIsInstance(r["fallo"], str)
+        self.assertGreaterEqual(len(r["fallo"]), 1)
+        self.assertIn("ComfyUI no responde", r["fallo"])
+        self.assertGreaterEqual(r["segundos"], 0.0)
+        self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
