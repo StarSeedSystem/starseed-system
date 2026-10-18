@@ -223,6 +223,28 @@ class RemallarImagen(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("tiempo agotado", r["fallo"])
 
+    def test_cuando_no_disponible_devuelve_dict_de_error(self):
+        # Simulate that ComfyUI is not available (so that disponible returns an error)
+        # We'll mock the ComfyUI client to throw an exception on get.
+        comfy_mock = mock.MagicMock()
+        comfy_mock.get.side_effect = Exception("Connection refused")
+        
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=comfy_mock,
+            dormir=lambda _: None,
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # flujo y nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
