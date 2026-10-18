@@ -28,7 +28,13 @@ describe("depuración: átomo con campo proximamente", () => {
 
     const registroResult = registrarAtomo(atomo);
     expect(registroResult.ok).toBe(false);
+<<<<<<< HEAD
     expect((registroResult as { ok: false; motivo: string }).motivo).toBe("Falta implementar el envoltorio nativo");
+=======
+    if (!registroResult.ok) {
+      expect(registroResult.motivo).toBe("Falta implementar el envoltorio nativo");
+    }
+>>>>>>> c159ff78 (salvavidas · RTPM1010F2Kd-d1b: trabajo del agente antes de las puertas (tsc / vitest))
 
     const resultado = fichasProtomolecula();
     expect(resultado).toHaveLength(0);
