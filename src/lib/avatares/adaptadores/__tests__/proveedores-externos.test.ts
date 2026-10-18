@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /** Proveedores externos opcionales (AV1011I): sin red, disco ni procesos (entorno = objeto, `fetch` simulado). Apagados por
  * defecto, `clave-externa` solo con clave Y permiso, peticiones de la documentación oficial y ninguna clave en los motivos. */
 import { describe, expect, it } from "vitest";
@@ -118,3 +119,12 @@ describe("consultarTarea: una sola petición por llamada", () => {
     expect(vacio.llamadas).toHaveLength(0);
   });
 });
+=======
+import { describe, it, expect } from "vitest";
+import { motivoDescarte, type PeticionPlan } from "@/lib/avatares/adn/canalizacion";
+import { MOTORES_3D, type Motor3D } from "@/lib/avatares/adn/motores";
+
+describe("motivoDescarte", () => {
+  // Test cases will be added here
+});
+>>>>>>> c27e427e (salvavidas · RTRTRTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
