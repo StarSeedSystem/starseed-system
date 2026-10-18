@@ -1,0 +1,66 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "VZF1015F",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Biblioteca y capas · fichas de Phonon-2 y Parakeet v3 con su atribución CC-BY-4.0 y su SHA",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "config/capas-astraura.json"
+   ],
+   "depende": [],
+   "prompt": "En `packages.ts`, categoría de voces (hoy no hay ninguna entrada de oído): fichas `kind: \"ai-source\"` de Phonon-2 (github fermionresearch/phonon, huggingface FermionResearch/Phonon-2 y Phonon-2-CoreML, CC-BY-4.0 pesos / Apache-2.0 código) y Parakeet TDT 0.6B v3 (nvidia/parakeet-tdt-0.6b-v3 e istupakov/parakeet-tdt-0.6b-v3-onnx, CC-BY-4.0), cada una con la atribución exacta del §7 del contrato, para qué sirve en la fusión y `comingSoon` con motivo donde el medio no lo corra (web). En `capas-astraura.json` las dos capas de papel «oído» con su SHA256 real: consúltalo en la API de Hugging Face (`https://huggingface.co/api/models/FermionResearch/Phonon-2/tree/main` da el `lfs.oid` de cada archivo); si no puedes obtenerlo, NO inventes uno: deja la capa fuera y dilo en el commit. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015H",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Oído en flujo · cliente del WebSocket de Phonon (`/v1/audio/stream`): parciales y finales en vivo",
+   "archivos": [
+    "src/lib/aurora/stt-oss/oido-flujo.ts",
+    "src/lib/aurora/stt-oss/__tests__/oido-flujo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "El servidor de Phonon ofrece `GET /v1/audio/stream` (WebSocket): entran tramas binarias PCM16 de 16 kHz mono y salen JSON con `partial`, `final` y `done`; un solo flujo a la vez por servidor. Crea `abrirFlujoOido({ url, WebSocketImpl, alParcial, alFinal, alCerrar })` → `{ enviar(pcm: Int16Array), terminar(), cancelar() }`, con conversión de Float32 a PCM16 y remuestreo simple a 16 kHz, reconexión NUNCA automática (si se cierra, lo dice y el elector cae a tramos), y que interprete los mensajes de forma tolerante (campos `type`/`text`). Pruebas con un WebSocket falso. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A"
+   ]
+  },
+  {
+   "id": "VZF1015U",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "El Oracle A1 como servidor de oído 24/7 de la malla (Phonon-2 en CPU, con clave y solo por la puerta)",
+   "archivos": [
+    "deploy/oracle/nodo/oido/instalar-oido-a1.sh",
+    "deploy/oracle/nodo/oido/starseed-oido.service"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-15 en el A1 (2 OCPU, CPU): `fermion serve phonon-2 --threads 2` transcribe 11 s de habla en 1,6 s (6,9× tiempo real) con < 2 s por petición en español. Instalador idempotente como usuario `starseed` en `/home/starseed/oido/venv` con el torch de CPU primero (`pip install --no-deps torch --index-url https://download.pytorch.org/whl/cpu`, luego `fermion-research`); servicio systemd que lanza `fermion serve phonon-2 --host 127.0.0.1 --port 4470 --threads 2 --api-key $OIDO_CLAVE` (la clave sale de un archivo de entorno con permisos 600, nunca en el unit). Nunca escucha fuera de 127.0.0.1: la malla llega por el relé de voz o por la puerta del A1. Comprueba memoria libre ≥ 1,5 GB antes de arrancar. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015E"
+   ]
+  },
+  {
+   "id": "VZF1015V",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Oído · corrector por glosario de nombres propios (StarSeed, Astraura, Genesis…) tras cualquier motor",
+   "archivos": [
+    "src/lib/aurora/stt-oss/glosario-oido.ts",
+    "src/lib/aurora/stt-oss/__tests__/glosario-oido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-15: Phonon-2 escribió «Star Sed», «StarSead» (con hotwords) y «Estora»; Parakeet v3 «Star Said» y «Astora». Crea `corregirConGlosario(texto, glosario: string[], idioma)` PURO: cambia una forma cercana por la del glosario solo si la distancia de edición normalizada es pequeña (≤ 0,34 sobre la forma sin espacios ni mayúsculas, juntando hasta dos palabras seguidas) y la forma original NO es una palabra común del idioma (lista corta de palabras frecuentes de es/en para no romper «star», «said», «sed»…); `glosarioBase()` = Astraura, StarSeed, Genesis, MetaGenesis, PoliGenesis, ProtoGenesis, Aurora, Hermes, más los nombres que se le pasen (usuario, bots, grupo). Devuelve el texto y la lista de cambios. Pruebas con las salidas reales de arriba. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-032954.json": [
+   "VZF1015F",
+   "VZF1015H",
+   "VZF1015U",
+   "VZF1015V"
+  ]
+ }
+}
