@@ -6,23 +6,12 @@ import {
   capacidadesNodoToOfertaNeurona,
   linkedServerToOfertaNeurona,
   candidatoToOfertaNeurona,
-  ofertaNeuronaToCandidato,
-  candidatosDesdePlan,
+   ofertaNeuronaToCandidato,
+   candidatosDesdePlan,
 } from "../adaptadores";
 import type { OfertaNeurona, PlanResultado } from "../oferta";
 
-import { describe, it, expect } from "vitest";
-import type { CapacidadesNodo } from "../../network/capacidades-nodo";
-import type { Candidato } from "../../protomolecula/planificador-computo";
-import type { LinkedServer } from "../../brains/servers";
-import {
-  capacidadesNodoToOfertaNeurona,
-  linkedServerToOfertaNeurona,
-  candidatoToOfertaNeurona,
-  ofertaNeuronaToCandidato,
-  candidatosDesdePlan,
-} from "../adaptadores";
-import type { OfertaNeurona, PlanResultado } from "../oferta";
+
 
 describe("adaptadores", () => {
   describe("capacidadesNodoToOfertaNeurona", () => {

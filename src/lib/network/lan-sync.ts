@@ -47,6 +47,7 @@ import {
   type MensajeCapacidades,
   type ResumenRed,
 } from "@/lib/network/capacidades-nodo";
+import { capacidadesNodoToOfertaNeurona, type OfertaNeurona } from "@/lib/recursos/adaptadores";
 import {
   crearTransporteMesh,
   loteDeExperiencias,
@@ -494,15 +495,15 @@ export function setupConcienciaSync(
     });
   };
 
-  const publicarCapacidades = (cap: CapacidadesNodo) => {
-    if (!capaMeshCompartiendo()) return;
-    transporte.publicar({
-      tema: "astraura/capacidades",
-      origen: mesh.myDeviceId,
-      payload: cap,
-      t: Date.now(),
-    });
-  };
+    const publicarCapacidades = (cap: CapacidadesNodo) => {
+      if (!capaMeshCompartiendo()) return;
+      transporte.publicar({
+        tema: "astraura/capacidades",
+        origen: mesh.myDeviceId,
+        payload: cap,
+        t: Date.now(),
+      });
+    };
 
   return {
     transporte,
