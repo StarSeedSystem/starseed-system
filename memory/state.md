@@ -480,6 +480,33 @@
 
 ## 2026-05-28 — Colocación de widgets gen2 en dashboards + UI de sección + fix Fragua
 
+## 2026-10-18 — Implementación de volúmenes por bandas para apps en la malla (APM1017H)
+
+**Sesión por:** opencode
+**Resumen ejecutivo:** Implementación de las funciones puras para manejar volúmenes por bandas según la arquitectura de apps en la malla, incluyendo manifiesto, operaciones de bandas, cálculo de réplicas deseadas y selección de fuentes basada en velocidad y permisos.
+
+### Hecho
+- Creado src/lib/recursos/volumen.ts con las interfaces Banda, Manifiesto, Oferta y Tenedor
+- Implementado bandasDeRango(m, desde, hasta) para obtener bandas en un rango específico
+- Implementado diferencia(mViejo, mNuevo) para detectar bandas añadidas, eliminadas y modificadas
+- Implementado replicasDeseadas(m) según reglas de privacidad (privado: 2, público: 2+importancia con tope 5)
+- Implementado elegirFuentes(m, banda, tenedores, ofertas) que ordena fuentes de más rápida a más lenta filtrando por permiso
+- Creado pruebas exhaustivas en src/lib/recursos/__tests__/volumen.test.ts con 9 tests que pasan
+- Todas las funciones son puras sin acceso a node:* ni APIs del navegador
+- Código sigue las convenciones: sin any, comentarios en español, estructuras adecuadas
+
+### Decisiones tomadas
+- Se reutilizó el concepto de trozo de almacenamiento de capas pero se adaptó para bandas de volumen
+- Las interfaces Tenedor y Oferta incluyen tanto velocidad como permitted para permitir selección óptima respetando privacidad
+- La función diferencia compara por índice y sha256 para detectar cambios precisos
+- replicasDeseadas implementa exactamente lo especificado en el documento de arquitectura
+
+### Pendiente / Próximos pasos
+- Ninguno, tarea completada
+
+### Notas / aprendizajes
+- La implementación de funciones puras para recursos en la malla facilita el testing y el razonamiento sobre el comportamiento del sistema
+- La separación de preocupaciones entre manifiesto (qué banda existe) y selección de fuentes (quién la ofrece y qué tan rápido) permite flexibilidad en el algoritmo de colocación
 **Sesión por:** Claude (Cowork mode, Opus).
 **Resumen ejecutivo:** Se colocaron los 10 widgets de 2ª generación en sus dashboards predeterminados ordenados por relevancia, se poblaron y activaron 6 categorías de dashboard antes vacías, se rediseñó el encabezado de la sección Dashboards (dinámico y centrado con contexto vivo) y se dejó compilable la Fragua de Interfaces (creador de widgets con IA, flujo 3 fases + edición).
 
