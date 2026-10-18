@@ -38,6 +38,10 @@ export interface MetaAvatar {
     editor: boolean;
     /** ms de entrada. */
     desde: number;
+    /** Referencia al ADN (biblioteca:… o genesis:…). */
+    adnRef?: string;
+    /** Revisión del ADN (sube con cada cambio). */
+    adnRev?: number;
 }
 
 export const PALETA_AVATARES = ["#7C5CFF", "#007FFF", "#10B981", "#FFBF00", "#DC143C", "#14B8A6", "#F97316", "#EC4899", "#39FF14"] as const;
@@ -83,6 +87,8 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
         modo,
         editor: o.editor === true,
         desde: typeof o.desde === "number" && Number.isFinite(o.desde) ? o.desde : 0,
+        adnRef: typeof o.adnRef === "string" ? o.adnRef : undefined,
+        adnRev: typeof o.adnRev === "number" && Number.isFinite(o.adnRev) ? o.adnRev : undefined,
     };
 }
 
@@ -107,7 +113,7 @@ export function mismosAvatares(a: readonly MetaAvatar[], b: readonly MetaAvatar[
     for (let i = 0; i < a.length; i++) {
         const x = a[i];
         const y = b[i];
-        if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid) {
+        if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid || x.adnRef !== y.adnRef || x.adnRev !== y.adnRev) {
             return false;
         }
     }
