@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { crearSalas } from '../salas.ts';
+import { crearSalas } from '../salas';
 
 describe('crearSalas', () => {
   it('debería permitir entrar con tema válido y dentro de límites', () => {
