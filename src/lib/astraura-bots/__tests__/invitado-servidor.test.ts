@@ -35,9 +35,12 @@ describe("validarEndpoint · guardia SSRF estricta", () => {
   it("rechaza IP privada y loopback, literal o resuelta (aquí no hay self-host)", async () => {
     for (const u of ["https://10.0.0.5/a", "https://127.0.0.1/a", "https://[::1]/a", "https://lan.invitado.example/a"]) expect((await validarEndpoint(u, dns)).ok).toBe(false);
   });
-  it("rechaza metadatos de la nube por nombre, por IP y escondidos en IPv6 o en un DNS mixto", async () => {
-    for (const u of ["https://169.254.169.254/latest", "https://metadata.google.internal/", "https://[::ffff:169.254.169.254]/", "https://mixto.invitado.example/"]) expect((await validarEndpoint(u, dns)).ok).toBe(false);
-  });
+    it("rechaza metadatos de la nube por nombre, por IP y escondidos en IPv6 o en un DNS mixto", async () => {
+      for (const u of ["https://169.254.169.254/latest", "https://metadata.google.internal/", "https://[::ffff:169.254.169.254]/", "https://mixto.invitado.example/"]) expect((await validarEndpoint(u, dns)).ok).toBe(false);
+    });
+    it("debe rechazar URLs sin esquema", async () => {
+      expect((await validarEndpoint("example.com", dns)).ok).toBe(false);
+    });
 });
 describe("reenviarTurno", () => {
   it("hace POST AG-UI (RunAgentInput) y devuelve el flujo tal cual", async () => {
