@@ -15,4 +15,11 @@ if (typeof document !== "undefined") {
   configure({ asyncUtilTimeout: 5000 });
 }
 
-export {};
+// Proveedor de apariencia para que los componentes UI funcionen correctamente en tests
+export const AppearanceProviderWrapper = ({ children }: { children: React.ReactNode }) => {
+  // Importamos dinámicamente para evitar errores en entorno node
+  const { AppearanceProvider } = require("@/context/appearance-context");
+  // Usamos React.createElement en lugar de JSX para evitar problemas de transformación
+  const React = require("react");
+  return React.createElement(AppearanceProvider, {}, children);
+};
