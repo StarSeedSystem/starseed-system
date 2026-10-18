@@ -2,9 +2,11 @@
 
 import { analizarConvergencia } from "@/lib/protomolecula/grafo-convergencia";
 import { rutaDeConversion } from "@/lib/protomolecula/convertidores";
+import { obtenerAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { Arista, Diagnostico } from "@/lib/protomolecula/grafo-convergencia";
 import type { RutaConversion } from "@/lib/protomolecula/convertidores";
-import { PanelProtomoleculaAutonomo } from "@/components/protomolecula/panel-protomolecula-autonomo";
+import type { DefinicionAtomo } from "@/lib/protomolecula/registro-atomos";
+import { PanelProtomoleculaAutonomo } from "@/components/protomolecula/panel-protomolecula";
 
 // TODO: Import the PanelProtomoleculaAutonomo component. We assume it exists.
 // If it doesn't, we might need to create it, but the task says it is used.
@@ -18,30 +20,90 @@ export function BloquePizarraProtomolecula({
   aristasEntrantes: Arista[];
   aristasSalientes: Arista[];
 }) {
-  // We need to convert the aristas to the format expected by analizarConvergencia?
-  // The analizarConvergencia function expects atomos and aristas, along with a definicion and rutaDe.
-  // However, we don't have the atomos (the molecules) here. We only have the edges.
+  // Collect unique molecule IDs: central + edges
+  const ids = new Set<string>();
+  ids.add(moleculaId);
+  for (const e of aristasEntrantes) {
+    ids.add(e.de);
+    ids.add(e.a);
+  }
+  for (const e of aristasSalientes) {
+    ids.add(e.de);
+    ids.add(e.a);
+  }
 
-  // The task says: use analizarConvergencia (F2A) with rutaDeConversion (F2B)
-  // But we don't have the list of atomos. Perhaps we are to pass an empty array or just the edges?
-  // Looking at the analizarConvergencia function, it needs atomos (array of AtomoGrafo) and aristas (array of Arista).
-  // We don't have the atomos. Maybe we are to assume that the atomos are known from the context? 
-  // Alternatively, the task might mean that we use the functions to compute the status, but we don't have the full graph.
+  // Build atomos: for each ID, get its definicion to obtain herramientaId
+  const atomos: { id: string; herramientaId: string }[] = [];
+  ids.forEach((id) => {
+    const def = obtenerAtomo(id);
+    const herramientaId = def?.herramientaId ?? id; // fallback to id if definicion not found
+    atomos.push({ id, herramientaId });
+  });
 
-  // Let's re-read the task: "una franja de estado que usa analizarConvergencia (F2A) con rutaDeConversion (F2B): «Recibe de …», «Alimenta a …», y marca las aristas incompatibles o que necesitan conversión (con la ruta: «OBJ → glTF»)"
+  // Combine all aristas (incoming + outgoing)
+  const allAristas: Arista[] = [...aristasEntrantes, ...aristasSalientes];
 
-  // It might be that we are to compute the convergence for the edges that are connected to this block? 
-  // But we don't have the entire graph.
+  // Definicion function for analizarConvergencia
+  const definicion: (herramientaId: string) => DefinicionAtomo | undefined = obtenerAtomo;
 
-  // Perhaps the component is only responsible for displaying the status based on the edges that are given, and we assume that the atomos are the ones that are connected via these edges? 
-  // We would need to extract the atomos from the edges.
+  // Convert RutaConversion to string[] of format names for rutaDe
+  const rutaDe: (de: string, a: string) => string[] | null = (de, a) => {
+    const rc = rutaDeConversion(de, a);
+    if (!rc) return null;
+    // Build format sequence: start with de, then each step's output format (a)
+    const formats: string[] = [de];
+    for (const paso of rc.pasos) {
+      formats.push(paso.a);
+    }
+    return formats;
+  };
 
-  // For now, we'll leave a placeholder and then come back to this after we have the skeleton.
+  // Run convergence analysis
+  const diagnostico: Diagnostico = analizarConvergencia(
+    atomos,
+    allAristas,
+    definicion,
+    rutaDe
+  );
+
+  // Prepare status messages
+  const recibidos = aristasEntrantes.map((e) => e.de);
+  const alimenta = aristasSalientes.map((e) => e.a);
+
+  // Build list of issues
+  const issues: string[] = [];
+  diagnostico.incompatibles.forEach((inc) => {
+    issues.push(
+      `Incompatible: ${inc.arista.de} → ${inc.arista.a} (sale ${inc.salidas.join(
+        ", "
+      )}, entra ${inc.entradas.join(", ")})`
+    );
+  });
+  diagnostico.conversiones.forEach((conv) => {
+    issues.push(
+      `Conversión: ${conv.arista.de} → ${conv.arista.a} (${conv.ruta.join(
+        " → "
+      )})`
+    );
+  });
 
   return (
     <div>
-      <PanelProtomoleculaAutonomo compact moleculaId={moleculaId} />
-      {/* Status strip will go here */}
+      <PanelProtomoleculaAutonomo compacto={true} moleculaId={moleculaId} />
+      {/* Status stripe */}
+      <div className="mt-2 p-2 bg-zinc-900/50 rounded-md text-xs text-white/80">
+        <div className="mb-1">
+          <strong>Recibe de:</strong> {recibidos.length > 0 ? recibidos.join(", ") : "ninguno"}
+        </div>
+        <div className="mb-1">
+          <strong>Alimenta a:</strong> {alimenta.length > 0 ? alimenta.join(", ") : "ninguno"}
+        </div>
+        {issues.length > 0 && (
+          <div className="mt-1">
+            <strong>Nota:</strong> {issues.join(" | ")}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
