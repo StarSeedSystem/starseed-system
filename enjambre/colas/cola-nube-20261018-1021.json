@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "APM1017Q",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Apps remotas · anfitrión web: fotogramas al lienzo, pista WebRTC y aviso visible",
+   "archivos": [
+    "src/lib/apps-remotas/anfitrion.ts",
+    "src/lib/apps-remotas/__tests__/anfitrion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión (§9) con todo inyectado: `crearAnfitrion({ capturar, dibujar, crearPista, sesion, fps, anchoMax })` que pide fotogramas a la app nativa (comando `capturar_ventana`), los dibuja en un lienzo, expone la pista (`canvas.captureStream(fps)` en el navegador), adapta fps y ancho al ancho de banda medido, reenvía las entradas a `entrada_ventana` solo con sesión válida (sesion-prestamo.ts) y se para al revocar. Pruebas con relojes y capturas falsas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D"
+   ]
+  },
+  {
+   "id": "APM1017P",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "App nativa · ventana remota: listar ventanas prestables, capturar una y recibir teclado y ratón",
+   "archivos": [
+    "native/src-tauri/src/ventana_remota.rs",
+    "native/src-tauri/Cargo.toml",
+    "native/src-tauri/src/lib.rs"
+   ],
+   "depende": [],
+   "prompt": "ESCRITO SIN COMPILAR (lo compila el CI de las nativas; dilo en el commit). Solo escritorio (bajo el `cfg` que ya usa Cargo.toml para escritorio): dependencias `xcap = \"0.9\"` (Apache-2.0) y `enigo = \"0.6\"` (MIT). Comandos Tauri: `ventanas_prestables(apps)` (solo las de apps que el dueño marcó), `capturar_ventana(id, ancho_max)` → PNG en base64 de un fotograma, y `entrada_ventana(id, evento)` que mueve/pulsa con enigo SOLO si el punto cae dentro de esa ventana y hay sesión válida (se la pasa la web). Regístralos en lib.rs como los demás comandos de escritorio. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-032954.json": [
+   "APM1017Q",
+   "APM1017P"
+  ]
+ }
+}
