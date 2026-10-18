@@ -137,9 +137,6 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
     if ((accion === "lanzar_cola" || accion === "detener_cola") && !(typeof a.cola === "string" && RE_COLA.test(a.cola))) {
         return "nombre de cola no válido";
     }
-    if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
-        return "trabajadores fuera de 1–4";
-    }
     // MISMAS reglas que `args_validos` del nodo Python: activo booleano obligatorio; trabajadores
     // 1–4 SOLO con activo true (con activo false el nodo apaga el contenedor y no quiere ese dato).
     if (accion === "contenedor") {
@@ -147,6 +144,9 @@ export function validarArgs(accion: AccionOrden, args: unknown): string | null {
         if (typeof a.activo !== "boolean") return "activo debe ser booleano";
         if (a.activo && !("trabajadores" in a)) return "falta argumento: trabajadores";
         if (!a.activo && "trabajadores" in a) return "trabajadores solo se permite si activo es True";
+    }
+    if ("trabajadores" in a && !(Number.isInteger(a.trabajadores) && (a.trabajadores as number) >= 1 && (a.trabajadores as number) <= 4)) {
+        return "trabajadores fuera de 1–4";
     }
     return null;
 }
