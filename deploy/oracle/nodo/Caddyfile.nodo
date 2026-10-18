@@ -3,6 +3,12 @@
 # Nada sin clave: BitNet exige la suya (llama-server --api-key-file); /health queda abierto.
 bitnet.{$STARSEED_HOST} {
 	encode gzip
+	route /apps/linux/* {
+		uri strip_prefix /apps/linux
+		reverse_proxy 127.0.0.1:3001 {
+			flush_interval -1
+		}
+	}
 	reverse_proxy 127.0.0.1:8790 {
 		flush_interval -1
 	}

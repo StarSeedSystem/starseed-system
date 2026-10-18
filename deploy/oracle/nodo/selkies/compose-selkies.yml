@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  selkies:
+    image: lscr.io/linuxserver/webtop:ubuntu-kde
+    container_name: selkies
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - selkies_data:/config
+    ports:
+      - "127.0.0.1:3001:3001"   # HTTPS only, bound to localhost
+    shm_size: "1gb"             # Recommended for desktop images
+    restart: "no"
+
+volumes:
+  selkies_data:
