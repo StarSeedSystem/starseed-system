@@ -2,6 +2,8 @@
 
 import { esRutaConsola, esRutaMinima } from "@/components/layout/solo-fuera-de-consola";
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, X, Play, Pause, SkipForward, SkipBack, Square, Wand2,
@@ -35,6 +37,9 @@ import {
   snapXToNearestEdge,
   type AuroraOrbPosition,
 } from "@/lib/aurora/aurora-orb-bus";
+
+// Orbes hermanas de los demás bots abiertos (BOT1011C2): perezosas y sin SSR; esta orbe es la del predeterminado.
+const OrbesBots = dynamic(() => import("@/components/astraura-bots/orbes-bots").then((m) => m.OrbesBots), { ssr: false });
 
 /**
  * AuroraWidget — el ORBE de Aurora (montado en el layout RAÍZ: presente en
@@ -176,6 +181,7 @@ function suggestionTextFrom(detail: unknown): string {
 export function AuroraWidget() {
   const aurora = useAurora();
   const { activeEdge, setActiveEdge } = usePerimeter();
+  const ruta = usePathname();
 
   // Mini-popover anclado al orbe.
   const [open, setOpen] = useState(false);
@@ -1247,6 +1253,7 @@ export function AuroraWidget() {
           Conserva aria-label="Aurora" + data-aurora-state + onContextMenu
           (contratos de open-aurora / AuroraMemoryPanel).
       ══════════════════════════════════════════════════════════════════ */}
+      {!esRutaConsola(ruta) && !esRutaMinima(ruta) && <OrbesBots principal={displayPos} />}
       <div className="fixed z-50 select-none" style={orbStyle}>
         <div className="relative flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
           <button
