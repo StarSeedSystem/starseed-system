@@ -4458,3 +4458,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-18 19:38 · mg-oracle-1018-1150
+
+**Lo que se pidió.** Malla cristalina: distancias por señal y posiciones estimadas sin GPS
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — el proveedor dijo que no (RTMC1012Dc, CB1013Bb-d2, RTRTS1010-MGR3). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTMC1012Dc` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
+- `CB1013Bb-d2` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
+- `RTRTS1010-MGR3` — el proveedor dijo que no: ningún proveedor respondió (rate limit)
+- `RTRTRTRTS1010-EV-ORACLE-1ac` — otra cosa: ningún proveedor respondió (todos caídos)
