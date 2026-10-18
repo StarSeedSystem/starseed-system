@@ -6,6 +6,7 @@
  * (glTF Transform y meshoptimizer, MIT; sharp, Apache-2.0, con libvips LGPL-3.0 enlazada aparte: uso comercial libre).
  * Uso: node optimizar.mjs <entrada.glb> <plan.json> <carpeta-salida>  (0 bien · 1 fallo · 2 uso · 3 ocupado) */
 import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -102,6 +103,38 @@ export async function tomarCerrojo(ruta, intento = 0) {
   const pid = Number(await readFile(ruta, "utf8").catch(() => "0"));
   try { if (pid > 0 && process.kill(pid, 0)) return false; } catch (e) { if (e.code === "EPERM") return false; }
   return rm(ruta, { force: true }).then(() => tomarCerrojo(ruta, 1));
+}
+
+/** Parsea argumentos de la línea de comandos en formato --clave valor. */
+export function parseArgs(args) {
+  const parsed = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--entrada") {
+      parsed.entrada = args[i + 1];
+      i++;
+    } else if (args[i] === "--plan") {
+      parsed.plan = args[i + 1];
+      i++;
+    } else if (args[i] === "--salida") {
+      parsed.salida = args[i + 1];
+      i++;
+    }
+  }
+  return parsed;
+}
+
+/** Escribe un objeto como JSON en un archivo (sincrónico). */
+export function escribirManifiesto(manifiesto, ruta) {
+  writeFileSync(ruta, `${JSON.stringify(manifiesto, null, 2)}\n`);
+}
+
+/** Lanza error si algún nivel supera el peso máximo permitido (en MB). */
+export function validarPesoMax(niveles, pesoMaxMB) {
+  for (const nivel of niveles) {
+    if (nivel.pesoMB > pesoMaxMB) {
+      throw new Error(`El nivel de ${nivel.pesoMB} MB supera el peso máximo permitido de ${pesoMaxMB} MB (pesoMaxMB)`);
+    }
+  }
 }
 async function principal([entrada, rutaPlan, salida]) {
   if (!salida) return console.error("Uso: node optimizar.mjs <entrada.glb> <plan.json> <carpeta-salida>"), 2;
