@@ -3,6 +3,7 @@ import type { Operacion } from "@/lib/protomolecula/tipos";
 import { aplicarOperacion } from "@/lib/protomolecula/parametros";
 import { deshacerCambio } from "@/lib/protomolecula/parametros";
 
+// Módulo puro para ramas de encargo en ProtoGenesis
 export interface Rama {
   encargoId: string;
   base: EstadoValores;
