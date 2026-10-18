@@ -79,7 +79,8 @@ def construir_ndjson(rutas: list[str], carpeta: str = CARPETA) -> str:
         "summary": "n8n producción n8n-hf · %s" % time.strftime("%Y-%m-%d %H:%M"),
         "description": ""}})]
     for rel in rutas:
-        datos = open(os.path.join(carpeta, rel), "rb").read()
+        with open(os.path.join(carpeta, rel), "rb") as f:
+            datos = f.read()
         lineas.append(json.dumps({"key": "file", "value": {
             "path": rel, "encoding": "base64",
             "content": base64.b64encode(datos).decode("ascii")}}))
