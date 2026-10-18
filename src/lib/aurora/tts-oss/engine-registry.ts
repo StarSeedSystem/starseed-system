@@ -227,27 +227,47 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
     repo: "https://github.com/k2-fsa/OmniVoice",
     requirements: ["Servidor OmniVoice con su URL configurada."],
   },
-  openvoice2: {
-    id: "openvoice2",
-    // OpenVoice es UN MOTOR del sistema OmniVoice, no el sistema.
-    label: "OpenVoice 2 (motor)",
-    hint: "Voz de nube gratis, sin instalar nada: clona el timbre desde una semilla de identidad o tu propio audio.",
-    // Integrado como la nube de OmniVoice (Space público): no es un endpoint del
-    // usuario, así que no requiere ni URL ni descargas — funciona en la web.
-    kind: "endpoint",
-    realism: 4,
-    requiresEndpoint: false,
-    requiresDownload: false,
-    free: true,
-    langs: "en · es · fr · ja · zh · ko (estilos base)",
-    spanish: true,
-    emotions: false, // el color emocional lo aporta la semilla/entonación, no un parámetro
-    cloning: true, // clona timbre desde una referencia (semilla sintética o audio propio)
-    latency: "~3-8 s (nube, cola)",
-    license: "MIT (código) · CC-BY-NC (checkpoints)",
-    repo: "https://github.com/myshell-ai/OpenVoice",
-    requirements: ["Ninguno: funciona en la web. Usa una semilla de identidad sintética o tu propio audio."],
-  },
+   openvoice2: {
+     id: "openvoice2",
+     // OpenVoice es UN MOTOR del sistema OmniVoice, no el sistema.
+     label: "OpenVoice 2 (motor)",
+     hint: "Voz de nube gratis, sin instalar nada: clona el timbre desde una semilla de identidad o tu propio audio.",
+     // Integrado como la nube de OmniVoice (Space público): no es un endpoint del
+     // usuario, así que no requiere ni URL ni descargas — funciona en la web.
+     kind: "endpoint",
+     realism: 4,
+     requiresEndpoint: false,
+     requiresDownload: false,
+     free: true,
+     langs: "en · es · fr · ja · zh · ko (estilos base)",
+     spanish: true,
+     emotions: false, // el color emocional lo aporta la semilla/entonación, no un parámetro
+     cloning: true, // clona timbre desde una referencia (semilla sintética o audio propio)
+     latency: "~3-8 s (nube, cola)",
+     license: "MIT",
+     repo: "https://github.com/myshell-ai/OpenVoice",
+     requirements: ["Ninguno: funciona en la web. Usa una semilla de identidad sintética o tu propio audio."],
+   },
+   chatterbox: {
+     id: "chatterbox",
+     label: "Chatterbox",
+     hint: "Voz expresiva con clonación y emociones por exageración. Servicio local o Spaces públicos de Hugging Face.",
+     kind: "endpoint",
+     realism: 4,
+     requiresEndpoint: true,
+     requiresDownload: false,
+     free: true,
+     langs: "es · en · fr · zh · ja · ko",
+     spanish: true,
+     emotions: true,
+     cloning: true,
+     latency: "~2-4 s",
+     license: "MIT",
+     repo: "https://huggingface.co/spaces?search=chatterbox",
+     requirements: [
+       "Servicio local de Chatterbox (VZR1011A) en http://127.0.0.1:8000 o un Space público de Hugging Face que ofrezca la API de Chatterbox.",
+     ],
+   },
   // ── VibeVoice (Microsoft, fork comunitario) — TTS expresivo MULTI-LOCUTOR ──
   // Hasta 4 speakers en un mismo guion: es el motor que da "varias personalidades
   // con voces distintas en un mismo diálogo" (cada personalidad = un speaker).
@@ -409,10 +429,11 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "voicebox",
   "gpt-sovits",
   "bark",
-  "omnivoice",
-  // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
-  // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → openvoice2 → kokoro].
-  "openvoice2",
+   "omnivoice",
+   "chatterbox",
+   // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
+   // en instalación CERO la cadena queda [voice158? → vibevoice? → omnivoice → chatterbox → openvoice2 → kokoro].
+   "openvoice2",
 ];
 
 /**
