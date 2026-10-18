@@ -95,7 +95,7 @@ export interface EstadoEmocional {
 
 /* ── Cuerpo: orbe y avatar ───────────────────────────────────────────────── */
 
-export const FORMAS_CUERPO = ["orbe", "avatar-2d", "avatar-3d", "vrm", "ser-genesis"] as const;
+export const FORMAS_CUERPO = ["orbe", "avatar-2d", "avatar-3d", "vrm", "ser-genesis", "robot"] as const;
 export type FormaCuerpo = (typeof FORMAS_CUERPO)[number];
 
 export interface Cuerpo {
