@@ -208,6 +208,7 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
 });
 
 describe("textoEstadoOrden", () => {
+<<<<<<< HEAD
     const estados = {
         pendiente: "esperando a un nodo",
         tomada: "la tiene un nodo",
@@ -221,6 +222,20 @@ describe("textoEstadoOrden", () => {
     };
 
     it("cada estado mapea al texto correcto", () => {
+=======
+    it("cada estado mapea al texto correcto", () => {
+        const estados = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+>>>>>>> 7bd6bc55 (salvavidas · RTRTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
         Object.entries(estados).forEach(([estado, esperado]) => {
             expect(textoEstadoOrden(estado)).toBe(esperado);
         });
