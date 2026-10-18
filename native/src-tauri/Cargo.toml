@@ -78,6 +78,13 @@ thiserror = "2"
 tauri-plugin-updater = "2"
 # Arranque automático con el sistema (el compañero se levanta solo).
 tauri-plugin-autostart = "2"
+# Captura de ventanas y simulación de entrada.
+xcap = { version = "0.9", features = ["rt"] }
+enigo = { version = "0.6", features = ["keyboard", "mouse"] }
+# Procesamiento de imágenes (para redimensionar y codificar PNG).
+image = "0.24"
+# Codificación base64.
+base64 = "0.21"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Notas de compilación (NO se compila aquí; lo hace el CI o el dueño en local):

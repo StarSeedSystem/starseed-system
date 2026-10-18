@@ -41,6 +41,8 @@ mod nativa;
 mod segundo_plano;
 mod serie;
 mod sha256;
+#[cfg(desktop)]
+mod ventana_remota;
 #[cfg(test)]
 mod android_parche;
 
@@ -564,6 +566,12 @@ pub fn run() {
             nativa::capas_borrar,
             nativa::nas_listar,
             nativa::nas_leer
+            #[cfg(desktop)]
+            ventana_remota::ventanas_prestables
+            #[cfg(desktop)]
+            ventana_remota::capturar_ventana
+            #[cfg(desktop)]
+            ventana_remota::entrada_ventana
         ])
         .build(tauri::generate_context!())
         .expect("error irrecuperable arrancando la app nativa StarSeed")
