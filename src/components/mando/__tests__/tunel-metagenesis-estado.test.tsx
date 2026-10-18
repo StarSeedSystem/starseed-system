@@ -9,10 +9,13 @@ describe("TunelMetaGenesisEstado", () => {
   let llamadas: { url: string; init?: RequestInit }[] = [];
 
   beforeEach(() => {
+    console.log('beforeEach: nativoFetch =', nativoFetch);
+    console.log('beforeEach: globalThis.fetch =', globalThis.fetch);
     llamadas.length = 0;
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       llamadas.push({ url, init });
+      console.log('fetch called with url:', url);
       
       if (url.includes("/api/mando/tunel-metagenesis")) {
         // Simular respuesta del API
@@ -37,6 +40,7 @@ describe("TunelMetaGenesisEstado", () => {
         json: async () => ({})
       } as Response;
     };
+    console.log('beforeEach: after setting mock, globalThis.fetch =', globalThis.fetch);
   });
 
   afterEach(() => {
@@ -68,6 +72,7 @@ describe("TunelMetaGenesisEstado", () => {
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       llamadas.push({ url, init });
+      console.log('fetch called in parado test with url:', url);
       
       if (url.includes("/api/mando/tunel-metagenesis")) {
         return {
@@ -157,5 +162,34 @@ describe("TunelMetaGenesisEstado", () => {
     expect(llamadasDespuesEspera).toBe(llamadasIniciales);
     
     vi.useRealTimers();
+  });
+
+  it("muestra el encabezado «Últimas líneas» solo cuando hay líneas y conserva la ruta tras [túnel]", async () => {
+    render(<TunelMetaGenesisEstado />);
+
+    // Con el túnel activo y líneas, el encabezado aparece y la ruta se conserva
+    await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
+    expect(screen.getByText(/Últimas líneas:/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Línea 3 \[túnel\]\/path/i)).toBeInTheDocument();
+
+    cleanup();
+
+    // Ahora con el servicio parado y sin líneas: el encabezado no debe mostrarse
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      llamadas.push({ url: String(input), init });
+      return {
+        ok: true,
+        json: async () => ({
+          cargado: false,
+          pid: null,
+          ultimasLineas: [],
+          medidoEn: new Date().toISOString()
+        })
+      } as Response;
+    };
+
+    render(<TunelMetaGenesisEstado />);
+    await screen.findByText(/Túnel de MetaGenesis: parado/i);
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
   });
 });
