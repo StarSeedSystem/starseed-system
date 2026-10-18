@@ -1,0 +1,96 @@
+{
+ "t": "2026-10-17 21:05:10",
+ "pasarelas": [
+  {
+   "modelo": "qwen2.5:0.5b",
+   "variable": null,
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 1.1
+  },
+  {
+   "modelo": "nex-agi/nex-n2.5-pro:free",
+   "variable": "OPENROUTER_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 961.2
+  },
+  {
+   "modelo": "nvidia/nemotron-3-super-120b-a12b",
+   "variable": "NVIDIA_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 2.1
+  },
+  {
+   "modelo": "gemini-3.5-flash-lite",
+   "variable": "GEMINI_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 1041.2
+  },
+  {
+   "modelo": "openai/gpt-oss-20b",
+   "variable": "GROQ_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 2.2
+  },
+  {
+   "modelo": "qwen/qwen3-coder-plus:free",
+   "variable": "XKIRO_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 2.1
+  },
+  {
+   "modelo": "z-ai/glm-5.3-free",
+   "variable": "TOKENROUTER_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 1042.9
+  },
+  {
+   "modelo": "gpt-4o-mini",
+   "variable": "AIHUBMIX_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 2.1
+  },
+  {
+   "modelo": "free/glm-5.3-flash",
+   "variable": "STARSEED_PASARELA_APINEX_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 2.2
+  },
+  {
+   "modelo": "deepseek-v4-pro",
+   "variable": "DEEPSEEK_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 288.2
+  },
+  {
+   "modelo": "grok-4.6",
+   "variable": "XAI_API_KEY",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 2.1
+  },
+  {
+   "modelo": "Qwen/Qwen2.5-72B-Instruct",
+   "variable": "HF_TOKEN",
+   "http": 0,
+   "estado": "lenta",
+   "segundos": 2.1
+  },
+  {
+   "modelo": "auto",
+   "variable": "FREELLMAPI_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 1.6
+  }
+ ]
+}
