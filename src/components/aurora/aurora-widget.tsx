@@ -204,14 +204,17 @@ export function AuroraWidget() {
   const [moving, setMoving] = useState(false);
   const [overTrash, setOverTrash] = useState(false);
 
-  // Posición del orbe como fracción del viewport (movible + persistida).
-  const [pos, setPos] = useState<AuroraOrbPosition>(DEFAULT_ORB_POSITION);
+   // Posición del orbe como fracción del viewport (movible + persistida).
+   const [pos, setPos] = useState<AuroraOrbPosition>(DEFAULT_ORB_POSITION);
 
-  // ¿Pantalla chica (<640px, smartphones)? SSR-safe: arranca en `false` (igual
-  // que el resto de flags de este archivo) y se corrige tras montar. Decide el
-  // tamaño del orbe (48px en vez de 60px) y si su posición X se pega al borde
-  // lateral más cercano (como una burbuja de chat) en vez de quedar libre.
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
+   // Expresión emocional del bot para la orbe cuántica
+   useExpresionBot();
+
+   // ¿Pantalla chica (<640px, smartphones)? SSR-safe: arranca en `false` (igual
+   // que el resto de flags de este archivo) y se corrige tras montar. Decide el
+   // tamaño del orbe (48px en vez de 60px) y si su posición X se pega al borde
+   // lateral más cercano (como una burbuja de chat) en vez de quedar libre.
+   const [isMobileViewport, setIsMobileViewport] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const mq = window.matchMedia("(max-width: 639px)");
