@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { planificar, Peticion, Contexto, Parte, Necesidades, ResultadoParte, Suelo } from '../bolsa';
-import { OfertaNeurona } from './oferta';
+import { OfertaNeurona } from '../oferta';
 
 // Helper to create a base oferta with time set within topes
 const baseOferta = (overrides: Partial<OfertaNeurona> = {}): OfertaNeurona => {
@@ -27,14 +27,14 @@ const baseOferta = (overrides: Partial<OfertaNeurona> = {}): OfertaNeurona => {
 
 describe('planificar', () => {
   it('returns result for each part', () => {
-    const peticion: Peticion = {
-      id: 'p1',
-      contexto: { tipo: 'cuenta', id: 'cuentaA', privado: false },
-      partes: [
-        { clase: 'computo', necesita: { ramMb: 512 } },
-        { clase: 'almacen', necesita: { volumen: 512 } },
-      ],
-    };
+     const peticion: Peticion = {
+       id: 'p1',
+       contexto: { tipo: 'cuenta', id: 'cuentaA', privado: false },
+       partes: [
+         { clase: 'computo', necesita: { ramMb: 512 } },
+         { clase: 'computo', necesita: { volumen: 512 } },
+       ],
+     };
     const ofertas: OfertaNeurona[] = [baseOferta()];
     const results = planificar(peticion, ofertas, {});
     expect(results).toHaveLength(2);
