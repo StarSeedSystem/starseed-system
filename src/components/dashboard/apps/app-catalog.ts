@@ -25,6 +25,8 @@ import {
     Cast,
     // Ola 1013F: Fundamento de StarSeed.
     Gem,
+    // Protomolécula
+    Atom,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -257,28 +259,44 @@ export const APP_CATALOG: StarseedApp[] = [
         status: "native",
         open: { primary: "route", allowed: ["route"], route: "/laboratorio" },
     },
-    {
-        id: "omnifrecuencias",
-        name: "Omnifrecuencias",
-        short: "Omni",
-        description: "Estudio de frecuencias funcionales: multi-tono, binaural, isocrónico y presets. Versión oficial en línea e instalable.",
-        icon: Waves,
-        iconUrl: "/app-icons/omnifrecuencias.png",
-        accent: "#22D3EE",
-        category: "starseed",
-        status: "native",
-        // (2026-09-25) Ruta y ventana abren la versión OFICIAL en línea (AppOficial); `href`
-        // es esa misma web, para «abrir en pestaña» y para quien la abra fuera del OS.
-        open: {
-            primary: "route",
-            allowed: ["route", "window", "tab"],
-            route: "/omnifrecuencias",
-            href: "https://omnifrecuencias.vercel.app",
-            embeddable: true,
-        },
-    },
+     {
+         id: "omnifrecuencias",
+         name: "Omnifrecuencias",
+         short: "Omni",
+         description: "Estudio de frecuencias funcionales: multi-tono, binaural, isocrónico y presets. Versión oficial en línea e instalable.",
+         icon: Waves,
+         iconUrl: "/app-icons/omnifrecuencias.png",
+         accent: "#22D3EE",
+         category: "starseed",
+         status: "native",
+         // (2026-09-25) Ruta y ventana abren la versión OFICIAL en línea (AppOficial); `href`
+         // es esa misma web, para «abrir en pestaña» y para quien la abra fuera del OS.
+         open: {
+             primary: "route",
+             allowed: ["route", "window", "tab"],
+             route: "/omnifrecuencias",
+             href: "https://omnifrecuencias.vercel.app",
+             embeddable: true,
+         },
+     },
+     {
+         // Protomolécula (PM1010F0I)
+         id: "protomolecula",
+         name: "Protomolécula",
+         short: "Protomolécula",
+         description: "Crea y edita imágenes, audio, 3D y más: a mano, por voz o con la IA. Las herramientas llegan por fases.",
+         icon: Atom,
+         accent: "#FF6B6B",
+         category: "starseed",
+         status: "native",
+         open: {
+             primary: "window",
+             allowed: ["window", "route", "tab", "popup"],
+             route: "/protomolecula",
+         },
+     },
 
-    // ── Módulos nativos del sistema ──────────────────────────────
+     // ── Módulos nativos del sistema ──────────────────────────────
     {
         id: "messages",
         name: "Mensajes",
@@ -552,8 +570,8 @@ export function getApp(id: string): StarseedApp | undefined {
 /** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = folder de inicio por defecto (marca + módulos clave)
-    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "fundamento", "messages", "contactos", "network", "musica", "clima", "imaginacion"],
-    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-astral"],
+    starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "red-mesh", "senales", "red-feed", "canales", "estaciones", "fundamento", "messages", "contactos", "network", "musica", "clima", "imaginacion", "protomolecula"],
+    sistema: ["messages", "contactos", "documentos", "tabla", "dashboard-compartido", "juego", "programa", "escena", "sala-xr", "network", "library", "agent", "astraura-158", "imaginacion", "enjambre", "red-mesh", "senales", "red-feed", "voces", "mando", "poligenesis", "mundo-avatares", "laboratorio", "bots-astral", "protomolecula"],
     media: ["musica", "radio", "estaciones", "omnifrecuencias", "audiomorphic", "immersive", "camara", "galeria"],
     custom: [],
 };
