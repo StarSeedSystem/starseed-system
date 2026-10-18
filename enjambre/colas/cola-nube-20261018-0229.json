@@ -1,0 +1,62 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "SUC1018A",
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "titulo": "Malla cristalina · huellaReticula en tiempo lineal (la máscara de 64 bits en cada byte)",
+   "archivos": [
+    "src/lib/malla/cristal/teselas.ts",
+    "src/lib/malla/cristal/__tests__/teselas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido por el revisor de MC1012G (2026-10-18): `huellaReticula` aplica `& 0xffffffffffffffff` solo DESPUÉS del bucle FNV-1a, así que el BigInt crece sin límite y el tiempo es cuadrático (11 s con 256 neuronas). Aplica la máscara dentro del bucle (`hash = ((hash ^ BigInt(b)) * PRIMO) & MASCARA`). El resultado es idéntico (aritmética módulo 2^64): añade una prueba con una huella fija conocida que no cambia y otra con 1.000 neuronas que tarda menos de 500 ms. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente)."
+  },
+  {
+   "id": "SUC1018B",
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "titulo": "Bots · el ejecutor de acciones usa la computadora del bot (BOT1011K) y las acciones de creación (BOT1011T)",
+   "archivos": [
+    "src/lib/astraura-bots/adaptadores/ejecutor-acciones.ts",
+    "src/lib/astraura-bots/__tests__/ejecutor-acciones-cableado.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy `ejecutor-acciones.ts` responde «próximamente… llega con BOT1011K» para `computadora.ejecutar` y «… con BOT1011T» para las acciones de creación. Ya están integradas: `computadora-cliente.ts` (`ejecutar`, con permisos apagados por defecto y `permisoParaOrden`) y `acciones-creacion.ts` (`registrarEnEjecutor(map)`). Cáblalas sin cambiar sus firmas: la computadora pasa por `permisoParaOrden` antes de llamar y devuelve el «próximamente» honesto del cliente ante 404; las acciones de creación se registran con `registrarEnEjecutor`. Pruebas con dependencias inyectadas (sin red). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente)."
+  },
+  {
+   "id": "SUC1018F",
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "titulo": "Avatares · el selector usa el visor VRM vivo para las referencias «biblioteca:» (AV1011A)",
+   "archivos": [
+    "src/components/avatares/selector-avatar-3d.tsx",
+    "src/lib/avatares/__tests__/selector-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`selector-avatar-3d.tsx` pasa una referencia `biblioteca:` como si fuera una URL GLB a `model-viewer` (no carga). Desde AV1011A existe `<AvatarVivo adn calidad />` y `resolver-ref-biblioteca.ts`: úsalos para esas referencias y deja `model-viewer` para URLs GLB de verdad. Un solo lienzo WebGL visible a la vez en la lista (los demás, miniatura estática). Prueba de la función pura que elige el visor. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente)."
+  },
+  {
+   "id": "SUC1018D",
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "titulo": "Publicaciones · el bloque «protomolecula» se ve en el muro y el lienzo no lo da por vacío (PM1010F2H)",
+   "archivos": [
+    "src/components/social/post-blocks-renderer.tsx",
+    "src/components/creation/lienzo-composer.tsx",
+    "src/lib/protomolecula/__tests__/bloque-en-muro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PM1010F2H deja insertar una molécula en una publicación, pero `post-blocks-renderer.tsx` no tiene caso `protomolecula` (devuelve null) y en `lienzo-composer.tsx` `blockHasContent` no lo cuenta (un post solo con ese bloque sale «Lienzo vacío»). Pinta una tarjeta de solo lectura con el nombre y el resumen de la molécula (lee el bloque con `bloque-protomolecula.ts`) y un enlace «Abrir una copia propia» a `/protomolecula?molecula=<id>`; añade el caso en `blockHasContent`. Prueba de la lógica pura que decide qué se pinta. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente)."
+  },
+  {
+   "id": "SUC1018E",
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "titulo": "Bots · una sola clave para las orbes abiertas, sincronizada entre neuronas (BOT1011C2 / BOT1011Y)",
+   "archivos": [
+    "src/lib/astraura-bots/adaptadores/sincronia-bots.ts",
+    "src/lib/settings-sync.ts",
+    "src/lib/astraura-bots/__tests__/sincronia-bots.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Los revisores vieron tres claves para lo mismo: `starseed.astraura.bots.orbes.v1` (ahora guarda las POSICIONES de las orbes, BOT1011C2), `starseed.astraura.orbes-abiertos` (lo que abre el panel «Mis bots») y `starseed.astraura.bots.abiertos.v1` (la usa el adaptador). Que el adaptador use `starseed.astraura.orbes-abiertos` (con migración de lo que haya en `bots.abiertos.v1`), que `settings-sync.ts` sincronice `orbes-abiertos` y que el comentario de `orbes.v1` diga «posiciones». Quita también los `any` del adaptador. Pruebas de la migración y de la fusión. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente)."
+  }
+ ]
+}
