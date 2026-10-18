@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'vitest';
-import { fusionarBots } from "../sincronia-bots";
+import { describe, test, expect, vi } from 'vitest';
+import { fusionarBots, suscribirBotsEntidad, abiertosEnEstaNeurona, marcarAbierto } from "../sincronia-bots";
 
 /**
  * Bot de ejemplo para pruebas (incluye el campo actualizado para sincronía).
@@ -176,5 +176,289 @@ describe("fusionarBots", () => {
     const resultado = fusionarBots(local, remoto);
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["A", "B"]);
+  });
+});
+
+describe("suscribirBotsEntidad", () => {
+  test("devuelve una función de desuscripción y llama al callback con cambios", () => {
+    const entidades = ["perfil-1", "perfil-2"];
+    const callback = vi.fn();
+    let capturedCallback: ((p: any) => void) | null = null;
+    let mockChannel = {};
+    const mockSupabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((eventName: string, filter: any, cb: (p: any) => void) => {
+          capturedCallback = cb;
+          return { subscribe: vi.fn().mockReturnValue(mockChannel) };
+        })
+      }),
+      removeChannel: vi.fn()
+    };
+
+    const unsubscribe = suscribirBotsEntidad(entidades, callback, mockSupabase as any);
+
+    expect(mockSupabase.channel).toHaveBeenCalledWith("astraura-bots-realtime");
+    expect(unsubscribe).toBeInstanceOf(Function);
+    // Simular una llamada al canal
+    const channelMock = mockSupabase.channel.mock.results[0].value;
+    // We don't have the filter from the mock, but we can check the call to on
+    const onCall = mockSupabase.channel.mock.results[0].value.on.mock.calls[0];
+    expect(onCall[0]).toBe("postgres_changes");
+    expect(onCall[1].event).toBe("*");
+    expect(onCall[1].schema).toBe("public");
+    expect(onCall[1].table).toBe("astraura_bots");
+    expect(capturedCallback).toBeInstanceOf(Function);
+    // Simular un mensaje de inserción
+    const mockPayload = {
+      eventType: "INSERT",
+      nuevo: {
+        id: "bot1",
+        nombre: "Bot 1",
+        dueno: {
+          tipo: "grupo",
+          id: "perfil-1",
+          cuentaId: "cuenta-1"
+        },
+        origen: "astraura",
+        gobierno: "jerarquico",
+        personalidad: {},
+        cuerpo: {},
+        sentidosHabilitados: [],
+        activo: true,
+        actualizado: Date.now()
+      },
+      viejo: null,
+      error: null
+    };
+    capturedCallback!(mockPayload);
+    expect(callback).toHaveBeenCalledWith({
+      t: "INSERT",
+      r: mockPayload.nuevo,
+      a: null
+    });
+    // Llamar a la desuscripción
+    unsubscribe();
+    expect(mockSupabase.removeChannel).toHaveBeenCalledWith(mockChannel);
+  });
+
+  test("ignora cambios cuando el dueno no está en la lista de entidades", () => {
+    const entidades = ["perfil-1"];
+    const callback = vi.fn();
+    let capturedCallback: ((p: any) => void) | null = null;
+    let mockChannel = {};
+    const mockSupabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((eventName: string, filter: any, cb: (p: any) => void) => {
+          capturedCallback = cb;
+          return { subscribe: vi.fn().mockReturnValue(mockChannel) };
+        })
+      }),
+      removeChannel: vi.fn()
+    };
+
+    suscribirBotsEntidad(entidades, callback, mockSupabase as any);
+    const channelMock = mockSupabase.channel.mock.results[0].value;
+    // Simular un mensaje con dueno no en la lista
+    const mockPayload = {
+      eventType: "INSERT",
+      nuevo: {
+        id: "bot1",
+        nombre: "Bot 1",
+        dueno: {
+          tipo: "grupo",
+          id: "perfil-3", // no en entidades
+          cuentaId: "cuenta-3"
+        },
+        origen: "astraura",
+        gobierno: "jerarquico",
+        personalidad: {},
+        cuerpo: {},
+        sentidosHabilitados: [],
+        activo: true,
+        actualizado: Date.now()
+      },
+      viejo: null,
+      error: null
+    };
+    capturedCallback!(mockPayload);
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  test("ignora cambios cuando el tipo de dueno no es grupo, comunidad o pagina", () => {
+    const entidades = ["perfil-1"];
+    const callback = vi.fn();
+    let capturedCallback: ((p: any) => void) | null = null;
+    let mockChannel = {};
+    const mockSupabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((eventName: string, filter: any, cb: (p: any) => void) => {
+          capturedCallback = cb;
+          return { subscribe: vi.fn().mockReturnValue(mockChannel) };
+        })
+      }),
+      removeChannel: vi.fn()
+    };
+
+    suscribirBotsEntidad(entidades, callback, mockSupabase as any);
+    const channelMock = mockSupabase.channel.mock.results[0].value;
+    // Simular un mensaje con tipo de dueno "perfil" (no permitido)
+    const mockPayload = {
+      eventType: "INSERT",
+      nuevo: {
+        id: "bot1",
+        nombre: "Bot 1",
+        dueno: {
+          tipo: "perfil", // no permitido
+          id: "perfil-1",
+          cuentaId: "cuenta-1"
+        },
+        origen: "astraura",
+        gobierno: "jerarquico",
+        personalidad: {},
+        cuerpo: {},
+        sentidosHabilitados: [],
+        activo: true,
+        actualizado: Date.now()
+      },
+      viejo: null,
+      error: null
+    };
+    capturedCallback!(mockPayload);
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  test("maneja error de supabase mostrando warning una sola vez", () => {
+    const entidades = ["perfil-1"];
+    const callback = vi.fn();
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let capturedCallback: ((p: any) => void) | null = null;
+    let mockChannel = {};
+    const mockSupabase = {
+      channel: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((eventName: string, filter: any, cb: (p: any) => void) => {
+          capturedCallback = cb;
+          return { subscribe: vi.fn().mockReturnValue(mockChannel) };
+        })
+      }),
+      removeChannel: vi.fn()
+    };
+
+    suscribirBotsEntidad(entidades, callback, mockSupabase as any);
+    const channelMock = mockSupabase.channel.mock.results[0].value;
+    // Simular dos mensajes de error
+    const mockPayloadError = {
+      eventType: "INSERT",
+      nuevo: null,
+      viejo: null,
+      error: { message: "error" }
+    };
+    capturedCallback!(mockPayloadError);
+    capturedCallback!(mockPayloadError);
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    consoleSpy.mockRestore();
+  });
+});
+
+describe("abiertosEnEstaNeurona", () => {
+  test("devuelve array vacío cuando no hay almacenamiento", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn()
+    };
+    const resultado = abiertosEnEstaNeurona(mockStorage as any);
+    expect(resultado).toEqual([]);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+
+  test("devuelve array parseado cuando el almacenamiento contiene JSON válido", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["orbe1", "orbe2"]'),
+      setItem: vi.fn()
+    };
+    const resultado = abiertosEnEstaNeurona(mockStorage as any);
+    expect(resultado).toEqual(["orbe1", "orbe2"]);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+
+  test("devuelve array vacío cuando el almacenamiento contiene JSON inválido", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('invalid json'),
+      setItem: vi.fn()
+    };
+    const resultado = abiertosEnEstaNeurona(mockStorage as any);
+    expect(resultado).toEqual([]);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+
+  test("devuelve array vacío cuando el almacenamiento contiene un valor no array", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('{"not": "an array"}'),
+      setItem: vi.fn()
+    };
+    const resultado = abiertosEnEstaNeurona(mockStorage as any);
+    expect(resultado).toEqual([]);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+  });
+});
+
+describe("marcarAbierto", () => {
+  test("añade un orbe cuando no estaba presente", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["orbe1"]'),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage as any, "orbe2", true);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(mockStorage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", '["orbe1","orbe2"]');
+  });
+
+  test("elimina un orbe cuando estaba presente", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["orbe1", "orbe2"]'),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage as any, "orbe1", false);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(mockStorage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", '["orbe2"]');
+  });
+
+  test("no duplica el orbe al añadir", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["orbe1"]'),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage as any, "orbe1", true);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(mockStorage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", '["orbe1"]');
+  });
+
+  test("no elimina un orbe que no estaba presente", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('["orbe1"]'),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage as any, "orbe2", false);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(mockStorage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", '["orbe1"]');
+  });
+
+  test("maneja almacenamiento vacío", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage as any, "orbe1", true);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(mockStorage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", '["orbe1"]');
+  });
+
+  test("maneja JSON corrupto en almacenamiento", () => {
+    const mockStorage = {
+      getItem: vi.fn().mockReturnValue('corrupt'),
+      setItem: vi.fn()
+    };
+    marcarAbierto(mockStorage as any, "orbe1", true);
+    expect(mockStorage.getItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1");
+    expect(mockStorage.setItem).toHaveBeenCalledWith("starseed.astraura.bots.orbes.v1", '["orbe1"]');
   });
 });
