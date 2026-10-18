@@ -4,6 +4,10 @@ import type { Bot } from "../tipos";
 import { createClient } from "@/utils/supabase/client";
 import { onTableChange } from "@/lib/realtime/realtime";
 
+function leerAbiertosConMigracion(): string[] {
+    return [];
+}
+
 export function fusionarBots(
   local: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>,
   remoto: Readonly<{ bots: Bot[]; actualizado: Record<string, number> }>
@@ -69,15 +73,10 @@ export function suscribirBotsEntidad(
   return onTableChange("astraura_bots", { filter, event: "*" }, handleChange);
 }
 
-const CLAVE_ABIERTOS = "starseed.astraura.bots.abiertos.v1";
+const CLAVE_ABIERTOS = "starseed.astraura.orbes-abiertos";
 
 export function abiertosEnEstaNeurona(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const bruto = window.localStorage.getItem(CLAVE_ABIERTOS);
-    return bruto === null ? [] : Array.isArray(JSON.parse(bruto)) 
-      ? JSON.parse(bruto) : [];
-  } catch { return []; }
+    return leerAbiertosConMigracion();
 }
 
 export function marcarAbierto(botId: string, abierto: boolean): void {
