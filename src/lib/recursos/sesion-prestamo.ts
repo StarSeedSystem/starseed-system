@@ -15,7 +15,7 @@ export interface Sesion {
   alcance: Alcance;
   inicio: number; // timestamp de inicio de la sesión
   vence: number; // timestamp de expiración
-  revocada: false; // inicialmente false, puede cambiar a true con revocar
+   revocada: boolean; // inicialmente false, puede cambiar a true con revocar
 }
 
 /**
