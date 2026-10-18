@@ -28,16 +28,21 @@ const generarCon = (entorno: Entorno): string | null => planificar({
   capacidades: ["navegador", "cpu", ...capacidadesExternas(entorno)],
 } satisfies PeticionPlan, motoresDisponibles(entorno)).pasos.find((p) => p.etapa === "generar")?.motor?.id ?? null;
 describe("apagados por defecto y honestos", () => {
-  it("sin entorno, con la clave sola o con el permiso solo: no hay proveedor y se dice qué falta", () => {
-    expect(motivoNoDisponible("meshy", {})).toMatch(/AVATARES_EXTERNOS_PERMITIDOS=1/);
-    expect(motivoNoDisponible("meshy", { MESHY_API_KEY: CLAVE })).toMatch(/Apagado por defecto/);
-    expect(motivoNoDisponible("tripo", { AVATARES_EXTERNOS_PERMITIDOS: "1" })).toMatch(/TRIPO_API_KEY/);
-    for (const e of [{}, { MESHY_API_KEY: CLAVE, AVATARES_EXTERNOS_PERMITIDOS: "si" }, { AVATARES_EXTERNOS_PERMITIDOS: "1" }]) {
-      expect(capacidadesExternas(e)).toEqual([]);
-      expect(estadoProveedores(e).some((p) => p.disponible)).toBe(false);
-    }
-    expect(JSON.stringify(estadoProveedores({ MESHY_API_KEY: CLAVE }))).not.toContain(CLAVE);
-  });
+   it("sin entorno, con la clave sola o con el permiso solo: no hay proveedor y se dice qué falta", () => {
+     expect(motivoNoDisponible("meshy", {})).toMatch(/AVATARES_EXTERNOS_PERMITIDOS=1/);
+     expect(motivoNoDisponible("meshy", { MESHY_API_KEY: CLAVE })).toMatch(/Apagado por defecto/);
+     expect(motivoNoDisponible("tripo", { AVATARES_EXTERNOS_PERMITIDOS: "1" })).toMatch(/TRIPO_API_KEY/);
+     for (const e of [{}, { MESHY_API_KEY: CLAVE, AVATARES_EXTERNOS_PERMITIDOS: "si" }, { AVATARES_EXTERNOS_PERMITIDOS: "1" }]) {
+       expect(capacidadesExternas(e)).toEqual([]);
+       expect(estadoProveedores(e).some((p) => p.disponible)).toBe(false);
+     }
+     expect(JSON.stringify(estadoProveedores({ MESHY_API_KEY: CLAVE }))).not.toContain(CLAVE);
+   });
+   it("permiso \"0\" + clave: apagado (el permiso exige el valor 1)", () => {
+     expect(motivoNoDisponible("meshy", { AVATARES_EXTERNOS_PERMITIDOS: "0", MESHY_API_KEY: CLAVE })).toMatch(/Apagado por defecto/);
+     expect(capacidadesExternas({ AVATARES_EXTERNOS_PERMITIDOS: "0", MESHY_API_KEY: CLAVE })).toEqual([]);
+     expect(estadoProveedores({ AVATARES_EXTERNOS_PERMITIDOS: "0", MESHY_API_KEY: CLAVE }).some((p) => p.disponible)).toBe(false);
+   });
   it("con clave Y permiso se ofrece clave-externa, solo del proveedor que tiene clave", () => {
     expect(capacidadesExternas(SOLO_TRIPO)).toEqual(["clave-externa"]);
     expect(estadoProveedores(SOLO_TRIPO).map((p) => p.disponible)).toEqual([false, true]);
