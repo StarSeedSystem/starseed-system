@@ -148,6 +148,13 @@ describe("analizarPmset", () => {
     expect(result.cargando).toBe(false);
   });
 
+  it("should handle AC attached without battery", () => {
+    const pmset = "Now drawing from 'AC Power'\n -internalbattery:     100%; AC attached; 0:00 remaining present: true\n";
+    const result = analizarPmset(pmset);
+    expect(result.porcentaje).toBe(100);
+    expect(result.cargando).toBe(false);
+  });
+
   it("should return null if percentage not found", () => {
     const pmset = "Some text without percentage";
     expect(analizarPmset(pmset)).toEqual({ porcentaje: null, cargando: null });

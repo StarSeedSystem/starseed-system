@@ -25,6 +25,10 @@ function preparar(respuestas: Array<Response | ((signal: AbortSignal) => Promise
   return { llamadas, registros, dep: { resolver: dns, pedir, registrar: (r: RegistroTurno) => registros.push(r), nuevoId: () => "id-fijo", ...extra } };
 }
 describe("validarEndpoint · guardia SSRF estricta", () => {
+  it("debe rechazar URLs sin esquema", async () => {
+    const resultado = await validarEndpoint("example.com");
+    expect(resultado).toEqual({ ok: false, error: "La dirección del bot invitado no es válida." });
+  });
   it("http rechazado (también en reenviarTurno, con 400 y sin contactar a nadie); https público aceptado", async () => {
     expect((await validarEndpoint("http://bot.invitado.example/agente", dns)).ok).toBe(false);
     expect((await validarEndpoint("https://bot.invitado.example/agente", dns)).ok).toBe(true);
@@ -47,6 +51,43 @@ describe("reenviarTurno", () => {
     const cuerpo = JSON.parse(p.llamadas[0].body);
     expect(cuerpo).toMatchObject({ threadId: "id-fijo", runId: "id-fijo", tools: [], state: {}, context: [{ description: "pagina", value: "Agenda pública del grupo" }] });
     expect(cuerpo.messages).toEqual([{ id: "m1", role: "user", content: "Hola" }]);
+  });
+  it("debe manejar ausencia de cabecera de autorización", async () => {
+    const p = preparar([sse()]);
+    const r = await reenviarTurno(
+      entrada({ 
+        endpoint: "https://bot.invitado.example/agente",
+        mensajes: [{ id: "m1", role: "user", content: "Hola" }],
+        contextoPermitido: [fragmento("publica")]
+        // cabecera is intentionally undefined
+      }), 
+      p.dep
+    );
+    expect(r.ok && (await leer(r.flujo))).toBe('data: {"type":"RUN_FINISHED"}\n\n');
+    // Verificar que no se envió cabecera de autorización
+    expect(p.llamadas[0].headers.Authorization).toBeUndefined();
+  });
+  it("debe manejar errores de SSRF correctamente", async () => {
+    // Simular que validarEndpoint devuelve un error de SSRF
+    const p = preparar([sse()], {
+      resolver: async (host) => {
+        // Devolver una IP que será bloqueada por classifyIp como privada
+        return [{ address: "10.0.0.5", family: 4 }];
+      }
+    });
+    const r = await reenviarTurno(
+      entrada({ 
+        endpoint: "https://10.0.0.5/agente",
+        mensajes: [{ id: "m1", role: "user", content: "Hola" }],
+        contextoPermitido: [fragmento("publica")]
+      }), 
+      p.dep
+    );
+    expect(r).toEqual({
+      ok: false,
+      status: 400,
+      error: expect.stringContaining("red privada, local o de metadatos")
+    });
   });
   it("contexto personal, del perfil, sin alcance claro o de más de 50 fragmentos: rechazado (falla cerrada)", async () => {
     for (const malo of [[fragmento("personal")], [fragmento("perfil")], [{ ...fragmento("publica"), alcance: "otro" }], Array.from({ length: 51 }, () => fragmento("publica"))] as FragmentoMemoria[][]) {
