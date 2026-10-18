@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39103631884",
+   "id": "COL1012Md-d1",
+   "titulo": "Genesis en el A1: servido por Caddy con sesión, sobre la build en verde del guardián (parte 1 de 3)",
+   "archivos": [
+    "deploy/oracle/nodo/systemd/starseed-genesis.service"
+   ],
+   "depende": [],
+   "prompt": "Para que Genesis viva sin la Mac (§6 del contrato): (1) deploy/oracle/nodo/systemd/starseed-genesis.service: usuario starseed, `next start -p 9002 -H 127.0.0.1` en un directorio de SERVICIO separado (/opt/starseed/genesis) que solo se actualiza copiando la `.next` que el guardián acaba de dar por verde (no lo hagas aquí: describe en un comentario el paso que lo hará `oracle_a1.py`), Environment `STARSEED_MANDO=1` y NUNCA `STARSEED_LOCAL=1`, `NODE_OPTIONS=--max-old-space-size=2048`, Restart=on-failure, MemoryMax=3G. (2) En deploy/oracle/nodo/Caddyfile.nodo un bloque `genesis.{$STARSEED_HOST}` con `reverse_proxy 127.0.0.1:9002` y `header_up X-Real-IP {remote_host}` (así `esPeticionDeEstaMaquina` lo trata SIEMPRE como de fuera y el guardián exige sesión + es_metagenesis). (3) scripts/puente/test_genesis_a1.py: comprueba en el texto de ambos archivos que no hay STARSEED_LOCAL, que hay X-Real-IP, que escucha solo en 127.0.0.1 y que no hay IPs ni hosts reales. No toques preparar-a1.sh ni oracle_a1.py en esta tarea.\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39103631884`)\nUn agente de la nube ya avanzó esta tarea (en la Mac no pasa: pruebas del puente: /Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nscripts/puente/test_produccion_puentes.py:4: in <module>\n    import produccion_puentes as pp\nE   ModuleNotFoundError: No module named 'produccion_puentes'\n=========================== short test summary info ============================\nERROR scripts/puente/test_produccion_puentes.py\n!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n1 error in 2.63s\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39103631884:refs/remotes/origin/nube/39103631884\"` y `git cherry-pick --no-commit 266d08a70072 7978e45b9a93`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: deploy/oracle/nodo/Caddyfile.nodo, deploy/oracle/nodo/systemd/starseed-genesis.service, scripts/puente/n8n_hf.py, scripts/puente/produccion_puentes.py, scripts/puente/test_genesis_a1.py, scripts/puente/test_n8n_hf.py, scripts/puente/test_repartir_nube.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió COL1012Md: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: deploy/oracle/nodo/systemd/starseed-genesis.service. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "COL1012Md",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  }
+ ]
+}
