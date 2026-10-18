@@ -1,0 +1,44 @@
+# Docker Compose file for Astraura Bot Computer Service
+# Builds agent-computer and supervisor from CopilotKit/openbot at commit a4dce8c
+# Supervisor binds to 127.0.0.1 on host network for control
+# Agent computers run in isolated environment with resource limits
+
+services:
+  supervisor:
+    build:
+      context: https://github.com/CopilotKit/openbot.git#a4dce8c
+      dockerfile: ./supervisor/Dockerfile
+    network_mode: "host"  # Binds to host's 127.0.0.1 for control access
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker socket only in supervisor
+    environment:
+      - SUPERVISOR_TOKEN=${SUPERVISOR_TOKEN}
+      - # COMPUTER_RUNTIME=runsc  # Uncomment to use runsc (gVisor) for sandboxing
+      - COPILOTKIT_TELEMETRY_DISABLED=true
+      - DO_NOT_TRACK=1
+    restart: unless-stopped
+
+  agent-computer:
+    build:
+      context: https://github.com/CopilotKit/openbot.git#a4dce8c
+      dockerfile: ./agent-computer/Dockerfile
+    # Runs in isolated network; communicates with supervisor via host network
+    network_mode: "bridge"
+    environment:
+      - COMPUTER_TOKEN=${COMPUTER_TOKEN}
+      - SUPERVISOR_TOKEN=${SUPERVISOR_TOKEN}
+      - # COMPUTER_RUNTIME=runsc  # Uncomment to use runsc (gVisor) for sandboxing
+      - COPILOTKIT_TELEMETRY_DISABLED=true
+      - DO_NOT_TRACK=1
+    deploy:
+      replicas: 4
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "1.5G"
+    restart: unless-stopped
+
+networks:
+  default:
+    name: cometbots_control
+    driver: bridge

@@ -1,0 +1,12 @@
+{
+  "network": {
+    "policy": "allowlist_only",
+    "cloud_metadata": "denied",
+    "allowlist": [
+      "localhost",
+      "127.0.0.1",
+      "starseed-os.vercel.app",
+      "bibliotecastarseed.org"
+    ]
+  }
+}
