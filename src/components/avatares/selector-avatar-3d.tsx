@@ -10,7 +10,18 @@ import { parseAdnEntry, saveAdnToLibrary } from "@/lib/avatares/adaptadores/alma
 import { decidirCambioAvatar } from "@/lib/avatares/adn/permisos";
 import { AdnAvatar } from "@/lib/avatares/adn/adn";
 import { PLANTILLAS_AVATAR, adnDePlantilla, refDePlantilla } from "@/lib/avatares/plantillas";
-import { AvatarVivo } from "@/components/avatares/avatar-vivo";
+import { AvatarVivo, FuenteAvatar } from "@/components/avatares/avatar-vivo";
+import type { AvatarCalidad } from "@/lib/xr/calidad-perfiles";
+
+/** Función pura que convierte una referencia de ADN (que no sea «biblioteca:» ni «genesis:») en una FuenteAvatar para AvatarVivo. */
+export function getFuenteAvatarParaRef(ref: string): FuenteAvatar {
+  if (ref === "orbe-gris") {
+    return { tipo: "procedural", svg: "orbe-gris" };
+  }
+  // Para cualquier otra referencia (incluyendo «vrm-persona») usamos el orbe gris como fallback.
+  // Nota: «vrm-persona» debería resolverse como una referencia interna en una futura tarea.
+  return { tipo: "procedural", svg: "orbe-gris" };
+}
 
 interface SelectorAvatar3dProps {
   profileId?: string;
@@ -111,22 +122,35 @@ export default function SelectorAvatar3d({
     [handleSave, profileId, entityId]
   );
 
-  const puedeCambiarAvatar = (adn: AdnAvatar | null, rol: "dueno" | "admin" | "miembro" | "observador" | "invitado", gobierno?: "jerarquico" | "democratico", botDeEntidad?: boolean, vistaPrevia = false): boolean => {
-    if (!adn) return false;
-    try {
-      const decision = decidirCambioAvatar({
-        adn,
-        rol,
-        gobierno,
-        botDeEntidad,
-        vistaPrevia
-      });
-      return decision.permitido;
-    } catch (error) {
-      console.error("Error al verificar permiso para cambiar avatar:", error);
-      return false;
-    }
-  };
+   const puedeCambiarAvatar = (adn: AdnAvatar | null, rol: "dueno" | "admin" | "miembro" | "observador" | "invitado", gobierno?: "jerarquico" | "democratico", botDeEntidad?: boolean, vistaPrevia = false): boolean => {
+     if (!adn) return false;
+     try {
+       const decision = decidirCambioAvatar({
+         adn,
+         rol,
+         gobierno,
+         botDeEntidad,
+         vistaPrevia
+       });
+       return decision.permitido;
+     } catch (error) {
+       console.error("Error al verificar permiso para cambiar avatar:", error);
+       return false;
+     }
+   };
+
+   // Compute the avatar props to pass to AvatarVivo
+   let avatarProps: AvatarVivoProps | { adn: AdnAvatar; calidad: AvatarCalidad };
+   if (currentAdnRef.startsWith("biblioteca:") || currentAdnRef.startsWith("genesis:")) {
+     if (adnAvatar) {
+       avatarProps = { adn: adnAvatar, calidad: "vrm" };
+     } else {
+       // Fallback to procedural while loading the ADN for internal references.
+       avatarProps = getFuenteAvatarParaRef(currentAdnRef);
+     }
+   } else {
+     avatarProps = getFuenteAvatarParaRef(currentAdnRef);
+   }
 
   return (
     <div className="space-y-4">
@@ -152,18 +176,20 @@ export default function SelectorAvatar3d({
               <Badge variant="secondary">{adnAvatar.nombre || "Avatar"}</Badge>
             </div>
 
-            <div className="aspect-square max-w-md mx-auto mb-4">
-              <AvatarVivo
-                fuente={
-                  currentAdnRef.startsWith("biblioteca:") || currentAdnRef.startsWith("genesis:")
-                    ? { tipo: "glb", url: currentAdnRef }
-                    : currentAdnRef === "vrm-persona"
-                    ? { tipo: "glb", url: "vrm-persona" }
-                    : { tipo: "procedural", svg: "orbe-gris" }
-                }
-                tamano={400}
-              />
-            </div>
+             <div className="aspect-square max-w-md mx-auto mb-4">
+               {("adn" in avatarProps) ? (
+                 <AvatarVivo
+                   adn={avatarProps.adn}
+                   calidad={avatarProps.calidad}
+                   tamano={400}
+                 />
+               ) : (
+                 <AvatarVivo
+                   fuente={avatarProps.fuente}
+                   tamano={400}
+                 />
+               )}
+             </div>
 
             {previewOnly && (
               <div className="text-center text-sm text-muted-foreground">
