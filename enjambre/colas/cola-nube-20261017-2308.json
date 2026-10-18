@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261017",
+ "tareas": [
+  {
+   "id": "APM1017E",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Malla · relé `capacidad.*`: pedir cualquier capacidad a otra neurona (imagen, voz, oído, transcodificar…)",
+   "archivos": [
+    "src/lib/network/capacidad-por-malla.ts",
+    "src/lib/network/__tests__/capacidad-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Generaliza el patrón de `src/lib/network/ia-por-malla.ts` (léelo: espacio de nombres, topes de tamaño, trozos, fin, error y cancelar) a `CAPACIDAD_NS = \"capacidad.\"` con `tipo`: imagen | voz | oido | palabra | transcodificar | render | buscar | construir. Cliente: `pedirCapacidad(enviar, { tipo, cuerpo, sesionId, timeoutMs })` que reúne los trozos y nunca lanza (`{ ok:false, motivo }`). Codificar y validar mensajes con guardas de tipo. No cambies ia-por-malla.ts. Pruebas con un canal falso: éxito, trozos desordenados, error, cancelar y tiempo agotado. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017G",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "A1 · capacidad «transcodificar»: escalera de calidades HLS con ffmpeg para las neuronas débiles",
+   "archivos": [
+    "scripts/puente/servir_transcodificar.py",
+    "scripts/puente/test_servir_transcodificar.py"
+   ],
+   "depende": [],
+   "prompt": "`ordenes_escalera(entrada, salida_dir, alturas=(1080, 720, 480, 240))` PURA que devuelve la orden de ffmpeg (lista de argumentos, sin shell) para HLS con varias calidades y su `master.m3u8`, sin subir de la altura original; `transcodificar(entrada, salida_dir, ejecutar)` con el ejecutor inyectable, tope de tiempo y error claro si ffmpeg no está (`shutil.which`). Nada de rutas fuera de `salida_dir`. Pruebas sin ejecutar ffmpeg. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017H",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · volumen por bandas: manifiesto, bandas de un rango y réplicas deseadas",
+   "archivos": [
+    "src/lib/recursos/volumen.ts",
+    "src/lib/recursos/__tests__/volumen.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§7): `Manifiesto` = { id, version, tamano, banda: 4 MiB, bandas: { i, sha256, bytes }[], privado, importancia: 0-3 }. `bandasDeRango(m, desde, hasta)`, `diferencia(mViejo, mNuevo)` (qué bandas cambian), `replicasDeseadas(m)` (privado: 2 en la cuenta; público: 2 + importancia, tope 5) y `elegirFuentes(m, banda, tenedores, ofertas)` (de la más rápida medida a la más lenta, solo las permitidas por privacidad). Reutiliza los tipos de trozo de src/lib/astraura/capas/almacen.ts si encajan, sin cambiarlo. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017L",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Montaje · órdenes exactas por sistema para ver un volumen como disco (sin controladores de pago)",
+   "archivos": [
+    "src/lib/recursos/montaje.ts",
+    "src/lib/recursos/__tests__/montaje.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§7): `ordenesMontaje({ sistema: 'macos'|'windows'|'linux', origen: { tipo: 'webdav'|'rclone', url?, remoto? }, punto, soloLectura })` → lista de órdenes (array de argumentos y texto para copiar): macOS `mount_webdav` o `rclone nfsmount … --vfs-cache-mode full` (sin FUSE); Windows `net use` con el WebDAV del sistema (nunca WinFsp); Linux `rclone mount … --vfs-cache-mode full` o davfs2; y `ordenDesmontar`. Valida el punto de montaje (dentro de la carpeta de la persona, sin `..`). FUSE-T nunca se propone (licencia no comercial). Pruebas por sistema. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017M",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Mac · apps en la nube (sparse bundle en Google Drive) y mover datos pesados con respaldo y vuelta atrás",
+   "archivos": [
+    "src/lib/recursos/mac-nube.ts",
+    "src/lib/recursos/__tests__/mac-nube.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§8): `planSparseBundle({ carpetaDrive, nombre, tamanoGB })` → pasos con sus órdenes (`hdiutil create -size <n>g -type SPARSEBUNDLE -fs APFS -volname <nombre> <ruta>` y `hdiutil attach`), comprobando que la carpeta está bajo `~/Library/CloudStorage/GoogleDrive-*`; `planMoverDatos({ app, origen, destino })` → pasos en orden: comprobar que la app está cerrada, `ditto` al destino, verificar tamaños, renombrar el original a `.respaldo-starseed`, `ln -s`, probar que abre; y `planVolverAtras(...)`. Ningún paso borra nada; borrar el respaldo es una acción aparte que pide la palabra de la persona. Comprueba la sintaxis real con `hdiutil create -help` y anótala en un comentario. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "APM1017U",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · disponibilidad: quién tiene qué segmento o banda, anunciado en poco espacio",
+   "archivos": [
+    "src/lib/recursos/disponibilidad.ts",
+    "src/lib/recursos/__tests__/disponibilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: mapa de bits compacto por elemento (segmentos de una transmisión o bandas de un volumen) con `codificar`/`decodificar` en base64, `fusionar(anuncios)`, `quienTiene(elemento, indice, ahora)` con caducidad (30 s por defecto) y `anuncio(elemento, tengo)` con tope de 1 KB por mensaje (troceando si hace falta). Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1017-170159.json": [
+   "APM1017H",
+   "APM1017E",
+   "APM1017U",
+   "APM1017G",
+   "APM1017L",
+   "APM1017M"
+  ]
+ }
+}
