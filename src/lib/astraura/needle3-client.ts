@@ -1,6 +1,7 @@
 import { astraura158Endpoint, type Astraura158Target } from "./astraura-158-client";
 import { CAMPOS_PERMITIDOS, type TipoAccionUi } from "./ui-acciones";
 import { decidirEnDispositivo } from "./needle-wasm";
+import { esConsultaDePato, decidirConNeedlePato } from "./needle-pato";
 import { ASTRAURA_158_PROXY_BASE } from "@/ai/astraura/free-catalog";
 import { baseParaNavegador } from "@/ai/providers/astraura-158";
 
@@ -106,20 +107,32 @@ export async function decidirConNeedle(
       (enDispositivoOpcion === true || (typeof window !== "undefined" && enDispositivoOpcion !== false)) &&
       (ultimaFalloDispositivo === null || Date.now() - ultimaFalloDispositivo > TIEMPO_RECUPERACION_MS);
 
-  if (usarDispositivo) {
-    const timeoutMs = opciones?.timeoutDispositivoMs ?? 2500;
-    let timerId: ReturnType<typeof setTimeout> | null = null;
-    try {
-      const dispositivoPromise = decidirEnDispositivo(
-        consulta,
-        herramientas,
-        { sistema: opciones?.sistema }
-      );
-      const timeoutPromise = new Promise<DecisionNeedle>((_, reject) => {
-        timerId = setTimeout(() => reject(new Error("Timeout")), timeoutMs);
-      });
-      const resultado = await Promise.race([dispositivoPromise, timeoutPromise]);
-      if (timerId) clearTimeout(timerId);
+    if (usarDispositivo) {
+      const timeoutMs = opciones?.timeoutDispositivoMs ?? 2500;
+      let timerId: ReturnType<typeof setTimeout> | null = null;
+      try {
+        let dispositivoPromise: Promise<DecisionNeedle>;
+        if (esConsultaDePato(consulta)) {
+          // Para consultas relacionadas con el pato, usar el modelo afinado de needle-duck
+          dispositivoPromise = decidirConNeedlePato(consulta, {
+            sistema: opciones?.sistema,
+             maxPasos: opciones?.max_pasos,
+            enDispositivo: true,
+            timeoutDispositivoMs: opciones?.timeoutDispositivoMs
+          });
+        } else {
+          // Para otras consultas, usar el modelo estándar de needle
+          dispositivoPromise = decidirEnDispositivo(
+            consulta,
+            herramientas,
+            { sistema: opciones?.sistema }
+          );
+        }
+        const timeoutPromise = new Promise<DecisionNeedle>((_, reject) => {
+          timerId = setTimeout(() => reject(new Error("Timeout")), timeoutMs);
+        });
+        const resultado = await Promise.race([dispositivoPromise, timeoutPromise]);
+        if (timerId) clearTimeout(timerId);
 
       // Check if the device decision is valid (not escalar and has calls or confidence)
       const zona = zonaDeConfianza(resultado);

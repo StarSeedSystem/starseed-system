@@ -3,6 +3,7 @@ import {
   decidirConNeedle,
   zonaDeConfianza,
   type HerramientaNeedle,
+  type DecisionNeedle,
 } from "@/lib/astraura/needle3-client";
 import {
   UMBRAL_LAYA_EJECUTAR,
@@ -12,6 +13,7 @@ import {
   type RespuestaJev,
   type RespuestaLaya,
 } from "@/lib/astraura/decision-hibrida";
+import { esConsultaDePato, decidirConNeedlePato } from "@/lib/astraura/needle-pato";
 import { type Astraura158Target } from "@/lib/astraura/astraura-158-client";
 
 export async function POST(req: Request) {
@@ -33,8 +35,24 @@ export async function POST(req: Request) {
 
     // Capa 1: Needle 3 local / nube
     const t0 = Date.now();
-    const needleRes = await decidirConNeedle(target, body.consulta, body.herramientas);
-    const msNeedle = Date.now() - t0;
+     let needleRes: DecisionNeedle;
+     let msNeedle: number;
+    
+    if (esConsultaDePato(body.consulta)) {
+      // Para consultas relacionadas con el pato, usar el modelo afinado de needle-duck
+      const t0Pato = Date.now();
+      needleRes = await decidirConNeedlePato(body.consulta, {
+        sistema: undefined,
+        maxPasos: undefined,
+        enDispositivo: undefined,
+        timeoutDispositivoMs: undefined
+      });
+      msNeedle = Date.now() - t0Pato;
+    } else {
+      // Para otras consultas, usar el modelo estándar de needle
+      needleRes = await decidirConNeedle(target, body.consulta, body.herramientas);
+      msNeedle = Date.now() - t0;
+    }
 
     const zona = zonaDeConfianza(needleRes);
     let layaRes: RespuestaLaya | null = null;
