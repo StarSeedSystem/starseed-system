@@ -1,196 +1,158 @@
-// Procesos activos del cerebro: tipos, hardware de cada servidor y avisos.
-// Módulo puro, sin disco ni red. Contrato: architecture/cerebros-fusion-telepatia.md §7.
+// Procesos activos del cerebro: normalización de datos de múltiples fuentes a ProcesoActivo[].
+// Módulo puro, sin disco ni red. Contrato: architecture/cerebros-fusion-telepatia.md Section 7.
 
-export type TipoProceso =
-  | "genesis"
-  | "poligenesis"
-  | "sueno"
-  | "imaginacion"
-  | "descarga"
-  | "instalacion"
-  | "actualizacion"
-  | "app-fondo"
-  | "servicio";
+import {
+  type ProcesoActivo,
+  type TipoProceso,
+  type EstadoProceso,
+  type TipoServidor,
+  type HardwareServidor,
+  fromAgentesMac,
+  fromLatidos,
+  fromNodos,
+  fromPoligenesis,
+  fromSuenos,
+  fromImaginacion,
+  fromInstalaciones,
+  fromActualizaciones,
+  fromVentanas,
+  fromPresencia,
+  unirProcesos,
+  agruparPorTipo,
+} from "./procesos-normalizar";
 
-export type EstadoProceso = "en-marcha" | "esperando" | "pausado" | "fallando";
+export type { TipoProceso, EstadoProceso, TipoServidor };
+export { ProcesoActivo };
+export type { HardwareServidor };
+export { fromAgentesMac, fromLatidos, fromNodos, fromPoligenesis, fromSuenos, fromImaginacion, fromInstalaciones, fromActualizaciones, fromVentanas, fromPresencia, unirProcesos, agruparPorTipo };
 
-export interface ProcesoActivo {
-  id: string;
-  tipo: TipoProceso;
-  nombre: string;
-  estado: EstadoProceso;
-  progreso: number | null; // 0..1; null = sin medida
-  donde: string;
-  desde: number | null;
-  detalle?: string;
-  fuente: string;
-}
+import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
 
-export type TipoServidor = "mac" | "a1" | "neurona" | "nube" | "otro";
+/**
+ * Lee procesos activos de todas las fuentes y los combina en una única lista.
+ * 
+ * Esta es la función principal que implementa Section 7 de architecture/cerebros-fusion-telepatia.md.
+ * Combina datos de:
+ * - desdeAgentesMac (/api/mando/agentes)
+ * - desdeLatidos (/api/mando/medidores)
+ * - desdeNodos (leerEstadoAutonomo)
+ * - desdePoligenesis (leerHistorial)
+ * - desdeSuenos (/api/mando/suenos)
+ * - desdeImaginacion (fetchAstraura158ImaginationStatus)
+ * - desdeInstalaciones (leerInstalaciones)
+ * - desdeActualizaciones (leerActualizaciones)
+ * - desdeVentanas (readDesktopsSnapshot)
+ * - desdePresencia (usePresenciaNeuronas)
+ */
+export async function leerProcesosActivos(): Promise<ProcesoActivo[]> {
+  const ahora = Date.now();
 
-export interface HardwareServidor {
-  id: string;
-  nombre: string;
-  tipo: TipoServidor;
-  cpuPct: number | null;
-  nucleos: number | null;
-  carga: number | null;
-  ramUsadaMb: number | null;
-  ramTotalMb: number | null;
-  gpuPct: number | null;
-  gpuNombre: string | null;
-  discoLibreGb: number | null;
-  discoTotalGb: number | null;
-  bateriaPct: number | null;
-  cargando: boolean | null;
-  medidoEn: number | null;
-  fuente: string;
-}
-
-export const ETIQUETA_TIPO: Record<TipoProceso, string> = {
-  genesis: "Genesis",
-  poligenesis: "PoliGenesis",
-  sueno: "Sueños",
-  imaginacion: "Imaginación",
-  descarga: "Descargas",
-  instalacion: "Instalaciones",
-  actualizacion: "Actualizaciones",
-  "app-fondo": "Apps en segundo plano",
-  servicio: "Servicios",
-};
-
-export interface UmbralesProcesos {
-  cpu: number;
-  ram: number;
-  disco: number;
-  bateria: number;
-}
-
-export const UMBRALES_POR_DEFECTO: UmbralesProcesos = { cpu: 85, ram: 90, disco: 90, bateria: 20 };
-
-export interface AvisoHardware {
-  servidor: string;
-  medida: "cpu" | "ram" | "disco" | "bateria";
-  valor: number;
-  umbral: number;
-}
-
-/** Porcentaje usado/total redondeado a 1 decimal; null si falta algo o total ≤ 0. */
-export function porcentaje(usado: number | null, total: number | null): number | null {
-  if (usado == null || total == null || total <= 0) return null;
-  return Math.round((usado / total) * 1000) / 10;
-}
-
-function numero(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
-function texto(v: unknown): string | null {
-  return typeof v === "string" && v.trim() !== "" ? v : null;
-}
-
-function registro(v: unknown): Record<string, unknown> | null {
-  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : null;
-}
-
-/** Avisos por encima del umbral (batería por debajo y solo si no carga); null nunca avisa. */
-export function avisosHardware(lista: HardwareServidor[], u: UmbralesProcesos): AvisoHardware[] {
-  const avisos: AvisoHardware[] = [];
-  for (const h of lista) {
-    const ramPct = porcentaje(h.ramUsadaMb, h.ramTotalMb);
-    const { discoLibreGb, discoTotalGb } = h;
-    const discoUsadoGb =
-      discoLibreGb != null && discoTotalGb != null ? discoTotalGb - discoLibreGb : null;
-    const discoPct = porcentaje(discoUsadoGb, discoTotalGb);
-    if (h.cpuPct != null && h.cpuPct >= u.cpu)
-      avisos.push({ servidor: h.nombre, medida: "cpu", valor: h.cpuPct, umbral: u.cpu });
-    if (ramPct != null && ramPct >= u.ram)
-      avisos.push({ servidor: h.nombre, medida: "ram", valor: ramPct, umbral: u.ram });
-    if (discoPct != null && discoPct >= u.disco)
-      avisos.push({ servidor: h.nombre, medida: "disco", valor: discoPct, umbral: u.disco });
-    if (h.bateriaPct != null && h.cargando === false && h.bateriaPct <= u.bateria)
-      avisos.push({ servidor: h.nombre, medida: "bateria", valor: h.bateriaPct, umbral: u.bateria });
+  // 1. Procesos de agentes (desdeAgentesMac)
+  let desdeAgentesMac: ProcesoActivo[] = [];
+  try {
+    const r = await fetch("/api/mando/agentes", { cache: "no-store" });
+    desdeAgentesMac = fromAgentesMac(await r.json().catch(() => null));
+  } catch {
+    desdeAgentesMac = [];
   }
-  return avisos;
-}
 
-/** Lee la respuesta de `/api/mando/hardware` (§7.1), de forma defensiva. */
-export function hardwareDesdeMac(r: unknown, ahora: number): HardwareServidor | null {
-  const o = registro(r);
-  if (!o) return null;
-  return {
-    id: texto(o.id) ?? "esta-mac",
-    nombre: texto(o.nombre) ?? "Esta Mac",
-    tipo: "mac",
-    cpuPct: numero(o.cpuPct),
-    nucleos: numero(o.nucleos),
-    carga: numero(o.carga),
-    ramUsadaMb: numero(o.ramUsadaMb),
-    ramTotalMb: numero(o.ramTotalMb),
-    gpuPct: numero(o.gpuPct),
-    gpuNombre: texto(o.gpuNombre),
-    discoLibreGb: numero(o.discoLibreGb),
-    discoTotalGb: numero(o.discoTotalGb),
-    bateriaPct: numero(o.bateriaPct),
-    cargando: typeof o.cargando === "boolean" ? o.cargando : null,
-    medidoEn: numero(o.medidoEn) ?? ahora,
-    fuente: "mando",
-  };
-}
+  // 2. Procesos de latidos (desdeLatidos)
+  let desdeLatidos: ProcesoActivo[] = [];
+  try {
+    const r = await fetch("/api/mando/medidores", { cache: "no-store" });
+    const datos = await r.json().catch(() => null);
+    desdeLatidos = fromLatidos(datos?.latidos);
+  } catch {
+    desdeLatidos = [];
+  }
 
-/** Lee un `NodoVista` de MetaGenesis; RAM usada = total − libre solo si hay total. */
-export function hardwareDesdeNodo(n: unknown, ahora: number): HardwareServidor | null {
-  const o = registro(n);
-  if (!o) return null;
-  const nodo = texto(o.nodo);
-  if (!nodo) return null;
-  const ramTotalMb = numero(o.ram_total_mb);
-  const ramLibreMb = numero(o.ram_libre_mb);
-  const ramUsadaMb = ramTotalMb != null && ramLibreMb != null ? ramTotalMb - ramLibreMb : null;
-  return {
-    id: nodo,
-    nombre: nodo,
-    tipo: texto(o.medio) === "movil" || texto(o.medio) === "navegador" ? "neurona" : "a1",
-    cpuPct: numero(o.cpu_pct),
-    nucleos: numero(o.nucleos),
-    carga: numero(o.carga),
-    ramUsadaMb,
-    ramTotalMb,
-    gpuPct: null,
-    gpuNombre: null,
-    discoLibreGb: numero(o.disco_gb),
-    discoTotalGb: numero(o.disco_total_gb),
-    bateriaPct: null,
-    cargando: null,
-    medidoEn: ahora,
-    fuente: "metagenesis",
-  };
-}
+  // 3. Procesos de nodos (desdeNodos)
+  let desdeNodos: ProcesoActivo[] = [];
+  try {
+    const estado = await leerEstadoAutonomo(ahora).catch(() => null);
+    if (estado?.ok) {
+      desdeNodos = fromNodos(estado.estado.nodos);
+    }
+  } catch {
+    desdeNodos = [];
+  }
 
-/** Lee las capabilities de una neurona (`neuron_devices`); CPU y GPU no se miden aquí. */
-export function hardwareDesdeNeurona(n: unknown, ahora: number): HardwareServidor | null {
-  const o = registro(n);
-  if (!o) return null;
-  const caps = registro(o.capabilities) ?? registro(o.capacidades) ?? o;
-  const bat = registro(caps.battery) ?? registro(caps.bateria);
-  const quo = registro(caps.quota) ?? registro(caps.cuota);
-  const id = texto(o.id) ?? texto(o.device_id) ?? texto(o.nombre) ?? "neurona";
-  return {
-    id,
-    nombre: texto(o.nombre) ?? id,
-    tipo: "neurona",
-    cpuPct: null,
-    nucleos: null,
-    carga: null,
-    ramUsadaMb: null,
-    ramTotalMb: null,
-    gpuPct: null,
-    gpuNombre: null,
-    discoLibreGb: numero(quo?.libre_gb) ?? numero(quo?.free_gb),
-    discoTotalGb: numero(quo?.total_gb),
-    bateriaPct: numero(bat?.level),
-    cargando: typeof bat?.charging === "boolean" ? bat.charging : null,
-    medidoEn: ahora,
-    fuente: "neuron_devices",
-  };
+  // 4. Procesos de poligenesis (desdePoligenesis)
+  let desdePoligenesis: ProcesoActivo[] = [];
+  try {
+    const historial = await (await import("@/lib/genesis/historial"))?.leerHistorial?.("origenes")?.catch(() => null);
+    desdePoligenesis = fromPoligenesis({ historial: { operaciones: historial?.entradas?.filter(e => e.tipo === "propuesta") } });
+  } catch {
+    desdePoligenesis = [];
+  }
+
+  // 5. Procesos de sueños (desdeSuenos)
+  let desdeSuenos: ProcesoActivo[] = [];
+  try {
+    const r = await fetch("/api/mando/suenos", { cache: "no-store" });
+    desdeSuenos = fromSuenos(await r.json().catch(() => null));
+  } catch {
+    desdeSuenos = [];
+  }
+
+  // 6. Procesos de imaginacion (desdeImaginacion)
+  let desdeImaginacion: ProcesoActivo[] = [];
+  try {
+    const imaginacion = await (await import("@/lib/mando/suenos"))?.fetchAstraura158ImaginationStatus?.().catch(() => null);
+    desdeImaginacion = fromImaginacion({ imaginacion });
+  } catch {
+    desdeImaginacion = [];
+  }
+
+  // 7. Procesos de instalaciones (desdeInstalaciones)
+  let desdeInstalaciones: ProcesoActivo[] = [];
+  try {
+    const instalaciones = await (await import("@/lib/mando/sincronizar"))?.leerInstalaciones?.().catch(() => null);
+    desdeInstalaciones = fromInstalaciones({ instalaciones });
+  } catch {
+    desdeInstalaciones = [];
+  }
+
+  // 8. Procesos de actualizaciones (desdeActualizaciones)
+  let desdeActualizaciones: ProcesoActivo[] = [];
+  try {
+    const actualizaciones = await (await import("@/lib/mando/actualizaciones"))?.leerActualizaciones?.().catch(() => null);
+    desdeActualizaciones = fromActualizaciones({ actualizaciones });
+  } catch {
+    desdeActualizaciones = [];
+  }
+
+  // 9. Procesos de ventanas (desdeVentanas)
+  let desdeVentanas: ProcesoActivo[] = [];
+  try {
+    const ventanas = await (await import("@/lib/desktop"))?.readDesktopsSnapshot?.().catch(() => null);
+    desdeVentanas = fromVentanas({ ventanas });
+  } catch {
+    desdeVentanas = [];
+  }
+
+  // 10. Procesos de presencia (desdePresencia)
+  let desdePresencia: ProcesoActivo[] = [];
+  try {
+    const presencia = await (await import("@/lib/neurons"))?.usePresenciaNeuronas?.().catch(() => null);
+    desdePresencia = fromPresencia({ presencia });
+  } catch {
+    desdePresencia = [];
+  }
+
+  // Combinar todos los procesos
+  const todos = unirProcesos(
+    desdeAgentesMac,
+    desdeLatidos,
+    desdeNodos,
+    desdePoligenesis,
+    desdeSuenos,
+    desdeImaginacion,
+    desdeInstalaciones,
+    desdeActualizaciones,
+    desdeVentanas,
+    desdePresencia,
+  );
+
+  return todos;
 }
