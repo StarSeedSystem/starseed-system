@@ -12,11 +12,12 @@ import { CLAVES_PROHIBIDAS } from "@/lib/nucleo/paquete-sistema";
 import type { Sentido } from "./tipos";
 
 export const TIPOS_ACCION = [
-   "navegar", "abrir-app", "capa-pantalla", "widget.añadir", "widget.mover", "widget.quitar",
-   "pizarra.operar", "dashboard.editar", "escritorio.organizar", "pagina.editar", "ajuste.proponer",
-   "ui.proponer", "protomolecula.operar", "xr.intencion", "codigo.proponer", "computadora.ejecutar",
-   "mensaje.enviar", "publicacion.borrador", "tarea.crear", "memoria.recordar", "notificar",
-   "imagen.generar",
+    "navegar", "abrir-app", "capa-pantalla", "widget.añadir", "widget.mover", "widget.quitar",
+    "pizarra.operar", "dashboard.editar", "escritorio.organizar", "pagina.editar", "ajuste.proponer",
+    "ui.proponer", "protomolecula.operar", "xr.intencion", "codigo.proponer", "computadora.ejecutar",
+    "mensaje.enviar", "publicacion.borrador", "tarea.crear", "memoria.recordar", "notificar",
+    "imagen.generar",
+    "robot.caminar", "robot.girar", "robot.emocion", "robot.bailar", "robot.negacion", "robot.alto",
 ] as const;
 export type TipoAccion = (typeof TIPOS_ACCION)[number];
 
@@ -66,7 +67,13 @@ export const META_ACCION: Record<TipoAccion, MetaAccion> = {
   "tarea.crear": m("medio", true, false, "inverso", "genesis/poligenesis", { titulo: "texto", criterios: "json", director: "id", origen: "id" }, ["titulo", "criterios"]),
   "memoria.recordar": m("bajo", true, false, "inverso", "brains/memory", { alcance: "id", texto: "texto" }, ["alcance", "texto"]),
    notificar: m("bajo", false, true, "retirar", "notificaciones", { texto: "texto", a: "id" }, ["texto"]),
-   "imagen.generar": m("bajo", false, false, "nada", "aurora/actions#generar_imagen", { prompt: "texto", opciones: "numero", necesita: "texto", referencia: "texto", comercial: "bool" }, ["prompt"]),
+    "imagen.generar": m("bajo", false, false, "nada", "aurora/actions#generar_imagen", { prompt: "texto", opciones: "numero", necesita: "texto", referencia: "texto", comercial: "bool" }, ["prompt"]),
+    "robot.caminar": m("medio", true, false, "inverso", "robot-pato#caminar", {}, []),
+    "robot.girar": m("medio", true, false, "inverso", "robot-pato#girar", {}, []),
+    "robot.emocion": m("medio", true, false, "inverso", "robot-pato#emocion", {}, []),
+    "robot.bailar": m("medio", true, false, "inverso", "robot-pato#bailar", {}, []),
+    "robot.negacion": m("medio", true, false, "inverso", "robot-pato#negacion", {}, []),
+    "robot.alto": m("bajo", true, false, "nada", "robot-pato#alto", {}, []),
 };
 
 export interface AccionBot {
