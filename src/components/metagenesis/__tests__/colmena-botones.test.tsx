@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
+<<<<<<< HEAD
 import { botonesNeurona, type NeuronaColmena } from "@/lib/metagenesis/colmena";
 
 describe("colmena-botones · botones de una neurona (rescatado de rama nube)", () => {
+=======
+import { botonesNeurona, type NeuronaColmena } from "../../../lib/metagenesis/colmena";
+
+describe("colmena-botones", () => {
+>>>>>>> 5eeca426 (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
@@ -21,6 +27,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(b.desconectar.explica).toContain("1 agente");
         expect(b.desconectar.confirmar).toBe(true);
     });
+<<<<<<< HEAD
 
     it("contenedor activo: explica «Termina lo que lleva y no coge más.» y pide confirmar si hay trabajo", () => {
         const sin = botonesNeurona({
@@ -85,4 +92,6 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
             confirmar: true 
         });
     });
+=======
+>>>>>>> 5eeca426 (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
 });
