@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { fichasProtomolecula, ORDEN_GRUPOS_PROTO } from "../biblioteca-protomolecula";
-import { registrarAtomo, limpiarRegistro } from "../registro-atomos";
-import type { DefinicionAtomo, Parametro, CategoriaAtomo } from "../registro-atomos";
+import { registrarAtomo, limpiarRegistro, listarAtomos } from "../registro-atomos";
+import type { DefinicionAtomo, Parametro } from "../registro-atomos";
+import type { CategoriaProto } from "../catalogo-herramientas";
 import { CATEGORIAS_PROTOMOLECULA } from "../catalogo-herramientas";
 import type { HerramientaProto } from "../catalogo-herramientas";
 
@@ -27,7 +28,7 @@ function herramienta(parcial: Partial<HerramientaProto> & { id: string; categori
   };
 }
 
-function atomo(herramientaId: string, categoria: CategoriaAtomo = "imagen", extra: Partial<DefinicionAtomo> = {}): DefinicionAtomo {
+function atomo(herramientaId: string, categoria: CategoriaProto = "raster-pintura", extra: Partial<DefinicionAtomo> = {}): DefinicionAtomo {
   const parametro: Parametro = { id: "p", nombre: "P", tipo: "numero" };
   return { herramientaId, nombre: herramientaId, categoria, integracion: "libreria-js", control: "total", parametros: [parametro], entradas: [], salidas: [], ...extra };
 }
@@ -71,7 +72,7 @@ describe("fichasProtomolecula", () => {
 
   it("versión con SHA verificado se anuncia como instalada", () => {
     const catalogo = [herramienta({ id: "con-sha", categoria: "audio-edicion" })];
-    const [f] = fichasProtomolecula({ "con-sha": { version: "1.4.2", sha: "abc123" } }, catalogo);
+  const [f] = fichasProtomolecula({ "con-sha": { version: "1.4.2", sha: "abc123" } }, catalogo);
     expect(f.versionInstalada).toBe("1.4.2");
     expect(f.versionDisponible).toBeUndefined();
   });
@@ -121,5 +122,224 @@ describe("fichasProtomolecula", () => {
     expect(fichas.map((f) => f.id)).toEqual(["imagen", "recurso"]);
     const info = CATEGORIAS_PROTOMOLECULA.find((c) => c.id === "recursos-abiertos");
     expect(info?.grupo).toBe("recursos");
+  });
+
+  it("usa la información del catálogo cuando se proporciona y hay átomo coincidente", () => {
+    const atomoDef = atomo("catalog-tool", "codigo", { nombre: "Herramienta del Catálogo" });
+    registrarAtomo(atomoDef);
+    
+    const catalogo = [{
+      id: "catalog-tool",
+      nombre: "Nombre desde Católico",
+      descripcion: "Esta es una descripción detallada desde el catálogo",
+      licencia: "GPL-3.0",
+      codigo: "https://github.com/usuario/repo",
+      web: "https://ejemplo.com",
+      documento: "https://docs.ejemplo.com",
+      integracion: "iframe-aislado",
+      control: "total",
+      estado: "integrable",
+      motivo: ""
+    }];
+    
+    const resultado = fichasProtomolecula({}, catalogo);
+    
+    expect(resultado.length).toBe(1);
+    expect(resultado[0].nombre).toBe("Nombre desde Católico");
+    expect(resultado[0].descripcion).toContain("Esta es una descripción detallada desde el catálogo");
+    expect(resultado[0].licencia).toBe("GPL-3.0");
+    expect(resultado[0].enlaces).toBeDefined();
+    expect(resultado[0].enlaces!.web).toBe("https://ejemplo.com");
+    expect(resultado[0].enlaces!.repo).toBe("https://github.com/usuario/repo");
+    expect(resultado[0].estado).toBe("integrada"); // debido al átomo coincidente
+    expect(resultado[0].controlReal).toBe("total"); // del átomo (control por defecto)
+  });
+
+  it("ordena las fichas según el orden especificado en el contrato (posiciones 0, 6, 9)", () => {
+    const gruposYNombres = [
+      { categoria: "imagen", nombre: "Herramienta de Imagen" },
+      { categoria: "audio", nombre: "Herramienta de Audio" },
+      { categoria: "video", nombre: "Herramienta de Video" },
+      { categoria: "3d", nombre: "Herramienta de 3D" },
+      { categoria: "arquitectura", nombre: "Herramienta de Arquitectura" },
+      { categoria: "fisicas", nombre: "Herramienta de Fisicas" },
+      { categoria: "juegos", nombre: "Herramienta de Juegos" },
+      { categoria: "vr-ar", nombre: "Herramienta de VRAR" },
+      { categoria: "codigo", nombre: "Herramienta de Codigo" },
+      { categoria: "ia", nombre: "Herramienta de IA" },
+    ];
+
+    // Registrar todos los átomos
+    for (const { categoria, nombre } of gruposYNombres) {
+      registrarAtomo(atomo(nombre.toLowerCase().replace(/\s/g, '-'), categoria, { nombre }));
+    }
+
+    const resultado = fichasProtomolecula();
+    
+    // Debemos tener exactamente 10 fichas
+    expect(resultado.length).toBe(10);
+    
+    // Verificar que la ficha en posición 0 pertenece al grupo "imagen" (índice 0 en ORDEN_GRUPOS_PROTO)
+    expect(resultado[0].categoria).toBe("imagen");
+    // Verificar que la ficha en posición 6 pertenece al grupo "juegos" (índice 6 en ORDEN_GRUPOS_PROTO)
+    expect(resultado[6].categoria).toBe("juegos");
+    // Verificar que la ficha en posición 9 pertenece al grupo "ia" (índice 9 in ORDEN_GRUPOS_PROTO)
+    expect(resultado[9].categoria).toBe("ia");
+  });
+
+  it("convierte un átomo registrado en una ficha de biblioteca", () => {
+    const atom = atomo("test-tool", "raster-pintura", { nombre: "Herramienta de Prueba" });
+    registrarAtomo(atom);
+    
+    const resultado = fichasProtomolecula({}, []);
+    
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].id).toBe("test-tool");
+    expect(resultado[0].nombre).toBe("Herramienta de Prueba");
+    expect(resultado[0].categoria).toBe("raster-pintura");
+    expect(resultado[0].categoriaEtiqueta).toBe("Imagen");
+    expect(resultado[0].controlReal).toBe("total");
+    expect(resultado[0].estado).toBe("integrada");
+  });
+
+  it("usa la información de versiones cuando se proporciona", () => {
+    const atom = atomo("versioned-tool", "imagen", { nombre: "Herramienta con Versión" });
+    registrarAtomo(atom);
+    
+    const versiones = {
+      "versioned-tool": {
+        version: "1.2.3",
+        fecha: "2026-10-10",
+        licencia: "MIT",
+        sha: "abc123",
+        estado: "disponible"
+      }
+    };
+    
+    const herramientaObj = {
+      id: "versioned-tool",
+      nombre: "Placeholder",
+      categoria: "raster-pintura",
+      estado: "integrable",
+      motivo: "Licencia y vía comprobadas."
+    };
+    // Check if the categoria is valid
+    const categoriaValida = CATEGORIAS_PROTOMOLECULA.some(c => c.id === herramientaObj.categoria);
+    const catalogo = [herramienta(herramientaObj)];
+    
+    const resultado = fichasProtomolecula(versiones, catalogo);
+
+    
+     expect(resultado[0].licencia).toBe("MIT");
+     expect(resultado[0].versionInstalada).toBe("1.2.3");
+     expect(resultado[0].versionDisponible).toBeUndefined();
+     expect(resultado[0].descripcion).toContain("Herramienta con Versión");
+     expect(resultado[0].categoria).toBe("imagen");
+     expect(resultado[0].categoriaEtiqueta).toBe("Imagen");
+     expect(resultado[0].estado).toBe("integrada");
+  });
+
+  it("marca las fichas como no verificadas cuando el estado es 'proximamente'", () => {
+    const catalogo = [{
+      ...herramienta({ id: "future-tool", categoria: "ia-generativa", nombre: "Herramienta Futura", estado: "proximamente", motivo: "falta el build WASM" })
+    }];
+    
+    const resultado = fichasProtomolecula({}, catalogo);
+    
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].estado).toBe("proximamente");
+    expect(resultado[0].proximamente).toBe("próximamente: falta el build WASM");
+    expect(resultado[0].categoria).toBe("ia");
+    expect(resultado[0].categoriaEtiqueta).toBe("IA generativa");
+  });
+
+  it("muestra 'Próximamente' cuando el átomo tiene el campo proximamente", () => {
+    const atomWithProximamente: any = {
+      ...atomo("proximate-tool", "raster-pintura", { nombre: "Herramienta Próxima" }),
+      proximamente: "Falta implementar el envoltorio nativo"
+    };
+    registrarAtomo(atomWithProximamente);
+    
+    const resultado = fichasProtomolecula();
+    
+    expect(resultado[0].description).toContain("Próximamente: Falta implementar el envoltorio nativo");
+    expect(resultado[0].categoria).toBe("raster-pintura");
+    expect(resultado[0].categoriaEtiqueta).toBe("Imagen");
+     expect(resultado[0].estado).toBe("integrada");
+   });
+
+  it("agrupa correctamente las fichas por categoría", () => {
+    // Crear átomos de diferentes categorías
+    registrarAtomo(atomo("img-tool", "raster-pintura", { nombre: "Herramienta de Imagen" }));
+    registrarAtomo(atomo("aud-tool", "audio-edicion", { nombre: "Herramienta de Audio" }));
+    registrarAtomo(atomo("vid-tool", "video-composicion", { nombre: "Herramienta de Video" }));
+    
+    const resultado = fichasProtomolecula();
+    
+    // Verificar que tenemos 3 fichas
+    expect(resultado).toHaveLength(3);
+    
+    // Verificar que cada ficha tiene la categoría correspondiente
+    const imgFicha = resultado.find(f => f.nombre === "Herramienta de Imagen");
+    const audFicha = resultado.find(f => f.nombre === "Herramienta de Audio");
+    const vidFicha = resultado.find(f => f.nombre === "Herramienta de Video");
+    
+    expect(imgFicha).toBeDefined();
+    expect(audFicha).toBeDefined();
+    expect(vidFicha).toBeDefined();
+    
+    expect(imgFicha?.categoria).toBe("raster-pintura");
+    expect(audFicha?.categoria).toBe("audio-edicion");
+     expect(vidFicha?.categoria).toBe("video-composicion");
+   });
+
+  it("ordena las fichas según el orden especificado en el contrato", () => {
+    // Crear átomos en orden aleatorio
+    registrarAtomo(atomo("juego-tool", "motores-juego", { nombre: "Herramienta de Juegos" }));
+    registrarAtomo(atomo("img-tool", "raster-pintura", { nombre: "Herramienta de Imagen" }));
+    registrarAtomo(atomo("ia-tool", "ia-generativa", { nombre: "Herramienta de IA" }));
+    
+    const resultado = fichasProtomolecula();
+    
+    // El orden debería ser: imagen, audio, video, 3d, arquitectura, fisicas, juegos, vr-ar, codigo, ia
+    // Entonces: img-tool (posición 0), juego-tool (posición 6), ia-tool (posición 9)
+    expect(resultado[0].nombre).toBe("Herramienta de Imagen");
+    expect(resultado[6].nombre).toBe("Herramienta de Juegos");
+    expect(resultado[9].nombre).toBe("Herramienta de IA");
+  });
+
+  it("maneja correctamente cuando se proporcionan tanto versiones como catalogo", () => {
+    const atom = atomo("full-tool", "raster-pintura", { nombre: "Herramienta Completa" });
+    registrarAtomo(atom);
+    
+    const versiones = {
+      "full-tool": {
+        version: "2.0.0",
+        licencia: "Apache-2.0"
+      }
+    };
+    
+    const catalogo = [{
+      id: "full-tool",
+      nombre: "Nombre desde Catálogo",
+      descripcion: "Descripción desde el catálogo",
+      web: "https://ejemplo.com",
+      motivo: "Estado de prueba",
+      categoria: "raster-pintura"
+    }];
+     
+    const resultado = fichasProtomolecula(versiones, catalogo);
+    
+    expect(resultado[0].nombre).toBe("Nombre desde Catálogo");
+    expect(resultado[0].description).toContain("Descripción desde el catálogo");
+    expect(resultado[0].description).toContain("Próximamente: Estado de prueba");
+    expect(resultado[0].license).toBe("Apache-2.0"); // La de versiones tiene precedencia
+    expect(resultado[0].links).toBeDefined();
+    expect(resultado[0].links?.find(l => l.label === "Web oficial")?.url).toBe("https://ejemplo.com");
+  });
+
+  it("devuelve un array vacío cuando no hay átomos registrados", () => {
+    const resultado = fichasProtomolecula();
+    expect(resultado).toEqual([]);
   });
 });
