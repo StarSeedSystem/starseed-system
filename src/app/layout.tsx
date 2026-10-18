@@ -61,6 +61,7 @@ import { VoiceNeuronOnboardingLoader } from "@/components/aurora/voice-neuron-on
 // (loaders globales que NO deben ir en el Server Component layout.tsx: ver abajo)
 
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
+import { OrbeProtomolecula } from "@/components/protomolecula/orbe-protomolecula";
 // Guía dinámica de bienvenida y ayuda (tour vivo de la interfaz). Global,
 // defensiva y SSR-safe: arranca sola en la primera visita y se reabre con el
 // evento 'starseed:open-guide' o el acceso flotante "Guía".
@@ -351,13 +352,15 @@ export default function RootLayout({
                             Decide por sí mismo si renderizarse (auto/on/off). */}
                         <SoloFueraDeMinima><TrinityEdgeAccess /></SoloFueraDeMinima>
                         {/* ORBE de Aurora: acceso universal a la voz + menú
-                            Trinity centrado, presente en todas las rutas. */}
-                        <AuroraWidget />
-                        {/* Guía dinámica de bienvenida/ayuda: tour vivo que
-                            presenta y resalta orbe, menús Trinity, Escritorio,
-                            Dashboard, Astraura, Perfil, Cerebros y Librería.
-                            Arranca sola la primera vez; reabrible siempre. */}
-                        <SoloFueraDeMinima><AuroraGuide /></SoloFueraDeMinima>
+                             Trinity centrado, presente en todas las rutas. */}
+                         <AuroraWidget />
+                         {/* ORBE de Protomolécula: función universal de creación y edición */}
+                         <OrbeProtomolecula />
+                         {/* Guía dinámica de bienvenida/ayuda: tour vivo que
+                             presenta y resalta orbe, menús Trinity, Escritorio,
+                             Dashboard, Astraura, Perfil, Cerebros y Librería.
+                             Arranca sola la primera vez; reabrible siempre. */}
+                         <SoloFueraDeMinima><AuroraGuide /></SoloFueraDeMinima>
                         {/* Iniciación de cuentas nuevas + alta corta de neurona
                             (Adenda 188): global, en CUALQUIER medio/ruta — antes
                             vivía solo en (app) y el escritorio raíz se lo perdía. */}
