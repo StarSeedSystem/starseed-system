@@ -219,10 +219,14 @@ export function huellaReticula(r: Reticula): string {
   const obj = { teselas: teselasArray };
   const canonical = canonicalJsonStringify(obj);
   const hashBytes = new TextEncoder().encode(canonical);
+  // FNV-1a de 64 bits. La máscara se aplica DENTRO del bucle: sin ella el BigInt
+  // crece un byte por iteración y el tiempo es cuadrático (medido: 11 s con 256
+  // neuronas). Con la máscara el valor se queda en 64 bits y el bucle es lineal.
+  // El resultado es idéntico: es aritmética módulo 2^64.
+  const MASCARA = BigInt("0xffffffffffffffff");
   let hash = BigInt("0xcbf29ce484222325");
   for (const b of hashBytes) {
-    hash = (hash ^ BigInt(b)) * BigInt("0x100000001b3");
+    hash = ((hash ^ BigInt(b)) * BigInt("0x100000001b3")) & MASCARA;
   }
-  hash = hash & BigInt("0xffffffffffffffff");
   return hash.toString(16).padStart(16, '0');
 }
