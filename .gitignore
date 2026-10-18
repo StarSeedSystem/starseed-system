@@ -130,3 +130,6 @@ enjambre/colas/*.no-lanzada
 # (2026-10-04, NUB1004A) Estado de la Mac que viaja con cada cola en el mismo commit
 # suelto (scripts/puente/nube-gh.py preparar_estado_para_nube); queda en disco como rastro.
 enjambre/colas/estado-*/
+
+# (2026-10-18) Dependencias de los servicios propios (taller 3D, etc.): nunca al repositorio
+servicios/*/node_modules/
