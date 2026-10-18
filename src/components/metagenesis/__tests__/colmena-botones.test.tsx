@@ -7,6 +7,16 @@ const MAC: NeuronaColmena = {
   so: "macos",
   enCurso: 0,
   contenedor: null,
+  desconectando: false,
+};
+
+const MACDesconectando: NeuronaColmena = {
+  nodo: "mac-a1b2c3",
+  vivo: true,
+  so: "macos",
+  enCurso: 0,
+  contenedor: null,
+  desconectando: true,
 };
 
 describe("colmena-botones · botones de una neurona", () => {
@@ -36,5 +46,12 @@ describe("colmena-botones · botones de una neurona", () => {
     expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
     expect(b.desconectar.explica).toContain("1 agente");
     expect(b.desconectar.confirmar).toBe(true);
+  });
+
+  it("con desconectando, el botón muestra el mensaje adecuado y está deshabilitado", () => {
+    const b = botonesNeurona(MACDesconectando);
+    expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectando…" });
+    expect(b.desconectar.explica).toBe("Guarda el trabajo a medias y lo pasa a otro contenedor.");
+    expect(b.desconectar.confirmar).toBeUndefined();
   });
 });
