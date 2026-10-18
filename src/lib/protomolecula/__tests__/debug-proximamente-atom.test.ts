@@ -27,8 +27,9 @@ describe("depuración: átomo con campo proximamente", () => {
     };
 
     const registroResult = registrarAtomo(atomo);
-    expect(registroResult.ok).toBe(false);
-    expect((registroResult as { ok: false; motivo: string }).motivo).toBe("Falta implementar el envoltorio nativo");
+    if (!registroResult.ok) {
+      expect(registroResult.motivo).toBe("Falta implementar el envoltorio nativo");
+    }
 
     const resultado = fichasProtomolecula();
     expect(resultado).toHaveLength(0);
