@@ -4458,3 +4458,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-18 14:27 · mg-oracle-1018-0645
+
+**Lo que se pidió.** MetaGenesis en la web: órdenes «desconectar
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTCOL1012Be, APM1017Y, RTRTCOL1012Bdsbbbbbbbbbbc, RTRTCOL1012Bdsbbbbbbbbbbbb). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Be` — otra cosa: ningún proveedor respondió (todos caídos)
+- `APM1017Y` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTCOL1012Bdsbbbbbbbbbbc` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTCOL1012Bdsbbbbbbbbbbbb` — otra cosa: ningún proveedor respondió (todos caídos)
