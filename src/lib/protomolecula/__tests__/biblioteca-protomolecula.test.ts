@@ -285,4 +285,34 @@ describe("fichasProtomolecula", () => {
     expect(resultado[0].enlaces).toBeDefined();
     expect(resultado[0].enlaces?.web).toBe("https://ejemplo.com");
   });
+
+  it("usa la información del catálogo cuando se proporciona y el átomo está registrado", () => {
+    const atomo = crearAtomoValido("catalog-tool", "Herramienta del Catálogo");
+    registrarAtomo(atomo);
+    
+    const catalogo = [{
+      id: "catalog-tool",
+      nombre: "Nombre desde Catálogo",
+      descripcion: "Esta es una descripción detallada desde el catálogo",
+      licencia: "GPL-3.0",
+      codigo: "https://github.com/usuario/repo",
+      web: "https://ejemplo.com",
+      documento: "https://docs.ejemplo.com",
+      integracion: "iframe-aislado",
+      control: "total",
+      estado: "integrable",
+      motivo: ""
+    }];
+    
+    const resultado = fichasProtomolecula({}, catalogo);
+    
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].nombre).toBe("Nombre desde Catálogo");
+    expect(resultado[0].descripcion).toContain("Esta es una descripción detallada desde el catálogo");
+    expect(resultado[0].licencia).toBe("GPL-3.0");
+    // Verificar que los enlaces se crearon correctamente
+    expect(resultado[0].enlaces).toBeDefined();
+    expect(resultado[0].enlaces?.web).toBe("https://ejemplo.com");
+    expect(resultado[0].enlaces?.repo).toBe("https://github.com/usuario/repo");
+  });
 });
