@@ -315,10 +315,13 @@ export function RouterCenter({ neuronId }: { neuronId?: string }) {
         </pre>
       )}
 
-      {/* Compatibilidad con OpenWrt (instalar firmware libre) */}
-      <CompatibilidadOpenwrt />
+       {/* Compatibilidad con OpenWrt (instalar firmware libre) */}
+       <CompatibilidadOpenwrt />
+       
+       {/* Panel de malla de routers (Ola 1012Q) */}
+       <RoutersMallaPanel tablaHardware={TABLA_HARDWARE} />
 
-      {/* Controlador OpenWISP */}
+       {/* Controlador OpenWISP */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
         <div className="text-[11px] uppercase tracking-widest text-white/45">Controlador OpenWISP (opcional)</div>
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
