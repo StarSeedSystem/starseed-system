@@ -480,6 +480,14 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/poligenesis" },
   },
   {
+    // Ola 1013F: Fundamento de StarSeed — diamante, piedra filosofal y alquimia.
+    id: "app-fundamento", kind: "app", name: "Fundamento de StarSeed",
+    description: "Diamante, piedra filosofal y alquimia: el fundamento filosófico del OS, siempre disponible en Biblioteca y lanzador.",
+    icon: "Gem", tags: ["app", "fundamento", "filosofia", "diamante", "alquimia"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true,
+    payload: { route: "/fundamento" },
+  },
+  {
     id: "widget-panel-dashboard", kind: "widget", name: "Panel de Widgets",
     description: "El dashboard con widgets arrastrables del OS: clima, actividad, cripto-escudo, identidad y más.",
     icon: "LayoutGrid", tags: ["widget", "dashboard", "arrastrable"], version: "1.0.0",
