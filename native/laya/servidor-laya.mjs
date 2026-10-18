@@ -14,13 +14,19 @@ export const INACTIVIDAD_MS = 10 * 60 * 1000;
 export const RUTA_CONVERSACION = path.join(os.homedir(), ".starseed", "conversacion.json");
 export const LAYA_CACHE = process.env.LAYA_CACHE || path.join(os.homedir(), ".starseed", "laya-cache");
 
+// (2026-10-18) `vm_stat` cuenta en páginas y en Apple Silicon cada página ocupa 16 KB, no 4 KB: con 4096 fijo la
+// RAM libre salía 4 veces más pequeña y Laya nunca se cargaba en la Mac. El tamaño se lee de su cabecera.
+export function ramLibreDeVmStat(texto) {
+  const pagina = Number(texto.match(/page size of (\d+) bytes/)?.[1] || 4096);
+  const libre = Number(texto.match(/Pages free:\s+(\d+)\./)?.[1] || 0);
+  const inact = Number(texto.match(/Pages inactive:\s+(\d+)\./)?.[1] || 0);
+  return Math.round(((libre + inact) * pagina) / (1024 * 1024));
+}
+
 export function obtenerRamLibreMb() {
   try {
     if (process.platform === "darwin") {
-      const out = execSync("vm_stat", { encoding: "utf8" });
-      const libre = Number(out.match(/Pages free:\s+(\d+)\./)?.[1] || 0);
-      const inact = Number(out.match(/Pages inactive:\s+(\d+)\./)?.[1] || 0);
-      return Math.round(((libre + inact) * 4096) / (1024 * 1024));
+      return ramLibreDeVmStat(execSync("vm_stat", { encoding: "utf8" }));
     }
     if (process.platform === "linux") {
       const mem = fs.readFileSync("/proc/meminfo", "utf8");
