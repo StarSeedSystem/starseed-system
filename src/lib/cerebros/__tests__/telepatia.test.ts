@@ -48,6 +48,12 @@ describe('validarVinculo', () => {
     const v = { ...vinculoValido, creadoEn: '2023-01-01' };
     expect(validarVinculo(v).ok).toBe(false);
   });
+
+  it('rechaza lo que no es objeto con id y destino', () => {
+    expect(validarVinculo(null).ok).toBe(false);
+    expect(validarVinculo({}).ok).toBe(false);
+    expect(validarVinculo({ id: 'v', destino: {} }).ok).toBe(true);
+  });
 });
 
 describe('normalizarVinculos', () => {
@@ -60,6 +66,17 @@ describe('normalizarVinculos', () => {
     const res = normalizarVinculos(config);
     expect(res).toHaveLength(1);
     expect(res[0].id).toBe('v1');
+  });
+
+  it('devuelve vacío si no hay array válido', () => {
+    expect(normalizarVinculos(null)).toEqual([]);
+    expect(normalizarVinculos('bad')).toEqual([]);
+  });
+
+  it('usa valores por defecto para campos faltantes', () => {
+    const v = normalizarVinculos([{ id: 'v2', destino: { tipo: 'cuenta', id: 'c1' } }]);
+    expect(v[0].direccion).toBe('ambas');
+    expect(v[0].acceso).toBe('leer');
   });
 });
 
