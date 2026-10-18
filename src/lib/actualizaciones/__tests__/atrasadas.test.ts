@@ -220,4 +220,89 @@ describe("neuronasAtrasadas", () => {
     const atrasos = neuronasAtrasadas(neuronas, ultima);
     expect(atrasos).toHaveLength(0);
   });
+
+  it("versión mayor a la última no es atraso", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a14",
+        nombre: "Neuron N",
+        online: true,
+        versiones: { datos: "2026.02.01", interfaz: "2026.01.01" } // datos es mayor
+      }
+    ];
+    const ultima: VersionesPorCapa = { datos: "2026.01.01", interfaz: "2026.01.01" };
+    const atrasos = neuronasAtrasadas(neuronas, ultima);
+    expect(atrasos).toHaveLength(0); // No debería haber atrasos porque la versión es mayor
+  });
+
+  it("solo una capa atrasada entre varias presentes", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a15",
+        nombre: "Neuron O",
+        online: true,
+        versiones: { 
+          datos: "2025.12.01", 
+          interfaz: "2026.01.01", 
+          sw: "2025.12.01", 
+          servicios: "2026.01.01",
+          modelos: "2026.01.01",
+          nativa: "2026.01.01"
+        }
+      }
+    ];
+    const ultima: VersionesPorCapa = { 
+      datos: "2026.01.01", 
+      interfaz: "2026.01.01",
+      sw: "2026.01.01",
+      servicios: "2026.01.01",
+      modelos: "2026.01.01",
+      nativa: "2026.01.01"
+    };
+    const atrasos = neuronasAtrasadas(neuronas, ultima);
+    expect(atrasos).toHaveLength(2); // datos y sw están atrasados (interfaz, servicios, modelos, nativa están al día)
+    // Verificar que solo las capas esperadas estén presentes
+    const capasAtrasadas = atrasos.map(a => a.capa);
+    expect(capasAtrasadas).toContain("datos");
+    expect(capasAtrasadas).toContain("sw");
+    expect(capasAtrasadas).not.toContain("interfaz");
+    expect(capasAtrasadas).not.toContain("servicios");
+    expect(capasAtrasadas).not.toContain("modelos");
+    expect(capasAtrasadas).not.toContain("nativa");
+  });
+
+  it("offline sin versión da prioridad a offline, no sin-motivo", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a16",
+        nombre: "Neuron P",
+        online: false, // Offline
+        versiones: {} // Sin versiones
+      }
+    ];
+    const ultima: VersionesPorCapa = { datos: "2026.01.01", interfaz: "2026.01.01" };
+    const atrasos = neuronasAtrasadas(neuronas, ultima);
+    expect(atrasos).toHaveLength(2); // Una capa por cada entrada en ultima
+    atrasos.forEach((atraso) => {
+      expect(atraso.motivo).toBe("offline"); // Debe priorizar offline sobre sin-motivo
+      expect(atraso.tiene).toBeNull();
+    });
+  });
+
+  it("manual con versión antigua mantiene manual", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "a17",
+        nombre: "Neuron Q",
+        online: true,
+        versiones: { datos: "2025.12.01" }, // Versión antigua
+        manual: true
+      }
+    ];
+    const ultima: VersionesPorCapa = { datos: "2026.01.01" };
+    const atrasos = neuronasAtrasadas(neuronas, ultima);
+    expect(atrasos).toHaveLength(1);
+    expect(atrasos[0].motivo).toBe("manual"); // Debe mantener manual, no cambiar a sin-motivo
+    expect(atrasos[0].texto).toContain("en manual");
+  });
 });
