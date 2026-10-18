@@ -44,7 +44,7 @@ export interface PoliticaCapa {
 export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>;
 
 /** Tipos de sistema/entidad que reciben versiones (los del diálogo «Crear en la red» y el perfil). */
-export type TipoEntidad = "perfil" | "pagina" | "grupo" | "comunidad" | "estudio" | "evento" | "os";
+export type TipoEntidad = "perfil-privado" | "pagina-publica" | "grupo-jerarquico" | "grupo-democratico";
 
 export const NOMBRE_TIPO: Record<TipoEntidad, string> = {
   perfil: "perfil privado",
