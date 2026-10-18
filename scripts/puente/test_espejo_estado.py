@@ -44,7 +44,37 @@ class PruebasSeleccion(unittest.TestCase):
     def test_cola_justo_en_el_corte_viaja(self):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
-
+    def test_que_copiar_selecciona_correctamente(self):
+        # Create a listado con todos los archivos que deberían seleccionarse
+        ahora = AHORA
+        reciente = ahora - 3600  # 1 hora atrás
+        listado = self.pares(
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+            mtime=reciente
+        )
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
@@ -74,6 +104,61 @@ class PruebasEmpaquetar(unittest.TestCase):
             self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
                              espejo_estado.LOG_LINEAS)
             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+
+    def test_empaquetar_crea_tar_gz(self):
+        seleccion = [
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "evento1.jsonl",
+            "log.txt",
+        ]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            olas_dir = os.path.join(tmp_dir, "olas")
+            os.makedirs(olas_dir)
+
+            with open(os.path.join(olas_dir, "progreso.json"), "w", encoding="utf-8") as f:
+                json.dump({"ola": "1012C"}, f)
+            with open(os.path.join(olas_dir, "progreso.md"), "w", encoding="utf-8") as f:
+                f.write("\n".join([f"Línea {i}" for i in range(300)]))
+            with open(os.path.join(olas_dir, "medios.json"), "w", encoding="utf-8") as f:
+                json.dump({"medios": ["oracle-a1"]}, f)
+            with open(os.path.join(olas_dir, "puntos-control.json"), "w", encoding="utf-8") as f:
+                json.dump({"puntos": [{"nombre": "pc1"}]}, f)
+            with open(os.path.join(olas_dir, "cola-1.json"), "w", encoding="utf-8") as f:
+                json.dump({"tareas": []}, f)
+            with open(os.path.join(olas_dir, "evento1.jsonl"), "w", encoding="utf-8") as f:
+                for i in range(200):
+                    f.write(json.dumps({"evento": i, "ts": 1000 + i}) + "\n")
+            with open(os.path.join(olas_dir, "log.txt"), "w", encoding="utf-8") as f:
+                f.write("\n".join([f"Log line {i}" for i in range(200)]))
+
+            salida_dir = os.path.join(tmp_dir, "salida")
+            os.makedirs(salida_dir)
+            ruta_tar = empaquetar(seleccion, olas_dir, salida_dir)
+            self.assertTrue(os.path.exists(ruta_tar))
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                extra_dir = os.path.join(tmp_dir, "extra")
+                os.makedirs(extra_dir, exist_ok=True)
+                tar.extractall(path=extra_dir)
+                contenido_extra = os.listdir(extra_dir)
+                self.assertEqual(set(contenido_extra), set(seleccion))
+                esperadas_lineas = {
+                    "progreso.json": 1,
+                    "progreso.md": 300,
+                    "medios.json": 1,
+                    "puntos-control.json": 1,
+                    "cola-1.json": 1,
+                    "evento1.jsonl": 200,
+                    "log.txt": 200,
+                }
+                for nombre, esperada in esperadas_lineas.items():
+                    ruta_extra = os.path.join(extra_dir, nombre)
+                    with open(ruta_extra, "r", encoding="utf-8") as f:
+                        lineas = f.read().splitlines()
+                    self.assertEqual(len(lineas), esperada, f"{nombre}: {len(lineas)} != {esperada}")
 
 
 class PruebasEnviarEstado(unittest.TestCase):
