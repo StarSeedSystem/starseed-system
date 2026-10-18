@@ -1,3 +1,9 @@
+/**
+ * Bots/dots de Astraura · SINCRONÍA de bots entre neuronas (BOT1011Y).
+ * Puro: sin React, red, DOM, reloj ni `node:*` (guardia en __tests__/pureza.test.ts).
+ * Aquí solo se decide QUÉ bot gana al fusionar; la suscripción a Realtime y el estado
+ * de orbes abiertas por neurona viven en `adaptadores/sincronia-bots.ts` (contrato §3.3).
+ */
 import type { Bot, Dueno } from "../tipos";
 import { createClient } from "@/utils/supabase/client";
 interface BotSync extends Bot { actualizado: number; }
