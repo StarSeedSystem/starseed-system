@@ -18,9 +18,18 @@
  * Con `prefers-reduced-motion` todo queda quieto y accesible.
  */
 
-import { createElement, useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import dynamic from "next/dynamic";
+import type { Object3D } from "three";
+import type { VRM } from "@pixiv/three-vrm";
 import { cn } from "@/lib/utils";
 import type { Gesto } from "@/lib/avatares/movimiento/motor";
+import type { AdnAvatar } from "@/lib/avatares/adn/adn";
+import { adnParaCalidad } from "@/lib/avatares/adn/calidad";
+import { usoPermitido } from "@/lib/avatares/adn/canalizacion";
+import { resolverRefBiblioteca, soloMismoOrigen } from "@/lib/avatares/adaptadores/resolver-ref-biblioteca";
+import type { AvatarCalidad } from "@/lib/xr/calidad-perfiles";
+import { QuantumOrb, prefersReducedMotion } from "@/components/aurora/quantum-orb";
 import { useMovimiento } from "./usar-movimiento";
 
 /** Las tres fuentes de avatar que acepta el componente. */
@@ -140,7 +149,7 @@ function estilo25D(m: Movimiento25D | null, suave: boolean): Estilo25D {
 
 /* ──────────────────────────────── Componente ───────────────────────────────── */
 
-export function AvatarVivo({
+function AvatarVivoFuente({
     fuente,
     gesto = null,
     tamano = 160,
@@ -289,4 +298,113 @@ export function AvatarVivo({
             </div>
         </div>
     );
+}
+
+/* ── ADN + calidad: visor VRM vivo (AV1011A). El MISMO ADN se ve como su orbe o como VRM según el nivel de XR; three, three-vrm y
+ * @react-three/fiber se cargan a demanda; fuera de pantalla o con la pestaña oculta no se dibuja; lo que no se puede dibujar se dice. */
+
+export interface AvatarVivoAdnProps { adn: AdnAvatar; calidad?: AvatarCalidad; tamano?: number | string; className?: string }
+/** `fatal`: el VRM no se puede dibujar (se ve la orbe); una pieza que falta no lo es. */
+interface Aviso { texto: string; fatal: boolean }
+interface PropsVisor { url: string; adn: AdnAvatar; activo: boolean; reducir: boolean; onAviso: (a: Aviso) => void }
+
+async function cargarVisorVrm(): Promise<ComponentType<PropsVisor>> {
+    const [r3f, { VRMLoaderPlugin, VRMUtils }, { GLTFLoader }, { aplicarAdnVrm, colocarPiezas }, { cargarModelo, mensajeErrorModelo }, { LoadingManager }] = await Promise.all([
+        import("@react-three/fiber"), import("@pixiv/three-vrm"), import("three/examples/jsm/loaders/GLTFLoader.js"),
+        import("@/lib/avatares/adaptadores/aplicar-adn-vrm"), import("@/components/vivo/espacial/cargar-modelo"), import("three"),
+    ]);
+    function Escena({ url, adn, activo, onAviso }: Omit<PropsVisor, "reducir">) {
+        const [vrm, setVrm] = useState<VRM | null>(null);
+        const previo = useRef<AdnAvatar | null>(null);
+        const piezas = useRef(new Map<string, Object3D | null>());
+        const invalidate = r3f.useThree((s) => s.invalidate);
+        useEffect(() => {
+            let vivo = true, cargado: VRM | null = null;
+            const gestor = new LoadingManager(); gestor.setURLModifier(soloMismoOrigen(url)); // nada de otro servidor dentro del VRM
+            const loader = new GLTFLoader(gestor).register((p) => new VRMLoaderPlugin(p));
+            loader.loadAsync(url).then((g) => {
+                const v = g.userData.vrm as VRM | undefined;
+                if (!v) throw new Error("El archivo no trae un VRM.");
+                VRMUtils.rotateVRM0(v); cargado = v;
+                if (!vivo) return VRMUtils.deepDispose(v.scene);
+                previo.current = null; setVrm(v);
+            }).catch((e: unknown) => { if (vivo) onAviso({ texto: mensajeErrorModelo(e), fatal: true }); });
+            return () => { vivo = false; if (cargado) VRMUtils.deepDispose(cargado.scene); setVrm(null); };
+        }, [url, onAviso]);
+        useEffect(() => {
+            if (!vrm) return;
+            const pieza = (ref: string) => piezas.current.get(ref) ?? null;
+            const r = aplicarAdnVrm(vrm, previo.current, adn, { pieza });
+            if (r.recargar) return; // cambió la base: el efecto de `url` trae el VRM nuevo
+            previo.current = adn; invalidate(); // también al volver a verse: lo cambiado mientras estaba oculto se dibuja
+            for (const ref of r.piezasPendientes.filter((x) => !piezas.current.has(x))) {
+                piezas.current.set(ref, null); // una sola carga por pieza y sesión
+                void resolverRefBiblioteca(ref).then((x) => (x.ok ? cargarModelo(x.url) : Promise.reject(new Error(x.motivo))))
+                    .then((g) => { piezas.current.set(ref, g); colocarPiezas(vrm, previo.current ?? adn, pieza); invalidate(); })
+                    .catch((e: unknown) => onAviso({ texto: `Una pieza no se pudo poner: ${mensajeErrorModelo(e)}`, fatal: false }));
+            }
+        }, [vrm, adn, activo, invalidate, onAviso]);
+        r3f.useFrame((_, dt) => vrm?.update(dt));
+        return vrm ? <primitive object={vrm.scene} position={[0, -0.85, 0]} /> : null;
+    }
+    return function VisorVrm({ reducir, ...resto }: PropsVisor) {
+        return (
+            <r3f.Canvas frameloop={!resto.activo ? "never" : reducir ? "demand" : "always"} camera={{ position: [0, 0.1, 3.3], fov: 30 }} dpr={[1, 2]} gl={{ alpha: true, antialias: true }}>
+                <ambientLight intensity={0.7} />
+                <directionalLight position={[1, 2, 2]} intensity={1.3} />
+                <Escena {...resto} />
+            </r3f.Canvas>
+        );
+    };
+}
+const VisorVrm = dynamic(cargarVisorVrm, { ssr: false });
+
+function AvatarVivoAdn({ adn, calidad = "vrm", tamano = 160, className }: AvatarVivoAdnProps) {
+    const visto = useMemo(() => adnParaCalidad(adn, calidad).adn, [adn, calidad]);
+    const caja = useRef<HTMLDivElement | null>(null);
+    const [visible, setVisible] = useState(true);
+    const [url, setUrl] = useState<string | null>(null);
+    const [aviso, setAviso] = useState<Aviso | null>(null);
+    const [reducir] = useState(prefersReducedMotion);
+    const ref = visto.base.tipo === "vrm" ? visto.base.ref ?? null : null;
+    useEffect(() => { // fuera de pantalla o con la pestaña oculta: no se dibuja
+        const el = caja.current;
+        let enPantalla = true;
+        const mirar = () => setVisible(enPantalla && !document.hidden);
+        const io = el && typeof IntersectionObserver !== "undefined" ? new IntersectionObserver(([e]) => { enPantalla = !!e?.isIntersecting; mirar(); }) : null;
+        if (el) io?.observe(el);
+        document.addEventListener("visibilitychange", mirar);
+        return () => { io?.disconnect(); document.removeEventListener("visibilitychange", mirar); };
+    }, []);
+    useEffect(() => { // cada referencia se resuelve una vez por sesión (caché del resolutor)
+        let vivo = true;
+        setUrl(null); setAviso(null);
+        if (ref) void resolverRefBiblioteca(ref).then((r) => { if (vivo) { if (r.ok) setUrl(r.url); else setAviso({ texto: r.motivo, fatal: true }); } });
+        return () => { vivo = false; };
+    }, [ref]);
+    const dim = typeof tamano === "number" ? `${tamano}px` : tamano;
+    const sinVisor = visto.base.tipo === "glb-rig" || visto.base.tipo === "procedural"
+        ? `Este avatar es ${visto.base.tipo === "glb-rig" ? "un GLB con esqueleto" : "procedural"}: el visor vivo solo dibuja VRM por ahora; se ve su orbe.` : null;
+    const mensaje = sinVisor ?? aviso?.texto ?? null;
+    const atribuciones = visto.visibilidad === "publico" ? usoPermitido(visto, { region: null, comercial: false }).atribuciones : [];
+    const i = visto.aura.intensidad;
+    return (
+        <div ref={caja} role="img" aria-label={[`Avatar 3D de ${visto.nombre}`, mensaje, ...atribuciones].flatMap((t) => (t ? [t.replace(/\.$/, "")] : [])).join(". ")} data-calidad={calidad} data-base={visto.base.tipo}
+            className={cn("relative inline-block select-none overflow-hidden rounded-2xl", className)} style={{ width: dim, height: dim }}>
+            {url && !aviso?.fatal ? <VisorVrm url={url} adn={visto} activo={visible} reducir={reducir} onAviso={setAviso} /> : visible && (
+                <div className="flex h-full w-full items-center justify-center">
+                    <div className="rounded-full" style={{ boxShadow: `0 0 ${Math.round(8 + 24 * i)}px hsla(${visto.aura.tono}, 80%, 60%, ${i.toFixed(2)})` }}>
+                        <QuantumOrb personaId={visto.dueno.tipo === "bot" ? visto.dueno.id : "aurora"} size={typeof tamano === "number" ? Math.round(tamano * 0.7) : 112} />
+                    </div>
+                </div>
+            )}
+            {mensaje && <p className="absolute inset-x-1 bottom-1 rounded bg-black/60 px-1.5 py-0.5 text-center text-[10px] leading-tight text-white/80">{mensaje}</p>}
+            {atribuciones.length > 0 && <p className="absolute inset-x-1 top-1 truncate rounded bg-black/50 px-1.5 text-center text-[10px] text-white/80" title={atribuciones.join(" · ")}>{atribuciones.join(" · ")}</p>}
+        </div>
+    );
+}
+
+/** Avatar universal: por FUENTE (glb, imagen o procedural) o por ADN con su nivel de calidad de XR. */
+export function AvatarVivo(props: AvatarVivoProps | AvatarVivoAdnProps) {
+    return "adn" in props ? <AvatarVivoAdn {...props} /> : <AvatarVivoFuente {...props} />;
 }
