@@ -79,11 +79,23 @@ describe('viabilidad', () => {
           return null
         }
       })
-      const result = viabilidad(dato, senal, ctx)
-      expect(result.apto).toBe(false)
-      expect(result.motivo).toBe('interno')
+       const result = viabilidad(dato, senal, ctx)
+       expect(result.apto).toBe(false)
+       expect(result.motivo).toBe('interno')
+     })
+    
+    it('veto interno: origen cuenta desconocida (no veto)', () => {
+      const dato = crearDato({ clase: 'interno', origen: 'neurona1' })
+      const senal = crearSenal({ de: 'neurona2', a: 'neurona3' })
+      const ctx = crearCtx({
+        cuentaDe: () => null,
+        cifradoE2E: true,
+      })
+      const res = viabilidad(dato, senal, ctx)
+      // No debería ser veto interno porque no sabemos la cuenta del origen
+      expect(res.apto).toBe(true)
     })
-
+    
     it('debe veto por privado sin cifradoE2E', () => {
       const dato = crearDato({ clase: 'privado' })
       const senal = crearSenal()
