@@ -116,8 +116,7 @@ describe("generar3d", () => {
   });
   it("si la Biblioteca no guarda, lo dice", async () => {
     const d = deps({ espacio: async () => ok(), guardar: vi.fn(async () => ({ ok: false as const, motivo: "sin sesión" })) });
-    await generar3d(img(), { ...op, permisoRemoto: true }, prepararGeneracion(ctx(), d), ctx(), d, () => {})
-      .toEqual({ fase: "error", motivo: "Se generó, pero no se pudo guardar en la Biblioteca: sin sesión" });
+    expect(await generar3d(img(), { ...op, permisoRemoto: true }, prepararGeneracion(ctx(), d), ctx(), d, () => {})).toEqual({ fase: "error", motivo: "Se generó, pero no se pudo guardar en la Biblioteca: sin sesión" });
   });
 });
 
