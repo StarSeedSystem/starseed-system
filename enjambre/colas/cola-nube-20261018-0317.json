@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "RTG3D1011Eb",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · «Imagen → 3D» en la Protomolécula, el editor de avatares y el cuerpo del bot",
+   "archivos": [
+    "src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea G3D1011E (««Imagen → 3D» en la Protomolécula, el editor de avatares y el cuerpo del bot») se hizo en main por otro camino; su rama nube/a1-20261017-060520-G3D1011E queda archivada en `refs/archivo/nube/a1-20261017-060520-G3D1011E` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.76)\n\nTU TAREA (RTG3D1011E · solo estos archivos: src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts\n  it(\"devuelve null sin hierro\", () => {\n    const plan = planParaGenerar({ destino: \"avatar\", partida: \"imagen\" }, null);\n    expect(plan).toBeNull();\n  });\n\n# src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts\n  it(\"planifica avatar con GPU apple\", () => {\n    const hierro = { gpu: \"apple\" as const, ramGB: 32, vramGB: null, blender: true, permiteEspacioHf: false, claveExterna: false };\n    const plan = planParaGenerar({ destino: \"avatar\", partida: \"imagen\", comercial: false }, hierro);\n    expect(plan).not.toBeNull();\n    expect(plan?.pasos.length).toBe(5);\n    const generar = plan?.pasos.find(p => p.etapa === \"generar\");\n    expect(generar?.motor?.id).toBe(\"trellis2\");\n  });\n\n# src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts\n  it(\"permite espacio HF cuando está habilitado\", () => {\n    const hierro = { gpu: \"ninguna\" as const, ramGB: 0, vramGB: null, blender: false, permiteEspacioHf: true, claveExterna: false };\n    const plan = planParaGenerar({ destino: \"bot\", partida: \"imagen\" }, hierro);\n    expect(plan).not.toBeNull();\n    const generar = plan?.pasos.find(p => p.etapa === \"generar\");\n    expect(generar?.motor?.remoto).toBe(true);\n  });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261018-082607-RTG3D1011E`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261018-082607-RTG3D1011E:refs/remotes/origin/nube/a1-20261018-082607-RTG3D1011E\"` y `git cherry-pick --no-commit f50596e9a23b cb2aebba1718`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/avatares/adaptadores/__tests__/use-generar-3d.test.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261018-082607-RTG3D1011E"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1017-170159.json": [
+   "RTG3D1011Eb"
+  ]
+ }
+}
