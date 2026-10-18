@@ -83,3 +83,53 @@ export function capacidadPrestable(oferta: OfertaNeurona): OfertaNeurona {
   }
   return { ...oferta, computo: prestableComputo, almacen: prestableStorage };
 }
+
+// Nuevos tipos para la bolsa de recursos (contrato §4)
+export type Peticion = {
+  cuentaId: string;
+  grupos: string[];
+  // Simplificado: lo que se necesita de computo y almacenamiento
+  computo?: {
+    nucleosMin?: number;
+    ramLibreMbMin?: number;
+    gpu?: boolean;
+    vramMbMin?: number;
+  };
+  almacen?: {
+    prestaMbMin?: number;
+  };
+};
+
+export type PlanResultado = {
+  ofertaId: string;
+  motivo: string;
+  // dónde correr, etc. simplificado
+};
+
+/**
+ * Implementación simple de la bolsa: filtra ofertas por visibilidad y capacidad.
+ * En una implementación completa también consideraría latencia, energía, costo, etc.
+ */
+export function planificar(peticion: Peticion, ofertas: OfertaNeurona[]): PlanResultado[] {
+  const resultados: PlanResultado[] = [];
+  for (const oferta of ofertas) {
+    const visible = ofertaVisiblePara(oferta, { cuentaId: peticion.cuentaId, grupos: peticion.grupos });
+    if (!visible) continue;
+    const prestable = capacidadPrestable(oferta);
+    // Comprobación simple: si se cumplen los mínimos solicitados
+    const okComputo = !peticion.computo ||
+      (prestable.computo.nucleos >= (peticion.computo.nucleosMin ?? 0) &&
+       prestable.computo.ramLibreMb >= (peticion.computo.ramLibreMbMin ?? 0) &&
+       (!peticion.computo.gpu || prestable.computo.gpu) &&
+       (!peticion.computo.vramMbMin || (prestable.computo.vramMb ?? 0) >= peticion.computo.vramMbMin));
+    const okAlmacen = !peticion.almacen ||
+      (prestable.almacen.prestaMb >= (peticion.almacen.prestaMbMin ?? 0));
+    if (okComputo && okAlmacen) {
+      resultados.push({
+        ofertaId: oferta.nodoId,
+        motivo: "La oferta coincide con la solicitud y pasa los controles de visibilidad y capacidad",
+      });
+    }
+  }
+  return resultados;
+}
