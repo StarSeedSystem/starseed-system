@@ -22,6 +22,8 @@ import { aplicarAccion, type EntradaBitacora } from "@/lib/astraura/ui-aplicador
 import { notifyFromApp } from "@/lib/notifications/app-notify";
 import type { AppearanceConfig } from "../../../context/appearance-context";
 import type { AccionBot, Previo, TipoAccion } from "../acciones";
+import { ejecutar, type OpcionesComputadora } from "./computadora-cliente";
+import { registrarEnEjecutor, type DepsCreacion, type EjecutorCreacion } from "./acciones-creacion";
 
 /** Dependencias que inyecta quien llama DESDE el bucle (nada se lee de globales salvo DOM). */
 export interface DepsEjecutor {
@@ -43,6 +45,7 @@ export interface ResultadoEjecucion {
 }
 
 export const CLAVE_CANDIDATOS = "starseed.astraura.bots.candidatos.v1";
+const creationActionsMap = registrarEnEjecutor(new Map<TipoAccion, EjecutorCreacion>());
 
 const f = (motivo: string): ResultadoEjecucion => ({ ok: false, previo: {}, motivo });
 const enCliente = (): boolean => typeof window !== "undefined" && typeof document !== "undefined";
@@ -102,47 +105,63 @@ function ajusteProponer(args: AccionBot["args"], dep: DepsEjecutor): ResultadoEj
 
 /** Tareas que traerán cada ejecutor que aquí se honesta como «próximamente: …». */
 const PROXIMAMENTE: Partial<Record<TipoAccion, string>> = {
-  "pagina.editar": "próximamente: editar páginas llega con BOT1011J1.",
-  "tarea.crear": "próximamente: crear tareas llega con BOT1011W.",
-  "protomolecula.operar": "próximamente: las protomoléculas llegan con BOT1011T.",
-  "xr.intencion": "próximamente: XR llega con BOT1011T.",
-  "computadora.ejecutar": "próximamente: la computadora aislada del bot llega con BOT1011K.",
-  "mensaje.enviar": "próximamente: se conectará con la mensajería existente tras tu confirmación.",
-  "widget.mover": "próximamente: mover widgets llega con el cableado del tablero.",
-  "widget.quitar": "próximamente: quitar widgets llega con el cableado del tablero.",
+   "pagina.editar": "próximamente: editar páginas llega con BOT1011J1.",
+   "tarea.crear": "próximamente: crear tareas llega con BOT1011W.",
+   "mensaje.enviar": "próximamente: se conectará con la mensajería existente tras tu confirmación.",
+   "widget.mover": "próximamente: mover widgets llega con el cableado del tablero.",
+   "widget.quitar": "próximamente: quitar widgets llega con el cableado del tablero.",
 };
 
 /** Traduce una acción YA autorizada por el bucle al ejecutor real del OS. Nunca lanza. */
 export async function ejecutarAccion(accion: AccionBot, dep: DepsEjecutor): Promise<ResultadoEjecucion> {
-  try {
-    switch (accion.tipo) {
-      case "navegar": {
-        const rutaPrevia = enCliente() ? window.location.pathname : undefined;
-        return viaAurora("navegar", accion.args, dep, rutaPrevia ? { ruta: rutaPrevia } : {});
+   try {
+      switch (accion.tipo) {
+         case "navegar": {
+            const rutaPrevia = enCliente() ? window.location.pathname : undefined;
+            return viaAurora("navegar", accion.args, dep, rutaPrevia ? { ruta: rutaPrevia } : {});
+         }
+         case "abrir-app":
+            return viaAurora("ir_app", { sistema: accion.args.app }, dep);
+         case "widget.añadir": {
+            const r = await viaAurora("agregar_widget", accion.args, dep);
+            return r;
+         }
+         case "capa-pantalla":
+            return capaPantalla(accion.args);
+         case "ajuste.proponer":
+            return ajusteProponer(accion.args, dep);
+         case "codigo.proponer":
+            return guardarCandidato(accion.args);
+         case "computadora.ejecutar": {
+            const botId = dep.actor ?? "bot:astraura";
+            const orden = accion.args.orden as string;
+            const resultado = await ejecutar(botId, orden, {});
+            if (resultado.ok) {
+               return { ok: true, previo: {}, motivo: `Orden ejecutada: ${resultado.datos.salida}` };
+            } else {
+               return { ok: false, previo: {}, motivo: resultado.motivo };
+            }
+         }
+         case "protomolecula.operar":
+         case "xr.intencion": {
+            const executor = creationActionsMap.get(accion.tipo);
+            if (executor) {
+               return await executor(accion, dep);
+            } else {
+               return f(`No se encontró el ejecutor para «${accion.tipo}»`);
+            }
+         }
+         case "notificar": {
+            const r = notifyFromApp({
+               appId: typeof accion.args.a === "string" ? accion.args.a : "astraura-bots",
+               title: "Aviso de tu bot", body: String(accion.args.texto), dedupeKey: `bot:${String(accion.args.texto)}`,
+            });
+            return { ok: r.ok, previo: {}, motivo: r.ok ? "Notificación mostrada." : `No se pudo notificar (${r.reason ?? "error"}).` };
+         }
+         default:
+            return f(PROXIMAMENTE[accion.tipo] ?? `próximamente: «${accion.tipo}» aún no tiene ejecutor.`);
       }
-      case "abrir-app":
-        return viaAurora("ir_app", { sistema: accion.args.app }, dep);
-      case "widget.añadir": {
-        const r = await viaAurora("agregar_widget", accion.args, dep);
-        return r;
-      }
-      case "capa-pantalla":
-        return capaPantalla(accion.args);
-      case "ajuste.proponer":
-        return ajusteProponer(accion.args, dep);
-      case "codigo.proponer":
-        return guardarCandidato(accion.args);
-      case "notificar": {
-        const r = notifyFromApp({
-          appId: typeof accion.args.a === "string" ? accion.args.a : "astraura-bots",
-          title: "Aviso de tu bot", body: String(accion.args.texto), dedupeKey: `bot:${String(accion.args.texto)}`,
-        });
-        return { ok: r.ok, previo: {}, motivo: r.ok ? "Notificación mostrada." : `No se pudo notificar (${r.reason ?? "error"}).` };
-      }
-      default:
-        return f(PROXIMAMENTE[accion.tipo] ?? `próximamente: «${accion.tipo}» aún no tiene ejecutor.`);
-    }
-  } catch {
-    return f(`No pude ejecutar «${accion.tipo}»: ocurrió un error inesperado.`);
-  }
+   } catch {
+      return f(`No pude ejecutar «${accion.tipo}»: ocurrió un error inesperado.`);
+   }
 }
