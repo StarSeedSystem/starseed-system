@@ -59,7 +59,9 @@ export function SelectorMolecula({ ambitoPost, alElegir, almacen, ambitoDe }: Se
   const [pendiente, setPendiente] = useState<PreparadaOk | null>(null);
   const [confirmado, setConfirmado] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
-  useEffect(() => { setLista(leerLista(fuente)); }, [fuente]);
+  useEffect(() => {
+    setLista(leerLista(fuente));
+  }, [fuente]);
 
   const insertar = (p: PreparadaOk) => { setPendiente(null); setMensaje(`Insertada la instantánea de «${p.titulo}».`); alElegir(p.texto); };
   const elegir = (r: ResumenMolecula) => {
