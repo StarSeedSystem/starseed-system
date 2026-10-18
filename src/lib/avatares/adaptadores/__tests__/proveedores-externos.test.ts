@@ -98,12 +98,14 @@ describe("crearTarea con fetch simulado", () => {
      [/rechazó la clave/, /sin créditos/, /2010.*Insufficient credits/, /sin red/].forEach((re, i) => expect(motivos[i]).toMatch(re));
      expect(motivos.join(" ")).not.toContain(CLAVE);
    });
-   it("respuesta sin result: lanza", async () => {
-     const { buscar } = simulado([{ status: 200, cuerpo: {} }]);
-     const resultado = await crearTarea("meshy", PNG, ENCENDIDO, buscar);
-     expect(resultado.ok).toBe(false);
-     expect(resultado.motivo).toBe("Meshy no devolvió el id de la tarea.");
-   });
+    it("respuesta sin result: lanza", async () => {
+      const { buscar } = simulado([{ status: 200, cuerpo: {} }]);
+      const resultado = await crearTarea("meshy", PNG, ENCENDIDO, buscar);
+      expect(resultado.ok).toBe(false);
+      if (!resultado.ok) {
+        expect(resultado.motivo).toBe("Meshy no devolvió el id de la tarea.");
+      }
+    });
    it("tripo: «no disponible» sin llamar a la red", async () => {
      const sinTripo = { AVATARES_EXTERNOS_PERMITIDOS: "0" }; // Sin permiso
      const { buscar, llamadas } = simulado([{ status: 200, cuerpo: {} }]);
