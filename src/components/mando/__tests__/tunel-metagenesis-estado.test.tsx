@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TunelMetaGenesisEstado } from "../tunel-metagenesis-estado";
 
-const nativoFetch = globalThis.fetch;
+let nativoFetch: typeof globalThis.fetch = globalThis.fetch;
 
 describe("TunelMetaGenesisEstado", () => {
   let llamadas: { url: string; init?: RequestInit }[] = [];
@@ -157,5 +157,48 @@ describe("TunelMetaGenesisEstado", () => {
     expect(llamadasDespuesEspera).toBe(llamadasIniciales);
     
     vi.useRealTimers();
+  });
+
+  it("muestra el encabezado «Últimas líneas» solo cuando hay líneas y conserva la ruta tras [túnel]", async () => {
+    // Con el túnel activo y líneas, el encabezado aparece y la ruta se conserva
+    render(<TunelMetaGenesisEstado />);
+    await screen.findByText(/Túnel de MetaGenesis: activo \(pid \d+\)/i);
+    expect(screen.getByText(/Últimas líneas:/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Línea 3 \[túnel\]\/path/i)).toBeInTheDocument();
+
+    // Resetamos el mock para que después del cleanup, se pueda establecer un nuevo
+    vi.clearAllMocks();
+
+    // Ahora con el servicio parado y sin líneas: el encabezado no debe mostrarse
+    // Cambiar el mock para devolver servicio no cargado
+    const fetchParado = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      llamadas.push({ url, init });
+      
+      if (url.includes("/api/mando/tunel-metagenesis")) {
+        return {
+          ok: true,
+          json: async () => ({
+            cargado: false,
+            pid: null,
+            ultimasLineas: [],
+            medidoEn: new Date().toISOString()
+          })
+        } as Response;
+      }
+      
+      return {
+        ok: true,
+        json: async () => ({})
+      } as Response;
+    };
+
+    // Reemplazar fetch con el mock para el estado parado
+    globalThis.fetch = fetchParado;
+
+    // Renderizar el componente de nuevo con el nuevo mock
+    render(<TunelMetaGenesisEstado />);
+    await screen.findByText(/Túnel de MetaGenesis: parado/i);
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
   });
 });
