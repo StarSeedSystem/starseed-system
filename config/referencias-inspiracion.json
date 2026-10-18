@@ -1,0 +1,1285 @@
+{
+ "formato": "starseed-referencias",
+ "version": 1,
+ "verificado": "2026-10-18",
+ "origen": "Lista de Jack Roberts (vídeo IYNAyRkUsjI) pedida por Alex; cada enlace comprobado el 2026-10-18",
+ "temas": [
+  {
+   "id": "ia-diseno",
+   "nombre": "Herramientas de IA para diseño",
+   "icono": "Sparkles"
+  },
+  {
+   "id": "guias",
+   "nombre": "Guías y comunidad",
+   "icono": "BookOpen"
+  },
+  {
+   "id": "movimiento",
+   "nombre": "Movimiento",
+   "icono": "Wind"
+  },
+  {
+   "id": "marca",
+   "nombre": "Marca",
+   "icono": "Gem"
+  },
+  {
+   "id": "tipografia-iconos",
+   "nombre": "Tipografías e iconos",
+   "icono": "Type"
+  },
+  {
+   "id": "inspiracion-ui",
+   "nombre": "Inspiración de interfaz",
+   "icono": "LayoutGrid"
+  },
+  {
+   "id": "reglas",
+   "nombre": "Reglas y principios",
+   "icono": "Ruler"
+  }
+ ],
+ "entradas": [
+  {
+   "id": "higgsfield",
+   "nombre": "Higgsfield",
+   "url": "https://higgsfield.ai/mcp",
+   "tema": "ia-diseno",
+   "subtema": null,
+   "que_es": "Generación de imagen, vídeo, 3D y audio con IA, usable desde agentes por su servidor MCP o desde la terminal con su CLI.",
+   "tipo": "herramienta-ia",
+   "acceso": "pago",
+   "clase_uso": "reutilizable-con-condiciones",
+   "condiciones": "Lo generado no lo reclama Higgsfield y admite uso comercial; hay que revelar contenido sintético cuando la ley lo exija y no quitar marcas C2PA; sus salidas no pueden entrenar otros modelos; la cuenta y los créditos son de cada persona.",
+   "canales": [
+    "mcp-oficial",
+    "cli-oficial"
+   ],
+   "prohibido": [
+    "scraping",
+    "revender-acceso",
+    "entrenar-otros-modelos-con-salidas"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "github",
+     "ref": "higgsfield-ai/cli"
+    },
+    {
+     "tipo": "npm",
+     "ref": "@higgsfield/cli"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "mcp",
+     "url": "https://mcp.higgsfield.ai/mcp",
+     "requiere": "cuenta de pago (OAuth)"
+    },
+    {
+     "tipo": "cli",
+     "ref": "@higgsfield/cli",
+     "licencia": "MIT"
+    },
+    {
+     "tipo": "skills",
+     "ref": "npx skills add higgsfield-ai/skills"
+    }
+   ],
+   "terminos": "https://higgsfield.ai/terms-of-use-agreement",
+   "og_imagen": "https://static.higgsfield.ai/mcp/cli-skills.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Destino exacto del enlace corto del vídeo (bit.ly bloqueó la lectura)"
+   ]
+  },
+  {
+   "id": "linearity",
+   "nombre": "Linearity",
+   "url": "https://www.linearity.io/",
+   "tema": "ia-diseno",
+   "subtema": null,
+   "que_es": "Generador de diseño con IA que crea piezas editables con tu marca (posts, anuncios, correos, diapositivas), más las apps Curve (vectorial) y Move (movimiento).",
+   "tipo": "herramienta-ia",
+   "acceso": "mixto",
+   "clase_uso": "solo-enlace",
+   "condiciones": "Plan gratuito con 250 créditos; la propiedad y el uso comercial de lo generado no constan en sus términos.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "intentar-extraer-datos-sin-autorizacion"
+   ],
+   "actualizacion": [],
+   "integracion": [
+    {
+     "tipo": "figma-plugin",
+     "nombre": "Linearity para Figma"
+    },
+    {
+     "tipo": "mcp",
+     "nombre": "Brand Management MCP",
+     "requiere": "plan Enterprise"
+    }
+   ],
+   "terminos": "https://www.linearity.io/policies/terms-of-use/",
+   "og_imagen": "https://assets.linearity.io/storyblok/f/197805/1200x630/85c30905d6/img.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "API pública",
+    "Propiedad de lo generado"
+   ]
+  },
+  {
+   "id": "slopmonster",
+   "nombre": "SlopMonster",
+   "url": "https://github.com/ItsssssJack/SlopMonster",
+   "tema": "ia-diseno",
+   "subtema": null,
+   "que_es": "Skill de agente (MIT) que puntúa de 0 a 5 un texto en inglés por vocabulario, patrones, puntuación, tríadas y pruebas sin respaldo, y guía su reescritura para que suene humano.",
+   "tipo": "codigo-abierto",
+   "acceso": "libre",
+   "clase_uso": "reutilizable",
+   "condiciones": "MIT: conservar el aviso de copyright. Solo analiza inglés.",
+   "canales": [
+    "github"
+   ],
+   "prohibido": [],
+   "actualizacion": [
+    {
+     "tipo": "github",
+     "ref": "ItsssssJack/SlopMonster"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "skill",
+     "ref": "SKILL.md (Claude Code: ~/.claude/skills/slopmonster)"
+    },
+    {
+     "tipo": "script",
+     "ref": "verificador en Python sin dependencias"
+    }
+   ],
+   "terminos": "https://github.com/ItsssssJack/SlopMonster/blob/main/LICENSE",
+   "og_imagen": "https://opengraph.githubassets.com/6a309cd7c8d08ff7f463bce483fea290ab8210631b4ca382923493e20cc37df2/ItsssssJack/SlopMonster",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Fecha del último commit"
+   ]
+  },
+  {
+   "id": "claude-design-blueprint",
+   "nombre": "The Claude Design Blueprint (15 trucos)",
+   "url": "https://claude-design-blueprint.vercel.app/",
+   "tema": "guias",
+   "subtema": null,
+   "que_es": "Guía con 15 trucos en cinco niveles (movimiento, marca, inspiración, principios y nivel final) para sacar mejores diseños de Claude, con prompts y plantillas descargables (DESIGN.md, style.md, checklists).",
+   "tipo": "guia-principios",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "No declara licencia: se enlaza y se resumen sus ideas con palabras propias; sus plantillas no se copian al OS.",
+   "canales": [
+    "navegador-de-la-persona",
+    "lectura-puntual"
+   ],
+   "prohibido": [],
+   "actualizacion": [
+    {
+     "tipo": "hash-html",
+     "ref": "comparar la página una vez por semana"
+    }
+   ],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": null,
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Licencia de la guía y de sus descargables"
+   ]
+  },
+  {
+   "id": "video-claude-design-99",
+   "nombre": "How to Use Claude Design Better Than 99% of People",
+   "url": "https://www.youtube.com/watch?v=IYNAyRkUsjI",
+   "tema": "guias",
+   "subtema": null,
+   "que_es": "Vídeo de 34:50 de Jack Roberts (09-10-2026) con 15 trucos contra el «AI slop» en diseño: movimiento, marca, inspiración, reglas y limpieza de textos. Es el origen de esta categoría.",
+   "tipo": "guia-principios",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Se incrusta con el reproductor de YouTube sin cookies; no se descarga.",
+   "canales": [
+    "oembed"
+   ],
+   "prohibido": [
+    "descargar-video"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "youtube-canal",
+     "ref": "@Itssssss_Jack"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "oembed",
+     "url": "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=IYNAyRkUsjI&format=json"
+    }
+   ],
+   "terminos": null,
+   "og_imagen": "https://i.ytimg.com/vi/IYNAyRkUsjI/maxresdefault.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "ai-automation-vault",
+   "nombre": "AI Automation Vault (Skool)",
+   "url": "https://www.skool.com/ai-automation-vault/about",
+   "tema": "guias",
+   "subtema": "incluye: vault de prompts y skills · Design Loop skill (https://www.skool.com/ai-automation-vault/claude-design-10000-websites-no-ai-slop)",
+   "que_es": "Comunidad gratuita pero privada de Jack Roberts sobre automatización con IA (Claude Code, Cowork); dentro está el «vault» de prompts y skills de diseño y la publicación de la skill Design Loop.",
+   "tipo": "comunidad-curso",
+   "acceso": "registro",
+   "clase_uso": "solo-enlace",
+   "condiciones": "Su contenido solo se ve uniéndose; Astraura no entra en comunidades cerradas: la persona lo abre y, si quiere, trae lo que le sirva.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "entrar-con-cuenta-ajena"
+   ],
+   "actualizacion": [],
+   "integracion": [],
+   "terminos": "https://www.skool.com/legal?t=privacy",
+   "og_imagen": "https://assets.skool.com/f/744f43763e0c41c4b3b3974d56e8e5c1/9886c245056041e4b0df7768bece4610c0b57950d07b4719a824cd5e93bfc8c3.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Licencia de los prompts, de las skills y de Design Loop",
+    "Términos de Skool sobre acceso automatizado"
+   ]
+  },
+  {
+   "id": "lottiefiles",
+   "nombre": "LottieFiles",
+   "url": "https://lottiefiles.com",
+   "tema": "movimiento",
+   "subtema": null,
+   "que_es": "Más de 800.000 animaciones Lottie, el editor Lottie Creator, plugins (Figma, After Effects, Webflow, Canva, Framer) y reproductores dotLottie de código abierto.",
+   "tipo": "recursos-descargables",
+   "acceso": "mixto",
+   "clase_uso": "reutilizable-con-condiciones",
+   "condiciones": "Animaciones gratuitas bajo Lottie Simple License (uso comercial, modificar, sin atribución obligatoria; derivadas bajo la misma licencia); pero sus Términos dicen que los planes Free/Individual son solo no comerciales: en uso comercial, confirmar el plan antes. Reproductores lottie-web y dotlottie-* MIT.",
+   "canales": [
+    "mcp-oficial",
+    "api-docs-publica",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "biblioteca-competidora",
+    "menos-de-10-s-entre-peticiones"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "github-releases",
+     "ref": "LottieFiles/dotlottie-web"
+    },
+    {
+     "tipo": "npm",
+     "ref": "@lottiefiles/dotlottie-react"
+    },
+    {
+     "tipo": "sitemap",
+     "url": "https://lottiefiles.com/sitemap.xml"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "mcp",
+     "url": "https://mcp.lottiefiles.com/mcp",
+     "requiere": "cuenta (OAuth); gratis en todos los planes según su llms.txt"
+    },
+    {
+     "tipo": "npm",
+     "ref": "@lottiefiles/dotlottie-react",
+     "licencia": "MIT"
+    },
+    {
+     "tipo": "plugin",
+     "ref": "Figma, After Effects, Webflow, Canva, Framer"
+    }
+   ],
+   "terminos": "https://lottiefiles.com/page/terms-and-conditions",
+   "og_imagen": "https://stp-v4-cdn.lottiefiles.com/ogimage_Homepage_b5840ac00c.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Cómo encaja la Simple License con el «solo no comercial» del plan Free"
+   ]
+  },
+  {
+   "id": "transitions-dev",
+   "nombre": "transitions.dev",
+   "url": "https://transitions.dev",
+   "tema": "movimiento",
+   "subtema": null,
+   "que_es": "Más de 43 transiciones de interfaz listas para copiar o instalar por CLI, con un agente que puntúa y corrige el movimiento y una skill para agentes de código.",
+   "tipo": "recursos-descargables",
+   "acceso": "mixto",
+   "clase_uso": "reutilizable-con-condiciones",
+   "condiciones": "Uso personal y comercial ilimitado dentro de productos; conservar el comentario «transitions.dev» en cada transición; no reempaquetar como librería; las «Pro» son de pago. CLI y Refine MIT.",
+   "canales": [
+    "cli-oficial",
+    "sitemap-respetando-robots"
+   ],
+   "prohibido": [
+    "scraping-contenido-pro",
+    "revender-biblioteca"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "npm",
+     "ref": "transitions-dev"
+    },
+    {
+     "tipo": "sitemap",
+     "url": "https://transitions.dev/sitemap.xml"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "cli",
+     "ref": "npx transitions-dev add --free",
+     "licencia": "MIT"
+    },
+    {
+     "tipo": "skill",
+     "ref": "npx skills add Jakubantalik/transitions.dev"
+    }
+   ],
+   "terminos": "https://transitions.dev/terms.html",
+   "og_imagen": "https://transitions.dev/assets/og-main.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "60fps",
+   "nombre": "60fps.design",
+   "url": "https://60fps.design",
+   "tema": "movimiento",
+   "subtema": null,
+   "que_es": "Colección curada de animaciones e interacciones de apps iOS y web (shots, snippets, glosario, storyboards), con MCP de pago para buscarla desde agentes.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "mixto",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las interfaces son de sus empresas; se permite estudiar una interacción y construir una versión propia; el código que genera 60fps es tuyo.",
+   "canales": [
+    "mcp-oficial",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "descarga-masiva",
+    "cachear-o-rehospedar",
+    "entrenar-ia",
+    "copiar-marca-o-assets"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap",
+     "url": "https://60fps.design/sitemap.xml"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "mcp",
+     "url": "https://mcp.60fps.design/mcp",
+     "requiere": "suscripción MCP (29 $/mes); 120 peticiones/min, 2.000/día"
+    }
+   ],
+   "terminos": "https://60fps.design/terms",
+   "og_imagen": "https://framerusercontent.com/images/ICYS2f0rsJ9iOphXyUh94ULRS8Y.gif",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "kinetics",
+   "nombre": "Kinetics (Colorion)",
+   "url": "https://kinetics.colorion.co",
+   "tema": "movimiento",
+   "subtema": null,
+   "que_es": "Galería de animaciones de interfaz con física de resortes, con demo en vivo, parámetros y código CSS/React, guía de springs, generador y prompts.",
+   "tipo": "recursos-descargables",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Ni el sitio ni su repo declaran licencia: se estudian los parámetros de resorte y se escribe código propio; preguntar al autor antes de reutilizar código.",
+   "canales": [
+    "sitemap-respetando-robots",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [],
+   "actualizacion": [
+    {
+     "tipo": "sitemap",
+     "url": "https://kinetics.colorion.co/sitemap.xml"
+    },
+    {
+     "tipo": "github",
+     "ref": "ckissi/kinetics"
+    }
+   ],
+   "integracion": [],
+   "terminos": "https://colorion.co/terms",
+   "og_imagen": "https://kinetics.colorion.co/og-image.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Licencia del código de Kinetics"
+   ]
+  },
+  {
+   "id": "motion-primitives",
+   "nombre": "Motion Primitives",
+   "url": "https://motion-primitives.com",
+   "tema": "movimiento",
+   "subtema": null,
+   "que_es": "Kit de unos 39 componentes React animados (Motion + Tailwind) de ibelick: acordeón, dock, efectos de texto, diálogo que se transforma, inclinación…",
+   "tipo": "codigo-abierto",
+   "acceso": "libre",
+   "clase_uso": "reutilizable",
+   "condiciones": "MIT (repo y paquete npm): conservar el aviso.",
+   "canales": [
+    "github"
+   ],
+   "prohibido": [
+    "leer-la-web-por-robot (su robots.txt lo bloquea)"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "github",
+     "ref": "ibelick/motion-primitives"
+    },
+    {
+     "tipo": "npm",
+     "ref": "motion-primitives"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "codigo",
+     "ref": "componentes copiables (estilo shadcn)",
+     "licencia": "MIT"
+    }
+   ],
+   "terminos": null,
+   "og_imagen": null,
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Comandos exactos de su CLI"
+   ]
+  },
+  {
+   "id": "brandguidelines",
+   "nombre": "Brand Guidelines (1042 Studio)",
+   "url": "https://www.brandguidelines.net",
+   "tema": "marca",
+   "subtema": null,
+   "que_es": "Directorio curado de guías de marca de todo el mundo (empresas y agencias), cada una enlazada a su sitio o PDF; vende plantillas de guías.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "mixto",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las marcas e identidades son de sus dueños: se estudia la estructura (sistema, jerarquía, paleta, uso del logo) y se crea una identidad propia.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "extraer-datos",
+    "republicar",
+    "comercializar-material"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap",
+     "url": "https://www.brandguidelines.net/sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": "https://www.brandguidelines.net/legal/terms-of-service",
+   "og_imagen": "https://framerusercontent.com/assets/cwe1pVJ32PfqncHdMYeqHvXmlCw.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "deck-gallery",
+   "nombre": "Deck.Gallery",
+   "url": "https://www.deck.gallery",
+   "tema": "marca",
+   "subtema": null,
+   "que_es": "Colección curada de presentaciones (pitch, guías de marca, informes, portfolios) con selecciones semanales y un marketplace de plantillas.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "mixto",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las marcas e identidades son de sus dueños: se estudia la estructura (sistema, jerarquía, paleta, uso del logo) y se crea una identidad propia.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "descarga-masiva",
+    "entrenar-ia",
+    "reutilizar-disenos-ajenos"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "blog",
+     "url": "https://www.deck.gallery/blog/"
+    }
+   ],
+   "integracion": [],
+   "terminos": "https://www.deck.gallery/privacy/",
+   "og_imagen": "https://www.deck.gallery/og_image.webp",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "logosystem",
+   "nombre": "Logosystem",
+   "url": "https://logosystem.co",
+   "tema": "marca",
+   "subtema": null,
+   "que_es": "Más de 1.300 logos, wordmarks y símbolos filtrables por tipo, industria, estilo, forma, color y ánimo, con su diseñador o fuente.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las marcas e identidades son de sus dueños: se estudia la estructura (sistema, jerarquía, paleta, uso del logo) y se crea una identidad propia.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "descarga-masiva",
+    "reutilizar-logos"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap-lastmod",
+     "url": "https://logosystem.co/sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": "https://logosystem.co/terms",
+   "og_imagen": "https://logosystem.co/og.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "visual-journal",
+   "nombre": "Visual Journal",
+   "url": "https://visualjournal.it",
+   "tema": "marca",
+   "subtema": null,
+   "que_es": "Blog del director de arte Alessandro Scarpellini con proyectos de branding, editorial y diseño gráfico.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las marcas e identidades son de sus dueños: se estudia la estructura (sistema, jerarquía, paleta, uso del logo) y se crea una identidad propia.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [],
+   "actualizacion": [],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": "https://visualjournal.it/content//social.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Términos de uso",
+    "Feed RSS"
+   ]
+  },
+  {
+   "id": "rebrand-gallery",
+   "nombre": "Rebrand Gallery",
+   "url": "https://www.rebrand.gallery",
+   "tema": "marca",
+   "subtema": null,
+   "que_es": "Rebrands con su vídeo de presentación, logos, colores y tipografías, por industria, estilo, tipografía y estudio.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "mixto",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las marcas e identidades son de sus dueños: se estudia la estructura (sistema, jerarquía, paleta, uso del logo) y se crea una identidad propia.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping-no-autorizado",
+    "uso-comercial",
+    "ia-para-derivadas"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap-parcial",
+     "url": "https://www.rebrand.gallery/sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": "https://www.rebrand.gallery/terms",
+   "og_imagen": "https://www.rebrand.gallery/rebrand-og.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "typewolf",
+   "nombre": "Typewolf",
+   "url": "https://www.typewolf.com",
+   "tema": "tipografia-iconos",
+   "subtema": null,
+   "que_es": "Recomendaciones de fuentes, «sitio del día», webs que usan cada fuente y listas de fuentes gratuitas, de Jeremiah Shoaf.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "mixto",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Sin términos publicados: enlazar y citar con atribución; no copiar capturas ni listas.",
+   "canales": [
+    "rss",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "rutas-bloqueadas-en-robots"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "rss",
+     "url": "https://www.typewolf.com/feed",
+     "nota": "validar el XML"
+    },
+    {
+     "tipo": "rss",
+     "url": "https://www.typewolf.com/blog/feed"
+    }
+   ],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": "https://www.typewolf.com/assets/img/typewolf-og.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "fonts-in-use",
+   "nombre": "Fonts In Use",
+   "url": "https://fontsinuse.com",
+   "tema": "tipografia-iconos",
+   "subtema": null,
+   "que_es": "Archivo independiente de tipografía en uso real, por tipo de letra, formato y tema.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Acceso personal no comercial; enlazar o citar brevemente.",
+   "canales": [
+    "rss",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "robots",
+    "recolectar-imagenes"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "rss",
+     "url": "https://fontsinuse.com/main.rss"
+    },
+    {
+     "tipo": "rss",
+     "url": "https://fontsinuse.com/staff-picks.rss"
+    },
+    {
+     "tipo": "rss",
+     "url": "https://fontsinuse.com/blog.rss"
+    }
+   ],
+   "integracion": [],
+   "terminos": "https://fontsinuse.com/terms-and-conditions-of-use/",
+   "og_imagen": null,
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "whatthefont",
+   "nombre": "WhatTheFont (MyFonts)",
+   "url": "https://www.myfonts.com/pages/whatthefont",
+   "tema": "tipografia-iconos",
+   "subtema": null,
+   "que_es": "Identifica la fuente de una imagen dentro de más de 233.000 tipos de letra; web y apps.",
+   "tipo": "herramienta-ia",
+   "acceso": "libre",
+   "clase_uso": "solo-enlace",
+   "condiciones": "Lo usa la persona subiendo su imagen; sus términos prohíben robots y no hay API pública.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "robots",
+    "enmarcar-el-servicio"
+   ],
+   "actualizacion": [],
+   "integracion": [],
+   "terminos": "https://www.myfonts.com/a/font/legal/terms-of-use",
+   "og_imagen": null,
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "fontshare",
+   "nombre": "Fontshare (Indian Type Foundry)",
+   "url": "https://www.fontshare.com",
+   "tema": "tipografia-iconos",
+   "subtema": null,
+   "que_es": "Fuentes de calidad gratuitas para uso personal y comercial (Satoshi y más), por CSS alojada o descarga.",
+   "tipo": "recursos-descargables",
+   "acceso": "libre",
+   "clase_uso": "reutilizable-con-condiciones",
+   "condiciones": "ITF Free Font License (no es de código abierto): uso personal y comercial gratis; no revender ni redistribuir. En el OS se sirven por su CSS API, nunca empaquetando los archivos, hasta leer el texto completo de la licencia.",
+   "canales": [
+    "api-oficial"
+   ],
+   "prohibido": [
+    "redistribuir-archivos",
+    "revender"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "api",
+     "url": "https://api.fontshare.com/v2/fonts",
+     "nota": "campos is_new, version, license_type"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "css",
+     "url": "https://api.fontshare.com/v2/css?f[]=satoshi@400&display=swap"
+    }
+   ],
+   "terminos": "https://www.fontshare.com/licenses/itf-ffl",
+   "og_imagen": "https://www.fontshare.com/assets/images/share.f415a558.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Texto completo de la ITF FFL (página que solo carga con JavaScript)"
+   ]
+  },
+  {
+   "id": "flaticon",
+   "nombre": "Flaticon",
+   "url": "https://www.flaticon.com",
+   "tema": "tipografia-iconos",
+   "subtema": null,
+   "que_es": "Biblioteca de iconos y stickers (SVG, PNG, EPS…) de Freepik Company, con editor y plugin de Figma.",
+   "tipo": "recursos-descargables",
+   "acceso": "mixto",
+   "clase_uso": "reutilizable-con-condiciones",
+   "condiciones": "Gratis con atribución a Flaticon y al autor (Premium la quita); no meterlos en un producto o base que ofrezca iconos; no revender; prohibido entrenar IA con ellos. Para incluirlos en el OS hace falta confirmación escrita o Premium.",
+   "canales": [
+    "api-oficial",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "descargas-automaticas",
+    "entrenar-ia",
+    "redistribuir-como-pack"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "changelog",
+     "url": "https://www.flaticon.com/whats-new"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "api",
+     "url": "https://docs.magnific.com/api-reference/icons/icons-api.md",
+     "requiere": "clave de API"
+    },
+    {
+     "tipo": "figma-plugin",
+     "ref": "Flaticon para Figma"
+    }
+   ],
+   "terminos": "https://www.flaticon.com/legal",
+   "og_imagen": "https://media.flaticon.com/share/flaticon-generic.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "icons8",
+   "nombre": "Icons8",
+   "url": "https://icons8.com",
+   "tema": "tipografia-iconos",
+   "subtema": null,
+   "que_es": "Unos 368.000 iconos en más de 100 estilos, ilustraciones, 3D, fotos y música, con API y servidor MCP para agentes.",
+   "tipo": "recursos-descargables",
+   "acceso": "mixto",
+   "clase_uso": "reutilizable-con-condiciones",
+   "condiciones": "Gratis con enlace a Icons8 (pie de la web, «Acerca de» o ajustes de la app); SVG completo y sin enlace con suscripción; no distribuir de forma que se puedan extraer; UI kits y editores necesitan permiso escrito.",
+   "canales": [
+    "mcp-oficial",
+    "api-oficial"
+   ],
+   "prohibido": [
+    "data-mining",
+    "robots",
+    "enmarcar"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "github",
+     "ref": "icons8/icons8-mcp"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "mcp",
+     "url": "https://mcp.icons8.com/mcp/",
+     "requiere": "vistas PNG gratis; SVG con plan de pago"
+    },
+    {
+     "tipo": "api",
+     "url": "https://developers.icons8.com",
+     "nota": "renderer PNG/WebP gratis con atribución"
+    },
+    {
+     "tipo": "figma-plugin",
+     "url": "https://plugins.docs.icons8.com/"
+    }
+   ],
+   "terminos": "https://icons8.com/license",
+   "og_imagen": "https://icons8.com/vue-static/landings/primary-landings/preview_icons8_home.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "navbar-gallery",
+   "nombre": "Navbar Gallery",
+   "url": "https://www.navbar.gallery/",
+   "tema": "inspiracion-ui",
+   "subtema": "navegación",
+   "que_es": "Barras de navegación de sitios reales por tipo (estática, desplegable, mega menú, lateral, buscador…) y estilo.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las capturas son de sus dueños: se estudia el patrón (estructura, jerarquía, interacción) y se diseña una versión propia; nunca se copian textos, marcas ni imágenes.",
+   "canales": [
+    "sitemap-respetando-robots",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "copiar-capturas",
+    "rehospedar"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap",
+     "url": "https://www.navbar.gallery/sitemap.xml"
+    },
+    {
+     "tipo": "rss",
+     "url": "https://suupercharged.substack.com/feed"
+    }
+   ],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": "https://cdn.prod.website-files.com/65676438ff1c480b81cf0085/65d0d08ee366dcfc3c73aa94_ogimage%20(2).webp",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Términos de uso"
+   ]
+  },
+  {
+   "id": "footer-design",
+   "nombre": "Footer Design",
+   "url": "https://www.footer.design/",
+   "tema": "inspiracion-ui",
+   "subtema": "pies de página",
+   "que_es": "Pies de página de sitios web por estilo (tipográfico, ilustrado, rejilla, animado, oscuro…) y tipo.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las capturas son de sus dueños: se estudia el patrón (estructura, jerarquía, interacción) y se diseña una versión propia; nunca se copian textos, marcas ni imágenes.",
+   "canales": [
+    "sitemap-respetando-robots",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "copiar-capturas",
+    "rehospedar"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap",
+     "url": "https://www.footer.design/sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": "https://cdn.prod.website-files.com/64fe0870e6e4f3a42a145c1c/6514c4e3bcde78421b541de9_open-graph.webp",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Términos de uso"
+   ]
+  },
+  {
+   "id": "cta-gallery",
+   "nombre": "CTA Gallery",
+   "url": "https://www.cta.gallery/",
+   "tema": "inspiracion-ui",
+   "subtema": "llamadas a la acción",
+   "que_es": "Llamadas a la acción de sitios reales (botones, compra, formularios, modales, newsletter, precios) por categoría e industria, con consejos de redacción.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las capturas son de sus dueños: se estudia el patrón (estructura, jerarquía, interacción) y se diseña una versión propia; nunca se copian textos, marcas ni imágenes.",
+   "canales": [
+    "sitemap-respetando-robots",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "copiar-capturas",
+    "rehospedar"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap",
+     "url": "https://www.cta.gallery/sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": "https://framerusercontent.com/images/yXhxFS3RMgsD2U3vLGvsjBaE4Q.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Términos de uso (solo dice que las capturas son de sus dueños)"
+   ]
+  },
+  {
+   "id": "404s-design",
+   "nombre": "404s Design",
+   "url": "https://www.404s.design/",
+   "tema": "inspiracion-ui",
+   "subtema": "páginas de error",
+   "que_es": "Páginas 404 creativas por estilo (retro, brutalista, 3D…), interacción (cursor, juego) e industria.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las capturas son de sus dueños: se estudia el patrón (estructura, jerarquía, interacción) y se diseña una versión propia; nunca se copian textos, marcas ni imágenes.",
+   "canales": [
+    "sitemap-respetando-robots",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "copiar-capturas",
+    "rehospedar"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap-lastmod",
+     "url": "https://www.404s.design/sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": "https://www.404s.design/legal",
+   "og_imagen": "https://cdn.prod.website-files.com/65ba70a4bb6f912baf009423/6899c6b37147b1d3587301c5_2533.webp",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "unsection",
+   "nombre": "Unsection",
+   "url": "https://www.unsection.com/",
+   "tema": "inspiracion-ui",
+   "subtema": "secciones",
+   "que_es": "Más de 5.000 secciones web sueltas (hero, características, testimonios, precios, FAQ…) por estilo, layout e industria, con resumen semanal.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las capturas son de sus dueños: se estudia el patrón (estructura, jerarquía, interacción) y se diseña una versión propia; nunca se copian textos, marcas ni imágenes.",
+   "canales": [
+    "sitemap-respetando-robots",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "copiar-capturas",
+    "rehospedar"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap-lastmod",
+     "url": "https://www.unsection.com/sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": null,
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Términos de uso",
+    "Planes de pago"
+   ]
+  },
+  {
+   "id": "bentogrids",
+   "nombre": "BentoGrids",
+   "url": "https://bentogrids.com",
+   "tema": "inspiracion-ui",
+   "subtema": "rejillas bento",
+   "que_es": "Colección curada de diseños en rejilla «bento», de Ivan Votti.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las capturas son de sus dueños: se estudia el patrón (estructura, jerarquía, interacción) y se diseña una versión propia; nunca se copian textos, marcas ni imágenes.",
+   "canales": [
+    "sitemap-respetando-robots",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "copiar-capturas",
+    "rehospedar"
+   ],
+   "actualizacion": [],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": "https://bentogrids.com/images/og.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Contenido, términos y forma de actualizarse (la página no se pudo leer)"
+   ]
+  },
+  {
+   "id": "savee",
+   "nombre": "Savee",
+   "url": "https://savee.com/",
+   "tema": "inspiracion-ui",
+   "subtema": "moodboards",
+   "que_es": "Tableros visuales para guardar imágenes, colores y layouts, y explorar colecciones curadas por diseñadores, sin anuncios ni algoritmo.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "mixto",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Savee no es dueño de las imágenes y no puede licenciarlas; un asistente de IA puede leerlas para responderte; caché como mucho 24 h.",
+   "canales": [
+    "mcp-oficial",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping-sin-permiso",
+    "descarga-masiva",
+    "cache-mas-de-24h",
+    "entrenar-ia",
+    "crear-dataset-o-indice"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap",
+     "url": "https://savee.com/sitemap.xml"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "mcp",
+     "url": "https://mcp.savee.com/mcp",
+     "requiere": "plan de pago"
+    },
+    {
+     "tipo": "figma-plugin",
+     "url": "https://www.figma.com/community/plugin/1481849845615383696"
+    },
+    {
+     "tipo": "extension",
+     "url": "https://savee.com/extension/"
+    }
+   ],
+   "terminos": "https://savee.com/terms/",
+   "og_imagen": "https://m.savee-cdn.com/img/default-og-image-made-for-visual-minds.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "mobbin",
+   "nombre": "Mobbin",
+   "url": "https://mobbin.com/",
+   "tema": "inspiracion-ui",
+   "subtema": "apps móviles y web",
+   "que_es": "Más de 621.000 capturas, flujos, animaciones y elementos de interfaz de productos reales (móvil y web), con MCP y API para agentes.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "mixto",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Solo por su MCP o API con la cuenta de la persona; no copiar diseños, marcas, textos ni assets tal cual; no crear un repositorio propio con lo que devuelva.",
+   "canales": [
+    "mcp-oficial",
+    "api-oficial",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "entrenar-ia",
+    "repositorio-propio-con-resultados",
+    "espejar"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "changelog",
+     "url": "https://mobbin.com/changelog"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "mcp",
+     "url": "https://mobbin.com/mcp",
+     "requiere": "plan Pro/Team/Enterprise (OAuth); 60 peticiones/60 s"
+    },
+    {
+     "tipo": "api",
+     "url": "https://docs.mobbin.com/overview",
+     "requiere": "plan Team/Enterprise"
+    }
+   ],
+   "terminos": "https://mobbin.com/terms",
+   "og_imagen": "https://cdn.sanity.io/images/7b5292cr/production/ad36b255f55774117dd68cfba7cfc447be19f5b5-1200x630.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Versión vigente de sus términos (hay dos con fechas distintas)"
+   ]
+  },
+  {
+   "id": "refero",
+   "nombre": "Refero",
+   "url": "https://refero.design/",
+   "tema": "inspiracion-ui",
+   "subtema": "patrones de interfaz",
+   "que_es": "Biblioteca de referencias de interfaz de producto (web e iOS) con búsqueda por etiquetas, flujos y estilos; plugin de Figma, MCP y skill para agentes.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "mixto",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Solo por sus canales documentados y dentro de sus límites (8.000 llamadas al mes en MCP); las capturas son de sus dueños.",
+   "canales": [
+    "mcp-oficial",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "extraccion-sistematica",
+    "entrenar-ia",
+    "crear-datasets"
+   ],
+   "actualizacion": [],
+   "integracion": [
+    {
+     "tipo": "mcp",
+     "url": "https://api.refero.design/mcp",
+     "requiere": "plan Pro/Team/Lifetime"
+    },
+    {
+     "tipo": "figma-plugin",
+     "url": "https://www.figma.com/community/plugin/1583968086662940972"
+    },
+    {
+     "tipo": "skill",
+     "url": "https://doc.refero.design/skill/overview"
+    }
+   ],
+   "terminos": "https://doc.refero.design/legal/terms-of-use",
+   "og_imagen": "https://refero.design/open-graph-5-1200x630.png",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "lista-iamtanzil",
+   "nombre": "Lista de galerías de @iamtanzil_",
+   "url": "https://x.com/iamtanzil_/status/2106710926145781986",
+   "tema": "inspiracion-ui",
+   "subtema": "listas de galerías",
+   "que_es": "Publicación en X con una lista de galerías de inspiración. No se pudo leer (X bloquea la lectura automática).",
+   "tipo": "otro",
+   "acceso": "registro",
+   "clase_uso": "solo-enlace",
+   "condiciones": "Se abre en el navegador de la persona; sus galerías se añadirán cuando se verifiquen.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "lectura-automatica"
+   ],
+   "actualizacion": [],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": null,
+   "verificado": "2026-10-18",
+   "sin_verificar": [
+    "Contenido de la publicación y galerías que cita"
+   ]
+  },
+  {
+   "id": "dont-make-me-think",
+   "nombre": "Don't Make Me Think, Revisited (Steve Krug)",
+   "url": "https://sensible.com/dont-make-me-think/",
+   "tema": "reglas",
+   "subtema": null,
+   "que_es": "Libro clásico de usabilidad web y móvil (3.ª edición, New Riders, 2014): interfaces que se entienden sin pensar.",
+   "tipo": "guia-principios",
+   "acceso": "pago",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Libro con copyright: se cita la referencia y sus principios se resumen con palabras propias; nunca se copian capítulos ni figuras.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "copiar-texto"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap",
+     "url": "https://sensible.com/wp-sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": "https://sensible.com/wp-content/uploads/2020/12/twitter-card-1200x628-1.jpg",
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  },
+  {
+   "id": "asd-ste100",
+   "nombre": "ASD-STE100 · Simplified Technical English",
+   "url": "https://www.asd-ste100.org",
+   "tema": "reglas",
+   "subtema": null,
+   "que_es": "Estándar internacional de redacción técnica controlada (Issue 9, 15-01-2025): frases cortas, vocabulario controlado, una idea por frase.",
+   "tipo": "guia-principios",
+   "acceso": "registro",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Copyright y marca de ASD: cada persona pide su copia oficial gratuita; el OS no redistribuye el PDF ni copia su texto, solo aplica sus ideas con palabras propias.",
+   "canales": [
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "redistribuir-pdf",
+    "copiar-texto"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "pagina",
+     "url": "https://www.asd-ste100.org",
+     "nota": "vigilar el número de Issue"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "descarga-oficial",
+     "url": "https://www.asd-ste100.org/STE_downloads.html"
+    }
+   ],
+   "terminos": null,
+   "og_imagen": null,
+   "verificado": "2026-10-18",
+   "sin_verificar": []
+  }
+ ]
+}
