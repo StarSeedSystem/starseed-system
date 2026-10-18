@@ -4458,3 +4458,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-18 09:57 · mg-oracle-1018-0008
+
+**Lo que se pidió.** «Imagen → 3D
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTG3D1011E, RTAV1011I, RTS1010-ACT5c, VZF1015M). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTG3D1011E` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTAV1011I` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTS1010-ACT5c` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VZF1015M` — otra cosa: ningún proveedor respondió (todos caídos)
