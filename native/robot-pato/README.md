@@ -83,7 +83,7 @@ El servidor expone los siguientes endpoints POST (todos requieren un header `Aut
 ## Ejemplo de archivo .env
 
 ```env
-ROBOT_PATO_TOKEN=tu_token_secreto_aqui
+ROBOT_PATO_TOKEN=<tu-token-secreto>
 PORT=3000
 ```
 
