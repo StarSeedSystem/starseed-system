@@ -1,8 +1,9 @@
 version: "3.9"
+# Docker Compose configuration for openbot agent-computer and supervisor
 services:
   agent-computer:
     build:
-      context: https://github.com/CopilotKit/openbot.git#${{COMMIT}}
+      context: https://github.com/CopilotKit/openbot.git#a4dce8c
     image: openbot-agent-computer
     environment:
       - COMPUTER_TOKEN=${{COMPUTER_TOKEN}}
@@ -16,7 +17,7 @@ services:
           memory: 1536m
   supervisor:
     build:
-      context: https://github.com/CopilotKit/openbot.git#${{COMMIT}}
+      context: https://github.com/CopilotKit/openbot.git#a4dce8c
     image: openbot-supervisor
     environment:
       - SUPERVISOR_TOKEN=${{SUPERVISOR_TOKEN}}
