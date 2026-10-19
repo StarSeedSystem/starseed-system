@@ -1,6 +1,7 @@
 // Adaptadores para las familias de variaciones públicas
 import { registrarFamilia } from './familias';
 import type { AdaptadorFamilia } from './familias';
+import { validarVariacion, TipoVariacion, VariacionPublica } from './validar';
 
 // Crea un adaptador para una familia dada
 function crearAdaptador(familia: string): AdaptadorFamilia<string | number> {
@@ -14,10 +15,22 @@ function crearAdaptador(familia: string): AdaptadorFamilia<string | number> {
       return null;
     },
     validar: (payload) => {
-      if (typeof payload === 'string' || typeof payload === 'number') {
-        return { ok: true, payload };
+      // Validate payload is string or number (as before)
+      if (typeof payload !== 'string' && typeof payload !== 'number') {
+        return { ok: false, motivos: ['Payload must be a string or number'] };
       }
-      return { ok: false, motivos: ['Payload must be a string or number'] };
+      const payloadStr = typeof payload === 'string' ? payload : String(payload);
+      const tamano = new TextEncoder().encode(payloadStr).length;
+      const variacion: VariacionPublica = {
+        tipo: 'variacion' as TipoVariacion,
+        payload: payloadStr,
+        tamano,
+      };
+      const resultado = validarVariacion(variacion);
+      if (resultado.esValida) {
+        return { ok: true, payload: payload as string | number };
+      }
+      return { ok: false, motivos: [resultado.error ?? 'Invalid payload'] };
     },
     aplicar: (clave, payload: string | number) => ({
       deshacer: () => {
