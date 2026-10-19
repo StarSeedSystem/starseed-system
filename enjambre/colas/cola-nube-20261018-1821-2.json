@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "LYS1018A",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · catálogo de puntos de decisión de Astraura (qué pregunta, en qué capa y qué hacer si duda)",
+   "archivos": [
+    "src/lib/astraura/laya/puntos-decision.ts",
+    "src/lib/astraura/laya/__tests__/puntos-decision.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos + validación PURA de la tabla §4: cada `PuntoDecision` = { id (reflejo.herramienta, plan.dificultad, respuesta.basta, basico.consenso, habilidad.elegir, publicar.moderar, privacidad.subir, voz.tono, video.intencion, enjambre.medio), capa, preguntas: Record<string, PreguntaLaya> (forma nativa de Laya: { type, instructions, criteria? } con textos en español), umbral (0–1, por defecto 0,6), plazoMsPorMedio: { a1, mac, navegador, malla }, siDuda: \"escalar\"|\"confirmar\"|\"regla\"|\"revisar\", privacidad: \"puede-salir\"|\"solo-propias\" }. `validarPuntos()` comprueba ids únicos, umbrales en rango y que choice tenga criterios. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018E",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · privacidad que solo sube (nunca baja)",
+   "archivos": [
+    "src/lib/astraura/laya/privacidad-laya.ts",
+    "src/lib/astraura/laya/__tests__/privacidad-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `privacidadEfectiva({ marcada (persona/ámbito), reglas (resultado del detector determinista que ya exista; si no hay, recíbelo como parámetro), laya: noul | null, umbral = 0,5 })` → \"privado\"|\"ambito\"|\"publico\" con motivo. Laya solo puede subir el nivel (público → ámbito → privado), jamás bajarlo, aunque diga 0,01. Prueba con el caso medido del contrato §2 (0,25 en un texto con teléfono: manda la regla). Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018Gb",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "A1 · Laya como servicio de usuario que arranca solo y se vigila",
+   "archivos": [
+    "scripts/puente/laya_a1.py",
+    "scripts/puente/test_laya_a1.py"
+   ],
+   "depende": [],
+   "prompt": "PURO + orden opcional: `unidad_systemd(usuario, ruta_servicio)` devuelve el texto de una unidad `systemd --user` para `node servidor-laya.mjs` (Restart=on-failure, MemoryMax=3G, solo 127.0.0.1, LAYA_CACHE en el hogar) y `ordenes_instalacion()` la lista de órdenes (loginctl enable-linger, daemon-reload, enable --now). Con `--instalar` las ejecuta en el A1 por `oracle_nodo.ssh` como el usuario starseed (IPs siempre enmascaradas). Pruebas solo de lo puro. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018H",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya en navegador y apps (laya-ts con WebGPU → WASM): cuándo se carga y cuándo se pregunta fuera",
+   "archivos": [
+    "src/lib/astraura/laya/laya-navegador.ts",
+    "src/lib/astraura/laya/__tests__/laya-navegador.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planLayaLocal(perfilMedio)` → { cargar: boolean, modelo: \"multilingual-int8\"|\"multilingual\"|null, motivo } según capas-autoadaptables §4: visita web nunca (va por la malla); PWA con WebGPU y ≥ 2 GB de almacenamiento persistente y ≥ 4 GB de memoria; app nativa si cabe en su presupuesto; batería < 20 % o pestaña oculta → no. Mientras `vendor/laya-ts` y el modelo exportado (tarea O) no existan, devuelve cargar:false con ese motivo. Pruebas por medio. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018I",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · tarjetas de ingeniería (TDD, diagnóstico, diseño de módulos, dominio, revisión)",
+   "archivos": [
+    "src/ai/astraura/habilidades/ingenieria-a.ts",
+    "src/ai/astraura/habilidades/__tests__/ingenieria-a.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee vendor/habilidades/mattpocock-skills/engineering/{tdd,diagnosing-bugs,codebase-design,domain-modeling,code-review}/SKILL.md y escribe para cada una { id, nombre, cuando (1 frase), tarjeta (≤ 60 palabras, para Needle/BitNet), resumen (≤ 120 palabras, para Bonsai pequeño), rutaCompleta (la ruta del SKILL.md), licencia: \"MIT\", autor: \"Matt Pocock\" }, en español, fieles al original (sin inventar pasos). Prueba de límites de palabras y rutas existentes. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018Ib",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · tarjetas de ingeniería (especificar, tickets, triage, prototipo, investigación, arquitectura)",
+   "archivos": [
+    "src/ai/astraura/habilidades/ingenieria-b.ts",
+    "src/ai/astraura/habilidades/__tests__/ingenieria-b.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Igual que ingenieria-a.ts con to-spec, to-tickets, triage, prototype, research, improve-codebase-architecture e implement de vendor/habilidades/mattpocock-skills/engineering/. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-180356.json": [
+   "LYS1018A",
+   "LYS1018I",
+   "LYS1018Ib",
+   "LYS1018E",
+   "LYS1018H",
+   "LYS1018Gb"
+  ]
+ }
+}
