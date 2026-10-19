@@ -127,19 +127,9 @@ export default function SelectorAvatar3d({
       console.error("Error al verificar permiso para cambiar avatar:", error);
       return false;
     }
-  };
+};
 
-  export const getFuenteParaRef = (ref: string) => {
-    if (ref.startsWith("biblioteca:") || ref.startsWith("genesis:")) {
-      return { tipo: "glb", url: ref };
-    } else if (ref === "vrm-persona") {
-      return { tipo: "glb", url: "vrm-persona" };
-    } else {
-      return { tipo: "procedural", svg: "orbe-gris" };
-    }
-  };
-
-  const fixedOpciones = [
+const fixedOpciones = [
     { id: "orbe-gris", label: "Orbe gris", ref: getDefaultAdnRef() },
     { id: "vrm-persona", label: "Persona VRM", ref: "vrm-persona" }
   ];
@@ -176,18 +166,12 @@ export default function SelectorAvatar3d({
               <Badge variant="secondary">{adnAvatar.nombre || "Avatar"}</Badge>
             </div>
 
-            <div className="aspect-square max-w-md mx-auto mb-4">
-              <AvatarVivo
-                fuente={
-                  currentAdnRef.startsWith("biblioteca:") || currentAdnRef.startsWith("genesis:")
-                    ? { tipo: "glb", url: currentAdnRef }
-                    : currentAdnRef === "vrm-persona"
-                    ? { tipo: "glb", url: "vrm-persona" }
-                    : { tipo: "procedural", svg: "orbe-gris" }
-                }
-                tamano={400}
-              />
-            </div>
+             <div className="aspect-square max-w-md mx-auto mb-4">
+               <AvatarVivo
+                 fuente={getFuenteParaRef(currentAdnRef)}
+                 tamano={400}
+               />
+             </div>
 
             {previewOnly && (
               <div className="text-center text-sm text-muted-foreground">
