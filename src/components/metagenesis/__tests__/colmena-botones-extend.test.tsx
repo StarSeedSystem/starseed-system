@@ -50,7 +50,7 @@ describe("colmena-botones extendidos", () => {
         const receptor: any = {};
         salas.entrar(tema, emisor);
         salas.entrar(tema, receptor);
-        const texto: string = '{"t":"est","d":"1234"}'; // length 20
+        const texto: string = '{"t":"est","d":"12"}'; // length 20
         const dest = salas.difundir(emisor, texto);
         expect(dest.length).toBe(1);
         expect(dest[0]).toBe(receptor);
