@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fusionarBots } from "../sincronia-bots";
-import type { Bot } from "../tipos";
+import type { Bot } from "../../tipos";
 
 describe("fusionarBots (adaptadores)", () => {
   it("devuelve vacío con listas vacías", () => {
