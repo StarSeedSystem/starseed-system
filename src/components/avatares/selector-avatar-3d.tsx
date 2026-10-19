@@ -11,6 +11,7 @@ import { decidirCambioAvatar } from "@/lib/avatares/adn/permisos";
 import { AdnAvatar } from "@/lib/avatares/adn/adn";
 import { PLANTILLAS_AVATAR, adnDePlantilla, refDePlantilla } from "@/lib/avatares/plantillas";
 import { AvatarVivo } from "@/components/avatares/avatar-vivo";
+import { getFuenteParaRef } from "@/lib/avatares/resolver-ref-biblioteca";
 
 interface SelectorAvatar3dProps {
   profileId?: string;
