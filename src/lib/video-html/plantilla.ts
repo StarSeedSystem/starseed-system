@@ -49,12 +49,3 @@ export function plantillaStarSeed({ ancho, alto, duracion, titulo, fondo, acento
   <div id="acento" class="clip sf-acento" data-start="0.5" data-duration="${Math.max(0, duracion - 0.5)}" data-track-index="2" style="color: ${acentoEscapado}; position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); font-family: Rajdhani, Inter, system-ui, sans-serif; font-size: clamp(1rem, 2vw, 1.5rem); font-weight: 400; opacity: 0.8;">✦ StarSeed OS ✦</div>
 </div>`;
 }
-        #title {
-          animation: fadeIn 2s ease-in-out;
-        }
-      </style>
-      <div id="background" class="clip" data-start="0" data-duration="${duracion}" style="background: ${fondo}; width: 100%; height: 100%;"></div>
-      <div id="title" class="clip" data-start="0" data-duration="${duracion}" style="color: ${acento}; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">${escapedTitulo}</div>
-    </div>
-  `;
-}
