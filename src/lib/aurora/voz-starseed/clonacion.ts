@@ -88,10 +88,13 @@ export function puedeClonar({
  * del permiso que autorizó la clonación.
  */
 export function etiquetarAudio(metadatos: Record<string, unknown>): Record<string, unknown> {
+  const marcaDisponible = metadatos.marcaAguaDisponible === true;
+  const autorizadoPor = typeof metadatos.autorizadoPor === "string" ? metadatos.autorizadoPor : undefined;
   return {
     ...metadatos,
     clonada: true,
-    marcaAgua: "pendiente",
-    // En una implementación completa, se añadiría autorizadoPor basado en el permiso
+    marcaAgua: marcaDisponible ? "audioseal" : "pendiente",
+    autorizadoPor,
+    publicaFueraPersonal: marcaDisponible,
   };
 }
