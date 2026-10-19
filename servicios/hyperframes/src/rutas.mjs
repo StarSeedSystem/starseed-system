@@ -1,7 +1,8 @@
 const LIMITE_CUERPO_BYTES = 8 * 1024 * 1024;
 
 function cuerpoExcedeLimite(cuerpo) {
-  return cuerpo && Buffer.byteLength(JSON.stringify(cuerpo)) > LIMITE_CUERPO_BYTES;
+  if (!cuerpo) return false;
+  return Buffer.byteLength(JSON.stringify(cuerpo)) > LIMITE_CUERPO_BYTES;
 }
 
 function extraerIdRuta(ruta, prefijo) {
