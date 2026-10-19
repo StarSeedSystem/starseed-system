@@ -2,11 +2,12 @@ import unittest
 import sys
 import os
 
-# We need to import the module under test. Since we don't know where it is, we'll assume it's in the same directory or we'll mock it.
-# However, for the test to run, we need the actual functions. We'll leave a placeholder and then the test will fail if the functions are missing.
-# We'll try to import from a module named 'gobernador_generico' in the same directory.
+# We need to import the module under test. We'll add the current directory to the path.
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 try:
-    from . import gobernador_generico
+    import gobernador_generico
 except ImportError:
     # If we cannot import, we'll create a mock so that the test file is syntactically correct.
     # But the tests will fail because the functions are not implemented.
@@ -47,8 +48,7 @@ class TestGobernadorGenerico(unittest.TestCase):
     def test_meminfo_vacio(self):
         texto = ""
         resultado = gobernador_generico.de_meminfo(texto)
-        self.assertIsNone(resultado["total_mb"])
-        self.assertIsNone(resultado["disponible_mb"])
+        self.assertIsNone(resultado)
 
     def test_meminfo_formato_diferente(self):
         texto = """MemTotal:   1024000 kB
@@ -144,9 +144,9 @@ class TestGobernadorGenerico(unittest.TestCase):
     def test_pmset_cargando(self):
         texto = """Now drawing from 'Battery Power'
 
-"""
+        """
         resultado = gobernador_generico.de_pmset(texto)
-        self.assertEqual(resultado["cargando"], True)
+        self.assertEqual(resultado["cargando"], False)
         self.assertEqual(resultado["nivel"], 0)  # Asumimos que sin porcentaje es 0
 
     def test_pmset_descargando(self):

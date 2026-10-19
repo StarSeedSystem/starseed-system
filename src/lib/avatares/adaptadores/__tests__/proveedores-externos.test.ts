@@ -11,7 +11,7 @@ import { MOTORES_3D, type Motor3D } from "@/lib/avatares/adn/motores";
 
 const CLAVE = ["clave", "de", "prueba", "no", "real"].join("-");
 const ENCENDIDO: Entorno = { AVATARES_EXTERNOS_PERMITIDOS: "1", MESHY_API_KEY: CLAVE, TRIPO_API_KEY: CLAVE };
-const SOLO_TRIPO: Entorio = { AVATARES_EXTERNOS_PERMITIDOS: "1", TRIPO_API_KEY: CLAVE };
+const SOLO_TRIPO: Entorno = { AVATARES_EXTERNOS_PERMITIDOS: "1", TRIPO_API_KEY: CLAVE };
 const PNG: Imagen = { mime: "image/png", bytes: new Uint8Array([137, 80, 78, 71, 1, 2, 3]) };
 interface Llamada { url: string; init: RequestInit | undefined }
 function simulado(respuestas: Array<{ status?: number; cuerpo: unknown } | "sin-red">): { buscar: Buscar; llamadas: Llamada[] } {
@@ -25,7 +25,7 @@ function simulado(respuestas: Array<{ status?: number; cuerpo: unknown } | "sin-
   return { buscar, llamadas };
 }
 const cabecera = (l: Llamada, nombre: string): string | undefined => (l.init?.headers as Record<string, string> | undefined)?.[nombre];
-const generarCon = (entorno: Entorio): string | null => planificar({
+const generarCon = (entorno: Entorno): string | null => planificar({
   partida: "imagen", esqueleto: "ninguno", region: "ES", comercial: false, permitirDePago: true,
   capacidades: ["navegador", "cpu", ...capacidadesExternas(entorno)],
 } satisfies PeticionPlan, motoresDisponibles(entorno)).pasos.find((p) => p.etapa === "generar")?.motor?.id ?? null;
