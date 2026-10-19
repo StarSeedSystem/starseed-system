@@ -1,0 +1,92 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "VPU1019B",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Registro de familias de variaciones",
+   "archivos": [
+    "src/lib/variaciones/familias.ts",
+    "src/lib/variaciones/__tests__/familias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Tipos `AdaptadorFamilia<P>` { familia, nombre, capturar(clave) → P | null, validar(payload: unknown) → { ok: true, payload: P } | { ok: false, motivos: string[] }, aplicar(clave, payload) → deshacer: () => void, vistaPrevia?(payload) → datos para pintar } y `registrarFamilia`, `adaptadorDe(clave)`, `familiasRegistradas()`. Prueba con un adaptador falso. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "VPU1019L",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Notas, repos externos y fuentes de la Librería por elemento",
+   "archivos": [
+    "src/lib/variaciones/fuentes.ts",
+    "src/lib/variaciones/__tests__/fuentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Junta para una clave: publicaciones con `references.elemento` (`src/lib/posts/post-entity.ts`), elementos del catálogo público (`public-catalog.ts`), versiones (`src/lib/versions/versions.ts`), repos de la Protomolécula y de `config/referencias-inspiracion.json` con su licencia y clase de uso. Lectores inyectados. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "VPU1019X",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Claves en el DOM: Protomolécula y lienzo universal",
+   "archivos": [
+    "src/lib/variaciones/claves-protomolecula.ts",
+    "src/lib/variaciones/__tests__/claves-protomolecula.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`claveDeHerramienta(id)`, `claveDeAtomo(id)` y `claveDeMolecula(id)` con validación contra `catalogo-herramientas.ts` y `registro-atomos.ts`, y `atributosClave(clave)` para que los componentes del lienzo y de la Protomolécula los pongan. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "VPU1019M",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Bus y anfitrión de la ventana de variaciones",
+   "archivos": [
+    "src/components/variaciones/variaciones-bus.ts",
+    "src/components/variaciones/variaciones-host.tsx",
+    "src/components/variaciones/__tests__/variaciones-bus.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Como `src/components/astraura/window/astraura-158-window-bus.ts` y su host: `abrirVariaciones(clave, opciones)`, `suscribirVariaciones`; el host apila ventanas (`OSWindow` de `src/components/dashboard/apps/os-window.tsx`) y trae al frente la de la misma clave si ya está abierta. Prueba del bus. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "VPU1019T",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Claves en el DOM: widgets y Dashboard",
+   "archivos": [
+    "src/components/dashboard/grid-area.tsx",
+    "src/components/dashboard/widget-registry.tsx",
+    "src/components/variaciones/__tests__/claves-widgets.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Añade `data-ss-elemento=\"widget:<WidgetType>\"` junto a `data-widget-key` en la rejilla y en el registro de widgets (el tipo, no la instancia). Solo añadir atributos. Prueba que cada widget pintado lleva su clave. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "VPU1019W",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Claves en el DOM: ajustes",
+   "archivos": [
+    "src/components/variaciones/con-clave.tsx",
+    "src/lib/variaciones/claves-ajustes.ts",
+    "src/lib/variaciones/__tests__/claves-ajustes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`<ConClave clave>` envuelve cualquier bloque y pone `data-ss-elemento`; `clavesDeAjustes()` genera las claves `ajuste:` desde `SETTINGS_SEARCH_INDEX` y `SETTINGS_INDEX` para que cada panel de Ajustes las use. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  }
+ ]
+}
