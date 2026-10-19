@@ -21,6 +21,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { claveDesdeElemento } from "@/lib/variaciones/clave-elemento";
 
 const DEFAULT_HOLD_MS = 3000; // pulsación mantenida por defecto (configurable en Ajustes → Trinity)
 const SLOP_PX = 10;           // movimiento que cancela el armado (gana el scroll)
@@ -182,7 +183,7 @@ export function useTouchDragArming(enabled: boolean, options: TouchDragOptions =
         if (target.closest(PASSTHROUGH_SELECTOR)) return;
         const itemEl = target.closest(".react-grid-item") as HTMLElement | null;
         if (!itemEl) return;
-        const itemKey = itemEl.getAttribute("data-widget-key") ?? "";
+        const itemKey = claveDesdeElemento(itemEl) ?? "";
 
         if (armedRef.current) {
             // Ya hay un widget armado (modo fallback): su propio touchstart debe
