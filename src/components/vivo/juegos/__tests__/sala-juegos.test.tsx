@@ -62,9 +62,10 @@ function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function textoContienePalabra(texto: string | null, palabra: string): boolean {
+function textoContienePalabra(texto: string | null, palabra: string, usarLimites: boolean = true): boolean {
     if (!texto || !palabra) return false;
-    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
+    const esc = escapeRegExp(palabra);
+    const r = new RegExp(usarLimites ? `\\b${esc}\\b` : esc);
     return r.test(texto);
 }
 
@@ -238,7 +239,7 @@ describe("Dibujo-adivina", () => {
         await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
         // la palabra acertada NUNCA se enseña en los mensajes visibles de las demás personas
         const mensajesCarla = carla.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
-        expect(textoContienePalabra(mensajesCarla, `Beto${palabra}`)).toBe(false);
+        expect(textoContienePalabra(mensajesCarla, `Beto${palabra}`, false)).toBe(false);
         expect(mesa(ana.c).tablero).toMatchObject({ aciertos: [expect.objectContaining({ seat: 1 })] });
         expect(beto.q.getByLabelText("Escribe tu intento")).toBeDisabled(); // ya acertó
 
