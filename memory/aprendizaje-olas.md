@@ -4458,3 +4458,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-19 13:57 · mg-oracle-1019-0653
+
+**Lo que se pidió.** Enlace «Gestionar con PoliGenesis
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (PG1013D, PG1013B). Es 50 % de la ola.
+- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTGN1010A-d3b` — no escribió nada
+- `SUC1018F-d1` — otra cosa: sin decisión en 0 h; rama ola/SUC1018F-d1 conservada
+- `PG1013D` — los tipos no compilan: 4 errores tsc (rama ola/PG1013D conservada)
+- `PG1013B` — los tipos no compilan: 1 errores tsc (rama ola/PG1013B conservada)
