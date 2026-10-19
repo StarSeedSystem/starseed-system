@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { type NodoVista } from "@/lib/metagenesis/remoto-nodos";
-import { textoHace } from "@/lib/metagenesis/remoto";
 import { type AccionOrden } from "@/lib/metagenesis/remoto-nodos";
 
 interface ColmenaBotonesProps {
@@ -15,7 +14,6 @@ function ColmenaBotones({ nodo, enVuelo, mandarOrden }: ColmenaBotonesProps) {
     const enCurso = nodo.enCurso?.length > 0;
     const contenedorActivo = nodo.contenedor?.activo;
     const sinTrabajador = nodo.trabajo ? Object.keys(nodo.trabajo).length === 0 : false;
-    const hayTrabajador = nodo.trabajo ? Object.keys(nodo.trabajo).length > 0 : false;
 
     const enviarDesconectar = async () => {
         await mandarOrden("desconectar", nodo.nodo);
@@ -33,7 +31,6 @@ function ColmenaBotones({ nodo, enVuelo, mandarOrden }: ColmenaBotonesProps) {
     const sePuedeConfigurarContenedor = !contenedorActivo && nodo.vivo;
     const sePuedeInstalarTrabajador = sinTrabajador && nodo.vivo && !enCurso;
 
-    const enCursoLength = nodo.enCurso?.length || 0;
     const haceMsTrabajo = nodo.enCurso?.[0]?.punto?.t ? Date.now() - nodo.enCurso[0].punto.t : null;
     const textoHaceTrabajo = haceMsTrabajo ? `Último punto hace ${Math.round(haceMsTrabajo / 60000)} min` : null;
 

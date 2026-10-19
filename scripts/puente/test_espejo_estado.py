@@ -72,6 +72,53 @@ class PruebasSeleccion(unittest.TestCase):
         self.assertEqual(set(seleccion), esperados)
 
 
+    def test_empaquetar_crea_tar_gz(self):
+        seleccion = [
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "evento1.jsonl",
+            "log.txt",
+        ]
+        with tempfile.TemporaryDirectory() as tmp_olas:
+            for nombre, lineas in [
+                ("progreso.json", 1),
+                ("progreso.md", 300),
+                ("medios.json", 1),
+                ("puntos-control.json", 1),
+                ("cola-1.json", 1),
+                ("evento1.jsonl", 200),
+                ("log.txt", 200),
+            ]:
+                ruta = os.path.join(tmp_olas, nombre)
+                with open(ruta, "w", encoding="utf-8") as f:
+                    if nombre.endswith(".json"):
+                        json.dump({"prueba": nombre}, f)
+                    else:
+                        f.write(("línea de %s\n" % nombre) * lineas)
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                ruta_tar = empaquetar(seleccion, tmp_olas, tmp_dir)
+                self.assertTrue(os.path.exists(ruta_tar))
+                with tarfile.open(ruta_tar, "r:gz") as tar:
+                    nombres = set(tar.getnames())
+                    self.assertEqual(nombres, set(seleccion))
+                    esperadas_lineas = {
+                        "progreso.json": 1,
+                        "progreso.md": 300,
+                        "medios.json": 1,
+                        "puntos-control.json": 1,
+                        "cola-1.json": 1,
+                        "evento1.jsonl": 200,
+                        "log.txt": 200,
+                    }
+                    for nombre, esperada in esperadas_lineas.items():
+                        contenido = tar.extractfile(nombre).read().decode()
+                        lineas = contenido.splitlines()
+                        self.assertEqual(len(lineas), esperada, f"{nombre}: {len(lineas)} != {esperada}")
+
+
 
 
 class PruebasEmpaquetar(unittest.TestCase):
@@ -100,13 +147,12 @@ class PruebasEmpaquetar(unittest.TestCase):
 
     def test_archivos_en_la_raiz_del_tar_y_logs_recortados(self):
         with self._tar(["progreso.json", "cola-a.json", "ola-x.jsonl"]) as tar:
-            self.assertEqual(sorted(tar.getnames()), ["cola-a.json", "ola-x.jsonl", "progreso.json"])
-            self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
-                             espejo_estado.LOG_LINEAS)
-            self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+             self.assertEqual(sorted(tar.getnames()), ["cola-a.json", "ola-x.jsonl", "progreso.json"])
+             self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
+                              espejo_estado.LOG_LINEAS)
+             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
 
-
-class PruebasEnviarEstado(unittest.TestCase):
+    class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
 
     def setUp(self):
