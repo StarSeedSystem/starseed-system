@@ -8,6 +8,7 @@ import { metricaDeFuente } from "./permisos";
 import { PROTO_ORB_ABRIR_EVENT, leerActivada } from "./orbe-bus";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
+import { proposer } from "./candidatos-codigo";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
@@ -85,9 +86,23 @@ function dictar(c: Controlador, frase: string, autor: Autor): ResultadoAccionPro
 }
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
-  const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
-  if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
-  if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
+   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
+   if (accion === "proponer-codigo") {
+     const m = texto(args.molecula) || undefined,
+           c = texto(args.capaId) || undefined,
+           l = texto(args.lenguajeOrigen) || undefined,
+           ld = texto(args.lenguajeDestino),
+           cp = texto(args.codigoProp) || undefined,
+           co = texto(args.codigoOrig) || undefined;
+     
+     if (!m || !c || !l || !cp || !co) 
+       return no("Faltan parámetros requeridos: molecula, capaId, lenguajeOrigen, codigoProp, codigoOrig");
+     
+     proposer({id:`prop-${Date.now().toString(36)}`,capaId:c,lenguajeOrigen:l,lenguajeDestino:ld,propuesto:cp,original:co,autor});
+     
+     return si(`Candidato de código creado: prop-${Date.now().toString(36)}`, "Protomolécula");
+   }
+   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   const c = controladorActivo(moleculaId);
   if (accion === "abrir" && !herramienta) { const a = abrir(ctx, moleculaId); return { ok: a.ok, message: a.texto, status: "Abriendo la Protomolécula…" }; }
   if (!c) return no(`Abre una molécula primero. ${abrir(ctx, moleculaId).texto}`);
