@@ -61,27 +61,27 @@ export function TunelMetaGenesisEstado() {
     return <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/65">Cargando estado del túnel...</div>
   }
 
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/65">
-      {estado.cargado && estado.pid !== null ? (
-        <p className="mb-2">Túnel de MetaGenesis: activo (pid {estado.pid})</p>
-      ) : (
-        <p className="mb-2">Túnel de MetaGenesis: parado</p>
-      )}
-        {estado.ultimasLineas.length > 0 && (
-          <div className="mt-2">
-            <p className="mb-1 font-medium text-white/80">Últimas líneas:</p>
-            <pre className="text-[10px] overflow-x-auto whitespace-pre-wrap bg-black/20 p-2 rounded">
-              {estado.ultimasLineas.map((línea, index) => (
-                <span key={index}>
-                  {tacharTexto(línea)}{index < estado.ultimasLineas.length - 1 ? "\n" : ""}
-                </span>
-              ))}
-            </pre>
-          </div>
-        )}
-    </div>
-  );
+   return (
+     <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/65">
+       {estado.cargado && estado.pid !== null ? (
+         <p className="mb-2">Túnel de MetaGenesis: activo (pid {estado.pid})</p>
+       ) : (
+         <p className="mb-2">Túnel de MetaGenesis: parado</p>
+       )}
+         {estado.cargado && estado.pid !== null && estado.ultimasLineas.length > 0 && (
+           <div className="mt-2">
+             <p className="mb-1 font-medium text-white/80">Últimas líneas:</p>
+             <pre className="text-[10px] overflow-x-auto whitespace-pre-wrap bg-black/20 p-2 rounded">
+               {estado.ultimasLineas.map((línea, index) => (
+                 <span key={index}>
+                   {tacharTexto(línea)}{index < estado.ultimasLineas.length - 1 ? "\n" : ""}
+                 </span>
+               ))}
+             </pre>
+           </div>
+         )}
+     </div>
+   );
 }
 
 export default TunelMetaGenesisEstado;
