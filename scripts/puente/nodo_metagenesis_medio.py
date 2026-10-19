@@ -147,6 +147,68 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
         return None
 
 
+def cpu_pct() -> Optional[float]:
+    """Linux: dos lecturas de /proc/stat separadas 0,3 s → % ocupado; macOS u otros: None"""
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/stat") as f:
+                linea = f.readline()
+                if not linea.startswith("cpu "):
+                    return None
+                tiempos1 = list(map(int, linea.split()[1:]))
+                idle1 = tiempos1[3]  # cuarto valor es idle time
+                total1 = sum(tiempos1)
+            
+            time.sleep(0.3)
+            
+            with open("/proc/stat") as f:
+                linea = f.readline()
+                if not linea.startswith("cpu "):
+                    return None
+                tiempos2 = list(map(int, linea.split()[1:]))
+                idle2 = tiempos2[3]
+                total2 = sum(tiempos2)
+            
+            total_diff = total2 - total1
+            idle_diff = idle2 - idle1
+            
+            if total_diff > 0:
+                return round((total_diff - idle_diff) * 100.0 / total_diff, 1)
+        except OSError:
+            return None
+    return None
+
+
+def ram_total_mb() -> Optional[int]:
+    """Linux: /proc/meminfo MemTotal; macOS: sysctl -n hw.memsize con tope de 2 s"""
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/meminfo") as f:
+                for linea in f:
+                    if linea.startswith("MemTotal:"):
+                        return int(linea.split()[1]) // 1024
+        except OSError:
+            pass
+    elif sys.platform == "darwin":
+        try:
+            # sysctl -n hw.memsize con tope de 2s
+            rc, out = _sh(["sysctl", "-n", "hw.memsize"], tope=2)
+            if rc == 0 and out.strip():
+                bytes_total = int(out.strip())
+                return bytes_total // (1024 * 1024)
+        except (OSError, ValueError):
+            pass
+    return None
+
+
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """shutil.disk_usage"""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
+
+
 def lineas_ps() -> List[str]:
     """`ps` con pid y orden completa (nunca `pgrep -l`, que en la Mac recorta y engaña)."""
     orden = ["ps", "-axo", "pid=,args="] if sys.platform == "darwin" else ["ps", "-eo", "pid=,args="]
@@ -436,9 +498,12 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         "autoritativo": autoritativo,
         "orquestadores": orqs,
         "disco_gb": disco_libre_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
+        "disco_total_gb": disco_total_gb(raiz if os.path.isdir(raiz) else os.path.expanduser("~")),
         "ram_libre_mb": ram_libre_mb(),
+        "ram_total_mb": ram_total_mb(),
         "nucleos": os.cpu_count(),
         "carga": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
+        "cpu_pct": cpu_pct(),
         "servicios_caidos": [],
         "guardianes_caidos": [],
     }
