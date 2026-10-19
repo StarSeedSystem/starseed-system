@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "HFR1018E",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Vídeo HTML · operaciones de la Protomolécula → órdenes del SDK de HyperFrames",
+   "archivos": [
+    "src/lib/video-html/operaciones-sdk.ts",
+    "src/lib/video-html/__tests__/operaciones-sdk.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO, sin importar el SDK: traduce `Operacion` de src/lib/protomolecula/tipos.ts (parámetro de un átomo video-html = `elementoId::propiedad`) a órdenes con la forma de `comp.dispatch` del SDK: { type: \"setText\", target, value }, { type: \"setStyle\", target, styles }, { type: \"setTiming\", target, start, duration }, { type: \"setAttribute\", target, name, value } y { type: \"setVariableValue\", id, value }. Rechaza con motivo las que tocarían una animación GSAP (setGsapTween, addGsapTween…) y propiedades no permitidas (on*, src con javascript:). Pruebas por tipo. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "HFR1018C"
+   ]
+  }
+ ]
+}
