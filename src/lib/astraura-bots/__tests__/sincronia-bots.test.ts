@@ -137,8 +137,8 @@ describe("fusionarBots", () => {
   })
 
   test("borrado remoto no propaga: se conserva el local ausente en remoto", () => {
-    const local: any[] = [hacerBot("bot-local", 1000)];
-    const remoto: any[] = [hacerBot("bot-remoto", 2000)]; // otro bot
+     const local: BotSync[] = [hacerBot("bot-local", 1000)];
+     const remoto: BotSync[] = [hacerBot("bot-remoto", 2000)]; // otro bot
     const resultado = fusionarBots(local, remoto);
     const ids = resultado.map(b => b.id).sort();
     expect(ids).toEqual(["bot-local", "bot-remoto"]);
@@ -147,9 +147,8 @@ describe("fusionarBots", () => {
     expect(resultado.some(b => b.id === "bot-remoto" && b.actualizado === 2000)).toBe(true);
   });
   test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
+    const resultado = fusionarBots([], []);
+    expect(resultado).toEqual([]);
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
@@ -181,9 +180,8 @@ describe("fusionarBots", () => {
     expect(ids).toEqual(["local-only", "remoto-only"]);
   });
   test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
+    const resultado = fusionarBots([], []);
+    expect(resultado).toEqual([]);
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
@@ -224,9 +222,8 @@ describe("fusionarBots", () => {
     expect(ordenado1).toEqual(ordenado2);
   });
   test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
+    const resultado = fusionarBots([], []);
+    expect(resultado).toEqual([]);
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
@@ -264,9 +261,8 @@ describe("fusionarBots", () => {
     expect(resultado.length).toBe(2);
   });
   test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
+    const resultado = fusionarBots([], []);
+    expect(resultado).toEqual([]);
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
@@ -300,9 +296,8 @@ describe("fusionarBots", () => {
     expect(resultado[0].actualizado).toBe(2000);
   });
   test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
+    const resultado = fusionarBots([], []);
+    expect(resultado).toEqual([]);
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
@@ -331,9 +326,8 @@ describe("fusionarBots", () => {
     expect(resultado).toEqual([]);
   });
   test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
+    const resultado = fusionarBots([], []);
+    expect(resultado).toEqual([]);
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
@@ -365,9 +359,8 @@ describe("fusionarBots", () => {
     expect(ids).toEqual(["A", "B"]);
   });
   test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
+    const resultado = fusionarBots([], []);
+    expect(resultado).toEqual([]);
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
@@ -399,9 +392,8 @@ describe("fusionarBots", () => {
     expect(ids).toEqual(["A", "B"]);
   });
   test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
+    const resultado = fusionarBots([], []);
+    expect(resultado).toEqual([]);
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
