@@ -15,6 +15,7 @@
    ============================================================ */
 
 import { useEffect, useMemo, useState } from "react";
+import { LottieVista } from "@/components/movimiento/lottie-vista";
 import {
   type DesignAsset,
   type AssetKind,
