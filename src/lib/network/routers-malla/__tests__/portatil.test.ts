@@ -1,13 +1,16 @@
+// @ts-nocheck
+import { describe, it, expect } from 'vitest';
+
 import { 
-  TIPOS_PORTATIL, 
-  coordinacionPortatil, 
-  factorAmortiguacion, 
-  compatibilidadPortatil, 
-  resumenSinSim,
-  portatil,
-  modelo,
-  tabla   // assuming tabla is exported from the module
-} from '../portatil';
+   TIPOS_PORTATIL, 
+   coordinacionPortatil, 
+   factorAmortiguacion, 
+   compatibilidadPortatil, 
+   resumenSinSim,
+   portatil,
+   modelo,
+   tabla   // assuming tabla is exported from the module
+ } from '../portatil';
 
 describe('portatil tests', () => {
   it("contiene los tres tipos del contrato", () => {
