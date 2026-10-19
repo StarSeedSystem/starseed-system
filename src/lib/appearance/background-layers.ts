@@ -41,11 +41,28 @@
  *
  * `engine: "iframe"` se conserva como RESPALDO (la app externa sigue en línea y
  * es la única que tiene el modo VR/AR — ver nota en `AudiomorphicLayerConfig`).
- */
+*/
+import { cargarCatalogo } from "./catalogo-shaders";
 
 /* ── Tipos ─────────────────────────────────────────────────────────────── */
 
-export type LayerKind = "color" | "gradiente" | "imagen" | "video" | "audiomorphic";
+export type LayerKind = "color" | "gradiente" | "imagen" | "video" | "audiomorphic" | "shader";
+
+let _shaderCatalogPromise: Promise<Record<string, any>> | null = null;
+/**
+ * Obtiene el catálogo de shaders, cargándolo si es necesario.
+ */
+export async function obtenerCatalogoShaders() {
+  if (!_shaderCatalogPromise) {
+    _shaderCatalogPromise = cargarCatalogo();
+  }
+  return _shaderCatalogPromise;
+}
+
+// Prefetch en cliente
+if (typeof window !== "undefined") {
+  obtenerCatalogoShaders().catch(() => {});
+}
 
 export type BlendMode =
     | "normal" | "screen" | "lighten" | "overlay" | "soft-light"
@@ -215,6 +232,8 @@ export function createLayer(kind: LayerKind): BackgroundLayer {
             return { ...common, name: "Imagen", blend: "normal", opacity: 0.8, value: "" };
         case "video":
             return { ...common, name: "Vídeo", blend: "normal", opacity: 0.8, value: "" };
+        case "shader":
+            return { ...common, name: "Shader", blend: "normal", opacity: 0.8, value: "{}" };
     }
 }
 
@@ -232,6 +251,7 @@ export const LAYER_CATALOG: LayerCatalogEntry[] = [
     { kind: "color", label: "Color", hint: "Tinte sólido — útil para teñir el fondo de abajo." },
     { kind: "imagen", label: "Imagen", hint: "Imagen por URL, a pantalla completa." },
     { kind: "video", label: "Vídeo", hint: "Vídeo por URL, en bucle y sin sonido." },
+    { kind: "shader", label: "Shader", hint: "Efecto WebGPU desde el registro de shaders. Configurable con propiedades y opcional hijo." },
 ];
 
 /* ── Normalización defensiva ───────────────────────────────────────────── */
