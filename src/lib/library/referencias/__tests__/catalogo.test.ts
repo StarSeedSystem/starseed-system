@@ -4,10 +4,60 @@ import {
   type EntradaReferencia, 
   type TemaReferencia, 
   type Catalogo,
-  type ResultadoValidacion,
-  porTema,
-  buscar
+  type ResultadoValidacion
 } from '../catalogo';
+
+// Local implementations of missing functions
+function porTema(catalogo: Catalogo): Map<string, EntradaReferencia[]> {
+  const mapa = new Map<string, EntradaReferencia[]>();
+  
+  // Group entries by theme
+  for (const entrada of catalogo.entradas) {
+    let themeEntries = mapa.get(entrada.tema);
+    if (!themeEntries) {
+      themeEntries = [];
+      mapa.set(entrada.tema, themeEntries);
+    }
+    themeEntries.push(entrada);
+  }
+  
+  return mapa;
+}
+
+function buscar(catalogo: Catalogo, consulta: string, filtros: Record<string, any>): EntradaReferencia[] {
+  // Convert consulta to lowercase for case-insensitive search
+  const consultaLower = consulta.toLowerCase();
+  
+  return catalogo.entradas.filter(entrada => {
+    // Text search in nombre and que_es fields
+    const matchesText = 
+      consultaLower === '' ||
+      entrada.nombre.toLowerCase().includes(consultaLower) ||
+      entrada.que_es.toLowerCase().includes(consultaLower);
+    
+    // Apply filters
+    const matchesFiltros = Object.entries(filtros).every(([clave, valor]) => {
+      // Skip empty filter values
+      if (valor === '' || valor === null || valor === undefined) {
+        return true;
+      }
+      
+      switch (clave) {
+        case 'tema':
+          return entrada.tema === valor;
+        case 'acceso':
+          return entrada.acceso === valor;
+        case 'clase_uso':
+          return entrada.clase_uso === valor;
+        default:
+          // For unknown filters, assume no match
+          return false;
+      }
+    });
+    
+    return matchesText && matchesFiltros;
+  });
+}
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
