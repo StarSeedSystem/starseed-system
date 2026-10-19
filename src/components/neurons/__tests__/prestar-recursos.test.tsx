@@ -4,21 +4,21 @@ import "@testing-library/jest-dom/vitest";
 
 import { PrestarRecursosPanel } from "@/components/neurons/prestar-recursos";
 
-describe("PrestarRecursosPanel", () => {
-  beforeEach(() => {
-    vi.mock("@/lib/neurons/neurons", () => ({
-      detectCapabilities: vi.fn(),
-    }));
-  });
+// Hoist the mock function
+const detectCapabilitiesMock = vi.hoisted(() => vi.fn());
 
+// Mock the module
+vi.mock("@/lib/neurons/neurons", () => ({
+  detectCapabilities: detectCapabilitiesMock,
+}));
+
+describe("PrestarRecursosPanel", () => {
   afterEach(() => {
     cleanup();
-    vi.resetAllMocks();
+    detectCapabilitiesMock.mockReset();
   });
 
   it("renders the panel with default toggles checked", async () => {
-    // We need to access the mock to set its implementation
-    const detectCapabilitiesMock = require("@/lib/neurons/neurons").detectCapabilities;
     detectCapabilitiesMock.mockResolvedValueOnce({
       nodoId: "test-node",
       medio: "navegador",
@@ -46,7 +46,6 @@ describe("PrestarRecursosPanel", () => {
   });
 
   it("toggles the computacion button", async () => {
-    const detectCapabilitiesMock = require("@/lib/neurons/neurons").detectCapabilities;
     detectCapabilitiesMock.mockResolvedValueOnce({
       nodoId: "test-node",
       medio: "navegador",
@@ -77,7 +76,6 @@ describe("PrestarRecursosPanel", () => {
   });
 
   it("allows adding an app to the list", async () => {
-    const detectCapabilitiesMock = require("@/lib/neurons/neurons").detectCapabilities;
     detectCapabilitiesMock.mockResolvedValueOnce({
       nodoId: "test-node",
       medio: "navegador",
@@ -119,7 +117,6 @@ describe("PrestarRecursosPanel", () => {
   });
 
   it("displays the aviso about privacy", async () => {
-    const detectCapabilitiesMock = require("@/lib/neurons/neurons").detectCapabilities;
     detectCapabilitiesMock.mockResolvedValueOnce({
       nodoId: "test-node",
       medio: "navegador",

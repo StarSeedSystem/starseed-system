@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { aOferta, type NeuronPrestarPrefs, type NeuronMedidas } from "@/lib/neurons/prestar";
 import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
 import { cn } from "@/lib/utils";
