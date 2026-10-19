@@ -92,6 +92,20 @@ import { anotarMedida, medidasDe } from "@/lib/aurora/medidas-voz";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  maxAlternatives: number;
+  onstart: (e: Event) => void;
+  onerror: (e: Event) => void;
+  onend: (e: Event) => void;
+  onresult: (e: Event) => void;
+  start: () => void;
+  stop: () => void;
+  abort?: () => void;
+}
+
 /** Una herramienta invocada durante la respuesta (para el metadato del mensaje). */
 export interface ToolInvocationMeta {
   name: string;
@@ -2030,16 +2044,16 @@ export function useAuroraEngine(): AuroraEngine {
        };
  
        // Construir el objeto de reconocimiento que imita a SpeechRecognition
-       const rec: any = {
+       const rec: SpeechRecognitionLike = {
          lang: activeRef.current.voice?.lang || "es-MX",
          interimResults: true,
          // Móvil: NO continuo (Android termina tras cada frase; lo reiniciamos aquí).
          continuous: !isMobile,
          maxAlternatives: 1,
-         onstart: null as any,
-         onerror: null as any,
-         onend: null as any,
-         onresult: null as any,
+         onstart: null,
+         onerror: null,
+         onend: null,
+         onresult: null,
          start: () => {
            if (stopped) return;
            // Generación de ESTE reconocimiento. Si antes de que venza el
@@ -2179,7 +2193,7 @@ export function useAuroraEngine(): AuroraEngine {
                lastErr === "aborted" ||
                lastErr === "";
              if (healthy) sttRestartsRef.current = 0;
-             else sttRestartsRef.current += 1;
+             else sttRestartsRef.current += 1; // murió al nacer: firma del bucle real
  
              if (sttRestartsRef.current > MAX_BROKEN_RESTARTS) {
                keepAliveRef.current = false;
@@ -2220,7 +2234,7 @@ export function useAuroraEngine(): AuroraEngine {
        rec.onstart = () => {
          // Ya se maneja en start()
        };
-       rec.onerror = (e: any) => {
+       rec.onerror = (e: Event) => {
          if (gen !== recGenRef.current) return;
          const err = String(e?.error || "");
          lastErr = err;
@@ -2231,7 +2245,7 @@ export function useAuroraEngine(): AuroraEngine {
            setListening(false);
          }
        };
-       rec.onend = () => {
+       rec.onend = (e: Event) => {
          if (gen !== recGenRef.current) return;
          setInterim("");
          if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
@@ -2253,7 +2267,7 @@ export function useAuroraEngine(): AuroraEngine {
              lastErr === "aborted" ||
              lastErr === "";
            if (healthy) sttRestartsRef.current = 0;
-           else sttRestartsRef.current += 1;
+           else sttRestartsRef.current += 1; // murió al nacer: firma del bucle real
  
            if (sttRestartsRef.current > MAX_BROKEN_RESTARTS) {
              keepAliveRef.current = false;
@@ -2284,7 +2298,7 @@ export function useAuroraEngine(): AuroraEngine {
          }
          setListening(false);
        };
-       rec.onresult = () => {
+       rec.onresult = (e: Event) => {
          // No se usa directamente; los resultados se envían vía procesarResultado
        };
  
@@ -2318,7 +2332,7 @@ export function useAuroraEngine(): AuroraEngine {
          startedAt = Date.now();
          setListening(true); setInterim("");
        };
-       rec.onerror = (e: any) => {
+       rec.onerror = (e: Event) => {
          if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
          const err = String(e?.error || "");
          lastErr = err;
@@ -2334,7 +2348,7 @@ export function useAuroraEngine(): AuroraEngine {
          }
          // 'no-speech' | 'aborted' | 'network' → transitorios: los gestiona `onend`.
        };
-       rec.onend = () => {
+       rec.onend = (e: Event) => {
          // Este reconocimiento ya no escucha: suéltalo del registro del ÚNICO
          // reconocimiento vivo (si aún figuraba como tal).
          releaseRecognition(rec);
@@ -2400,9 +2414,9 @@ export function useAuroraEngine(): AuroraEngine {
                const nextGen = recGenRef.current;
                sttRestartTimerRef.current = setTimeout(() => {
                  sttRestartTimerRef.current = null;
-                 if (nextGen !== recGenRef.current) return; // obsoleto: no arranques
-                 if (!keepAliveRef.current) return;         // parada deliberada
-                 if (pausedForTtsRef.current || ttsGuardActive()) return; // medio-dúplex
+                 if (nextGen !== recGenRef.current) return;
+                 if (!keepAliveRef.current) return;
+                 if (pausedForTtsRef.current || ttsGuardActive()) return;
                  startRecognitionExclusive(next);
                }, delay);
                return;
@@ -2411,7 +2425,7 @@ export function useAuroraEngine(): AuroraEngine {
          }
          setListening(false);
        };
-       rec.onresult = (e: any) => {
+       rec.onresult = (e: Event) => {
          if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
          // ANTI-ECO GLOBAL: si Aurora está hablando (o en el cooldown posterior),
          // descarta lo captado — es su propia voz, no un comando del usuario. El
