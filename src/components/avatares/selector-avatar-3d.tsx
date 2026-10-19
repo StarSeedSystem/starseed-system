@@ -128,6 +128,29 @@ export default function SelectorAvatar3d({
     }
   };
 
+  const getFuenteParaRef = (ref: string) => {
+    if (ref.startsWith("biblioteca:") || ref.startsWith("genesis:")) {
+      return { tipo: "glb", url: ref };
+    } else if (ref === "vrm-persona") {
+      return { tipo: "glb", url: "vrm-persona" };
+    } else {
+      return { tipo: "procedural", svg: "orbe-gris" };
+    }
+  };
+
+  const fixedOpciones = [
+    { id: "orbe-gris", label: "Orbe gris", ref: getDefaultAdnRef() },
+    { id: "vrm-persona", label: "Persona VRM", ref: "vrm-persona" }
+  ];
+
+  const plantillaOpciones = PLANTILLAS_AVATAR.map(p => ({
+    id: p.id,
+    label: p.nombre,
+    ref: refDePlantilla(p.id),
+    tonoAura: p.tonoAura,
+    autor: p.autor
+  }));;
+
   return (
     <div className="space-y-4">
       {!previewOnly && (
