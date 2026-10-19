@@ -4045,6 +4045,75 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # Check if we should use A1 for TypeScript checking (TRA1012Bb)
+    uso_a1 = (
+        os.environ.get("STARSEED_MEDIO") == "mac"
+        and os.path.isfile(os.path.join(ROOT, "scripts", "puente", "comprobar_en_a1.py"))
+    )
+    if uso_a1:
+        try:
+            # Import the comprobar function dynamically to avoid circular imports
+            ruta_puente = os.path.join(ROOT, "scripts", "puente")
+            if ruta_puente not in sys.path:
+                sys.path.insert(0, ruta_puente)
+            from comprobar_en_a1 import comprobar
+            
+            # Extract task information from worktree
+            tid = os.path.basename(cwd)
+            
+            # Get base SHA (main of worktree)
+            rc_base, base_sha = sh(["git", "rev-parse", "main"], cwd=cwd, timeout=10)
+            base_sha = base_sha.strip() if rc_base == 0 else ""
+            
+            # Get SHAs of task commits (main..HEAD)
+            rc_shas, shas_output = sh(["git", "rev-list", "main..HEAD"], cwd=cwd, timeout=10)
+            shas = shas_output.strip().splitlines() if rc_shas == 0 else []
+            
+            # Get changed files (main...HEAD)
+            rc_cambiados, cambiados_output = sh(["git", "diff", "--name-only", "main...HEAD"], cwd=cwd, timeout=10)
+            cambiados = [c.strip() for c in cambiados_output.strip().splitlines() if c.strip()] if rc_cambiados == 0 else []
+            
+            # Ask A1 to perform the check
+            inicio_a1 = time.time()
+            ok, detalle, del_medio = comprobar(
+                base_sha, shas, cambiados, timeout=900, cwd=cwd
+            )
+            tiempo_a1 = time.time() - inicio_a1
+            
+            # Annotate where the check was done
+            medio_ejecucion = "A1" if not del_medio else "Mac"
+            evento(
+                "aviso",
+                tid,
+                f"puerta tsc realizada en {medio_ejecucion} ({tiempo_a1:.1f}s)"
+            )
+            
+            # If we got a definitive result from A1 (not a medium failure), use it
+            if not del_medio:  # A1 responded with green or red
+                if ok:
+                    return 0, []
+                else:
+                    # Extract error lines from detalle (assuming it's tsc output with possible prefix)
+                    lineas = detalle.splitlines()
+                    errores = []
+                    for linea in lineas:
+                        if "error TS" in linea:
+                            # Remove the prefix if it exists
+                            if linea.startswith("en el A1: tsc: "):
+                                linea = linea[len("en el A1: tsc: "):]
+                            errores.append(linea)
+                    return 1, errores
+            # If A1 had a medium failure (busy, no response), fall back to local tsc
+            # (continuar con el tsc local de abajo)
+        except Exception as e:
+            # If anything goes wrong with the A1 check, fall back to local tsc
+            evento(
+                "aviso",
+                os.path.basename(cwd) if 'cwd' in locals() else "unknown",
+                f"Error al comprobar en A1, usando tsc local: {str(e)[:100]}"
+            )
+    
+    # Local tsc execution (original logic or fallback from A1 medium failure)
     env = ENV_TSC
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
