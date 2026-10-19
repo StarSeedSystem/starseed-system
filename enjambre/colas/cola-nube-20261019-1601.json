@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "GCA1019U",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Ganchos firmados por ámbito",
+   "archivos": [
+    "src/lib/genesis/conectores/ganchos-ambito.ts",
+    "src/lib/genesis/conectores/__tests__/ganchos-ambito.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Amplía la idea de `src/lib/mando/gancho.ts` sin modificarlo: secreto propio por ámbito (guardado en la bóveda), firma `X-StarSeed-Firma: sha256=…` de entrada y de salida, ventana anti-repetición de 5 minutos con marca de tiempo, y destino en el ámbito (no en el disco de la Mac). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019J"
+   ]
+  }
+ ]
+}
