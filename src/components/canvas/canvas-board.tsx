@@ -137,6 +137,7 @@ import { BoardShareDialog, BoardShareTrigger } from "@/components/canvas/board-s
 import { useMySpaces, useMyInvites, acceptInvite, declineInvite, createSpace } from "@/lib/spaces/spaces";
 import { useSharedBoardSpace } from "@/lib/sync/shared-board-space";
 import { getBoardEngine, setBoardEngine, type BoardEngine } from "@/lib/canvas/board-engine";
+import { claveDeHerramienta, claveDeAtomo, claveDeMolecula, atributosClave } from "@/lib/variaciones/claves-protomolecula";
 
 // Motor "tldraw (profesional)" (Adenda tldraw): dynamic ssr:false porque el
 // SDK toca `window`/canvas al importarse — ver tldraw-board.tsx. El motor
@@ -2031,9 +2032,34 @@ function BlockCard({
 }) {
   const def = blockKindDef(block.kind);
   const locked = !!block.locked;
+  
+  // Calculate attributes for the block element
+  const blockAttributes: Record<string, string> = {};
+  
+  // For protomolecula blocks, use the atom ID to generate canonical key and set data-ss-elemento
+  if (block.kind === "protomolecula") {
+    const atomId = block.data?.atomoId as string | undefined;
+    if (atomId) {
+      const clave = claveDeAtomo(atomId);
+      if (clave) {
+        const atributos = atributosClave(clave);
+        if (atributos) {
+          Object.assign(blockAttributes, atributos);
+        }
+      }
+    }
+    // Fallback to block.id if no valid atom ID found
+    if (Object.keys(blockAttributes).length === 0) {
+      blockAttributes['data-block'] = block.id;
+    }
+  } else {
+    // For non-protomolecula blocks, use the original behavior
+    blockAttributes['data-block'] = block.id;
+  }
+  
   return (
     <div
-      data-block={block.id}
+      {...blockAttributes}
       onClick={connectMode ? onConnectClick : onSelect}
       className={cn(
         "absolute rounded-xl border bg-zinc-900/80 backdrop-blur shadow-lg flex flex-col overflow-hidden",

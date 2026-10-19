@@ -17,12 +17,12 @@ global.HTMLElement = dom.window.HTMLElement;
 
 describe('claves-protomolecula', () => {
   describe('claveDeHerramienta', () => {
-    it('should return null for invalid input', () => {
-      expect(claveDeHerramienta(null)).toBeNull();
-      expect(claveDeHerramienta(undefined)).toBeNull();
-      expect(claveDeHerramienta(123)).toBeNull();
-      expect(claveDeHerramienta('')).toBeNull();
-    });
+     it('should return null for invalid input', () => {
+       expect(claveDeHerramienta(null as any)).toBeNull();
+       expect(claveDeHerramienta(undefined as any)).toBeNull();
+       expect(claveDeHerramienta(123 as any)).toBeNull();
+       expect(claveDeHerramienta('')).toBeNull();
+     });
 
     it('should return null for invalid tool ID', () => {
       expect(claveDeHerramienta('invalid-tool-id')).toBeNull();
@@ -42,12 +42,12 @@ describe('claves-protomolecula', () => {
       registrarAtomo(SINTETIZADOR);
     });
 
-    it('should return null for invalid input', () => {
-      expect(claveDeAtomo(null)).toBeNull();
-      expect(claveDeAtomo(undefined)).toBeNull();
-      expect(claveDeAtomo(123)).toBeNull();
-      expect(claveDeAtomo('')).toBeNull();
-    });
+     it('should return null for invalid input', () => {
+       expect(claveDeAtomo(null as any)).toBeNull();
+       expect(claveDeAtomo(undefined as any)).toBeNull();
+       expect(claveDeAtomo(123 as any)).toBeNull();
+       expect(claveDeAtomo('')).toBeNull();
+     });
 
     it('should return null for invalid atom ID', () => {
       expect(claveDeAtomo('invalid-atom-id')).toBeNull();
@@ -61,12 +61,12 @@ describe('claves-protomolecula', () => {
   });
 
   describe('claveDeMolecula', () => {
-    it('should return null for invalid input', () => {
-      expect(claveDeMolecula(null)).toBeNull();
-      expect(claveDeMolecula(undefined)).toBeNull();
-      expect(claveDeMolecula(123)).toBeNull();
-      expect(claveDeMolecula('')).toBeNull();
-    });
+     it('should return null for invalid input', () => {
+       expect(claveDeMolecula(null as any)).toBeNull();
+       expect(claveDeMolecula(undefined as any)).toBeNull();
+       expect(claveDeMolecula(123 as any)).toBeNull();
+       expect(claveDeMolecula('')).toBeNull();
+     });
 
     it('should return null for invalid molecule ID (does not match pattern)', () => {
       expect(claveDeMolecula('InvalidID')).toBeNull(); // starts with uppercase
@@ -85,12 +85,12 @@ describe('claves-protomolecula', () => {
   });
 
   describe('atributosClave', () => {
-    it('should return null for invalid input', () => {
-      expect(atributosClave(null)).toBeNull();
-      expect(atributosClave(undefined)).toBeNull();
-      expect(atributosClave(123)).toBeNull();
-      expect(atributosClave('')).toBeNull();
-    });
+     it('should return null for invalid input', () => {
+       expect(atributosClave(null as any)).toBeNull();
+       expect(atributosClave(undefined as any)).toBeNull();
+       expect(atributosClave(123 as any)).toBeNull();
+       expect(atributosClave('')).toBeNull();
+     });
 
     it('should return null for invalid clave format', () => {
       expect(atributosClave('invalidclave')).toBeNull(); // missing :
