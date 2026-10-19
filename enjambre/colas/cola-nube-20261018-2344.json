@@ -1,0 +1,83 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "VST1018Db",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Voz · cliente de VoiceStudio (API compatible con OpenAI, descubrimiento y voz en flujo por frases)",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/voicestudio.ts",
+    "src/lib/aurora/voz-starseed/__tests__/voicestudio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Cliente con `fetch` y `WebSocket` INYECTABLES: `descubrir(base)` hace GET `/.well-known/voicestudio-speech` (tiempo máx. 800 ms) y devuelve { vivo, version?, ofrece: string[] } o { vivo:false, motivo }; `voces(base)` → GET `/v1/audio/voices`; `hablar(base, { texto, voz, formato })` → POST `/v1/audio/speech` y devuelve los bytes; `transcribir(base, audio, idioma)` → POST `/v1/audio/transcriptions`. Base por defecto `http://127.0.0.1:3900`; si la base no es de la propia máquina exige una clave pasada por parámetro (nunca leída de un archivo aquí). Errores con motivo legible, nunca lanza al llamador sin envolver. Pruebas con fetch falso. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39180545789`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39180545789:refs/remotes/origin/nube/39180545789\"` y `git cherry-pick --no-commit c8eaa5f9b5fd 153d4cd3874b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/__tests__/laya-servidor.test.ts, src/lib/aurora/voz-starseed/__tests__/voicestudio.test.ts, src/lib/aurora/voz-starseed/voicestudio.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39180545789"
+  },
+  {
+   "id": "DSN1019H",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Elemento 3D animado: Cristal3D",
+   "archivos": [
+    "src/components/movimiento/cristal-3d.tsx",
+    "src/components/movimiento/__tests__/cristal-3d.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente con three (ya en el OS) que porta `memory/diseno/estudio-audiovisual/examples/cristal-3d.html`: retícula instanciada que se cristaliza alrededor de un octaedro de cristal que respira, luz de tres puntos con la contra del color del registro, sujeto centrado (`lookAt` al origen), menos nodos en teléfono, quieto con movimiento reducido, se pausa fuera de pantalla y libera la GPU al desmontar. Prueba con WebGL simulado. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "ADN1019A",
+   "ola": "Ola 1019A · ADN de diseño: comprobador de verdad (las 8 pruebas medidas, no aprobadas a ciegas)",
+   "titulo": "Comprobador común del ADN: medir las pruebas p1–p8 con las métricas reales",
+   "archivos": [
+    "scripts/puente/adn_comprobar.py",
+    "scripts/puente/test_adn_comprobar.py"
+   ],
+   "depende": [],
+   "prompt": "Busca quién llama `ejecutar_pruebas` de `scripts/puente/diseno_adn.py` y con qué claves de métricas, y usa esas claves. `evaluar(dna, metricas)` → lista de (id, «aprobado»|«suspenso»|«manual», motivo) para cada prueba de `dna[\"pruebas\"]`: acento 20–30 %, máximo 3 tamaños, titular/cuerpo ≥ 6, texto ≥ 28 px, cuerpo ≤ 65 caracteres, jugada rara 1 vez, contraste ≥ 4.5:1 (calcula WCAG si llegan pares de colores), dianas ≥ 44 px; los umbrales se leen del texto de cada prueba. `main()` lee la carpeta del ADN y las métricas por stdin y escribe «pN: veredicto» por línea, con salida 1 si hay suspenso. Pruebas con métricas que pasan, que fallan y que faltan. Contexto: los seis `memory/diseno/adn/*/check.py` imprimen «aprobado» en todas las pruebas sin medir nada (lo vio Claude el 2026-10-19). Referencia de cómo medir: `memory/diseno/estudio-audiovisual/scripts/comprobar_adn.py`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; Python sin dependencias nuevas; una prueba que no se puede medir con las métricas recibidas sale como «pN: manual (motivo)», nunca «aprobado»; comentarios en español con acentos."
+  },
+  {
+   "id": "DGM1018C",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · aislar y validar el HTML generado antes de mostrarlo",
+   "archivos": [
+    "src/lib/diagramas/aislar-diagrama.ts",
+    "src/lib/diagramas/__tests__/aislar-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `prepararDiagrama(html, { permitirAnimacion })` → { ok, srcdoc, sandbox, motivos }: exige un solo documento con `<svg>`; quita `<link>`/`@import`/`url(http…)` remotos y cualquier `<iframe>`, `<object>`, `<embed>`, `<form>`, `on*=` y `javascript:`; inserta `<meta http-equiv=\"Content-Security-Policy\">` con default-src 'none', style-src 'unsafe-inline', img-src data:, font-src data: y script-src 'unsafe-inline' SOLO si permitirAnimacion; sandbox = \"allow-scripts\" con animación y \"\" sin ella (nunca allow-same-origin); límite 2 MB. Pruebas con HTML malicioso y con una plantilla de vendor/habilidades/diagram-design/assets. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DGM1018E",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · perfil de marca desde los tokens de tema del perfil, página o grupo (y su fondo)",
+   "archivos": [
+    "src/lib/diagramas/perfil-marca.ts",
+    "src/lib/diagramas/__tests__/perfil-marca.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `perfilDesdeTema(tokens: ThemeTokens, modo, paletaFondo?)` → los tokens que pide la guía de estilo de la skill (vendor/habilidades/diagram-design/references/style-guide.md: papel, tinta, acento, tipografías, trazos) con contraste AA comprobado; `bloquePerfil(perfil)` lo escribe en el formato de cabecera de perfil activo que describe references/profiles.md. Pruebas con un tema claro, uno oscuro y uno con fondo de Shaders. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DGM1018M",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · importar draw.io, Excalidraw y Mermaid a una especificación común",
+   "archivos": [
+    "src/lib/diagramas/importar.ts",
+    "src/lib/diagramas/__tests__/importar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO, siguiendo la idea de los scripts MIT de la skill (drawio_extract.py, excalidraw_extract.py, mermaid_extract.py, acreditados): `desdeDrawio(xml)`, `desdeExcalidraw(json)` y `desdeMermaid(texto)` (flowchart y sequence básicos) → { nodos, aristas, grupos, textos } que se pasa a `diagrama.crear` para redibujarlo con la marca. Entradas de más de 2 MB o con entidades XML externas → rechazo. Pruebas con un ejemplo de cada formato. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "VST1018Db",
+   "DGM1018C",
+   "DGM1018E",
+   "ADN1019A",
+   "DGM1018M",
+   "DSN1019H"
+  ]
+ }
+}
