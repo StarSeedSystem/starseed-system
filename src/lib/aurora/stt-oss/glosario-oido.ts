@@ -103,13 +103,10 @@ export function corregirConGlosario(
       const dosPalabras = palabra1 + " " + palabra2;
       const dosPalabrasNormalizadas = normalizar(dosPalabras);
       
-      // Verificar si las palabras son comunes (evitar falsos positivos)
-      const palabrasNorm = [normalizar(palabra1), normalizar(palabra2)];
-      const algunaComun = palabrasNorm.some(p => 
-        PALABRAS_COMUNES[idioma]?.includes(p)
-      );
+      // Solo corregir si hay alguna mayúscula (indica nombre propio)
+      const tieneMayuscula = /[A-ZÁÉÍÓÚÜÑ]/.test(dosPalabras);
       
-      if (!algunaComun) {
+      if (tieneMayuscula) {
         for (const candidato of glosario) {
           const candidatoNormalizado = normalizar(candidato);
           
@@ -121,7 +118,7 @@ export function corregirConGlosario(
           const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
           
           // Buscar la mejor coincidencia
-          if (distanciaNormalizada <= 0.34 && distanciaNormalizada < mejorDistancia) {
+          if (distanciaNormalizada <= 0.50 && distanciaNormalizada < mejorDistancia) {
             mejorDistancia = distanciaNormalizada;
             sugerencia = candidato;
           }
@@ -141,10 +138,11 @@ export function corregirConGlosario(
       const unaPalabra = palabras[i];
       const unaPalabraNormalizada = normalizar(unaPalabra);
       
-      // Verificar si la palabra es común (para evitar falsos positivos)
+      // Solo corregir si hay alguna mayúscula o la palabra no es común
+      const tieneMayuscula = /[A-ZÁÉÍÓÚÜÑ]/.test(unaPalabra);
       const esPalabraComun = PALABRAS_COMUNES[idioma]?.includes(unaPalabraNormalizada) || false;
       
-      if (!esPalabraComun) {
+      if (tieneMayuscula || !esPalabraComun) {
         mejorDistancia = Infinity;
         
         for (const candidato of glosario) {
@@ -158,7 +156,7 @@ export function corregirConGlosario(
           const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
           
           // Buscar la mejor coincidencia
-          if (distanciaNormalizada <= 0.34 && distanciaNormalizada < mejorDistancia) {
+          if (distanciaNormalizada <= 0.50 && distanciaNormalizada < mejorDistancia) {
             mejorDistancia = distanciaNormalizada;
             sugerencia = candidato;
           }
