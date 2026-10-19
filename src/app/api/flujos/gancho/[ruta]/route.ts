@@ -20,6 +20,7 @@ import {
     sanitizarRuta,
     verificarFirma,
 } from "@/lib/mando/gancho";
+import { validarTimestamp, CABECERA_TIMESTAMP } from "@/lib/genesis/conectores/ganchos-ambito";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +38,12 @@ export async function POST(req: Request, contexto: Contexto) {
     const firma = req.headers.get(CABECERA_FIRMA);
     if (!verificarFirma(cuerpo, firma, process.env.PRODUCCION_WEBHOOK_SECRETO)) {
         return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const timestampHeader = req.headers.get(CABECERA_TIMESTAMP);
+    const tsValido = validarTimestamp(timestampHeader);
+    if (tsValido === null) {
+        return new NextResponse("Invalid timestamp", { status: 401 });
     }
 
     let datos: unknown = cuerpo;

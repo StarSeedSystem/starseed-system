@@ -20,6 +20,7 @@ import hmac
 import json
 import os
 import sys
+import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -27,6 +28,7 @@ from datetime import datetime, timezone
 TIMEOUT_S = 5
 REINTENTOS = 2  # un intento + un reintento
 CABECERA_FIRMA = "X-StarSeed-Firma"
+CABECERA_TIMESTAMP = "X-StarSeed-Timestamp"
 EVENTOS_VALIDOS = {
     "produccion.publicada",
     "produccion.revertida",
@@ -114,12 +116,14 @@ def _enviar_uno(url, cuerpo, secreto, http):
     resultado = {"host": _host(url), "enviado": False, "estado": None, "error": None}
     if http is None:
         http = urllib.request
+    timestamp_ms = str(int(time.time() * 1000))
     req = urllib.request.Request(
         url,
         data=cuerpo,
         headers={
             "Content-Type": "application/json",
             CABECERA_FIRMA: "sha256=%s" % firmar(cuerpo, secreto),
+            CABECERA_TIMESTAMP: timestamp_ms,
         },
         method="POST",
     )
