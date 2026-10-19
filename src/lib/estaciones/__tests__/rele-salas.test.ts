@@ -1,9 +1,12 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { describe, it, expect } from 'vitest';
 import { crearSalas } from '../../../../servicios/estaciones-rele/salas.mjs';
 
 describe('crearSalas', () => {
 =======
+=======
+>>>>>>> ef1b4531 (salvavidas · RTRTRTS1010-EV-ORACLE-1abbbbbb-d1b: trabajo del agente antes de las puertas (tsc / vitest))
 import { describe, expect, it } from "vitest";
 
 function crearSalas(config: { maxSalas: number; maxPorSala: number; maxBytes: number }) {
@@ -29,6 +32,9 @@ function crearSalas(config: { maxSalas: number; maxPorSala: number; maxBytes: nu
 }
 
 describe("salas: entrada válida", () => {
+<<<<<<< HEAD
+>>>>>>> ef1b4531 (salvavidas · RTRTRTS1010-EV-ORACLE-1abbbbbb-d1b: trabajo del agente antes de las puertas (tsc / vitest))
+=======
 >>>>>>> ef1b4531 (salvavidas · RTRTRTS1010-EV-ORACLE-1abbbbbb-d1b: trabajo del agente antes de las puertas (tsc / vitest))
   it('debería permitir entrar con tema válido y dentro de límites', () => {
     const salas = crearSalas({ maxSalas: 2, maxPorSala: 2, maxBytes: 100 });
@@ -39,6 +45,7 @@ describe("salas: entrada válida", () => {
     expect(salas.presencia(tema)).toBe(1);
     expect(salas.temaDe(conexion)).toBe(tema);
   });
+<<<<<<< HEAD
 <<<<<<< HEAD
 
   it('debería rechazar tema inválido', () => {
@@ -214,6 +221,8 @@ describe("salas: entrada válida", () => {
     salas.salir(conexion);
     expect(salas.temaDe(conexion)).toBeUndefined();
   });
+=======
+>>>>>>> ef1b4531 (salvavidas · RTRTRTS1010-EV-ORACLE-1abbbbbb-d1b: trabajo del agente antes de las puertas (tsc / vitest))
 =======
 >>>>>>> ef1b4531 (salvavidas · RTRTRTS1010-EV-ORACLE-1abbbbbb-d1b: trabajo del agente antes de las puertas (tsc / vitest))
 });
