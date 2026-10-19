@@ -1925,194 +1925,559 @@ export function useAuroraEngine(): AuroraEngine {
   //
   // `keepAliveRef` distingue una parada deliberada (stop) de un fin natural de
   // sesión (que reanudamos).
-  const buildRecognition = useCallback(() => {
-    if (typeof window === "undefined") return null;
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return null;
-    const rec = new SR();
-    // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
-    // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
-    const gen = ++recGenRef.current;
-    // Móvil (Android/iOS): `continuous` NO es fiable → ciclo corto + reinicio.
-    const isMobile = isMobileDevice();
-    /** Un reconocimiento que vivió ≥ esto SÍ estuvo escuchando de verdad. */
-    const HEALTHY_RUN_MS = 900;
-    /** Arranques rotos seguidos tolerados antes de rendirse (y AVISAR). */
-    const MAX_BROKEN_RESTARTS = 8;
-    // Salud de ESTE reconocimiento (local: nada que se contamine entre ciclos).
-    let startedAt = 0;
-    let sawResult = false;
-    let lastErr = "";
-
-    rec.lang = activeRef.current.voice?.lang || "es-MX";
-    rec.interimResults = true;
-    // Móvil: NO continuo (Android termina tras cada frase; lo reiniciamos aquí).
-    rec.continuous = !isMobile;
-    rec.maxAlternatives = 1;
-    rec.onstart = () => {
-      if (gen !== recGenRef.current) { try { rec.abort?.(); } catch { /* */ } return; }
-      startedAt = Date.now();
-      setListening(true); setInterim("");
-    };
-    rec.onerror = (e: any) => {
-      if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
-      const err = String(e?.error || "");
-      lastErr = err;
-      // FATALES: no se reintentan a ciegas. Los exponemos para que la UI pida el
-      // permiso de micrófono (gesto del usuario) o avise de que el mic está
-      // ocupado. Antes 'not-allowed' caía en el auto-reinicio → bucle invisible.
-      if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
-        keepAliveRef.current = false;
-        sttRestartsRef.current = 0;
-        setSttFatal(err as SttFatal);
-        setListening(false);
-        return;
-      }
-      // 'no-speech' | 'aborted' | 'network' → transitorios: los gestiona `onend`.
-    };
-    rec.onend = () => {
-      // Este reconocimiento ya no escucha: suéltalo del registro del ÚNICO
-      // reconocimiento vivo (si aún figuraba como tal).
-      releaseRecognition(rec);
-      // OBSOLETO: si ya no es la generación vigente, no hace NADA (otro
-      // reconocimiento más reciente manda) → no hay reinicios en paralelo.
-      if (gen !== recGenRef.current) return;
-      setInterim("");
-      if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
-      // MEDIO-DÚPLEX: si el reconocimiento se detuvo porque Aurora va a hablar /
-      // está hablando, NO reiniciamos aquí. Lo reanudará `finishTts` cuando
-      // termine el habla (evita que el micro capte su propia voz).
-      if (pausedForTtsRef.current || ttsGuardActive()) {
-        setListening(false);
-        return;
-      }
-      // Fallo fatal (permiso/micro): ya lo trató `onerror`. No reintentamos.
-      if (lastErr === "not-allowed" || lastErr === "service-not-allowed" || lastErr === "audio-capture") {
-        setListening(false);
-        return;
-      }
-      // Reinicio automático si Aurora debe seguir escuchando (2º plano / sesión).
-      if (keepAliveRef.current && typeof window !== "undefined") {
-        // ── CONTABILIDAD DE SALUD (la clave del bug de Android) ──
-        // SANO = oyó algo, o estuvo escuchando de verdad (≥ HEALTHY_RUN_MS), o
-        // terminó por silencio / abort limpio. En Android esto es lo NORMAL:
-        // jamás debe penalizar ni apagar el micrófono.
-        const ranMs = startedAt ? Date.now() - startedAt : 0;
-        const healthy =
-          sawResult ||
-          ranMs >= HEALTHY_RUN_MS ||
-          lastErr === "no-speech" ||
-          lastErr === "aborted" ||
-          lastErr === "";
-        if (healthy) sttRestartsRef.current = 0;
-        else sttRestartsRef.current += 1; // murió al nacer: firma del bucle real
-
-        if (sttRestartsRef.current > MAX_BROKEN_RESTARTS) {
-          // Nos rendimos, pero NUNCA en silencio: el supervisor lo convierte en
-          // "voz no disponible · toca para reintentar".
-          keepAliveRef.current = false;
-          sttRestartsRef.current = 0;
-          setSttFatal("failed");
-          setListening(false);
-          return;
-        }
-
-        // Reinicio RÁPIDO cuando el ciclo fue sano (Android necesita reengancharse
-        // enseguida o se pierde el principio de la frase siguiente). Con ciclos
-        // rotos, backoff progresivo para no martillar el micrófono.
-        const delay = sttRestartsRef.current === 0
-          ? (isMobile ? 320 : 260)
-          : Math.min((isMobile ? 700 : 500) + sttRestartsRef.current * 300, 2500);
-        try {
-          const next = buildRecognition();
-          if (next) {
-            recognitionRef.current = next;
-            // Generación de ESTE reinicio programado. Si antes de que venza el
-            // temporizador alguien arranca otro reconocimiento (toque en el
-            // orbe, micro del chat, wake-word…), la generación avanza y este
-            // arranque queda CANCELADO: si no, se sumaba un SEGUNDO
-            // reconocimiento vivo que peleaba por el micrófono con el nuevo (se
-            // abortaban mutuamente → «no escucha» + reinicios en bucle).
-            const nextGen = recGenRef.current;
-            sttRestartTimerRef.current = setTimeout(() => {
-              sttRestartTimerRef.current = null;
-              if (nextGen !== recGenRef.current) return; // obsoleto: no arranques
-              if (!keepAliveRef.current) return;         // parada deliberada
-              if (pausedForTtsRef.current || ttsGuardActive()) return; // medio-dúplex
-              startRecognitionExclusive(next);
-            }, delay);
-            return;
-          }
-        } catch { /* */ }
-      }
-      setListening(false);
-    };
-    rec.onresult = (e: any) => {
-      if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
-      // ANTI-ECO GLOBAL: si Aurora está hablando (o en el cooldown posterior),
-      // descarta lo captado — es su propia voz, no un comando del usuario. El
-      // canal del micrófono sigue abierto; solo se ignora el texto propio.
-      if (ttsGuardActive()) {
-        return;
-      }
-      let finalText = "";
-      let interimText = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) finalText += r[0].transcript;
-        else interimText += r[0].transcript;
-      }
-      // Cualquier resultado (incluso interino) prueba que el micro SÍ funciona:
-      // este ciclo es SANO y se resetea el backoff anti-loop.
-      sawResult = true;
-      sttRestartsRef.current = 0;
-
-      // ── MODO PASIVO (fondo): NO procesamos nada como comando ni mostramos el
-      //    interim; solo esperamos oír "aurora". Al oírla, ACTIVAMOS (engaged) y,
-      //    si la frase trae algo más ("aurora, abre el café"), lo ejecutamos. ──
-      if (!engagedRef.current) {
-        const heard = finalText || interimText;
-        if (containsWake(heard)) {
-          engageNowRef.current(); // enciende modo activo (+ halo)
-          if (finalText) {
-            const rest = stripWake(finalText);
-            if (rest && rest.trim().length > 1) {
-              setInterim("");
-              void runCommandRef.current(rest);
-            }
-          }
-        }
-        return; // en pasivo, ignora todo lo demás (silencioso)
-      }
-
-      // ── MODO ACTIVO (engaged): conversación normal ──
-      touchEngagedRef.current(); // reinicia el temporizador de inactividad
-      if (interimText) setInterim(interimText);
-      if (finalText) {
-        setInterim("");
-        // ANTI-ECO TARDÍO (2026-09-27): la cola de su propia voz puede llegar
-        // después de la ventana del guard (altavoz de tablet, Bluetooth). Si lo
-        // captado repite lo que ella acaba de decir, se descarta sin responder.
-        if (esEcoPropio(finalText, Date.now())) return;
-        turnoVozPendiente = {
-          origen: "voz",
-          msDesdeQueCalló: ultimoFinHablaGlobal ? Date.now() - ultimoFinHablaGlobal : null,
-        };
-        // Corrección fonética de términos StarSeed (voz): "astral aura" →
-        // "Astraura", "exo corte" → "Exocórtex"… antes de rutear/enviar.
-        let corrected = finalText;
-        try { corrected = normalizeStarseedTerms(finalText); } catch { corrected = finalText; }
-        // MEDIO-DÚPLEX EXPLÍCITO (fix 2026-07-23): al capturar la frase final,
-        // DESHABILITAMOS la escucha DE INMEDIATO para procesar la respuesta de
-        // Aurora sin que el micro capte ruido ni se reinicie la escucha a mitad
-        // de su respuesta. Se reactiva sola al terminar el habla (finishTts) o
-        // si el usuario vuelve a pulsar hablar / interrumpe con un nuevo mensaje.
-        try { rec.stop(); } catch { /* */ }
-        void runCommandRef.current(corrected);
-      }
-    };
-    return rec;
-  }, []);
+   const buildRecognition = useCallback(() => {
+     if (typeof window === "undefined") return null;
+ 
+     // Elección del motor de oído (contrato voz-fusionada-astraura.md §3)
+     const eleccionOido = elegirOido({
+       idioma: (activeRef.current.voice?.lang || "es").split("-")[0],
+       disponibles: MOTORES_OIDO.map((m) => m.id),
+       fase: "parcial",
+       medidas: {},
+     });
+ 
+     // Determinar si usamos Phonon-2 (flujo) o el reconocimiento de respaldo
+     const usarPhonon = eleccionOido.motor === 'phonon-2';
+ 
+     if (usarPhonon) {
+       // ---------- RECONOCIMIENTO PHONON-2 ----------
+       // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
+       // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
+       const gen = ++recGenRef.current;
+       // Móvil (Android/iOS): `continuous` NO es fiable → ciclo corto + reinicio.
+       const isMobile = isMobileDevice();
+       /** Un reconocimiento que vivió ≥ esto SÍ estuvo escuchando de verdad. */
+       const HEALTHY_RUN_MS = 900;
+       /** Arranques rotos seguidos tolerados antes de rendirse (y AVISAR). */
+       const MAX_BROKEN_RESTARTS = 8;
+       // Salud de ESTE reconocimiento (local: nada que se contamine entre ciclos).
+       let startedAt = 0;
+       let sawResult = false;
+       let lastErr = "";
+ 
+       // Estado del flujo de audio
+       let audioContext: AudioContext | null = null;
+       let scriptProcessor: ScriptProcessorNode | null = null;
+       let mediaStream: MediaStream | null = null;
+       let flujo: OidoFlujo | null = null;
+       let stopped = false;
+ 
+       // Texto acumulado (simulando resultados de SpeechRecognition)
+       let interimText = "";
+       let finalText = "";
+ 
+       // Función para procesar resultados (idéntica a la lógica de onresult)
+       const procesarResultado = (nuevoInterim: string, nuevoFinal: string) => {
+         if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
+         // ANTI-ECO GLOBAL: si Aurora está hablando (o en el cooldown posterior),
+         // descarta lo captado — es su propia voz, no un comando del usuario. El
+         // canal del micrófono sigue abierto; solo se ignora el texto propio.
+         if (ttsGuardActive()) {
+           return;
+         }
+         // Actualizar textos locales
+         interimText = nuevoInterim;
+         finalText = nuevoFinal;
+ 
+         // Cualquier resultado (incluso interino) prueba que el micro SÍ funciona:
+         // este ciclo es SANO y se resetea el backoff anti-loop.
+         sawResult = true;
+         sttRestartsRef.current = 0;
+ 
+         // ── MODO PASIVO (fondo): NO procesamos nada como comando ni mostramos el
+         //    interim; solo esperamos oír "aurora". Al oírla, ACTIVAMOS (engaged) y,
+         //    si la frase trae algo más ("aurora, abre el café"), lo ejecutamos. ──
+         if (!engagedRef.current) {
+           const heard = finalText || interimText;
+           if (containsWake(heard)) {
+             engageNowRef.current(); // enciende modo activo (+ halo)
+             if (finalText) {
+               const rest = stripWake(finalText);
+               if (rest && rest.trim().length > 1) {
+                 setInterim("");
+                 void runCommandRef.current(rest);
+               }
+             }
+           }
+           return; // en pasivo, ignora todo lo demás (silencioso)
+         }
+ 
+         // ── MODO ACTIVO (engaged): conversación normal ──
+         touchEngagedRef.current(); // reinicia el temporizador de inactividad
+         if (interimText) setInterim(interimText);
+         if (finalText) {
+           setInterim("");
+           // ANTI-ECO TARDÍO (2026-09-27): la cola de su propia voz puede llegar
+           // después de la ventana del guard (altavoz de tablet, Bluetooth). Si lo
+           // captado repite lo que ella acaba de decir, se descarta sin responder.
+           if (esEcoPropio(finalText, Date.now())) return;
+           turnoVozPendiente = {
+             origen: "voz",
+             msDesdeQueCalló: ultimoFinHablaGlobal ? Date.now() - ultimoFinHablaGlobal : null,
+           };
+           // Corrección fonética de términos StarSeed (voz): "astral aura" →
+           // "Astraura", "exo corte" → "Exocórtex"… antes de rutear/enviar.
+           let corrected = finalText;
+           try { corrected = normalizeStarseedTerms(finalText); } catch { corrected = finalText; }
+           // MEDIO-DÚPLEX EXPLÍCITO (fix 2026-07-23): al capturar la frase final,
+           // DESHABILITAMOS la escucha DE INMEDIATO para procesar la respuesta de
+           // Aurora sin que el micro capte ruido ni se reinicie la escucha a mitad
+           // de su respuesta. Se reactiva sola al terminar el habla (finishTts) o
+           // si el usuario vuelve a pulsar hablar / interrumpe con un nuevo mensaje.
+           // Nota: no hay rec.stop() aquí porque el flujo se detiene con terminar()
+           void runCommandRef.current(corrected);
+         }
+       };
+ 
+       // Construir el objeto de reconocimiento que imita a SpeechRecognition
+       const rec: any = {
+         lang: activeRef.current.voice?.lang || "es-MX",
+         interimResults: true,
+         // Móvil: NO continuo (Android termina tras cada frase; lo reiniciamos aquí).
+         continuous: !isMobile,
+         maxAlternatives: 1,
+         onstart: null as any,
+         onerror: null as any,
+         onend: null as any,
+         onresult: null as any,
+         start: () => {
+           if (stopped) return;
+           // Generación de ESTE reconocimiento. Si antes de que venza el
+           // temporizador alguien arranca otro reconocimiento, la generación avanza y este
+           // arranque queda CANCELADO.
+           if (gen !== recGenRef.current) { try { rec.abort?.(); } catch { /* */ } return; }
+           startedAt = Date.now();
+           setListening(true);
+           setInterim("");
+ 
+           // Solicitar micrófono
+           navigator.mediaDevices.getUserMedia({
+             audio: {
+               echoCancellation: true,
+               noiseSuppression: true,
+               autoGainControl: true,
+             },
+           })
+             .then((stream) => {
+               mediaStream = stream;
+               // Crear AudioContext para obtener muestras PCM
+               const Ctx =
+                 (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
+                   .AudioContext ||
+                 (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+               if (!Ctx) {
+                 throw new Error("AudioContext no disponible");
+               }
+               audioContext = new Ctx();
+               const source = audioContext.createMediaStreamSource(stream);
+               // ScriptProcessor para obtener buffers de audio (float32 mono)
+               const BUFFER = 4096;
+               scriptProcessor = audioContext.createScriptProcessor
+                 ? audioContext.createScriptProcessor(BUFFER, 1, 1)
+                 : null;
+               if (!scriptProcessor) {
+                 throw new Error("ScriptProcessor no disponible");
+               }
+ 
+               // Conectar nodos
+               source.connect(scriptProcessor);
+               const sink = audioContext.createGain();
+               sink.gain.value = 0;
+               scriptProcessor.connect(sink);
+               sink.connect(audioContext.destination);
+ 
+               // Abrir flujo WebSocket hacia Phonon-2
+               const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/v1/audio/stream`;
+               flujo = abrirFlujoOido({
+                 url,
+                 WebSocketImpl: WebSocket,
+                 alParcial: (texto) => {
+                   // Llamar al procesador de resultados con texto parcial
+                   procesarResultado(texto, "");
+                 },
+                 alFinal: (texto) => {
+                   // Llamar al procesador de resultados con texto final
+                   procesarResultado("", texto);
+                 },
+                 alCerrar: () => {
+                   // El flujo se cerró externamente
+                   if (!stopped) {
+                     // Simular fin de reconocimiento
+                     if (gen === recGenRef.current) {
+                       procesarResultado("", ""); // vacío indica fin
+                     }
+                     // Intentar reinicio automático (igual que en onend)
+                     // (Se manejará en la lógica de stop/terminar)
+                   }
+                 },
+               });
+ 
+               // Procesar audio entrante
+               scriptProcessor.onaudioprocess = (ev: AudioProcessingEvent) => {
+                 if (stopped) return;
+                 let input: Float32Array;
+                 try {
+                   input = ev.inputBuffer.getChannelData(0);
+                 } catch {
+                   return;
+                 }
+                 // Convertir Float32 a PCM16 y enviarlo
+                 const pcm16 = prepararAudio(input, audioContext.sampleRate);
+                 if (flujo) {
+                   flujo.enviar(pcm16);
+                 }
+               };
+             })
+             .catch((err) => {
+               // Error de micrófono
+               console.error("Error accessing microphone", err);
+               lastErr = err.name || "unknown";
+               if (
+                 lastErr === "not-allowed" ||
+                 lastErr === "service-not-allowed" ||
+                 lastErr === "audio-capture"
+               ) {
+                 keepAliveRef.current = false;
+                 sttRestartsRef.current = 0;
+                 setSttFatal(lastErr as SttFatal);
+                 setListening(false);
+               } else {
+                 // Otros errores: tratarlos como transitorios
+                 setListening(false);
+               }
+             });
+         },
+         stop: () => {
+           if (stopped) return;
+           stopped = true;
+           // Detener flujo
+           if (flujo) {
+             flujo.terminar();
+             flujo = null;
+           }
+           // Detener audio
+           try {
+             scriptProcessor?.disconnect();
+             audioContext?.close();
+           } catch { /* */ }
+           try {
+             mediaStream?.getTracks().forEach((t) => t.stop());
+           } catch { /* */ }
+           scriptProcessor = null;
+           audioContext = null;
+           mediaStream = null;
+           // Liberar reconocimiento vivo
+           releaseRecognition(rec);
+           // Si no fue una parada deliberada, intentar reinicio
+           if (keepAliveRef.current && typeof window !== "undefined") {
+             // Lógica de salud idéntica a la de Web Speech
+             const ranMs = startedAt ? Date.now() - startedAt : 0;
+             const healthy =
+               sawResult ||
+               ranMs >= HEALTHY_RUN_MS ||
+               lastErr === "no-speech" ||
+               lastErr === "aborted" ||
+               lastErr === "";
+             if (healthy) sttRestartsRef.current = 0;
+             else sttRestartsRef.current += 1;
+ 
+             if (sttRestartsRef.current > MAX_BROKEN_RESTARTS) {
+               keepAliveRef.current = false;
+               sttRestartsRef.current = 0;
+               setSttFatal("failed");
+               setListening(false);
+               return;
+             }
+ 
+             const delay = sttRestartsRef.current === 0
+               ? (isMobile ? 320 : 260)
+               : Math.min((isMobile ? 700 : 500) + sttRestartsRef.current * 300, 2500);
+             try {
+               const next = buildRecognition();
+               if (next) {
+                 recognitionRef.current = next;
+                 const nextGen = recGenRef.current;
+                 sttRestartTimerRef.current = setTimeout(() => {
+                   sttRestartTimerRef.current = null;
+                   if (nextGen !== recGenRef.current) return;
+                   if (!keepAliveRef.current) return;
+                   if (pausedForTtsRef.current || ttsGuardActive()) return;
+                   startRecognitionExclusive(next);
+                 }, delay);
+                 return;
+               }
+             } catch { /* */ }
+           }
+           setListening(false);
+         },
+         // Método abort para compatibilidad (llama a stop)
+         abort: () => {
+           rec.stop();
+         },
+       };
+ 
+       // Asignar manejadores (aunque no los usamos directamente, los mantenemos por compatibilidad)
+       rec.onstart = () => {
+         // Ya se maneja en start()
+       };
+       rec.onerror = (e: any) => {
+         if (gen !== recGenRef.current) return;
+         const err = String(e?.error || "");
+         lastErr = err;
+         if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
+           keepAliveRef.current = false;
+           sttRestartsRef.current = 0;
+           setSttFatal(err as SttFatal);
+           setListening(false);
+         }
+       };
+       rec.onend = () => {
+         if (gen !== recGenRef.current) return;
+         setInterim("");
+         if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
+         if (pausedForTtsRef.current || ttsGuardActive()) {
+           setListening(false);
+           return;
+         }
+         if (lastErr === "not-allowed" || lastErr === "service-not-allowed" || lastErr === "audio-capture") {
+           setListening(false);
+           return;
+         }
+         // Reinicio automático (igual que en stop)
+         if (keepAliveRef.current && typeof window !== "undefined") {
+           const ranMs = startedAt ? Date.now() - startedAt : 0;
+           const healthy =
+             sawResult ||
+             ranMs >= HEALTHY_RUN_MS ||
+             lastErr === "no-speech" ||
+             lastErr === "aborted" ||
+             lastErr === "";
+           if (healthy) sttRestartsRef.current = 0;
+           else sttRestartsRef.current += 1;
+ 
+           if (sttRestartsRef.current > MAX_BROKEN_RESTARTS) {
+             keepAliveRef.current = false;
+             sttRestartsRef.current = 0;
+             setSttFatal("failed");
+             setListening(false);
+             return;
+           }
+ 
+           const delay = sttRestartsRef.current === 0
+             ? (isMobile ? 320 : 260)
+             : Math.min((isMobile ? 700 : 500) + sttRestartsRef.current * 300, 2500);
+           try {
+             const next = buildRecognition();
+             if (next) {
+               recognitionRef.current = next;
+               const nextGen = recGenRef.current;
+               sttRestartTimerRef.current = setTimeout(() => {
+                 sttRestartTimerRef.current = null;
+                 if (nextGen !== recGenRef.current) return;
+                 if (!keepAliveRef.current) return;
+                 if (pausedForTtsRef.current || ttsGuardActive()) return;
+                 startRecognitionExclusive(next);
+               }, delay);
+               return;
+             }
+           } catch { /* */ }
+         }
+         setListening(false);
+       };
+       rec.onresult = () => {
+         // No se usa directamente; los resultados se envían vía procesarResultado
+       };
+ 
+       return rec;
+     } else {
+       // ---------- RECONOCIMIENTO DE RESPALDO (Web Speech API) ----------
+       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+       if (!SR) return null;
+       const rec = new SR();
+       // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
+       // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
+       const gen = ++recGenRef.current;
+       // Móvil (Android/iOS): `continuous` NO es fiable → ciclo corto + reinicio.
+       const isMobile = isMobileDevice();
+       /** Un reconocimiento que vivió ≥ esto SÍ estuvo escuchando de verdad. */
+       const HEALTHY_RUN_MS = 900;
+       /** Arranques rotos seguidos tolerados antes de rendirse (y AVISAR). */
+       const MAX_BROKEN_RESTARTS = 8;
+       // Salud de ESTE reconocimiento (local: nada que se contamine entre ciclos).
+       let startedAt = 0;
+       let sawResult = false;
+       let lastErr = "";
+ 
+       rec.lang = activeRef.current.voice?.lang || "es-MX";
+       rec.interimResults = true;
+       // Móvil: NO continuo (Android termina tras cada frase; lo reiniciamos aquí).
+       rec.continuous = !isMobile;
+       rec.maxAlternatives = 1;
+       rec.onstart = () => {
+         if (gen !== recGenRef.current) { try { rec.abort?.(); } catch { /* */ } return; }
+         startedAt = Date.now();
+         setListening(true); setInterim("");
+       };
+       rec.onerror = (e: any) => {
+         if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
+         const err = String(e?.error || "");
+         lastErr = err;
+         // FATALES: no se reintentan a ciegas. Los exponemos para que la UI pida el
+         // permiso de micrófono (gesto del usuario) o avise de que el mic está
+         // ocupado. Antes 'not-allowed' caía en el auto-reinicio → bucle invisible.
+         if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
+           keepAliveRef.current = false;
+           sttRestartsRef.current = 0;
+           setSttFatal(err as SttFatal);
+           setListening(false);
+           return;
+         }
+         // 'no-speech' | 'aborted' | 'network' → transitorios: los gestiona `onend`.
+       };
+       rec.onend = () => {
+         // Este reconocimiento ya no escucha: suéltalo del registro del ÚNICO
+         // reconocimiento vivo (si aún figuraba como tal).
+         releaseRecognition(rec);
+         // OBSOLETO: si ya no es la generación vigente, no hace NADA (otro
+         // reconocimiento más reciente manda) → no hay reinicios en paralelo.
+         if (gen !== recGenRef.current) return;
+         setInterim("");
+         if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
+         // MEDIO-DÚPLEX: si el reconocimiento se detuvo porque Aurora va a hablar /
+         // está hablando, NO reiniciamos aquí. Lo reanudará `finishTts` cuando
+         // termine el habla (evita que el micro capte su propia voz).
+         if (pausedForTtsRef.current || ttsGuardActive()) {
+           setListening(false);
+           return;
+         }
+         // Fallo fatal (permiso/micro): ya lo trató `onerror`. No reintentamos.
+         if (lastErr === "not-allowed" || lastErr === "service-not-allowed" || lastErr === "audio-capture") {
+           setListening(false);
+           return;
+         }
+         // Reinicio automático si Aurora debe seguir escuchando (2º plano / sesión).
+         if (keepAliveRef.current && typeof window !== "undefined") {
+           // ── CONTABILIDAD DE SALUD (la clave del bug de Android) ──
+           // SANO = oyó algo, o estuvo escuchando de verdad (≥ HEALTHY_RUN_MS), o
+           // terminó por silencio / abort limpio. En Android esto es lo NORMAL:
+           // jamás debe penalizar ni apagar el micrófono.
+           const ranMs = startedAt ? Date.now() - startedAt : 0;
+           const healthy =
+             sawResult ||
+             ranMs >= HEALTHY_RUN_MS ||
+             lastErr === "no-speech" ||
+             lastErr === "aborted" ||
+             lastErr === "";
+           if (healthy) sttRestartsRef.current = 0;
+           else sttRestartsRef.current += 1; // murió al nacer: firma del bucle real
+ 
+           if (sttRestartsRef.current > MAX_BROKEN_RESTARTS) {
+             // Nos rendimos, pero NUNCA en silencio: el supervisor lo convierte en
+             // "voz no disponible · toca para reintentar".
+             keepAliveRef.current = false;
+             sttRestartsRef.current = 0;
+             setSttFatal("failed");
+             setListening(false);
+             return;
+           }
+ 
+           // Reinicio RÁPIDO cuando el ciclo fue sano (Android necesita reengancharse
+           // enseguida o se pierde el principio de la frase siguiente). Con ciclos
+           // rotos, backoff progresivo para no martillar el micrófono.
+           const delay = sttRestartsRef.current === 0
+             ? (isMobile ? 320 : 260)
+             : Math.min((isMobile ? 700 : 500) + sttRestartsRef.current * 300, 2500);
+           try {
+             const next = buildRecognition();
+             if (next) {
+               recognitionRef.current = next;
+               // Generación de ESTE reinicio programado. Si antes de que venza el
+               // temporizador alguien arranca otro reconocimiento (toque en el
+               // orbe, micro del chat, wake-word…), la generación avanza y este
+               // arranque queda CANCELADO: si no, se sumaba un SEGUNDO
+               // reconocimiento vivo que peleaba por el micrófono con el nuevo (se
+               // abortaban mutuamente → «no escucha» + reinicios en bucle).
+               const nextGen = recGenRef.current;
+               sttRestartTimerRef.current = setTimeout(() => {
+                 sttRestartTimerRef.current = null;
+                 if (nextGen !== recGenRef.current) return; // obsoleto: no arranques
+                 if (!keepAliveRef.current) return;         // parada deliberada
+                 if (pausedForTtsRef.current || ttsGuardActive()) return; // medio-dúplex
+                 startRecognitionExclusive(next);
+               }, delay);
+               return;
+             }
+           } catch { /* */ }
+         }
+         setListening(false);
+       };
+       rec.onresult = (e: any) => {
+         if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
+         // ANTI-ECO GLOBAL: si Aurora está hablando (o en el cooldown posterior),
+         // descarta lo captado — es su propia voz, no un comando del usuario. El
+         // canal del micrófono sigue abierto; solo se ignora el texto propio.
+         if (ttsGuardActive()) {
+           return;
+         }
+         let finalText = "";
+         let interimText = "";
+         for (let i = e.resultIndex; i < e.results.length; i++) {
+           const r = e.results[i];
+           if (r.isFinal) finalText += r[0].transcript;
+           else interimText += r[0].transcript;
+         }
+         // Cualquier resultado (incluso interino) prueba que el micro SÍ funciona:
+         // este ciclo es SANO y se resetea el backoff anti-loop.
+         sawResult = true;
+         sttRestartsRef.current = 0;
+ 
+         // ── MODO PASIVO (fondo): NO procesamos nada como comando ni mostramos el
+         //    interim; solo esperamos oír "aurora". Al oírla, ACTIVAMOS (engaged) y,
+         //    si la frase trae algo más ("aurora, abre el café"), lo ejecutamos. ──
+         if (!engagedRef.current) {
+           const heard = finalText || interimText;
+           if (containsWake(heard)) {
+             engageNowRef.current(); // enciende modo activo (+ halo)
+             if (finalText) {
+               const rest = stripWake(finalText);
+               if (rest && rest.trim().length > 1) {
+                 setInterim("");
+                 void runCommandRef.current(rest);
+               }
+             }
+           }
+           return; // en pasivo, ignora todo lo demás (silencioso)
+         }
+ 
+         // ── MODO ACTIVO (engaged): conversación normal ──
+         touchEngagedRef.current(); // reinicia el temporizador de inactividad
+         if (interimText) setInterim(interimText);
+         if (finalText) {
+           setInterim("");
+           // ANTI-ECO TARDÍO (2026-09-27): la cola de su propia voz puede llegar
+           // después de la ventana del guard (altavoz de tablet, Bluetooth). Si lo
+           // captado repite lo que ella acaba de decir, se descarta sin responder.
+           if (esEcoPropio(finalText, Date.now())) return;
+           turnoVozPendiente = {
+             origen: "voz",
+             msDesdeQueCalló: ultimoFinHablaGlobal ? Date.now() - ultimoFinHablaGlobal : null,
+           };
+           // Corrección fonética de términos StarSeed (voz): "astral aura" →
+           // "Astraura", "exo corte" → "Exocórtex"… antes de rutear/enviar.
+           let corrected = finalText;
+           try { corrected = normalizeStarseedTerms(finalText); } catch { corrected = finalText; }
+           // MEDIO-DÚPLEX EXPLÍCITO (fix 2026-07-23): al capturar la frase final,
+           // DESHABILITAMOS la escucha DE INMEDIATO para procesar la respuesta de
+           // Aurora sin que el micro capte ruido ni se reinicie la escucha a mitad
+           // de su respuesta. Se reactiva sola al terminar el habla (finishTts) o
+           // si el usuario vuelve a pulsar hablar / interrumpe con un nuevo mensaje.
+           try { rec.stop(); } catch { /* */ }
+           void runCommandRef.current(corrected);
+         }
+       };
+       return rec;
+     }
+   }, []);
 
   // ── Control del modo ACTIVA (engaged) ──
   // touchEngaged: reinicia el temporizador de inactividad; tras ENGAGED_IDLE_MS
