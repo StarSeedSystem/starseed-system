@@ -64,8 +64,7 @@ function escapeRegExp(s: string): string {
 
 function textoContienePalabra(texto: string | null, palabra: string): boolean {
     if (!texto || !palabra) return false;
-    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
-    return r.test(texto);
+    return texto.includes(palabra);
 }
 
 async function elegirJuego(sala: Sala, juego: string) {
@@ -297,5 +296,30 @@ describe("estabilidad", () => {
         expect(ana.c.getSnapshot()).toBe(antes); // sin cambios, misma instantánea
         const llamadas = errores.mock.calls.map((c) => String(c[0]));
         expect(llamadas.filter((m) => /Maximum update depth|getSnapshot should be cached/.test(m))).toEqual([]);
+    });
+});
+
+describe("textoContienePalabra function", () => {
+    test("returns true when palabra is a substring of texto", () => {
+        expect(textoContienePalabra("hola mundo", "mundo")).toBe(true);
+        expect(textoContienePalabra("hola mundo", "hol")).toBe(true);
+        expect(textoContienePalabra("hola mundo", "mundo ")).toBe(false); // note the space
+        expect(textoContienePalabra("hola mundo", " mundo")).toBe(true);
+    });
+
+    test("returns false when palabra is not a substring of texto", () => {
+        expect(textoContienePalabra("hola mundo", "adios")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+        expect(textoContienePalabra(null, "hola")).toBe(false);
+    });
+
+    test("detects concatenated string without word boundaries", () => {
+        // Simulate the concatenated string scenario: "Beto" + "vela" = "Betovela"
+        expect(textoContienePalabra("abcBetovela def", "Betovela")).toBe(true);
+        // Also, it should detect it even if adjacent to word characters (because we removed word boundaries)
+        expect(textoContienePalabra("abcBetovelad", "Betovela")).toBe(true);
+        expect(textoContienePalabra("Betovela", "Betovela")).toBe(true);
+        expect(textoContienePalabra("Betovel", "Betovela")).toBe(false);
     });
 });
