@@ -95,7 +95,8 @@ export const SYNCED_KEYS = [
     //    sincronizado arriba); solo el registro de candidatos es una clave nueva.
      "starseed.astraura.huggingbay-candidates.v1", // modelos de Hugging Bay marcados "Usar en Astraura"
      "starseed.astraura.bots.v1",                  // bots sincronizados (perfil y entidad)
-     "starseed.astraura.bots.orbes.v1",            // estado abierto/cerrado de orbes por neurona
+     "starseed.astraura.bots.orbes.v1",            // POSICIONES de las orbes por bot (neurona)
+     "starseed.astraura.orbes-abiertos",            // bots abiertos en esta neurona
      // ── Contexto Total de Aurora (jul-2026 · ai/astraura/user-context.ts) ─────
      "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
     // ── Ola 1003 · capas de conciencia por entidad (personalidad/agente), local preferente ──
