@@ -1,27 +1,17 @@
+'use client';
+
 import { useEffect, useRef, useState } from 'react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 export interface LottieVistaProps {
-  /** URL del archivo Lottie (.lottie o .json) */
   src: string;
-  /** Licencia del animation (opcional) */
   license?: string;
-  /** Autor del animation (opcional) */
   author?: string;
-  /** Si se debe reproducir automáticamente */
   autoplay?: boolean;
-  /** Si se debe repetir */
   loop?: boolean;
-  /** Velocidad de reproducción */
   speed?: number;
 }
 
-/**
- * Componente para reproducir animaciones Lottie con soporte para:
- * - Respetar prefers-reduced-motion (muestra primer fotograma)
- * - Pausar cuando está fuera de pantalla
- * - Mostrar licencia y autor si están disponibles
- */
 export function LottieVista({
   src,
   license,
@@ -30,65 +20,53 @@ export function LottieVista({
   loop = true,
   speed = 1,
 }: LottieVistaProps) {
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
-  const lottieRef = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
 
-  // Detectar si se prefiere reducir movimiento
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const handleChange = () => setIsReducedMotion(mediaQuery.matches);
-    setIsReducedMotion(mediaQuery.matches);
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setIsReducedMotion(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
   }, []);
 
-  // Detectar visibilidad del componente (Intersection Observer)
   useEffect(() => {
-    if (!lottieRef.current) return;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
     const observer = new IntersectionObserver(
       ([entry]) => setIsVisible(entry.isIntersecting),
       { threshold: 0.1 }
     );
-    observer.observe(lottieRef.current);
+    observer.observe(el);
     return () => observer.disconnect();
-  }, [lottieRef]);
+  }, []);
+
+  const shouldPlay = !isReducedMotion && isVisible && autoplay;
 
   return (
     <div
-      ref={lottieRef}
+      ref={ref}
       style={{
         width: '100%',
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        backgroundColor: isReducedMotion ? '#f8f9fa' : 'transparent',
       }}
     >
-      {isReducedMotion ? (
-        <div
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#6c757d',
-            fontSize: '0.875rem',
-          }}
-        >
-          Animación (movimiento reducido)
-        </div>
-      ) : (
-        <DotLottieReact
-          src={src}
-          autoplay={isVisible && autoplay}
-          loop={loop}
-          speed={speed}
-          style={{ width: '100%', height: '100%' }}
-        />
-      )}
-      {!isReducedMotion && (license || author) && (
+      <DotLottieReact
+        src={src}
+        autoplay={shouldPlay}
+        loop={isReducedMotion ? false : loop}
+        speed={isReducedMotion ? 0 : speed}
+        style={{ width: '100%', height: '100%' }}
+      />
+      {(license || author) && (
         <div
           style={{
             position: 'absolute',
