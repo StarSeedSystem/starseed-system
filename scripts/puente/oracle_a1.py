@@ -283,6 +283,19 @@ def calidad_respuesta(texto):
     return "paris" in str(texto or "").lower().replace("í", "i")
 
 
+def resumen_modelos_ollama(tags):
+    """PURA. «qwen3.5:4b (3,3 GB)» por modelo de la respuesta de `/api/tags` de Ollama; «sin modelos»
+    si no hay ninguno o la respuesta no se entiende. (2026-10-19) El Ollama del A1 sirve tareas CORTAS:
+    en 2 núcleos ARM lee ~15 tokens/s, así que no es escritor del enjambre (medido)."""
+    try:
+        modelos = (tags or {}).get("models") or []
+        partes = ["%s (%s GB)" % (m["name"], ("%.1f" % (m.get("size", 0) / 1e9)).replace(".", ","))
+                  for m in modelos if isinstance(m, dict) and m.get("name")]
+    except (AttributeError, TypeError, ValueError):
+        partes = []
+    return ", ".join(partes) if partes else "sin modelos"
+
+
 def sin_secretos(texto):
     """PURA. Quita de un texto lo que nunca debe salir del A1: IPs, ids de Oracle y valores con
     forma de clave. Para los resúmenes que viajan en el estado."""
@@ -456,6 +469,21 @@ class Nodo:
             if estado not in ("inactive", "unknown", "?") or os.path.exists("/etc/systemd/system/" + unidad):
                 filas.append({"nombre": nombre, "titulo": titulo, "activo": estado, "ok": estado == "active", "ms": None,
                               "detalle": unidad})
+        # (2026-10-19) Ollama del A1, solo en 127.0.0.1 (`deploy/oracle/nodo/ollama-a1.sh`): modelos locales
+        # del servidor del cerebro para tareas cortas (chat breve, resumen, visión), nunca expuesto fuera.
+        if os.path.exists("/etc/systemd/system/ollama.service"):
+            codigo, ms = self._http("http://127.0.0.1:11434/api/version")
+            modelos = "sin respuesta"
+            if codigo == "200":
+                import urllib.request
+                try:
+                    with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=8) as r:
+                        modelos = resumen_modelos_ollama(json.loads(r.read()))
+                except Exception:  # noqa: BLE001 — la salud ya dice si responde
+                    modelos = "sin lista de modelos"
+            filas.append({"nombre": "ollama", "titulo": "Ollama (modelos locales · tareas cortas)",
+                          "activo": self._activo("ollama.service"), "ok": codigo == "200", "ms": ms,
+                          "detalle": "salud local %s · %s" % (codigo, modelos)})
         return filas
 
     # ── estado ──

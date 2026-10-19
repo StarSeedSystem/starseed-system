@@ -210,5 +210,17 @@ class OrquestadorDeLaCola(unittest.TestCase):
         self.assertEqual(A.orquestador_para(d, explicito="/a-mano", defecto="/instalado"), "/a-mano")
 
 
+class ModelosOllama(unittest.TestCase):
+    """(2026-10-19) La fila «Ollama» del A1 en Genesis dice qué modelos locales tiene y cuánto pesan."""
+
+    def test_nombre_y_tamano_con_coma(self):
+        tags = {"models": [{"name": "qwen3.5:4b", "size": 3_338_000_000}, {"name": "x:1b", "size": 950_000_000}]}
+        self.assertEqual(A.resumen_modelos_ollama(tags), "qwen3.5:4b (3,3 GB), x:1b (0,9 GB)")
+
+    def test_vacio_o_raro_no_rompe(self):
+        for raro in (None, {}, {"models": []}, {"models": "no"}, {"models": [{"size": 1}, 7]}, []):
+            self.assertEqual(A.resumen_modelos_ollama(raro), "sin modelos")
+
+
 if __name__ == "__main__":
     unittest.main()
