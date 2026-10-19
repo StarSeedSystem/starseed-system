@@ -52,7 +52,17 @@ describe("tipos", () => {
   it("un bot de grupo es de entidad; uno externo o AG-UI es invitado", () => {
     expect(esBotDeEntidad({ dueno: { tipo: "grupo", id: "g", cuentaId: "c" } })).toBe(true);
     expect(esBotDeEntidad({ dueno: { tipo: "perfil", id: "p", cuentaId: "c" } })).toBe(false);
-    expect(esInvitado({ origen: "externo" }) && esInvitado({ origen: "ag-ui" })).toBe(true);
-    expect(esInvitado({ origen: "astraura" })).toBe(false);
-  });
-});
+     expect(esInvitado({ origen: "externo" }) && esInvitado({ origen: "ag-ui" })).toBe(true);
+     expect(esInvitado({ origen: "astraura" })).toBe(false);
+   });
+ });
+
+ /** Guardia del núcleo de bots: verifica que los módulos de conectores existan y no estén vacíos. */
+ const CONECTORES = ["ag-ui", "invitados"] as const;
+ describe("núcleo puro de los bots de Astraura · conectores", () => {
+   it("los conectores existen y no están vacíos", () => {
+     for (const c of CONECTORES) {
+       if (NUCLEO.includes(c)) expect(leer(c).split("\n").length).toBeGreaterThan(0);
+     }
+   });
+ });
