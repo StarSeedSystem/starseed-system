@@ -1,38 +1,56 @@
-export function detectarAdaptadores(html: string) {
-  const usados: Array<"css" | "waapi" | "animejs" | "lottie" | "three" | "typegpu" | "gsap"> = [];
+export type Adaptador = "css" | "waapi" | "animejs" | "lottie" | "three" | "typegpu" | "gsap";
 
-  // Check for CSS: presence of @keyframes in a style tag
-  if (/<style[\s\S]*?@keyframes[\s\S]*?<\/style>/i.test(html)) {
+export interface ResultadoDeteccion {
+  usados: Adaptador[];
+  editableVisualmente: boolean;
+  motivo: string;
+}
+
+function tienePatron(html: string, patron: RegExp): boolean {
+  return patron.test(html);
+}
+
+export function detectarAdaptadores(html: string): ResultadoDeteccion {
+  const usados: Adaptador[] = [];
+
+  if (tienePatron(html, /<style[\s\S]*?@keyframes[\s\S]*?<\/style>/i)) {
     usados.push("css");
   }
 
-  // Check for WAAPI: look for .animate( or animate( in a script tag
-  if (/<script[\s\S]*?\.animate\([\s\S]*?<\/script>/i.test(html) || /<script[\s\S]*?animate\([\s\S]*?<\/script>/i.test(html)) {
+  if (
+    tienePatron(html, /<script[\s\S]*?\.animate\([\s\S]*?<\/script>/i) ||
+    tienePatron(html, /<script[\s\S]*?\belement\b[\s\S]*?\.animate\([\s\S]*?<\/script>/i)
+  ) {
     usados.push("waapi");
   }
 
-  // Check for Anime.js: look for anime(
-  if (/<script[\s\S]*?anime\([\s\S]*?<\/script>/i.test(html)) {
+  if (tienePatron(html, /<script[\s\S]*?\banime\s*\([\s\S]*?<\/script>/i)) {
     usados.push("animejs");
   }
 
-  // Check for Lottie: look for <lottie-player> or lottie in a script
-  if (/<lottie-player/i.test(html) || /<script[\s\S]*?lottie[\s\S]*?<\/script>/i.test(html)) {
+  if (
+    tienePatron(html, /<lottie-player/i) ||
+    tienePatron(html, /<script[\s\S]*?\blottie\b[\s\S]*?<\/script>/i)
+  ) {
     usados.push("lottie");
   }
 
-  // Check for Three.js: look for three or THREE in a script tag
-  if (/<script[\s\S]*?\bthree\b[\s\S]*?<\/script>/i.test(html) || /<script[\s\S]*?\bTHREE\b[\s\S]*?<\/script>/i.test(html)) {
+  if (
+    tienePatron(html, /<script[\s\S]*?\bthree\b[\s\S]*?<\/script>/i) ||
+    tienePatron(html, /<script[\s\S]*?\bTHREE\b[\s\S]*?<\/script>/i)
+  ) {
     usados.push("three");
   }
 
-  // Check for TypeGPU: look for typegpu in a script
-  if (/<script[\s\S]*?typegpu[\s\S]*?<\/script>/i.test(html)) {
+  if (tienePatron(html, /<script[\s\S]*?\btypegpu\b[\s\S]*?<\/script>/i)) {
     usados.push("typegpu");
   }
 
-  // Check for GSAP: look for gsap or TweenMax in a script
-  if (/<script[\s\S]*?(gsap|TweenMax|TimelineMax)[\s\S]*?<\/script>/i.test(html)) {
+  if (
+    tienePatron(html, /<script[\s\S]*?\bgsap\b[\s\S]*?<\/script>/i) ||
+    tienePatron(html, /<script[\s\S]*?\bTweenMax\b[\s\S]*?<\/script>/i) ||
+    tienePatron(html, /<script[\s\S]*?\bTimelineMax\b[\s\S]*?<\/script>/i)
+  ) {
     usados.push("gsap");
   }
 
