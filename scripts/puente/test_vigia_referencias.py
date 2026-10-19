@@ -20,6 +20,7 @@ class TestFuncionesPuras(unittest.TestCase):
         # En una implementación real, usaríamos tempfile.NamedTemporaryFile
         pass
 
+
     def test_cargar_json_archivo_inexistente(self):
         """Test de carga de JSON cuando el archivo no existe."""
         resultado = V._cargar_json("/ruta/que/no/existe.json", {"por defecto": "valor"})
@@ -165,6 +166,8 @@ class TestIntegracionBasica(unittest.TestCase):
         """Test de vigilar referencias con entrada que no tiene canales de actualización."""
         # Similar al test anterior, requeriría mockeo de funciones
         pass
+
+
 
 
 if __name__ == "__main__":
