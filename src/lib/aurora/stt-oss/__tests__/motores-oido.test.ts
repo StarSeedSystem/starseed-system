@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { MOTORES_OIDO, elegirOido } from "../motores-oido";
 
 describe("catálogo MOTORES_OIDO", () => {
-  it("tiene 6 motores registrados", () => {
-    expect(MOTORES_OIDO.length).toBe(6);
+  it("tiene 8 motores registrados", () => {
+    expect(MOTORES_OIDO.length).toBe(8);
   });
 
   it("phonon-2 tiene licencia CC-BY-4.0, flujo y 164 MB", () => {
@@ -17,6 +17,24 @@ describe("catálogo MOTORES_OIDO", () => {
     const m = MOTORES_OIDO.find((x) => x.id === 'parakeet-v3');
     expect(m?.idiomas).toContain('*');
     expect(m?.tipo).toBe('local');
+  });
+
+  it("voicestudio tiene licencia AGPL-3.0-only, flujo y tipo endpoint", () => {
+    const m = MOTORES_OIDO.find((x) => x.id === 'voicestudio');
+    expect(m?.licencia).toBe('AGPL-3.0-only');
+    expect(m?.flujo).toBe(true);
+    expect(m?.tipo).toBe('endpoint');
+    expect(m?.idiomas).toContain('*');
+  });
+
+  it("moonshine tiene licencia MIT, flujo true, tamanoMB 60 y idiomas en y es", () => {
+    const m = MOTORES_OIDO.find((x) => x.id === 'moonshine');
+    expect(m?.licencia).toBe('MIT');
+    expect(m?.flujo).toBe(true);
+    expect(m?.tamanoMB).toBe(60);
+    expect(m?.tipo).toBe('local');
+    expect(m?.idiomas).toContain('en');
+    expect(m?.idiomas).toContain('es');
   });
 });
 
@@ -69,5 +87,24 @@ describe("elegirOido", () => {
     });
     expect(r.motor).toBe('navegador');
     expect(r.motivo).toContain('suelo');
+  });
+
+  // Nuevos tests para voicestudio y moonshine
+  it("español final: si parakeet-v3 no está disponible, elige voicestudio", () => {
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['voicestudio', 'vibeasr-158', 'phonon-2', 'whisper-web', 'navegador', 'malla'],
+      fase: 'final',
+    });
+    expect(r.motor).toBe('voicestudio');
+  });
+
+  it("español final: si parakeet-v3, voicestudio, vibeasr-158 y phonon-2 no están disponibles, elige moonshine antes de whisper-web", () => {
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['moonshine', 'whisper-web', 'navegador', 'malla'],
+      fase: 'final',
+    });
+    expect(r.motor).toBe('moonshine');
   });
 });
