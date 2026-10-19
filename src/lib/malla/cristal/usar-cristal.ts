@@ -1,5 +1,5 @@
 // Malla cristalina SiO₂ amorfa: hook para usar el motor
-import { useSyncExternalStore, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { crearMotorCristal } from './motor';
 import type { NeuronaReticula, SenalMedida, Tesela, Reticula, Cristal, EstadoVitreo } from './tipos';
 
@@ -9,12 +9,19 @@ type Motor = ReturnType<typeof crearMotorCristal>;
 type EstadoMotor = ReturnType<Motor['estado']>;
 
 export function useCristal(motor: Motor) {
-  const estado = useSyncExternalStore(
-    motor.suscribir,
-    () => motor.estado(),
-    () => motor.estado() // initial state (same as selector for simplicity)
-  );
+  const [estado, setEstado] = useState<EstadoMotor | null>(null);
 
-  // Optional: reset the motor when the motor reference changes? Not needed if motor is stable.
-  return estado;
+  useEffect(() => {
+    // Set initial state
+    setEstado(motor.estado());
+
+    const suscripcion = motor.suscribir(() => {
+      setEstado(motor.estado());
+    });
+
+    return suscripcion;
+  }, [motor]);
+
+  // If estado is null, we return the initial state (though the effect should have run)
+  return estado ?? motor.estado();
 }
