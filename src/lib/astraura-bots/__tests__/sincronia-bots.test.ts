@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { fusionarBots } from "../sincronia-bots";
+import { fusionarBots, BotSync } from "../sincronia-bots";
 
 /**
  * Bot de ejemplo para pruebas (incluye el campo actualizado para sincronía).
@@ -85,48 +85,35 @@ describe("fusionarBots", () => {
     expect(ids).toEqual(["bot1", "bot2", "bot3"]);
     // bot1 debe venir del remoto (más reciente)
     const bot1 = resultado.find(b => b.id === "bot1");
-    expect(bot1?.actualizado).toBe(2000);
-  });
-  test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
-  })
-
-  test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
-    const local = { bots: [botLocal], actualizado: { a: 1 } };
-    const botRemoto = { ...botLocal, nombre: "a2" };
-    const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
-    const res = fusionarBots(local, remoto);
-    expect(res.bots.length).toBe(1);
-    expect(res.bots[0].nombre).toBe("a2");
-    expect(res.actualizado.a).toBe(2);
-  })
-
-  test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
-    const local = { bots: [botLocal], actualizado: { b: 10 } };
-    const botRemoto = { ...botLocal, nombre: "b0" };
-    const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
-    const res = fusionarBots(local, remoto);
-    expect(res.bots[0].nombre).toBe("b1");
-    expect(res.actualizado.b).toBe(10);
-  })
+   expect(bot1?.actualizado).toBe(2000);
+   );
+   test("array vacío local y remoto devuelve array vacío", () => {
+     const resultado = fusionarBots([], []);
+     expect(resultado).toEqual([]);
+   });
+   test("fusiona sin conflicto: remoto gana por timestamp", () => {
+     const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true, actualizado: 1 };
+     const local: BotSync[] = [botLocal];
+     const botRemoto: BotSync = { ...botLocal, nombre: "a2", actualizado: 2 };
+     const remoto: BotSync[] = [botRemoto];
+     const res = fusionarBots(local, remoto);
+     expect(res.length).toBe(1);
+     expect(res[0].nombre).toBe("a2");
+     expect(res[0].actualizado).toBe(2);
+    })\n\n   test("fusiona con conflicto: local gana si es más reciente", () => {\n     const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false, actualizado: 10 };\n     const local: BotSync[] = [botLocal];\n     const botRemoto: BotSync = { ...botLocal, nombre: "b0", actualizado: 5 };\n     const remoto: BotSync[] = [botRemoto];\n     const res = fusionarBots(local, remoto);\n     expect(res[0].nombre).toBe("b1");\n     expect(res[0].actualizado).toBe(10);\n   })
 
   test("predeterminado garantizado: se conserva el local si no está en remoto", () => {
     const local: any[] = [hacerBot("bot-default", 1000)];
     const remoto: any[] = [];
     const resultado = fusionarBots(local, remoto);
     expect(resultado.length).toBe(1);
-    expect(resultado[0].id).toBe("bot-default");
-    expect(resultado[0].actualizado).toBe(1000);
-  });
-  test("array vacío local y remoto devuelve objeto actualizado vacío", () => {
-    const resultado = fusionarBots({ bots: [], actualizado: {} }, { bots: [], actualizado: {} });
-    expect(resultado.bots).toEqual([]);
-    expect(resultado.actualizado).toEqual({});
-  })
+     expect(resultado[0].id).toBe("bot-default");
+     expect(resultado[0].actualizado).toBe(1000);
+   });
+   test("array vacío local y remoto devuelve array vacío", () => {
+     const resultado = fusionarBots([], []);
+     expect(resultado).toEqual([]);
+   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
     const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
