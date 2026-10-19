@@ -39,7 +39,7 @@ export default defineConfig({
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
     include: ["src/**/*.{test,spec}.ts", "src/**/__tests__/**/*.ts", "src/**/*.{test,spec}.tsx", "src/**/__tests__/**/*.tsx"],
     exclude: ["node_modules", ".next", "dist"],
-    globals: false,
+    globals: true,
     // (2026-10-05) Margen para una máquina cargada: ver el porqué en `vitest.setup-dom.ts`.
     // `testTimeout` sube de 5 s a 20 s para que un `findBy*` de 5 s quepa dentro de su prueba.
     setupFiles: ["./vitest.setup-dom.ts"],
@@ -73,7 +73,7 @@ export default defineConfig({
     // Con 20.20.2: 153 archivos, 1799 pruebas, salida 0.
     //
     // Probado y descartado: inlinear los paquetes en Vite (jsdom los carga por
-    // la vía de Node, no por Vite) y `--experimental-require-module` (en 20.17
+    // la vía de Node, no por Vite) y `--experimental-require-module` (en 20.20
     // ese flag muere con «Maximum call stack size exceeded»).
   },
   resolve: {

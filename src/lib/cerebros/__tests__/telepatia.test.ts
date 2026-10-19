@@ -55,6 +55,10 @@ describe('normalizarVinculos', () => {
     expect(normalizarVinculos(null)).toEqual([]);
   });
 
+    it('devuelve [] para cadena de entrada no válida', () => {
+      expect(normalizarVinculos({})).toEqual([]);
+    });
+
   it('filtra inválidos', () => {
     const config = { telepatia: [vinculoValido, { id: '' }] };
     const res = normalizarVinculos(config);

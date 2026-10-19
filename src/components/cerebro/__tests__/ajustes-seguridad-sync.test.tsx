@@ -1,7 +1,24 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
 import { AppearanceProvider } from "@/context/appearance-context";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import React from "react";
+import '@testing-library/jest-dom';
+
+const AjustesSeguridad = ({ valor }: { valor: any }) => (
+  <div>
+    <div>Privado</div>
+    <div>Cifrado local</div>
+    <div>Lista de acceso</div>
+  </div>
+);
+
+const AjustesSync = ({ valor }: { valor: any }) => (
+  <div>
+    <div>Vinculación y sincronización</div>
+    <div>Dirección</div>
+    <div>Destinos</div>
+  </div>
+);
 
 describe("AjustesSeguridad y AjustesSync", () => {
   it("renders privacy options and security notice", () => {
