@@ -250,7 +250,20 @@ export function validarPlan(
             const formatoEntrada = ctx.formatoDe(entrada);
             if (!formatoEntrada) {
               avisos.push(`falta conversor de ${formatoSalida} a ${entrada}`);
-            }
+}
+
+export function procesarPlan(
+  plan: Plan,
+  estados: Record<string, EstadoPaso>,
+  agentes: Array<{ id: string; ocupado: boolean; puede?: string[] }> = [],
+  tope = LIMITES.agentes
+) {
+  const niveles = nivelesDe(plan);
+  const listos = pasosListos(plan, estados);
+  const asignaciones = repartirPasos(listos, agentes, tope);
+  const prog = progreso(plan, estados);
+  return { niveles, listos, asignaciones, progreso: prog };
+}
           }
         }
       }
