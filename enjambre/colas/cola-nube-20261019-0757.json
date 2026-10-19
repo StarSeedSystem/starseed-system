@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "VGM1016K",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Instalación · probar antes de quedarse: muestra, tiempo, memoria y decisión de cambiar o volver atrás",
+   "archivos": [
+    "scripts/puente/probar_modelo.py",
+    "scripts/puente/test_probar_modelo.py"
+   ],
+   "depende": [],
+   "prompt": "Tras instalar, una prueba corta por área con el motor local si responde (imagen: una de 512×512 en el servidor de stable-diffusion.cpp; oído: transcribir un audio corto; voz: una frase; palabra: 64 tokens) que mide segundos y pico de memoria; `decidir(nueva, actual)` PURA: se queda si funciona y no es peor que la actual más de un 15 % en tiempo (o aporta una capacidad nueva), si no `volver_atras`. Motores y medidas inyectables; pruebas de la decisión. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español.",
+   "dependencias_ya_en_main": [
+    "VGM1016J"
+   ]
+  }
+ ]
+}
