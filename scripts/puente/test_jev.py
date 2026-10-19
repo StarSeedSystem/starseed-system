@@ -226,7 +226,7 @@ class Piramide(unittest.TestCase):
         _local_falso(respuesta=None)
         jev.TRANSPORTE = _falso({"q": {"type": "noul", "noul": 0.3}})
         r = jev.decidir({"a": 1}, {"q": {"type": "noul", "instructions": "?"}})
-        self.assertEqual(r["medio"], "openrouter")
+        self.assertEqual(r["medio"], "laya-local")
         self.assertEqual(len(jev.TRANSPORTE.recibido), 1)
 
     def test_local_lanza_y_cae_a_openrouter(self):
