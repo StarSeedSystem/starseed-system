@@ -21,8 +21,10 @@ mostrando el coste antes de gastar créditos de pago.
 | Gráficas de datos animadas | `diagram-design` (barras, líneas, Sankey, mapa de calor…) o HyperFrames | contenedor |
 | Fondos vivos y efectos GPU (auroras, cristal, distorsión, partículas) | skill `shaders` (npm `shaders`, MIT, siempre `disableTelemetry`) | navegador con WebGPU |
 | Transiciones de interfaz en páginas animadas | skills `transitions-dev`, `transitions-polish`, `transitions-ui-generation` | contenedor |
-| Animaciones Lottie de terceros | MCP `lottiefiles` de este plugin (OAuth de Alex) + reproductor `@lottiefiles/dotlottie-react` (MIT) | nube de LottieFiles / navegador |
-| Iconos | MCP `icons8` de este plugin (PNG gratis con enlace a Icons8; SVG con plan) | nube de Icons8 |
+| Animaciones Lottie de terceros | conector LottieFiles de la cuenta (OAuth de Alex; el 2026-10-19 no conectó: «state not found or expired»). Mientras no conecte: animaciones que Alex descargue con Lottie Simple License, o propias hechas en HyperFrames/WAAPI; se reproducen con `@lottiefiles/dotlottie-react` (MIT) | nube de LottieFiles / navegador |
+| Iconos | conector Icons8 de la cuenta (conectado): PNG y animados GIF/APNG gratis con enlace a Icons8; SVG y Lottie con plan (100/h y 1000/día) | nube de Icons8 |
+| Pantallas y flujos de referencia de apps reales | conector Mobbin de la cuenta: conectado, pero su MCP exige plan de pago (comprobado el 2026-10-19). No se usa hasta que Alex se suscriba; con plan, solo para estudiar patrones y citar su `mobbin_url` | nube de Mobbin |
+| Pantallas de interfaz generadas | Stitch: en el Claude Code de la Mac con clave en `~/.starseed/stitch.env` (15 herramientas); el conector de claude.ai respondía HTTP 502 | Google |
 | Voz en off y música | Higgsfield `generate_audio`, `create_voice`, `list_voices` | nube de Higgsfield |
 | Doblaje y cambio de voz | Higgsfield `dubbing`, `voice_change` (solo con voces propias o con permiso) | nube de Higgsfield |
 | Mejorar o adaptar un vídeo | Higgsfield `upscale_video`, `reframe`, `remove_background` | nube de Higgsfield |
@@ -31,7 +33,7 @@ mostrando el coste antes de gastar créditos de pago.
 | Storyboard, cartel, página de diseño, maqueta | artefacto **Design** de Claude, Canva o Figma | claude.ai / Canva / Figma |
 | Guion, brief, documento para el equipo | artefacto **Docs** de Claude | claude.ai |
 | Métricas de canales | artefacto **Dashboard** de Claude | claude.ai |
-| Marca para todos los artefactos | artefacto **Design System «StarSeed OS»** (https://claude.ai/artifact/XGig1BviuZC1C1157GKxSL); el kit de interfaz anterior sigue en el proyecto de Claude Design (ver `adn-y-tokens.md` §8) | claude.ai |
+| Marca para todos los artefactos | artefacto **Design System «StarSeed OS»** (https://claude.ai/artifact/XGig1BviuZC1C1157GKxSL), el editable. Claude Design cierra el 14-12-2026: lo nuevo se hace siempre en Artefactos (tipos Design, Slides, Docs, Design System), nunca en claude.ai/design (ver `adn-y-tokens.md` §8) | claude.ai |
 | Investigación, resumen en audio o vídeo de los fundamentos | skill `notebooklm` y los cuadernos de StarSeed en NotebookLM | Google |
 | Piezas en Canva con marca | Canva `list-brand-kits`, `create-design-from-brand-template`, `export-design`, `import-claude-motion-from-url` | Canva |
 | Piezas en Figma | archivos de identidad de StarSeed (claves en la memoria del proyecto); antes de `use_figma`, la skill `figma-use` | Figma |
@@ -53,8 +55,8 @@ mostrando el coste antes de gastar créditos de pago.
   hay WebGPU; velo bajo el texto.
 - **Artefactos de Claude:** si el artefacto Design System «StarSeed OS» existe, construye los Slides y los
   Design desde él para heredar colores, tipos y componentes.
-- **Lo que pide a Alex:** iniciar sesión (OAuth) en LottieFiles e Icons8 la primera vez; reconectar Stitch y
-  Miro en Ajustes > Conectores cuando se necesiten.
+- **Lo que pide a Alex:** iniciar sesión (OAuth) en LottieFiles la primera vez (Icons8 y Miro ya están
+  conectados); el plan de Mobbin si quiere su MCP.
 
 ## 3. Lo que no se recomienda
 
@@ -63,6 +65,7 @@ mostrando el coste antes de gastar créditos de pago.
 - **GSAP dentro del editor visual del OS:** su licencia prohíbe usarla en herramientas sin código que
   crean animaciones. Usarla dentro de un vídeo propio renderizado está permitido; el editor del OS usa
   CSS/WAAPI, Anime.js, Lottie o Three.js.
-- **MCP de pago** (Mobbin, Refero, Savee, 60fps): solo si Alex se suscribe.
+- **MCP de pago** (Mobbin, Refero, Savee, 60fps): solo si Alex se suscribe. Mobbin ya está conectado y
+  responde «requires a paid plan».
 - **Copiar de galerías de inspiración:** se estudia el patrón y se crea una versión propia, citando la
   referencia; nunca se copian textos, marcas, logos, capturas ni assets.

@@ -172,9 +172,11 @@ de desbordar.
   `project/README.md`.
 - **Proyecto de Claude Design «StarSeed Design System»**
   (https://claude.ai/design/p/7b393721-3841-4f10-9a01-e2b4413a2dee): el sistema anterior, por defecto de la
-  organización hasta que Claude Design cierre el 14-12-2026. Trae el kit de interfaz del OS (Header,
-  Sidebar, Dashboard, CrystalWidget, GlassCard, LiquidButton, NetworkView), carteles e invitaciones de
-  eventos. Su migración a artefacto está bloqueada por dos PDF de más de 20 MB.
+  organización. **Claude Design cierra el 14-12-2026**: su sistema se pasa a Artefactos con «Migrate team
+  design systems» (página de Artefactos) y llega de solo lectura; los chats y comentarios no se migran. Trae
+  el kit de interfaz del OS (Header, Sidebar, Dashboard, CrystalWidget, GlassCard, LiquidButton,
+  NetworkView), carteles e invitaciones de eventos. Los PDF grandes se comprimieron (3,8 y 3,3 MB, PSNR ≥ 39,9
+  dB); los originales están respaldados en la Mac (`~/Documents/StarSeed-respaldos/claude-design-2026-10-19/`).
 - **Mundos** («Una semilla, muchos mundos»): Sociedad violeta `#CD77F8`, StarSeed OS cian `#25D1F4`, Café
   oro de grano `#F5B91A`, Estudio fucsia `#F471F4`, Fundación verde germinación `#34D77F`, Audiomorphic
   verde azulado `#2DD29B`. Todos pasan como texto sobre noche (6.9:1 o más) y ninguno sobre nieve.
