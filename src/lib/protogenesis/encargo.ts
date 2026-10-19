@@ -8,6 +8,7 @@ import type { Ambito } from "@/lib/protomolecula/tipos";
 import type { Computo } from "@/lib/protomolecula/tipos";
 
 export const TIPOS_CRITERIO = ["formato", "duracion-max", "tamano-max", "sin-secretos", "capas-presentes", "persona"] as const;
+import { nivelesDe, pasosListos, repartirPasos, progreso, type EstadoPaso } from "./reparto";
 
 export type Criterio = {
   tipo: (typeof TIPOS_CRITERIO)[number];
