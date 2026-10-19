@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "MC1012Q",
+   "titulo": "Motor de la retícula: mide, publica teselas, fusiona y recristaliza",
+   "archivos": [
+    "src/lib/malla/cristal/motor.ts",
+    "src/lib/malla/cristal/usar-cristal.ts",
+    "src/lib/malla/cristal/__tests__/motor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. motor.ts (sin React): `crearMotorCristal(deps: {miNeurona: () => NeuronaReticula; medir: () => Promise<SenalMedida[]>; reloj: () => number; firmar: (t: Tesela) => Promise<string | null>; difundir: (t: Tesela) => void; ahora: () => number})` devuelve `{vuelta(): Promise<void>; recibir(t: Tesela): void; intervaloMs(): number; estado(): {reticula: Reticula; cristal: Cristal | null; huella: string; vecinosConMismaHuella: number; ultimaVuelta: number}; suscribir(fn): () => void}`. vuelta: mide, crea su tesela con reloj(), la firma, la fusiona, la difunde, caduca (ttl 3 × su intervalo) y relaja con relajarLocal (cambiadas = [yo]); guarda un historial de calidad por señal (últimos 2 min) para temperaturaDe; notifica. recibir: EN TIEMPO REAL, fusiona y relaja al momento solo el vecindario de esa tesela (cambiadas = [origen]), sin difundir. `intervaloMs()` = 5000 si mi zona está 'fundida', 15000 'subenfriada', 60000 'vítrea' (el bucle que monte el motor lo usa). `vecinosConMismaHuella` cuenta las teselas recibidas cuyo campo `huella` coincide con la mía (el motor rellena `huella` en su tesela). usar-cristal.ts ('use client'): `useCristal(motor)` con useSyncExternalStore. Pruebas del motor con dependencias falsas: dos motores que se pasan teselas convergen a la misma huella; una neurona que deja de latir sale tras el ttl; recibir una tesela relaja sin esperar a la siguiente vuelta; intervaloMs cambia con la temperatura.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012B",
+    "MC1012F",
+    "MC1012G"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "MC1012Q"
+  ]
+ }
+}
