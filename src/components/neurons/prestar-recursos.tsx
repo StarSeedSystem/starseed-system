@@ -279,7 +279,6 @@ export function PrestarRecursosPanel() {
               value={prefs.topes.cpu}
               onChange={(v) => setPrefs((p) => ({ ...p, topes: { ...p.topes, cpu: v } }))}
               min={0}
-              max={100}
               step={5}
               explanation="Porcentaje máximo de CPU que se prestará. Se respeta aunque la neurona tenga más libre."
               ariaLabel="cpu máximo (%)"
