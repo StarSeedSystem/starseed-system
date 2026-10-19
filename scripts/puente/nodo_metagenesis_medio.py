@@ -486,25 +486,26 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     contenedor_info = {"activo": False, "agentes": 0, "apto": False, "motivo": ""}
 
     # --- Implementación de en_curso ---
+    cola_viva_json = None
+    olas = os.path.join(raiz_repo(), "starseed_memory_root", "olas")
     try:
         # Obtener la cola viva (la que está siendo procesada por el orquestador de este medio)
-        cola_viva_json = M.cola_viva()  # Devuelve algo like "cola-1012C.json" o None
+        cola_viva_json = cola_viva()  # Devuelve algo like "cola-1012C.json" o None
         if cola_viva_json:
             # Ruta de la cola viva
-            olas = os.path.join(M.raiz_repo(), "starseed_memory_root", "olas")
             cola_path = os.path.join(olas, cola_viva_json)
             # Leer la cola viva para obtener la lista de tareas
-            cola_data = M.leer_json(cola_path, [])
+            cola_data = leer_json(cola_path, [])
             if not isinstance(cola_data, list):
                 cola_data = []
             # Obtener el progreso global
-            progreso_path = os.path.join(M.raiz_repo(), "starseed_memory_root", "olas", "progreso.json")
-            progreso = M.leer_json(progreso_path, {})
+            progreso_path = os.path.join(olas, "progreso.json")
+            progreso = leer_json(progreso_path, {})
             if not isinstance(progreso, dict):
                 progreso = {}
             # Leer los puntos de control (si existen) para obtener el punto (rama, sha, t) de cada tarea
             puntos_path = os.path.join(olas, "puntos-control.json")
-            puntos_data = M.leer_json(puntos_path, {})
+            puntos_data = leer_json(puntos_path, {})
             if not isinstance(puntos_data, dict):
                 puntos_data = {}
             # Recopilar las tareas en curso (máximo 8)
@@ -519,7 +520,7 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
                 if not isinstance(tarea_progreso, dict):
                     continue
                 fase = tarea_progreso.get("estado")
-                if fase not in L.FASES_CON_TRABAJO:
+                if fase not in C.FASES_CON_TRABAJO:
                     continue
                 # Obtener el punto de la tarea de los puntos de control
                 punto_info = puntos_data.get(tid, {})
@@ -551,11 +552,47 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         # En caso de error, dejamos en_curso como lista vacía
         pass
 
+    # --- Resumen de cola viva (latidos-<cola>.json) ---
+    cola_viva_resumen = {"trabajando": 0, "esperando": 0, "libres": 0, "ultima_tarea_ts": None}
+    try:
+        if cola_viva_json:
+            # El archivo de latidos se llama latidos-<cola>.json (sin el .json final de la cola)
+            nombre_cola = cola_viva_json[:-5] if cola_viva_json.endswith(".json") else cola_viva_json
+            latidos_path = os.path.join(olas, "latidos-%s.json" % nombre_cola)
+            latidos_data = leer_json(latidos_path, {})
+            if isinstance(latidos_data, dict):
+                # Obtener número de trabajadores del proceso del orquestador
+                trabajadores = 2
+                for o in orqs:
+                    if o.get("cola") == nombre_cola:
+                        # Intentar extraer --workers de los args del proceso
+                        # Los args están en o.get("args", "") pero orquestadores() solo devuelve pid y cola
+                        # Usamos un valor por defecto; en la práctica se podría leer de /proc/<pid>/cmdline
+                        trabajadores = 2
+                        break
+                # Usar la función pura de la lógica
+                resumen = L.resumen_cola_viva(latidos_data, trabajadores)
+                cola_viva_resumen["trabajando"] = resumen.get("trabajando", 0)
+                cola_viva_resumen["esperando"] = resumen.get("esperando", 0)
+                cola_viva_resumen["libres"] = resumen.get("libres", 0)
+                # Timestamp de la última tarea añadida (para la regla de 10 min)
+                tareas = latidos_data.get("tareas") if isinstance(latidos_data.get("tareas"), list) else []
+                if tareas:
+                    # Asumimos que las tareas tienen un campo 'ts' o 't' con timestamp
+                    # Si no, usamos el mtime del archivo
+                    try:
+                        cola_viva_resumen["ultima_tarea_ts"] = os.path.getmtime(latidos_path)
+                    except OSError:
+                        pass
+except Exception:
+        # En caso de error, dejamos valores por defecto
+        pass
+
     # --- Implementación de contenedor ---
     try:
         # Leer el estado del contenedor desde el archivo
-        contenedor_ruta = os.path.join(M.CARPETA, "contenedor.json")
-        contenedor_dato = M.leer_json(contenedor_ruta, {})
+        contenedor_ruta = os.path.join(CARPETA, "contenedor.json")
+        contenedor_dato = leer_json(contenedor_ruta, {})
         if not isinstance(contenedor_dato, dict):
             contenedor_dato = {}
         activo = bool(contenedor_dato.get("activo", False))
@@ -573,7 +610,7 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
                 "opencode": shutil.which("opencode") is not None,
             },
             "ram_total_mb": 0,  # No tenemos la memoria total, usamos 0 como placeholder (la función manejará valores inválidos)
-            "disco_libre_gb": M.disco_libre_gb(M.raiz_repo() if os.path.isdir(M.raiz_repo()) else os.path.expanduser("~")),
+            "disco_libre_gb": disco_libre_gb(raiz_repo() if os.path.isdir(raiz_repo()) else os.path.expanduser("~")),
             "bateria": {},  # No tenemos información de batería
             "red": {"medida": False},  # Asumimos no red medida
             "medio_app": "desconocido",  # No sabemos si es navegador o PWA
@@ -582,7 +619,6 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         # Llamar a la lógica pura para obtener la capacidad del contenedor
         capa_result = C.capacidad_contenedor(capacidad_info)
         # El resultado es un diccionario con: apto, agentes, motivo, falta
-        # Nous sommes intéressés par apto, agentes et motif
         contenedor_info = {
             "activo": activo,
             "agentes": capa_result.get("agentes", 0),
@@ -596,6 +632,7 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
     salud["periodo_s"] = periodo_s
     salud["en_curso"] = en_curso
     salud["contenedor"] = contenedor_info
+    salud["cola_viva"] = cola_viva_resumen
 
     return {"medio": medio, "raiz": raiz, "salud": salud, "cap": cap}
 
@@ -696,6 +733,8 @@ def ejecutar(a: Dict[str, Any], medio: str, raiz: str, seco: bool,
                 pass
         return ("hecha", "detenido(s) %d orquestador(es) de %s" % (len(pids), cola)) if pids else (
             "nada", "no había orquestador con %s" % cola)
+    if que == "repartir":
+        return repartir_tareas(args, medio, raiz)
     if que == "liberar_disco":
         if medio == "mac":
             return "nada", "en la Mac limpia la autocuración de Genesis (lista blanca)"

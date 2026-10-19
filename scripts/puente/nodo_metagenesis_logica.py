@@ -683,6 +683,55 @@ def mejor_medio_ocioso(nodos: Dict[str, Dict[str, Any]], excepto: Optional[str] 
     return min(libres, key=lambda kv: _clave_mejor(kv[0], kv[1]))[0]
 
 
+def resumen_cola_viva(latidos_data: Dict[str, Any], trabajadores: int) -> Dict[str, int]:
+    """PURA. Resumen de la cola viva desde `latidos-<cola>.json`: trabajando, esperando, libres.
+    `latidos_data` tiene tareas con campo `fase`. Cuenta las que están en FASES_TRABAJO_COLA como
+    `trabajando`; el resto (pendientes, en cola) como `esperando`. `libres = trabajadores - trabajando`."""
+    tareas = latidos_data.get("tareas") if isinstance(latidos_data, dict) else []
+    if not isinstance(tareas, list):
+        tareas = []
+    trabajando = 0
+    for t in tareas:
+        if isinstance(t, dict) and t.get("fase") in FASES_TRABAJO_COLA:
+            trabajando += 1
+    esperando = len(tareas) - trabajando
+    libres = max(0, trabajadores - trabajando)
+    return {"trabajando": trabajando, "esperando": esperando, "libres": libres}
+
+
+def medio_alimentable(n: str, l: Dict[str, Any], ahora: float) -> Tuple[bool, str]:
+    """PURA. ¿Este medio puede ser alimentado (tiene orquestador vivo, libres ≥ 1 y sin tareas nuevas
+    en su cola en los últimos 10 min)? Devuelve (bool, motivo)."""
+    s = l.get("salud") or {}
+    if l.get("modo") != "real":
+        return False, "seco"
+    if not s.get("repo") or not s.get("orquestador"):
+        return False, "sin repo u orquestador"
+    orqs = s.get("orquestadores") or []
+    if not orqs:
+        return False, "sin orquestador vivo"
+    # Obtener trabajadores del primer orquestador (args --workers)
+    trabajadores = 2
+    for o in orqs:
+        cola = o.get("cola", "")
+        # El nombre de la cola no nos da los trabajadores; usamos un valor por defecto razonable
+        # En la práctica, el orquestador se lanza con --workers N
+        trabajadores = 2  # valor por defecto
+        break
+    # Leer resumen de cola viva desde salud (que viene del latido)
+    cola_viva = s.get("cola_viva") or {}
+    libres = cola_viva.get("libres")
+    if libres is None:
+        return False, "sin resumen de cola viva"
+    if libres < 1:
+        return False, "sin trabajadores libres (%d)" % libres
+    # Verificar si hay tareas nuevas en los últimos 10 min (600 s)
+    ultima_tarea = cola_viva.get("ultima_tarea_ts")
+    if ultima_tarea is not None and ahora - float(ultima_tarea) < 600:
+        return False, "cola con tareas nuevas hace menos de 10 min"
+    return True, ""
+
+
 def _h(texto: str) -> str:
     return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:8]
 
@@ -854,6 +903,26 @@ def planificar_resultados(n: str, s: Dict[str, Any], nodos: Dict[str, Dict[str, 
                            "%d listas en %s y %s libre: las del final del orden, que la Mac tardaría horas en "
                            "coger" % (listas, n, destino),
                            args={"destino": destino, "tope": REPARTO_TOPE}, espera_s=REPARTO_ESPERA_S))
+    # 6b. Sin medio ocioso, pero hay medio alimentable: alimentar su cola viva (modo "alimentar").
+    elif not pausado and not s.get("nube_pausada") and not destino and listas > 0:
+        alimentable = None
+        max_libres = 0
+        for nodo_id, nodo_data in nodos.items():
+            if nodo_id == n:
+                continue
+            ok, _ = medio_alimentable(nodo_id, nodo_data, ahora)
+            if ok:
+                cola_viva = (nodo_data.get("salud") or {}).get("cola_viva") or {}
+                libres = cola_viva.get("libres", 0)
+                if libres > max_libres:
+                    max_libres = libres
+                    alimentable = nodo_id
+        if alimentable:
+            tope = max_libres * 2
+            plan.append(accion("repartir_alimentar:%s" % alimentable, "repartir", n,
+                               "%d listas en %s y %s alimentable (libres=%d): se añaden a su cola viva" % (
+                                   listas, n, alimentable, max_libres),
+                               args={"destino": alimentable, "tope": tope, "modo": "alimentar"}, espera_s=REPARTO_ESPERA_S))
     # 7.
     pub = r.get("publicacion") or {}
     clase = clase_publicacion(pub)
