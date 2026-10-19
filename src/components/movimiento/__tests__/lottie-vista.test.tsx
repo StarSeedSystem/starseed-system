@@ -61,15 +61,11 @@ describe('LottieVista', () => {
     expect(container.querySelector('[data-testid="lottie-player"]')).not.toBeNull();
   });
 
-  it('should respect prefers-reduced-motion and show placeholder', () => {
-    // Simular que se prefiere reducir movimiento
+  it('should respect prefers-reduced-motion and show first frame', () => {
     simularMovimientoReducido(true);
-    
-    // Render the component
     const { container } = render(<LottieVista src="https://example.com/animation.lottie" />);
-    
-    // Check that the placeholder text is shown
-    expect(container.textContent).toContain('Animación (movimiento reducido)');
+    expect(container.querySelector('[data-testid="lottie-player"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('Animación (movimiento reducido)');
   });
 
   it('should show author and license when provided', () => {
