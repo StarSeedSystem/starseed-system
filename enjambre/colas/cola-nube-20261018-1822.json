@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "LYS1018J",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · tarjetas de productividad (interrogar un plan, traspaso, enseñar, escribir para agentes)",
+   "archivos": [
+    "src/ai/astraura/habilidades/productividad.ts",
+    "src/ai/astraura/habilidades/__tests__/productividad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Igual que ingenieria-a.ts con grill-me, grilling, handoff, teach, to-questionnaire, wait-what y writing-for-agents de vendor/habilidades/mattpocock-skills/productivity/. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018O",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya multilingüe · exportar a ONNX (fp32 e int8) en el A1 y medir acierto y latencia",
+   "archivos": [
+    "scripts/puente/laya_exportar.py",
+    "scripts/puente/test_laya_exportar.py"
+   ],
+   "depende": [],
+   "prompt": "Script que, en un entorno virtual propio, descarga `convaiinnovations/laya-multilingual` (solo los archivos del modelo y el tokenizador), lo exporta a ONNX con la receta MIT de receptron/laya (`export/export_onnx.py`, acreditada), lo cuantiza a int8 con `onnxruntime.quantization.quantize_dynamic` y mide sobre 30 mensajes de ejemplo en español (incluidos en el script) la coincidencia int8 vs fp32 y la latencia de cada uno. Escribe el informe en JSON. Funciones puras (comparar, resumir) probadas sin descargar nada; la ejecución real la lanza Claude en el A1. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "HFR1018A",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Protomolécula · ficha de HyperFrames (integrable) y de su Studio (solo-enlace por GSAP)",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En la categoría `video-composicion`, con la misma forma que la ficha `editly`, añade `hyperframes` (tipo \"libreria\", licencia \"Apache-2.0\", codigo https://github.com/heygen-com/hyperframes, web https://hyperframes.heygen.com, integracion \"servicio-local\", medios web \"embebible\" (reproductor) y macOS/Windows/Linux/servidor true, formatos entrada [html, css, mp4, png, mp3, json] salida [mp4, webm, mov, gif, png, hls], control via [cli, js], actualizacion npm `hyperframes` 0.8.172 del 2026-10-18, ia [\"genera-video-desde-html\"], estado \"integrable\", verificado \"2026-10-18\", avisos: telemetría apagada siempre, MusicGen solo personal, sin GSAP en el editor del OS) y `hyperframes-studio` (estado \"solo-enlace\", motivo: depende de GSAP, cuya licencia prohíbe editores visuales de animación). Amplía la prueba existente. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "HFR1018J",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Vídeo HTML · edición en grupo: parches del SDK ↔ elementos de sala",
+   "archivos": [
+    "src/lib/video-html/sincronia-video.ts",
+    "src/lib/video-html/__tests__/sincronia-video.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elementosDeParches(parches, autor, t)` convierte parches JSON del evento `patch` del SDK (op add/remove/replace, nunca move/copy/test) en `ElementoSala` de src/lib/salas/sincronia-sala.ts (id `elemento::propiedad`, remove → lápida) y `parchesDeEstado(estadoFusionado, origen)` hace lo contrario para `comp.applyPatches` con el origen `@hyperframes/sdk:applyPatches`, para que un cambio remoto no vuelva a emitirse. Usa `fusionarEstados`. Prueba: dos editores cambian el mismo título a la vez y ambos convergen al mismo resultado. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VST1018A",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Biblioteca · fichas de VoiceStudio y de los motores libres nuevos, con la licencia real de sus pesos",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/__tests__/voces-voicestudio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En la sección «VOCES» de packages.ts añade fichas `kind: \"repo\"` con la misma forma que `voz-voxcpm`: `voz-voicestudio` (debpalash/VoiceStudio, AGPL-3.0-only, estudio de voz local: clonación, diseño, doblaje, audiolibros, dictado; payload.motorId \"voicestudio\", payload.licencia \"AGPL-3.0-only\"), `voz-cosyvoice3` (FunAudioLLM/CosyVoice, Apache-2.0), `voz-qwen3-tts` (QwenLM/Qwen3-TTS, Apache-2.0), `voz-kittentts` (KittenML/KittenTTS, Apache-2.0), `voz-moss-tts-nano` (OpenMOSS/MOSS-TTS, Apache-2.0), `voz-dots-tts` (rednote-hilab/dots.tts, Apache-2.0) y `oido-moonshine` (moonshine-ai/moonshine, MIT). Cada ficha lleva `payload.claseLicencia` (\"libre\"). En la ficha existente `voz-voicemorphic` añade `payload.claseLicencia: \"personal\"` y una frase en la descripción: «sus pesos base (OmniVoice) son CC-BY-NC: solo uso personal; en grupo, comunidad, público o comercio Astraura usa una voz libre». Prueba: ids únicos, todas con githubRepo, claseLicencia válida y voicemorphic marcada personal. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VST1018B",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Catálogo de voces · licencia y clase por motor, motores nuevos y recomendado según contexto",
+   "archivos": [
+    "src/lib/aurora/catalogo-voces.ts",
+    "src/lib/aurora/__tests__/catalogo-voces.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Añade a `MotorVozCatalogo` los campos `licenciaPesos: string` y `claseLicencia: \"libre\"|\"condicionada\"|\"personal\"` y rellénalos en todos los motores existentes según la tabla §2 del contrato (voicemorphic → personal; kokoro, chatterbox, voxcpm, openvoice2 → libre; sistema → libre). Añade los motores cosyvoice3, qwen3-tts, kittentts, moss-tts-nano, dots-tts y voicestudio (este último `claseLicencia` según el motor que use; por defecto \"personal\" porque su motor de serie es OmniVoice). `motorRecomendado(plataforma, ramGB, contexto = \"personal\")`: fuera de \"personal\" nunca devuelve un motor de clase personal (cae al libre más capaz que quepa en la RAM). Pruebas: macOS 8 GB personal y macOS 8 GB comunidad dan motores distintos y el segundo es libre. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-180356.json": [
+   "VST1018A",
+   "LYS1018J",
+   "VST1018B",
+   "HFR1018A",
+   "HFR1018J",
+   "LYS1018O"
+  ]
+ }
+}
