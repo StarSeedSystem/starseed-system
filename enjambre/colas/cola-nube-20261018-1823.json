@@ -1,0 +1,84 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "VST1018C",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Voz · licencia por contexto: qué motores pueden sonar en cada sitio (puro, con herencia de capas)",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/licencia-voz.ts",
+    "src/lib/aurora/voz-starseed/__tests__/licencia-voz.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`motoresPermitidos(motores: { id, claseLicencia, condicionCumplida?: boolean }[], contexto: \"personal\"|\"grupo\"|\"comunidad\"|\"publico\"|\"comercial\", capas: CapasPrefs)` reutiliza `preferenciasEfectivas` de src/lib/modelos/preferencias-capas.ts («comercial» se trata como «publico» sin uso personal). Devuelve { permitidos, excluidos: { id, motivo }[] } con motivos legibles («pesos no comerciales: solo uso personal»). Una «condicionada» solo entra si `condicionCumplida` es true. Determinista. Pruebas con OmniVoice, Supertonic, Kokoro y IndexTTS en los cinco contextos. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VST1018D",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Voz · cliente de VoiceStudio (API compatible con OpenAI, descubrimiento y voz en flujo por frases)",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/voicestudio.ts",
+    "src/lib/aurora/voz-starseed/__tests__/voicestudio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Cliente con `fetch` y `WebSocket` INYECTABLES: `descubrir(base)` hace GET `/.well-known/voicestudio-speech` (tiempo máx. 800 ms) y devuelve { vivo, version?, ofrece: string[] } o { vivo:false, motivo }; `voces(base)` → GET `/v1/audio/voices`; `hablar(base, { texto, voz, formato })` → POST `/v1/audio/speech` y devuelve los bytes; `transcribir(base, audio, idioma)` → POST `/v1/audio/transcriptions`. Base por defecto `http://127.0.0.1:3900`; si la base no es de la propia máquina exige una clave pasada por parámetro (nunca leída de un archivo aquí). Errores con motivo legible, nunca lanza al llamador sin envolver. Pruebas con fetch falso. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VST1018E",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Oído · VoiceStudio y Moonshine en el elector de oído",
+   "archivos": [
+    "src/lib/aurora/stt-oss/motores-oido.ts",
+    "src/lib/aurora/stt-oss/__tests__/motores-oido.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Añade a `MotorOidoId` y a `MOTORES_OIDO` `voicestudio` (tipo \"endpoint\", flujo true por su WebSocket `/v1/audio/transcriptions/stream`, idiomas ['*'], licencia \"AGPL-3.0-only\") y `moonshine` (tipo \"local\", flujo true, idiomas ['en','es'], licencia \"MIT\", tamanoMB 60). Colócalos en el orden de `elegirOido` sin romper lo que ya hay: en fase parcial gana la menor latencia medida; en final, para español, parakeet-v3 sigue primero y voicestudio va justo después; moonshine antes de whisper-web. Amplía las pruebas existentes sin borrar ninguna. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VST1018H",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Voz · clonación con permiso registrado, marca de agua y etiqueta «voz clonada»",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/clonacion.ts",
+    "src/lib/aurora/voz-starseed/__tests__/clonacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `PermisoVoz` = { id, titular (cuenta dueña de la voz), concedidoA, para: string[], desde, hasta?, revocado }. `puedeClonar({ solicitante, titular, uso, permisos, ahora })` → { ok, motivo } (la voz propia siempre; la ajena solo con permiso vigente que cubra ese uso). `etiquetarAudio(meta)` añade `clonada: true`, `marcaAgua: \"audioseal\"|\"pendiente\"` y quién la autorizó; si no hay marca de agua disponible, el audio se marca «pendiente» y NO se publica fuera de lo personal. Pruebas: ajena sin permiso, permiso caducado, revocado y propio. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VST1018I",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Archivos · lector ZIP mínimo seguro (STORE y deflate con DecompressionStream)",
+   "archivos": [
+    "src/lib/files/zip-lector.ts",
+    "src/lib/files/__tests__/zip-lector.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Complemento de src/lib/files/simple-zip.ts (que solo escribe STORE y lista): `leerZip(bytes, { maxTotal, maxMiembros, maxDescomprimido })` lee el directorio central y devuelve { nombre, datos }[]; soporta método 0 y 8 (deflate con `DecompressionStream('deflate-raw')`, inyectable para pruebas); comprueba CRC-32, rechaza cifrados, rutas con `..` o absolutas y bombas (descomprimido > límite) con error claro. Nunca usa un nombre como ruta de disco. Pruebas con ZIP generados por simple-zip y uno deflate pequeño incrustado en la prueba. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VZF1015H",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Oído en flujo · cliente del WebSocket de Phonon (`/v1/audio/stream`): parciales y finales en vivo",
+   "archivos": [
+    "src/lib/aurora/stt-oss/oido-flujo.ts",
+    "src/lib/aurora/stt-oss/__tests__/oido-flujo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "El servidor de Phonon ofrece `GET /v1/audio/stream` (WebSocket): entran tramas binarias PCM16 de 16 kHz mono y salen JSON con `partial`, `final` y `done`; un solo flujo a la vez por servidor. Crea `abrirFlujoOido({ url, WebSocketImpl, alParcial, alFinal, alCerrar })` → `{ enviar(pcm: Int16Array), terminar(), cancelar() }`, con conversión de Float32 a PCM16 y remuestreo simple a 16 kHz, reconexión NUNCA automática (si se cierra, lo dice y el elector cae a tramos), y que interprete los mensajes de forma tolerante (campos `type`/`text`). Pruebas con un WebSocket falso. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-180356.json": [
+   "VST1018C",
+   "VST1018D",
+   "VST1018I",
+   "VST1018E",
+   "VST1018H",
+   "VZF1015H"
+  ]
+ }
+}
