@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Gobernador genérico: funciones de medición de hardware multiplataforma."""
 
+import platform
+import shutil
+import subprocess
+import os
+
+
 def de_meminfo(texto: str) -> dict | None:
     """Parsea la salida de /proc/meminfo y devuelve memoria total y disponible en MB."""
     if not texto.strip():
@@ -25,12 +31,8 @@ def de_meminfo(texto: str) -> dict | None:
             except (IndexError, ValueError):
                 pass
     
-    # Si no encontramos MemAvailable, calculamos aproximación
-    if result["disponible_mb"] is None and result["total_mb"] is not None:
-        # En sistemas antiguos, usar MemFree + Buffers + Cached como aproximación
-        # Pero para simplificar, si no está MemAvailable, devolvemos None
-        # Según los tests, cuando no hay MemAvailable, disponible_mb debería ser None
-        pass
+    # Si no encontramos MemAvailable, devolvemos None para disponible_mb
+    # Según los tests, cuando no hay MemAvailable, disponible_mb debería ser None
     
     # Solo devolver resultado si tenemos al menos total_mb
     if result["total_mb"] is not None:
@@ -132,9 +134,11 @@ def _version_a_numero(version: str) -> tuple[int, int, int]:
     # Eliminar prefijos no numéricos como 'v'
     version = version.lstrip('v')
     
-    # Tomar solo los primeros tres componentes numéricos
+    # Tomar solo los primeros tres componentes
+    partes_raw = version.split('.')[:3]
     partes = []
-    for parte in version.split('.'):
+    
+    for parte in partes_raw:
         # Extraer solo los dígitos iniciales de cada parte
         num_str = ''
         for char in parte:
@@ -146,9 +150,9 @@ def _version_a_numero(version: str) -> tuple[int, int, int]:
             try:
                 partes.append(int(num_str))
             except ValueError:
-                pass
-        # Si encontramos un carácter no numérico, detenemos el procesamiento de esta parte
-        # pero continuamos con las siguientes partes
+                partes.append(0)
+        else:
+            partes.append(0)
     
     # Asegurar que tenemos exactamente 3 componentes
     while len(partes) < 3:
@@ -195,10 +199,6 @@ def herramientas(versiones: dict[str, str]) -> dict[str, bool]:
 
 def medir() -> dict:
     """Mide los recursos del sistema y devuelve un diccionario con la información."""
-    import platform
-    import subprocess
-    import os
-    
     resultado = {
         "so": "",
         "medio_app": "terminal",
@@ -211,7 +211,7 @@ def medir() -> dict:
     }
     
     # Detectar sistema operativo
-    sistema = plataforma.system().lower()
+    sistema = platform.system().lower()
     if sistema == "darwin":
         resultado["so"] = "macos"
     elif sistema == "linux":
