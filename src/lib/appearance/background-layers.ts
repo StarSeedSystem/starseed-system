@@ -45,11 +45,62 @@
 
 /* ── Tipos ─────────────────────────────────────────────────────────────── */
 
-export type LayerKind = "color" | "gradiente" | "imagen" | "video" | "audiomorphic";
+export type LayerKind = "color" | "gradiente" | "imagen" | "video" | "audiomorphic" | "shader" | "difusion";
 
 export type BlendMode =
     | "normal" | "screen" | "lighten" | "overlay" | "soft-light"
     | "multiply" | "color-dodge" | "difference" | "hard-light" | "luminosity";
+
+/** Opciones de difuminado. */
+export type DifusionModo = "transparente" | "desenfoque" | "blanco" | "negro" | "tono";
+export type DifusionTextura = "ninguna" | "grano" | "papel" | "escarcha";
+
+/** Transformación de capa: posición, tamaño, rotación y dimensiones relativas (0-1). */
+export interface Transform {
+    /** Desplazamiento X (-0.5 a 0.5, donde 0 es centro). */
+    x?: number;
+    /** Desplazamiento Y (-0.5 a 0.5, donde 0 es centro). */
+    y?: number;
+    /** Escala (0.1 a 3, donde 1 es tamaño original). */
+    escala?: number;
+    /** Rotación en grados (-180 a 180). */
+    rotacion?: number;
+    /** Ancho relativo (0 a 1, donde 1 llena el ancho del contenedor). */
+    ancho?: number;
+    /** Alto relativo (0 a 1, donde 1 llena el alto del contenedor). */
+    alto?: number;
+}
+
+/** Máscara de capa. */
+export type Mascara = "ninguna" | "radial" | "lineal";
+
+/** Preset de shaders (estructura simplificada del paquete shaders). */
+export interface ShaderPreset {
+    /** Lista de componentes del preset. */
+    components: { type: string; id: string; props?: Record<string, unknown>; children?: ShaderPreset[] }[];
+    /** Versión de la estructura (opcional, para futuras evoluciones). */
+    structureVersion?: number;
+}
+
+/** Configuración de capa de shader. */
+export interface ShaderLayerConfig {
+    /** Preset JSON del efecto shader. */
+    preset: ShaderPreset;
+}
+
+/** Configuración de capa de difuminado. */
+export interface DifusionLayerConfig {
+    /** Modo de difuminado. */
+    modo: DifusionModo;
+    /** Tono (solo cuando modo es "tono": 0-360 grados). */
+    tono?: number;
+    /** Intensidad de desenfoque en píxeles (0-80). */
+    desenfoquePx?: number;
+    /** Opacidad (0-1). */
+    opacidad?: number;
+    /** Textura aplicada sobre el difuminado. */
+    textura?: DifusionTextura;
+}
 
 /**
  * Motor de la capa Audiomorphic.
@@ -112,6 +163,14 @@ export interface BackgroundLayer {
     /** color → CSS color · gradiente → CSS gradient · imagen/video → URL */
     value?: string;
     audiomorphic?: AudiomorphicLayerConfig;
+    /** Preset JSON del efecto shader (solo cuando kind === "shader"). */
+    preset?: ShaderPreset;
+    /** Configuración de difuminado (solo cuando kind === "difusion"). */
+    difusion?: DifusionLayerConfig;
+    /** Transformación de capa: posición, tamaño, rotación y dimensiones relativas (0-1). */
+    transform?: Transform;
+    /** Máscara de capa. */
+    mascara?: Mascara;
 }
 
 /**
@@ -128,7 +187,7 @@ export interface BackgroundLayer {
  *      no se traduce, el usuario **pierde su geometría** al actualizar. (Regla
  *      del proyecto: todo rediseño migra las configs persistidas.)
  */
-export const BG_LAYERS_VERSION = 3;
+export const BG_LAYERS_VERSION = 4;
 
 export const AUDIOMORPHIC_DEFAULT_URL = "https://audiomorphic.vercel.app";
 
@@ -191,7 +250,7 @@ export function defaultAudiomorphicConfig(): AudiomorphicLayerConfig {
 }
 
 export function createLayer(kind: LayerKind): BackgroundLayer {
-    const common = { id: uid(), kind, visible: true, opacity: 1 } as const;
+    const common = { id: uid(), kind, visible: true, opacity: 1, transform: undefined, mascara: undefined } as const;
     switch (kind) {
         case "audiomorphic":
             return {
@@ -215,6 +274,10 @@ export function createLayer(kind: LayerKind): BackgroundLayer {
             return { ...common, name: "Imagen", blend: "normal", opacity: 0.8, value: "" };
         case "video":
             return { ...common, name: "Vídeo", blend: "normal", opacity: 0.8, value: "" };
+        case "shader":
+            return { ...common, name: "Shader", blend: "normal", opacity: 1 };
+        case "difusion":
+            return { ...common, name: "Difuminado", blend: "normal", opacity: 0.5, difusion: { modo: "transparente" } };
     }
 }
 
@@ -232,6 +295,8 @@ export const LAYER_CATALOG: LayerCatalogEntry[] = [
     { kind: "color", label: "Color", hint: "Tinte sólido — útil para teñir el fondo de abajo." },
     { kind: "imagen", label: "Imagen", hint: "Imagen por URL, a pantalla completa." },
     { kind: "video", label: "Vídeo", hint: "Vídeo por URL, en bucle y sin sonido." },
+    { kind: "shader", label: "Shader", hint: "Efecto WebGPU configurable: degradados, ruido, vidrio, metal, luz, distorsiones, partículas y más." },
+    { kind: "difusion", label: "Difuminado", hint: "Capa de difuminado: transparente, desenfoque, blanco, negro o tono, con textura opcional." },
 ];
 
 /* ── Normalización defensiva ───────────────────────────────────────────── */
@@ -240,7 +305,7 @@ const BLENDS: BlendMode[] = [
     "normal", "screen", "lighten", "overlay", "soft-light",
     "multiply", "color-dodge", "difference", "hard-light", "luminosity",
 ];
-const KINDS: LayerKind[] = ["color", "gradiente", "imagen", "video", "audiomorphic"];
+const KINDS: LayerKind[] = ["color", "gradiente", "imagen", "video", "audiomorphic", "shader", "difusion"];
 
 const clamp = (v: unknown, lo: number, hi: number, fb: number): number => {
     const n = typeof v === "number" && Number.isFinite(v) ? v : fb;
@@ -286,6 +351,25 @@ export function normalizeLayers(raw: unknown): BackgroundLayer[] {
             blend: l.blend && BLENDS.includes(l.blend) ? l.blend : "normal",
             value: typeof l.value === "string" ? l.value : undefined,
             audiomorphic: l.kind === "audiomorphic" ? normalizeAudiomorphic(l.audiomorphic) : undefined,
+            preset: l.kind === "shader" && typeof l.preset === "object" && l.preset !== null ? l.preset as ShaderPreset : undefined,
+            difusion: l.kind === "difusion" && typeof l.difusion === "object" && l.difusion !== null ? 
+                {
+                    modo: l.difusion.modo,
+                    tono: l.difusion.tono !== undefined ? clamp(l.difusion.tono, 0, 360, 0) : undefined,
+                    desenfoquePx: clamp(l.difusion.desenfoquePx ?? 0, 0, 80, 0),
+                    opacidad: clamp(l.difusion.opacidad ?? 0.5, 0, 1, 0.5),
+                    textura: l.difusion.textura
+                } as DifusionLayerConfig : undefined,
+            transform: typeof l.transform === "object" && l.transform !== null ?
+                {
+                    x: clamp(l.transform.x ?? 0, -0.5, 0.5, 0),
+                    y: clamp(l.transform.y ?? 0, -0.5, 0.5, 0),
+                    escala: clamp(l.transform.escala ?? 1, 0.1, 3, 1),
+                    rotacion: clamp(l.transform.rotacion ?? 0, -180, 180, 0),
+                    ancho: clamp(l.transform.ancho ?? 1, 0, 1, 1),
+                    alto: clamp(l.transform.alto ?? 1, 0, 1, 1),
+                } as Transform : undefined,
+            mascara: typeof l.mascara === "string" && ["ninguna", "radial", "lineal"].includes(l.mascara) ? l.mascara as Mascara : undefined,
         });
         if (out.length >= 8) break; // techo sano: 8 capas
     }

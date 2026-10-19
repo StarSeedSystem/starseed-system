@@ -29,8 +29,8 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-    AudioWaveform, Cpu, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers,
-    Mic, Plus, RotateCcw, Sparkles, SlidersHorizontal, Trash2, Video, Paintbrush, Globe, User, FileCode,
+    AudioWaveform, Cpu, Droplet, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers,
+    Mic, Plus, RotateCcw, Sparkles, SlidersHorizontal, Trash2, Video, Paintbrush, Globe, User, FileCode, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppearance, type BackgroundScopeMode } from "@/context/appearance-context";
@@ -90,6 +90,8 @@ const KIND_ICON: Record<LayerKind, typeof Layers> = {
     gradiente: Sparkles,
     imagen: ImageIcon,
     video: Video,
+    shader: Zap,
+    difusion: Droplet,
 };
 
 /* ── Miniatura real de la capa ─────────────────────────────────────────── */
