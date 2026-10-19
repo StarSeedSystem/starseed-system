@@ -4,10 +4,9 @@ import { LottieVista } from '../lottie-vista';
 
 // Mock the dotlottie-react module
 vi.mock('@lottiefiles/dotlottie-react', () => ({
-  DotLottieReact: ({ src, autoplay, loop, speed, style }) => {
-    // Return a simple div that represents the Lottie player
+  DotLottieReact: (props: { src: string; autoplay?: boolean; loop?: boolean; speed?: number; style?: React.CSSProperties }) => {
     return <div data-testid="lottie-player" style={{ border: '1px solid blue' }}>
-      Lottie animation: {src}
+      Lottie animation: {props.src}
     </div>;
   }
 }));
