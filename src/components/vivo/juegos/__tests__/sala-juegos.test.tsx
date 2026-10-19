@@ -62,10 +62,13 @@ function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function textoContienePalabra(texto: string | null, palabra: string): boolean {
+function textoContienePalabra(texto: string | null, palabra: string, useWordBoundaries = true): boolean {
     if (!texto || !palabra) return false;
-    const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
-    return r.test(texto);
+    if (useWordBoundaries) {
+        const r = new RegExp("\\b" + escapeRegExp(palabra) + "\\b");
+        return r.test(texto);
+    }
+    return texto.includes(palabra);
 }
 
 async function elegirJuego(sala: Sala, juego: string) {
@@ -107,7 +110,7 @@ describe("tres en raya entre dos personas", () => {
         expect(mesa(ana.c).fin).toMatchObject({ tipo: "victoria", ganador: 0 });
         expect(ana.q.getByText("¡Has ganado!")).toBeInTheDocument();
         expect(beto.q.getByText("Has perdido esta vez")).toBeInTheDocument();
-        expect(ana.q.getAllByText("Tres en raya").length).toBeGreaterThanOrEqual(2); // subtítulo y motivo
+         expect(ana.q.getAllByText("Tres en raya").length).toBeGreaterThanOrEqual(2); // subtítulo y motivo
 
         await clic(beto.q.getByRole("button", { name: "Revancha (cambiando de bando)" }));
         await entregar();
@@ -219,11 +222,13 @@ describe("Dibujo-adivina", () => {
         // la palabra elegida no debe aparecer en los mensajes visibles para quienes adivinan
         // (no en todo el componente, que incluye textos fijos como «La mesa»)
         const mensajesBeto = beto.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
-        expect(textoContienePalabra(mensajesBeto, palabra)).toBe(false);
+        expect(textoContienePalabra(mensajesBeto, palabra, true)).toBe(false);
 
         const escribir = async (s: Sala, texto: string) => {
             const entrada = s.q.getByLabelText("Escribe tu intento");
-            await act(async () => { fireEvent.change(entrada, { target: { value: texto } }); });
+            await act(async () => {
+                fireEvent.change(entrada, { target: { value: texto } });
+            });
             await clic(s.q.getByRole("button", { name: "Enviar" }));
             await entregar(); // intento → dibujante
             await entregar(); // veredicto → todos
@@ -238,7 +243,7 @@ describe("Dibujo-adivina", () => {
         await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
         // la palabra acertada NUNCA se enseña en los mensajes visibles de las demás personas
         const mensajesCarla = carla.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
-        expect(textoContienePalabra(mensajesCarla, `Beto${palabra}`)).toBe(false);
+        expect(textoContienePalabra(mensajesCarla, `Beto${palabra}`, false)).toBe(false);
         expect(mesa(ana.c).tablero).toMatchObject({ aciertos: [expect.objectContaining({ seat: 1 })] });
         expect(beto.q.getByLabelText("Escribe tu intento")).toBeDisabled(); // ya acertó
 
