@@ -85,4 +85,75 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
             confirmar: true 
         });
     });
+
+    it("con nodo y en modo desconectando, el botón de desconectar está deshabilitado y muestra el estado", () => {
+        const b = botonesNeurona({ 
+            nodo: "mac-a1b2c3", 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 1, 
+            desconectando: true 
+        });
+        expect(b.desconectar).toMatchObject({ 
+            visible: true, 
+            habilitado: false, 
+            etiqueta: "Desconectando…", 
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor." 
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está visible y habilitado para macOS", () => {
+        const macos = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(macos.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está visible y habilitado para Windows", () => {
+        const windows = botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 });
+        expect(windows.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Windows se instala dentro de WSL2.",
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está oculto para iOS", () => {
+        const ios = botonesNeurona({ nodo: null, vivo: true, so: "ios", enCurso: 0 });
+        expect(ios.instalar).toMatchObject({
+            visible: false,
+            habilitado: false,
+            etiqueta: "",
+            explica: "",
+        });
+    });
+
+    it("sin nodo (solo navegador), el botón de instalar está oculto para otro SO", () => {
+        const otro = botonesNeurona({ nodo: null, vivo: true, so: "otro", enCurso: 0 });
+        expect(otro.instalar).toMatchObject({
+            visible: false,
+            habilitado: false,
+            etiqueta: "",
+            explica: "",
+        });
+    }     );
+    it("con contenedor inactivo pero apto y con agentes, el botón de contenedor está habilitado", () => {
+        const b = botonesNeurona({ 
+            nodo: "mac-a1b2c3", 
+            vivo: true, 
+            so: "macos", 
+            enCurso: 0, 
+            contenedor: { activo: false, agentes: 2, apto: true, motivo: "" } 
+        });
+        expect(b.contenedor).toMatchObject({ 
+            visible: true, 
+            habilitado: true, 
+            etiqueta: "Usar como contenedor (2 agentes)", 
+            explica: "Este aparato coge tareas de la cola como la Mac." 
+        });
+    });
 });
