@@ -28,40 +28,47 @@ const generarCon = (entorno: Entorno): string | null => planificar({
   capacidades: ["navegador", "cpu", ...capacidadesExternas(entorno)],
 } satisfies PeticionPlan, motoresDisponibles(entorno)).pasos.find((p) => p.etapa === "generar")?.motor?.id ?? null;
 describe("apagados por defecto y honestos", () => {
-  it("sin entorno, con la clave sola o con el permiso solo: no hay proveedor y se dice qué falta", () => {
-    expect(motivoNoDisponible("meshy", {})).toMatch(/AVATARES_EXTERNOS_PERMITIDOS=1/);
-    expect(motivoNoDisponible("meshy", { MESHY_API_KEY: CLAVE })).toMatch(/Apagado por defecto/);
-    expect(motivoNoDisponible("tripo", { AVATARES_EXTERNOS_PERMITIDOS: "1" })).toMatch(/TRIPO_API_KEY/);
-    for (const e of [{}, { MESHY_API_KEY: CLAVE, AVATARES_EXTERNOS_PERMITIDOS: "si" }, { AVATARES_EXTERNOS_PERMITIDOS: "1" }]) {
-      expect(capacidadesExternas(e)).toEqual([]);
-      expect(estadoProveedores(e).some((p) => p.disponible)).toBe(false);
-    }
-    expect(JSON.stringify(estadoProveedores({ MESHY_API_KEY: CLAVE }))).not.toContain(CLAVE);
+    it("sin entorno, con la clave sola o con el permiso solo: no hay proveedor y se dice qué falta", () => {
+      expect(motivoNoDisponible("meshy", {})).toMatch(/AVATARES_EXTERNOS_PERMITIDOS=1/);
+      expect(motivoNoDisponible("meshy", { MESHY_API_KEY: CLAVE })).toMatch(/Apagado por defecto/);
+      expect(motivoNoDisponible("tripo", { AVATARES_EXTERNOS_PERMITIDOS: "1" })).toMatch(/TRIPO_API_KEY/);
+      for (const e of [{}, { MESHY_API_KEY: CLAVE, AVATARES_EXTERNOS_PERMITIDOS: "si" }, { AVATARES_EXTERNOS_PERMITIDOS: "1" }]) {
+        expect(capacidadesExternas(e)).toEqual([]);
+        expect(estadoProveedores(e).some((p) => p.disponible)).toBe(false);
+      }
+      expect(JSON.stringify(estadoProveedores({ MESHY_API_KEY: CLAVE }))).not.toContain(CLAVE);
+    });
+    it("con clave Y permiso se ofrece clave-externa, solo del proveedor que tiene clave", () => {
+      expect(capacidadesExternas(SOLO_TRIPO)).toEqual(["clave-externa"]);
+      expect(estadoProveedores(SOLO_TRIPO).map((p) => p.disponible)).toEqual([false, true]);
+    });
+    it("planificar: nada sin entorno; Meshy con las dos (atribución primero); Tripo si solo hay la suya", () => {
+      expect(generarCon({})).toBeNull();
+      expect(motoresDisponibles({}).some((m) => m.id === "meshy" || m.id === "tripo")).toBe(false);
+      expect(generarCon(ENCENDIDO)).toBe("meshy");
+      expect(generarCon(SOLO_TRIPO)).toBe("tripo");
+      expect(procedenciaExterna("meshy")).toMatchObject({ uso: "atribucion", atribucion: "Modelo 3D generado con Meshy" });
+      expect(procedenciaExterna("meshy")?.licencia).toMatch(/CC BY 4\.0/);
+      expect(procedenciaExterna("tripo")?.uso).toBe("condicionado");
+    });
+    it("imagen solo PNG o JPEG con tamaño válido; descargas https del dominio del proveedor", () => {
+      expect(motivoImagen(PNG)).toBeNull();
+      expect([{ ...PNG, mime: "image/webp" }, { ...PNG, bytes: new Uint8Array(0) }, { ...PNG, bytes: new Uint8Array(9 << 20) }].map(motivoImagen))
+        .toEqual([expect.stringMatching(/Formato/), expect.stringMatching(/vacía/), expect.stringMatching(/MB/)]);
+      expect(esUrlDescarga("meshy", "https://assets.meshy.ai/t/model.glb?Expires=1")).toBe(true);
+      expect(esUrlDescarga("tripo", "https://cdn.tripo3d.ai/output/model_pbr.glb")).toBe(true);
+      for (const u of ["http://assets.meshy.ai/m.glb", "https://assets.meshy.ai.atacante.com/m.glb", "https://cdn.tripo3d.ai/m.glb", null]) {
+        expect(esUrlDescarga("meshy", u)).toBe(false);
+      }
+    });
+    it("Meshy lleva la atribución obligatoria", () => {
+      const p = procedenciaExterna("meshy");
+      expect(p.herramienta).toBe("meshy");
+      expect(p.uso).toBe("atribucion");
+      expect(p.atribucion).toBe("Modelo 3D generado con Meshy");
+      expect(p.licencia).toContain("CC BY 4.0");
+    });
   });
-  it("con clave Y permiso se ofrece clave-externa, solo del proveedor que tiene clave", () => {
-    expect(capacidadesExternas(SOLO_TRIPO)).toEqual(["clave-externa"]);
-    expect(estadoProveedores(SOLO_TRIPO).map((p) => p.disponible)).toEqual([false, true]);
-  });
-  it("planificar: nada sin entorno; Meshy con las dos (atribución primero); Tripo si solo hay la suya", () => {
-    expect(generarCon({})).toBeNull();
-    expect(motoresDisponibles({}).some((m) => m.id === "meshy" || m.id === "tripo")).toBe(false);
-    expect(generarCon(ENCENDIDO)).toBe("meshy");
-    expect(generarCon(SOLO_TRIPO)).toBe("tripo");
-    expect(procedenciaExterna("meshy")).toMatchObject({ uso: "atribucion", atribucion: "Modelo 3D generado con Meshy" });
-    expect(procedenciaExterna("meshy")?.licencia).toMatch(/CC BY 4\.0/);
-    expect(procedenciaExterna("tripo")?.uso).toBe("condicionado");
-  });
-  it("imagen solo PNG o JPEG con tamaño válido; descargas https del dominio del proveedor", () => {
-    expect(motivoImagen(PNG)).toBeNull();
-    expect([{ ...PNG, mime: "image/webp" }, { ...PNG, bytes: new Uint8Array(0) }, { ...PNG, bytes: new Uint8Array(9 << 20) }].map(motivoImagen))
-      .toEqual([expect.stringMatching(/Formato/), expect.stringMatching(/vacía/), expect.stringMatching(/MB/)]);
-    expect(esUrlDescarga("meshy", "https://assets.meshy.ai/t/model.glb?Expires=1")).toBe(true);
-    expect(esUrlDescarga("tripo", "https://cdn.tripo3d.ai/output/model_pbr.glb")).toBe(true);
-    for (const u of ["http://assets.meshy.ai/m.glb", "https://assets.meshy.ai.atacante.com/m.glb", "https://cdn.tripo3d.ai/m.glb", null]) {
-      expect(esUrlDescarga("meshy", u)).toBe(false);
-    }
-  });
-});
 describe("crearTarea con fetch simulado", () => {
   it("Meshy: POST image-to-3d con data URI, Bearer y modelo; devuelve `result`", async () => {
     const { buscar, llamadas } = simulado([{ status: 202, cuerpo: { result: "018a210d-8ba4-705c-b111-1f1776f7f578" } }]);
