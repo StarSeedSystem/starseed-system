@@ -1,8 +1,9 @@
-import { describe, expect, it, fail } from "vitest";
+import { describe, expect, it } from "vitest";
 import { validarAccion } from "../acciones";
 import {
   MAX_CAPAS_POR_BOT, MAX_TEXTO_CAPA, apilar, esCapaValida, normalizarCapa, retirar, retirarDeBot,
   type CapaActiva,
+  type CapaNormalizada,
 } from "../capa-pantalla";
 
 // Clave de EJEMPLO montada en tiempo de ejecución (trampa nº 12 de CLAUDE.md: la protección de secretos).
@@ -53,18 +54,7 @@ describe("normalizarCapa · rechazos", () => {
     expect(problemasDe(normalizarCapa({ forma: "nota", texto: "Hola", uiSpec: SPEC }))).toEqual(["La UiSpec solo cabe en la forma «widget»."]);
   });
 
-  it("debe ignorar uiSpec para formas no widget", () => {
-    const uiSpecCualquiera = { version: 1, superficie: 'test', bloques: [] };
-    const resultado = normalizarCapa({ 
-      forma: 'nota', 
-      uiSpec: uiSpecCualquiera 
-    });
-    
-    // No debe tener problemas
-    expect('problemas' in resultado).toBe(false);
-    // El uiSpec debe estar presente en el resultado (aunque no se use)
-    expect(resultado.uiSpec).toBe(uiSpecCualquiera);
-  });
+
   it("código en el texto se rechaza (script, javascript:, manejadores)", () => {
     for (const texto of ["<script>alert(1)</script>", "javascript:void(0)", "pulsa onclick=hacer()"]) {
       expect(problemasDe(normalizarCapa({ forma: "nota", texto }))[0], texto).toMatch(/parece código/);
