@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, fail } from "vitest";
 import { validarAccion } from "../acciones";
 import {
   MAX_CAPAS_POR_BOT, MAX_TEXTO_CAPA, apilar, esCapaValida, normalizarCapa, retirar, retirarDeBot,
@@ -52,6 +52,19 @@ describe("normalizarCapa · rechazos", () => {
   it("una UiSpec fuera de un widget no se cuela", () => {
     expect(problemasDe(normalizarCapa({ forma: "nota", texto: "Hola", uiSpec: SPEC }))).toEqual(["La UiSpec solo cabe en la forma «widget»."]);
   });
+
+  it("debe ignorar uiSpec para formas no widget", () => {
+    const uiSpecCualquiera = { version: 1, superficie: 'test', bloques: [] };
+    const resultado = normalizarCapa({ 
+      forma: 'nota', 
+      uiSpec: uiSpecCualquiera 
+    });
+    
+    // No debe tener problemas
+    expect('problemas' in resultado).toBe(false);
+    // El uiSpec debe estar presente en el resultado (aunque no se use)
+    expect(resultado.uiSpec).toBe(uiSpecCualquiera);
+  });
   it("código en el texto se rechaza (script, javascript:, manejadores)", () => {
     for (const texto of ["<script>alert(1)</script>", "javascript:void(0)", "pulsa onclick=hacer()"]) {
       expect(problemasDe(normalizarCapa({ forma: "nota", texto }))[0], texto).toMatch(/parece código/);
@@ -67,6 +80,11 @@ describe("normalizarCapa · rechazos", () => {
   it("resaltar y flecha sin objetivo, u objetivo con forma de selector, se rechazan", () => {
     expect(problemasDe(normalizarCapa({ forma: "resaltar" }))[0]).toMatch(/necesita un objetivo/);
     expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "div > a[href]" }))[0]).toMatch(/identificador/);
+  });
+
+  it("objetivo vacío se rechaza para resaltar y flecha", () => {
+    expect(problemasDe(normalizarCapa({ forma: "resaltar", objetivo: "" }))[0]).toMatch(/identificador/);
+    expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "" }))[0]).toMatch(/identificador/);
   });
 });
 
