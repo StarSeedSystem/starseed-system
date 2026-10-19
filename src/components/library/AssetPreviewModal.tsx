@@ -269,84 +269,97 @@ export function AssetPreviewModal({
 
         {/* Body (scroll) */}
         <div className="flex-1 overflow-y-auto">
-          {/* Galería */}
-          <div className="relative bg-black/30 border-b border-white/10">
-            <div className="relative aspect-[16/7] w-full overflow-hidden flex items-center justify-center">
-              {images.length > 0 && !brokenImg[galleryIdx] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={images[galleryIdx]}
-                  alt={view.name}
-                  className="w-full h-full object-cover"
-                  onError={() =>
-                    setBrokenImg((b) => ({ ...b, [galleryIdx]: true }))
-                  }
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                  <ImageIcon className="w-10 h-10 opacity-40" />
-                  <p className="text-xs">Sin vista previa disponible</p>
-                </div>
-              )}
+           {/* Galería */}
+           <div className="relative bg-black/30 border-b border-white/10">
+             <div className="relative aspect-[16/7] w-full overflow-hidden">
+               {view.externalUrl && /\.(lottie|json)$/i.test(view.externalUrl) ? (
+                 <LottieVista
+                   src={view.externalUrl}
+                   license={view.license}
+                   author={view.author}
+                   autoplay={true}
+                   loop={true}
+                   speed={1}
+                 />
+               ) : (
+                 <>
+                   {images.length > 0 && !brokenImg[galleryIdx] ? (
+                     // eslint-disable-next-line @next/next/no-img-element
+                     <img
+                       src={images[galleryIdx]}
+                       alt={view.name}
+                       className="w-full h-full object-cover"
+                       onError={() =>
+                         setBrokenImg((b) => ({ ...b, [galleryIdx]: true }))
+                       }
+                     />
+                   ) : (
+                     <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                       <ImageIcon className="w-10 h-10 opacity-40" />
+                       <p className="text-xs">Sin vista previa disponible</p>
+                     </div>
+                   )}
 
-              {images.length > 1 && (
-                <>
-                  <button
-                    onClick={() =>
-                      setGalleryIdx(
-                        (i) => (i - 1 + images.length) % images.length
-                      )
-                    }
-                    className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white cursor-pointer"
-                    aria-label="Anterior"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setGalleryIdx((i) => (i + 1) % images.length)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white cursor-pointer"
-                    aria-label="Siguiente"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-                    {images.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setGalleryIdx(i)}
-                        className={cn(
-                          "w-2 h-2 rounded-full cursor-pointer transition-colors",
-                          i === galleryIdx ? "bg-amber-300" : "bg-white/30"
-                        )}
-                        aria-label={`Imagen ${i + 1}`}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+                   {images.length > 1 && (
+                     <>
+                       <button
+                         onClick={() =>
+                           setGalleryIdx(
+                             (i) => (i - 1 + images.length) % images.length
+                           )
+                         }
+                         className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white cursor-pointer"
+                         aria-label="Anterior"
+                       >
+                         <ChevronLeft className="w-5 h-5" />
+                       </button>
+                       <button
+                         onClick={() => setGalleryIdx((i) => (i + 1) % images.length)}
+                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white cursor-pointer"
+                         aria-label="Siguiente"
+                       >
+                         <ChevronRight className="w-5 h-5" />
+                       </button>
+                       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                         {images.map((_, i) => (
+                           <button
+                             key={i}
+                             onClick={() => setGalleryIdx(i)}
+                             className={cn(
+                               "w-2 h-2 rounded-full cursor-pointer transition-colors",
+                               i === galleryIdx ? "bg-amber-300" : "bg-white/30"
+                             )}
+                             aria-label={`Imagen ${i + 1}`}
+                           />
+                         ))}
+                       </div>
+                     </>
+                   )}
+                 </>
+               )}
+             </div>
 
-            {/* Vídeos (con fallback de etiqueta) */}
-            {videos.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-3 border-t border-white/5">
-                {videos.map((v, i) => (
-                  <video
-                    key={i}
-                    src={v}
-                    controls
-                    preload="none"
-                    className="h-24 rounded-lg border border-white/10 bg-black"
-                  >
-                    {isSafeHttpUrl(v) && (
-                      <a href={v} target="_blank" rel="noopener noreferrer">
-                        <VideoIcon className="w-4 h-4" /> Ver vídeo
-                      </a>
-                    )}
-                  </video>
-                ))}
-              </div>
-            )}
-          </div>
+             {/* Vídeos (con fallback de etiqueta) */}
+             {videos.length > 0 && (
+               <div className="flex flex-wrap gap-2 p-3 border-t border-white/5">
+                 {videos.map((v, i) => (
+                   <video
+                     key={i}
+                     src={v}
+                     controls
+                     preload="none"
+                     className="h-24 rounded-lg border border-white/10 bg-black"
+                   >
+                     {isSafeHttpUrl(v) && (
+                       <a href={v} target="_blank" rel="noopener noreferrer">
+                         <VideoIcon className="w-4 h-4" /> Ver vídeo
+                       </a>
+                     )}
+                   </video>
+                 ))}
+               </div>
+             )}
+           </div>
 
           {/* Tabs */}
           <div className="flex items-center gap-1 px-4 pt-3 border-b border-white/10 overflow-x-auto">
