@@ -1,0 +1,34 @@
+/* StarSeed OS · Trinity Liquid Crystal · tokens de marca (ADN 2026-10-06) */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+:root {
+  --ss-zenith: #007FFF;          /* azul eléctrico · 25 % */
+  --ss-horizonte: #10B981;       /* verde esmeralda · 25 % */
+  --ss-logica: #FFBF00;          /* ámbar solar · 20 % */
+  --ss-anchor: #DC143C;          /* carmesí sistema · 10 % */
+  --ss-nieve: #F8F9FA;           /* neutro · 20 % */
+  --ss-noche: #0A0F1D;           /* base nocturna */
+  --ss-noche-alta: #141B2E;
+  --ss-nieve-honda: #EDF0F4;
+  --ss-pizarra: #46506A;
+  --ss-bruma: #AEB6C8;
+  --ss-zenith-texto: #0057B0;    /* zenith para texto sobre nieve (6.66:1) */
+  --ss-horizonte-texto: #047857; /* horizonte para texto sobre nieve (5.20:1) */
+  --ss-cian-astraura: #00F0FF;
+  /* Mundos (texto solo sobre noche) */
+  --ss-mundo-sociedad: #CD77F8; --ss-mundo-os: #25D1F4; --ss-mundo-cafe: #F5B91A;
+  --ss-mundo-estudio: #F471F4; --ss-mundo-fundacion: #34D77F; --ss-mundo-audiomorphic: #2DD29B;
+  --ss-neon-lima: #39FF14; --ss-oro-brunido: #D4AF37; --ss-vacio-profundo: #001F3F;
+  --ss-font-titular: 'Rajdhani', 'Inter', system-ui, sans-serif;
+  --ss-font-cuerpo: 'Inter', system-ui, sans-serif;
+  --ss-font-codigo: 'JetBrains Mono', ui-monospace, monospace;
+  --ss-radio-sm: 4px; --ss-radio-md: 12px; --ss-radio-lg: 24px; --ss-radio-xl: 42px; --ss-radio-pildora: 9999px;
+  --ss-blur-cristal: 16px; --ss-opacidad-cristal: 0.6;
+  --ss-ease-organic: cubic-bezier(0.22, 1, 0.36, 1);
+  --ss-ease-glide: cubic-bezier(0.16, 1, 0.3, 1);
+  --ss-ease-genesis: cubic-bezier(0.22, 0.9, 0.3, 1);
+  --ss-dur-rapido: 140ms; --ss-dur-organico: 220ms; --ss-dur-normal: 240ms;
+  --ss-aureo: 1.618;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --ss-dur-rapido: 0ms; --ss-dur-organico: 0ms; --ss-dur-normal: 0ms; }
+}
