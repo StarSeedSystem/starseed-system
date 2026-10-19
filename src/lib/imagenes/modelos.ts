@@ -9,7 +9,7 @@
  */
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
-export const FECHA_VERIFICACION_IMAGENES = "2026-10-11";
+export const FECHA_VERIFICACION_IMAGENES = "2026-10-16";
 
 export const MOTORES_IMG = ["sdcpp", "comfyui", "diffusers", "onnx-web", "a1111-forge"] as const;
 export type MotorImg = (typeof MOTORES_IMG)[number];
@@ -138,7 +138,21 @@ export const MODELOS_IMAGEN: readonly ModeloImagen[] = [
     licencia: "Krea 2 Community License (código Apache-2.0)", uso: "no-comercial", gated: true, repoGB: 62.5, pasos: 8, resolucion: 1024,
     capacidades: ["texto-a-imagen", "rapido"], hf: "krea/Krea-2-Turbo", codigo: "https://github.com/krea-ai/krea-2",
     nota: "Estilo y exploración creativa; uso comercial con licencia de pago de Krea. Krea-2-Raw es la base para afinar. VRAM sin publicar.",
-  },
+   },
+
+   {
+     id: "qwen-image-2.1-turbo", nombre: "Qwen-Image 2.1 Turbo", gama: "alta", vramGB: 24, ramGB: 32, motores: ["sdcpp", "comfyui", "diffusers"],
+     licencia: "Qwen Research License (solo investigación o evaluación)", uso: "no-comercial", gated: false, repoGB: 47.4, pasos: 8, resolucion: 1024,
+     capacidades: ["texto-a-imagen", "edicion", "texto-legible", "transparencia", "multi-referencia", "rapido"], hf: "Qwen/Qwen-Image-2.1-Turbo", codigo: "https://github.com/QwenLM/Qwen-Image-2.1",
+     nota: "GGUF cuantizados disponibles (Q2_K 2.47 GB · Q3_K_S 2.72 · Q3_K_M 3.17 · Q4_K_M 4.2 · F16 14.2) para stable-diffusion.cpp. Uso comercial solo con licencia aparte de Qwen.",
+   },
+
+   {
+     id: "z-image-turbo", nombre: "Z-Image Turbo", gama: "navegador", vramGB: 4, ramGB: 8, repoGB: 13, motores: ["sdcpp", "diffusers"],
+     licencia: "Apache-2.0", uso: "libre", gated: false,
+     pasos: 30, resolucion: 512, capacidades: ["texto-a-imagen", "rapido"], hf: "Tongyi-MAI/Z-Image-Turbo",
+     nota: "Pasos y resolución no verificados; se asume rápido de pocos pasos (placeholder 30 pasos). Licencia libre Apache-2.0.",
+   }
 ];
 
 export const modeloPorId = (id: string): ModeloImagen | undefined => MODELOS_IMAGEN.find((m) => m.id === id);
