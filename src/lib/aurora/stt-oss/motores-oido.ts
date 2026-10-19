@@ -2,7 +2,7 @@
  * StarSeed OS — Registro y elector de motores de oído. Módulo PURO (sin DOM ni fetch).
  * Contrato: architecture/voz-fusionada-astraura.md (§1, §3).
  */
-export type MotorOidoId = 'phonon-2'|'parakeet-v3'|'vibeasr-158'|'whisper-web'|'navegador'|'malla';
+export type MotorOidoId = 'phonon-2'|'parakeet-v3'|'vibeasr-158'|'whisper-web'|'navegador'|'malla'|'voicestudio'|'moonshine';
 export interface MotorOido { id: MotorOidoId; idiomas: string[]; tipo: 'navegador'|'local'|'endpoint'|'malla'; flujo: boolean; licencia: string; atribucion?: boolean; tamanoMB?: number; }
 export const MOTORES_OIDO: MotorOido[] = [
   { id: 'phonon-2', idiomas: ['en','es'], tipo: 'endpoint', flujo: true, licencia: 'CC-BY-4.0', atribucion: true, tamanoMB: 164 },
@@ -11,6 +11,8 @@ export const MOTORES_OIDO: MotorOido[] = [
   { id: 'whisper-web', idiomas: ['es','en','ca','fr','de','pt','it'], tipo: 'endpoint', flujo: false, licencia: 'MIT', atribucion: false },
   { id: 'navegador', idiomas: ['*'], tipo: 'navegador', flujo: true, licencia: 'sistema', atribucion: false },
   { id: 'malla', idiomas: ['*'], tipo: 'malla', flujo: false, licencia: '', atribucion: false },
+  { id: 'voicestudio', idiomas: ['*'], tipo: 'endpoint', flujo: true, licencia: 'AGPL-3.0-only', atribucion: true },
+  { id: 'moonshine', idiomas: ['en','es'], tipo: 'local', flujo: true, licencia: 'MIT', atribucion: false, tamanoMB: 60 },
 ];
 export interface OpcionesEleccionOido { idioma: string; disponibles: MotorOidoId[]; medidas?: Record<string, number>; fase: 'parcial'|'final'; preferido?: MotorOidoId; }
 export interface ResultadoOido { motor: string; motivo: string; }
