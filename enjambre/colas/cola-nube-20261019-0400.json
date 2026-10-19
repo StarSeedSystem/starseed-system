@@ -1,0 +1,65 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "HFR1018C",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Vídeo HTML · plantilla StarSeed sin GSAP y detector de adaptadores con su licencia",
+   "archivos": [
+    "src/lib/video-html/plantilla.ts",
+    "src/lib/video-html/adaptadores.ts",
+    "src/lib/video-html/__tests__/adaptadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "plantilla.ts: `plantillaStarSeed({ ancho, alto, duracion, titulo, fondo, acento })` devuelve el HTML de una composición válida para HyperFrames (raíz con `data-composition-id=\"main\"`, `data-start`, `data-duration`, `data-width`, `data-height` y `data-no-timeline`; cada elemento visible con id estable, `class=\"clip\"` y sus atributos de tiempo) animada SOLO con CSS @keyframes; escapa el texto. adaptadores.ts: `detectarAdaptadores(html)` → { usados: (\"css\"|\"waapi\"|\"animejs\"|\"lottie\"|\"three\"|\"typegpu\"|\"gsap\")[], editableVisualmente, motivo } (gsap → no editable visualmente, con motivo de licencia y la sugerencia de convertir a WAAPI). Pruebas: la plantilla no contiene «gsap» y el detector reconoce cada adaptador. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "HFR1018F",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Servicio hyperframes · rutas, salud y límites (127.0.0.1:4490)",
+   "archivos": [
+    "servicios/hyperframes/package.json",
+    "servicios/hyperframes/src/rutas.mjs",
+    "src/lib/__tests__/hyperframes-rutas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "package.json privado (`starseed-hyperframes`, type module, licencia AGPL-3.0-or-later, engines node >=22) que DECLARA hyperframes 0.8.172 y @hyperframes/sdk, @hyperframes/player y @hyperframes/core 0.8.173 (no los instales). rutas.mjs exporta `manejar({ metodo, ruta, cuerpo }, deps)` PURO: GET /salud (versión, navegador y ffmpeg presentes según deps, telemetría apagada), POST /lint, POST /editar (aplica órdenes de operaciones-sdk), GET /vista/:id (sirve composición y reproductor), POST /render y GET /trabajos/:id (delegan en la cola). Rechaza cuerpos > 8 MB, rutas desconocidas (404) y cualquier ruta de disco fuera del proyecto. La prueba importa el .mjs como src/lib/__tests__/laya-servidor.test.ts. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "CAP1018A",
+   "ola": "Ola 1018K · Capacidad: el A1 no se queda parado con una cola que solo espera escritor",
+   "importancia": "capacidad",
+   "titulo": "MetaGenesis · al A1 con trabajadores ociosos se le alimenta su cola viva (UN orquestador), no se le deja 40 min parado",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis_logica.py",
+    "scripts/puente/nodo_metagenesis_medio.py",
+    "scripts/puente/test_nodo_metagenesis_ocioso.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 2026-10-18 13:35 (hora de la Mac): el A1 tenía 0 opencode, carga 0,00 y 9,9 GB libres durante más de 40 min, porque su cola prestada (cola-mg-oracle-1018-1150, 4 tareas) tenía 3 hechas y 1 «esperando proveedor», y `medio_ocioso()` responde «ya trabaja una cola» en cuanto `salud.orquestadores` > 0. Regla del proyecto: UN orquestador por medio (CLAUDE.md), así que NO se lanza una segunda cola: se alimenta la viva, igual que hace el vigilante en la Mac (`alimentar_tanda_viva`: el orquestador relee su archivo de cola y toma las tareas nuevas). (1) En el latido del medio (`nodo_metagenesis_medio.py`) añade a `salud` el resumen de su cola viva leído de `latidos-<cola>.json`: `trabajando` (fases de escritura, tsc, pruebas, revisión, integración), `esperando` y `libres` (= trabajadores − trabajando). (2) En `nodo_metagenesis_logica.py`, una función PURA `medio_alimentable(n, l)` → (bool, motivo): orquestador vivo, `libres` ≥ 1, y su cola sin tareas nuevas en los últimos 10 min; y que el plan del líder, cuando no hay medio ocioso pero sí alimentable, proponga la acción `repartir` con `destino` y un campo nuevo `modo: \"alimentar\"` (como mucho `libres × 2` tareas). (3) En el medio, la orden `repartir` con `modo: alimentar` añade las tareas al archivo de SU cola viva de forma atómica (tmp + os.replace), sin duplicar ids y nunca si no hay orquestador vivo. Pruebas: libre, ocupado, sin campo nuevo (compatibilidad), sin duplicados, nunca dos orquestadores. Reglas: ≤ 120 líneas nuevas por archivo; no toques otros archivos; nunca IPs ni claves en mensajes; comentarios en español con acentos."
+  },
+  {
+   "id": "APM1017Y",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Neurona · panel «Prestar recursos» en la neurona",
+   "archivos": [
+    "src/components/neurons/prestar-recursos.tsx",
+    "src/components/neurons/neuron-models-panel.tsx",
+    "src/components/neurons/__tests__/prestar-recursos.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Panel con interruptores y topes de prestar.ts, en lenguaje claro («Dejar que mis otras neuronas usen esta para calcular», «Prestar espacio», «Apps que otras neuronas pueden abrir desde aquí»), explicando cada opción en una línea, sin textos cortados y con el aviso de que lo privado nunca sale de la cuenta. Móntalo al final del panel de la neurona en neuron-models-panel.tsx (solo añadir la línea de montaje). Prueba con Testing Library: guarda y vuelve a leer. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017X"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "CAP1018A",
+   "HFR1018C",
+   "HFR1018F",
+   "APM1017Y"
+  ]
+ }
+}
