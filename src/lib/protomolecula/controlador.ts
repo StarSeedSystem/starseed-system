@@ -21,6 +21,8 @@ import { decidir, decidirOperacion } from "./permisos";
 import { obtenerAtomo, candidatosDe } from "./registro-atomos";
 import { entenderVarias } from "./dictado";
 import { aplicarOperacion, deshacerUltimo, rehacerUltimo, registrar, type Historial } from "./parametros";
+import { operacionASdkOrder } from "../../lib/video-html/operaciones-sdk";
+import { llamarServicio, type DefinicionServicio } from "./servicio-local";
 
 export interface Pendiente {
   operacion: Operacion;
@@ -83,19 +85,43 @@ export function crearControlador(o: {
     return def.parametros.find((p) => p.id === ref.parametroId);
   }
 
-  function aplicar(op: Operacion): { ok: true; cambio: Cambio } | { ok: false; motivo: string } {
-    const p = parametroDe(op.objetivo);
-    if (!p) return { ok: false, motivo: `Parámetro desconocido: ${op.objetivo.parametroId}` };
-    const r = aplicarOperacion(estado.molecula.valores, p, op);
-    if (!r.ok) return r;
-    estado = {
-      molecula: { ...estado.molecula, valores: r.estado, actualizadaEn: ahora(), version: estado.molecula.version + 1 },
-      historial: registrar(estado.historial, r.cambio),
-      pendientes: estado.pendientes,
-    };
-    notificar(suscriptores, estado);
-    return { ok: true, cambio: r.cambio };
-  }
+   function aplicar(op: Operacion): { ok: true; cambio: Cambio } | { ok: false; motivo: string } {
+     const p = parametroDe(op.objetivo);
+     if (!p) return { ok: false, motivo: `Parámetro desconocido: ${op.objetivo.parametroId}` };
+     const r = aplicarOperacion(estado.molecula.valores, p, op);
+     if (!r.ok) return r;
+     estado = {
+       molecula: { ...estado.molecula, valores: r.estado, actualizadaEn: ahora(), version: estado.molecula.version + 1 },
+       historial: registrar(estado.historial, r.cambio),
+       pendientes: estado.pendientes,
+     };
+     notificar(suscriptores, estado);
+     
+     // If the atom is video-html, translate the operation to an SDK order and send it to the HyperFrames service
+     const enUso = estado.molecula.atomos.find((a) => a.id === op.objetivo.atomoId);
+     if (enUso) {
+       const def = obtenerAtomo(enUso.herramientaId);
+       if (def && def.herramientaId === "video-html") {
+         try {
+           const sdkOrder = operacionASdkOrder(op);
+           // Call the HyperFrames service to apply the SDK order
+           const servicioDef: DefinicionServicio = { id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" };
+           llamarServicio(servicioDef, "/api/sdk-order", sdkOrder, fetch, {}).then(result => {
+             if (result.ok === false) {
+               console.error("Failed to send SDK order to HyperFrames service:", result.motivo);
+             }
+           }).catch(error => {
+             console.error("Error calling HyperFrames service:", error);
+           });
+         } catch (error) {
+           // If translation fails, we log the error but still return the successful application
+           console.error("Failed to translate operation to SDK order:", error);
+         }
+       }
+     }
+     
+     return { ok: true, cambio: r.cambio };
+   }
 
   function obtener(): EstadoControl {
     return estado;

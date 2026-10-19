@@ -20,7 +20,9 @@ export type ResultadoServicio = { ok: true; estado: number; texto: string; datos
 
 export const MAX_BYTES = 8 * 1024 * 1024, MAX_CUERPO = 1024 * 1024, TIEMPO_MS = 30_000, TIEMPO_SALUD_MS = 3_000;
 export const SERVICIOS_CONOCIDOS: readonly DefinicionServicio[] = [
-  { id: "comfyui", nombre: "ComfyUI", puerto: 8188, rutaSalud: "/system_stats" }, { id: "ollama", nombre: "Ollama", puerto: 11434, rutaSalud: "/api/version" },
+  { id: "comfyui", nombre: "ComfyUI", puerto: 8188, rutaSalud: "/system_stats" },
+  { id: "ollama", nombre: "Ollama", puerto: 11434, rutaSalud: "/api/version" },
+  { id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" },
 ];
 const NOMBRE_VARIABLE = /^[A-Z][A-Z0-9_]{1,63}$/;
 const RUTA = /^\/(?![/\\])[A-Za-z0-9\-._~/%?=&+,:]*$/;
@@ -94,8 +96,13 @@ async function pedir(def: DefinicionServicio, ruta: string, cuerpo: unknown, f: 
 
 /** Salud con tiempo límite corto. No exige el token (si lo hay, lo manda). */
 export async function sondearServicio(def: DefinicionServicio, f: FetchLocal, o: OpcionesServicio = {}): Promise<{ vivo: boolean; ms: number; motivo: string }> {
-  const r = await pedir(def, def.rutaSalud, undefined, f, o, TIEMPO_SALUD_MS, true);
-  return r.ok ? { vivo: true, ms: r.ms, motivo: `«${def.nombre}» responde (${r.ms} ms).` } : { vivo: false, ms: r.ms, motivo: r.motivo };
+   const r = await pedir(def, def.rutaSalud, undefined, f, o, TIEMPO_SALUD_MS, true);
+   if (r.ok) {
+     return { vivo: true, ms: r.ms, motivo: `«${def.nombre}» responde (${r.ms} ms).` };
+   } else {
+     // r.ok is false, so r has a motivo property
+     return { vivo: false, ms: r.ms, motivo: (r as { motivo: string }).motivo };
+   }
 }
 /** GET sin cuerpo, POST JSON con él; con límites de tamaño y tiempo y errores en español. */
 export const llamarServicio = (def: DefinicionServicio, ruta: string, cuerpo: unknown, f: FetchLocal, o: OpcionesServicio = {}): Promise<ResultadoServicio> =>
