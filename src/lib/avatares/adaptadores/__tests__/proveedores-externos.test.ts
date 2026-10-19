@@ -2,6 +2,8 @@
  * defecto, `clave-externa` solo con clave Y permiso, peticiones de la documentación oficial y ninguna clave en los motivos. */
 import { describe, expect, it } from "vitest";
 import { planificar, type PeticionPlan } from "@/lib/avatares/adn/canalizacion";
+import { motivoDescarte } from "@/lib/avatares/adn/canalizacion";
+import { MOTORES_3D, type Motor3D } from "@/lib/avatares/adn/motores";
 import {
   MODELO, capacidadesExternas, consultarTarea, crearTarea, esUrlDescarga, estadoProveedores, motivoImagen,
   motivoNoDisponible, motoresDisponibles, procedenciaExterna, type Buscar, type Entorno, type Imagen,
@@ -70,7 +72,94 @@ describe("crearTarea con fetch simulado", () => {
     expect(cabecera(llamadas[0], "Authorization")).toBe(`Bearer ${CLAVE}`);
     expect(JSON.parse(String(llamadas[0].init?.body))).toEqual({
       image_url: `data:image/png;base64,${Buffer.from(PNG.bytes).toString("base64")}`, ai_model: MODELO.meshy, should_texture: true,
-    });
+});
+
+describe("motivoDescarte", () => {
+  const meshMotor = MOTORES_3D.find(m => m.id === "meshy") as Motor3D;
+  const tripoMotor = MOTORES_3D.find(m => m.id === "tripo") as Motor3D;
+
+  const basePeticion: PeticionPlan = {
+    partida: "imagen",
+    esqueleto: "soma30",
+    capacidades: ["cpu"] as const, // start with only cpu
+    region: null,
+    comercial: false,
+    permitirDePago: false,
+    detallar: false,
+    prioridad: "rapidez",
+    cerrada: false,
+  };
+
+  it("sin permiso ni clave: no disponible", () => {
+    // For Meshy, which requires "clave-externa", and we have neither permiso para pagar ni clave
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy"); // The motor's nombre es "Meshy (servicio)"
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("solo clave, sin permiso: no disponible", () => {
+    // We have the key (so capacidades includes "clave-externa") but no permiso para pagar
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("solo permiso, sin clave: no disponible", () => {
+    // We have permiso para pagar pero no la clave
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("clave-externa");
+  });
+
+  it("permiso+clave: disponible y se ofrece «clave-externa»", () => {
+    // We have both permiso para pagar y la clave
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).toBeNull();
+  });
+
+  // Additional test cases from the list that are pure and match this function
+
+  it("tripo: «no disponible» sin llamar a la red", () => {
+    // For Tripo, which also requires "clave-externa", sin la clave debería estar no disponible
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Tripo");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  // We can also test that when we have both, Tripo is available
+  it("tripo con permiso y clave: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).toBeNull();
+  });
+
+  // Test for a motor that does not require clave-externa, like espacio-hf (which requires espacio-hf)
+  // But note: espacio-hf is a motor that requires "espacio-hf"
+  const espacioMotor = MOTORES_3D.find(m => m.id === "pixal3d-espacio") as Motor3D;
+  it("espacio-hf: sin permiso para espacio-hf: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(espacioMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Pixal3D");
+    expect(motivo).toContain("espacio-hf");
+  });
+
+  it("espacio-hf: con permiso para espacio-hf: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "espacio-hf"] as const };
+    const motivo = motivoDescarte(espacioMotor, p);
+    expect(motivo).toBeNull();
+  });
+});
+
   });
   it("Tripo: sube a /files (multipart) y crea con el file_token", async () => {
     const { buscar, llamadas } = simulado([{ cuerpo: { code: 0, data: { file_token: "file_abc123" } } }, { cuerpo: { code: 0, data: { task_id: "task_abc123" } } }]);
@@ -118,3 +207,90 @@ describe("consultarTarea: una sola petición por llamada", () => {
     expect(vacio.llamadas).toHaveLength(0);
   });
 });
+
+describe("motivoDescarte", () => {
+  const meshMotor = MOTORES_3D.find(m => m.id === "meshy") as Motor3D;
+  const tripoMotor = MOTORES_3D.find(m => m.id === "tripo") as Motor3D;
+
+  const basePeticion: PeticionPlan = {
+    partida: "imagen",
+    esqueleto: "soma30",
+    capacidades: ["cpu"] as const, // start with only cpu
+    region: null,
+    comercial: false,
+    permitirDePago: false,
+    detallar: false,
+    prioridad: "rapidez",
+    cerrada: false,
+  };
+
+  it("sin permiso ni clave: no disponible", () => {
+    // For Meshy, which requires "clave-externa", and we have neither permiso para pagar ni clave
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy"); // The motor's nombre es "Meshy (servicio)"
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("solo clave, sin permiso: no disponible", () => {
+    // We have the key (so capacidades includes "clave-externa") but no permiso para pagar
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("solo permiso, sin clave: no disponible", () => {
+    // We have permiso para pagar pero no la clave
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("clave-externa");
+  });
+
+  it("permiso+clave: disponible y se ofrece «clave-externa»", () => {
+    // We have both permiso para pagar y la clave
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).toBeNull();
+  });
+
+  // Additional test cases from the list that are pure and match this function
+
+  it("tripo: «no disponible» sin llamar a la red", () => {
+    // For Tripo, which also requires "clave-externa", sin la clave debería estar no disponible
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Tripo");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  // We can also test that when we have both, Tripo is available
+  it("tripo con permiso y clave: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).toBeNull();
+  });
+
+  // Test for a motor that does not require clave-externa, like espacio-hf (which requires espacio-hf)
+  // But note: espacio-hf is a motor that requires "espacio-hf"
+  const espacioMotor = MOTORES_3D.find(m => m.id === "pixal3d-espacio") as Motor3D;
+  it("espacio-hf: sin permiso para espacio-hf: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(espacioMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Pixal3D");
+    expect(motivo).toContain("espacio-hf");
+  });
+
+  it("espacio-hf: con permiso para espacio-hf: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "espacio-hf"] as const };
+    const motivo = motivoDescarte(espacioMotor, p);
+    expect(motivo).toBeNull();
+  });
+});
+
