@@ -16,6 +16,12 @@ export type RefResuelta = { ok: true; url: string } | { ok: false; motivo: strin
 export interface ItemBiblioteca { name: string; folder: string; payload: { url?: string } }
 export type ListarCarpeta = (carpeta: string) => Promise<ItemBiblioteca[]>;
 
+/** Fuente universal para AvatarVivo. */
+export type FuenteAvatar =
+    | { tipo: "glb"; url: string }
+    | { tipo: "imagen"; url: string }
+    | { tipo: "procedural"; svg: string };
+
 export const CARPETA_PLANTILLAS = "avatares/plantillas";
 /** Donde `importar_plantillas.py` sube las plantillas con la clave de servicio: con la RLS de os-files cada cuenta solo escribe en
  * `<su uid>/…`, así que nadie más puede poner un archivo aquí. */
@@ -67,4 +73,14 @@ export async function resolverRefBiblioteca(ref: string, listar: ListarCarpeta =
   if (item) return { ok: true, url: normal(item.payload.url) };
   if (elegirItem(items, carpeta, archivo)) return { ok: false, motivo: "El archivo de la Biblioteca no está en su almacén (https del proyecto; las plantillas, en su carpeta oficial): no se carga una dirección de fuera." };
   return { ok: false, motivo: `«${archivo || ruta}» no aparece en la Biblioteca (carpeta «${carpeta || "raíz"}»): no está publicado o no se pudo leer el catálogo.` };
+}
+
+/** Convierte una referencia interna a una FuenteAvatar para AvatarVivo (glb). Si la resolución falla, devuelve una fuente procedural vacía. */
+export async function getFuenteParaRef(ref: string): Promise<FuenteAvatar> {
+  const res = await resolverRefBiblioteca(ref);
+  if (res.ok) {
+    return { tipo: "glb", url: res.url };
+  }
+  // fallback to procedural empty avatar
+  return { tipo: "procedural", svg: "" };
 }
