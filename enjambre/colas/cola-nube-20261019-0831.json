@@ -1,0 +1,34 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "MC1012S",
+   "titulo": "Difusión de teselas por los enlaces que ya hay (WebRTC, vínculos y LoRa)",
+   "archivos": [
+    "src/lib/malla/cristal/difusion-teselas.ts",
+    "src/lib/malla/cristal/__tests__/difusion-teselas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Exporta `SOBRE = 'cristal.tesela'` y `sobreDeTesela(t, firma)` → string JSON `{tipo: SOBRE, v: 1, t}`; `teselaDeSobre(texto): Tesela | null` (valida forma y tipos, descarta lo que no sea un sobre válido, nunca lanza); `deltaParaLora(previa: Tesela | null, nueva: Tesela): string` que solo lleva las señales que cambiaron (rssi/snr redondeados) y cabe en ≤ 180 bytes (si no cabe, las 6 señales más fuertes); `crearDifusor(deps: {broadcastMalla: (texto: string) => number; enviarAPares: (texto: string) => void; enviarLora?: (texto: string) => void})` → función `difundir(t)` para el motor (por malla y pares siempre; por LoRa solo el delta y como mucho una vez cada 10 min). Pruebas: ida y vuelta del sobre; sobres rotos → null; el delta cabe; el límite de LoRa.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012B",
+    "MC1012Q"
+   ]
+  },
+  {
+   "id": "MC1012W",
+   "titulo": "Panel «Retícula» en Señales: estado vítreo, temperatura, puentes y misma huella en todas",
+   "archivos": [
+    "src/components/malla/panel-reticula.tsx",
+    "src/components/malla/__tests__/panel-reticula.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. Componente 'use client' `PanelReticula({estado})` (recibe el `estado()` del motor de MC1012Q; sin efectos propios): cabecera «Sólido amorfo en tiempo real» con el estado en palabras (fundido: las señales cambian y la red se recoloca / subenfriado / vítreo: estable y congelada), la temperatura media en una barra y una línea de qué significa; «Misma retícula en N de M neuronas» con la huella corta; lista de puentes (neurona ↔ neurona, medio, calidad en %, coste) ordenada por coste; coordinación de cada neurona frente a su máximo; estado vacío honesto si no hay teselas («aún no llegó ninguna señal de otra neurona»). Diseño del OS (Tailwind, Lucide, tarjetas translúcidas), legible en móvil. Pruebas jsdom con un estado fabricado.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012Q"
+   ]
+  }
+ ]
+}
