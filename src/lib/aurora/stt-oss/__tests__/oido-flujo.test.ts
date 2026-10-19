@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { abrirFlujoOido } from "../oido-flujo";
+import { abrirFlujoOido, prepararAudio } from "../oido-flujo";
 
 // Mock de WebSocket para pruebas
 class MockWebSocket {
@@ -251,9 +251,19 @@ describe("abrirFlujoOido", () => {
     const flujo = abrirFlujoOido(config);
     const enviarSpy = vi.spyOn(flujo, "enviar");
     
-    const audioData = new Float32Array([0.5, -0.5, 0.0]);
+    const audioData = new Int16Array([100, -100, 0]);
     flujo.enviar(audioData);
     
     expect(enviarSpy).toHaveBeenCalledWith(audioData);
+  });
+
+  it("debería convertir Float32Array a PCM16 Int16Array correctamente", () => {
+    const float32 = new Float32Array([0.0, 1.0, -1.0]);
+    const pcm16 = prepararAudio(float32, 16000);
+    expect(pcm16 instanceof Int16Array).toBe(true);
+    expect(pcm16.length).toBe(3);
+    expect(pcm16[0]).toBe(0);
+    expect(pcm16[1]).toBe(32767);
+    expect(pcm16[2]).toBe(-32768);
   });
 });
