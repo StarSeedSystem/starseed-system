@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { sugeridas, fusionarConAmbito, OpcionCatalogo, Papel, Director, Preferencias, Asignacion } from "../asignaciones";
+import { sugeridas, fusionarConAmbito, Director, Preferencias, Asignacion } from "../asignaciones";
+import { OpcionCatalogo, Papel } from "../catalogo-opciones";
 
 describe("sugeridas", () => {
   it("should return local Astraura first followed by free catalog options", () => {
