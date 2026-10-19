@@ -885,6 +885,8 @@ function PackageDetailSheet({
   const route = typeof pkg.payload.route === "string" ? pkg.payload.route : "";
   const needsKey = pkg.kind === "ai-source" && aiReady[pkg.id] === false && !installed;
   const catalogSource = pkg.kind === "ai-source" ? findSource(String(pkg.payload.catalogSourceId ?? "")) : undefined;
+  const vinculo = pkg.kind === "ai-source" ? vinculoDe(pkg, FREE_CATALOG) : null;
+  const instalable = pkg.kind === "ai-source" ? instalableEnAmbito(pkg, "cuenta", []) : true;
   const repoName = data.repos.find((r) => r.id === pkg.sourceRepoId)?.name ?? pkg.sourceRepoId;
   const busy = actions.busyId === pkg.id;
   // ¿Trae recurso externo? (para el texto del botón «Descargar»).
@@ -1006,6 +1008,28 @@ function PackageDetailSheet({
               )}
             </div>
           )}
+          {/* Vínculo del paquete */}
+          {vinculo && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-2">
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Link2 className="h-3.5 w-3.5" /> Vínculo del paquete
+              </p>
+              <p className="text-xs text-gray-300"><span className="font-semibold">Requiere clave:</span> {vinculo.requiereClave ? "Sí" : "No"}</p>
+              <p className="text-xs text-gray-300"><span className="font-semibold">Gratis:</span> {vinculo.gratis ? "Sí" : "No"}</p>
+              <p className="text-xs text-gray-300"><span className="font-semibold">Verificado:</span> {vinculo.verificado === null ? "No verificado" : vinculo.verificado ? "Sí" : "No"}</p>
+              <p className="text-xs text-gray-300"><span className="font-semibold">Opción ID:</span> {vinculo.opcionId || "—"}</p>
+              {vinculo.enlaceAlta && (
+                <a href={vinculo.enlaceAlta} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-teal-300 hover:text-teal-200 hover:underline cursor-pointer">
+                  Alta en servicio <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              {vinculo.enlaceClave && (
+                <a href={vinculo.enlaceClave} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-teal-300 hover:text-teal-200 hover:underline cursor-pointer">
+                  Obtener clave <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          )}
 
           {/* Transparencia: qué hará EXACTAMENTE al instalar */}
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-2">
@@ -1057,7 +1081,7 @@ function PackageDetailSheet({
               <Button
                 className={cn("gap-2 text-white cursor-pointer", needsKey ? "bg-amber-600 hover:bg-amber-500" : "bg-emerald-600 hover:bg-emerald-500")}
                 onClick={() => void actions.doInstall(pkg)}
-                disabled={busy}
+                disabled={busy || !instalable}
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : needsKey ? <KeyRound className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                 {needsKey ? "Conseguir clave e instalar" : "Instalar"}
