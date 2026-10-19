@@ -63,7 +63,28 @@ export function extraerDirectivas(texto: string): DirectivasExtraidas {
     const finJson = cierreJson(resto, desdeJson);
     if (finJson < 0) {
       problemas.push("Directiva sin cierre: se descarta el resto del bloque.");
-      resto = "";
+      const nextIni = resto.indexOf(MARCA, ini + 1);
+      if (nextIni >= 0) {
+        const nextDesdeJson = nextIni + MARCA.length;
+        const nextFinJson = cierreJson(resto, nextDesdeJson);
+        if (nextFinJson >= 0) {
+          const nextTras = resto.slice(nextFinJson + 1);
+          const nextFin = nextTras.startsWith(CIERRE) ? nextFinJson + 1 + CIERRE.length : nextFinJson + 1;
+          const nextJson = resto.slice(nextDesdeJson, nextFinJson + 1);
+          try {
+            const nextBruto = JSON.parse(nextJson);
+            const { accion: nextAccion, problemas: nextProblemas } = validarAccion(nextBruto);
+            problemas.push(...nextProblemas);
+            if (nextAccion && acciones.length < MAX_DIRECTIVAS) {
+              acciones.push(nextAccion);
+            }
+            resto = resto.slice(nextFin);
+            continue;
+          } catch {
+            break;
+          }
+        }
+      }
       break;
     }
     const tras = resto.slice(finJson + 1);
