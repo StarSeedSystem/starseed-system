@@ -30,7 +30,8 @@ export type UsoVoz = "personal" | "grupo" | "comunidad" | "publico" | "comercial
  * @param uso - Uso previsto para la voz clonada
  * @param permisos - Lista de permisos disponibles
  * @param ahora - Timestamp actual (en ms)
- * @returns { ok: true } si se permite, o { ok: false, motivo: string } si no se permite
+ * @returns { ok: boolean, motivo?: string } - ok indica si se permite clonar;
+   cuando ok es false, motivo explica la razón
  */
 export function puedeClonar({
   solicitante,
@@ -44,7 +45,7 @@ export function puedeClonar({
   uso: UsoVoz;
   permisos: PermisoVoz[];
   ahora: number;
-}): { ok: true } | { ok: false; motivo: string } {
+}): { ok: boolean; motivo?: string } {
   // La voz propia siempre puede ser clonada
   if (solicitante === titular) {
     return { ok: true };
