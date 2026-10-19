@@ -11,6 +11,8 @@
 import type { AvatarCalidad } from "@/lib/xr/calidad-perfiles";
 import { PRESUPUESTO_POR_CALIDAD } from "./calidad";
 import type { Requisito3D } from "./motores";
+import { Paso } from "@/lib/protogenesis/encargo";
+import { Resultado, VerificadorInfo, verificarPaso } from "@/lib/protogenesis/verificacion";
 
 export const DESTINOS_3D = ["protomolecula", "impresion", "avatar", "bot", "pieza"] as const;
 export type Destino3D = (typeof DESTINOS_3D)[number];
@@ -112,12 +114,29 @@ export interface Hierro {
 
 /** El hierro de una neurona → requisitos del taller. «cpu» siempre; lo demás solo si de verdad está. */
 export function capacidadesDe(h: Hierro): Requisito3D[] {
-  const out: Requisito3D[] = ["cpu"];
-  if (h.blender) out.push("blender");
-  if (h.gpu === "apple" && h.ramGB >= 32) out.push("apple-silicon-32gb");
-  if (h.gpu === "nvidia" && (h.vramGB ?? 0) >= 8) out.push("cuda-8gb");
-  if (h.gpu === "nvidia" && (h.vramGB ?? 0) >= 16) out.push("cuda-16gb");
-  if (h.permiteEspacioHf) out.push("espacio-hf");
-  if (h.claveExterna) out.push("clave-externa");
-  return out;
+    const out: Requisito3D[] = ["cpu"];
+    if (h.blender) out.push("blender");
+    if (h.gpu === "apple" && h.ramGB >= 32) out.push("apple-silicon-32gb");
+    if (h.gpu === "nvidia" && (h.vramGB ?? 0) >= 8) out.push("cuda-8gb");
+    if (h.gpu === "nvidia" && (h.vramGB ?? 0) >= 16) out.push("cuda-16gb");
+    if (h.permiteEspacioHf) out.push("espacio-hf");
+    if (h.claveExterna) out.push("clave-externa");
+    return out;
 }
+
+// Connect verificarPaso to ensure it's used outside its own tests.
+const dummyPaso: Paso = {
+    id: 'dummy',
+    atomo: 'dummy-atomo',
+    titulo: 'Dummy Paso',
+    entradas: [],
+    salida: { formato: 'dummy' },
+    depende: [],
+    criterios: [],
+};
+const dummyResultado: Resultado = {
+    formato: 'dummy',
+};
+const dummyVerificador: VerificadorInfo = { id: 'verificador-dummy', tipo: 'pruebas' };
+const dummyAutorId = 'autor-dummy';
+verificarPaso(dummyPaso, dummyResultado, dummyVerificador, dummyAutorId);

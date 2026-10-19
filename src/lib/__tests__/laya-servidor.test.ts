@@ -56,8 +56,8 @@ describe("Laya Servidor Local", () => {
     expect(ramLibreDeVmStat("Pages free:  10000.\nPages inactive:  6000.\n")).toBe(63);
   });
 
-  it("carga el checkpoint publicado o la exportación propia de LAYA_MODEL_DIR", () => {
-    expect(opcionesCarga({})).toHaveProperty("cacheDir");
-    expect(opcionesCarga({ LAYA_MODEL_DIR: " /modelos/laya-multilingual " })).toEqual({ modelDir: "/modelos/laya-multilingual" });
-  });
+it("carga el checkpoint publicado o la exportación propia de LAYA_MODEL_DIR", () => {
+    expect(opcionesCarga({} as any)).toHaveProperty("cacheDir");
+    expect(opcionesCarga({ LAYA_MODEL_DIR: " /modelos/laya-multilingual " } as any)).toEqual({ modelDir: "/modelos/laya-multilingual" });
+});
 });
