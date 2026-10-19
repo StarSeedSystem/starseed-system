@@ -58,6 +58,7 @@ class Jev(unittest.TestCase):
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
+        os.environ["STARSEED_LAYA_URL"] = "http://invalid.invalid:1234"
         _sin_motor_local()
 
     def tearDown(self):
