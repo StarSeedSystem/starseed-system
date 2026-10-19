@@ -11,7 +11,7 @@ import { descubrir, voces, hablar, transcribir, type DescubrimientoResult, type 
 
 /** Mock de fetch que simula respuestas exitosas o errores. */
 function crearFetchMock(
-  respuestas: { url: string; status: number; ok: boolean; json?: unknown; body?: BodyInit; method?: string }[] = []
+  respuestas: { url: string; status: number; ok: boolean; json?: unknown; body?: BodyInit; method?: string; statusText?: string; contentType?: string }[] = []
 ) {
   let llamadas: Array<{ url: RequestInfo | URL; init?: RequestInit }> = [];
   const fn = vi.fn(
@@ -206,17 +206,17 @@ describe("hablar", () => {
   const params: HablarParams = { texto: "Hola mundo", voz: "alloy", formato: "mp3" };
 
   it("debe retornar los bytes de audio cuando el servicio responde correctamente", async () => {
-    const audioBytes = new Uint8Array([82, 73, 70, 70]); // "RIFF" en ASCII, inicio de un WAV
-    const { fetch } = crearFetchMock([
-      {
-        url: "http://127.0.0.1:3900/v1/audio/speech",
-        status: 200,
-        ok: true,
-        body: audioBytes,
-        contentType: "audio/mpeg",
-        method: "POST",
-      },
-    ]);
+     const audioBytes = new Uint8Array([82, 73, 70, 70]); // "RIFF" en ASCII, inicio de un WAV
+     const { fetch } = crearFetchMock([
+       {
+         url: "http://127.0.0.1:3900/v1/audio/speech",
+         status: 200,
+         ok: true,
+         body: new Blob([audioBytes], { type: "audio/mpeg" }),
+         contentType: "audio/mpeg",
+         method: "POST",
+       },
+     ]);
     vi.stubGlobal("fetch", fetch);
     const resultado = await hablar(undefined, params);
     expect(resultado).toEqual(audioBytes);
@@ -247,7 +247,8 @@ describe("hablar", () => {
 });
 
 describe("transcribir", () => {
-  const params: TranscribirParams = { audio: new Uint8Array([82, 73, 70, 70]), idioma: "es" };
+   const audioBytes = new Uint8Array([82, 73, 70, 70]);
+   const params: TranscribirParams = { audio: audioBytes.buffer, idioma: "es" };
 
   it("debe retornar el texto transcrito cuando el servicio responde correctamente", async () => {
     const { fetch } = crearFetchMock([
