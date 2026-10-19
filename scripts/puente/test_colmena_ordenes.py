@@ -93,6 +93,45 @@ class TestColmenaOrders(unittest.TestCase):
         self.assertFalse(válido)
         self.assertIn("destino no válido: no se puede mandar a lider, todos o un medio genérico", motivo)
 
+    def test_contenedor_sin_trabajadores_con_activo_true(self):
+        """contenedor con activos=True pero sin trabajadores debe fallar."""
+        nodo_id = "mac-aaaaaa"
+        o = orden_firmada("contenedor", para=nodo_id, args={"activo": True})
+        válido, motivo = L.validar_orden(o, SECRETO, T0, {})
+        self.assertFalse(válido)
+        self.assertIn("falta argumento: trabajadores", motivo)
+
+    def test_trabajadores_valor_0(self):
+        """contenedor con trabajadores=0 debe fallar."""
+        nodo_id = "mac-aaaaaa"
+        o = orden_firmada("contenedor", para=nodo_id, args={"activo": True, "trabajadores": 0})
+        válido, motivo = L.validar_orden(o, SECRETO, T0, {})
+        self.assertFalse(válido)
+        self.assertIn("trabajadores fuera de 1–4", motivo)
+
+    def test_trabajadores_valor_negativo(self):
+        """contenedor con trabajadores=-1 debe fallar."""
+        nodo_id = "mac-aaaaaa"
+        o = orden_firmada("contenedor", para=nodo_id, args={"activo": True, "trabajadores": -1})
+        válido, motivo = L.validar_orden(o, SECRETO, T0, {})
+        self.assertFalse(válido)
+        self.assertIn("trabajadores fuera de 1–4", motivo)
+
+    def test_trabajadores_valor_maximo_ok(self):
+        """contenedor con trabajadores=4 debe ser válido."""
+        nodo_id = "mac-aaaaaa"
+        o = orden_firmada("contenedor", para=nodo_id, args={"activo": True, "trabajadores": 4})
+        válido, motivo = L.validar_orden(o, SECRETO, T0, {})
+        self.assertTrue(válido, motivo)
+
+    def test_trabajadores_valor_6(self):
+        """contenedor con trabajadores=6 debe fallar."""
+        nodo_id = "mac-aaaaaa"
+        o = orden_firmada("contenedor", para=nodo_id, args={"activo": True, "trabajadores": 6})
+        válido, motivo = L.validar_orden(o, SECRETO, T0, {})
+        self.assertFalse(válido)
+        self.assertIn("trabajadores fuera de 1–4", motivo)
+
 
 if __name__ == "__main__":
     unittest.main()
