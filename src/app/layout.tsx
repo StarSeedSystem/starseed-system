@@ -96,7 +96,9 @@ import { ActualizacionNativa } from "@/components/pwa/actualizacion-nativa";
 // en `@/lib/nucleo/paquete-sistema`. Sin este cableado, `revisar` falla CERRADO
 // («nucleo-configurado») y ningún paquete compartido sería instalable.
 import { ArranqueNucleo } from "@/components/system/arranque-nucleo";
-import dynamic from "next/dynamic";
+// La orbe se carga sin SSR desde su envoltorio de cliente: aquí (componente de servidor) Next 15
+// no admite `dynamic(..., { ssr: false })`.
+import OrbeProtomolecula from "@/components/protomolecula/orbe-protomolecula-cliente";
 import { A11yBoot } from "@/components/a11y/a11y-boot";
 // Foco + anuncio aria-live al cambiar de ruta (SPA), para teclado/lector.
 import { RouteFocus } from "@/components/a11y/route-focus";
@@ -172,7 +174,6 @@ const fontCode = Source_Code_Pro({
   variable: "--font-code",
 });
 
-const OrbeProtomolecula = dynamic(() => import("@/components/protomolecula/orbe-protomolecula"), { ssr: false });
 
 export const metadata: Metadata = {
   title: "StarSeed System",
