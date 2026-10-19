@@ -22,8 +22,9 @@ export interface GeometriaVentanaReturn {
 }
 
 export function tipoAparato({ ancho, alto, puntero, xr }: { ancho: number; alto: number; puntero: boolean; xr: boolean }): TipoAparato {
-  // Placeholder implementation
+  // Realidad extendida tiene prioridad
   if (xr) return "xr";
+  // Umbrales por ancho con prioridad del centro compositivo
   if (ancho < 430) return "telefono";
   if (ancho < 768) return "tableta";
   if (ancho < 1280) return "escritorio";
@@ -37,14 +38,14 @@ export function geometriaVentana(viewport: Viewport, options: GeometriaVentanaOp
   const availWidth = viewport.ancho - 2 * horizontalMargin;
   const maxWidth = Math.min(availWidth, 1186);
 
-  // Determine width and height based on tipo and provided values
+  // Determina ancho y alto según tipo y valores proporcionados
   let width: number;
   let height: number;
 
   if (givenAncho !== undefined) {
     width = Math.min(givenAncho, maxWidth);
   } else {
-    // Default width based on tipo
+    // Ancho por defecto según tipo
     switch (tipo) {
       case "dialogo":
       case "ventana":
@@ -62,7 +63,7 @@ export function geometriaVentana(viewport: Viewport, options: GeometriaVentanaOp
   if (givenAlto !== undefined) {
     height = Math.min(givenAlto, viewport.alto);
   } else {
-    // Default height based on tipo
+    // Alto por defecto según tipo
     switch (tipo) {
       case "dialogo":
       case "ventana":
@@ -77,14 +78,14 @@ export function geometriaVentana(viewport: Viewport, options: GeometriaVentanaOp
     }
   }
 
-  // Clamp width and height to not exceed availWidth and viewport.alto (though already done)
+  // Acota a viewport disponible
   width = Math.min(width, availWidth);
   height = Math.min(height, viewport.alto);
 
-  // Calculate x and y based on tipo
+  // Calcula x e y según tipo, con composición centrada
   let x: number;
   let y: number;
-  const origen = "top-left"; // We'll use top-left origin for all, meaning x,y is top-left corner
+  const origen = "top-left";
 
   switch (tipo) {
     case "dialogo":
@@ -94,19 +95,18 @@ export function geometriaVentana(viewport: Viewport, options: GeometriaVentanaOp
       break;
     case "hoja":
       if (isPhone) {
-        // Hoja que sube desde abajo en teléfono: centrado horizontalmente, alineado al fondo
+        // Hoja que sube desde abajo en teléfono, centrada horizontalmente
         x = horizontalMargin + (availWidth - width) / 2;
         y = viewport.alto - height;
       } else {
-        // On larger screens, treat as dialogo
         x = horizontalMargin + (availWidth - width) / 2;
         y = (viewport.alto - height) / 2;
       }
       break;
     case "panel-lateral":
-      // Anchored to the left
+      // Anclado a la izquierda, respeta margen
       x = horizontalMargin;
-      y = 0; // Top aligned to viewport top
+      y = 0;
       break;
   }
 
