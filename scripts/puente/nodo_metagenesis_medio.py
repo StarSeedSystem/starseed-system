@@ -159,8 +159,22 @@ def lineas_ps() -> List[str]:
 _RE_ORQ = re.compile(r"^[^ ]*[Pp]ython[0-9.]*( +-[A-Za-z]+)* +[^ ]*starseed-enjambre\.py( |$)")
 
 
+def _extract_workers(args: str) -> int:
+    """Extract number of workers from orchestrator args like --workers 4 or --workers=4."""
+    import re
+    # Look for --workers <num> or --workers=<num>
+    match = re.search(r"--workers[= ]+(\d+)", args)
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            pass
+    # Default to 1 worker if not specified
+    return 1
+
+
 def orquestadores(lineas: List[str]) -> List[Dict[str, Any]]:
-    """PURA. [{pid, cola}] de los orquestadores vivos."""
+    """PURA. [{pid, cola, trabajadores}] de los orquestadores vivos."""
     salida = []
     for linea in lineas or []:
         partes = linea.strip().split(None, 1)
@@ -170,11 +184,17 @@ def orquestadores(lineas: List[str]) -> List[Dict[str, Any]]:
         if not _RE_ORQ.match(args):
             continue
         cola = ""
+        trabajadores = 1
         for tok in args.split():
             base = tok.rsplit("/", 1)[-1]
             if base.startswith("cola-") and base.endswith(".json"):
                 cola = base[: -len(".json")]
-        salida.append({"pid": int(partes[0]), "cola": cola})
+            # Extract workers
+            if tok == "--workers":
+                # The next token should be the number
+                pass  # We'll handle via regex above for simplicity
+        trabajadores = _extract_workers(args)
+        salida.append({"pid": int(partes[0]), "cola": cola, "trabajadores": trabajadores})
     return salida
 
 
@@ -475,6 +495,61 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
         salud["nube_pausada"] = nube_pausada()
     if medio == "oracle-a1":
         salud["a1"] = estado_a1()
+    # Compute queue summary if there is an orchestrator alive
+    if orqs:
+        # Take the first orchestrator (should be at most one)
+        orq = orqs[0]
+        cola = orq.get("cola")
+        trabajadores = orq.get("trabajadores", 1)
+        if cola:
+            # Path to latency file
+            latido_path = os.path.join(raiz, "starseed_memory_root", "olas", f"latidos-{cola}.json")
+            try:
+                with open(latido_path, "r", encoding="utf-8") as f:
+                    latido_data = json.load(f)
+                if isinstance(latido_data, dict) and isinstance(latido_data.get("tareas"), dict):
+                    tareas = latido_data["tareas"]
+                    # Define work phases for MetaGenesis
+                    FASES_TRABAJO_MG = {"escribiendo", "tsc", "pruebas", "revisión", "integración"}
+                    trabajando = 0
+                    esperando = 0
+                    ultima_actualizacion = 0.0
+                    for tarea in tareas.values():
+                        if not isinstance(tarea, dict):
+                            continue
+                        fase = tarea.get("fase")
+                        if fase in FASES_TRABAJO_MG:
+                            trabajando += 1
+                        elif fase == "pendiente":
+                            esperando += 1
+                        avance = tarea.get("avance")
+                        if isinstance(avance, (int, float)):
+                            if avance > ultima_actualizacion:
+                                ultima_actualizacion = avance
+                    libres = max(0, trabajadores - trabajando)
+                    salud["trabajando"] = trabajando
+                    salud["esperando"] = esperando
+                    salud["libres"] = libres
+                    salud["ultima_actualizacion_cola"] = ultima_actualizacion
+                else:
+                    # If the file is not in expected format, set to 0
+                    salud["trabajando"] = 0
+                    salud["esperando"] = 0
+                    salud["libres"] = trabajadores
+                    salud["ultima_actualizacion_cola"] = 0.0
+            except (OSError, ValueError):
+                # If file doesn't exist or error reading, set to 0
+                salud["trabajando"] = 0
+                salud["esperando"] = 0
+                salud["libres"] = trabajadores
+                salud["ultima_actualizacion_cola"] = 0.0
+    else:
+        # No orchestrator alive
+        salud["trabajando"] = 0
+        salud["esperando"] = 0
+        salud["libres"] = 0
+        salud["ultima_actualizacion_cola"] = 0.0
+
     cap = {"medio": medio, "modo": modo, "repo": salud["repo"], "orquestador": salud["orquestador"],
             "autoritativo": autoritativo, "ram_libre_mb": salud["ram_libre_mb"], "disco_gb": salud["disco_gb"]}
     # Añadir campos nuevos al latido: en_curso, contenedor, periodo_s

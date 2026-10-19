@@ -654,7 +654,7 @@ def medio_ocioso(n: str, l: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "seco"
     if s.get("autoritativo"):
         return False, "es el medio con las colas"
-    if not s.get("repo") or not s.get("orquestador"):
+    if not s.get("repo") or not s.get("orjestador"):
         return False, "sin repo u orquestador"
     if l.get("secreto") is not True:
         return False, "sin secreto: no podría comprobar la orden firmada"
@@ -673,8 +673,30 @@ def medio_ocioso(n: str, l: Dict[str, Any]) -> Tuple[bool, str]:
     return True, ""
 
 
+def medio_alimentable(n: str, l: Dict[str, Any], ahora: float) -> Tuple[bool, str]:
+    """PURA. ¿Este nodo puede alimentar su cola viva? (bool, por qué no).
+    Condiciones: orquestador vivo, libres >= 1, y no hay nuevas tareas en la cola en los últimos 10 min.
+    """
+    s = l.get("salud") or {}
+    # Orquestador vivo: al menos un orquestador en la lista
+    orquestadores = s.get("orquestadores") or []
+    if not orquestadores:
+        return False, "sin orquestador vivo"
+    # Libres >= 1
+    libres = s.get("libres", 0)
+    if not isinstance(libres, (int, float)) or libres < 1:
+        return False, "libres insuficientes: %s" % libres
+    # No nuevas tareas en los últimos 10 min: comparar ultima_actualizacion_cola con ahora
+    ultima = s.get("ultima_actualizacion_cola", 0.0)
+    if not isinstance(ultima, (int, float)):
+        return False, "ultima_actualizacion_cola no válida"
+    if ahora - ultima > 600:  # 10 min in seconds
+        return False, "cola tiene tareas nuevas (última actualización hace %.0f segundos)" % (ahora - ultima)
+    return True, "cola alimentable"
+
+
 def mejor_medio_ocioso(nodos: Dict[str, Dict[str, Any]], excepto: Optional[str] = None) -> Optional[str]:
-    libres = [(n, l) for n, l in (nodos or {}).items() if n != excepto and medio_ocioso(n, l)[0]]
+    libres = [(n, l) for n, l in (nodos or {}).items() if n != excepto and medio_ocio(n, l)[0]]
     if not libres:
         return None
     return min(libres, key=lambda kv: _clave_mejor(kv[0], kv[1]))[0]
