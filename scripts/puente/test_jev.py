@@ -207,12 +207,14 @@ class Piramide(unittest.TestCase):
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
         _sin_motor_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
         _quita_local()
         os.environ.pop("STARSEED_JEV", None)
+        os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_local_responde_no_se_toca_openrouter(self):
         _local_falso(respuesta={"q": {"type": "noul", "noul": 0.8}})
