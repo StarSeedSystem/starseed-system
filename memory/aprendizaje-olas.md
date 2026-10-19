@@ -4458,3 +4458,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-19 10:36 · mg-oracle-1019-0144
+
+**Lo que se pidió.** Gobernador genérico: medir cualquier aparato para la colmena
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (RTRTRTRTS1010-EV-ORACLE-1abd, RTRTRTRTRTRTCOL1012Bdsbbbbbbb). Es 50 % de la ola.
+- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012L` — pruebas en rojo: vitest falla (rama conservada)
+- `RTRTRTRTS1010-EV-ORACLE-1abd` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTS1010-EV-ORACLE-1abd conservada
+- `RTRTRTRTRTRTCOL1012Bdsbbbbbbb` — otra cosa: sin decisión en 0 h; rama ola/RTRTRTRTRTRTCOL1012Bdsbbbbbbb conservada
+- `RTRTRTCOL1012Bdsbbbbbbbcb` — los tipos no compilan: 19 errores tsc (rama ola/RTRTRTCOL1012Bdsbbbbbbbcb conservada)
