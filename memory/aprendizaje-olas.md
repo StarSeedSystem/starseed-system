@@ -4458,3 +4458,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-19 12:47 · mg-oracle-1019-0543
+
+**Lo que se pidió.** Nodo de MetaGenesis: órdenes «desconectar
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Ae` — pruebas en rojo: vitest falla (rama conservada)
+- `RTS1010-EV-ORACLE-2` — otra cosa: sin decisión en 0 h; rama ola/RTS1010-EV-ORACLE-2 conservada
