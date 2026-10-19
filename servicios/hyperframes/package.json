@@ -1,0 +1,15 @@
+{
+  "name": "starseed-hyperframes",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "hyperframes": "0.8.172",
+    "@hyperframes/core": "0.8.173",
+    "@hyperframes/sdk": "0.8.173",
+    "@hyperframes/player": "0.8.173"
+  }
+}
