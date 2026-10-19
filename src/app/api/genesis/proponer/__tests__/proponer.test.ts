@@ -33,11 +33,19 @@ const VARIABLES = [
 
 const guardadas: Record<string, string | undefined> = {};
 
-function peticion(cuerpo: unknown): NextRequest {
-    return new Request("http://x/api/genesis/proponer", {
+function peticion(cuerpo: unknown, pathname = "/api/genesis/proponer"): NextRequest {
+    const request = new Request(`http://x${pathname}`, {
         method: "POST",
         body: JSON.stringify(cuerpo),
-    }) as unknown as NextRequest;
+    });
+    const nextUrl = new URL(request.url);
+    return {
+        ...request,
+        nextUrl: {
+            pathname: nextUrl.pathname,
+        },
+        text: async () => JSON.stringify(cuerpo),
+    } as unknown as NextRequest;
 }
 
 beforeEach(() => {
@@ -102,5 +110,32 @@ describe("POST /api/genesis/proponer", () => {
         expect(j.operaciones[0].op.tipo).toBe("dock.añadir");
         expect(j.rechazadas).toHaveLength(1);
         expect(j.rechazadas[0].indice).toBe(1);
+    });
+
+    it("debe generar composición de video HTML y detectar adaptadores", async () => {
+        usuario = { id: "u-4" }; // чтобы пройти проверку сессии
+        const cuerpo = {
+            ancho: 1920,
+            alto: 1080,
+            duracion: 5,
+            titulo: "Prueba",
+            fondo: "#000000",
+            acento: "#FFFFFF",
+        };
+        const r = await POST(peticion(cuerpo, "/api/video-html/generate"));
+        expect(r.status).toBe(200);
+        const j = await r.json();
+        expect(j.html).toContain('data-composition-id="main"');
+        expect(j.html).toContain('data-start="0"');
+        expect(j.html).toContain('data-duration="5"');
+        expect(j.html).toContain('data-width="1920"');
+        expect(j.html).toContain('data-height="1080"');
+        expect(j.html).toContain('data-no-timeline');
+        expect(j.html).toContain('class="clip ');
+        expect(j.adapters).toEqual({
+            usados: ["css"],
+            editableVisualmente: true,
+            motivo: "",
+        });
     });
 });
