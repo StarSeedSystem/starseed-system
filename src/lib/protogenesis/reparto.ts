@@ -48,7 +48,8 @@ export function nivelesDe(plan: Plan): string[][] {
 
   // Cola para nodos con grado de entrada 0
   const queue: string[] = [];
-  for (const [id, degree] of inDegree.entries()) {
+  for (const id of inDegree.keys()) {
+    const degree = inDegree.get(id);
     if (degree === 0) {
       queue.push(id);
     }
