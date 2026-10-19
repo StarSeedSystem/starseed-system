@@ -56,3 +56,9 @@ describe("tipos", () => {
     expect(esInvitado({ origen: "astraura" })).toBe(false);
   });
 });
+
+it('los conectores existen y no están vacíos', () => {
+    for (const c of CONECTORES) {
+      if (NUCLEO.includes(c)) expect(leer(c).split('\n').length).toBeGreaterThan(0);
+    }
+});
