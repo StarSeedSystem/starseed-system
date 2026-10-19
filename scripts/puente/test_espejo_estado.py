@@ -72,6 +72,39 @@ class PruebasSeleccion(unittest.TestCase):
         self.assertEqual(set(seleccion), esperados)
 
 
+
+
+class PruebasEmpaquetar(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.olas = self.tmp.name
+        for nombre, lineas in (("progreso.json", 1), ("cola-a.json", 1), ("ola-x.jsonl", 300)):
+            with open(os.path.join(self.olas, nombre), "w", encoding="utf-8") as f:
+                if nombre.endswith(".json"):
+                    json.dump({"prueba": nombre}, f)
+                else:
+                    f.write(("línea de %s\n" % nombre) * lineas)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+
+
+    def _tar(self, seleccion):
+        with tempfile.TemporaryDirectory() as salida:
+            ruta = empaquetar(seleccion, self.olas, salida)
+            self.assertLessEqual(os.path.getsize(ruta), espejo_estado.TOPE_BYTES)
+            with open(ruta, "rb") as f:
+                contenido = io.BytesIO(f.read())
+        return tarfile.open(fileobj=contenido, mode="r:gz")
+
+    def test_archivos_en_la_raiz_del_tar_y_logs_recortados(self):
+        with self._tar(["progreso.json", "cola-a.json", "ola-x.jsonl"]) as tar:
+            self.assertEqual(sorted(tar.getnames()), ["cola-a.json", "ola-x.jsonl", "progreso.json"])
+            self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
+                             espejo_estado.LOG_LINEAS)
+            self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
+
     def test_empaquetar_crea_tar_gz(self):
         seleccion = [
             "progreso.json",
@@ -119,40 +152,7 @@ class PruebasSeleccion(unittest.TestCase):
                         self.assertEqual(len(lineas), esperada, f"{nombre}: {len(lineas)} != {esperada}")
 
 
-
-
-class PruebasEmpaquetar(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.olas = self.tmp.name
-        for nombre, lineas in (("progreso.json", 1), ("cola-a.json", 1), ("ola-x.jsonl", 300)):
-            with open(os.path.join(self.olas, nombre), "w", encoding="utf-8") as f:
-                if nombre.endswith(".json"):
-                    json.dump({"prueba": nombre}, f)
-                else:
-                    f.write(("línea de %s\n" % nombre) * lineas)
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-
-
-    def _tar(self, seleccion):
-        with tempfile.TemporaryDirectory() as salida:
-            ruta = empaquetar(seleccion, self.olas, salida)
-            self.assertLessEqual(os.path.getsize(ruta), espejo_estado.TOPE_BYTES)
-            with open(ruta, "rb") as f:
-                contenido = io.BytesIO(f.read())
-        return tarfile.open(fileobj=contenido, mode="r:gz")
-
-    def test_archivos_en_la_raiz_del_tar_y_logs_recortados(self):
-        with self._tar(["progreso.json", "cola-a.json", "ola-x.jsonl"]) as tar:
-             self.assertEqual(sorted(tar.getnames()), ["cola-a.json", "ola-x.jsonl", "progreso.json"])
-             self.assertEqual(tar.extractfile("ola-x.jsonl").read().decode().count("\n"),
-                              espejo_estado.LOG_LINEAS)
-             self.assertIn(b"prueba", tar.extractfile("progreso.json").read())
-
-    class PruebasEnviarEstado(unittest.TestCase):
+class PruebasEnviarEstado(unittest.TestCase):
     """enviar_estado con ssh falso: freno de 5 min, huella y orden de extracción atómica."""
 
     def setUp(self):
