@@ -87,6 +87,7 @@ import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
+import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import { anotarMedida, medidasDe } from "@/lib/aurora/medidas-voz";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
