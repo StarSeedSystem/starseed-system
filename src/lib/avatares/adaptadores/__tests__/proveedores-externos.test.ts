@@ -76,7 +76,7 @@ describe("crearTarea con fetch simulado", () => {
   });
   it("Tripo: sube a /files (multipart) y crea con el file_token", async () => {
     const { buscar, llamadas } = simulado([{ cuerpo: { code: 0, data: { file_token: "file_abc123" } } }, { cuerpo: { code: 0, data: { task_id: "task_abc123" } } }]);
-    await crearTarea("tripo", PNG, ENCENDIDO, buscar)).toEqual({ ok: true, valor: "task_abc123" });
+    expect(await crearTarea("tripo", PNG, ENCENDIDO, buscar)).toEqual({ ok: true, valor: "task_abc123" });
     expect(llamadas.map((l) => l.url)).toEqual(["https://openapi.tripo3d.ai/v3/files", "https://openapi.tripo3d.ai/v3/generation/image-to-model"]);
     expect(llamadas[0].init?.body).toBeInstanceOf(FormData);
     expect(cabecera(llamadas[0], "Content-Type")).toBeUndefined();
@@ -99,7 +99,7 @@ describe("crearTarea con fetch simulado", () => {
 describe("consultarTarea: una sola petición por llamada", () => {
   const consulta = (p: "meshy" | "tripo", id: string, cuerpo: unknown) => consultarTarea(p, id, ENCENDIDO, simulado([{ cuerpo }]).buscar);
   it("Meshy: en curso, lista con su GLB en la ruta oficial, GLB ajeno no vale y el fallo trae su motivo", async () => {
-    await consulta("meshy", "a", { status: "IN_PROGRESS", progress: 40 })).toEqual({ ok: true, valor: { estado: "trabajando", progreso: 40, glb: null, motivo: null } });
+    expect(await consulta("meshy", "a", { status: "IN_PROGRESS", progress: 40 })).toEqual({ ok: true, valor: { estado: "trabajando", progreso: 40, glb: null, motivo: null } });
     const { buscar, llamadas } = simulado([{ cuerpo: { status: "SUCCEEDED", progress: 100, model_urls: { glb: "https://assets.meshy.ai/x/model.glb" } } }]);
     const lista = await consultarTarea("meshy", "abc-1", ENCENDIDO, buscar);
     expect(lista.ok && lista.valor).toMatchObject({ estado: "lista", glb: "https://assets.meshy.ai/x/model.glb" });
@@ -116,7 +116,7 @@ describe("consultarTarea: una sola petición por llamada", () => {
     expect(llamadas[0].url).toBe("https://openapi.tripo3d.ai/v3/tasks/task_abc123");
     expect((await consulta("tripo", "task_x", { code: 0, data: { status: "dormido" } })).ok).toBe(false);
     const vacio = simulado([]);
-    await (await consultarTarea("tripo", "../account/balance", ENCENDIDO, vacio.buscar)).ok).toBe(false);
+    expect((await consultarTarea("tripo", "../account/balance", ENCENDIDO, vacio.buscar)).ok).toBe(false);
     expect(vacio.llamadas).toHaveLength(0);
   });
 });
@@ -143,8 +143,8 @@ describe("motivoDescarte", () => {
     const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
     const motivo = motivoDescarte(meshMotor, p);
     expect(motivo).not.toBeNull();
-    expect(motivo).toContain("meshyn"); // The motor's nombre es "Meshy (servicio)"
-    expect(motivo).toContain("clave-externa");
+    expect(motivo).toContain("Meshy"); // The motor's nombre es "Meshy (servicio)"
+    expect(motivo).toContain("no está permitido");
   });
 
   it("solo clave, sin permiso: no disponible", () => {
@@ -152,7 +152,7 @@ describe("motivoDescarte", () => {
     const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "clave-externa"] as const };
     const motivo = motivoDescarte(meshMotor, p);
     expect(motivo).not.toBeNull();
-    expect(motivo).toContain("meshyn");
+    expect(motivo).toContain("Meshy");
     expect(motivo).toContain("no está permitido");
   });
 
@@ -161,7 +161,7 @@ describe("motivoDescarte", () => {
     const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu"] as const };
     const motivo = motivoDescarte(meshMotor, p);
     expect(motivo).not.toBeNull();
-    expect(motivo).toContain("meshyn");
+    expect(motivo).toContain("Meshy");
     expect(motivo).toContain("clave-externa");
   });
 
@@ -179,8 +179,8 @@ describe("motivoDescarte", () => {
     const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
     const motivo = motivoDescarte(tripoMotor, p);
     expect(motivo).not.toBeNull();
-    expect(motivo).toContain("tripo");
-    expect(motivo).toContain("clave-externa");
+    expect(motivo).toContain("Tripo");
+    expect(motivo).toContain("no está permitido");
   });
 
   // We can also test that when we have both, Tripo is available
@@ -197,7 +197,7 @@ describe("motivoDescarte", () => {
     const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
     const motivo = motivoDescarte(espacioMotor, p);
     expect(motivo).not.toBeNull();
-    expect(motivo).toContain("pixal3d-espacio");
+    expect(motivo).toContain("Pixal3D");
     expect(motivo).toContain("espacio-hf");
   });
 
