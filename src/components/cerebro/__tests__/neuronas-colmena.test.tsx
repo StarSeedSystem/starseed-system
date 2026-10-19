@@ -138,4 +138,91 @@ describe("NeuronasPanel", () => {
     // Check that the contenedor de agentes section is present
     expect(screen.getByText("Contenedor de agentes")).toBeInTheDocument();
   });
+
+  it("shows estimation for Mac 8 GB", async () => {
+    // Override the mock for @/lib/neurons/neurons to return a neuron with 8 cores
+    vi.mock("@/lib/neurons/neurons", async (importOriginal) => {
+      const actual = await importOriginal();
+      return {
+        ...(actual ?? {}),
+        usePresenciaNeuronas: () => ({
+          medios: [],
+          conectado: false,
+        }),
+        ensureThisNeuron: vi.fn().mockResolvedValue({
+          id: "test-id",
+          name: "Test Neuron",
+          kind: "desktop",
+          capabilities: {
+            platform: "macOS",
+            browser: "Chrome 148",
+            memoryGB: 8,
+            cores: 4,
+            touch: false,
+          },
+          permissions: {
+            sync: true,
+          },
+          online: true,
+          isThisDevice: true,
+        }),
+        listNeurons: vi.fn().mockResolvedValue([
+          {
+            id: "test-id",
+            name: "Test Neuron",
+            kind: "desktop",
+            capabilities: {
+              platform: "macOS",
+              browser: "Chrome 148",
+              memoryGB: 8,
+              cores: 8, // Override cores to 8
+              touch: false,
+            },
+            permissions: {
+              sync: true,
+            },
+            online: true,
+            isThisDevice: true,
+          },
+        ]),
+        summarizeNeurons: vi.fn().mockReturnValue("1 neurona en tu cuenta · 1 online · 1 con IA local."),
+        NEURON_EVENT: "starseed:neurons",
+        thisDeviceId: vi.fn().mockReturnValue("test-device-id"),
+        detectCapabilities: vi.fn().mockResolvedValue({
+          platform: "macOS",
+          browser: "Chrome 148",
+          memoryGB: 8,
+          cores: 8, // Override cores to 8
+          touch: false,
+        }),
+      };
+    });
+
+    const NeuronasPanel = (await import("../neuronas-panel")).default;
+    render(
+      <AppearanceProvider>
+        <ConfirmProvider>
+          <NeuronasPanel brainId="test-brain-id" brainName="Test Brain" />
+        </ConfirmProvider>
+      </AppearanceProvider>
+    );
+
+    // Wait for the neuron data to load
+    await waitFor(() => {
+      expect(screen.getByText("Contenedor de agentes")).toBeInTheDocument();
+    });
+
+    // Check for the estimation text: we expect to see the text "Con el trabajador instalado, al menos 3 agente(s) a la vez."
+    const estimationTexts = screen.getAllByText(/3 agente/i);
+    let found = false;
+    for (const text of estimationTexts) {
+      if (text.textContent.includes("al menos 3 agente(s) a la vez.")) {
+        found = true;
+        break;
+      }
+    }
+    expect(found).toBeTruthy();
+    // Check for the install button text
+    expect(screen.getByText(/Instalar el trabajador/i)).toBeInTheDocument();
+  });
 });
