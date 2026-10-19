@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+// @ts-ignore
 import { corregirConGlosario } from "../glosario-oido";
 
 describe("corregirConGlosario", () => {
