@@ -138,10 +138,10 @@ function BlockRender({ block, accent, reduced }: { block: PostBlock; accent?: st
         case "video":
             return <VideoBlock block={block} />;
         case "protomolecula": {
-            if (!block.code || block.code.trim() === "") {
+            if (!blockHasContent(block)) {
                 return null;
             }
-            const bloqueResultado = leerBloque(block.code);
+            const bloqueResultado = leerBloque(block.code as string);
             if (!bloqueResultado.ok) {
                 return null;
             }
