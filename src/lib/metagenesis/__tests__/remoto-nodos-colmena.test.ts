@@ -54,8 +54,8 @@ describe("acciones colmena: desconectar y contenedor", () => {
         expect(validarArgs("contenedor", { activo: false, trabajadores: 2 })).toContain("trabajadores solo se permite");
     });
     it("contenedor con activo false rechaza trabajadores", () => {
-        expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toBe("trabajadores fuera de 1–4");
-        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBeNull();
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 1 })).toContain("trabajadores solo se permite");
+        expect(validarArgs("contenedor", { activo: false, trabajadores: 0 })).toBe("trabajadores fuera de 1–4");
     });
 });
 
