@@ -63,8 +63,8 @@ describe("elementosDeParches", () => {
       { op: "replace", elemento: "video-titulo", propiedad: "texto", value: "Título B" },
     ];
 
-    const estadoA = elementosAEstado(parchesA, "dev-a", 100);
-    const estadoB = elementosAEstado(parchesB, "dev-b", 110);
+    const estadoA = elementosAEstado(elementosDeParches(parchesA, "dev-a", 100), "dev-a", 100);
+    const estadoB = elementosAEstado(elementosDeParches(parchesB, "dev-b", 110), "dev-b", 110);
 
     const fusionAB = fusionarEstados(estadoA, estadoB, "dev-a");
     const fusionBA = fusionarEstados(estadoB, estadoA, "dev-b");

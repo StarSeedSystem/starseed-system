@@ -27,25 +27,27 @@ export function elementosDeParches(
   const salaId = "video-hyperframes";
   let local: EstadoSala = { salaId, elementos: {}, reloj: 0 };
 
-  for (const p of parches) {
+  for (let i = 0; i < parches.length; i++) {
+    const p = parches[i];
     if (p.op !== "add" && p.op !== "remove" && p.op !== "replace") continue;
     const id = `${p.elemento}::${p.propiedad}`;
     const datos: Record<string, unknown> = {};
     if (p.op !== "remove") {
       datos[p.propiedad] = p.value;
     }
+    const actualizadoEn = t + i;
     const entrante: ElementoSala = {
       id,
       tipo: "video",
       datos,
-      actualizadoEn: t,
+      actualizadoEn,
       porDispositivo: autor,
       borrado: p.op === "remove",
     };
     const remoto: EstadoSala = {
       salaId,
       elementos: { [id]: entrante },
-      reloj: t,
+      reloj: actualizadoEn,
     };
     // Fusionamos con `miDispositivo` vacío para que no se ignore ningún parche local.
     const fusion = fusionarEstados(local, remoto, "");
