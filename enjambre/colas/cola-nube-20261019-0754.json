@@ -1,0 +1,61 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "GCA1019B",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Contenedores gratuitos para procesos de agentes (datos verificados)",
+   "archivos": [
+    "src/lib/genesis/conectores/contenedores.ts",
+    "src/lib/genesis/conectores/__tests__/contenedores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos y funciones PURAS con las opciones de `scripts/puente/contenedores_nube.py` y `architecture/colmena-relevo-contenedores.md`: GitHub Actions del repo de la persona (gratis dentro de los minutos de su plan), Oracle Always Free (A1), servidor propio, neurona «usar como contenedor»; Hugging Face Spaces con Docker marcado `requierePago: true` (dato medido: HTTP 402); Google Cloud marcado `sinFacturacion`. Cada una: { id, nombre, enlaceAlta, guia (ruta en el repo), requiereCuenta, requierePago, aptoPrivado (solo servidor propio y neurona), verificado }. `contenedoresPara(ambito, {privado})`. Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019A"
+   ]
+  },
+  {
+   "id": "GCA1019D",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Vigía de opciones gratis: refrescar el catálogo por canales oficiales",
+   "archivos": [
+    "scripts/puente/vigia_opciones_gratis.py",
+    "scripts/puente/test_vigia_opciones_gratis.py"
+   ],
+   "depende": [],
+   "prompt": "Lee las opciones del catálogo (exporta su JSON con `node`/`tsx` o lee `starseed_memory_root/genesis/catalogo-opciones.json` si existe) y, por entrada, consulta solo su canal oficial (lista de modelos de la API compatible con OpenAI cuando hay clave de esa cuenta, página de documentación con pausa de 10 s y agente de usuario «StarSeedOS-Genesis/1.0 (+https://github.com/StarSeedSystem)»): marca `verificado` con fecha, `a_revisar` si cambió algo, y guarda en starseed_memory_root/genesis/estado-opciones.json (nunca claves). Funciones puras probadas sin red. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019A"
+   ]
+  },
+  {
+   "id": "GCA1019F",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Asignaciones por papel y por director, con valores sugeridos de MetaGenesis",
+   "archivos": [
+    "src/lib/genesis/conectores/asignaciones.ts",
+    "src/lib/genesis/conectores/__tests__/asignaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Tipos y funciones PURAS: papeles (`escritor`, `revisor`, `chat`, `vision`, `voz`, `imagen`, `codigo`) y directores (`chat`, `optimizador`, `diseno`, `produccion`, `nube`, `medidores`, `aprendizaje`); `Asignacion` { clave, cadena: string[] (candidatos en orden), respaldo: string[], preferencias }. `sugeridas()` con cadenas que empiezan por Astraura local y siguen con las gratis del catálogo; `fusionarConAmbito(sugeridas, delAmbito)` (lo del ámbito manda, valida ids contra el catálogo y descarta los desconocidos con aviso). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019A"
+   ]
+  },
+  {
+   "id": "GCA1019V",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Biblioteca vinculable: datos para conectar cada paquete",
+   "archivos": [
+    "src/lib/library/vincular.ts",
+    "src/lib/library/__tests__/vincular.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Tipo `VinculoPaquete` { requiereClave, enlaceAlta, enlaceClave, gratis, variables, opcionId } y `vinculoDe(paquete, catalogo)` que lo deduce del catálogo de opciones o de `payload.catalogSourceId`; `instalableEnAmbito(paquete, ambito, vinculadas)`. No modifiques `packages.ts`. Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019A"
+   ]
+  }
+ ]
+}
