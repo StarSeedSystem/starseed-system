@@ -45,6 +45,7 @@ import {
   getOssSttLangCode,
   type OssSttModelId,
 } from "@/lib/aurora/stt-oss/opt-in";
+import { corregirConGlosario } from "./glosario-oido";
 
 // ── CDN + configuración de bajo nivel ────────────────────────────────────────
 
@@ -739,20 +740,23 @@ export async function pipeOssSttToAurora(
   return startOssStt({
     ...rest,
     onResult: (text: string) => {
+      // Apply glosario correction
+      const idioma = (opts.lang ?? getOssSttLangCode() ?? 'en') as 'es' | 'en';
+      const { texto: correctedTexto } = corregirConGlosario(text, [], idioma);
       // 1) Enviar a Aurora por el puente global (defensivo).
       try {
         const api = (window as unknown as {
           STARSEED_AURORA?: { send?: (t: string) => unknown };
         }).STARSEED_AURORA;
         if (api && typeof api.send === "function") {
-          void api.send(text);
+          void api.send(correctedTexto);
         }
       } catch {
         /* si Aurora no está montada, no rompemos: el fallback sigue */
       }
       // 2) Reflejo opcional para el llamante.
       try {
-        onResult?.(text);
+        onResult?.(correctedTexto);
       } catch {
         /* */
       }
