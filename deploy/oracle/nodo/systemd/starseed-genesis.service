@@ -1,0 +1,24 @@
+[Unit]
+Description=StarSeed · Genesis en el A1 (COL1012M): espejo siempre en línea sin la Mac
+After=network-online.target starseed-medio.service
+Wants=network-online.target
+# Este servicio corre en /opt/starseed/genesis. El paso que hará oracle_a1.py:
+# copia la .next que el guardián acaba de dar por verde sobre /opt/starseed/genesis/.next,
+# sin reconstruir ni compilar; nunca con una build roja.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/opt/starseed/genesis
+Environment=STARSEED_MANDO=1
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+# STARSEED_LOCAL nunca debe aparecer con valor 1: Genesis en el A1 siempre se trata como de fuera.
+ExecStart=/home/starseed/.local/bin/next start -p 9002 -H 127.0.0.1
+Restart=on-failure
+RestartSec=30
+MemoryMax=3G
+
+[Install]
+WantedBy=multi-user.target
