@@ -1,4 +1,7 @@
+// @ts-ignore
 import { crearCanalRele } from '../canal-rele';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
 
 // Mock WebSocket that mimics the minimal WebSocket API needed for the tests
 class FalsoWS {
@@ -76,7 +79,7 @@ describe('Canal de rele (estaciones)', () => {
     const s = FalsoWS.instancias[0];
     s.abrir();
     const recibidos: string[] = [];
-    c.alRecibir((t) => recibidos.push(t));
+    c.alRecibir((t: any) => recibidos.push(t));
     s.llegar('{"t":"rele","n":5}');
     expect(recibidos).toHaveLength(0);
     // Note: The original test expected `c.oyentes?.()` to be 4, but we don't have oyentes in our mock.
@@ -100,7 +103,7 @@ describe('Canal de rele (estaciones)', () => {
     c.enviar("antes");
     s.abrir();
     c.enviar("durante");
-    expect(s.enviados).toEqual(["durante"]);
+    expect(s.enviado).toEqual(["durante"]);
     c.cerrar();
   });
 
