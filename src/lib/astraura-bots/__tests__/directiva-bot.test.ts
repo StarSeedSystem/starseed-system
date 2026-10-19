@@ -59,9 +59,16 @@ describe("extraerDirectivas", () => {
     expect(r.acciones[0].tipo).toBe("codigo.proponer");
   });
 
-  it("un bloque sin cierre no rompe el extractor", () => {
-    const r = extraerDirectivas("Empiezo [[BOT: {\"tipo\":\"navegar\"");
-    expect(r.acciones).toEqual([]);
-    expect(r.problemas.some((p) => p.includes("sin cierre"))).toBe(true);
-  });
-});
+   it("un bloque sin cierre no rompe el extractor", () => {
+     const r = extraerDirectivas("Empiezo [[BOT: {\"tipo\":\"navegar\"");
+     expect(r.acciones).toEqual([]);
+     expect(r.problemas.some((p) => p.includes("sin cierre"))).toBe(true);
+   });
+
+   it("no procesa texto vacío", () => {
+     const r = extraerDirectivas("");
+     expect(r.limpio).toBe("");
+     expect(r.acciones).toEqual([]);
+     expect(r.problemas).toEqual([]);
+   });
+ });
