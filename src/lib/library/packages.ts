@@ -644,6 +644,21 @@ const LABS_PACKAGES: LibraryPackage[] = [
     author: "Ollama · StarSeed Labs", sourceRepoId: "starseed-labs", free: true,
     payload: { catalogSourceId: "ollama-local", model: "alibayram/smollm3", note: "requiere Ollama" },
   },
+  /* ── OÍDO: Phonon-2 y Parakeet (fusión de voz) ── */
+  {
+    id: "ai-phonon-2", kind: "ai-source", name: "Phonon-2",
+    description: "Phonon-2 © Fermion Research, CC-BY-4.0, derivado de NVIDIA Parakeet TDT 0.6B v3. Modelo de reconocimiento de voz (audio → texto con puntuación). Pesos CC-BY-4.0, código Apache-2.0. Sirve como oído ligero y en flujo en la fusión de Astraura.",
+    icon: "mic", tags: ["ia", "local", "oído"], version: "1.0.0",
+    author: "Fermion Research", sourceRepoId: "starseed-labs", free: true, comingSoon: true,
+    payload: { externalUrl: "https://github.com/fermionresearch/phonon", note: "No disponible en medio web (requiere servidor nativo)." },
+  },
+  {
+    id: "ai-parakeet-tdt-0-6b-v3", kind: "ai-source", name: "Parakeet TDT 0.6B v3",
+    description: "Parakeet TDT 0.6B v3 © NVIDIA, CC-BY-4.0. Modelo de reconocimiento de voz multilingüe con detección de idioma. Sirve como oído de calidad en la fusión de Astraura.",
+    icon: "mic", tags: ["ia", "local", "oído"], version: "1.0.0",
+    author: "NVIDIA", sourceRepoId: "starseed-labs", free: true, comingSoon: true,
+    payload: { externalUrl: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3", note: "No disponible en medio web (requiere ejecución nativa o ONNX en navegador no soportado actualmente)." },
+  },
   /* ── Visión de Aurora · SmolVLM2 (skill que abre Ajustes para activarla) ── */
   {
     id: "fn-aurora-vision", kind: "function", name: "Visión de Aurora · SmolVLM2",
