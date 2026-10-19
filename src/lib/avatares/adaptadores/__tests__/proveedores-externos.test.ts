@@ -1,7 +1,9 @@
 /** Proveedores externos opcionales (AV1011I): sin red, disco ni procesos (entorno = objeto, `fetch` simulado). Apagados por
  * defecto, `clave-externa` solo con clave Y permiso, peticiones de la documentación oficial y ninguna clave en los motivos. */
 import { describe, expect, it } from "vitest";
-import { planificar, type PeticionPlan } from "@/lib/avatares/adn/canalizacion";
+import { planificar, type PeticionPlan, motivoDescarte } from "@/lib/avatares/adn/canalizacion";
+import { MOTORES_3D } from "@/lib/avatares/adn/motores";
+import { motivoDenegacion } from "./espacio-hf";
 import {
   MODELO, capacidadesExternas, consultarTarea, crearTarea, esUrlDescarga, estadoProveedores, motivoImagen,
   motivoNoDisponible, motoresDisponibles, procedenciaExterna, type Buscar, type Entorno, type Imagen,
@@ -10,6 +12,15 @@ import {
 const CLAVE = ["clave", "de", "prueba", "no", "real"].join("-");
 const ENCENDIDO: Entorno = { AVATARES_EXTERNOS_PERMITIDOS: "1", MESHY_API_KEY: CLAVE, TRIPO_API_KEY: CLAVE };
 const SOLO_TRIPO: Entorno = { AVATARES_EXTERNOS_PERMITIDOS: "1", TRIPO_API_KEY: CLAVE };
+const tripoMotor = MOTORES_3D.find(m => m.id === "tripo") as NonNullable<typeof MOTORES_3D[0]>;
+const basePeticion: PeticionPlan = {
+  partida: "imagen",
+  esqueleto: "ninguno",
+  region: "ES",
+  comercial: false,
+  permitirDePago: false,
+  capacidades: [],
+};
 const PNG: Imagen = { mime: "image/png", bytes: new Uint8Array([137, 80, 78, 71, 1, 2, 3]) };
 interface Llamada { url: string; init: RequestInit | undefined }
 function simulado(respuestas: Array<{ status?: number; cuerpo: unknown } | "sin-red">): { buscar: Buscar; llamadas: Llamada[] } {
@@ -27,6 +38,7 @@ const generarCon = (entorno: Entorno): string | null => planificar({
   partida: "imagen", esqueleto: "ninguno", region: "ES", comercial: false, permitirDePago: true,
   capacidades: ["navegador", "cpu", ...capacidadesExternas(entorno)],
 } satisfies PeticionPlan, motoresDisponibles(entorno)).pasos.find((p) => p.etapa === "generar")?.motor?.id ?? null;
+
 describe("apagados por defecto y honestos", () => {
   it("sin entorno, con la clave sola o con el permiso solo: no hay proveedor y se dice qué falta", () => {
     expect(motivoNoDisponible("meshy", {})).toMatch(/AVATARES_EXTERNOS_PERMITIDOS=1/);
@@ -41,6 +53,11 @@ describe("apagados por defecto y honestos", () => {
   it("con clave Y permiso se ofrece clave-externa, solo del proveedor que tiene clave", () => {
     expect(capacidadesExternas(SOLO_TRIPO)).toEqual(["clave-externa"]);
     expect(estadoProveedores(SOLO_TRIPO).map((p) => p.disponible)).toEqual([false, true]);
+  });
+  it("tripo con permiso y clave: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).toBeNull();
   });
   it("planificar: nada sin entorno; Meshy con las dos (atribución primero); Tripo si solo hay la suya", () => {
     expect(generarCon({})).toBeNull();
@@ -60,7 +77,63 @@ describe("apagados por defecto y honestos", () => {
     for (const u of ["http://assets.meshy.ai/m.glb", "https://assets.meshy.ai.atacante.com/m.glb", "https://cdn.tripo3d.ai/m.glb", null]) {
       expect(esUrlDescarga("meshy", u)).toBe(false);
     }
+   });
+  it("tripo: «no disponible» sin llamar a la red", async () => {
+    // Test with missing permiso
+    const sinPermiso = simulado([]);
+    expect((await crearTarea("tripo", PNG, {}, sinPermiso.buscar)).ok).toBe(false);
+    expect(sinPermiso.llamadas).toHaveLength(0);
+    // Test with missing clave but with permiso
+    const sinClave = simulado([]);
+    expect((await crearTarea("tripo", PNG, { AVATARES_EXTERNOS_PERMITIDOS: "1" }, sinClave.buscar)).ok).toBe(false);
+    expect(sinClave.llamadas).toHaveLength(0);
   });
+});
+describe("espacio-hf: permiso y disponibilidad", () => {
+  const basePeticionEspacioHf: PeticionEspacioHf = {
+    permiso: false,
+    esFotoDePersonas: false,
+    consentimientoPersonas: false,
+    imagenBytes: 100 * 1024, // 100 KB
+    mime: "image/png",
+    usoHoy: 0,
+  };
+
+  it("espacio-hf: sin permiso para espacio-hf: no disponible", () => {
+    const motivo = motivoDenegacion(basePeticionEspacioHf);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toMatch(/Falta tu permiso/);
+  });
+
+  it("espacio-hf: con permiso para espacio-hf: disponible", () => {
+    const p = { ...basePeticionEspacioHf, permiso: true };
+    const motivo = motivoDenegacion(p);
+    expect(motivo).toBeNull();
+  });
+});
+describe("consultarTarea: una sola petición por llamada", () => {
+  const consulta = (p: "meshy" | "tripo", id: string, cuerpo: unknown) => consultarTarea(p, id, ENCENDIDO, simulado([{ cuerpo }]).buscar);
+  it("Meshy: en curso, lista con su GLB en la ruta oficial, GLB ajeno no vale y el fallo trae su motivo", async () => {
+    expect(await consulta("meshy", "a", { status: "IN_PROGRESS", progress: 40 })).toEqual({ ok: true, valor: { estado: "trabajando", progreso: 40, glb: null, motivo: null } });
+    const { buscar, llamadas } = simulado([{ cuerpo: { status: "SUCCEEDED", progress: 100, model_urls: { glb: "https://assets.meshy.ai/x/model.glb" } } }]);
+    const lista = await consultarTarea("meshy", "abc-1", ENCENDIDO, buscar);
+    expect(lista.ok && lista.valor).toMatchObject({ estado: "lista", glb: "https://assets.meshy.ai/x/model.glb" });
+    expect(llamadas.map((l) => l.url)).toEqual(["https://api.meshy.ai/openapi/v1/image-to-3d/abc-1"]);
+    const ajeno = await consulta("meshy", "a", { status: "SUCCEEDED", model_urls: { glb: "https://atacante.example/m.glb" } });
+    expect(ajeno.ok && ajeno.valor.estado).toBe("fallida");
+    const fallo = await consulta("meshy", "a", { status: "FAILED", task_error: { message: "imagen sin sujeto" } });
+    expect(fallo.ok && fallo.valor).toMatchObject({ estado: "fallida", motivo: "imagen sin sujeto" });
+  });
+    it("Tripo: /tasks/{id} con output.model_url; estado desconocido es error; id raro no sale a la red", async () => {
+      const { buscar, llamadas } = simulado([{ cuerpo: { code: 0, data: { status: "success", output: { model_url: "https://cdn.tripo3d.ai/o/m.glb" } } } ]]);
+      const r = await consultarTarea("tripo", "task_abc123", ENCENDIDO, buscar);
+      expect(r.ok && r.valor).toMatchObject({ estado: "lista", progreso: 100, glb: "https://cdn.tripo3d.ai/o/m.glb" });
+      expect(llamadas[0].url).toBe("https://openapi.tripo3d.ai/v3/tasks/task_abc123");
+      expect((await consulta("tripo", "task_x", { code: 0, data: { status: "dormido" } })).ok).toBe(false);
+      const vacio = simulado([]);
+      expect((await consultarTarea("tripo", "../account/balance", ENCENDIDO, vacio.buscar)).ok).toBe(false);
+      expect(vacio.llamadas).toHaveLength(0);
+    });
 });
 describe("crearTarea con fetch simulado", () => {
   it("Meshy: POST image-to-3d con data URI, Bearer y modelo; devuelve `result`", async () => {
@@ -74,7 +147,7 @@ describe("crearTarea con fetch simulado", () => {
   });
   it("Tripo: sube a /files (multipart) y crea con el file_token", async () => {
     const { buscar, llamadas } = simulado([{ cuerpo: { code: 0, data: { file_token: "file_abc123" } } }, { cuerpo: { code: 0, data: { task_id: "task_abc123" } } }]);
-    expect(await crearTarea("tripo", PNG, ENCENDIDO, buscar)).toEqual({ ok: true, valor: "task_abc123" });
+    await crearTarea("tripo", PNG, ENCENDIDO, buscar)).toEqual({ ok: true, valor: "task_abc123" });
     expect(llamadas.map((l) => l.url)).toEqual(["https://openapi.tripo3d.ai/v3/files", "https://openapi.tripo3d.ai/v3/generation/image-to-model"]);
     expect(llamadas[0].init?.body).toBeInstanceOf(FormData);
     expect(cabecera(llamadas[0], "Content-Type")).toBeUndefined();
@@ -92,29 +165,5 @@ describe("crearTarea con fetch simulado", () => {
     ])).map((c) => (c.ok ? "" : c.motivo));
     [/rechazó la clave/, /sin créditos/, /2010.*Insufficient credits/, /sin red/].forEach((re, i) => expect(motivos[i]).toMatch(re));
     expect(motivos.join(" ")).not.toContain(CLAVE);
-  });
-});
-describe("consultarTarea: una sola petición por llamada", () => {
-  const consulta = (p: "meshy" | "tripo", id: string, cuerpo: unknown) => consultarTarea(p, id, ENCENDIDO, simulado([{ cuerpo }]).buscar);
-  it("Meshy: en curso, lista con su GLB en la ruta oficial, GLB ajeno no vale y el fallo trae su motivo", async () => {
-    expect(await consulta("meshy", "a", { status: "IN_PROGRESS", progress: 40 })).toEqual({ ok: true, valor: { estado: "trabajando", progreso: 40, glb: null, motivo: null } });
-    const { buscar, llamadas } = simulado([{ cuerpo: { status: "SUCCEEDED", progress: 100, model_urls: { glb: "https://assets.meshy.ai/x/model.glb" } } }]);
-    const lista = await consultarTarea("meshy", "abc-1", ENCENDIDO, buscar);
-    expect(lista.ok && lista.valor).toMatchObject({ estado: "lista", glb: "https://assets.meshy.ai/x/model.glb" });
-    expect(llamadas.map((l) => l.url)).toEqual(["https://api.meshy.ai/openapi/v1/image-to-3d/abc-1"]);
-    const ajeno = await consulta("meshy", "a", { status: "SUCCEEDED", model_urls: { glb: "https://atacante.example/m.glb" } });
-    expect(ajeno.ok && ajeno.valor.estado).toBe("fallida");
-    const fallo = await consulta("meshy", "a", { status: "FAILED", task_error: { message: "imagen sin sujeto" } });
-    expect(fallo.ok && fallo.valor).toMatchObject({ estado: "fallida", motivo: "imagen sin sujeto" });
-  });
-  it("Tripo: /tasks/{id} con output.model_url; estado desconocido es error; id raro no sale a la red", async () => {
-    const { buscar, llamadas } = simulado([{ cuerpo: { code: 0, data: { status: "success", output: { model_url: "https://cdn.tripo3d.ai/o/m.glb" } } } }]);
-    const r = await consultarTarea("tripo", "task_abc123", ENCENDIDO, buscar);
-    expect(r.ok && r.valor).toMatchObject({ estado: "lista", progreso: 100, glb: "https://cdn.tripo3d.ai/o/m.glb" });
-    expect(llamadas[0].url).toBe("https://openapi.tripo3d.ai/v3/tasks/task_abc123");
-    expect((await consulta("tripo", "task_x", { code: 0, data: { status: "dormido" } })).ok).toBe(false);
-    const vacio = simulado([]);
-    expect((await consultarTarea("tripo", "../account/balance", ENCENDIDO, vacio.buscar)).ok).toBe(false);
-    expect(vacio.llamadas).toHaveLength(0);
   });
 });
