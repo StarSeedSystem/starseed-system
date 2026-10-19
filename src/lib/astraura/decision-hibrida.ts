@@ -1,5 +1,6 @@
 import { UMBRAL_EJECUTAR as UMBRAL_NEEDLE_EJECUTAR, zonaDeConfianza,
   type DecisionNeedle, type LlamadaNeedle, type HerramientaNeedle } from "./needle3-client";
+import { PUNTOS_DECISION } from "./laya/puntos-decision";
 
 export type AccionPlan = "ejecutar" | "confirmar" | "escalar_jev" | "escalar_llm";
 export type CapaDecision = "needle" | "laya" | "jev" | "llm";
@@ -55,6 +56,43 @@ export async function decidirConLaya(
   consulta: string, herramientas: HerramientaNeedle[], transporte?: typeof fetch
 ): Promise<RespuestaLaya | null> {
   if (herramientas.length === 0) return null;
+  
+  // Find the reflejó.herramienta decision point from PUNTOS_DECISION
+  const puntoReflejoHerramienta = PUNTOS_DECISION.find(p => p.id === "reflejo.herramienta");
+  if (!puntoReflejoHerramienta) {
+    // Fallback to hardcoded values if decision point not found
+    const criteria = Object.fromEntries(herramientas.map(
+      ({ name, description }) => [name, description]));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    try {
+      const respuesta = await (transporte ?? fetch)("http://127.0.0.1:4470/v1/systemone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          state: consulta,
+          questions: {
+            herramienta: { type: "choice",
+              instructions: "Elige la herramienta más adecuada para resolver la consulta", criteria },
+          },
+        }),
+        signal: controller.signal,
+      });
+      if (!respuesta.ok) return null;
+      const data = (await respuesta.json()) as RespuestaLayaHttp;
+      const decision = data.answers?.herramienta;
+      if (typeof decision?.choice !== "string"
+        || !Object.prototype.hasOwnProperty.call(criteria, decision.choice)) return null;
+      if (typeof decision.confidence !== "number" || !Number.isFinite(decision.confidence)) return null;
+      return { herramienta: decision.choice, confianza: decision.confidence, motor: "laya-local" };
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  
+  // Use the decision point definition
   const criteria = Object.fromEntries(herramientas.map(
     ({ name, description }) => [name, description]));
   const controller = new AbortController();
@@ -66,8 +104,7 @@ export async function decidirConLaya(
       body: JSON.stringify({
         state: consulta,
         questions: {
-          herramienta: { type: "choice",
-            instructions: "Elige la herramienta más adecuada para resolver la consulta", criteria },
+          herramienta: puntoReflejoHerramienta.preguntas.herramienta,
         },
       }),
       signal: controller.signal,

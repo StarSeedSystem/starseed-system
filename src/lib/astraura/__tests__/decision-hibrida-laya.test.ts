@@ -48,8 +48,14 @@ describe("decidirConLaya", () => {
       questions: {
         herramienta: {
           type: "choice",
-          instructions: "Elige la herramienta más adecuada para resolver la consulta",
-          criteria: { buscar: "Busca información", guardar: "Guarda el resultado" },
+          instructions: "¿Qué herramienta debe usar el reflejo para esta tarea?",
+          criteria: {
+            "gitnexus context": "Obtener contexto de un símbolo en el código",
+            "gitnexus impact": "Analizar el impacto de cambios en un símbolo",
+            "gitnexus query": "Buscar conceptos en el códigosbase",
+            "gitnexus detect-changes": "Detectar cambios en el código",
+            "starseed-fuentes buscar": "Buscar en fuentes externas de APIs y herramientas",
+          },
         },
       },
     });

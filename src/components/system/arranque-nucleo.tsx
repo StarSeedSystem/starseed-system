@@ -28,6 +28,7 @@ import { useEffect } from "react";
 import { validarUiSpec } from "@/lib/nucleo/ui-spec";
 import { validarContraInvariantes } from "@/lib/nucleo/invariantes";
 import { configurarNucleo, nucleoRegistrado } from "@/lib/nucleo/paquete-sistema";
+import { validarPuntos } from "@/lib/astraura/laya/puntos-decision";
 
 /**
  * Registra los guardianes del núcleo si aún no lo están.
@@ -35,6 +36,12 @@ import { configurarNucleo, nucleoRegistrado } from "@/lib/nucleo/paquete-sistema
  */
 export function arrancarNucleo(): boolean {
   if (nucleoRegistrado()) return false;
+  // Validate the decision points catalog
+  if (!validarPuntos()) {
+    console.error("Error: El catálogo de puntos de decisión no es válido");
+    // In a production environment, we might want to handle this more gracefully
+    // For now, we'll continue but log the error
+  }
   configurarNucleo({ validarUiSpec, validarContraInvariantes });
   return true;
 }

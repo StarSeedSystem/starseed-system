@@ -31,7 +31,7 @@ export const PUNTOS_DECISION: PuntoDecision[] = [
         criteria: {
           "gitnexus context": "Obtener contexto de un símbolo en el código",
           "gitnexus impact": "Analizar el impacto de cambios en un símbolo",
-          "gitnexus query": "Buscar conceptos en el códigobase",
+           "gitnexus query": "Buscar conceptos en el códigosbase",
           "gitnexus detect-changes": "Detectar cambios en el código",
           "starseed-fuentes buscar": "Buscar en fuentes externas de APIs y herramientas",
         },
@@ -276,7 +276,7 @@ export const PUNTOS_DECISION: PuntoDecision[] = [
       navegador: 1500,
       malla: 2500,
     },
-    siDuda: "jev_enrutado",
+    siDuda: "regla",
     privacidad: "solo-propias",
   },
 ];
