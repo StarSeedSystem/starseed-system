@@ -79,11 +79,4 @@ describe("extraerDirectivas", () => {
     const resultado = extraerDirectivas(texto);
     expect(resultado.acciones).toHaveLength(2);
     expect(resultado.problemas.length).toBeGreaterThan(0);
-  });
-
-    const resultado = extraerDirectivas(texto);
-    expect(resultado.acciones).toHaveLength(0);
-    expect(resultado.problemas).toHaveLength(0);
-    expect(resultado.limpio).toBe("");
-  });
-});
+  });});
