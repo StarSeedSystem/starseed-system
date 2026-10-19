@@ -57,6 +57,17 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
+import { motorRecomendado, Plataforma } from "../catalogo-voces";
+function detectarPlataforma(): Plataforma {
+    if (typeof window === "undefined") return "web";
+    const ua = navigator.userAgent;
+    if (/Mac OS X/.test(ua)) return "macos";
+    if (/Windows NT/.test(ua)) return "windows";
+    if (/Linux/.test(ua) && !/Android/.test(ua)) return "linux";
+    if (/Android/.test(ua)) return "android";
+    if (/iPhone|iPad|iPod/.test(ua)) return "ios";
+    return "web";
+}
 
 /** Identificador público del motor único, para registros y paneles. */
 export const VOZ_STARSEED_ID = "starseed.voz-unica.v1";
@@ -436,11 +447,28 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     // que la degradación de nivel no cambia ni el carácter ni la emoción.
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
+    const plataforma = detectarPlataforma();
+    const { memoriaGB } = await detectarCapacidades();
+    const ramGB = memoriaGB ?? 8;
+    const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
     let nivel: NivelVoz;
-    try {
-        nivel = await resolverNivel(opciones.nivel);
-    } catch {
-        nivel = "minima"; // red de seguridad absoluta
+    switch (motorCat.id) {
+        case "voicemorphic":
+        case "voicestudio":
+            nivel = "estudio";
+            break;
+        case "kokoro":
+        case "kittentts":
+        case "moss-tts-nano":
+            nivel = "ligera";
+            break;
+        case "sistema":
+            nivel = "minima";
+            break;
+        default:
+            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
+            nivel = "nube";
+            break;
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
