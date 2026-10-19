@@ -18,6 +18,8 @@ import { rateLimit } from "@/lib/security/rate-limit";
 import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 import { carrilesGenesis, preguntarCarriles, VARIABLES_CARRILES, type MensajeModelo } from "@/lib/genesis/carriles-servidor";
 import { ambitoDesde, contextoValidacion, leerRespuestaModelo, promptSistema, sanearContexto } from "@/lib/genesis/traductor";
+import { plantillaStarSeed } from "@/lib/video-html/plantilla";
+import { detectarAdaptadores } from "@/lib/video-html/adaptadores";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,44 +52,66 @@ export async function POST(req: NextRequest): Promise<Response> {
         );
     }
 
-    const crudo = await req.text().catch(() => "");
-    if (!crudo || crudo.length > MAX_CUERPO) return Response.json({ error: "Petición vacía o demasiado grande." }, { status: 400 });
-    let cuerpo: Record<string, unknown>;
-    try {
-        cuerpo = JSON.parse(crudo) as Record<string, unknown>;
-    } catch {
-        return Response.json({ error: "JSON inválido." }, { status: 400 });
-    }
-    const mensaje = typeof cuerpo.mensaje === "string" ? cuerpo.mensaje.trim().slice(0, 2000) : "";
-    if (!mensaje) return Response.json({ error: "Escribe qué quieres cambiar." }, { status: 400 });
+    const pathname = req.nextUrl.pathname;
+    if (pathname.startsWith("/api/video-html/generate")) {
+        // Handle video/html composition generation
+        const crudo = await req.text().catch(() => "");
+        if (!crudo || crudo.length > MAX_CUERPO) return Response.json({ error: "Petición vacía o demasiado grande." }, { status: 400 });
+        let cuerpo: Record<string, unknown>;
+        try {
+            cuerpo = JSON.parse(crudo) as Record<string, unknown>;
+        } catch {
+            return Response.json({ error: "JSON inválido." }, { status: 400 });
+        }
+        const { ancho, alto, duracion, titulo, fondo, acento } = cuerpo;
+        if (typeof ancho !== "number" || typeof alto !== "number" || typeof duracion !== "number" ||
+            typeof titulo !== "string" || typeof fondo !== "string" || typeof acento !== "string") {
+            return Response.json({ error: "Parámetros inválidos o faltantes (ancho, alto, duracion, titulo, fondo, acento)" }, { status: 400 });
+        }
+        const html = plantillaStarSeed({ ancho, alto, duracion, titulo, fondo, acento });
+        const adapters = detectarAdaptadores(html);
+        return Response.json({ html, adapters });
+    } else {
+        // Original Genesis proposer logic
+        const crudo = await req.text().catch(() => "");
+        if (!crudo || crudo.length > MAX_CUERPO) return Response.json({ error: "Petición vacía o demasiado grande." }, { status: 400 });
+        let cuerpo: Record<string, unknown>;
+        try {
+            cuerpo = JSON.parse(crudo) as Record<string, unknown>;
+        } catch {
+            return Response.json({ error: "JSON inválido." }, { status: 400 });
+        }
+        const mensaje = typeof cuerpo.mensaje === "string" ? cuerpo.mensaje.trim().slice(0, 2000) : "";
+        if (!mensaje) return Response.json({ error: "Escribe qué quieres cambiar." }, { status: 400 });
 
-    const ambito = ambitoDesde(cuerpo.ambito);
-    const contexto = sanearContexto(cuerpo.contexto);
-    const historial: MensajeModelo[] = (Array.isArray(cuerpo.historial) ? cuerpo.historial : [])
-        .slice(-6)
-        .map((t) => (typeof t === "object" && t ? (t as Record<string, unknown>) : {}))
-        .filter((t) => (t.rol === "persona" || t.rol === "agente") && typeof t.texto === "string")
-        .map((t) => ({ role: t.rol === "persona" ? ("user" as const) : ("assistant" as const), content: String(t.texto).slice(0, 1200) }));
+        const ambito = ambitoDesde(cuerpo.ambito);
+        const contexto = sanearContexto(cuerpo.contexto);
+        const historial: MensajeModelo[] = (Array.isArray(cuerpo.historial) ? cuerpo.historial : [])
+            .slice(-6)
+            .map((t) => (typeof t === "object" && t ? (t as Record<string, unknown>) : {}))
+            .filter((t) => (t.rol === "persona" || t.rol === "agente") && typeof t.texto === "string")
+            .map((t) => ({ role: t.rol === "persona" ? ("user" as const) : ("assistant" as const), content: String(t.texto).slice(0, 1200) }));
 
-    const carriles = carrilesGenesis({ local: esPeticionDeEstaMaquina(req) });
-    if (carriles.length === 0) {
-        return Response.json(
-            {
-                error: `Este servidor no tiene ningún modelo gratuito configurado para Genesis (mira estas variables: ${VARIABLES_CARRILES.join(", ")}). Puedes seguir creando operaciones a mano.`,
-                sinModelos: true,
-            },
-            { status: 503 },
-        );
-    }
+        const carriles = carrilesGenesis({ local: esPeticionDeEstaMaquina(req) });
+        if (carriles.length === 0) {
+            return Response.json(
+                {
+                    error: `Este servidor no tiene ningún modelo gratuito configurado para Genesis (mira estas variables: ${VARIABLES_CARRILES.join(", ")}). Puedes seguir creando operaciones a mano.`,
+                    sinModelos: true,
+                },
+                { status: 503 },
+            );
+        }
 
-    const mensajes: MensajeModelo[] = [{ role: "system", content: promptSistema(ambito, contexto) }, ...historial, { role: "user", content: mensaje }];
-    const r = await preguntarCarriles(carriles, mensajes);
-    if (!r.ok) {
-        return Response.json(
-            { error: "Ningún modelo gratuito contestó ahora mismo.", intentos: r.intentos },
-            { status: 502 },
-        );
+        const mensajes: MensajeModelo[] = [{ role: "system", content: promptSistema(ambito, contexto) }, ...historial, { role: "user", content: mensaje }];
+        const r = await preguntarCarriles(carriles, mensajes);
+        if (!r.ok) {
+            return Response.json(
+                { error: "Ningún modelo gratuito contestó ahora mismo.", intentos: r.intentos },
+                { status: 502 },
+            );
+        }
+        const propuesta = leerRespuestaModelo(r.texto, contextoValidacion(ambito, contexto));
+        return Response.json({ ...propuesta, modelo: r.carril, intentos: r.intentos });
     }
-    const propuesta = leerRespuestaModelo(r.texto, contextoValidacion(ambito, contexto));
-    return Response.json({ ...propuesta, modelo: r.carril, intentos: r.intentos });
 }
