@@ -54,7 +54,7 @@ class TestVigiaReferencias(unittest.TestCase):
             ]
         }
     
-    @patch('vigia_referencias._fetch_url')
+    @patch('vigia_referencias._fetch')
     def test_procesar_entrada_fontshare_api(self, mock_fetch):
         """Test procesamiento de entrada Fontshare con API."""
         # Simular respuesta de API de Fontshare

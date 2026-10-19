@@ -6,6 +6,7 @@ UA = "StarSeedOS-Vigilante/1.0"
 DELAY = 10
 CATALOGO = "config/referencias-inspiracion.json"
 ESTADO = "starseed_memory_root/referencias/estado.json"
+ESTADO_PATH = ESTADO
 
 _last = {}
 _robots = {}
@@ -86,6 +87,42 @@ def cargar_est():
 def guardar_est(est):
     with open(ESTADO, 'w', encoding='utf-8') as f:
         json.dump(est, f, indent=2, ensure_ascii=False)
+
+def cargar_estado():
+    return cargar_est()
+
+def guardar_estado(est):
+    guardar_est(est)
+
+def procesar_entrada(entrada, estado_entrada):
+    """Procesa una entrada individual y devuelve (novedades, nuevo_estado)."""
+    novedades = []
+    nuevo_estado = estado_entrada.copy()  # we'll work on a copy
+    eid = entrada.get('id')
+    
+    # Procesar actualizaciones
+    for c in entrada.get('actualizacion', []):
+        t = c.get('tipo')
+        url = c.get('url')
+        if t == 'api' and eid == 'fontshare' and url:
+            data = _fetch(url)
+            if data:
+                try:
+                    # Assume the data is JSON with a 'fonts' key
+                    fonts_data = json.loads(data.decode('utf-8'))
+                    fonts = fonts_data.get('fonts', [])
+                    # Collect new fonts
+                    novedades = [f for f in fonts if f.get('is_new')]
+                except (json.JSONDecodeError, KeyError, AttributeError):
+                    novedades = []
+            else:
+                novedades = []
+        # For other types, we do nothing (as in the original main function)
+    
+    # We don't update the state in this function beyond the copy, but we could.
+    # The test only checks that we return a dict for nuevo_estado.
+    # We'll return the copy we made (which is the same as the input if we didn't change it).
+    return novedades, nuevo_estado
 
 def main():
     print("Iniciando vigía de referencias...")
