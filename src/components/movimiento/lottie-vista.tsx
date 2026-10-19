@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import Lottie from '@lottiefiles/dotlottie-react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 export interface LottieVistaProps {
   /** URL del archivo Lottie (.lottie o .json) */
@@ -34,8 +33,6 @@ export function LottieVista({
   const [isVisible, setIsVisible] = useState(false);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
   const lottieRef = useRef(null);
-  const pathname = usePathname();
-  const router = useRouter();
 
   // Detectar si se prefiere reducir movimiento
   useEffect(() => {
@@ -101,7 +98,7 @@ export function LottieVista({
         </div>
       ) : (
         // Reproducir animación normalmente cuando está visible
-        <Lottie
+        <DotLottieReact
           src={src}
           autoplay={isVisible && autoplay}
           loop={loop}
