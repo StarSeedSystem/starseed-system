@@ -4429,3 +4429,28 @@ build compilada en la nube e instalada en Genesis; verificado en localhost:9002.
 ### Notas / aprendizajes
 - La primera build de la nube salió sin `.env.production.local` (Supabase de relleno, navegador sin sesión): copiarlo SIEMPRE al worktree antes de `next build` y buscar el proyecto real en `.next/static/chunks`.
 - Fuera de esta tarea: `brain_memory_files` 30 GET + 30 PATCH/30 min desde una pestaña abierta (memoria de Astraura tras `starseed:sync:apply`).
+
+
+## 2026-10-18 — Añadido paquete de HyperFrames a la Biblioteca (HFR1018B · Ola 1018H)
+
+**Sesión por:** opencode
+**Resumen ejecutivo:** Se añadió el paquete `video-hyperframes` (kind: repo) a la Biblioteca de StarSeed OS, con descripción en español, ícono Film, tags vídeo/edición/html/render, versión 0.8.172, autor HeyGen · StarSeed Labs, y payload con githubRepo, externalUrl, categoria, herramientaId y claseLicencia. Se crearon pruebas unitarias para verificar id único, githubRepo y claseLicencia.
+
+### Hecho
+- Editado `src/lib/library/packages.ts` para añadir el paquete video-hyperframes al repositorio builtin `starseed-labs`.
+- Creado `src/lib/library/__tests__/video-hyperframes.test.ts` con pruebas de id, githubRepo y claseLicencia.
+- Verificado que las pruebas pasan con `npx vitest run`.
+- Verificado que no hay errores de TypeScript con `bash scripts/enjambre/tsc-turno.sh`.
+
+### Decisiones tomadas
+- Seguimos el patrón existente de paquetes en `starseed-labs` para paquetes de tipo repo.
+- Usamos el mismo enfoque de prueba que en `voces-voicestudio.test.ts`.
+- Mantuvimos la descripción y los tags en español con acentos.
+- No añadimos la ruta a dock-config ni app-catalog porque es un repo, no una ruta con acceso directo.
+
+### Pendiente / Próximos pasos
+- Ninguno, tarea completada.
+
+### Notas / aprendizajes
+- El paquete HyperFrames permite crear vídeo a partir de HTML, CSS y medios, con render en la malla y edición en grupo, siguiendo la arquitectura de la Protomolécula.
+- La licencia es Apache-2.0 y la clase de licencia es libre, compatible con el OS.

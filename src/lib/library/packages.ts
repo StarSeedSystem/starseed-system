@@ -813,15 +813,35 @@ const LABS_PACKAGES: LibraryPackage[] = [
     author: "Noumena Labs", sourceRepoId: "starseed-labs", free: true,
     payload: { externalUrl: "https://github.com/noumena-labs/Sipp", catalogSourceId: "sipp-local" },
   },
-  /* ── AgentOS · patrones de agentes — function (referencia/beta) ── */
-  {
-    id: "fn-agentos", kind: "function", name: "AgentOS · patrones de agentes",
-    description:
-      "Patrones de orquestación de agentes (referencia). No es una skill ejecutable hoy: instalar GUARDA el enlace en tu biblioteca y abre su GitHub para estudiar/adaptar sus patrones al Exocórtex.",
-    icon: "Workflow", tags: ["referencia", "agentes", "orquestacion", "beta"], version: "0.1.0",
-    author: "Rivet", sourceRepoId: "starseed-labs", free: true,
-    payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "patrones de orquestación" },
-  },
+   /* ── AgentOS · patrones de agentes — function (referencia/beta) ── */
+   {
+      id: "fn-agentos", kind: "function", name: "AgentOS · patrones de agentes",
+      description:
+        "Patrones de orquestación de agentes (referencia). No es una skill ejecutable hoy: instalar GUARDA el enlace en tu biblioteca y abre su GitHub para estudiar/adaptar sus patrones al Exocórtex.",
+      icon: "Workflow", tags: ["referencia", "agentes", "orquestacion", "beta"], version: "0.1.0",
+      author: "Rivet", sourceRepoId: "starseed-labs", free: true,
+      payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "patrones de orquestación" },
+   },
+   {
+      id: "video-hyperframes",
+      kind: "repo",
+      name: "HyperFrames",
+      description: "escribe HTML, sale vídeo; editor de vídeo de la Protomolécula, render en la malla y edición en grupo",
+      icon: "Film",
+      tags: ["vídeo", "edición", "html", "render"],
+      version: "0.8.172",
+      author: "HeyGen · StarSeed Labs",
+      sourceRepoId: "starseed-labs",
+      free: true,
+      featured: true,
+      payload: {
+        githubRepo: "heygen-com/hyperframes",
+        externalUrl: "https://github.com/heygen-com/hyperframes",
+        categoria: "video",
+        herramientaId: "hyperframes",
+        claseLicencia: "libre"
+      }
+   },
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
