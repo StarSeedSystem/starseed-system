@@ -585,9 +585,20 @@ describe("ajustes del cerebro", () => {
       const resultadoMem = ajustesEfectivos(ajustes, { tipo: "memoria", id: "mem1" });
       const resultadoCarp = ajustesEfectivos(ajustes, { tipo: "carpeta", id: "carp1" });
 
-      // Ambos deben ser iguales al cerebro porque las memorias/carpetas están vacías
-      expect(resultadoMem).toEqual(ajustes.cerebro);
-      expect(resultadoCarp).toEqual(ajustes.cerebro);
-    });
-  });
-});
+       // Ambos deben ser iguales al cerebro porque las memorias/carpetas están vacías
+       expect(resultadoMem).toEqual(ajustes.cerebro);
+       expect(resultadoCarp).toEqual(ajustes.cerebro);
+     });
+
+     it("hereda del cerebro y sobrescribe con memoria (solo privacidad)", () => {
+       const ajustes: AjustesCerebro = {
+         cerebro: { privacidad: "privado", cifradoLocal: false, medios: { capacidades: {}, almacenamiento: ["local"] }, sync: { direccion: "ambas", auto: true, destinos: [] }, acceso: [] },
+         memorias: { "m1.md": { privacidad: "grupo" } },
+         carpetas: {},
+       };
+       const eff = ajustesEfectivos(ajustes, { tipo: "memoria", id: "m1.md" });
+       expect(eff.privacidad).toBe("grupo");
+       expect(eff.medios.almacenamiento).toContain("local");
+     });
+   });
+ });

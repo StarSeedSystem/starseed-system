@@ -42,17 +42,29 @@ describe('validarVinculo', () => {
   it('rechaza configuración fuera de lista', () => {
     const v = { ...vinculoValido, alcance: { completo: false, memorias: ['m1'], carpetas: [], configuraciones: ['no-existe' as any] } };
     expect(validarVinculo(v).ok).toBe(false);
-  });
+   });
+   
+   it('rechaza fecha ISO inválida', () => {
+     const v = { ...vinculoValido, creadoEn: '2023-01-01' };
+     expect(validarVinculo(v).ok).toBe(false);
+   });
 
-  it('rechaza fecha ISO inválida', () => {
-    const v = { ...vinculoValido, creadoEn: '2023-01-01' };
-    expect(validarVinculo(v).ok).toBe(false);
-  });
+    it("rechaza lo que no es objeto con id y destino", () => {
+      expect(validarVinculo(null).ok).toBe(false);
+      expect(validarVinculo({}).ok).toBe(false);
+      expect(validarVinculo({ id: "v", destino: {} }).ok).toBe(false);
+});
 });
 
 describe('normalizarVinculos', () => {
   it('devuelve [] para null', () => {
     expect(normalizarVinculos(null)).toEqual([]);
+  });
+
+  it('devuelve [] para entrada no objeto', () => {
+    expect(normalizarVinculos('bad' as any)).toEqual([]);
+    expect(normalizarVinculos(123 as any)).toEqual([]);
+    expect(normalizarVinculos([] as any)).toEqual([]);
   });
 
   it('filtra inválidos', () => {
