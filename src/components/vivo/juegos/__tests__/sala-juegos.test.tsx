@@ -238,7 +238,7 @@ describe("Dibujo-adivina", () => {
         await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
         // la palabra acertada NUNCA se enseña en los mensajes visibles de las demás personas
         const mensajesCarla = carla.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
-        expect(textoContienePalabra(mensajesCarla, `Beto${palabra}`)).toBe(false);
+        expect(mensajesCarla.includes(`Beto${palabra}`)).toBe(false);
         expect(mesa(ana.c).tablero).toMatchObject({ aciertos: [expect.objectContaining({ seat: 1 })] });
         expect(beto.q.getByLabelText("Escribe tu intento")).toBeDisabled(); // ya acertó
 
