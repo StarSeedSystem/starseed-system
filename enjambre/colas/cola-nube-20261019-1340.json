@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "DGM1018B",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Protomolécula · ficha de Diagram Design en «pizarras-diagramas»",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Con la forma de la ficha `drawio`: id `diagram-design`, tipo \"recurso\", licencia MIT, integracion \"iframe-aislado\", formatos entrada [texto, drawio, mermaid, excalidraw] salida [html, svg, png], control via [\"js\"], actualizacion github-releases o github-tags de cathrynlavery/diagram-design (versión 2.6.110 del 2026-10-16), ia [\"genera-diagrama-desde-texto\"], estado integrable, verificado 2026-10-18, avisos: sin telemetría; fuentes del OS; animaciones solo en iframe aislado. Amplía la prueba. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "HFR1018A"
+   ]
+  }
+ ]
+}
