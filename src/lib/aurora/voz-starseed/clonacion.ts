@@ -54,10 +54,12 @@ export function puedeClonar({
   // Busca un permiso válido que cubra el uso solicitado
   const permisoValido = permisos.find(
     (p) =>
-      !p.revocado && // No revocado
-      p.desde <= ahora && // Ya commenced
-      (p.hasta === undefined || ahora <= p.hasta) && // No expirado
-      p.para.includes(uso) // Cubre el uso
+      !p.revocado &&
+      p.titular === titular &&
+      p.concedidoA === solicitante &&
+      p.desde <= ahora &&
+      (p.hasta === undefined || ahora <= p.hasta) &&
+      p.para.includes(uso)
   );
 
   if (permisoValido) {
