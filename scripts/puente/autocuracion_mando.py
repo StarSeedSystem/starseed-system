@@ -60,6 +60,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import limpieza_worktrees
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
@@ -677,6 +678,17 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
 
     libre = libre_fn()
     ids = ids_a_limpiar(libre)
+    # Limpieza de worktrees y node_modules
+    if libre < 2 * DISCO_AVISO_GB or (time.time() - estado.get("ultima_limpieza_wt", 0)) > 86400:
+        try:
+            w = limpieza_worktrees.recoger(estado["raiz_wt"], estado["repo"], estado["git_fn"])
+            p = limpieza_worktrees.plan(w, estado["progreso"], estado["en_curso"])
+            r = limpieza_worktrees.aplicar(p, estado["repo"], estado["git_fn"], estado["rmtree_fn"])
+            if r["quitados"] or r["nm_borrados"]:
+                avisar_fn(f"Autocuración: quité {len(r['quitados'])} worktrees cerrados y {len(r['nm_borrados'])} node_modules duplicados.")
+            estado["ultima_limpieza_wt"] = time.time()
+        except Exception as e:
+            hechos.append(str(e))
     if ids and (forzar or ahora - (estado.get("ultima_limpieza") or 0) >= LIMPIEZA_MINIMA_S):
         r = limpiar_fn(ids)
         estado["ultima_limpieza"] = ahora
