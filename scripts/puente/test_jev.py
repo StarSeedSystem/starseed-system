@@ -206,6 +206,8 @@ class Piramide(unittest.TestCase):
         jev.CACHE = os.path.join(self._dir, "cache.json")
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.TRANSPORTE = None
+        self._orig_decidir_con_laya = jev.decidir_con_laya
+        jev.decidir_con_laya = lambda *a, **k: None
         os.environ["STARSEED_JEV"] = "0"
         _sin_motor_local()
 
