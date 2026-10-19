@@ -30,11 +30,11 @@ export function fusionarCatalogos(
  * Convierte un ProveedorInfo a OpcionCatalogo.
  */
 function convertirProveedorOpcion(prov: ProveedorInfo): OpcionCatalogo {
-  // Determinar papeles basado en el campo papel
-  const papeles: Papel[] = prov.papel ? [prov.papel] : [];
+   // Determinar papeles basado en el campo papel
+   const papeles: Papel[] = prov.papel ? [prov.papel as Papel] : [];
 
-  // Determinar si requiere cuenta
-  const requiereCuenta = prov.requiereCuenta ?? false;
+   // Determinar si requiere cuenta
+   const requiereCuenta = prov.requiereCuenta ?? false;
 
   // Determinar enlaces
   const enlaceAlta = prov.panelClaves ?? null; // Asumimos que panelClaves es donde se da de alta
@@ -127,10 +127,10 @@ function determinarPapelesDesdeFortalezas(models: CatalogModel[]): Papel[] {
           papelesSet.add("chat");
           break;
         case "code":
-          papelesSet.add("codigo");
+           papelesSet.add("código");
           break;
         case "vision":
-          papelesSet.add("vision");
+           papelesSet.add("visión");
           break;
         case "fast":
           // fast podría ser para voz o conversación rápida
