@@ -107,7 +107,7 @@ function makeBlock(type: PostBlockType): PostBlock {
 }
 
 /** ¿El bloque tiene contenido significativo (para validar antes de publicar)? */
-function blockHasContent(b: PostBlock): boolean {
+export function blockHasContent(b: PostBlock): boolean {
     switch (b.type) {
         case "texto":
         case "enlace":
@@ -134,6 +134,8 @@ function blockHasContent(b: PostBlock): boolean {
         case "referencia":
         case "entidad":
             return Boolean(b.ref && b.ref.id);
+        case "protomolecula":
+            return Boolean(b.code && b.code.trim());
         default:
             return false;
     }

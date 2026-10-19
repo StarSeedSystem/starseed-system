@@ -23,6 +23,7 @@ import {
     buildSandboxDoc,
     type PostBlock,
 } from "@/lib/creation/post-blocks";
+import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import { astrauraChat } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
 import { loadLeaflet, type LeafletNS } from "@/lib/map/leaflet-loader";
@@ -130,6 +131,8 @@ function BlockRender({ block, accent, reduced }: { block: PostBlock; accent?: st
         case "referencia":
         case "entidad":
             return <RefBlock block={block} />;
+        case "protomolecula":
+            return <ProtomoleculaBlock block={block} />;
         // ── Adenda 67 · P4 (aditivos) ──
         case "penpot":
             return <PenpotBlock block={block} />;
@@ -634,6 +637,41 @@ function RefBlock({ block }: { block: PostBlock }) {
         <Link href={href} className={cls}>
             {inner}
         </Link>
+    );
+}
+
+// ── Protomolecula ─────────────────────────────────────────────────────────────
+// Muestra una tarjeta de solo lectura con el nombre y resumen de la molécula,
+// y un enlace «Abrir una copia propia» a `/protomolecula?molecula=<id>`.
+
+function ProtomoleculaBlock({ block }: { block: PostBlock }) {
+    // El bloque protomolecula tiene el JSON serializado en el campo `code`
+    if (!block.code) return null;
+
+    // Deserializamos la molécula
+    const resultado = leerBloque(block.code);
+    if (!resultado.ok) return null;
+    const { valor: molecula } = resultado;
+
+    // Creamos una tarjeta simple de solo lectura
+    return (
+        <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+            <div className="flex items-center gap-2 px-3 py-2">
+                <BrainCircuit className="h-4 w-4 shrink-0 text-sky-300" />
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-white/90">{molecula.titulo}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                        Molécula • {molecula.ambito}
+                    </p>
+                </div>
+                <Link
+                    href={`/protomolecula?molecula=${molecula.id}`}
+                    className="inline-flex items-center gap-1 text-xs text-sky-300 hover:underline cursor-pointer"
+                >
+                    Abrir una copia propia <ExternalLink className="h-3 w-3" />
+                </Link>
+            </div>
+        </div>
     );
 }
 
