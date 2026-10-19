@@ -76,14 +76,20 @@ const BASE_OS: PoliticaSistema = {
 };
 
 export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema {
-  if (tipo === "os") return { ...BASE_OS };
-  if (["perfil", "perfil-privado", "grupo-jerarquico", "grupo", "grupo-democratico"].includes(tipo)) {
-    return { ...BASE_PERFIL };
+  const base =
+    tipo === "os"
+      ? BASE_OS
+      : ["perfil", "perfil-privado", "grupo-jerarquico", "grupo", "grupo-democratico"].includes(tipo)
+      ? BASE_PERFIL
+      : ["pagina", "pagina-publica", "comunidad", "estudio", "evento"].includes(tipo)
+      ? BASE_PAGINA
+      : BASE_PERFIL;
+  const out = {} as PoliticaSistema;
+  for (const capa of CAPAS_ORDEN) {
+    const p = base[capa];
+    out[capa] = { modo: p.modo, ventana: p.ventana ? { ...p.ventana } : undefined };
   }
-  if (["pagina", "pagina-publica", "comunidad", "estudio", "evento"].includes(tipo)) {
-    return { ...BASE_PAGINA };
-  }
-  return { ...BASE_PERFIL };
+  return out;
 }
 
 export type Decision = "aplicar" | "avisar" | "esperar";
@@ -151,7 +157,7 @@ export function sanearPolitica(x: unknown): PoliticaSistema {
       const desdeOk = typeof v?.desdeH === "number" && v.desdeH >= 0 && v.desdeH <= 23;
       const hastaOk = typeof v?.hastaH === "number" && v.hastaH >= 0 && v.hastaH <= 23;
       if (desdeOk && hastaOk) {
-        out[capa] = { modo: "programada", ventana: { desdeH: v.desdeH, hastaH: v.hastaH } };
+        out[capa] = { modo: "programada", ventana: { desdeH: v.desdeH as number, hastaH: v.hastaH as number } };
       } else {
         out[capa] = { modo: "programada", ventana: { ...VENTANA_NOCTURNA } };
       }
