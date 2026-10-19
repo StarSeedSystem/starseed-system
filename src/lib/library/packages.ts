@@ -1825,8 +1825,29 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
       "Publicar cadenas como API REST. Archivado en GitHub: su propio README recomienda LangGraph Platform. Se adopta solo el patrón: cada servicio de IA en Python expone /invoke, /stream y /playground. Para lo nuevo, LangGraph (ya en la Biblioteca de diseño). Instalar guarda el enlace y abre su repo.",
     icon: "Archive", tags: ["produccion", "referencia", "archivado", "api-rest"], version: "1.0.0",
     author: "LangChain", sourceRepoId: "starseed-ia-tools", free: true,
-    payload: { externalUrl: "https://github.com/langchain-ai/langserve", categoria: "produccion", estado: "archivado · solo referencia", licencia: "MIT", note: "Archivado; su README recomienda LangGraph Platform. Solo el patrón /invoke + /stream + /playground (§9)." },
-  },
+     payload: { externalUrl: "https://github.com/langchain-ai/langserve", categoria: "produccion", estado: "archivado · solo referencia", licencia: "MIT", note: "Archivado; su README recomienda LangGraph Platform. Solo el patrón /invoke + /stream + /playground (§9)." },
+   },
+   {
+     id: "iatool-hyperframes",
+     kind: "repo",
+     name: "HyperFrames",
+     description:
+       "escribe HTML, sale vídeo; editor de vídeo de la Protomolécula, render en la malla y edición en grupo",
+     icon: "Film",
+     tags: ["video", "edicion", "html", "render"],
+     version: "1.0.0",
+     author: "HeyGen",
+     sourceRepoId: "starseed-ia-tools",
+     free: true,
+     payload: {
+       externalUrl: "https://github.com/heygen-com/hyperframes",
+       githubRepo: "heygen-com/hyperframes",
+       categoria: "video",
+       herramientaId: "hyperframes",
+       claseLicencia: "libre"
+     }
+   }
+
 ];
 
 /** Repo builtin de Herramientas IA & Agentes (caja de herramientas de Aurora). */
