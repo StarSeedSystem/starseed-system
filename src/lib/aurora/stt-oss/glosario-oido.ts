@@ -59,10 +59,11 @@ export function glosarioBase(): string[] {
 
 /**
  * Lista de palabras comunes por idioma para evitar falsos positivos
+ * Nota: Incluimos variantes para evitar corregir falsos positivos
  */
 const PALABRAS_COMUNES: Record<string, string[]> = {
-  es: ["star", "said", "sed", "estora", "astora", "or", "la", "el", "los", "las", "un", "una", "y", "o", "pero", "si", "no"],
-  en: ["star", "said", "sed", "estora", "astora", "or", "the", "a", "an", "and", "or", "but", "if", "not", "to", "of", "in", "on", "at", "for", "with", "by"],
+  es: ["star", "said", "sed", "or", "la", "el", "los", "las", "un", "una", "y", "o", "pero", "si", "no", "el", "la", "los", "las"],
+  en: ["star", "said", "sed", "or", "the", "a", "an", "and", "or", "but", "if", "not", "to", "of", "in", "on", "at", "for", "with", "by"],
 };
 
 /**
@@ -87,47 +88,92 @@ export function corregirConGlosario(
   const palabrasCorregidas: string[] = [];
   const cambios: string[] = [];
 
-  for (const palabra of palabras) {
-    // Normalizar la palabra para comparación
-    const palabraNormalizada = normalizar(palabra);
-    
-    // Verificar si es una palabra común en el idioma (evitar falsos positivos)
-    const esPalabraComun = PALABRAS_COMUNES[idioma]?.includes(palabraNormalizada) || false;
-    
-    if (esPalabraComun) {
-      // Si es palabra común, no intentar corrección
-      palabrasCorregidas.push(palabra);
-      continue;
-    }
+  let i = 0;
+  while (i < palabras.length) {
+    // Intentar corregir con 2 palabras primero (si está disponible)
+    let corregido = false;
+    let palabrasConsumidas = 1;
+    let sugerencia: string | null = null;
 
-    // Buscar la mejor coincidencia en el glosario
-    let mejorCoincidencia: string | null = null;
-    let menorDistanciaNormalizada = Infinity;
-
-    for (const candidato of glosario) {
-      const candidatoNormalizado = normalizar(candidato);
+    // Probar con 2 palabras si es posible
+    if (i + 1 < palabras.length) {
+      const dosPalabras = palabras[i] + " " + palabras[i + 1];
+      const dosPalabrasNormalizadas = normalizar(dosPalabras);
       
-      // Calcular distancia de edición
-      const distancia = distanciaEdicion(palabraNormalizada, candidatoNormalizado);
+      // Siempre intentar corregir pares de palabras (la restricción de palabras comunes
+      // se aplica principalmente a correcciones de una sola palabra para evitar
+      // falsos positivos como corregir "star" o "said" individuales)
+      let mejorDistanciaNormalizada = Infinity;
       
-      // Normalizar distancia por la longitud de la forma sin espacios ni mayúsculas
-      const longitudReferencia = Math.max(palabraNormalizada.length, candidatoNormalizado.length);
-      const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
+      for (const candidato of glosario) {
+        const candidatoNormalizado = normalizar(candidato);
+        
+        // Calcular distancia de edición
+        const distancia = distanciaEdicion(dosPalabrasNormalizadas, candidatoNormalizado);
+        
+        // Normalizar distancia por la longitud de la forma sin espacios ni mayúsculas
+        const longitudReferencia = Math.max(dosPalabrasNormalizadas.length, candidatoNormalizado.length);
+        const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
+        
+        // Si la distancia normalizada es pequeña y es la mejor hasta ahora
+        if (distanciaNormalizada <= 0.34 && distanciaNormalizada < mejorDistanciaNormalizada) {
+          mejorDistanciaNormalizada = distanciaNormalizada;
+          sugerencia = candidato;
+        }
+      }
       
-      // Si la distancia normalizada es pequeña y es la mejor hasta ahora
-      if (distanciaNormalizada <= 0.34 && distanciaNormalizada < menorDistanciaNormalizada) {
-        menorDistanciaNormalizada = distanciaNormalizada;
-        mejorCoincidencia = candidato;
+      if (sugerencia !== null) {
+        palabrasCorregidas.push(sugerencia);
+        cambios.push(`${dosPalabras} → ${sugerencia}`);
+        corregido = true;
+        palabrasConsumidas = 2;
       }
     }
-
-    // Si se encontró una buena coincidencia, usarla; si no, mantener la original
-    if (mejorCoincidencia !== null) {
-      palabrasCorregidas.push(mejorCoincidencia);
-      cambios.push(`${palabra} → ${mejorCoincidencia}`);
-    } else {
-      palabrasCorregidas.push(palabra);
+    
+    // Si no se corrigió con 2 palabras, intentar con 1 palabra
+    if (!corregido) {
+      const unaPalabra = palabras[i];
+      const unaPalabraNormalizada = normalizar(unaPalabra);
+      
+      // Verificar si la palabra es común (para evitar falsos positivos)
+      const esPalabraComun = PALABRAS_COMUNES[idioma]?.includes(unaPalabraNormalizada) || false;
+      
+      if (!esPalabraComun) {
+        let mejorDistanciaNormalizada = Infinity;
+        
+        for (const candidato of glosario) {
+          const candidatoNormalizado = normalizar(candidato);
+          
+          // Calcular distancia de edición
+          const distancia = distanciaEdicion(unaPalabraNormalizada, candidatoNormalizado);
+          
+          // Normalizar distancia por la longitud de la forma sin espacios ni mayúsculas
+          const longitudReferencia = Math.max(unaPalabraNormalizada.length, candidatoNormalizado.length);
+          const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
+          
+          // Si la distancia normalizada es pequeña y es la mejor hasta ahora
+          if (distanciaNormalizada <= 0.34 && distanciaNormalizada < mejorDistanciaNormalizada) {
+            mejorDistanciaNormalizada = distanciaNormalizada;
+            sugerencia = candidato;
+          }
+        }
+        
+        if (sugerencia !== null) {
+          palabrasCorregidas.push(sugerencia);
+          cambios.push(`${unaPalabra} → ${sugerencia}`);
+          corregido = true;
+          palabrasConsumidas = 1;
+        }
+      }
     }
+    
+    // Si no se corrigió ni con 1 ni con 2 palabras, mantener la original
+    if (!corregido) {
+      palabrasCorregidas.push(palabras[i]);
+      palabrasConsumidas = 1;
+    }
+    
+    i += palabrasConsumidas;
   }
 
   // Unir las palabras corregidas de nuevo en un texto
