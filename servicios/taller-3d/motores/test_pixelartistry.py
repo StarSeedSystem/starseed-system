@@ -224,5 +224,40 @@ class RemallarImagen(unittest.TestCase):
         self.assertIn("tiempo agotado", r["fallo"])
 
 
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """When the motor is not available, remallar_imagen should return an error dict."""
+        # Simulate a comfy object that fails on /system_stats
+        class ComfyFalsoQueFallaEnGet:
+            def get(self, ruta, timeout=5):
+                if ruta == "/system_stats":
+                    raise Exception("no responde")
+                # For other routes, return dummy values to avoid other errors
+                if ruta == "/object_info":
+                    return {n: {} for n in pa.NODOS_REQUERIDOS}
+                if ruta.startswith("/history/"):
+                    return {}
+                raise ValueError(f"ruta no simulada: {ruta}")
+
+            def post(self, ruta, datos, timeout=30):
+                return {"prompt_id": "p1"}
+
+        comfy = ComfyFalsoQueFallaEnGet()
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=comfy,
+            dormir=lambda _: None
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # flujo and nodos pieces
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
