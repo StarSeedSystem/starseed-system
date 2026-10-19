@@ -79,6 +79,7 @@ const CLAVE_ABIERTOS = "starseed.astraura.orbes-abiertos";
 export function abiertosEnEstaNeurona(): string[] {
   if (typeof window === "undefined") return [];
   try {
+    migrarAbiertosDesdeAntigua();
     const bruto = window.localStorage.getItem(CLAVE_ABIERTOS);
     return bruto === null ? [] : Array.isArray(JSON.parse(bruto))
       ? JSON.parse(bruto) : [];
