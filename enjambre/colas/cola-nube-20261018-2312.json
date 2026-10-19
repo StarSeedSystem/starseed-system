@@ -1,0 +1,77 @@
+{
+ "ola": "oracle-20261018",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "S1010-ACT2d",
+   "ola": "Ola 1010S · Actualizaciones por capas: lo que faltaba",
+   "titulo": "Política de actualización por sistema y capa",
+   "archivos": [
+    "src/lib/actualizaciones/politica.ts",
+    "src/lib/actualizaciones/__tests__/politica.test.ts"
+   ],
+   "depende": [],
+   "prompt": "NOTA DEL DIRECTOR (2026-10-10): esta tarea se escribió durante la ola 1010, que ya está integrada en main. ANTES de escribir, busca con grep/ls si lo que pide ya existe con otro nombre o en otro archivo; si ya está hecho, no lo dupliques: termina sin cambios y dilo. No toques src/lib/metageminis/**, src/lib/protomolecula/**, src/lib/xr/**, scripts/sociales/** ni scripts/protomolecula/** (otros agentes). En textos visibles el producto se llama «Genesis», nunca «Mando».\n\nRepo /home/claude/starseed-system (Next 15, TypeScript, vitest). REGLAS: módulo PURO (sin React/red/node:*); español; producto = Genesis; máx. 3 archivos y 120 líneas por archivo; sin git ni next build; `npx vitest run src/lib/actualizaciones`. DEPENDE de ACT1: importa `CapaActualizacion` y `CAPAS_ORDEN` de './manifiesto' (si aún no existe, declara una copia local idéntica marcada TODO). Contrato: architecture/actualizaciones-por-capas-y-niveles.md §4. CREA src/lib/actualizaciones/politica.ts con: `export type ModoPolitica = \"automatica-todas\"|\"automatica-esta\"|\"programada\"|\"manual\"; export interface PoliticaCapa { modo: ModoPolitica; ventana?: { desdeH: number; hastaH: number } }; export type PoliticaSistema = Record<CapaActualizacion, PoliticaCapa>; export type TipoEntidad = \"perfil-privado\"|\"pagina-publica\"|\"grupo-jerarquico\"|\"grupo-democratico\"`; `export function politicaPorDefecto(tipo: TipoEntidad): PoliticaSistema` (perfil-privado: datos e interfaz automatica-todas, sw automatica-esta, servicios/modelos/nativa manual; pagina-publica: todas las capas permitidas siguen automáticamente la rama estable → automatica-todas salvo servicios/modelos/nativa manual; grupo-jerarquico: como perfil-privado; grupo-democratico: igual pero marcado en el resultado de decidir como «requiere aprobación»); `export function decidirPolitica(p: PoliticaCapa, ctx: { ahoraH: number; esNeuronaElegida: boolean; aprobada: boolean; requiereAprobacion: boolean }): \"aplicar\"|\"avisar\"|\"esperar\"` (sin aprobación cuando se requiere → siempre 'esperar'; manual → 'avisar'; automatica-esta → 'aplicar' solo si esNeuronaElegida, si no 'avisar'; programada → 'aplicar' dentro de la ventana [desdeH,hastaH) con cruce de medianoche si desdeH>hastaH, fuera 'esperar'; automatica-todas → 'aplicar'). Validación: `export function sanearPolitica(x: unknown): PoliticaSistema` que rellena con manual lo que falte o venga mal. Pruebas ≥ 14 casos (cada modo, cruce de medianoche, aprobación, saneado de basura).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261016-070944-S1010-ACT2c`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261016-070944-S1010-ACT2c:refs/remotes/origin/nube/a1-20261016-070944-S1010-ACT2c\"` y `git cherry-pick --no-commit 93bd64f58c60 fde450df87cc bc5224e76449 413ee9681443 940ecf8ecccc 361407a79bc0 70e58ebd453d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/actualizaciones/__tests__/politica.test.ts, src/lib/actualizaciones/politica.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261016-070944-S1010-ACT2c"
+  },
+  {
+   "id": "RFI1018B",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Referencias · política de canales por fuente (qué puede hacer Astraura con cada sitio)",
+   "archivos": [
+    "src/lib/library/referencias/politica-acceso.ts",
+    "src/lib/library/referencias/__tests__/politica-acceso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `canalPara(entrada, { accion: \"novedades\"|\"buscar\"|\"leer-pagina\"|\"instalar\", conectado: Set<string>, ahora })` → { canal, permitido, motivo, pausaMs, cacheMaxMs, agenteUsuario } usando SOLO `entrada.canales`: mcp/api oficial solo si la persona lo conectó; sitemap/páginas solo si está en canales (pausa ≥ 10 s si el catálogo lo dice, si no 3 s; agente de usuario «StarSeedOS-Astraura/1.0 (+https://github.com/StarSeedSystem)»); si no, «navegador-de-la-persona». Nunca permite guardar capturas ni crear datasets. Pruebas con Mobbin, Navbar Gallery, Fonts In Use, Savee y la publicación de X. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  },
+  {
+   "id": "DSN1019A",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Composición centrada y adaptable por aparato (puro)",
+   "archivos": [
+    "src/lib/design/composicion.ts",
+    "src/lib/design/__tests__/composicion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`tipoAparato({ ancho, alto, puntero, xr })` → telefono | tableta | escritorio | grande | xr; `geometriaVentana(viewport, { tipo: \"dialogo\"|\"ventana\"|\"hoja\"|\"panel-lateral\", ancho?, alto? })` → { x, y, ancho, alto, origen } centrada en la pantalla, con margen mínimo de 16 px en teléfono, hoja que sube desde abajo en teléfono, ancho máximo de 1186 px y de lectura de 65ch; `zonaPulgar(viewport)` para acciones en teléfono. Prueba por aparato. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DSN1019D",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Fuentes de la marca por papel: Satoshi, Rajdhani, Inter, Quicksand y JetBrains Mono",
+   "archivos": [
+    "src/components/theme/fuentes-marca.tsx",
+    "src/components/theme/__tests__/fuentes-marca.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que carga bajo demanda (una sola vez) la hoja de Satoshi de Fontshare `https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap` cuando el registro o la pieza usa el papel «display editorial», y Quicksand de Google Fonts para el tema Natural; expone las variables `--ss-font-display`, `--ss-font-titular`, `--ss-font-organica` con respaldos. Sin archivos de Satoshi en el repo. Prueba que no duplica enlaces y que hay respaldo. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DSN1019E",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Sombras y fondos de la marca como tokens",
+   "archivos": [
+    "src/lib/design/sombras-fondos.ts",
+    "src/lib/design/__tests__/sombras-fondos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos PUROS: sombra simple (`--ss-sombra-md`, `--ss-sombra-lg`) para interfaz de uso y `--ss-sombra-brillo` multicapa (valores de `adn-y-tokens.md` §5) solo para la pieza protagonista, con la función `sombraPara(papel)`; fondos noche, vacío profundo, nieve y los degradados Claridad, Profundidad, Natural y Cristal con `fondoPara(registro, contexto)` y velo bajo texto. Prueba: brillo nunca para papeles de lista, formulario o texto denso. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DSN1019G",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Biblioteca de movimiento StarSeed (WAAPI, puro)",
+   "archivos": [
+    "src/lib/design/movimiento-starseed.ts",
+    "src/lib/design/__tests__/movimiento-starseed.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Keyframes y opciones para siembra, entrada cardinal (por punto de la Trinity), fundido con desenfoque, elemento compartido, barrido de horizonte, respiración, cristalización y alquimia, con las curvas reales (`cubic-bezier(0.22, 1, 0.36, 1)`, `cubic-bezier(0.16, 1, 0.3, 1)`, `cubic-bezier(0.22, 0.9, 0.3, 1)`) y duraciones de interfaz (140/220/240 ms) y de escena (600–900 ms); `opcionesReducidas()` para movimiento reducido. Copia el comportamiento de `memory/diseno/estudio-audiovisual/examples/transiciones.html` y `siembra.html`. Prueba: solo propiedades permitidas. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  }
+ ]
+}
