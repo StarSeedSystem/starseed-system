@@ -1,0 +1,125 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "GCA1019Q",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Protocolo MCP (HTTP, JSON-RPC 2.0) puro",
+   "archivos": [
+    "src/lib/genesis/mcp/protocolo.ts",
+    "src/lib/genesis/mcp/__tests__/protocolo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `atenderMcp(peticion, { herramientas, contexto })` para `initialize` (devuelve nombre «starseed-genesis», versión y capacidades de herramientas), `tools/list` y `tools/call`; errores JSON-RPC correctos (-32600, -32601, -32602); lotes no. Prueba con herramientas falsas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "RFI1018E",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Referencias · portadas sin rastreo (generadas por el OS; la del sitio solo al abrir)",
+   "archivos": [
+    "src/lib/library/referencias/portada.ts",
+    "src/lib/library/referencias/__tests__/portada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `portadaGenerada(entrada)` → { degradado (dos colores StarSeed derivados del dominio, determinista), iniciales, icono del tipo }; `portadaRemota(entrada, abierta)` devuelve la og_imagen SOLO si la persona abrió la tarjeta (si no, null) y nunca para una entrada cuyo `prohibido` incluya caché; vídeos de YouTube por youtube-nocookie.com. Pruebas. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  },
+  {
+   "id": "RFI1018H",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Integraciones · conectores oficiales (MCP y APIs) que cada persona activa con su cuenta",
+   "archivos": [
+    "src/lib/integrations/referencias-conectores.ts",
+    "src/lib/integrations/__tests__/referencias-conectores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos + funciones PURAS desde las entradas del catálogo con integración MCP/API (Higgsfield, LottieFiles, Icons8, Mobbin, Refero, Savee, 60fps, Fontshare, Flaticon): { id, nombre, tipo, url, requiere (plan, OAuth, clave por NOMBRE de variable), coste (gratis/pago/créditos), limites, avisos } y `estadoConector(id, conectados)`. Nunca guarda claves ni tokens; nunca activa nada por su cuenta. Prueba. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  },
+  {
+   "id": "RFI1018I",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Instalables · cada recurso entra con su licencia aplicada en cada contexto",
+   "archivos": [
+    "src/lib/library/referencias/instalar-recurso.ts",
+    "src/lib/library/referencias/__tests__/instalar-recurso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planInstalacion(entrada, recurso, contexto: \"personal\"|\"grupo\"|\"comunidad\"|\"publico\"|\"comercial\")` → { permitido, pasos, avisos, atribucion? }: Motion Primitives (MIT; adaptar `motion/react` a `framer-motion`, ya en el OS), transitions.dev gratis (conservar el comentario), Lottie (Lottie Simple License; en comercial, «confirma tu plan de LottieFiles»), Fontshare (CSS alojada; nunca archivos), Icons8 (enlace en pie o «Acerca de»), Flaticon (atribución; nunca en packs; nunca para IA), SlopMonster (MIT). Las de clase solo-referencia o solo-enlace → no instalables. Pruebas por recurso y contexto. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  },
+  {
+   "id": "RFI1018L",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Vigía · novedades por los canales permitidos y aviso cuando cambian los términos de un sitio",
+   "archivos": [
+    "scripts/puente/vigia_referencias.py",
+    "scripts/puente/test_vigia_referencias.py"
+   ],
+   "depende": [],
+   "prompt": "Lee config/referencias-inspiracion.json y, por entrada, SOLO sus canales de `actualizacion` permitidos (RSS, sitemap con lastmod, GitHub, npm, API de Fontshare): marca `novedades` con fecha y guarda el estado en starseed_memory_root/referencias/estado.json (nunca contenido de terceros, solo URL, título y fecha). Una vez al mes descarga la página de `terminos` y compara su huella: si cambió, marca la entrada «a revisar» sin tocar su clase de uso. Pausa mínima de 10 s por dominio, agente de usuario descriptivo, robots.txt respetado. Funciones puras probadas sin red. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  },
+  {
+   "id": "RTCOL1012I",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · /metagenesis: botones «Desconectar» y «Usar como contenedor» en la tarjeta de cada neurona",
+   "archivos": [
+    "src/components/cerebro/__tests__/neuronas-colmena.test.tsx",
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea COL1012I («/metagenesis: botones «Desconectar» y «Usar como contenedor» en la tarjeta de cada neurona») se hizo en main por otro camino; su rama nube/a1-20261012-163753-COL1012J queda archivada en `refs/archivo/nube/a1-20261012-163753-COL1012J` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.97)\n\nTU TAREA (RTCOL1012I · solo estos archivos: src/components/cerebro/__tests__/neuronas-colmena.test.tsx, src/components/metagenesis/__tests__/colmena-botones.test.tsx):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/cerebro/__tests__/neuronas-colmena.test.tsx\n  it(\"renders contenedor de agentes section\", () => {\n    render(\n      <AppearanceProvider>\n        <ConfirmProvider>\n          <NeuronCard neuron={baseNeuron} live={true} brainId=\"brain1\" brainName=\"Test Brain\" onChanged={() => {}} />\n        </ConfirmProvider>\n      </AppearanceProvider>\n    );\n    expect(screen.getByText(/contenedor de agentes/i)).toBeInTheDocument();\n  });\n\n# src/components/cerebro/__tests__/neuronas-colmena.test.tsx\n  it(\"shows estimation for Mac 8 GB\", () => {\n    const macNeuron = {\n      ...baseNeuron,\n      capabilities: {\n        ...baseNeuron.capabilities,\n        platform: \"macOS\",\n        memoryGb: 8,\n        cores: 8,\n        touch: false,\n      },\n    };\n    render(\n      <AppearanceProvider>\n        <ConfirmProvider>\n          <NeuronCard neuron={macNeuron} live={true} brainId=\"brain1\" brainName=\"Test Brain\" onChanged={() => {}} />\n        </ConfirmProvider>\n      </AppearanceProvider>\n    );\n    // Should show estimation: 3 agents (since (8-2)/2 = 3, min(4,3,8) = 3)\n    expect(screen.getByText(/3 agente/i)).toBeInTheDocument();\n    expect(screen.getByText(/Instalar el trabajador/i)).toBeInTheDocument();\n  });\n\n# src/components/cerebro/__tests__/neuronas-colmena.test.tsx\n  it(\"shows estimation for iPhone (iOS, 0 agents)\", () => {\n    const iphoneNeuron = {\n      ...baseNeuron,\n      capabilities: {\n        ...baseNeuron.capabilities,\n        platform: \"iOS\",\n        memoryGb: 4,\n        cores: 6,\n        touch: true,\n      },\n    };\n    render(\n      <AppearanceProvider>\n        <ConfirmProvider>\n          <NeuronCard neuron={iphoneNeuron} live={true} brainId=\"brain1\" brainName=\"Test Brain\" onChanged={() => {}} />\n        </ConfirmProvider>\n      </AppearanceProvider>\n    );\n    // iPhone cannot work as contenedor: 0 agents\n    expect(screen.getByText(/iPhone y iPad no pueden trabajar como contenedor/i)).toBeInTheDocument();\n    // The install button should not be visible for iOS? According to colmena.ts, instalar button is only for macos, linux, windows, android.\n    // So for iOS, the instalar button should not be shown.\n    expect(screen.queryByText(/Instalar el trabajador/i)).not.toBeInTheDocument();\n  });\n\n# src/components/cerebro/__tests__/neuronas-colmena.test.tsx\n  it(\"shows estimation for Android (1 agent due to battery and red medida)\", () => {\n    const androidNeuron = {\n      ...baseNeuron,\n      capabilities: {\n        ...baseNeuron.capabilities,\n        platform: \"Android\",\n        memoryGb: 6,\n        cores: 4,\n        touch: true,\n        battery: { level: 15, charging: false }, // Low battery, not charging\n      },\n    };\n    render(\n      <AppearanceProvider>\n        <ConfirmProvider>\n          <NeuronCard neuron={androidNeuron} live={true} brainId=\"brain1\" brainName=\"Test Brain\" onChanged={() => {}} />\n        </ConfirmProvider>\n      </AppearanceProvider>\n    );\n    // Android: memoryGb=6 -> (6-2)/2 = 2, cores=4 -> min(4,2,4)=2, but then because Android: n = Math.min(n, 1) -> 1 agent\n    // Also, battery level < 20% and not charging -> n = 0? Actually: if (s.bateria && !s.bateria.cargando) n = s.bateria.nivel < 0.2 ? 0 : Math.min(n, 1);\n    // So with battery level 15% (<0.2) and not charging -> n = 0.\n    expect(screen.getByText(/0 agente/i)).toBeInTheDocument();\n    // The install button should be visible for Android\n    expect(screen.getByText(/Instalar el trabajador/i)).toBeInTheDocument();\n  });\n\n# src/components/cerebro/__tests__/neuronas-colmena.test.tsx\n  it(\"shows installation panel when button is clicked\", async () => {\n    render(\n      <AppearanceProvider>\n        <ConfirmProvider>\n          <NeuronCard neuron={baseNeuron} live={true} brainId=\"brain1\" brainName=\"Test Brain\" onChanged={() => {}} />\n        </ConfirmProvider>\n      </AppearanceProvider>\n    );\n    const installButton = screen.getByRole(\"button\", { name: /instalar el trabajador/i });\n    expect(installButton).toBeInTheDocument();\n    await userEvent.click(installButton);\n    // The panel should open\n    expect(screen.getByText(/QUÉ es el trabajador/i)).toBeInTheDocument();\n    expect(screen.getByText(/POR QUÉ instalarlo/i)).toBeInTheDocument();\n    expect(screen.getByText(/CÓMO instalarlo/i)).toBeInTheDocument();\n    expect(screen.getByText(/Mientras no exista el emisor de códigos/i)).toBeInTheDocument();\n    const copyButton = screen.getByRole(\"button\", { name: /copiar comando/i });\n    expect(copyButton).toBeInTheDocument();\n    await userEvent.click(copyButton);\n    // We expect a toast, but we don't test toasts in this unit test\n  });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n     it(\"muestra el botón de desconectar cuando hay trabajo en curso\", async () => {\n         // Modify the first node to have work in progress\n         const nodoConTrabajo = {\n             ...estado.lectura.estado.nodos[0],\n             enCurso: [\n                 {\n                     id: \"task-1\",\n                     fase: \"escribiendo\",\n                     punto: {\n                         rama: \"main\",\n                         sha: \"abc123\",\n                         t: Date.now() - 5 * 60_000, // 5 minutes ago\n                     },\n                 },\n             ],\n         };\n         estado.lectura = {\n             ...estado.lectura,\n             estado: {\n                 ...estado.lectura.estado,\n                 nodos: [nodoConTrabajo, estado.lectura.estado.nodos[1]]\n             }\n         };\n         \n         pintar();\n         const botonDesconectar = await screen.findByTestId(\"mg-nodo-oracle-a1-bbbbbb-desconectar\");\n         expect(botonDesconectar).toBeInTheDocument();\n         expect(botonDesconectar).toHaveTextContent(\"Desconectar\");\n         // Should be enabled because there's work in progress\n         expect(botonDesconectar).not.toBeDisabled();\n         // Should have the explanation as title attribute\n         expect(botonDesconectar).toHaveAttribute(\n             \"title\",\n             \"Guarda el trabajo a medias de sus 1 agente(s) y lo pasa a otro contenedor antes de que este aparato se quede sin internet.\"\n         );\n     });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n      it(\"muestra el botón de usar como contenedor cuando el nodo puede ser contenedor\", async () => {\n          // Modify the first node to have a contenedor object\n          const nodoConContenedor = {\n              ...estado.lectura.estado.nodos[0],\n              contenedor: {\n                  activo: true,\n                  agentes: 2,\n                  apto: true,\n                  motivo: \"Listo para trabajar\",\n              },\n          };\n          estado.lectura = {\n              ...estado.lectura,\n              estado: {\n                  ...estado.lectura.estado,\n                  nodos: [nodoConContenedor, estado.lectura.estado.nodos[1]]\n              }\n          };\n          \n          pintar();\n          const botonContenedor = await screen.findByTestId(\"mg-nodo-oracle-a1-bbbbbb-contenedor\");\n          expect(botonContenedor).toBeInTheDocument();\n          expect(botonContenedor).toHaveTextContent(\"Dejar de usar como contenedor\");\n          // Should be enabled because the node is alive and has container capacity\n          expect(botonContenedor).not.toBeDisabled();\n          expect(botonContenedor).toHaveAttribute(\"title\", \"Termina lo que lleva y no coge más.\");\n      });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n     it(\"muestra información de tarea a medias cuando existe\", async () => {\n         // Modify the first node to have work in progress\n         const nodoConTrabajo = {\n             ...estado.lectura.estado.nodos[0],\n             enCurso: [\n                 {\n                     id: \"task-1\",\n                     fase: \"escribiendo\",\n                     punto: {\n                         rama: \"main\",\n                         sha: \"abc123\",\n                         t: Date.now() - 5 * 60_000, // 5 minutes ago\n                     },\n                 },\n             ],\n         };\n         estado.lectura = {\n             ...estado.lectura,\n             estado: {\n                 ...estado.lectura.estado,\n                 nodos: [nodoConTrabajo, estado.lectura.estado.nodos[1]]\n             }\n         };\n         \n         pintar();\n         // Should show \"Último punto hace 5 min\" (or similar based on the time set)\n         const tiempoInfo = await screen.findByText(/Último punto hace 5 min/);\n         expect(tiempoInfo).toBeInTheDocument();\n     });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n      it(\"envía orden contenedor al hacer clic en el botón\", async () => {\n          // Modify the first node to have a contenedor object\n          const nodoConContenedor = {\n              ...estado.lectura.estado.nodos[0],\n              contenedor: {\n                  activo: true,\n                  agentes: 2,\n                  apto: true,\n                  motivo: \"Listo para trabajar\",\n              },\n          };\n          estado.lectura = {\n              ...estado.lectura,\n              estado: {\n                  ...estado.lectura.estado,\n                  nodos: [nodoConContenedor, estado.lectura.estado.nodos[1]]\n              }\n          };\n          \n          pintar();\n          const botonContenedor = await screen.findByTestId(\"mg-nodo-oracle-a1-bbbbbb-contenedor\");\n          fireEvent.click(botonContenedor);\n          await waitFor(() => expect(enviarOrden).toHaveBeenCalledWith(\"contenedor\", \"lider\"));\n      });\n\n# Otros casos (solo el título; mismo criterio):\n- colmena-botones.test.tsx :: muestra la línea de información bajo el nombre del nodo\n- colmena-botones.test.tsx :: envía orden desconectar al hacer clic en el botón\n- colmena-botones.test.tsx :: desactiva el botón de desconectar cuando no hay trabajo en curso\n- colmena-botones.test.tsx :: muestra el botón de instalar trabajador cuando el nodo no tiene trabajador\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "COL1012I",
+    "rama": "nube/a1-20261012-163753-COL1012J"
+   }
+  },
+  {
+   "id": "DSN1019H",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Elemento 3D animado: Cristal3D",
+   "archivos": [
+    "src/components/movimiento/cristal-3d.tsx",
+    "src/components/movimiento/__tests__/cristal-3d.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente con three (ya en el OS) que porta `memory/diseno/estudio-audiovisual/examples/cristal-3d.html`: retícula instanciada que se cristaliza alrededor de un octaedro de cristal que respira, luz de tres puntos con la contra del color del registro, sujeto centrado (`lookAt` al origen), menos nodos en teléfono, quieto con movimiento reducido, se pausa fuera de pantalla y libera la GPU al desmontar. Prueba con WebGL simulado. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VPU1019B",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Registro de familias de variaciones",
+   "archivos": [
+    "src/lib/variaciones/familias.ts",
+    "src/lib/variaciones/__tests__/familias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Tipos `AdaptadorFamilia<P>` { familia, nombre, capturar(clave) → P | null, validar(payload: unknown) → { ok: true, payload: P } | { ok: false, motivos: string[] }, aplicar(clave, payload) → deshacer: () => void, vistaPrevia?(payload) → datos para pintar } y `registrarFamilia`, `adaptadorDe(clave)`, `familiasRegistradas()`. Prueba con un adaptador falso. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "RTCOL1012I",
+   "DSN1019H",
+   "VPU1019B",
+   "RFI1018L",
+   "GCA1019Q",
+   "RFI1018E",
+   "RFI1018H",
+   "RFI1018I"
+  ]
+ }
+}
