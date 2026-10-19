@@ -101,21 +101,24 @@ describe("pasosListos", () => {
     expect(listos).toHaveLength(0);
   });
 
-  it("no devuelve pasos pendientes con dependencias no hechas", () => {
-    const plan: Plan = {
-      encargoId: "E1",
-      pasos: [
-        { id: "A", atomo: "a", titulo: "A", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
-        { id: "B", atomo: "b", titulo: "B", entradas: [], salida: { formato: "f" }, depende: ["A"], criterios: [] },
-      ],
-    };
-    const estados: Record<string, EstadoPaso> = {
-      A: "pendiente", // no hecho
-      B: "pendiente",
-    };
-    const listos = pasosListos(plan, estados);
-    expect(listos).toHaveLength(0);
-  });
+   it("no devuelve pasos pendientes con dependencias no hechas", () => {
+     const plan: Plan = {
+       encargoId: "E1",
+       pasos: [
+         { id: "A", atomo: "a", titulo: "A", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
+         { id: "B", atomo: "b", titulo: "B", entradas: [], salida: { formato: "f" }, depende: ["A"], criterios: [] },
+       ],
+     };
+     const estados: Record<string, EstadoPaso> = {
+       A: "pendiente", // no hecho
+       B: "pendiente",
+     };
+     const listos = pasosListos(plan, estados);
+     // A está pendiente y no tiene dependencias, así que debería estar listo
+     // B está pendiente pero su dependencia A no está hecha, así que no debería estar listo
+     expect(listos).toHaveLength(1);
+     expect(listos[0].id).toBe("A");
+   });
 
   it("maneja pasos sin dependencias", () => {
     const plan: Plan = {
@@ -218,16 +221,16 @@ describe("repartirPasos", () => {
   it("devuelve el mismo resultado con la lista de pasos barajada", () => {
     const listosOriginal: Paso[] = [
       { id: "P2", atomo: "b", titulo: "P2", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
-      { id: "P1", atomo: "a", titulo: "P1", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
-      { id: "P3", atomo: "c", titulo: "P3", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
-    };
+       { id: "P1", atomo: "a", titulo: "P1", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
+       { id: "P3", atomo: "c", titulo: "P3", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] }
+     ];
     const listosBarajado = [...listosOriginal].sort(() => Math.random() - 0.5); // barajar aleatoriamente
     // Para hacer la prueba determinista, usaremos una barajada fija
     const listosBarajadoFijo: Paso[] = [
-      { id: "P3", atomo: "c", titulo: "P3", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
-      { id: "P1", atomo: "a", titulo: "P1", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
-      { id: "P2", atomo: "b", titulo: "P2", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
-    ];
+       { id: "P3", atomo: "c", titulo: "P3", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
+       { id: "P1", atomo: "a", titulo: "P1", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] },
+       { id: "P2", atomo: "b", titulo: "P2", entradas: [], salida: { formato: "f" }, depende: [], criterios: [] }
+     ];
     const agentes = [...agentesBase];
     const asignacionesOriginal = repartirPasos(listosOriginal, agentes);
     const asignacionesBarajado = repartirPasos(listosBarajadoFijo, agentes);

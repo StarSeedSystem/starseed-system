@@ -4,7 +4,7 @@
  * Contratación: architecture/protogenesis.md §2 y architecture/protomolecula.md §3·7·8.
  */
 
-import type { Paso, Plan, LIMITES } from "./encargo";
+import { Paso, Plan, LIMITES } from "./encargo";
 
 /** Estado de un paso en el proceso. */
 export type EstadoPaso = 
