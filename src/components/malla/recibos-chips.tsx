@@ -15,6 +15,10 @@ import type { NodoMeshMedido, EnlaceLocalMedido } from '@/lib/malla/cristal/medi
 import { senalesDeNodosMesh, senalesDeEnlacesLocales } from '@/lib/malla/cristal/medidas-locales';
 import { enlacesLocalesVivos } from '@/lib/malla/registro-enlaces-locales';
 import type { EnlaceLocalVivo } from '@/lib/malla/registro-enlaces-locales';
+import { crearDifusor } from '@/lib/malla/cristal/difusion-teselas';
+import { getSharedMesh } from '@/lib/network/lan-sync';
+import { enviarAPar, vinculosActivos } from '@/lib/network/vinculos-entre-cuentas';
+import { sendOverMesh } from '@/ai/astraura/mesh';
 
 const medioTexto = (medio: Medio | null): string => {
   if (!medio) return '';
@@ -103,12 +107,12 @@ export function RecibosChips({ recibo }: { recibo: Recibo }) {
     // Local enlaces
     try {
       const locales = enlacesLocalesVivos();
-       const enlacesMedido: EnlaceLocalMedido[] = locales.map((e: EnlaceLocalVivo) => ({
-         id: e.id,
-         tipo: e.par.plataforma ? 'webrtc' : undefined,
-         par: e.par.neuronDeviceId ?? e.par.syncDeviceId ?? undefined,
-         rttMs: e.rttMs() ?? undefined
-       }));
+      const enlacesMedido: EnlaceLocalMedido[] = locales.map((e: EnlaceLocalVivo) => ({
+        id: e.id,
+        tipo: e.par.plataforma ? 'webrtc' : undefined,
+        par: e.par.neuronDeviceId ?? e.par.syncDeviceId ?? undefined,
+        rttMs: e.rttMs() ?? undefined
+      }));
       salida.push(...senalesDeEnlacesLocales(yo, enlacesMedido, ahora));
     } catch (e) {
       console.warn('Failed to get local enlaces for cristal medir', e);
@@ -129,21 +133,26 @@ export function RecibosChips({ recibo }: { recibo: Recibo }) {
     }
   }, []); // Assuming signContent is stable
 
-  const difundir = useCallback((t: Tesela): void => {
-    try {
-      const sobre: SobreMensaje = {
-        t: 'tu.msg',
-        v: 1,
-        id: crypto.randomUUID(),
-        c: 'tesela',
-        b: t,
-        de: { s: identidadDispositivo().syncDeviceId }
-      };
-      enviarMensaje({}, 'tesela', sobre, {});
-    } catch (e) {
-      console.warn('Failed to disseminate tesela', e);
+  const difusor = crearDifusor({
+    broadcastMalla: (texto: string) => {
+      const mesh = getSharedMesh();
+      if (!mesh) return 0;
+      return mesh.broadcast(texto);
+    },
+    enviarAPares: (texto: string) => {
+      const vinculos = vinculosActivos();
+      vinculos.forEach(v => {
+        enviarAPar(v.vinculoId, texto);
+      });
+    },
+    enviarLora: (texto: string) => {
+      sendOverMesh({ type: 'message', cls: 'P1', body: texto });
     }
-  }, []); // Assuming enviarMensaje, identidadDispositivo, crypto.randomUUID are stable
+  });
+
+  const difundir = useCallback((t: Tesela): void => {
+    difusor(t);
+  }, []); // difusor is stable
 
   const motor = useMemo(() => crearMotorCristal({
     miNeurona,
