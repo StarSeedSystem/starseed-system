@@ -1,7 +1,7 @@
 """Enrutador de puentes de producción §10."""
 from __future__ import annotations
 import json, os, tempfile
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
 STATE_PATH = os.path.expanduser("~/.starseed/produccion/puentes.json")
@@ -23,7 +23,7 @@ def vigente(b: Dict[str, Any], ahora: Optional[datetime] = None) -> bool:
     vence = b.get("vence")
     if not vence:
         return True
-    hoy = (ahora or datetime.utcnow()).date()
+    hoy = (ahora or datetime.now(timezone.utc)).date()
     return hoy < date.fromisoformat(vence)
 
 def activos(entorno: Dict[str,str], ahora: Optional[datetime] = None,
@@ -89,7 +89,7 @@ def activar_puente(nombre: str, activo: bool):
     if nombre not in estado:
         estado[nombre] = {}
     estado[nombre]["activo"] = activo
-    estado[nombre]["actualizado"] = datetime.utcnow().isoformat()
+    estado[nombre]["actualizado"] = datetime.now(timezone.utc).isoformat()
     _guardar(estado)
     return {"ok": True, "nombre": nombre, "activo": activo}
 
