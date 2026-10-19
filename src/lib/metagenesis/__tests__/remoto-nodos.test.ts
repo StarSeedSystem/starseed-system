@@ -217,6 +217,7 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
 });
 
 describe("textoEstadoOrden", () => {
+<<<<<<< HEAD
     it("cada estado mapea al texto correcto", () => {
         const estados: Record<string, string> = {
             pendiente: "esperando a un nodo",
@@ -236,5 +237,22 @@ describe("textoEstadoOrden", () => {
 
     it("estado desconocido se devuelve tal cual", () => {
         expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+=======
+    it("cada estado mapea al texto correcto (excepto caducada, que ya se prueba)", () => {
+        expect(textoEstadoOrden("pendiente")).toBe("esperando a un nodo");
+        expect(textoEstadoOrden("tomada")).toBe("la tiene un nodo");
+        expect(textoEstadoOrden("hecha")).toBe("hecha");
+        expect(textoEstadoOrden("en_marcha")).toBe("en marcha");
+        expect(textoEstadoOrden("seca")).toBe("solo simulada (nodo en prueba)");
+        expect(textoEstadoOrden("nada")).toBe("no hacía falta");
+        expect(textoEstadoOrden("rechazada")).toBe("rechazada");
+        expect(textoEstadoOrden("fallo")).toBe("falló");
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("desconocido")).toBe("desconocido");
+        expect(textoEstadoOrden("")).toBe("");
+        expect(textoEstadoOrden("otro estado")).toBe("otro estado");
+>>>>>>> 04bf0ca6 (salvavidas · RTRTRTRTRTRTRTCOL1012Bdsbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
     });
 });
