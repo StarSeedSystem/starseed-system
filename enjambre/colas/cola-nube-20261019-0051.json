@@ -1,0 +1,114 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "AV1011H",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Protomolécula: fichas verificadas de las herramientas de avatares 3D",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-avatares-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade fichas `HerramientaProto` con ESTOS datos verificados el 2026-10-11 (no inventes nada; lo no comprobado va en `sinComprobar`): unimate (proximamente; código MIT anunciado, inferencia no publicada; pesos en Hugging Face Linzhan/UniMate sin licencia declarada; texto → movimiento para cualquier esqueleto; https://github.com/Friedrich-M/UniMate); image-to-3dlab (integrable, servicio-local, solo macOS Apple Silicon, 32 GB recomendados; salida GLB con PBR + provenance.json; motores Hunyuan3D-MLX [MIT código, pesos Tencent sin licencia en UE, Reino Unido y Corea del Sur], TRELLIS.2 [MIT + DINOv3, comercial condicionado], Stable Fast 3D [Stability Community]); unirig (integrable, MIT, GPU NVIDIA ≥ 8 GB, entrada obj/fbx/glb/vrm, salida fbx/glb; https://github.com/VAST-AI-Research/UniRig); instant-meshes (BSD-3-Clause; https://github.com/wjakob/instant-meshes); smart-remesh (solo-enlace: complemento de Blender 4.2–5.2, GPL, 17 USD, de 3DRedbox Studio; https://superhivemarket.com/products/smart-remesh); three-vrm (MIT, pixiv; https://github.com/pixiv/three-vrm); characterstudio (MIT, M3-org; https://github.com/M3-org/CharacterStudio); filigree3d (proximamente, solo artículo https://arxiv.org/abs/2609.34900); btc3d (proximamente, solo artículo https://arxiv.org/abs/2609.39709); meshy (solo-enlace, servicio: plan gratis 100 créditos/mes con salida CC BY 4.0; https://www.meshy.ai); tripo (solo-enlace, servicio; precios y licencia sin comprobar; https://www.tripo3d.ai); 3daistudio (solo-enlace, https://www.3daistudio.com); hi3d (solo-enlace, https://www.hi3d.ai); hitem3d (solo-enlace, web null y en sinComprobar: el enlace recibido apuntaba a 3daistudio); meta-horizon (solo-enlace, plataforma cerrada de Meta sin API pública ni pesos; https://developers.meta.com/horizon). NUNCA guardes parámetros de afiliado (`?aff=`, `?via=`, `utm_`). Antes de añadir, mira si ya existen (trellis, triposr, hunyuan3d): no dupliques; a hunyuan3d añádele el aviso de región si le falta. Respeta los tipos y categorías existentes y deja en verde las pruebas de la Protomolécula."
+  },
+  {
+   "id": "VGM1016H",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Instalación · plan por neurona: qué instalar, actualizar o quitar por área según su hierro medido",
+   "archivos": [
+    "src/lib/modelos/plan-instalacion.ts",
+    "src/lib/modelos/__tests__/plan-instalacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planInstalacion({ neurona: { medio, ramMB, discoLibreMB, gpu?, vramMB?, apple?, sistema }, catalogo: Record<area, Entrada[]>, preferencias, instalados })` → `{ instalar, actualizar, quitar, desdeLaMalla, motivo }` por área, dentro del presupuesto del §3 (PWA ≤ 1 GB, nativa ≤ 15 % del disco) y eligiendo la cuantización que cabe; si no cabe nada, la capa «malla» (pedirlo a otra neurona). Reutiliza los tipos de `src/lib/imagenes/sugerencias.ts` para imágenes sin romperlo. Pruebas: Mac de 8 GB, A1, móvil (PWA), PC con GPU de 24 GB. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español."
+  },
+  {
+   "id": "VGM1016J",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Instalación · instalador de modelos con SHA, versión anterior y cambio atómico",
+   "archivos": [
+    "scripts/puente/instalar_modelo.py",
+    "scripts/puente/test_instalar_modelo.py"
+   ],
+   "depende": [],
+   "prompt": "`instalar(entrada, destino_dir, descargar, sha_esperado)`: descarga a un archivo temporal con reanudación, verifica SHA256 (si no coincide, borra el temporal y falla), conserva la versión anterior en `anterior/`, cambia con `os.replace`, comprueba espacio libre antes (no deja la neurona con < 3 GB libres) y anota en `~/.starseed/modelos-instalados.json` (área, id, versión, sha, ruta, fecha). `volver_atras(area)` restaura la anterior. Nunca descarga un modelo sin SHA conocido. Pruebas con descargas falsas. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español."
+  },
+  {
+   "id": "VGM1016M",
+   "ola": "Ola 1016M · Vigía de modelos y versiones: MetaGenesis busca, prueba e instala solo lo mejor para cada neurona (todas las áreas)",
+   "titulo": "Catálogo de imágenes · Qwen-Image-2.1-Turbo (personal) con sus GGUF y Z-Image-Turbo (libre)",
+   "archivos": [
+    "src/lib/imagenes/modelos.ts",
+    "src/lib/imagenes/__tests__/imagenes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos verificados el 2026-10-16 con la API de Hugging Face: (1) `Qwen/Qwen-Image-2.1-Turbo` (2026-10-09), misma arquitectura 7B que Qwen-Image 2.1 en 8 pasos y CFG 1 (`QwenImage21Pipeline` de diffusers desde el código fuente), transformer 14,2 GB en bf16 + codificador de texto Qwen3-VL 8B de 17,5 GB + VAE 0,68 GB; licencia «Qwen Research License» → `uso: \"no-comercial\"` (solo investigación o evaluación, comercial con licencia aparte de Qwen); GGUF en `unsloth/Qwen-Image-2.1-Turbo-GGUF` (Q2_K 2,47 GB · Q3_K_S 2,72 · Q3_K_M 3,17 · Q4_K_M 4,2 · F16 14,2) para stable-diffusion.cpp; ComfyUI con los archivos de Comfy-Org (`qwen_image_2.1_turbo_bf16.safetensors`, `…_int8_convrot.safetensors` y la LoRA Turbo); capacidades texto-a-imagen, edición, texto legible, transparencia, multi-referencia y rápido. (2) `Tongyi-MAI/Z-Image-Turbo` (2025-11-25), **Apache-2.0** (`uso: \"libre\"`), modelo rápido de pocos pasos; comprueba en su ficha los pasos y la resolución y si hay GGUF; si un dato no puedes comprobarlo, déjalo fuera y dilo en `nota`. Actualiza `FECHA_VERIFICACION_IMAGENES`. Pruebas: los dos ids existen, el Turbo nunca sale como `libre`. Contrato: architecture/vigia-modelos.md (léelo entero antes de empezar) y los que amplía (astraura-imagenes.md, capas-autoadaptables.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las pruebas SIN red (cliente HTTP inyectable, respuestas de ejemplo dentro de la prueba); nunca valores de claves (solo el nombre `HF_TOKEN`); nada no comercial como opción por defecto ni en uso comercial; comentarios en español."
+  },
+  {
+   "id": "CB1013C",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Fusionar: leer, copia de seguridad y aplicar (Supabase con RLS del dueño)",
+   "archivos": [
+    "src/lib/cerebros/fusion-aplicar.ts",
+    "src/lib/cerebros/__tests__/fusion-aplicar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §4 y §9 b (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo de cliente (`\"use client\"`). Usa `createClient` de `@/utils/supabase/client`, `getBrain`/`saveBrain`/`deleteBrain` de `@/lib/brains/brains`, `senalEsencial` de `@/lib/consumo/guardian` (en cada lectura: `.abortSignal(senalEsencial())`) y `pushPreferences` de `@/lib/settings-sync`. Exporta: `leerParaFusion(destinoId: string, origenIds: string[]): Promise<{ ok: true; destino: Brain; origenes: Brain[]; archivos: ArchivoMemoria[]; prefs: Record<string, PrefsCerebro> } | { ok: false; motivo: string }>` (los archivos con `select('id,brain_id,name,content,updated_at,meta').in('brain_id', ids)`; las prefs leyendo de localStorage las claves `starseed.brain.<id>.*` con JSON.parse defensivo); `copiaDeSeguridad(datos, fecha)` → `{ nombre: 'cerebros-fusion-<fecha>.json', texto }` con TODO lo leído; `descargarCopia(copia)` (Blob + enlace `download`; sin `window` no hace nada y devuelve false); `aplicarFusion(plan: PlanFusion, o: { destino: Brain; origenIds: string[]; quitarOrigenes: boolean }): Promise<ResultadoFusion>` con `ResultadoFusion { ok: boolean; archivosEscritos: number; bytes: number; origenesQuitados: string[]; origenesConservados: Array<{ id: string; motivo: string }>; error?: string }`. Orden: (1) archivos: 'anexar'/'copiar' con `idDestino` → `update({ content, updated_at })` por id; 'copiar' sin id → `insert({ brain_id: destino.id, name, content, source: 'fusion' })` (la tabla tiene índice único por (owner, brain_id, name) con expresión: NO uses upsert con onConflict); (2) `saveBrain({ ...destino, includes, servers, config })`; (3) prefs → `localStorage.setItem('starseed.brain.<destino>.<sufijo>', JSON.stringify(v))` y `await pushPreferences()`; (4) solo si todo lo anterior fue bien y `quitarOrigenes`: por cada origen, si `brain_selections` tiene filas con ese `brain_id` NO se borra (motivo: «tiene selecciones; se moverán cuando se aplique §9 b») y si no `deleteBrain(id)` (sus archivos caen en cascada). Si algo falla en (1)-(3) no se borra ningún origen y `ok` es false con el error. Nunca lanza. Pruebas con mocks de `@/utils/supabase/client`, `@/lib/brains/brains` y `@/lib/settings-sync` y `vi.stubGlobal('window', { localStorage })`: camino feliz (cuenta escrituras y borrados), fallo al escribir un archivo → no borra orígenes, origen con selecciones → se conserva con su motivo, la copia contiene todos los archivos.",
+   "revisor_quitadas": [
+    "CB1013B"
+   ]
+  },
+  {
+   "id": "CB1013L",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: leer las fuentes en el cliente (con topes y sin romperse)",
+   "archivos": [
+    "src/lib/cerebros/procesos-fuentes.ts",
+    "src/lib/cerebros/__tests__/procesos-fuentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo de cliente. Exporta `leerProcesos(o?: { incluirMac?: boolean }): Promise<{ procesos: ProcesoActivo[]; hardware: HardwareServidor[]; fuentes: Array<{ nombre: string; ok: boolean; ms: number; motivo?: string }> }>`: en paralelo y cada una con tope de 4 s (AbortSignal.timeout o Promise.race), `/api/mando/agentes`, `/api/mando/medidores`, `/api/mando/suenos` y `/api/mando/hardware` (solo responden en la Mac o con sesión de MetaGenesis: un 401/403/404 cuenta como «no disponible aquí», no como error), `leerEstadoAutonomo()` (src/lib/metagenesis/remoto-nodos-cliente.ts), `leerHistorial()`, `fetchAstraura158DreamStatus`/`ImaginationStatus`, `listRuns()` de imagine, las instalaciones (`useInstalaciones` es un hook: usa la función de lectura del store), `readDesktopsSnapshot()` y `listNeurons()` para el hardware de las neuronas. Normaliza con CB1013J/K. Si una fuente falla, sigue y lo dice en `fuentes`. Nunca lanza. Pruebas con mocks de fetch y de los módulos: una fuente caída no tumba las demás; 404 → «no disponible aquí»; el tope de 4 s corta una fuente colgada.",
+   "revisor_quitadas": [
+    "CB1013K"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013J"
+   ]
+  },
+  {
+   "id": "VZF1015F",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Biblioteca y capas · fichas de Phonon-2 y Parakeet v3 con su atribución CC-BY-4.0 y su SHA",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "config/capas-astraura.json"
+   ],
+   "depende": [],
+   "prompt": "En `packages.ts`, categoría de voces (hoy no hay ninguna entrada de oído): fichas `kind: \"ai-source\"` de Phonon-2 (github fermionresearch/phonon, huggingface FermionResearch/Phonon-2 y Phonon-2-CoreML, CC-BY-4.0 pesos / Apache-2.0 código) y Parakeet TDT 0.6B v3 (nvidia/parakeet-tdt-0.6b-v3 e istupakov/parakeet-tdt-0.6b-v3-onnx, CC-BY-4.0), cada una con la atribución exacta del §7 del contrato, para qué sirve en la fusión y `comingSoon` con motivo donde el medio no lo corra (web). En `capas-astraura.json` las dos capas de papel «oído» con su SHA256 real: consúltalo en la API de Hugging Face (`https://huggingface.co/api/models/FermionResearch/Phonon-2/tree/main` da el `lfs.oid` de cada archivo); si no puedes obtenerlo, NO inventes uno: deja la capa fuera y dilo en el commit. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015I",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Una sola puerta de voz · `hablar(texto, { contexto, persona, prioridad })` y un único `callar()`",
+   "archivos": [
+    "src/lib/aurora/voz-unica.ts",
+    "src/lib/aurora/__tests__/voz-unica.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy hay cuatro puertas (engine.speak, engine.speakQueued, hablarStarSeed, hablarRito) y `callarRito` no calla a `vozRT`. Crea la puerta única: `hablar(texto, { contexto: 'conversacion'|'aviso'|'ventana'|'guia'|'rito'|'lectura'|'mando'|'llamada', persona?, prioridad? })`. Regla de prioridad del §3: con conversación en vivo (`vozRT().disponible()` y turno abierto) va por `decirRT`; un aviso no corta la conversación (espera al silencio, como mucho 8 s, y si no, se descarta con registro); guía y ritos en cola; el resto por `speakWithConfiguredEngine` (la cadena del registro con su suelo). `callar()` para TODO: vozRT, la cola, el mezclador y el motor local. Inyecta las dependencias (un objeto `motores`) para probar sin audio. Pruebas: prioridad, cola, callar. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "VZF1015I",
+   "AV1011H",
+   "CB1013C",
+   "CB1013L",
+   "VGM1016M",
+   "VGM1016J",
+   "VGM1016H",
+   "VZF1015F"
+  ]
+ }
+}
