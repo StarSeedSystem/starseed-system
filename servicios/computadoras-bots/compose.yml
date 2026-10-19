@@ -4,34 +4,48 @@ services:
   agent-computer:
     build:
       context: https://github.com/CopilotKit/openbot.git#a4dce8c
+      dockerfile: agent-computer/Dockerfile
     image: openbot-agent-computer
     environment:
-      - COMPUTER_TOKEN=${{COMPUTER_TOKEN}}
-      - SUPERVISOR_TOKEN=${{SUPERVISOR_TOKEN}}
+      - COMPUTER_TOKEN=${COMPUTER_TOKEN}
+      - SUPERVISOR_TOKEN=${SUPERVISOR_TOKEN}
       - COPILOTKIT_TELEMETRY_DISABLED=true
       - DO_NOT_TRACK=1
     deploy:
       resources:
         limits:
-          cpus: 0.5
-          memory: 1536m
+          cpus: '0.5'
+          memory: 1.5GB
+    networks:
+      - control-net
+
   supervisor:
     build:
       context: https://github.com/CopilotKit/openbot.git#a4dce8c
+      dockerfile: supervisor/Dockerfile
     image: openbot-supervisor
     environment:
-      - SUPERVISOR_TOKEN=${{SUPERVISOR_TOKEN}}
+      - SUPERVISOR_TOKEN=${SUPERVISOR_TOKEN}
       - DOCKER_SOCKET=/var/run/docker.sock
+      - COPILOTKIT_TELEMETRY_DISABLED=true
+      - DO_NOT_TRACK=1
+      # COMPUTER_RUNTIME=runsc # Descomentar si gVisor está disponible para mayor aislamiento
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - supervisor_data:/data
+    networks:
+      - control-net
     ports:
-      - "127.0.0.1:0:2375"
-      - "127.0.0.1:0:2376"
+      - "127.0.0.1:8000:8000"
     deploy:
       resources:
         limits:
-          cpus: 0.5
-          memory: 1536m
-    volumes:
-      - fastrun:/var/lib/docker
+          cpus: '0.5'
+          memory: 1.5GB
+
+networks:
+  control-net:
+    internal: true
 
 volumes:
-  fastrun:
+  supervisor_data:
