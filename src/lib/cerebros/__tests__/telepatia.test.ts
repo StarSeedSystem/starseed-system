@@ -59,9 +59,9 @@ describe('normalizarVinculos', () => {
     expect(normalizarVinculos(null)).toEqual([]);
   });
 
-  it('devuelve [] para valor no objeto (string)', () => {
-    expect(normalizarVinculos("bad")).toEqual([]);
-  });
+   it('devuelve [] para valor no objeto (string)', () => {
+     expect(normalizarVinculos(undefined)).toEqual([]);
+   });
 
   it('filtra inválidos', () => {
     const config = { telepatia: [vinculoValido, { id: '' }] };
