@@ -4477,3 +4477,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTCOL1012Ae` — no escribió nada
 - `PG1013F` — otra cosa: sin decisión en 0 h; rama ola/PG1013F conservada
+
+## 2026-10-19 22:23 · mg-oracle-1019-1459
+
+**Lo que se pidió.** MetaGenesis en la web: órdenes «desconectar
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Be` — los tipos no compilan: 7 errores tsc (rama ola/RTCOL1012Be conservada)
+- `GCA1019V` — otra cosa: sin decisión en 0 h; rama ola/GCA1019V conservada
