@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261014-110841-CB1013B",
+   "id": "CB1013Bb-d2",
+   "titulo": "Fusionar: plan puro (memorias, includes, servidores, config y preferencias) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/cerebros/__tests__/fusion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §4 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Módulo PURO (sin Supabase, `window` ni `node:*`; solo `import type` de `@/lib/brains/brains`). Exporta: `interface ArchivoMemoria { id?: string; brain_id: string; name: string; content: string; updated_at?: string | null; meta?: Record<string, unknown> | null }`; `type PrefsCerebro = Record<string, unknown>` (sufijo de clave → valor; la clave real es `starseed.brain.<id>.<sufijo>`); `quitarFrontmatter(texto)` (quita un bloque inicial `---\\n…\\n---` y los saltos que siguen); `normalizar(texto)` (sin frontmatter, espacios colapsados, trim); `seccionesDe(texto)` (parte por líneas que empiezan por `## `; lo anterior al primer `## ` es la cabecera); `planFusion(e: { destino: Brain; origenes: Brain[]; archivos: ArchivoMemoria[]; prefs: Record<string, PrefsCerebro>; fecha: string }): PlanFusion` con `PlanFusion { archivos: Array<{ name: string; accion: 'copiar' | 'anexar' | 'omitir'; contenido: string; bytesQueEntran: number; desde: string[]; idDestino?: string }>; includes: BrainIncludes; servers: BrainServer[]; config: Record<string, unknown>; prefs: PrefsCerebro; resumen: { archivosNuevos: number; archivosAnexados: number; archivosOmitidos: number; bytes: number } }`. Reglas exactas de §4: archivo ausente en el destino → 'copiar' (contenido del primer origen que lo tenga, más las secciones nuevas de los siguientes); igual tras normalizar → 'omitir'; distinto → 'anexar' solo las secciones `## ` cuyo texto normalizado NO esté ya contenido en el destino (ni la cabecera de plantilla), bajo `## Fusionado de «<nombre del origen>» (<8 primeros del id>) · <fecha>`; si no queda ninguna sección nueva → 'omitir'. `contenido` es el texto FINAL del archivo en el destino; `idDestino` el id de la fila del destino si existe. includes: unión sin duplicados (vaults, backends, personalities, runtimes, tokens, memories, connections; permissions por `who`), bindScope = alguno, aiProvider del destino o del primer origen. servers: unión por `id` y además dos con el mismo `endpoint` no vacío cuentan como uno. config: gana el destino, del origen solo entran claves ausentes; añade `fusionados` (ids de los orígenes, sin repetir con los que ya hubiera) y `fusionadoEn` = fecha. prefs: clave ausente en el destino → se copia; dos listas → unión por `id` (o por valor JSON si no tienen id); dos objetos → gana el destino y se rellenan claves que falten; otro tipo → gana el destino. Pruebas: cada regla, y el caso real de 2026-10-13: un destino con varias secciones y un origen `---\\ntype: memory\\n---\\n\\n# Memoria\\n\\nHechos/estado genéricos (fallback).\\n\\n## Actualización automática de Astraura · 10/1 …` con 3 actualizaciones → entran solo esas 3, una vez, bajo el encabezado de fusión; repetir la fusión con el resultado no añade nada.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261014-110841-CB1013B`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261014-110841-CB1013B:refs/remotes/origin/nube/a1-20261014-110841-CB1013B\"` y `git cherry-pick --no-commit 6216383e6c55`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/cerebros/__tests__/fusion.test.ts, src/lib/cerebros/fusion.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió CB1013Bb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/cerebros/__tests__/fusion.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CB1013Bb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "CB1013Bb-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "CB1013Bb-d2"
+  ]
+ }
+}
