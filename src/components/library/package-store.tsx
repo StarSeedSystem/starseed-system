@@ -82,7 +82,8 @@ import {
   type LibraryRepo,
   type PackageKind,
 } from "@/lib/library/packages";
-import { findSource } from "@/ai/astraura/free-catalog";
+import { findSource, FREE_CATALOG } from "@/ai/astraura/free-catalog";
+import { vinculoDe, instalableEnAmbito } from "@/lib/library/vincular";
 // Selector de categorías rediseñado (P6): superficie con orden + filtros
 // persistidos por categoría, «Aurora recomienda» y secciones Novedades /
 // Populares / Relevantes. Reutiliza las piezas exportadas más abajo (KIND_META,
