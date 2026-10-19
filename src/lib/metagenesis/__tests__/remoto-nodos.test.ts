@@ -56,6 +56,29 @@ describe("órdenes: lo que se firma es idéntico en TypeScript y en Python", () 
     });
 });
 
+describe("textoEstadoOrden: cada estado con su texto (rescatado de rama nube)", () => {
+    it("cada estado mapea al texto correcto", () => {
+        const estados = {
+            pendiente: "esperando a un nodo",
+            tomada: "la tiene un nodo",
+            hecha: "hecha",
+            en_marcha: "en marcha",
+            seca: "solo simulada (nodo en prueba)",
+            nada: "no hacía falta",
+            rechazada: "rechazada",
+            fallo: "falló",
+            caducada: "nadie la recogió a tiempo",
+        };
+        Object.entries(estados).forEach(([estado, esperado]) => {
+            expect(textoEstadoOrden(estado)).toBe(esperado);
+        });
+    });
+
+    it("estado desconocido se devuelve tal cual", () => {
+        expect(textoEstadoOrden("estado-unknown")).toBe("estado-unknown");
+    });
+});
+
 describe("resumen del bus", () => {
     const latido = (nodo: string, medio: string, puntos: number, extra: Record<string, unknown> = {}, hace = 0) =>
         fila("mg_latido", { nodo, medio, modo: "real", puntos, salud: { orquestadores: [{ cola: "cola-1010s" }], disco_gb: 40, trabajo: { listas: 3 } }, ...extra }, hace);
