@@ -25,7 +25,9 @@ describe("puedeClonar", () => {
       ahora,
     });
     expect(resultado.ok).toBe(false);
-    expect(resultado.motivo).toContain("No hay permiso válido");
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("No hay permiso válido");
+    }
   });
 
   it("niega clonar voz ajena con permiso caducado", () => {
@@ -46,7 +48,9 @@ describe("puedeClonar", () => {
       ahora,
     });
     expect(resultado.ok).toBe(false);
-    expect(resultado.motivo).toContain("No hay permiso válido");
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("No hay permiso válido");
+    }
   });
 
   it("niega clonar voz ajena con permiso revocado", () => {
@@ -67,7 +71,9 @@ describe("puedeClonar", () => {
       ahora,
     });
     expect(resultado.ok).toBe(false);
-    expect(resultado.motivo).toContain("No hay permiso válido");
+    if (!resultado.ok) {
+      expect(resultado.motivo).toContain("No hay permiso válido");
+    }
   });
 
   it("permite clonar voz ajena con permiso vigente y válido para el uso", () => {
