@@ -147,7 +147,7 @@ class TestGobernadorGenerico(unittest.TestCase):
         """
         resultado = gobernador_generico.de_pmset(texto)
         self.assertEqual(resultado["cargando"], False)
-        self.assertEqual(resultado["nivel"], 0)  # Asumimos que sin porcentaje es 0
+        self.assertEqual(resultado["nivel"], 0)
 
     def test_pmset_descargando(self):
         texto = """Now drawing from 'Battery Power'

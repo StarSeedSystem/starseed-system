@@ -189,15 +189,19 @@ class PruebasRevisionDireccion(unittest.TestCase):
     def test_salud_rota_no_se_reescribe(self):
         with tempfile.TemporaryDirectory() as tmp:
             ruta_s = os.path.join(tmp, "salud.json")
-            open(ruta_s, "w").write('{"claude": {"motivo": "429"')  # a medio escribir
+            with open(ruta_s, "w") as f:
+                f.write('{"claude": {"motivo": "429"')  # a medio escribir
             med = med_bueno("codex", 100)
             mc.alimentar_salud({"codex": med}, ruta_s, os.path.join(tmp, "c", "salud.lock"), AHORA)
-            self.assertEqual(open(ruta_s).read(), '{"claude": {"motivo": "429"')
+            with open(ruta_s, "r") as f:
+                content = f.read()
+            self.assertEqual(content, '{"claude": {"motivo": "429"')
 
     def test_sin_cambios_no_toca_el_archivo(self):
         with tempfile.TemporaryDirectory() as tmp:
             ruta_s = os.path.join(tmp, "salud.json")
-            json.dump({"claude": {"motivo": "429"}}, open(ruta_s, "w"))
+            with open(ruta_s, "w") as f:
+                json.dump({"claude": {"motivo": "429"}}, f)
             antes = os.stat(ruta_s).st_mtime_ns
             mc.alimentar_salud({"codex": med_bueno("codex", 40)}, ruta_s, os.path.join(tmp, "c", "salud.lock"), AHORA)
             self.assertEqual(os.stat(ruta_s).st_mtime_ns, antes)
