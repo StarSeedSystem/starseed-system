@@ -149,33 +149,30 @@ def disco_libre_gb(ruta: str) -> Optional[float]:
 
 def cpu_pct() -> Optional[float]:
     """Linux: dos lecturas de /proc/stat separadas 0,3 s → % ocupado; macOS u otros: None"""
-    if sys.platform.startswith("linux"):
-        try:
-            with open("/proc/stat") as f:
-                linea = f.readline()
-                if not linea.startswith("cpu "):
-                    return None
-                tiempos1 = list(map(int, linea.split()[1:]))
-                idle1 = tiempos1[3]  # cuarto valor es idle time
-                total1 = sum(tiempos1)
-            
-            time.sleep(0.3)
-            
-            with open("/proc/stat") as f:
-                linea = f.readline()
-                if not linea.startswith("cpu "):
-                    return None
-                tiempos2 = list(map(int, linea.split()[1:]))
-                idle2 = tiempos2[3]
-                total2 = sum(tiempos2)
-            
-            total_diff = total2 - total1
-            idle_diff = idle2 - idle1
-            
-            if total_diff > 0:
-                return round((total_diff - idle_diff) * 100.0 / total_diff, 1)
-        except OSError:
-            return None
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        with open("/proc/stat") as f:
+            linea = f.readline()
+            if not linea.startswith("cpu "):
+                return None
+            tiempos1 = list(map(int, linea.split()[1:]))
+            idle1 = tiempos1[3]
+            total1 = sum(tiempos1)
+        time.sleep(0.3)
+        with open("/proc/stat") as f:
+            linea = f.readline()
+            if not linea.startswith("cpu "):
+                return None
+            tiempos2 = list(map(int, linea.split()[1:]))
+            idle2 = tiempos2[3]
+            total2 = sum(tiempos2)
+        total_diff = total2 - total1
+        idle_diff = idle2 - idle1
+        if total_diff > 0:
+            return round((total_diff - idle_diff) * 100.0 / total_diff, 1)
+    except OSError:
+        return None
     return None
 
 
