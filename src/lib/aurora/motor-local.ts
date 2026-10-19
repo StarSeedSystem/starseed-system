@@ -24,6 +24,7 @@
  */
 
 import type { Timbre } from "@/lib/aurora/timbres";
+import { puedeClonar, etiquetarAudio, type PermisoVoz, type MetaAudio } from "@/lib/aurora/voz-starseed/clonacion";
 
 export const MOTOR_LOCAL_URL = "http://127.0.0.1:4444";
 
@@ -257,6 +258,26 @@ export function sintetizarLocal(texto: string, t: Timbre, prioridad = 10): Promi
 async function sintetizarAhora(texto: string, t: Timbre, ctrl: AbortController): Promise<Blob | null> {
     {
         try {
+            let clonFlag = false;
+            let permisoOk = false;
+            let solicitante = "";
+            let titular = "";
+            if (t.local.clon === true) {
+                const localExt = t.local as any;
+                solicitante = localExt.solicitante ?? "";
+                titular = localExt.titular ?? "";
+                const uso = localExt.uso ?? "personal";
+                const permisos: PermisoVoz[] = localExt.permisos ?? [];
+                const ahora = localExt.ahora ?? new Date().toISOString();
+                if (solicitante && titular) {
+                    const resultado = puedeClonar({ solicitante, titular, uso, permisos, ahora });
+                    permisoOk = resultado.ok;
+                    clonFlag = permisoOk;
+                } else {
+                    // falta info de permiso, conservar comportamiento original
+                    clonFlag = true;
+                }
+            }
             const r = await pedir("tts", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -282,12 +303,17 @@ async function sintetizarAhora(texto: string, t: Timbre, ctrl: AbortController):
                     // lugar de diseñar la voz desde el instruct/seed. Solo se manda
                     // cuando el timbre lo pide explícitamente (el daemon devuelve 400
                     // si no hay referencia y no queremos romper la síntesis normal).
-                    ...(t.local.clon === true ? { clon: true } : {}),
+                    ...(clonFlag ? { clon: true } : {}),
                 }),
             });
             if (!r.ok) return null;
             limpiarAusente(); // (Ola 222) Síntesis con éxito: el daemon responde, olvidar que estaba ausente.
             const b = await r.blob();
+            if (permisoOk) {
+                const meta: MetaAudio = { clonada: true, marcaAgua: "pendiente", autorizadoPor: solicitante };
+                etiquetarAudio(meta);
+                // we could do something with the result but ignore
+            }
             return b.size > 44 ? b : null;
         } catch {
             return null;

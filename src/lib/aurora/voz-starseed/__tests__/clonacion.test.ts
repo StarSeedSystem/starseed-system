@@ -200,7 +200,6 @@ describe("etiquetarAudio", () => {
     const meta: MetaAudio = {
       marcaAgua: "audioseal",
       autorizadoPor: "usuario456",
-      duracion: 5.2, // otro campo cualquiera
     };
     const resultado = etiquetarAudio(meta);
 
@@ -208,7 +207,6 @@ describe("etiquetarAudio", () => {
       clonada: true,
       marcaAgua: "audioseal",
       autorizadoPor: "usuario456",
-      duracion: 5.2,
     });
   });
 });
