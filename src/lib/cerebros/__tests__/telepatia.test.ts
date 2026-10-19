@@ -24,6 +24,10 @@ describe('validarVinculo', () => {
     expect(validarVinculo(null).ok).toBe(false);
   });
 
+  it('rechaza objeto vacío', () => {
+    expect(validarVinculo({}).ok).toBe(false);
+  });
+
   it('rechaza id vacío', () => {
     const v = { ...vinculoValido, id: '' };
     expect(validarVinculo(v).ok).toBe(false);
@@ -53,6 +57,10 @@ describe('validarVinculo', () => {
 describe('normalizarVinculos', () => {
   it('devuelve [] para null', () => {
     expect(normalizarVinculos(null)).toEqual([]);
+  });
+
+  it('devuelve [] para valor no objeto (string)', () => {
+    expect(normalizarVinculos("bad")).toEqual([]);
   });
 
   it('filtra inválidos', () => {
