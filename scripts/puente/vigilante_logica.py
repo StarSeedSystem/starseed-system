@@ -103,10 +103,46 @@ def ultima_salida(lineas, tope=200):
     return codigo, motivo
 
 
+def _ids_de_asunto(asunto):
+    """Los textos que `(?:^|·\\s*)<id>\\s*:` reconocería en un asunto: lo que va del principio,
+    o de cada «·» (saltando espacios), hasta los primeros dos puntos, sin espacios al final."""
+    asunto = str(asunto or "")
+    trozos = [asunto] + [p.lstrip() for p in asunto.split("·")[1:]]
+    ids = set()
+    for t in trozos:
+        if ":" in t:
+            ids.add(t.split(":", 1)[0].rstrip())
+    return ids
+
+
+# (2026-10-19) Índice de los últimos asuntos vistos. Antes cada llamada compilaba una regex y
+# recorría TODOS los asuntos: 2.770 llamadas × ~4.000 asuntos = 11 millones de búsquedas y
+# ~100 s de «Buscar más capacidad», que pasaba del tope de 150 s del botón con la Mac cargada.
+# Se guarda la referencia al objeto para que su id() no pueda reutilizarse mientras está aquí.
+_INDICES_ASUNTOS = []
+
+
+def _indice_asuntos(asuntos):
+    for obj, largo, indice in _INDICES_ASUNTOS:
+        if obj is asuntos and largo == len(asuntos):
+            return indice
+    indice = set()
+    for asunto in asuntos:
+        indice |= _ids_de_asunto(asunto)
+    _INDICES_ASUNTOS.insert(0, (asuntos, len(asuntos), indice))
+    del _INDICES_ASUNTOS[4:]
+    return indice
+
+
 def id_en_asuntos(tid, asuntos):
     """Reconoce el id INTEGRADO: el asunto de un commit de integración («Ola 228 · V2: …»,
     «345 · NE3-1: …», «salvavidas · NE3-1: …»), con el id justo antes de los dos puntos.
-    Una mención en otro asunto («reparto a la nube (CC2, MD1)») no cuenta (2026-09-21)."""
+    Una mención en otro asunto («reparto a la nube (CC2, MD1)») no cuenta (2026-09-21).
+    Con listas o tuplas usa un índice (misma respuesta que la regex, en tiempo constante)."""
+    if not tid:
+        return False
+    if isinstance(asuntos, (list, tuple)):
+        return str(tid) in _indice_asuntos(asuntos)
     patron = re.compile(r"(?:^|·\s*)%s\s*:" % re.escape(tid))
     return any(patron.search(asunto) for asunto in asuntos)
 
