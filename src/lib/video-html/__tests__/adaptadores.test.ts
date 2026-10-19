@@ -147,7 +147,7 @@ describe("detectarAdaptadores", () => {
     expect(html).toContain("@keyframes sf-scale-in");
     expect(html).not.toContain("<script>");
     expect(html).not.toContain("</script>");
-    expect(html).toContain("Título con <script>alerta()</script> & \"comillas\"");
+    expect(html).toContain("Título con &#60;script&#62;alerta()&#60;/script&#62; &#38; &#34;comillas&#34;");
   });
 
   it("la plantilla debe escapar correctamente caracteres HTML especiales", () => {
@@ -160,6 +160,6 @@ describe("detectarAdaptadores", () => {
       acento: "#000",
     });
 
-    expect(html).toContain("Test & \"quotes\" <tag> 'apostrophe'");
+    expect(html).toContain("Test &#38; &#34;quotes&#34; &#60;tag&#62; 'apostrophe'");
   });
 });
