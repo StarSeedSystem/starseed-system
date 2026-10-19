@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-// TODO: Implement the privacidadEfectiva function
+
 
 export function privacidadEfectiva(params: {
   marcada: "persona" | "ámbito";
