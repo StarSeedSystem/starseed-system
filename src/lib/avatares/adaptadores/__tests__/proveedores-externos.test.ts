@@ -61,14 +61,19 @@ describe("apagados por defecto y honestos", () => {
         expect(esUrlDescarga("meshy", u)).toBe(false);
       }
     });
-    it("Meshy lleva la atribución obligatoria", () => {
-      const p = procedenciaExterna("meshy");
-       expect(p!.herramienta).toBe("meshy");
-       expect(p!.uso).toBe("atribucion");
-       expect(p!.atribucion).toBe("Modelo 3D generado con Meshy");
-       expect(p!.licencia).toContain("CC BY 4.0");
-    });
-  });
+     it("Meshy lleva la atribución obligatoria", () => {
+       const p = procedenciaExterna("meshy");
+        expect(p!.herramienta).toBe("meshy");
+        expect(p!.uso).toBe("atribucion");
+        expect(p!.atribucion).toBe("Modelo 3D generado con Meshy");
+        expect(p!.licencia).toContain("CC BY 4.0");
+     });
+     it("permiso \"0\" + clave: no disponible", () => {
+       const entornoConPermisoCero = { AVATARES_EXTERNOS_PERMITIDOS: "0", MESHY_API_KEY: CLAVE };
+       expect(motivoNoDisponible("meshy", entornoConPermisoCero)).toContain("Apagado por defecto");
+       expect(estadoProveedores(entornoConPermisoCero).every((p) => !p.disponible)).toBe(true);
+     });
+ });
 describe("crearTarea con fetch simulado", () => {
   it("Meshy: POST image-to-3d con data URI, Bearer y modelo; devuelve `result`", async () => {
     const { buscar, llamadas } = simulado([{ status: 202, cuerpo: { result: "018a210d-8ba4-705c-b111-1f1776f7f578" } }]);
@@ -87,20 +92,40 @@ describe("crearTarea con fetch simulado", () => {
     expect(cabecera(llamadas[0], "Content-Type")).toBeUndefined();
     expect(JSON.parse(String(llamadas[1].init?.body))).toEqual({ input: "file_abc123", model: MODELO.tripo });
   });
-  it("apagado no toca la red; errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
-    const apagado = simulado([]);
-    expect((await crearTarea("meshy", PNG, {}, apagado.buscar)).ok).toBe(false);
-    expect(apagado.llamadas).toHaveLength(0);
-    const motivos = (await Promise.all([
-      crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 401, cuerpo: { message: "Missing or invalid API key" } }]).buscar),
-      crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 402, cuerpo: {} }]).buscar),
-      crearTarea("tripo", PNG, ENCENDIDO, simulado([{ cuerpo: { code: 2010, message: "Insufficient credits" } }]).buscar),
-      crearTarea("tripo", PNG, ENCENDIDO, simulado(["sin-red"]).buscar),
-    ])).map((c) => (c.ok ? "" : c.motivo));
-    [/rechazó la clave/, /sin créditos/, /2010.*Insufficient credits/, /sin red/].forEach((re, i) => expect(motivos[i]).toMatch(re));
-    expect(motivos.join(" ")).not.toContain(CLAVE);
-  });
-});
+     it("apagado no toca la red; errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
+     const apagado = simulado([]);
+     expect((await crearTarea("meshy", PNG, {}, apagado.buscar)).ok).toBe(false);
+     expect(apagado.llamadas).toHaveLength(0);
+     const motivos = (await Promise.all([
+       crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 401, cuerpo: { message: "Missing or invalid API key" } }]).buscar),
+       crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 402, cuerpo: {} }]).buscar),
+       crearTarea("tripo", PNG, ENCENDIDO, simulado([{ cuerpo: { code: 2010, message: "Insufficient credits" } }]).buscar),
+       crearTarea("tripo", PNG, ENCENDIDO, simulado(["sin-red"]).buscar),
+     ])).map((c) => (c.ok ? "" : c.motivo));
+     [/rechazó la clave/, /sin créditos/, /2010.*Insufficient credits/, /sin red/].forEach((re, i) => expect(motivos[i]).toMatch(re));
+     expect(motivos.join(" ")).not.toContain(CLAVE);
+   });
+      it("Meshy: respuesta sin result: devuelve error sin result", async () => {
+        const { buscar, llamadas } = simulado([{ cuerpo: {} }]); // vacío, sin result
+        const resultado = await crearTarea("meshy", PNG, ENCENDIDO, buscar);
+        expect(resultado.ok).toBe(false);
+        if (!resultado.ok) {
+          expect(resultado.motivo).toBe("Meshy no devolvió el id de la tarea.");
+        }
+        expect(llamadas).toHaveLength(1);
+      });
+     it("Tripo: no disponible no llama a la red", async () => {
+       // Sin permiso
+       const { buscar: buscarSinPermiso, llamadas: llamadasSinPermiso } = simulado([]);
+       await crearTarea("tripo", PNG, {}, buscarSinPermiso);
+       expect(llamadasSinPermiso).toHaveLength(0);
+
+       // Sin clave
+       const { buscar: buscarSinClave, llamadas: llamadasSinClave } = simulado([]);
+       await crearTarea("tripo", PNG, { AVATARES_EXTERNOS_PERMITIDOS: "1" }, buscarSinClave);
+       expect(llamadasSinClave).toHaveLength(0);
+     });
+ });
 describe("consultarTarea: una sola petición por llamada", () => {
   const consulta = (p: "meshy" | "tripo", id: string, cuerpo: unknown) => consultarTarea(p, id, ENCENDIDO, simulado([{ cuerpo }]).buscar);
   it("Meshy: en curso, lista con su GLB en la ruta oficial, GLB ajeno no vale y el fallo trae su motivo", async () => {
