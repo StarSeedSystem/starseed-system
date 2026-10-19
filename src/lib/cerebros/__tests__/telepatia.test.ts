@@ -78,6 +78,12 @@ describe('normalizarVinculos', () => {
     expect(normalizarVinculos(null)).toEqual([]);
   });
 
+  it('devuelve [] para entrada no objeto', () => {
+    expect(normalizarVinculos('bad' as any)).toEqual([]);
+    expect(normalizarVinculos(123 as any)).toEqual([]);
+    expect(normalizarVinculos([] as any)).toEqual([]);
+  });
+
   it('filtra inválidos', () => {
     const config = { telepatia: [vinculoValido, { id: '' }] };
     const res = normalizarVinculos(config);
