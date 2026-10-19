@@ -45,6 +45,34 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
+    def test_que_copiar_selecciona_correctamente(self):
+        listado = [
+            ("progreso.json", VIEJO),
+            ("progreso.md", VIEJO),
+            ("medios.json", VIEJO),
+            ("puntos-control.json", VIEJO),
+            ("cola-1.json", VIEJO),
+            ("cola-2.json", VIEJO),
+            ("cola-antigua.json", VIEJO),
+            ("evento1.jsonl", VIEJO),
+            ("evento2.jsonl", VIEJO),
+            ("log.txt", VIEJO),
+        ]
+        ahora = AHORA
+        seleccion = que_copiar(listado, ahora)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
+
+
+
 
 class PruebasEmpaquetar(unittest.TestCase):
     def setUp(self):
@@ -59,6 +87,8 @@ class PruebasEmpaquetar(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+
 
     def _tar(self, seleccion):
         with tempfile.TemporaryDirectory() as salida:
