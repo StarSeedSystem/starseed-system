@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { decidirCambioAvatar } from "@/lib/avatares/adn/permisos";
 import { AdnAvatar } from "@/lib/avatares/adn/adn";
 import { PLANTILLAS_AVATAR, adnDePlantilla, refDePlantilla } from "@/lib/avatares/plantillas";
 import { AvatarVivo } from "@/components/avatares/avatar-vivo";
-import { getFuenteParaRef } from "@/lib/avatares/adaptadores/resolver-ref-biblioteca";
+import { getFuenteParaRef, type FuenteAvatar } from "@/lib/avatares/adaptadores/resolver-ref-biblioteca";
 
 interface SelectorAvatar3dProps {
   profileId?: string;
@@ -49,6 +49,41 @@ export default function SelectorAvatar3d({
     }
   }, [profileId, entityId]);
 
+  // Estado para fuentes cargadas asincronicamente
+  const [fuenteActual, setFuenteActual] = useState<FuenteAvatar | null>(null);
+  const [fuentesFixed, setFuentesFixed] = useState<Map<string, FuenteAvatar>>(new Map());
+  const [fuentesPlantilla, setFuentesPlantilla] = useState<Map<string, FuenteAvatar>>(new Map());
+
+  useEffect(() => {
+    async function loadAllFuentes() {
+      // Cargar fuentes fijas
+      const fixedMap = new Map<string, FuenteAvatar>();
+      for (const op of fixedOpciones) {
+        const fu = await getFuenteParaRef(op.ref);
+        fixedMap.set(op.id, fu);
+      }
+      setFuentesFixed(fixedMap);
+
+      // Cargar fuentes de plantillas
+      const plantillaMap = new Map<string, FuenteAvatar>();
+      for (const op of plantillaOpciones) {
+        const fu = await getFuenteParaRef(op.ref);
+        plantillaMap.set(op.id, fu);
+      }
+      setFuentesPlantilla(plantillaMap);
+
+      // Cargar fuente actual
+      if (currentAdnRef) {
+        const fu = await getFuenteParaRef(currentAdnRef);
+        setFuenteActual(fu);
+      }
+    }
+
+    if (currentAdnRef || fixedOpciones.length > 0 || plantillaOpciones.length > 0) {
+      loadAllFuentes();
+    }
+  }, [currentAdnRef, fixedOpciones, plantillaOpciones]);
+
   const handleAdnChange = useCallback(
     async (ref: string) => {
       if (!ref) return;
@@ -57,6 +92,9 @@ export default function SelectorAvatar3d({
         await loadAdn(ref);
         setCurrentAdnRef(ref);
         onChange?.(ref);
+        // Actualizar fuente actual
+        const fu = await getFuenteParaRef(ref);
+        setFuenteActual(fu);
       } catch (error) {
         console.error("Error al cargar el ADN del avatar:", error);
       } finally {
@@ -127,20 +165,9 @@ export default function SelectorAvatar3d({
       console.error("Error al verificar permiso para cambiar avatar:", error);
       return false;
     }
-};
+  };
 
-const fixedOpciones = [
-    { id: "orbe-gris", label: "Orbe gris", ref: getDefaultAdnRef() },
-    { id: "vrm-persona", label: "Persona VRM", ref: "vrm-persona" }
-  ];
 
-  const plantillaOpciones = PLANTILLAS_AVATAR.map(p => ({
-    id: p.id,
-    label: p.nombre,
-    ref: refDePlantilla(p.id),
-    tonoAura: p.tonoAura,
-    autor: p.autor
-  }));;
 
   return (
     <div className="space-y-4">
@@ -166,12 +193,12 @@ const fixedOpciones = [
               <Badge variant="secondary">{adnAvatar.nombre || "Avatar"}</Badge>
             </div>
 
-             <div className="aspect-square max-w-md mx-auto mb-4">
-               <AvatarVivo
-                 fuente={getFuenteParaRef(currentAdnRef)}
-                 tamano={400}
-               />
-             </div>
+            <div className="aspect-square max-w-md mx-auto mb-4">
+              <AvatarVivo
+                fuente={fuenteActual ?? { tipo: "procedural", svg: "" }}
+                tamano={400}
+              />
+            </div>
 
             {previewOnly && (
               <div className="text-center text-sm text-muted-foreground">
@@ -201,7 +228,7 @@ const fixedOpciones = [
           <div className="grid grid-cols-2 gap-3">
             {fixedOpciones.map(opcion => {
               const esActivo = opcion.ref === currentAdnRef;
-              const fuente = getFuenteParaRef(opcion.ref);
+              const fuente = fuentesFixed.get(opcion.id) ?? { tipo: "procedural", svg: "" };
               return (
                 <button
                   key={opcion.id}
@@ -250,7 +277,7 @@ const fixedOpciones = [
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {plantillaOpciones.map(opcion => {
                 const esActivo = opcion.ref === currentAdnRef;
-                const fuente = getFuenteParaRef(opcion.ref);
+                const fuente = fuentesPlantilla.get(opcion.id) ?? { tipo: "procedural", svg: "" };
                 return (
                   <button
                     key={opcion.id}
@@ -290,5 +317,3 @@ const fixedOpciones = [
     </div>
   );
 }
-
-
