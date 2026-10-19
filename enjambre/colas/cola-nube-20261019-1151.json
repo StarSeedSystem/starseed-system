@@ -1,0 +1,126 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "ola": "Ola 1018S · Sucesoras del ultracode: lo que los revisores Opus dejaron por cablear o arreglar",
+   "id": "SUC1018F-d2",
+   "titulo": "Avatares · el selector usa el visor VRM vivo para las referencias «biblioteca:» (AV1011A) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/avatares/__tests__/selector-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`selector-avatar-3d.tsx` pasa una referencia `biblioteca:` como si fuera una URL GLB a `model-viewer` (no carga). Desde AV1011A existe `<AvatarVivo adn calidad />` y `resolver-ref-biblioteca.ts`: úsalos para esas referencias y deja `model-viewer` para URLs GLB de verdad. Un solo lienzo WebGL visible a la vez en la lista (los demás, miniatura estática). Prueba de la función pura que elige el visor. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; pruebas sin red; nunca valores de claves; textos y comentarios en español con acentos; lee antes el contrato del área y CLAUDE.md (trampa 11: nada de `node:*` en código de cliente).\n\n## PARTE 2 DE 2 (la dirección dividió SUC1018F: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/avatares/__tests__/selector-avatar.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SUC1018F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "SUC1018F-d1"
+   ]
+  },
+  {
+   "id": "HFR1018A",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Protomolécula · ficha de HyperFrames (integrable) y de su Studio (solo-enlace por GSAP)",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En la categoría `video-composicion`, con la misma forma que la ficha `editly`, añade `hyperframes` (tipo \"libreria\", licencia \"Apache-2.0\", codigo https://github.com/heygen-com/hyperframes, web https://hyperframes.heygen.com, integracion \"servicio-local\", medios web \"embebible\" (reproductor) y macOS/Windows/Linux/servidor true, formatos entrada [html, css, mp4, png, mp3, json] salida [mp4, webm, mov, gif, png, hls], control via [cli, js], actualizacion npm `hyperframes` 0.8.172 del 2026-10-18, ia [\"genera-video-desde-html\"], estado \"integrable\", verificado \"2026-10-18\", avisos: telemetría apagada siempre, MusicGen solo personal, sin GSAP en el editor del OS) y `hyperframes-studio` (estado \"solo-enlace\", motivo: depende de GSAP, cuya licencia prohíbe editores visuales de animación). Amplía la prueba existente. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "HFR1018B",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Biblioteca · ficha de HyperFrames en Vídeo (y su plugin de skills para agentes)",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/__tests__/video-hyperframes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Añade la ficha `video-hyperframes` (`kind: \"repo\"`, githubRepo heygen-com/hyperframes, licencia Apache-2.0, tags vídeo/edición/html/render, payload.categoria \"video\", payload.herramientaId \"hyperframes\", payload.claseLicencia \"libre\", descripción en español: «escribe HTML, sale vídeo; editor de vídeo de la Protomolécula, render en la malla y edición en grupo»). Prueba: id único, githubRepo, claseLicencia. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VST1018A"
+   ]
+  },
+  {
+   "id": "HFR1018E",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Vídeo HTML · operaciones de la Protomolécula → órdenes del SDK de HyperFrames",
+   "archivos": [
+    "src/lib/video-html/operaciones-sdk.ts",
+    "src/lib/video-html/__tests__/operaciones-sdk.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO, sin importar el SDK: traduce `Operacion` de src/lib/protomolecula/tipos.ts (parámetro de un átomo video-html = `elementoId::propiedad`) a órdenes con la forma de `comp.dispatch` del SDK: { type: \"setText\", target, value }, { type: \"setStyle\", target, styles }, { type: \"setTiming\", target, start, duration }, { type: \"setAttribute\", target, name, value } y { type: \"setVariableValue\", id, value }. Rechaza con motivo las que tocarían una animación GSAP (setGsapTween, addGsapTween…) y propiedades no permitidas (on*, src con javascript:). Pruebas por tipo. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "HFR1018C"
+   ]
+  },
+  {
+   "id": "HFR1018J",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Vídeo HTML · edición en grupo: parches del SDK ↔ elementos de sala",
+   "archivos": [
+    "src/lib/video-html/sincronia-video.ts",
+    "src/lib/video-html/__tests__/sincronia-video.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elementosDeParches(parches, autor, t)` convierte parches JSON del evento `patch` del SDK (op add/remove/replace, nunca move/copy/test) en `ElementoSala` de src/lib/salas/sincronia-sala.ts (id `elemento::propiedad`, remove → lápida) y `parchesDeEstado(estadoFusionado, origen)` hace lo contrario para `comp.applyPatches` con el origen `@hyperframes/sdk:applyPatches`, para que un cambio remoto no vuelva a emitirse. Usa `fusionarEstados`. Prueba: dos editores cambian el mismo título a la vez y ambos convergen al mismo resultado. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "GCA1019F",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Asignaciones por papel y por director, con valores sugeridos de MetaGenesis",
+   "archivos": [
+    "src/lib/genesis/conectores/asignaciones.ts",
+    "src/lib/genesis/conectores/__tests__/asignaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Tipos y funciones PURAS: papeles (`escritor`, `revisor`, `chat`, `vision`, `voz`, `imagen`, `codigo`) y directores (`chat`, `optimizador`, `diseno`, `produccion`, `nube`, `medidores`, `aprendizaje`); `Asignacion` { clave, cadena: string[] (candidatos en orden), respaldo: string[], preferencias }. `sugeridas()` con cadenas que empiezan por Astraura local y siguen con las gratis del catálogo; `fusionarConAmbito(sugeridas, delAmbito)` (lo del ámbito manda, valida ids contra el catálogo y descarta los desconocidos con aviso). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019A"
+   ]
+  },
+  {
+   "id": "GCA1019V",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Biblioteca vinculable: datos para conectar cada paquete",
+   "archivos": [
+    "src/lib/library/vincular.ts",
+    "src/lib/library/__tests__/vincular.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Tipo `VinculoPaquete` { requiereClave, enlaceAlta, enlaceClave, gratis, variables, opcionId } y `vinculoDe(paquete, catalogo)` que lo deduce del catálogo de opciones o de `payload.catalogSourceId`; `instalableEnAmbito(paquete, ambito, vinculadas)`. No modifiques `packages.ts`. Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019A"
+   ]
+  },
+  {
+   "id": "RFI1018E",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Referencias · portadas sin rastreo (generadas por el OS; la del sitio solo al abrir)",
+   "archivos": [
+    "src/lib/library/referencias/portada.ts",
+    "src/lib/library/referencias/__tests__/portada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `portadaGenerada(entrada)` → { degradado (dos colores StarSeed derivados del dominio, determinista), iniciales, icono del tipo }; `portadaRemota(entrada, abierta)` devuelve la og_imagen SOLO si la persona abrió la tarjeta (si no, null) y nunca para una entrada cuyo `prohibido` incluya caché; vídeos de YouTube por youtube-nocookie.com. Pruebas. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "HFR1018B",
+   "GCA1019F",
+   "GCA1019V",
+   "HFR1018J",
+   "HFR1018A",
+   "RFI1018E",
+   "SUC1018F-d2"
+  ]
+ }
+}
