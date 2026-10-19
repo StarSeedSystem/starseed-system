@@ -1,3 +1,5 @@
+// Composición centrada y adaptable por aparato
+// Ancho máximo 1186 px y ancho de lectura 65 ch, margen mínimo 16 px en teléfono
 export type TipoAparato = "telefono" | "tableta" | "escritorio" | "grande" | "xr";
 
 export type TipoVentana = "dialogo" | "ventana" | "hoja" | "panel-lateral";
@@ -24,9 +26,12 @@ export interface GeometriaVentanaReturn {
 export function tipoAparato({ ancho, alto, puntero, xr }: { ancho: number; alto: number; puntero: boolean; xr: boolean }): TipoAparato {
   // Realidad extendida tiene prioridad
   if (xr) return "xr";
-  // Umbrales por ancho con prioridad del centro compositivo
+  // Teléfono siempre por ancho estrecho
   if (ancho < 430) return "telefono";
-  if (ancho < 768) return "tableta";
+  // Con puntero, el umbral de tableta sube a escritorio
+  if (ancho < 768) {
+    return puntero ? "escritorio" : "tableta";
+  }
   if (ancho < 1280) return "escritorio";
   return "grande";
 }
@@ -121,7 +126,11 @@ export interface ZonaPulgar {
 }
 
 export function zonaPulgar(viewport: Viewport): ZonaPulgar {
-  // Placeholder implementation
+  const isPhone = viewport.ancho < 430;
+  if (!isPhone) {
+    return { x: 0, y: 0, ancho: 0, alto: 0 };
+  }
+  // Zona inferior para acciones con el pulgar en teléfono
   return {
     x: 0,
     y: viewport.alto - 140,
