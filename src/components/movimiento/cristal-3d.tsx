@@ -1,23 +1,22 @@
 "use client";
 
-import { Canvas, useFrame, useRef } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useEffect, useState } from "react";
-
-const reduced = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+import { useEffect, useState, useRef } from "react";
 
 export function Cristal3D() {
+  const [reduced, setReduced] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
   const mountRef = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    if (!mountRef.current) return;
-    const observer = new IntersectionObserver(
-      (entry) => setVisible(entry.isIntersecting),
-      { threshold: 0.1 }
-    );
-    observer.observe(mountRef.current);
-    return () => observer.disconnect();
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
   }, []);
 
   useEffect(() => {
@@ -30,25 +29,20 @@ export function Cristal3D() {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio ?? 1, 2));
 
-    // Luz ambiente
     scene.add(new THREE.AmbientLight(0xffffff, 0.25));
 
-    // Luz clave (cálida)
     const clave = new THREE.DirectionalLight(0xffbf00, 1.2);
     clave.position.set(4, 5, 6);
     scene.add(clave);
 
-    // Luz de llenado
     const relleno = new THREE.DirectionalLight(0xf8f9fa, 0.4);
     relleno.position.set(-5, 2, 4);
     scene.add(relleno);
 
-    // Luz contra (color del registro / zenith)
     const contra = new THREE.PointLight(0x007fff, 30, 20);
     contra.position.set(0, 2, -4);
     scene.add(contra);
 
-    // Octaedro de cristal
     const octa = new THREE.Mesh(
       new THREE.OctahedronGeometry(1.1, 0),
       new THREE.MeshPhysicalMaterial({
@@ -63,7 +57,6 @@ export function Cristal3D() {
     );
     scene.add(octa);
 
-    // Retícula de nodos instanciados
     const lado = reduced ? 3 : window.innerWidth > 640 ? 6 : 4;
     const paso = 0.9;
     const n = lado ** 3;
@@ -74,18 +67,19 @@ export function Cristal3D() {
     );
     scene.add(nodos);
 
-    const origen = new Float32Array(n * 3);
-    const destino = new Float32Array(n * 3);
-    const destinoPos = [];
+    const origen: THREE.Vector3[] = [];
+    const destino: THREE.Vector3[] = [];
     for (let i = 0; i < n; i++) {
       const x = (i % lado - (lado - 1) / 2) * paso;
       const y = Math.floor(i / lado % lado - (lado - 1) / 2) * paso;
       const z = Math.floor(i / (lado * lado) - (lado - 1) / 2) * paso;
-      origen[i * 3] = x;
-      origen[i * 3 + 1] = y;
-      origen[i * 3 + 2] = z;
-      const p = new THREE.Vector3(x, y, z);
-      destinoPos.push(p);
+      origen.push(new THREE.Vector3(x, y, z));
+      destino.push(
+        new THREE.Vector3()
+          .copy(origen[i])
+          .multiplyScalar(2.5)
+          .add(new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(4))
+      );
     }
 
     const suave = (t: number) => 1 - Math.pow(1 - Math.min(Math.max(t, 0), 1), 3);
@@ -93,29 +87,23 @@ export function Cristal3D() {
     let start = performance.now();
     useFrame((state) => {
       const t = reduced ? 99 : (state.clock.getElapsedTime() - start) / 1000;
-      const k = suave(t / 3); // 3 s para cristalizar
+      const k = suave(t / 3);
       for (let i = 0; i < n; i++) {
-        const p = new THREE.Vector3()
-          .copy(destinoPos[i])
-          .lerp(new THREE.Vector3().fromArray(origen, i * 3), k);
+        const p = origen[i].clone().lerp(destino[i], k);
         const m = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z);
         nodos.setMatrixAt(i, m);
       }
       nodos.instanceMatrix.needsUpdate = true;
 
-      // Respiración del octaedro
       const respira = 1 + 0.03 * Math.sin(t * (2 * Math.PI / 5));
       octa.scale.setScalar(respira);
-      // Órbita ligera solo cuando no hay reduced motion
       if (!reduced) {
         octa.rotation.y = -t * 0.3;
         scene.rotation.y = t * (2 * Math.PI / 16);
       }
     });
 
-    // Loop de renderizado
     const animate = (time: number) => {
-      if (!visible) return;
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     };
@@ -128,7 +116,7 @@ export function Cristal3D() {
       octa.geometry.dispose();
       octa.material.dispose();
     };
-  }, [reduced, visible]);
+  }, [reduced]);
 
   return <canvas ref={mountRef} style={{ width: "100%", height: "400px" }} />;
 }
