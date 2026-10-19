@@ -24,6 +24,7 @@ import {
     type PostBlock,
 } from "@/lib/creation/post-blocks";
 import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
+import { blockHasContent } from "@/components/creation/lienzo-composer";
 import { astrauraChat } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
 import { loadLeaflet, type LeafletNS } from "@/lib/map/leaflet-loader";
