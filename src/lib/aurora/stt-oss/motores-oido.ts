@@ -29,7 +29,7 @@ export function elegirOido(opciones: OpcionesEleccionOido): ResultadoOido {
     const conFlujo = candidatosFiltrados.filter(c => c.flujo).sort((a, b) => (medidas[a.id] ?? Infinity) - (medidas[b.id] ?? Infinity));
     if (conFlujo[0]) return { motor: conFlujo[0].id, motivo: `fase parcial: menor latencia medida (${conFlujo[0].id}, flujo=${conFlujo[0].flujo})` };
   }
-  const orden = idioma === 'en' ? ['phonon-2','parakeet-v3','vibeasr-158','whisper-web','navegador','malla'] : ['parakeet-v3','vibeasr-158','phonon-2','whisper-web','navegador','malla'];
+  const orden = idioma === 'en' ? ['phonon-2', 'voicestudio', 'parakeet-v3', 'moonshine', 'vibeasr-158', 'whisper-web', 'navegador', 'malla'] : ['parakeet-v3', 'voicestudio', 'vibeasr-158', 'phonon-2', 'moonshine', 'whisper-web', 'navegador', 'malla'];
   for (const id of orden) {
     const m = candidatosFiltrados.find(c => c.id === id);
     if (m) return { motor: m.id, motivo: idioma === 'en' ? `inglés: ${m.id} por defecto` : `fase final: mayor precisión para ${idioma} (${m.id})` };
