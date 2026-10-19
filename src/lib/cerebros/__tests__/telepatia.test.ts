@@ -15,53 +15,59 @@ const vinculoValido = {
 };
 
 describe('validarVinculo', () => {
-  it('acepta vinculo válido', () => {
-    const r = validarVinculo(vinculoValido);
-    expect(r.ok).toBe(true);
-  });
+    it('acepta vinculo válido', () => {
+      const r = validarVinculo(vinculoValido);
+      expect(r.ok).toBe(true);
+    });
 
-  it('rechaza no objeto', () => {
-    expect(validarVinculo(null).ok).toBe(false);
-  });
+    it('rechaza no objeto', () => {
+      expect(validarVinculo(null).ok).toBe(false);
+    });
 
-  it('rechaza id vacío', () => {
-    const v = { ...vinculoValido, id: '' };
-    expect(validarVinculo(v).ok).toBe(false);
-  });
+    it('rechaza id vacío', () => {
+      const v = { ...vinculoValido, id: '' };
+      expect(validarVinculo(v).ok).toBe(false);
+    });
 
-  it('rechaza destino tipo inválido', () => {
-    const v = { ...vinculoValido, destino: { tipo: 's', id: '1' } };
-    expect(validarVinculo(v).ok).toBe(false);
-  });
+    it('rechaza destino tipo inválido', () => {
+      const v = { ...vinculoValido, destino: { tipo: 's', id: '1' } };
+      expect(validarVinculo(v).ok).toBe(false);
+    });
 
-  it('rechaza alcance vacío cuando no completo', () => {
-    const v = { ...vinculoValido, alcance: { completo: false, memorias: [], carpetas: [], configuraciones: [] } };
-    expect(validarVinculo(v).ok).toBe(false);
-  });
+    it('rechaza alcance vacío cuando no completo', () => {
+      const v = { ...vinculoValido, alcance: { completo: false, memorias: [], carpetas: [], configuraciones: [] } };
+      expect(validarVinculo(v).ok).toBe(false);
+    });
 
-  it('rechaza configuración fuera de lista', () => {
-    const v = { ...vinculoValido, alcance: { completo: false, memorias: ['m1'], carpetas: [], configuraciones: ['no-existe' as any] } };
-    expect(validarVinculo(v).ok).toBe(false);
-  });
+    it('rechaza configuración fuera de lista', () => {
+      const v = { ...vinculoValido, alcance: { completo: false, memorias: ['m1'], carpetas: [], configuraciones: ['no-existe' as any] } };
+      expect(validarVinculo(v).ok).toBe(false);
+    });
 
-  it('rechaza fecha ISO inválida', () => {
-    const v = { ...vinculoValido, creadoEn: '2023-01-01' };
-    expect(validarVinculo(v).ok).toBe(false);
+    it('rechaza fecha ISO inválida', () => {
+      const v = { ...vinculoValido, creadoEn: '2023-01-01' };
+      expect(validarVinculo(v).ok).toBe(false);
+    });
   });
-});
 
 describe('normalizarVinculos', () => {
-  it('devuelve [] para null', () => {
-    expect(normalizarVinculos(null)).toEqual([]);
-  });
+    it('devuelve [] para null', () => {
+      expect(normalizarVinculos(null)).toEqual([]);
+    });
 
-  it('filtra inválidos', () => {
-    const config = { telepatia: [vinculoValido, { id: '' }] };
-    const res = normalizarVinculos(config);
-    expect(res).toHaveLength(1);
-    expect(res[0].id).toBe('v1');
+    it('devuelve [] para entrada no objeto', () => {
+      expect(normalizarVinculos('bad' as any)).toEqual([]);
+      expect(normalizarVinculos(123 as any)).toEqual([]);
+      expect(normalizarVinculos([] as any)).toEqual([]);
+    });
+
+    it('filtra inválidos', () => {
+      const config = { telepatia: [vinculoValido, { id: '' }] };
+      const res = normalizarVinculos(config);
+      expect(res).toHaveLength(1);
+      expect(res[0].id).toBe('v1');
+    });
   });
-});
 
 describe('conVinculo', () => {
   it('añade vínculo', () => {
