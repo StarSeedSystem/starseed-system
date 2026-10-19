@@ -15,7 +15,8 @@ describe('ordenesMontaje', () => {
     
     const resultado = ordenesMontaje(params);
     expect(resultado).toBeDefined();
-    // Más aserciones se agregarán conforme se implemente la función
+    // Verificamos que el comando de montaje sea correcto
+    expect(resultado.montaje.textoParaCopiar).toBe(`mount_webdav https://example.com/webdav /home/usuario/montaje`);
   });
   
   it('debe generar órdenes válidas para windows con webdav', () => {
@@ -46,6 +47,40 @@ describe('ordenesMontaje', () => {
     
     const resultado = ordenesMontaje(params);
     expect(resultado).toBeDefined();
+    expect(resultado.montaje.textoParaCopiar).toContain('-o ro');
+  });
+  
+  it('debe generar órdenes válidas para windows con webdav readonly', () => {
+    const params = {
+      sistema: 'windows',
+      origen: {
+        tipo: 'webdav',
+        url: 'https://example.com/webdav'
+      },
+      punto: 'C:\\montaje',
+      soloLectura: true
+    };
+    
+    const resultado = ordenesMontaje(params);
+    expect(resultado).toBeDefined();
+    expect(resultado.montaje.textoParaCopiar).toContain('/readonly');
+  });
+  
+  it('debe generar órdenes válidas para macOS con rclone readonly', () => {
+    const params = {
+      sistema: 'macos',
+      origen: {
+        tipo: 'rclone',
+        remoto: 'miremoto',
+        url: 'ruta/dentro'
+      },
+      punto: '/mnt/mi-montaje',
+      soloLectura: true
+    };
+    
+    const resultado = ordenesMontaje(params);
+    expect(resultado).toBeDefined();
+    expect(resultado.montaje.textoParaCopiar).toContain('--read-only');
   });
   
   it('debe lanzar un error si el punto de montaje contiene ".."', () => {

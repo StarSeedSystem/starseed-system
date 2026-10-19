@@ -108,10 +108,13 @@ export function ordenesMontaje(params: z.input<typeof esquemaEntrada>): Resultad
         break;
 
       case 'windows':
-        // net use * URL (se pedirán credenciales o se usarán de credenciales guardadas)
+        // net use * URL [/readonly] (se pedirán credenciales o se usarán de credenciales guardadas)
         // Usamos * para que asigne la próxima letra disponible
         montajeArgs = ['net', 'use', '*', url];
-        montajeTexto = `net use * ${url}`;
+        if (soloLectura) {
+          montajeArgs.push('/readonly');
+        }
+        montajeTexto = `net use * ${url}${soloLectura ? ' /readonly' : ''}`;
         // net use * URL /delete
         desmontajeArgs = ['net', 'use', '*', url, '/delete'];
         desmontajeTexto = `net use * ${url} /delete`;
@@ -133,18 +136,24 @@ export function ordenesMontaje(params: z.input<typeof esquemaEntrada>): Resultad
 
     switch (sistema) {
       case 'macos':
-        // rclone nfsmount REMOTE:PATH MOUNT_POINT --vfs-cache-mode full
+        // rclone nfsmount REMOTE:PATH MOUNT_POINT --vfs-cache-mode full [--read-only]
         montajeArgs = ['rclone', 'nfsmount', rutaRemota, punto, '--vfs-cache-mode', 'full'];
-        montajeTexto = `rclone nfsmount ${rutaRemota} ${punto} --vfs-cache-mode full`;
+        if (soloLectura) {
+          montajeArgs.push('--read-only');
+        }
+        montajeTexto = `rclone nfsmount ${rutaRemota} ${punto} --vfs-cache-mode full${soloLectura ? ' --read-only' : ''}`;
         // umount MOUNT_POINT
         desmontajeArgs = ['umount', punto];
         desmontajeTexto = `umount ${punto}`;
         break;
 
       case 'linux':
-        // rclone mount REMOTE:PATH MOUNT_POINT --vfs-cache-mode full
+        // rclone mount REMOTE:PATH MOUNT_POINT --vfs-cache-mode full [--read-only]
         montajeArgs = ['rclone', 'mount', rutaRemota, punto, '--vfs-cache-mode', 'full'];
-        montajeTexto = `rclone mount ${rutaRemota} ${punto} --vfs-cache-mode full`;
+        if (soloLectura) {
+          montajeArgs.push('--read-only');
+        }
+        montajeTexto = `rclone mount ${rutaRemota} ${punto} --vfs-cache-mode full${soloLectura ? ' --read-only' : ''}`;
         // fusermount -u MOUNT_POINT o umount MOUNT_POINT
         desmontajeArgs = ['fusermount', '-u', punto];
         desmontajeTexto = `fusermount -u ${punto}`;
