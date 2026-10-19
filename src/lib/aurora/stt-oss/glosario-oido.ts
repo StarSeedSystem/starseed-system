@@ -117,10 +117,23 @@ export function corregirConGlosario(
           const longitudReferencia = Math.max(dosPalabrasNormalizadas.length, candidatoNormalizado.length);
           const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
           
-          // Buscar la mejor coincidencia
-          if (distanciaNormalizada <= 0.50 && distanciaNormalizada < mejorDistancia) {
-            mejorDistancia = distanciaNormalizada;
-            sugerencia = candidato;
+          // Buscar la mejor coincidencia, priorizando términos más largos
+          // (las faltas de STT suelen perder letras, no ganarlas)
+          // Para frases de 2 palabras, usar umbral más estricto (0.34)
+          if (distanciaNormalizada <= 0.34) {
+            if (distanciaNormalizada < mejorDistancia - 0.05) {
+              // Mejor distancia claramente superior
+              mejorDistancia = distanciaNormalizada;
+              sugerencia = candidato;
+            } else if (Math.abs(distanciaNormalizada - mejorDistancia) <= 0.05) {
+              // Distancias similares: preferir candidato más largo
+              const candidatoActualLen = candidatoNormalizado.length;
+              const sugerenciaActualLen = sugerencia ? normalizar(sugerencia).length : 0;
+              if (candidatoActualLen > sugerenciaActualLen) {
+                mejorDistancia = distanciaNormalizada;
+                sugerencia = candidato;
+              }
+            }
           }
         }
         
@@ -155,10 +168,21 @@ export function corregirConGlosario(
           const longitudReferencia = Math.max(unaPalabraNormalizada.length, candidatoNormalizado.length);
           const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
           
-          // Buscar la mejor coincidencia
-          if (distanciaNormalizada <= 0.50 && distanciaNormalizada < mejorDistancia) {
-            mejorDistancia = distanciaNormalizada;
-            sugerencia = candidato;
+          // Buscar la mejor coincidencia, priorizando términos más largos
+          if (distanciaNormalizada <= 0.50) {
+            if (distanciaNormalizada < mejorDistancia - 0.05) {
+              // Mejor distancia claramente superior
+              mejorDistancia = distanciaNormalizada;
+              sugerencia = candidato;
+            } else if (Math.abs(distanciaNormalizada - mejorDistancia) <= 0.05) {
+              // Distancias similares: preferir candidato más largo
+              const candidatoActualLen = candidatoNormalizado.length;
+              const sugerenciaActualLen = sugerencia ? normalizar(sugerencia).length : 0;
+              if (candidatoActualLen > sugerenciaActualLen) {
+                mejorDistancia = distanciaNormalizada;
+                sugerencia = candidato;
+              }
+            }
           }
         }
         
