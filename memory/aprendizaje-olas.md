@@ -4477,3 +4477,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTCOL1012Ae` — no escribió nada
 - `PG1013F` — otra cosa: sin decisión en 0 h; rama ola/PG1013F conservada
+
+## 2026-10-19 23:30 · mg-oracle-1019-1625
+
+**Lo que se pidió.** confirma tu plan de LottieFiles
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- freellmapi/auto no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RFI1018I` — los tipos no compilan: 11 errores tsc (rama ola/RFI1018I conservada)
+- `RFI1018H` — otra cosa: sin decisión en 0 h; rama ola/RFI1018H conservada
+- `RTRTCOL1012Bdsbbbbbbbbbbbb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/RTRTCOL1012Bdsbbbbbbbbbbbb conservada)
+- `RTS1010-EV-ORACLE-1acf` — no escribió nada
