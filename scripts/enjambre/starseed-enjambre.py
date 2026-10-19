@@ -145,21 +145,7 @@ def _node_del_repo():
     return None
 
 
-def heap_tsc_mb(node_options, defecto=2560):
-    """PURA. El montón de tsc lo marca el MEDIO: el `NODE_OPTIONS` con que se lanzó el orquestador
-    (la nube 6144, el A1 4096) y, si no dice nada o dice menos, el de la Mac (2560).
-
-    (2026-10-14, medido en el run 38611110290) `ENV_TSC` era 2560 en todos los medios y pisaba el
-    `NODE_OPTIONS` del job: en la nube (runner de 16 GB) el tsc de la puerta moría por memoria con
-    2560 y con 3584, dos de cada tres tareas salían «tsc no terminó (sin memoria)», gastaban su
-    envío a la nube y acababan «agotadas»: la nube se quedó sin nada que coger."""
-    m = re.search(r"--max-old-space-size[= ](\d+)", node_options or "")
-    return max(defecto, int(m.group(1))) if m else defecto
-
-
-#: Lo que se pide en el reintento por memoria: nunca menos de 3584 ni menos que el del medio.
-TSC_HEAP_MB = heap_tsc_mb(os.environ.get("NODE_OPTIONS"))
-ENV_TSC = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=%d" % TSC_HEAP_MB}
+ENV_TSC = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=2560"}
 _PATH_NODE = _node_del_repo()
 if _PATH_NODE:
     ENV_TSC["PATH"] = _PATH_NODE
@@ -4045,6 +4031,63 @@ def tsc(cwd, log):
             )
         errores = [l for l in out.splitlines() if l.strip()] if rc != 0 else []
         return rc, errores
+    # Check if we should use A1 for TypeScript checking (TRA1012Bb)
+    uso_a1 = (
+        os.environ.get("STARSEED_MEDIO") == "mac"
+        and os.path.isfile(os.path.join(ROOT, "scripts", "puente", "comprobar_en_a1.py"))
+    )
+    if uso_a1:
+        try:
+            # Import the comprobar function dynamically to avoid circular imports
+            ruta_puente = os.path.join(ROOT, "scripts", "puente")
+            if ruta_puente not in sys.path:
+                sys.path.insert(0, ruta_puente)
+            from comprobar_en_a1 import comprobar
+            
+            # Extract task information from worktree
+            tid = os.path.basename(cwd)
+            
+            # Get base SHA (main of worktree)
+            rc_base, base_sha = sh(["git", "rev-parse", "main"], cwd=cwd, timeout=10)
+            base_sha = base_sha.strip() if rc_base == 0 else ""
+            
+            # Get SHAs of task commits (main..HEAD)
+            rc_shas, shas_output = sh(["git", "rev-list", "main..HEAD"], cwd=cwd, timeout=10)
+            shas = shas_output.strip().splitlines() if rc_shas == 0 else []
+            
+            # Get changed files (main...HEAD)
+            rc_cambiados, cambiados_output = sh(["git", "diff", "--name-only", "main...HEAD"], cwd=cwd, timeout=10)
+            cambiados = [c.strip() for c in cambiados_output.strip().splitlines() if c.strip()] if rc_cambiados == 0 else []
+            
+            # Ask A1 to perform the check
+            inicio_a1 = time.time()
+            ok, detalle, del_medio = comprobar(
+                base_sha, shas, cambiados, timeout=900, cwd=cwd
+            )
+            tiempo_a1 = time.time() - inicio_a1
+            
+            # Annotate where the check was done
+            medio_ejecucion = "A1" if not del_medio else "Mac"
+            evento(
+                "aviso",
+                tid,
+                f"puerta tsc realizada en {medio_ejecucion} ({tiempo_a1:.1f}s)"
+            )
+            
+            # If we got a definitive result from A1 (not a medium failure), use it
+            if not del_medio:  # A1 responded with green or red
+                return (0 if ok else 1, [detalle] if not ok else [])
+            # If A1 had a medium failure (busy, no response), fall back to local tsc
+            # (continuar con el tsc local de abajo)
+        except Exception as e:
+            # If anything goes wrong with the A1 check, fall back to local tsc
+            evento(
+                "aviso",
+                os.path.basename(cwd) if 'cwd' in locals() else "unknown",
+                f"Error al comprobar en A1, usando tsc local: {str(e)[:100]}"
+            )
+    
+     # Ejecución local de tsc (lógica original o alternativa ante falla de medio)
     env = ENV_TSC
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
@@ -4062,7 +4105,7 @@ def tsc(cwd, log):
         if intento == 0:
             # Una segunda vuelta con más montón si fue la memoria, tras dejar respirar a la Mac.
             if "memoria" in motivo:
-                env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=%d" % max(3584, TSC_HEAP_MB))
+                env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=3584")
             time.sleep(30)
     return rc, [
         "%s (%s): la puerta no da el visto bueno sin un tsc completo"
