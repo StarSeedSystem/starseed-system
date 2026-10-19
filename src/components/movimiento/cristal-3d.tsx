@@ -9,7 +9,7 @@ export function Cristal3D() {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   });
-  const mountRef = useRef<HTMLDivElement>(null);
+  const mountRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
