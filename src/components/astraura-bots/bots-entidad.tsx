@@ -13,6 +13,7 @@ import { acotar, esOrigen, esSentido, FORMAS_CUERPO, RASGOS, type Bot, type Form
 import { modoDe, proponer, propuestasDe } from "@/lib/genesis/entidades";
 import { TIPOS_OPERACION, validarOperacion, type Ambito, type EntidadAmbito } from "@/lib/genesis/operaciones";
 import { EditorBot } from "./editor-bot";
+import { CuerpoBot } from "./cuerpo-bot";
 
 type Delegado = "bajo" | "medio" | null;
 export type ParcheBot = Partial<Pick<Bot, "nombre" | "personalidad" | "cuerpo" | "sentidosHabilitados" | "activo">> & { nivel?: NivelBot; delegado?: Delegado };
