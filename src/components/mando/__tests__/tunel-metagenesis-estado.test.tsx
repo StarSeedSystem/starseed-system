@@ -97,6 +97,44 @@ describe("TunelMetaGenesisEstado", () => {
     expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
   });
 
+  it("no muestra la sección de últimas líneas cuando el túnel está parado", async () => {
+    // Cambiar el mock para devolver servicio no cargado
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      llamadas.push({ url, init });
+      
+      if (url.includes("/api/mando/tunel-metagenesis")) {
+        return {
+          ok: true,
+          json: async () => ({
+            cargado: false,
+            pid: null,
+            ultimasLineas: [" Línea 1 ", " Línea 2 "], // Con líneas pero servicio no cargado
+            medidoEn: new Date().toISOString()
+          })
+        } as Response;
+      }
+      
+      return {
+        ok: true,
+        json: async () => ({})
+      } as Response;
+    };
+    
+    render(<TunelMetaGenesisEstado />);
+    
+    // Esperar a que se haga la primera llamada
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+    
+    // Verificar que muestra el estado parado
+    expect(screen.getByText(/Túnel de MetaGenesis: parado/i)).toBeInTheDocument();
+    
+    // Verificar que NO muestra la sección de últimas líneas
+    expect(screen.queryByText(/últimas líneas:/i)).not.toBeInTheDocument();
+  });
+
   it("realiza fetch cada 60 segundos cuando el componente está visible", async () => {
     vi.useFakeTimers();
     
