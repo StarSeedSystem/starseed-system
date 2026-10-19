@@ -25,6 +25,7 @@ import {
     type GrupoBloqueada,
     type ResumenBloqueadas,
 } from "./bloqueadas";
+import { CONTENEDORES_OPCIONES } from "@/lib/genesis/conectores/contenedores";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -2550,7 +2551,7 @@ export function detalleDeMedidor(
                     : "sin medir todavía: pulsa «Buscar más capacidad en todos los medios»",
                 filas,
                 acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la flota", "flota")],
-                vacio: "Ningún contenedor medido aún. «Buscar más capacidad en todos los medios» sondea GitHub Actions, Hugging Face, Cloud Run y Colab.",
+                vacio: `Ningún contenedor medido aún. «Buscar más capacidad en todos los medios» sondea ${CONTENEDORES_OPCIONES.map(o => o.nombre).join(", ")}.`,
             };
         }
 
