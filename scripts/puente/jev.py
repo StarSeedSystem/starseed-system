@@ -448,14 +448,12 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
         if respuestas is not None:
             medio_usado = "local"
     # Capa local Laya (SystemOne) antes del Jev remoto
-        # Skips laya if local module present, only attempt when no local module (jl is None)
-        if respuestas is None and jl is None and intenta_laya:
-            resp_laya = decidir_con_laya(estado, preguntas)
-            if resp_laya is not None:
-                respuestas = resp_laya
-                medio_usado = "laya-local"
-        # Escalada obligatoria: si no hay respuesta y no se forzó solo local.
-
+    if respuestas is None and intenta_laya:
+        resp_laya = decidir_con_laya(estado, preguntas)
+        if resp_laya is not None:
+            respuestas = resp_laya
+            medio_usado = "laya-local"
+    # Escalada obligatoria: si no hay respuesta y no se forzó solo local.
     if respuestas is None and intenta_open:
         respuestas, _cruda = _intenta_openrouter(estado, preguntas, t0, quien=quien)
         if respuestas is not None:
