@@ -4,7 +4,7 @@ import {
   abiertosEnEstaNeurona,
   marcarAbierto,
   migrarAbiertosDesdeAntigua,
-} from "../sincronia-bots";
+} from "../adaptadores/sincronia-bots";
 import type { Bot } from "../tipos";
 
 function botEjemplo(id: string): Bot {
