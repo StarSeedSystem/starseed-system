@@ -1,0 +1,88 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "VPU1019I",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Migración os_variaciones (autorizada por Alex el 2026-10-19; Claude la aplica y prueba la RLS al aterrizar)",
+   "archivos": [
+    "supabase/migrations/20261019130000_os_variaciones.sql"
+   ],
+   "depende": [],
+   "prompt": "Tablas `os_variaciones` (id, clave text, familia, tipo: variacion|nota|repo|fuente|adaptacion, titulo, descripcion, payload jsonb ≤ 256 KB, version, de_variacion uuid, licencia, enlace_externo, etiquetas text[], tema, autor uuid, publicado_en, usos int, valoracion_media, valoraciones int) con índices por clave y por (clave, publicado_en), y `os_variaciones_valoraciones` (variacion, persona, valor 1–5, única por persona). RLS: lectura pública de lo publicado; escribir, editar y borrar solo el autor; valorar solo con sesión. Comentario al principio: «Autorizada por Alex el 2026-10-19; la aplica Claude tras revisarla». (`library_public_items` ya existe desde la migración 20261019141000.) Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "GCA1019I",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Migración genesis_conectores (autorizada por Alex el 2026-10-19; Claude la aplica y prueba la RLS al aterrizar)",
+   "archivos": [
+    "supabase/migrations/20261019120000_genesis_conectores.sql"
+   ],
+   "depende": [],
+   "prompt": "Tablas con RLS: `genesis_boveda` (ambito_id, proveedor, cifrado bytea, iv, huella text, creada_por, prestada_por, tope, caduca, revocada_en), `genesis_asignaciones` (ambito_id, clave, cadena jsonb, actualizado_por), `genesis_motores_registro` (ambito_id, motor_id, tipo, huella_token, emparejado_en), `genesis_tokens_externos` (ambito_id, huella, alcance text[], caduca, usos, revocado_en) y `genesis_llamadas` (registro sin datos sensibles). Lectura y escritura solo para miembros del ámbito con el permiso de `src/lib/mando/permisos.ts`; nadie lee `cifrado` desde el cliente. Comentario al principio: «Autorizada por Alex el 2026-10-19; la aplica Claude tras revisarla». Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "RFI1018C",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Diseño · principios de usabilidad y de redacción clara, con palabras propias y su referencia",
+   "archivos": [
+    "src/lib/design/principios-referencia.ts",
+    "src/lib/design/__tests__/principios-referencia.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos + comprobaciones PURAS para el Director de diseño: 8 principios de usabilidad inspirados en la referencia `dont-make-me-think` (lo obvio no se piensa, convenciones, páginas que se escanean, menos palabras, navegación que dice dónde estás, clics sin duda…) y 8 reglas de redacción clara inspiradas en `asd-ste100` (frases cortas, voz activa, una instrucción por frase, palabras simples y constantes…), TODO redactado con palabras propias en español, con su id de referencia; nunca citas largas ni texto del libro o del estándar. `revisarTexto(texto)` devuelve avisos medibles (longitud de frase, pasiva frecuente, jerga). Pruebas. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "RFI1018E",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Referencias · portadas sin rastreo (generadas por el OS; la del sitio solo al abrir)",
+   "archivos": [
+    "src/lib/library/referencias/portada.ts",
+    "src/lib/library/referencias/__tests__/portada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `portadaGenerada(entrada)` → { degradado (dos colores StarSeed derivados del dominio, determinista), iniciales, icono del tipo }; `portadaRemota(entrada, abierta)` devuelve la og_imagen SOLO si la persona abrió la tarjeta (si no, null) y nunca para una entrada cuyo `prohibido` incluya caché; vídeos de YouTube por youtube-nocookie.com. Pruebas. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  },
+  {
+   "id": "RFI1018H",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Integraciones · conectores oficiales (MCP y APIs) que cada persona activa con su cuenta",
+   "archivos": [
+    "src/lib/integrations/referencias-conectores.ts",
+    "src/lib/integrations/__tests__/referencias-conectores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Datos + funciones PURAS desde las entradas del catálogo con integración MCP/API (Higgsfield, LottieFiles, Icons8, Mobbin, Refero, Savee, 60fps, Fontshare, Flaticon): { id, nombre, tipo, url, requiere (plan, OAuth, clave por NOMBRE de variable), coste (gratis/pago/créditos), limites, avisos } y `estadoConector(id, conectados)`. Nunca guarda claves ni tokens; nunca activa nada por su cuenta. Prueba. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  },
+  {
+   "id": "RFI1018I",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Instalables · cada recurso entra con su licencia aplicada en cada contexto",
+   "archivos": [
+    "src/lib/library/referencias/instalar-recurso.ts",
+    "src/lib/library/referencias/__tests__/instalar-recurso.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planInstalacion(entrada, recurso, contexto: \"personal\"|\"grupo\"|\"comunidad\"|\"publico\"|\"comercial\")` → { permitido, pasos, avisos, atribucion? }: Motion Primitives (MIT; adaptar `motion/react` a `framer-motion`, ya en el OS), transitions.dev gratis (conservar el comentario), Lottie (Lottie Simple License; en comercial, «confirma tu plan de LottieFiles»), Fontshare (CSS alojada; nunca archivos), Icons8 (enlace en pie o «Acerca de»), Flaticon (atribución; nunca en packs; nunca para IA), SlopMonster (MIT). Las de clase solo-referencia o solo-enlace → no instalables. Pruebas por recurso y contexto. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "RFI1018A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "GCA1019I",
+   "VPU1019I",
+   "RFI1018E",
+   "RFI1018C",
+   "RFI1018H",
+   "RFI1018I"
+  ]
+ }
+}
