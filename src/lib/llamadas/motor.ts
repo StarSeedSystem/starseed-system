@@ -57,6 +57,11 @@ export interface OpcionesMotor {
     colgarAlQuedarSolo?: boolean;
     intervaloStatsMs?: number;
     intervaloNivelMs?: number;
+    /**
+     * Retorna canales directos (sin Supabase) que el motor debe usar.
+     * Si está definido, el motor entra sin intentar abrir canales Supabase.
+     */
+    canalesDirectos?: () => ConexionCanal[];
 }
 
 export interface ResumenLlamada {
@@ -78,6 +83,8 @@ interface CanalMotor {
     tema: string;
     presencia: MetaPresencia[];
     bajas: (() => void)[];
+    /** true si el canal es un enlace directo, no Supabase */
+    directo: boolean;
 }
 
 /** Como mucho estos canales a la vez (miembros + enlace público + uno en mudanza). */
@@ -137,6 +144,7 @@ export class MotorLlamada {
     private readonly opc: OpcionesMotor;
     private readonly iceServers: RTCIceServer[];
     private readonly conTurn: boolean;
+    private readonly canalesDirectos: (() => ConexionCanal[]) | undefined;
 
     private e: EstadoLlamada = ESTADO_INICIAL;
     private parche: Partial<EstadoLlamada> = {};
@@ -183,6 +191,7 @@ export class MotorLlamada {
         this.iceServers = opciones.iceServers ?? servidoresIce();
         this.conTurn = opciones.hayTurn ?? contieneTurn(this.iceServers);
         this.temaActual = opciones.tema ?? null;
+        this.canalesDirectos = opciones.canalesDirectos;
     }
 
     /* ───────────────────────────── Suscripción ───────────────────────────── */
@@ -569,9 +578,34 @@ export class MotorLlamada {
     }
 
     private abrirCanal(tema: string | null): CanalMotor | null {
+        if (this.canalesDirectos) {
+            const conexiones = this.canalesDirectos();
+            for (const conn of conexiones) {
+                const c: CanalMotor = { conn, tema: conn.tema ?? tema ?? `llamada:${this.sesionId}`, presencia: [], bajas: [], directo: true };
+                this.canales.push(c);
+                c.bajas.push(
+                    conn.onPresencia((p) => {
+                        c.presencia = p;
+                        this.alCambiarPresencia(this.presenciaUnida());
+                    }),
+                );
+                c.bajas.push(conn.onSenal((s) => this.alRecibirSenal(s, c)));
+                c.bajas.push(conn.onSuscrito((ok) => this.alCambiarSuscripcion(c, ok)));
+                if (typeof conn.onEstado === "function") {
+                    c.bajas.push(
+                        conn.onEstado((e) => {
+                            if (e === "denegado") this.alDenegarCanal(c);
+                        }),
+                    );
+                }
+                conn.publicar(this.meta());
+                if (typeof conn.estado === "function" && conn.estado() === "denegado") queueMicrotask(() => this.alDenegarCanal(c));
+                return c;
+            }
+        }
         const conn = abrirCanalLlamada(this.sesionId, { clave: this.miId, tema });
         if (!conn) return null;
-        const c: CanalMotor = { conn, tema: conn.tema ?? tema ?? `llamada:${this.sesionId}`, presencia: [], bajas: [] };
+        const c: CanalMotor = { conn, tema: conn.tema ?? tema ?? `llamada:${this.sesionId}`, presencia: [], bajas: [], directo: false };
         this.canales.push(c);
         c.bajas.push(
             conn.onPresencia((p) => {
@@ -671,6 +705,18 @@ export class MotorLlamada {
         if (this.cerrado) return false;
         if (this.canales.length) return true;
         this.unido = Date.now();
+        if (this.canalesDirectos) {
+            const conexiones = this.canalesDirectos();
+            if (conexiones.length > 0) {
+                const conn = conexiones[0];
+                const c: CanalMotor = { conn, tema: conn.tema ?? this.opc.tema ?? `llamada:${this.sesionId}`, presencia: [], bajas: [], directo: true };
+                this.canales.push(c);
+                this.temaActual = c.tema;
+                this.set({ fase: conn.suscrito() ? "esperando" : "conectando" });
+                this.arrancarTemporizadores();
+                return true;
+            }
+        }
         const c = this.abrirCanal(this.opc.tema ?? null);
         if (!c) {
             this.set({ fase: "error", motivoFin: "No se pudo conectar con el servidor de la llamada. Revisa tu conexión y vuelve a intentarlo." });
