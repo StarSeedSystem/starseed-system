@@ -171,7 +171,7 @@ describe("ganchos-ambito (unit tests)", () => {
                 ambitoIdTest,
                 cuerpoTest,
                 tiempoActualMock.toString(),
-                "sha256=abc",
+                "sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 obtenerSecretoNull,
                 obtenerAhoraMock,
                 crearAlmacenMock()
