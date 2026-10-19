@@ -1,6 +1,11 @@
-#!/usr/bin/env python3
-import sys, json
-json.load(sys.stdin)
-for i in ["p1","p2","p3","p4","p5","p6","p7","p8"]:
-    print(f"{i}: aprobado")
-sys.exit(0)
+import sys
+import os
+
+# Añadir scripts/puente al path de forma relativa desde este archivo
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../../../scripts/puente'))
+
+from adn_comprobar import main
+
+if __name__ == '__main__':
+    # Ejecutar el comprobador pasando el directorio actual
+    main(os.path.dirname(__file__))
