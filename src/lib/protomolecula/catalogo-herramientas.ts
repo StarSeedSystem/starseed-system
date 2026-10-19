@@ -1403,6 +1403,37 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     estado: "solo-enlace", motivo: "Licencia Remotion (source-available): uso comercial de pago según el tamaño de la organización. No es de código abierto.",
     verificado: "2026-10-10",
   },
+  {
+    id: "hyperframes", nombre: "HyperFrames", categoria: "video-composicion", tipo: "libreria", origen: "github",
+    descripcion: "Convierte HTML, CSS, medios y animaciones que se pueden «buscar» fotograma a fotograma en vídeo (MP4, WebM, MOV con transparencia, GIF, secuencia PNG, HLS). Un vídeo es un `index.html` con atributos de tiempo (`data-start`, `data-duration`, `data-track-index`, `class=\"clip\"`); el resultado es determinista (la misma entrada da los mismos fotogramas). Es de HeyGen y lo usan en producción.",
+    licencia: "Apache-2.0", codigo: "https://github.com/heygen-com/hyperframes", web: "https://hyperframes.heygen.com",
+    medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: true },
+    integracion: "servicio-local",
+    formatos: { entrada: ["html", "css", "mp4", "png", "mp3", "json"], salida: ["mp4", "webm", "mov", "gif", "png", "hls"] },
+    control: { via: ["cli", "js"], notas: "CLI para renderizado y SDK para edición programática." },
+    actualizacion: { fuente: "npm", ref: "hyperframes", ultimaVersion: "0.8.172", fechaVersion: "2026-10-18" },
+    ia: ["genera-video-desde-html"],
+    estado: "integrable", motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.",
+    verificado: "2026-10-18",
+    avisos: [
+      "telemetría apagada siempre",
+      "MusicGen solo personal",
+      "sin GSAP en el editor del OS"
+    ],
+  },
+  {
+    id: "hyperframes-studio", nombre: "HyperFrames Studio", categoria: "video-composicion", tipo: "app", origen: "github",
+    descripcion: "Editor visual de HyperFrames basado en GSAP para crear animaciones interactivas.",
+    licencia: "Apache-2.0", codigo: "https://github.com/heygen-com/hyperframes", web: "https://hyperframes.heygen.com",
+    medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: false },
+    integracion: "solo-enlace",
+    formatos: { entrada: ["html", "css", "mp4", "png", "mp3", "json"], salida: ["mp4", "webm", "mov", "gif", "png", "hls"] },
+    control: { via: ["js"], notas: "Editor visual que requiere GSAP para funcionalidad completa." },
+    actualizacion: { fuente: "npm", ref: "hyperframes", ultimaVersion: "0.8.172", fechaVersion: "2026-10-18" },
+    ia: [],
+    estado: "solo-enlace", motivo: "depende de GSAP, cuya licencia prohíbe editores visuales de animación",
+    verificado: "2026-10-18",
+  },
 
   // ── animacion-motion ────────────────────────────────────────────
   {
