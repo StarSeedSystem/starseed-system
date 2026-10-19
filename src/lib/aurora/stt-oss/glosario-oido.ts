@@ -94,39 +94,45 @@ export function corregirConGlosario(
     let corregido = false;
     let palabrasConsumidas = 1;
     let sugerencia: string | null = null;
+    let mejorDistancia = Infinity;
 
     // Probar con 2 palabras si es posible
     if (i + 1 < palabras.length) {
-      const dosPalabras = palabras[i] + " " + palabras[i + 1];
+      const palabra1 = palabras[i];
+      const palabra2 = palabras[i + 1];
+      const dosPalabras = palabra1 + " " + palabra2;
       const dosPalabrasNormalizadas = normalizar(dosPalabras);
       
-      // Siempre intentar corregir pares de palabras (la restricción de palabras comunes
-      // se aplica principalmente a correcciones de una sola palabra para evitar
-      // falsos positivos como corregir "star" o "said" individuales)
-      let mejorDistanciaNormalizada = Infinity;
+      // Verificar si las palabras son comunes (evitar falsos positivos)
+      const palabrasNorm = [normalizar(palabra1), normalizar(palabra2)];
+      const algunaComun = palabrasNorm.some(p => 
+        PALABRAS_COMUNES[idioma]?.includes(p)
+      );
       
-      for (const candidato of glosario) {
-        const candidatoNormalizado = normalizar(candidato);
-        
-        // Calcular distancia de edición
-        const distancia = distanciaEdicion(dosPalabrasNormalizadas, candidatoNormalizado);
-        
-        // Normalizar distancia por la longitud de la forma sin espacios ni mayúsculas
-        const longitudReferencia = Math.max(dosPalabrasNormalizadas.length, candidatoNormalizado.length);
-        const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
-        
-        // Si la distancia normalizada es pequeña y es la mejor hasta ahora
-        if (distanciaNormalizada <= 0.34 && distanciaNormalizada < mejorDistanciaNormalizada) {
-          mejorDistanciaNormalizada = distanciaNormalizada;
-          sugerencia = candidato;
+      if (!algunaComun) {
+        for (const candidato of glosario) {
+          const candidatoNormalizado = normalizar(candidato);
+          
+          // Calcular distancia de edición
+          const distancia = distanciaEdicion(dosPalabrasNormalizadas, candidatoNormalizado);
+          
+          // Normalizar distancia por la longitud de la forma sin espacios ni mayúsculas
+          const longitudReferencia = Math.max(dosPalabrasNormalizadas.length, candidatoNormalizado.length);
+          const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
+          
+          // Buscar la mejor coincidencia
+          if (distanciaNormalizada <= 0.34 && distanciaNormalizada < mejorDistancia) {
+            mejorDistancia = distanciaNormalizada;
+            sugerencia = candidato;
+          }
         }
-      }
-      
-      if (sugerencia !== null) {
-        palabrasCorregidas.push(sugerencia);
-        cambios.push(`${dosPalabras} → ${sugerencia}`);
-        corregido = true;
-        palabrasConsumidas = 2;
+        
+        if (sugerencia !== null) {
+          palabrasCorregidas.push(sugerencia);
+          cambios.push(`${dosPalabras} → ${sugerencia}`);
+          corregido = true;
+          palabrasConsumidas = 2;
+        }
       }
     }
     
@@ -139,7 +145,7 @@ export function corregirConGlosario(
       const esPalabraComun = PALABRAS_COMUNES[idioma]?.includes(unaPalabraNormalizada) || false;
       
       if (!esPalabraComun) {
-        let mejorDistanciaNormalizada = Infinity;
+        mejorDistancia = Infinity;
         
         for (const candidato of glosario) {
           const candidatoNormalizado = normalizar(candidato);
@@ -151,9 +157,9 @@ export function corregirConGlosario(
           const longitudReferencia = Math.max(unaPalabraNormalizada.length, candidatoNormalizado.length);
           const distanciaNormalizada = longitudReferencia > 0 ? distancia / longitudReferencia : 0;
           
-          // Si la distancia normalizada es pequeña y es la mejor hasta ahora
-          if (distanciaNormalizada <= 0.34 && distanciaNormalizada < mejorDistanciaNormalizada) {
-            mejorDistanciaNormalizada = distanciaNormalizada;
+          // Buscar la mejor coincidencia
+          if (distanciaNormalizada <= 0.34 && distanciaNormalizada < mejorDistancia) {
+            mejorDistancia = distanciaNormalizada;
             sugerencia = candidato;
           }
         }
