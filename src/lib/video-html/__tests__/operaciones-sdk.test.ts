@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { operacionASdkOrder, SdkOrder } from "../operaciones-sdk";
+import type { Operacion } from "@/lib/protomolecula/tipos";
 
 describe("operacionASdkOrder", () => {
   const makeOperacion = (parametroId: string, accion: any): Operacion => ({
