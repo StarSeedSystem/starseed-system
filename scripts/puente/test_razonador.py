@@ -57,18 +57,28 @@ class Reflejo(Base):
 
 class Juicio(Base):
     def test_juicio_con_jev_y_cierre_del_ciclo(self):
-        jev.TRANSPORTE = lambda c: {"answers": {"q": {"type": "choice", "choice": "reintentar", "probabilities": {"reintentar": 0.8, "descartar": 0.2}, "confidence": 0.7}}, "usage": {}}
-        opcion, probs, conf, eid = razonador.juicio({"tarea": "RS3b"}, "¿qué hacer?", {"reintentar": "…", "descartar": "…"}, dominio="enjambre")
-        self.assertEqual(opcion, "reintentar")
-        razonador.confirmar(eid, True, "se integró")
-        exps = experiencias.leer()
-        self.assertEqual(exps[0]["resultado"], True)
-        self.assertEqual(exps[0]["opciones"], ["reintentar", "descartar"])
-        self.assertEqual(experiencias.calibracion(exps, "jev"), {"0.7": {"n": 1, "aciertos": 1}})
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            jev.TRANSPORTE = lambda c: {"answers": {"q": {"type": "choice", "choice": "reintentar", "probabilities": {"reintentar": 0.8, "descartar": 0.2}, "confidence": 0.7}}, "usage": {}}
+            opcion, probs, conf, eid = razonador.juicio({"tarea": "RS3b"}, "¿qué hacer?", {"reintentar": "…", "descartar": "…"}, dominio="enjambre")
+            self.assertEqual(opcion, "reintentar")
+            razonador.confirmar(eid, True, "se integró")
+            exps = experiencias.leer()
+            self.assertEqual(exps[0]["resultado"], True)
+            self.assertEqual(exps[0]["opciones"], ["reintentar", "descartar"])
+            self.assertEqual(experiencias.calibracion(exps, "jev"), {"0.7": {"n": 1, "aciertos": 1}})
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_sin_jev_none(self):
-        self.assertIsNone(razonador.juicio({"x": 1}, "?", {"a": "", "b": ""}))
-        self.assertIsNone(razonador.si_no({"x": 1}, "?"))
+        # Make laya-local fail by pointing to a non-existent port
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:9999/v1/systemone"
+        try:
+            self.assertIsNone(razonador.juicio({"x": 1}, "?", {"a": "", "b": ""}))
+            self.assertIsNone(razonador.si_no({"x": 1}, "?"))
+        finally:
+            os.environ.pop("STARSEED_LAYA_URL", None)
 
 
 class Deliberacion(Base):
