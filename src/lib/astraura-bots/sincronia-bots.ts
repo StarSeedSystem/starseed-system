@@ -30,16 +30,18 @@ export function fusionarBots(l: BotSync[], r: BotSync[]): BotSync[] {
   const rv = r.filter(esBotValido);
   const lm = new Map(l.map(b => [b.id, b]));
   const rm = new Map(rv.map(b => [b.id, b]));
-  const ids = new Set([...lm.keys(), ...rm.keys()]);
-  const res: BotSync[] = [];
-  for (const id of ids) {
-    const lb = lm.get(id);
-    const rb = rm.get(id);
-    let e: BotSync | undefined;
-    if (lb && rb) e = lb.actualizado >= rb.actualizado ? lb : rb;
-    else if (lb) e = lb;
-    else if (rb) e = rb;
-    if (e) res.push(e);
-  }
+   const ids = new Set([...Array.from(lm.keys()), ...Array.from(rm.keys())]);
+   const idArray = Array.from(ids);
+   const res: BotSync[] = [];
+   for (let i = 0; i < idArray.length; i++) {
+     const id = idArray[i];
+     const lb = lm.get(id);
+     const rb = rm.get(id);
+     let e: BotSync | undefined;
+     if (lb && rb) e = lb.actualizado >= rb.actualizado ? lb : rb;
+     else if (lb) e = lb;
+     else if (rb) e = rb;
+     if (e) res.push(e);
+   }
   return res;
 }

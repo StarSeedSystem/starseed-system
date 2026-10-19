@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { EMOCIONES, RASGOS, SENTIDOS, SENTIDOS_INTIMOS, acotar, esBotDeEntidad, esInvitado, esRol, esSentido } from "../tipos";
 
@@ -23,7 +23,7 @@ describe("núcleo puro de los bots de Astraura", () => {
     expect(src).not.toMatch(/\beval\s*\(|new Function\s*\(|import\s*\(/);
   });
   it.each(NUCLEO)("%s.ts: solo importa del propio núcleo y del núcleo del OS", (n) => {
-    const importados = [...leer(n).matchAll(/from ["']([^"']+)["']/g)].map((m) => m[1]);
+    const importados = Array.from(leer(n).matchAll(/from ["']([^"']+)["']/g), m => m[1]);
     for (const i of importados) expect(i).toMatch(/^(\.\/|@\/lib\/nucleo\/(alcance-memoria|ui-spec|paquete-sistema)$)/);
   });
 });
