@@ -57,7 +57,7 @@ describe("Laya Servidor Local", () => {
   });
 
   it("carga el checkpoint publicado o la exportación propia de LAYA_MODEL_DIR", () => {
-    expect(opcionesCarga({})).toHaveProperty("cacheDir");
-    expect(opcionesCarga({ LAYA_MODEL_DIR: " /modelos/laya-multilingual " })).toEqual({ modelDir: "/modelos/laya-multilingual" });
+     expect(opcionesCarga({} as any)).toHaveProperty("cacheDir");
+     expect(opcionesCarga({ LAYA_MODEL_DIR: " /modelos/laya-multilingual " } as any)).toEqual({ modelDir: "/modelos/laya-multilingual" });
   });
 });
