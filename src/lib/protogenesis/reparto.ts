@@ -3,17 +3,10 @@
  * Módulo puro: sin node:, sin Supabase, sin window.
  * Contratación: architecture/protogenesis.md §2 y architecture/protomolecula.md §3·7·8.
  */
-
 import { Paso, Plan, LIMITES } from "./encargo";
 
 /** Estado de un paso en el proceso. */
-export type EstadoPaso = 
-  | 'pendiente'
-  | 'en-curso'
-  | 'verificando'
-  | 'hecho'
-  | 'fallido'
-  | 'necesita-mano';
+export type EstadoPaso = 'pendiente' | 'en-curso' | 'verificando' | 'hecho' | 'fallido' | 'necesita-mano';
 
 /**
  * Calcula los niveles topológicos del plan.
@@ -23,65 +16,45 @@ export type EstadoPaso =
  */
 export function nivelesDe(plan: Plan): string[][] {
   const { pasos } = plan;
-  if (pasos.length === 0) return [];
-
-  // Construir mapa de paso por id y calcular grados de entrada
+  if (!pasos.length) return [];
   const pasoMap = new Map<string, Paso>();
   const inDegree = new Map<string, number>();
   const adjList = new Map<string, string[]>();
-
   for (const paso of pasos) {
     pasoMap.set(paso.id, paso);
     inDegree.set(paso.id, 0);
     adjList.set(paso.id, []);
   }
-
   for (const paso of pasos) {
     for (const dep of paso.depende) {
-      // dep -> paso
       const dependientes = adjList.get(dep) ?? [];
       dependientes.push(paso.id);
       adjList.set(dep, dependientes);
       inDegree.set(paso.id, (inDegree.get(paso.id) ?? 0) + 1);
     }
   }
-
-  // Cola para nodos con grado de entrada 0
   const queue: string[] = [];
-  for (const id of inDegree.keys()) {
-    const degree = inDegree.get(id);
-    if (degree === 0) {
-      queue.push(id);
-    }
+  for (const [id, degree] of inDegree) {
+    if (degree === 0) queue.push(id);
   }
-  // Orden estable por id
   queue.sort();
-
   const niveles: string[][] = [];
-
-  while (queue.length > 0) {
+  while (queue.length) {
     const nivelActual: string[] = [];
     const nivelSize = queue.length;
-
     for (let i = 0; i < nivelSize; i++) {
       const id = queue.shift()!;
       nivelActual.push(id);
-
       const dependientes = adjList.get(id) ?? [];
       for (const depId of dependientes) {
         const newDegree = (inDegree.get(depId) ?? 0) - 1;
         inDegree.set(depId, newDegree);
-        if (newDegree === 0) {
-          queue.push(depId);
-        }
+        if (newDegree === 0) queue.push(depId);
       }
     }
-
-    // Orden estable por id dentro del nivel
     nivelActual.sort();
     niveles.push(nivelActual);
   }
-
   return niveles;
 }
 
@@ -94,23 +67,10 @@ export function pasosListos(
   plan: Plan,
   estados: Record<string, EstadoPaso>
 ): Paso[] {
-  const listos: Paso[] = [];
-  for (const paso of plan.pasos) {
-    if (estados[paso.id] !== 'pendiente') {
-      continue;
-    }
-    let dependenciasSatisfechas = true;
-    for (const dep of paso.depende) {
-      if (estados[dep] !== 'hecho') {
-        dependenciasSatisfechas = false;
-        break;
-      }
-    }
-    if (dependenciasSatisfechas) {
-      listos.push(paso);
-    }
-  }
-  return listos;
+  return plan.pasos.filter(paso => {
+    if (estados[paso.id] !== 'pendiente') return false;
+    return paso.depende.every(dep => estados[dep] === 'hecho');
+  });
 }
 
 /**
@@ -126,45 +86,24 @@ export function repartirPasos(
   agentes: Array<{ id: string; ocupado: boolean; puede?: string[] }>,
   tope = LIMITES.agentes
 ): Array<{ paso: string; agente: string }> {
-  // Filtrar agentes libres y ordenarlos por id para determinismo
   const agentesLibres = agentes
-    .filter((agente) => !agente.ocupado)
+    .filter(a => !a.ocupado)
     .sort((a, b) => a.id.localeCompare(b.id));
-
-  // Ordenar pasos listos por id para determinismo
   const listosOrdenados = [...listos].sort((a, b) => a.id.localeCompare(b.id));
-
   const asignaciones: Array<{ paso: string; agente: string }> = [];
-  // Copia de agentes libres que vamos a marcar como ocupados durante la asignación
   const agentesDisponibles = [...agentesLibres];
-
   for (const paso of listosOrdenados) {
-    if (asignaciones.length >= tope) {
-      break; // ya alcanzamos el tope
-    }
-
-    // Buscar el primer agente disponible que pueda manejar el átomo del paso
-    const indiceAgente = agentesDisponibles.findIndex((agente) => {
-      // Si puede está definido y no vacío, el átomo debe estar en la lista
-      if (agente.puede && agente.puede.length > 0) {
-        return agente.puede.includes(paso.atomo);
-      }
-      // Si puede está vacío o undefined, puede manejar cualquier átomo
+    if (asignaciones.length >= tope) break;
+    const indiceAgente = agentesDisponibles.findIndex(a => {
+      if (a.puede && a.puede.length > 0) return a.puede.includes(paso.atomo);
       return true;
     });
-
     if (indiceAgente !== -1) {
       const agenteSeleccionado = agentesDisponibles[indiceAgente];
-      asignaciones.push({
-        paso: paso.id,
-        agente: agenteSeleccionado.id,
-      });
-      // Eliminar el agente de la lista de disponibles (ya no está libre para otro paso)
+      asignaciones.push({ paso: paso.id, agente: agenteSeleccionado.id });
       agentesDisponibles.splice(indiceAgente, 1);
     }
-    // Si no encontramos un agente, el paso no se asigna (quedará para la siguiente ronda)
   }
-
   return asignaciones;
 }
 
@@ -180,19 +119,13 @@ export function progreso(
   plan: Plan,
   estados: Record<string, EstadoPaso>
 ): { hechos: number; total: number; enCurso: number; bloqueados: number } {
-  let hechos = 0;
-  let enCurso = 0;
-  let bloqueados = 0;
+  let hechos = 0, enCurso = 0, bloqueados = 0;
   const total = plan.pasos.length;
-
   for (const paso of plan.pasos) {
     const estado = estados[paso.id];
-    if (estado === 'hecho') {
-      hechos++;
-    } else if (estado === 'en-curso' || estado === 'verificando') {
-      enCurso++;
-    } else if (estado === 'pendiente') {
-      // Verificar si está bloqueado: alguna dependencia no es 'hecho'
+    if (estado === 'hecho') hechos++;
+    else if (estado === 'en-curso' || estado === 'verificando') enCurso++;
+    else if (estado === 'pendiente') {
       let bloqueado = false;
       for (const dep of paso.depende) {
         if (estados[dep] !== 'hecho') {
@@ -200,12 +133,8 @@ export function progreso(
           break;
         }
       }
-      if (bloqueado) {
-        bloqueados++;
-      }
+      if (bloqueado) bloqueados++;
     }
-    // Otros estados: 'fallido', 'necesita-mano' no cuentan en enCurso ni bloqueados
   }
-
   return { hechos, total, enCurso, bloqueados };
 }
