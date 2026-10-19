@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { abrirFlujoOido } from "../oido-flujo";
 
 // Mock de WebSocket para pruebas
@@ -8,41 +8,93 @@ class MockWebSocket {
   static readonly OPEN = 1;
   static readonly CLOSED = 3;
   
+  private openCallbacks: Array<() => void> = [];
+  private messageCallbacks: Array<(event: MessageEvent) => void> = [];
+  private errorCallbacks: Array<(event: Event) => void> = [];
+  private closeCallbacks: Array<() => void> = [];
+  
   constructor(url: string) {
     this.url = url;
     this.readyState = MockWebSocket.OPEN;
+    
+    // Simular apertura inmediata
+    setTimeout(() => {
+      this.openCallbacks.forEach(cb => cb());
+    }, 0);
   }
   
   send(data: any) {
-    // Mock implementation
+    // Mock implementation - en una prueba real podríamos almacenar lo enviado
   }
   
   close() {
     this.readyState = MockWebSocket.CLOSED;
+    // Simular cierre
+    setTimeout(() => {
+      this.closeCallbacks.forEach(cb => cb());
+    }, 0);
   }
   
   addEventListener(event: string, callback: (event: any) => void) {
-    // Simular eventos para testing
     if (event === "open") {
-      setTimeout(() => callback({}), 0);
+      this.openCallbacks.push(callback);
     } else if (event === "message") {
-      // Simular mensaje parcial
-      setTimeout(() => callback({ data: JSON.stringify({ partial: "Hola" }) }), 10);
+      this.messageCallbacks.push(callback);
+    } else if (event === "error") {
+      this.errorCallbacks.push(callback);
     } else if (event === "close") {
-      setTimeout(() => callback({}), 20);
+      this.closeCallbacks.push(callback);
     }
   }
   
   removeEventListener() {
     // Mock implementation
   }
+  
+  // Métodos para disparar eventos en las pruebas
+  dispararMensajeParcial() {
+    const mensaje = { partial: "Hola" };
+    const event = new MessageEvent("message", { data: JSON.stringify(mensaje) });
+    this.messageCallbacks.forEach(cb => cb(event));
+  }
+  
+  dispararMensajeFinal() {
+    const mensaje = { final: "Mundo" };
+    const event = new MessageEvent("message", { data: JSON.stringify(mensaje) });
+    this.messageCallbacks.forEach(cb => cb(event));
+  }
+  
+  dispararMensajeDone() {
+    const mensaje = { done: true };
+    const event = new MessageEvent("message", { data: JSON.stringify(mensaje) });
+    this.messageCallbacks.forEach(cb => cb(event));
+  }
 }
 
+// Variable global para almacenar la última instancia de WebSocket creada
+let ultimaInstanciaWS: MockWebSocket | null = null;
+
 describe("abrirFlujoOido", () => {
+  let mockWebSocketCls: typeof MockWebSocket;
+  
+  beforeEach(() => {
+    // Guardar la clase original
+    mockWebSocketCls = MockWebSocket;
+    
+    // Sobrescribir global.WebSocket con nuestro mock para que la función lo use
+    // Pero también necesitamos poder acceder a la instancia creada
+    ultimaInstanciaWS = null;
+  });
+  
+  afterEach(() => {
+    vi.restoreAllMocks();
+    ultimaInstanciaWS = null;
+  });
+  
   it("debería crear un cliente de oído en flujo", () => {
     const config = {
       url: "ws://localhost:8000/v1/audio/stream",
-      WebSocketImpl: MockWebSocket,
+      WebSocketImpl: mockWebSocketCls,
       alParcial: vi.fn(),
       alFinal: vi.fn(),
       alCerrar: vi.fn(),
@@ -59,7 +111,7 @@ describe("abrirFlujoOido", () => {
     const alParcialMock = vi.fn();
     const config = {
       url: "ws://localhost:8000/v1/audio/stream",
-      WebSocketImpl: MockWebSocket,
+      WebSocketImpl: mockWebSocketCls,
       alParcial: alParcialMock,
       alFinal: vi.fn(),
       alCerrar: vi.fn(),
@@ -67,42 +119,49 @@ describe("abrirFlujoOido", () => {
     
     const flujo = abrirFlujoOido(config);
     
-    // Esperar a que se procese el mensaje simulado
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Esperar a que se establezca la conexión
+    await new Promise(resolve => setTimeout(resolve, 10));
     
-    expect(alParcialMock).toHaveBeenCalledWith("Hola");
+    // Acceder a la instancia de WebSocket creada y disparar evento
+    if (ultimaInstanciaWS) {
+      ultimaInstanciaWS.dispararMensajeParcial();
+      
+      // Esperar a que se procese el mensaje
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      expect(alParcialMock).toHaveBeenCalledWith("Hola");
+    } else {
+      // Si no podemos acceder a la instancia, fallamos la prueba
+      expect(true).toBe(false);
+    }
   });
   
   it("debería llamar al callback final al recibir mensaje final", async () => {
     const alFinalMock = vi.fn();
     const config = {
       url: "ws://localhost:8000/v1/audio/stream",
-      WebSocketImpl: MockWebSocket,
+      WebSocketImpl: mockWebSocketCls,
       alParcial: vi.fn(),
       alFinal: alFinalMock,
       alCerrar: vi.fn(),
     };
     
-    // Sobrescribir el mock para simular mensaje final
-    const originalAddEventListener = MockWebSocket.prototype.addEventListener;
-    MockWebSocket.prototype.addEventListener = function(event: string, callback: (event: any) => void) {
-      if (event === "message") {
-        setTimeout(() => callback({ data: JSON.stringify({ final: "Mundo" }) }), 10);
-      } else {
-        originalAddEventListener.call(this, event, callback);
-      }
-    };
+    const flujo = abrirFlujoOido(config);
     
-    try {
-      const flujo = abrirFlujoOido(config);
+    // Esperar a que se establezca la conexión
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    // Acceder a la instancia de WebSocket creada y disparar evento
+    if (ultimaInstanciaWS) {
+      ultimaInstanciaWS.dispararMensajeFinal();
       
-      // Esperar a que se procese el mensaje simulado
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Esperar a que se procese el mensaje
+      await new Promise(resolve => setTimeout(resolve, 10));
       
       expect(alFinalMock).toHaveBeenCalledWith("Mundo");
-    } finally {
-      // Restaurar el mock original
-      MockWebSocket.prototype.addEventListener = originalAddEventListener;
+    } else {
+      // Si no podemos acceder a la instancia, fallamos la prueba
+      expect(true).toBe(false);
     }
   });
   
@@ -110,39 +169,35 @@ describe("abrirFlujoOido", () => {
     const alCerrarMock = vi.fn();
     const config = {
       url: "ws://localhost:8000/v1/audio/stream",
-      WebSocketImpl: MockWebSocket,
+      WebSocketImpl: mockWebSocketCls,
       alParcial: vi.fn(),
       alFinal: vi.fn(),
       alCerrar: alCerrarMock,
     };
     
-    // Sobrescribir el mock para simular mensaje done
-    const originalAddEventListener = MockWebSocket.prototype.addEventListener;
-    MockWebSocket.prototype.addEventListener = function(event: string, callback: (event: any) => void) {
-      if (event === "message") {
-        setTimeout(() => callback({ data: JSON.stringify({ done: true }) }), 10);
-      } else {
-        originalAddEventListener.call(this, event, callback);
-      }
-    };
+    const flujo = abrirFlujoOido(config);
     
-    try {
-      const flujo = abrirFlujoOido(config);
+    // Esperar a que se establezca la conexión
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    // Acceder a la instancia de WebSocket creada y disparar evento
+    if (ultimaInstanciaWS) {
+      ultimaInstanciaWS.dispararMensajeDone();
       
-      // Esperar a que se procese el mensaje simulado
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Esperar a que se procese el mensaje
+      await new Promise(resolve => setTimeout(resolve, 10));
       
       expect(alCerrarMock).toHaveBeenCalled();
-    } finally {
-      // Restaurar el mock original
-      MockWebSocket.prototype.addEventListener = originalAddEventListener;
+    } else {
+      // Si no podemos acceder a la instancia, fallamos la prueba
+      expect(true).toBe(false);
     }
   });
   
   it("debería enviar audio cuando se llama al método enviar", () => {
     const config = {
       url: "ws://localhost:8000/v1/audio/stream",
-      WebSocketImpl: MockWebSocket,
+      WebSocketImpl: mockWebSocketCls,
       alParcial: vi.fn(),
       alFinal: vi.fn(),
       alCerrar: vi.fn(),
