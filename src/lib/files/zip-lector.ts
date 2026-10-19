@@ -120,7 +120,7 @@ export async function leerZip(
       decompressedData = await new Promise<Uint8Array>((resolve, reject) => {
         try {
           const stream = new DecompressionStream('deflate-raw');
-          const reader = stream.getReader();
+          const reader = stream.readable.getReader();
           const chunks: Uint8Array[] = [];
           let totalSize = 0;
 
@@ -133,9 +133,9 @@ export async function leerZip(
             pump();
           };
 
-          pump().catch(err => { reject(err); });
-          reader.closed.then(() => {}, err => { reject(err); });
-        } catch (err) { reject(err); }
+          pump().catch((err: unknown) => { reject(err); });
+          reader.closed.then(() => {}, (err: unknown) => { reject(err); });
+        } catch (err: unknown) { reject(err); }
       });
     }
 

@@ -86,7 +86,7 @@ import { ConnectedRepoSheet } from "@/components/library/repos/connected-repo-sh
 import { createRepo, convertFolderToRepo } from "@/lib/library/user-repos";
 import { readDesktopsSnapshot, addIcon, setWallpaper, openWindow } from "@/components/desktop/desktop-store";
 import { updateProfile, activeProfileId } from "@/lib/profiles/profiles";
-import { listZipEntries } from "@/lib/files/simple-zip";
+import { leerZip } from "@/lib/files/zip-lector";
 
 const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "todos", label: "Todo" },
@@ -690,23 +690,23 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                 label: "Ver contenido del zip",
                 icon: ArchiveIcon,
                 onClick: () => {
-                    void (async () => {
-                        try {
-                            const res = await fetch(item.url as string);
-                            if (!res.ok) throw new Error("fetch");
-                            const buf = await res.arrayBuffer();
-                            const entries = listZipEntries(buf);
-                            if (entries.length === 0) {
-                                toast.message("No se pudo leer el contenido (¿CORS o zip vacío?).");
-                                return;
-                            }
-                            toast.message(`${entries.length} archivo(s) en el zip`, {
-                                description: entries.slice(0, 8).map((e) => e.name).join(", ") + (entries.length > 8 ? "…" : ""),
-                            });
-                        } catch {
-                            toast.error("No se pudo leer el zip (posiblemente bloqueado por CORS).");
-                        }
-                    })();
+                     void (async () => {
+                         try {
+                             const res = await fetch(item.url as string);
+                             if (!res.ok) throw new Error("fetch");
+                             const buf = await res.arrayBuffer();
+                             const entries = await leerZip(buf, { maxTotal: Number.POSITIVE_INFINITY, maxMiembros: Number.POSITIVE_INFINITY, maxDescomprimido: Number.POSITIVE_INFINITY });
+                             if (entries.length === 0) {
+                                 toast.message("No se pudo leer el contenido (¿CORS o zip vacío?).");
+                                 return;
+                             }
+                             toast.message(`${entries.length} archivo(s) en el zip`, {
+                                 description: entries.slice(0, 8).map((e) => e.nombre).join(", ") + (entries.length > 8 ? "…" : ""),
+                             });
+                         } catch (err: any) {
+                             toast.error(`No se pudo leer el zip: ${err.message}`);
+                         }
+                     })();
                 },
             });
         }
