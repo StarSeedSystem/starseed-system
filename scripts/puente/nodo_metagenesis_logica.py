@@ -97,6 +97,9 @@ _RE_NONCE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 #: Servicios de la Mac que CURAN a los demás: si caen, nadie relanza nada.
 GUARDIANES_MAC = ("com.starseed.vigia", "com.starseed.vigilante", "com.starseed.mando")
 
+#: Fases que cuentan como «trabajando» en la cola viva (escritura, tsc, pruebas, revisión, integración).
+FASES_TRABAJO_COLA = ("escribiendo", "tsc", "pruebas", "revisión", "integración")
+
 
 # ─── identidad y puntos ─────────────────────────────────────────────────────────────────
 
