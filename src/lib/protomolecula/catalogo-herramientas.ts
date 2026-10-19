@@ -778,6 +778,24 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     verificado: "2026-10-10",
   },
   {
+    id: "diagram-design", nombre: "Diagram Design", categoria: "pizarras-diagramas", tipo: "recurso", origen: "github",
+    descripcion: "Skill para agentes que dibuja diagramas como un archivo HTML con SVG dentro, con estilo editorial y la marca de quien lo usa. 45 tipos: arquitectura (y su delta), estado actual de TI, flujo, secuencia, máquina de estados, entidad-relación, línea de tiempo, carriles, cuadrante, radar, polar, bucle, anidado, árbol, organigrama, pila de capas, despiece y planta axonométrica (vistas en perspectiva), Venn, pirámide/embudo, barras, cascada, treemap, mapa de calor, líneas, Gantt, dispersión, Sankey, espina de pescado, Wardley, kanban, viaje de usuario, despliegue, dependencias, blueprint de servicio, clases UML, story map, esquema, ciclo de vida. Importa draw.io, Mermaid y Excalidraw; exporta SVG y PNG; anima con su guía de movimiento; perfiles de marca guardables.",
+    licencia: "MIT", codigo: "https://github.com/cathrynlavery/diagram-design", web: "https://github.com/cathrynlavery/diagram-design",
+    medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: false },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["texto", "drawio", "mermaid", "excalidraw"], salida: ["html", "svg", "png"] },
+    control: { via: ["js"], notas: "Genera HTML+SVG desde texto o otros formatos de diagrama." },
+    actualizacion: { fuente: "github-releases", ref: "cathrynlavery/diagram-design", ultimaVersion: "v2.6.110", fechaVersion: "2026-10-16" },
+    ia: ["genera-diagrama-desde-texto"],
+    estado: "integrable", motivo: "Se aloja su build web como origen aparte en un iframe con sandbox; control «solo ventana» más intercambio de archivos.",
+    verificado: "2026-10-18",
+    avisos: [
+      "Sin telemetría",
+      "Fuentes del OS (no Google Fonts en tiempo de uso)",
+      "Animaciones solo en iframe aislado"
+    ],
+  },
+  {
     id: "d2", nombre: "D2", categoria: "pizarras-diagramas", tipo: "app", origen: "github",
     descripcion: "Lenguaje de diagramas declarativo con motores de disposición y temas; compila a SVG, PNG y PDF, con versión WebAssembly.",
     licencia: "MPL-2.0", codigo: "https://github.com/terrastruct/d2", web: "https://d2lang.com",

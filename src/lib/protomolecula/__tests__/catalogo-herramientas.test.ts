@@ -117,26 +117,50 @@ describe("estructura del catálogo", () => {
      expect(texto).not.toMatch(/\/Users\/|\/home\/|C:\\\\Users/);
    });
 
-   it("las nuevas herramientas de HyperFrames están presentes y tienen propiedades básicas", () => {
-     expect(ids).toContain("hyperframes");
-     expect(ids).toContain("hyperframes-studio");
-     
-     const hyperframes = herramientaPorId("hyperframes");
-     const hyperframesStudio = herramientaPorId("hyperframes-studio");
-     
-     expect(hyperframes).toBeDefined();
-     expect(hyperframesStudio).toBeDefined();
-     
-     expect(hyperframes?.tipo).toBe("libreria");
-     expect(hyperframesStudio?.tipo).toBe("app");
-     
-     expect(hyperframes?.estado).toBe("integrable");
-     expect(hyperframesStudio?.estado).toBe("solo-enlace");
-     
-     expect(hyperframes?.categoria).toBe("video-composicion");
-     expect(hyperframesStudio?.categoria).toBe("video-composicion");
-   });
- });
+    it("las nuevas herramientas de HyperFrames están presentes y tienen propiedades básicas", () => {
+      expect(ids).toContain("hyperframes");
+      expect(ids).toContain("hyperframes-studio");
+      
+      const hyperframes = herramientaPorId("hyperframes");
+      const hyperframesStudio = herramientaPorId("hyperframes-studio");
+      
+      expect(hyperframes).toBeDefined();
+      expect(hyperframesStudio).toBeDefined();
+      
+      expect(hyperframes?.tipo).toBe("libreria");
+      expect(hyperframesStudio?.tipo).toBe("app");
+      
+      expect(hyperframes?.estado).toBe("integrable");
+      expect(hyperframesStudio?.estado).toBe("solo-enlace");
+      
+      expect(hyperframes?.categoria).toBe("video-composicion");
+      expect(hyperframesStudio?.categoria).toBe("video-composicion");
+    });
+
+    it("la herramienta de Diagram Design está presente y tiene propiedades básicas", () => {
+      expect(ids).toContain("diagram-design");
+      
+      const diagramDesign = herramientaPorId("diagram-design");
+      
+      expect(diagramDesign).toBeDefined();
+      expect(diagramDesign?.tipo).toBe("recurso");
+      expect(diagramDesign?.estado).toBe("integrable");
+      expect(diagramDesign?.categoria).toBe("pizarras-diagramas");
+      expect(diagramDesign?.origen).toBe("github");
+      expect(diagramDesign?.licencia).toBe("MIT");
+      expect(diagramDesign?.integracion).toBe("iframe-aislado");
+      expect(diagramDesign?.formatos.entrada).toContain("texto");
+      expect(diagramDesign?.formatos.entrada).toContain("drawio");
+      expect(diagramDesign?.formatos.entrada).toContain("mermaid");
+      expect(diagramDesign?.formatos.entrada).toContain("excalidraw");
+      expect(diagramDesign?.formatos.salida).toContain("html");
+      expect(diagramDesign?.formatos.salida).toContain("svg");
+      expect(diagramDesign?.formatos.salida).toContain("png");
+      expect(diagramDesign?.control.via).toContain("js");
+      expect(diagramDesign?.ia).toContain("genera-diagrama-desde-texto");
+    });
+  });
+
 
 describe("licencias: código abierto o no entra", () => {
   it("ninguna herramienta «integrable» tiene una licencia sin permiso", () => {
