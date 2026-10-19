@@ -11,7 +11,7 @@ import { MOTORES_3D, type Motor3D } from "@/lib/avatares/adn/motores";
 
 const CLAVE = ["clave", "de", "prueba", "no", "real"].join("-");
 const ENCENDIDO: Entorno = { AVATARES_EXTERNOS_PERMITIDOS: "1", MESHY_API_KEY: CLAVE, TRIPO_API_KEY: CLAVE };
-const SOLO_TRIPO: Entorno = { AVATARES_EXTERNOS_PERMITIDOS: "1", TRIPO_API_KEY: CLAVE };
+const SOLO_TRIPO: Entorio = { AVATARES_EXTERNOS_PERMITIDOS: "1", TRIPO_API_KEY: CLAVE };
 const PNG: Imagen = { mime: "image/png", bytes: new Uint8Array([137, 80, 78, 71, 1, 2, 3]) };
 interface Llamada { url: string; init: RequestInit | undefined }
 function simulado(respuestas: Array<{ status?: number; cuerpo: unknown } | "sin-red">): { buscar: Buscar; llamadas: Llamada[] } {
@@ -25,7 +25,7 @@ function simulado(respuestas: Array<{ status?: number; cuerpo: unknown } | "sin-
   return { buscar, llamadas };
 }
 const cabecera = (l: Llamada, nombre: string): string | undefined => (l.init?.headers as Record<string, string> | undefined)?.[nombre];
-const generarCon = (entorno: Entorno): string | null => planificar({
+const generarCon = (entorno: Entorio): string | null => planificar({
   partida: "imagen", esqueleto: "ninguno", region: "ES", comercial: false, permitirDePago: true,
   capacidades: ["navegador", "cpu", ...capacidadesExternas(entorno)],
 } satisfies PeticionPlan, motoresDisponibles(entorno)).pasos.find((p) => p.etapa === "generar")?.motor?.id ?? null;
@@ -76,7 +76,7 @@ describe("crearTarea con fetch simulado", () => {
   });
   it("Tripo: sube a /files (multipart) y crea con el file_token", async () => {
     const { buscar, llamadas } = simulado([{ cuerpo: { code: 0, data: { file_token: "file_abc123" } } }, { cuerpo: { code: 0, data: { task_id: "task_abc123" } } }]);
-    expect(await crearTarea("tripo", PNG, ENCENDIDO, buscar)).toEqual({ ok: true, valor: "task_abc123" });
+    await crearTarea("tripo", PNG, ENCENDIDO, buscar)).toEqual({ ok: true, valor: "task_abc123" });
     expect(llamadas.map((l) => l.url)).toEqual(["https://openapi.tripo3d.ai/v3/files", "https://openapi.tripo3d.ai/v3/generation/image-to-model"]);
     expect(llamadas[0].init?.body).toBeInstanceOf(FormData);
     expect(cabecera(llamadas[0], "Content-Type")).toBeUndefined();
@@ -99,7 +99,7 @@ describe("crearTarea con fetch simulado", () => {
 describe("consultarTarea: una sola petición por llamada", () => {
   const consulta = (p: "meshy" | "tripo", id: string, cuerpo: unknown) => consultarTarea(p, id, ENCENDIDO, simulado([{ cuerpo }]).buscar);
   it("Meshy: en curso, lista con su GLB en la ruta oficial, GLB ajeno no vale y el fallo trae su motivo", async () => {
-    expect(await consulta("meshy", "a", { status: "IN_PROGRESS", progress: 40 })).toEqual({ ok: true, valor: { estado: "trabajando", progreso: 40, glb: null, motivo: null } });
+    await consulta("meshy", "a", { status: "IN_PROGRESS", progress: 40 })).toEqual({ ok: true, valor: { estado: "trabajando", progreso: 40, glb: null, motivo: null } });
     const { buscar, llamadas } = simulado([{ cuerpo: { status: "SUCCEEDED", progress: 100, model_urls: { glb: "https://assets.meshy.ai/x/model.glb" } } }]);
     const lista = await consultarTarea("meshy", "abc-1", ENCENDIDO, buscar);
     expect(lista.ok && lista.valor).toMatchObject({ estado: "lista", glb: "https://assets.meshy.ai/x/model.glb" });
@@ -116,7 +116,7 @@ describe("consultarTarea: una sola petición por llamada", () => {
     expect(llamadas[0].url).toBe("https://openapi.tripo3d.ai/v3/tasks/task_abc123");
     expect((await consulta("tripo", "task_x", { code: 0, data: { status: "dormido" } })).ok).toBe(false);
     const vacio = simulado([]);
-    expect((await consultarTarea("tripo", "../account/balance", ENCENDIDO, vacio.buscar)).ok).toBe(false);
+    await (await consultarTarea("tripo", "../account/balance", ENCENDIDO, vacio.buscar)).ok).toBe(false);
     expect(vacio.llamadas).toHaveLength(0);
   });
 });
@@ -143,7 +143,7 @@ describe("motivoDescarte", () => {
     const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
     const motivo = motivoDescarte(meshMotor, p);
     expect(motivo).not.toBeNull();
-    expect(motivo).toContain("meshyn"); // The motor's nombre is "Meshy (servicio)"
+    expect(motivo).toContain("meshyn"); // The motor's nombre es "Meshy (servicio)"
     expect(motivo).toContain("clave-externa");
   });
 
