@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { elementosDeParches, parchesDeEstado, type Parche } from '../sincronia-video';
-import { fusionarEstados } from '@/lib/salas/sincronia-sala';
+import { fusionarEstados, type EstadoSala } from '@/lib/salas/sincronia-sala';
 
 describe('sincronia-video', () => {
   describe('elementosDeParches', () => {
@@ -84,9 +84,9 @@ describe('sincronia-video', () => {
       const descAdd = elementos.find(e => e.id === 'descripcion::texto' && !e.borrado);
       expect(descAdd).toBeDefined();
       expect(descAdd?.datos).toEqual({ texto: 'Descripción' });
-      const tituloRemove = elementos.find(e => e.id === 'titulo::texto' && e.borrado);
-      expect(tituloRemove).toBeDefined();
-      expect(tituloRemove.datos).toEqual({});
+       const tituloRemove = elementos.find(e => e.id === 'titulo::texto' && e.borrado);
+       expect(tituloRemove).toBeDefined();
+       expect(tituloRemove!.datos).toEqual({});
     });
   });
 
