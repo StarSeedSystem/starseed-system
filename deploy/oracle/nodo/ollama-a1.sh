@@ -11,6 +11,12 @@
 # Sirven tareas CORTAS: qwen3.5:4b para chat breve, resumen, clasificación y visión; qwen2.5-coder:7b
 # para fragmentos de código cortos. Solo uno cargado a la vez.
 #
+# ESTADO (2026-10-19): APAGADO. Alex: «hazlo solo si mejora u optimiza los procesos». Medido, hoy ningún
+# proceso lo aprovecha (el enjambre escribe con prompts largos y la escalera local de Genesis, GCA1019,
+# aún no existe), así que no ocupa CPU ni memoria. Los modelos siguen en el disco del A1 (8 GB).
+#   Encender cuando algo lo use de verdad:  bash ollama-a1.sh   (vuelve a dejarlo activo al arranque)
+#   Apagar:                                 sudo systemctl disable --now ollama
+#
 # Guardas: un solo modelo cargado, prioridad baja (Nice 10, CPUWeight 50) y techo de memoria para no
 # tumbar BitNet, FreeLLMAPI, el guardián (tsc con 4 GB) ni los trabajadores. Nada se abre a internet.
 # Modelo: Apache 2.0 (comprobado con `ollama show <modelo> --license`); nada no comercial.

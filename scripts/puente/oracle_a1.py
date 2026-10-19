@@ -408,6 +408,14 @@ class Nodo:
             return "?"
 
     @staticmethod
+    def _habilitado(unidad):
+        try:
+            r = subprocess.run(["systemctl", "is-enabled", unidad], capture_output=True, text=True, timeout=10)
+            return r.stdout.strip() == "enabled"
+        except Exception:  # noqa: BLE001
+            return False
+
+    @staticmethod
     def _http(url, extra=()):
         t0 = time.time()
         try:
@@ -471,7 +479,9 @@ class Nodo:
                               "detalle": unidad})
         # (2026-10-19) Ollama del A1, solo en 127.0.0.1 (`deploy/oracle/nodo/ollama-a1.sh`): modelos locales
         # del servidor del cerebro para tareas cortas (chat breve, resumen, visión), nunca expuesto fuera.
-        if os.path.exists("/etc/systemd/system/ollama.service"):
+        # Se enseña solo si está ENCENDIDO al arranque: medido, hoy no mejora ningún proceso y queda apagado
+        # (Alex: «hazlo solo si mejora u optimiza los procesos»); apagado no es una avería.
+        if os.path.exists("/etc/systemd/system/ollama.service") and self._habilitado("ollama.service"):
             codigo, ms = self._http("http://127.0.0.1:11434/api/version")
             modelos = "sin respuesta"
             if codigo == "200":
