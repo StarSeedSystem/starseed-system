@@ -500,17 +500,18 @@ function useAiReadiness(packages: LibraryPackage[], mounted: boolean): Record<st
   useEffect(() => {
     if (!mounted) return;
     let alive = true;
-    (async () => {
-      try {
-        const avail = await import("@/ai/astraura/availability");
-        const map: Record<string, boolean> = {};
-        for (const p of packages) {
-          if (p.kind !== "ai-source") continue;
-          const src = findSource(String(p.payload.catalogSourceId ?? ""));
-          map[p.id] = !!src && (!src.requiresKey || !!avail.userConfigForSource(src));
-        }
-        if (alive) setReady(map);
-      } catch { /* defensivo: sin mapa, los botones dicen "Instalar" */ }
+        (async () => {
+          try {
+            const avail = await import("@/ai/astraura/availability");
+            const map: Record<string, boolean> = {};
+            for (const p of packages) {
+              if (p.kind !== "ai-source") continue;
+              const vinc = vinculoDe(p, FREE_CATALOG);
+              const src = findSource(String(p.payload.catalogSourceId ?? ""));
+              map[p.id] = !!src && (!vinc.requiereClave || !!avail.userConfigForSource(src));
+            }
+            if (alive) setReady(map);
+          } catch { /* defensivo: sin mapa, los botones dicen "Instalar" */ }
     })();
     return () => { alive = false; };
   }, [packages, mounted]);

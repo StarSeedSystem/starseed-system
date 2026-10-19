@@ -45,7 +45,7 @@ export function vinculoDe(
     requiereClave: fuente.requiresKey,
     enlaceAlta: fuente.getKeyUrl ?? null,
     enlaceClave: fuente.getKeyUrl ?? null,
-    gratis: fuente.tier !== "paid",
+    gratis: fuente.tier === "instant",
     variables: [], // TODO: extraer de configuración de la fuente
     opcionId: fuente.id,
     verificado: true,
