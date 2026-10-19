@@ -18,6 +18,8 @@ import { rateLimit } from "@/lib/security/rate-limit";
 import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 import { carrilesGenesis, preguntarCarriles, VARIABLES_CARRILES, type MensajeModelo } from "@/lib/genesis/carriles-servidor";
 import { ambitoDesde, contextoValidacion, leerRespuestaModelo, promptSistema, sanearContexto } from "@/lib/genesis/traductor";
+import { plantillaStarSeed } from "@/lib/video-html/plantilla";
+import { detectarAdaptadores } from "@/lib/video-html/adaptadores";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
