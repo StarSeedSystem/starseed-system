@@ -4458,3 +4458,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `WT1011A` — otra cosa: sin decisión en 0 h; rama ola/WT1011A conservada
 >>>>>>> e61d6002 (chore(memoria): aprendizaje de la ola mg-oracle-1012-1504)
 >>>>>>> ba3c1ab0 (salvavidas · S1010-EV-ORACLE-1ac: trabajo del agente antes de las puertas (tsc / vitest))
+
+## 2026-10-19 11:39 · mg-oracle-1019-0439
+
+**Lo que se pidió.** Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- nvidia/nvidia/nemotron-3-super-120b-a12b no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTS1010-EV-ORACLE-1acc` — otra cosa: sin decisión en 0 h; rama ola/RTS1010-EV-ORACLE-1acc conservada
+- `VZF1015H` — los tipos no compilan: 6 errores tsc (rama ola/VZF1015H conservada)
+- `RTS1010-TU-LL2c` — pruebas en rojo: vitest falla (rama conservada)
+- `RTRTRTRTS1010-EV-ORACLE-1ac` — no escribió nada
