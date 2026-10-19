@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppearanceProvider } from "@/context/appearance-context";
+// Adaptadores de variaciones públicas
+import "@/lib/variaciones/adaptadores";
 // Adenda 137 (a11y): proveedor LIGERO de diálogos in-app (useConfirm/usePrompt,
 // reemplazo de window.confirm/alert/prompt). Va en el layout RAÍZ para cubrir TODO
 // el árbol —incluida la chrome global (OmniDock, visores) y la página not-found—,
