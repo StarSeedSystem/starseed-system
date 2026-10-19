@@ -111,12 +111,32 @@ describe("estructura del catálogo", () => {
     }
   });
 
-  it("ningún texto lleva claves ni rutas del disco", () => {
-    const texto = JSON.stringify(todas);
-    expect(texto).not.toMatch(/sk-[A-Za-z0-9]{10}|gsk_|ghp_|Bearer\s|AKIA[0-9A-Z]{8}/);
-    expect(texto).not.toMatch(/\/Users\/|\/home\/|C:\\\\Users/);
-  });
-});
+   it("ningún texto lleva claves ni rutas del disco", () => {
+     const texto = JSON.stringify(todas);
+     expect(texto).not.toMatch(/sk-[A-Za-z0-9]{10}|gsk_|ghp_|Bearer\s|AKIA[0-9A-Z]{8}/);
+     expect(texto).not.toMatch(/\/Users\/|\/home\/|C:\\\\Users/);
+   });
+
+   it("las nuevas herramientas de HyperFrames están presentes y tienen propiedades básicas", () => {
+     expect(ids).toContain("hyperframes");
+     expect(ids).toContain("hyperframes-studio");
+     
+     const hyperframes = herramientaPorId("hyperframes");
+     const hyperframesStudio = herramientaPorId("hyperframes-studio");
+     
+     expect(hyperframes).toBeDefined();
+     expect(hyperframesStudio).toBeDefined();
+     
+     expect(hyperframes?.tipo).toBe("libreria");
+     expect(hyperframesStudio?.tipo).toBe("app");
+     
+     expect(hyperframes?.estado).toBe("integrable");
+     expect(hyperframesStudio?.estado).toBe("solo-enlace");
+     
+     expect(hyperframes?.categoria).toBe("video-composicion");
+     expect(hyperframesStudio?.categoria).toBe("video-composicion");
+   });
+ });
 
 describe("licencias: código abierto o no entra", () => {
   it("ninguna herramienta «integrable» tiene una licencia sin permiso", () => {
