@@ -584,7 +584,7 @@ def medir(modo: str, ahora: Optional[float] = None) -> Dict[str, Any]:
                         cola_viva_resumen["ultima_tarea_ts"] = os.path.getmtime(latidos_path)
                     except OSError:
                         pass
-except Exception:
+    except Exception:
         # En caso de error, dejamos valores por defecto
         pass
 
@@ -670,6 +670,72 @@ def escribir_atomico(ruta: str, datos: Any) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False, indent=1)
     os.replace(tmp, ruta)
+
+
+def repartir_tareas(args: Dict[str, Any], medio: str, raiz: str) -> Tuple[str, str]:
+    """Añade tareas a la cola VIVA de este medio (archivo latidos-<cola>.json) de forma atómica.
+    Modo "alimentar": añade hasta `tope` tareas (máx `libres * 2`) sin duplicar IDs.
+    Solo se ejecuta si hay un orquestador VIVO procesando esa cola."""
+    modo = str(args.get("modo") or "")
+    destino = str(args.get("destino") or "")
+    tope = int(args.get("tope") or 4)
+    tareas_nuevas = args.get("_tareas")
+    if not isinstance(tareas_nuevas, list) or not tareas_nuevas:
+        return "nada", "repartir sin tareas nuevas"
+    # Verificar que ESTE medio es el destino
+    if destino and medio not in ("oracle-a1", "neurona", "nube-cowork", "gh-actions"):
+        # En la Mac no se alimenta a sí misma (es la autoritativa)
+        return "nada", "la Mac no se alimenta a sí misma"
+    # Obtener la cola viva de ESTE medio
+    cola_viva_json = cola_viva()
+    if not cola_viva_json:
+        return "nada", "no hay orquestador vivo en este medio"
+    nombre_cola = cola_viva_json[:-5] if cola_viva_json.endswith(".json") else cola_viva_json
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    # Leer la cola viva actual (archivo de tareas, no latidos)
+    cola_path = os.path.join(olas, nombre_cola + ".json")
+    cola_actual = leer_json(cola_path, [])
+    if not isinstance(cola_actual, list):
+        cola_actual = []
+    # IDs ya existentes en la cola viva
+    ids_existentes = {str(t.get("id")) for t in cola_actual if isinstance(t, dict) and t.get("id")}
+    # También leer progreso para evitar duplicados globales
+    progreso_path = os.path.join(olas, "progreso.json")
+    progreso = leer_json(progreso_path, {})
+    if isinstance(progreso, dict):
+        ids_existentes.update(progreso.keys())
+    # Filtrar tareas nuevas que no estén duplicadas
+    tareas_a_anadir = []
+    for t in tareas_nuevas:
+        if not isinstance(t, dict):
+            continue
+        tid = str(t.get("id") or "")
+        if tid and tid not in ids_existentes:
+            tareas_a_anadir.append(t)
+            ids_existentes.add(tid)
+            if len(tareas_a_anadir) >= tope:
+                break
+    if not tareas_a_anadir:
+        return "nada", "todas las tareas ya existen en la cola o progreso"
+    # Añadir al FINAL de la cola viva (el orquestador las cogerá en su siguiente lectura)
+    nueva_cola = list(cola_actual) + tareas_a_anadir
+    escribir_atomico(cola_path, nueva_cola)
+    # También actualizar el archivo de latidos si existe (para el resumen)
+    latidos_path = os.path.join(olas, "latidos-%s.json" % nombre_cola)
+    latidos_data = leer_json(latidos_path, {})
+    if isinstance(latidos_data, dict):
+        tareas_latidos = latidos_data.get("tareas")
+        if not isinstance(tareas_latidos, list):
+            tareas_latidos = []
+        # Añadir con fase "pendiente" (el orquestador la cambiará cuando la coja)
+        for t in tareas_a_anadir:
+            t_latido = dict(t)
+            t_latido["fase"] = "pendiente"
+            t_latido["ts"] = time.time()
+            tareas_latidos.append(t_latido)
+        latidos_data["tareas"] = tareas_latidos
+        escribir_atomico(latidos_path, latidos_data)
+    return "hecha", "%d tarea(s) añadidas a la cola viva %s (modo %s)" % (len(tareas_a_anadir), nombre_cola, modo or "normal")
 
 
 def _a1_tiene_medio() -> bool:
@@ -860,7 +926,26 @@ def lanzar_cola(args: Dict[str, Any], medio: str, raiz: str) -> Tuple[str, str]:
     trabajadores = str(max(1, min(4, int(args.get("trabajadores") or 2))))
     os.environ.setdefault("STARSEED_DONDE", medio)
     return lanzar_desacoplado("orquestador-" + cola, [_python(), orq, os.path.join("starseed_memory_root", "olas", cola + ".json"),
-                                                     "--workers", trabajadores], raiz)
+                                                      "--workers", trabajadores], raiz)
+
+
+# ─── rescate de trabajo (solo en el medio con las colas en disco) ────────────────────────
+    # También actualizar el archivo de latidos si existe (para el resumen)
+    latidos_path = os.path.join(olas, "latidos-%s.json" % nombre_cola)
+    latidos_data = leer_json(latidos_path, {})
+    if isinstance(latidos_data, dict):
+        tareas_latidos = latidos_data.get("tareas")
+        if not isinstance(tareas_latidos, list):
+            tareas_latidos = []
+        # Añadir con fase "pendiente" (el orquestador la cambiará cuando la coja)
+        for t in tareas_a_anadir:
+            t_latido = dict(t)
+            t_latido["fase"] = "pendiente"
+            t_latido["ts"] = time.time()
+            tareas_latidos.append(t_latido)
+        latidos_data["tareas"] = tareas_latidos
+        escribir_atomico(latidos_path, latidos_data)
+    return "hecha", "%d tarea(s) añadidas a la cola viva %s (modo %s)" % (len(tareas_a_anadir), nombre_cola, modo or "normal")
 
 
 # ─── rescate de trabajo (solo en el medio con las colas en disco) ────────────────────────

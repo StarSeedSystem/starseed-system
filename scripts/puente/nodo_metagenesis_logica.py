@@ -683,7 +683,7 @@ def mejor_medio_ocioso(nodos: Dict[str, Dict[str, Any]], excepto: Optional[str] 
     return min(libres, key=lambda kv: _clave_mejor(kv[0], kv[1]))[0]
 
 
-def resumen_cola_viva(latidos_data: Dict[str, Any], trabajadores: int) -> Dict[str, int]:
+def resumen_cola_viva(latidos_data: Optional[Dict[str, Any]], trabajadores: int) -> Dict[str, int]:
     """PURA. Resumen de la cola viva desde `latidos-<cola>.json`: trabajando, esperando, libres.
     `latidos_data` tiene tareas con campo `fase`. Cuenta las que están en FASES_TRABAJO_COLA como
     `trabajando`; el resto (pendientes, en cola) como `esperando`. `libres = trabajadores - trabajando`."""
