@@ -64,4 +64,8 @@ describe("extraerDirectivas", () => {
     expect(r.acciones).toEqual([]);
     expect(r.problemas.some((p) => p.includes("sin cierre"))).toBe(true);
   });
+    it("no procesa texto vacío", () => {
+        const r = extraerDirectivas("");
+        expect(r).toEqual({ limpio: "", acciones: [], problemas: [] });
+    });
 });

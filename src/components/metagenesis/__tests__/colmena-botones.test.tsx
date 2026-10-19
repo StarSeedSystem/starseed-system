@@ -156,4 +156,49 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
             explica: "Este aparato coge tareas de la cola como la Mac." 
         });
     });
+    it("sin nodo (solo navegador), el botón de instalar está visible y habilitado para Android", () => {
+        const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
+        expect(android.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Android, dentro de Termux (experimental, 1 agente).",
+        });
+    });
+
+    it("con contenedor inactivo pero no apto, el botón de contenedor está deshabilitado y muestra motivo", () => {
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 0,
+            contenedor: { activo: false, agentes: 0, apto: false, motivo: "No tiene suficiente memoria" },
+        });
+        expect(b.contenedor).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Usar como contenedor",
+            explica: "No tiene suficiente memoria",
+        });
+    });
+
+    it("sin nodo, sin contenedor, enCurso = 0, el botón de desconectar está oculto", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.desconectar).toMatchObject({
+            visible: false,
+            habilitado: false,
+            etiqueta: "",
+            explica: "",
+        });
+    });
+
+    it("sin nodo, sin contenedor, enCurso = 0, el botón de contenedor está oculto", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.contenedor).toMatchObject({
+            visible: false,
+            habilitado: false,
+            etiqueta: "",
+            explica: "",
+        });
+    });
 });
