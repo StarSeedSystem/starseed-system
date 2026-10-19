@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // ════════════════════════════════════════════════════════════════
 // Integraciones · Adaptador de Aurora — tools que Aurora puede invocar
 // ----------------------------------------------------------------
@@ -2069,3 +2070,6 @@ export function auroraToolsPromptSection(brainId?: string): string {
   }
   return parts.join("\n");
 }
+=======
+export { generateImage as generarImagen } from "@/ai/astraura/media/media-gen";
+>>>>>>> 8af17e3c (salvavidas · IMG1011Cb: trabajo del agente antes de las puertas (tsc / vitest))
