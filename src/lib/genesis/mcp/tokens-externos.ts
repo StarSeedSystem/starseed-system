@@ -29,6 +29,22 @@ export function injectStore(s: TokenStore) {
   store = s;
 }
 
+/** Almacenamiento en memoria simple para cuando no se proporciona un store externo. */
+class InMemoryTokenStore implements TokenStore {
+  private map = new Map<string, TokenData>();
+  async save(tokenHash: string, data: TokenData): Promise<void> {
+    this.map.set(tokenHash, data);
+  }
+  async findByHash(tokenHash: string): Promise<TokenData | null> {
+    return this.map.get(tokenHash) ?? null;
+  }
+}
+
+// Proporcionar un almacenamiento por defecto si no se inyecta uno explícitamente.
+if (store === null) {
+  injectStore(new InMemoryTokenStore());
+}
+
 /** Genera `ssk_<prefijo 8>_<aleatorio 32>` y su hash sha256. */
 function generarToken(): { token: string; prefijo: string; hash: string } {
   const prefijo = randomBytes(4).toString("hex"); // 8 caracteres hex
