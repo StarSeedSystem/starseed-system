@@ -128,7 +128,7 @@ export default function SelectorAvatar3d({
     }
   };
 
-  const getFuenteParaRef = (ref: string) => {
+  export const getFuenteParaRef = (ref: string) => {
     if (ref.startsWith("biblioteca:") || ref.startsWith("genesis:")) {
       return { tipo: "glb", url: ref };
     } else if (ref === "vrm-persona") {
@@ -211,38 +211,50 @@ export default function SelectorAvatar3d({
       </div>
 
       {isOpen && !previewOnly && (
-        <div className="space-y-3">
+        <>
           <h4 className="font-medium">Cambiar avatar</h4>
           <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => handleAdnChange(getDefaultAdnRef())}
-              className={cn(
-                "cursor-pointer",
-                "p-3 rounded-lg border transition-all",
-                currentAdnRef === getDefaultAdnRef()
-                  ? "border-primary bg-primary/10"
-                  : "border-border hover:border-muted-foreground"
-              )}
-            >
-              <div className="aspect-square w-20 mx-auto mb-2 rounded-full bg-gradient-to-br from-gray-400 to-gray-600" />
-              <p className="text-sm font-medium">Orbe gris</p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleAdnChange("vrm-persona")}
-              className={cn(
-                "cursor-pointer",
-                "p-3 rounded-lg border transition-all",
-                currentAdnRef === "vrm-persona"
-                  ? "border-primary bg-primary/10"
-                  : "border-border hover:border-muted-foreground"
-              )}
-            >
-              <div className="aspect-square w-20 mx-auto mb-2 rounded-full bg-gradient-to-br from-blue-400 to-purple-600" />
-              <p className="text-sm font-medium">Persona VRM</p>
-            </button>
+            {fixedOpciones.map(opcion => {
+              const esActivo = opcion.ref === currentAdnRef;
+              const fuente = getFuenteParaRef(opcion.ref);
+              return (
+                <button
+                  key={opcion.id}
+                  type="button"
+                  disabled={loading}
+                  aria-pressed={esActivo}
+                  aria-label={`Elegir ${opcion.label}`}
+                  onClick={() => {
+                    if (opcion.id === "orbe-gris") {
+                      handleAdnChange(getDefaultAdnRef());
+                    } else if (opcion.id === "vrm-persona") {
+                      handleAdnChange("vrm-persona");
+                    }
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    "p-3 rounded-lg border transition-all",
+                    esActivo
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:border-muted-foreground"
+                  )}
+                >
+                  {esActivo ? (
+                    <AvatarVivo fuente={fuente} tamano={40} className="w-16 mx-auto mb-2 rounded-full" />
+                  ) : (
+                    <div
+                      className={`aspect-square w-16 mx-auto mb-2 rounded-full bg-gradient-to-br ${
+                        opcion.id === "orbe-gris"
+                          ? "from-gray-400 to-gray-600"
+                          : "from-blue-400 to-purple-600"
+                      }`}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <p className="text-sm font-medium">{opcion.label}</p>
+                </button>
+              );
+            })}
           </div>
 
           <div className="space-y-2">
@@ -251,39 +263,47 @@ export default function SelectorAvatar3d({
               Avatares VRM de la colección Numinia Digital Goods (licencia CC0, servidos por la Biblioteca).
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {PLANTILLAS_AVATAR.map((p) => {
-                const ref = refDePlantilla(p.id);
-                const activo = currentAdnRef === ref;
+              {plantillaOpciones.map(opcion => {
+                const esActivo = opcion.ref === currentAdnRef;
+                const fuente = getFuenteParaRef(opcion.ref);
                 return (
                   <button
-                    key={p.id}
+                    key={opcion.id}
                     type="button"
                     disabled={loading}
-                    aria-pressed={activo}
-                    aria-label={`Elegir plantilla ${p.nombre}`}
-                    onClick={() => handleElegirPlantilla(p.id)}
+                    aria-pressed={esActivo}
+                    aria-label={`Elegir ${opcion.label}`}
+                    onClick={() => handleElegirPlantilla(opcion.id)}
                     className={cn(
                       "cursor-pointer",
                       "p-3 rounded-lg border transition-all",
-                      activo
+                      esActivo
                         ? "border-primary bg-primary/10"
                         : "border-border hover:border-muted-foreground"
                     )}
                   >
-                    <div
-                      className="aspect-square w-16 mx-auto mb-2 rounded-full bg-gradient-to-br from-amber-300 to-rose-500"
-                      style={{ filter: `hue-rotate(${p.tonoAura}deg)` }}
-                      aria-hidden="true"
-                    />
-                    <p className="text-sm font-medium">{p.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{p.autor} · CC0</p>
+                    {esActivo ? (
+                      <AvatarVivo fuente={fuente} tamano={40} className="w-16 mx-auto mb-2 rounded-full" />
+                    ) : (
+                      <div
+                        className="aspect-square w-16 mx-auto mb-2 rounded-full bg-gradient-to-br from-amber-300 to-rose-500"
+                        style={{ filter: `hue-rotate(${opcion.tonoAura}deg)` }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <p className="text-sm font-medium">{opcion.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {opcion.autor} · CC0
+                    </p>
                   </button>
                 );
               })}
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
 }
+
+
