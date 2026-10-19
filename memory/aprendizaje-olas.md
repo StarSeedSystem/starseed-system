@@ -4467,3 +4467,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `RTRTCOL1012Bdsbbbbbbbbbbbb` — no escribió nada
+
+## 2026-10-19 18:47 · mg-oracle-1019-1149
+
+**Lo que se pidió.** Nodo de MetaGenesis: órdenes «desconectar
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Ae` — no escribió nada
+- `PG1013F` — otra cosa: sin decisión en 0 h; rama ola/PG1013F conservada
