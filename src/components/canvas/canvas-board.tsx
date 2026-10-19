@@ -131,6 +131,7 @@ import {
   type ViewMode,
 } from "@/lib/canvas/workcenters";
 import { buildProposalLink } from "@/lib/governance/links";
+import { BloquePizarraProtomolecula } from "@/components/protomolecula/bloque-pizarra";
 // Pizarras COMPARTIDAS (SOP §11, Adenda 65): espacio colaborativo os_spaces
 // kind='board', distinto del toggle `canvas.shared` existente (referencia simple).
 import { BoardShareDialog, BoardShareTrigger } from "@/components/canvas/board-share-dialog";
@@ -1785,7 +1786,17 @@ export default function CanvasBoard({
             })}
           </svg>
 
-          {visibleBlocks.map((b) => (
+        {visibleBlocks.map((b) => {
+          const aristasEntrantes = edges.filter(e => e.to === b.id);
+          const aristasSalientes = edges.filter(e => e.from === b.id);
+          return b.kind === "protomolecula" ? (
+            <BloquePizarraProtomolecula
+              key={b.id}
+              moleculaId={b.data.moleculaId as string}
+              aristasEntrantes={aristasEntrantes}
+              aristasSalientes={aristasSalientes}
+            />
+          ) : (
             <BlockCard
               key={b.id}
               block={b}
@@ -1812,7 +1823,8 @@ export default function CanvasBoard({
               onTitle={(t) => updateBlock(b.id, { title: t })}
               onPickFile={(e) => onPickFile(b.id, e)}
             />
-          ))}
+          );
+        })}
         </div>
         </div>
 

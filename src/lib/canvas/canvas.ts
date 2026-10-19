@@ -168,6 +168,14 @@ export const BLOCK_KINDS: BlockKindDef[] = [
     blurb: "Muestra una imagen por URL.",
     connect: "Pega la URL de la imagen.",
   },
+  {
+    kind: "protomolecula",
+    category: "herramientas",
+    label: "Protomolécula",
+    icon: "Atom",
+    blurb: "Bloque de edición universal para cualquier tipo de medio o modelo.",
+    connect: "Selecciona una molécula del catálogo o crea una nueva.",
+  },
 ];
 
 export function blockKindDef(kind: BlockKind): BlockKindDef | undefined {
@@ -194,8 +202,8 @@ export function defaultBlock(kind: BlockKind, index = 0): CanvasBlock {
     kind,
     x: 40 + (index % 5) * 36,
     y: 40 + (index % 5) * 36,
-    w: kind === "browser" || kind === "image" ? 360 : 280,
-    h: kind === "browser" ? 260 : kind === "text" ? 180 : 200,
+    w: kind === "browser" || kind === "image" || kind === "protomolecula" ? 360 : 280,
+    h: kind === "browser" ? 260 : kind === "text" ? 180 : kind === "protomolecula" ? 360 : 200,
     data: {},
     title: def?.label,
   };
