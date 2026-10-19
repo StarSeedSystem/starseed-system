@@ -1,99 +1,123 @@
+import { preferenciasEfectivas, type CapasPrefs, type Contexto } from "./preferencias-capas";
+
+export type MedioNeurona = "pwa" | "nativa" | "web";
+export type SistemaSO = "macos" | "windows" | "linux" | "android" | "ios";
+export type GPU = "nvidia" | "amd" | "apple" | "ninguna";
+
+export interface NeuronaVigia {
+  medio: MedioNeurona;
+  ramMB: number;
+  discoLibreMB: number;
+  gpu?: GPU;
+  vramMB?: number;
+  apple?: boolean;
+  sistema?: SistemaSO;
+}
+
+export type Licencias = "libre" | "personal" | "condicionada" | "desconocida";
+
+export interface Entrada {
+  id: string;
+  nombre: string;
+  licencia: Licencias;
+  tamañoMB: number;
+  ramRequeridaMB?: number;
+  vramRequeridaMB?: number;
+  cuantizaciones?: { tipo: Cuantizacion; tamañoMB: number }[];
+}
+
+export type Cuantizacion = "nativa" | "q8" | "q4";
+
+export interface PlanArea {
+  instalar: (Entrada & { cuantizacion?: Cuantizacion })[];
+  actualizar: Entrada[];
+  quitar: Entrada[];
+  desdeLaMalla: boolean;
+  motivo: string;
+}
+
+function presupuestoDiscoMB(neurona: NeuronaVigia): number {
+  if (neurona.medio === "pwa") return 1024;
+  if (neurona.medio === "nativa") return Math.floor(neurona.discoLibreMB * 0.15);
+  return 0;
+}
+
+function licenciaPermitida(entrada: Entrada, caps: CapasPrefs, contexto: Contexto): boolean {
+  const { licenciaPermitida } = preferenciasEfectivas(caps, contexto);
+  return licenciaPermitida.includes(entrada.licencia);
+}
+
+function elegirCuantizacion(entrada: Entrada, maxDiscoMB: number): { ok: boolean; cuantizacion?: Cuantizacion; tamañoMB: number } {
+  const opciones = [
+    { tipo: "nativa" as Cuantizacion, tamañoMB: entrada.tamañoMB },
+    ...(entrada.cuantizaciones ?? []),
+  ];
+  const orden: Cuantizacion[] = ["nativa", "q8", "q4"];
+  for (const pref of orden) {
+    const opt = opciones.find(o => o.tipo === pref);
+    if (!opt) continue;
+    if (opt.tamañoMB <= maxDiscoMB) return { ok: true, cuantizacion: pref, tamañoMB: opt.tamañoMB };
+  }
+  return { ok: false, tamañoMB: opciones[0]?.tamañoMB ?? entrada.tamañoMB };
+}
+
+function cabeEnNeurona(entrada: Entrada, neurona: NeuronaVigia, maxDiscoMB: number): { ok: boolean; cuantizacion?: Cuantizacion; motivo: string } {
+  if (entrada.ramRequeridaMB && entrada.ramRequeridaMB > neurona.ramMB) {
+    return { ok: false, motivo: "RAM insuficiente" };
+  }
+  if (entrada.vramRequeridaMB && neurona.vramMB && entrada.vramRequeridaMB > neurona.vramMB) {
+    return { ok: false, motivo: "VRAM insuficiente" };
+  }
+  const cuan = elegirCuantizacion(entrada, maxDiscoMB);
+  if (!cuan.ok) return { ok: false, motivo: "No cabe en disco con la cuantización disponible" };
+  return { ok: true, cuantizacion: cuan.cuantizacion, motivo: "Cabe" };
+}
+
 export function planInstalacion(
   neurona: NeuronaVigia,
   catalogo: Record<string, Entrada[]>,
   preferencias: CapasPrefs,
   instalados: string[]
 ): Record<string, PlanArea> {
+  const contexto: Contexto = "publico";
+  const maxDiscoMB = presupuestoDiscoMB(neurona);
   const resultado: Record<string, PlanArea> = {};
 
-  // Determinamos el contexto de uso para las preferencias.
-  // Por defecto, asumimos contexto "publico" si no se especifica otro.
-  // En una implementación real, el contexto vendría de la configuración de la neurona.
-  const contexto: Contexto = "publico";
-
-  // Iteramos sobre cada área en el catálogo
   for (const [area, entradas] of Object.entries(catalogo)) {
-    const planArea: PlanArea = {
-      instalar: [],
-      actualizar: [],
-      quitar: [],
-      desdeLaMalla: false,
-      motivo: "",
-    };
+    const plan: PlanArea = { instalar: [], actualizar: [], quitar: [], desdeLaMalla: false, motivo: "" };
+    const validas: { entrada: Entrada; cuantizacion?: Cuantizacion }[] = [];
 
-    // Separamos las entradas en aquellas que cumplen con preferencias y hardware
-    const entradasValidas: Entrada[] = [];
-    const entradasNoValidas: Entrada[] = [];
-
-    for (const entrada of entradas) {
-      if (!licenciaPermitida(entrada, preferencias, contexto)) {
-        entradasNoValidas.push(entrada);
-        continue;
-      }
-
-      const cabeResult = cabeEnNeurona(entrada, neurona);
-      if (!cabeResult.ok) {
-        entradasNoValidas.push(entrada);
-        continue;
-      }
-
-      // Guardamos el resultado de cabe para usarlo después
-      entrada["_cabeResult"] = cabeResult;
-      entradasValidas.push(entrada);
+    for (const e of entradas) {
+      if (!licenciaPermitida(e, preferencias, contexto)) continue;
+      const cabe = cabeEnNeurona(e, neurona, maxDiscoMB);
+      if (!cabe.ok) continue;
+      validas.push({ entrada: e, cuantizacion: cabe.cuantizacion });
     }
 
-    // Determinamos qué instalar: entradas válidas que no están instaladas
-    for (const entrada of entradasValidas) {
-      if (!instalados.includes(entrada.id)) {
-        planArea.instalar.push(entrada);
+    for (const v of validas) {
+      if (!instalados.includes(v.entrada.id)) {
+        plan.instalar.push({ ...v.entrada, cuantizacion: v.cuantizacion });
       }
     }
 
-    // Determinamos qué quitar: entradas instaladas que ya no son válidas o no están en el catálogo
-    // Asumimos que instalados contiene IDs de modelos instalados en esta área.
-    // En una implementación real, necesitaríamos saber a qué área pertenece cada ID instalado.
-    // Por simplicidad, asumimos que si un ID está en instalados y no está en las entradas del catálogo
-    // de esta área, entonces debe ser quitado de esta área.
-    // Nota: Esto no es perfecto porque el mismo ID podría estar en otra área, pero asumimos que los IDs son únicos entre áreas.
-    for (const idInstalado of instalados) {
-      const entradaExistente = entradas.find(e => e.id === idInstalado);
-      if (!entradaExistente) {
-        // El modelo instalado ya no está en el catálogo de esta área: marcar para quitar
-        const entradaParaQuitar: Entrada | undefined = entradas.find(e => e.id === idInstalado);
-        if (entradaParaQuitar) {
-          planArea.quitar.push(entradaParaQuitar);
-        }
-      } else if (
-        !licenciaPermitida(entradaExistente, preferencias, contexto) ||
-        !cabeEnNeurona(entradaExistente, neurona).ok
-      ) {
-        // El modelo instalado ya no cumple con preferencias o hardware
-        planArea.quitar.push(entradaExistente);
+    for (const id of instalados) {
+      const e = entradas.find(x => x.id === id);
+      if (!e) { plan.quitar.push({ id, nombre: id, licencia: "libre", tamañoMB: 0 } as Entrada); continue; }
+      if (!licenciaPermitida(e, preferencias, contexto) || !cabeEnNeurona(e, neurona, maxDiscoMB).ok) {
+        plan.quitar.push(e);
       }
     }
 
-    // Actualizar: por ahora no implementamos actualizaciones por falta de información de versión
-    // En una implementación real, compararíamos versiones del mismo modelo.
-
-    // Construimos el motivo del plan
-    const motivos = [];
-    if (planArea.instalar.length > 0) {
-      motivos.push(`Instalar ${planArea.instalar.length} modelo(s)`);
-    }
-    if (planArea.actualizar.length > 0) {
-      motivos.push(`Actualizar ${planArea.actualizar.length} modelo(s)`);
-    }
-    if (planArea.quitar.length > 0) {
-      motivos.push(`Quitar ${planArea.quitar.length} modelo(s)`);
-    }
-    if (motivos.length === 0) {
-      planArea.motivo = "No se requieren cambios.";
+    if (validas.length === 0 && entradas.length > 0) {
+      plan.desdeLaMalla = true;
+      plan.motivo = "No cabe localmente, usar malla";
+    } else if (plan.instalar.length) {
+      plan.motivo = `Instalar ${plan.instalar.length} modelo(s)`;
     } else {
-      planArea.motivo = motivos.join(", ") + ".";
+      plan.motivo = "Sin cambios";
     }
 
-    resultado[area] = planArea;
+    resultado[area] = plan;
   }
-
   return resultado;
 }
