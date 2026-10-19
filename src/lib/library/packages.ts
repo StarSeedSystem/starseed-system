@@ -682,14 +682,14 @@ const LABS_PACKAGES: LibraryPackage[] = [
      muestre versión instalada frente a publicada (los `repo` con
      `payload.githubRepo` se consultan en tiempo real por releases). El primero
      es el nuestro: VoiceMorphic, la voz nativa de Astraura. */
-  {
-    id: "voz-voicemorphic", kind: "repo", name: "VoiceMorphic · voz nativa de Astraura",
-    description:
-      "Nuestro sistema de voz: fusión adaptada sobre OmniVoice portado a llama.cpp (GGUF Q8_0, Metal/CPU), con clonación por referencia, instrucción de estilo, entonación por contexto y anticipación de frases. Funciona sin internet. Motor por defecto en macOS, Windows y Linux. En evolución hacia pesos ternarios (1,58-bit).",
-    icon: "AudioWaveform", tags: ["voces", "voz", "tts", "local", "starseed", "1.58"], version: "1.0.0",
-    author: "StarSeed", sourceRepoId: "starseed-labs", free: true,
-    payload: { externalUrl: "https://github.com/StarSeedSystem/starseed-system/tree/main/native/astraura-voice", githubRepo: "StarSeedSystem/starseed-system", categoria: "voces", motorId: "voicemorphic", route: "/settings" },
-  },
+   {
+     id: "voz-voicemorphic", kind: "repo", name: "VoiceMorphic · voz nativa de Astraura",
+     description:
+       "Nuestro sistema de voz: fusión adaptada sobre OmniVoice portado a llama.cpp (GGUF Q8_0, Metal/CPU), con clonación por referencia, instrucción de estilo, entonación por contexto y anticipación de frases. Funciona sin internet. Motor por defecto en macOS, Windows y Linux. En evolución hacia pesos ternarios (1,58-bit). Sus pesos base (OmniVoice) son CC-BY-NC: solo uso personal; en grupo, comunidad, público o comercio Astraura usa una voz libre.",
+     icon: "AudioWaveform", tags: ["voces", "voz", "tts", "local", "starseed", "1.58"], version: "1.0.0",
+     author: "StarSeed", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/StarSeedSystem/starseed-system/tree/main/native/astraura-voice", githubRepo: "StarSeedSystem/starseed-system", categoria: "voces", motorId: "voicemorphic", route: "/settings", claseLicencia: "personal" },
+   },
   {
     id: "voz-kokoro", kind: "repo", name: "Kokoro · voz local en el navegador",
     description:
@@ -729,8 +729,64 @@ const LABS_PACKAGES: LibraryPackage[] = [
     icon: "Library", tags: ["voces", "datasets", "referencias", "licencias", "investigacion"], version: "1.0.0",
     author: "StarSeed", sourceRepoId: "starseed-labs", free: true,
     payload: { externalUrl: "https://github.com/jim-schwoebel/voice_datasets", categoria: "voces", catalogo: "FUENTES_REFERENCIA", route: "/settings" },
-  },
-  /* ── KittenTTS / KittenML — repo (fuente de paquetes) ── */
+   },
+   {
+     id: "voz-voicestudio", kind: "repo", name: "VoiceStudio · estudio de voz local",
+     description:
+       "Estudio de voz local: clonación, diseño, doblaje, audiolibros, dictado. Repo: debpalash/VoiceStudio.",
+     icon: "Mic", tags: ["voces", "voz", "tts", "local", "estudio"], version: "1.0.0",
+     author: "debpalash", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/debpalash/VoiceStudio", githubRepo: "debpalash/VoiceStudio", categoria: "voces", motorId: "voicestudio", licencia: "AGPL-3.0-only", claseLicencia: "libre" },
+   },
+   {
+     id: "voz-cosyvoice3", kind: "repo", name: "CosyVoice3 · TTS multilingüe",
+     description:
+       "Modelo TTS de 3B parámetros (Apache-2.0) con clonación zero-shot y control de estilo. Repo: FunAudioLLM/CosyVoice.",
+     icon: "Mic", tags: ["voces", "voz", "tts", "local", "multilingue"], version: "1.0.0",
+     author: "FunAudioLLM", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/FunAudioLLM/CosyVoice", githubRepo: "FunAudioLLM/CosyVoice", categoria: "voces", motorId: "cosyvoice3", licencia: "Apache-2.0", claseLicencia: "libre" },
+   },
+   {
+     id: "voz-qwen3-tts", kind: "repo", name: "Qwen3-TTS · TTS potente",
+     description:
+       "Modelo TTS de QwenLM (Apache-2.0) con alta calidad y soporte multilingüe. Repo: QwenLM/Qwen3-TTS.",
+     icon: "Mic", tags: ["voces", "voz", "tts", "local", "potente"], version: "1.0.0",
+     author: "QwenLM", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/QwenLM/Qwen3-TTS", githubRepo: "QwenLM/Qwen3-TTS", categoria: "voces", motorId: "qwen3-tts", licencia: "Apache-2.0", claseLicencia: "libre" },
+   },
+   {
+     id: "voz-kittentts", kind: "repo", name: "KittenTTS · TTS ultraligero",
+     description:
+       "Modelo TTS ultraligero de KittenML (Apache-2.0) para uso en dispositivos con recursos limitados. Repo: KittenML/KittenTTS.",
+     icon: "Mic", tags: ["voces", "voz", "tts", "local", "ultraligero"], version: "1.0.0",
+     author: "KittenML", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/KittenML/KittenTTS", githubRepo: "KittenML/KittenTTS", categoria: "voces", motorId: "kittentts", licencia: "Apache-2.0", claseLicencia: "libre" },
+   },
+   {
+     id: "voz-moss-tts-nano", kind: "repo", name: "MOSS-TTS-Nano · TTS eficiente",
+     description:
+       "Modelo TTS de OpenMOSS (Apache-2.0) optimizado para eficiencia y baja latencia. Repo: OpenMOSS/MOSS-TTS.",
+     icon: "Mic", tags: ["voces", "voz", "tts", "local", "eficiente"], version: "1.0.0",
+     author: "OpenMOSS", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/OpenMOSS/MOSS-TTS", githubRepo: "OpenMOSS/MOSS-TTS", categoria: "voces", motorId: "moss-tts-nano", licencia: "Apache-2.0", claseLicencia: "libre" },
+   },
+   {
+     id: "voz-dots-tts", kind: "repo", name: "Dots.TTS · TTS accesible",
+     description:
+       "Modelo TTS de rednote-hilab (Apache-2.0) enfocado en accesibilidad y facilidad de uso. Repo: rednote-hilab/dots.tts.",
+     icon: "Mic", tags: ["voces", "voz", "tts", "local", "accesible"], version: "1.0.0",
+     author: "rednote-hilab", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/rednote-hilab/dots.tts", githubRepo: "rednote-hilab/dots.tts", categoria: "voces", motorId: "dots-tts", licencia: "Apache-2.0", claseLicencia: "libre" },
+   },
+   {
+     id: "oido-moonshine", kind: "repo", name: "Moonshine · reconocimiento de voz",
+     description:
+       "Modelo de reconocimiento de voz de moonshine-ai (MIT) para transcripción precisa y control por voz. Repo: moonshine-ai/moonshine.",
+     icon: "Mic", tags: ["voces", "voz", "stt", "local", "reconocimiento"], version: "1.0.0",
+     author: "moonshine-ai", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/moonshine-ai/moonshine", githubRepo: "moonshine-ai/moonshine", categoria: "voces", motorId: "moonshine", licencia: "MIT", claseLicencia: "libre" },
+   },
+   /* ── KittenTTS / KittenML — repo (fuente de paquetes) ── */
   {
     id: "repo-kittentts", kind: "repo", name: "KittenTTS / KittenML",
     description:
