@@ -58,6 +58,7 @@ class Jev(unittest.TestCase):
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
         _sin_motor_local()
 
     def tearDown(self):
