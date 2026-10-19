@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { MOTORES_OIDO, elegirOido } from "../motores-oido";
 
 describe("catálogo MOTORES_OIDO", () => {
-  it("tiene 6 motores registrados", () => {
-    expect(MOTORES_OIDO.length).toBe(6);
+  it("tiene 8 motores registrados", () => {
+    expect(MOTORES_OIDO.length).toBe(8);
   });
 
   it("phonon-2 tiene licencia CC-BY-4.0, flujo y 164 MB", () => {
@@ -17,6 +17,22 @@ describe("catálogo MOTORES_OIDO", () => {
     const m = MOTORES_OIDO.find((x) => x.id === 'parakeet-v3');
     expect(m?.idiomas).toContain('*');
     expect(m?.tipo).toBe('local');
+  });
+
+  it("voicestudio tiene licencia AGPL-3.0-only, flujo y idiomas *", () => {
+    const m = MOTORES_OIDO.find((x) => x.id === 'voicestudio');
+    expect(m?.licencia).toBe('AGPL-3.0-only');
+    expect(m?.flujo).toBe(true);
+    expect(m?.idiomas).toContain('*');
+  });
+
+  it("moonshine tiene idiomas ['en','es'], tipo local, flujo true, licencia MIT y 60 MB", () => {
+    const m = MOTORES_OIDO.find((x) => x.id === 'moonshine');
+    expect(m?.idiomas).toEqual(['en','es']);
+    expect(m?.tipo).toBe('local');
+    expect(m?.flujo).toBe(true);
+    expect(m?.licencia).toBe('MIT');
+    expect(m?.tamanoMB).toBe(60);
   });
 });
 

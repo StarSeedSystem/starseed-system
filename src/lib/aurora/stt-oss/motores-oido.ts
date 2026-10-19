@@ -2,7 +2,7 @@
  * StarSeed OS — Registro y elector de motores de oído. Módulo PURO (sin DOM ni fetch).
  * Contrato: architecture/voz-fusionada-astraura.md (§1, §3).
  */
-export type MotorOidoId = 'phonon-2'|'parakeet-v3'|'vibeasr-158'|'whisper-web'|'navegador'|'malla';
+export type MotorOidoId = 'phonon-2'|'parakeet-v3'|'vibeasr-158'|'whisper-web'|'navegador'|'malla'|'voicestudio'|'moonshine';
 export interface MotorOido { id: MotorOidoId; idiomas: string[]; tipo: 'navegador'|'local'|'endpoint'|'malla'; flujo: boolean; licencia: string; atribucion?: boolean; tamanoMB?: number; }
 export const MOTORES_OIDO: MotorOido[] = [
   { id: 'phonon-2', idiomas: ['en','es'], tipo: 'endpoint', flujo: true, licencia: 'CC-BY-4.0', atribucion: true, tamanoMB: 164 },
@@ -11,6 +11,8 @@ export const MOTORES_OIDO: MotorOido[] = [
   { id: 'whisper-web', idiomas: ['es','en','ca','fr','de','pt','it'], tipo: 'endpoint', flujo: false, licencia: 'MIT', atribucion: false },
   { id: 'navegador', idiomas: ['*'], tipo: 'navegador', flujo: true, licencia: 'sistema', atribucion: false },
   { id: 'malla', idiomas: ['*'], tipo: 'malla', flujo: false, licencia: '', atribucion: false },
+  { id: 'voicestudio', idiomas: ['*'], tipo: 'endpoint', flujo: true, licencia: 'AGPL-3.0-only', atribucion: false },
+  { id: 'moonshine', idiomas: ['en','es'], tipo: 'local', flujo: true, licencia: 'MIT', atribucion: false, tamanoMB: 60 },
 ];
 export interface OpcionesEleccionOido { idioma: string; disponibles: MotorOidoId[]; medidas?: Record<string, number>; fase: 'parcial'|'final'; preferido?: MotorOidoId; }
 export interface ResultadoOido { motor: string; motivo: string; }
@@ -27,7 +29,7 @@ export function elegirOido(opciones: OpcionesEleccionOido): ResultadoOido {
     const conFlujo = candidatosFiltrados.filter(c => c.flujo).sort((a, b) => (medidas[a.id] ?? Infinity) - (medidas[b.id] ?? Infinity));
     if (conFlujo[0]) return { motor: conFlujo[0].id, motivo: `fase parcial: menor latencia medida (${conFlujo[0].id}, flujo=${conFlujo[0].flujo})` };
   }
-  const orden = idioma === 'en' ? ['phonon-2','parakeet-v3','vibeasr-158','whisper-web','navegador','malla'] : ['parakeet-v3','vibeasr-158','phonon-2','whisper-web','navegador','malla'];
+  const orden = idioma === 'en' ? ['phonon-2','voicestudio','parakeet-v3','vibeasr-158','moonshine','whisper-web','navegador','malla'] : ['parakeet-v3','voicestudio','vibeasr-158','phonon-2','moonshine','whisper-web','navegador','malla'];
   for (const id of orden) {
     const m = candidatosFiltrados.find(c => c.id === id);
     if (m) return { motor: m.id, motivo: idioma === 'en' ? `inglés: ${m.id} por defecto` : `fase final: mayor precisión para ${idioma} (${m.id})` };
