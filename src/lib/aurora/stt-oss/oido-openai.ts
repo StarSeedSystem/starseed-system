@@ -6,6 +6,8 @@
  * Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo
  */
 
+import { corregirConGlosario, glosarioBase } from "./glosario-oido";
+
 /**
  * Resultado exitoso de la transcripción.
  */
