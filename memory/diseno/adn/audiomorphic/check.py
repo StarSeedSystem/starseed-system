@@ -1,219 +1,92 @@
 #!/usr/bin/env python3
-import json
-import re
-import sys
-from pathlib import Path
-
-# Paleta de colores de StarSeed OS (extraída del comprobador de referencia)
-ACENTOS = {"zenith": "#007FFF", "horizonte": "#10B981", "logica": "#FFBF00", "anchor": "#DC143C",
-           "zenith-texto": "#0057B0", "horizonte-texto": "#047857"}
-NEUTROS = {"nieve": "#F8F9FA", "noche": "#0A0F1D", "noche-alta": "#141B2E", "nieve-honda": "#EDF0F4",
-           "pizarra": "#46506A", "bruma": "#AEB6C8", "blanco": "#FFFFFF", "negro": "#000000"}
-PALETA = {v.upper() for v in list(ACENTOS.values()) + list(NEUTROS.values())}
-
+import json, re, sys
 def rgb(h):
     h = h.lstrip("#")
     if len(h) == 3:
         h = "".join(c * 2 for c in h)
-    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
-
-def luminancia(h):
-    def canal(c):
-        c /= 255
-        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+def lum(h):
     r, g, b = rgb(h)
-    return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b)
-
-def contraste(a, b):
-    x, y = sorted([luminancia(a), luminancia(b)], reverse=True)
+    return 0.2126 * ((r/255)/12.92 if (r/255) <= 0.04045 else ((r/255 + 0.055) / 1.055) ** 2.4) + \
+           0.7152 * ((g/255)/12.92 if (g/255) <= 0.04045 else ((g/255 + 0.055) / 1.055) ** 2.4) + \
+           0.0722 * ((b/255)/12.92 if (b/255) <= 0.04045 else ((b/255 + 0.055) / 1.055) ** 2.4)
+def con(a, b):
+    x, y = sorted([lum(a), lum(b)], reverse=True)
     return (x + 0.05) / (y + 0.05)
-
-def px(valor, unidad):
-    v = float(valor)
-    return v * 16 if unidad in ("rem", "em") else v * 1.333 if unidad == "pt" else v
-
-def main():
-    try:
-        data = json.load(sys.stdin)
-    except:
-        data = {}
-    
-    # Extraer información útil del JSON
-    # Asumimos que el JSON podría contener propiedades de diseño
-    font_sizes = data.get("font-sizes", [])
-    colors = data.get("colors", [])
-    elements = data.get("elements", [])
-    styles = data.get("styles", {})
-    
-    resultados = {}
-    
-    # p2: Número de tamaños de fuente (debe ser ≤ 3)
-    if font_sizes:
-        tamanos = sorted({round(float(fs), 1) for fs in font_sizes})
-        resultados["p2"] = (
-            "aprobado" if len(tamanos) <= 3 else "fallo",
-            f"{len(tamanos)} tamaños: {tamanos}"
-        )
+def px(v, u):
+    return float(v) * 16 if u in ("rem", "em") else float(v) * 1.333 if u == "pt" else float(v)
+try:
+    d = json.load(sys.stdin)
+except:
+    d = {}
+f = sorted({round(float(x), 1) for x in d.get("font-sizes", [])})
+c = [x for x in d.get("colors", []) if isinstance(x, str) and re.match(r'^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', x)]
+c = [x if len(x) == 7 else "#" + "".join(y * 2 for y in x[1:]) for x in c]
+r = {}
+r["p2"] = ("aprobado" if len(f) <= 3 else "fallo", f"{len(f)} tamaños: {f}") if f else ("manual", "no se proporcionaron tamaños de fuente")
+if len(f) >= 2:
+    if f[0] > 0:
+        p = f[-1] / f[0]
+        r["p3"] = ("aprobado" if p >= 6 else "fallo", f"mayor/menor = {p:.2f}")
     else:
-        resultados["p2"] = ("manual", "no se proporcionaron tamaños de fuente")
-    
-    # p3: Proporción entre el tamaño más grande y el más pequeño (debe ser ≥ 6)
-    if font_sizes and len(font_sizes) >= 2:
-        tamanos = sorted({round(float(fs), 1) for fs in font_sizes})
-        if tamanos[0] > 0:
-            prop = tamanos[-1] / tamanos[0]
-            resultados["p3"] = (
-                "aprobado" if prop >= 6 else "fallo",
-                f"mayor/menor = {prop:.2f}"
-            )
-        else:
-            resultados["p3"] = ("fallo", "tamaño mínimo cero o negativo")
+        r["p3"] = ("fallo", "tamaño mínimo cero o negativo")
+else:
+    r["p3"] = ("manual", "se necesitan al menos dos tamaños de fuente")
+r["p4"] = ("aprobado" if f and f[0] >= 28 else "fallo", f"menor {f[0] if f else 0} px (mínimo 28)") if f else ("manual", "no se proporcionaron tamaños de fuente")
+mw = d.get("max-width-ch")
+pl = d.get("paragraph-lengths", [])
+if mw is not None:
+    r["p5"] = ("aprobado" if int(mw) <= 65 else "fallo", f"max-width {mw}ch")
+elif pl:
+    ml = max(pl)
+    r["p5"] = ("manual" if ml > 65 else "aprobado", f"párrafo de {ml} caracteres sin max-width en ch" if ml > 65 else f"párrafos cortos (máximo {ml} caracteres)")
+else:
+    r["p5"] = ("manual", "no se proporcionó información de max-width o párrafos")
+r["p6"] = ("manual", "jugada rara una sola vez: mírala en el storyboard")
+cp = d.get("color-pairs", [])
+if cp:
+    vp = [(a, b) for a, b in cp if len((a, b)) >= 2 and re.match(r'^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', a) and re.match(r'^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', b)]
+    if vp:
+        vp = [(a if len(a) == 7 else "#" + "".join(y * 2 for y in a[1:]), b if len(b) == 7 else "#" + "".join(y * 2 for y in b[1:])) for a, b in vp]
+        cs = [con(a, b) for a, b in vp]
+        p = min(cs)
+        r["p7"] = ("aprobado" if p >= 4.5 else "fallo", f"peor par {p:.2f}:1")
     else:
-        resultados["p3"] = ("manual", "se necesitan al menos dos tamaños de fuente")
-    
-    # p4: Tamaño mínimo de fuente (debe ser ≥ 28px por defecto)
-    if font_sizes:
-        tamanos = sorted({round(float(fs), 1) for fs in font_sizes})
-        minimo = 28  # valor por defecto del comprobador de referencia
-        if tamanos:
-            resultados["p4"] = (
-                "aprobado" if tamanos[0] >= minimo else "fallo",
-                f"menor {tamanos[0]} px (mínimo {minimo})"
-            )
-        else:
-            resultados["p4"] = ("manual", "no se pudieron determinar tamaños de fuente")
-    else:
-        resultados["p4"] = ("manual", "no se proporcionaron tamaños de fuente")
-    
-    # p5: max-width en ch (debe ser ≤ 65) o longitud de párrafos
-    # Asumimos que podría venir en el JSON
-    max_width_ch = data.get("max-width-ch")
-    paragraph_lengths = data.get("paragraph-lengths", [])
-    
-    if max_width_ch is not None:
-        resultados["p5"] = (
-            "aprobado" if int(max_width_ch) <= 65 else "fallo",
-            f"max-width {max_width_ch}ch"
-        )
-    elif paragraph_lengths:
-        max_len = max(paragraph_lengths) if paragraph_lengths else 0
-        if max_len > 65:
-            resultados["p5"] = (
-                "manual",
-                f"párrafo de {max_len} caracteres sin max-width en ch"
-            )
-        elif paragraph_lengths:
-            resultados["p5"] = (
-                "aprobado",
-                f"párrafos cortos (máximo {max_len} caracteres)"
-            )
-        else:
-            resultados["p5"] = ("manual", "sin información de párrafos")
-    else:
-        resultados["p5"] = ("manual", "no se proporcionó información de max-width o párrafos")
-    
-    # p6: No está claramente definida en el comprobador de referencia
-    # La mencionamos como "jugada rara una sola vez"
-    resultados["p6"] = ("manual", "jugada rara una sola vez: mírala en el storyboard")
-    
-    # p7: Contraste WCAG (debe ser ≥ 4.5 para texto normal)
-    # Necesitamos pares de colores (texto, fondo)
-    color_pairs = data.get("color-pairs", [])
-    if color_pairs and len(color_pairs) > 0:
-        peores_contraste = []
-        for pair in color_pairs:
-            if len(pair) >= 2:
-                fg, bg = pair[0], pair[1]
-                # Asegurarnos de que sean colores válidos
-                if re.match(r'^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', fg) and \
-                   re.match(r'^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', bg):
-                    c = contraste(fg, bg)
-                    peores_contraste.append(c)
-        
-        if peores_contraste:
-            peor = min(peores_contraste)
-            resultados["p7"] = (
-                "aprobado" if peor >= 4.5 else "fallo",
-                f"peor par {peor:.2f}:1"
-            )
-        else:
-            resultados["p7"] = ("manual", "no se proporcionaron pares de colores válidos")
-    else:
-        resultados["p7"] = ("manual", "no se proporcionaron pares de colores para contraste")
-    
-    # p8: Elementos interactivos con min-height ≥ 44px
-    interactive_elements = data.get("interactive-elements", [])
-    if interactive_elements:
-        heights = []
-        for elem in interactive_elements:
-            # Asumimos que cada elemento tiene información de altura
-            height = elem.get("min-height") or elem.get("height")
-            if height:
-                # Convertir a px si es necesario
-                if isinstance(height, str):
-                    # Intentar extraer valor y unidad
-                    match = re.match(r'([\d.]+)(px|rem|em|pt)', height)
-                    if match:
-                        valor, unidad = match.groups()
-                        heights.append(px(valor, unidad))
-                    else:
-                        # Asumir que está en px si no tiene unidad
-                        try:
-                            heights.append(float(height))
-                        except:
-                            pass
+        r["p7"] = ("manual", "no se proporcionaron pares de colores válidos")
+else:
+    r["p7"] = ("manual", "no se proporcionaron pares de colores para contraste")
+ie = d.get("interactive-elements", [])
+if ie:
+    hs = []
+    for e in ie:
+        h = e.get("min-height") or e.get("height")
+        if h:
+            if isinstance(h, str):
+                m = re.match(r'([\d.]+)(px|rem|em|pt)', h)
+                if m:
+                    hs.append(px(float(m.group(1)), m.group(2)))
                 else:
-                    heights.append(float(height))
-        
-        if heights:
-            min_height = min(heights)
-            resultados["p8"] = (
-                "aprobado" if min_height >= 44 else "fallo",
-                f"{len(interactive_elements)} elementos interactivos; min-height {min_height:.0f}px"
-            )
-        else:
-            resultados["p8"] = ("manual", f"{len(interactive_elements)} elementos interactivos; altura no declarada")
+                    try:
+                        hs.append(float(h))
+                    except ValueError:
+                        pass
+            else:
+                hs.append(float(h))
+    if hs:
+        mh = min(hs)
+        r["p8"] = ("aprobado" if mh >= 44 else "fallo", f"{len(ie)} elementos interactivos; min-height {mh:.0f}px")
     else:
-        resultados["p8"] = ("no aplica", "sin elementos interactivos")
-    
-    # Prohibiciones: colores fuera de paleta
-    forbidden_colors = []
-    if colors:
-        for color in colors:
-            if isinstance(color, str) and re.match(r'^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', color):
-                # Normalizar a formato de 6 dígitos
-                if len(color) == 4:
-                    color = "#" + "".join(c * 2 for c in color[1:])
-                if color.upper() not in PALETA:
-                    forbidden_colors.append(color)
-    
-    if forbidden_colors:
-        resultados["prohibiciones"] = (
-            "fallo",
-            f"hex fuera de la paleta: {forbidden_colors}"
-        )
-    else:
-        resultados["prohibiciones"] = (
-            "aprobado" if colors else "manual",
-            "ninguna" if colors else "no se proporcionaron colores para verificar"
-        )
-    
-    # Salida en el formato esperado
-    # Primero los principios p1-p8
-    for i in range(1, 9):
-        key = f"p{i}"
-        estado, detalle = resultados.get(key, ("manual", "no medido en esta pasada"))
-        print(f"{key}: {estado} · {detalle}")
-    
-    # Luego prohibiciones y avisos (si existen)
-    for key in ["prohibiciones"]:  # aviso no se implementa por simplicidad
-        if key in resultados:
-            estado, detalle = resultados[key]
-            print(f"{key}: {estado} · {detalle}")
-    
-    # Código de salida: 1 si alguna prueba falló (pero no manual)
-    fallos = [v[0] for k, v in resultados.items() if v[0] == "fallo"]
-    sys.exit(1 if fallos else 0)
-
-if __name__ == "__main__":
-    main()
+        r["p8"] = ("manual", f"{len(ie)} elementos interactivos; altura no declarada")
+else:
+    r["p8"] = ("no aplica", "sin elementos interactivos")
+fc = [x for x in c if x.upper() not in {"#007FFF", "#10B981", "#FFBF00", "#DC143C", "#0057B0", "#047857", "#F8F9FA", "#0A0F1D", "#141B2E", "#EDF0F4", "#46506A", "#AEB6C8", "#FFFFFF", "#000000"}]
+r["prohibiciones"] = ("fallo" if fc else "aprobado" if c else "manual", f"hex fuera de la paleta: {fc}" if fc else "ninguna" if c else "no se proporcionaron colores para verificar")
+for i in range(1, 9):
+    k = f"p{i}"
+    e, dt = r.get(k, ("manual", "no medido en esta pasada"))
+    print(f"{k}: {e} · {dt}")
+if "prohibiciones" in r:
+    e, dt = r["prohibiciones"]
+    print(f"prohibiciones: {e} · {dt}")
+s = [v[0] for v in r.values() if v[0] == "fallo"]
+sys.exit(1 if s else 0)
