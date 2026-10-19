@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { botonesNeurona, type NeuronaColmena } from "@/lib/metagenesis/colmena";
 
-describe("colmena-botones · botones de una neurona (rescatado de rama nube)", () => {
+describe("colmena-botones · botones de una neurona"), () => {
     it("sin trabajo en curso, el botón de desconectar está deshabilitado", () => {
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
