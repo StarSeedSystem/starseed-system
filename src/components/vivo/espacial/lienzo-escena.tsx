@@ -20,6 +20,8 @@ import { Objeto3D } from "./objeto-3d";
 import { AvatarRemoto } from "./avatar-remoto";
 import { AgarreXR, transformacionDe, type TransformacionXR } from "./agarre-xr";
 import { useSesionXR, type EstadoXR } from "./use-sesion-xr";
+import { PantallaVideoHTML } from "./pantalla-video-html";
+import type { NivelCalidad } from "@/lib/xr/tipos";
 
 export type ModoGizmo = "translate" | "rotate" | "scale";
 
@@ -209,7 +211,8 @@ function Contenido(p: PropsLienzoEscena & { xrModo: "immersive-vr" | "immersive-
                 {otros.map((a) => (
                     <AvatarRemoto key={a.clave} meta={a} poses={sesion.poses} reducido={reducido} eco={eco} />
                 ))}
-            </group>
+</group>
+            <PantallaVideoHTML ancho={1920} alto={1080} distanciaM={2} calidadXR={"media" as NivelCalidad} />
             {puedeGizmo && objetivo && seleccion && (
                 <TransformControls
                     object={objetivo}
