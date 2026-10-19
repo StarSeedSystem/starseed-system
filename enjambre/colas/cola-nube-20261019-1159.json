@@ -1,0 +1,47 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "GCA1019J",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Bóveda de claves por ámbito (servidor)",
+   "archivos": [
+    "src/lib/genesis/conectores/boveda-servidor.ts",
+    "src/lib/genesis/conectores/__tests__/boveda-servidor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Con el patrón de `src/lib/storage/credenciales-servidor.ts` (AES-256-GCM, clave derivada con HKDF): `guardarClave(ambito, proveedor, valor)`, `prestarClave(deAmbito, aAmbito, {tope, caduca})`, `usarClave(ambito, proveedor, fn)` (entrega el valor solo dentro de `fn`, nunca lo devuelve), `revocar`. Cliente de Supabase inyectado; prueba con uno falso que comprueba que el valor nunca aparece en lo guardado ni en errores. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019I"
+   ]
+  },
+  {
+   "id": "GCA1019P",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Registro de motores del ámbito con código de emparejamiento",
+   "archivos": [
+    "src/app/api/genesis/contenedores/route.ts",
+    "src/app/api/genesis/contenedores/__tests__/route.test.ts"
+   ],
+   "depende": [],
+   "prompt": "POST crea un código de emparejamiento de 15 minutos para el ámbito; POST {codigo} desde el motor lo canjea por un token (`src/lib/mando/motor-token.ts`, solo se guarda la huella) y registra el motor; GET lista motores del ámbito con su estado; DELETE revoca. Permiso del ámbito obligatorio. Prueba con dependencias falsas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019I"
+   ]
+  },
+  {
+   "id": "GCA1019T",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Tokens externos por ámbito",
+   "archivos": [
+    "src/lib/genesis/mcp/tokens-externos.ts",
+    "src/lib/genesis/mcp/__tests__/tokens-externos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO salvo el almacén inyectado: `crearToken(ambito, alcance, caduca)` devuelve el valor UNA vez y guarda solo la huella (SHA-256); `verificarToken(valor)` → { ambito, alcance } | null; caducidad, revocación y contador de usos. Prueba: el valor nunca se guarda; uno revocado o caducado no pasa. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019I"
+   ]
+  }
+ ]
+}
