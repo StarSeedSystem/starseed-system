@@ -292,8 +292,31 @@ describe("consultas puras", () => {
     expect(repoDeGithub("https://github.com/IfcOpenShell/IfcOpenShell/tree/v0.8.0/src")).toBe("IfcOpenShell/IfcOpenShell");
     expect(repoDeGithub("https://codeberg.org/tenacityteam/tenacity")).toBeNull();
     expect(repoDeGithub(null)).toBeNull();
+  it("diagram-design tool is present and has correct properties", () => {
   });
-});
+    const t = herramientaPorId("diagram-design");
+    expect(t).toBeDefined();
+    expect(t?.id).toBe("diagram-design");
+    expect(t?.nombre).toBe("Diagram Design");
+    expect(t?.categoria).toBe("pizarras-diagramas");
+    expect(t?.tipo).toBe("recurso");
+    expect(t?.origen).toBe("github");
+    expect(t?.licencia).toBe("MIT");
+    expect(t?.codigo).toBe("https://github.com/cathrynlavery/diagram-design");
+    expect(t?.web).toBeNull();
+    expect(t?.medios.web).toBe("embebible");
+    expect(t?.integracion).toBe("iframe-aislado");
+    expect(t?.formatos.entrada).toEqual(expect.arrayContaining(["texto", "drawio", "mermaid", "excalidraw"]));
+    expect(t?.formatos.salida).toEqual(expect.arrayContaining(["html", "svg", "png"]));
+    expect(t?.control.via).toContain("js");
+    expect(t?.actualizacion).toMatchObject({ fuente: "github-releases", ref: "cathrynlavery/diagram-design" });
+    expect(t?.ia).toContain("genera-diagrama-desde-texto");
+    expect(t?.estado).toBe("integrable");
+    expect(t?.motivo).toContain("se aloja su build web como origen aparte en un iframe con sandbox");
+    expect(t?.verificado).toBe("2026-10-18");
+    expect(t?.avisos).toEqual(expect.arrayContaining(["sin telemetría", "fuentes del OS", "animaciones solo en iframe aislado"]));
+  });
+  );
 
 describe("aPaqueteBiblioteca", () => {
   it("una app integrable pasa a «app», con enlace externo, sin ruta inventada y con su upstream de GitHub", () => {

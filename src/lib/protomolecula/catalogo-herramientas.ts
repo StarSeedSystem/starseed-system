@@ -816,7 +816,27 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     estado: "integrable", motivo: "Se importa como librería JavaScript dentro del paquete de la Biblioteca, detrás de los parámetros del átomo.",
     verificado: "2026-10-10",
   },
-
+  {
+    id: "diagram-design",
+    nombre: "Diagram Design",
+    categoria: "pizarras-diagramas",
+    tipo: "recurso",
+    origen: "github",
+    descripcion: "Genera y edita diagramas a partir de texto, Draw.io, Mermaid o Excalidraw; se muestra en iframe aislado sin telemetría y con fuentes del OS.",
+    licencia: "MIT",
+    codigo: "https://github.com/cathrynlavery/diagram-design",
+    web: null,
+    medios: { web: "embebible", android: true, ios: true, macos: true, windows: true, linux: true, servidor: false },
+    integracion: "iframe-aislado",
+    formatos: { entrada: ["texto", "drawio", "mermaid", "excalidraw"], salida: ["html", "svg", "png"] },
+    control: { via: ["js"], notas: "Se controla mediante JavaScript en el iframe aislado." },
+    actualizacion: { fuente: "github-releases", ref: "cathrynlavery/diagram-design", ultimaVersion: "v2.6.110", fechaVersion: "2026-10-16" },
+    ia: ["genera-diagrama-desde-texto"],
+    estado: "integrable",
+    motivo: "Se aloja su build web como origen aparte en un iframe con sandbox; control «solo ventana» más intercambio de archivos.",
+    verificado: "2026-10-18",
+    avisos: ["sin telemetría", "fuentes del OS", "animaciones solo en iframe aislado"]
+  },
   // ── audio-edicion ───────────────────────────────────────────────
   {
     id: "ardour", nombre: "Ardour", categoria: "audio-edicion", tipo: "app", origen: "github",
