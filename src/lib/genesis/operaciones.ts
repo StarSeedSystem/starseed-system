@@ -24,6 +24,7 @@
 import { validarContraInvariantes, type Violacion } from "@/lib/nucleo/invariantes";
 import { pareceCodigo } from "@/lib/nucleo/ui-spec";
 import { validarAccionUi, type TipoAccionUi } from "@/lib/astraura/ui-acciones";
+import { type CambioBot } from "@/lib/astraura-bots/permisos.ts";
 
 /* ── Vocabulario ─────────────────────────────────────────────────────────── */
 
@@ -36,7 +37,9 @@ export type TipoOperacion =
     | "dock.quitar"
     | "dashboard.widget.añadir"
     | "dashboard.widget.quitar"
-    | "agente.crear";
+    | "agente.crear"
+    | "bot.crear"
+    | "bot.configurar";
 
 export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "perfil.editar",
@@ -48,12 +51,30 @@ export const TIPOS_OPERACION: readonly TipoOperacion[] = [
     "dashboard.widget.añadir",
     "dashboard.widget.quitar",
     "agente.crear",
+    "bot.crear",
+    "bot.configurar",
 ];
 
 /** Lo que cada nivel puede tocar. PoliGenesis: solo lo de la entidad. */
 export const OPERACIONES_POR_AMBITO: Record<"persona" | "entidad", readonly TipoOperacion[]> = {
-    persona: TIPOS_OPERACION,
-    entidad: ["pagina.editar", "agente.crear"],
+    persona: [
+        "perfil.editar",
+        "pagina.crear",
+        "pagina.editar",
+        "apariencia.aplicar",
+        "dock.añadir",
+        "dock.quitar",
+        "dashboard.widget.añadir",
+        "dashboard.widget.quitar",
+        "agente.crear",
+        "bot.configurar",
+    ],
+    entidad: [
+        "pagina.editar",
+        "agente.crear",
+        "bot.crear",
+        "bot.configurar",
+    ],
 };
 
 export type TipoEntidad = "pagina" | "grupo";
@@ -114,6 +135,17 @@ export interface DatosAgente {
     visibilidad?: "private" | "public";
 }
 
+export interface DatosBotNuevo {
+    nombre: string;
+    gobierno: "jerarquico" | "democratico";
+}
+
+export interface CambiosBot {
+    botId: string;
+    cambio: CambioBot;
+    valor: unknown;
+}
+
 interface Base {
     /** Por qué, en una frase (se enseña en la vista previa). */
     motivo: string;
@@ -129,6 +161,8 @@ export type Operacion =
     | (Base & { tipo: "dashboard.widget.añadir"; tablero?: string; widget: string; talla?: "S" | "M" | "L" })
     | (Base & { tipo: "dashboard.widget.quitar"; tablero?: string; widget: string })
     | (Base & { tipo: "agente.crear"; agente: DatosAgente });
+    | (Base & { tipo: "bot.crear"; datos: DatosBotNuevo });
+    | (Base & { tipo: "bot.configurar"; cambios: CambiosBot });
 
 /** Lo que la validación sabe del entorno (lo pasa quien llama; todo opcional). */
 export interface ContextoValidacion {
@@ -496,9 +530,46 @@ export function validarOperacion(bruto: unknown, ctx: ContextoValidacion): Resul
                 });
                 if (!nombre && !problemas.length) problemas.push("El agente necesita un nombre.");
                 if (problemas.length) return fallo();
-                return { ok: true, avisos, op: { tipo: "agente.crear", motivo, agente: agente as DatosAgente } };
-            }
-        }
+                 return { ok: true, avisos, op: { tipo: "agente.crear", motivo, agente: agente as DatosAgente } };
+             }
+             case "bot.crear": {
+                 const d = esObjeto(bruto.datos) ? bruto.datos : {};
+                 const nombre = texto(d.nombre, LIMITES.nombre, "nombre", problemas);
+                 const gobierno = d.gobierno;
+                 if (gobierno !== "jerarquico" && gobierno !== "democratico") {
+                     problemas.push(`«gobierno» debe ser "jerarquico" o "democratico".`);
+                 }
+                 if (!nombre && !problemas.length) problemas.push("El bot nuevo necesita un nombre.");
+                 if (problemas.length) return fallo();
+                 return { ok: true, avisos, op: { tipo: "bot.crear", motivo, datos: { nombre, gobierno } as DatosBotNuevo } };
+             }
+             case "bot.configurar": {
+                 const b = esObjeto(bruto.cambios) ? bruto.cambios : {};
+                 const botId = typeof b.botId === "string" ? b.botId.trim() : "";
+                 if (!PATRON_ID.test(botId)) {
+                     problemas.push(`«botId» no es válido.`);
+                 }
+                 const cambio = b.cambio;
+                 if (!["personalidad", "cuerpo", "sentidos", "permisos", "modelo", "pausar", "borrar"].includes(cambio)) {
+                     problemas.push(`«cambio» debe ser uno de: personalidad, cuerpo, sentidos, permisos, modelo, pausar, borrar.`);
+                 }
+                 const valor = b.valor;
+                 let valorJson = "";
+                 try {
+                     valorJson = JSON.stringify(valor);
+                 } catch {
+                     problemas.push(`«valor» no es un valor JSON válido.`);
+                 }
+                 if (valorJson.length > 4000) {
+                     problemas.push(`«valor» supera los 4000 caracteres.`);
+                 }
+                 if (pareceCodigo(valorJson)) {
+                     problemas.push(`«valor» contiene algo que parece código; Genesis solo acepta contenido.`);
+                 }
+                 if (problemas.length) return fallo();
+                 return { ok: true, avisos, op: { tipo: "bot.configurar", motivo, cambios: { botId, cambio, valor } as CambiosBot } };
+             }
+         }
         problemas.push("Operación no reconocida.");
         return fallo();
     } catch {
@@ -683,7 +754,9 @@ export type Inverso =
     | { tipo: "dock.restaurar"; id: string; existia: boolean; estabaActivo: boolean }
     | { tipo: "widget.quitar"; tablero: string; widgetId: string }
     | { tipo: "widget.reponer"; tablero: string; widget: Record<string, unknown> }
-    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } };
+    | { tipo: "agente.borrar"; agenteId: string; vinculo?: { tipo: "page" | "group"; id: string } }
+    | { tipo: "bot.borrar"; botId: string }
+    | { tipo: "bot.restaurar"; botId: string; campo: CambioBot; antes: unknown; despues: unknown };
 
 export type EstadoEntrada = "aplicada" | "deshecha" | "propuesta" | "fallida";
 
