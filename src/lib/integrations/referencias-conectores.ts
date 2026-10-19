@@ -21,7 +21,7 @@
 import type { IntegrationDescriptor } from "./types";
 // Importar el JSON de catálogo de forma directa.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const catalog = require("../../config/referencias-inspiracion.json");
+const catalog = require("../../../config/referencias-inspiracion.json");
 
 /**
  * Convierte la información de referencia de diseño en un descriptor de
