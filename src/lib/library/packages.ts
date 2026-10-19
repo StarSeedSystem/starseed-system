@@ -817,11 +817,20 @@ const LABS_PACKAGES: LibraryPackage[] = [
   {
     id: "fn-agentos", kind: "function", name: "AgentOS · patrones de agentes",
     description:
-      "Patrones de orquestación de agentes (referencia). No es una skill ejecutable hoy: instalar GUARDA el enlace en tu biblioteca y abre su GitHub para estudiar/adaptar sus patrones al Exocórtex.",
-    icon: "Workflow", tags: ["referencia", "agentes", "orquestacion", "beta"], version: "0.1.0",
-    author: "Rivet", sourceRepoId: "starseed-labs", free: true,
-    payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "patrones de orquestación" },
-  },
+       "Patrones de orquestación de agentes (referencia). No es una skill ejecutable hoy: instalar GUARDA el enlace en tu biblioteca y abre su GitHub para estudiar/adaptar sus patrones al Exocórtex.",
+     icon: "Workflow", tags: ["referencia", "agentes", "orquestacion", "beta"], version: "0.1.0",
+     author: "Rivet", sourceRepoId: "starseed-labs", free: true,
+     payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "patrones de orquestación" },
+   },
+   /* ── HyperFrames · editor de vídeo de la Protomolécula ── */
+   {
+     id: "video-hyperframes", kind: "repo", name: "HyperFrames",
+     description: "escribe HTML, sale vídeo; editor de vídeo de la Protomolécula, render en la malla y edición en grupo",
+     icon: "Video",
+     tags: ["vídeo", "edición", "html", "render"], version: "1.0.0",
+     author: "HeyGen", sourceRepoId: "starseed-labs", free: true, featured: true,
+     payload: { categoria: "video", herramientaId: "hyperframes", claseLicencia: "libre", githubRepo: "heygen-com/hyperframes" }
+   }
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
