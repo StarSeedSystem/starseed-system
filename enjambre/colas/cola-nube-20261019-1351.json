@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "HFR1018N",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Salas 3D y XR · el vídeo como pantalla dentro de la escena",
+   "archivos": [
+    "src/lib/xr/pantalla-video.ts",
+    "src/components/vivo/espacial/pantalla-video-html.tsx",
+    "src/lib/xr/__tests__/pantalla-video.test.ts"
+   ],
+   "depende": [],
+   "prompt": "pantalla-video.ts PURO: `pantallaPara({ ancho, alto, distanciaM, calidadXR })` → tamaño en metros, resolución de la textura según calidad (src/lib/xr/calidad.ts) y si conviene el vídeo ya renderizado o la vista en vivo. El componente pinta un plano con la textura del vídeo dentro de `escena-compartida` (solo el componente; montarlo queda para otra tarea). Pruebas de la función. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "HFR1018J"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "HFR1018N"
+  ]
+ }
+}
