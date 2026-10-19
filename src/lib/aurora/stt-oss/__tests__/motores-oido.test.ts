@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { MOTORES_OIDO, elegirOido } from "../motores-oido";
 
 describe("catálogo MOTORES_OIDO", () => {
-  it("tiene 6 motores registrados", () => {
-    expect(MOTORES_OIDO.length).toBe(6);
+  it("tiene 8 motores registrados", () => {
+    expect(MOTORES_OIDO.length).toBe(8);
   });
 
   it("phonon-2 tiene licencia CC-BY-4.0, flujo y 164 MB", () => {
@@ -17,6 +17,21 @@ describe("catálogo MOTORES_OIDO", () => {
     const m = MOTORES_OIDO.find((x) => x.id === 'parakeet-v3');
     expect(m?.idiomas).toContain('*');
     expect(m?.tipo).toBe('local');
+  });
+
+  it("voicestudio tiene licencia AGPL-3.0-only, tipo endpoint y flujo true", () => {
+    const m = MOTORES_OIDO.find((x) => x.id === 'voicestudio');
+    expect(m?.licencia).toBe('AGPL-3.0-only');
+    expect(m?.tipo).toBe('endpoint');
+    expect(m?.flujo).toBe(true);
+  });
+
+  it("moonshine tiene licencia MIT, tipo local, flujo true y 60 MB", () => {
+    const m = MOTORES_OIDO.find((x) => x.id === 'moonshine');
+    expect(m?.licencia).toBe('MIT');
+    expect(m?.tipo).toBe('local');
+    expect(m?.flujo).toBe(true);
+    expect(m?.tamanoMB).toBe(60);
   });
 });
 
@@ -69,5 +84,60 @@ describe("elegirOido", () => {
     });
     expect(r.motor).toBe('navegador');
     expect(r.motivo).toContain('suelo');
+  });
+
+  // New tests for the added motors
+  it("voicestudio se considera en final para español cuando está disponible", () => {
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['parakeet-v3', 'voicestudio'],
+      fase: 'final',
+    });
+    // In Spanish final, parakeet-v3 is first, then voicestudio. Since parakeet-v3 is available, it should be chosen.
+    expect(r.motor).toBe('parakeet-v3');
+  });
+
+  it("voicestudio se considera en final para español cuando parakeet-v3 no está disponible", () => {
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['voicestudio', 'whisper-web'],
+      fase: 'final',
+    });
+    // Order: parakeet-v3 (not available), voicestudio (available) -> should pick voicestudio
+    expect(r.motor).toBe('voicestudio');
+    expect(r.motivo).toContain('fase final: mayor precisión para es');
+  });
+
+  it("moonshine se considera en final para español y está antes de whisper-web", () => {
+    const r = elegirOido({
+      idioma: 'es',
+      disponibles: ['moonshine', 'whisper-web'],
+      fase: 'final',
+    });
+    // Order: parakeet-v3, voicestudio, vibeasr-158, phonon-2, moonshine, whisper-web, ...
+    // moonshine is before whisper-web, so it should be chosen.
+    expect(r.motor).toBe('moonshine');
+  });
+
+  it("voicestudio se considera en final para inglés", () => {
+    const r = elegirOido({
+      idioma: 'en',
+      disponibles: ['phonon-2', 'voicestudio'],
+      fase: 'final',
+    });
+    // English order: phonon-2, parakeet-v3, vibeasr-158, whisper-web, navegador, malla, voicestudio, moonshine
+    // phonon-2 is available, so it should be chosen.
+    expect(r.motor).toBe('phonon-2');
+  });
+
+  it("voicestudio se considera en final para inglés cuando phonon-2 y parakeet-v3 no están disponibles", () => {
+    const r = elegirOido({
+      idioma: 'en',
+      disponibles: ['voicestudio', 'moonshine'],
+      fase: 'final',
+    });
+    // English order: ... malla, voicestudio, moonshine
+    // voicestudio comes before moonshine, so it should be chosen.
+    expect(r.motor).toBe('voicestudio');
   });
 });
