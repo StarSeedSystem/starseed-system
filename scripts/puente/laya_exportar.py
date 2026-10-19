@@ -61,41 +61,111 @@ def comparar_respuestas(fp32: dict, int8: dict) -> dict:
 
     Devuelve métricas de coincidencia y diferencia de confianza.
     """
-    pass
+    coincidencia_choice = fp32.get("choice") == int8.get("choice")
+    coincidencia_score = fp32.get("score") == int8.get("score")
+    coincidencia_noul = fp32.get("noul") == int8.get("noul")
+
+    conf_fp32 = fp32.get("answer_confidence", 0.0)
+    conf_int8 = int8.get("answer_confidence", 0.0)
+    diff_confianza = abs(conf_fp32 - conf_int8)
+
+    return {
+        "choice_coincide": coincidencia_choice,
+        "score_coincide": coincidencia_score,
+        "noul_coincide": coincidencia_noul,
+        "confianza_fp32": conf_fp32,
+        "confianza_int8": conf_int8,
+        "diferencia_confianza": diff_confianza,
+    }
 
 
 def resumir_resultados(resultados: list[dict]) -> dict:
     """Resume una lista de resultados por mensaje en métricas agregadas."""
-    pass
+    if not resultados:
+        return {
+            "total_mensajes": 0,
+            "choice_aciertos": 0,
+            "score_aciertos": 0,
+            "noul_aciertos": 0,
+            "choice_precision": 0.0,
+            "score_precision": 0.0,
+            "noul_precision": 0.0,
+            "confianza_promedio_fp32": 0.0,
+            "confianza_promedio_int8": 0.0,
+            "diferencia_confianza_promedio": 0.0,
+            "latencia_promedio_fp32_ms": 0.0,
+            "latencia_promedio_int8_ms": 0.0,
+        }
+
+    total = len(resultados)
+    choice_aciertos = sum(1 for r in resultados if r["comparacion"]["choice_coincide"])
+    score_aciertos = sum(1 for r in resultados if r["comparacion"]["score_coincide"])
+    noul_aciertos = sum(1 for r in resultados if r["comparacion"]["noul_coincide"])
+
+    conf_fp32 = [r["comparacion"]["confianza_fp32"] for r in resultados]
+    conf_int8 = [r["comparacion"]["confianza_int8"] for r in resultados]
+    diff_conf = [r["comparacion"]["diferencia_confianza"] for r in resultados]
+    lat_fp32 = [r["latencia_fp32_ms"] for r in resultados]
+    lat_int8 = [r["latencia_int8_ms"] for r in resultados]
+
+    return {
+        "total_mensajes": total,
+        "choice_aciertos": choice_aciertos,
+        "score_aciertos": score_aciertos,
+        "noul_aciertos": noul_aciertos,
+        "choice_precision": choice_aciertos / total,
+        "score_precision": score_aciertos / total,
+        "noul_precision": noul_aciertos / total,
+        "confianza_promedio_fp32": sum(conf_fp32) / total,
+        "confianza_promedio_int8": sum(conf_int8) / total,
+        "diferencia_confianza_promedio": sum(diff_conf) / total,
+        "latencia_promedio_fp32_ms": sum(lat_fp32) / total,
+        "latencia_promedio_int8_ms": sum(lat_int8) / total,
+    }
 
 
 def medir_latencia(func: Callable, *args, **kwargs) -> tuple[Any, float]:
     """Ejecuta func y devuelve (resultado, latencia_ms)."""
-    pass
+    inicio = time.perf_counter()
+    resultado = func(*args, **kwargs)
+    fin = time.perf_counter()
+    return resultado, (fin - inicio) * 1000.0
 
 
-def exportar_onnx(modelo_dir: str, salida_fp32: str, export_script: str) -> None:
+def exportar_onnx(modelo_dir: str, salida_fp32: str, export_script: str) -> dict:
     """Ejecuta export/export_onnx.py del repo receptron/laya."""
-    pass
+    subprocess.run(["python", export_script, "--model-dir", modelo_dir, "--out", salida_fp32], check=True)
+    return {"status": "ok", "salida": salida_fp32}
 
 
-def cuantizar_int8(entrada_fp32: str, salida_int8: str) -> None:
+def cuantizar_int8(entrada_fp32: str, salida_int8: str) -> dict:
     """Cuantiza modelo ONNX fp32 a int8 dinámico."""
-    pass
+    from onnxruntime.quantization import quantize_dynamic, QuantType
+    quantize_dynamic(entrada_fp32, salida_int8, weight_type=QuantType.QUInt8)
+    return {"status": "ok", "salida": salida_int8}
 
 
 def cargar_modelo_onnx(ruta: str):
     """Carga sesión ONNX Runtime (inyectable para pruebas)."""
-    pass
+    import onnxruntime
+    return onnxruntime.InferenceSession(ruta)
 
 
 def inferir_laya(sesion, texto: str) -> dict:
     """Ejecuta inferencia Laya y devuelve choice/score/noul con answer_confidence."""
-    pass
+    # Simulado para el esqueleto
+    return {
+        "choice": "opcion1",
+        "score": 0.9,
+        "noul": 0.1,
+        "answer_confidence": 0.95
+    }
 
 
 def main(argv: Optional[list] = None) -> int:
-    pass
+    # Esqueleto principal
+    print("Laya export iniciado.")
+    return 0
 
 
 if __name__ == "__main__":
