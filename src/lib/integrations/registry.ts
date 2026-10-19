@@ -17,6 +17,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import type { IntegrationConfig, IntegrationDescriptor } from "./types";
+import { REFERENCIAS_DESCRIPTORS } from "./referencias-conectores";
 
 // ── Extensión aditiva del descriptor (retrocompatible) ────────────
 // Añadimos metadatos de hospedaje GRATIS sin tocar el tipo base:
@@ -742,7 +743,8 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
             { id: "benchmark", label: "Benchmark de velocidad", description: "Mide tokens/segundo y latencia de inferencia 1.58-bit." },
           ],
         },
-      ];
+      ...REFERENCIAS_DESCRIPTORS
+];
 
       // ── Helpers de búsqueda ──────────────────────────────────────────
 export function getIntegration(id: string): IntegrationDescriptor | undefined {
