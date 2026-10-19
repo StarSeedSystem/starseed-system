@@ -1,0 +1,96 @@
+{
+ "ola": "nube-20261018",
+ "tareas": [
+  {
+   "id": "AV1011Jb",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Propuestas y votos de avatar en grupos y páginas (PoliGenesis)",
+   "archivos": [
+    "src/lib/avatares/adaptadores/propuesta-avatar.ts",
+    "src/components/avatares/propuesta-avatar.tsx",
+    "src/lib/avatares/adaptadores/__tests__/propuesta-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Operación `avatar.cambiar` con `{ref, revBase, cambios}` donde `cambios = diffAdn(actual, propuesto)`. Regístrala con el mecanismo de operaciones de Genesis/PoliGenesis que ya existe (búscalo; la tarea BOT1011J1 añade operaciones de bots en `src/lib/genesis/operaciones.ts`: si el registro admite archivos separados úsalo, si no, edición mínima). Al aprobarse: si `revBase` coincide, `aplicarCambios`; si no, se vuelve a calcular el diff sobre la revisión actual y se avisa. La tarjeta muestra los dos avatares lado a lado (actual y propuesto) y la lista de cambios en palabras. Solo se puede proponer si `decidirCambioAvatar` responde «votacion». Pruebas del rebase.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261013-171455-AV1011J`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261013-171455-AV1011J:refs/remotes/origin/nube/a1-20261013-171455-AV1011J\"` y `git cherry-pick --no-commit 46d2541cb248`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/avatares/propuesta-avatar.tsx, src/lib/avatares/adaptadores/__tests__/propuesta-avatar.test.ts, src/lib/avatares/adaptadores/propuesta-avatar.ts, src/lib/genesis/operaciones.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261013-171455-AV1011J",
+   "dependencias_ya_en_main": [
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "HFR1018C",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Vídeo HTML · plantilla StarSeed sin GSAP y detector de adaptadores con su licencia",
+   "archivos": [
+    "src/lib/video-html/plantilla.ts",
+    "src/lib/video-html/adaptadores.ts",
+    "src/lib/video-html/__tests__/adaptadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "plantilla.ts: `plantillaStarSeed({ ancho, alto, duracion, titulo, fondo, acento })` devuelve el HTML de una composición válida para HyperFrames (raíz con `data-composition-id=\"main\"`, `data-start`, `data-duration`, `data-width`, `data-height` y `data-no-timeline`; cada elemento visible con id estable, `class=\"clip\"` y sus atributos de tiempo) animada SOLO con CSS @keyframes; escapa el texto. adaptadores.ts: `detectarAdaptadores(html)` → { usados: (\"css\"|\"waapi\"|\"animejs\"|\"lottie\"|\"three\"|\"typegpu\"|\"gsap\")[], editableVisualmente, motivo } (gsap → no editable visualmente, con motivo de licencia y la sugerencia de convertir a WAAPI). Pruebas: la plantilla no contiene «gsap» y el detector reconoce cada adaptador. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "HFR1018F",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Servicio hyperframes · rutas, salud y límites (127.0.0.1:4490)",
+   "archivos": [
+    "servicios/hyperframes/package.json",
+    "servicios/hyperframes/src/rutas.mjs",
+    "src/lib/__tests__/hyperframes-rutas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "package.json privado (`starseed-hyperframes`, type module, licencia AGPL-3.0-or-later, engines node >=22) que DECLARA hyperframes 0.8.172 y @hyperframes/sdk, @hyperframes/player y @hyperframes/core 0.8.173 (no los instales). rutas.mjs exporta `manejar({ metodo, ruta, cuerpo }, deps)` PURO: GET /salud (versión, navegador y ffmpeg presentes según deps, telemetría apagada), POST /lint, POST /editar (aplica órdenes de operaciones-sdk), GET /vista/:id (sirve composición y reproductor), POST /render y GET /trabajos/:id (delegan en la cola). Rechaza cuerpos > 8 MB, rutas desconocidas (404) y cualquier ruta de disco fuera del proyecto. La prueba importa el .mjs como src/lib/__tests__/laya-servidor.test.ts. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VST1018G",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Demonio de voz · puerta local hacia VoiceStudio (detecta, reenvía y se aparta si no está)",
+   "archivos": [
+    "native/astraura-voice/voicestudio-proxy.mjs",
+    "native/astraura-voice/daemon.mjs",
+    "src/lib/__tests__/voicestudio-proxy.test.ts"
+   ],
+   "depende": [],
+   "prompt": "voicestudio-proxy.mjs exporta funciones PURAS o con fetch inyectable: `detectar(fetch)` (GET del descubrimiento cada 60 s como mucho, con caché), `reenviar(ruta, cuerpo, fetch)` solo para `/v1/audio/speech`, `/v1/audio/transcriptions` y `/v1/audio/voices` (cualquier otra ruta → 404), y `estado()` para /salud. En daemon.mjs solo añade el montaje: rutas `/voicestudio/*` que llaman al proxy y una línea en la salud con «voicestudio: vivo | ausente». Solo escucha 127.0.0.1. La prueba importa el .mjs como hace src/lib/__tests__/laya-servidor.test.ts. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VST1018J",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Protomolécula · átomo «doblaje» (transcribir → traducir → revocar → mezclar)",
+   "archivos": [
+    "src/lib/protomolecula/atomos/doblaje.ts",
+    "src/lib/protomolecula/atomos/index.ts",
+    "src/lib/protomolecula/__tests__/atomo-doblaje.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Sigue el patrón `DefinicionAtomo` de atomos/sintetizador.ts: herramientaId \"voicestudio\", categoría de voz, parámetros (idioma destino, voz por hablante, conservar voz original con permiso, aislar voz, subtítulos), entradas (vídeo o audio) y salidas (audio doblado, subtítulos). La ejecución es un plan PURO de pasos (oído → texto → traducción → voz → mezcla) que nombra el motor de cada paso según licencia-voz.ts; no ejecuta nada. Regístralo en index.ts (solo añadir la línea). Prueba del plan. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VZF1015G",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Aurora escucha por el elector: tramos con detector de voz hacia el mejor motor (el navegador queda de suelo)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/escucha-fusionada.ts",
+    "src/lib/aurora/stt-oss/__tests__/escucha-fusionada.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea `escucharFusionado({ obtenerAudio, elegir, transcribir, alParcial, alFinal, idiomaPista, hotwords })`: corta el audio del micrófono en tramos con el detector de energía de `oss-stt.ts` (silencio 800 ms, tramo ≤ 30 s), pide a `elegirOido` el motor de la fase «final» por tramo y transcribe con `transcribirOpenAI` o el demonio; el parcial lo sigue dando el navegador si está (regla 1 del §3). En `engine.ts` (alrededor de `buildRecognition`, l. ~1925) usa este camino cuando el navegador no tiene reconocimiento o la neurona tiene un motor local medido mejor, SIN tocar el cerrojo de dueño único (`claimStt/releaseStt`) ni `esEcoPropio`. Pruebas con audio y motores falsos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A",
+    "VZF1015B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-180356.json": [
+   "AV1011Jb",
+   "HFR1018C",
+   "VST1018J",
+   "HFR1018F",
+   "VST1018G",
+   "VZF1015G"
+  ]
+ }
+}
