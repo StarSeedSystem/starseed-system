@@ -94,7 +94,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -105,7 +105,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -129,7 +129,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -140,7 +140,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -166,7 +166,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -177,7 +177,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -200,7 +200,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -211,7 +211,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -243,7 +243,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -254,7 +254,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -283,7 +283,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -294,7 +294,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -319,7 +319,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -330,7 +330,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -350,7 +350,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -361,7 +361,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -384,7 +384,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -395,7 +395,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
@@ -418,7 +418,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona sin conflicto: remoto gana por timestamp", () => {
-    const botLocal: any = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
+    const botLocal: BotSync = { id: "a", nombre: "a1", dueno: { tipo: "perfil", id: "p1", cuentaId: "c1" }, origen: "astraura", gobierno: "jerarquico", personalidad: { calidez: 0.5, energia: 0.5, formalidad: 0.5, curiosidad: 0.5, humor: 0.5, concision: 0.5 }, cuerpo: { forma: "orbe", tono: 180, escala: 1 }, sentidosHabilitados: ["pantalla"], activo: true };
     const local = { bots: [botLocal], actualizado: { a: 1 } };
     const botRemoto = { ...botLocal, nombre: "a2" };
     const remoto = { bots: [botRemoto], actualizado: { a: 2 } };
@@ -429,7 +429,7 @@ describe("fusionarBots", () => {
   })
 
   test("fusiona con conflicto: local gana si es más reciente", () => {
-    const botLocal: any = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
+    const botLocal: BotSync = { id: "b", nombre: "b1", dueno: { tipo: "grupo", id: "g1", cuentaId: "c1" }, origen: "astraura", gobierno: "democratico", personalidad: { calidez: 0.2, energia: 0.8, formalidad: 0.3, curiosidad: 0.7, humor: 0.4, concision: 0.6 }, cuerpo: { forma: "avatar-2d", tono: 200, escala: 1.2 }, sentidosHabilitados: ["red"], activo: false };
     const local = { bots: [botLocal], actualizado: { b: 10 } };
     const botRemoto = { ...botLocal, nombre: "b0" };
     const remoto = { bots: [botRemoto], actualizado: { b: 5 } };
