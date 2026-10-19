@@ -28,13 +28,18 @@ export function fusionarBots(
   return { bots: Array.from(botsPorId.values()), actualizado: actualizadoPorId };
 }
 
+export interface PayloadCambio {
+  new?: Bot | null;
+  eventType?: "INSERT" | "UPDATE" | "DELETE" | undefined;
+}
+
 export function suscribirBotsEntidad(
   entidades: Readonly<{ tipo: string; id: string; cuentaId: string }[]>,
   cb: (bots: Bot[]) => void
 ): () => void {
   if (entidades.length === 0) return () => {};
 
-  const entityFilters = entidades.map(e => 
+  const entityFilters = entidades.map(e =>
     `(dueno.tipo=eq.${e.tipo},dueno.id=eq.${e.id},dueno.cuentaId=eq.${e.cuentaId})`
   );
   const filter = entityFilters.join(' or ');
@@ -42,24 +47,23 @@ export function suscribirBotsEntidad(
   let botsCache: Bot[] = [];
   let actualizadoCache: Record<string, number> = {};
 
-  const handleChange = (payload: any) => {
+  const handleChange = (payload: PayloadCambio) => {
     try {
-      const changeBot = payload?.new as Bot | null;
-      const eventType = payload?.eventType as 
-        | "INSERT" | "UPDATE" | "DELETE" | undefined;
+      const changeBot = payload?.new ?? null;
+      const eventType = payload?.eventType;
       const ahora = Date.now();
 
       const remoteBots: Bot[] = changeBot ? [changeBot] : [];
-      const remoteActualizado: Record<string, number> = changeBot 
+      const remoteActualizado: Record<string, number> = changeBot
         ? { [changeBot.id]: ahora } : {};
 
       const localEnvelope = { bots: botsCache, actualizado: actualizadoCache };
       const remoteEnvelope = { bots: remoteBots, actualizado: remoteActualizado };
-      
+
       const merged = fusionarBots(localEnvelope, remoteEnvelope);
       botsCache = merged.bots;
       actualizadoCache = merged.actualizado;
-      
+
       cb([...botsCache]);
     } catch (e) {
       console.warn('Error in suscribirBotsEntidad:', e);
@@ -69,13 +73,14 @@ export function suscribirBotsEntidad(
   return onTableChange("astraura_bots", { filter, event: "*" }, handleChange);
 }
 
-const CLAVE_ABIERTOS = "starseed.astraura.bots.abiertos.v1";
+/* `starseed.astraura.bots.orbes.v1` guarda las POSICIONES de las orbes por bot. */
+const CLAVE_ABIERTOS = "starseed.astraura.orbes-abiertos";
 
 export function abiertosEnEstaNeurona(): string[] {
   if (typeof window === "undefined") return [];
   try {
     const bruto = window.localStorage.getItem(CLAVE_ABIERTOS);
-    return bruto === null ? [] : Array.isArray(JSON.parse(bruto)) 
+    return bruto === null ? [] : Array.isArray(JSON.parse(bruto))
       ? JSON.parse(bruto) : [];
   } catch { return []; }
 }
@@ -98,4 +103,22 @@ export function marcarAbierto(botId: string, abierto: boolean): void {
       );
     }
   } catch { /* best effort */ }
+}
+
+/** Migra datos desde la clave anterior `starseed.astraura.bots.abiertos.v1`. */
+export function migrarAbiertosDesdeAntigua(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const antigua = window.localStorage.getItem("starseed.astraura.bots.abiertos.v1");
+    if (antigua === null) return;
+    const datos = JSON.parse(antigua);
+    if (Array.isArray(datos) && datos.length > 0) {
+      const actualBruto = window.localStorage.getItem(CLAVE_ABIERTOS);
+      const actuales = actualBruto === null ? [] : (JSON.parse(actualBruto) || []);
+      const combinados = Array.from(new Set([...actuales, ...datos])) as string[];
+      window.localStorage.setItem(CLAVE_ABIERTOS, JSON.stringify(combinados));
+    }
+  } catch {
+    // Si la clave antigua no existe o es ilegible, nada que migrar.
+  }
 }
