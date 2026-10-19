@@ -1,4 +1,5 @@
 import { REFERENCIAS_DESCRIPTORS } from "../referencias-conectores";
+import { describe, it, expect } from "vitest";
 
 describe("ReferenciasConectores", () => {
   it("should export at least one descriptor", () => {
