@@ -31,6 +31,7 @@ import {
 import { ModelDownloadsPanel } from "@/components/neurons/model-downloads-panel";
 import { NeuronServerConfig } from "@/components/neurons/neuron-server-config";
 import { Astraura158NeuronCard } from "@/components/neurons/astraura-158-neuron-card";
+import { PrestarRecursos } from "./prestar-recursos";
 
 /**
  * Adenda 149 · PUENTE entre los dos recomendadores: este panel usa
@@ -273,6 +274,28 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
         Selecciones automáticas por defecto según el entorno. Todo es ajustable después en cada chat, personalidad y cerebro.
         Los modelos de servidor funcionan en cualquier neurona sin instalar nada; los locales requieren la app del OS instalada.
       </p>
+
+      {/* Prestar recursos */}
+      <PrestarRecursos
+        prefs={{
+          computacion: true,
+          almacenamiento: true,
+          apps: [],
+          ancho: 0,
+          aQuien: {
+            cuenta: true,
+            grupos: false,
+            publico: false,
+          },
+          topes: {
+            cpu: 50,
+            ram: 1024,
+            disco: 2048,
+            soloCargando: false,
+          },
+        }}
+        onChange={() => {}}
+      />
     </div>
   );
 
