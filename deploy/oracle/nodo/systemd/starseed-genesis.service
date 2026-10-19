@@ -1,0 +1,18 @@
+[Unit]
+Description=StarSeed · nodo de Genesis (OPO1011) en el A1: siempre encendido
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system STARSEED_MANDO=1 PYTHONUNBUFFERED=1
+ExecStart=/home/starseed/.local/bin/next start -p 9002 -H 127.0.0.1
+Restart=on-failure
+RestartSec=60
+MemoryMax=3G
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
