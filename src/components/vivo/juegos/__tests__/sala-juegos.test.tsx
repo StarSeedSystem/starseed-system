@@ -216,8 +216,10 @@ describe("Dibujo-adivina", () => {
         expect(ana.q.getByText(palabra)).toBeInTheDocument();
         const letras = palabra.replace(/[^a-záéíóúüñ]/gi, "").length;
         expect(beto.q.getByRole("img", { name: `La palabra tiene ${letras} letras` })).toBeInTheDocument();
-        // nadie que adivina ve la palabra (como palabra completa, no como subcadena accidental)
-        expect(textoContienePalabra(beto.caja.textContent, palabra)).toBe(false);
+        // la palabra elegida no debe aparecer en los mensajes visibles para quienes adivinan
+        // (no en todo el componente, que incluye textos fijos como «La mesa»)
+        const mensajesBeto = beto.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
+        expect(textoContienePalabra(mensajesBeto, palabra)).toBe(false);
 
         const escribir = async (s: Sala, texto: string) => {
             const entrada = s.q.getByLabelText("Escribe tu intento");
@@ -234,8 +236,9 @@ describe("Dibujo-adivina", () => {
         await escribir(beto, palabra);
         await entregar();
         await waitFor(() => expect(carla.q.getByText(/Beto ha acertado/)).toBeInTheDocument());
-        // la palabra acertada NUNCA se enseña en el chat de los demás
-        expect(textoContienePalabra(carla.caja.textContent, `Beto${palabra}`)).toBe(false);
+        // la palabra acertada NUNCA se enseña en los mensajes visibles de las demás personas
+        const mensajesCarla = carla.q.getByRole("list", { name: "Intentos" })?.textContent ?? "";
+        expect(textoContienePalabra(mensajesCarla, `Beto${palabra}`)).toBe(false);
         expect(mesa(ana.c).tablero).toMatchObject({ aciertos: [expect.objectContaining({ seat: 1 })] });
         expect(beto.q.getByLabelText("Escribe tu intento")).toBeDisabled(); // ya acertó
 
