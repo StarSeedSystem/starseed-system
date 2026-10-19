@@ -39,7 +39,11 @@ class MockWebSocket {
     // Simular cierre
     setTimeout(() => {
       if (this.onclose) {
-        this.onclose.call(this, new CloseEvent("close"));
+        // Usar Event si CloseEvent no está disponible (en algunos entornos de prueba)
+        const closeEvent = typeof CloseEvent !== 'undefined' 
+          ? new CloseEvent("close") 
+          : new Event("close");
+        this.onclose.call(this, closeEvent);
       }
     }, 0);
   }
@@ -103,38 +107,47 @@ describe("abrirFlujoOido", () => {
   
   it("debería llamar al callback parcial al recibir mensaje parcial", async () => {
     const alParcialMock = vi.fn();
+    
+    // Sobrescribir el constructor para capturar la instancia ANTES de crear el flujo
+    const originalConstructor = mockWebSocketCls;
+    const SobrescritoWebSocketCls = class extends originalConstructor {
+      constructor(url: string) {
+        super(url);
+        creadoWS = this;
+        console.log("Instancia de WebSocket creada:", this);
+      }
+    } as typeof MockWebSocket;
+    
     const config = {
       url: "ws://localhost:8000/v1/audio/stream",
-      WebSocketImpl: mockWebSocketCls,
+      WebSocketImpl: SobrescritoWebSocketCls,
       alParcial: alParcialMock,
       alFinal: vi.fn(),
       alCerrar: vi.fn(),
     };
     
-    // Sobrescribir el constructor para capturar la instancia
-    const originalConstructor = mockWebSocketCls;
-    mockWebSocketCls = class extends originalConstructor {
-      constructor(url: string) {
-        super(url);
-        creadoWS = this;
-      }
-    } as typeof MockWebSocket;
-    
     const flujo = abrirFlujoOido(config);
+    console.log("Flujo creado:", flujo);
+    console.log("WebSocket creado (después de crear flujo):", creadoWS);
     
     // Esperar a que se establezca la conexión
     await new Promise(resolve => setTimeout(resolve, 10));
     
     // Acceder a la instancia de WebSocket creada y disparar evento
     if (creadoWS) {
+      // Agregar algunos logs para depuración
+      console.log("WebSocket creado:", creadoWS);
+      console.log("onmessage handler:", creadoWS.onmessage);
+      
       creadoWS.dispararMensajeParcial();
       
       // Esperar a que se procese el mensaje
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 20));
       
       expect(alParcialMock).toHaveBeenCalledWith("Hola");
     } else {
       // Si no podemos acceder a la instancia, fallamos la prueba
+      console.log("No se pudo acceder a la instancia de WebSocket");
       expect(true).toBe(false);
     }
     
@@ -144,22 +157,23 @@ describe("abrirFlujoOido", () => {
   
   it("debería llamar al callback final al recibir mensaje final", async () => {
     const alFinalMock = vi.fn();
-    const config = {
-      url: "ws://localhost:8000/v1/audio/stream",
-      WebSocketImpl: mockWebSocketCls,
-      alParcial: vi.fn(),
-      alFinal: alFinalMock,
-      alCerrar: vi.fn(),
-    };
     
-    // Sobrescribir el constructor para capturar la instancia
+    // Sobrescribir el constructor para capturar la instancia ANTES de crear el flujo
     const originalConstructor = mockWebSocketCls;
-    mockWebSocketCls = class extends originalConstructor {
+    const SobrescritoWebSocketCls = class extends originalConstructor {
       constructor(url: string) {
         super(url);
         creadoWS = this;
       }
     } as typeof MockWebSocket;
+    
+    const config = {
+      url: "ws://localhost:8000/v1/audio/stream",
+      WebSocketImpl: SobrescritoWebSocketCls,
+      alParcial: vi.fn(),
+      alFinal: alFinalMock,
+      alCerrar: vi.fn(),
+    };
     
     const flujo = abrirFlujoOido(config);
     
@@ -171,7 +185,7 @@ describe("abrirFlujoOido", () => {
       creadoWS.dispararMensajeFinal();
       
       // Esperar a que se procese el mensaje
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 20));
       
       expect(alFinalMock).toHaveBeenCalledWith("Mundo");
     } else {
@@ -185,22 +199,23 @@ describe("abrirFlujoOido", () => {
   
   it("debería llamar al callback de cierre al recibir mensaje done", async () => {
     const alCerrarMock = vi.fn();
-    const config = {
-      url: "ws://localhost:8000/v1/audio/stream",
-      WebSocketImpl: mockWebSocketCls,
-      alParcial: vi.fn(),
-      alFinal: vi.fn(),
-      alCerrar: alCerrarMock,
-    };
     
-    // Sobrescribir el constructor para capturar la instancia
+    // Sobrescribir el constructor para capturar la instancia ANTES de crear el flujo
     const originalConstructor = mockWebSocketCls;
-    mockWebSocketCls = class extends originalConstructor {
+    const SobrescritoWebSocketCls = class extends originalConstructor {
       constructor(url: string) {
         super(url);
         creadoWS = this;
       }
     } as typeof MockWebSocket;
+    
+    const config = {
+      url: "ws://localhost:8000/v1/audio/stream",
+      WebSocketImpl: SobrescritoWebSocketCls,
+      alParcial: vi.fn(),
+      alFinal: vi.fn(),
+      alCerrar: alCerrarMock,
+    };
     
     const flujo = abrirFlujoOido(config);
     
@@ -212,7 +227,7 @@ describe("abrirFlujoOido", () => {
       creadoWS.dispararMensajeDone();
       
       // Esperar a que se procese el mensaje
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 20));
       
       expect(alCerrarMock).toHaveBeenCalled();
     } else {

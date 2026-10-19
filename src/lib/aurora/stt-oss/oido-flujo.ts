@@ -106,8 +106,8 @@ export function abrirFlujoOido(config: OidoFlujoConfig): OidoFlujo {
         data = JSON.parse(text);
       }
       
-      // Tolerancia en los campos: puede ser `type` o no tenerlo, y `text` o `transcript`
-      const texto = data.text || data.transcript || "";
+      // Tolerancia en los campos: puede ser `type` o no tenerlo, y varios campos para el texto
+      const texto = data.text || data.transcript || data.partial || data.final || "";
       const tipo = data.type || "";
       
       if (tipo === "partial" || (!tipo && data.partial !== undefined)) {
