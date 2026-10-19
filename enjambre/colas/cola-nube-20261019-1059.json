@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261019",
+ "tareas": [
+  {
+   "id": "HFR1018B",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Biblioteca · ficha de HyperFrames en Vídeo (y su plugin de skills para agentes)",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/__tests__/video-hyperframes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Añade la ficha `video-hyperframes` (`kind: \"repo\"`, githubRepo heygen-com/hyperframes, licencia Apache-2.0, tags vídeo/edición/html/render, payload.categoria \"video\", payload.herramientaId \"hyperframes\", payload.claseLicencia \"libre\", descripción en español: «escribe HTML, sale vídeo; editor de vídeo de la Protomolécula, render en la malla y edición en grupo»). Prueba: id único, githubRepo, claseLicencia. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VST1018A"
+   ]
+  },
+  {
+   "id": "HFR1018Cb",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Vídeo HTML · plantilla StarSeed sin GSAP y detector de adaptadores con su licencia",
+   "archivos": [
+    "src/lib/video-html/plantilla.ts",
+    "src/lib/video-html/adaptadores.ts",
+    "src/lib/video-html/__tests__/adaptadores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "plantilla.ts: `plantillaStarSeed({ ancho, alto, duracion, titulo, fondo, acento })` devuelve el HTML de una composición válida para HyperFrames (raíz con `data-composition-id=\"main\"`, `data-start`, `data-duration`, `data-width`, `data-height` y `data-no-timeline`; cada elemento visible con id estable, `class=\"clip\"` y sus atributos de tiempo) animada SOLO con CSS @keyframes; escapa el texto. adaptadores.ts: `detectarAdaptadores(html)` → { usados: (\"css\"|\"waapi\"|\"animejs\"|\"lottie\"|\"three\"|\"typegpu\"|\"gsap\")[], editableVisualmente, motivo } (gsap → no editable visualmente, con motivo de licencia y la sugerencia de convertir a WAAPI). Pruebas: la plantilla no contiene «gsap» y el detector reconoce cada adaptador. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261019-093206-HFR1018C`)\nUn agente de la nube ya avanzó esta tarea (no pasa en el A1: vitest: poner/route.ts:\u001b[2m55:34\u001b[22m\u001b[39m\n    \u001b[90m 53| \u001b[39m    }\n    \u001b[90m 54| \u001b[39m\n    \u001b[90m 55| \u001b[39m    \u001b[35mconst\u001b[39m pathname \u001b[33m=\u001b[39m req\u001b[33m.\u001b[39mnextUrl\u001b[33m.\u001b[39mpathname\u001b[33m;\u001b[39m\n    \u001b[90m   | \u001b[39m                                 \u001b[31m^\u001b[39m\n    \u001b[90m 56| \u001b[39m    \u001b[35mif\u001b[39m (pathname\u001b[33m.\u001b[39m\u001b[34mstartsWith\u001b[39m(\u001b[32m\"/api/video-html/generate\"\u001b[39m)) {\n    \u001b[90m 57| \u001b[39m        \u001b[90m// Handle video/html composition generation\u001b[39m\n\u001b[90m \u001b[2m❯\u001b[22m src/app/api/genesis/proponer/__tests__/proponer.test.ts:\u001b[2m97:19\u001b[22m\u001b[39m\n\n\u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯\u001b[22m\u001b[39m\n\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261019-093206-HFR1018C:refs/remotes/origin/nube/a1-20261019-093206-HFR1018C\"` y `git cherry-pick --no-commit b614b3412070 d7b1e6a7d4d2 743f9ff410d5 df2198d3330b 42eab893085e 80044ff94cb9 8f20620936aa efe3fca60d99 5267905b82a2`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/genesis/proponer/route.ts, src/lib/video-html/__tests__/adaptadores.test.ts, src/lib/video-html/adaptadores.ts, src/lib/video-html/plantilla.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261019-093206-HFR1018C"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1018-203204.json": [
+   "HFR1018Cb"
+  ]
+ }
+}
