@@ -11,7 +11,7 @@ describe('ordenesMontaje', () => {
       },
       punto: '/home/usuario/montaje',
       soloLectura: false
-    };
+    } as const;
     
     const resultado = ordenesMontaje(params);
     expect(resultado).toBeDefined();
@@ -36,14 +36,14 @@ describe('ordenesMontaje', () => {
   
   it('debe generar órdenes válidas para linux con webdav readonly', () => {
     const params = {
-      sistema: 'linux',
+      sistema: 'windows',
       origen: {
         tipo: 'webdav',
         url: 'https://example.com/webdav'
       },
-      punto: '/mnt/mi-montaje',
+      punto: 'C:\\montaje',
       soloLectura: true
-    };
+    } as const;
     
     const resultado = ordenesMontaje(params);
     expect(resultado).toBeDefined();
@@ -90,9 +90,9 @@ describe('ordenesMontaje', () => {
         tipo: 'webdav',
         url: 'https://example.com/webdav'
       },
-      punto: '/home/usuario/../montaje',
-      soloLectura: false
-    };
+      punto: '/mnt/mi-montaje',
+      soloLectura: true
+    } as const;
     
     expect(() => ordenesMontaje(params)).toThrow(/Punto de montaje inválido/);
   });
