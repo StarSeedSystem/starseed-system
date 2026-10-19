@@ -65,10 +65,10 @@ describe("apagados por defecto y honestos", () => {
     });
     it("Meshy lleva la atribución obligatoria", () => {
       const p = procedenciaExterna("meshy");
-      expect(p.herramienta).toBe("meshy");
-      expect(p.uso).toBe("atribucion");
-      expect(p.atribucion).toBe("Modelo 3D generado con Meshy");
-      expect(p.licencia).toContain("CC BY 4.0");
+       expect(p!.herramienta).toBe("meshy");
+       expect(p!.uso).toBe("atribucion");
+       expect(p!.atribucion).toBe("Modelo 3D generado con Meshy");
+       expect(p!.licencia).toContain("CC BY 4.0");
     });
   });
 describe("crearTarea con fetch simulado", () => {
