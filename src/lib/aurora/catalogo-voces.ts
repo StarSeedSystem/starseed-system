@@ -44,6 +44,10 @@ export interface MotorVozCatalogo {
     velocidad: string;
     calidad: "alta" | "media" | "basica";
     notas: string;
+    /** Licencia real de los pesos/modelo (según `vigia-modelos.md` §3 y contrato). */
+    licenciaPesos: string;
+    /** Clase de licencia: libre / condicionada / personal. */
+    claseLicencia: "libre" | "condicionada" | "personal";
 }
 
 export const MOTORES_VOZ: MotorVozCatalogo[] = [
@@ -62,6 +66,8 @@ export const MOTORES_VOZ: MotorVozCatalogo[] = [
         velocidad: "~4× tiempo real en un M1 de 8 GB; instantáneo con anticipación y caché",
         calidad: "alta",
         notas: "Modelo base: OmniVoice (Apache-2.0). Port: omnivoice.cpp. Pesos GGUF: Serveurperso/OmniVoice-GGUF en Hugging Face.",
+        licenciaPesos: "CC-BY-NC",
+        claseLicencia: "personal",
     },
     {
         id: "kokoro",
@@ -78,6 +84,8 @@ export const MOTORES_VOZ: MotorVozCatalogo[] = [
         velocidad: "menos de tiempo real incluso en móviles",
         calidad: "media",
         notas: "Voces españolas: ef_dora, em_alex, em_santa. El motor adecuado para móviles de 4 GB.",
+        licenciaPesos: "Apache-2.0",
+        claseLicencia: "libre",
     },
     {
         id: "chatterbox",
@@ -94,6 +102,8 @@ export const MOTORES_VOZ: MotorVozCatalogo[] = [
         velocidad: "rápido con GPU; lento en CPU",
         calidad: "alta",
         notas: "Encaja como segundo daemon detrás del mismo contrato POST /tts. Su control de estilo ya viaja en VoiceMorphic como `instruct`.",
+        licenciaPesos: "MIT",
+        claseLicencia: "libre",
     },
     {
         id: "voxcpm",
@@ -110,6 +120,8 @@ export const MOTORES_VOZ: MotorVozCatalogo[] = [
         velocidad: "rápido con GPU; usable en CPU moderna",
         calidad: "alta",
         notas: "Su entonación por contexto es lo que VoiceMorphic imita por cláusulas; candidato a fusión cuando exista port cuantizado.",
+        licenciaPesos: "Apache-2.0",
+        claseLicencia: "libre",
     },
     {
         id: "openvoice2",
@@ -126,6 +138,8 @@ export const MOTORES_VOZ: MotorVozCatalogo[] = [
         velocidad: "depende de la red y de la cola del Space",
         calidad: "alta",
         notas: "Respaldo cuando no hay motor local. Nunca por defecto en descargas.",
+        licenciaPesos: "MIT",
+        claseLicencia: "libre",
     },
     {
         id: "sistema",
@@ -141,14 +155,137 @@ export const MOTORES_VOZ: MotorVozCatalogo[] = [
         velocidad: "instantánea",
         calidad: "basica",
         notas: "Solo cubre el hueco hasta que se instala un motor local.",
+        licenciaPesos: "Web Speech API",
+        claseLicencia: "libre",
+    },
+    {
+        id: "cosyvoice3",
+        nombre: "CosyVoice 3 (fun-cosyvoice3)",
+        origen: "Externo (FunASR / Alibaba, Apache-2.0). Voz con clonación de calidad, libre.",
+        repo: "https://github.com/FunAudioLLM/CosyVoice",
+        releasesDe: "FunAudioLLM/CosyVoice",
+        formato: "PyTorch · ~0,5B parámetros · clonación con ~3 s",
+        ramMinGB: 4,
+        gpu: "opcional",
+        offline: true,
+        plataformas: ["macos", "windows", "linux"],
+        porDefectoEn: [],
+        velocidad: "~1-3 s (GPU); lento en CPU",
+        calidad: "alta",
+        notas: "Clonación por referencia corta; libre para uso comercial y público.",
+        licenciaPesos: "Apache-2.0",
+        claseLicencia: "libre",
+    },
+    {
+        id: "qwen3-tts",
+        nombre: "Qwen3-TTS (Qwen, Alibaba)",
+        origen: "Externo (Qwen, Apache-2.0). TTS de alta calidad, multilingüe.",
+        repo: "https://github.com/QwenLM/Qwen-TTS",
+        releasesDe: "QwenLM/Qwen-TTS",
+        formato: "ONNX / PyTorch · 0,6B / 1,7B",
+        ramMinGB: 4,
+        gpu: "opcional",
+        offline: true,
+        plataformas: ["macos", "windows", "linux", "android", "ios", "web"],
+        porDefectoEn: [],
+        velocidad: "rápido con GPU; instantáneo con cuantización ligera",
+        calidad: "alta",
+        notas: "Libre; sin restricciones de uso comercial. Compatible con Motor 158-bit.",
+        licenciaPesos: "Apache-2.0",
+        claseLicencia: "libre",
+    },
+    {
+        id: "kittentts",
+        nombre: "KittenTTS (nano 0.8)",
+        origen: "Externo (Apache-2.0). Modelo pequeño (~25 MB), inglés principalmente.",
+        repo: "https://github.com/KittenML/KittenTTS",
+        releasesDe: "KittenML/KittenTTS",
+        formato: "ONNX / PyTorch · ~25 MB",
+        ramMinGB: 1,
+        gpu: "no",
+        offline: true,
+        plataformas: ["macos", "windows", "linux", "android", "ios", "web"],
+        porDefectoEn: [],
+        velocidad: "instantáneo",
+        calidad: "media",
+        notas: "Adecuado para móviles de baja RAM; inglés. Por defecto no se ofrece como opción real.",
+        licenciaPesos: "Apache-2.0",
+        claseLicencia: "libre",
+    },
+    {
+        id: "moss-tts-nano",
+        nombre: "MOSS-TTS-Nano (100 M)",
+        origen: "Externo (OpenMOSS / Apache-2.0). Voz rápida en cualquier dispositivo.",
+        repo: "https://github.com/OpenMOSS/MOSS-TTS",
+        releasesDe: "OpenMOSS/MOSS-TTS",
+        formato: "ONNX / PyTorch · ~100 M parámetros",
+        ramMinGB: 2,
+        gpu: "no",
+        offline: true,
+        plataformas: ["macos", "windows", "linux", "android", "ios", "web"],
+        porDefectoEn: [],
+        velocidad: "instantáneo en CPU moderna",
+        calidad: "media",
+        notas: "Libre; sin restricciones comerciales. Respuesta rápida en cualquier aparato.",
+        licenciaPesos: "Apache-2.0",
+        claseLicencia: "libre",
+    },
+    {
+        id: "dots-tts",
+        nombre: "dots.tts",
+        origen: "Externo (dot-tts, Apache-2.0). Diálogo multi-voz, libre.",
+        repo: "https://github.com/coqui-ai/TTS",
+        releasesDe: "coqui-ai/TTS",
+        formato: "ONNX / PyTorch · multi-locutor · diálogo",
+        ramMinGB: 4,
+        gpu: "opcional",
+        offline: true,
+        plataformas: ["macos", "windows", "linux"],
+        porDefectoEn: [],
+        velocidad: "rápido con GPU; moderado en CPU",
+        calidad: "alta",
+        notas: "Voces múltiples; libre para uso comercial y público.",
+        licenciaPesos: "Apache-2.0",
+        claseLicencia: "libre",
+    },
+    {
+        id: "voicestudio",
+        nombre: "VoiceStudio (fusión local + motores internos)",
+        origen: "Externo (debpalash/voicestudio, AGPL-3.0-only). Estudio de voz con clonación instantánea, diseño por atributos, doblaje y oído.",
+        repo: "https://github.com/debpalash/voicestudio",
+        releasesDe: "debpalash/voicestudio",
+        formato: "Electron + FastAPI en 127.0.0.1:3900 · pesos internos: OmniVoice (CC-BY-NC), CosyVoice3, Qwen3-TTS, KittenTTS, MOSS-TTS-Nano, dots.tts, etc.",
+        ramMinGB: 8,
+        gpu: "opcional",
+        offline: true,
+        plataformas: ["macos", "windows", "linux"],
+        porDefectoEn: [],
+        velocidad: "~0,5-3 s (estudio) · instantáneo con motor ligero interno",
+        calidad: "alta",
+        notas: "Motor de serie: OmniVoice (CC-BY-NC, personal). Sus motores internos libres (CosyVoice3, Qwen3-TTS, etc.) permiten uso libre según el contexto. El audio clonado lleva marca de agua y consentimiento registrado.",
+        licenciaPesos: "CC-BY-NC (OmniVoice) / AGPL-3.0 (programa)",
+        claseLicencia: "personal",
     },
 ];
 
-/** Motor por defecto para una plataforma y su RAM. Honesto con el hardware. */
-export function motorRecomendado(plataforma: Plataforma, ramGB: number): MotorVozCatalogo {
-    const candidatos = MOTORES_VOZ.filter((m) => m.plataformas.includes(plataforma) && m.offline && m.ramMinGB <= ramGB);
+/** Motor por defecto para una plataforma y su RAM, con contexto de licencia.
+ *  - `contexto = "personal"`: todos los motores que quepan (incluidos `personal`).
+ *  - `contexto` distinto de `"personal"`: solo motores `libre`; nunca un `personal`
+ *    como opción por defecto (cae al libre más capaz que quepa en la RAM).
+ */
+export function motorRecomendado(
+    plataforma: Plataforma,
+    ramGB: number,
+    contexto = "personal"
+): MotorVozCatalogo {
+    const candidatos = MOTORES_VOZ.filter(
+        (m) =>
+            m.plataformas.includes(plataforma) &&
+            m.ramMinGB <= ramGB &&
+            (contexto === "personal" || m.claseLicencia === "libre")
+    );
     const porDefecto = candidatos.find((m) => m.porDefectoEn.includes(plataforma));
-    return porDefecto ?? candidatos.sort((a, b) => a.ramMinGB - b.ramMinGB)[0] ?? MOTORES_VOZ[MOTORES_VOZ.length - 1];
+    return porDefecto ?? candidatos.sort((a, b) => b.ramMinGB - a.ramMinGB)[0] ?? MOTORES_VOZ[MOTORES_VOZ.length - 1];
 }
 
 /* ── B · Referencias de voz humana ─────────────────────────────────────────── */
