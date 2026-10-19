@@ -228,7 +228,8 @@ describe("textoEstadoOrden", () => {
     it("cada estado mapea al texto correcto", () => {
         Object.entries(estados).forEach(([estado, esperado]) => {
             expect(textoEstadoOrden(estado)).toBe(esperado);
-        });
+
+});
     });
 
     it("estado desconocido se devuelve tal cual", () => {
